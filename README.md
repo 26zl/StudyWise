@@ -1,2 +1,1 @@
-# BachelorOppgave
-BOP3000
+# Bachelor oppgave IT og informasjonssystemer 2026

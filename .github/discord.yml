@@ -1,0 +1,15 @@
+name: Discord Status
+on:
+  issues:
+    types: [opened, closed, reopened, assigned]
+
+jobs:
+  discord-notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Discord Varsel
+        uses: Ilshidur/action-discord@master
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        with:
+          args: 'GitHub Update: {{ EVENT_PAYLOAD.issue.title }} ble nettopp {{ EVENT_PAYLOAD.action }} ({{ EVENT_PAYLOAD.issue.html_url }})'
