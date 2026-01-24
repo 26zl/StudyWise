@@ -1,0 +1,107 @@
+/*
+ * zod schemas for Canvas API
+ */
+
+import { z } from "zod";
+
+// zod schemas for Canvas API responses
+
+export const CanvasUserSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  primary_email: z.string().email().nullable().optional(),
+  locale: z.string().nullable().optional(),
+});
+
+export const CanvasCourseSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  course_code: z.string().optional(),
+  enrollment_term_id: z.number().optional(),
+});
+
+export const CanvasAnnouncementSchema = z.object({
+  id: z.number(),
+  title: z.string(),
+  message: z.string().nullable().optional(),
+  posted_at: z.string().nullable().optional(),
+  author: z
+    .object({
+      id: z.number(),
+      display_name: z.string(),
+    })
+    .optional(),
+  html_url: z.string().optional(),
+});
+
+export const CanvasPlannerItemSchema = z.object({
+  context_type: z.string().optional(),
+  course_id: z.number().optional(),
+  plannable_id: z.number(),
+  plannable_type: z.string(),
+  plannable_date: z.string().nullable().optional(),
+  html_url: z.string().optional(),
+  plannable: z
+    .object({
+      id: z.number(),
+      title: z.string(),
+      due_at: z.string().nullable().optional(),
+      points_possible: z.number().nullable().optional(),
+    })
+    .optional(),
+});
+
+// ===== Normaliserte schemas (for frontend/backend kommunikasjon) =====
+
+export const BrukerSchema = z.object({
+  id: z.number(),
+  navn: z.string(),
+  epost: z.string().nullable(),
+});
+
+export const EmneSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  course_code: z.string().optional(),
+  enrollment_term_id: z.number().optional(),
+});
+
+export const AnnouncementSchema = CanvasAnnouncementSchema;
+
+// Meta og Response Schemas 
+
+export const MetaSchema = z.object({
+  pagesFetched: z.number(),
+  itemsCount: z.number(),
+});
+
+export const TestResponseSchema = z.object({
+  suksess: z.boolean(),
+  melding: z.string(),
+  bruker: BrukerSchema.optional(),
+});
+
+export const EmnerResponseSchema = z.object({
+  emner: z.array(EmneSchema),
+  meta: MetaSchema.optional(),
+});
+
+export const AnnouncementsResponseSchema = z.object({
+  announcements: z.array(AnnouncementSchema),
+  meta: MetaSchema.optional(),
+});
+
+// Type exports
+
+export type CanvasUser = z.infer<typeof CanvasUserSchema>;
+export type CanvasCourse = z.infer<typeof CanvasCourseSchema>;
+export type CanvasAnnouncement = z.infer<typeof CanvasAnnouncementSchema>;
+export type CanvasPlannerItem = z.infer<typeof CanvasPlannerItemSchema>;
+
+export type Bruker = z.infer<typeof BrukerSchema>;
+export type Emne = z.infer<typeof EmneSchema>;
+export type Announcement = z.infer<typeof AnnouncementSchema>;
+
+export type TestResponse = z.infer<typeof TestResponseSchema>;
+export type EmnerResponse = z.infer<typeof EmnerResponseSchema>;
+export type AnnouncementsResponse = z.infer<typeof AnnouncementsResponseSchema>;

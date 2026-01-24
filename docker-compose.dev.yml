@@ -1,0 +1,29 @@
+services:
+  backend:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./:/app
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - WEB_ORIGIN=http://localhost:3000
+      - NODE_ENV=development
+    env_file:
+      - ./backend/.env
+    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm --filter backend dev"
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./:/app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://backend:4000
+    depends_on:
+      - backend
+    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm --filter frontend dev"

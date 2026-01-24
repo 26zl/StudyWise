@@ -1,0 +1,47 @@
+{
+  "name": "bachelor-usn",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel --filter frontend --filter backend dev",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:backend": "pnpm --filter backend dev",
+    "dev:common": "pnpm --filter common typecheck --watch",
+    "kill:dev": "taskkill //F //IM node.exe 2>nul || echo No dev servers running && rimraf frontend\\.next\\dev\\lock && echo Ryddet opp lock-fil",
+    "lint": "pnpm -r lint",
+    "lint:frontend": "pnpm --filter frontend lint",
+    "lint:backend": "pnpm --filter backend lint",
+    "typecheck": "pnpm -r typecheck",
+    "typecheck:frontend": "pnpm --filter frontend typecheck",
+    "typecheck:backend": "pnpm --filter backend typecheck",
+    "typecheck:common": "pnpm --filter common typecheck",
+    "build": "pnpm --filter common build && pnpm --filter backend build && pnpm --filter frontend build",
+    "build:common": "pnpm --filter common build",
+    "build:frontend": "pnpm --filter common build && pnpm --filter frontend build",
+    "build:backend": "pnpm --filter common build && pnpm --filter backend build",
+    "start": "pnpm --parallel start:frontend start:backend",
+    "start:frontend": "pnpm --filter frontend start",
+    "start:backend": "pnpm --filter backend start",
+    "update": "pnpm -r update",
+    "update:frontend": "pnpm --filter frontend update",
+    "update:backend": "pnpm --filter backend update",
+    "update:common": "pnpm --filter common update",
+    "outdated": "pnpm -r outdated",
+    "clean": "rimraf backend/dist frontend/.next common/dist",
+    "clean:install": "rimraf backend/node_modules frontend/node_modules common/node_modules backend/dist frontend/.next common/dist node_modules pnpm-lock.yaml || echo Cleaning... && pnpm install"
+  },
+  "devDependencies": {
+    "rimraf": "^6.1.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "glob@<8": ">=8.0.0",
+      "inflight": "npm:@node-rs/inflight@latest"
+    },
+    "onlyBuiltDependencies": [
+      "@scarf/scarf",
+      "esbuild",
+      "sharp",
+      "unrs-resolver"
+    ]
+  }
+}

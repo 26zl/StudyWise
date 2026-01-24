@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+.next/
+out/
+
+# Environment variables
+.env
+.env*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+.vs/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Misc
+*.bak
+*.tmp
+.snyk/
+*instructions/
+.claude/
+kill-dev.bat
+
+# TypeScript
+*.tsbuildinfo
+
+# pnpm
+.pnpm-store/
+.pnpm-debug.log
+backend/pnpm-lock.yaml
+common/node_modules/
+
+# Next.js specific
+.next/
+
+# Vercel
+.vercel
