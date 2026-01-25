@@ -18,7 +18,7 @@ Guide for utvikling i Bachelor IT prosjektet.
 
 Prosjektet er delt i tre hoveddeler:
 
-```
+```text
 BachelorOppgave/
 ├── common/              # Delte typer og validering
 │   └── src/
@@ -49,7 +49,7 @@ sender det videre til frontend.
 
 ### Dataflyt
 
-```
+```text
 1. Canvas LMS (USN sin læringsplattform)
    ↓
 2. Backend henter data fra Canvas API
@@ -195,6 +195,7 @@ import { KalenderResponseSchema } from "common/kalender";
 export type { Event, KalenderResponse } from "common/kalender";
 
 async function fetchKalender() {
+  // Bruk relativ URL
   const res = await fetch("/api/kalender");
   if (!res.ok) throw new Error("Kunne ikke hente kalender");
 
@@ -259,11 +260,13 @@ hvordan data skal se ut.
 ### Hvorfor trenger vi Common?
 
 **Uten Common:**
+
 - Backend sender `{ name: "Ola" }`
 - Frontend forventer `{ navn: "Ola" }`
 - Applikasjonen krasjer
 
 **Med Common:**
+
 - Begge bruker samme definisjon
 - TypeScript varsler hvis noe er feil
 - Runtime validering fanger feil
@@ -271,10 +274,12 @@ hvordan data skal se ut.
 ### Når legger du til noe i Common?
 
 **JA:**
+
 - Data som sendes mellom backend og frontend
 - Data fra eksterne APIer (Canvas, OpenAI, etc.)
 
 **NEI:**
+
 - React komponenter
 - Express middleware
 - CSS styling
@@ -312,7 +317,7 @@ Backend er en Express server som:
 
 ### Backend struktur
 
-```
+```text
 backend/src/
 ├── rutere/
 │   ├── canvas/
@@ -326,14 +331,14 @@ backend/src/
 
 ### Backend vanlige oppgaver
 
-**Hente data fra Canvas:**
+#### Hente data fra Canvas
 
 ```typescript
 const response = await canvasFetch("/api/v1/courses");
 const courses = CoursesSchema.parse(response.data);
 ```
 
-**Lage et nytt endpoint:**
+#### Lage et nytt endpoint
 
 ```typescript
 router.get("/mindata", async (req, res) => {
@@ -345,7 +350,7 @@ router.get("/mindata", async (req, res) => {
 });
 ```
 
-**Error handling:**
+#### Error handling
 
 ```typescript
 try {
@@ -372,7 +377,7 @@ Frontend er en Next.js nettside som:
 
 ### Frontend struktur
 
-```
+```text
 frontend/app/
 ├── canvas/
 │   └── canvas-api.ts      # KUN data-fetching logikk (hooks)
@@ -389,7 +394,7 @@ frontend/components/       # Gjenbrukbare UI-komponenter
 
 ### Frontend vanlige oppgaver
 
-**Hente data med React Query:**
+#### Hente data med React Query
 
 ```typescript
 export function useMinData() {
@@ -404,7 +409,45 @@ export function useMinData() {
 }
 ```
 
-**Vise data i en komponent:**
+#### Viktig Best Practice for Data Fetching: API URL
+
+Når du fetcher data i frontend, bør du bruke **relative URL-er**.
+Prosjektet er konfigurert med Next.js rewrites i `next.config.js` som automatisk sender forespørsler som starter med `/api` til backend.
+
+Dette fungerer både:
+
+1. **Lokalt**: Next.js (port 3000) sender til backend (port 4000)
+2. **Docker**: Next.js serveren sender til backend containeren internt i Docker-nettverket
+
+```typescript
+export function useMinData() {
+  return useQuery({
+    queryKey: ["mindata"],
+    queryFn: async () => {
+      // Riktig måte: Bruk relativ URL
+      // Next.js rewrites tar seg av resten!
+      const res = await fetch("/api/mindata");
+      
+      // Feil måte: Hardkodet localhost eller direkte bruk av env vars i fetch
+      // const res = await fetch("http://localhost:4000/api/mindata");
+      
+      const data = await res.json();
+      return MinDataSchema.parse(data);
+    },
+  });
+}
+```
+
+#### Legge til nye API-ruter?
+
+Du trenger **IKKE** endre `next.config.js` når du legger til nye API-endpoints, så lenge de starter med `/api/` i backend.
+
+- `frontend/next.config.js` har en "wildcard" regel: alt som treffer `/api/*` sendes til backend.
+- Så hvis du lager `backend/src/rutere/ny-funksjon.ts` og bruker `app.use("/api/ny-funksjon", ...)` i `index.ts`, vil frontend automatisk kunne kalle `/api/ny-funksjon`.
+
+Unngå å lage ruter som *ikke* starter med `/api/` i backend, med mindre du har en veldig god grunn (da må du oppdatere `next.config.js`).
+
+#### Vise data i en komponent
 
 ```typescript
 export default function MinSide() {
@@ -417,7 +460,7 @@ export default function MinSide() {
 }
 ```
 
-**Håndtere forms:**
+#### Håndtere forms
 
 ```typescript
 const handleSubmit = async (formData) => {

@@ -15,7 +15,7 @@ const router = Router();
 // Canvas configuration - read from env at runtime
 const getCanvasConfig = () => ({
   token: process.env.CANVAS_TOKEN,
-  baseUrl: process.env.CANVAS_BASE_URL || "https://usn.instructure.com"
+  baseUrl: process.env.CANVAS_BASE_URL,
 });
 
 // Canvas fetch funksjon med paginering og timeout

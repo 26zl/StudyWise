@@ -88,7 +88,8 @@ export default function DashboardPage() {
                 <button
                   onClick={async () => {
                     try {
-                      const res = await fetch("http://localhost:4000/health");
+                      // Bruker relativ URL - Next.js rewrite vil sende dette til backend
+                      const res = await fetch("/health");
                       const data = await res.json();
                       if (typeof window !== "undefined") {
                         window.alert(`Health Check: ${JSON.stringify(data, null, 2)}`);

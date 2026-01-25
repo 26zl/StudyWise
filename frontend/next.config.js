@@ -7,9 +7,18 @@ const nextConfig = {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
     return [
+      // 1. Alt som starter med /api/ sendes videre til backend.
+      // Dvs. frontend "/api/min-ressurs" -> backend "/api/min-ressurs".
+      // Du trenger IKKE legge til nye regler her med mindre du lager ruter
+      // i backend som IKKE starter med /api/.
       {
         source: "/api/:path*",
         destination: `${apiUrl}/api/:path*`,
+      },
+      // 2. Health check endpoint (spesifikt unntak siden den ligger på roten i backend)
+      {
+        source: "/health",
+        destination: `${apiUrl}/health`,
       },
     ];
   },

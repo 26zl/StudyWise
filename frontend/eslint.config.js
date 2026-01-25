@@ -26,6 +26,7 @@ const eslintConfig = [
         navigator: "readonly",
         localStorage: "readonly",
         sessionStorage: "readonly",
+        process: "readonly",
       },
     },
     plugins: {

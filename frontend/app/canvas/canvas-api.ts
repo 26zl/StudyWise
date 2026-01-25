@@ -27,6 +27,7 @@ export type {
 
 // API funksjoner 
 async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>): Promise<T> {
+  // Bruker relativ URL slik at Next.js rewrites håndterer videresending til backend (i Docker eller localhost)
   const res = await fetch(`/api/canvas${endpoint}`);
 
   if (!res.ok) {
