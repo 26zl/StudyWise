@@ -302,15 +302,6 @@ før du starter `pnpm dev` på nytt.
 - Verifiser at Canvas token er gyldig
 - Sjekk at `CANVAS_BASE_URL` er riktig
 
-## Foreløpig roadmap
-
-- [ ] Bygge ut AI integrasjonen
-- [ ] Fullføre bruker - JWT-autentisering
-- [ ] Implementere bruker-spesifikke tokens
-- [ ] Utvide Canvas API-integrasjon
-- [ ] Legge til database-støtte (MongoDB - Mongoose)
-- [ ] Bygge ut dashboard-funksjonalitet (SPA-struktur + Komponenter)
-
 ## Lisens
 
 Se LICENSE-fil for detaljer.
