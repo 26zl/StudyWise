@@ -22,6 +22,9 @@ hvordan du skal kode og utvikle dette prosjektet.
 - pnpm installert (`npm install -g pnpm`)
 - Canvas LMS-konto (f.eks. USN Canvas)
 
+> **Viktig:** Husk å holde din lokale versjon oppdatert! Kjør `git pull origin main` jevnlig.
+> **Tips:** Kjør `pnpm typecheck`, `pnpm lint` og `pnpm build` jevnlig for å oppdage feil tidlig.
+
 ### Installasjon
 
 1. **Klon repoet**:
@@ -177,9 +180,9 @@ Backend har integrert Swagger UI for å utforske og teste API-endepunkter:
 BachelorOppgave/
 ├── common/                  # Delte Zod schemas (workspace pakke)
 │   ├── src/
+│   │   ├── auth.ts              # Auth schemas
 │   │   ├── canvas.ts            # Canvas API schemas
 │   │   ├── ki.ts                # KI API schemas
-│   │   ├── kalender.ts          # Kalender schemas
 │   │   └── index.ts             # Eksporterer alle schemas
 │   ├── dist/                    # Kompilerte filer (.js + .d.ts)
 │   ├── package.json             # Inkluderer build script
@@ -195,15 +198,17 @@ BachelorOppgave/
 │   │   ├── auth/           # Autentisering
 │   │   │   ├── auth-api.ts      # Auth API hooks
 │   │   │   └── page.tsx         # Login-side
-│   │   ├── KI/             # AI-funksjonalitet
+│   │   ├── ki/                 # KI-sider
 │   │   │   └── ki-api.ts        # Kun API-logikk (hooks)
 │   │   ├── layout.tsx      # Root layout (Providers + Global CSS)
-│   │   ├── page.tsx        # Root page (redirecter til /hjem)
+
 │   │   ├── providers.tsx   # React Query provider
-│   │   └── globals.css     # Global styling (Tailwind v4)
-│   ├── components/         # Gjenbrukbare komponenter
-│   │   ├── CanvasSection.tsx    # Viser Canvas-innhold i dashboard
-│   │   └── KISection.tsx        # Viser AI-chat i dashboard
+│   │   ├── globals.css     # Global styling (Tailwind v4)
+│   │   ├── components/     # Gjenbrukbare komponenter
+│   │       ├── canvasSection.tsx    # Viser Canvas-innhold i dashboard
+│   │       ├── kiSection.tsx        # Viser AI-chat i dashboard
+│   │       ├── header.tsx           # Global header
+│   │       └── footer.tsx           # Global footer
 │   ├── package.json
 │   ├── postcss.config.mjs  # Tailwind v4 config
 │   └── tsconfig.json

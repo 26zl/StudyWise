@@ -1,40 +1,30 @@
 /*
-* Kun ment for testing/eksempel, må endres.
+* Kun ment for testing/eksempel, UI/UX må endres.
 * Placeholder
 */
 
 
 "use client";
-import { useState } from "react";
 
-import { KIChatResponse } from "common/ki";
+
+import { useKITestConnection } from "../ki/ki-api";
 
 export function KISection() {
-    const [status, setStatus] = useState<string | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [response, setResponse] = useState<KIChatResponse | null>(null);
+    const { data: response, error, isLoading, refetch } = useKITestConnection();
 
     const testConnection = async () => {
-        setLoading(true);
-        setStatus("Kobler til...");
-        setResponse(null);
-        try {
-            // Bruker relativ URL slik at Next.js rewrites håndterer videresending
-            const res = await fetch("/api/ki/test-connection");
-            const data = await res.json();
-            if (data.suksess) {
-                setStatus("Tilkoblet!");
-                setResponse(data);
-            } else {
-                setStatus("Feil: " + data.melding);
-            }
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : String(err);
-            setStatus("Nettverksfeil: " + errorMessage);
-        } finally {
-            setLoading(false);
-        }
+        refetch();
     };
+
+    const status = isLoading
+        ? "Kobler til..."
+        : error
+            ? `Feil: ${error.message}`
+            : response?.suksess
+                ? "Tilkoblet!"
+                : response
+                    ? `Feil: ${response.melding}`
+                    : null;
 
     return (
         <div className="p-4 sm:p-6 md:p-8 border rounded-lg bg-white dark:bg-gray-900 dark:border-gray-700 text-center transition-colors">
@@ -51,10 +41,10 @@ export function KISection() {
                 <div className="mt-4 border-t dark:border-gray-700 pt-4 w-full">
                     <button
                         onClick={testConnection}
-                        disabled={loading}
+                        disabled={isLoading}
                         className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 text-sm"
                     >
-                        {loading ? "Tester..." : "Test AI Kobling"}
+                        {isLoading ? "Tester..." : "Test AI Kobling"}
                     </button>
 
                     {status && (

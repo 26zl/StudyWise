@@ -1,7 +1,7 @@
 /*
  * Login-side for Canvas LMS autentisering
  * Placeholder til autentiseringssystem er implementert
- * Må endres etterhvert
+ * UI/UX må endres etterhvert
  */
 
 export default function AuthPage() {

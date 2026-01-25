@@ -7,8 +7,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
-import { Header } from "../components/header";
-import { Footer } from "../components/footer";
+import { Header } from "./components/header";
+import { Footer } from "./components/footer";
 
 export const metadata: Metadata = {
   title: "Bachelor IT - USN",

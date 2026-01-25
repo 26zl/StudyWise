@@ -20,19 +20,59 @@ Prosjektet er delt i tre hoveddeler:
 
 ```text
 BachelorOppgave/
-├── common/              # Delte typer og validering
-│   └── src/
-│       ├── canvas.ts
-│       └── ki.ts
-├── backend/             # API server
-│   └── src/
-│       ├── rutere/
-│       └── index.ts
-└── frontend/            # Nettside
-    └── app/
-        ├── canvas/
-        ├── dashboard/
-        └── layout.tsx
+├── common/                  # Delte Zod schemas (workspace pakke)
+│   ├── src/
+│   │   ├── auth.ts              # Auth schemas
+│   │   ├── canvas.ts            # Canvas API schemas
+│   │   ├── ki.ts                # KI API schemas
+│   │   └── index.ts             # Eksporterer alle schemas
+│   ├── dist/                    # Kompilerte filer (.js + .d.ts)
+│   ├── package.json             # Inkluderer build script
+│   └── tsconfig.json            # Extends ../tsconfig.base.json
+├── frontend/                # Next.js frontend
+│   ├── app/                # App Router
+│   │   ├── hjem/           # Hjemmeside / Landing page
+│   │   │   └── page.tsx
+│   │   ├── canvas/         # Canvas
+│   │   │   └── canvas-api.ts    # Kun API-logikk (hooks)
+│   │   ├── dashboard/      # Dashboard (SPA Hub)
+│   │   │   └── page.tsx         # Hovedsiden som styrer visningene
+│   │   ├── auth/           # Autentisering
+│   │   │   ├── auth-api.ts      # Auth API hooks
+│   │   │   └── page.tsx         # Login-side
+│   │   ├── ki/                 # KI-sider
+│   │   │   └── ki-api.ts        # Kun API-logikk (hooks)
+│   │   ├── layout.tsx      # Root layout (Providers + Global CSS)
+│   │   ├── page.tsx        # Root page (redirecter til /hjem)
+│   │   ├── providers.tsx   # React Query provider
+│   │   ├── globals.css     # Global styling (Tailwind v4)
+│   │   ├── components/     # Gjenbrukbare komponenter
+│   │       ├── canvasSection.tsx    # Viser Canvas-innhold i dashboard
+│   │       ├── kiSection.tsx        # Viser AI-chat i dashboard
+│   │       ├── header.tsx           # Global header
+│   │       └── footer.tsx           # Global footer
+│   ├── package.json
+│   ├── postcss.config.mjs  # Tailwind v4 config
+│   └── tsconfig.json
+├── backend/                # Express backend
+│   ├── src/
+│   │   ├── database/       # Database-kobling
+│   │   │   └── database.ts      # Kobler til MongoDB
+│   │   ├── rutere/         # API-ruter
+│   │   │   ├── canvas/
+│   │   │   │   └── canvas.ts    # Canvas LMS API endpoints
+│   │   │   ├── auth/
+│   │   │   │   └── auth.ts      # Autentisering endpoints
+│   │   │   └── ki/
+│   │   │       └── ki.ts        # KI/AI endpoints
+│   │   ├── swagger.ts      # Swagger/OpenAPI konfigurasjon
+│   │   └── index.ts        # Server entry point + /health endpoint
+│   ├── package.json
+│   └── tsconfig.json       # Extends ../tsconfig.base.json
+├── tsconfig.base.json      # Delt TypeScript konfigurasjon
+├── package.json            # Workspace root (monorepo scripts)
+├── pnpm-workspace.yaml     # pnpm workspace config
+└── docker-compose.yml      # Docker Compose config
 ```
 
 **Common**: Inneholder alle data-definisjoner som brukes av både backend og
@@ -324,8 +364,8 @@ backend/src/
 │   │   └── canvas.ts      # Endpoints for Canvas data
 │   ├── auth/
 │   │   └── auth.ts        # Endpoints for pålogging
-│   └── KI/
-│       └── KI.ts          # Endpoints for AI funksjoner
+│   └── ki/
+│       └── ki.ts          # Endpoints for AI funksjoner
 └── index.ts               # Starter serveren
 ```
 
@@ -402,11 +442,12 @@ frontend/app/
 │   └── page.tsx           # Hovedsiden (SPA container)
 ├── hjem/
 │   └── page.tsx           # Landingsside
+├── components/            # Gjenbrukbare UI-komponenter
+│   ├── canvasSection.tsx  # Viser Canvas-data i dashboardet
+│   ├── kiSection.tsx      # Viser AI-chat i dashboardet
+│   ├── header.tsx         # Global header
+│   └── footer.tsx         # Global footer
 └── layout.tsx             # Overordnet layout
-
-frontend/components/       # Gjenbrukbare UI-komponenter
-├── CanvasSection.tsx      # Viser Canvas-data i dashboardet
-└── KISection.tsx          # Viser AI-chat i dashboardet
 ```
 
 ### Frontend vanlige oppgaver
@@ -513,6 +554,9 @@ pnpm dev
 
 # 4. Stopp servere
 pnpm kill:dev
+
+# 5. Jevnlig sjekk (Anbefalt)
+pnpm typecheck && pnpm lint && pnpm build
 ```
 
 ### Legge til nye pakker
@@ -543,7 +587,13 @@ pnpm dev
 
 ### Git workflow
 
+Det er viktig at du holder din branch oppdatert med `main` for å unngå konflikter.
+
 ```bash
+# 0. Hent siste endringer fra main før du starter
+git checkout main
+git pull origin main
+
 # 1. Lag ny branch
 git checkout -b feature/kalender
 

@@ -6,8 +6,8 @@
 "use client";
 
 import { useState } from "react";
-import { CanvasSection } from "../../components/CanvasSection";
-import { KISection } from "../../components/KISection";
+import { CanvasSection } from "../components/canvasSection";
+import { KISection } from "../components/kiSection";
 
 export default function DashboardPage() {
   const [activeView, setActiveView] = useState<"overview" | "canvas" | "ki">("overview");

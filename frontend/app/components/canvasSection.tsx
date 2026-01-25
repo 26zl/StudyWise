@@ -1,12 +1,12 @@
 /*
 * Kun ment for testing/eksempel
-* Må endres
+* UI/UX må endres.
 */
 
 
 "use client";
 
-import { useCanvasAnnouncements, useCanvasEmner, useCanvasModules } from "../app/canvas/canvas-api";
+import { useCanvasAnnouncements, useCanvasEmner, useCanvasModules } from "../canvas/canvas-api";
 import { formatDistanceToNow } from "date-fns";
 import { nb } from "date-fns/locale";
 import { useState } from "react";

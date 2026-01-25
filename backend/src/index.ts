@@ -16,7 +16,7 @@ import { swaggerSpec } from "./swagger.js";
 import { connectToDatabase } from "./database/database.js";
 import canvasRuter from "./rutere/canvas/canvas.js";
 import authRuter from "./rutere/auth/auth.js";
-import kiRuter from "./rutere/KI/KI.js";
+import kiRuter from "./rutere/ki/ki.js";
 
 const app = express();
 const startTime = Date.now();

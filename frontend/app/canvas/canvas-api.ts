@@ -1,7 +1,8 @@
 /*
 * Canvas API klient for frontend
 * Håndterer kommunikasjon med backend API for Canvas data
-* Må endres etterhvert kun ment for testing/eksempel nå
+* Henter zod schemas fra common for validering av data
+* Må endres etterhvert kun ment for testing/eksempel nå, men struktur bør forbli lik.
 */
 
 import type { ZodType } from "zod";

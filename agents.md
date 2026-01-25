@@ -13,68 +13,60 @@ Dette er et **pnpm monorepo-prosjekt** som består av:
 ## 1. Komplett Prosjektstruktur
 
 ```text
-/ (Root - Monorepo)
-│
-├── .github/                    # GitHub CI/CD workflows
-├── .vscode/                    # Delte VS Code innstillinger
-├── .env.example                # Template for rot-miljøvariabler (hvis relevant)
-│
-├── frontend/                   # Next.js Applikasjon
-│   ├── app/                    # App Router Pages
-│   │   ├── auth/               # Innloggingsside
-│   │   ├── canvas/             # Canvas-relaterte sider
-│   │   ├── dashboard/          # Hoved-dashboard (SPA-container)
-│   │   ├── hjem/               # Landingsside (public)
-│   │   ├── KI/                 # KI-sider
-│   │   ├── layout.tsx          # Root Layout (Providers, Global CSS)
-│   │   └── page.tsx            # Redirect til /hjem
-│   │
-│   ├── components/             # React Komponenter
-│   │   ├── CanvasSection.tsx   # Visning av Canvas-data
-│   │   ├── KISection.tsx       # KI Chat grensesnitt
-│   │   └── ...                 # Nye komponenter her!
-│   │
-│   ├── public/                 # Statiske filer (bilder, fonts)
-│   ├── .env                    # Lokale miljøvariabler (IKKE commit)
-│   ├── next.config.js          # API Rewrites config
-│   ├── package.json            # Frontend-spesifikke pakker
-│   └── Dockerfile              # Frontend produksjons-bilde
-│
-├── backend/                    # Express API
+BachelorOppgave/
+├── common/                  # Delte Zod schemas (workspace pakke)
 │   ├── src/
-│   │   ├── database/           # MongoDB oppsett
-│   │   │   ├── database.ts     # Tilkoblingslogikk
-│   │   │   └── models/         # Mongoose modeller
-│   │   │
-│   │   ├── middleware/         # Express middleware (Auth, Rate Limit)
-│   │   │
-│   │   ├── rutere/             # API Endpoints
-│   │   │   ├── auth/           # Innlogging
-│   │   │   ├── canvas/         # Canvas LMS proxy
-│   │   │   └── ki/             # KI / HuggingFace
-│   │   │
-│   │   ├── index.ts            # Server Entry Point (Setup & Start)
-│   │   └── swagger.ts          # OpenAPI definisjon
-│   │
-│   ├── dist/                   # Kompilert JS (Autogenerert)
-│   ├── .env                    # Secrets (API keys, DB URL)
-│   ├── package.json            # Backend pakker
-│   └── Dockerfile              # Backend produksjons-bilde
-│
-├── common/                     # Delte ressurser
-│   ├── src/                    # TypeScript kildekode
-│   │   ├── canvas.ts           # Zod schemas for Canvas
-│   │   ├── ki.ts               # Zod schemas for KI
-│   │   └── index.ts            # Eksport av alt
-│   │
-│   ├── dist/                   # Kompilert output
-│   └── package.json            # Common pakker (Zod)
-│
-├── docker-compose.yml          # Produksjons-oppsett
-├── docker-compose.dev.yml      # Utviklings-oppsett (Hot Reload)
-├── pnpm-workspace.yaml         # Monorepo definisjon
-├── package.json                # Root scripts (Start hele stacken)
-└── agents.md                   # Denne filen
+│   │   ├── auth.ts              # Auth schemas
+│   │   ├── canvas.ts            # Canvas API schemas
+│   │   ├── ki.ts                # KI API schemas
+│   │   └── index.ts             # Eksporterer alle schemas
+│   ├── dist/                    # Kompilerte filer (.js + .d.ts)
+│   ├── package.json             # Inkluderer build script
+│   └── tsconfig.json            # Extends ../tsconfig.base.json
+├── frontend/                # Next.js frontend
+│   ├── app/                # App Router
+│   │   ├── hjem/           # Hjemmeside / Landing page
+│   │   │   └── page.tsx
+│   │   ├── canvas/         # Canvas
+│   │   │   └── canvas-api.ts    # Kun API-logikk (hooks)
+│   │   ├── dashboard/      # Dashboard (SPA Hub)
+│   │   │   └── page.tsx         # Hovedsiden som styrer visningene
+│   │   ├── auth/           # Autentisering
+│   │   │   ├── auth-api.ts      # Auth API hooks
+│   │   │   └── page.tsx         # Login-side
+│   │   ├── ki/                 # KI-sider
+│   │   │   └── ki-api.ts        # Kun API-logikk (hooks)
+│   │   ├── layout.tsx      # Root layout (Providers + Global CSS)
+│   │   ├── page.tsx        # Root page (redirecter til /hjem)
+│   │   ├── providers.tsx   # React Query provider
+│   │   ├── globals.css     # Global styling (Tailwind v4)
+│   │   ├── components/     # Gjenbrukbare komponenter
+│   │       ├── canvasSection.tsx    # Viser Canvas-innhold i dashboard
+│   │       ├── kiSection.tsx        # Viser AI-chat i dashboard
+│   │       ├── header.tsx           # Global header
+│   │       └── footer.tsx           # Global footer
+│   ├── package.json
+│   ├── postcss.config.mjs  # Tailwind v4 config
+│   └── tsconfig.json
+├── backend/                # Express backend
+│   ├── src/
+│   │   ├── database/       # Database-kobling
+│   │   │   └── database.ts      # Kobler til MongoDB
+│   │   ├── rutere/         # API-ruter
+│   │   │   ├── canvas/
+│   │   │   │   └── canvas.ts    # Canvas LMS API endpoints
+│   │   │   ├── auth/
+│   │   │   │   └── auth.ts      # Autentisering endpoints
+│   │   │   └── ki/
+│   │   │       └── ki.ts        # KI/AI endpoints
+│   │   ├── swagger.ts      # Swagger/OpenAPI konfigurasjon
+│   │   └── index.ts        # Server entry point + /health endpoint
+│   ├── package.json
+│   └── tsconfig.json       # Extends ../tsconfig.base.json
+├── tsconfig.base.json      # Delt TypeScript konfigurasjon
+├── package.json            # Workspace root (monorepo scripts)
+├── pnpm-workspace.yaml     # pnpm workspace config
+└── docker-compose.yml      # Docker Compose config
 ```
 
 ---
@@ -144,7 +136,11 @@ pnpm install
 pnpm build # Bygger common pakken først!
 ```
 
-### Kjøre Prosjektet
+### Git & Workflow
+
+1. **Hold deg oppdatert**: Kjør `git pull origin main` ofte for å unngå konflikter.
+2. **Kvalitetssjekk**: Kjør `pnpm typecheck`, `pnpm lint` og `pnpm build` jevnlig for å fange feil tidlig.
+3. **Kjøre Prosjektet**
 
 ```bash
 # Start alt i utviklingsmodus (anbefalt)
@@ -186,9 +182,10 @@ cd backend && pnpm add <pakke>
 ### Mappestruktur Regler
 
 - **Frontend**:
-  - Page komponenter (`page.tsx`) skal være tynne. Flytt logikk til `components/`.
-  - Nye komponenter skal i `frontend/components/`.
+  - Page komponenter (`page.tsx`) skal være tynne. Flytt logikk til `app/components/`.
+  - Nye komponenter skal i `frontend/app/components/`.
   - API-kall abstraheres i egne hooks (f.eks `canvas-api.ts`).
+  - Mens SPA (Single Page Application) container forblir i `frontend/app/dashboard/page.tsx`.
 - **Backend**:
   - Hver "ressurs" (Canvas, Auth, KI) får sin egen mappe under `src/rutere/`.
   - Ingen logikk i `src/index.ts` - kun oppsett.
