@@ -203,6 +203,12 @@ cd backend && pnpm add <pakke>
 - Bruk Zod i `common` for å validere data *før* det treffer databasen.
 - **Bruk Mongoose Models**: Bruk alltid Mongoose-modeller slik de er ment å brukes (`.find()`, `.create()`, osv.). Unngå native MongoDB driver kall med mindre strengt nødvendig.
 
+- **Bruk Mongoose Models**: Bruk alltid Mongoose-modeller slik de er ment å brukes (`.find()`, `.create()`, osv.). Unngå native MongoDB driver kall med mindre strengt nødvendig.
+
+### Generelle Regler
+
+- **Emojis**: Det skal IKKE brukes emojis i kode (tekst, knapper, kommentarer osv) med mindre brukeren SPESIFIKT ber om det.
+
 ---
 
 ## 6. Feilsøking (Troubleshooting)

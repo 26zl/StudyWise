@@ -54,6 +54,7 @@ common/node_modules/
 
 # Next.js specific
 .next/
+next-env.d.ts
 
 # Vercel
 .vercel

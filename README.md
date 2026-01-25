@@ -270,6 +270,10 @@ BachelorOppgave/
 - Multi-stage builds for optimal layer caching
 - Ingen unødvendige dependencies i production images
 
+**Git Ignore & Autogenererte filer:**
+
+- `next-env.d.ts` er lagt til i `.gitignore`. Denne filen genereres automatisk av Next.js og endres ofte. Den vil opprettes automatisk hos deg når du kjører `pnpm dev` eller `pnpm build`, så du trenger ikke tenke på den.
+
 ## Feilsøking
 
 ### pnpm kommandoer virker ikke
