@@ -34,6 +34,19 @@ export const CanvasAnnouncementSchema = z.object({
   html_url: z.string().optional(),
 });
 
+export const CanvasModuleItemSchema = z.object({
+  id: z.number(),
+  title: z.string(),
+  type: z.string(),
+  html_url: z.string().optional(),
+});
+
+export const CanvasModuleSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  items: z.array(CanvasModuleItemSchema).optional(),
+});
+
 export const CanvasPlannerItemSchema = z.object({
   context_type: z.string().optional(),
   course_id: z.number().optional(),
@@ -51,7 +64,7 @@ export const CanvasPlannerItemSchema = z.object({
     .optional(),
 });
 
-// ===== Normaliserte schemas (for frontend/backend kommunikasjon) =====
+// Normaliserte schemas (for frontend/backend kommunikasjon)
 
 export const BrukerSchema = z.object({
   id: z.number(),
@@ -66,6 +79,7 @@ export const EmneSchema = z.object({
   enrollment_term_id: z.number().optional(),
 });
 
+export const ModuleSchema = CanvasModuleSchema;
 export const AnnouncementSchema = CanvasAnnouncementSchema;
 
 // Meta og Response Schemas 
@@ -91,17 +105,25 @@ export const AnnouncementsResponseSchema = z.object({
   meta: MetaSchema.optional(),
 });
 
+export const ModulesResponseSchema = z.object({
+  modules: z.array(ModuleSchema),
+  meta: MetaSchema.optional(),
+});
+
 // Type exports
 
 export type CanvasUser = z.infer<typeof CanvasUserSchema>;
 export type CanvasCourse = z.infer<typeof CanvasCourseSchema>;
+export type CanvasModule = z.infer<typeof CanvasModuleSchema>;
 export type CanvasAnnouncement = z.infer<typeof CanvasAnnouncementSchema>;
 export type CanvasPlannerItem = z.infer<typeof CanvasPlannerItemSchema>;
 
 export type Bruker = z.infer<typeof BrukerSchema>;
 export type Emne = z.infer<typeof EmneSchema>;
+export type Module = z.infer<typeof ModuleSchema>;
 export type Announcement = z.infer<typeof AnnouncementSchema>;
 
 export type TestResponse = z.infer<typeof TestResponseSchema>;
 export type EmnerResponse = z.infer<typeof EmnerResponseSchema>;
 export type AnnouncementsResponse = z.infer<typeof AnnouncementsResponseSchema>;
+export type ModulesResponse = z.infer<typeof ModulesResponseSchema>;

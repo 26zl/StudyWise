@@ -1,5 +1,5 @@
 /*
-* Kun ment for testing, må endres.
+* Kun ment for testing/eksempel, må endres.
 * Placeholder
 */
 

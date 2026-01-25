@@ -30,9 +30,15 @@ app.disable("x-powered-by");
 app.use(express.json({ limit: "10mb" }));
 
 // CORS kun mot frontend
+const webOrigin = process.env.WEB_ORIGIN;
+if (!webOrigin) {
+  console.error("Mangler WEB_ORIGIN i .env");
+  process.exit(1);
+}
+
 app.use(
   cors({
-    origin: process.env.WEB_ORIGIN || "http://localhost:3000",
+    origin: webOrigin,
     credentials: true,
   })
 );
@@ -77,9 +83,14 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 });
 
 // Start server og kobler til database
-const port = Number(process.env.PORT || 4000);
+const port = process.env.PORT;
+if (!port) {
+  console.error("Mangler PORT i .env");
+  process.exit(1);
+}
+
 connectToDatabase().then(() => {
-  app.listen(port, () => {
+  app.listen(Number(port), () => {
     console.log(`Express API kjører på http://localhost:${port}`);
   });
 });

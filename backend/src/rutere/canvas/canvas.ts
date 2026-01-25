@@ -8,6 +8,7 @@ import {
   CanvasUserSchema,
   CanvasCourseSchema,
   CanvasAnnouncementSchema,
+  ModuleSchema,
 } from "common/canvas";
 
 const router = Router();
@@ -42,6 +43,9 @@ async function canvasFetch<T>(
 
   if (!token) {
     throw new Error("CANVAS_TOKEN er ikke konfigurert");
+  }
+  if (!baseUrl) {
+    throw new Error("CANVAS_BASE_URL er ikke konfigurert");
   }
 
   // Bygg URL med query params
@@ -463,6 +467,38 @@ router.use((error: Error, _req: unknown, res: unknown, _next: unknown) => {
   response.status(500).json({
     feil: "Canvas API feil",
     melding: error.message,
+  });
+});
+
+// GET /emner/:courseId/modules - Hent moduler
+router.get("/emner/:courseId/modules", async (req, res) => {
+  const { courseId } = req.params;
+  const courseIdNum = parseInt(courseId, 10);
+
+  if (isNaN(courseIdNum)) {
+    return res.status(400).json({
+      feil: "Ugyldig courseId",
+      melding: "courseId må være et tall",
+    });
+  }
+
+  // Vi spør også om items inni modulene
+  const response = await canvasFetch<unknown[]>(
+    `/api/v1/courses/${courseIdNum}/modules`,
+    {
+      queryParams: {
+        include: ["items"],
+        per_page: 50
+      },
+    }
+  );
+
+  // Valider med Zod
+  const moduler = z.array(ModuleSchema).parse(response.data);
+
+  res.json({
+    modules: moduler,
+    meta: response.meta,
   });
 });
 

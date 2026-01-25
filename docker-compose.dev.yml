@@ -23,7 +23,7 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://backend:4000
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
     depends_on:
       - backend
     command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm --filter frontend dev"

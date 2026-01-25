@@ -1,7 +1,7 @@
 /*
 * Canvas API klient for frontend
 * Håndterer kommunikasjon med backend API for Canvas data
-* Må endres etterhvert kun ment for testing nå
+* Må endres etterhvert kun ment for testing/eksempel nå
 */
 
 import type { ZodType } from "zod";
@@ -13,6 +13,7 @@ import {
   BrukerSchema as _BrukerSchema,
   EmneSchema as _EmneSchema,
   EmnerResponseSchema,
+  ModulesResponseSchema,
   TestResponseSchema,
 } from "common/canvas";
 
@@ -58,5 +59,16 @@ export function useCanvasAnnouncements() {
   return useQuery({
     queryKey: ["canvas", "announcements"],
     queryFn: () => fetchCanvas("/announcements", AnnouncementsResponseSchema),
+  });
+}
+
+export function useCanvasModules(courseId: number | null) {
+  return useQuery({
+    queryKey: ["canvas", "modules", courseId],
+    queryFn: () => {
+      if (!courseId) return null;
+      return fetchCanvas(`/emner/${courseId}/modules`, ModulesResponseSchema);
+    },
+    enabled: !!courseId,
   });
 }

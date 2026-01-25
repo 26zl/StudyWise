@@ -1,3 +1,8 @@
+/*
+* Swagger/OpenAPI dokumentasjon for API
+*/
+
+
 import swaggerJsdoc from "swagger-jsdoc";
 
 const options: swaggerJsdoc.Options = {

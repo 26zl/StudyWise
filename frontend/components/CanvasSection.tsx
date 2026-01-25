@@ -1,12 +1,12 @@
 /*
-* Kun ment for testing
+* Kun ment for testing/eksempel
 * Må endres
 */
 
 
 "use client";
 
-import { useCanvasAnnouncements, useCanvasEmner } from "../app/canvas/canvas-api";
+import { useCanvasAnnouncements, useCanvasEmner, useCanvasModules } from "../app/canvas/canvas-api";
 import { formatDistanceToNow } from "date-fns";
 import { nb } from "date-fns/locale";
 import { useState } from "react";
@@ -17,6 +17,16 @@ export function CanvasSection() {
     const announcementsQuery = useCanvasAnnouncements();
     const emnerQuery = useCanvasEmner();
     const [activeTab, setActiveTab] = useState<"menu" | "announcements" | "courses">("menu");
+    const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
+    const modulesQuery = useCanvasModules(selectedCourseId);
+
+    const handleBack = () => {
+        if (selectedCourseId) {
+            setSelectedCourseId(null);
+        } else {
+            setActiveTab("menu");
+        }
+    };
 
     if (activeTab === "menu") {
         return (
@@ -48,10 +58,10 @@ export function CanvasSection() {
     return (
         <div className="w-full">
             <button
-                onClick={() => setActiveTab("menu")}
+                onClick={handleBack}
                 className="mb-6 text-sm text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
             >
-                ← Tilbake til valg
+                ← {selectedCourseId ? "Tilbake til emner" : "Tilbake til valg"}
             </button>
 
             {/* Tabs - Responsive */}
@@ -111,15 +121,64 @@ export function CanvasSection() {
             )}
 
             {/* Courses Tab */}
-            {activeTab === "courses" && (
+            {activeTab === "courses" && !selectedCourseId && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3 sm:gap-4">
                     {emnerQuery.isLoading && (
                         <p className="col-span-full text-center text-gray-500 dark:text-gray-400 py-8">Laster emner...</p>
                     )}
                     {emnerQuery.data?.emner.map((emne) => (
-                        <div key={emne.id} className="p-4 sm:p-5 border rounded-lg shadow-sm bg-white hover:shadow-md transition-all dark:bg-gray-900 dark:border-gray-700 dark:hover:bg-gray-800">
+                        <div
+                            key={emne.id}
+                            onClick={() => setSelectedCourseId(emne.id)}
+                            className="p-4 sm:p-5 border rounded-lg shadow-sm bg-white hover:shadow-md transition-all dark:bg-gray-900 dark:border-gray-700 dark:hover:bg-gray-800 cursor-pointer"
+                        >
                             <h3 className="font-bold text-base sm:text-lg wrap-break-word text-gray-900 dark:text-gray-100">{emne.name}</h3>
                             <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">{emne.course_code}</p>
+                            <p className="text-xs text-blue-600 dark:text-blue-400 mt-2 font-medium">Klikk for å se moduler →</p>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Modules View (Nested in Courses) */}
+            {activeTab === "courses" && selectedCourseId && (
+                <div className="space-y-6">
+                    <h3 className="text-xl font-bold dark:text-white mb-4">
+                        Moduler for {emnerQuery.data?.emner.find(e => e.id === selectedCourseId)?.name}
+                    </h3>
+
+                    {modulesQuery.isLoading && (
+                        <p className="text-center text-gray-500 dark:text-gray-400 py-8">Laster moduler...</p>
+                    )}
+
+                    {modulesQuery.data?.modules.length === 0 && (
+                        <p className="text-gray-500">Ingen moduler funnet.</p>
+                    )}
+
+                    {modulesQuery.data?.modules.map((module) => (
+                        <div key={module.id} className="border rounded-lg overflow-hidden dark:border-gray-700">
+                            <div className="bg-gray-100 dark:bg-gray-800 p-4 border-b dark:border-gray-700">
+                                <h4 className="font-bold text-gray-900 dark:text-gray-100">{module.name}</h4>
+                            </div>
+                            <div className="divide-y dark:divide-gray-700">
+                                {module.items?.map((item) => (
+                                    <div key={item.id} className="p-3 bg-white dark:bg-gray-900 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xs font-mono px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                                                {item.type}
+                                            </span>
+                                            <a
+                                                href={DOMPurify.sanitize(item.html_url || "")}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                            >
+                                                {item.title}
+                                            </a>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     ))}
                 </div>

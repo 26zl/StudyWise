@@ -24,12 +24,10 @@ FROM node:20-alpine@sha256:3960ed74dfe320a67bf8da9555b6bade25ebda2b22b6081d2f60f
 
 WORKDIR /app
 
-# Copy standalone output from build stage
 COPY --from=base /app/frontend/.next/standalone ./
 COPY --from=base /app/frontend/.next/static ./frontend/.next/static
 COPY --from=base /app/frontend/public ./frontend/public
 
-# Copy common package dist (needed for runtime)
 COPY --from=base /app/common/dist ./common/dist
 COPY --from=base /app/common/package.json ./common/package.json
 
@@ -43,5 +41,4 @@ ENV HOSTNAME="0.0.0.0"
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
-# Start Next.js standalone server (much smaller, no node_modules needed!)
 CMD ["node", "frontend/server.js"]

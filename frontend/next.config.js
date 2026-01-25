@@ -3,8 +3,11 @@ const nextConfig = {
   transpilePackages: ["common"],
   output: "standalone",
   async rewrites() {
-    // Bruker miljøvariabel for API URL, med fallback til localhost
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    // Bruker miljøvariabel for API URL
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (!apiUrl) {
+      throw new Error("NEXT_PUBLIC_API_URL mangler i miljøvariabler");
+    }
 
     return [
       // 1. Alt som starter med /api/ sendes videre til backend.

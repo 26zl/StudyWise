@@ -362,6 +362,23 @@ try {
 }
 ```
 
+#### Database og Mongoose
+
+Vi bruker **Mongoose** som ORM for MongoDB. Det er viktig å bruke rammeverket slik det er ment:
+
+1. Definer modeller i `backend/src/database/models/`.
+2. Bruk modell-metoder for spørringer (`User.find()`, `Course.create()`).
+3. IKKE bypass Mongoose ved å bruke native driver eller direkte `db.collection` kall, med mindre det er en spesifikk ytelsesgrunn.
+
+```typescript
+// RIKTIG:
+import { User } from "../database/models/user";
+const users = await User.find({ active: true });
+
+// FEIL:
+// db.collection('users').find({ active: true })
+```
+
 ---
 
 ## Frontend - Brukergrensesnitt

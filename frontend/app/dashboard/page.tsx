@@ -1,7 +1,7 @@
 /*
  * Dashboard - Hovedsiden der "alt skjer"
  * Fungerer som en SPA (Single Page Application) container
- * Testing per nå, men logikken bør forbli den samme etter utvidet funksjonalitet
+ * Testing per nå, men logikken skal forbli den samme etter utvidet funksjonalitet uansett
  */
 "use client";
 
