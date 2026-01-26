@@ -95,7 +95,7 @@ Dette er hjertet av applikasjonen og fungerer som en **sentral hub** for student
 - **Database**: MongoDB via `mongoose` v9.1.
 - **Validation**: `zod` (gjenbruker schema fra `common`).
 - **API Docs**: `swagger-ui-express` + `swagger-jsdoc`.
-- **Logging**: `pino` + `pino-http`.
+- **Logging**: `pino` + `pino-http`. Bruk ALLTID `logger.info/error`, ALDRI `console.log`.
 - **Cache**: `redis` client interfacing with Redis Cloud.
 - **AI**: `@huggingface/inference` for integrasjon mot HuggingFace modeller.
 
@@ -209,6 +209,7 @@ cd backend && pnpm add <pakke>
 ### Generelle Regler
 
 - **Emojis**: Det skal IKKE brukes emojis i kode (tekst, knapper, kommentarer osv) med mindre brukeren SPESIFIKT ber om det.
+- **Konfigurasjon**: AI-agenter skal IKKE endre eller overskrive NOEN SOM HELST konfigurasjonsfiler i hele prosjektet (uansett filtype/navn) med mindre det er strengt nødvendig for kritisk funksjonalitet. Spør ALLTID brukeren først ved slike endringer.
 
 ---
 

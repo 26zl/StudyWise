@@ -397,7 +397,7 @@ try {
   const data = await risikabelOperasjon();
   res.json(data);
 } catch (error) {
-  console.error(error);
+  logger.error(error); // Bruk logger!
   res.status(500).json({ feil: "Noe gikk galt" });
 }
 ```
@@ -626,7 +626,7 @@ git push origin feature/kalender
 **Backend:**
 
 ```typescript
-console.log("Data fra Canvas:", data);
+logger.info({ data }, "Data fra Canvas"); // Bruk pino logger!
 ```
 
 **Frontend:**
@@ -670,3 +670,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 - [Next.js dokumentasjon](https://nextjs.org/docs)
 - [React Query dokumentasjon](https://tanstack.com/query/latest)
 - [Zod dokumentasjon](https://zod.dev)
+
+### Generelle Regler
+
+- **Emojis**: Det skal IKKE brukes emojis i kode (tekst, knapper, kommentarer osv) med mindre brukeren SPESIFIKT ber om det.
