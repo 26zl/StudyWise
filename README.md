@@ -9,7 +9,8 @@ hvordan du skal kode og utvikle dette prosjektet.
 
 - **Frontend**: Next.js 16 + TypeScript + Tailwind CSS + React Query +
   TanStack + Zod + Hookform
-- **Backend**: Express 5 + TypeScript + Pino + Helmet + Zod + Hugging Face
+- **Backend**: Express 5 + TypeScript + Redis + Pino + Helmet + Zod + Hugging Face
+- **Database**: MongoDB (Atlas/Lokal) + Redis (Cloud/Lokal)
 - **Common**: Zod schemas (delt mellom frontend og backend)
 - **Pakkehåndtering**: pnpm workspace (monorepo)
 - **Autentisering**: JWT
@@ -49,6 +50,7 @@ PORT=4000
 WEB_ORIGIN=http://localhost:3000
 CANVAS_TOKEN=din_canvas_token_her
 CANVAS_BASE_URL=https://usn.instructure.com
+REDIS_URL=redis://default:PASS@host:port
 ```
 
 ## Kommandoer (kjør fra rot)
@@ -211,6 +213,8 @@ BachelorOppgave/
 │   └── tsconfig.json
 ├── backend/                # Express backend
 │   ├── src/
+│   │   ├── cache/          # Redis Cache
+│   │   │   └── redis.ts         # Redis klient konfigurasjon
 │   │   ├── database/       # Database-kobling
 │   │   │   └── database.ts      # Kobler til MongoDB
 │   │   ├── rutere/         # API-ruter

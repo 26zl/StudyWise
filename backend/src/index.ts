@@ -11,9 +11,11 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import compression from "compression";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./swagger.js";
 import { connectToDatabase } from "./database/database.js";
+import "./cache/redis.js";
 import canvasRuter from "./rutere/canvas/canvas.js";
 import authRuter from "./rutere/auth/auth.js";
 import kiRuter from "./rutere/ki/ki.js";
@@ -26,6 +28,8 @@ app.set("trust proxy", 1);
 app.use(express.urlencoded({ extended: true }));
 
 app.disable("x-powered-by");
+
+app.use(compression());
 
 app.use(express.json({ limit: "10mb" }));
 

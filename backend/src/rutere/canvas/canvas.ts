@@ -3,6 +3,7 @@
 * Kun ment for testing og demonstrasjon av Canvas API integrasjon, skal ikke se slik ut.
 */
 import { Router } from "express";
+import { getCache, setCache } from "../../cache/redis.js";
 import { z } from "zod";
 import {
   CanvasUserSchema,
@@ -50,17 +51,49 @@ async function canvasFetch<T>(
 
   // Bygg URL med query params
   const url = new URL(`${baseUrl}${endpoint}`);
+  // Lag en stabil cache key string
+  const cacheKeyParams: string[] = [];
+
   if (queryParams) {
-    Object.entries(queryParams).forEach(([key, value]) => {
+    // Sorterer keys for stabilitet i cache key
+    Object.keys(queryParams).sort().forEach((key) => {
+      const value = queryParams[key];
       if (Array.isArray(value)) {
-        // Håndter arrays - append hver verdi separat med samme key
         value.forEach((item) => {
           url.searchParams.append(`${key}[]`, String(item));
+          cacheKeyParams.push(`${key}[]=${item}`);
         });
       } else {
         url.searchParams.append(key, String(value));
+        cacheKeyParams.push(`${key}=${value}`);
       }
     });
+  }
+
+  // Generer unik cache key: "canvas:STUDENT_TOKEN_HASH:ENDPOINT?PARAMS"
+  // For enkelhets skyld bruker vi token-suffix eller lignende hvis vi vil skille brukere,
+  // men ofte er token unikt for brukeren.
+  // Her antar vi at vi cacher per endpoint + params.
+  // NB: Hvis APIet returnerer brukerspesifikke data, MÅ vi inkludere noe som identifiserer brukeren i cache-nøkkelen.
+  // Siden vi bruker Bearer token i requesten, er svaret avhengig av tokenet.
+  // Vi kan hashe tokenet eller bruke en prefix hvis vi har user ID. 
+  // For denne implementasjonen bruker vi en enkel tilnærming: 
+  // Vi antar at backend kjører requests på vegne av én "systembruker" eller at token er konstant i env.
+  // HVIS token kommer fra request header i fremtiden, må dette endres!
+  // Siden token er hentet fra process.env.CANVAS_TOKEN (som er satt i .env), er det "globalt" for appen nå.
+
+  const cacheKey = `canvas:${endpoint}?${cacheKeyParams.join("&")}`;
+
+  // 1. Sjekk cache
+  try {
+    const cachedData = await getCache(cacheKey);
+    if (cachedData) {
+      console.log(`Redis Cache HIT: ${cacheKey}`);
+      return JSON.parse(cachedData);
+    }
+    console.log(`Redis Cache MISS: ${cacheKey}`);
+  } catch (err) {
+    console.error("Cache lookup failed", err);
   }
 
   const controller = new AbortController();
@@ -97,7 +130,10 @@ async function canvasFetch<T>(
         allItems.push(...data);
       } else {
         clearTimeout(timeoutId);
-        return { data: data as T };
+        const result = { data: data as T };
+        // Lagre i cache (bruk standard fra redis.ts)
+        await setCache(cacheKey, JSON.stringify(result));
+        return result;
       }
 
       // Sjekk for neste side via Link header
@@ -109,13 +145,17 @@ async function canvasFetch<T>(
 
     clearTimeout(timeoutId);
 
-    return {
+    const result = {
       data: allItems as T,
       meta: {
         pagesFetched,
         itemsCount: allItems.length,
       },
     };
+
+    // Lagre i cache (bruk standard fra redis.ts)
+    await setCache(cacheKey, JSON.stringify(result));
+    return result;
   } catch (error) {
     clearTimeout(timeoutId);
 

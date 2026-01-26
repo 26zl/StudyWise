@@ -96,6 +96,7 @@ Dette er hjertet av applikasjonen og fungerer som en **sentral hub** for student
 - **Validation**: `zod` (gjenbruker schema fra `common`).
 - **API Docs**: `swagger-ui-express` + `swagger-jsdoc`.
 - **Logging**: `pino` + `pino-http`.
+- **Cache**: `redis` client interfacing with Redis Cloud.
 - **AI**: `@huggingface/inference` for integrasjon mot HuggingFace modeller.
 
 ### Common
