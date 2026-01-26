@@ -24,6 +24,8 @@ export type {
   Bruker,
   Emne,
   EmnerResponse,
+  Module,
+  ModulesResponse,
   TestResponse,
 } from "common/canvas";
 
@@ -65,10 +67,8 @@ export function useCanvasAnnouncements() {
 export function useCanvasModules(courseId: number | null) {
   return useQuery({
     queryKey: ["canvas", "modules", courseId],
-    queryFn: () => {
-      if (!courseId) return null;
-      return fetchCanvas(`/emner/${courseId}/modules`, ModulesResponseSchema);
-    },
+    queryFn: () =>
+      fetchCanvas(`/emner/${courseId}/modules`, ModulesResponseSchema),
     enabled: !!courseId,
   });
 }
