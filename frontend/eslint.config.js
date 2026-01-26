@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import typescript from "@typescript-eslint/eslint-plugin";
 import typescriptParser from "@typescript-eslint/parser";
+import globals from "globals";
 
 const eslintConfig = [
   {
@@ -19,14 +20,8 @@ const eslintConfig = [
         },
       },
       globals: {
-        React: "readonly",
-        fetch: "readonly",
-        window: "readonly",
-        document: "readonly",
-        navigator: "readonly",
-        localStorage: "readonly",
-        sessionStorage: "readonly",
-        process: "readonly",
+        ...globals.browser,
+        ...globals.node,
       },
     },
     plugins: {
@@ -34,6 +29,7 @@ const eslintConfig = [
     },
     rules: {
       ...typescript.configs.recommended.rules,
+      "no-undef": "off",
       "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": [
         "warn",
@@ -46,13 +42,12 @@ const eslintConfig = [
     },
   },
   {
-    files: ["**/*.js"],
+    files: ["**/*.js", "**/*.mjs"],
     languageOptions: {
       sourceType: "module",
       ecmaVersion: "latest",
       globals: {
-        process: "readonly",
-        module: "readonly",
+        ...globals.node,
       },
     },
   },
