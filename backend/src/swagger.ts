@@ -11,7 +11,7 @@ const options: swaggerJsdoc.Options = {
     info: {
       title: "StudyWise API",
       version: "1.0.0",
-      description: "STUDYWISE – En KI-basert studieassistent for høyere utdanning med integrasjon mot instructure usn. Bachelor i IT 2026.",
+      description: "STUDYWISE. En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas Instructure. Bachelor i IT 2026.",
       contact: {
         name: "StudyWise 2026 Gruppe 3",
         url: "https://github.com/26zl/BachelorOppgave",

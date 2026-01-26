@@ -1,6 +1,6 @@
 {
   "name": "studywise",
-  "description": "STUDYWISE – En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas Instructure. Bachelor i IT 2026.",
+  "description": "STUDYWISE. En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas Instructure. Bachelor i IT 2026.",
   "private": true,
   "scripts": {
     "dev": "pnpm --parallel --filter frontend --filter backend dev",
