@@ -119,36 +119,33 @@ konsistent utvikling.
 
 ### Kjøre med Docker Compose
 
-1. **Bygg og start alle services**:
+Prosjektet har separate konfigurasjoner for utvikling og produksjon:
+
+- `docker-compose.dev.yml`: For utvikling (hot reload, volumes)
+- `docker-compose.prod.yml`: For produksjon
+
+1. **Bygg og start alle services (Utvikling)**:
 
 ```bash
-docker-compose up --build
+docker-compose -f docker-compose.dev.yml up --build
 ```
 
 1. **Stopp services**:
 
 ```bash
-docker-compose down
+docker-compose -f docker-compose.dev.yml down
 ```
 
 1. **Kjør i bakgrunnen (detached mode)**:
 
 ```bash
-docker-compose up -d
+docker-compose -f docker-compose.dev.yml up -d
 ```
 
 1. **Se logger**:
 
 ```bash
-docker-compose logs -f
-```
-
-### Dev-compose (valgfritt)
-
-Det finnes også en enkel `docker-compose.dev.yml` for utvikling (volumes + hot reload).
-
-```bash
-docker compose -f docker-compose.dev.yml up
+docker-compose -f docker-compose.dev.yml logs -f
 ```
 
 ## API Dokumentasjon
@@ -230,7 +227,8 @@ BachelorOppgave/
 ├── tsconfig.base.json      # Delt TypeScript konfigurasjon
 ├── package.json            # Workspace root (monorepo scripts)
 ├── pnpm-workspace.yaml     # pnpm workspace config
-└── docker-compose.yml      # Docker Compose config
+└── docker-compose.dev.yml  # Docker Compose (Dev)
+└── docker-compose.prod.yml # Docker Compose (Prod)
 ```
 
 ### Kodestandarder
@@ -278,8 +276,17 @@ BachelorOppgave/
 
 ### pnpm kommandoer virker ikke
 
+Sjekk om du har installert pnpm riktig.
+Etter det kjør:
+
 ```bash
 pnpm clean:install
+```
+
+Og deretter:
+
+```bash
+pnpm build
 ```
 
 ### Backend starter ikke / Port allerede i bruk

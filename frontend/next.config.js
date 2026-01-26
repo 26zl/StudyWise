@@ -12,10 +12,11 @@ const nextConfig = {
     root: path.resolve(__dirname, ".."),
   },
   async rewrites() {
-    // Bruker miljøvariabel for API URL
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    // Setter internal api url for backend Docker som første prioritet, ellers bruk public URL
+    const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL;
+
     if (!apiUrl) {
-      throw new Error("NEXT_PUBLIC_API_URL mangler i miljøvariabler");
+      throw new Error("API URL er ikke konfigurert, sjekk INTERNAL_API_URL i docker-compose.dev eller NEXT_PUBLIC_API_URL i .env filen.");
     }
 
     return [

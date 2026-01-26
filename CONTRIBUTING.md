@@ -432,6 +432,16 @@ Frontend er en Next.js nettside som:
 3. Viser data til brukeren
 4. Håndterer brukerinteraksjon
 
+### Styling og Design
+
+Vi bruker **Tailwind CSS**. Følg disse prinsippene:
+
+- **Mobile First**: Design alltid for mobilskjerm først, deretter legg på breakpoints (`sm:`, `md:`, `lg:`).
+  - *Riktig*: `w-full md:w-1/2` (Starter full bredde, blir halv bredde på desktop)
+  - *Feil*: `w-1/2 max-md:w-full` (Starter desktop, fikser for mobil)
+- **Dark Mode**: Alle komponenter må støtte dark mode (`dark:bg-slate-900`).
+- **Responsivitet**: Test alltid at designet fungerer på både mobil, tablet og desktop.
+
 ### Frontend struktur
 
 ```text
