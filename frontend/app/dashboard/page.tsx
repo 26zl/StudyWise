@@ -1,7 +1,6 @@
 /*
  * Dashboard - Hovedsiden der "alt skjer"
  * Fungerer som en SPA (Single Page Application) container
- * Testing per nå, men logikken skal forbli den samme etter utvidet funksjonalitet uansett
  */
 "use client";
 
@@ -9,21 +8,25 @@ import { useState } from "react";
 import { CanvasSection } from "../components/canvasSection";
 import { KISection } from "../components/kiSection";
 
+// Dashboard side komponent
 export default function DashboardPage() {
   const [activeView, setActiveView] = useState<"overview" | "canvas" | "ki">("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Meny elementer
   const menuItems = [
     { id: "overview" as const, label: "Oversikt", mobileLabel: "Oversikt" },
     { id: "canvas" as const, label: "Canvas", mobileLabel: "Canvas" },
     { id: "ki" as const, label: "KI Assistent", mobileLabel: "KI" },
   ];
 
+  // Håndterer meny logikk
   const handleMenuClick = (view: "overview" | "canvas" | "ki") => {
     setActiveView(view);
     setSidebarOpen(false); // Lukk sidebar på mobil etter valg
   };
 
+  // Render Dashboard
   return (
     <div className="h-full flex flex-col md:flex-row dark:bg-black dark:text-gray-100">
       {/* Mobile Header */}

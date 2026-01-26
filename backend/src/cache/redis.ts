@@ -2,35 +2,38 @@
 * Cache for redis primært brukt for Canvas API
 */
 import { createClient } from "redis";
+import { logger } from "../middleware/logger.js";
 
 const client = createClient({
     url: process.env.REDIS_URL,
 });
 
-client.on("error", (err) => console.log("Redis Client Error", err));
+client.on("error", (err) => logger.error({ err }, "Redis Client Error"));
 
 // Kobler til redis
-client.connect().catch(console.error);
+client.connect().catch((err) => logger.error({ err }, "Redis tilkobling feilet"));
 
 export const getCache = async (key: string): Promise<string | null> => {
-    if (!client.isOpen) return null;
+    if (!client.isOpen)
+        return null;
     try {
         return await client.get(key);
     } catch (error) {
-        console.warn("Redis error:", error);
+        logger.warn({ err: error }, "Redis error");
         return null;
     }
 };
 
 // Setter cache
 export const setCache = async (key: string, value: string, ttlSeconds: number = 300) => {
-    if (!client.isOpen) return;
+    if (!client.isOpen)
+        return;
     try {
         await client.set(key, value, {
             EX: ttlSeconds,
         });
     } catch (error) {
-        console.warn("Redis error:", error);
+        logger.warn({ err: error }, "Redis error");
     }
 };
 

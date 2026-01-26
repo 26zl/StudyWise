@@ -4,6 +4,7 @@
  */
 
 import mongoose from "mongoose";
+import { logger } from "../middleware/logger.js";
 
 const clientOptions = {
     serverApi: {
@@ -19,9 +20,9 @@ export const connectToDatabase = async () => {
     }
     try {
         await mongoose.connect(mongoURI, clientOptions as mongoose.ConnectOptions);
-        console.log("Tilkoblet til MongoDB");
+        logger.info("Tilkoblet til MongoDB");
     } catch (error) {
-        console.error("Kunne ikke koble til MongoDB:", error);
+        logger.error({ err: error }, "Kunne ikke koble til MongoDB");
         process.exit(1);
     }
 };

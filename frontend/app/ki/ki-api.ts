@@ -2,7 +2,6 @@
 * KI API klient for frontend
 * Håndterer kommunikasjon med backend API for AI funksjonalitet
 * Henter zod schemas fra common for validering av data
-* Ment for eksempel/testing men må forbli noe lignende, struktur fortsatt den samme.
 */
 
 import type { ZodType } from "zod";
@@ -11,6 +10,7 @@ import {
     KIChatResponseSchema,
 } from "common/ki";
 
+// Eksporter typer
 export type {
     KIChatResponse,
 } from "common/ki";
@@ -19,12 +19,10 @@ export type {
 async function fetchKI<T>(endpoint: string, schema: ZodType<T>): Promise<T> {
     // Bruker relativ URL slik at Next.js rewrites håndterer videresending
     const res = await fetch(`/api/ki${endpoint}`);
-
     if (!res.ok) {
         const error = await res.json();
         throw new Error(error.melding || error.feil || "API feil");
     }
-
     const data = await res.json();
     return schema.parse(data);
 }

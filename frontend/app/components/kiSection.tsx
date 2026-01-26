@@ -2,16 +2,15 @@
 * Kun ment for testing/eksempel, UI/UX må endres.
 * Placeholder
 */
-
-
 "use client";
-
 
 import { useKITestConnection } from "../ki/ki-api";
 
+// KI Seksjon komponent
 export function KISection() {
     const { data: response, error, isLoading, refetch } = useKITestConnection();
 
+    // Test KI tilkobling
     const testConnection = async () => {
         refetch();
     };
@@ -25,7 +24,7 @@ export function KISection() {
                 : response
                     ? `Feil: ${response.melding}`
                     : null;
-
+    // Render KI seksjon
     return (
         <div className="p-4 sm:p-6 md:p-8 border rounded-lg bg-white dark:bg-gray-900 dark:border-gray-700 text-center transition-colors">
             <h2 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-gray-900 dark:text-gray-100">KI Assistent</h2>

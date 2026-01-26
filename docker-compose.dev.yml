@@ -9,6 +9,8 @@ services:
       - /app/frontend/node_modules
       - /app/backend/node_modules
       - /app/common/node_modules
+      - /app/backend/dist
+      - /app/common/dist
     ports:
       - "4000:4000"
     environment:
@@ -18,7 +20,7 @@ services:
       - CI=true
     env_file:
       - ./backend/.env
-    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm --filter backend dev"
+    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install --config.package-import-method=copy --store-dir /root/.pnpm-store && pnpm --filter common build && pnpm --filter backend dev"
 
   frontend:
     container_name: studywise-frontend
@@ -30,6 +32,8 @@ services:
       - /app/frontend/node_modules
       - /app/backend/node_modules
       - /app/common/node_modules
+      - /app/frontend/.next
+      - /app/frontend/dist
     ports:
       - "3000:3000"
     environment:
@@ -39,4 +43,4 @@ services:
       - CI=true
     depends_on:
       - backend
-    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm --filter frontend dev"
+    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install --config.package-import-method=copy --store-dir /root/.pnpm-store && pnpm --filter common build && pnpm --filter frontend dev"

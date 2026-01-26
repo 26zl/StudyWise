@@ -12,14 +12,14 @@ concurrency:
 
 jobs:
   verify:
-    name: Verify Build & Lint
+    name: Verifiser bygging og linting
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install pnpm
+      - name: Installer pnpm
         uses: pnpm/action-setup@v3
         with:
           version: 10
@@ -30,7 +30,7 @@ jobs:
           node-version: 20
           cache: 'pnpm'
 
-      - name: Install dependencies
+      - name: Installer dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build Common

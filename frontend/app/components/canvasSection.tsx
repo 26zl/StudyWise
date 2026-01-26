@@ -2,8 +2,6 @@
 * Kun ment for testing/eksempel
 * UI/UX må endres.
 */
-
-
 "use client";
 
 import { useCanvasAnnouncements, useCanvasEmner, useCanvasModules } from "../canvas/canvas-api";
@@ -20,6 +18,7 @@ export function CanvasSection() {
     const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
     const modulesQuery = useCanvasModules(selectedCourseId);
 
+    // Håndterer meny logikk
     const handleBack = () => {
         if (selectedCourseId) {
             setSelectedCourseId(null);

@@ -1,6 +1,5 @@
 /*
 * Felles zod schemaer for KI API
-* Ment for visning nå på hvordan det gjøres, må endres etter hvert som vi implementerer KI
 */
 
 

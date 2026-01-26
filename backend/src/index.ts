@@ -13,8 +13,10 @@ import express from "express";
 import cors from "cors";
 import compression from "compression";
 import swaggerUi from "swagger-ui-express";
+import { pinoHttp } from "pino-http";
 import { swaggerSpec } from "./swagger.js";
 import { connectToDatabase } from "./database/database.js";
+import { logger } from "./middleware/logger.js";
 import "./cache/redis.js";
 import canvasRuter from "./rutere/canvas/canvas.js";
 import authRuter from "./rutere/auth/auth.js";
@@ -29,6 +31,8 @@ app.use(express.urlencoded({ extended: true }));
 
 app.disable("x-powered-by");
 
+app.use(pinoHttp({ logger }));
+
 app.use(compression());
 
 app.use(express.json({ limit: "10mb" }));
@@ -36,10 +40,11 @@ app.use(express.json({ limit: "10mb" }));
 // CORS kun mot frontend
 const webOrigin = process.env.WEB_ORIGIN;
 if (!webOrigin) {
-  console.error("Mangler WEB_ORIGIN i .env");
+  logger.error("Mangler WEB_ORIGIN i .env");
   process.exit(1);
 }
 
+// CORS konfigurasjon
 app.use(
   cors({
     origin: webOrigin,
@@ -75,26 +80,25 @@ app.get("/health", (_req, res) => {
 // API dokumentasjon (Swagger UI)
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// Ulike API ruter
+// Ulike API ruter defineres her
 app.use("/api/auth", authRuter);
 app.use("/api/canvas", canvasRuter);
 app.use("/api/ki", kiRuter);
 
-// Feil håndtering
+// Feil håndtering globalt
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error(err.stack);
+  logger.error({ err }, "Internal Server Error");
   res.status(500).json({ error: "Internal Server Error" });
 });
 
-// Start server og kobler til database
+// Start server og kobler til database med Mongoose
 const port = process.env.PORT;
 if (!port) {
-  console.error("Mangler PORT i .env");
+  logger.error("Mangler PORT i .env");
   process.exit(1);
 }
-
 connectToDatabase().then(() => {
   app.listen(Number(port), () => {
-    console.log(`Express API kjører på http://localhost:${port}`);
+    logger.info(`Express API kjører på http://localhost:${port}`);
   });
 });

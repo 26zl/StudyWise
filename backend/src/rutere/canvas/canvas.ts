@@ -1,10 +1,13 @@
 /*
-* Dette er bare en foreløpig implementering av Canvas API-integrasjon for testing mot Canvas LMS og dems apier. Skal totalt bygges om senere.
-* Kun ment for testing og demonstrasjon av Canvas API integrasjon, skal ikke se slik ut.
+* Canvas API router
+* Må bruke engelske navn på variabler og funksjoner for å samsvare med Canvas API dokumentasjon.
+* Prøver å bruke norske variabler og kommentarer der det gir mening.
+* Arver typer og schemaer fra common/canvas for konsistens.
 */
 import { Router } from "express";
-import { getCache, setCache } from "../../cache/redis.js";
 import { z } from "zod";
+import { canvasFetch, requireCanvasToken } from "./canvasUtils.js";
+import { logger } from "../../middleware/logger.js";
 import {
   CanvasUserSchema,
   CanvasCourseSchema,
@@ -12,488 +15,271 @@ import {
   ModuleSchema,
 } from "common/canvas";
 
+
+// Oppretter express router
 const router = Router();
-
-// Canvas configuration - read from env at runtime
-const getCanvasConfig = () => ({
-  token: process.env.CANVAS_TOKEN,
-  baseUrl: process.env.CANVAS_BASE_URL,
-});
-
-// Canvas fetch funksjon med paginering og timeout
-interface CanvasFetchOptions {
-  queryParams?: Record<string, string | number | boolean | string[]>;
-  timeout?: number;
-  maxPages?: number;
-}
-
-interface CanvasResponse<T> {
-  data: T;
-  meta?: {
-    pagesFetched: number;
-    itemsCount: number;
-  };
-}
-
-async function canvasFetch<T>(
-  endpoint: string,
-  options: CanvasFetchOptions = {}
-): Promise<CanvasResponse<T>> {
-  const { queryParams, timeout = 10000, maxPages = 5 } = options;
-  const { token, baseUrl } = getCanvasConfig();
-
-  if (!token) {
-    throw new Error("CANVAS_TOKEN er ikke konfigurert");
-  }
-  if (!baseUrl) {
-    throw new Error("CANVAS_BASE_URL er ikke konfigurert");
-  }
-
-  // Bygg URL med query params
-  const url = new URL(`${baseUrl}${endpoint}`);
-  // Lag en stabil cache key string
-  const cacheKeyParams: string[] = [];
-
-  if (queryParams) {
-    // Sorterer keys for stabilitet i cache key
-    Object.keys(queryParams).sort().forEach((key) => {
-      const value = queryParams[key];
-      if (Array.isArray(value)) {
-        value.forEach((item) => {
-          url.searchParams.append(`${key}[]`, String(item));
-          cacheKeyParams.push(`${key}[]=${item}`);
-        });
-      } else {
-        url.searchParams.append(key, String(value));
-        cacheKeyParams.push(`${key}=${value}`);
-      }
-    });
-  }
-
-  // Generer unik cache key: "canvas:STUDENT_TOKEN_HASH:ENDPOINT?PARAMS"
-  // For enkelhets skyld bruker vi token-suffix eller lignende hvis vi vil skille brukere,
-  // men ofte er token unikt for brukeren.
-  // Her antar vi at vi cacher per endpoint + params.
-  // NB: Hvis APIet returnerer brukerspesifikke data, MÅ vi inkludere noe som identifiserer brukeren i cache-nøkkelen.
-  // Siden vi bruker Bearer token i requesten, er svaret avhengig av tokenet.
-  // Vi kan hashe tokenet eller bruke en prefix hvis vi har user ID. 
-  // For denne implementasjonen bruker vi en enkel tilnærming: 
-  // Vi antar at backend kjører requests på vegne av én "systembruker" eller at token er konstant i env.
-  // HVIS token kommer fra request header i fremtiden, må dette endres!
-  // Siden token er hentet fra process.env.CANVAS_TOKEN (som er satt i .env), er det "globalt" for appen nå.
-
-  const cacheKey = `canvas:${endpoint}?${cacheKeyParams.join("&")}`;
-
-  // 1. Sjekk cache
-  try {
-    const cachedData = await getCache(cacheKey);
-    if (cachedData) {
-      console.log(`Redis Cache HIT: ${cacheKey}`);
-      return JSON.parse(cachedData);
-    }
-    console.log(`Redis Cache MISS: ${cacheKey}`);
-  } catch (err) {
-    console.error("Cache lookup failed", err);
-  }
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-  // Hent alle sider hvis paginering
-  try {
-    const allItems: unknown[] = [];
-    let currentUrl: string | null = url.toString();
-    let pagesFetched = 0;
-
-    while (currentUrl && pagesFetched < maxPages) {
-      const response = await fetch(currentUrl, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `Canvas API feil (${response.status}): ${errorText || response.statusText}`
-        );
-      }
-
-      const data = await response.json();
-      pagesFetched++;
-
-      // Håndter både array og enkelt-objekt
-      if (Array.isArray(data)) {
-        allItems.push(...data);
-      } else {
-        clearTimeout(timeoutId);
-        const result = { data: data as T };
-        // Lagre i cache (bruk standard fra redis.ts)
-        await setCache(cacheKey, JSON.stringify(result));
-        return result;
-      }
-
-      // Sjekk for neste side via Link header
-      const linkHeader = response.headers.get("Link");
-      currentUrl = parseLinkHeader(linkHeader);
-
-      if (!currentUrl) break;
-    }
-
-    clearTimeout(timeoutId);
-
-    const result = {
-      data: allItems as T,
-      meta: {
-        pagesFetched,
-        itemsCount: allItems.length,
-      },
-    };
-
-    // Lagre i cache (bruk standard fra redis.ts)
-    await setCache(cacheKey, JSON.stringify(result));
-    return result;
-  } catch (error) {
-    clearTimeout(timeoutId);
-
-    if (error instanceof Error && error.name === "AbortError") {
-      throw new Error(`Canvas API timeout etter ${timeout}ms`);
-    }
-
-    throw error;
-  }
-}
-// Hjelpefunksjon for å parse Link header
-function parseLinkHeader(linkHeader: string | null): string | null {
-  if (!linkHeader) return null;
-
-  const links = linkHeader.split(",");
-  for (const link of links) {
-    const match = link.match(/<([^>]+)>;\s*rel="next"/);
-    if (match) return match[1];
-  }
-
-  return null;
-}
-
-// Middleware, Sjekk Canvas token
-function requireCanvasToken(_req: unknown, res: unknown, next: () => void) {
-  const { token } = getCanvasConfig();
-  if (!token) {
-    const response = res as { status: (code: number) => { json: (data: unknown) => void } };
-    return response.status(500).json({
-      feil: "CANVAS_TOKEN er ikke konfigurert",
-      melding: "Legg til CANVAS_TOKEN i backend/.env",
-    });
-  }
-  next();
-}
-
 // Bruk middleware på alle ruter
 router.use(requireCanvasToken);
 
 // Endpoints
 // GET /test - Test Canvas-tilkobling
 router.get("/test", async (_req, res) => {
-  const response = await canvasFetch<unknown>("/api/v1/users/self/profile");
+  try {
+    const response = await canvasFetch<unknown>("/api/v1/users/self/profile");
 
-  // Valider med Zod
-  const bruker = CanvasUserSchema.parse(response.data);
-
-  res.json({
-    suksess: true,
-    melding: "Canvas-tilkobling fungerer",
-    bruker: {
-      navn: bruker.name,
-      epost: bruker.primary_email || null,
-      id: bruker.id,
-    },
-  });
+    // Valider med Zod
+    const bruker = CanvasUserSchema.parse(response.data);
+    logger.info({ userId: bruker.id, name: bruker.name }, "Canvas /test endpoint kalt");
+    res.json({
+      suksess: true,
+      melding: "Canvas-tilkobling fungerer",
+      bruker: {
+        navn: bruker.name,
+        epost: bruker.primary_email || null,
+        id: bruker.id,
+      },
+    });
+  } catch (error) {
+    logger.error({ err: error }, "Feil i /test endpoint");
+    throw error;
+  }
 });
 
 // GET /whoami - Minimal brukerinfo
 router.get("/whoami", async (_req, res) => {
-  const response = await canvasFetch<unknown>("/api/v1/users/self/profile");
-  const bruker = CanvasUserSchema.parse(response.data);
-
-  res.json({
-    id: bruker.id,
-    navn: bruker.name,
-    epost: bruker.primary_email || null,
-    locale: bruker.locale || "nb",
-  });
+  try {
+    const response = await canvasFetch<unknown>("/api/v1/users/self/profile");
+    const bruker = CanvasUserSchema.parse(response.data);
+    logger.info({ userId: bruker.id }, "Canvas /whoami endpoint kalt");
+    res.json({
+      id: bruker.id,
+      navn: bruker.name,
+      epost: bruker.primary_email || null,
+      locale: bruker.locale || "nb",
+    });
+  } catch (error) {
+    logger.error({ err: error }, "Klarte ikke å hente brukerinformasjon (/whoami)");
+    throw error;
+  }
 });
 
 // GET /emner - Hent aktive emner
 router.get("/emner", async (_req, res) => {
-  const response = await canvasFetch<unknown[]>("/api/v1/courses", {
-    queryParams: { enrollment_state: "active", per_page: 100 },
-  });
-
-  // Valider hvert emne med Zod
-  const emner = z.array(CanvasCourseSchema).parse(response.data);
-
-  res.json({
-    emner,
-    meta: response.meta,
-  });
+  try {
+    const response = await canvasFetch<unknown[]>("/api/v1/courses", {
+      queryParams: { enrollment_state: "active", per_page: 100 },
+    });
+    // Valider hvert emne med Zod
+    const emner = z.array(CanvasCourseSchema).parse(response.data);
+    logger.info({ count: emner.length }, "Hentet aktive emner");
+    res.json({
+      emner,
+      meta: response.meta,
+    });
+  } catch (error) {
+    logger.error({ err: error }, "Feil under henting av emner");
+    throw error;
+  }
 });
 
 // GET /emner/:courseId - Hent emne-detaljer
 router.get("/emner/:courseId", async (req, res) => {
-  const { courseId } = req.params;
-  const courseIdNum = parseInt(courseId, 10);
-
-  if (isNaN(courseIdNum)) {
-    return res.status(400).json({
-      feil: "Ugyldig courseId",
-      melding: "courseId må være et tall",
-    });
+  try {
+    const { courseId } = req.params;
+    const courseIdNum = parseInt(courseId, 10);
+    if (isNaN(courseIdNum)) {
+      return res.status(400).json({
+        feil: "Ugyldig courseId",
+        melding: "courseId må være et tall",
+      });
+    }
+    const response = await canvasFetch<unknown>(`/api/v1/courses/${courseIdNum}`);
+    const emne = CanvasCourseSchema.parse(response.data);
+    logger.info({ courseId: emne.id, name: emne.name }, "Hentet emnedetaljer");
+    res.json(emne);
+  } catch (error) {
+    logger.error({ err: error }, `Feil under henting av emne ${req.params.courseId}`);
+    throw error;
   }
-
-  const response = await canvasFetch<unknown>(`/api/v1/courses/${courseIdNum}`);
-  const emne = CanvasCourseSchema.parse(response.data);
-
-  res.json(emne);
 });
 
 // GET /emner/:courseId/oppgaver - Hent oppgaver
 router.get("/emner/:courseId/oppgaver", async (req, res) => {
-  const { courseId } = req.params;
-  const courseIdNum = parseInt(courseId, 10);
-
-  if (isNaN(courseIdNum)) {
-    return res.status(400).json({
-      feil: "Ugyldig courseId",
+  try {
+    const { courseId } = req.params;
+    const courseIdNum = parseInt(courseId, 10);
+    if (isNaN(courseIdNum)) {
+      return res.status(400).json({
+        feil: "Ugyldig courseId",
+      });
+    }
+    // Definer oppgave-schema
+    const AssignmentSchema = z.object({
+      id: z.number(),
+      name: z.string(),
+      due_at: z.string().nullable(),
+      points_possible: z.number().nullable(),
+      html_url: z.string(),
     });
+    // Hent oppgaver fra Canvas API
+    const response = await canvasFetch<unknown[]>(
+      `/api/v1/courses/${courseIdNum}/assignments`,
+      { queryParams: { per_page: 100 } }
+    );
+    const oppgaver = z.array(AssignmentSchema).parse(response.data);
+    logger.info({ courseId: courseIdNum, count: oppgaver.length }, "Hentet oppgaver for emne");
+    res.json({
+      oppgaver,
+      meta: response.meta,
+    });
+  } catch (error) {
+    logger.error({ err: error }, `Feil under henting av oppgaver for emne ${req.params.courseId}`);
+    throw error;
   }
-
-  const AssignmentSchema = z.object({
-    id: z.number(),
-    name: z.string(),
-    due_at: z.string().nullable(),
-    points_possible: z.number().nullable(),
-    html_url: z.string(),
-  });
-
-  const response = await canvasFetch<unknown[]>(
-    `/api/v1/courses/${courseIdNum}/assignments`,
-    { queryParams: { per_page: 100 } }
-  );
-
-  const oppgaver = z.array(AssignmentSchema).parse(response.data);
-
-  res.json({
-    oppgaver,
-    meta: response.meta,
-  });
 });
 
 // GET /emner/:courseId/announcements - Hent announcements for et emne
 router.get("/emner/:courseId/announcements", async (req, res) => {
-  const { courseId } = req.params;
-  const courseIdNum = parseInt(courseId, 10);
-
-  if (isNaN(courseIdNum)) {
-    return res.status(400).json({
-      feil: "Ugyldig courseId",
-      melding: "courseId må være et tall",
-    });
-  }
-
-  const response = await canvasFetch<unknown[]>(
-    `/api/v1/courses/${courseIdNum}/discussion_topics`,
-    {
-      queryParams: {
-        only_announcements: true,
-        per_page: 50
-      }
+  try {
+    const { courseId } = req.params;
+    const courseIdNum = parseInt(courseId, 10);
+    if (isNaN(courseIdNum)) {
+      return res.status(400).json({
+        feil: "Ugyldig courseId",
+        melding: "courseId må være et tall",
+      });
     }
-  );
-
-  const announcements = z.array(CanvasAnnouncementSchema).parse(response.data);
-
-  res.json({
-    announcements,
-    meta: response.meta,
-  });
+    // Hent announcements fra Canvas API
+    const response = await canvasFetch<unknown[]>(
+      `/api/v1/courses/${courseIdNum}/discussion_topics`,
+      {
+        queryParams: {
+          only_announcements: true,
+          per_page: 50
+        }
+      }
+    );
+    // Valider med Zod
+    const announcements = z.array(CanvasAnnouncementSchema).parse(response.data);
+    logger.info({ courseId: courseIdNum, count: announcements.length }, "Hentet announcements for emne");
+    res.json({
+      announcements,
+      meta: response.meta,
+    });
+  } catch (error) {
+    logger.error({ err: error }, `Feil under henting av announcements for emne ${req.params.courseId}`);
+    throw error;
+  }
 });
 
 // GET /announcements - Hent alle announcements fra alle aktive emner
 router.get("/announcements", async (_req, res) => {
-  // Først hent alle aktive emner
-  const coursesResponse = await canvasFetch<unknown[]>("/api/v1/courses", {
-    queryParams: { enrollment_state: "active", per_page: 100 },
-  });
+  try {
+    // Først hent alle aktive emner
+    const coursesResponse = await canvasFetch<unknown[]>("/api/v1/courses", {
+      queryParams: { enrollment_state: "active", per_page: 100 },
+    });
+    // Henter zod schema for emner og deklarer det i emne variabel
+    const courses = z.array(CanvasCourseSchema).parse(coursesResponse.data);
 
-  const courses = z.array(CanvasCourseSchema).parse(coursesResponse.data);
+    // Hvis ingen aktive emner, returner tomt array
+    if (courses.length === 0) {
+      return res.json({
+        announcements: [],
+        meta: {
+          pagesFetched: 0,
+          itemsCount: 0,
+        },
+      });
+    }
 
-  // Hvis ingen aktive emner, returner tomt array
-  if (courses.length === 0) {
-    return res.json({
-      announcements: [],
-      meta: {
-        pagesFetched: 0,
-        itemsCount: 0,
+    // Bygg context_codes array (format: "course_COURSEID")
+    const contextCodes = courses.map((course: typeof courses[0]) => `course_${course.id}`);
+
+    // Hent announcements med context_codes
+    const response = await canvasFetch<unknown[]>("/api/v1/announcements", {
+      queryParams: {
+        context_codes: contextCodes,
+        active_only: true,
+        per_page: 50,
       },
     });
+    // Valider med Zod
+    const announcements = z.array(CanvasAnnouncementSchema).parse(response.data);
+    logger.info({ count: announcements.length }, "Hentet alle announcements");
+    res.json({
+      announcements,
+      meta: response.meta,
+    });
+  } catch (error) {
+    logger.error({ err: error }, "Feil under henting av annonseringer");
+    throw error;
   }
-
-  // Bygg context_codes array (format: "course_COURSEID")
-  const contextCodes = courses.map((course: typeof courses[0]) => `course_${course.id}`);
-
-  // Hent announcements med context_codes
-  const response = await canvasFetch<unknown[]>("/api/v1/announcements", {
-    queryParams: {
-      context_codes: contextCodes,
-      active_only: true,
-      per_page: 50,
-    },
-  });
-
-  const announcements = z.array(CanvasAnnouncementSchema).parse(response.data);
-
-  res.json({
-    announcements,
-    meta: response.meta,
-  });
 });
 
 // GET /planlegger - Hent studentens totale tidslinje (Alt som skjer)
 router.get("/planlegger", async (req, res) => {
-  const { start_date, end_date } = req.query;
-
-  const queryParams: Record<string, string | number | boolean> = {
-    per_page: 100,
-  };
-
-  if (typeof start_date === "string") queryParams.start_date = start_date;
-  if (typeof end_date === "string") queryParams.end_date = end_date;
-
-  const response = await canvasFetch<unknown[]>("/api/v1/planner/items", {
-    queryParams,
-  });
-
-  const items = response.data;
-
-  res.json({
-    items,
-    meta: response.meta,
-  });
+  try {
+    const { start_date, end_date } = req.query;
+    const queryParams: Record<string, string | number | boolean> = {
+      per_page: 100,
+    };
+    if (typeof start_date === "string") queryParams.start_date = start_date;
+    if (typeof end_date === "string") queryParams.end_date = end_date;
+    const response = await canvasFetch<unknown[]>("/api/v1/planner/items", {
+      queryParams,
+    });
+    const items = response.data;
+    logger.info({ itemCount: Array.isArray(items) ? items.length : 0, range: { start_date, end_date } }, "Hentet planlegger items");
+    res.json({
+      items,
+      meta: response.meta,
+    });
+  } catch (error) {
+    logger.error({ err: error }, "Feil under henting av planlegger");
+    throw error;
+  }
 });
 
-// GET /smoke - Smoke test
-router.get("/smoke", async (_req, res) => {
-  const results: Array<{
-    test: string;
-    status: "OK" | "FEILET";
-    melding?: string;
-  }> = [];
-
-  // Test 1: users/self/profile
+// GET /emner/:courseId/modules - Hent moduler
+router.get("/emner/:courseId/modules", async (req, res) => {
   try {
-    await canvasFetch("/api/v1/users/self/profile");
-    results.push({ test: "users/self/profile", status: "OK" });
-  } catch (error) {
-    results.push({
-      test: "users/self/profile",
-      status: "FEILET",
-      melding: error instanceof Error ? error.message : "Ukjent feil",
-    });
-  }
-
-  // Test 2: courses
-  let firstCourseId: number | null = null;
-  try {
-    const coursesResponse = await canvasFetch<Array<{ id: number }>>(
-      "/api/v1/courses",
-      { queryParams: { enrollment_state: "active", per_page: 10 } }
+    const { courseId } = req.params;
+    const courseIdNum = parseInt(courseId, 10);
+    if (isNaN(courseIdNum)) {
+      return res.status(400).json({
+        feil: "Ugyldig courseId",
+        melding: "courseId må være et tall",
+      });
+    }
+    // Vi spør også om items inni modulene
+    const response = await canvasFetch<unknown[]>(
+      `/api/v1/courses/${courseIdNum}/modules`,
+      {
+        queryParams: {
+          include: ["items"],
+          per_page: 50
+        },
+      }
     );
-
-    if (coursesResponse.data.length === 0) {
-      results.push({
-        test: "courses (active)",
-        status: "OK",
-        melding: "Ingen aktive emner funnet",
-      });
-    } else {
-      firstCourseId = coursesResponse.data[0].id;
-      results.push({
-        test: "courses (active)",
-        status: "OK",
-        melding: `Fant ${coursesResponse.data.length} emner`,
-      });
-    }
-  } catch (error) {
-    results.push({
-      test: "courses (active)",
-      status: "FEILET",
-      melding: error instanceof Error ? error.message : "Ukjent feil",
-    });
-  }
-
-  // Test 3: assignments (hvis vi har et course)
-  if (firstCourseId) {
-    try {
-      const assignmentsResponse = await canvasFetch<unknown[]>(
-        `/api/v1/courses/${firstCourseId}/assignments`,
-        { queryParams: { per_page: 10 } }
-      );
-      results.push({
-        test: `assignments (course ${firstCourseId})`,
-        status: "OK",
-        melding: `Fant ${assignmentsResponse.data.length} oppgaver`,
-      });
-    } catch (error) {
-      results.push({
-        test: `assignments (course ${firstCourseId})`,
-        status: "FEILET",
-        melding: error instanceof Error ? error.message : "Ukjent feil",
-      });
-    }
-  }
-
-  // Test 4: Planner items
-  try {
-    const plannerResponse = await canvasFetch<unknown[]>("/api/v1/planner/items", {
-      queryParams: { per_page: 5 }
-    });
-    results.push({
-      test: "planner/items",
-      status: "OK",
-      melding: `Fant ${plannerResponse.data.length} elementer i tidslinjen`,
+    // Valider med Zod
+    const moduler = z.array(ModuleSchema).parse(response.data);
+    logger.info({ courseId: courseIdNum, moduleCount: moduler.length }, "Hentet moduler");
+    res.json({
+      modules: moduler,
+      meta: response.meta,
     });
   } catch (error) {
-    results.push({
-      test: "planner/items",
-      status: "FEILET",
-      melding: error instanceof Error ? error.message : "Ukjent feil",
-    });
+    logger.error({ err: error }, `Feil under henting av moduler for emne ${req.params.courseId}`);
+    throw error;
   }
-
-  const failedCount = results.filter((r) => r.status === "FEILET").length;
-  const passedCount = results.filter((r) => r.status === "OK").length;
-
-  res.json({
-    sammendrag: {
-      totalt: results.length,
-      bestått: passedCount,
-      feilet: failedCount,
-      status: failedCount === 0 ? "ALLE OK" : "NOEN FEILET",
-    },
-    tester: results,
-  });
 });
 
 // Global error handler for dette routeret
 router.use((error: Error, _req: unknown, res: unknown, _next: unknown) => {
-  console.error("Canvas API feil:", error);
-
+  logger.error({ err: error }, "Canvas API feil");
+  // Global error handler for dette endpointet
   const response = res as { status: (code: number) => { json: (data: unknown) => void } };
-
   // Zod validering feil
   if (error.name === "ZodError") {
     return response.status(500).json({
@@ -502,43 +288,10 @@ router.use((error: Error, _req: unknown, res: unknown, _next: unknown) => {
       detaljer: error.message,
     });
   }
-
   // Canvas API feil
   response.status(500).json({
     feil: "Canvas API feil",
     melding: error.message,
-  });
-});
-
-// GET /emner/:courseId/modules - Hent moduler
-router.get("/emner/:courseId/modules", async (req, res) => {
-  const { courseId } = req.params;
-  const courseIdNum = parseInt(courseId, 10);
-
-  if (isNaN(courseIdNum)) {
-    return res.status(400).json({
-      feil: "Ugyldig courseId",
-      melding: "courseId må være et tall",
-    });
-  }
-
-  // Vi spør også om items inni modulene
-  const response = await canvasFetch<unknown[]>(
-    `/api/v1/courses/${courseIdNum}/modules`,
-    {
-      queryParams: {
-        include: ["items"],
-        per_page: 50
-      },
-    }
-  );
-
-  // Valider med Zod
-  const moduler = z.array(ModuleSchema).parse(response.data);
-
-  res.json({
-    modules: moduler,
-    meta: response.meta,
   });
 });
 
