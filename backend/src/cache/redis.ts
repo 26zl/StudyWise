@@ -24,8 +24,8 @@ export const getCache = async (key: string): Promise<string | null> => {
     }
 };
 
-// Setter cache
-export const setCache = async (key: string, value: string, ttlSeconds: number = 300) => {
+// Setter cache (standard 10 minutter)
+export const setCache = async (key: string, value: string, ttlSeconds: number = 600) => {
     if (!client.isOpen)
         return;
     try {

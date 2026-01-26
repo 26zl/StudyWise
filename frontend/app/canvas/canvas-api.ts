@@ -4,29 +4,23 @@
 * Henter zod schemas fra common for validering av data
 */
 import type { ZodType } from "zod";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type QueryClient } from "@tanstack/react-query";
 
 // Importer Zod schemas fra common
 import {
-  AnnouncementSchema as _AnnouncementSchema,
   AnnouncementsResponseSchema,
-  BrukerSchema as _BrukerSchema,
-  EmneSchema as _EmneSchema,
   EmnerResponseSchema,
   ModulesResponseSchema,
-  TestResponseSchema,
 } from "common/canvas";
 
 // Eksporter typer
 export type {
   Announcement,
   AnnouncementsResponse,
-  Bruker,
   Emne,
   EmnerResponse,
   Module,
   ModulesResponse,
-  TestResponse,
 } from "common/canvas";
 
 // API funksjoner 
@@ -42,13 +36,6 @@ async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>): Promise<T> 
 }
 
 // React Query hooks
-// Hent testdata fra Canvas API
-export function useCanvasTest() {
-  return useQuery({
-    queryKey: ["canvas", "test"],
-    queryFn: () => fetchCanvas("/test", TestResponseSchema),
-  });
-}
 // Hent emner
 export function useCanvasEmner() {
   return useQuery({
@@ -70,5 +57,19 @@ export function useCanvasModules(courseId: number | null) {
     queryFn: () =>
       fetchCanvas(`/emner/${courseId}/modules`, ModulesResponseSchema),
     enabled: !!courseId,
+  });
+}
+
+// Prefetch funksjon for app-start - laster data i bakgrunnen
+export function prefetchCanvasData(queryClient: QueryClient) {
+  // Prefetch kunngjøringer og emner parallelt
+  queryClient.prefetchQuery({
+    queryKey: ["canvas", "announcements"],
+    queryFn: () => fetchCanvas("/announcements", AnnouncementsResponseSchema),
+  });
+
+  queryClient.prefetchQuery({
+    queryKey: ["canvas", "emner"],
+    queryFn: () => fetchCanvas("/emner", EmnerResponseSchema),
   });
 }

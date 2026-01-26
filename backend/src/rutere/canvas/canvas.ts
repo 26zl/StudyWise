@@ -22,29 +22,6 @@ const router = Router();
 router.use(requireCanvasToken);
 
 // Endpoints
-// GET /test - Test Canvas-tilkobling
-router.get("/test", async (_req, res) => {
-  try {
-    const response = await canvasFetch<unknown>("/api/v1/users/self/profile");
-
-    // Valider med Zod
-    const bruker = CanvasUserSchema.parse(response.data);
-    logger.info({ userId: bruker.id, name: bruker.name }, "Canvas /test endpoint kalt");
-    res.json({
-      suksess: true,
-      melding: "Canvas-tilkobling fungerer",
-      bruker: {
-        navn: bruker.name,
-        epost: bruker.primary_email || null,
-        id: bruker.id,
-      },
-    });
-  } catch (error) {
-    logger.error({ err: error }, "Feil i /test endpoint");
-    throw error;
-  }
-});
-
 // GET /whoami - Minimal brukerinfo
 router.get("/whoami", async (_req, res) => {
   try {
