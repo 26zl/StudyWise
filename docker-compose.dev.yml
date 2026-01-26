@@ -1,5 +1,6 @@
 services:
   backend:
+    container_name: studywise-backend
     image: node:20-alpine
     working_dir: /app
     volumes:
@@ -20,6 +21,7 @@ services:
     command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm --filter backend dev"
 
   frontend:
+    container_name: studywise-frontend
     image: node:20-alpine
     working_dir: /app
     volumes:

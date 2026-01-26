@@ -1,5 +1,6 @@
 services:
   backend:
+    container_name: studywise-backend
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -22,6 +23,7 @@ services:
       - app-network
 
   frontend:
+    container_name: studywise-frontend
     build:
       context: .
       dockerfile: frontend/Dockerfile

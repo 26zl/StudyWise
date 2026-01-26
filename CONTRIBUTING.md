@@ -1,6 +1,6 @@
-# Utviklingsveiledning
+# Utviklingsveiledning - Bachelor i IT 2026
 
-Guide for utvikling i Bachelor IT prosjektet.
+Guide for utvikling i StudyWise prosjektet.
 
 ## Innholdsfortegnelse
 
@@ -19,7 +19,7 @@ Guide for utvikling i Bachelor IT prosjektet.
 Prosjektet er delt i tre hoveddeler:
 
 ```text
-BachelorOppgave/
+StudyWise/
 ├── common/                  # Delte Zod schemas (workspace pakke)
 │   ├── src/
 │   │   ├── auth.ts              # Auth schemas

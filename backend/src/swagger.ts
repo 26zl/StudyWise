@@ -9,11 +9,11 @@ const options: swaggerJsdoc.Options = {
   definition: {
     openapi: "3.0.0",
     info: {
-      title: "Bachelor IT - USN 2026 API",
+      title: "StudyWise API",
       version: "1.0.0",
-      description: "API dokumentasjon for Bachelor IT prosjektet. Integrasjon med Canvas LMS og KI-funksjoner.",
+      description: "STUDYWISE – En KI-basert studieassistent for høyere utdanning med integrasjon mot instructure usn. Bachelor i IT 2026.",
       contact: {
-        name: "Bachelor IT 2026 Gruppe 3",
+        name: "StudyWise 2026 Gruppe 3",
         url: "https://github.com/26zl/BachelorOppgave",
       },
     },

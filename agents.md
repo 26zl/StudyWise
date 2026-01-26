@@ -13,7 +13,7 @@ Dette er et **pnpm monorepo-prosjekt** som består av:
 ## 1. Komplett Prosjektstruktur
 
 ```text
-BachelorOppgave/
+StudyWise/
 ├── common/                  # Delte Zod schemas (workspace pakke)
 │   ├── src/
 │   │   ├── auth.ts              # Auth schemas

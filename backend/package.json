@@ -1,5 +1,6 @@
 {
   "name": "backend",
+  "description": "StudyWise Backend - Bachelor i IT 2026",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts || true",

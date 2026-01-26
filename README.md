@@ -1,6 +1,6 @@
-# Bachelor IT - USN 2026
+# StudyWise - Bachelor 2026
 
-Bacheloroppgave i IT og informasjonssystemer 2026.
+STUDYWISE – En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas Instructure. Bachelor i IT 2026.
 
 **Utvikling?** Les [CONTRIBUTING.md](./CONTRIBUTING.md) for detaljert guide om
 hvordan du skal kode og utvikle dette prosjektet.
@@ -32,7 +32,7 @@ hvordan du skal kode og utvikle dette prosjektet.
 
 ```bash
 git clone <repo-url>
-cd BachelorOppgave
+cd StudyWise
 ```
 
 1. **Installer dependencies**:
@@ -176,7 +176,7 @@ Backend har integrert Swagger UI for å utforske og teste API-endepunkter:
 ## Prosjektstruktur atm
 
 ```text
-BachelorOppgave/
+StudyWise/
 ├── common/                  # Delte Zod schemas (workspace pakke)
 │   ├── src/
 │   │   ├── auth.ts              # Auth schemas
