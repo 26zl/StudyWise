@@ -163,6 +163,7 @@ Det er kritisk å forstå skillet mellom "Lokal Bruker" og "Canvas Bruker" i det
 ```
 
 **Flyten:**
+
 1. Bruker logger inn (JWT Auth med `User` data).
 2. Backend bruker `User.canvasApiToken` for å snakke med Canvas API.
 3. Resultatet fra `/whoami` lagres/oppdateres i `CanvasUser`.
