@@ -32,14 +32,18 @@ export function ChatSection() {
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
     // KI tilkoblingstest 
+    // KI tilkoblingstest 
     const {
         refetch: testConnection,
-        isLoading: isTestingConnection,
+        isLoading,
+        isFetching,
         data,
         error,
         isSuccess,
         isError
     } = useKITestConnection();
+
+    const isBusy = isLoading || isFetching;
 
     // Auto-scroll 
     useEffect(() => {
@@ -130,14 +134,16 @@ export function ChatSection() {
                     <div className="flex flex-col items-center gap-4 mt-8">
                         <button
                             onClick={() => testConnection()}
-                            disabled={isTestingConnection}
+                            disabled={isBusy || !!data}
                             className="px-4 py-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors flex items-center gap-2"
                         >
-                            {isTestingConnection ? (
+                            {isBusy ? (
                                 <>
                                     <Loader2 size={16} className="animate-spin" />
                                     Tester tilkobling...
                                 </>
+                            ) : data ? (
+                                "Tilkoblet"
                             ) : (
                                 "Test AI-tilkobling"
                             )}
