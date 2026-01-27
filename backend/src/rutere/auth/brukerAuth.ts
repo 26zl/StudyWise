@@ -14,6 +14,7 @@
 import { Router } from "express";
 import { User } from "../../database/models/User.js";
 import { encrypt } from "../../utils/kryptering.js";
+import { logger } from "../../utils/logger.js";
 import { z } from "zod";
 
 const router = Router();
@@ -68,7 +69,7 @@ router.post("/token", async (req, res) => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             return res.status(400).json({ feil: (error as any).errors[0].message });
         }
-        console.error("Feil ved lagring av token:", error);
+        logger.error({ err: error }, "Feil ved lagring av token");
         return res.status(500).json({ feil: "Kunne ikke lagre token" });
     }
 });

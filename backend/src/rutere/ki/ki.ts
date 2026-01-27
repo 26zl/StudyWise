@@ -8,9 +8,12 @@ import { Router } from "express";
 import { InferenceClient } from "@huggingface/inference";
 import { logger } from "../../utils/logger.js";
 import { getCache, setCache } from "../../cache/redis.js";
+import { rateLimitKi } from "../../middleware/rate-limit.js";
 
 // Definerer express router
 const router = Router();
+// Rate limiting for KI-endepunkter
+router.use(rateLimitKi);
 
 // Initialiser HF-klient én gang ved oppstart (gjenbrukes for alle requests)
 const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
