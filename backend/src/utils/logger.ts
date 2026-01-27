@@ -8,6 +8,25 @@ const isDev = process.env.NODE_ENV !== "production";
 
 export const logger = pino({
     level: process.env.LOG_LEVEL || "info",
+    redact: {
+        paths: [
+            "req.headers.authorization",
+            "req.headers.cookie",
+            "req.headers['set-cookie']",
+            "req.headers['x-api-key']",
+            "req.body.password",
+            "req.body.token",
+            "req.body.canvasToken",
+            "req.body.canvasApiToken",
+            "req.body.email",
+            "req.body.firstName",
+            "req.body.lastName",
+            "req.query.token",
+            "req.query.access_token",
+            "res.headers['set-cookie']",
+        ],
+        remove: true,
+    },
     transport: isDev
         ? {
             target: "pino-pretty",

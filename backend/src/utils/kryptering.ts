@@ -8,7 +8,14 @@ const getKey = (): Buffer => {
     if (!keyHex) {
         throw new Error('ENCRYPTION_KEY mangler i miljøvariabler.');
     }
-    return Buffer.from(keyHex, 'hex');
+    if (keyHex.length !== 64) {
+        throw new Error('ENCRYPTION_KEY må være 64 hex-tegn (32 bytes) for AES-256-GCM.');
+    }
+    const key = Buffer.from(keyHex, 'hex');
+    if (key.length !== 32) {
+        throw new Error('ENCRYPTION_KEY må være 32 bytes etter hex-dekoding.');
+    }
+    return key;
 };
 
 /**

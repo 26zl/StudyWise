@@ -8,7 +8,7 @@ hvordan du skal kode og utvikle dette prosjektet.
 ## Teknologi stack
 
 - **Frontend**: Next.js 16 + TypeScript + Tailwind CSS + React Query +
-  TanStack + Zod + Hookform
+  TanStack + Zod + Hookform + Zustand
 - **Backend**: Express 5 + TypeScript + Redis + Pino + Helmet + Zod + Hugging Face
 - **Database**: MongoDB (Atlas/Lokal) + Redis (Cloud/Lokal)
 - **Common**: Zod schemas (delt mellom frontend og backend)
@@ -238,7 +238,7 @@ StudyWise/
 ### Kodestandarder
 
 - **TypeScript**: Bruk strict mode, unngå `any`
-- **Navngivning**: Bruk norske navn for ruter, komponenter og variabler. Hold filnavn mest mulig på engelsk der det er fornuftig.
+- **Navngivning**: Bruk engelske/norske navn for ruter, komponenter, variabler og filnavn.
 - **Formatering**: Prosjektet bruker automatisk formatering
 - **Kommentarer**: Skriv kommentarer på norsk
 
@@ -288,7 +288,7 @@ Hvis du opplever rare feil eller "missing module"-feil (spesielt relatert til `c
 pnpm clean:install
 ```
 
-2. **VIKTIG:** Bygg prosjektet på nytt!
+1. **VIKTIG:** Bygg prosjektet på nytt!
 `clean:install` tømmer alt, inkludert delte typer i `common`. Du **MÅ** bygge dem (minst `pnpm build:common`) før `pnpm typecheck` eller editor vil slutte å klage på manglende typer.
 
 ```bash

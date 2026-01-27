@@ -8,14 +8,16 @@ import { useKITestConnection } from "../ki/ki-api";
 
 // KI Seksjon komponent
 export function KISection() {
-    const { data: response, error, isLoading, refetch } = useKITestConnection();
+    const { data: response, error, isLoading, isFetching, refetch } = useKITestConnection();
 
     // Test KI tilkobling
     const testConnection = async () => {
         refetch();
     };
 
-    const status = isLoading
+    const isBusy = isLoading || isFetching;
+
+    const status = isBusy
         ? "Kobler til..."
         : error
             ? `Feil: ${error.message}`
@@ -40,10 +42,10 @@ export function KISection() {
                 <div className="mt-4 border-t dark:border-gray-700 pt-4 w-full">
                     <button
                         onClick={testConnection}
-                        disabled={isLoading}
+                        disabled={isBusy || !!response}
                         className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 text-sm"
                     >
-                        {isLoading ? "Tester..." : "Test AI Kobling"}
+                        {isBusy ? "Tester..." : response ? "Tilkoblet" : "Test AI Kobling"}
                     </button>
 
                     {status && (
