@@ -1,27 +1,169 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+    --background: #ffffff;
+    --foreground: #0f172a;
+    --muted: #64748b;
+}
+
+/* Mørk modus farger */
+.dark {
+    --background: #020617;
+    --foreground: #f1f5f9;
+    --muted: #94a3b8;
 }
 
 /* Automatisk mørk modus basert på systeminnstillinger hos bruker */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+    :root:not(.light) {
+        --background: #020617;
+        --foreground: #f1f5f9;
+        --muted: #94a3b8;
+    }
 }
 
-html,
-body {
-  height: 100%;
-  margin: 0;
-  padding: 0;
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    height: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Roboto,
+        "Helvetica Neue",
+        Arial,
+        sans-serif,
+        "Apple Color Emoji",
+        "Segoe UI Emoji";
+    line-height: 1.5;
+}
+
+/* Fjern default focus styles og erstatt med bedre */
+:focus {
+    outline: none;
+}
+
+:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+}
+
+/* Scrollbar styling for bedre utseende */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+    background: #334155;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+}
+
+/* Fjern blå highlight pa mobil tap */
+* {
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Bedre text selection */
+::selection {
+    background: #3b82f6;
+    color: white;
+}
+
+/* Prose styling for Canvas-innhold */
+.prose {
+    max-width: none;
+}
+
+.prose p {
+    margin-top: 0.75em;
+    margin-bottom: 0.75em;
+}
+
+.prose ul,
+.prose ol {
+    padding-left: 1.25em;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+}
+
+.prose li {
+    margin-top: 0.25em;
+    margin-bottom: 0.25em;
+}
+
+.prose img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+}
+
+.prose a {
+    color: #2563eb;
+    text-decoration: none;
+}
+
+.prose a:hover {
+    text-decoration: underline;
+}
+
+.dark .prose a {
+    color: #60a5fa;
+}
+
+/* Animasjoner */
+@keyframes fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fade-in 0.2s ease-out;
+}
+
+/* Funksjon for å skjule scrollbar men beholde scroll-funksjonalitet */
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
 }

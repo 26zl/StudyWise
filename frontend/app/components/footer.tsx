@@ -1,7 +1,11 @@
 export function Footer() {
     return (
-        <footer className="py-6 text-center text-sm text-gray-500 border-t dark:border-gray-800 bg-gray-50 dark:bg-gray-950">
-            <p>© 2026 Bachelor IT - USN. Alle rettigheter reservert.</p>
+        <footer className="shrink-0 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <div className="p-4">
+                <p className="text-xs text-slate-400 dark:text-slate-500 text-center">
+                    © 2026 StudyWise - USN. Alle rettigheter reservert.
+                </p>
+            </div>
         </footer>
     );
 }

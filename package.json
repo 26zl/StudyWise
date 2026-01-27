@@ -7,7 +7,7 @@
     "dev:frontend": "pnpm --filter frontend dev",
     "dev:backend": "pnpm --filter backend dev",
     "dev:common": "pnpm --filter common typecheck --watch",
-    "kill:dev": "taskkill //F //IM node.exe 2>nul || echo No dev servers running && rimraf frontend\\.next\\dev\\lock && echo Ryddet opp lock-fil",
+    "kill:dev": "npx kill-port 3000 4000 2>nul & taskkill //F //IM node.exe 2>nul & rimraf frontend\\.next\\dev\\lock && echo Servere stoppet og lock-fil ryddet",
     "lint": "pnpm -r lint",
     "lint:frontend": "pnpm --filter frontend lint",
     "lint:backend": "pnpm --filter backend lint",

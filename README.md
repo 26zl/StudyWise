@@ -288,7 +288,7 @@ Hvis du opplever rare feil eller "missing module"-feil (spesielt relatert til `c
 pnpm clean:install
 ```
 
-2. **VIKTIG:** Bygg prosjektet på nytt!
+1. **VIKTIG:** Bygg prosjektet på nytt!
 `clean:install` tømmer alt, inkludert delte typer i `common`. Du **MÅ** bygge dem (minst `pnpm build:common`) før `pnpm typecheck` eller editor vil slutte å klage på manglende typer.
 
 ```bash

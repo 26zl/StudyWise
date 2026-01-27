@@ -1,35 +1,57 @@
 /*
-* Canvas seksjon for frontend.
-* UI/UX må endres.
-*/
+ * CanvasSection - Canvas visning
+ * Viser kunngjøringer, emner og moduler fra Canvas LMS
+ */
 "use client";
 
-import { useCanvasAnnouncements, useCanvasEmner, useCanvasModules, useCanvasUser } from "../canvas/canvas-api";
+import { useState, useEffect } from "react";
+import {
+    useCanvasAnnouncements,
+    useCanvasEmner,
+    useCanvasModules,
+    useCanvasUser,
+} from "../canvas/canvas-api";
 import { formatDistanceToNow } from "date-fns";
 import { nb } from "date-fns/locale";
-import { useState } from "react";
 import DOMPurify from "isomorphic-dompurify";
 import parse, { DOMNode, Element } from "html-react-parser";
+import {
+    ArrowLeft,
+    ChevronRight,
+    ExternalLink,
+    FileText,
+    Loader2,
+    AlertCircle,
+} from "lucide-react";
 
-// Validering mot dom basert xss
-// Tillater kun http/https for href
-const safeHref = (u?: string | null) =>
-    u && u.startsWith("http") ? u : "#";
+// Typer for Canvas visninger
+type CanvasView = "announcements" | "courses" | "data";
 
-// Custom Image komponent for å håndtere loading state
-const CustomImage = ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
+interface CanvasSectionProps {
+    initialView?: CanvasView;
+}
+
+// Validering mot DOM-basert XSS - tillater kun http/https for href
+const safeHref = (u?: string | null) => (u && u.startsWith("http") ? u : "#");
+
+// Custom Image komponent med loading state
+const CustomImage = ({
+    src,
+    alt,
+    ...props
+}: React.ImgHTMLAttributes<HTMLImageElement>) => {
     const [isLoading, setIsLoading] = useState(true);
 
     return (
-        <span className="relative my-4 overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800 min-h-50 w-full flex items-center justify-center">
+        <span className="relative my-3 inline-block overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
             {isLoading && (
-                <span className="absolute inset-0 animate-pulse bg-gray-200 dark:bg-gray-700" />
+                <span className="absolute inset-0 animate-pulse bg-slate-200 dark:bg-slate-700" />
             )}
             <img
                 src={src}
                 alt={alt}
                 {...props}
-                className={`transition-opacity duration-500 ease-in-out ${isLoading ? "opacity-0" : "opacity-100"} max-w-full h-auto`}
+                className={`transition-opacity duration-500 ${isLoading ? "opacity-0" : "opacity-100"} max-w-full max-h-75 w-auto h-auto object-contain`}
                 onLoad={() => setIsLoading(false)}
                 loading="lazy"
             />
@@ -37,23 +59,24 @@ const CustomImage = ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageEl
     );
 };
 
-// Direkte parsing via html-react-parser
-const options = {
+// HTML parser options for safe rendering
+const htmlParseOptions = {
     replace: (domNode: DOMNode) => {
         if (domNode instanceof Element) {
             if (domNode.tagName === "a") {
-                const h = domNode.attribs?.href;
+                const href = domNode.attribs?.href;
                 return (
                     <a
-                        href={safeHref(h)}
+                        href={safeHref(href)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                        className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
                     >
                         {
-                            // @ts-expect-error: html-react-parser types er litt løse her
+                            // @ts-expect-error: html-react-parser types are loose here
                             domNode.children?.[0]?.data || ""
                         }
+                        <ExternalLink size={12} className="opacity-50" />
                     </a>
                 );
             }
@@ -70,231 +93,277 @@ const options = {
     },
 };
 
-// Hovedkomponent for Canvas seksjonen
-export function CanvasSection() {
-    // Vi laster data umiddelbart (prefetch) for raskere visning, men viser det ikke før brukeren velger
-    const announcementsQuery = useCanvasAnnouncements();
-    const emnerQuery = useCanvasEmner();
-    const userQuery = useCanvasUser();
-    const [activeTab, setActiveTab] = useState<"menu" | "announcements" | "courses" | "data">("menu");
-    const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
-    const modulesQuery = useCanvasModules(selectedCourseId);
+// Loading Skeleton
+function LoadingSkeleton({ lines = 3 }: { lines?: number }) {
+    return (
+        <div className="space-y-3 animate-pulse">
+            {Array.from({ length: lines }).map((_, i) => (
+                <div
+                    key={i}
+                    className="h-4 bg-slate-200 dark:bg-slate-700 rounded"
+                    style={{ width: `${85 - i * 15}%` }}
+                />
+            ))}
+        </div>
+    );
+}
 
-    // Håndterer meny logikk
-    const handleBack = () => {
-        if (selectedCourseId) {
-            setSelectedCourseId(null);
-        } else {
-            setActiveTab("menu");
-        }
-    };
+// Error melding komponent
+function ErrorMessage({ message }: { message: string }) {
+    return (
+        <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+            <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+            <p className="text-sm text-red-700 dark:text-red-300">{message}</p>
+        </div>
+    );
+}
 
-    if (activeTab === "menu") {
+// Announcements View
+function AnnouncementsView() {
+    const { data, isLoading, isError, error } = useCanvasAnnouncements();
+
+    if (isLoading) {
         return (
-            <div className="w-full">
-                <h2 className="text-2xl font-bold mb-6 text-center text-gray-900 dark:text-white">
-                    Hva vil du se?
-                </h2>
+            <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                    <div key={i} className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                        <LoadingSkeleton />
+                    </div>
+                ))}
+            </div>
+        );
+    }
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                    <button
-                        onClick={() => setActiveTab("announcements")}
-                        className="p-8 border rounded-lg bg-gray-50 dark:bg-gray-900 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all flex flex-col items-center gap-4 group"
-                    >
-                        <span className="text-4xl group-hover:scale-110 transition-transform duration-200"></span>
-                        <span className="text-xl font-bold text-gray-800 dark:text-gray-100">
-                            Kunngjøringer
-                        </span>
-                        <p className="text-gray-500 dark:text-gray-400 text-sm">
-                            Siste nytt fra dine emner
-                        </p>
-                    </button>
+    if (isError) {
+        return <ErrorMessage message={error?.message || "Kunne ikke laste kunngjøringer"} />;
+    }
 
-                    <button
-                        onClick={() => setActiveTab("courses")}
-                        className="p-8 border rounded-lg bg-gray-50 dark:bg-gray-900 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all flex flex-col items-center gap-4 group"
-                    >
-                        <span className="text-4xl group-hover:scale-110 transition-transform duration-200"></span>
-                        <span className="text-xl font-bold text-gray-800 dark:text-gray-100">
-                            Mine Emner
-                        </span>
-                        <p className="text-gray-500 dark:text-gray-400 text-sm">
-                            Oversikt over fagopplegg
-                        </p>
-                    </button>
-
-                    <button
-                        onClick={() => setActiveTab("data")}
-                        className="p-8 border rounded-lg bg-gray-50 dark:bg-gray-900 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all flex flex-col items-center gap-4 group"
-                    >
-                        <span className="text-4xl group-hover:scale-110 transition-transform duration-200"></span>
-                        <span className="text-xl font-bold text-gray-800 dark:text-gray-100">
-                            Canvas Data
-                        </span>
-                        <p className="text-gray-500 dark:text-gray-400 text-sm">
-                            Rådata fra Canvas
-                        </p>
-                    </button>
-                </div>
+    if (!data?.announcements?.length) {
+        return (
+            <div className="text-center py-12">
+                <p className="text-slate-500 dark:text-slate-400">Ingen kunngjøringer</p>
             </div>
         );
     }
 
     return (
-        <div className="w-full">
-            <button
-                onClick={handleBack}
-                className="mb-6 text-sm text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
-            >
-                ← {selectedCourseId ? "Tilbake til emner" : "Tilbake til valg"}
-            </button>
-
-            {/* Tabs - Responsive */}
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-6">
-                <button
-                    onClick={() => setActiveTab("announcements")}
-                    className={`px-4 py-3 sm:py-2 rounded font-semibold transition-colors ${activeTab === "announcements"
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                        }`}
+        <div className="space-y-4">
+            {data.announcements.map((announcement) => (
+                <article
+                    key={announcement.id}
+                    className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 transition-colors hover:border-slate-300 dark:hover:border-slate-600"
                 >
-                    Kunngjøringer
+                    <header className="mb-3">
+                        <h3 className="font-semibold text-slate-900 dark:text-white mb-1">
+                            {announcement.title}
+                        </h3>
+                        {announcement.posted_at && (
+                            <time className="text-sm text-slate-500 dark:text-slate-400">
+                                {formatDistanceToNow(new Date(announcement.posted_at), {
+                                    addSuffix: true,
+                                    locale: nb,
+                                })}
+                            </time>
+                        )}
+                    </header>
+
+                    {announcement.message && (
+                        <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
+                            {parse(DOMPurify.sanitize(announcement.message), htmlParseOptions)}
+                        </div>
+                    )}
+                </article>
+            ))}
+        </div>
+    );
+}
+
+// Courses View
+function CoursesView() {
+    const { data, isLoading, isError, error } = useCanvasEmner();
+    const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
+    const modulesQuery = useCanvasModules(selectedCourseId);
+
+    if (isLoading) {
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                        <LoadingSkeleton lines={2} />
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
+    if (isError) {
+        return <ErrorMessage message={error?.message || "Kunne ikke laste emner"} />;
+    }
+
+    // Vis moduler for valgt emne
+    if (selectedCourseId) {
+        const course = data?.emner.find((e) => e.id === selectedCourseId);
+
+        return (
+            <div>
+                <button
+                    onClick={() => setSelectedCourseId(null)}
+                    className="flex items-center gap-2 mb-6 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                >
+                    <ArrowLeft size={16} />
+                    Tilbake til emner
                 </button>
 
-                <button
-                    onClick={() => setActiveTab("courses")}
-                    className={`px-4 py-3 sm:py-2 rounded font-semibold transition-colors ${activeTab === "courses"
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                        }`}
-                >
-                    Mine Emner
-                </button>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+                    {course?.name}
+                </h3>
 
+                {modulesQuery.isLoading && (
+                    <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                        <Loader2 size={16} className="animate-spin" />
+                        Laster moduler...
+                    </div>
+                )}
+
+                {modulesQuery.isError && (
+                    <ErrorMessage message={modulesQuery.error?.message || "Kunne ikke laste moduler"} />
+                )}
+
+                {modulesQuery.data?.modules && (
+                    <div className="space-y-4">
+                        {modulesQuery.data.modules.map((module) => (
+                            <div
+                                key={module.id}
+                                className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden"
+                            >
+                                <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                                    <h4 className="font-medium text-slate-900 dark:text-white">
+                                        {module.name}
+                                    </h4>
+                                </div>
+
+                                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {module.items?.map((item) => (
+                                        <a
+                                            key={item.id}
+                                            href={safeHref(item.html_url)}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors group"
+                                        >
+                                            <FileText
+                                                size={16}
+                                                className="text-slate-400 dark:text-slate-500 shrink-0"
+                                            />
+                                            <span className="flex-1 text-sm text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white truncate">
+                                                {item.title}
+                                            </span>
+                                            <ExternalLink
+                                                size={14}
+                                                className="text-slate-300 dark:text-slate-600 group-hover:text-slate-400 dark:group-hover:text-slate-500 shrink-0"
+                                            />
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // Vis emner liste
+    if (!data?.emner?.length) {
+        return (
+            <div className="text-center py-12">
+                <p className="text-slate-500 dark:text-slate-400">Ingen emner funnet</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {data.emner.map((emne) => (
                 <button
-                    onClick={() => setActiveTab("data")}
-                    className={`px-4 py-3 sm:py-2 rounded font-semibold transition-colors ${activeTab === "data"
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                        }`}
+                    key={emne.id}
+                    onClick={() => setSelectedCourseId(emne.id)}
+                    className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-left hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm transition-all group"
                 >
-                    Canvas Data
+                    <h3 className="font-semibold text-slate-900 dark:text-white mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                        {emne.name}
+                    </h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
+                        {emne.course_code}
+                    </p>
+                    <div className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium">
+                        Se moduler
+                        <ChevronRight size={16} />
+                    </div>
                 </button>
+            ))}
+        </div>
+    );
+}
+
+// Data View
+function DataView() {
+    const { data, isLoading, isError, error } = useCanvasUser();
+
+    if (isLoading) {
+        return (
+            <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                <LoadingSkeleton lines={5} />
+            </div>
+        );
+    }
+
+    if (isError) {
+        return <ErrorMessage message={error?.message || "Kunne ikke laste data"} />;
+    }
+
+    return (
+        <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+            <h3 className="font-semibold text-slate-900 dark:text-white mb-4">
+                Din Canvas-data
+            </h3>
+            <pre className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg overflow-auto text-xs font-mono text-slate-700 dark:text-slate-300 max-h-125">
+                {JSON.stringify(data, null, 2)}
+            </pre>
+        </div>
+    );
+}
+
+// Hovedkomponent
+export function CanvasSection({ initialView = "announcements" }: CanvasSectionProps) {
+    const [view, setView] = useState<CanvasView>(initialView);
+
+    // Oppdater view hvis initialView endres
+    useEffect(() => {
+        setView(initialView);
+    }, [initialView]);
+
+    const viewTitles: Record<CanvasView, string> = {
+        announcements: "Kunngjøringer",
+        courses: "Mine emner",
+        data: "Canvas data",
+    };
+
+    return (
+        <div className="h-full flex flex-col">
+            {/* Header */}
+            <div className="shrink-0 px-4 md:px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+                    {viewTitles[view]}
+                </h2>
             </div>
 
-            {/* Announcements Tab */}
-            {activeTab === "announcements" && (
-                <div className="space-y-4">
-                    {announcementsQuery.isLoading && (
-                        <p className="text-center text-gray-500 dark:text-gray-400 py-8">
-                            Laster kunngjøringer...
-                        </p>
-                    )}
-
-                    {announcementsQuery.data?.announcements.map((announcement) => (
-                        <div
-                            key={announcement.id}
-                            className="p-4 sm:p-5 border rounded-lg shadow-sm bg-white dark:bg-gray-900 dark:border-gray-700"
-                        >
-                            <h3 className="font-bold text-base sm:text-lg mb-1 text-gray-900 dark:text-gray-100">
-                                {announcement.title}
-                            </h3>
-
-                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-2">
-                                {announcement.posted_at &&
-                                    formatDistanceToNow(new Date(announcement.posted_at), {
-                                        addSuffix: true,
-                                        locale: nb,
-                                    })}
-                            </p>
-
-                            {announcement.message && (
-                                <div className="prose prose-sm max-w-none dark:prose-invert">
-                                    {parse(DOMPurify.sanitize(announcement.message), options)}
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {/* Courses Tab */}
-            {activeTab === "courses" && !selectedCourseId && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                    {emnerQuery.isLoading && (
-                        <p className="col-span-full text-center text-gray-500 dark:text-gray-400 py-8">
-                            Laster emner...
-                        </p>
-                    )}
-
-                    {emnerQuery.data?.emner.map((emne) => (
-                        <div
-                            key={emne.id}
-                            onClick={() => setSelectedCourseId(emne.id)}
-                            className="p-4 sm:p-5 border rounded-lg shadow-sm bg-white hover:shadow-md transition-all dark:bg-gray-900 dark:border-gray-700 dark:hover:bg-gray-800 cursor-pointer"
-                        >
-                            <h3 className="font-bold text-base sm:text-lg text-gray-900 dark:text-gray-100">
-                                {emne.name}
-                            </h3>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                {emne.course_code}
-                            </p>
-                            <p className="text-xs text-blue-600 dark:text-blue-400 mt-2 font-medium">
-                                Klikk for å se moduler →
-                            </p>
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {/* Modules View */}
-            {activeTab === "courses" && selectedCourseId && (
-                <div className="space-y-6">
-                    {modulesQuery.data?.modules.map((module) => (
-                        <div key={module.id} className="border rounded-lg dark:border-gray-700">
-                            <div className="bg-gray-100 dark:bg-gray-800 p-4 border-b dark:border-gray-700">
-                                <h4 className="font-bold text-gray-900 dark:text-gray-100">
-                                    {module.name}
-                                </h4>
-                            </div>
-
-                            {module.items?.map((item) => (
-                                <div
-                                    key={item.id}
-                                    className="p-3 bg-white dark:bg-gray-900 flex items-center gap-3"
-                                >
-                                    <a
-                                        href={safeHref(item.html_url)}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                                    >
-                                        {item.title}
-                                    </a>
-                                </div>
-                            ))}
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {/* Data View */}
-            {activeTab === "data" && (
-                <div className="p-4 sm:p-5 border rounded-lg shadow-sm bg-white dark:bg-gray-900 dark:border-gray-700">
-                    <h3 className="font-bold text-lg mb-4 text-gray-900 dark:text-gray-100">
-                        Din lagrede Canvas-data
-                    </h3>
-                    {userQuery.isLoading ? (
-                        <p className="text-gray-500">Laster data...</p>
-                    ) : userQuery.isError ? (
-                        <p className="text-red-500">Feil: {userQuery.error.message}</p>
-                    ) : (
-                        <pre className="bg-gray-100 dark:bg-gray-800 p-4 rounded overflow-auto text-xs sm:text-sm font-mono text-gray-800 dark:text-gray-200">
-                            {JSON.stringify(userQuery.data, null, 2)}
-                        </pre>
-                    )}
-                </div>
-            )}
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-4 md:p-6">
+                {view === "announcements" && <AnnouncementsView />}
+                {view === "courses" && <CoursesView />}
+                {view === "data" && <DataView />}
+            </div>
         </div>
     );
 }
