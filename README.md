@@ -98,8 +98,8 @@ pnpm --filter backend add <pakkenavn>    # Installer i backend
 pnpm --filter common add <pakkenavn>     # Installer i common
 
 # Vedlikehold
-pnpm clean            # Fjern build-filer (dist, .next)
-pnpm clean:install    # Full reinstall (sletter node_modules + lock)
+pnpm run clean            # Fjern build-filer (dist, .next)
+pnpm run clean:install    # Full reinstall (sletter node_modules + lock)
 ```
 
 **Utviklingsservere:**

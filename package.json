@@ -7,7 +7,7 @@
     "dev:frontend": "pnpm --filter frontend dev",
     "dev:backend": "pnpm --filter backend dev",
     "dev:common": "pnpm --filter common typecheck --watch",
-    "kill:dev": "taskkill //F //IM node.exe 2>nul || echo No dev servers running && rimraf frontend\\.next\\dev\\lock && echo Ryddet opp lock-fil",
+    "kill:dev": "npx kill-port 3000 4000 2>nul & taskkill //F //IM node.exe 2>nul & rimraf frontend\\.next\\dev\\lock && echo Servere stoppet og lock-fil ryddet",
     "lint": "pnpm -r lint",
     "lint:frontend": "pnpm --filter frontend lint",
     "lint:backend": "pnpm --filter backend lint",
@@ -28,7 +28,7 @@
     "update:common": "pnpm --filter common update",
     "outdated": "pnpm -r outdated",
     "clean": "rimraf backend/dist frontend/.next common/dist",
-    "clean:install": "echo Cleaning backend... && npx rimraf backend/node_modules backend/dist && echo Cleaning frontend... && npx rimraf frontend/node_modules frontend/.next && echo Cleaning common... && npx rimraf common/node_modules common/dist && echo Cleaning lockfile... && npx rimraf pnpm-lock.yaml && echo Installing dependencies... && pnpm install"
+    "clean:install": "echo Cleaning all... && npx rimraf backend/node_modules backend/dist frontend/node_modules frontend/.next common/node_modules common/dist node_modules pnpm-lock.yaml && echo Installing dependencies... && pnpm install && echo Building project... && pnpm run build"
   },
   "devDependencies": {
     "rimraf": "^6.1.2"
