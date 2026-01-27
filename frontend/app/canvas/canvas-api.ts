@@ -8,6 +8,7 @@ import { useQuery, type QueryClient } from "@tanstack/react-query";
 
 // Importer Zod schemas fra common
 import {
+  BrukerSchema,
   AnnouncementsResponseSchema,
   EmnerResponseSchema,
   ModulesResponseSchema,
@@ -15,6 +16,7 @@ import {
 
 // Eksporter typer
 export type {
+  CanvasUser,
   Announcement,
   AnnouncementsResponse,
   Emne,
@@ -36,6 +38,14 @@ async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>): Promise<T> 
 }
 
 // React Query hooks
+// Hent innlogget bruker (og trigger sync i backend)
+export function useCanvasUser() {
+  return useQuery({
+    queryKey: ["canvas", "whoami"],
+    queryFn: () => fetchCanvas("/whoami", BrukerSchema),
+  });
+}
+
 // Hent emner
 export function useCanvasEmner() {
   return useQuery({

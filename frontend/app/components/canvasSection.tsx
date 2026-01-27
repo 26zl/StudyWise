@@ -4,7 +4,7 @@
 */
 "use client";
 
-import { useCanvasAnnouncements, useCanvasEmner, useCanvasModules } from "../canvas/canvas-api";
+import { useCanvasAnnouncements, useCanvasEmner, useCanvasModules, useCanvasUser } from "../canvas/canvas-api";
 import { formatDistanceToNow } from "date-fns";
 import { nb } from "date-fns/locale";
 import { useState } from "react";
@@ -16,24 +16,56 @@ import parse, { DOMNode, Element } from "html-react-parser";
 const safeHref = (u?: string | null) =>
     u && u.startsWith("http") ? u : "#";
 
+// Custom Image komponent for å håndtere loading state
+const CustomImage = ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
+    const [isLoading, setIsLoading] = useState(true);
+
+    return (
+        <span className="relative my-4 overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800 min-h-50 w-full flex items-center justify-center">
+            {isLoading && (
+                <span className="absolute inset-0 animate-pulse bg-gray-200 dark:bg-gray-700" />
+            )}
+            <img
+                src={src}
+                alt={alt}
+                {...props}
+                className={`transition-opacity duration-500 ease-in-out ${isLoading ? "opacity-0" : "opacity-100"} max-w-full h-auto`}
+                onLoad={() => setIsLoading(false)}
+                loading="lazy"
+            />
+        </span>
+    );
+};
+
 // Direkte parsing via html-react-parser
 const options = {
     replace: (domNode: DOMNode) => {
-        if (domNode instanceof Element && domNode.tagName === "a") {
-            const h = domNode.attribs?.href;
-            return (
-                <a
-                    href={safeHref(h)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                    {
-                        // @ts-expect-error: html-react-parser types er litt løse her
-                        domNode.children?.[0]?.data || ""
-                    }
-                </a>
-            );
+        if (domNode instanceof Element) {
+            if (domNode.tagName === "a") {
+                const h = domNode.attribs?.href;
+                return (
+                    <a
+                        href={safeHref(h)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                        {
+                            // @ts-expect-error: html-react-parser types er litt løse her
+                            domNode.children?.[0]?.data || ""
+                        }
+                    </a>
+                );
+            }
+            if (domNode.tagName === "img") {
+                return (
+                    <CustomImage
+                        src={domNode.attribs.src}
+                        alt={domNode.attribs.alt || "Canvas bilde"}
+                        {...domNode.attribs}
+                    />
+                );
+            }
         }
     },
 };
@@ -43,7 +75,8 @@ export function CanvasSection() {
     // Vi laster data umiddelbart (prefetch) for raskere visning, men viser det ikke før brukeren velger
     const announcementsQuery = useCanvasAnnouncements();
     const emnerQuery = useCanvasEmner();
-    const [activeTab, setActiveTab] = useState<"menu" | "announcements" | "courses">("menu");
+    const userQuery = useCanvasUser();
+    const [activeTab, setActiveTab] = useState<"menu" | "announcements" | "courses" | "data">("menu");
     const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
     const modulesQuery = useCanvasModules(selectedCourseId);
 
@@ -63,7 +96,7 @@ export function CanvasSection() {
                     Hva vil du se?
                 </h2>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                     <button
                         onClick={() => setActiveTab("announcements")}
                         className="p-8 border rounded-lg bg-gray-50 dark:bg-gray-900 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all flex flex-col items-center gap-4 group"
@@ -89,6 +122,19 @@ export function CanvasSection() {
                             Oversikt over fagopplegg
                         </p>
                     </button>
+
+                    <button
+                        onClick={() => setActiveTab("data")}
+                        className="p-8 border rounded-lg bg-gray-50 dark:bg-gray-900 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all flex flex-col items-center gap-4 group"
+                    >
+                        <span className="text-4xl group-hover:scale-110 transition-transform duration-200"></span>
+                        <span className="text-xl font-bold text-gray-800 dark:text-gray-100">
+                            Canvas Data
+                        </span>
+                        <p className="text-gray-500 dark:text-gray-400 text-sm">
+                            Rådata fra Canvas
+                        </p>
+                    </button>
                 </div>
             </div>
         );
@@ -108,8 +154,8 @@ export function CanvasSection() {
                 <button
                     onClick={() => setActiveTab("announcements")}
                     className={`px-4 py-3 sm:py-2 rounded font-semibold transition-colors ${activeTab === "announcements"
-                            ? "bg-blue-600 text-white"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                         }`}
                 >
                     Kunngjøringer
@@ -118,11 +164,21 @@ export function CanvasSection() {
                 <button
                     onClick={() => setActiveTab("courses")}
                     className={`px-4 py-3 sm:py-2 rounded font-semibold transition-colors ${activeTab === "courses"
-                            ? "bg-blue-600 text-white"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                         }`}
                 >
                     Mine Emner
+                </button>
+
+                <button
+                    onClick={() => setActiveTab("data")}
+                    className={`px-4 py-3 sm:py-2 rounded font-semibold transition-colors ${activeTab === "data"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                        }`}
+                >
+                    Canvas Data
                 </button>
             </div>
 
@@ -219,6 +275,24 @@ export function CanvasSection() {
                             ))}
                         </div>
                     ))}
+                </div>
+            )}
+
+            {/* Data View */}
+            {activeTab === "data" && (
+                <div className="p-4 sm:p-5 border rounded-lg shadow-sm bg-white dark:bg-gray-900 dark:border-gray-700">
+                    <h3 className="font-bold text-lg mb-4 text-gray-900 dark:text-gray-100">
+                        Din lagrede Canvas-data
+                    </h3>
+                    {userQuery.isLoading ? (
+                        <p className="text-gray-500">Laster data...</p>
+                    ) : userQuery.isError ? (
+                        <p className="text-red-500">Feil: {userQuery.error.message}</p>
+                    ) : (
+                        <pre className="bg-gray-100 dark:bg-gray-800 p-4 rounded overflow-auto text-xs sm:text-sm font-mono text-gray-800 dark:text-gray-200">
+                            {JSON.stringify(userQuery.data, null, 2)}
+                        </pre>
+                    )}
                 </div>
             )}
         </div>

@@ -6,7 +6,7 @@
 
 import { Router } from "express";
 import { InferenceClient } from "@huggingface/inference";
-import { logger } from "../../middleware/logger.js";
+import { logger } from "../../utils/logger.js";
 import { getCache, setCache } from "../../cache/redis.js";
 
 // Definerer express router

@@ -3,7 +3,7 @@
 *
 */
 import { getCache, setCache } from "../../cache/redis.js";
-import { logger } from "../../middleware/logger.js";
+import { logger } from "../../utils/logger.js";
 
 // Typer og Interfaces
 // Canvas fetch funksjon med paginering og timeout
@@ -11,6 +11,7 @@ export interface CanvasFetchOptions {
     queryParams?: Record<string, string | number | boolean | string[]>;
     timeout?: number;
     maxPages?: number;
+    token?: string;
 }
 
 // Standardisert responsformat
@@ -61,9 +62,11 @@ export async function canvasFetch<T>(
     options: CanvasFetchOptions = {}
 ): Promise<CanvasResponse<T>> {
     const { queryParams, timeout = 10000, maxPages = 5 } = options;
-    const { token, baseUrl } = getCanvasConfig();
+    const config = getCanvasConfig();
+    const token = options.token || config.token;
+    const { baseUrl } = config;
 
-    if (!token) throw new Error("CANVAS_TOKEN er ikke konfigurert");
+    if (!token) throw new Error("CANVAS_TOKEN er ikke konfigurert (verken i env eller bruker-instillinger)");
     if (!baseUrl) throw new Error("CANVAS_BASE_URL er ikke konfigurert");
 
     // Bygg URL med query params

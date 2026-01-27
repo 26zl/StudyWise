@@ -2,7 +2,7 @@
 * Cache for redis primært brukt for Canvas API
 */
 import { createClient } from "redis";
-import { logger } from "../middleware/logger.js";
+import { logger } from "../utils/logger.js";
 
 const client = createClient({
     url: process.env.REDIS_URL,

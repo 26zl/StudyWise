@@ -278,16 +278,18 @@ StudyWise/
 
 ## Feilsøking
 
-### pnpm kommandoer virker ikke
+### pnpm kommandoer virker ikke / Typefeil etter clean
 
-Sjekk om du har installert pnpm riktig.
-Etter det kjør:
+Hvis du opplever rare feil eller "missing module"-feil (spesielt relatert til `common`), kan en full reset være nødvendig.
+
+1. Kjør full clean:
 
 ```bash
 pnpm clean:install
 ```
 
-Og deretter:
+2. **VIKTIG:** Bygg prosjektet på nytt!
+`clean:install` tømmer alt, inkludert delte typer i `common`. Du **MÅ** bygge dem (minst `pnpm build:common`) før `pnpm typecheck` eller editor vil slutte å klage på manglende typer.
 
 ```bash
 pnpm build

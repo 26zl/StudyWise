@@ -135,6 +135,39 @@ const data = AnnouncementsResponseSchema.parse(await res.json());
 
 ---
 
+## Autentisering og Brukerdata
+
+Det er kritisk å forstå skillet mellom "Lokal Bruker" og "Canvas Bruker" i dette systemet.
+
+### 1. Lokal Bruker (User)
+
+- **Fil:** `backend/src/database/models/User.ts`
+- **Ansvar:** Innlogging, passord, epost, og *hemmeligheter*.
+- **Viktig:** Det er HER vi lagrer Canvas API Tokeet (kryptert).
+- **Kobling:** Denne modellen er "sjefen". Den representerer en person som kan logge inn.
+
+### 2. Canvas Bruker (CanvasUser)
+
+- **Fil:** `backend/src/database/models/Canvas.ts`
+- **Ansvar:** Cache av offentlig profilinfo fra Canvas (navn, bilde, innstillinger).
+- **Viktig:** Dette er kun data. Vi logger ikke inn med denne.
+- **Kobling:** Har et felt `localUser` som peker tilbake på `User`.
+
+### 3. Hvordan de henger sammen
+
+```text
+ [ USER (Lokal) ] ---------------------> [ CANVAS USER (Cache) ]
+    _id: "123"                              canvasId: 999
+    email: "ola@nordmann.no"                name: "Ola Nordmann"
+    canvasApiToken: "Kryptert..."           localUser: "123" (Kobling!)
+```
+
+**Flyten:**
+1. Bruker logger inn (JWT Auth med `User` data).
+2. Backend bruker `User.canvasApiToken` for å snakke med Canvas API.
+3. Resultatet fra `/whoami` lagres/oppdateres i `CanvasUser`.
+4. `CanvasUser.localUser` settes til `User._id` for å binde dem sammen.
+
 ## Legge til ny funksjonalitet
 
 La oss si du skal legge til en **Kalender** som viser studentens timeplan.
@@ -670,7 +703,3 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 - [Next.js dokumentasjon](https://nextjs.org/docs)
 - [React Query dokumentasjon](https://tanstack.com/query/latest)
 - [Zod dokumentasjon](https://zod.dev)
-
-### Generelle Regler
-
-- **Emojis**: Det skal IKKE brukes emojis i kode (tekst, knapper, kommentarer osv) med mindre brukeren SPESIFIKT ber om det.

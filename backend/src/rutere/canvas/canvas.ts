@@ -3,11 +3,19 @@
 * Må bruke engelske navn på variabler og funksjoner for å samsvare med Canvas API dokumentasjon.
 * Prøver å bruke norske variabler og kommentarer der det gir mening.
 * Arver typer og schemaer fra common/canvas for konsistens.
+* VIKTIG OM BRUKERE:
+* Når vi henter `/whoami` her, henter vi data FRA Canvas.
+* Vi lagrer dette som en `CanvasUser` i databasen.
+* Dette er IKKE det samme som innlogging (Auth).
+* Fremtidig Kobling:
+* Når Auth er på plass, vil `CanvasUser` (canvas brukeren din) ha en referanse til `User` (innloggingsbrukeren din).
+* Da vet vi at "Ola Nordmann fra Canvas" = "ola@exmaple.com som logget inn".
 */
 import { Router } from "express";
 import { z } from "zod";
 import { canvasFetch, requireCanvasToken } from "./canvasUtils.js";
-import { logger } from "../../middleware/logger.js";
+import { logger } from "../../utils/logger.js";
+import { CanvasUser } from "../../database/models/Canvas.js";
 import {
   CanvasUserSchema,
   CanvasCourseSchema,
@@ -26,16 +34,40 @@ router.use(requireCanvasToken);
 router.get("/whoami", async (_req, res) => {
   try {
     const response = await canvasFetch<unknown>("/api/v1/users/self/profile");
-    const bruker = CanvasUserSchema.parse(response.data);
-    logger.info({ userId: bruker.id }, "Canvas /whoami endpoint kalt");
+    const canvasBruker = CanvasUserSchema.parse(response.data);
+
+    // Lagre eller oppdater bruker i vår egen database (kun canvas data, ikke lokal bruker fra vårt eget auth system)
+    // OBS: Dette er ren datasynkronisering. Det bekrefter at Canvas-tokenet virker, men logger ikke brukeren inn i VÅRT system.
+    await CanvasUser.findOneAndUpdate(
+      { canvasId: canvasBruker.id }, // Finn basert på canvasId
+      {
+        canvasId: canvasBruker.id,
+        name: canvasBruker.name,
+        sortableName: canvasBruker.sortable_name,
+        shortName: canvasBruker.short_name,
+        avatarUrl: canvasBruker.avatar_url,
+        firstName: canvasBruker.first_name,
+        lastName: canvasBruker.last_name,
+        locale: canvasBruker.locale,
+        effectiveLocale: canvasBruker.effective_locale,
+        permissions: {
+          canUpdateName: canvasBruker.permissions?.can_update_name,
+          canUpdateAvatar: canvasBruker.permissions?.can_update_avatar,
+          limitParentAppWebAccess: canvasBruker.permissions?.limit_parent_app_web_access,
+        },
+        canvasUserCreatedAt: canvasBruker.created_at ? new Date(canvasBruker.created_at) : undefined,
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true } // Opprett hvis ikke finnes
+    );
+    logger.info({ userId: canvasBruker.id }, "Canvas /whoami endpoint kalt og bruker synkronisert");
     res.json({
-      id: bruker.id,
-      navn: bruker.name,
-      epost: bruker.primary_email || null,
-      locale: bruker.locale || "nb",
+      id: canvasBruker.id,
+      navn: canvasBruker.name,
+      epost: canvasBruker.primary_email || null,
+      locale: canvasBruker.locale || "nb",
     });
   } catch (error) {
-    logger.error({ err: error }, "Klarte ikke å hente brukerinformasjon (/whoami)");
+    logger.error({ err: error }, "Klarte ikke å hente eller lagre brukerinformasjon (/whoami)");
     throw error;
   }
 });

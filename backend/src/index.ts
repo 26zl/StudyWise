@@ -16,11 +16,12 @@ import swaggerUi from "swagger-ui-express";
 import { pinoHttp } from "pino-http";
 import { swaggerSpec } from "./swagger.js";
 import { connectToDatabase } from "./database/database.js";
-import { logger } from "./middleware/logger.js";
+import { logger } from "./utils/logger.js";
 import "./cache/redis.js";
 import canvasRuter from "./rutere/canvas/canvas.js";
 import authRuter from "./rutere/auth/auth.js";
 import kiRuter from "./rutere/ki/ki.js";
+import brukerAuthRuter from "./rutere/auth/brukerAuth.js";
 
 const app = express();
 const startTime = Date.now();
@@ -84,6 +85,7 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use("/api/auth", authRuter);
 app.use("/api/canvas", canvasRuter);
 app.use("/api/ki", kiRuter);
+app.use("/api/user", brukerAuthRuter);
 
 // Feil håndtering globalt
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

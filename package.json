@@ -28,7 +28,7 @@
     "update:common": "pnpm --filter common update",
     "outdated": "pnpm -r outdated",
     "clean": "rimraf backend/dist frontend/.next common/dist",
-    "clean:install": "rimraf backend/node_modules frontend/node_modules common/node_modules backend/dist frontend/.next common/dist node_modules pnpm-lock.yaml || echo Cleaning... && pnpm install"
+    "clean:install": "echo Cleaning backend... && npx rimraf backend/node_modules backend/dist && echo Cleaning frontend... && npx rimraf frontend/node_modules frontend/.next && echo Cleaning common... && npx rimraf common/node_modules common/dist && echo Cleaning lockfile... && npx rimraf pnpm-lock.yaml && echo Installing dependencies... && pnpm install"
   },
   "devDependencies": {
     "rimraf": "^6.1.2"

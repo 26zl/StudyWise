@@ -5,12 +5,25 @@
 import { z } from "zod";
 
 // zod schemas for Canvas API responses
-
 export const CanvasUserSchema = z.object({
   id: z.number(),
   name: z.string(),
+  sortable_name: z.string().optional(),
+  short_name: z.string().optional(),
+  avatar_url: z.string().optional(),
+  first_name: z.string().optional(),
+  last_name: z.string().optional(),
   primary_email: z.string().email().nullable().optional(),
   locale: z.string().nullable().optional(),
+  effective_locale: z.string().optional(),
+  permissions: z
+    .object({
+      can_update_name: z.boolean().default(false),
+      can_update_avatar: z.boolean().default(false),
+      limit_parent_app_web_access: z.boolean().default(false),
+    })
+    .optional(),
+  created_at: z.string().optional(),
 });
 
 export const CanvasCourseSchema = z.object({
@@ -70,6 +83,7 @@ export const BrukerSchema = z.object({
   id: z.number(),
   navn: z.string(),
   epost: z.string().nullable(),
+  locale: z.string().optional(),
 });
 
 export const EmneSchema = z.object({

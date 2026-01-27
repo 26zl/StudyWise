@@ -7,11 +7,13 @@
 import { useState } from "react";
 import { CanvasSection } from "../components/canvasSection";
 import { KISection } from "../components/kiSection";
+import { useCanvasUser } from "../canvas/canvas-api";
 
 // Dashboard side komponent
 export default function DashboardPage() {
   const [activeView, setActiveView] = useState<"overview" | "canvas" | "ki">("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const userQuery = useCanvasUser();
 
   // Meny elementer
   const menuItems = [
@@ -80,7 +82,9 @@ export default function DashboardPage() {
         <div className="w-full max-w-4xl">
           {activeView === "overview" && (
             <div className="text-center">
-              <h2 className="text-2xl sm:text-3xl font-bold mb-4">Velkommen tilbake!</h2>
+              <h2 className="text-2xl sm:text-3xl font-bold mb-4">
+                {userQuery.data ? `Velkommen tilbake, ${userQuery.data.navn.split(" ")[0]}!` : "Velkommen tilbake!"}
+              </h2>
               <p className="text-gray-600 dark:text-gray-300 text-base sm:text-lg">
                 Velg en modul fra menyen{" "}
                 <span className="md:inline hidden">til venstre</span>
