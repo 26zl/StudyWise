@@ -2,6 +2,7 @@ packages:
   - backend
   - frontend
   - common
+  - docs
 
 onlyBuiltDependencies:
   - esbuild

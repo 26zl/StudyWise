@@ -13,6 +13,7 @@ hvordan du skal kode og utvikle dette prosjektet.
 - **Database**: MongoDB (Atlas/Lokal) + Redis (Cloud/Lokal)
 - **Common**: Zod schemas (delt mellom frontend og backend)
 - **Pakkehåndtering**: pnpm workspace (monorepo)
+- **Dokumentasjon**: VitePress
 - **Autentisering**: JWT
 
 ## Kom i gang
@@ -57,9 +58,10 @@ REDIS_URL=redis://default:PASS@host:port
 
 ```bash
 # Utvikling
-pnpm dev              # Start alt (frontend + backend)
+pnpm dev              # Start alt (frontend + backend + docs)
 pnpm dev:frontend     # Start kun frontend
 pnpm dev:backend      # Start kun backend
+pnpm dev:docs         # Start kun dokumentasjon
 pnpm dev:common       # Watch mode for common (type checking)
 
 # Linting
@@ -74,10 +76,11 @@ pnpm typecheck:backend    # Type-check backend
 pnpm typecheck:common     # Type-check common
 
 # Bygg (NB: common bygges automatisk før frontend/backend)
-pnpm build            # Bygg alt (common → backend → frontend)
+pnpm build            # Bygg alt (common → backend → frontend → docs)
 pnpm build:common     # Bygg kun common
 pnpm build:frontend   # Bygg common + frontend
 pnpm build:backend    # Bygg common + backend
+pnpm build:docs       # Bygg kun dokumentasjon
 
 # Produksjon
 pnpm start            # Start alt (frontend + backend)
@@ -90,6 +93,7 @@ pnpm update           # Oppdater alle pakker
 pnpm update:frontend  # Oppdater kun frontend
 pnpm update:backend   # Oppdater kun backend
 pnpm update:common    # Oppdater kun common
+pnpm update:docs      # Oppdater kun docs
 
 # Installere nye pakker
 # VIKTIG: Ikke installer pakker i roten (uten --filter). Det skaper rot!
@@ -106,6 +110,7 @@ pnpm run clean:install    # Full reinstall (sletter node_modules + lock)
 
 - Backend: <http://localhost:4000>
 - Frontend: <http://localhost:3000>
+- Dokumentasjon: <http://localhost:5173>
 - API Dokumentasjon (Swagger): <http://localhost:4000/api-docs>
 - Health Check: <http://localhost:4000/health>
 

@@ -1,0 +1,17 @@
+{
+    "name": "docs",
+    "version": "1.0.0",
+    "description": "Prosjektdokumentasjon for StudyWise",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vitepress dev docs",
+        "build": "vitepress build docs",
+        "preview": "vitepress preview docs",
+        "lint": "markdownlint \"**/*.md\" --ignore node_modules --config ../.markdownlint.json"
+    },
+    "dependencies": {
+        "vitepress": "^1.0.0",
+        "vue": "^3.0.0"
+    }
+}
