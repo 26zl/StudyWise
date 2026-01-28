@@ -16,65 +16,6 @@ Guide for utvikling i StudyWise prosjektet.
 
 ## Prosjektstruktur
 
-Prosjektet er delt i tre hoveddeler:
-
-```text
-StudyWise/
-├── common/                  # Delte Zod schemas (workspace pakke)
-│   ├── src/
-│   │   ├── auth.ts              # Auth schemas
-│   │   ├── canvas.ts            # Canvas API schemas
-│   │   ├── ki.ts                # KI API schemas
-│   │   └── index.ts             # Eksporterer alle schemas
-│   ├── dist/                    # Kompilerte filer (.js + .d.ts)
-│   ├── package.json             # Inkluderer build script
-│   └── tsconfig.json            # Extends ../tsconfig.base.json
-├── frontend/                # Next.js frontend
-│   ├── app/                # App Router
-│   │   ├── hjem/           # Hjemmeside / Landing page
-│   │   │   └── page.tsx
-│   │   ├── canvas/         # Canvas
-│   │   │   └── canvas-api.ts    # Kun API-logikk (hooks)
-│   │   ├── dashboard/      # Dashboard (SPA Hub)
-│   │   │   └── page.tsx         # Hovedsiden som styrer visningene
-│   │   ├── auth/           # Autentisering
-│   │   │   ├── auth-api.ts      # Auth API hooks
-│   │   │   └── page.tsx         # Login-side
-│   │   ├── ki/                 # KI-sider
-│   │   │   └── ki-api.ts        # Kun API-logikk (hooks)
-│   │   ├── layout.tsx      # Root layout (Providers + Global CSS)
-│   │   ├── page.tsx        # Root page (redirecter til /hjem)
-│   │   ├── providers.tsx   # React Query provider
-│   │   ├── globals.css     # Global styling (Tailwind v4)
-│   │   ├── components/     # Gjenbrukbare komponenter
-│   │       ├── canvasSection.tsx    # Viser Canvas-innhold i dashboard
-│   │       ├── kiSection.tsx        # Viser AI-chat i dashboard
-│   │       ├── header.tsx           # Global header
-│   │       └── footer.tsx           # Global footer
-│   ├── package.json
-│   ├── postcss.config.mjs  # Tailwind v4 config
-│   └── tsconfig.json
-├── backend/                # Express backend
-│   ├── src/
-│   │   ├── database/       # Database-kobling
-│   │   │   └── database.ts      # Kobler til MongoDB
-│   │   ├── rutere/         # API-ruter
-│   │   │   ├── canvas/
-│   │   │   │   └── canvas.ts    # Canvas LMS API endpoints
-│   │   │   ├── auth/
-│   │   │   │   └── auth.ts      # Autentisering endpoints
-│   │   │   └── ki/
-│   │   │       └── ki.ts        # KI/AI endpoints
-│   │   ├── swagger.ts      # Swagger/OpenAPI konfigurasjon
-│   │   └── index.ts        # Server entry point + /health endpoint
-│   ├── package.json
-│   └── tsconfig.json       # Extends ../tsconfig.base.json
-├── tsconfig.base.json      # Delt TypeScript konfigurasjon
-├── package.json            # Workspace root (monorepo scripts)
-├── pnpm-workspace.yaml     # pnpm workspace config
-└── docker-compose.yml      # Docker Compose config
-```
-
 **Common**: Inneholder alle data-definisjoner som brukes av både backend og
 frontend. Dette sikrer at begge deler er enige om hvordan dataene ser ut.
 
