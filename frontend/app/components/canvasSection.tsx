@@ -1,13 +1,13 @@
 /*
- * CanvasSection - Canvas visning
- * Viser kunngjøringer, emner og moduler fra Canvas LMS
- */
+* CanvasSection - Canvas visning
+* Viser kunngjøringer, emner og moduler fra Canvas LMS
+*/
 "use client";
 
 import { useState, useEffect } from "react";
 import {
     useCanvasAnnouncements,
-    useCanvasEmner,
+    useCanvasCourses,
     useCanvasModules,
     useCanvasUser,
 } from "../canvas/canvas-api";
@@ -25,49 +25,49 @@ import {
 } from "lucide-react";
 
 // Typer for Canvas visninger
-type CanvasView = "announcements" | "courses" | "data";
+type CanvasVisning = "announcements" | "courses" | "data";
 
 interface CanvasSectionProps {
-    initialView?: CanvasView;
+    startVisning?: CanvasVisning;
 }
 
 // Validering mot DOM-basert XSS - tillater kun http/https for href
-const safeHref = (u?: string | null) => (u && u.startsWith("http") ? u : "#");
+const sikkerHref = (u?: string | null) => (u && u.startsWith("http") ? u : "#");
 
-// Custom Image komponent med loading state
-const CustomImage = ({
+// Tilpasset Bilde-komponent med laste-tilstand
+const TilpassetBilde = ({
     src,
     alt,
     ...props
 }: React.ImgHTMLAttributes<HTMLImageElement>) => {
-    const [isLoading, setIsLoading] = useState(true);
+    const [laster, settLaster] = useState(true);
 
     return (
         <span className="relative my-3 inline-block overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
-            {isLoading && (
+            {laster && (
                 <span className="absolute inset-0 animate-pulse bg-slate-200 dark:bg-slate-700" />
             )}
             <img
                 src={src}
                 alt={alt}
                 {...props}
-                className={`transition-opacity duration-500 ${isLoading ? "opacity-0" : "opacity-100"} max-w-full max-h-75 w-auto h-auto object-contain`}
-                onLoad={() => setIsLoading(false)}
+                className={`transition-opacity duration-500 ${laster ? "opacity-0" : "opacity-100"} max-w-full max-h-75 w-auto h-auto object-contain`}
+                onLoad={() => settLaster(false)}
                 loading="lazy"
             />
         </span>
     );
 };
 
-// HTML parser options for safe rendering
-const htmlParseOptions = {
+// HTML parser opsjoner for sikker visning
+const htmlParseAlternativer = {
     replace: (domNode: DOMNode) => {
         if (domNode instanceof Element) {
             if (domNode.tagName === "a") {
                 const href = domNode.attribs?.href;
                 return (
                     <a
-                        href={safeHref(href)}
+                        href={sikkerHref(href)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
@@ -82,7 +82,7 @@ const htmlParseOptions = {
             }
             if (domNode.tagName === "img") {
                 return (
-                    <CustomImage
+                    <TilpassetBilde
                         src={domNode.attribs.src}
                         alt={domNode.attribs.alt || "Canvas bilde"}
                         {...domNode.attribs}
@@ -93,11 +93,11 @@ const htmlParseOptions = {
     },
 };
 
-// Loading Skeleton
-function LoadingSkeleton({ lines = 3 }: { lines?: number }) {
+// Laste-skjelett
+function LasteSkjelett({ linjer = 3 }: { linjer?: number }) {
     return (
         <div className="space-y-3 animate-pulse">
-            {Array.from({ length: lines }).map((_, i) => (
+            {Array.from({ length: linjer }).map((_, i) => (
                 <div
                     key={i}
                     className="h-4 bg-slate-200 dark:bg-slate-700 rounded"
@@ -108,18 +108,18 @@ function LoadingSkeleton({ lines = 3 }: { lines?: number }) {
     );
 }
 
-// Error melding komponent
-function ErrorMessage({ message }: { message: string }) {
+// Feilmelding-komponent
+function FeilMelding({ melding }: { melding: string }) {
     return (
         <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
             <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
-            <p className="text-sm text-red-700 dark:text-red-300">{message}</p>
+            <p className="text-sm text-red-700 dark:text-red-300">{melding}</p>
         </div>
     );
 }
 
-// Announcements View
-function AnnouncementsView() {
+// Kunngjørings-visning
+function KunngjoringVisning() {
     const { data, isLoading, isError, error } = useCanvasAnnouncements();
 
     if (isLoading) {
@@ -127,7 +127,7 @@ function AnnouncementsView() {
             <div className="space-y-4">
                 {[1, 2, 3].map((i) => (
                     <div key={i} className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
-                        <LoadingSkeleton />
+                        <LasteSkjelett />
                     </div>
                 ))}
             </div>
@@ -135,7 +135,7 @@ function AnnouncementsView() {
     }
 
     if (isError) {
-        return <ErrorMessage message={error?.message || "Kunne ikke laste kunngjøringer"} />;
+        return <FeilMelding melding={error?.message || "Kunne ikke laste kunngjøringer"} />;
     }
 
     if (!data?.announcements?.length) {
@@ -169,7 +169,7 @@ function AnnouncementsView() {
 
                     {announcement.message && (
                         <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
-                            {parse(DOMPurify.sanitize(announcement.message), htmlParseOptions)}
+                            {parse(DOMPurify.sanitize(announcement.message), htmlParseAlternativer)}
                         </div>
                     )}
                 </article>
@@ -178,18 +178,18 @@ function AnnouncementsView() {
     );
 }
 
-// Courses View
-function CoursesView() {
-    const { data, isLoading, isError, error } = useCanvasEmner();
-    const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
-    const modulesQuery = useCanvasModules(selectedCourseId);
+// Emne-visning
+function EmneVisning() {
+    const { data, isLoading, isError, error } = useCanvasCourses();
+    const [valgtEmneId, settValgtEmneId] = useState<number | null>(null);
+    const modulerQuery = useCanvasModules(valgtEmneId);
 
     if (isLoading) {
         return (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[1, 2, 3, 4].map((i) => (
                     <div key={i} className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
-                        <LoadingSkeleton lines={2} />
+                        <LasteSkjelett linjer={2} />
                     </div>
                 ))}
             </div>
@@ -197,17 +197,17 @@ function CoursesView() {
     }
 
     if (isError) {
-        return <ErrorMessage message={error?.message || "Kunne ikke laste emner"} />;
+        return <FeilMelding melding={error?.message || "Kunne ikke laste emner"} />;
     }
 
     // Vis moduler for valgt emne
-    if (selectedCourseId) {
-        const course = data?.emner.find((e) => e.id === selectedCourseId);
+    if (valgtEmneId) {
+        const course = data?.courses.find((e) => e.id === valgtEmneId);
 
         return (
             <div>
                 <button
-                    onClick={() => setSelectedCourseId(null)}
+                    onClick={() => settValgtEmneId(null)}
                     className="flex items-center gap-2 mb-6 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
                 >
                     <ArrowLeft size={16} />
@@ -218,20 +218,20 @@ function CoursesView() {
                     {course?.name}
                 </h3>
 
-                {modulesQuery.isLoading && (
+                {modulerQuery.isLoading && (
                     <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
                         <Loader2 size={16} className="animate-spin" />
                         Laster moduler...
                     </div>
                 )}
 
-                {modulesQuery.isError && (
-                    <ErrorMessage message={modulesQuery.error?.message || "Kunne ikke laste moduler"} />
+                {modulerQuery.isError && (
+                    <FeilMelding melding={modulerQuery.error?.message || "Kunne ikke laste moduler"} />
                 )}
 
-                {modulesQuery.data?.modules && (
+                {modulerQuery.data?.modules && (
                     <div className="space-y-4">
-                        {modulesQuery.data.modules.map((module) => (
+                        {modulerQuery.data.modules.map((module) => (
                             <div
                                 key={module.id}
                                 className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden"
@@ -246,7 +246,7 @@ function CoursesView() {
                                     {module.items?.map((item) => (
                                         <a
                                             key={item.id}
-                                            href={safeHref(item.html_url)}
+                                            href={sikkerHref(item.html_url)}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors group"
@@ -274,7 +274,7 @@ function CoursesView() {
     }
 
     // Vis emner liste
-    if (!data?.emner?.length) {
+    if (!data?.courses?.length) {
         return (
             <div className="text-center py-12">
                 <p className="text-slate-500 dark:text-slate-400">Ingen emner funnet</p>
@@ -284,10 +284,10 @@ function CoursesView() {
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {data.emner.map((emne) => (
+            {data.courses.map((emne) => (
                 <button
                     key={emne.id}
-                    onClick={() => setSelectedCourseId(emne.id)}
+                    onClick={() => settValgtEmneId(emne.id)}
                     className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-left hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm transition-all group"
                 >
                     <h3 className="font-semibold text-slate-900 dark:text-white mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400">
@@ -306,20 +306,20 @@ function CoursesView() {
     );
 }
 
-// Data View
-function DataView() {
+// Data Visning
+function DataVisning() {
     const { data, isLoading, isError, error } = useCanvasUser();
 
     if (isLoading) {
         return (
             <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
-                <LoadingSkeleton lines={5} />
+                <LasteSkjelett linjer={5} />
             </div>
         );
     }
 
     if (isError) {
-        return <ErrorMessage message={error?.message || "Kunne ikke laste data"} />;
+        return <FeilMelding melding={error?.message || "Kunne ikke laste data"} />;
     }
 
     return (
@@ -335,15 +335,15 @@ function DataView() {
 }
 
 // Hovedkomponent
-export function CanvasSection({ initialView = "announcements" }: CanvasSectionProps) {
-    const [view, setView] = useState<CanvasView>(initialView);
+export function CanvasSection({ startVisning = "announcements" }: CanvasSectionProps) {
+    const [visning, settVisning] = useState<CanvasVisning>(startVisning);
 
-    // Oppdater view hvis initialView endres
+    // Oppdater visning hvis startVisning endres
     useEffect(() => {
-        setView(initialView);
-    }, [initialView]);
+        settVisning(startVisning);
+    }, [startVisning]);
 
-    const viewTitles: Record<CanvasView, string> = {
+    const visningTitler: Record<CanvasVisning, string> = {
         announcements: "Kunngjøringer",
         courses: "Mine emner",
         data: "Canvas data",
@@ -354,15 +354,15 @@ export function CanvasSection({ initialView = "announcements" }: CanvasSectionPr
             {/* Header */}
             <div className="shrink-0 px-4 md:px-6 py-4 border-b border-slate-200 dark:border-slate-800">
                 <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
-                    {viewTitles[view]}
+                    {visningTitler[visning]}
                 </h2>
             </div>
 
-            {/* Content */}
+            {/* Innhold */}
             <div className="flex-1 overflow-y-auto p-4 md:p-6">
-                {view === "announcements" && <AnnouncementsView />}
-                {view === "courses" && <CoursesView />}
-                {view === "data" && <DataView />}
+                {visning === "announcements" && <KunngjoringVisning />}
+                {visning === "courses" && <EmneVisning />}
+                {visning === "data" && <DataVisning />}
             </div>
         </div>
     );

@@ -8,21 +8,24 @@ import { useQuery, type QueryClient } from "@tanstack/react-query";
 
 // Importer Zod schemas fra common
 import {
-  BrukerSchema,
+  CanvasUserSchema,
   AnnouncementsResponseSchema,
-  EmnerResponseSchema,
+  CoursesResponseSchema,
   ModulesResponseSchema,
+  AssignmentsResponseSchema,
 } from "common/canvas";
 
 // Eksporter typer
 export type {
   CanvasUser,
-  Announcement,
+  CanvasAnnouncement,
   AnnouncementsResponse,
-  Emne,
-  EmnerResponse,
-  Module,
+  CanvasCourse,
+  CoursesResponse,
+  CanvasModule,
   ModulesResponse,
+  CanvasAssignment,
+  AssignmentsResponse,
 } from "common/canvas";
 
 // API funksjoner 
@@ -42,15 +45,15 @@ async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>): Promise<T> 
 export function useCanvasUser() {
   return useQuery({
     queryKey: ["canvas", "whoami"],
-    queryFn: () => fetchCanvas("/whoami", BrukerSchema),
+    queryFn: () => fetchCanvas("/whoami", CanvasUserSchema),
   });
 }
 
-// Hent emner
-export function useCanvasEmner() {
+// Hent courses
+export function useCanvasCourses() {
   return useQuery({
-    queryKey: ["canvas", "emner"],
-    queryFn: () => fetchCanvas("/emner", EmnerResponseSchema),
+    queryKey: ["canvas", "courses"],
+    queryFn: () => fetchCanvas("/emner", CoursesResponseSchema),
   });
 }
 // Hent kunngjøringer
@@ -70,6 +73,16 @@ export function useCanvasModules(courseId: number | null) {
   });
 }
 
+// Hent oppgaver for et spesifikt emne
+export function useCanvasAssignments(courseId: number | null) {
+  return useQuery({
+    queryKey: ["canvas", "assignments", courseId],
+    queryFn: () =>
+      fetchCanvas(`/emner/${courseId}/oppgaver`, AssignmentsResponseSchema),
+    enabled: !!courseId,
+  });
+}
+
 // Prefetch funksjon for app-start - laster data i bakgrunnen
 export function prefetchCanvasData(queryClient: QueryClient) {
   // Prefetch kunngjøringer og emner parallelt
@@ -79,7 +92,7 @@ export function prefetchCanvasData(queryClient: QueryClient) {
   });
 
   queryClient.prefetchQuery({
-    queryKey: ["canvas", "emner"],
-    queryFn: () => fetchCanvas("/emner", EmnerResponseSchema),
+    queryKey: ["canvas", "courses"],
+    queryFn: () => fetchCanvas("/emner", CoursesResponseSchema),
   });
 }

@@ -5,7 +5,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Sidebar, type ViewType } from "./Sidebar";
+import { Sidebar, type VisningType } from "./Sidebar";
 import { ChatSection } from "./ChatSection";
 import { CanvasSection } from "./canvasSection";
 import { SettingsSection } from "./SettingsSection";
@@ -13,40 +13,40 @@ import { useCanvasUser } from "../canvas/canvas-api";
 import { Footer } from "./footer";
 
 export function DashboardView() {
-    const [activeView, setActiveView] = useState<ViewType>("chat");
-    const [isDarkMode, setIsDarkMode] = useState(false);
+    const [aktivVisning, settAktivVisning] = useState<VisningType>("chat");
+    const [erDarkMode, settErDarkMode] = useState(false);
     const userQuery = useCanvasUser();
 
     // Initialiser tema basert på lagret preferanse eller systeminnstilling
     useEffect(() => {
         // Sjekk localStorage først
-        const stored = localStorage.getItem("studywise-dark-mode");
-        if (stored !== null) {
-            setIsDarkMode(stored === "true");
+        const lagret = localStorage.getItem("studywise-dark-mode");
+        if (lagret !== null) {
+            settErDarkMode(lagret === "true");
         } else {
             // Fallback til systempreferanse
-            const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-            setIsDarkMode(prefersDark);
+            const foretrekkerMork = window.matchMedia("(prefers-color-scheme: dark)").matches;
+            settErDarkMode(foretrekkerMork);
         }
     }, []);
 
-    // Legg til eller fjern tema-klasser på <html> basert på isDarkMode
+    // Legg til eller fjern tema-klasser på <html> basert på erDarkMode
     useEffect(() => {
-        document.documentElement.classList.toggle("dark", isDarkMode);
-        document.documentElement.classList.toggle("light", !isDarkMode);
-        localStorage.setItem("studywise-dark-mode", String(isDarkMode));
-    }, [isDarkMode]);
+        document.documentElement.classList.toggle("dark", erDarkMode);
+        document.documentElement.classList.toggle("light", !erDarkMode);
+        localStorage.setItem("studywise-dark-mode", String(erDarkMode));
+    }, [erDarkMode]);
 
-    const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
+    const settDarkMode = () => settErDarkMode((forrige) => !forrige);
 
     // Hent fornavn fra Canvas brukerdata
-    const userName = userQuery.data?.navn?.split(" ")[0];
+    const brukernavn = userQuery.data?.name?.split(" ")[0];
 
     // Hjelpefunksjon for å bestemme hvilken Canvas-visning som skal vises
-    const getCanvasView = () => {
-        if (activeView === "canvas-announcements") return "announcements";
-        if (activeView === "canvas-courses") return "courses";
-        if (activeView === "canvas-data") return "data";
+    const hentCanvasVisning = () => {
+        if (aktivVisning === "canvas-announcements") return "announcements";
+        if (aktivVisning === "canvas-courses") return "courses";
+        if (aktivVisning === "canvas-data") return "data";
         return "announcements";
     };
 
@@ -54,28 +54,28 @@ export function DashboardView() {
         <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden">
             {/* Sidebar */}
             <Sidebar
-                activeView={activeView}
-                onViewChange={setActiveView}
-                userName={userName}
+                aktivVisning={aktivVisning}
+                byttVisning={settAktivVisning}
+                brukernavn={brukernavn}
             />
 
             {/* Main Content Area */}
             <main className="flex-1 flex flex-col min-h-0 pt-0 md:pt-0 relative">
                 {/* Content based on active view */}
                 <div className="flex-1 min-h-0 overflow-hidden bg-white dark:bg-slate-900">
-                    {activeView === "chat" && <ChatSection />}
+                    {aktivVisning === "chat" && <ChatSection />}
 
-                    {(activeView === "canvas-announcements" ||
-                        activeView === "canvas-courses" ||
-                        activeView === "canvas-data") && (
-                            <CanvasSection initialView={getCanvasView()} />
+                    {(aktivVisning === "canvas-announcements" ||
+                        aktivVisning === "canvas-courses" ||
+                        aktivVisning === "canvas-data") && (
+                            <CanvasSection startVisning={hentCanvasVisning()} />
                         )}
 
-                    {activeView === "settings" && (
+                    {aktivVisning === "settings" && (
                         <SettingsSection
-                            isDarkMode={isDarkMode}
-                            onToggleDarkMode={toggleDarkMode}
-                            userName={userName}
+                            erDarkMode={erDarkMode}
+                            settDarkMode={settDarkMode}
+                            brukernavn={brukernavn}
                         />
                     )}
                 </div>

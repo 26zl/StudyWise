@@ -76,7 +76,7 @@ export const createRateLimiter = ({ points, duration, keyPrefix = "rlflx" }: Rat
 };
 
 export const rateLimitKi = createRateLimiter({
-    points: 1,
+    points: 10,
     duration: 60,
     keyPrefix: "rlflx:ki",
 });

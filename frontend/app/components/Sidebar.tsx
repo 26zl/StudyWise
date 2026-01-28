@@ -5,6 +5,7 @@
 "use client";
 
 import { useState } from "react";
+import { useUIStore } from "../store/uiStore";
 import {
     MessageSquare,
     BookOpen,
@@ -18,10 +19,9 @@ import {
     LayoutDashboard,
 } from "lucide-react";
 
-import { useUIStore } from "../store/uiStore";
 
 // Typer for de ulike visningene i sidebar
-export type ViewType =
+export type VisningType =
     | "chat"
     | "canvas-announcements"
     | "canvas-courses"
@@ -29,54 +29,53 @@ export type ViewType =
     | "settings";
 
 interface SidebarProps {
-    activeView: ViewType;
-    onViewChange: (view: ViewType) => void;
-    // isOpen & onClose moved to global store
-    userName?: string;
+    aktivVisning: VisningType;
+    byttVisning: (visning: VisningType) => void;
+    brukernavn?: string;
 }
 
-// Chatte historikk (dummy data for nå)
-const chatHistory = [
-    { id: "1", title: "Spørsmål om eksamen", date: "I dag" },
-    { id: "2", title: "Hjelp med innlevering", date: "I går" },
-    { id: "3", title: "Forklaring av moduler", date: "3 dager siden" },
+// Chat-historikk (dummy data for nå)
+const chatHistorikk = [
+    { id: "1", tittel: "Spørsmål om eksamen", dato: "I dag" },
+    { id: "2", tittel: "Hjelp med innlevering", dato: "I går" },
+    { id: "3", tittel: "Forklaring av moduler", dato: "3 dager siden" },
 ];
 
-// Sidebar komponent
+// Sidebar-komponent
 export function Sidebar({
-    activeView,
-    onViewChange,
-    userName,
+    aktivVisning,
+    byttVisning,
+    brukernavn,
 }: SidebarProps) {
-    const { isSidebarOpen, closeSidebar } = useUIStore();
-    const [canvasExpanded, setCanvasExpanded] = useState(true);
+    const { isVenstreMenyOpen, lukkVenstreMeny } = useUIStore();
+    const [erCanvasUtvidet, settErCanvasUtvidet] = useState(true);
 
-    const handleNavClick = (view: ViewType) => {
-        onViewChange(view);
+    const handleNavigasjon = (visning: VisningType) => {
+        byttVisning(visning);
         // Lukk sidebar på mobil etter navigasjon
         if (window.innerWidth < 768) {
-            closeSidebar();
+            lukkVenstreMeny();
         }
     };
-    // Enkel komponent for navigasjons elementer
-    const NavItem = ({
+    // Enkel komponent for navigasjonselementer
+    const NavElement = ({
         view,
         icon: Icon,
         label,
         indent = false,
     }: {
-        view: ViewType;
+        view: VisningType;
         icon: React.ElementType;
         label: string;
         indent?: boolean;
     }) => (
         <button
-            onClick={() => handleNavClick(view)}
+            onClick={() => handleNavigasjon(view)}
             className={`
                 w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm
                 transition-colors duration-150
                 ${indent ? "pl-9" : ""}
-                ${activeView === view
+                ${aktivVisning === view
                     ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
                     : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
                 }
@@ -89,15 +88,15 @@ export function Sidebar({
 
     return (
         <>
-            {/* Mobile Overlay */}
-            {isSidebarOpen && (
+            {/* Mobil overlegg (Overlay) */}
+            {isVenstreMenyOpen && (
                 <div
                     className="md:hidden fixed inset-0 bg-black/30 z-40"
-                    onClick={closeSidebar}
+                    onClick={lukkVenstreMeny}
                 />
             )}
 
-            {/* Sidebar */}
+            {/* Sidebar / Venstremeny */}
             <aside
                 className={`
                     fixed md:relative z-50 md:z-auto
@@ -106,93 +105,95 @@ export function Sidebar({
                     border-r border-slate-200 dark:border-slate-800
                     flex flex-col
                     transition-transform duration-200 ease-out
-                    ${isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+                    ${isVenstreMenyOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
                 `}
             >
 
 
-                {/* Mobile Close Button */}
+                {/* Lukk-knapp for mobil */}
                 <div className="md:hidden flex items-center justify-between px-4 h-14 border-b border-slate-200 dark:border-slate-800">
                     <span className="font-semibold text-slate-900 dark:text-white">
                         Meny
                     </span>
                     <button
-                        onClick={closeSidebar}
+                        onClick={lukkVenstreMeny}
                         className="p-2 -mr-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        aria-label="Close menu"
+                        aria-label="Lukk meny"
                     >
                         <X size={20} />
                     </button>
                 </div>
 
-                {/* Navigation */}
+                {/* Navigasjon */}
                 <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-                    {/* Main Navigation */}
+                    {/* Hovednavigasjon */}
                     <div className="mb-2">
-                        <NavItem view="chat" icon={LayoutDashboard} label="Oversikt" />
+                        <NavElement view="chat" icon={LayoutDashboard} label="Oversikt" />
                     </div>
 
 
-                    {/* New Chat Button */}
+                    {/* Ny samtale-knapp */}
                     <button
-                        onClick={() => handleNavClick("chat")}
+                        onClick={() => handleNavigasjon("chat")}
                         className="w-full flex items-center justify-center gap-2 px-4 py-2.5 mb-4 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium"
                     >
                         <Plus size={18} />
                         <span>Ny samtale</span>
                     </button>
 
-                    {/* Chat History */}
+                    {/* Chat-historikk */}
                     <div className="mb-2">
-                        <NavItem view="chat" icon={MessageSquare} label="KI Assistent" />
+                        <div className="mb-2">
+                            <NavElement view="chat" icon={MessageSquare} label="KI Assistent" />
+                        </div>
                     </div>
 
-                    {/* Previous Chats */}
+                    {/* Tidligere samtaler */}
                     <div className="mb-4">
                         <p className="px-3 py-2 text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                             Nylige samtaler
                         </p>
-                        {chatHistory.map((chat) => (
+                        {chatHistorikk.map((chat) => (
                             <button
                                 key={chat.id}
-                                onClick={() => handleNavClick("chat")}
+                                onClick={() => handleNavigasjon("chat")}
                                 className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200 transition-colors"
                             >
                                 <MessageSquare size={16} className="shrink-0 opacity-50" />
-                                <span className="truncate">{chat.title}</span>
+                                <span className="truncate">{chat.tittel}</span>
                             </button>
                         ))}
                     </div>
 
-                    {/* Canvas Section */}
+                    {/* Canvas-seksjon */}
                     <div className="border-t border-slate-200 dark:border-slate-800 pt-4 mb-2">
                         <button
-                            onClick={() => setCanvasExpanded(!canvasExpanded)}
+                            onClick={() => settErCanvasUtvidet(!erCanvasUtvidet)}
                             className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                         >
                             <span>Canvas</span>
-                            {canvasExpanded ? (
+                            {erCanvasUtvidet ? (
                                 <ChevronDown size={16} />
                             ) : (
                                 <ChevronRight size={16} />
                             )}
                         </button>
 
-                        {canvasExpanded && (
+                        {erCanvasUtvidet && (
                             <div className="mt-1 space-y-0.5">
-                                <NavItem
+                                <NavElement
                                     view="canvas-announcements"
                                     icon={Megaphone}
                                     label="Kunngjøringer"
                                     indent
                                 />
-                                <NavItem
+                                <NavElement
                                     view="canvas-courses"
                                     icon={BookOpen}
                                     label="Mine emner"
                                     indent
                                 />
-                                <NavItem
+                                <NavElement
                                     view="canvas-data"
                                     icon={FolderOpen}
                                     label="Canvas data"
@@ -202,21 +203,21 @@ export function Sidebar({
                         )}
                     </div>
 
-                    {/* Settings */}
+                    {/* Innstillinger */}
                     <div className="border-t border-slate-200 dark:border-slate-800 pt-4">
-                        <NavItem view="settings" icon={Settings} label="Innstillinger" />
+                        <NavElement view="settings" icon={Settings} label="Innstillinger" />
                     </div>
                 </nav>
 
-                {/* User Section */}
+                {/* Bruker-seksjon */}
                 <div className="p-4 border-t border-slate-200 dark:border-slate-800">
                     <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-medium text-sm">
-                            {userName ? userName.charAt(0).toUpperCase() : "?"}
+                            {brukernavn ? brukernavn.charAt(0).toUpperCase() : "?"}
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
-                                {userName || "Ikke innlogget"}
+                                {brukernavn || "Ikke innlogget"}
                             </p>
                             <p className="text-xs text-slate-500 dark:text-slate-400">
                                 Canvas bruker

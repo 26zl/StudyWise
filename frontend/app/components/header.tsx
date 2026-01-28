@@ -7,15 +7,15 @@ import { useUIStore } from "../store/uiStore";
 
 export function Header() {
     const pathname = usePathname();
-    const { toggleSidebar } = useUIStore();
-    const isDashboard = pathname === "/dashboard";
+    const { toggleVenstreMeny } = useUIStore();
+    const erDashboard = pathname === "/dashboard";
 
     return (
         <header className="shrink-0 h-14 px-4 md:px-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-900 sticky top-0 z-30">
             <div className="flex items-center gap-3">
-                {isDashboard && (
+                {erDashboard && (
                     <button
-                        onClick={toggleSidebar}
+                        onClick={toggleVenstreMeny}
                         className="md:hidden p-1 -ml-1 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
                         aria-label="Toggle menu"
                     >
@@ -27,9 +27,15 @@ export function Header() {
                 </div>
             </div>
             <nav className="flex gap-6 text-sm text-slate-600 dark:text-slate-400">
-                <Link href="/hjem" className="hover:text-slate-900 dark:hover:text-white transition-colors">Hjem</Link>
-                <Link href="/dashboard" className="hover:text-slate-900 dark:hover:text-white transition-colors">Dashboard</Link>
-                <Link href="/auth" className="hover:text-slate-900 dark:hover:text-white transition-colors">Logg inn</Link>
+                <Link href="/hjem" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                    Hjem
+                </Link>
+                <Link href="/dashboard" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                    Dashboard
+                </Link>
+                <Link href="/auth" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                    Logg inn
+                </Link>
             </nav>
         </header>
     );

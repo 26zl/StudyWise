@@ -28,7 +28,7 @@ async function fetchKI<T>(endpoint: string, schema: ZodType<T>): Promise<T> {
 }
 
 // React query hooks
-export function useKITestConnection() {
+export function useKITestTilkobling() {
     return useQuery({
         queryKey: ["ki", "test-connection"],
         queryFn: () => fetchKI("/test-connection", KIChatResponseSchema),

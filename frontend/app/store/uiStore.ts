@@ -7,15 +7,15 @@ import { create } from 'zustand';
  */
 interface UIState {
     // Holder styr på om sidebaren er åpen (true) eller lukket (false) på mobil
-    isSidebarOpen: boolean;
-    toggleSidebar: () => void;
-    closeSidebar: () => void;
-    setSidebarOpen: (isOpen: boolean) => void;
+    isVenstreMenyOpen: boolean;
+    toggleVenstreMeny: () => void;
+    lukkVenstreMeny: () => void;
+    settVenstreMenyOpen: (isOpen: boolean) => void;
 }
 // Oppretter storen som en hook (useUIStore) som kan brukes i alle komponenter
 export const useUIStore = create<UIState>((set) => ({
-    isSidebarOpen: false,
-    toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
-    closeSidebar: () => set({ isSidebarOpen: false }),
-    setSidebarOpen: (isOpen) => set({ isSidebarOpen: isOpen }),
+    isVenstreMenyOpen: false,
+    toggleVenstreMeny: () => set((state) => ({ isVenstreMenyOpen: !state.isVenstreMenyOpen })),
+    lukkVenstreMeny: () => set({ isVenstreMenyOpen: false }),
+    settVenstreMenyOpen: (isOpen) => set({ isVenstreMenyOpen: isOpen }),
 }));

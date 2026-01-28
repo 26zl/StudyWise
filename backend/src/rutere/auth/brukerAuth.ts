@@ -15,21 +15,18 @@ import { Router } from "express";
 import { User } from "../../database/models/User.js";
 import { encrypt } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
-import { z } from "zod";
+import { ZodError } from "zod";
+import crypto from "crypto";
+import { CanvasTokenRequestSchema } from "common";
 
 const router = Router();
-
-// Zod schema for validering av input
-const TokenSchema = z.object({
-    token: z.string().min(1, "Token kan ikke være tom"),
-});
 
 // POST /api/user/token
 // Formål: Lagre brukerens personlige Canvas API Token sikkert.
 // Kobling: Dette tokenet blir brukt av `canvasFetch` (i canvasUtils.ts) til å snakke med Canvas PÅ VEGNE AV brukeren.
 router.post("/token", async (req, res) => {
     try {
-        const { token } = TokenSchema.parse(req.body);
+        const { token } = CanvasTokenRequestSchema.parse(req.body);
 
         /*
          * --- MIDLERTIDIG LOGIKK FOR UTVIKLING ---
@@ -45,19 +42,24 @@ router.post("/token", async (req, res) => {
          * - Denne ruten vil da være beskyttet av `authenticateToken` middleware.
          */
 
-        let user = await User.findOne();
+        let bruker = await User.findOne();
 
-        if (!user) {
-            // Tips: Brukeren opprettes vanligvis ved første innlogging eller via /whoami i denne dev-fasen
-            return res.status(404).json({ feil: "Ingen lokal bruker funnet. Kjør /whoami først eller opprett bruker." });
+        if (!bruker) {
+            // Midlertidig: Opprett en lokal demo-bruker hvis ingen finnes
+            bruker = await User.create({
+                email: "demo@studywise.local",
+                passwordHash: crypto.randomBytes(32).toString("hex"),
+                firstName: "Demo",
+                lastName: "Bruker",
+            });
         }
 
         // Krypter token
-        const encryptedToken = encrypt(token);
+        const kryptertToken = encrypt(token);
 
         // Lagre til database
-        user.canvasApiToken = encryptedToken;
-        await user.save();
+        bruker.canvasApiToken = kryptertToken;
+        await bruker.save();
 
         return res.json({
             melding: "Token lagret og kryptert",
@@ -65,9 +67,9 @@ router.post("/token", async (req, res) => {
         });
 
     } catch (error) {
-        if (error instanceof z.ZodError) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            return res.status(400).json({ feil: (error as any).errors[0].message });
+        if (error instanceof ZodError) {
+            const feilmelding = error.issues[0]?.message || "Ugyldig input";
+            return res.status(400).json({ feil: feilmelding });
         }
         logger.error({ err: error }, "Feil ved lagring av token");
         return res.status(500).json({ feil: "Kunne ikke lagre token" });

@@ -601,8 +601,8 @@ packages:
     resolution: {integrity: sha512-VoQJywjpjy2D88Oj0BTHRuS8JCbUgoOg5t1UGgbtGh2fRia9Dx/k6Wf8FqrEWIvWK9fAkfJeeLB9fcSpCNPCpw==}
     engines: {node: '>=18'}
 
-  '@huggingface/tasks@0.19.80':
-    resolution: {integrity: sha512-lsrMP6Lapc0vT62uWCIM0fqsFNM0iexf2Inz1ZR4+a8W/ogaz5i450VrYlrXyNOxVj7D9KtKRatmNfaO/bHmCg==}
+  '@huggingface/tasks@0.19.82':
+    resolution: {integrity: sha512-i8TzJb6Zk7KnYRL8unnYRuh/tW7ku3hJtQw972q/ZXvjkr/YIwWAAVxEfXuaj0vtCUbUljamJji6oWVG4+0PLQ==}
 
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
@@ -1430,8 +1430,8 @@ packages:
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
 
-  baseline-browser-mapping@2.9.18:
-    resolution: {integrity: sha512-e23vBV1ZLfjb9apvfPk4rHVu2ry6RIr2Wfs+O324okSidrX7pTAnEJPCh/O5BtRlr7QtZI7ktOP3vsqr7Z5XoA==}
+  baseline-browser-mapping@2.9.19:
+    resolution: {integrity: sha512-ipDqC8FrAl/76p2SSWKSI+H9tFwm7vYqXQrItCuiVPt26Km0jS+NzSsBWAaBusvSbQcfJG+JitdMm+wZAgTYqg==}
     hasBin: true
 
   bidi-js@1.0.3:
@@ -3321,11 +3321,11 @@ snapshots:
   '@huggingface/inference@4.13.10':
     dependencies:
       '@huggingface/jinja': 0.5.4
-      '@huggingface/tasks': 0.19.80
+      '@huggingface/tasks': 0.19.82
 
   '@huggingface/jinja@0.5.4': {}
 
-  '@huggingface/tasks@0.19.80': {}
+  '@huggingface/tasks@0.19.82': {}
 
   '@humanfs/core@0.19.1': {}
 
@@ -4032,7 +4032,7 @@ snapshots:
 
   balanced-match@1.0.2: {}
 
-  baseline-browser-mapping@2.9.18: {}
+  baseline-browser-mapping@2.9.19: {}
 
   bidi-js@1.0.3:
     dependencies:
@@ -4063,7 +4063,7 @@ snapshots:
 
   browserslist@4.28.1:
     dependencies:
-      baseline-browser-mapping: 2.9.18
+      baseline-browser-mapping: 2.9.19
       caniuse-lite: 1.0.30001766
       electron-to-chromium: 1.5.279
       node-releases: 2.0.27
@@ -4922,7 +4922,7 @@ snapshots:
     dependencies:
       '@next/env': 16.1.6
       '@swc/helpers': 0.5.15
-      baseline-browser-mapping: 2.9.18
+      baseline-browser-mapping: 2.9.19
       caniuse-lite: 1.0.30001766
       postcss: 8.4.31
       react: 19.2.4

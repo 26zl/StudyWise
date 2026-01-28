@@ -15,14 +15,19 @@ import { Router } from "express";
 import { z } from "zod";
 import { canvasFetch, requireCanvasToken } from "./canvasUtils.js";
 import { logger } from "../../utils/logger.js";
-import { CanvasUser } from "../../database/models/Canvas.js";
+import { CanvasUser } from "../../database/models/CanvasUser.js";
 import {
   CanvasUserSchema,
   CanvasCourseSchema,
+  CanvasAssignmentSchema,
   CanvasAnnouncementSchema,
-  ModuleSchema,
+  CanvasModuleSchema,
 } from "common/canvas";
 
+interface CanvasHttpError extends Error {
+  status?: number;
+  details?: string;
+}
 
 // Oppretter express router
 const router = Router();
@@ -34,38 +39,33 @@ router.use(requireCanvasToken);
 router.get("/whoami", async (_req, res) => {
   try {
     const response = await canvasFetch<unknown>("/api/v1/users/self/profile");
-    const canvasBruker = CanvasUserSchema.parse(response.data);
+    const canvasUser = CanvasUserSchema.parse(response.data);
 
     // Lagre eller oppdater bruker i vår egen database (kun canvas data, ikke lokal bruker fra vårt eget auth system)
     // OBS: Dette er ren datasynkronisering. Det bekrefter at Canvas-tokenet virker, men logger ikke brukeren inn i VÅRT system.
     await CanvasUser.findOneAndUpdate(
-      { canvasId: canvasBruker.id }, // Finn basert på canvasId
+      { canvasId: canvasUser.id }, // Finn basert på canvasId
       {
-        canvasId: canvasBruker.id,
-        name: canvasBruker.name,
-        sortableName: canvasBruker.sortable_name,
-        shortName: canvasBruker.short_name,
-        avatarUrl: canvasBruker.avatar_url,
-        firstName: canvasBruker.first_name,
-        lastName: canvasBruker.last_name,
-        locale: canvasBruker.locale,
-        effectiveLocale: canvasBruker.effective_locale,
+        canvasId: canvasUser.id,
+        name: canvasUser.name,
+        sortableName: canvasUser.sortable_name,
+        shortName: canvasUser.short_name,
+        avatarUrl: canvasUser.avatar_url,
+        firstName: canvasUser.first_name,
+        lastName: canvasUser.last_name,
+        locale: canvasUser.locale,
+        effectiveLocale: canvasUser.effective_locale,
         permissions: {
-          canUpdateName: canvasBruker.permissions?.can_update_name,
-          canUpdateAvatar: canvasBruker.permissions?.can_update_avatar,
-          limitParentAppWebAccess: canvasBruker.permissions?.limit_parent_app_web_access,
+          canUpdateName: canvasUser.permissions?.can_update_name,
+          canUpdateAvatar: canvasUser.permissions?.can_update_avatar,
+          limitParentAppWebAccess: canvasUser.permissions?.limit_parent_app_web_access,
         },
-        canvasUserCreatedAt: canvasBruker.created_at ? new Date(canvasBruker.created_at) : undefined,
+        canvasUserCreatedAt: canvasUser.created_at ? new Date(canvasUser.created_at) : undefined,
       },
       { upsert: true, new: true, setDefaultsOnInsert: true } // Opprett hvis ikke finnes
     );
-    logger.info({ userId: canvasBruker.id }, "Canvas /whoami endpoint kalt og bruker synkronisert");
-    res.json({
-      id: canvasBruker.id,
-      navn: canvasBruker.name,
-      epost: canvasBruker.primary_email || null,
-      locale: canvasBruker.locale || "nb",
-    });
+    logger.info({ userId: canvasUser.id }, "Canvas /whoami endpoint kalt og bruker synkronisert");
+    res.json(canvasUser);
   } catch (error) {
     logger.error({ err: error }, "Klarte ikke å hente eller lagre brukerinformasjon (/whoami)");
     throw error;
@@ -79,10 +79,10 @@ router.get("/emner", async (_req, res) => {
       queryParams: { enrollment_state: "active", per_page: 100 },
     });
     // Valider hvert emne med Zod
-    const emner = z.array(CanvasCourseSchema).parse(response.data);
-    logger.info({ count: emner.length }, "Hentet aktive emner");
+    const courses = z.array(CanvasCourseSchema).parse(response.data);
+    logger.info({ count: courses.length }, "Hentet aktive emner");
     res.json({
-      emner,
+      courses,
       meta: response.meta,
     });
   } catch (error) {
@@ -103,9 +103,9 @@ router.get("/emner/:courseId", async (req, res) => {
       });
     }
     const response = await canvasFetch<unknown>(`/api/v1/courses/${courseIdNum}`);
-    const emne = CanvasCourseSchema.parse(response.data);
-    logger.info({ courseId: emne.id, name: emne.name }, "Hentet emnedetaljer");
-    res.json(emne);
+    const course = CanvasCourseSchema.parse(response.data);
+    logger.info({ courseId: course.id, name: course.name }, "Hentet emnedetaljer");
+    res.json(course);
   } catch (error) {
     logger.error({ err: error }, `Feil under henting av emne ${req.params.courseId}`);
     throw error;
@@ -122,23 +122,15 @@ router.get("/emner/:courseId/oppgaver", async (req, res) => {
         feil: "Ugyldig courseId",
       });
     }
-    // Definer oppgave-schema
-    const AssignmentSchema = z.object({
-      id: z.number(),
-      name: z.string(),
-      due_at: z.string().nullable(),
-      points_possible: z.number().nullable(),
-      html_url: z.string(),
-    });
     // Hent oppgaver fra Canvas API
     const response = await canvasFetch<unknown[]>(
       `/api/v1/courses/${courseIdNum}/assignments`,
       { queryParams: { per_page: 100 } }
     );
-    const oppgaver = z.array(AssignmentSchema).parse(response.data);
-    logger.info({ courseId: courseIdNum, count: oppgaver.length }, "Hentet oppgaver for emne");
+    const assignments = z.array(CanvasAssignmentSchema).parse(response.data);
+    logger.info({ courseId: courseIdNum, count: assignments.length }, "Hentet oppgaver for emne");
     res.json({
-      oppgaver,
+      assignments,
       meta: response.meta,
     });
   } catch (error) {
@@ -272,10 +264,10 @@ router.get("/emner/:courseId/modules", async (req, res) => {
       }
     );
     // Valider med Zod
-    const moduler = z.array(ModuleSchema).parse(response.data);
-    logger.info({ courseId: courseIdNum, moduleCount: moduler.length }, "Hentet moduler");
+    const modules = z.array(CanvasModuleSchema).parse(response.data);
+    logger.info({ courseId: courseIdNum, moduleCount: modules.length }, "Hentet moduler");
     res.json({
-      modules: moduler,
+      modules,
       meta: response.meta,
     });
   } catch (error) {
@@ -297,10 +289,14 @@ router.use((error: Error, _req: unknown, res: unknown, _next: unknown) => {
       detaljer: error.message,
     });
   }
-  // Canvas API feil
-  response.status(500).json({
-    feil: "Canvas API feil",
-    melding: error.message,
+  // Canvas API feil - Sjekk om error har en status-kode
+  const canvasError = error as CanvasHttpError;
+  const status = typeof canvasError.status === "number" ? canvasError.status : 500;
+  const melding = typeof canvasError.details === "string" ? canvasError.details : error.message;
+
+  response.status(status).json({
+    feil: status === 401 ? "Ugyldig Canvas-token" : "Canvas API feil",
+    melding: melding,
   });
 });
 
