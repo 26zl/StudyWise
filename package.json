@@ -9,7 +9,7 @@
     "dev:docs": "pnpm --filter docs dev",
     "dev:common": "pnpm --filter common typecheck --watch",
     "kill:dev": "npx kill-port 3000 4000 2>nul & taskkill //F //IM node.exe 2>nul & rimraf frontend\\.next\\dev\\lock && echo Servere stoppet og lock-fil ryddet",
-    "lint": "pnpm -r lint && pnpm lint:md",
+    "lint": "pnpm -r lint",
     "lint:md": "markdownlint \"**/*.md\" --ignore node_modules",
     "lint:frontend": "pnpm --filter frontend lint",
     "lint:backend": "pnpm --filter backend lint",

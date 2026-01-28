@@ -8,7 +8,7 @@
         "dev": "vitepress dev docs",
         "build": "vitepress build docs",
         "preview": "vitepress preview docs",
-        "lint": "markdownlint \"**/*.md\" --ignore node_modules --config ../.markdownlint.json"
+        "lint:md": "markdownlint \"**/*.md\" --ignore node_modules --config ../.markdownlint.json"
     },
     "dependencies": {
         "vitepress": "^1.0.0",

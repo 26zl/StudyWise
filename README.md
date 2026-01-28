@@ -65,7 +65,8 @@ pnpm dev:docs         # Start kun dokumentasjon
 pnpm dev:common       # Watch mode for common (type checking)
 
 # Linting
-pnpm lint             # Lint alle pakker (frontend + backend)
+pnpm lint             # Lint alle pakker (frontend + backend - kun kode)
+pnpm lint:md          # Lint markdown filer (docs + root)
 pnpm lint:frontend    # Lint kun frontend
 pnpm lint:backend     # Lint kun backend
 
