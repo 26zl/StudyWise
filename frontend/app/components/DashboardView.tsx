@@ -30,13 +30,10 @@ export function DashboardView() {
         }
     }, []);
 
-    // Legg til eller fjern "dark" klassen på <html> basert på isDarkMode
+    // Legg til eller fjern tema-klasser på <html> basert på isDarkMode
     useEffect(() => {
-        if (isDarkMode) {
-            document.documentElement.classList.add("dark");
-        } else {
-            document.documentElement.classList.remove("dark");
-        }
+        document.documentElement.classList.toggle("dark", isDarkMode);
+        document.documentElement.classList.toggle("light", !isDarkMode);
         localStorage.setItem("studywise-dark-mode", String(isDarkMode));
     }, [isDarkMode]);
 
