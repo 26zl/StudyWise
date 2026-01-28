@@ -1,6 +1,5 @@
 /*
  * Hooks og funksjoner for å kommunisere med auth-backend APIet
- */
 
 import { useMutation } from "@tanstack/react-query";
 import { CanvasTokenResponseSchema, type CanvasTokenResponse } from "common";
@@ -24,3 +23,4 @@ export function useLagreCanvasToken() {
     mutationFn: lagreCanvasToken,
   });
 }
+*/

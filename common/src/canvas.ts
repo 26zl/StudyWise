@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 
+// Schema for Canvas bruker
 export const CanvasUserSchema = z.object({
   id: z.number(),
   name: z.string(),
@@ -25,6 +26,7 @@ export const CanvasUserSchema = z.object({
   created_at: z.string().optional(),
 });
 
+// Schema for Canvas kurs
 export const CanvasCourseSchema = z.object({
   id: z.number(),
   name: z.string(),
@@ -32,6 +34,7 @@ export const CanvasCourseSchema = z.object({
   enrollment_term_id: z.number().optional(),
 });
 
+// Schema for Canvas oppgave
 export const CanvasAssignmentSchema = z.object({
   id: z.number(),
   name: z.string(),
@@ -40,6 +43,7 @@ export const CanvasAssignmentSchema = z.object({
   html_url: z.string(),
 });
 
+// Schema for Canvas kunngjøring
 export const CanvasAnnouncementSchema = z.object({
   id: z.number(),
   title: z.string(),
@@ -54,6 +58,7 @@ export const CanvasAnnouncementSchema = z.object({
   html_url: z.string().optional(),
 });
 
+// Schema for Canvas moduler og modul-innhold
 export const CanvasModuleItemSchema = z.object({
   id: z.number(),
   title: z.string(),
@@ -61,12 +66,14 @@ export const CanvasModuleItemSchema = z.object({
   html_url: z.string().optional(),
 });
 
+// Schema for Canvas moduler
 export const CanvasModuleSchema = z.object({
   id: z.number(),
   name: z.string(),
   items: z.array(CanvasModuleItemSchema).optional(),
 });
 
+// Schema for Canvas planleggingsobjekter
 export const CanvasPlannerItemSchema = z.object({
   context_type: z.string().optional(),
   course_id: z.number().optional(),
@@ -84,36 +91,43 @@ export const CanvasPlannerItemSchema = z.object({
     .optional(),
 });
 
+// Meta-informasjon for paginerte svar
 export const MetaSchema = z.object({
   pagesFetched: z.number(),
   itemsCount: z.number(),
 });
 
+// Svar-schemas for ulike Canvas API endepunkter
 export const CoursesResponseSchema = z.object({
   courses: z.array(CanvasCourseSchema),
   meta: MetaSchema.optional(),
 });
 
+// Svar-schema for kunngjøringer
 export const AnnouncementsResponseSchema = z.object({
   announcements: z.array(CanvasAnnouncementSchema),
   meta: MetaSchema.optional(),
 });
 
+// Svar-schema for moduler
 export const ModulesResponseSchema = z.object({
   modules: z.array(CanvasModuleSchema),
   meta: MetaSchema.optional(),
 });
 
+// Svar-schema for planleggingsobjekter
 export const PlannerItemsResponseSchema = z.object({
   items: z.array(CanvasPlannerItemSchema),
   meta: MetaSchema.optional(),
 });
 
+// Svar-schema for oppgaver
 export const AssignmentsResponseSchema = z.object({
   assignments: z.array(CanvasAssignmentSchema),
   meta: MetaSchema.optional(),
 });
 
+// TypeScript typer eksportering
 export type CanvasUser = z.infer<typeof CanvasUserSchema>;
 export type CanvasCourse = z.infer<typeof CanvasCourseSchema>;
 export type CanvasAssignment = z.infer<typeof CanvasAssignmentSchema>;
@@ -121,7 +135,6 @@ export type CanvasAnnouncement = z.infer<typeof CanvasAnnouncementSchema>;
 export type CanvasModule = z.infer<typeof CanvasModuleSchema>;
 export type CanvasModuleItem = z.infer<typeof CanvasModuleItemSchema>;
 export type CanvasPlannerItem = z.infer<typeof CanvasPlannerItemSchema>;
-
 export type Meta = z.infer<typeof MetaSchema>;
 export type CoursesResponse = z.infer<typeof CoursesResponseSchema>;
 export type AnnouncementsResponse = z.infer<typeof AnnouncementsResponseSchema>;

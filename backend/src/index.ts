@@ -23,19 +23,26 @@ import authRuter from "./rutere/auth/auth.js";
 import kiRuter from "./rutere/ki/ki.js";
 import brukerAuthRuter from "./rutere/auth/brukerAuth.js";
 
+// Initialiserer Express app
 const app = express();
 const startTime = Date.now();
 
+// Trust proxy for korrekt IP-håndtering bak proxyer (f.eks. ved bruk av Heroku, Vercel, eller Nginx)
 app.set("trust proxy", 1);
 
+// Body parsers
 app.use(express.urlencoded({ extended: true }));
 
+// Deaktiverer "X-Powered-By" header for sikkerhet
 app.disable("x-powered-by");
 
+// Logger middleware
 app.use(pinoHttp({ logger }));
 
+// Gzip komprimering
 app.use(compression());
 
+// JSON body parser med økt størrelse på 10mb
 app.use(express.json({ limit: "10mb" }));
 
 // CORS kun mot frontend

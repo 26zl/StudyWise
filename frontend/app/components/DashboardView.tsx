@@ -25,8 +25,8 @@ export function DashboardView() {
             settErDarkMode(lagret === "true");
         } else {
             // Fallback til systempreferanse
-            const foretrekkerMork = window.matchMedia("(prefers-color-scheme: dark)").matches;
-            settErDarkMode(foretrekkerMork);
+            const foretrekkerDarkMode = window.matchMedia("(prefers-color-scheme: dark)").matches;
+            settErDarkMode(foretrekkerDarkMode);
         }
     }, []);
 
@@ -59,9 +59,9 @@ export function DashboardView() {
                 brukernavn={brukernavn}
             />
 
-            {/* Main Content Area */}
+            {/* Hovedinnhold */}
             <main className="flex-1 flex flex-col min-h-0 pt-0 md:pt-0 relative">
-                {/* Content based on active view */}
+                {/* Innholds basert på aktiv visning */}
                 <div className="flex-1 min-h-0 overflow-hidden bg-white dark:bg-slate-900">
                     {aktivVisning === "chat" && <ChatSection />}
 

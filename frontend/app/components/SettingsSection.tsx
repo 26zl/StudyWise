@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import { Moon, Sun, Key, User, Shield, Info } from "lucide-react";
-import { useLagreCanvasToken } from "../auth/auth-api";
+//import { useLagreCanvasToken } from "../auth/auth-api";
 
 // Typer for SettingsSection props
 interface SettingsSectionProps {
@@ -23,16 +23,17 @@ export function SettingsSection({
     const erCanvasTokenDeaktivert = true;
     const [canvasToken, setCanvasToken] = useState("");
     const [visToken, setVisToken] = useState(false);
-    const {
-        mutateAsync,
-        isPending,
-        isSuccess,
-        isError,
-        error,
-        reset,
-    } = useLagreCanvasToken();
+    // const {
+    //     mutateAsync,
+    //     isPending,
+    //     isSuccess,
+    //     isError,
+    //     error,
+    //     reset,
+    // } = useLagreCanvasToken();
 
-    const handleLagreToken = async () => {
+        /*
+      const handleLagreToken = async () => {
         if (erCanvasTokenDeaktivert) return;
         const trimmetToken = canvasToken.trim();
         if (!trimmetToken) return;
@@ -41,7 +42,7 @@ export function SettingsSection({
         } catch {
             // Feil håndteres i UI
         }
-    };
+            */
 
     return (
         <div className="h-full flex flex-col">
@@ -98,9 +99,9 @@ export function SettingsSection({
 
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-slate-700 dark:text-slate-300">Mork modus</p>
+                                <p className="text-slate-700 dark:text-slate-300">Mørk modus</p>
                                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                                    Bytt mellom lyst og morkt tema
+                                    Bytt mellom lyst og mørkt tema
                                 </p>
                             </div>
                             <button
@@ -155,7 +156,6 @@ export function SettingsSection({
                                     type={visToken ? "text" : "password"}
                                     value={canvasToken}
                                     onChange={(e) => {
-                                        if (isSuccess || isError) reset();
                                         setCanvasToken(e.target.value);
                                     }}
                                     placeholder="Lim inn din Canvas API token"
@@ -171,24 +171,12 @@ export function SettingsSection({
                             </div>
 
                             <button
-                                onClick={handleLagreToken}
-                                disabled={!canvasToken.trim() || isPending || erCanvasTokenDeaktivert}
+                                /* onClick={handleLagreToken} */
+                                disabled={!canvasToken.trim() || erCanvasTokenDeaktivert}
                                 className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
-                                {isPending ? "Lagrer..." : "Lagre token"}
+                                Lagre token
                             </button>
-
-                            {isSuccess && (
-                                <p className="text-sm text-green-600 dark:text-green-400">
-                                    Token lagret
-                                </p>
-                            )}
-
-                            {isError && (
-                                <p className="text-sm text-red-600 dark:text-red-400">
-                                    {(error as Error)?.message || "Kunne ikke lagre token"}
-                                </p>
-                            )}
                         </fieldset>
 
                         {/* Infoboks */}

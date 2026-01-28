@@ -7,16 +7,18 @@ import { RateLimiterMemory, RateLimiterRedis, RateLimiterRes } from "rate-limite
 import redisClient from "../cache/redis.js";
 import { logger } from "../utils/logger.js";
 
+
+// Ratelimit konfigurasjonstype
 type RateLimitOptions = {
     points: number;
     duration: number;
     keyPrefix?: string;
 };
-
+// Hent klientens IP-adresse
 const getClientIp = (req: Request) => {
     return req.ip || req.socket?.remoteAddress || "unknown";
 };
-
+// Sett rate limit headers i responsen
 const setRateLimitHeaders = (res: Response, rateRes: RateLimiterRes, limit: number) => {
     res.setHeader("X-RateLimit-Limit", String(limit));
     res.setHeader("X-RateLimit-Remaining", String(rateRes.remainingPoints));
@@ -25,21 +27,21 @@ const setRateLimitHeaders = (res: Response, rateRes: RateLimiterRes, limit: numb
         String(Math.ceil((Date.now() + rateRes.msBeforeNext) / 1000))
     );
 };
-
+// Type guard for RateLimiterRes
 const isRateLimiterResult = (value: unknown): value is RateLimiterRes =>
     value instanceof RateLimiterRes ||
     (typeof value === "object" &&
         value !== null &&
         "msBeforeNext" in value &&
         "remainingPoints" in value);
-
+// Oppretter rate limiter middleware
 export const createRateLimiter = ({ points, duration, keyPrefix = "rlflx" }: RateLimitOptions) => {
     const memoryLimiter = new RateLimiterMemory({
         points,
         duration,
         keyPrefix,
     });
-
+// Redis-basert limiter
     const redisLimiter = new RateLimiterRedis({
         storeClient: redisClient,
         points,
@@ -48,7 +50,7 @@ export const createRateLimiter = ({ points, duration, keyPrefix = "rlflx" }: Rat
         useRedisPackage: true,
         rejectIfRedisNotReady: true,
     });
-
+// Returnerer middleware-funksjon
     return async (req: Request, res: Response, next: NextFunction) => {
         const key = getClientIp(req);
         const limiter = redisClient.isOpen ? redisLimiter : memoryLimiter;
@@ -74,7 +76,7 @@ export const createRateLimiter = ({ points, duration, keyPrefix = "rlflx" }: Rat
         }
     };
 };
-
+// Spesifikk rate limiter for KI-endepunkter
 export const rateLimitKi = createRateLimiter({
     points: 10,
     duration: 60,

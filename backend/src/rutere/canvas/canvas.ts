@@ -24,6 +24,7 @@ import {
   CanvasModuleSchema,
 } from "common/canvas";
 
+// Feiltype for Canvas HTTP-feil
 interface CanvasHttpError extends Error {
   status?: number;
   details?: string;

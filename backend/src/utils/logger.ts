@@ -4,8 +4,10 @@
 
 import pino from "pino";
 
+// Sjekker om vi er i utviklingsmodus
 const isDev = process.env.NODE_ENV !== "production";
 
+// Eksporterer logger-instans
 export const logger = pino({
     level: process.env.LOG_LEVEL || "info",
     redact: {

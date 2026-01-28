@@ -41,7 +41,7 @@ export function ChatSection() {
     const scrollTilBunn = () => {
         meldingerSluttRef.current?.scrollIntoView({ behavior: "smooth" });
     };
-
+    // Scroll til bunn når meldinger oppdateres eller skriver-status endres
     useEffect(() => {
         scrollTilBunn();
     }, [meldinger, skriver]);
@@ -64,14 +64,14 @@ export function ChatSection() {
         if (tekstInputRef.current) {
             tekstInputRef.current.style.height = "auto";
         }
-
+        // Legg til brukerens melding
         const brukerMelding: Melding = {
             id: Date.now().toString(),
             rolle: "user",
             innhold: brukerMeldingInnhold,
             tidsstempel: new Date(),
         };
-
+        // Oppdater meldinger
         settMeldinger((tidligere) => [...tidligere, brukerMelding]);
         settSkriver(true);
 
@@ -105,7 +105,7 @@ export function ChatSection() {
             tekstInputRef.current.focus();
         }
     };
-
+    // Render
     return (
         <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900/50">
             {/* Header / Advarsel ved feil */}

@@ -6,6 +6,7 @@
 import mongoose from "mongoose";
 import { logger } from "../utils/logger.js";
 
+// MongoDB klient opsjoner
 const clientOptions = {
     serverApi: {
         version: '1',
@@ -13,6 +14,7 @@ const clientOptions = {
         deprecationErrors: true,
     }
 };
+// Funksjon for å koble til databasen
 export const connectToDatabase = async () => {
     const mongoURI = process.env.MONGO_URI;
     if (!mongoURI) {

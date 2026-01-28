@@ -145,7 +145,7 @@ function KunngjoringVisning() {
             </div>
         );
     }
-
+// Vis kunngjøringer
     return (
         <div className="space-y-4">
             {data.announcements.map((announcement) => (

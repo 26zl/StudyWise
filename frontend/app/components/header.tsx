@@ -5,11 +5,13 @@ import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { useUIStore } from "../store/uiStore";
 
+// Header-komponent
 export function Header() {
     const pathname = usePathname();
     const { toggleVenstreMeny } = useUIStore();
     const erDashboard = pathname === "/dashboard";
 
+    // Render
     return (
         <header className="shrink-0 h-14 px-4 md:px-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-900 sticky top-0 z-30">
             <div className="flex items-center gap-3">

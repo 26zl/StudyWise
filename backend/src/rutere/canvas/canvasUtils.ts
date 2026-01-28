@@ -25,7 +25,7 @@ export interface CanvasResponse<T> {
         itemsCount: number;
     };
 }
-
+// Feiltype for Canvas HTTP-feil
 interface CanvasHttpError extends Error {
     status?: number;
     details?: string;
@@ -139,7 +139,7 @@ export async function canvasFetch<T>(
     } catch (err) {
         logger.error({ err }, "Cache henting feilet");
     }
-
+    // Sett opp abort controller for timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 

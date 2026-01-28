@@ -90,7 +90,7 @@ export function prefetchCanvasData(queryClient: QueryClient) {
     queryKey: ["canvas", "announcements"],
     queryFn: () => fetchCanvas("/announcements", AnnouncementsResponseSchema),
   });
-
+// Emner
   queryClient.prefetchQuery({
     queryKey: ["canvas", "courses"],
     queryFn: () => fetchCanvas("/emner", CoursesResponseSchema),

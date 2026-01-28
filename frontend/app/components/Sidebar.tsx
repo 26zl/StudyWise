@@ -28,6 +28,7 @@ export type VisningType =
     | "canvas-data"
     | "settings";
 
+// Props for Sidebar-komponenten
 interface SidebarProps {
     aktivVisning: VisningType;
     byttVisning: (visning: VisningType) => void;
@@ -49,7 +50,7 @@ export function Sidebar({
 }: SidebarProps) {
     const { isVenstreMenyOpen, lukkVenstreMeny } = useUIStore();
     const [erCanvasUtvidet, settErCanvasUtvidet] = useState(true);
-
+    // Håndter navigasjon og lukk meny på mobil
     const handleNavigasjon = (visning: VisningType) => {
         byttVisning(visning);
         // Lukk sidebar på mobil etter navigasjon
@@ -85,7 +86,7 @@ export function Sidebar({
             <span className="truncate">{label}</span>
         </button>
     );
-
+    // Render
     return (
         <>
             {/* Mobil overlegg (Overlay) */}
