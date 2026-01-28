@@ -4,6 +4,7 @@ export default defineConfig({
   title: "StudyWise Dokumentasjon",
   description: "Dokumentasjon for StudyWise - En KI-basert studieassistent",
   lang: 'no-NO',
+  base: '/StudyWise/',
   themeConfig: {
     nav: [
       { text: 'Hjem', link: '/' },
