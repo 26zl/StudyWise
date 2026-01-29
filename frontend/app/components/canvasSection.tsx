@@ -4,7 +4,7 @@
 */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type CSSProperties } from "react";
 import {
     useCanvasAnnouncements,
     useCanvasCourses,
@@ -35,12 +35,31 @@ interface CanvasSectionProps {
 
 // Validering mot DOM-basert XSS - tillater kun http/https for href
 // Tilpasset Bilde-komponent med laste-tilstand
+const normalizeStyle = (style?: string | CSSProperties) => {
+    if (!style) return undefined;
+    if (typeof style !== "string") return style;
+
+    return style.split(";").reduce((acc, decl) => {
+        const [rawProp, rawValue] = decl.split(":");
+        if (!rawProp || !rawValue) return acc;
+
+        const prop = rawProp.trim().replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+        const value = rawValue.trim();
+        if (!prop || !value) return acc;
+
+        (acc as Record<string, string>)[prop] = value;
+        return acc;
+    }, {} as CSSProperties);
+};
+
 const TilpassetBilde = ({
     src,
     alt,
+    style,
     ...props
 }: React.ImgHTMLAttributes<HTMLImageElement>) => {
     const [laster, settLaster] = useState(true);
+    const safeStyle = normalizeStyle(style);
 
     return (
         <span className="relative my-3 inline-block overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
@@ -52,6 +71,7 @@ const TilpassetBilde = ({
                 alt={alt}
                 {...props}
                 className={`transition-opacity duration-500 ${laster ? "opacity-0" : "opacity-100"} max-w-full max-h-75 w-auto h-auto object-contain`}
+                style={safeStyle}
                 onLoad={() => settLaster(false)}
                 loading="lazy"
             />
