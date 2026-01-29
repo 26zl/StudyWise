@@ -8,7 +8,7 @@
     "dev:backend": "pnpm --filter backend dev",
     "dev:docs": "pnpm --filter docs dev",
     "dev:common": "pnpm --filter common typecheck --watch",
-    "kill:dev": "npx kill-port 3000 4000 2>nul & taskkill //F //IM node.exe 2>nul & rimraf frontend\\.next\\dev\\lock && echo Servere stoppet og lock-fil ryddet",
+    "kill:dev": "node scripts/kill-dev.mjs",
     "lint": "pnpm -r lint",
     "lint:md": "markdownlint \"**/*.md\" --ignore node_modules",
     "lint:frontend": "pnpm --filter frontend lint",
@@ -35,6 +35,7 @@
     "clean:install": "echo Cleaning all... && node -e \"const fs=require('fs');const paths=['backend/node_modules','backend/dist','frontend/node_modules','frontend/.next','common/node_modules','common/dist','docs/node_modules','docs/docs/.vitepress/dist','node_modules','pnpm-lock.yaml'];for(const p of paths){fs.rmSync(p,{recursive:true,force:true});}\" && echo Installing dependencies... && pnpm install && echo Building project... && pnpm run build"
   },
   "devDependencies": {
+    "kill-port": "^2.0.1",
     "markdownlint-cli": "^0.47.0",
     "rimraf": "^6.1.2"
   },

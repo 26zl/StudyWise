@@ -12,8 +12,9 @@
 * Da vet vi at "Ola Nordmann fra Canvas" = "ola@exmaple.com som logget inn".
 */
 import { Router } from "express";
+import { Readable } from "node:stream";
 import { z } from "zod";
-import { canvasFetch, requireCanvasToken } from "./canvasUtils.js";
+import { canvasFetch, requireCanvasToken, getCanvasConfig, validateCanvasRedirectUrl } from "./canvasUtils.js";
 import { logger } from "../../utils/logger.js";
 import { CanvasUser } from "../../database/models/CanvasUser.js";
 import {
@@ -349,6 +350,75 @@ router.get("/emner/:courseId/modules/:moduleId/items", async (req, res) => {
   }
 });
 
+// GET /emner/:courseId/modules/:moduleId/items/:itemId/open
+// Løser Canvas module_item_redirect ved å bruke API-token på serveren og returnere trygg URL (ingen backend-redirect)
+router.get("/emner/:courseId/modules/:moduleId/items/:itemId/open", async (req, res) => {
+  try {
+    const { courseId, moduleId, itemId } = req.params;
+    const courseIdNum = parseInt(courseId, 10);
+    const moduleIdNum = parseInt(moduleId, 10);
+    const itemIdNum = parseInt(itemId, 10);
+    if ([courseIdNum, moduleIdNum, itemIdNum].some((n) => Number.isNaN(n))) {
+      return res.status(400).json({ feil: "Ugyldig ID" });
+    }
+
+    // Hent detaljene for modul-itemet slik at vi kan finne riktig mål
+    const itemResponse = await canvasFetch<unknown>(
+      `/api/v1/courses/${courseIdNum}/modules/${moduleIdNum}/items/${itemIdNum}`,
+      { queryParams: { "include[]": "content_details" } }
+    );
+    // Valider med Zod
+    const item = CanvasModuleItemDetailSchema.parse(itemResponse.data);
+
+    // Sikkerhetsjekk for URL
+    const canvasBaseUrl = getCanvasConfig().baseUrl;
+    if (!canvasBaseUrl) {
+      return res.status(500).json({ feil: "Canvas baseUrl ikke konfigurert" });
+    }
+    const canvasOrigin = new URL(canvasBaseUrl).origin;
+
+    // Route basert på type
+    if (item.type === "File" && item.content_id) {
+      // Hent fil-metadata for å få en signert, offentlig download URL
+      const fileResponse = await canvasFetch<unknown>(`/api/v1/files/${item.content_id}`);
+      const file = CanvasFileSchema.parse(fileResponse.data);
+
+      const safeUrl = validateCanvasRedirectUrl(file.url, canvasOrigin, "/files/");
+
+      if (safeUrl) {
+        logger.info({ fileId: file.id, moduleItemId: itemIdNum }, "Returnerer intern downloadPath for fil");
+        return res.json({ type: "File", downloadPath: `/api/canvas/filer/${file.id}/download` });
+      }
+      return res.status(400).json({ feil: "Ugyldig fil-url host" });
+    }
+    // Håndter andre typer
+    if (item.type === "ExternalUrl" && item.external_url) {
+      // Ikke redirect til eksterne domener fra backend (open redirect). Frontend åpner lenken direkte.
+      return res.json({
+        type: "ExternalUrl",
+        url: item.external_url,
+      });
+    }
+
+    if (item.type === "Page" && item.page_url) {
+      // For pages håndteres rendring i frontend. Returner info som JSON
+      return res.json({
+        type: "Page",
+        page_url: item.page_url,
+        html_url: item.html_url,
+      });
+    }
+
+    // Ingen annen trygg redirect tilgjengelig
+    return res.status(404).json({
+      feil: "Ingen tilgjengelig url for modul-elementet",
+    });
+  } catch (error) {
+    logger.error({ err: error }, `Feil ved åpning av modul item ${req.params.itemId}`);
+    throw error;
+  }
+});
+
 // GET /emner/:courseId/pages/:pageId - Hent wiki page innhold
 router.get("/emner/:courseId/pages/:pageId", async (req, res) => {
   try {
@@ -381,6 +451,41 @@ router.get("/filer/:fileId", async (req, res) => {
     res.json(file);
   } catch (error) {
     logger.error({ err: error }, `Feil ved henting av fil ${req.params.fileId}`);
+    throw error;
+  }
+});
+
+// GET /filer/:fileId/download - Strømming av fil uten redirect (unngår open redirect)
+router.get("/filer/:fileId/download", async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    const fileIdNum = parseInt(fileId, 10);
+    if (isNaN(fileIdNum)) return res.status(400).json({ feil: "Ugyldig fileId" });
+
+    const canvasBaseUrl = getCanvasConfig().baseUrl;
+    if (!canvasBaseUrl) return res.status(500).json({ feil: "Canvas baseUrl ikke konfigurert" });
+    const canvasOrigin = new URL(canvasBaseUrl).origin;
+
+    // Hent metadata for signert fil-url
+    const metaResponse = await canvasFetch<unknown>(`/api/v1/files/${fileIdNum}`);
+    const file = CanvasFileSchema.parse(metaResponse.data);
+    const safeUrl = validateCanvasRedirectUrl(file.url, canvasOrigin, "/files/");
+    if (!safeUrl) return res.status(400).json({ feil: "Ugyldig fil-url host" });
+
+    // Last ned fra Canvas og stream til klient
+    const canvasRes = await fetch(safeUrl);
+    if (!canvasRes.ok || !canvasRes.body) {
+      return res.status(canvasRes.status).json({ feil: "Kunne ikke hente fil fra Canvas" });
+    }
+
+    res.setHeader("Content-Type", canvasRes.headers.get("content-type") || "application/octet-stream");
+    const disposition = canvasRes.headers.get("content-disposition");
+    if (disposition) res.setHeader("Content-Disposition", disposition);
+
+    const nodeStream = Readable.fromWeb(canvasRes.body as unknown as ReadableStream);
+    nodeStream.pipe(res);
+  } catch (error) {
+    logger.error({ err: error }, `Feil ved filnedlasting ${req.params.fileId}`);
     throw error;
   }
 });

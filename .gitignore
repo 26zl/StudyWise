@@ -59,3 +59,7 @@ next-env.d.ts
 
 # Vercel
 .vercel
+
+# VitePress
+**/.vitepress/dist
+**/.vitepress/cache

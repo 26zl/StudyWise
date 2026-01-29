@@ -64,6 +64,10 @@ export const CanvasModuleItemSchema = z.object({
   title: z.string(),
   type: z.string(),
   html_url: z.string().optional(),
+  page_url: z.string().optional(),
+  url: z.string().optional(),
+  external_url: z.string().optional(),
+  content_id: z.number().optional(),
 });
 
 // Schema for Canvas moduler

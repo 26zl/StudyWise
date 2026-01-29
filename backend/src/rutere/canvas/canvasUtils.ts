@@ -3,6 +3,7 @@
 *
 */
 import crypto from "crypto";
+import validator from "validator";
 import { getCache, setCache } from "../../cache/redis.js";
 import { logger } from "../../utils/logger.js";
 // import { User } from "../../database/models/User.js";
@@ -207,5 +208,34 @@ export async function canvasFetch<T>(
         }
         logger.error({ err: error, endpoint }, "Canvas API-kall feilet");
         throw error;
+    }
+}
+
+
+// Valider redirect URL for å forhindre Open Redirect sårbarheter
+export function validateCanvasRedirectUrl(urlStr: string, allowedOrigin: string, pathPrefix?: string): string | null {
+    try {
+        const allowedUrl = new URL(allowedOrigin);
+        const allowedHost = allowedUrl.hostname;
+
+        // Bruk validator.isURL med strict whitelist
+        const isValid = validator.isURL(urlStr, {
+            protocols: ["https", "http"],
+            require_protocol: true,
+            host_whitelist: [allowedHost],
+            validate_length: true
+        });
+
+        if (!isValid) return null;
+
+        // Ekstra sjekk for path prefix hvis nødvendig (validator sjekker ikke path content - kun host)
+        if (pathPrefix) {
+            const url = new URL(urlStr);
+            if (!url.pathname.startsWith(pathPrefix)) return null;
+        }
+
+        return urlStr;
+    } catch {
+        return null;
     }
 }

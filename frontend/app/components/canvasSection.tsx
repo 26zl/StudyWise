@@ -11,10 +11,10 @@ import {
     useCanvasModules,
     useCanvasUser,
 } from "../canvas/canvas-api";
+import { CanvasPageVisning } from "./CanvasPageVisning";
 import { formatDistanceToNow } from "date-fns";
 import { nb } from "date-fns/locale";
-import DOMPurify from "isomorphic-dompurify";
-import parse, { DOMNode, Element } from "html-react-parser";
+import { createCanvasHtmlParser, parseCanvasHtml, sikkerHref } from "../canvas/canvasHtml";
 import {
     ArrowLeft,
     ChevronRight,
@@ -22,6 +22,8 @@ import {
     FileText,
     Loader2,
     AlertCircle,
+    Download,
+    BookOpen,
 } from "lucide-react";
 
 // Typer for Canvas visninger
@@ -32,8 +34,6 @@ interface CanvasSectionProps {
 }
 
 // Validering mot DOM-basert XSS - tillater kun http/https for href
-const sikkerHref = (u?: string | null) => (u && u.startsWith("http") ? u : "#");
-
 // Tilpasset Bilde-komponent med laste-tilstand
 const TilpassetBilde = ({
     src,
@@ -59,39 +59,13 @@ const TilpassetBilde = ({
     );
 };
 
-// HTML parser opsjoner for sikker visning
-const htmlParseAlternativer = {
-    replace: (domNode: DOMNode) => {
-        if (domNode instanceof Element) {
-            if (domNode.tagName === "a") {
-                const href = domNode.attribs?.href;
-                return (
-                    <a
-                        href={sikkerHref(href)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
-                    >
-                        {
-                            // @ts-expect-error: html-react-parser types are loose here
-                            domNode.children?.[0]?.data || ""
-                        }
-                        <ExternalLink size={12} className="opacity-50" />
-                    </a>
-                );
-            }
-            if (domNode.tagName === "img") {
-                return (
-                    <TilpassetBilde
-                        src={domNode.attribs.src}
-                        alt={domNode.attribs.alt || "Canvas bilde"}
-                        {...domNode.attribs}
-                    />
-                );
-            }
-        }
-    },
-};
+const htmlParser = createCanvasHtmlParser((domNode) => (
+    <TilpassetBilde
+        src={domNode.attribs.src}
+        alt={domNode.attribs.alt || "Canvas bilde"}
+        {...domNode.attribs}
+    />
+));
 
 // Laste-skjelett
 function LasteSkjelett({ linjer = 3 }: { linjer?: number }) {
@@ -145,7 +119,7 @@ function KunngjoringVisning() {
             </div>
         );
     }
-// Vis kunngjøringer
+    // Vis kunngjøringer
     return (
         <div className="space-y-4">
             {data.announcements.map((announcement) => (
@@ -169,7 +143,7 @@ function KunngjoringVisning() {
 
                     {announcement.message && (
                         <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
-                            {parse(DOMPurify.sanitize(announcement.message), htmlParseAlternativer)}
+                            {parseCanvasHtml(announcement.message, htmlParser)}
                         </div>
                     )}
                 </article>
@@ -178,10 +152,12 @@ function KunngjoringVisning() {
     );
 }
 
+
 // Emne-visning
 function EmneVisning() {
     const { data, isLoading, isError, error } = useCanvasCourses();
     const [valgtEmneId, settValgtEmneId] = useState<number | null>(null);
+    const [valgtSide, settValgtSide] = useState<{ pageId: string; courseId: number } | null>(null);
     const modulerQuery = useCanvasModules(valgtEmneId);
 
     if (isLoading) {
@@ -198,6 +174,17 @@ function EmneVisning() {
 
     if (isError) {
         return <FeilMelding melding={error?.message || "Kunne ikke laste emner"} />;
+    }
+
+    // Vis valgt side hvis satt
+    if (valgtSide) {
+        return (
+            <CanvasPageVisning
+                courseId={valgtSide.courseId}
+                pageId={valgtSide.pageId}
+                onBack={() => settValgtSide(null)}
+            />
+        );
     }
 
     // Vis moduler for valgt emne
@@ -243,27 +230,79 @@ function EmneVisning() {
                                 </div>
 
                                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {module.items?.map((item) => (
-                                        <a
-                                            key={item.id}
-                                            href={sikkerHref(item.html_url)}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors group"
-                                        >
-                                            <FileText
-                                                size={16}
-                                                className="text-slate-400 dark:text-slate-500 shrink-0"
-                                            />
-                                            <span className="flex-1 text-sm text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white truncate">
-                                                {item.title}
-                                            </span>
-                                            <ExternalLink
-                                                size={14}
-                                                className="text-slate-300 dark:text-slate-600 group-hover:text-slate-400 dark:group-hover:text-slate-500 shrink-0"
-                                            />
-                                        </a>
-                                    ))}
+                                    {module.items?.map((item) => {
+                                        // Bestem ikon og handling basert på type
+                                        const isPage = item.type === "Page";
+                                        const isFile = item.type === "File";
+                                        const isExternal = item.type === "ExternalUrl";
+
+                                        // Direkt nedlastingssti for filer (samme origin)
+                                        const downloadPath = isFile && item.content_id
+                                            ? `/api/canvas/filer/${item.content_id}/download`
+                                            : undefined;
+
+                                        // Direktelenker for andre typer
+                                        const directUrl = isExternal
+                                            ? sikkerHref(item.external_url)
+                                            : sikkerHref(item.html_url);
+
+                                        // Håndter klikk på item
+                                        const handleClick = async (e: React.MouseEvent) => {
+                                            if (isPage && item.page_url) {
+                                                e.preventDefault();
+                                                settValgtSide({ pageId: item.page_url, courseId: valgtEmneId });
+                                                return;
+                                            }
+                                            if (isFile && downloadPath) {
+                                                e.preventDefault();
+                                                window.open(downloadPath, "_blank", "noopener,noreferrer");
+                                            }
+                                        };
+
+                                        return (
+                                            <a
+                                                key={item.id}
+                                                href={downloadPath || directUrl}
+                                                target={isPage ? undefined : "_blank"}
+                                                rel="noopener noreferrer"
+                                                onClick={handleClick}
+                                                className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors group"
+                                            >
+                                                {isPage ? (
+                                                    <BookOpen
+                                                        size={16}
+                                                        className="text-slate-400 dark:text-slate-500 shrink-0"
+                                                    />
+                                                ) : isFile ? (
+                                                    <Download
+                                                        size={16}
+                                                        className="text-slate-400 dark:text-slate-500 shrink-0"
+                                                    />
+                                                ) : (
+                                                    <FileText
+                                                        size={16}
+                                                        className="text-slate-400 dark:text-slate-500 shrink-0"
+                                                    />
+                                                )}
+
+                                                <span className="flex-1 text-sm text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white truncate">
+                                                    {item.title}
+                                                </span>
+
+                                                {isPage ? (
+                                                    <ChevronRight
+                                                        size={14}
+                                                        className="text-slate-300 dark:text-slate-600 group-hover:text-slate-400 dark:group-hover:text-slate-500 shrink-0"
+                                                    />
+                                                ) : (
+                                                    <ExternalLink
+                                                        size={14}
+                                                        className="text-slate-300 dark:text-slate-600 group-hover:text-slate-400 dark:group-hover:text-slate-500 shrink-0"
+                                                    />
+                                                )}
+                                            </a>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         ))}
@@ -272,6 +311,7 @@ function EmneVisning() {
             </div>
         );
     }
+
 
     // Vis emner liste
     if (!data?.courses?.length) {
