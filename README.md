@@ -89,8 +89,8 @@ pnpm start:frontend   # Start kun frontend
 pnpm start:backend    # Start kun backend
 
 # Dependencies
-pnpm outdated         # Sjekk utdaterte pakker (alle)
-pnpm update           # Oppdater alle pakker
+pnpm run outdated     # Sjekk utdaterte pakker (alle)
+pnpm run update       # Oppdater alle pakker
 pnpm update:frontend  # Oppdater kun frontend
 pnpm update:backend   # Oppdater kun backend
 pnpm update:common    # Oppdater kun common
