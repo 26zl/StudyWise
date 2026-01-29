@@ -43,7 +43,8 @@
       "glob@<8": ">=8.0.0",
       "inflight": "npm:@node-rs/inflight@latest",
       "lodash.get": "npm:lodash@^4.17.21",
-      "lodash.isequal": "npm:lodash@^4.17.21"
+      "lodash.isequal": "npm:lodash@^4.17.21",
+      "esbuild": "^0.25.0"
     },
     "onlyBuiltDependencies": [
       "@scarf/scarf",
