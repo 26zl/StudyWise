@@ -22,6 +22,12 @@ import {
   CanvasAssignmentSchema,
   CanvasAnnouncementSchema,
   CanvasModuleSchema,
+  CanvasCalendarEventSchema,
+  CanvasTodoItemSchema,
+  CanvasModuleItemDetailSchema,
+  CanvasPageSchema,
+  CanvasFileSchema,
+  CanvasDiscussionTopicSchema,
 } from "common/canvas";
 
 // Feiltype for Canvas HTTP-feil
@@ -69,6 +75,38 @@ router.get("/whoami", async (_req, res) => {
     res.json(canvasUser);
   } catch (error) {
     logger.error({ err: error }, "Klarte ikke å hente eller lagre brukerinformasjon (/whoami)");
+    throw error;
+  }
+});
+
+// GET /users/self/upcoming_events - Kommende hendelser
+router.get("/users/self/upcoming_events", async (_req, res) => {
+  try {
+    const response = await canvasFetch<unknown[]>("/api/v1/users/self/upcoming_events");
+    const events = z.array(CanvasCalendarEventSchema).parse(response.data);
+    logger.info({ count: events.length }, "Hentet kommende hendelser");
+    res.json({
+      events,
+      meta: response.meta
+    });
+  } catch (error) {
+    logger.error({ err: error }, "Feil ved henting av upcoming_events");
+    throw error;
+  }
+});
+
+// GET /users/self/todo - Todo liste
+router.get("/users/self/todo", async (_req, res) => {
+  try {
+    const response = await canvasFetch<unknown[]>("/api/v1/users/self/todo");
+    const todos = z.array(CanvasTodoItemSchema).parse(response.data);
+    logger.info({ count: todos.length }, "Hentet todo liste");
+    res.json({
+      todos,
+      meta: response.meta
+    });
+  } catch (error) {
+    logger.error({ err: error }, "Feil ved henting av todo liste");
     throw error;
   }
 });
@@ -254,7 +292,7 @@ router.get("/emner/:courseId/modules", async (req, res) => {
         melding: "courseId må være et tall",
       });
     }
-    // Vi spør også om items inni modulene
+    // Vi spør også om items inni modulene, men dette endepunktet gir bare enkel info om items
     const response = await canvasFetch<unknown[]>(
       `/api/v1/courses/${courseIdNum}/modules`,
       {
@@ -277,6 +315,99 @@ router.get("/emner/:courseId/modules", async (req, res) => {
   }
 });
 
+// GET /emner/:courseId/modules/:moduleId/items - Hent modul-items med detaljer
+router.get("/emner/:courseId/modules/:moduleId/items", async (req, res) => {
+  try {
+    const { courseId, moduleId } = req.params;
+    const courseIdNum = parseInt(courseId, 10);
+    const moduleIdNum = parseInt(moduleId, 10);
+
+    if (isNaN(courseIdNum) || isNaN(moduleIdNum)) {
+      return res.status(400).json({ feil: "Ugyldig ID" });
+    }
+
+    const response = await canvasFetch<unknown[]>(
+      `/api/v1/courses/${courseIdNum}/modules/${moduleIdNum}/items`,
+      {
+        queryParams: {
+          "include[]": "content_details",
+          per_page: 100
+        }
+      }
+    );
+    // Valider med Zod
+    const items = z.array(CanvasModuleItemDetailSchema).parse(response.data);
+    logger.info({ courseId, moduleId, itemCount: items.length }, "Hentet modul items med detaljer");
+    res.json({
+      items,
+      meta: response.meta
+    });
+
+  } catch (error) {
+    logger.error({ err: error }, `Feil ved henting av modul items for modul ${req.params.moduleId}`);
+    throw error;
+  }
+});
+
+// GET /emner/:courseId/pages/:pageId - Hent wiki page innhold
+router.get("/emner/:courseId/pages/:pageId", async (req, res) => {
+  try {
+    const { courseId, pageId } = req.params;
+    const courseIdNum = parseInt(courseId, 10);
+    if (isNaN(courseIdNum)) return res.status(400).json({ feil: "Ugyldig courseId" });
+
+    const response = await canvasFetch<unknown>(
+      `/api/v1/courses/${courseIdNum}/pages/${pageId}`
+    );
+    const page = CanvasPageSchema.parse(response.data);
+    logger.info({ courseId, pageUrl: page.url }, "Hentet wiki page");
+    res.json(page);
+  } catch (error) {
+    logger.error({ err: error }, `Feil ved henting av page ${req.params.pageId}`);
+    throw error;
+  }
+});
+
+// GET /filer/:fileId - Hent fil metadata
+router.get("/filer/:fileId", async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    const fileIdNum = parseInt(fileId, 10);
+    if (isNaN(fileIdNum)) return res.status(400).json({ feil: "Ugyldig fileId" });
+
+    const response = await canvasFetch<unknown>(`/api/v1/files/${fileIdNum}`);
+    const file = CanvasFileSchema.parse(response.data);
+    logger.info({ fileId, filename: file.filename }, "Hentet fil metadata");
+    res.json(file);
+  } catch (error) {
+    logger.error({ err: error }, `Feil ved henting av fil ${req.params.fileId}`);
+    throw error;
+  }
+});
+
+// GET /emner/:courseId/diskusjoner/:topicId - Hent diskusjon
+router.get("/emner/:courseId/diskusjoner/:topicId", async (req, res) => {
+  try {
+    const { courseId, topicId } = req.params;
+    const courseIdNum = parseInt(courseId, 10);
+    const topicIdNum = parseInt(topicId, 10);
+
+    if (isNaN(courseIdNum) || isNaN(topicIdNum)) {
+      return res.status(400).json({ feil: "Ugyldig ID" });
+    }
+
+    const response = await canvasFetch<unknown>(
+      `/api/v1/courses/${courseIdNum}/discussion_topics/${topicIdNum}`
+    );
+    const topic = CanvasDiscussionTopicSchema.parse(response.data);
+    logger.info({ courseId, topicId, title: topic.title }, "Hentet diskusjon");
+    res.json(topic);
+  } catch (error) {
+    logger.error({ err: error }, `Feil ved henting av diskusjon ${req.params.topicId}`);
+    throw error;
+  }
+});
+
 // Global error handler for dette routeret
 router.use((error: Error, _req: unknown, res: unknown, _next: unknown) => {
   logger.error({ err: error }, "Canvas API feil");
@@ -287,7 +418,7 @@ router.use((error: Error, _req: unknown, res: unknown, _next: unknown) => {
     return response.status(500).json({
       feil: "Validering feilet",
       melding: "Canvas returnerte uventet data-format",
-      detaljer: error.message,
+      detaljer: error?.message,
     });
   }
   // Canvas API feil - Sjekk om error har en status-kode

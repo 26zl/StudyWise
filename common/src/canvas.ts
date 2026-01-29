@@ -141,3 +141,104 @@ export type AnnouncementsResponse = z.infer<typeof AnnouncementsResponseSchema>;
 export type ModulesResponse = z.infer<typeof ModulesResponseSchema>;
 export type PlannerItemsResponse = z.infer<typeof PlannerItemsResponseSchema>;
 export type AssignmentsResponse = z.infer<typeof AssignmentsResponseSchema>;
+
+// Schema for Canvas Page (Wiki Page)
+export const CanvasPageSchema = z.object({
+  page_id: z.number().optional(), // Noen ganger string i URL, men ID i respons
+  url: z.string(),
+  title: z.string(),
+  created_at: z.string().optional(),
+  updated_at: z.string().optional(),
+  body: z.string().optional(), // HTML innholdet
+});
+
+// Schema for Canvas File
+export const CanvasFileSchema = z.object({
+  id: z.number(),
+  display_name: z.string(),
+  filename: z.string(),
+  url: z.string(), // Download URL
+  size: z.number(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  mime_class: z.string().optional(),
+  mime_type: z.string().optional(),
+});
+
+// Schema for Canvas Discussion Topic
+export const CanvasDiscussionTopicSchema = z.object({
+  id: z.number(),
+  title: z.string(),
+  message: z.string().nullable(), // HTML innhold
+  html_url: z.string(),
+  posted_at: z.string().nullable(),
+  author: z.object({
+    id: z.number(),
+    display_name: z.string().optional(),
+    avatar_image_url: z.string().optional(),
+    html_url: z.string().optional(),
+  }).optional(),
+});
+
+// Schema for Calendar Event (Upcoming Events)
+export const CanvasCalendarEventSchema = z.object({
+  id: z.number(), // eller string? Docs sier ofte "id": "123" for events
+  title: z.string(),
+  start_at: z.string().nullable(),
+  end_at: z.string().nullable(),
+  description: z.string().nullable().optional(),
+  location_name: z.string().nullable().optional(),
+  location_address: z.string().nullable().optional(),
+  context_code: z.string().optional(), // e.g. "course_123"
+  html_url: z.string().optional(),
+  url: z.string().optional(), // API url
+});
+
+// Schema for Todo Item
+// Todo items kan være assignments eller quizzes som må gjøres
+export const CanvasTodoItemSchema = z.object({
+  type: z.string(), // "grading", "submitting", etc
+  assignment: CanvasAssignmentSchema.optional(),
+  ignore: z.string().optional(), // url to ignore
+  ignore_permanently: z.string().optional(),
+  html_url: z.string().optional(),
+  context_type: z.string().optional(), // "Course"
+  course_id: z.number().optional(),
+  quiz: z.object({
+    id: z.number(),
+    title: z.string(),
+    due_at: z.string().nullable(),
+    html_url: z.string().optional(),
+  }).optional(),
+});
+
+
+// Utvidet modul-item schema for å inkludere content details felter
+// Disse er ofte tilstede når man bruker include[]=content_details
+export const CanvasModuleItemDetailSchema = CanvasModuleItemSchema.extend({
+  content_id: z.number().optional(),
+  page_url: z.string().optional(), // For Page types
+  url: z.string().optional(), // API url for innholdet
+  external_url: z.string().optional(), // For ExternalUrl types
+  new_tab: z.boolean().optional(),
+  completion_requirement: z.object({
+    type: z.string(),
+    min_score: z.number().optional(),
+    completed: z.boolean().optional(),
+  }).optional(),
+  content_details: z.object({
+    points_possible: z.number().optional(),
+    due_at: z.string().nullable().optional(),
+    unlock_at: z.string().nullable().optional(),
+    lock_at: z.string().nullable().optional(),
+    locked_for_user: z.boolean().optional(),
+    lock_explanation: z.string().optional(),
+  }).optional(),
+});
+// Typer eksportering
+export type CanvasPage = z.infer<typeof CanvasPageSchema>;
+export type CanvasFile = z.infer<typeof CanvasFileSchema>;
+export type CanvasDiscussionTopic = z.infer<typeof CanvasDiscussionTopicSchema>;
+export type CanvasCalendarEvent = z.infer<typeof CanvasCalendarEventSchema>;
+export type CanvasTodoItem = z.infer<typeof CanvasTodoItemSchema>;
+export type CanvasModuleItemDetail = z.infer<typeof CanvasModuleItemDetailSchema>;
