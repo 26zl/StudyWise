@@ -44,15 +44,7 @@ pnpm install
 
 1. **Konfigurer miljøvariabler**:
 
-Opprett `backend/.env` (se `backend/.env.example`):
-
-```env
-PORT=4000
-WEB_ORIGIN=http://localhost:3000
-CANVAS_TOKEN=din_canvas_token_her
-CANVAS_BASE_URL=https://usn.instructure.com
-REDIS_URL=redis://default:PASS@host:port
-```
+Opprett `backend/.env` (se `backend/.env.example`).
 
 ## Kommandoer (kjør fra rot)
 
@@ -220,13 +212,6 @@ Backend har integrert Swagger UI for å utforske og teste API-endepunkter:
 - Automatisk linting med `pnpm lint`
 - Snyk vulnerability scanning integrert
 - Dependency overrides for sikkerhet (glob, inflight)
-
-**Docker Optimalisering:**
-
-- Frontend bruker Next.js standalone mode (mindre image størrelse)
-- Health checks konfigurert for alle services
-- Multi-stage builds for optimal layer caching
-- Ingen unødvendige dependencies i production images
 
 **Git Ignore & Autogenererte filer:**
 
