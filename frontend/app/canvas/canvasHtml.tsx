@@ -1,3 +1,7 @@
+/*
+* Håndterer parsing og sanitizing av Canvas HTML-innhold for sikker visning
+* Inkluderer tilpasning av lenker og mulighet for custom bilde-rendering
+*/
 "use client";
 
 import type { ReactNode } from "react";

@@ -25,6 +25,8 @@ export const logger = pino({
             "req.body.lastName",
             "req.query.token",
             "req.query.access_token",
+            "req.canvasToken",
+            "req.user",
             "res.headers['set-cookie']",
         ],
         remove: true,

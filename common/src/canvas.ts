@@ -148,7 +148,7 @@ export type AssignmentsResponse = z.infer<typeof AssignmentsResponseSchema>;
 
 // Schema for Canvas Page (Wiki Page)
 export const CanvasPageSchema = z.object({
-  page_id: z.number().optional(), // Noen ganger string i URL, men ID i respons
+  page_id: z.union([z.number(), z.string()]).optional(), // Noen ganger string i URL, men ID i respons
   url: z.string(),
   title: z.string(),
   created_at: z.string().optional(),
@@ -186,7 +186,7 @@ export const CanvasDiscussionTopicSchema = z.object({
 
 // Schema for Calendar Event (Upcoming Events)
 export const CanvasCalendarEventSchema = z.object({
-  id: z.number(), // eller string? Docs sier ofte "id": "123" for events
+  id: z.coerce.number(), // Canvas kan sende ID som string - koer til number
   title: z.string(),
   start_at: z.string().nullable(),
   end_at: z.string().nullable(),
@@ -239,6 +239,24 @@ export const CanvasModuleItemDetailSchema = CanvasModuleItemSchema.extend({
     lock_explanation: z.string().optional(),
   }).optional(),
 });
+
+// Svar-schema for kommende hendelser
+export const UpcomingEventsResponseSchema = z.object({
+  events: z.array(CanvasCalendarEventSchema),
+  meta: MetaSchema.optional(),
+});
+
+// Svar-schema for todo liste
+export const TodoResponseSchema = z.object({
+  todos: z.array(CanvasTodoItemSchema),
+  meta: MetaSchema.optional(),
+});
+
+// Svar-schema for detaljerte modul-items
+export const ModuleItemDetailsResponseSchema = z.object({
+  items: z.array(CanvasModuleItemDetailSchema),
+  meta: MetaSchema.optional(),
+});
 // Typer eksportering
 export type CanvasPage = z.infer<typeof CanvasPageSchema>;
 export type CanvasFile = z.infer<typeof CanvasFileSchema>;
@@ -246,3 +264,6 @@ export type CanvasDiscussionTopic = z.infer<typeof CanvasDiscussionTopicSchema>;
 export type CanvasCalendarEvent = z.infer<typeof CanvasCalendarEventSchema>;
 export type CanvasTodoItem = z.infer<typeof CanvasTodoItemSchema>;
 export type CanvasModuleItemDetail = z.infer<typeof CanvasModuleItemDetailSchema>;
+export type UpcomingEventsResponse = z.infer<typeof UpcomingEventsResponseSchema>;
+export type TodoResponse = z.infer<typeof TodoResponseSchema>;
+export type ModuleItemDetailsResponse = z.infer<typeof ModuleItemDetailsResponseSchema>;

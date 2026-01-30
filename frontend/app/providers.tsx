@@ -7,8 +7,14 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
-import { prefetchCanvasData } from "./canvas/canvas-api";
+import { useState } from "react";
+import { useAuthSync } from "./hooks/use-auth-sync";
+
+// Komponent for å lytte etter utlogging i andre faner
+function AuthSyncListener() {
+  useAuthSync(); // Aktiver lytter for utlogging i andre faner
+  return null;
+}
 
 export function Providers({ children }: { children: React.ReactNode }) {
   // Lager en instans av QueryClient som håndterer caching av data.
@@ -18,22 +24,20 @@ export function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 5 * 60 * 1000, // Data er "fersk" i 5 minutter
-            gcTime: 10 * 60 * 1000,   // Hold i minnet i 10 minutter
+            staleTime: 2 * 60 * 1000, // Data er "fersk" i 2 minutter
+            gcTime: 2 * 60 * 1000,    // Hold i minnet i 2 minutter (sikkerhet på delte enheter)
             retry: 1, // Prøv på nytt 1 gang ved feil
           },
         },
       })
   );
 
-  // Prefetch Canvas data ved app-start for raskere brukeropplevelse
-  useEffect(() => {
-    prefetchCanvasData(queryClient);
-  }, [queryClient]);
-
   // Pakker inn applikasjonen (children) med Provideren.
   // Dette gjør at alle komponenter inni kan bruke hooks som useQuery().
   return (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthSyncListener />
+      {children}
+    </QueryClientProvider>
   );
 }

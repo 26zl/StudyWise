@@ -1,3 +1,7 @@
+/*
+* CanvasPageVisning-komponent
+* Håndterer visning av en enkelt Canvas-side med tittel, publiseringsdato og innhold
+*/
 "use client";
 
 import type { JSX } from "react";
@@ -33,7 +37,7 @@ export function CanvasPageVisning({ courseId, pageId, onBack }: CanvasPageVisnin
             </div>
         );
     }
-
+    // Håndter feil ved lasting av side
     if (isError) {
         return (
             <div className="p-8 text-center">
@@ -47,9 +51,9 @@ export function CanvasPageVisning({ courseId, pageId, onBack }: CanvasPageVisnin
             </div>
         );
     }
-
     if (!page) return null;
 
+    // Hovedrendering av siden
     return (
         <div className="max-w-4xl mx-auto">
             <button
@@ -73,7 +77,6 @@ export function CanvasPageVisning({ courseId, pageId, onBack }: CanvasPageVisnin
                                 <span>Publisert {format(new Date(page.created_at), "d. MMMM yyyy", { locale: nb })}</span>
                             </div>
                         )}
-                        {/* Vi kan vise oppdatert dato også hvis ønskelig */}
                     </div>
                 </header>
 

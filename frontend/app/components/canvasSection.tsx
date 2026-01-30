@@ -1,20 +1,13 @@
 /*
-* CanvasSection - Canvas visning
-* Viser kunngjøringer, emner og moduler fra Canvas LMS
-*/
+ * CanvasSection - Canvas visning
+ * Viser kunngjøringer, emner og moduler fra Canvas LMS
+ * Håndterer datahenting, visning og navigasjon innen Canvas-seksjonen
+ */
 "use client";
 
 import { useState, useEffect, type CSSProperties } from "react";
-import {
-    useCanvasAnnouncements,
-    useCanvasCourses,
-    useCanvasModules,
-    useCanvasUser,
-} from "../canvas/canvas-api";
-import { CanvasPageVisning } from "./CanvasPageVisning";
 import { formatDistanceToNow } from "date-fns";
 import { nb } from "date-fns/locale";
-import { createCanvasHtmlParser, parseCanvasHtml, sikkerHref } from "../canvas/canvasHtml";
 import {
     ArrowLeft,
     ChevronRight,
@@ -25,16 +18,26 @@ import {
     Download,
     BookOpen,
 } from "lucide-react";
+import {
+    useCanvasAnnouncements,
+    useCanvasCourses,
+    useCanvasModules,
+    useCanvasUser,
+} from "../canvas/canvas-api";
+import { createCanvasHtmlParser, parseCanvasHtml, sikkerHref } from "../canvas/canvasHtml";
+import { CanvasPageVisning } from "./CanvasPageVisning";
 
 // Typer for Canvas visninger
 type CanvasVisning = "announcements" | "courses" | "data";
 
+// Props for CanvasSection komponent
 interface CanvasSectionProps {
     startVisning?: CanvasVisning;
+    harCanvasToken?: boolean;
 }
 
 // Validering mot DOM-basert XSS - tillater kun http/https for href
-// Tilpasset Bilde-komponent med laste-tilstand
+// Hjelpefunksjon for å parse style-streng til CSSProperties
 const normalizeStyle = (style?: string | CSSProperties) => {
     if (!style) return undefined;
     if (typeof style !== "string") return style;
@@ -52,6 +55,7 @@ const normalizeStyle = (style?: string | CSSProperties) => {
     }, {} as CSSProperties);
 };
 
+// Tilpasset Bilde-komponent med laste-tilstand og håndtering av lasting/feil
 const TilpassetBilde = ({
     src,
     alt,
@@ -61,6 +65,7 @@ const TilpassetBilde = ({
     const [laster, settLaster] = useState(true);
     const safeStyle = normalizeStyle(style);
 
+    // Render bilde med laste-effekt
     return (
         <span className="relative my-3 inline-block overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
             {laster && (
@@ -79,6 +84,7 @@ const TilpassetBilde = ({
     );
 };
 
+// HTML parser for Canvas innhold
 const htmlParser = createCanvasHtmlParser((domNode) => (
     <TilpassetBilde
         src={domNode.attribs.src}
@@ -113,8 +119,12 @@ function FeilMelding({ melding }: { melding: string }) {
 }
 
 // Kunngjørings-visning
-function KunngjoringVisning() {
-    const { data, isLoading, isError, error } = useCanvasAnnouncements();
+function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
+    const { data, isLoading, isError, error } = useCanvasAnnouncements(harCanvasToken);
+
+    if (!harCanvasToken) {
+        return <FeilMelding melding="Du må lagre en Canvas API-token før du kan hente kunngjøringer." />;
+    }
 
     if (isLoading) {
         return (
@@ -139,6 +149,7 @@ function KunngjoringVisning() {
             </div>
         );
     }
+
     // Vis kunngjøringer
     return (
         <div className="space-y-4">
@@ -172,13 +183,16 @@ function KunngjoringVisning() {
     );
 }
 
-
 // Emne-visning
-function EmneVisning() {
-    const { data, isLoading, isError, error } = useCanvasCourses();
+function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
+    const { data, isLoading, isError, error } = useCanvasCourses(harCanvasToken);
     const [valgtEmneId, settValgtEmneId] = useState<number | null>(null);
     const [valgtSide, settValgtSide] = useState<{ pageId: string; courseId: number } | null>(null);
-    const modulerQuery = useCanvasModules(valgtEmneId);
+    const modulerQuery = useCanvasModules(valgtEmneId, harCanvasToken);
+
+    if (!harCanvasToken) {
+        return <FeilMelding melding="Du må lagre en Canvas API-token før du kan hente emner." />;
+    }
 
     if (isLoading) {
         return (
@@ -279,6 +293,7 @@ function EmneVisning() {
                                             }
                                         };
 
+                                        // Render item
                                         return (
                                             <a
                                                 key={item.id}
@@ -332,7 +347,6 @@ function EmneVisning() {
         );
     }
 
-
     // Vis emner liste
     if (!data?.courses?.length) {
         return (
@@ -342,6 +356,7 @@ function EmneVisning() {
         );
     }
 
+    // Render emner
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {data.courses.map((emne) => (
@@ -367,8 +382,12 @@ function EmneVisning() {
 }
 
 // Data Visning
-function DataVisning() {
-    const { data, isLoading, isError, error } = useCanvasUser();
+function DataVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
+    const { data, isLoading, isError, error } = useCanvasUser(harCanvasToken);
+
+    if (!harCanvasToken) {
+        return <FeilMelding melding="Du må lagre en Canvas API-token før du kan hente Canvas-data." />;
+    }
 
     if (isLoading) {
         return (
@@ -395,7 +414,7 @@ function DataVisning() {
 }
 
 // Hovedkomponent
-export function CanvasSection({ startVisning = "announcements" }: CanvasSectionProps) {
+export function CanvasSection({ startVisning = "announcements", harCanvasToken = false }: CanvasSectionProps) {
     const [visning, settVisning] = useState<CanvasVisning>(startVisning);
 
     // Oppdater visning hvis startVisning endres
@@ -420,9 +439,9 @@ export function CanvasSection({ startVisning = "announcements" }: CanvasSectionP
 
             {/* Innhold */}
             <div className="flex-1 overflow-y-auto p-4 md:p-6">
-                {visning === "announcements" && <KunngjoringVisning />}
-                {visning === "courses" && <EmneVisning />}
-                {visning === "data" && <DataVisning />}
+                {visning === "announcements" && <KunngjoringVisning harCanvasToken={harCanvasToken} />}
+                {visning === "courses" && <EmneVisning harCanvasToken={harCanvasToken} />}
+                {visning === "data" && <DataVisning harCanvasToken={harCanvasToken} />}
             </div>
         </div>
     );

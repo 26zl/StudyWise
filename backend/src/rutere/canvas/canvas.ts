@@ -1,22 +1,26 @@
 /*
 * Canvas API router
-* Må bruke engelske navn på variabler og funksjoner for å samsvare med Canvas API dokumentasjon.
-* Prøver å bruke norske variabler og kommentarer der det gir mening.
-* Arver typer og schemaer fra common/canvas for konsistens.
-* VIKTIG OM BRUKERE:
-* Når vi henter `/whoami` her, henter vi data FRA Canvas.
-* Vi lagrer dette som en `CanvasUser` i databasen.
-* Dette er IKKE det samme som innlogging (Auth).
-* Fremtidig Kobling:
-* Når Auth er på plass, vil `CanvasUser` (canvas brukeren din) ha en referanse til `User` (innloggingsbrukeren din).
-* Da vet vi at "Ola Nordmann fra Canvas" = "ola@exmaple.com som logget inn".
+* Håndterer ruter for å kommunisere med Canvas LMS API ved hjelp av brukerens Canvas API-token.
+* Inkluderer ruter for å hente brukerinfo, emner, oppgaver, moduler, filer, og andre ressurser fra Canvas.
+* Bruker Zod for validering av Canvas API-responser og logger viktige hendelser.
+* Eksporterer en Express-router som kan brukes i hovedapplikasjonen.
 */
-import { Router } from "express";
+import { Router, Request } from "express";
 import { Readable } from "node:stream";
 import { z } from "zod";
-import { canvasFetch, requireCanvasToken, getCanvasConfig, validateCanvasRedirectUrl } from "./canvasUtils.js";
+import {
+  hentCanvasData,
+  krevCanvasToken,
+  hentCanvasKonfig,
+  validateCanvasRedirectUrl,
+  CACHE_TTL,
+  type CanvasFetchOptions,
+} from "./canvasUtils.js";
+import { rateLimitCanvas, rateLimitCanvasTung } from "../../middleware/rate-limit.js";
+import { noCache } from "../../middleware/no-cache.js";
 import { logger } from "../../utils/logger.js";
 import { CanvasUser } from "../../database/models/CanvasUser.js";
+import { User } from "../../database/models/User.js";
 import {
   CanvasUserSchema,
   CanvasCourseSchema,
@@ -29,6 +33,7 @@ import {
   CanvasPageSchema,
   CanvasFileSchema,
   CanvasDiscussionTopicSchema,
+  CanvasPlannerItemSchema,
 } from "common/canvas";
 
 // Feiltype for Canvas HTTP-feil
@@ -40,18 +45,47 @@ interface CanvasHttpError extends Error {
 // Oppretter express router
 const router = Router();
 // Bruk middleware på alle ruter
-router.use(requireCanvasToken);
+router.use(noCache);
+router.use(krevCanvasToken);
+router.use(rateLimitCanvas);
+
+// Hjelpefunksjon for å hente Canvas data for en bruker med token fra request
+const hentCanvasForBruker = <T>(
+  req: Request,
+  endpoint: string,
+  options: CanvasFetchOptions = {}
+) => {
+  return hentCanvasData<T>(endpoint, { ...options, token: req.canvasToken });
+};
 
 // Endpoints
 // GET /whoami - Minimal brukerinfo
-router.get("/whoami", async (_req, res) => {
+router.get("/whoami", async (req, res) => {
   try {
-    const response = await canvasFetch<unknown>("/api/v1/users/self/profile");
+    if (!req.user?.id) {
+      return res.status(401).json({ feil: "Ikke autentisert" });
+    }
+    const response = await hentCanvasForBruker<unknown>(req, "/api/v1/users/self/profile", {
+      cacheTtl: CACHE_TTL.USER_PROFILE,
+    });
     const canvasUser = CanvasUserSchema.parse(response.data);
+    // SJEKK: Er denne Canvas-brukeren allerede koblet til en ANNEN lokal bruker?
+    const eksisterendeKobling = await CanvasUser.findOne({ canvasId: canvasUser.id });
+    if (eksisterendeKobling && eksisterendeKobling.localUser.toString() !== req.user.id) {
+      logger.warn({
+        userId: req.user.id,
+        existingLocalUser: eksisterendeKobling.localUser,
+        canvasId: canvasUser.id
+      }, "Forsøk på å koble til en Canvas-konto som allerede tilhører en annen bruker");
+      return res.status(409).json({
+        feil: "Konflikt",
+        melding: "Denne Canvas-kontoen er allerede koblet til en annen StudyWise-bruker."
+      });
+    }
 
     // Lagre eller oppdater bruker i vår egen database (kun canvas data, ikke lokal bruker fra vårt eget auth system)
     // OBS: Dette er ren datasynkronisering. Det bekrefter at Canvas-tokenet virker, men logger ikke brukeren inn i VÅRT system.
-    await CanvasUser.findOneAndUpdate(
+    const oppdatertCanvasBruker = await CanvasUser.findOneAndUpdate(
       { canvasId: canvasUser.id }, // Finn basert på canvasId
       {
         canvasId: canvasUser.id,
@@ -69,9 +103,13 @@ router.get("/whoami", async (_req, res) => {
           limitParentAppWebAccess: canvasUser.permissions?.limit_parent_app_web_access,
         },
         canvasUserCreatedAt: canvasUser.created_at ? new Date(canvasUser.created_at) : undefined,
+        localUser: req.user.id,
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true } // Opprett hvis ikke finnes
+      { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true } // Opprett hvis ikke finnes
     );
+    if (oppdatertCanvasBruker?._id) {
+      await User.findByIdAndUpdate(req.user.id, { canvasUser: oppdatertCanvasBruker._id });
+    }
     logger.info({ userId: canvasUser.id }, "Canvas /whoami endpoint kalt og bruker synkronisert");
     res.json(canvasUser);
   } catch (error) {
@@ -81,9 +119,12 @@ router.get("/whoami", async (_req, res) => {
 });
 
 // GET /users/self/upcoming_events - Kommende hendelser
-router.get("/users/self/upcoming_events", async (_req, res) => {
+// Henter kommende hendelser for brukeren
+router.get("/users/self/upcoming_events", async (req, res) => {
   try {
-    const response = await canvasFetch<unknown[]>("/api/v1/users/self/upcoming_events");
+    const response = await hentCanvasForBruker<unknown[]>(req, "/api/v1/users/self/upcoming_events", {
+      cacheTtl: CACHE_TTL.EVENTS,
+    });
     const events = z.array(CanvasCalendarEventSchema).parse(response.data);
     logger.info({ count: events.length }, "Hentet kommende hendelser");
     res.json({
@@ -97,9 +138,12 @@ router.get("/users/self/upcoming_events", async (_req, res) => {
 });
 
 // GET /users/self/todo - Todo liste
-router.get("/users/self/todo", async (_req, res) => {
+// Henter todo liste for brukeren
+router.get("/users/self/todo", async (req, res) => {
   try {
-    const response = await canvasFetch<unknown[]>("/api/v1/users/self/todo");
+    const response = await hentCanvasForBruker<unknown[]>(req, "/api/v1/users/self/todo", {
+      cacheTtl: CACHE_TTL.TODO,
+    });
     const todos = z.array(CanvasTodoItemSchema).parse(response.data);
     logger.info({ count: todos.length }, "Hentet todo liste");
     res.json({
@@ -113,10 +157,12 @@ router.get("/users/self/todo", async (_req, res) => {
 });
 
 // GET /emner - Hent aktive emner
-router.get("/emner", async (_req, res) => {
+// Henter alle aktive emner for brukeren
+router.get("/emner", async (req, res) => {
   try {
-    const response = await canvasFetch<unknown[]>("/api/v1/courses", {
+    const response = await hentCanvasForBruker<unknown[]>(req, "/api/v1/courses", {
       queryParams: { enrollment_state: "active", per_page: 100 },
+      cacheTtl: CACHE_TTL.COURSES,
     });
     // Valider hvert emne med Zod
     const courses = z.array(CanvasCourseSchema).parse(response.data);
@@ -132,6 +178,7 @@ router.get("/emner", async (_req, res) => {
 });
 
 // GET /emner/:courseId - Hent emne-detaljer
+// Henter detaljer for et spesifikt emne
 router.get("/emner/:courseId", async (req, res) => {
   try {
     const { courseId } = req.params;
@@ -142,7 +189,9 @@ router.get("/emner/:courseId", async (req, res) => {
         melding: "courseId må være et tall",
       });
     }
-    const response = await canvasFetch<unknown>(`/api/v1/courses/${courseIdNum}`);
+    const response = await hentCanvasForBruker<unknown>(req, `/api/v1/courses/${courseIdNum}`, {
+      cacheTtl: CACHE_TTL.COURSES,
+    });
     const course = CanvasCourseSchema.parse(response.data);
     logger.info({ courseId: course.id, name: course.name }, "Hentet emnedetaljer");
     res.json(course);
@@ -153,6 +202,7 @@ router.get("/emner/:courseId", async (req, res) => {
 });
 
 // GET /emner/:courseId/oppgaver - Hent oppgaver
+// Henter oppgaver for et spesifikt emne
 router.get("/emner/:courseId/oppgaver", async (req, res) => {
   try {
     const { courseId } = req.params;
@@ -163,9 +213,13 @@ router.get("/emner/:courseId/oppgaver", async (req, res) => {
       });
     }
     // Hent oppgaver fra Canvas API
-    const response = await canvasFetch<unknown[]>(
+    const response = await hentCanvasForBruker<unknown[]>(
+      req,
       `/api/v1/courses/${courseIdNum}/assignments`,
-      { queryParams: { per_page: 100 } }
+      {
+        queryParams: { per_page: 100 },
+        cacheTtl: CACHE_TTL.ASSIGNMENTS,
+      }
     );
     const assignments = z.array(CanvasAssignmentSchema).parse(response.data);
     logger.info({ courseId: courseIdNum, count: assignments.length }, "Hentet oppgaver for emne");
@@ -180,6 +234,7 @@ router.get("/emner/:courseId/oppgaver", async (req, res) => {
 });
 
 // GET /emner/:courseId/announcements - Hent announcements for et emne
+// Henter announcements for et spesifikt emne
 router.get("/emner/:courseId/announcements", async (req, res) => {
   try {
     const { courseId } = req.params;
@@ -191,13 +246,15 @@ router.get("/emner/:courseId/announcements", async (req, res) => {
       });
     }
     // Hent announcements fra Canvas API
-    const response = await canvasFetch<unknown[]>(
+    const response = await hentCanvasForBruker<unknown[]>(
+      req,
       `/api/v1/courses/${courseIdNum}/discussion_topics`,
       {
         queryParams: {
           only_announcements: true,
           per_page: 50
-        }
+        },
+        cacheTtl: CACHE_TTL.ANNOUNCEMENTS,
       }
     );
     // Valider med Zod
@@ -214,15 +271,17 @@ router.get("/emner/:courseId/announcements", async (req, res) => {
 });
 
 // GET /announcements - Hent alle announcements fra alle aktive emner
-router.get("/announcements", async (_req, res) => {
+// Henter announcements for alle aktive emner
+// Bruker strengere rate limiting fordi dette endepunktet gjør 2 Canvas API-kall
+router.get("/announcements", rateLimitCanvasTung, async (req, res) => {
   try {
-    // Først hent alle aktive emner
-    const coursesResponse = await canvasFetch<unknown[]>("/api/v1/courses", {
+    // Først hent alle aktive emner (bruker lang cache siden emner endres sjelden)
+    const coursesResponse = await hentCanvasForBruker<unknown[]>(req, "/api/v1/courses", {
       queryParams: { enrollment_state: "active", per_page: 100 },
+      cacheTtl: CACHE_TTL.COURSES,
     });
     // Henter zod schema for emner og deklarer det i emne variabel
     const courses = z.array(CanvasCourseSchema).parse(coursesResponse.data);
-
     // Hvis ingen aktive emner, returner tomt array
     if (courses.length === 0) {
       return res.json({
@@ -233,17 +292,16 @@ router.get("/announcements", async (_req, res) => {
         },
       });
     }
-
     // Bygg context_codes array (format: "course_COURSEID")
     const contextCodes = courses.map((course: typeof courses[0]) => `course_${course.id}`);
-
     // Hent announcements med context_codes
-    const response = await canvasFetch<unknown[]>("/api/v1/announcements", {
+    const response = await hentCanvasForBruker<unknown[]>(req, "/api/v1/announcements", {
       queryParams: {
         context_codes: contextCodes,
         active_only: true,
         per_page: 50,
       },
+      cacheTtl: CACHE_TTL.ANNOUNCEMENTS,
     });
     // Valider med Zod
     const announcements = z.array(CanvasAnnouncementSchema).parse(response.data);
@@ -259,6 +317,7 @@ router.get("/announcements", async (_req, res) => {
 });
 
 // GET /planlegger - Hent studentens totale tidslinje (Alt som skjer)
+// Henter planlegger items for brukeren innenfor et datointervall
 router.get("/planlegger", async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
@@ -267,10 +326,11 @@ router.get("/planlegger", async (req, res) => {
     };
     if (typeof start_date === "string") queryParams.start_date = start_date;
     if (typeof end_date === "string") queryParams.end_date = end_date;
-    const response = await canvasFetch<unknown[]>("/api/v1/planner/items", {
+    const response = await hentCanvasForBruker<unknown[]>(req, "/api/v1/planner/items", {
       queryParams,
+      cacheTtl: CACHE_TTL.EVENTS,
     });
-    const items = response.data;
+    const items = z.array(CanvasPlannerItemSchema).parse(response.data);
     logger.info({ itemCount: Array.isArray(items) ? items.length : 0, range: { start_date, end_date } }, "Hentet planlegger items");
     res.json({
       items,
@@ -283,6 +343,7 @@ router.get("/planlegger", async (req, res) => {
 });
 
 // GET /emner/:courseId/modules - Hent moduler
+// Henter moduler for et spesifikt emne
 router.get("/emner/:courseId/modules", async (req, res) => {
   try {
     const { courseId } = req.params;
@@ -294,13 +355,15 @@ router.get("/emner/:courseId/modules", async (req, res) => {
       });
     }
     // Vi spør også om items inni modulene, men dette endepunktet gir bare enkel info om items
-    const response = await canvasFetch<unknown[]>(
+    const response = await hentCanvasForBruker<unknown[]>(
+      req,
       `/api/v1/courses/${courseIdNum}/modules`,
       {
         queryParams: {
           include: ["items"],
           per_page: 50
         },
+        cacheTtl: CACHE_TTL.MODULES,
       }
     );
     // Valider med Zod
@@ -317,23 +380,24 @@ router.get("/emner/:courseId/modules", async (req, res) => {
 });
 
 // GET /emner/:courseId/modules/:moduleId/items - Hent modul-items med detaljer
+// Henter detaljerte modul-items for en spesifikk modul i et emne
 router.get("/emner/:courseId/modules/:moduleId/items", async (req, res) => {
   try {
     const { courseId, moduleId } = req.params;
     const courseIdNum = parseInt(courseId, 10);
     const moduleIdNum = parseInt(moduleId, 10);
-
     if (isNaN(courseIdNum) || isNaN(moduleIdNum)) {
       return res.status(400).json({ feil: "Ugyldig ID" });
     }
-
-    const response = await canvasFetch<unknown[]>(
+    const response = await hentCanvasForBruker<unknown[]>(
+      req,
       `/api/v1/courses/${courseIdNum}/modules/${moduleIdNum}/items`,
       {
         queryParams: {
           "include[]": "content_details",
           per_page: 100
-        }
+        },
+        cacheTtl: CACHE_TTL.MODULES,
       }
     );
     // Valider med Zod
@@ -352,35 +416,40 @@ router.get("/emner/:courseId/modules/:moduleId/items", async (req, res) => {
 
 // GET /emner/:courseId/modules/:moduleId/items/:itemId/open
 // Løser Canvas module_item_redirect ved å bruke API-token på serveren og returnere trygg URL (ingen backend-redirect)
-router.get("/emner/:courseId/modules/:moduleId/items/:itemId/open", async (req, res) => {
+// Henter sikker URL for å åpne et modul-item
+// Bruker strengere rate limiting fordi dette kan gjøre flere Canvas API-kall
+router.get("/emner/:courseId/modules/:moduleId/items/:itemId/open", rateLimitCanvasTung, async (req, res) => {
   try {
     const { courseId, moduleId, itemId } = req.params;
-    const courseIdNum = parseInt(courseId, 10);
-    const moduleIdNum = parseInt(moduleId, 10);
-    const itemIdNum = parseInt(itemId, 10);
+    const courseIdNum = parseInt(String(courseId), 10);
+    const moduleIdNum = parseInt(String(moduleId), 10);
+    const itemIdNum = parseInt(String(itemId), 10);
     if ([courseIdNum, moduleIdNum, itemIdNum].some((n) => Number.isNaN(n))) {
       return res.status(400).json({ feil: "Ugyldig ID" });
     }
-
     // Hent detaljene for modul-itemet slik at vi kan finne riktig mål
-    const itemResponse = await canvasFetch<unknown>(
+    const itemResponse = await hentCanvasForBruker<unknown>(
+      req,
       `/api/v1/courses/${courseIdNum}/modules/${moduleIdNum}/items/${itemIdNum}`,
-      { queryParams: { "include[]": "content_details" } }
+      {
+        queryParams: { "include[]": "content_details" },
+        cacheTtl: CACHE_TTL.MODULES,
+      }
     );
     // Valider med Zod
     const item = CanvasModuleItemDetailSchema.parse(itemResponse.data);
-
     // Sikkerhetsjekk for URL
-    const canvasBaseUrl = getCanvasConfig().baseUrl;
+    const canvasBaseUrl = hentCanvasKonfig().baseUrl;
     if (!canvasBaseUrl) {
       return res.status(500).json({ feil: "Canvas baseUrl ikke konfigurert" });
     }
     const canvasOrigin = new URL(canvasBaseUrl).origin;
-
     // Route basert på type
     if (item.type === "File" && item.content_id) {
       // Hent fil-metadata for å få en signert, offentlig download URL
-      const fileResponse = await canvasFetch<unknown>(`/api/v1/files/${item.content_id}`);
+      const fileResponse = await hentCanvasForBruker<unknown>(req, `/api/v1/files/${item.content_id}`, {
+        cacheTtl: CACHE_TTL.FILES,
+      });
       const file = CanvasFileSchema.parse(fileResponse.data);
 
       const safeUrl = validateCanvasRedirectUrl(file.url, canvasOrigin, "/files/");
@@ -399,7 +468,6 @@ router.get("/emner/:courseId/modules/:moduleId/items/:itemId/open", async (req, 
         url: item.external_url,
       });
     }
-
     if (item.type === "Page" && item.page_url) {
       // For pages håndteres rendring i frontend. Returner info som JSON
       return res.json({
@@ -408,7 +476,6 @@ router.get("/emner/:courseId/modules/:moduleId/items/:itemId/open", async (req, 
         html_url: item.html_url,
       });
     }
-
     // Ingen annen trygg redirect tilgjengelig
     return res.status(404).json({
       feil: "Ingen tilgjengelig url for modul-elementet",
@@ -425,9 +492,12 @@ router.get("/emner/:courseId/pages/:pageId", async (req, res) => {
     const { courseId, pageId } = req.params;
     const courseIdNum = parseInt(courseId, 10);
     if (isNaN(courseIdNum)) return res.status(400).json({ feil: "Ugyldig courseId" });
-
-    const response = await canvasFetch<unknown>(
-      `/api/v1/courses/${courseIdNum}/pages/${pageId}`
+    const response = await hentCanvasForBruker<unknown>(
+      req,
+      `/api/v1/courses/${courseIdNum}/pages/${pageId}`,
+      {
+        cacheTtl: CACHE_TTL.PAGES,
+      }
     );
     const page = CanvasPageSchema.parse(response.data);
     logger.info({ courseId, pageUrl: page.url }, "Hentet wiki page");
@@ -444,8 +514,9 @@ router.get("/filer/:fileId", async (req, res) => {
     const { fileId } = req.params;
     const fileIdNum = parseInt(fileId, 10);
     if (isNaN(fileIdNum)) return res.status(400).json({ feil: "Ugyldig fileId" });
-
-    const response = await canvasFetch<unknown>(`/api/v1/files/${fileIdNum}`);
+    const response = await hentCanvasForBruker<unknown>(req, `/api/v1/files/${fileIdNum}`, {
+      cacheTtl: CACHE_TTL.FILES,
+    });
     const file = CanvasFileSchema.parse(response.data);
     logger.info({ fileId, filename: file.filename }, "Hentet fil metadata");
     res.json(file);
@@ -461,27 +532,24 @@ router.get("/filer/:fileId/download", async (req, res) => {
     const { fileId } = req.params;
     const fileIdNum = parseInt(fileId, 10);
     if (isNaN(fileIdNum)) return res.status(400).json({ feil: "Ugyldig fileId" });
-
-    const canvasBaseUrl = getCanvasConfig().baseUrl;
+    const canvasBaseUrl = hentCanvasKonfig().baseUrl;
     if (!canvasBaseUrl) return res.status(500).json({ feil: "Canvas baseUrl ikke konfigurert" });
     const canvasOrigin = new URL(canvasBaseUrl).origin;
-
     // Hent metadata for signert fil-url
-    const metaResponse = await canvasFetch<unknown>(`/api/v1/files/${fileIdNum}`);
+    const metaResponse = await hentCanvasForBruker<unknown>(req, `/api/v1/files/${fileIdNum}`, {
+      cacheTtl: CACHE_TTL.FILES,
+    });
     const file = CanvasFileSchema.parse(metaResponse.data);
     const safeUrl = validateCanvasRedirectUrl(file.url, canvasOrigin, "/files/");
     if (!safeUrl) return res.status(400).json({ feil: "Ugyldig fil-url host" });
-
     // Last ned fra Canvas og stream til klient
     const canvasRes = await fetch(safeUrl);
     if (!canvasRes.ok || !canvasRes.body) {
       return res.status(canvasRes.status).json({ feil: "Kunne ikke hente fil fra Canvas" });
     }
-
     res.setHeader("Content-Type", canvasRes.headers.get("content-type") || "application/octet-stream");
     const disposition = canvasRes.headers.get("content-disposition");
     if (disposition) res.setHeader("Content-Disposition", disposition);
-
     const nodeStream = Readable.fromWeb(canvasRes.body as unknown as ReadableStream);
     nodeStream.pipe(res);
   } catch (error) {
@@ -496,13 +564,15 @@ router.get("/emner/:courseId/diskusjoner/:topicId", async (req, res) => {
     const { courseId, topicId } = req.params;
     const courseIdNum = parseInt(courseId, 10);
     const topicIdNum = parseInt(topicId, 10);
-
     if (isNaN(courseIdNum) || isNaN(topicIdNum)) {
       return res.status(400).json({ feil: "Ugyldig ID" });
     }
-
-    const response = await canvasFetch<unknown>(
-      `/api/v1/courses/${courseIdNum}/discussion_topics/${topicIdNum}`
+    const response = await hentCanvasForBruker<unknown>(
+      req,
+      `/api/v1/courses/${courseIdNum}/discussion_topics/${topicIdNum}`,
+      {
+        cacheTtl: CACHE_TTL.DISCUSSIONS,
+      }
     );
     const topic = CanvasDiscussionTopicSchema.parse(response.data);
     logger.info({ courseId, topicId, title: topic.title }, "Hentet diskusjon");
@@ -530,7 +600,6 @@ router.use((error: Error, _req: unknown, res: unknown, _next: unknown) => {
   const canvasError = error as CanvasHttpError;
   const status = typeof canvasError.status === "number" ? canvasError.status : 500;
   const melding = typeof canvasError.details === "string" ? canvasError.details : error.message;
-
   response.status(status).json({
     feil: status === 401 ? "Ugyldig Canvas-token" : "Canvas API feil",
     melding: melding,

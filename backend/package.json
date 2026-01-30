@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@huggingface/inference": "^4.13.11",
+    "bcrypt": "^6.0.0",
     "common": "workspace:*",
     "compression": "^1.8.1",
     "cors": "^2.8.6",
@@ -31,6 +32,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@types/bcrypt": "^6.0.0",
     "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",

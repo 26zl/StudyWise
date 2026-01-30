@@ -16,7 +16,7 @@ export interface ICanvasUser extends Document {
         limitParentAppWebAccess: boolean;
     };
     canvasUserCreatedAt: Date;
-    localUser?: mongoose.Types.ObjectId; // Referanse til vår egen User model
+    localUser: mongoose.Types.ObjectId; // Referanse til vår egen User model
 }
 
 const CanvasUserSchema: Schema = new Schema(
@@ -69,8 +69,8 @@ const CanvasUserSchema: Schema = new Schema(
         },
         localUser: {
             type: Schema.Types.ObjectId,
-            ref: 'User', // VIKTIG: Dette er koblingen tilbake til Login-brukeren (User model).
-            required: false, // Kan være null hvis vi bare har cacha data men ingen lokal bruker (ennå).
+            ref: 'User', // Dette er koblingen tilbake til Login-brukeren (User model).
+            required: true,
         },
     },
     {

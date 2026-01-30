@@ -48,7 +48,7 @@
       "esbuild": "^0.25.0"
     },
     "onlyBuiltDependencies": [
-      "@scarf/scarf",
+      "bcrypt",
       "esbuild",
       "sharp",
       "unrs-resolver"

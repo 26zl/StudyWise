@@ -12,6 +12,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import compression from "compression";
+import helmet from "helmet";
 import swaggerUi from "swagger-ui-express";
 import { pinoHttp } from "pino-http";
 import { swaggerSpec } from "./swagger.js";
@@ -19,9 +20,10 @@ import { connectToDatabase } from "./database/database.js";
 import { logger } from "./utils/logger.js";
 import "./cache/redis.js";
 import canvasRuter from "./rutere/canvas/canvas.js";
-import authRuter from "./rutere/auth/auth.js";
 import kiRuter from "./rutere/ki/ki.js";
 import brukerAuthRuter from "./rutere/auth/brukerAuth.js";
+import { autentiserJwt, knyttCanvasToken } from "./middleware/auth.js";
+import { noCache } from "./middleware/no-cache.js";
 
 // Initialiserer Express app
 const app = express();
@@ -29,6 +31,16 @@ const startTime = Date.now();
 
 // Trust proxy for korrekt IP-håndtering bak proxyer (f.eks. ved bruk av Heroku, Vercel, eller Nginx)
 app.set("trust proxy", 1);
+
+// Sikkerhets-headere via Helmet (lett konfigurert for å ikke blokkere Canvas/KI/Swagger UI)
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
 
 // Body parsers
 app.use(express.urlencoded({ extended: true }));
@@ -60,7 +72,13 @@ app.use(
   })
 );
 
-// Health check
+// Krev JWT for alle endepunkter, bortsett fra innlogging/registrering/health
+const offentligSti = new Set(["/api/user/login", "/api/user/register", "/api/user/refresh", "/health"]);
+app.use((req, res, next) => {
+  if (offentligSti.has(req.path)) return next();
+  return autentiserJwt(req, res, next);
+});
+
 /**
  * @openapi
  * /health:
@@ -89,9 +107,9 @@ app.get("/health", (_req, res) => {
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Ulike API ruter defineres her
-app.use("/api/auth", authRuter);
-app.use("/api/canvas", canvasRuter);
-app.use("/api/ki", kiRuter);
+// noCache hindrer at sensitive data caches i nettleseren etter utlogging
+app.use("/api/canvas", noCache, knyttCanvasToken, canvasRuter);
+app.use("/api/ki", noCache, kiRuter);
 app.use("/api/user", brukerAuthRuter);
 
 // Feil håndtering globalt

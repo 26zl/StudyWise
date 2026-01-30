@@ -161,7 +161,7 @@ export function ChatSection() {
 
                                     <div
                                         className={`max-w-[85%] md:max-w-[75%] rounded-2xl px-5 py-3.5 shadow-sm ${erBruker
-                                            ? "bg-blue-600 text-white rounded-tr-none"
+                                            ? "bg-blue-600 dark:bg-blue-500 text-white rounded-tr-none"
                                             : "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none border border-slate-100 dark:border-slate-700"
                                             }`}
                                     >
@@ -221,7 +221,7 @@ export function ChatSection() {
                     <button
                         onClick={sendMelding}
                         disabled={!tekstInput.trim() || skriver}
-                        className="p-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                        className="p-2.5 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
                         aria-label="Send melding"
                     >
                         {skriver ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}

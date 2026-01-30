@@ -41,7 +41,7 @@ export const createRateLimiter = ({ points, duration, keyPrefix = "rlflx" }: Rat
         duration,
         keyPrefix,
     });
-// Redis-basert limiter
+    // Redis-basert limiter
     const redisLimiter = new RateLimiterRedis({
         storeClient: redisClient,
         points,
@@ -50,7 +50,7 @@ export const createRateLimiter = ({ points, duration, keyPrefix = "rlflx" }: Rat
         useRedisPackage: true,
         rejectIfRedisNotReady: true,
     });
-// Returnerer middleware-funksjon
+    // Returnerer middleware-funksjon
     return async (req: Request, res: Response, next: NextFunction) => {
         const key = getClientIp(req);
         const limiter = redisClient.isOpen ? redisLimiter : memoryLimiter;
@@ -81,4 +81,40 @@ export const rateLimitKi = createRateLimiter({
     points: 10,
     duration: 60,
     keyPrefix: "rlflx:ki",
+});
+
+// Rate limiter for Canvas-endepunkter
+// Mer generøs enn KI, men beskytter mot å tømme Canvas API-kvoten
+export const rateLimitCanvas = createRateLimiter({
+    points: 30,      // 30 requests
+    duration: 60,    // per minutt
+    keyPrefix: "rlflx:canvas",
+});
+
+// Strengere rate limiter for tunge Canvas-operasjoner (paginering, bulk)
+export const rateLimitCanvasTung = createRateLimiter({
+    points: 10,      // 10 requests
+    duration: 60,    // per minutt
+    keyPrefix: "rlflx:canvas:tung",
+});
+
+// Rate limiter for token-lagring (forhindre spamming)
+export const rateLimitToken = createRateLimiter({
+    points: 5,       // 5 requests
+    duration: 60,    // per minutt
+    keyPrefix: "rlflx:token",
+});
+
+// Rate limiter for autentisering (login/register) - strengere for å hindre brute-force
+export const rateLimitAuth = createRateLimiter({
+    points: 5,       // 5 forsøk
+    duration: 60 * 15, // per 15 minutter (standard brute-force beskyttelse)
+    keyPrefix: "rlflx:auth",
+});
+
+// Rate limiter for brukerinfo-endepunkt (GET /me) - forhindre token-enumerering
+export const rateLimitMe = createRateLimiter({
+    points: 30,      // 30 requests
+    duration: 60,    // per minutt
+    keyPrefix: "rlflx:me",
 });

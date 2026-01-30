@@ -17,7 +17,11 @@ import {
     Plus,
     X,
     LayoutDashboard,
+    LogOut
 } from "lucide-react";
+import { useLoggUt } from "../auth/auth-api";
+import { useQueryClient } from "@tanstack/react-query";
+import { broadcastLogout } from "../hooks/use-auth-sync";
 
 
 // Typer for de ulike visningene i sidebar
@@ -48,14 +52,34 @@ export function Sidebar({
     byttVisning,
     brukernavn,
 }: SidebarProps) {
-    const { isVenstreMenyOpen, lukkVenstreMeny } = useUIStore();
+    const { isVenstreMenyOpen, lukkVenstreMeny, reset: resetUIStore } = useUIStore();
     const [erCanvasUtvidet, settErCanvasUtvidet] = useState(true);
+    const loggUt = useLoggUt();
+    const queryClient = useQueryClient();
+
     // Håndter navigasjon og lukk meny på mobil
     const handleNavigasjon = (visning: VisningType) => {
         byttVisning(visning);
         // Lukk sidebar på mobil etter navigasjon
         if (window.innerWidth < 768) {
             lukkVenstreMeny();
+        }
+    };
+    // Håndter logg ut - rydder opp all cache og state før redirect
+    const handleLoggUt = async () => {
+        try {
+            await loggUt.mutateAsync();
+        } catch {
+            // Ignorer feil - vi logger ut uansett
+        } finally {
+            // Varsle andre faner om utlogging
+            broadcastLogout();
+            // Rydd opp all cached data
+            queryClient.clear();
+            // Nullstill UI-tilstand
+            resetUIStore();
+            // Hard redirect til hjemmesiden
+            window.location.href = "/hjem";
         }
     };
     // Enkel komponent for navigasjonselementer
@@ -224,6 +248,14 @@ export function Sidebar({
                                 Canvas bruker
                             </p>
                         </div>
+                        <button
+                            onClick={handleLoggUt}
+                            className="p-2 -mr-2 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                            aria-label="Logg ut"
+                            title="Logg ut"
+                        >
+                            <LogOut size={20} />
+                        </button>
                     </div>
                 </div>
             </aside>

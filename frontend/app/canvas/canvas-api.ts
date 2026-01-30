@@ -5,6 +5,7 @@
 */
 import type { ZodType } from "zod";
 import { useQuery, type QueryClient } from "@tanstack/react-query";
+import { fornySesjon } from "../auth/auth-api";
 
 // Importer Zod schemas fra common
 import {
@@ -13,12 +14,12 @@ import {
   CoursesResponseSchema,
   ModulesResponseSchema,
   AssignmentsResponseSchema,
-  CanvasCalendarEventSchema,
-  CanvasTodoItemSchema,
   CanvasPageSchema,
   CanvasFileSchema,
   CanvasDiscussionTopicSchema,
-  CanvasModuleItemDetailSchema,
+  UpcomingEventsResponseSchema,
+  TodoResponseSchema,
+  ModuleItemDetailsResponseSchema,
 } from "common/canvas";
 
 // Eksporter typer
@@ -41,9 +42,16 @@ export type {
 } from "common/canvas";
 
 // API funksjoner 
-async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>): Promise<T> {
+async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>, forsoktRefresh = false): Promise<T> {
   // Bruker relativ URL slik at Next.js rewrites håndterer videresending til backend (i Docker eller localhost)
-  const res = await fetch(`/api/canvas${endpoint}`);
+  const res = await fetch(`/api/canvas${endpoint}`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if ((res.status === 401 || res.status === 403) && !forsoktRefresh) {
+    await fornySesjon();
+    return fetchCanvas(endpoint, schema, true);
+  }
   if (!res.ok) {
     const error = await res.json();
     throw new Error(error.melding || error.feil || "API feil");
@@ -54,96 +62,101 @@ async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>): Promise<T> 
 
 // React Query hooks
 // Hent innlogget bruker (og trigger sync i backend)
-export function useCanvasUser() {
+export function useCanvasUser(enabled = true) {
   return useQuery({
     queryKey: ["canvas", "whoami"],
     queryFn: () => fetchCanvas("/whoami", CanvasUserSchema),
+    enabled,
   });
 }
 
 // Hent courses
-export function useCanvasCourses() {
+export function useCanvasCourses(enabled = true) {
   return useQuery({
     queryKey: ["canvas", "courses"],
     queryFn: () => fetchCanvas("/emner", CoursesResponseSchema),
+    enabled,
   });
 }
 // Hent kunngjøringer
-export function useCanvasAnnouncements() {
+export function useCanvasAnnouncements(enabled = true) {
   return useQuery({
     queryKey: ["canvas", "announcements"],
     queryFn: () => fetchCanvas("/announcements", AnnouncementsResponseSchema),
+    enabled,
   });
 }
 // Hent moduler for et spesifikt emne
-export function useCanvasModules(courseId: number | null) {
+export function useCanvasModules(courseId: number | null, enabled = true) {
   return useQuery({
     queryKey: ["canvas", "modules", courseId],
     queryFn: () =>
       fetchCanvas(`/emner/${courseId}/modules`, ModulesResponseSchema),
-    enabled: !!courseId,
+    enabled: !!courseId && enabled,
   });
 }
 
 // Hent oppgaver for et spesifikt emne
-export function useCanvasAssignments(courseId: number | null) {
+export function useCanvasAssignments(courseId: number | null, enabled = true) {
   return useQuery({
     queryKey: ["canvas", "assignments", courseId],
     queryFn: () =>
       fetchCanvas(`/emner/${courseId}/oppgaver`, AssignmentsResponseSchema),
-    enabled: !!courseId,
+    enabled: !!courseId && enabled,
   });
 }
 
 // Hent kommende hendelser
-export function useCanvasUpcomingEvents() {
+export function useCanvasUpcomingEvents(enabled = true) {
   return useQuery({
     queryKey: ["canvas", "upcoming_events"],
-    queryFn: () => fetchCanvas("/users/self/upcoming_events", z.object({ events: z.array(CanvasCalendarEventSchema), meta: z.any().optional() })),
+    queryFn: () => fetchCanvas("/users/self/upcoming_events", UpcomingEventsResponseSchema),
+    enabled,
   });
 }
 
 // Hent todo liste
-export function useCanvasTodo() {
+export function useCanvasTodo(enabled = true) {
   return useQuery({
     queryKey: ["canvas", "todo"],
-    queryFn: () => fetchCanvas("/users/self/todo", z.object({ todos: z.array(CanvasTodoItemSchema), meta: z.any().optional() })),
+    queryFn: () => fetchCanvas("/users/self/todo", TodoResponseSchema),
+    enabled,
   });
 }
 
 // Hent detaljerte modul-items
-export function useCanvasModuleItemDetails(courseId: number, moduleId: number) {
+export function useCanvasModuleItemDetails(courseId: number, moduleId: number, enabled = true) {
   return useQuery({
     queryKey: ["canvas", "module_items_detailed", courseId, moduleId],
-    queryFn: () => fetchCanvas(`/emner/${courseId}/modules/${moduleId}/items`, z.object({ items: z.array(CanvasModuleItemDetailSchema), meta: z.any().optional() })),
-    enabled: !!courseId && !!moduleId,
+    queryFn: () => fetchCanvas(`/emner/${courseId}/modules/${moduleId}/items`, ModuleItemDetailsResponseSchema),
+    enabled: !!courseId && !!moduleId && enabled,
   });
 }
 
 // Hent wiki page
-export function useCanvasPage(courseId: number, pageId: string | number) {
+export function useCanvasPage(courseId: number, pageId: string | number, enabled = true) {
   return useQuery({
     queryKey: ["canvas", "page", courseId, pageId],
     queryFn: () => fetchCanvas(`/emner/${courseId}/pages/${pageId}`, CanvasPageSchema),
-    enabled: !!courseId && !!pageId,
+    enabled: !!courseId && !!pageId && enabled,
   });
 }
 
 // Hent fil
-export function useCanvasFile(fileId: number) {
+export function useCanvasFile(fileId: number, enabled = true) {
   return useQuery({
     queryKey: ["canvas", "file", fileId],
     queryFn: () => fetchCanvas(`/filer/${fileId}`, CanvasFileSchema),
-    enabled: !!fileId,
+    enabled: !!fileId && enabled,
   });
 }
 
 // Hent diskusjon
-export function useCanvasDiscussion(courseId: number, topicId: number) {
+export function useCanvasDiscussion(courseId: number, topicId: number, enabled = true) {
   return useQuery({
     queryKey: ["canvas", "discussion", courseId, topicId],
     queryFn: () => fetchCanvas(`/emner/${courseId}/diskusjoner/${topicId}`, CanvasDiscussionTopicSchema),
-    enabled: !!courseId && !!topicId,
+    enabled: !!courseId && !!topicId && enabled,
   });
 }
 
@@ -161,5 +174,3 @@ export function prefetchCanvasData(queryClient: QueryClient) {
   });
 }
 
-// Hjelpefunksjon for inline Zod definisjoner brukt i hooks over
-import { z } from "zod";

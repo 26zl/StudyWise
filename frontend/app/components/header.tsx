@@ -1,15 +1,44 @@
+/*
+* Header-komponent
+* Håndterer navigasjon og brukerinteraksjon i toppseksjonen
+*/
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu } from "lucide-react";
+import { Menu, Moon, Sun } from "lucide-react";
 import { useUIStore } from "../store/uiStore";
+import { useMeg, useLoggUt } from "../auth/auth-api";
+import { useQueryClient } from "@tanstack/react-query";
+import { broadcastLogout } from "../hooks/use-auth-sync";
+import { useTheme } from "next-themes";
 
 // Header-komponent
 export function Header() {
     const pathname = usePathname();
-    const { toggleVenstreMeny } = useUIStore();
+    const { toggleVenstreMeny, reset: resetUIStore } = useUIStore();
     const erDashboard = pathname === "/dashboard";
+    const queryClient = useQueryClient();
+    const megQuery = useMeg();
+    const loggUt = useLoggUt();
+    const { theme, setTheme } = useTheme();
+    // Håndter logg ut - rydder opp all cache og state før redirect
+    const handleLoggUt = async () => {
+        try {
+            await loggUt.mutateAsync();
+        } catch {
+            // Ignorer feil - vi logger ut uansett
+        } finally {
+            // Varsle andre faner om utlogging
+            broadcastLogout();
+            // Rydd opp all cached data
+            queryClient.clear();
+            // Nullstill UI-tilstand
+            resetUIStore();
+            // Hard redirect til hjemmesiden
+            window.location.href = "/hjem";
+        }
+    };
 
     // Render
     return (
@@ -28,16 +57,33 @@ export function Header() {
                     <Link href="/hjem">StudyWise</Link>
                 </div>
             </div>
-            <nav className="flex gap-6 text-sm text-slate-600 dark:text-slate-400">
+            <nav className="hidden md:flex items-center gap-6 text-sm text-slate-600 dark:text-slate-400">
                 <Link href="/hjem" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
                     Hjem
                 </Link>
                 <Link href="/dashboard" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
                     Dashboard
                 </Link>
-                <Link href="/auth" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                    Logg inn
-                </Link>
+                {megQuery.data?.user ? (
+                    <button
+                        onClick={handleLoggUt}
+                        className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                    >
+                        Logg ut
+                    </button>
+                ) : (
+                    <Link href="/auth" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                        Logg inn
+                    </Link>
+                )}
+                <button
+                    onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                    className="p-1 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                    aria-label="Bytt tema"
+                >
+                    <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                    <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                </button>
             </nav>
         </header>
     );

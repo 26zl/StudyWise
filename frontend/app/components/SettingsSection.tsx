@@ -4,45 +4,63 @@
  */
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Moon, Sun, Key, User, Shield, Info } from "lucide-react";
-//import { useLagreCanvasToken } from "../auth/auth-api";
+import { useLagreCanvasToken } from "../auth/auth-api";
+import { useTheme } from "next-themes";
 
 // Typer for SettingsSection props
 interface SettingsSectionProps {
-    erDarkMode: boolean;
-    settDarkMode: () => void;
     brukernavn?: string;
+    harCanvasToken?: boolean;
 }
 // Settings seksjon komponent
 export function SettingsSection({
-    erDarkMode,
-    settDarkMode,
     brukernavn,
+    harCanvasToken,
 }: SettingsSectionProps) {
-    const erCanvasTokenDeaktivert = true;
+    const { setTheme, resolvedTheme } = useTheme();
+    const [mounted, setMounted] = useState(false);
+    // Sett mounted til true etter første render
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    // Bestem om mørk modus er aktiv
+    const isDarkMode = mounted && resolvedTheme === "dark";
+    const toggleTheme = () => setTheme(isDarkMode ? "light" : "dark");
+    const queryClient = useQueryClient();
+    const erCanvasTokenDeaktivert = false;
     const [canvasToken, setCanvasToken] = useState("");
     const [visToken, setVisToken] = useState(false);
-    // const {
-    //     mutateAsync,
-    //     isPending,
-    //     isSuccess,
-    //     isError,
-    //     error,
-    //     reset,
-    // } = useLagreCanvasToken();
+    const {
+        mutateAsync,
+        isPending,
+        isSuccess,
+        isError,
+        error,
+        data,
+    } = useLagreCanvasToken();
 
-        /*
-      const handleLagreToken = async () => {
-        if (erCanvasTokenDeaktivert) return;
+    const [cooldown, setCooldown] = useState(false);
+
+    // Håndter lagring av Canvas token
+    const handleLagreToken = async () => {
+        if (erCanvasTokenDeaktivert || cooldown) return;
         const trimmetToken = canvasToken.trim();
         if (!trimmetToken) return;
         try {
             await mutateAsync(trimmetToken);
+            setCanvasToken("");
+            queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+            // Sett cooldown for å hindre spamming
+            setCooldown(true);
+            setTimeout(() => setCooldown(false), 3000);
         } catch {
             // Feil håndteres i UI
         }
-            */
+    };
 
     return (
         <div className="h-full flex flex-col">
@@ -86,7 +104,7 @@ export function SettingsSection({
                     <section className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
-                                {erDarkMode ? (
+                                {isDarkMode ? (
                                     <Moon size={20} className="text-slate-600 dark:text-slate-300" />
                                 ) : (
                                     <Sun size={20} className="text-slate-600 dark:text-slate-300" />
@@ -105,14 +123,14 @@ export function SettingsSection({
                                 </p>
                             </div>
                             <button
-                                onClick={settDarkMode}
-                                className={`shrink-0 w-14 h-8 rounded-full p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${erDarkMode ? "bg-blue-600" : "bg-slate-200 dark:bg-slate-600"
+                                onClick={toggleTheme}
+                                className={`shrink-0 w-14 h-8 rounded-full p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isDarkMode ? "bg-blue-600" : "bg-slate-200 dark:bg-slate-600"
                                     }`}
                                 role="switch"
-                                aria-checked={erDarkMode}
+                                aria-checked={isDarkMode}
                             >
                                 <span
-                                    className={`block w-6 h-6 rounded-full bg-white shadow-sm transition-transform duration-200 ${erDarkMode ? "translate-x-6" : "translate-x-0"
+                                    className={`block w-6 h-6 rounded-full bg-white shadow-sm transition-transform duration-200 ${isDarkMode ? "translate-x-6" : "translate-x-0"
                                         }`}
                                 />
                             </button>
@@ -135,13 +153,34 @@ export function SettingsSection({
                             frister.
                         </p>
 
-                        {erCanvasTokenDeaktivert && (
-                            <div className="mb-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                        {harCanvasToken && (
+                            <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
                                 <div className="flex gap-2">
-                                    <Info size={16} className="text-amber-600 shrink-0 mt-0.5" />
-                                    <p className="text-sm text-amber-700 dark:text-amber-300">
-                                        Midlertidig deaktivert. Appen bruker kun CANVAS_TOKEN fra
-                                        backend/.env.
+                                    <Info size={16} className="text-green-600 shrink-0 mt-0.5" />
+                                    <p className="text-sm text-green-700 dark:text-green-300">
+                                        Canvas-token er koblet til kontoen din.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {isSuccess && (
+                            <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                                <div className="flex gap-2">
+                                    <Info size={16} className="text-green-600 shrink-0 mt-0.5" />
+                                    <p className="text-sm text-green-700 dark:text-green-300">
+                                        {data?.melding || "Token lagret. Canvas-data blir tilgjengelig om kort tid."}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {isError && (
+                            <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                                <div className="flex gap-2">
+                                    <Info size={16} className="text-red-600 shrink-0 mt-0.5" />
+                                    <p className="text-sm text-red-700 dark:text-red-300">
+                                        {error instanceof Error ? error.message : "Kunne ikke lagre token"}
                                     </p>
                                 </div>
                             </div>
@@ -171,11 +210,11 @@ export function SettingsSection({
                             </div>
 
                             <button
-                                /* onClick={handleLagreToken} */
-                                disabled={!canvasToken.trim() || erCanvasTokenDeaktivert}
+                                onClick={handleLagreToken}
+                                disabled={!canvasToken.trim() || erCanvasTokenDeaktivert || isPending || cooldown}
                                 className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
-                                Lagre token
+                                {isPending ? "Lagrer..." : "Lagre token"}
                             </button>
                         </fieldset>
 
