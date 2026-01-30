@@ -24,6 +24,7 @@ export const KIChatResponseSchema = z.object({
   suksess: z.boolean(),
   melding: z.string().optional(),
   response: z.string(),
+  model: z.string().optional(),
   usage: z
     .object({
       prompt_tokens: z.number(),
