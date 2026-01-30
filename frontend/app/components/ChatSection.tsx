@@ -6,7 +6,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Send, Loader2, Bot, User, Sparkles } from "lucide-react";
-import { useKITestTilkobling } from "../ki/ki-api";
+import { useKITestTilkobling, useKIChat } from "../ki/ki-api";
 
 // Meldings-typer
 interface Melding {
@@ -37,6 +37,9 @@ export function ChatSection() {
         isError: erTilkoblingsFeil
     } = useKITestTilkobling();
 
+    // KI chat hook
+    const { sendMelding: sendTilAPI } = useKIChat();
+
     // Auto-scroll 
     const scrollTilBunn = () => {
         meldingerSluttRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -55,7 +58,7 @@ export function ChatSection() {
     }, [tekstInput]);
 
     const sendMelding = async () => {
-        if (!tekstInput.trim()) return;
+        if (!tekstInput.trim() || skriver) return;
 
         const brukerMeldingInnhold = tekstInput.trim();
         settTekstInput("");
@@ -64,6 +67,7 @@ export function ChatSection() {
         if (tekstInputRef.current) {
             tekstInputRef.current.style.height = "auto";
         }
+
         // Legg til brukerens melding
         const brukerMelding: Melding = {
             id: Date.now().toString(),
@@ -71,23 +75,39 @@ export function ChatSection() {
             innhold: brukerMeldingInnhold,
             tidsstempel: new Date(),
         };
-        // Oppdater meldinger
+
         settMeldinger((tidligere) => [...tidligere, brukerMelding]);
         settSkriver(true);
 
-        // Simulert AI respons (her ville vi optimalt kalt backend)
-        setTimeout(() => {
-            const aiMelding: Melding = {
-                id: (Date.now() + 1).toString(),
-                rolle: "assistant",
-                innhold:
-                    "Dette er en simulert respons. Backend-integrasjon kommer snart! Jeg ser at du spurte om: " +
-                    brukerMeldingInnhold,
-                tidsstempel: new Date(),
-            };
-            settMeldinger((tidligere) => [...tidligere, aiMelding]);
-            settSkriver(false);
-        }, 1000);
+        // Forbered meldingshistorikk for API
+        const apiMeldinger = [...meldinger, brukerMelding].map((m) => ({
+            role: m.rolle === "user" ? "user" : "assistant",
+            content: m.innhold,
+        }));
+
+        // Send til ekte API
+        sendTilAPI(apiMeldinger, {
+            onSuccess: (data) => {
+                const aiMelding: Melding = {
+                    id: (Date.now() + 1).toString(),
+                    rolle: "assistant",
+                    innhold: data.response,
+                    tidsstempel: new Date(),
+                };
+                settMeldinger((tidligere) => [...tidligere, aiMelding]);
+                settSkriver(false);
+            },
+            onError: (error) => {
+                const feilMelding: Melding = {
+                    id: (Date.now() + 1).toString(),
+                    rolle: "assistant",
+                    innhold: `❌ Feil: ${error.message}. Prøv igjen senere.`,
+                    tidsstempel: new Date(),
+                };
+                settMeldinger((tidligere) => [...tidligere, feilMelding]);
+                settSkriver(false);
+            },
+        });
     };
 
     // Håndter tastetrykk (Enter for å sende, Shift+Enter for ny linje)
@@ -98,139 +118,163 @@ export function ChatSection() {
         }
     };
 
-    // Velg et forslag
-    const velgForslag = (tekst: string) => {
-        settTekstInput(tekst);
-        if (tekstInputRef.current) {
-            tekstInputRef.current.focus();
-        }
+    // Håndter forslag-klikk
+    const handterForslag = (forslagTekst: string) => {
+        settTekstInput(forslagTekst);
+        tekstInputRef.current?.focus();
     };
-    // Render
+
     return (
-        <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900/50">
-            {/* Header / Advarsel ved feil */}
-            {erTilkoblingsFeil && (
-                <div className="bg-red-50 dark:bg-red-900/20 px-4 py-2 border-b border-red-100 dark:border-red-800 text-xs text-red-600 dark:text-red-400 text-center">
-                    Kunne ikke koble til AI-tjenesten. Sjekk at backend kjører.
-                </div>
-            )}
-
-            {/* Meldingsområde */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                {meldinger.length === 0 ? (
-                    // Velkomstskjerm
-                    <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-0 animate-in fade-in slide-in-from-bottom-4 duration-700 fill-mode-forwards">
-                        <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mb-6 text-blue-600 dark:text-blue-400 shadow-sm shadow-blue-200 dark:shadow-none">
-                            <Sparkles size={32} />
-                        </div>
-                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-                            Hei, student! 👋
+        <div className="h-full flex flex-col">
+            {/* Header */}
+            <div className="shrink-0 px-4 md:px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                        <Sparkles className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+                            KI Assistent
                         </h2>
-                        <p className="text-slate-500 dark:text-slate-400 max-w-md mb-8">
-                            Jeg er din personlige studieassistent. Jeg kan hjelpe deg med å holde
-                            oversikt over Canvas, forklare fagstoff, eller planlegge dagen din.
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Din personlige studieassistent
                         </p>
+                    </div>
+                </div>
+            </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-2xl">
-                            {forslag.map((tekst, i) => (
+            {/* Meldinger */}
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+                {/* Tilkoblingsfeil */}
+                {erTilkoblingsFeil && (
+                    <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4">
+                        <p className="text-sm text-red-700 dark:text-red-300">
+                            ⚠️ Kunne ikke koble til KI-assistenten. Prøv igjen senere.
+                        </p>
+                    </div>
+                )}
+
+                {/* Tomme meldinger - vis forslag */}
+                {meldinger.length === 0 && (
+                    <div className="space-y-4">
+                        <div className="text-center py-12">
+                            <Bot className="w-16 h-16 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
+                            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                                Hei! Hvordan kan jeg hjelpe deg?
+                            </h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">
+                                Jeg kan hjelpe deg med studier, Canvas-innhold og mye mer
+                            </p>
+                        </div>
+
+                        {/* Forslag */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl mx-auto">
+                            {forslag.map((forslagTekst, index) => (
                                 <button
-                                    key={i}
-                                    onClick={() => velgForslag(tekst)}
-                                    className="p-3 text-sm text-left bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md transition-all text-slate-700 dark:text-slate-300"
+                                    key={index}
+                                    onClick={() => handterForslag(forslagTekst)}
+                                    className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-left hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm transition-all group"
                                 >
-                                    {tekst}
+                                    <p className="text-sm text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white">
+                                        {forslagTekst}
+                                    </p>
                                 </button>
                             ))}
                         </div>
                     </div>
-                ) : (
-                    // Meldingsliste
-                    <>
-                        {meldinger.map((melding) => {
-                            const erBruker = melding.rolle === "user";
-                            return (
-                                <div
-                                    key={melding.id}
-                                    className={`flex gap-4 ${erBruker ? "justify-end" : "justify-start"}`}
-                                >
-                                    {!erBruker && (
-                                        <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center shrink-0 mt-1">
-                                            <Bot size={18} className="text-blue-600 dark:text-blue-400" />
-                                        </div>
-                                    )}
+                )}
 
-                                    <div
-                                        className={`max-w-[85%] md:max-w-[75%] rounded-2xl px-5 py-3.5 shadow-sm ${erBruker
-                                            ? "bg-blue-600 dark:bg-blue-500 text-white rounded-tr-none"
-                                            : "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none border border-slate-100 dark:border-slate-700"
-                                            }`}
-                                    >
-                                        <div className="text-slate-700 dark:text-slate-300 text-sm md:text-base leading-relaxed whitespace-pre-wrap">
-                                            {melding.innhold}
-                                        </div>
-                                        <p
-                                            className={`text-[10px] mt-1.5 opacity-70 ${erBruker ? "text-blue-100" : "text-slate-400"
-                                                }`}
-                                        >
-                                            {melding.tidsstempel.toLocaleTimeString([], {
-                                                hour: "2-digit",
-                                                minute: "2-digit",
-                                            })}
-                                        </p>
-                                    </div>
-
-                                    {erBruker && (
-                                        <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center shrink-0 mt-1">
-                                            <User size={18} className="text-slate-600 dark:text-slate-400" />
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-
-                        {/* Laste-indikator */}
-                        {skriver && (
-                            <div className="flex gap-4 justify-start animate-in fade-in duration-300">
-                                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center shrink-0">
-                                    <Bot size={18} className="text-blue-600 dark:text-blue-400" />
-                                </div>
-                                <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl rounded-tl-none px-4 py-3 flex items-center gap-2 shadow-sm">
-                                    <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                                    <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                                    <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></span>
-                                </div>
+                {/* Meldingshistorikk */}
+                {meldinger.map((melding) => (
+                    <div
+                        key={melding.id}
+                        className={`flex gap-3 ${melding.rolle === "user" ? "justify-end" : "justify-start"}`}
+                    >
+                        {melding.rolle === "assistant" && (
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
+                                <Bot className="w-4 h-4 text-white" />
                             </div>
                         )}
-                        <div ref={meldingerSluttRef} />
-                    </>
+
+                        <div
+                            className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                                melding.rolle === "user"
+                                    ? "bg-blue-600 text-white"
+                                    : "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white"
+                            }`}
+                        >
+                            <p className="text-sm whitespace-pre-wrap">{melding.innhold}</p>
+                            <p
+                                className={`text-xs mt-1 ${
+                                    melding.rolle === "user"
+                                        ? "text-blue-100"
+                                        : "text-slate-500 dark:text-slate-400"
+                                }`}
+                            >
+                                {melding.tidsstempel.toLocaleTimeString("no-NO", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                })}
+                            </p>
+                        </div>
+
+                        {melding.rolle === "user" && (
+                            <div className="w-8 h-8 rounded-full bg-slate-700 dark:bg-slate-600 flex items-center justify-center shrink-0">
+                                <User className="w-4 h-4 text-white" />
+                            </div>
+                        )}
+                    </div>
+                ))}
+
+                {/* Skriver indikator */}
+                {skriver && (
+                    <div className="flex gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
+                            <Bot className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl px-4 py-3">
+                            <div className="flex gap-1">
+                                <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                                <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                                <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                            </div>
+                        </div>
+                    </div>
                 )}
+
+                <div ref={meldingerSluttRef} />
             </div>
 
-            {/* Input felt */}
-            <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
-                <div className="max-w-4xl mx-auto relative flex items-end gap-2 p-2 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all shadow-sm">
+            {/* Input */}
+            <div className="shrink-0 p-4 md:p-6 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex gap-3">
                     <textarea
                         ref={tekstInputRef}
                         value={tekstInput}
                         onChange={(e) => settTekstInput(e.target.value)}
                         onKeyDown={handterTastetrykk}
-                        placeholder="Spør om hva som helst..."
-                        className="flex-1 bg-transparent border-none focus:ring-0 resize-none max-h-48 py-2.5 px-3 text-slate-800 dark:text-white placeholder:text-slate-400"
+                        placeholder="Skriv en melding..."
+                        disabled={skriver}
                         rows={1}
+                        className="flex-1 resize-none rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{ maxHeight: "150px" }}
                     />
                     <button
                         onClick={sendMelding}
                         disabled={!tekstInput.trim() || skriver}
-                        className="p-2.5 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
-                        aria-label="Send melding"
+                        className="shrink-0 w-12 h-12 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                     >
-                        {skriver ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                        {skriver ? (
+                            <Loader2 className="w-5 h-5 text-white animate-spin" />
+                        ) : (
+                            <Send className="w-5 h-5 text-white" />
+                        )}
                     </button>
                 </div>
-                <p className="text-center text-xs text-slate-400 mt-2">
-                    AI kan gjøre feil. Sjekk viktig informasjon.
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                    Trykk Enter for å sende, Shift+Enter for ny linje
                 </p>
             </div>
         </div>
     );
-}
+} 

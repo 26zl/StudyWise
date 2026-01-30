@@ -75,45 +75,48 @@ export const createRateLimiter = ({ points, duration, keyPrefix = "rlflx" }: Rat
         }
     };
 };
-// Spesifikk rate limiter for KI-endepunkter
-export const rateLimitKi = createRateLimiter({
-    points: 10,
-    duration: 60,
-    keyPrefix: "rlflx:ki",
-});
+
+// ============================================================================
+// MIDLERTIDIG DISABLED FOR UTVIKLING - KI og AUTH
+// ============================================================================
+
+// No-op middleware (gjør ingenting, lar alt gå gjennom)
+const noOpMiddleware = (_req: Request, _res: Response, next: NextFunction) => next();
+
+// Rate limiter for KI-endepunkter (DISABLED)
+export const rateLimitKi = noOpMiddleware;
+
+// Rate limiter for autentisering (DISABLED)
+export const rateLimitAuth = noOpMiddleware;
+
+// ============================================================================
+// AKTIVE RATE LIMITERS (Canvas osv.)
+// ============================================================================
 
 // Rate limiter for Canvas-endepunkter
-// Mer generøs enn KI, men beskytter mot å tømme Canvas API-kvoten
 export const rateLimitCanvas = createRateLimiter({
-    points: 30,      // 30 requests
-    duration: 60,    // per minutt
+    points: 30,
+    duration: 60,
     keyPrefix: "rlflx:canvas",
 });
 
-// Strengere rate limiter for tunge Canvas-operasjoner (paginering, bulk)
+// Strengere rate limiter for tunge Canvas-operasjoner
 export const rateLimitCanvasTung = createRateLimiter({
-    points: 10,      // 10 requests
-    duration: 60,    // per minutt
+    points: 10,
+    duration: 60,
     keyPrefix: "rlflx:canvas:tung",
 });
 
-// Rate limiter for token-lagring (forhindre spamming)
+// Rate limiter for token-lagring
 export const rateLimitToken = createRateLimiter({
-    points: 5,       // 5 requests
-    duration: 60,    // per minutt
+    points: 5,
+    duration: 60,
     keyPrefix: "rlflx:token",
 });
 
-// Rate limiter for autentisering (login/register) - strengere for å hindre brute-force
-export const rateLimitAuth = createRateLimiter({
-    points: 5,       // 5 forsøk
-    duration: 60 * 15, // per 15 minutter (standard brute-force beskyttelse)
-    keyPrefix: "rlflx:auth",
-});
-
-// Rate limiter for brukerinfo-endepunkt (GET /me) - forhindre token-enumerering
+// Rate limiter for brukerinfo-endepunkt
 export const rateLimitMe = createRateLimiter({
-    points: 30,      // 30 requests
-    duration: 60,    // per minutt
+    points: 30,
+    duration: 60,
     keyPrefix: "rlflx:me",
-});
+}); 
