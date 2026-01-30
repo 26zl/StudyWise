@@ -37,13 +37,18 @@ const hashToken = (token: string) => {
     return crypto.createHash("sha256").update(token).digest("hex");
 };
 
-// Hent JWT secrets fra miljøvariabler
+// Hent JWT secrets fra miljøvariabler (validert ved oppstart i validateEnv.ts)
 const hentJwtSecrets = () => {
     const tilgangSecret = process.env.JWT_ACCESS_SECRET;
+    const refreshSecret = process.env.JWT_REFRESH_SECRET;
+
     if (!tilgangSecret) {
         throw new Error("JWT_ACCESS_SECRET mangler");
     }
-    const refreshSecret = process.env.JWT_REFRESH_SECRET ?? tilgangSecret;
+    if (!refreshSecret) {
+        throw new Error("JWT_REFRESH_SECRET mangler - bruk en separat hemmelighet for refresh tokens");
+    }
+
     return { tilgangSecret, refreshSecret };
 };
 
@@ -91,10 +96,7 @@ router.post("/login", rateLimitAuth, async (req, res) => {
         if (!match) {
             return res.status(401).json({ feil: "Ugyldig e-post eller passord" });
         }
-        if (!process.env.JWT_ACCESS_SECRET) {
-            logger.error("Mangler JWT_ACCESS_SECRET");
-            return res.status(500).json({ feil: "Server konfigurasjonsfeil" });
-        }
+        // JWT secrets er validert ved oppstart i validateEnv.ts
         const { tilgangSecret, refreshSecret } = hentJwtSecrets();
         const tilgangsToken = jwt.sign(
             { id: user._id, email: user.email, tokenType: "access" },

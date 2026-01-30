@@ -1,17 +1,56 @@
 /*
-* Cache for redis primært brukt for Canvas API
+* Cache for redis primært brukt for Canvas API og rate limiting
 */
 import { createClient } from "redis";
 import { logger } from "../utils/logger.js";
 
+// Sjekk om vi er i produksjon og hent Redis URL fra miljøvariabler
+const isProd = process.env.NODE_ENV === "production";
+const redisUrl = process.env.REDIS_URL;
+
 const client = createClient({
-    url: process.env.REDIS_URL,
+    url: redisUrl,
+});
+client.on("error", (err) => {
+    logger.error({ err }, "Redis Client Error");
+    if (isProd) {
+        logger.warn("Redis er nede i produksjon - rate limiting fungerer kun per instans");
+    }
+});
+client.on("connect", () => {
+    logger.info("Redis tilkoblet");
+});
+client.on("ready", () => {
+    logger.info("Redis klar til bruk");
+});
+client.on("end", () => {
+    logger.info("Redis tilkobling lukket");
 });
 
-client.on("error", (err) => logger.error({ err }, "Redis Client Error"));
+// Kobler til redis (hvis URL er konfigurert)
+if (redisUrl) {
+    client.connect().catch((err) => {
+        logger.error({ err }, "Redis tilkobling feilet");
+        if (isProd) {
+            logger.warn(
+                "ADVARSEL: Redis er ikke tilgjengelig i produksjon. " +
+                "Rate limiting vil kun fungere per server-instans, " +
+                "noe som kan tillate brute-force angrep på tvers av instanser."
+            );
+        }
+    });
+} else {
+    logger.warn("REDIS_URL ikke konfigurert - bruker minne-basert rate limiting");
+    if (isProd) {
+        logger.warn(
+            "ADVARSEL: Minne-basert rate limiting i produksjon er ikke anbefalt " +
+            "for distribuerte systemer."
+        );
+    }
+}
 
-// Kobler til redis
-client.connect().catch((err) => logger.error({ err }, "Redis tilkobling feilet"));
+/** Sjekker om Redis er tilkoblet og klar */
+export const isRedisReady = (): boolean => client.isOpen && client.isReady;
 
 export const getCache = async (key: string): Promise<string | null> => {
     if (!client.isOpen)

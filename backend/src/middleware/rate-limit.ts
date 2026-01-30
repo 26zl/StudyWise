@@ -4,7 +4,7 @@
 
 import type { Request, Response, NextFunction } from "express";
 import { RateLimiterMemory, RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
-import redisClient from "../cache/redis.js";
+import redisClient, { isRedisReady } from "../cache/redis.js";
 import { logger } from "../utils/logger.js";
 
 
@@ -53,8 +53,7 @@ export const createRateLimiter = ({ points, duration, keyPrefix = "rlflx" }: Rat
     // Returnerer middleware-funksjon
     return async (req: Request, res: Response, next: NextFunction) => {
         const key = getClientIp(req);
-        const limiter = redisClient.isOpen ? redisLimiter : memoryLimiter;
-
+        const limiter = isRedisReady() ? redisLimiter : memoryLimiter;
         try {
             const rateRes = await limiter.consume(key);
             setRateLimitHeaders(res, rateRes, points);

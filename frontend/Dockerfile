@@ -28,17 +28,17 @@ COPY --from=base /app/frontend/.next/standalone ./
 COPY --from=base /app/frontend/.next/static ./frontend/.next/static
 COPY --from=base /app/frontend/public ./frontend/public
 
-COPY --from=base /app/common/dist ./common/dist
-COPY --from=base /app/common/package.json ./common/package.json
+RUN chown -R node:node /app
+
+USER node
 
 EXPOSE 3000
 
 ENV NODE_ENV=production
-ENV NEXT_PUBLIC_API_URL=http://backend:4000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
-CMD ["node", "frontend/server.js"]
+CMD ["node", "server.js"]

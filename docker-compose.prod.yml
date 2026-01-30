@@ -1,3 +1,13 @@
+# Produksjons Docker Compose
+# Bruk: docker compose -f docker-compose.prod.yml up -d
+#
+# Krev miljøvariabler (sett i shell eller .env.prod fil):
+#   - WEB_ORIGIN: Frontend URL (f.eks. https://studywise.no)
+#   - API_URL: Backend API URL (f.eks. https://api.studywise.no)
+#
+# Eksempel:
+#   WEB_ORIGIN=https://studywise.no API_URL=https://api.studywise.no docker compose -f docker-compose.prod.yml up -d
+
 services:
   backend:
     container_name: studywise-backend
@@ -8,7 +18,7 @@ services:
       - "4000:4000"
     environment:
       - PORT=4000
-      - WEB_ORIGIN=http://localhost:3000
+      - WEB_ORIGIN=${WEB_ORIGIN:?WEB_ORIGIN må settes}
       - NODE_ENV=production
     env_file:
       - ./backend/.env
@@ -16,22 +26,41 @@ services:
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
       interval: 30s
-      timeout: 3s
-      start_period: 5s
+      timeout: 10s
+      start_period: 10s
       retries: 3
     networks:
       - app-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   frontend:
     container_name: studywise-frontend
     build:
       context: .
       dockerfile: frontend/Dockerfile
+      args:
+        # API URL for client-side requests (bygget inn i JS)
+        NEXT_PUBLIC_API_URL: ${API_URL:?API_URL må settes}
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=https://api.yourdomain.com
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      # API URL for server-side requests (internt i Docker-nettverk)
+      - INTERNAL_API_URL=http://backend:4000
     depends_on:
       backend:
         condition: service_healthy
@@ -39,11 +68,24 @@ services:
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
       interval: 30s
-      timeout: 3s
-      start_period: 10s
+      timeout: 10s
+      start_period: 15s
       retries: 3
     networks:
       - app-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   app-network:

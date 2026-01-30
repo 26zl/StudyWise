@@ -9,16 +9,20 @@
 */
 
 import "dotenv/config";
+// Validerer miljøvariabler FØR noe annet lastes
+import { validateEnv } from "./utils/validateEnv.js";
+validateEnv();
 import express from "express";
 import cors from "cors";
 import compression from "compression";
 import helmet from "helmet";
 import swaggerUi from "swagger-ui-express";
 import { pinoHttp } from "pino-http";
+import mongoose from "mongoose";
 import { swaggerSpec } from "./swagger.js";
 import { connectToDatabase } from "./database/database.js";
 import { logger } from "./utils/logger.js";
-import "./cache/redis.js";
+import redisClient, { isRedisReady } from "./cache/redis.js";
 import canvasRuter from "./rutere/canvas/canvas.js";
 import kiRuter from "./rutere/ki/ki.js";
 import brukerAuthRuter from "./rutere/auth/brukerAuth.js";
@@ -28,14 +32,28 @@ import { noCache } from "./middleware/no-cache.js";
 // Initialiserer Express app
 const app = express();
 const startTime = Date.now();
+const isProd = process.env.NODE_ENV === "production";
+
+// Global error handlers - fanger uventede feil
+process.on("unhandledRejection", (reason, promise) => {
+  logger.fatal({ reason, promise }, "Unhandled Promise Rejection - avslutter");
+  process.exit(1);
+});
+// Fanger opp uventede feil som ikke blir fanget andre steder
+process.on("uncaughtException", (error) => {
+  logger.fatal({ err: error }, "Uncaught Exception - avslutter");
+  process.exit(1);
+});
 
 // Trust proxy for korrekt IP-håndtering bak proxyer (f.eks. ved bruk av Heroku, Vercel, eller Nginx)
 app.set("trust proxy", 1);
 
-// Sikkerhets-headere via Helmet (lett konfigurert for å ikke blokkere Canvas/KI/Swagger UI)
+// Sikkerhets-headere via Helmet
+// I produksjon: Full CSP aktivert (Swagger er deaktivert)
+// I development: CSP deaktivert for Swagger UI
 app.use(
   helmet({
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: isProd ? undefined : false, // Default CSP i prod, deaktivert i dev
     crossOriginEmbedderPolicy: false,
     crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
     crossOriginResourcePolicy: { policy: "cross-origin" },
@@ -57,25 +75,20 @@ app.use(compression());
 // JSON body parser med økt størrelse på 10mb
 app.use(express.json({ limit: "10mb" }));
 
-// CORS kun mot frontend
-const webOrigin = process.env.WEB_ORIGIN;
-if (!webOrigin) {
-  logger.error("Mangler WEB_ORIGIN i .env");
-  process.exit(1);
-}
-
-// CORS konfigurasjon
+// CORS kun mot frontend (WEB_ORIGIN er validert ved oppstart i validateEnv)
 app.use(
   cors({
-    origin: webOrigin,
+    origin: process.env.WEB_ORIGIN!,
     credentials: true,
   })
 );
 
-// Krev JWT for alle endepunkter, bortsett fra innlogging/registrering/health
+// Krev JWT for alle endepunkter, bortsett fra innlogging/registrering/health/swagger
 const offentligSti = new Set(["/api/user/login", "/api/user/register", "/api/user/refresh", "/health"]);
 app.use((req, res, next) => {
   if (offentligSti.has(req.path)) return next();
+  // Tillat Swagger UI (kun i development)
+  if (!isProd && req.path.startsWith("/api-docs")) return next();
   return autentiserJwt(req, res, next);
 });
 
@@ -84,7 +97,7 @@ app.use((req, res, next) => {
  * /health:
  *   get:
  *     summary: Health check endpoint
- *     description: Returnerer server helse-status, uptime og timestamp
+ *     description: Returnerer server helse-status, uptime, avhengigheter og timestamp
  *     tags:
  *       - Health
  *     responses:
@@ -94,17 +107,44 @@ app.use((req, res, next) => {
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/HealthCheck'
+ *       503:
+ *         description: Server er oppe, men kritiske avhengigheter er nede
  */
 app.get("/health", (_req, res) => {
-  res.json({
-    ok: true,
+  // Sjekk MongoDB-tilkobling
+  // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+  const mongoStatus = mongoose.connection.readyState;
+  const mongoOk = mongoStatus === 1;
+
+  // Sjekk Redis-tilkobling
+  const redisOk = isRedisReady();
+
+  // Alle kritiske tjenester må være oppe
+  const allOk = mongoOk; // Redis er valgfritt, men MongoDB er påkrevd
+
+  const healthResponse = {
+    ok: allOk,
     timestamp: new Date().toISOString(),
     uptime: Math.floor((Date.now() - startTime) / 1000),
-  });
+    dependencies: {
+      mongodb: mongoOk ? "connected" : "disconnected",
+      redis: redisOk ? "connected" : "disconnected",
+    },
+  };
+
+  // Returner 503 hvis kritiske avhengigheter er nede
+  if (!allOk) {
+    return res.status(503).json(healthResponse);
+  }
+
+  return res.json(healthResponse);
 });
 
-// API dokumentasjon (Swagger UI)
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+// API dokumentasjon (Swagger UI) - kun i development
+if (!isProd) {
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  logger.info("Swagger UI tilgjengelig på /api-docs (kun development)");
+}
 
 // Ulike API ruter defineres her
 // noCache hindrer at sensitive data caches i nettleseren etter utlogging
@@ -119,13 +159,40 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 });
 
 // Start server og kobler til database med Mongoose
-const port = process.env.PORT;
-if (!port) {
-  logger.error("Mangler PORT i .env");
-  process.exit(1);
-}
+const port = process.env.PORT!; // Allerede validert i validateEnv
 connectToDatabase().then(() => {
-  app.listen(Number(port), () => {
+  const server = app.listen(Number(port), () => {
     logger.info(`Express API kjører på http://localhost:${port}`);
   });
+  // Graceful shutdown - håndterer SIGTERM/SIGINT for ryddig avslutning
+  const gracefulShutdown = async (signal: string) => {
+    logger.info({ signal }, "Mottok shutdown-signal, avslutter gracefully...");
+    // Stopp å ta imot nye requests
+    server.close(async () => {
+      logger.info("HTTP-server lukket");
+      try {
+        // Lukk database-tilkobling
+        await mongoose.connection.close();
+        logger.info("MongoDB-tilkobling lukket");
+        // Lukk Redis-tilkobling
+        if (redisClient.isOpen) {
+          await redisClient.quit();
+          logger.info("Redis-tilkobling lukket");
+        }
+        logger.info("Graceful shutdown fullført");
+        process.exit(0);
+      } catch (error) {
+        logger.error({ err: error }, "Feil under shutdown");
+        process.exit(1);
+      }
+    });
+    // Force exit etter 10 sekunder hvis graceful shutdown tar for lang tid
+    setTimeout(() => {
+      logger.warn("Graceful shutdown tok for lang tid, tvinger avslutning");
+      process.exit(1);
+    }, 10000);
+  };
+
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 });

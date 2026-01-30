@@ -5,6 +5,8 @@ packages:
   - docs
 
 onlyBuiltDependencies:
+  - "@scarf/scarf"
+  - bcrypt
   - esbuild
   - sharp
   - unrs-resolver

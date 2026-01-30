@@ -70,8 +70,15 @@ async function hentMeg(): Promise<MeResponse> {
   if (res.ok) {
     return MeResponseSchema.parse(json);
   }
+  // Ved 401/403: Prøv å fornye sesjon én gang
   if (res.status === 401 || res.status === 403) {
-    await fornySesjon();
+    try {
+      await fornySesjon();
+    } catch {
+      // Refresh feilet - brukeren er ikke logget inn
+      throw new Error("Ikke autentisert");
+    }
+    // Refresh OK - prøv /me igjen
     const resRetry = await fetch("/api/user/me", {
       method: "GET",
       credentials: "include",
@@ -149,7 +156,9 @@ export function useMeg() {
   return useQuery({
     queryKey: ["auth", "me"],
     queryFn: hentMeg,
-    retry: false,
+    retry: false, // Ikke retry auth-feil - brukeren er enten logget inn eller ikke
+    staleTime: 1000 * 60 * 5, // Cache i 5 minutter - unngår unødvendige requests
+    refetchOnWindowFocus: false, // Ikke refetch ved window focus
   });
 }
 // Hook for utlogging

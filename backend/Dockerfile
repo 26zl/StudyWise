@@ -31,6 +31,10 @@ COPY --from=base /app/backend/dist ./backend/dist
 COPY --from=base /app/common/dist ./common/dist
 COPY --from=base /app/common/package.json ./common/package.json
 
+RUN chown -R node:node /app
+
+USER node
+
 EXPOSE 4000
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

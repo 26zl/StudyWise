@@ -107,13 +107,15 @@ pnpm run clean            # Fjern build-filer (dist, .next)
 pnpm run clean:install    # Full reinstall (sletter node_modules + lock)
 ```
 
-**Utviklingsservere:**
+**Utviklingsservere (lokal kjøring med `pnpm dev`):**
 
-- Backend: <http://localhost:4000>
-- Frontend: <http://localhost:3000>
-- Dokumentasjon: <http://localhost:5173>
-- API Dokumentasjon (Swagger): <http://localhost:4000/api-docs>
-- Health Check: <http://localhost:4000/health>
+| Tjeneste       | URL                              |
+| -------------- | -------------------------------- |
+| Frontend       | <http://localhost:3000>          |
+| Backend        | <http://localhost:4000>          |
+| Swagger UI     | <http://localhost:4000/api-docs> |
+| Health Check   | <http://localhost:4000/health>   |
+| Dokumentasjon  | <http://localhost:5173>          |
 
 ## Docker (alternativ kjøring)
 
@@ -131,6 +133,16 @@ Prosjektet har separate konfigurasjoner for utvikling og produksjon:
 
 - `docker-compose.dev.yml`: For utvikling (hot reload, volumes)
 - `docker-compose.prod.yml`: For produksjon
+
+**Docker-porter:**
+
+| Tjeneste  | URL                              | Fil                      |
+| --------- | -------------------------------- | ------------------------ |
+| Frontend  | <http://localhost:3000>          | Begge                    |
+| Backend   | <http://localhost:4000>          | Begge                    |
+| Swagger   | <http://localhost:4000/api-docs> | Begge                    |
+
+> **Merk:** Dokumentasjonsserveren (VitePress) er ikke inkludert i Docker-oppsettet.
 
 1. **Bygg og start alle services (Utvikling)**:
 

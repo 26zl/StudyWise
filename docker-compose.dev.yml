@@ -21,6 +21,8 @@ services:
     env_file:
       - ./backend/.env
     command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install --config.package-import-method=copy --store-dir /root/.pnpm-store && pnpm --filter common build && pnpm --filter backend dev"
+    networks:
+      - dev-network
 
   frontend:
     container_name: studywise-frontend
@@ -44,3 +46,9 @@ services:
     depends_on:
       - backend
     command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install --config.package-import-method=copy --store-dir /root/.pnpm-store && pnpm --filter common build && pnpm --filter frontend dev"
+    networks:
+      - dev-network
+
+networks:
+  dev-network:
+    driver: bridge

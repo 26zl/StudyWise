@@ -18,11 +18,7 @@ const options: swaggerJsdoc.Options = {
     servers: [
       {
         url: "http://localhost:4000",
-        description: "Backend (via localhost) - Bruk denne når du tester fra nettleseren",
-      },
-      {
-        url: "http://backend:4000",
-        description: "Backend (intern Docker) - Kun for container-til-container kommunikasjon",
+        description: "Lokal utviklingsserver",
       },
     ],
     components: {

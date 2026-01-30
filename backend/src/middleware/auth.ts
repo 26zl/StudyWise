@@ -99,7 +99,7 @@ export const autentiserJwt = (req: Request, res: Response, next: NextFunction) =
     const token = hentBearerToken(req) ?? hentCookieVerdi(req, JWT_COOKIE_NAVN);
 
     if (!token) {
-        return res.status(401).json({ feil: "Ingen token gitt" });
+        return res.status(401).json({ feil: "Ingen JWT token gitt" });
     }
 
     if (!process.env.JWT_ACCESS_SECRET) {
