@@ -7,8 +7,15 @@
 import Link from "next/link";
 import { Footer } from "../components/footer";
 import { BookOpen, Bot, ArrowRight, LayoutDashboard } from "lucide-react";
+import { useMeg } from "../auth/auth-api";
 
 export default function Hjem() {
+  // Sjekk om brukeren er innlogget for å skjule auth-CTA når det ikke trengs
+  const megQuery = useMeg();
+  const authLaster = megQuery.isLoading || megQuery.isFetching;
+  const erInnlogget = Boolean(megQuery.data?.user);
+  const ctaWidth = "min-w-[200px]";
+
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors">
 
@@ -30,17 +37,24 @@ export default function Hjem() {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
               <Link
                 href="/dashboard"
-                className="group flex items-center gap-2 px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-medium transition-all hover:shadow-lg hover:shadow-blue-500/25"
+                className={`group inline-flex items-center justify-center gap-2 px-8 py-4 ${ctaWidth} bg-blue-600 hover:bg-blue-700 text-white rounded-full font-medium transition-all hover:shadow-lg hover:shadow-blue-500/25`}
               >
-                Gå til Dashboard
+                {erInnlogget ? "Fortsett til Dashboard" : "Gå til Dashboard"}
                 <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </Link>
-              <Link
-                href="/auth"
-                className="px-8 py-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full font-medium transition-colors"
-              >
-                Logg inn / Registrer
-              </Link>
+              {authLaster ? (
+                // Behold plass for knappen for å unngå layout-hopp
+                <span className={`px-8 py-4 ${ctaWidth} rounded-full font-medium opacity-0 pointer-events-none`}>
+                  Logg inn / Registrer
+                </span>
+              ) : !erInnlogget ? (
+                <Link
+                  href="/auth"
+                  className={`inline-flex items-center justify-center px-8 py-4 ${ctaWidth} bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full font-medium transition-colors`}
+                >
+                  Logg inn / Registrer
+                </Link>
+              ) : null}
             </div>
           </div>
         </section>

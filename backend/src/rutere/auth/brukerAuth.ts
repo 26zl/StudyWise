@@ -9,7 +9,18 @@ import { User } from "../../database/models/User.js";
 import { decrypt, encrypt } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
 import { ZodError } from "zod";
-import { CanvasTokenRequestSchema, AuthBrukerSchema, LoginRequestSchema, RegisterRequestSchema } from "common";
+import {
+    CanvasTokenRequestSchema,
+    CanvasTokenResponseSchema,
+    AuthBrukerSchema,
+    LoginRequestSchema,
+    LoginResponseSchema,
+    RegisterRequestSchema,
+    RegisterResponseSchema,
+    MeResponseSchema,
+    LogoutResponseSchema,
+    RefreshResponseSchema
+} from "common";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import {
@@ -70,10 +81,10 @@ router.post("/register", rateLimitAuth, async (req, res) => {
             lastName,
         });
         logger.info({ userId: user._id }, "Ny bruker registrert");
-        return res.status(201).json({
+        return res.status(201).json(RegisterResponseSchema.parse({
             melding: "Bruker opprettet",
-            userId: user._id,
-        });
+            userId: user._id.toString(),
+        }));
     } catch (error) {
         if (error instanceof ZodError) {
             return res.status(400).json({ feil: error.issues });
@@ -114,7 +125,7 @@ router.post("/login", rateLimitAuth, async (req, res) => {
         await user.save();
         settTilgangsCookie(res, tilgangsToken);
         settRefreshCookie(res, refreshToken);
-        return res.json({
+        return res.json(LoginResponseSchema.parse({
             melding: "Innlogging vellykket",
             user: AuthBrukerSchema.parse({
                 id: user._id.toString(),
@@ -123,7 +134,7 @@ router.post("/login", rateLimitAuth, async (req, res) => {
                 lastName: user.lastName,
                 hasCanvasToken: harCanvasToken
             })
-        });
+        }));
     } catch (error) {
         if (error instanceof ZodError) {
             return res.status(400).json({ feil: error.issues });
@@ -166,10 +177,10 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         // Sjekk hash først (raskt og sikkert for SAMME bruker)
         if (bruker.canvasTokenHash && bruker.canvasTokenHash === nyTokenHash) {
             logger.info({ userId }, "Canvas token identisk (hash match)");
-            return res.json({
+            return res.json(CanvasTokenResponseSchema.parse({
                 melding: "Token er allerede lagret",
                 success: true,
-            });
+            }));
         }
         // Fallback: Sjekk dekryptert token (for gamle brukere uten hash)
         if (bruker.canvasApiToken && !bruker.canvasTokenHash) {
@@ -181,10 +192,10 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
                     await bruker.save();
 
                     logger.info({ userId }, "Canvas token identisk (dekryptert match)");
-                    return res.json({
+                    return res.json(CanvasTokenResponseSchema.parse({
                         melding: "Token er allerede lagret",
                         success: true,
-                    });
+                    }));
                 }
             } catch (error) {
                 logger.error({ err: error, userId }, "Feil ved dekryptering av eksisterende Canvas token");
@@ -197,10 +208,10 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         bruker.canvasTokenHash = nyTokenHash;
         await bruker.save();
         logger.info({ userId }, "Canvas token lagret for bruker");
-        return res.json({
+        return res.json(CanvasTokenResponseSchema.parse({
             melding: "Token lagret og kryptert",
             success: true
-        });
+        }));
     } catch (error) {
         if (error instanceof ZodError) {
             const feilmelding = error.issues[0]?.message || "Ugyldig input";
@@ -260,7 +271,7 @@ router.post("/refresh", async (req, res) => {
         await bruker.save();
         settTilgangsCookie(res, nyttTilgangsToken);
         settRefreshCookie(res, nyttRefreshToken);
-        return res.json({ melding: "Tilgang oppdatert" });
+        return res.json(RefreshResponseSchema.parse({ melding: "Tilgang oppdatert" }));
     } catch (error) {
         logger.error({ err: error }, "Feil ved refresh");
         return res.status(403).json({ feil: "Ugyldig refresh-token" });
@@ -280,7 +291,7 @@ router.get("/me", autentiserJwt, rateLimitMe, async (req, res) => {
             return res.status(404).json({ feil: "Bruker ikke funnet" });
         }
         const harCanvasToken = !!bruker.canvasApiToken;
-        return res.json({
+        return res.json(MeResponseSchema.parse({
             user: AuthBrukerSchema.parse({
                 id: bruker._id.toString(),
                 email: bruker.email,
@@ -288,7 +299,7 @@ router.get("/me", autentiserJwt, rateLimitMe, async (req, res) => {
                 lastName: bruker.lastName,
                 hasCanvasToken: harCanvasToken
             }),
-        });
+        }));
     } catch (error) {
         logger.error({ err: error }, "Feil ved henting av brukerprofil");
         return res.status(500).json({ feil: "Kunne ikke hente brukerprofil" });
@@ -306,7 +317,7 @@ router.post("/logout", autentiserJwt, async (req, res) => {
         });
     }
     fjernAuthCookies(res);
-    return res.json({ melding: "Logget ut" });
+    return res.json(LogoutResponseSchema.parse({ melding: "Logget ut" }));
 });
 
 export default router;

@@ -34,7 +34,45 @@ export const KIChatResponseSchema = z.object({
     .optional(),
 });
 
+// Modell-liste (for KI modellvalg i frontend)
+export const KIModelsResponseSchema = z.object({
+  models: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      description: z.string(),
+      isDefault: z.boolean(),
+    })
+  ),
+  defaultModel: z.string(),
+});
+
+// PDF-analyse respons
+export const KIPdfAnalyseResponseSchema = z.object({
+  suksess: z.boolean(),
+  melding: z.string().optional(),
+  response: z.string(),
+  model: z.string().optional(),
+  dokumentInfo: z
+    .object({
+      sider: z.number(),
+      tegn: z.number(),
+      redacted: z.boolean(),
+      truncated: z.boolean(),
+    })
+    .optional(),
+  usage: z
+    .object({
+      prompt_tokens: z.number(),
+      completion_tokens: z.number(),
+      total_tokens: z.number(),
+    })
+    .optional(),
+});
+
 // Type exports
 export type KIMessage = z.infer<typeof KIMessageSchema>;
 export type KIChatRequest = z.infer<typeof KIChatRequestSchema>;
 export type KIChatResponse = z.infer<typeof KIChatResponseSchema>;
+export type KIModelsResponse = z.infer<typeof KIModelsResponseSchema>;
+export type KIPdfAnalyseResponse = z.infer<typeof KIPdfAnalyseResponseSchema>;

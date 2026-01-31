@@ -5,13 +5,17 @@
 */
 
 import type { ZodType } from "zod";
+import { z } from "zod";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
     KIChatResponseSchema,
+    KIModelsResponseSchema,
+    KIPdfAnalyseResponseSchema,
     type KIChatRequest,
+    type KIModelsResponse,
+    type KIPdfAnalyseResponse,
 } from "common/ki";
 import { fornySesjon } from "../auth/auth-api";
-import { z } from "zod";
 
 // Eksporter typer
 export type {
@@ -19,18 +23,7 @@ export type {
     KIMessage,
 } from "common/ki";
 
-// Schema for modell-liste
-const ModelsResponseSchema = z.object({
-    models: z.array(z.object({
-        id: z.string(),
-        name: z.string(),
-        description: z.string(),
-        isDefault: z.boolean(),
-    })),
-    defaultModel: z.string(),
-});
-
-export type ModelsResponse = z.infer<typeof ModelsResponseSchema>;
+export type ModelsResponse = KIModelsResponse;
 
 // API funksjoner
 async function fetchKI<T>(endpoint: string, schema: ZodType<T>, forsoktRefresh = false): Promise<T> {
@@ -81,6 +74,30 @@ async function postKI<T>(
     return schema.parse(data);
 }
 
+// POST funksjon for FormData (brukes av PDF-analyse) med samme auth-retry som øvrige kall
+async function postKIFormData<T>(
+    endpoint: string,
+    formData: FormData,
+    schema: ZodType<T>,
+    forsoktRefresh = false
+): Promise<T> {
+    const res = await fetch(`/api/ki${endpoint}`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+    });
+    if ((res.status === 401 || res.status === 403) && !forsoktRefresh) {
+        await fornySesjon();
+        return postKIFormData(endpoint, formData, schema, true);
+    }
+    if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.melding || error.feil || "API feil");
+    }
+    const data = await res.json();
+    return schema.parse(data);
+}
+
 // React query hooks
 
 // Test tilkobling
@@ -96,7 +113,7 @@ export function useKITestTilkobling() {
 export function useKIModeller() {
     return useQuery({
         queryKey: ["ki", "models"],
-        queryFn: () => fetchKI("/models", ModelsResponseSchema),
+        queryFn: () => fetchKI("/models", KIModelsResponseSchema),
         staleTime: 1000 * 60 * 5, // Cache i 5 minutter
     });
 }
@@ -136,27 +153,12 @@ export function useKIChat() {
         error: mutation.error,
         data: mutation.data,
         reset: mutation.reset,
+        mutation,
     };
 }
 
 // Schema for PDF-analyse respons
-const PdfAnalyseResponseSchema = z.object({
-    suksess: z.boolean(),
-    melding: z.string().optional(),
-    response: z.string(),
-    model: z.string().optional(),
-    dokumentInfo: z.object({
-        sider: z.number(),
-        tegn: z.number(),
-    }).optional(),
-    usage: z.object({
-        prompt_tokens: z.number(),
-        completion_tokens: z.number(),
-        total_tokens: z.number(),
-    }).optional(),
-});
-
-export type PdfAnalyseResponse = z.infer<typeof PdfAnalyseResponseSchema>;
+export type PdfAnalyseResponse = KIPdfAnalyseResponse;
 
 // PDF analyse hook
 export function useKIPdfAnalyse() {
@@ -171,23 +173,10 @@ export function useKIPdfAnalyse() {
             model?: string;
         }) => {
             const formData = new FormData();
-            formData.append('pdf', fil);
-            if (sporsmaal) formData.append('question', sporsmaal);
-            if (model) formData.append('model', model);
-
-            const res = await fetch('/api/ki/analyze-pdf', {
-                method: 'POST',
-                credentials: 'include',
-                body: formData,
-            });
-
-            if (!res.ok) {
-                const error = await res.json();
-                throw new Error(error.melding || 'Kunne ikke analysere PDF');
-            }
-
-            const data = await res.json();
-            return PdfAnalyseResponseSchema.parse(data);
+            formData.append("pdf", fil);
+            if (sporsmaal) formData.append("question", sporsmaal);
+            if (model) formData.append("model", model);
+            return postKIFormData("/analyze-pdf", formData, KIPdfAnalyseResponseSchema);
         },
     });
 
@@ -213,5 +202,6 @@ export function useKIPdfAnalyse() {
         error: mutation.error,
         data: mutation.data,
         reset: mutation.reset,
+        mutation,
     };
 }

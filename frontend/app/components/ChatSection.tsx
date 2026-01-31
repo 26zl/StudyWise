@@ -7,6 +7,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Send, Loader2, Bot, User, Sparkles, Paperclip, FileText, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useKITestTilkobling, useKIChat, useKIPdfAnalyse } from "../ki/ki-api";
 
 // Meldings-typer
@@ -30,15 +31,17 @@ const forslag = [
 export function ChatSection() {
     const [meldinger, settMeldinger] = useState<Melding[]>([]);
     const [tekstInput, settTekstInput] = useState("");
-    const [skriver, settSkriver] = useState(false);
+    const [skriverChat, settSkriverChat] = useState(false);
+    const [skriverPdf, settSkriverPdf] = useState(false);
     const [valgtPdf, settValgtPdf] = useState<File | null>(null);
     const meldingerSluttRef = useRef<HTMLDivElement>(null);
     const tekstInputRef = useRef<HTMLTextAreaElement>(null);
     const filInputRef = useRef<HTMLInputElement>(null);
 
-    // KI tilkoblingstest 
+    // KI tilkoblingstest
     const {
-        isError: erTilkoblingsFeil
+        isError: erTilkoblingsFeil,
+        refetch: testTilkobling,
     } = useKITestTilkobling();
 
     // KI chat hook
@@ -54,7 +57,11 @@ export function ChatSection() {
     // Scroll til bunn når meldinger oppdateres eller skriver-status endres
     useEffect(() => {
         scrollTilBunn();
-    }, [meldinger, skriver]);
+    }, [meldinger, skriverChat, skriverPdf]);
+    // Kjør en enkel tilkoblingstest ved første render (uten å blokkere UI)
+    useEffect(() => {
+        testTilkobling().catch(() => undefined);
+    }, [testTilkobling]);
 
     // Auto-resize textarea
     useEffect(() => {
@@ -65,7 +72,7 @@ export function ChatSection() {
     }, [tekstInput]);
 
     const sendMelding = async () => {
-        if (!tekstInput.trim() || skriver) return;
+        if (!tekstInput.trim() || skriverChat || skriverPdf) return;
 
         const brukerMeldingInnhold = tekstInput.trim();
         settTekstInput("");
@@ -85,10 +92,10 @@ export function ChatSection() {
         };
 
         settMeldinger((tidligere) => [...tidligere, brukerMelding]);
-        settSkriver(true);
 
         // Hvis PDF er valgt, bruk PDF-analyse
         if (valgtPdf) {
+            settSkriverPdf(true);
             analyserPdf(
                 valgtPdf,
                 brukerMeldingInnhold,
@@ -101,7 +108,7 @@ export function ChatSection() {
                             tidsstempel: new Date(),
                         };
                         settMeldinger((tidligere) => [...tidligere, aiMelding]);
-                        settSkriver(false);
+                        settSkriverPdf(false);
                         settValgtPdf(null); // Fjern PDF etter analyse
                     },
                     onError: (error) => {
@@ -112,20 +119,24 @@ export function ChatSection() {
                             tidsstempel: new Date(),
                         };
                         settMeldinger((tidligere) => [...tidligere, feilMelding]);
-                        settSkriver(false);
+                        settSkriverPdf(false);
                     },
                 }
             );
             return;
         }
 
-        // Forbered meldingshistorikk for API
-        const apiMeldinger = [...meldinger, brukerMelding].map((m) => ({
-            role: m.rolle === "user" ? "user" : "assistant",
-            content: m.innhold,
-        }));
+        // Forbered meldingshistorikk for API (Canvas-data hentes av backend)
+        const apiMeldinger = [
+            ...meldinger.map((m) => ({
+                role: m.rolle === "user" ? "user" : "assistant",
+                content: m.innhold,
+            })),
+            { role: "user", content: brukerMeldingInnhold },
+        ];
 
-        // Send til ekte API
+        // Send til API (backend inkluderer Canvas-kontekst automatisk)
+        settSkriverChat(true);
         sendTilAPI(apiMeldinger, {
             onSuccess: (data) => {
                 const aiMelding: Melding = {
@@ -135,7 +146,7 @@ export function ChatSection() {
                     tidsstempel: new Date(),
                 };
                 settMeldinger((tidligere) => [...tidligere, aiMelding]);
-                settSkriver(false);
+                settSkriverChat(false);
             },
             onError: (error) => {
                 const feilMelding: Melding = {
@@ -145,7 +156,7 @@ export function ChatSection() {
                     tidsstempel: new Date(),
                 };
                 settMeldinger((tidligere) => [...tidligere, feilMelding]);
-                settSkriver(false);
+                settSkriverChat(false);
             },
         });
     };
@@ -186,7 +197,7 @@ export function ChatSection() {
             {/* Header */}
             <div className="shrink-0 px-4 md:px-6 py-4 border-b border-slate-200 dark:border-slate-800">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center">
                         <Sparkles className="w-5 h-5 text-white" />
                     </div>
                     <div>
@@ -209,6 +220,13 @@ export function ChatSection() {
                             ⚠️ Kunne ikke koble til KI-assistenten. Prøv igjen senere.
                         </p>
                     </div>
+                )}
+                {!erTilkoblingsFeil && (
+                    <button
+                        onClick={() => testTilkobling()}
+                        className="hidden"
+                        aria-hidden
+                    />
                 )}
 
                 {/* Tomme meldinger - vis forslag */}
@@ -248,7 +266,7 @@ export function ChatSection() {
                         className={`flex gap-3 ${melding.rolle === "user" ? "justify-end" : "justify-start"}`}
                     >
                         {melding.rolle === "assistant" && (
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
+                            <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
                                 <Bot className="w-4 h-4 text-white" />
                             </div>
                         )}
@@ -269,7 +287,7 @@ export function ChatSection() {
                             )}
                             {melding.rolle === "assistant" ? (
                                 <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-pre:my-2 prose-code:text-blue-600 dark:prose-code:text-blue-400 prose-code:bg-slate-200 dark:prose-code:bg-slate-700 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none">
-                                    <ReactMarkdown>{melding.innhold}</ReactMarkdown>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{melding.innhold}</ReactMarkdown>
                                 </div>
                             ) : (
                                 <p className="text-sm whitespace-pre-wrap">{melding.innhold}</p>
@@ -297,9 +315,9 @@ export function ChatSection() {
                 ))}
 
                 {/* Skriver indikator */}
-                {skriver && (
+                {(skriverChat || skriverPdf) && (
                     <div className="flex gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
                             <Bot className="w-4 h-4 text-white" />
                         </div>
                         <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl px-4 py-3">
@@ -347,7 +365,7 @@ export function ChatSection() {
                     {/* PDF-knapp */}
                     <button
                         onClick={() => filInputRef.current?.click()}
-                        disabled={skriver}
+                        disabled={skriverChat || skriverPdf}
                         className="shrink-0 w-12 h-12 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                         title="Last opp PDF"
                     >
@@ -359,18 +377,18 @@ export function ChatSection() {
                         value={tekstInput}
                         onChange={(e) => settTekstInput(e.target.value)}
                         onKeyDown={handterTastetrykk}
-                        placeholder={valgtPdf ? "Still et sporsmal om PDF-en..." : "Skriv en melding..."}
-                        disabled={skriver}
+                        placeholder={valgtPdf ? "Still et spørsmål om PDF-en..." : "Skriv en melding..."}
+                        disabled={skriverChat || skriverPdf}
                         rows={1}
                         className="flex-1 resize-none rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{ maxHeight: "150px" }}
                     />
                     <button
                         onClick={sendMelding}
-                        disabled={!tekstInput.trim() || skriver}
+                        disabled={!tekstInput.trim() || skriverChat || skriverPdf}
                         className="shrink-0 w-12 h-12 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                     >
-                        {skriver ? (
+                        {skriverChat || skriverPdf ? (
                             <Loader2 className="w-5 h-5 text-white animate-spin" />
                         ) : (
                             <Send className="w-5 h-5 text-white" />

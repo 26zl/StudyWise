@@ -20,6 +20,7 @@ export function Header() {
     const erDashboard = pathname === "/dashboard";
     const queryClient = useQueryClient();
     const megQuery = useMeg();
+    const authLaster = megQuery.isLoading || megQuery.isFetching;
     const loggUt = useLoggUt();
     const { theme, setTheme } = useTheme();
     // Håndter logg ut - rydder opp all cache og state før redirect
@@ -64,7 +65,9 @@ export function Header() {
                 <Link href="/dashboard" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
                     Dashboard
                 </Link>
-                {megQuery.data?.user ? (
+                {authLaster ? (
+                    <span className="w-16 h-4 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" aria-hidden />
+                ) : megQuery.data?.user ? (
                     <button
                         onClick={handleLoggUt}
                         className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"

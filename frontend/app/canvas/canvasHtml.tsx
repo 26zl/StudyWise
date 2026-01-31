@@ -5,7 +5,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import DOMPurify from "dompurify"; 
+import DOMPurify from "isomorphic-dompurify"; 
 import parse, { Element, type HTMLReactParserOptions } from "html-react-parser";
 import { ExternalLink } from "lucide-react";
 

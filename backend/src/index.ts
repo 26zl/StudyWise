@@ -149,7 +149,7 @@ if (!isProd) {
 // Ulike API ruter defineres her
 // noCache hindrer at sensitive data caches i nettleseren etter utlogging
 app.use("/api/canvas", noCache, knyttCanvasToken, canvasRuter);
-app.use("/api/ki", noCache, kiRuter);
+app.use("/api/ki", noCache, knyttCanvasToken, kiRuter);
 app.use("/api/user", brukerAuthRuter);
 
 // Feil håndtering globalt
