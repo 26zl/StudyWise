@@ -168,3 +168,33 @@ body {
 .scrollbar-hide::-webkit-scrollbar {
     display: none;
 }
+
+/* =============================================
+   Calendar Styles
+   ============================================= */
+
+/* Calendar page layout */
+.calendar-page {
+    padding: 1.5rem;
+    height: 100%;
+    animation: fade-in 0.2s ease-out;
+}
+
+.calendar-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+}
+
+@media (min-width: 1280px) {
+    .calendar-layout {
+        grid-template-columns: 1fr 340px;
+    }
+}
+
+.calendar-footer {
+    margin-top: 2rem;
+    text-align: center;
+    font-size: 0.875rem;
+    color: var(--muted);
+}

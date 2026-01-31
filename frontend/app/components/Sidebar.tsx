@@ -17,7 +17,8 @@ import {
     Plus,
     X,
     LayoutDashboard,
-    LogOut
+    LogOut,
+    CalendarDays,
 } from "lucide-react";
 import { useLoggUt } from "../auth/auth-api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -28,6 +29,7 @@ import { broadcastLogout } from "../hooks/use-auth-sync";
 export type VisningType =
     | "chat"
     | "canvas-announcements"
+    | "calendar"
     | "canvas-courses"
     | "canvas-data"
     | "settings";
@@ -210,6 +212,12 @@ export function Sidebar({
                                     view="canvas-announcements"
                                     icon={Megaphone}
                                     label="Kunngjøringer"
+                                    indent
+                                />
+                                <NavElement
+                                    view="calendar"
+                                    icon={CalendarDays}
+                                    label="Kalender"
                                     indent
                                 />
                                 <NavElement
