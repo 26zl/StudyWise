@@ -8,7 +8,7 @@ import { useState, useRef, useEffect } from "react";
 import { Send, Loader2, Bot, User, Sparkles, Clock, Plus } from "lucide-react";
 import { useKITestTilkobling, useKIChat } from "../ki/ki-api";
 import { CanvasContextSelector } from "./CanvasContextSelector";
-import { useChatHistory } from "../hooks/useChatHistory";
+import { useChatHistoryDB } from "../hooks/useChatHistoryDB";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
 
 // Meldings-typer
@@ -27,13 +27,21 @@ const forslag = [
     "Vis meg kunngjøringer fra mine emner",
 ];
 
-// ChatSection komponent
 export function ChatSection() {
     const [meldinger, settMeldinger] = useState<Melding[]>([]);
     const [tekstInput, settTekstInput] = useState("");
     const [skriver, settSkriver] = useState(false);
     const [canvasContext, setCanvasContext] = useState("");
-    const [showHistory, setShowHistory] = useState(false);
+    
+    // OPPDATERT: Last sidebar state fra localStorage
+    const [showHistory, setShowHistory] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('studywise-show-history');
+            return saved === 'true';
+        }
+        return false;
+    });
+    
     const meldingerSluttRef = useRef<HTMLDivElement>(null);
     const tekstInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -45,8 +53,8 @@ export function ChatSection() {
     // KI chat hook
     const { sendMelding: sendTilAPI } = useKIChat();
 
-    // Chat history hook
-    const { chats, saveChat, loadChat, deleteChat, clearAll } = useChatHistory();
+    // Chat history hook - DATABASE VERSION
+    const { chats, saveChat, loadChat, deleteChat, clearAll, isLoading } = useChatHistoryDB();
 
     // Auto-scroll 
     const scrollTilBunn = () => {
@@ -76,7 +84,12 @@ export function ChatSection() {
                 }))
             );
         }
-    }, [meldinger.length]); // Bare avhengig av length, ikke saveChat
+    }, [meldinger.length, saveChat]);
+
+    // Lagre sidebar state til localStorage
+    useEffect(() => {
+        localStorage.setItem('studywise-show-history', showHistory.toString());
+    }, [showHistory]);
 
     // Ny samtale
     const nySamtale = () => {
@@ -92,14 +105,14 @@ export function ChatSection() {
         setCanvasContext("");
     };
 
-    // Last samtale
+    // Last samtale fra database
     const handleLoadChat = (chat: any) => {
         settMeldinger(
             chat.messages.map((m: any, i: number) => ({
                 id: `${Date.now()}-${i}`,
-                rolle: m.rolle,
-                innhold: m.innhold,
-                tidsstempel: new Date(),
+                rolle: m.role, // Database bruker "role" ikke "rolle"
+                innhold: m.content, // Database bruker "content" ikke "innhold"
+                tidsstempel: new Date(m.timestamp),
             }))
         );
         setShowHistory(false);
@@ -252,8 +265,16 @@ export function ChatSection() {
                         </div>
                     )}
 
+                    {/* Loading state */}
+                    {isLoading && (
+                        <div className="flex justify-center items-center py-12">
+                            <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+                            <p className="ml-3 text-sm text-slate-500">Laster samtalehistorikk...</p>
+                        </div>
+                    )}
+
                     {/* Tomme meldinger - vis forslag */}
-                    {meldinger.length === 0 && (
+                    {!isLoading && meldinger.length === 0 && (
                         <div className="space-y-4">
                             <div className="text-center py-12">
                                 <Bot className="w-16 h-16 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
