@@ -255,25 +255,45 @@ router.post("/chat", async (req, res) => {
     }
 
     try {
-        // Hent Canvas-kontekst for brukeren (req.canvasToken settes av knyttCanvasToken middleware)
+        // Finn Canvas context message fra frontend (hvis sendt)
+        const canvasContextMessage = messages.find(
+            (m: { role: string; content: string }) => 
+                m.role === "system" && m.content.includes("Canvas data")
+        );
+
+        // Start med base system prompt
+        let enhancedSystemPrompt = STUDYWISE_SYSTEM_PROMPT;
+
+        // Filtrer ut Canvas context message fra messages for å unngå duplikater
+        let filteredMessages = messages;
+        if (canvasContextMessage) {
+            enhancedSystemPrompt += "\n\n" + canvasContextMessage.content;
+            filteredMessages = messages.filter(
+                (m: { role: string; content: string }) => m !== canvasContextMessage
+            );
+            logger.info("Canvas context funnet og lagt til system prompt");
+        }
+
+        // Hent også Canvas-kontekst fra backend hvis bruker har token (fallback/supplement)
         const canvasKontekst = await byggKiCanvasKontekst(req.canvasToken);
 
-        // Bygg meldingsarray med system prompt og Canvas-kontekst
-        const apiMessages = [
-            { role: "system" as const, content: STUDYWISE_SYSTEM_PROMPT },
+        // Bygg meldingsarray med enhanced system prompt og Canvas-kontekst
+        const systemPrompt = { role: "system" as const, content: enhancedSystemPrompt };
+        const fullMessages = [
+            systemPrompt,
             { role: "user" as const, content: canvasKontekst },
             { role: "assistant" as const, content: "Forstått, jeg har mottatt Canvas-dataen din og er klar til å hjelpe." },
-            ...messages.map(m => ({
+            ...filteredMessages.map((m: { role: string; content: string }) => ({
                 role: m.role as "user" | "assistant" | "system",
                 content: m.content
             }))
         ];
 
-        logger.info({ model, messageCount: apiMessages.length, harCanvasToken: !!req.canvasToken }, "Sender til HuggingFace");
+        logger.info({ model, messageCount: fullMessages.length, harCanvasToken: !!req.canvasToken, harFrontendCanvasContext: !!canvasContextMessage }, "Sender til HuggingFace");
 
         const result = await hfClient.chatCompletion({
             model,
-            messages: apiMessages,
+            messages: fullMessages,
             max_tokens: 1024,
             temperature: Math.min(Math.max(temperature, 0), 2), // Clamp mellom 0-2
         });

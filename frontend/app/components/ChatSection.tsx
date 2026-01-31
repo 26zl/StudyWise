@@ -45,8 +45,8 @@ export function ChatSection() {
     // KI chat hook
     const { sendMelding: sendTilAPI } = useKIChat();
 
-    // Chat history hook
-    const { chats, saveChat, loadChat, deleteChat, clearAll } = useChatHistory();
+    // Chat history hook + fjernet loadChat, blir aldri brukt
+    const { chats, saveChat, deleteChat, clearAll } = useChatHistory();
 
     // Auto-scroll 
     const scrollTilBunn = () => {
