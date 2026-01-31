@@ -19,8 +19,8 @@ import {
     startOfDay,
 } from "date-fns";
 import { AlertCircle } from "lucide-react";
-import { cn } from "../../lib/utils";
-import { Assignment, COURSE_COLOR_CLASSES } from "../../types/calendar";
+import { cn } from "../app/lib/utils";
+import { Assignment, COURSE_COLOR_CLASSES } from "../app/types/calendar";
 
 interface CalendarGridProps {
     currentDate: Date;

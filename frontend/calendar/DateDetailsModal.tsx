@@ -8,12 +8,12 @@ import { useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { nb } from "date-fns/locale";
 import { Clock, Check, X as XIcon } from "lucide-react";
-import { cn } from "../../lib/utils";
+import { cn } from "../app/lib/utils";
 import {
     Assignment,
     COURSE_BG_LIGHT_CLASSES,
     COURSE_DOT_CLASSES,
-} from "../../types/calendar";
+} from "../app/types/calendar";
 
 interface DateDetailsModalProps {
     date: Date | null;

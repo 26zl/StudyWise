@@ -55,18 +55,28 @@ router.use(rateLimitCanvas);
 // GET /whoami - Minimal brukerinfo
 router.get("/whoami", async (req, res) => {
   try {
+    // FIKSET: Bedre validering av req.user
     if (!req.user?.id) {
       return res.status(401).json({ feil: "Ikke autentisert" });
     }
+
     const { data: canvasUser } = await fetchUserProfile(req.canvasToken);
+    
     // SJEKK: Er denne Canvas-brukeren allerede koblet til en ANNEN lokal bruker?
     const eksisterendeKobling = await CanvasUser.findOne({ canvasId: canvasUser.id });
-    if (eksisterendeKobling && eksisterendeKobling.localUser.toString() !== req.user.id) {
-      logger.warn({
+    
+    // FIKSET: Sikre toString() på begge sider + null-check
+    if (
+      eksisterendeKobling && 
+      eksisterendeKobling.localUser && 
+      eksisterendeKobling.localUser.toString() !== req.user.id.toString()
+    ) {
+      logger.warn({    
         userId: req.user.id,
-        existingLocalUser: eksisterendeKobling.localUser,
+        existingLocalUser: eksisterendeKobling.localUser.toString(),
         canvasId: canvasUser.id
       }, "Forsøk på å koble til en Canvas-konto som allerede tilhører en annen bruker");
+      
       return res.status(409).json({
         feil: "Konflikt",
         melding: "Denne Canvas-kontoen er allerede koblet til en annen StudyWise-bruker."
@@ -97,9 +107,11 @@ router.get("/whoami", async (req, res) => {
       },
       { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true } // Opprett hvis ikke finnes
     );
+    
     if (oppdatertCanvasBruker?._id) {
       await User.findByIdAndUpdate(req.user.id, { canvasUser: oppdatertCanvasBruker._id });
     }
+    
     logger.info({ userId: canvasUser.id }, "Canvas /whoami endpoint kalt og bruker synkronisert");
     res.json(canvasUser);
   } catch (error) {
@@ -513,4 +525,4 @@ router.use((error: Error, _req: unknown, res: unknown, _next: unknown) => {
   });
 });
 
-export default router;
+export default router;  
