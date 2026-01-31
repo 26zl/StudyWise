@@ -7,8 +7,8 @@
 import { format, startOfDay, differenceInDays } from "date-fns";
 import { nb } from "date-fns/locale";
 import { Clock, CheckCircle, AlertTriangle, CalendarPlus } from "lucide-react";
-import { cn } from "../../lib/utils";
-import { Assignment, COURSE_BORDER_CLASSES } from "../../types/calendar";
+import { cn } from "../app/lib/utils";
+import { Assignment, COURSE_BORDER_CLASSES } from "../app/types/calendar";
 
 interface UpcomingDeadlinesProps {
     assignments: Assignment[];

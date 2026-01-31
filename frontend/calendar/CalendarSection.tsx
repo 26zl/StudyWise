@@ -10,7 +10,7 @@ import { addMonths, subMonths, setMonth, setYear } from "date-fns";
 import { CalendarHeader } from "./CalendarHeader";
 import { CalendarGrid } from "./CalendarGrid";
 import { CourseLegend } from "./CourseLegend";
-import type { Assignment, Course } from "../../types/calendar";
+import type { Assignment, Course } from "../app/types/calendar";
 
 // Demo-data for utvikling - vil bli erstattet med Canvas API-data
 const DEMO_COURSES: Course[] = [
