@@ -5,10 +5,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Bot, User, Sparkles, Paperclip, FileText, X } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { useKITestTilkobling, useKIChat, useKIPdfAnalyse } from "../ki/ki-api";
+import { Send, Loader2, Bot, User, Sparkles } from "lucide-react";
+import { useKITestTilkobling, useKIChat } from "../ki/ki-api";
+import { CanvasContextSelector } from "./CanvasContextSelector";
 
 // Meldings-typer
 interface Melding {
@@ -16,7 +15,6 @@ interface Melding {
     rolle: "user" | "assistant";
     innhold: string;
     tidsstempel: Date;
-    pdfNavn?: string; // For å vise at melding inkluderte PDF
 }
 
 // Forslag til spørsmål
@@ -31,24 +29,18 @@ const forslag = [
 export function ChatSection() {
     const [meldinger, settMeldinger] = useState<Melding[]>([]);
     const [tekstInput, settTekstInput] = useState("");
-    const [skriverChat, settSkriverChat] = useState(false);
-    const [skriverPdf, settSkriverPdf] = useState(false);
-    const [valgtPdf, settValgtPdf] = useState<File | null>(null);
+    const [skriver, settSkriver] = useState(false);
+    const [canvasContext, setCanvasContext] = useState("");
     const meldingerSluttRef = useRef<HTMLDivElement>(null);
     const tekstInputRef = useRef<HTMLTextAreaElement>(null);
-    const filInputRef = useRef<HTMLInputElement>(null);
 
-    // KI tilkoblingstest
+    // KI tilkoblingstest 
     const {
-        isError: erTilkoblingsFeil,
-        refetch: testTilkobling,
+        isError: erTilkoblingsFeil
     } = useKITestTilkobling();
 
     // KI chat hook
     const { sendMelding: sendTilAPI } = useKIChat();
-    
-    // PDF analyse hook
-    const { analyserPdf } = useKIPdfAnalyse();
 
     // Auto-scroll 
     const scrollTilBunn = () => {
@@ -57,11 +49,7 @@ export function ChatSection() {
     // Scroll til bunn når meldinger oppdateres eller skriver-status endres
     useEffect(() => {
         scrollTilBunn();
-    }, [meldinger, skriverChat, skriverPdf]);
-    // Kjør en enkel tilkoblingstest ved første render (uten å blokkere UI)
-    useEffect(() => {
-        testTilkobling().catch(() => undefined);
-    }, [testTilkobling]);
+    }, [meldinger, skriver]);
 
     // Auto-resize textarea
     useEffect(() => {
@@ -72,7 +60,7 @@ export function ChatSection() {
     }, [tekstInput]);
 
     const sendMelding = async () => {
-        if (!tekstInput.trim() || skriverChat || skriverPdf) return;
+        if (!tekstInput.trim() || skriver) return;
 
         const brukerMeldingInnhold = tekstInput.trim();
         settTekstInput("");
@@ -88,55 +76,27 @@ export function ChatSection() {
             rolle: "user",
             innhold: brukerMeldingInnhold,
             tidsstempel: new Date(),
-            pdfNavn: valgtPdf?.name,
         };
 
         settMeldinger((tidligere) => [...tidligere, brukerMelding]);
+        settSkriver(true);
 
-        // Hvis PDF er valgt, bruk PDF-analyse
-        if (valgtPdf) {
-            settSkriverPdf(true);
-            analyserPdf(
-                valgtPdf,
-                brukerMeldingInnhold,
-                {
-                    onSuccess: (data) => {
-                        const aiMelding: Melding = {
-                            id: (Date.now() + 1).toString(),
-                            rolle: "assistant",
-                            innhold: data.response,
-                            tidsstempel: new Date(),
-                        };
-                        settMeldinger((tidligere) => [...tidligere, aiMelding]);
-                        settSkriverPdf(false);
-                        settValgtPdf(null); // Fjern PDF etter analyse
-                    },
-                    onError: (error) => {
-                        const feilMelding: Melding = {
-                            id: (Date.now() + 1).toString(),
-                            rolle: "assistant",
-                            innhold: `Feil ved PDF-analyse: ${error.message}. Sjekk at filen er en gyldig PDF.`,
-                            tidsstempel: new Date(),
-                        };
-                        settMeldinger((tidligere) => [...tidligere, feilMelding]);
-                        settSkriverPdf(false);
-                    },
-                }
-            );
-            return;
-        }
-
-        // Forbered meldingshistorikk for API (Canvas-data hentes av backend)
+        // Forbered meldingshistorikk for API
         const apiMeldinger = [
+            // Legg til Canvas context hvis det finnes
+            ...(canvasContext
+                ? [{ role: "system" as const, content: `Canvas data:\n${canvasContext}` }]
+                : []),
+            // Historikk
             ...meldinger.map((m) => ({
-                role: m.rolle === "user" ? "user" : "assistant",
+                role: m.rolle === "user" ? ("user" as const) : ("assistant" as const),
                 content: m.innhold,
             })),
-            { role: "user", content: brukerMeldingInnhold },
+            // Ny brukermelding
+            { role: "user" as const, content: brukerMeldingInnhold },
         ];
 
-        // Send til API (backend inkluderer Canvas-kontekst automatisk)
-        settSkriverChat(true);
+        // Send til ekte API
         sendTilAPI(apiMeldinger, {
             onSuccess: (data) => {
                 const aiMelding: Melding = {
@@ -146,36 +106,19 @@ export function ChatSection() {
                     tidsstempel: new Date(),
                 };
                 settMeldinger((tidligere) => [...tidligere, aiMelding]);
-                settSkriverChat(false);
+                settSkriver(false);
             },
             onError: (error) => {
                 const feilMelding: Melding = {
                     id: (Date.now() + 1).toString(),
                     rolle: "assistant",
-                    innhold: `Feil: ${error.message}. Prov igjen senere.`,
+                    innhold: `❌ Feil: ${error.message}. Prøv igjen senere.`,
                     tidsstempel: new Date(),
                 };
                 settMeldinger((tidligere) => [...tidligere, feilMelding]);
-                settSkriverChat(false);
+                settSkriver(false);
             },
         });
-    };
-
-    // Håndter PDF-valg
-    const handterPdfValg = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const fil = e.target.files?.[0];
-        if (fil && fil.type === "application/pdf") {
-            settValgtPdf(fil);
-        }
-        // Reset input så samme fil kan velges igjen
-        if (filInputRef.current) {
-            filInputRef.current.value = "";
-        }
-    };
-
-    // Fjern valgt PDF
-    const fjernValgtPdf = () => {
-        settValgtPdf(null);
     };
 
     // Håndter tastetrykk (Enter for å sende, Shift+Enter for ny linje)
@@ -197,7 +140,7 @@ export function ChatSection() {
             {/* Header */}
             <div className="shrink-0 px-4 md:px-6 py-4 border-b border-slate-200 dark:border-slate-800">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
                         <Sparkles className="w-5 h-5 text-white" />
                     </div>
                     <div>
@@ -211,6 +154,11 @@ export function ChatSection() {
                 </div>
             </div>
 
+            {/* Canvas Context Selector */}
+            <div className="shrink-0 px-4 md:px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+                <CanvasContextSelector onContextChange={setCanvasContext} />
+            </div>
+
             {/* Meldinger */}
             <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
                 {/* Tilkoblingsfeil */}
@@ -220,13 +168,6 @@ export function ChatSection() {
                             ⚠️ Kunne ikke koble til KI-assistenten. Prøv igjen senere.
                         </p>
                     </div>
-                )}
-                {!erTilkoblingsFeil && (
-                    <button
-                        onClick={() => testTilkobling()}
-                        className="hidden"
-                        aria-hidden
-                    />
                 )}
 
                 {/* Tomme meldinger - vis forslag */}
@@ -266,7 +207,7 @@ export function ChatSection() {
                         className={`flex gap-3 ${melding.rolle === "user" ? "justify-end" : "justify-start"}`}
                     >
                         {melding.rolle === "assistant" && (
-                            <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
                                 <Bot className="w-4 h-4 text-white" />
                             </div>
                         )}
@@ -278,20 +219,7 @@ export function ChatSection() {
                                     : "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white"
                             }`}
                         >
-                            {/* Vis PDF-vedlegg hvis det finnes */}
-                            {melding.pdfNavn && (
-                                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-blue-500/30">
-                                    <FileText className="w-4 h-4" />
-                                    <span className="text-xs font-medium">{melding.pdfNavn}</span>
-                                </div>
-                            )}
-                            {melding.rolle === "assistant" ? (
-                                <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-pre:my-2 prose-code:text-blue-600 dark:prose-code:text-blue-400 prose-code:bg-slate-200 dark:prose-code:bg-slate-700 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{melding.innhold}</ReactMarkdown>
-                                </div>
-                            ) : (
-                                <p className="text-sm whitespace-pre-wrap">{melding.innhold}</p>
-                            )}
+                            <p className="text-sm whitespace-pre-wrap">{melding.innhold}</p>
                             <p
                                 className={`text-xs mt-1 ${
                                     melding.rolle === "user"
@@ -315,9 +243,9 @@ export function ChatSection() {
                 ))}
 
                 {/* Skriver indikator */}
-                {(skriverChat || skriverPdf) && (
+                {skriver && (
                     <div className="flex gap-3">
-                        <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
                             <Bot className="w-4 h-4 text-white" />
                         </div>
                         <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl px-4 py-3">
@@ -335,60 +263,24 @@ export function ChatSection() {
 
             {/* Input */}
             <div className="shrink-0 p-4 md:p-6 border-t border-slate-200 dark:border-slate-800">
-                {/* Valgt PDF-visning */}
-                {valgtPdf && (
-                    <div className="mb-3 flex items-center gap-2 p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                        <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        <span className="text-sm text-blue-700 dark:text-blue-300 flex-1 truncate">
-                            {valgtPdf.name}
-                        </span>
-                        <button
-                            onClick={fjernValgtPdf}
-                            className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors"
-                            aria-label="Fjern PDF"
-                        >
-                            <X className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        </button>
-                    </div>
-                )}
-                
                 <div className="flex gap-3">
-                    {/* Skjult fil-input */}
-                    <input
-                        ref={filInputRef}
-                        type="file"
-                        accept="application/pdf"
-                        onChange={handterPdfValg}
-                        className="hidden"
-                    />
-                    
-                    {/* PDF-knapp */}
-                    <button
-                        onClick={() => filInputRef.current?.click()}
-                        disabled={skriverChat || skriverPdf}
-                        className="shrink-0 w-12 h-12 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-                        title="Last opp PDF"
-                    >
-                        <Paperclip className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                    </button>
-                    
                     <textarea
                         ref={tekstInputRef}
                         value={tekstInput}
                         onChange={(e) => settTekstInput(e.target.value)}
                         onKeyDown={handterTastetrykk}
-                        placeholder={valgtPdf ? "Still et spørsmål om PDF-en..." : "Skriv en melding..."}
-                        disabled={skriverChat || skriverPdf}
+                        placeholder="Skriv en melding..."
+                        disabled={skriver}
                         rows={1}
                         className="flex-1 resize-none rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{ maxHeight: "150px" }}
                     />
                     <button
                         onClick={sendMelding}
-                        disabled={!tekstInput.trim() || skriverChat || skriverPdf}
+                        disabled={!tekstInput.trim() || skriver}
                         className="shrink-0 w-12 h-12 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                     >
-                        {skriverChat || skriverPdf ? (
+                        {skriver ? (
                             <Loader2 className="w-5 h-5 text-white animate-spin" />
                         ) : (
                             <Send className="w-5 h-5 text-white" />
@@ -399,6 +291,6 @@ export function ChatSection() {
                     Trykk Enter for å sende, Shift+Enter for ny linje
                 </p>
             </div>
-        </div>
+        </div> 
     );
-} 
+}
