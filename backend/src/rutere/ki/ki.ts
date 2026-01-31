@@ -17,88 +17,13 @@ import {
     KIPdfAnalyseResponseSchema
 } from "common/ki";
 import { parsePdf, formatPdfContext } from "../../services/pdf.js";
-import { hentCanvasData, CACHE_TTL } from "../canvas/canvasUtils.js";
-import type { CanvasCourse, CanvasAnnouncement, CanvasTodoItem } from "common/canvas";
+import { byggKiCanvasKontekst } from "./kiCanvas.js";
 
 // Definerer express router
 const router = Router();
 // Rate limiting for KI-endepunkter
 router.use(rateLimitKi);
 
-/**
- * Bygger Canvas-kontekst for KI basert på brukerens data
- */
-async function byggCanvasKontekst(canvasToken: string | undefined): Promise<string> {
-    if (!canvasToken) {
-        return `[CANVAS STATUS: Brukeren har IKKE lagt inn Canvas API-token.
-Du kan IKKE svare på spørsmål om brukerens emner, frister, kunngjøringer eller annet Canvas-innhold.
-Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn Canvas API-token i Innstillinger for å få tilgang til denne funksjonaliteten.]`;
-    }
-
-    try {
-        // Hent Canvas-data parallelt for bedre ytelse
-        const [emnerResult, kunngjoeringerResult, todoResult] = await Promise.allSettled([
-            hentCanvasData<CanvasCourse[]>("/api/v1/courses", {
-                token: canvasToken,
-                queryParams: { enrollment_state: "active", per_page: 100 },
-                cacheTtl: CACHE_TTL.COURSES,
-            }),
-            hentCanvasData<CanvasAnnouncement[]>("/api/v1/announcements", {
-                token: canvasToken,
-                queryParams: { active_only: true, per_page: 50 },
-                cacheTtl: CACHE_TTL.ANNOUNCEMENTS,
-            }),
-            hentCanvasData<CanvasTodoItem[]>("/api/v1/users/self/todo", {
-                token: canvasToken,
-                cacheTtl: CACHE_TTL.TODO,
-            }),
-        ]);
-        // Formater Canvas-data til tekstkontekst
-        const emner = emnerResult.status === "fulfilled" ? emnerResult.value.data : [];
-        const kunngjoeringer = kunngjoeringerResult.status === "fulfilled" ? kunngjoeringerResult.value.data : [];
-        const todos = todoResult.status === "fulfilled" ? todoResult.value.data : [];
-        const deler: string[] = ["[CANVAS-DATA START]"];
-
-        // Emner
-        if (emner && emner.length > 0) {
-            deler.push("\nEMNER:");
-            emner.forEach(e => {
-                deler.push(`- ${e.name}${e.course_code ? ` (${e.course_code})` : ""}`);
-            });
-        }
-        // Kunngjøringer
-        if (kunngjoeringer && kunngjoeringer.length > 0) {
-            deler.push("\nKUNNGJØRINGER:");
-            kunngjoeringer.slice(0, 10).forEach(k => {
-                const dato = k.posted_at ? new Date(k.posted_at).toLocaleDateString("no-NO") : "";
-                deler.push(`- ${k.title}${dato ? ` (${dato})` : ""}`);
-            });
-        }
-        // Todo/frister
-        if (todos && todos.length > 0) {
-            deler.push("\nKOMMANDE FRISTER:");
-            todos.slice(0, 10).forEach(t => {
-                if (t.assignment) {
-                    const fristStr = t.assignment.due_at;
-                    const frist = fristStr ? new Date(fristStr) : null;
-                    const dagerIgjen = frist ? Math.ceil((frist.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
-                    deler.push(`- ${t.assignment.name}${frist ? ` - Frist: ${frist.toLocaleDateString("no-NO")}${dagerIgjen !== null ? ` (${dagerIgjen} dager)` : ""}` : ""}`);
-                }
-            });
-        }
-        // Avslutt Canvas-data seksjon
-        deler.push("\n[CANVAS-DATA SLUTT]");
-        logger.info({
-            emnerCount: emner.length,
-            kunngjoeringerCount: kunngjoeringer.length,
-            todosCount: todos.length,
-        }, "Canvas-kontekst bygget for KI");
-        return deler.join("\n");
-    } catch (error) {
-        logger.error({ err: error }, "Feil ved henting av Canvas-data for KI");
-        return "[CANVAS STATUS: Kunne ikke hente Canvas-data. Hvis brukeren spør om Canvas-innhold, informer dem om at det oppstod en teknisk feil.]";
-    }
-}
 
 // Multer konfigurasjon for PDF-opplasting (maks 10MB, kun PDF)
 const upload = multer({
@@ -331,7 +256,7 @@ router.post("/chat", async (req, res) => {
 
     try {
         // Hent Canvas-kontekst for brukeren (req.canvasToken settes av knyttCanvasToken middleware)
-        const canvasKontekst = await byggCanvasKontekst(req.canvasToken);
+        const canvasKontekst = await byggKiCanvasKontekst(req.canvasToken);
 
         // Bygg meldingsarray med system prompt og Canvas-kontekst
         const apiMessages = [
