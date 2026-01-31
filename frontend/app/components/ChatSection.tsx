@@ -5,8 +5,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Bot, User, Sparkles, Clock, Plus } from "lucide-react";
-import { useKITestTilkobling, useKIChat } from "../ki/ki-api";
+import { Send, Loader2, Bot, User, Sparkles, Clock, Plus, Paperclip, X, FileText } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { useKITestTilkobling, useKIChat, useKIDocumentAnalyse, SUPPORTED_FILE_TYPES } from "../ki/ki-api";
 import { CanvasContextSelector } from "./CanvasContextSelector";
 import { useChatHistory } from "../hooks/useChatHistory";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
@@ -34,8 +36,11 @@ export function ChatSection() {
     const [skriver, settSkriver] = useState(false);
     const [canvasContext, setCanvasContext] = useState("");
     const [showHistory, setShowHistory] = useState(false);
+    const [vedlagtFil, settVedlagtFil] = useState<File | null>(null);
+    const [analyserarDokument, settAnalysererDokument] = useState(false);
     const meldingerSluttRef = useRef<HTMLDivElement>(null);
     const tekstInputRef = useRef<HTMLTextAreaElement>(null);
+    const filInputRef = useRef<HTMLInputElement>(null);
 
     // KI tilkoblingstest 
     const {
@@ -44,6 +49,9 @@ export function ChatSection() {
 
     // KI chat hook
     const { sendMelding: sendTilAPI } = useKIChat();
+
+    // Dokumentanalyse hook
+    const { analyserDokument } = useKIDocumentAnalyse();
 
     // Chat history hook + fjernet loadChat, blir aldri brukt
     const { chats, saveChat, deleteChat, clearAll } = useChatHistory();
@@ -90,6 +98,38 @@ export function ChatSection() {
         }
         settMeldinger([]);
         setCanvasContext("");
+        settVedlagtFil(null);
+    };
+
+    // Håndter filvalg
+    const handleFilValg = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const fil = e.target.files?.[0];
+        if (fil) {
+            // Sjekk filstørrelse (maks 15MB)
+            if (fil.size > 15 * 1024 * 1024) {
+                const feilMelding: Melding = {
+                    id: Date.now().toString(),
+                    rolle: "assistant",
+                    innhold: "Filen er for stor. Maksimal filstørrelse er 15MB.",
+                    tidsstempel: new Date(),
+                };
+                settMeldinger((tidligere) => [...tidligere, feilMelding]);
+                return;
+            }
+            settVedlagtFil(fil);
+        }
+        // Reset input
+        if (filInputRef.current) {
+            filInputRef.current.value = "";
+        }
+    };
+
+    // Fjern vedlagt fil
+    const fjernVedlagtFil = () => {
+        settVedlagtFil(null);
+        if (filInputRef.current) {
+            filInputRef.current.value = "";
+        }
     };
 
     // Last samtale
@@ -106,9 +146,9 @@ export function ChatSection() {
     };
 
     const sendMelding = async () => {
-        if (!tekstInput.trim() || skriver) return;
+        if ((!tekstInput.trim() && !vedlagtFil) || skriver || analyserarDokument) return;
 
-        const brukerMeldingInnhold = tekstInput.trim();
+        const brukerMeldingInnhold = tekstInput.trim() || (vedlagtFil ? `Analyser dokumentet: ${vedlagtFil.name}` : "");
         settTekstInput("");
 
         // Reset høyde
@@ -120,11 +160,48 @@ export function ChatSection() {
         const brukerMelding: Melding = {
             id: Date.now().toString(),
             rolle: "user",
-            innhold: brukerMeldingInnhold,
+            innhold: vedlagtFil 
+                ? `${brukerMeldingInnhold}\n\n[Vedlagt: ${vedlagtFil.name}]` 
+                : brukerMeldingInnhold,
             tidsstempel: new Date(),
         };
 
         settMeldinger((tidligere) => [...tidligere, brukerMelding]);
+
+        // Hvis det er en vedlagt fil, bruk dokumentanalyse
+        if (vedlagtFil) {
+            settAnalysererDokument(true);
+            const filTilAnalyse = vedlagtFil;
+            settVedlagtFil(null);
+
+            analyserDokument(filTilAnalyse, brukerMeldingInnhold || "Gi meg en oppsummering av dette dokumentet.", {
+                onSuccess: (data) => {
+                    const aiMelding: Melding = {
+                        id: (Date.now() + 1).toString(),
+                        rolle: "assistant",
+                        innhold: data.dokumentInfo 
+                            ? `${data.response}\n\n---\n_Dokument: ${data.dokumentInfo.sider} sider, ${data.dokumentInfo.tegn.toLocaleString("nb-NO")} tegn${data.dokumentInfo.truncated ? " (forkortet)" : ""}_`
+                            : data.response,
+                        tidsstempel: new Date(),
+                    };
+                    settMeldinger((tidligere) => [...tidligere, aiMelding]);
+                    settAnalysererDokument(false);
+                },
+                onError: (error) => {
+                    const feilMelding: Melding = {
+                        id: (Date.now() + 1).toString(),
+                        rolle: "assistant",
+                        innhold: `Kunne ikke analysere dokumentet: ${error.message}`,
+                        tidsstempel: new Date(),
+                    };
+                    settMeldinger((tidligere) => [...tidligere, feilMelding]);
+                    settAnalysererDokument(false);
+                },
+            });
+            return;
+        }
+
+        // Vanlig chat uten fil
         settSkriver(true);
 
         // Forbered meldingshistorikk for API
@@ -301,7 +378,15 @@ export function ChatSection() {
                                         : "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white"
                                 }`}
                             >
-                                <p className="text-sm whitespace-pre-wrap">{melding.innhold}</p>
+                                {melding.rolle === "assistant" ? (
+                                    <div className="text-sm prose prose-sm dark:prose-invert prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-pre:my-2 prose-code:text-blue-600 dark:prose-code:text-blue-400 prose-code:bg-slate-200 dark:prose-code:bg-slate-700 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none max-w-none">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                            {melding.innhold}
+                                        </ReactMarkdown>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm whitespace-pre-wrap">{melding.innhold}</p>
+                                )}
                                 <p
                                     className={`text-xs mt-1 ${
                                         melding.rolle === "user"
@@ -325,17 +410,24 @@ export function ChatSection() {
                     ))}
 
                     {/* Skriver indikator */}
-                    {skriver && (
+                    {(skriver || analyserarDokument) && (
                         <div className="flex gap-3">
                             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
                                 <Bot className="w-4 h-4 text-white" />
                             </div>
                             <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl px-4 py-3">
-                                <div className="flex gap-1">
-                                    <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-                                    <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-                                    <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "300ms" }} />
-                                </div>
+                                {analyserarDokument ? (
+                                    <div className="flex items-center gap-2">
+                                        <Loader2 className="w-4 h-4 text-slate-500 animate-spin" />
+                                        <span className="text-sm text-slate-500 dark:text-slate-400">Analyserer dokument...</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex gap-1">
+                                        <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                                        <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                                        <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -345,24 +437,63 @@ export function ChatSection() {
 
                 {/* Input */}
                 <div className="shrink-0 p-4 md:p-6 border-t border-slate-200 dark:border-slate-800">
+                    {/* Vedlagt fil visning */}
+                    {vedlagtFil && (
+                        <div className="mb-3 flex items-center gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                            <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                            <span className="flex-1 text-sm text-blue-700 dark:text-blue-300 truncate">
+                                {vedlagtFil.name}
+                            </span>
+                            <span className="text-xs text-blue-500 dark:text-blue-400">
+                                {(vedlagtFil.size / 1024).toFixed(1)} KB
+                            </span>
+                            <button
+                                onClick={fjernVedlagtFil}
+                                className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors"
+                                title="Fjern fil"
+                            >
+                                <X className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                            </button>
+                        </div>
+                    )}
+                    
                     <div className="flex gap-3">
+                        {/* Skjult fil-input */}
+                        <input
+                            ref={filInputRef}
+                            type="file"
+                            accept={SUPPORTED_FILE_TYPES.join(",")}
+                            onChange={handleFilValg}
+                            className="hidden"
+                        />
+                        
+                        {/* Filopplastingsknapp */}
+                        <button
+                            onClick={() => filInputRef.current?.click()}
+                            disabled={skriver || analyserarDokument}
+                            className="shrink-0 w-12 h-12 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                            title="Last opp dokument (PDF, Word, TXT)"
+                        >
+                            <Paperclip className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                        </button>
+                        
                         <textarea
                             ref={tekstInputRef}
                             value={tekstInput}
                             onChange={(e) => settTekstInput(e.target.value)}
                             onKeyDown={handterTastetrykk}
-                            placeholder="Skriv en melding..."
-                            disabled={skriver}
+                            placeholder={vedlagtFil ? "Skriv et sporsmal om dokumentet..." : "Skriv en melding..."}
+                            disabled={skriver || analyserarDokument}
                             rows={1}
                             className="flex-1 resize-none rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                             style={{ maxHeight: "150px" }}
                         />
                         <button
                             onClick={sendMelding}
-                            disabled={!tekstInput.trim() || skriver}
+                            disabled={(!tekstInput.trim() && !vedlagtFil) || skriver || analyserarDokument}
                             className="shrink-0 w-12 h-12 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                         >
-                            {skriver ? (
+                            {skriver || analyserarDokument ? (
                                 <Loader2 className="w-5 h-5 text-white animate-spin" />
                             ) : (
                                 <Send className="w-5 h-5 text-white" />
@@ -370,7 +501,7 @@ export function ChatSection() {
                         </button>
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                        Trykk Enter for å sende, Shift+Enter for ny linje
+                        Trykk Enter for a sende, Shift+Enter for ny linje. Stotter PDF, Word, TXT og Markdown.
                     </p>
                 </div>
             </div>

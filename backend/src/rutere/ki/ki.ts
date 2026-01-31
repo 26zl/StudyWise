@@ -14,9 +14,13 @@ import {
     KIChatRequestSchema,
     KIChatResponseSchema,
     KIModelsResponseSchema,
-    KIPdfAnalyseResponseSchema
+    KIDocumentAnalyseResponseSchema
 } from "common/ki";
-import { parsePdf, formatPdfContext } from "../../services/pdf.js";
+import { 
+    parseDocument, 
+    formatDocumentContext, 
+    getSupportedMimeTypes 
+} from "../../services/document.js";
 import { byggKiCanvasKontekst } from "./kiCanvas.js";
 
 // Definerer express router
@@ -24,16 +28,18 @@ const router = Router();
 // Rate limiting for KI-endepunkter
 router.use(rateLimitKi);
 
+// Støttede MIME-typer for dokumentopplasting
+const SUPPORTED_MIME_TYPES = getSupportedMimeTypes();
 
-// Multer konfigurasjon for PDF-opplasting (maks 10MB, kun PDF)
+// Multer konfigurasjon for dokumentopplasting (maks 15MB, flere filtyper)
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+    limits: { fileSize: 15 * 1024 * 1024 }, // 15MB
     fileFilter: (_req, file, cb) => {
-        if (file.mimetype === 'application/pdf') {
+        if (SUPPORTED_MIME_TYPES.includes(file.mimetype)) {
             cb(null, true);
         } else {
-            cb(new Error('Kun PDF-filer er tillatt'));
+            cb(new Error(`Filtypen er ikke støttet. Støttede typer: PDF, Word (docx/doc), TXT, Markdown, CSV, og bilder (PNG, JPG, WEBP).`));
         }
     }
 });
@@ -400,15 +406,15 @@ ABSOLUTTE FORBUD I DOKUMENTSVAR:
 - ALDRI skriv "**Kodeblokker**", "**Emojis**", "**Liste**" som del av svaret
 - ALDRI vis formateringseksempler - bare BRUK formateringen`;
 
-// Endepunkt for PDF-analyse
-router.post("/analyze-pdf", upload.single('pdf'), async (req, res) => {
-    logger.info("Mottok PDF-analyse forespørsel");
+// Endepunkt for dokumentanalyse (PDF, Word, TXT, etc.)
+router.post("/analyze-document", upload.single('document'), async (req, res) => {
+    logger.info("Mottok dokumentanalyse-forespørsel");
 
     // Sjekk at fil er lastet opp
     if (!req.file) {
-        return res.status(400).json(KIPdfAnalyseResponseSchema.parse({
+        return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
             suksess: false,
-            melding: "Ingen PDF-fil lastet opp. Bruk form-data med felt 'pdf'.",
+            melding: "Ingen fil lastet opp. Bruk form-data med felt 'document'.",
             response: "",
         }));
     }
@@ -419,7 +425,7 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req, res) => {
 
     if (!hfClient) {
         logger.error("Mangler HUGGINGFACE_API_KEY i miljøvariabler");
-        return res.status(500).json(KIPdfAnalyseResponseSchema.parse({
+        return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({
             suksess: false,
             melding: "KI-tjenesten er ikke konfigurert. Kontakt administrator.",
             response: "",
@@ -427,22 +433,31 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req, res) => {
     }
 
     try {
-        // Parse PDF
-        const pdfResult = await parsePdf(req.file.buffer);
+        // Parse dokument (støtter PDF, Word, TXT, etc.)
+        const docResult = await parseDocument(
+            req.file.buffer, 
+            req.file.mimetype,
+            req.file.originalname
+        );
 
-        if (!pdfResult.success) {
-            return res.status(400).json(KIPdfAnalyseResponseSchema.parse({
+        if (!docResult.success) {
+            return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
                 suksess: false,
-                melding: pdfResult.error || "Kunne ikke lese PDF-filen.",
+                melding: docResult.error || "Kunne ikke lese dokumentet.",
                 response: "",
             }));
         }
 
-        // Formater PDF-kontekst
-        const pdfContext = formatPdfContext(pdfResult.text, pdfResult.pages, {
-            redacted: pdfResult.redacted,
-            truncated: pdfResult.truncated,
-        });
+        // Formater dokumentkontekst
+        const docContext = formatDocumentContext(
+            docResult.text, 
+            docResult.pages, 
+            docResult.fileType,
+            {
+                redacted: docResult.redacted,
+                truncated: docResult.truncated,
+            }
+        );
 
         // Velg modell
         const model = requestedModel && SUPPORTED_MODELS[requestedModel] 
@@ -450,24 +465,25 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req, res) => {
             : DEFAULT_MODEL;
 
         // Bygg meldingsarray med base prompt + dokument-tillegg
-        // Behandle PDF-innhold som bruker-kontekst for å redusere prompt-injection risiko
         const apiMessages = [
             { role: "system" as const, content: STUDYWISE_SYSTEM_PROMPT + STUDYWISE_DOCUMENT_PROMPT },
-            { role: "user" as const, content: `PDF-kontekst:\n${pdfContext}` },
+            { role: "user" as const, content: `Dokument-kontekst:\n${docContext}` },
             { role: "user" as const, content: question }
         ];
 
         logger.info({ 
             model, 
-            pdfPages: pdfResult.pages,
-            pdfTextLength: pdfResult.text.length
-        }, "Sender PDF-analyse til HuggingFace");
+            fileType: docResult.fileType,
+            pages: docResult.pages,
+            textLength: docResult.text.length,
+            filename: req.file.originalname
+        }, "Sender dokumentanalyse til HuggingFace");
 
         const result = await hfClient.chatCompletion({
             model,
             messages: apiMessages,
-            max_tokens: 2048, // Større for dokumentanalyse
-            temperature: 0.5, // Lavere for mer presise svar
+            max_tokens: 2048,
+            temperature: 0.5,
         });
 
         const responseText = result?.choices?.[0]?.message?.content ?? "";
@@ -477,17 +493,18 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req, res) => {
             model,
             responseLength: responseText.length,
             tokens: usage?.total_tokens
-        }, "Vellykket PDF-analyse");
+        }, "Vellykket dokumentanalyse");
 
-        return res.json(KIPdfAnalyseResponseSchema.parse({
+        return res.json(KIDocumentAnalyseResponseSchema.parse({
             suksess: true,
             response: responseText,
             model: model,
             dokumentInfo: {
-                sider: pdfResult.pages,
-                tegn: pdfResult.text.length,
-                redacted: pdfResult.redacted,
-                truncated: pdfResult.truncated,
+                sider: docResult.pages,
+                tegn: docResult.text.length,
+                fileType: docResult.fileType,
+                redacted: docResult.redacted,
+                truncated: docResult.truncated,
             },
             usage: usage ? {
                 prompt_tokens: usage.prompt_tokens,
@@ -497,20 +514,116 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req, res) => {
         }));
 
     } catch (error) {
-        logger.error({ err: error }, "PDF-analyse feil");
+        logger.error({ err: error }, "Dokumentanalyse feil");
         const errorMessage = error instanceof Error ? error.message : String(error);
 
         if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {
-            return res.status(429).json(KIPdfAnalyseResponseSchema.parse({
+            return res.status(429).json(KIDocumentAnalyseResponseSchema.parse({
                 suksess: false,
                 melding: "For mange forespørsler. Vent litt og prøv igjen.",
                 response: "",
             }));
         }
 
-        return res.status(500).json(KIPdfAnalyseResponseSchema.parse({
+        return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({
             suksess: false,
-            melding: "Kunne ikke analysere PDF-filen. Prøv igjen.",
+            melding: "Kunne ikke analysere dokumentet. Prøv igjen.",
+            response: "",
+        }));
+    }
+});
+
+// Legacy endpoint for backwards compatibility (redirects to analyze-document)
+router.post("/analyze-pdf", upload.single('pdf'), async (req, res) => {
+    logger.info("Legacy PDF-analyse forespørsel mottatt, omdirigerer...");
+    
+    if (!req.file) {
+        return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
+            suksess: false,
+            melding: "Ingen PDF-fil lastet opp. Bruk form-data med felt 'pdf'.",
+            response: "",
+        }));
+    }
+
+    // Sett om til document-feltet og videresend
+    req.body.document = req.file;
+    
+    // Kall den nye endepunktet
+    const question = req.body.question || req.body.sporsmaal || "Gi meg en oppsummering av dette dokumentet.";
+    const requestedModel = req.body.model;
+
+    if (!hfClient) {
+        return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({
+            suksess: false,
+            melding: "KI-tjenesten er ikke konfigurert.",
+            response: "",
+        }));
+    }
+
+    try {
+        const docResult = await parseDocument(
+            req.file.buffer,
+            req.file.mimetype,
+            req.file.originalname
+        );
+
+        if (!docResult.success) {
+            return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
+                suksess: false,
+                melding: docResult.error || "Kunne ikke lese PDF-filen.",
+                response: "",
+            }));
+        }
+
+        const docContext = formatDocumentContext(
+            docResult.text,
+            docResult.pages,
+            docResult.fileType,
+            { redacted: docResult.redacted, truncated: docResult.truncated }
+        );
+
+        const model = requestedModel && SUPPORTED_MODELS[requestedModel] 
+            ? requestedModel 
+            : DEFAULT_MODEL;
+
+        const apiMessages = [
+            { role: "system" as const, content: STUDYWISE_SYSTEM_PROMPT + STUDYWISE_DOCUMENT_PROMPT },
+            { role: "user" as const, content: `Dokument-kontekst:\n${docContext}` },
+            { role: "user" as const, content: question }
+        ];
+
+        const result = await hfClient.chatCompletion({
+            model,
+            messages: apiMessages,
+            max_tokens: 2048,
+            temperature: 0.5,
+        });
+
+        const responseText = result?.choices?.[0]?.message?.content ?? "";
+        const usage = result?.usage;
+
+        return res.json(KIDocumentAnalyseResponseSchema.parse({
+            suksess: true,
+            response: responseText,
+            model: model,
+            dokumentInfo: {
+                sider: docResult.pages,
+                tegn: docResult.text.length,
+                fileType: docResult.fileType,
+                redacted: docResult.redacted,
+                truncated: docResult.truncated,
+            },
+            usage: usage ? {
+                prompt_tokens: usage.prompt_tokens,
+                completion_tokens: usage.completion_tokens,
+                total_tokens: usage.total_tokens,
+            } : undefined,
+        }));
+    } catch (error) {
+        logger.error({ err: error }, "Legacy PDF-analyse feil");
+        return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({
+            suksess: false,
+            melding: "Kunne ikke analysere PDF-filen.",
             response: "",
         }));
     }

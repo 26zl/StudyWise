@@ -10,10 +10,10 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import {
     KIChatResponseSchema,
     KIModelsResponseSchema,
-    KIPdfAnalyseResponseSchema,
+    KIDocumentAnalyseResponseSchema,
     type KIChatRequest,
     type KIModelsResponse,
-    type KIPdfAnalyseResponse,
+    type KIDocumentAnalyseResponse,
 } from "common/ki";
 import { fornySesjon } from "../auth/auth-api";
 
@@ -24,6 +24,41 @@ export type {
 } from "common/ki";
 
 export type ModelsResponse = KIModelsResponse;
+
+// Støttede filtyper for dokumentopplasting (inkluderer bilder for OCR)
+export const SUPPORTED_FILE_TYPES = [
+    ".pdf",
+    ".docx",
+    ".doc",
+    ".txt",
+    ".md",
+    ".csv",
+    // Bilder for OCR
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+    ".gif",
+    ".bmp",
+    ".tiff",
+    ".tif",
+];
+
+export const SUPPORTED_MIME_TYPES = [
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
+    "text/plain",
+    "text/markdown",
+    "text/csv",
+    // Bilder for OCR
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "image/gif",
+    "image/bmp",
+    "image/tiff",
+];
 
 // API funksjoner
 async function fetchKI<T>(endpoint: string, schema: ZodType<T>, forsoktRefresh = false): Promise<T> {
@@ -157,11 +192,11 @@ export function useKIChat() {
     };
 }
 
-// Schema for PDF-analyse respons
-export type PdfAnalyseResponse = KIPdfAnalyseResponse;
+// Schema for dokumentanalyse respons
+export type DocumentAnalyseResponse = KIDocumentAnalyseResponse;
 
-// PDF analyse hook
-export function useKIPdfAnalyse() {
+// Dokumentanalyse hook (støtter PDF, Word, TXT, etc.)
+export function useKIDocumentAnalyse() {
     const mutation = useMutation({
         mutationFn: async ({ 
             fil, 
@@ -173,20 +208,20 @@ export function useKIPdfAnalyse() {
             model?: string;
         }) => {
             const formData = new FormData();
-            formData.append("pdf", fil);
+            formData.append("document", fil);
             if (sporsmaal) formData.append("question", sporsmaal);
             if (model) formData.append("model", model);
-            return postKIFormData("/analyze-pdf", formData, KIPdfAnalyseResponseSchema);
+            return postKIFormData("/analyze-document", formData, KIDocumentAnalyseResponseSchema);
         },
     });
 
     return {
-        analyserPdf: (
+        analyserDokument: (
             fil: File,
             sporsmaal?: string,
             options?: {
                 model?: string;
-                onSuccess?: (data: PdfAnalyseResponse) => void;
+                onSuccess?: (data: DocumentAnalyseResponse) => void;
                 onError?: (error: Error) => void;
             }
         ) => {
@@ -203,5 +238,19 @@ export function useKIPdfAnalyse() {
         data: mutation.data,
         reset: mutation.reset,
         mutation,
+    };
+}
+
+// Legacy PDF hook (bruk useKIDocumentAnalyse i stedet)
+export function useKIPdfAnalyse() {
+    const docAnalyse = useKIDocumentAnalyse();
+    
+    return {
+        analyserPdf: docAnalyse.analyserDokument,
+        isLoading: docAnalyse.isLoading,
+        error: docAnalyse.error,
+        data: docAnalyse.data,
+        reset: docAnalyse.reset,
+        mutation: docAnalyse.mutation,
     };
 }
