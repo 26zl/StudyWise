@@ -40,7 +40,11 @@ export default function Hjem() {
                 className={`group inline-flex items-center justify-center gap-2 px-8 py-4 ${ctaWidth} bg-blue-600 hover:bg-blue-700 text-white rounded-full font-medium transition-all hover:shadow-lg hover:shadow-blue-500/25`}
               >
                 {erInnlogget ? "Fortsett til Dashboard" : "Gå til Dashboard"}
-                <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                <ArrowRight
+                  size={18}
+                  className="group-hover:translate-x-1 transition-transform"
+                  suppressHydrationWarning
+                />
               </Link>
               {authLaster ? (
                 // Behold plass for knappen for å unngå layout-hopp
@@ -66,7 +70,7 @@ export default function Hjem() {
             {/* Feature 1: Canvas */}
             <div className="p-8 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
               <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center mb-6">
-                <BookOpen size={24} />
+                <BookOpen size={24} suppressHydrationWarning />
               </div>
               <h3 className="text-xl font-semibold mb-3">Sømløs Canvas-integrasjon</h3>
               <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
@@ -78,7 +82,7 @@ export default function Hjem() {
             {/* Feature 2: Dashboard */}
             <div className="p-8 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
               <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl flex items-center justify-center mb-6">
-                <LayoutDashboard size={24} />
+                <LayoutDashboard size={24} suppressHydrationWarning />
               </div>
               <h3 className="text-xl font-semibold mb-3">Total Oversikt</h3>
               <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
@@ -90,7 +94,7 @@ export default function Hjem() {
             {/* Feature 3: KI Assistent */}
             <div className="p-8 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
               <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center mb-6">
-                <Bot size={24} />
+                <Bot size={24} suppressHydrationWarning />
               </div>
               <h3 className="text-xl font-semibold mb-3">KI-Studiepartner</h3>
               <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
