@@ -3,7 +3,7 @@
 * Håndterer kommunikasjon med backend API for Canvas data
 * Henter zod schemas fra common for validering av data
 */
-import type { ZodType } from "zod";
+import { z, type ZodType } from "zod";
 import { useQuery, type QueryClient } from "@tanstack/react-query";
 import { fornySesjon } from "../auth/auth-api";
 
@@ -160,6 +160,36 @@ export function useCanvasDiscussion(courseId: number, topicId: number, enabled =
   });
 }
 
+// Hent alle filer i et kurs
+export function useCanvasFiles(courseId: number | null, enabled = true) {
+  return useQuery({
+    queryKey: ["canvas", "files", courseId],
+    queryFn: () => fetchCanvas(`/emner/${courseId}/files`, z.object({ files: z.array(CanvasFileSchema), meta: z.any().optional() })),
+    select: (res) => res.files,
+    enabled: !!courseId && enabled,
+  });
+}
+
+// Hent alle sider i et kurs
+export function useCanvasPages(courseId: number | null, enabled = true) {
+  return useQuery({
+    queryKey: ["canvas", "pages", courseId],
+    queryFn: () => fetchCanvas(`/emner/${courseId}/pages`, z.object({ pages: z.array(CanvasPageSchema), meta: z.any().optional() })),
+    select: (res) => res.pages,
+    enabled: !!courseId && enabled,
+  });
+}
+
+// Hent frontpage for et kurs
+export function useCanvasFrontPage(courseId: number | null, enabled = true) {
+  return useQuery({
+    queryKey: ["canvas", "frontpage", courseId],
+    queryFn: () => fetchCanvas(`/emner/${courseId}/frontpage`, z.object({ page: CanvasPageSchema, meta: z.any().optional() })),
+    select: (res) => res.page,
+    enabled: !!courseId && enabled,
+  });
+}
+
 // Prefetch funksjon for app-start - laster data i bakgrunnen
 export function prefetchCanvasData(queryClient: QueryClient) {
   // Prefetch kunngjøringer og emner parallelt
@@ -173,4 +203,3 @@ export function prefetchCanvasData(queryClient: QueryClient) {
     queryFn: () => fetchCanvas("/emner", CoursesResponseSchema),
   });
 }
-

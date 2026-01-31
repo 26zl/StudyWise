@@ -33,6 +33,9 @@ import {
   fetchDiscussionTopic,
   fetchTodo,
   fetchUpcomingEvents,
+  fetchFiles,
+  fetchPages,
+  fetchFrontPage,
 } from "./canvasService.js";
 
 // Feiltype for Canvas HTTP-feil
@@ -380,6 +383,36 @@ router.get("/emner/:courseId/pages/:pageId", async (req, res) => {
   }
 });
 
+// GET /emner/:courseId/pages - Liste alle sider i kurs
+router.get("/emner/:courseId/pages", async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const courseIdNum = parseInt(courseId, 10);
+    if (isNaN(courseIdNum)) return res.status(400).json({ feil: "Ugyldig courseId" });
+    const { data: pages, meta } = await fetchPages(req.canvasToken, courseIdNum);
+    logger.info({ courseId, count: pages.length }, "Hentet liste over sider");
+    res.json({ pages, meta });
+  } catch (error) {
+    logger.error({ err: error }, `Feil ved henting av pages for kurs ${req.params.courseId}`);
+    throw error;
+  }
+});
+
+// GET /emner/:courseId/frontpage - Hent kurs-frontpage
+router.get("/emner/:courseId/frontpage", async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const courseIdNum = parseInt(courseId, 10);
+    if (isNaN(courseIdNum)) return res.status(400).json({ feil: "Ugyldig courseId" });
+    const { data: page, meta } = await fetchFrontPage(req.canvasToken, courseIdNum);
+    logger.info({ courseId, pageUrl: page.url }, "Hentet frontpage");
+    res.json({ page, meta });
+  } catch (error) {
+    logger.error({ err: error }, `Feil ved henting av frontpage for kurs ${req.params.courseId}`);
+    throw error;
+  }
+});
+
 // GET /filer/:fileId - Hent fil metadata
 router.get("/filer/:fileId", async (req, res) => {
   try {
@@ -391,6 +424,21 @@ router.get("/filer/:fileId", async (req, res) => {
     res.json(file);
   } catch (error) {
     logger.error({ err: error }, `Feil ved henting av fil ${req.params.fileId}`);
+    throw error;
+  }
+});
+
+// GET /emner/:courseId/files - Hent filer i kurs
+router.get("/emner/:courseId/files", async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const courseIdNum = parseInt(courseId, 10);
+    if (isNaN(courseIdNum)) return res.status(400).json({ feil: "Ugyldig courseId" });
+    const { data: files, meta } = await fetchFiles(req.canvasToken, courseIdNum);
+    logger.info({ courseId, count: files.length }, "Hentet filer for kurs");
+    res.json({ files, meta });
+  } catch (error) {
+    logger.error({ err: error }, `Feil ved henting av filer for kurs ${req.params.courseId}`);
     throw error;
   }
 });

@@ -15,6 +15,9 @@ import {
   fetchModuleItems,
   fetchPage,
   fetchFileMetadata,
+  fetchFiles,
+  fetchPages,
+  fetchFrontPage,
 } from "../canvas/canvasService.js";
 
 // Feilhåndtering dersom canvas token ikke er satt
@@ -55,6 +58,7 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
     const MAX_ITEMS_PER_MODULE = 10;
     const MAX_PAGES = 10;
     const MAX_FILES = 10;
+    const MAX_FILES_PER_COURSE = 20;
 
     // Hent oppgaver per emne
     const assignmentsPerCourse = await Promise.all(
@@ -114,6 +118,28 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
     // Bygg tekstlig kontekst
     const samletSider: { courseId: number; moduleName: string; title: string; url?: string }[] = [];
     const samletFiler: { courseId: number; moduleName: string; name: string; size?: number }[] = [];
+    const filerPerCourse = await Promise.all(
+      emner.map(async (course) => {
+        const res = await fetchFiles(canvasToken, course.id);
+        return { courseId: course.id, files: res.data.slice(0, MAX_FILES_PER_COURSE) };
+      })
+    );
+    const siderPerCourse = await Promise.all(
+      emner.map(async (course) => {
+        const res = await fetchPages(canvasToken, course.id);
+        return { courseId: course.id, pages: res.data.slice(0, MAX_PAGES) };
+      })
+    );
+    const frontPagesPerCourse = await Promise.all(
+      emner.map(async (course) => {
+        try {
+          const res = await fetchFrontPage(canvasToken, course.id);
+          return { courseId: course.id, page: res.data };
+        } catch {
+          return { courseId: course.id, page: null };
+        }
+      })
+    );
 
     // Henter canvas data for KI
     const deler: string[] = ["[CANVAS-DATA START]"];
@@ -214,6 +240,32 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
         deler.push(`- ${courseName} > ${f.moduleName}: ${f.name}${sizeMb}`);
       });
     }
+
+    // Kurs som ikke bruker moduler: fall tilbake til frontpage/pages/files
+    filerPerCourse.forEach(({ courseId, files }) => {
+      if (files.length === 0) return;
+      const courseName = emner.find((c) => c.id === courseId)?.name || `Emne ${courseId}`;
+      deler.push(`\nFILER (${courseName}):`);
+      files.forEach((f) => {
+        const sizeMb = typeof f.size === "number" ? ` (~${Math.round(f.size / 1024 / 1024)} MB)` : "";
+        deler.push(`- ${f.display_name || f.filename}${sizeMb}`);
+      });
+    });
+
+    siderPerCourse.forEach(({ courseId, pages }) => {
+      if (pages.length === 0) return;
+      const courseName = emner.find((c) => c.id === courseId)?.name || `Emne ${courseId}`;
+      deler.push(`\nSIDER (${courseName}):`);
+      pages.forEach((p) => {
+        deler.push(`- ${p.title || p.url}`);
+      });
+    });
+
+    frontPagesPerCourse.forEach(({ courseId, page }) => {
+      if (!page) return;
+      const courseName = emner.find((c) => c.id === courseId)?.name || `Emne ${courseId}`;
+      deler.push(`\nFORSIDE (${courseName}): ${page.title || page.url || "Forside"}`);
+    });
     // Avslutt kontekst
     deler.push("\n[CANVAS-DATA SLUTT]");
     logger.info(

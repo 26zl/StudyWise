@@ -23,6 +23,9 @@ import {
     useCanvasCourses,
     useCanvasModules,
     useCanvasUser,
+    useCanvasFiles,
+    useCanvasPages,
+    useCanvasFrontPage,
 } from "../canvas/canvas-api";
 import { createCanvasHtmlParser, parseCanvasHtml, sikkerHref } from "../canvas/canvasHtml";
 import { CanvasPageVisning } from "./CanvasPageVisning";
@@ -187,8 +190,12 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
 function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const { data, isLoading, isError, error } = useCanvasCourses(harCanvasToken);
     const [valgtEmneId, settValgtEmneId] = useState<number | null>(null);
+    const [valgtEmneVisning, settValgtEmneVisning] = useState<"modules" | "files" | "frontpage">("frontpage");
     const [valgtSide, settValgtSide] = useState<{ pageId: string; courseId: number } | null>(null);
     const modulerQuery = useCanvasModules(valgtEmneId, harCanvasToken);
+    const filerQuery = useCanvasFiles(valgtEmneId, harCanvasToken);
+    const siderQuery = useCanvasPages(valgtEmneId, harCanvasToken);
+    const frontPageQuery = useCanvasFrontPage(valgtEmneId, harCanvasToken);
 
     if (!harCanvasToken) {
         return <FeilMelding melding="Du må lagre en Canvas API-token før du kan hente emner." />;
@@ -239,18 +246,72 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     {course?.name}
                 </h3>
 
-                {modulerQuery.isLoading && (
+                <div className="mb-4 flex gap-2">
+                    <button
+                        onClick={() => settValgtEmneVisning("frontpage")}
+                        className={`px-3 py-1 rounded-lg text-sm border ${valgtEmneVisning === "frontpage" ? "bg-blue-600 text-white border-blue-600" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"}`}
+                    >
+                        Se forside
+                    </button>
+                    <button
+                        onClick={() => settValgtEmneVisning("modules")}
+                        className={`px-3 py-1 rounded-lg text-sm border ${valgtEmneVisning === "modules" ? "bg-blue-600 text-white border-blue-600" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"}`}
+                    >
+                        Se moduler
+                    </button>
+                    <button
+                        onClick={() => settValgtEmneVisning("files")}
+                        className={`px-3 py-1 rounded-lg text-sm border ${valgtEmneVisning === "files" ? "bg-blue-600 text-white border-blue-600" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"}`}
+                    >
+                        Se filer
+                    </button>
+                </div>
+
+                {valgtEmneVisning === "frontpage" && (
+                    <div className="space-y-3">
+                        {frontPageQuery.isLoading && (
+                            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                                <Loader2 size={16} className="animate-spin" />
+                                Laster forside...
+                            </div>
+                        )}
+                        {frontPageQuery.isError && (
+                            <FeilMelding melding={frontPageQuery.error?.message || "Kunne ikke laste forside"} />
+                        )}
+                        {frontPageQuery.data && (
+                            <article className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                                <header className="mb-3 flex items-center gap-2 text-slate-900 dark:text-white font-semibold">
+                                    <BookOpen size={18} /> {frontPageQuery.data.title || "Forside"}
+                                </header>
+                                {frontPageQuery.data.body ? (
+                                    <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-200">
+                                        {parseCanvasHtml(frontPageQuery.data.body, htmlParser)}
+                                    </div>
+                                ) : (
+                                    <p className="text-slate-500 dark:text-slate-400 text-sm">Ingen innhold på forsiden.</p>
+                                )}
+                            </article>
+                        )}
+                        {!frontPageQuery.isLoading && !frontPageQuery.data && (
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Forside ikke tilgjengelig.</p>
+                        )}
+                    </div>
+                )}
+
+                {valgtEmneVisning === "modules" && (
+                    <>
+                        {modulerQuery.isLoading && (
                     <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
                         <Loader2 size={16} className="animate-spin" />
                         Laster moduler...
                     </div>
                 )}
 
-                {modulerQuery.isError && (
-                    <FeilMelding melding={modulerQuery.error?.message || "Kunne ikke laste moduler"} />
-                )}
+                        {modulerQuery.isError && (
+                            <FeilMelding melding="Ingen tilgang til moduler for dette emnet (403/unauthorized)." />
+                        )}
 
-                {modulerQuery.data?.modules && (
+                {modulerQuery.data?.modules && modulerQuery.data.modules.length > 0 && (
                     <div className="space-y-4">
                         {modulerQuery.data.modules.map((module) => (
                             <div
@@ -343,6 +404,115 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                         ))}
                     </div>
                 )}
+
+                {/* Fallback: vis frontpage -> sider -> filer når moduler er tomme */}
+                {modulerQuery.data && modulerQuery.data.modules.length === 0 && (
+                    <div className="space-y-4">
+                        {frontPageQuery.isLoading && (
+                            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                                <Loader2 size={16} className="animate-spin" />
+                                Laster forside...
+                            </div>
+                        )}
+
+                        {frontPageQuery.data && (
+                            <article className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                                <header className="mb-3 flex items-center gap-2 text-slate-900 dark:text-white font-semibold">
+                                    <BookOpen size={18} /> Forside
+                                </header>
+                                {frontPageQuery.data.body ? (
+                                    <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-200">
+                                        {parseCanvasHtml(frontPageQuery.data.body, htmlParser)}
+                                    </div>
+                                ) : (
+                                    <p className="text-slate-500 dark:text-slate-400 text-sm">Ingen innhold på forsiden.</p>
+                                )}
+                            </article>
+                        )}
+
+                        {siderQuery.data && siderQuery.data.length > 0 && (
+                            <div className="rounded-xl border border-slate-200 dark:border-slate-700">
+                                <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 font-medium text-slate-900 dark:text-white">
+                                    Sider
+                                </div>
+                                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {siderQuery.data.map((p) => (
+                                        <button
+                                            key={p.url}
+                                            onClick={() => settValgtSide({ pageId: p.url, courseId: valgtEmneId! })}
+                                            className="w-full text-left px-4 py-3 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm text-slate-800 dark:text-slate-200 flex items-center gap-2"
+                                        >
+                                            <FileText size={16} className="text-slate-400" />
+                                            <span>{p.title || p.url}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {(!siderQuery.data || siderQuery.data.length === 0) && filerQuery.data && filerQuery.data.length > 0 && (
+                            <div className="rounded-xl border border-slate-200 dark:border-slate-700">
+                                <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 font-medium text-slate-900 dark:text-white">
+                                    Filer
+                                </div>
+                                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {filerQuery.data.map((f) => (
+                                        <a
+                                            key={f.id}
+                                            href={`/api/canvas/filer/${f.id}/download`}
+                                            className="flex px-4 py-3 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm text-slate-800 dark:text-slate-200 items-center gap-2"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        >
+                                            <Download size={16} className="text-slate-400" />
+                                            <span>{f.display_name || f.filename}</span>
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+                    </>
+                )}
+
+                {valgtEmneVisning === "files" && (
+                    <div className="space-y-3">
+                        {filerQuery.isLoading && (
+                            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                                <Loader2 size={16} className="animate-spin" />
+                                Laster filer...
+                            </div>
+                        )}
+                        {filerQuery.isError && (
+                            <FeilMelding melding="Dette emnet har ingen filer eller du mangler tilgang (403/unauthorized)." />
+                        )}
+                        {filerQuery.data && filerQuery.data.length === 0 && (
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Dette emnet har ingen filer å vise.</p>
+                        )}
+                        {filerQuery.data && filerQuery.data.length > 0 && (
+                            <div className="rounded-xl border border-slate-200 dark:border-slate-700">
+                                <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 font-medium text-slate-900 dark:text-white">
+                                    Filer
+                                </div>
+                                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {filerQuery.data.map((f) => (
+                                        <a
+                                            key={f.id}
+                                            href={`/api/canvas/filer/${f.id}/download`}
+                                            className="flex px-4 py-3 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm text-slate-800 dark:text-slate-200 items-center gap-2"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        >
+                                            <Download size={16} className="text-slate-400" />
+                                            <span>{f.display_name || f.filename}</span>
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         );
     }
@@ -357,13 +527,13 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     }
 
     // Render emner
-    return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {data.courses.map((emne) => (
-                <button
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {data.courses.map((emne) => (
+                <div
                     key={emne.id}
-                    onClick={() => settValgtEmneId(emne.id)}
-                    className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-left hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm transition-all group"
+                    className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-left hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm transition-all group cursor-pointer"
+                    onClick={() => { settValgtEmneId(emne.id); settValgtEmneVisning("frontpage"); }}
                 >
                     <h3 className="font-semibold text-slate-900 dark:text-white mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400">
                         {emne.name}
@@ -371,15 +541,34 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
                         {emne.course_code}
                     </p>
-                    <div className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium">
-                        Se moduler
-                        <ChevronRight size={16} />
+                    <div className="flex gap-2">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("frontpage"); }}
+                            className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
+                        >
+                            Se forside
+                            <ChevronRight size={16} />
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("modules"); }}
+                            className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
+                        >
+                            Se moduler
+                            <ChevronRight size={16} />
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("files"); }}
+                            className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
+                        >
+                            Se filer
+                            <ChevronRight size={16} />
+                        </button>
                     </div>
-                </button>
-            ))}
-        </div>
-    );
-}
+                </div>
+                ))}
+            </div>
+        );
+    }
 
 // Data Visning
 function DataVisning({ harCanvasToken }: { harCanvasToken: boolean }) {

@@ -290,3 +290,53 @@ export async function fetchDiscussionTopic(
     meta: response.meta,
   };
 }
+
+// Hent alle filer i et kurs (øverste nivå)
+export async function fetchFiles(canvasToken: string | null | undefined, courseId: number) {
+  const token = requireToken(canvasToken);
+  const response = await hentCanvasData<unknown[]>(
+    `/api/v1/courses/${courseId}/files`,
+    {
+      token,
+      queryParams: { per_page: 100 },
+      cacheTtl: CACHE_TTL.FILES,
+    }
+  );
+  return {
+    data: z.array(CanvasFileSchema).parse(response.data),
+    meta: response.meta,
+  };
+}
+
+// Hent alle sider (wiki pages) i et kurs
+export async function fetchPages(canvasToken: string | null | undefined, courseId: number) {
+  const token = requireToken(canvasToken);
+  const response = await hentCanvasData<unknown[]>(
+    `/api/v1/courses/${courseId}/pages`,
+    {
+      token,
+      queryParams: { per_page: 100 },
+      cacheTtl: CACHE_TTL.PAGES,
+    }
+  );
+  return {
+    data: z.array(CanvasPageSchema).parse(response.data),
+    meta: response.meta,
+  };
+}
+
+// Hent kursets frontpage (landing page)
+export async function fetchFrontPage(canvasToken: string | null | undefined, courseId: number) {
+  const token = requireToken(canvasToken);
+  const response = await hentCanvasData<unknown>(
+    `/api/v1/courses/${courseId}/front_page`,
+    {
+      token,
+      cacheTtl: CACHE_TTL.PAGES,
+    }
+  );
+  return {
+    data: CanvasPageSchema.parse(response.data),
+    meta: response.meta,
+  };
+}

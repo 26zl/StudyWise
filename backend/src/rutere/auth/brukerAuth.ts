@@ -35,7 +35,6 @@ import {
     JWT_REFRESH_MS,
 } from "../../middleware/auth.js";
 import { rateLimitToken, rateLimitAuth, rateLimitMe } from "../../middleware/rate-limit.js";
-
 import { noCache } from "../../middleware/no-cache.js";
 
 const router = Router();
