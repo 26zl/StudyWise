@@ -91,7 +91,7 @@ export function CalendarHeader({
                     I dag
                 </button>
 
-                {/* Forrige/Neste måned */}
+                {/* Forrige/Neste maaned */}
                 <div className="flex items-center border border-slate-200 dark:border-slate-600 rounded-lg overflow-hidden">
                     <button
                         onClick={onPrevMonth}

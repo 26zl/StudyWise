@@ -1,8 +1,7 @@
 /**
  * CalendarGrid - Kalendervisning med dager og innleveringer
  * Viser månedskalender med oppgaver/innleveringer markert per dag
- * */
- 
+ */
 "use client";
 
 import { useMemo } from "react";
@@ -20,8 +19,8 @@ import {
     startOfDay,
 } from "date-fns";
 import { AlertCircle } from "lucide-react";
-import { cn } from "../lib/utils";
-import { Assignment, COURSE_COLOR_CLASSES } from "../types/calendar";
+import { cn } from "../../lib/utils";
+import { Assignment, COURSE_COLOR_CLASSES } from "../../types/calendar";
 
 interface CalendarGridProps {
     currentDate: Date;
@@ -79,7 +78,7 @@ export function CalendarGrid({
 
     return (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-            
+            {/* Ukedager header */}
             <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-700">
                 {WEEK_DAYS.map((day) => (
                     <div
@@ -91,7 +90,7 @@ export function CalendarGrid({
                 ))}
             </div>
 
-            
+            {/* Kalenderdager */}
             <div className="grid grid-cols-7">
                 {days.map((day, index) => {
                     const dayAssignments = getAssignmentsForDate(day);
@@ -114,7 +113,7 @@ export function CalendarGrid({
                                 index % 7 === 6 && "border-r-0"
                             )}
                         >
-                            
+                            {/* Dagnummer */}
                             <div className="flex items-center justify-between mb-1">
                                 <span
                                     className={cn(
@@ -132,7 +131,7 @@ export function CalendarGrid({
                                 )}
                             </div>
 
-                           
+                            {/* Innleveringsbadges */}
                             <div className="space-y-1">
                                 {dayAssignments.slice(0, 3).map((assignment) => (
                                     <div
@@ -154,7 +153,7 @@ export function CalendarGrid({
                                 )}
                             </div>
 
-                            
+                            {/* Antall innleveringer badge */}
                             {dayAssignments.length > 0 && (
                                 <div className="absolute top-1 right-1 w-5 h-5 bg-blue-500 dark:bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
                                     {dayAssignments.length}
@@ -169,4 +168,3 @@ export function CalendarGrid({
 }
 
 export default CalendarGrid;
- 

@@ -1,11 +1,11 @@
 /**
- 
-CourseLegend - Viser fargeforklaring for emner
-Brukes sammen med kalender for å vise hvilke farger som tilhører hvilke emner*/
+ * CourseLegend - Viser fargeforklaring for emner
+ * Brukes sammen med kalender for å vise hvilke farger som tilhører hvilke emner
+ */
 "use client";
 
-import { cn } from "../lib/utils";
-import { Course, COURSE_COLOR_CLASSES } from "../types/calendar";
+import { cn } from "../../lib/utils";
+import { Course, COURSE_COLOR_CLASSES } from "../../types/calendar";
 
 interface CourseLegendProps {
     courses: Course[];

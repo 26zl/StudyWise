@@ -11,7 +11,7 @@ import { Sidebar, type VisningType } from "./Sidebar";
 import { ChatSection } from "./ChatSection";
 import { CanvasSection } from "./canvasSection";
 import { SettingsSection } from "./SettingsSection";
-import { CalendarSection } from "./CalendarSection";
+import { CalendarSection } from "./calendar";
 import { useCanvasUser } from "../canvas/canvas-api";
 import { Footer } from "./footer";
 import { useMeg } from "../auth/auth-api";
