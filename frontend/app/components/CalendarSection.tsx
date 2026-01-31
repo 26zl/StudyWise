@@ -2,15 +2,15 @@
  * CalendarSection - Kalender-seksjon for dashboardet
  * Kombinerer CalendarHeader, CalendarGrid og CourseLegend
  * Håndterer tilstand og navigasjon for kalenderen
- 
+ */ 
 "use client";
 
 import { useState, useMemo } from "react";
 import { addMonths, subMonths, setMonth, setYear } from "date-fns";
 import { CalendarHeader } from "./CalendarHeader";
 import { CalendarGrid } from "./CalendarGrid";
-//import { CourseLegend } from "./CourseLegend";
-//import type { Assignment, Course } from "../types/calendar";
+import { CourseLegend } from "./CourseLegend";
+import type { Assignment, Course } from "../types/calendar";
 
 // Demo-data for utvikling - vil bli erstattet med Canvas API-data
 const DEMO_COURSES: Course[] = [
@@ -197,4 +197,3 @@ export function CalendarSection() {
 }
 
 export default CalendarSection;
-*/

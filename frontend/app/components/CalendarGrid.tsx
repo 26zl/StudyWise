@@ -1,6 +1,7 @@
 /**
  * CalendarGrid - Kalendervisning med dager og innleveringer
  * Viser månedskalender med oppgaver/innleveringer markert per dag
+ * */
  
 "use client";
 
@@ -168,4 +169,4 @@ export function CalendarGrid({
 }
 
 export default CalendarGrid;
- */
+ 

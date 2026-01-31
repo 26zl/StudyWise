@@ -634,4 +634,4 @@ export function CanvasSection({ startVisning = "announcements", harCanvasToken =
             </div>
         </div>
     );
-}
+}  
