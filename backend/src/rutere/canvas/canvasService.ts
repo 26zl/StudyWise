@@ -205,13 +205,17 @@ export async function fetchPlannerItems(
 }
 
 // Hent moduler for et kurs
+// Inkluderer items med content_details for å få content_id for filer
 export async function fetchModules(canvasToken: string | null | undefined, courseId: number) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown[]>(
     `/api/v1/courses/${courseId}/modules`,
     {
       token,
-      queryParams: { include: ["items"], per_page: 50 },
+      queryParams: { 
+        include: ["items", "content_details"],
+        per_page: 50 
+      },
       cacheTtl: CACHE_TTL.MODULES,
     }
   );

@@ -92,6 +92,69 @@ async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>, forsoktRefre
   return schema.parse(data); // Type-safe parsing med Zod
 }
 
+// Variant som tillater null-respons (for 204 No Content)
+async function fetchCanvasNullable<T>(endpoint: string, schema: ZodType<T>, forsoktRefresh = false): Promise<T | null> {
+  const res = await fetch(`/api/canvas${endpoint}`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+  
+  if (res.status === 401 && !forsoktRefresh) {
+    await fornySesjon();
+    return fetchCanvasNullable(endpoint, schema, true);
+  }
+  
+  if (res.status === 403) {
+    const errorText = await res.text();
+    let errorMessage = "Canvas-token mangler";
+    try {
+      const error = JSON.parse(errorText);
+      errorMessage = error.melding || error.feil || errorMessage;
+    } catch { /* ignorer */ }
+    throw new CanvasTokenMissingError(errorMessage);
+  }
+  
+  // 204 No Content - returner null (ikke en feil)
+  if (res.status === 204) {
+    return null;
+  }
+  
+  if (!res.ok) {
+    const errorText = await res.text();
+    let errorMessage = "API feil";
+    try {
+      const error = JSON.parse(errorText);
+      errorMessage = error.melding || error.feil || errorMessage;
+    } catch {
+      errorMessage = errorText || errorMessage;
+    }
+    throw new Error(errorMessage);
+  }
+  const data = await res.json();
+  return schema.parse(data);
+}
+
+// Schema for modul-item open respons
+const ModuleItemOpenResponseSchema = z.union([
+  z.object({ type: z.literal("File"), downloadPath: z.string() }),
+  z.object({ type: z.literal("ExternalUrl"), url: z.string() }),
+  z.object({ type: z.literal("Page"), page_url: z.string(), html_url: z.string().optional() }),
+]);
+
+export type ModuleItemOpenResponse = z.infer<typeof ModuleItemOpenResponseSchema>;
+
+// Åpne modul-item via backend (henter fil-info dynamisk for filer uten content_id)
+export async function openModuleItem(
+  courseId: number,
+  moduleId: number,
+  itemId: number
+): Promise<ModuleItemOpenResponse> {
+  return fetchCanvas(
+    `/emner/${courseId}/modules/${moduleId}/items/${itemId}/open`,
+    ModuleItemOpenResponseSchema
+  );
+}
+
 // React Query hooks
 // Hent innlogget bruker (og trigger sync i backend)
 export function useCanvasUser(enabled = true) {
@@ -220,16 +283,17 @@ export function useCanvasPages(courseId: number | null, enabled = true) {
   });
 }
 
-// Hent frontpage for et kurs
+// Hent frontpage for et kurs (returnerer null hvis kurset ikke har en frontpage)
 export function useCanvasFrontPage(courseId: number | null, enabled = true) {
   return useQuery({
     queryKey: ["canvas", "frontpage", courseId],
-    queryFn: () =>
-      fetchCanvas(
+    queryFn: async () => {
+      const result = await fetchCanvasNullable(
         `/emner/${courseId}/frontpage`,
         z.object({ page: CanvasPageSchema, meta: MetaSchema.optional() })
-      ),
-    select: (res) => res.page,
+      );
+      return result?.page ?? null;
+    },
     enabled: !!courseId && enabled,
   });
 }

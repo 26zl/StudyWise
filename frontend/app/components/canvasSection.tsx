@@ -26,6 +26,7 @@ import {
     useCanvasFiles,
     useCanvasPages,
     useCanvasFrontPage,
+    openModuleItem,
 } from "../canvas/canvas-api";
 import { createCanvasHtmlParser, parseCanvasHtml, sikkerFilNedlastingUrl } from "../canvas/canvasHtml";
 import { CanvasPageVisning } from "./CanvasPageVisning";
@@ -374,7 +375,12 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                                 return downloadPath;
                                             }
                                             
-                                            // Prioritet 2: Eksterne URL-er - krever eksplisitt protokoll-validering
+                                            // Prioritet 2: For filer uten content_id, bruk # og håndter dynamisk
+                                            if (isFile && !downloadPath) {
+                                                return "#";
+                                            }
+                                            
+                                            // Prioritet 3: Eksterne URL-er - krever eksplisitt protokoll-validering
                                             const rawUrl = isExternal ? item.external_url : item.html_url;
                                             if (typeof rawUrl === "string" && rawUrl.length > 0) {
                                                 const trimmed = rawUrl.trim();
@@ -389,17 +395,29 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                         })();
 
                                         // Håndter klikk på item
-                                        const handleClick = (e: React.MouseEvent) => {
+                                        const handleClick = async (e: React.MouseEvent) => {
                                             if (isPage && item.page_url) {
                                                 e.preventDefault();
                                                 settValgtSide({ pageId: item.page_url, courseId: valgtEmneId });
                                                 return;
                                             }
-                                            // For filer: åpne kun hvis downloadPath er en gyldig relativ API-sti
+                                            // For filer med content_id: åpne direkte
                                             if (isFile && downloadPath && downloadPath.startsWith("/api/")) {
                                                 e.preventDefault();
-                                                // Sikker: kun relative stier på egen server
                                                 window.open(downloadPath, "_blank", "noopener,noreferrer");
+                                                return;
+                                            }
+                                            // For filer UTEN content_id: hent dynamisk via /open endpoint
+                                            if (isFile && !downloadPath && valgtEmneId) {
+                                                e.preventDefault();
+                                                try {
+                                                    const result = await openModuleItem(valgtEmneId, module.id, item.id);
+                                                    if (result.type === "File" && result.downloadPath) {
+                                                        window.open(result.downloadPath, "_blank", "noopener,noreferrer");
+                                                    }
+                                                } catch (err) {
+                                                    console.error("Kunne ikke åpne fil:", err);
+                                                }
                                             }
                                         };
 
