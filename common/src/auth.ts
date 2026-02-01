@@ -18,6 +18,14 @@ export const CanvasTokenResponseSchema = z.object({
   feil: z.string().optional(),
 });
 
+// Canvas kontekst preferanser
+export const CanvasContextPreferencesSchema = z.object({
+  announcements: z.boolean(),
+  courses: z.boolean(),
+  assignments: z.boolean(),
+  events: z.boolean(),
+});
+
 // Auth bruker (lokal)
 export const AuthBrukerSchema = z.object({
   id: z.string(),
@@ -25,6 +33,7 @@ export const AuthBrukerSchema = z.object({
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   hasCanvasToken: z.boolean(),
+  canvasContextPreferences: CanvasContextPreferencesSchema.optional(),
 });
 
 // Login/register/me/logout
@@ -63,6 +72,7 @@ export const RefreshResponseSchema = z.object({
 });
 
 // TypeScript typer eksportering
+export type CanvasContextPreferences = z.infer<typeof CanvasContextPreferencesSchema>;
 export type CanvasTokenRequest = z.infer<typeof CanvasTokenRequestSchema>;
 export type CanvasTokenResponse = z.infer<typeof CanvasTokenResponseSchema>;
 export type AuthBruker = z.infer<typeof AuthBrukerSchema>;

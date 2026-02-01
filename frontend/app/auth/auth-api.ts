@@ -3,7 +3,7 @@
  * Inkluderer innlogging, registrering, utlogging, henting av brukerinfo og lagring av Canvas token
  */
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CanvasTokenResponseSchema,
   LoginResponseSchema,
@@ -19,6 +19,7 @@ import {
   type RefreshResponse,
   type LoginRequest,
   type RegisterRequest,
+  type CanvasContextPreferences,
 } from "common/auth";
 
 let refreshPromise: Promise<RefreshResponse> | null = null;
@@ -157,14 +158,15 @@ export function useMeg(options?: { initialData?: MeResponse }) {
     queryKey: ["auth", "me"],
     queryFn: hentMeg,
     retry: (failureCount, error) => {
-      // Prøv igjen ved nettverksfeil eller serverfeil, men ikke ved ugyldig auth (401/403)
-      // Vi sjekker om error-meldingen eller status indikerer 401/403
+      // Ikke prøv igjen ved ugyldig auth (401/403)
       const message = error instanceof Error ? error.message : String(error);
       if (message.includes("401") || message.includes("403") || message.includes("Ikke autentisert")) {
         return false;
       }
-      return failureCount < 3;
+      // Prøv opptil 5 ganger ved nettverksfeil (ECONNREFUSED ved oppstart)
+      return failureCount < 5;
     },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 8000), // 1s, 2s, 4s, 8s
     staleTime: 1000 * 60 * 5, // Cache i 5 minutter - unngår unødvendige requests
     refetchOnWindowFocus: false, // Ikke refetch ved window focus
     initialData: options?.initialData,
@@ -180,5 +182,32 @@ export function useLoggUt() {
 export function useLagreCanvasToken() {
   return useMutation({
     mutationFn: lagreCanvasToken,
+  });
+}
+
+// Oppdater Canvas-kontekst preferanser
+async function oppdaterPreferanser(preferences: CanvasContextPreferences): Promise<{ melding: string; canvasContextPreferences: CanvasContextPreferences }> {
+  const res = await fetch("/api/user/preferences", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ canvasContextPreferences: preferences }),
+  });
+  const json = await hentJson(res);
+  if (!res.ok) {
+    throw new Error(json.melding || json.feil || "Kunne ikke oppdatere preferanser");
+  }
+  return json;
+}
+
+// Hook for oppdatering av Canvas-kontekst preferanser
+export function useOppdaterPreferanser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: oppdaterPreferanser,
+    onSuccess: () => {
+      // Oppdater cached brukerdata
+      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+    },
   });
 }

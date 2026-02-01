@@ -222,7 +222,14 @@ export function ChatSection() {
                         innhold: feilTekst,
                         tidsstempel: new Date(),
                     };
-                    settMeldinger((tidligere) => [...tidligere, feilMelding]);
+                    settMeldinger((tidligere) => {
+                        const oppdatert = [...tidligere, feilMelding];
+                        // Lagre samtale selv ved feil
+                        lagreSamtale(oppdatert).catch((err) => {
+                            console.error("Feil ved lagring av samtale:", err);
+                        });
+                        return oppdatert;
+                    });
                     settAnalysererDokument(false);
                 },
             });
@@ -345,7 +352,14 @@ export function ChatSection() {
                     innhold: feilTekst,
                     tidsstempel: new Date(),
                 };
-                settMeldinger((tidligere) => [...tidligere, feilMelding]);
+                settMeldinger((tidligere) => {
+                    const oppdatert = [...tidligere, feilMelding];
+                    // Lagre samtale selv ved feil
+                    lagreSamtale(oppdatert).catch((err) => {
+                        console.error("Feil ved lagring av samtale:", err);
+                    });
+                    return oppdatert;
+                });
                 settSkriver(false);
             },
         });

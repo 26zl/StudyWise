@@ -4,9 +4,12 @@ import { create } from 'zustand';
  * UI Store - Global tilstand for brukergrensesnitt
  * Bruker Zustand for enkel state management på tvers av komponenter.
  * Dette erstatter behovet for "prop drilling" av sidebar-status.
+ * 
+ * Canvas-kontekst preferanser synkroniseres med backend via /api/user/me
+ * og /api/user/preferences endepunktene.
  */
 
-// Type for Canvas-kontekst valg
+// Type for Canvas-kontekst valg (må matche backend/common)
 export interface CanvasContextSelection {
     announcements: boolean;
     courses: boolean;
@@ -36,8 +39,17 @@ interface UIState {
     // Nullstiller all UI-tilstand (brukes ved utlogging)
     reset: () => void;
 }
+
+// Default preferanser
+const defaultSelection: CanvasContextSelection = {
+    announcements: true,
+    courses: true,
+    assignments: true,
+    events: true,
+};
+
 // Oppretter storen som en hook (useUIStore) som kan brukes i alle komponenter
-export const useUIStore = create<UIState>((set) => ({
+export const useUIStore = create<UIState>()((set) => ({
     isVenstreMenyOpen: false,
     toggleVenstreMeny: () => set((state) => ({ isVenstreMenyOpen: !state.isVenstreMenyOpen })),
     lukkVenstreMeny: () => set({ isVenstreMenyOpen: false }),
@@ -49,12 +61,7 @@ export const useUIStore = create<UIState>((set) => ({
     canvasContext: "",
     hasCanvasContext: false,
     setCanvasContext: (context, hasContext) => set({ canvasContext: context, hasCanvasContext: hasContext }),
-    canvasContextSelection: {
-        announcements: true,
-        courses: true,
-        assignments: true,
-        events: true,
-    },
+    canvasContextSelection: defaultSelection,
     setCanvasContextSelection: (selection) => set({ canvasContextSelection: selection }),
     reset: () => set({ 
         isVenstreMenyOpen: false, 
@@ -62,11 +69,6 @@ export const useUIStore = create<UIState>((set) => ({
         newChatToken: 0, 
         canvasContext: "", 
         hasCanvasContext: false,
-        canvasContextSelection: {
-            announcements: true,
-            courses: true,
-            assignments: true,
-            events: true,
-        },
+        canvasContextSelection: defaultSelection,
     }),
 }));

@@ -26,7 +26,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
           queries: {
             staleTime: 60 * 1000,       // Data er "fersk" i 1 minutt
             gcTime: 5 * 60 * 1000,      // Hold i minnet i 5 minutter (cache > stale for bedre UX)
-            retry: 1,                    // Prøv på nytt 1 gang ved feil
+            retry: 3,                    // Prøv på nytt 3 ganger ved feil (håndterer oppstarts-timing)
+            retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000), // Exponential backoff: 1s, 2s, 4s...
             refetchOnWindowFocus: false, // Unngå unødvendige refetches
           },
         },

@@ -1,5 +1,13 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+// Type for Canvas-kontekst preferanser
+export interface ICanvasContextPreferences {
+    announcements: boolean;
+    courses: boolean;
+    assignments: boolean;
+    events: boolean;
+}
+
 export interface IUser extends Document {
     email: string;
     passwordHash: string;
@@ -10,6 +18,8 @@ export interface IUser extends Document {
     canvasUser?: mongoose.Types.ObjectId;
     refreshTokenHash?: string;
     refreshTokenExpiresAt?: Date;
+    // Brukerpreferanser for AI Canvas-kontekst
+    canvasContextPreferences?: ICanvasContextPreferences;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -56,6 +66,20 @@ const UserSchema: Schema = new Schema(
         },
         refreshTokenExpiresAt: {
             type: Date,
+        },
+        canvasContextPreferences: {
+            type: {
+                announcements: { type: Boolean, default: true },
+                courses: { type: Boolean, default: true },
+                assignments: { type: Boolean, default: true },
+                events: { type: Boolean, default: true },
+            },
+            default: {
+                announcements: true,
+                courses: true,
+                assignments: true,
+                events: true,
+            },
         },
     },
     {
