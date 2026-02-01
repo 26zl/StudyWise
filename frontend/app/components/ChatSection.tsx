@@ -5,7 +5,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Bot, User, Sparkles, Plus, Paperclip, X, FileText } from "lucide-react";
+import { Send, Loader2, Bot, User, Sparkles, Paperclip, X, FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
@@ -407,18 +407,6 @@ export function ChatSection() {
                                     Din personlige studieassistent
                                 </p>
                             </div>
-                        </div>
-                        
-                        {/* Action buttons */}
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={nySamtale}
-                                disabled={meldinger.length === 0}
-                                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Ny samtale"
-                            >
-                                <Plus className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                            </button>
                         </div>
                     </div>
                 </div>

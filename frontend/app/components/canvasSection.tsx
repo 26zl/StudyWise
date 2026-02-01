@@ -64,8 +64,10 @@ const TilpassetBilde = ({
     src,
     alt,
     style,
+    className: _className, // Ignorerer className/class fra props - vi setter vår egen
+    class: _class, // HTML class attributt fra DOM parser
     ...props
-}: React.ImgHTMLAttributes<HTMLImageElement>) => {
+}: React.ImgHTMLAttributes<HTMLImageElement> & { class?: string }) => {
     const [laster, settLaster] = useState(true);
     const safeStyle = normalizeStyle(style);
 

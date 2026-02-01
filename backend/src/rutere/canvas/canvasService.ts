@@ -66,11 +66,12 @@ export async function fetchCourses(canvasToken?: string | null): Promise<
   };
 }
 
-// Hent spesifikt kurs
+// Hent spesifikt kurs (med syllabus for fallback-visning)
 export async function fetchCourse(canvasToken: string | null | undefined, courseId: number) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown>(`/api/v1/courses/${courseId}`, {
     token,
+    queryParams: { "include[]": "syllabus_body" },
     cacheTtl: CACHE_TTL.COURSES,
   });
   return {

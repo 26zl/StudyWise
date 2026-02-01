@@ -35,6 +35,9 @@ export const CanvasCourseSchema = z.object({
   course_code: z.string().optional(),
   enrollment_term_id: z.number().optional(),
   workflow_state: z.string().optional(), // "available", "unpublished", etc.
+  syllabus_body: z.string().nullable().optional(), // HTML-innhold fra syllabus/kursplan
+  public_description: z.string().nullable().optional(), // Offentlig kursbeskrivelse
+  default_view: z.string().optional(), // "feed", "wiki", "modules", "syllabus", "assignments"
 });
 
 // Schema for Canvas oppgave

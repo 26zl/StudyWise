@@ -628,7 +628,8 @@ router.get("/emner/:courseId/pages", async (req, res) => {
 });
 
 // GET /emner/:courseId/frontpage - Hent kurs-frontpage
-// Returnerer 204 No Content hvis kurset ikke har en frontpage (Canvas returnerer 404)
+// Returnerer 204 No Content hvis kurset ikke har noen forside-innhold
+// Prøver først front_page wiki, deretter syllabus_body som fallback
 router.get("/emner/:courseId/frontpage", async (req, res) => {
   try {
     const { courseId } = req.params;
@@ -638,11 +639,35 @@ router.get("/emner/:courseId/frontpage", async (req, res) => {
     logger.info({ courseId, pageUrl: page.url }, "Hentet frontpage");
     res.json({ page, meta });
   } catch (error) {
-    // Canvas returnerer 404 når et kurs ikke har en satt frontpage - dette er normalt
+    // Canvas returnerer 404 når et kurs ikke har en satt frontpage - prøv syllabus som fallback
     const err = error as CanvasHttpError;
     if (err.status === 404) {
-      logger.info({ courseId: req.params.courseId }, "Kurset har ingen frontpage satt");
-      return res.status(204).send(); // 204 No Content - ikke en feil, bare ingen data
+      try {
+        // Hent kurs med syllabus_body som fallback
+        const { data: course } = await fetchCourse(req.canvasToken, parseInt(req.params.courseId, 10));
+        if (course.syllabus_body) {
+          logger.info({ courseId: req.params.courseId }, "Bruker syllabus som fallback for frontpage");
+          // Returner syllabus som en "side" for kompatibilitet med frontend
+          res.json({ 
+            page: {
+              url: "syllabus",
+              title: "Kursplan",
+              body: course.syllabus_body,
+              created_at: null,
+              updated_at: null,
+            },
+            meta: {},
+            source: "syllabus" // Markerer at dette er fra syllabus
+          });
+          return;
+        }
+        logger.info({ courseId: req.params.courseId }, "Kurset har ingen frontpage eller syllabus");
+        return res.status(204).send();
+      } catch {
+        // Hvis syllabus-henting også feiler, returner 204
+        logger.info({ courseId: req.params.courseId }, "Kurset har ingen frontpage satt");
+        return res.status(204).send();
+      }
     }
     logger.error({ err: error }, `Feil ved henting av frontpage for kurs ${req.params.courseId}`);
     throw error;
