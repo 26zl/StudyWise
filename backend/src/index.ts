@@ -26,7 +26,7 @@ import redisClient, { isRedisReady } from "./cache/redis.js";
 import canvasRuter from "./rutere/canvas/canvas.js";
 import kiRuter from "./rutere/ki/ki.js";
 import brukerAuthRuter from "./rutere/auth/brukerAuth.js";
-import kiConversationsRouter from "./rutere/ki/conversations.js"; 
+import { kiHistoryRouter } from "./rutere/ki/kiHistory.js";
 import { autentiserJwt, knyttCanvasToken } from "./middleware/auth.js";
 import { noCache } from "./middleware/no-cache.js";
 
@@ -73,10 +73,11 @@ app.use(pinoHttp({ logger }));
 // Gzip komprimering
 app.use(compression()); 
 
-app.use("/api/ki/conversations", kiConversationsRouter);
 
 // JSON body parser med økt størrelse på 10mb
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "10mb" })); 
+
+app.use("/api/ki", kiHistoryRouter); 
 
 // CORS kun mot frontend (WEB_ORIGIN er validert ved oppstart i validateEnv)
 app.use(

@@ -5,6 +5,7 @@ import type { SavedChat } from "../hooks/useChatHistory";
 
 interface ChatHistorySidebarProps {
   chats: SavedChat[];
+  selectedChatId?: string | null;
   onLoadChat: (chat: SavedChat) => void;
   onDeleteChat: (id: string) => void;
   onClearAll: () => void;
@@ -12,6 +13,7 @@ interface ChatHistorySidebarProps {
 
 export function ChatHistorySidebar({
   chats,
+  selectedChatId,
   onLoadChat,
   onDeleteChat,
   onClearAll,
@@ -34,7 +36,7 @@ export function ChatHistorySidebar({
           <div className="p-4 text-center">
             <MessageSquare className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Ingen samtaler ennå
+              Ingen samtaler ennÃ¥
             </p>
           </div>
         ) : (
@@ -42,7 +44,9 @@ export function ChatHistorySidebar({
             {chats.map((chat) => (
               <div
                 key={chat.id}
-                className="group relative rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                className={`group relative rounded-lg border border-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${
+                  selectedChatId === chat.id ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-500/60" : ""
+                }`}
               >
                 <button
                   onClick={() => onLoadChat(chat)}
@@ -88,3 +92,4 @@ export function ChatHistorySidebar({
     </div>
   ); 
 }
+ 
