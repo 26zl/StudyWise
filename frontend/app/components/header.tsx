@@ -12,15 +12,34 @@ import { useMeg, useLoggUt } from "../auth/auth-api";
 import { useQueryClient } from "@tanstack/react-query";
 import { broadcastLogout } from "../hooks/use-auth-sync";
 import { useTheme } from "next-themes";
+import { type MeResponse } from "common/auth";
+import { useState, useEffect } from "react";
+
+// Props for Header-komponenten
+interface HeaderProps {
+    user: MeResponse | null;
+}
 
 // Header-komponent
-export function Header() {
+export function Header({ user }: HeaderProps) {
     const pathname = usePathname();
     const { toggleVenstreMeny, reset: resetUIStore } = useUIStore();
     const erDashboard = pathname === "/dashboard";
     const queryClient = useQueryClient();
-    const megQuery = useMeg();
-    const authLaster = megQuery.isLoading || megQuery.isFetching;
+    const megQuery = useMeg({ initialData: user || undefined });
+
+    // Sjekk om auth-cookie finnes for å unngå "flash of login" ved cold start
+    // Hvis vi har cookie men ingen bruker enda, vis loading/skeleton
+    const [harAuthCookie, settHarAuthCookie] = useState(false);
+
+    useEffect(() => {
+        // Enkel sjekk om auth-cookie finnes
+        const cookies = document.cookie.split(';');
+        const harCookie = cookies.some(c => c.trim().startsWith('studywise_auth='));
+        settHarAuthCookie(harCookie);
+    }, []);
+
+    const authLaster = megQuery.isLoading || megQuery.isFetching || (harAuthCookie && !megQuery.data?.user && !megQuery.isError);
     const loggUt = useLoggUt();
     const { theme, setTheme } = useTheme();
     // Håndter logg ut - rydder opp all cache og state før redirect

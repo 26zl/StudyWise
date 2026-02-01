@@ -23,6 +23,7 @@ import {
   CanvasPlannerItemSchema,
   type CanvasCourse,
 } from "common/canvas";
+import { logger } from "../../utils/logger.js";
 
 // Generisk type for Canvas API-respons med valgfri metadata
 type CanvasResponseWithMeta<T> = {
@@ -152,8 +153,33 @@ export async function fetchUpcomingEvents(canvasToken?: string | null) {
     token,
     cacheTtl: CACHE_TTL.EVENTS,
   });
+  // Valider hvert element og dropp de som mangler gyldig id (Canvas returnerer noen ganger tomme/NaN)
+  const valid: z.infer<typeof CanvasCalendarEventSchema>[] = [];
+  const invalid: { idx: number; issues: z.ZodIssue[] }[] = [];
+
+  response.data.forEach((item, idx) => {
+    // Prøv å coerce id eksplisitt til number før validering for å unngå NaN fra f.eks. tom streng
+    const normalized =
+      typeof item === "object" && item !== null
+        ? { ...(item as Record<string, unknown>), id: Number((item as Record<string, unknown>).id) }
+        : item;
+    const parsed = CanvasCalendarEventSchema.safeParse(normalized);
+    if (parsed.success) {
+      valid.push(parsed.data);
+    } else {
+      invalid.push({ idx, issues: parsed.error.issues });
+    }
+  });
+
+  if (invalid.length > 0) {
+    logger.warn(
+      { droppedCount: invalid.length, examples: invalid.slice(0, 3) },
+      "Ignorerer ugyldige upcoming_events fra Canvas"
+    );
+  }
+
   return {
-    data: z.array(CanvasCalendarEventSchema).parse(response.data),
+    data: valid,
     meta: response.meta,
   };
 }

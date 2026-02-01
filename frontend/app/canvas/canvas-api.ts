@@ -20,6 +20,7 @@ import {
   UpcomingEventsResponseSchema,
   TodoResponseSchema,
   ModuleItemDetailsResponseSchema,
+  MetaSchema,
 } from "common/canvas";
 
 // Eksporter typer
@@ -53,8 +54,15 @@ async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>, forsoktRefre
     return fetchCanvas(endpoint, schema, true);
   }
   if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.melding || error.feil || "API feil");
+    const errorText = await res.text();
+    let errorMessage = "API feil";
+    try {
+      const error = JSON.parse(errorText);
+      errorMessage = error.melding || error.feil || errorMessage;
+    } catch {
+      errorMessage = errorText || errorMessage;
+    }
+    throw new Error(errorMessage);
   }
   const data = await res.json();
   return schema.parse(data); // Type-safe parsing med Zod
@@ -164,7 +172,11 @@ export function useCanvasDiscussion(courseId: number, topicId: number, enabled =
 export function useCanvasFiles(courseId: number | null, enabled = true) {
   return useQuery({
     queryKey: ["canvas", "files", courseId],
-    queryFn: () => fetchCanvas(`/emner/${courseId}/files`, z.object({ files: z.array(CanvasFileSchema), meta: z.any().optional() })),
+    queryFn: () =>
+      fetchCanvas(
+        `/emner/${courseId}/files`,
+        z.object({ files: z.array(CanvasFileSchema), meta: MetaSchema.optional() })
+      ),
     select: (res) => res.files,
     enabled: !!courseId && enabled,
   });
@@ -174,7 +186,11 @@ export function useCanvasFiles(courseId: number | null, enabled = true) {
 export function useCanvasPages(courseId: number | null, enabled = true) {
   return useQuery({
     queryKey: ["canvas", "pages", courseId],
-    queryFn: () => fetchCanvas(`/emner/${courseId}/pages`, z.object({ pages: z.array(CanvasPageSchema), meta: z.any().optional() })),
+    queryFn: () =>
+      fetchCanvas(
+        `/emner/${courseId}/pages`,
+        z.object({ pages: z.array(CanvasPageSchema), meta: MetaSchema.optional() })
+      ),
     select: (res) => res.pages,
     enabled: !!courseId && enabled,
   });
@@ -184,7 +200,11 @@ export function useCanvasPages(courseId: number | null, enabled = true) {
 export function useCanvasFrontPage(courseId: number | null, enabled = true) {
   return useQuery({
     queryKey: ["canvas", "frontpage", courseId],
-    queryFn: () => fetchCanvas(`/emner/${courseId}/frontpage`, z.object({ page: CanvasPageSchema, meta: z.any().optional() })),
+    queryFn: () =>
+      fetchCanvas(
+        `/emner/${courseId}/frontpage`,
+        z.object({ page: CanvasPageSchema, meta: MetaSchema.optional() })
+      ),
     select: (res) => res.page,
     enabled: !!courseId && enabled,
   });

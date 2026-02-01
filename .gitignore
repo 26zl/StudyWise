@@ -43,6 +43,7 @@ coverage/
 .claude/
 kill-dev.bat
 nul
+.windsurf/
 
 # TypeScript
 *.tsbuildinfo
@@ -63,3 +64,6 @@ next-env.d.ts
 # VitePress
 **/.vitepress/dist
 **/.vitepress/cache
+
+# Snyk Security Extension - AI Rules (auto-generated)
+.windsurf/rules/snyk_rules.md

@@ -62,6 +62,24 @@ export const hentCanvasToken = (overstyrtToken?: string): string | null => {
     return overstyrtToken ?? null;
 };
 
+// Helper: parse courseId fra Canvas context code (f.eks. course_123)
+export const parseCourseIdFromContext = (contextCode?: string | null) => {
+    const match = contextCode?.match(/course_(\d+)/);
+    return match ? Number(match[1]) : null;
+};
+
+// Helper: avgrens kalender-vindu (nå -1 mnd til +6 mnd)
+export const erInnenforKalenderVindu = (isoDato?: string | null) => {
+    if (!isoDato) return false;
+    const time = Date.parse(isoDato);
+    if (Number.isNaN(time)) return false;
+    const seksMndFrem = new Date();
+    seksMndFrem.setMonth(seksMndFrem.getMonth() + 6);
+    const enMndTilbake = new Date();
+    enMndTilbake.setMonth(enMndTilbake.getMonth() - 1);
+    return time >= enMndTilbake.getTime() && time <= seksMndFrem.getTime();
+};
+
 // Parse Link header for paginering
 export function parseLinkHeader(linkHeader: string | null): string | null {
     if (!linkHeader) return null;

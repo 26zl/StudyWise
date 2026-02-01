@@ -7,6 +7,7 @@ const __dirname = path.dirname(__filename);
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["common"],
+  serverExternalPackages: ["isomorphic-dompurify", "jsdom"],
   output: "standalone",
   turbopack: {
     root: path.resolve(__dirname, ".."),

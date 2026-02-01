@@ -23,6 +23,7 @@ import {
 import { useLoggUt } from "../auth/auth-api";
 import { useQueryClient } from "@tanstack/react-query";
 import { broadcastLogout } from "../hooks/use-auth-sync";
+import { useChatHistory } from "../hooks/useChatHistory";
 
 
 // Typer for de ulike visningene i sidebar
@@ -41,13 +42,6 @@ interface SidebarProps {
     brukernavn?: string;
 }
 
-// Chat-historikk (dummy data for nå)
-const chatHistorikk = [
-    { id: "1", tittel: "Spørsmål om eksamen", dato: "I dag" },
-    { id: "2", tittel: "Hjelp med innlevering", dato: "I går" },
-    { id: "3", tittel: "Forklaring av moduler", dato: "3 dager siden" },
-];
-
 // Sidebar-komponent
 export function Sidebar({
     aktivVisning,
@@ -58,6 +52,8 @@ export function Sidebar({
     const [erCanvasUtvidet, settErCanvasUtvidet] = useState(true);
     const loggUt = useLoggUt();
     const queryClient = useQueryClient();
+    const { setSelectedChatId } = useUIStore();
+    const { chats } = useChatHistory();
 
     // Håndter navigasjon og lukk meny på mobil
     const handleNavigasjon = (visning: VisningType) => {
@@ -169,27 +165,32 @@ export function Sidebar({
                     </button>
 
                     {/* Chat-historikk */}
-                    <div className="mb-2">
+                    <div className="mb-4">
                         <div className="mb-2">
                             <NavElement view="chat" icon={MessageSquare} label="KI Assistent" />
                         </div>
-                    </div>
-
-                    {/* Tidligere samtaler */}
-                    <div className="mb-4">
                         <p className="px-3 py-2 text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                            Nylige samtaler
+                            Samtalehistorikk
                         </p>
-                        {chatHistorikk.map((chat) => (
-                            <button
-                                key={chat.id}
-                                onClick={() => handleNavigasjon("chat")}
-                                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200 transition-colors"
-                            >
-                                <MessageSquare size={16} className="shrink-0 opacity-50" />
-                                <span className="truncate">{chat.tittel}</span>
-                            </button>
-                        ))}
+                        {chats.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
+                                Ingen samtaler ennå
+                            </div>
+                        ) : (
+                            chats.slice(0, 5).map((chat) => (
+                                <button
+                                    key={chat.id}
+                                    onClick={() => {
+                                        setSelectedChatId(chat.id);
+                                        handleNavigasjon("chat");
+                                    }}
+                                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200 transition-colors"
+                                >
+                                    <MessageSquare size={16} className="shrink-0 opacity-50" />
+                                    <span className="truncate">{chat.title}</span>
+                                </button>
+                            ))
+                        )}
                     </div>
 
                     {/* Canvas-seksjon */}

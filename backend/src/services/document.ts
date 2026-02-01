@@ -8,6 +8,7 @@ import { extractText } from "unpdf";
 import mammoth from "mammoth";
 import Tesseract from "tesseract.js";
 import { logger } from "../utils/logger.js";
+import { DocumentParseResult } from "common/document";
 
 // Støttede MIME-typer og deres filtype
 export const SUPPORTED_DOCUMENT_TYPES: Record<string, string> = {
@@ -47,16 +48,6 @@ export const EXTENSION_TO_MIME: Record<string, string> = {
     ".tiff": "image/tiff",
     ".tif": "image/tiff",
 };
-
-export interface DocumentParseResult {
-    success: boolean;
-    text: string;
-    pages: number;
-    fileType: string;
-    redacted: boolean;
-    truncated: boolean;
-    error?: string;
-}
 
 /**
  * Saniterer og renser tekst fra dokumenter
@@ -108,7 +99,7 @@ async function performOCR(buffer: Buffer): Promise<{ text: string; confidence: n
             buffer,
             "nor+eng", // Norsk og engelsk
             {
-                logger: (info) => {
+                logger: (info: { status?: string; progress?: number }) => {
                     if (info.status === "recognizing text") {
                         logger.debug({ progress: info.progress }, "OCR progress");
                     }

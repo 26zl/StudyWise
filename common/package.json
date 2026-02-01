@@ -18,6 +18,26 @@
     "./ki": {
       "types": "./dist/ki.d.ts",
       "import": "./dist/ki.js"
+    },
+    "./auth": {
+      "types": "./dist/auth.d.ts",
+      "import": "./dist/auth.js"
+    },
+    "./calendar": {
+      "types": "./dist/calendar.d.ts",
+      "import": "./dist/calendar.js"
+    },
+    "./chat": {
+      "types": "./dist/chat.d.ts",
+      "import": "./dist/chat.js"
+    },
+    "./document": {
+      "types": "./dist/document.d.ts",
+      "import": "./dist/document.js"
+    },
+    "./calendar-ui": {
+      "types": "./dist/calendar-ui.d.ts",
+      "import": "./dist/calendar-ui.js"
     }
   },
   "scripts": {

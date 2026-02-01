@@ -40,7 +40,8 @@ export const CanvasAssignmentSchema = z.object({
   name: z.string(),
   due_at: z.string().nullable(),
   points_possible: z.number().nullable(),
-  html_url: z.string(),
+  html_url: z.string().optional(),
+  course_id: z.number().optional(),
 });
 
 // Schema for Canvas kunngjøring

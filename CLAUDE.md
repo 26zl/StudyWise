@@ -19,6 +19,8 @@ StudyWise/
 │   │   ├── auth.ts              # Auth schemas
 │   │   ├── canvas.ts            # Canvas API schemas
 │   │   ├── ki.ts                # AI API schemas
+│   │   ├── calendar.ts          # Calendar/deadline schemas
+│   │   ├── chat.ts              # Chat history schemas
 │   │   └── index.ts             # Exports all schemas
 │   ├── dist/                    # Compiled files (.js + .d.ts)
 │   ├── package.json             # Includes build script
@@ -33,9 +35,13 @@ StudyWise/
 │   │   │   └── page.tsx         # Main page controlling views
 │   │   ├── auth/           # Authentication
 │   │   │   ├── auth-api.ts      # Auth API hooks
+│   │   │   ├── auth-server.ts   # Server-side auth helpers
 │   │   │   └── page.tsx         # Login page
 │   │   ├── ki/                  # AI pages
 │   │   │   └── ki-api.ts        # API logic only (hooks)
+│   │   ├── hooks/               # Custom React hooks
+│   │   │   ├── useChatHistory.ts    # Chat history hook
+│   │   │   └── use-auth-sync.ts     # Cross-tab auth sync
 │   │   ├── layout.tsx      # Root layout (Providers + Global CSS)
 │   │   ├── page.tsx        # Root page (redirects to /hjem)
 │   │   ├── providers.tsx   # React Query provider
@@ -45,13 +51,25 @@ StudyWise/
 │   │       ├── kiSection.tsx        # Shows AI chat in dashboard
 │   │       ├── header.tsx           # Global header
 │   │       └── footer.tsx           # Global footer
+│   ├── calendar/           # Calendar feature (outside app/)
+│   │   ├── calendar-api.ts      # Calendar data hooks
+│   │   ├── CalendarSection.tsx  # Main calendar component
+│   │   ├── CalendarGrid.tsx     # Calendar grid view
+│   │   ├── CalendarHeader.tsx   # Calendar navigation
+│   │   ├── DateDetailsModal.tsx # Date details popup
+│   │   ├── UpcomingDeadlines.tsx # Deadline list
+│   │   └── CourseLegend.tsx     # Course color legend
 │   ├── package.json
 │   ├── postcss.config.mjs  # Tailwind v4 config
 │   └── tsconfig.json
 ├── backend/                # Express backend
 │   ├── src/
-│   │   ├── database/       # Database connection
-│   │   │   └── database.ts      # Connects to MongoDB
+│   │   ├── database/       # Database connection and models
+│   │   │   ├── database.ts      # Connects to MongoDB
+│   │   │   └── models/          # Mongoose models
+│   │   │       ├── User.ts          # Local user (auth, encrypted Canvas token)
+│   │   │       ├── CanvasUser.ts    # Cached Canvas profile data
+│   │   │       └── ChatHistory.ts   # Encrypted chat history
 │   │   ├── rutere/         # API routes
 │   │   │   ├── canvas/
 │   │   │   │   └── canvas.ts    # Canvas LMS API endpoints
@@ -147,7 +165,8 @@ This is the heart of the application and functions as a **central hub** for the 
 ### Database Models
 
 - **User** (`backend/src/database/models/User.ts`): Local auth (email, password, canvasApiToken encrypted). This is where we store the Canvas API Token.
-- **CanvasUser** (`backend/src/database/models/Canvas.ts`): Cache of public profile info from Canvas (name, avatar, settings). Links back to User via `localUser` field.
+- **CanvasUser** (`backend/src/database/models/CanvasUser.ts`): Cache of public profile info from Canvas (name, avatar, settings). Links back to User via `localUser` field.
+- **ChatHistory** (`backend/src/database/models/ChatHistory.ts`): Encrypted chat history per user. Messages are encrypted with AES-256-GCM before storage.
 
 ---
 

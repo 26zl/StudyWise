@@ -11,6 +11,9 @@ interface UIState {
     toggleVenstreMeny: () => void;
     lukkVenstreMeny: () => void;
     settVenstreMenyOpen: (isOpen: boolean) => void;
+    // Håndter valgt chat-id for å laste fra sidebar
+    selectedChatId: string | null;
+    setSelectedChatId: (id: string | null) => void;
     // Nullstiller all UI-tilstand (brukes ved utlogging)
     reset: () => void;
 }
@@ -20,5 +23,7 @@ export const useUIStore = create<UIState>((set) => ({
     toggleVenstreMeny: () => set((state) => ({ isVenstreMenyOpen: !state.isVenstreMenyOpen })),
     lukkVenstreMeny: () => set({ isVenstreMenyOpen: false }),
     settVenstreMenyOpen: (isOpen) => set({ isVenstreMenyOpen: isOpen }),
-    reset: () => set({ isVenstreMenyOpen: false }),
+    selectedChatId: null,
+    setSelectedChatId: (id) => set({ selectedChatId: id }),
+    reset: () => set({ isVenstreMenyOpen: false, selectedChatId: null }),
 }));

@@ -72,8 +72,15 @@ async function fetchKI<T>(endpoint: string, schema: ZodType<T>, forsoktRefresh =
         return fetchKI(endpoint, schema, true);
     }
     if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.melding || error.feil || "API feil");
+        const errorText = await res.text();
+        let errorMessage = "API feil";
+        try {
+            const error = JSON.parse(errorText);
+            errorMessage = error.melding || error.feil || errorMessage;
+        } catch {
+            errorMessage = errorText || errorMessage;
+        }
+        throw new Error(errorMessage);
     }
     const data = await res.json();
     return schema.parse(data);
@@ -101,10 +108,17 @@ async function postKI<T>(
     }
     
     if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.melding || error.feil || "API feil");
+        const errorText = await res.text();
+        let errorMessage = "API feil";
+        try {
+            const error = JSON.parse(errorText);
+            errorMessage = error.melding || error.feil || errorMessage;
+        } catch {
+            errorMessage = errorText || errorMessage;
+        }
+        throw new Error(errorMessage);
     }
-    
+
     const data = await res.json();
     return schema.parse(data);
 }
@@ -126,8 +140,15 @@ async function postKIFormData<T>(
         return postKIFormData(endpoint, formData, schema, true);
     }
     if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.melding || error.feil || "API feil");
+        const errorText = await res.text();
+        let errorMessage = "API feil";
+        try {
+            const error = JSON.parse(errorText);
+            errorMessage = error.melding || error.feil || errorMessage;
+        } catch {
+            errorMessage = errorText || errorMessage;
+        }
+        throw new Error(errorMessage);
     }
     const data = await res.json();
     return schema.parse(data);

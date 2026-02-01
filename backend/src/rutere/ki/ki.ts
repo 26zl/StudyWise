@@ -22,11 +22,14 @@ import {
     getSupportedMimeTypes 
 } from "../../services/document.js";
 import { byggKiCanvasKontekst } from "./kiCanvas.js";
+import { kiHistoryRouter } from "./kiHistory.js";
 
 // Definerer express router
 const router = Router();
 // Rate limiting for KI-endepunkter
 router.use(rateLimitKi);
+// Chat historikk ruter
+router.use(kiHistoryRouter);
 
 // Støttede MIME-typer for dokumentopplasting
 const SUPPORTED_MIME_TYPES = getSupportedMimeTypes();
@@ -281,7 +284,19 @@ router.post("/chat", async (req, res) => {
         }
 
         // Hent også Canvas-kontekst fra backend hvis bruker har token (fallback/supplement)
-        const canvasKontekst = await byggKiCanvasKontekst(req.canvasToken);
+        const CANVAS_TIMEOUT_MS = 20000;
+        const canvasKontekst = await Promise.race([
+            byggKiCanvasKontekst(req.canvasToken),
+            new Promise<string>((resolve) =>
+                setTimeout(
+                    () =>
+                        resolve(
+                            "[CANVAS STATUS: Henting av Canvas-data tok for lang tid (>20s). Fortsett uten oppdatert Canvas-kontekst.]"
+                        ),
+                    CANVAS_TIMEOUT_MS
+                )
+            ),
+        ]);
 
         // Bygg meldingsarray med enhanced system prompt og Canvas-kontekst
         const systemPrompt = { role: "system" as const, content: enhancedSystemPrompt };
@@ -297,12 +312,21 @@ router.post("/chat", async (req, res) => {
 
         logger.info({ model, messageCount: fullMessages.length, harCanvasToken: !!req.canvasToken, harFrontendCanvasContext: !!canvasContextMessage }, "Sender til HuggingFace");
 
-        const result = await hfClient.chatCompletion({
-            model,
-            messages: fullMessages,
-            max_tokens: 1024,
-            temperature: Math.min(Math.max(temperature, 0), 2), // Clamp mellom 0-2
-        });
+        // Egen timeout guard (race) så klienten får svar selv om HF henger
+        const TIMEOUT_MS = 25000;
+        const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("CHAT_TIMEOUT")), TIMEOUT_MS)
+        );
+
+        const result = await Promise.race([
+            hfClient.chatCompletion({
+                model,
+                messages: fullMessages,
+                max_tokens: 1024,
+                temperature: Math.min(Math.max(temperature, 0), 2), // Clamp mellom 0-2
+            }),
+            timeoutPromise,
+        ]);
 
         const responseText = result?.choices?.[0]?.message?.content ?? "";
         const usage = result?.usage;
@@ -327,6 +351,14 @@ router.post("/chat", async (req, res) => {
     } catch (error) {
         logger.error({ err: error, model }, "HuggingFace chat feil");
         const errorMessage = error instanceof Error ? error.message : String(error);
+
+        if (error instanceof Error && error.message === "CHAT_TIMEOUT") {
+            return res.status(504).json(KIChatResponseSchema.parse({
+                suksess: false,
+                melding: "Chat-forespørselen tok for lang tid (timeout etter 25s). Prøv igjen eller forenkle spørsmålet.",
+                response: "",
+            }));
+        }
         
         // Sjekk for vanlige feil
         if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {

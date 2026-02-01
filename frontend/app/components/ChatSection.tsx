@@ -5,13 +5,13 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Bot, User, Sparkles, Clock, Plus, Paperclip, X, FileText } from "lucide-react";
+import { Send, Loader2, Bot, User, Sparkles, Plus, Paperclip, X, FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useKITestTilkobling, useKIChat, useKIDocumentAnalyse, SUPPORTED_FILE_TYPES } from "../ki/ki-api";
 import { CanvasContextSelector } from "./CanvasContextSelector";
 import { useChatHistory } from "../hooks/useChatHistory";
-import { ChatHistorySidebar } from "./ChatHistorySidebar";
+import { useUIStore } from "../store/uiStore";
 
 // Meldings-typer
 interface Melding {
@@ -35,12 +35,15 @@ export function ChatSection() {
     const [tekstInput, settTekstInput] = useState("");
     const [skriver, settSkriver] = useState(false);
     const [canvasContext, setCanvasContext] = useState("");
-    const [showHistory, setShowHistory] = useState(false);
+    const [harCanvasContext, setHarCanvasContext] = useState(false);
     const [vedlagtFil, settVedlagtFil] = useState<File | null>(null);
     const [analyserarDokument, settAnalysererDokument] = useState(false);
+    const [aktivChatId, setAktivChatId] = useState<string | null>(null);
     const meldingerSluttRef = useRef<HTMLDivElement>(null);
     const tekstInputRef = useRef<HTMLTextAreaElement>(null);
     const filInputRef = useRef<HTMLInputElement>(null);
+    const oppretterChatRef = useRef(false);
+    const { selectedChatId, setSelectedChatId } = useUIStore();
 
     // KI tilkoblingstest 
     const {
@@ -53,8 +56,8 @@ export function ChatSection() {
     // Dokumentanalyse hook
     const { analyserDokument } = useKIDocumentAnalyse();
 
-    // Chat history hook + fjernet loadChat, blir aldri brukt
-    const { chats, saveChat, deleteChat, clearAll } = useChatHistory();
+    // Chat history hook (lagret i DB, kryptert i backend)
+    const { saveChat, loadChat: loadChatById } = useChatHistory();
 
     // Auto-scroll 
     const scrollTilBunn = () => {
@@ -74,30 +77,36 @@ export function ChatSection() {
         }
     }, [tekstInput]);
 
-    // Auto-save hver 5. melding
-    useEffect(() => {
-        if (meldinger.length > 0 && meldinger.length % 5 === 0) {
-            saveChat(
-                meldinger.map((m) => ({
-                    rolle: m.rolle,
-                    innhold: m.innhold,
-                }))
-            );
+    const lagreSamtale = async (oppdatert: Melding[]) => {
+        const payload = oppdatert.map((m) => ({
+            rolle: m.rolle,
+            innhold: m.innhold,
+        }));
+
+        if (aktivChatId) {
+            await saveChat(payload, aktivChatId);
+            return;
         }
-    }, [meldinger.length]); // Bare avhengig av length, ikke saveChat
+
+        if (oppretterChatRef.current) return;
+        oppretterChatRef.current = true;
+        try {
+            const nyId = await saveChat(payload);
+            if (nyId) setAktivChatId(nyId);
+        } finally {
+            oppretterChatRef.current = false;
+        }
+    };
 
     // Ny samtale
     const nySamtale = () => {
         if (meldinger.length > 0) {
-            saveChat(
-                meldinger.map((m) => ({
-                    rolle: m.rolle,
-                    innhold: m.innhold,
-                }))
-            );
+            void lagreSamtale(meldinger);
         }
         settMeldinger([]);
         setCanvasContext("");
+        setHarCanvasContext(false);
+        setAktivChatId(null);
         settVedlagtFil(null);
     };
 
@@ -130,19 +139,6 @@ export function ChatSection() {
         if (filInputRef.current) {
             filInputRef.current.value = "";
         }
-    };
-
-    // Last samtale
-    const handleLoadChat = (chat: any) => {
-        settMeldinger(
-            chat.messages.map((m: any, i: number) => ({
-                id: `${Date.now()}-${i}`,
-                rolle: m.rolle,
-                innhold: m.innhold,
-                tidsstempel: new Date(),
-            }))
-        );
-        setShowHistory(false);
     };
 
     const sendMelding = async () => {
@@ -184,7 +180,11 @@ export function ChatSection() {
                             : data.response,
                         tidsstempel: new Date(),
                     };
-                    settMeldinger((tidligere) => [...tidligere, aiMelding]);
+                    settMeldinger((tidligere) => {
+                        const oppdatert = [...tidligere, aiMelding];
+                        void lagreSamtale(oppdatert);
+                        return oppdatert;
+                    });
                     settAnalysererDokument(false);
                 },
                 onError: (error) => {
@@ -219,6 +219,24 @@ export function ChatSection() {
             { role: "user" as const, content: brukerMeldingInnhold },
         ];
 
+        // Send til ekte API (med guard hvis ingen Canvas-kontekst er valgt)
+        if (!harCanvasContext) {
+            const spørOmCanvas = /canvas|oppgave|assignment|kunngjør|announcement|emne|course|module|todo|frist|deadline|data/i.test(
+                brukerMeldingInnhold
+            );
+            if (spørOmCanvas) {
+                const systemMelding: Melding = {
+                    id: (Date.now() + 1).toString(),
+                    rolle: "assistant",
+                    innhold: "Velg minst ett datasett under «Gi AI tilgang til» før jeg kan hente eller bruke Canvas-data.",
+                    tidsstempel: new Date(),
+                };
+                settMeldinger((tidligere) => [...tidligere, systemMelding]);
+                settSkriver(false);
+                return;
+            }
+        }
+
         // Send til ekte API
         sendTilAPI(apiMeldinger, {
             onSuccess: (data) => {
@@ -228,14 +246,19 @@ export function ChatSection() {
                     innhold: data.response,
                     tidsstempel: new Date(),
                 };
-                settMeldinger((tidligere) => [...tidligere, aiMelding]);
+                settMeldinger((tidligere) => {
+                    const oppdatert = [...tidligere, aiMelding];
+                    // Auto-save hele samtalen til historikk
+                    void lagreSamtale(oppdatert);
+                    return oppdatert;
+                });
                 settSkriver(false);
             },
             onError: (error) => {
                 const feilMelding: Melding = {
                     id: (Date.now() + 1).toString(),
                     rolle: "assistant",
-                    innhold: `❌ Feil: ${error.message}. Prøv igjen senere.`,
+                    innhold: `Feil: ${error.message}. Prøv igjen senere.`,
                     tidsstempel: new Date(),
                 };
                 settMeldinger((tidligere) => [...tidligere, feilMelding]);
@@ -258,25 +281,33 @@ export function ChatSection() {
         tekstInputRef.current?.focus();
     };
 
+    // Last chat valgt fra sidebar
+    useEffect(() => {
+        if (!selectedChatId) return;
+        const chat = loadChatById(selectedChatId);
+        if (chat) {
+            settMeldinger(
+                chat.messages.map((m, i) => ({
+                    id: `${Date.now()}-${i}`,
+                    rolle: m.rolle,
+                    innhold: m.innhold,
+                    tidsstempel: new Date(),
+                }))
+            );
+            setAktivChatId(chat.id);
+        }
+        setSelectedChatId(null);
+    }, [selectedChatId, loadChatById, setSelectedChatId]);
+
     return (
         <div className="h-full flex">
-            {/* Sidebar - Chat History */}
-            {showHistory && (
-                <ChatHistorySidebar
-                    chats={chats}
-                    onLoadChat={handleLoadChat}
-                    onDeleteChat={deleteChat}
-                    onClearAll={clearAll}
-                />
-            )}
-
             {/* Main Chat Area */}
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Header */}
                 <div className="shrink-0 px-4 md:px-6 py-4 border-b border-slate-200 dark:border-slate-800">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                            <div className="w-10 h-10 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center">
                                 <Sparkles className="w-5 h-5 text-white" />
                             </div>
                             <div>
@@ -291,16 +322,6 @@ export function ChatSection() {
                         
                         {/* Action buttons */}
                         <div className="flex items-center gap-2">
-                            {/* History toggle */}
-                            <button
-                                onClick={() => setShowHistory(!showHistory)}
-                                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                title="Samtalehistorikk"
-                            >
-                                <Clock className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                            </button>
-                            
-                            {/* New chat */}
                             <button
                                 onClick={nySamtale}
                                 disabled={meldinger.length === 0}
@@ -315,7 +336,10 @@ export function ChatSection() {
 
                 {/* Canvas Context Selector */}
                 <div className="shrink-0 px-4 md:px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-                    <CanvasContextSelector onContextChange={setCanvasContext} />
+                    <CanvasContextSelector
+                        onContextChange={(ctx) => setCanvasContext(ctx)}
+                        onContextStateChange={setHarCanvasContext}
+                    />
                 </div>
 
                 {/* Meldinger */}
@@ -324,7 +348,7 @@ export function ChatSection() {
                     {erTilkoblingsFeil && (
                         <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4">
                             <p className="text-sm text-red-700 dark:text-red-300">
-                                ⚠️ Kunne ikke koble til KI-assistenten. Prøv igjen senere.
+                                Kunne ikke koble til KI-assistenten. Prøv igjen senere.
                             </p>
                         </div>
                     )}
@@ -366,7 +390,7 @@ export function ChatSection() {
                             className={`flex gap-3 ${melding.rolle === "user" ? "justify-end" : "justify-start"}`}
                         >
                             {melding.rolle === "assistant" && (
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
+                                <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
                                     <Bot className="w-4 h-4 text-white" />
                                 </div>
                             )}
@@ -412,7 +436,7 @@ export function ChatSection() {
                     {/* Skriver indikator */}
                     {(skriver || analyserarDokument) && (
                         <div className="flex gap-3">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
+                            <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
                                 <Bot className="w-4 h-4 text-white" />
                             </div>
                             <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl px-4 py-3">
