@@ -14,6 +14,7 @@ export const DocumentParseResultSchema = z.object({
   redacted: z.boolean(),
   truncated: z.boolean(),
   error: z.string().optional(),
+  warning: z.string().optional(), // Advarsel om lav OCR-konfidens etc.
 });
 
 export type DocumentParseResult = z.infer<typeof DocumentParseResultSchema>;

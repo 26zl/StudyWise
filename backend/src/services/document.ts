@@ -1,12 +1,13 @@
 /**
  * Document parsing service
  * Konverterer dokumenter (PDF, Word, TXT, bilder) til ren tekst for KI-analyse
- * Bruker unpdf for PDF, mammoth for Word, og tesseract.js for OCR på bilder
+ * Bruker unpdf for PDF, mammoth for Word, sharp for bildeforbehandling, og tesseract.js for OCR
  */
 
 import { extractText } from "unpdf";
 import mammoth from "mammoth";
 import Tesseract from "tesseract.js";
+import sharp from "sharp";
 import { logger } from "../utils/logger.js";
 import { DocumentParseResult } from "common/document";
 
@@ -91,16 +92,82 @@ function sanitizeText(text: string): { cleanText: string; redacted: boolean } {
 }
 
 /**
+ * Forbehandler bilde for bedre OCR-resultater
+ * - Konverterer til gråskala for bedre kontrast
+ * - Øker kontrast og skarphet
+ * - Normaliserer størrelse
+ * - Inverterer farger hvis bildet har lys tekst på mørk bakgrunn
+ */
+async function preprocessImageForOCR(buffer: Buffer): Promise<Buffer> {
+    try {
+        const image = sharp(buffer);
+        const metadata = await image.metadata();
+        
+        logger.info({ 
+            width: metadata.width, 
+            height: metadata.height, 
+            format: metadata.format 
+        }, "Preprocessing image for OCR");
+
+        // Analyser bildet for å detektere om det har mørk bakgrunn (lys tekst)
+        const stats = await image.stats();
+        const avgBrightness = stats.channels.reduce((sum, ch) => sum + ch.mean, 0) / stats.channels.length;
+        const isDarkBackground = avgBrightness < 128;
+
+        let processed = sharp(buffer)
+            // Konverter til gråskala
+            .grayscale()
+            // Øk kontrast
+            .normalize()
+            // Skarp opp tekst
+            .sharpen({ sigma: 1.5 });
+
+        // Inverter hvis mørk bakgrunn (gjør tekst mørk på lys bakgrunn)
+        if (isDarkBackground) {
+            logger.info("Detected dark background, inverting image for better OCR");
+            processed = processed.negate();
+        }
+
+        // Skaler opp små bilder for bedre OCR (min 1000px bredde)
+        if (metadata.width && metadata.width < 1000) {
+            const scale = Math.min(2, 1000 / metadata.width);
+            processed = processed.resize({
+                width: Math.round(metadata.width * scale),
+                height: metadata.height ? Math.round(metadata.height * scale) : undefined,
+                fit: "inside",
+            });
+        }
+
+        // Konverter til PNG for best kvalitet
+        const result = await processed.png().toBuffer();
+        
+        logger.info({ 
+            originalSize: buffer.length, 
+            processedSize: result.length,
+            inverted: isDarkBackground 
+        }, "Image preprocessing complete");
+
+        return result;
+    } catch (error) {
+        logger.warn({ err: error }, "Image preprocessing failed, using original");
+        return buffer; // Fallback til original hvis forbehandling feiler
+    }
+}
+
+/**
  * Utfører OCR på et bilde med tesseract.js
  * Støtter norsk og engelsk tekst
- * Inkluderer timeout for å unngå at prosessen henger på komplekse bilder
+ * Inkluderer bildeforbehandling og timeout
  */
 async function performOCR(buffer: Buffer): Promise<{ text: string; confidence: number }> {
     try {
         logger.info({ bufferLength: buffer.length }, "Starting OCR processing");
         
+        // Forbehandle bildet for bedre OCR-resultater
+        const processedBuffer = await preprocessImageForOCR(buffer);
+        
         // Wrap OCR i en Promise med timeout
-        const ocrPromise = Tesseract.recognize(buffer, "nor+eng", {
+        const ocrPromise = Tesseract.recognize(processedBuffer, "nor+eng", {
             logger: (info) => {
                 if (info.status === "recognizing text") {
                     logger.debug({ progress: info.progress }, "OCR progress");
@@ -147,13 +214,17 @@ async function parseImageDocument(buffer: Buffer): Promise<DocumentParseResult> 
                 fileType: "image",
                 redacted: false,
                 truncated: false,
-                error: "Kunne ikke finne tekst i bildet. Sjekk at bildet inneholder lesbar tekst.",
+                error: "Kunne ikke finne tekst i bildet. Dette kan skyldes: stilisert/dekorativ tekst, tekst over komplekse bakgrunner, eller lav bildekvalitet. Prøv et bilde med tydelig, vanlig tekst på enkel bakgrunn.",
             };
         }
 
-        // Lav OCR-konfidens kan bety dårlig bildekvalitet
+        // Lav OCR-konfidens kan bety dårlig bildekvalitet eller stilisert tekst
+        let warning: string | undefined;
         if (confidence < 30) {
             logger.warn({ confidence }, "Low OCR confidence");
+            warning = `OBS: Lav tekstgjenkjenning (${Math.round(confidence)}% sikkerhet). Resultatet kan inneholde feil. Stiliserte fonter, tekst på bilder/bakgrunner, eller lav kvalitet kan påvirke nøyaktigheten.`;
+        } else if (confidence < 60) {
+            warning = `Merk: Moderat tekstgjenkjenning (${Math.round(confidence)}% sikkerhet). Noe tekst kan være feil gjenkjent.`;
         }
 
         // Saniterer tekst
@@ -172,6 +243,7 @@ async function parseImageDocument(buffer: Buffer): Promise<DocumentParseResult> 
                 confidence,
                 wasTruncated: truncated,
                 redacted,
+                hasWarning: !!warning,
             },
             "Image parsed successfully with OCR"
         );
@@ -183,6 +255,7 @@ async function parseImageDocument(buffer: Buffer): Promise<DocumentParseResult> 
             fileType: "image",
             redacted,
             truncated,
+            warning, // Inkluder advarsel om lav konfidens
         };
     } catch (error) {
         logger.error({ err: error }, "Image OCR parsing failed");

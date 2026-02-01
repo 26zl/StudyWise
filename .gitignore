@@ -67,3 +67,6 @@ next-env.d.ts
 
 # Snyk Security Extension - AI Rules (auto-generated)
 .windsurf/rules/snyk_rules.md
+
+# Tesseract OCR language data (auto-downloaded)
+*.traineddata

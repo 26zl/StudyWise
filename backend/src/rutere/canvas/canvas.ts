@@ -648,15 +648,13 @@ router.get("/emner/:courseId/frontpage", async (req, res) => {
         if (course.syllabus_body) {
           logger.info({ courseId: req.params.courseId }, "Bruker syllabus som fallback for frontpage");
           // Returner syllabus som en "side" for kompatibilitet med frontend
+          // Utelater created_at/updated_at siden de er optional i skjemaet
           res.json({ 
             page: {
               url: "syllabus",
               title: "Kursplan",
               body: course.syllabus_body,
-              created_at: null,
-              updated_at: null,
             },
-            meta: {},
             source: "syllabus" // Markerer at dette er fra syllabus
           });
           return;
