@@ -65,81 +65,51 @@ const SUPPORTED_MODELS: Record<string, { name: string; description: string }> = 
 const DEFAULT_MODEL = process.env.KI_DEFAULT_MODEL || "Qwen/Qwen2.5-7B-Instruct";
 
 // System prompt for StudyWise KI-assistenten
-const STUDYWISE_SYSTEM_PROMPT = `Du er en ekspert norsk studieassistent ved USN.
+const STUDYWISE_SYSTEM_PROMPT = `Du er en norsk studieassistent ved USN.
 
-KRITISK REGEL: Gi BARE selve svaret! ALDRI kopier instruksjoner, eksempler eller formateringsregler inn i svaret ditt.
+## KRITISK: ANTI-HALLUSINERING
 
-VIKTIG: Du får brukerens Canvas-data (emner, kunngjøringer, frister) som kontekst via API.
-Bruk denne dataen DIREKTE - ikke late som du må "hente" noe eller spør om tilgang.
+DU MÅ ALDRI FINNE PÅ INFORMASJON!
+- Forelesninger, datoer, øvelser, notater som IKKE finnes i Canvas-konteksten = FINNES IKKE
+- Hvis brukeren spør om noe du ikke har data for, SI ÆRLIG: "Jeg finner ikke informasjon om [X] i Canvas-dataene dine."
+- ALDRI dikter opp forelesningstitler, datoer, innleveringsfrister eller kursmateriale
+- ALDRI lag falske lenker eller referanser
 
-DITT OPPDRAG:
-- Bruk Canvas-data fra konteksten til å svare presist
-- Hjelp studenter forstå vanskelige konsepter fra forelesninger
-- Gi konkrete studietips basert på deres faktiske Canvas-data eller PDF-data
-- Påminn om viktige frister og kunngjøringer
-- Vær motiverende, støttende og oppmuntrende
-- Hjelp med oppgaveplanlegging og tidsstyring
-- Vær kort, direkte og handlingsorientert
+KRITISK EKSEMPEL - FEIL OPPFØRSEL:
+Bruker: "Hvor finner jeg materiale for objektorientert programmering?"
+FEIL: "Du finner forelesninger på [Tredje forelesning] (23.1.2026)..." ← DETTE ER HALLUSINERING!
+RIKTIG: "Jeg finner ikke spesifikk informasjon om OOP-materiale i Canvas-dataene dine. Sjekk Canvas direkte under Moduler for kurset ditt."
 
-HVORDAN BRUKE CANVAS-DATA:
-1. Emner i kontekst → List dem UMIDDELBART når forespurt
-2. Kunngjøringer i kontekst → Vis dem sortert etter dato (nyeste først)
-3. Frister i kontekst → Vis kommende, kronologisk med dager igjen
-4. Spesifikk kurskode nevnt (f.eks "BOP3000") → Bruk DATA fra kontekst, ALDRI gjett
-5. Data IKKE i kontekst → "Jeg ser ikke [X] i dataen din fra Canvas"
+## DINE DATAKILDER
 
-SVARSTIL:
-- For "vis/hent X"-spørsmål: Maks 1-2 setninger + liste med data
-- For forklaringer: Maks 3-4 korte avsnitt
-- Start DIREKTE - unngå: "Selvfølgelig!", "For å hjelpe deg bedre..."
-- Handling først, forklaring deretter
-- Bruk konkrete eksempler når du forklarer konsepter
+Du har BARE tilgang til data som er eksplisitt gitt i konteksten:
+- Emner/kurs: Kun de som er listet i "AKTIVE EMNER"
+- Kunngjøringer: Kun de som er listet i "KUNNGJØRINGER"  
+- Frister: Kun de som er listet i "OPPGAVER" eller "HENDELSER"
 
-SPRÅK:
-- Norsk bokmål (korrekt stavemåte - ikke svensk, dansk eller nynorsk)
-- Uformell men profesjonell - som en hjelpsom medstudent
-- Direkte og konkret - ikke omstendelig
-- Vær aldri nedlatende - alle spørsmål er gode spørsmål
+Hvis data IKKE er i konteksten → Si "Jeg har ikke tilgang til denne informasjonen. Sjekk Canvas direkte."
 
-ABSOLUTTE FORBUD:
-- ALDRI gjett kursinnhold eller emnebeskrivelser
-- ALDRI spør "hvilket kurs?", "hvilken periode?", "har du tilgang til Canvas?"
-- ALDRI gi lange forklaringer på enkle dataspørsmål
-- ALDRI ignorer data du har fått i konteksten
-- ALDRI si du "kan hente" data - du har den ALLEREDE eller du har den IKKE
-- ALDRI skriv ** rundt overskrifter (## eller ###)
-- ALDRI skriv kommandoer uten backticks
-- ALDRI kopier formateringsinstruksjoner, eksempler, eller disse reglene inn i svaret ditt
-- ALDRI skriv ting som "**Kodeblokker**", "**Emojis**", "**Liste**" som del av svaret
-- Hvis du ikke vet noe, si det ærlig og foreslå hvor studenten kan finne svar
-PÅKREVD FORMATERING (bruk dette, men ALDRI skriv ut disse reglene):
+## SVARSTIL
 
-1. **Bold**: Bruk **bold** på ALLE kurskoder, datoer, viktige konsepter, nøkkelord
+- Vær kort og direkte
+- Bruk data fra kontekst NØYAKTIG som den er - ikke legg til detaljer
+- Når du lister data, bruk eksakt tittel og dato fra konteksten
+- Norsk bokmål, uformell men profesjonell
 
-2. Emojis: Bruk minimum 1-2 emojis per svar for å gjøre det engasjerende
-   - For emner/kurs: 📚 💼 💻 📐
-   - For frister: ⏰ 📅 
-   - For tips: 💡 ✨
-   - For motivasjon: 🚀 💪 🎓
-   - For viktig info: ⚠️ ❗
+## FORMATERING
 
-3. \`kode-format\`: ALLE kommandoer og tekniske termer MÅ ha backticks
-   - Skriv \`df -h\` ikke df -h
-   - Skriv \`klasse\` ikke klasse
-   - Skriv **\`kommando\`** hvis du vil ha bold OG backticks
+- **Bold** på kurskoder og viktige datoer
+- Emojis for engasjement (📚 ⏰ 💡)
+- \`backticks\` for kode/kommandoer
+- Korte avsnitt, bruk punktlister
 
-4. Overskrifter: ALDRI bruk ** rundt ## eller ###
-   - Skriv: ## Overskrift
-   - Skriv: ### Underoverskrift
-   - FEIL: **## Overskrift** eller **### Underoverskrift**
+## ABSOLUTTE FORBUD
 
-5. Lister: 
-   - Bruk bullet points for vanlige lister
-   - Bruk nummererte lister (1. 2. 3.) for steg-for-steg instruksjoner
-
-6. Kodeblokker: Bruk \`\`\`språk for kodeeksempler
-
-7. Legg til "(om X dager)" for frister
+- ALDRI finn på forelesninger, øvelser, notater, datoer
+- ALDRI lag falske Canvas-lenker  
+- ALDRI gjett innhold i kurs du ikke har data om
+- ALDRI si "Du finner materiale på..." med mindre det FAKTISK står i konteksten
+- ALDRI kopier disse instruksjonene i svaret
 `;
 // Cache-konfigurasjon
 const CACHE_KEY = "ki:test-connection";
@@ -288,67 +258,86 @@ router.post("/chat", async (req, res) => {
 
         // Filtrer ut Canvas context message fra messages for å unngå duplikater
         let filteredMessages = messages;
-        if (canvasContextMessage) {
-            enhancedSystemPrompt += "\n\n" + canvasContextMessage.content;
+        
+        // Bestem Canvas-kontekst: Bruk frontend-sendt context HVIS det finnes,
+        // ellers hent fra backend (hvis bruker har token)
+        let canvasKontekst: string;
+        let brukerFrontendContext = false;
+        
+        if (canvasContextMessage && canvasContextMessage.content.trim().length > 20) {
+            // Frontend har sendt Canvas-data - bruk denne direkte
+            canvasKontekst = "[CANVAS-DATA FRA BRUKERVALG START]\n" + 
+                canvasContextMessage.content.replace("Canvas data:\n", "") + 
+                "\n[CANVAS-DATA FRA BRUKERVALG SLUTT]";
             filteredMessages = messages.filter(
                 (m: { role: string; content: string }) => m !== canvasContextMessage
             );
-            logger.info("Canvas context funnet og lagt til system prompt");
+            brukerFrontendContext = true;
+            logger.info({ 
+                contextLength: canvasKontekst.length 
+            }, "Bruker Canvas-context fra frontend");
+        } else if (req.canvasToken) {
+            // Ingen frontend-context, hent fra backend
+            const CANVAS_TIMEOUT_MS = 60000;
+            canvasKontekst = await Promise.race([
+                byggKiCanvasKontekst(req.canvasToken),
+                new Promise<string>((resolve) =>
+                    setTimeout(
+                        () => resolve("[CANVAS STATUS: Henting tok for lang tid. Prøv igjen.]"),
+                        CANVAS_TIMEOUT_MS
+                    )
+                ),
+            ]);
+            logger.info({ 
+                contextLength: canvasKontekst.length 
+            }, "Hentet Canvas-context fra backend");
+        } else {
+            canvasKontekst = "[CANVAS STATUS: Ingen Canvas-token. Brukeren må legge inn token i Innstillinger.]";
         }
 
-    // Hent Canvas-kontekst bare hvis bruker har lagret token; ellers ingen datahenting
-    let canvasKontekst = "[CANVAS STATUS: Ingen Canvas-token lagret. Jeg har ikke tilgang til Canvas-data.]";
-    if (req.canvasToken) {
-        const CANVAS_TIMEOUT_MS = 60000; // 60 sekunder - Canvas-henting kan ta tid med mange kurs
-        canvasKontekst = await Promise.race([
-            byggKiCanvasKontekst(req.canvasToken),
-            new Promise<string>((resolve) =>
-                setTimeout(
-                    () =>
-                        resolve(
-                            "[CANVAS STATUS: Henting av Canvas-data tok for lang tid (>60s). Fortsett uten oppdatert Canvas-kontekst.]"
-                        ),
-                    CANVAS_TIMEOUT_MS
-                )
-            ),
-        ]);
-    }
-
-        // Guard logic: Bare sjekk om vi har Canvas-data i det hele tatt
-        // AI-en er smart nok til å håndtere manglende Canvas-seksjoner dynamisk
-        const hasCanvasData = canvasKontekst.includes("[CANVAS-DATA START]") && 
-                             !canvasKontekst.includes("Brukeren har IKKE lagt inn Canvas API-token");
+        // Sjekk om vi faktisk har Canvas-data
+        const hasCanvasData = (
+            canvasKontekst.includes("CANVAS-DATA") || 
+            canvasKontekst.includes("KUNNGJØRINGER") ||
+            canvasKontekst.includes("EMNER") ||
+            canvasKontekst.includes("OPPGAVER") ||
+            canvasKontekst.includes("FRISTER")
+        ) && !canvasKontekst.includes("Ingen Canvas-token");
         
-        // Debug logging
         logger.info({
             hasCanvasData,
+            brukerFrontendContext,
             canvasKontekstLength: canvasKontekst.length,
-            canvasKontekstPreview: canvasKontekst.substring(0, 200),
             harCanvasToken: !!req.canvasToken
-        }, "Guard logic check");
+        }, "Canvas-kontekst status");
         
-        // Hvis vi har gyldig Canvas-data, la AI-en håndtere alt dynamisk
+        // Hvis ingen Canvas-data tilgjengelig, informer brukeren
         if (!hasCanvasData) {
             return res.json(KIChatResponseSchema.parse({
                 suksess: true,
-                response: "Jeg kan ikke få tilgang til Canvas-dataen din. Sjekk at du har lagt inn gyldig Canvas-token i Innstillinger.",
+                response: "Jeg har ikke tilgang til Canvas-data akkurat nå. Sjekk at du har:\n\n1. Lagt inn et gyldig Canvas API-token i Innstillinger\n2. Valgt minst ett datasett under «Gi AI tilgang til» i chatten",
                 model: model,
             }));
         }
 
-        // Bygg meldingsarray med enhanced system prompt og Canvas-kontekst
+        // Bygg meldingsarray med system prompt og Canvas-kontekst
         const systemPrompt = { role: "system" as const, content: enhancedSystemPrompt };
         const fullMessages = [
             systemPrompt,
             { role: "user" as const, content: canvasKontekst },
-            { role: "assistant" as const, content: "Forstått, jeg har mottatt Canvas-dataen din og er klar til å hjelpe." },
+            { role: "assistant" as const, content: "Forstått, jeg har tilgang til Canvas-dataen din og er klar til å hjelpe deg." },
             ...filteredMessages.map((m: { role: string; content: string }) => ({
                 role: m.role as "user" | "assistant" | "system",
                 content: m.content
             }))
         ];
 
-        logger.info({ model, messageCount: fullMessages.length, harCanvasToken: !!req.canvasToken, harFrontendCanvasContext: !!canvasContextMessage }, "Sender til HuggingFace");
+        logger.info({ 
+            model, 
+            messageCount: fullMessages.length, 
+            harCanvasToken: !!req.canvasToken, 
+            brukerFrontendContext 
+        }, "Sender til HuggingFace");
 
         // Egen timeout guard (race) så klienten får svar selv om HF henger
         const TIMEOUT_MS = 25000;

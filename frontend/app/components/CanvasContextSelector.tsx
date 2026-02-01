@@ -1,8 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Check } from "lucide-react";
-import { useCanvasAnnouncements, useCanvasCourses, useCanvasTodo } from "../canvas/canvas-api";
+import { useState, useEffect, useCallback } from "react";
+import { Check, Loader2 } from "lucide-react";
+import { 
+  useCanvasAnnouncements, 
+  useCanvasCourses, 
+  useCanvasTodo,
+  useCanvasUpcomingEvents 
+} from "../canvas/canvas-api";
 
 interface CanvasContextSelectorProps {
   onContextChange: (context: string) => void;
@@ -14,101 +19,177 @@ export function CanvasContextSelector({ onContextChange, onContextStateChange }:
     announcements: true,
     courses: true,
     assignments: true,
+    events: true,
   });
 
-  const { data: announcementsData } = useCanvasAnnouncements();
-  const { data: coursesData } = useCanvasCourses();
-  const { data: todoData } = useCanvasTodo(selected.assignments);
+  const { data: announcementsData, isLoading: loadingAnnouncements } = useCanvasAnnouncements();
+  const { data: coursesData, isLoading: loadingCourses } = useCanvasCourses();
+  const { data: todoData, isLoading: loadingTodo } = useCanvasTodo(selected.assignments);
+  const { data: eventsData, isLoading: loadingEvents } = useCanvasUpcomingEvents(selected.events);
 
-  // Bygg context string når bruker endrer valg
-  useEffect(() => {
-    let context = "";
+  const isLoading = loadingAnnouncements || loadingCourses || loadingTodo || loadingEvents;
 
-    if (selected.announcements && announcementsData?.announcements) {
-      context += "\n\nKUNNGJØRINGER:\n";
-      announcementsData.announcements.slice(0, 5).forEach((a) => {
-        context += `- ${a.title}\n`;
+  // Memoize callback for å unngå uendelig loop
+  const byggContext = useCallback(() => {
+    const deler: string[] = [];
+
+    // Kunngjøringer med INNHOLD
+    if (selected.announcements && announcementsData?.announcements?.length) {
+      deler.push("KUNNGJØRINGER:");
+      announcementsData.announcements.slice(0, 10).forEach((a) => {
+        const dato = a.posted_at ? new Date(a.posted_at).toLocaleDateString("no-NO") : "";
+        const courseName = a.context_code?.replace("course_", "") || "";
+        deler.push(`\n[${a.title}]${dato ? ` (${dato})` : ""}${courseName ? ` - Emne: ${courseName}` : ""}`);
+        // Inkluder innhold (stripet for HTML)
+        if (a.message) {
+          const stripped = a.message.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+          if (stripped.length > 0) {
+            deler.push(stripped.substring(0, 500) + (stripped.length > 500 ? "..." : ""));
+          }
+        }
       });
+      deler.push("");
     }
 
-    if (selected.courses && coursesData?.courses) {
-      context += "\n\nEMNER:\n";
-      coursesData.courses.slice(0, 10).forEach((c) => {
-        context += `- ${c.name} (${c.course_code})\n`;
+    // Emner med detaljer
+    if (selected.courses && coursesData?.courses?.length) {
+      deler.push("DINE EMNER:");
+      coursesData.courses.forEach((c) => {
+        const status = c.workflow_state === "available" ? "aktiv" : c.workflow_state;
+        deler.push(`- ${c.name} (${c.course_code || "ukjent kode"}) [${status}]`);
       });
+      deler.push("");
     }
 
-    if (selected.assignments && todoData?.todos) {
-      context += "\n\nOPPGAVER/TODO (fra Canvas):\n";
-      todoData.todos.slice(0, 5).forEach((t) => {
-        const navn = t.assignment?.name || t.quiz?.title || t.type || "Item";
+    // Oppgaver/TODO med frister og detaljer
+    if (selected.assignments && todoData?.todos?.length) {
+      deler.push("KOMMENDE FRISTER OG OPPGAVER:");
+      todoData.todos.slice(0, 15).forEach((t) => {
+        const navn = t.assignment?.name || t.quiz?.title || t.type || "Ukjent";
         const frist = t.assignment?.due_at || t.quiz?.due_at;
-        const fristStr = frist ? new Date(frist).toLocaleDateString("no-NO") : "";
-        context += `- ${navn}${fristStr ? ` (frist ${fristStr})` : ""}\n`;
+        const poeng = t.assignment?.points_possible;
+        const courseName = t.context_name || "";
+        
+        let linje = `- ${navn}`;
+        if (courseName) linje += ` (${courseName})`;
+        if (frist) {
+          const fristDato = new Date(frist);
+          const dagerIgjen = Math.ceil((fristDato.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          linje += ` - Frist: ${fristDato.toLocaleDateString("no-NO")}`;
+          if (dagerIgjen <= 7 && dagerIgjen >= 0) {
+            linje += ` (${dagerIgjen} dager igjen!)`;
+          } else if (dagerIgjen < 0) {
+            linje += " (FORFALT)";
+          }
+        }
+        if (poeng) linje += ` [${poeng} poeng]`;
+        deler.push(linje);
       });
+      deler.push("");
     }
 
+    // Kommende hendelser
+    if (selected.events && eventsData?.events?.length) {
+      deler.push("KOMMENDE HENDELSER:");
+      eventsData.events.slice(0, 10).forEach((e) => {
+        const start = e.start_at ? new Date(e.start_at) : null;
+        const slutt = e.end_at ? new Date(e.end_at) : null;
+        const tittel = e.title || "Hendelse";
+        
+        let linje = `- ${tittel}`;
+        if (start) {
+          linje += ` - ${start.toLocaleDateString("no-NO")}`;
+          if (slutt && start.toDateString() === slutt.toDateString()) {
+            linje += ` kl ${start.toLocaleTimeString("no-NO", { hour: "2-digit", minute: "2-digit" })}`;
+            linje += `-${slutt.toLocaleTimeString("no-NO", { hour: "2-digit", minute: "2-digit" })}`;
+          }
+        }
+        if (e.location_name) linje += ` @ ${e.location_name}`;
+        deler.push(linje);
+      });
+      deler.push("");
+    }
+
+    // Legg til info om at full Canvas-kontekst hentes fra backend
+    if (deler.length > 0) {
+      deler.push("---");
+      deler.push("MERK: Full Canvas-data (moduler, sider, innhold) hentes automatisk fra backend.");
+      deler.push("Dette er kun overordnet info - detaljert innhold er tilgjengelig.");
+    }
+
+    return deler.join("\n").trim();
+  }, [selected, announcementsData, coursesData, todoData, eventsData]);
+
+  // Oppdater context når data eller valg endres
+  useEffect(() => {
+    const context = byggContext();
     onContextChange(context);
-    onContextStateChange?.(context.trim().length > 0);
-  }, [selected, announcementsData, coursesData, todoData, onContextChange]);
+    onContextStateChange?.(context.length > 0);
+  }, [byggContext, onContextChange, onContextStateChange]);
 
   const toggleOption = (key: keyof typeof selected) => {
     setSelected((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   // Hjelpetekst når alt er av
-  const allOff =
-    !selected.announcements &&
-    !selected.courses &&
-    !selected.assignments;
+  const allOff = !selected.announcements && !selected.courses && !selected.assignments && !selected.events;
 
   const options = [
     {
       key: "announcements" as const,
       label: "Kunngjøringer",
       count: announcementsData?.announcements?.length || 0,
-      description: "Nyeste kunngjøringer fra dine emner",
+      description: "Meldinger fra forelesere",
+      loading: loadingAnnouncements,
     },
     {
       key: "courses" as const,
       label: "Emner",
       count: coursesData?.courses?.length || 0,
       description: "Dine aktive emner",
+      loading: loadingCourses,
     },
     {
       key: "assignments" as const,
       label: "Oppgaver",
       count: todoData?.todos?.length || 0,
-      description: "Kommende innleveringer/todo fra Canvas",
-      disabled: false,
+      description: "Frister og innleveringer",
+      loading: loadingTodo,
+    },
+    {
+      key: "events" as const,
+      label: "Hendelser",
+      count: eventsData?.events?.length || 0,
+      description: "Kalender og møter",
+      loading: loadingEvents,
     },
   ];
 
   return (
     <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-      <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-3">
-        Gi AI tilgang til:
-      </h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+          Gi AI tilgang til:
+        </h3>
+        {isLoading && (
+          <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+        )}
+      </div>
       {allOff && (
         <div className="mb-2 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 rounded">
-          Ingen data valgt. AI kan ikke svare på Canvas-spørsmål før du huker av minst ett datasett.
+          Ingen data valgt. AI kan ikke svare på Canvas-spørsmål før du velger minst ett datasett.
         </div>
       )}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {options.map((option) => (
           <button
             key={option.key}
-            onClick={() => !option.disabled && toggleOption(option.key)}
-            disabled={option.disabled}
-            className={`flex flex-col items-start gap-2 p-3 rounded-lg border transition-colors ${
+            onClick={() => toggleOption(option.key)}
+            className={`flex flex-col items-start gap-1.5 p-3 rounded-lg border transition-colors ${
               selected[option.key]
                 ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
                 : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
-            } ${
-              option.disabled
-                ? "opacity-50 cursor-not-allowed"
-                : "hover:border-blue-400 cursor-pointer"
-            }`}
+            } hover:border-blue-400 cursor-pointer`}
           >
             <div className="flex items-center gap-2 w-full">
               <div
@@ -120,18 +201,22 @@ export function CanvasContextSelector({ onContextChange, onContextStateChange }:
               >
                 {selected[option.key] && <Check className="w-3 h-3 text-white" />}
               </div>
-              <div className="text-left">
+              <div className="text-left flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-slate-900 dark:text-white">
+                  <span className="text-sm font-medium text-slate-900 dark:text-white truncate">
                     {option.label}
                   </span>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">
-                    ({option.count})
-                  </span>
+                  {option.loading ? (
+                    <Loader2 className="w-3 h-3 animate-spin text-slate-400" />
+                  ) : (
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      ({option.count})
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate w-full">
               {option.description}
             </p>
           </button>

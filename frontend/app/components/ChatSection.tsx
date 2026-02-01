@@ -8,6 +8,7 @@ import { useState, useRef, useEffect } from "react";
 import { Send, Loader2, Bot, User, Sparkles, Plus, Paperclip, X, FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeSanitize from "rehype-sanitize";
 import { useKITestTilkobling, useKIChat, useKIDocumentAnalyse, SUPPORTED_FILE_TYPES } from "../ki/ki-api";
 import { CanvasContextSelector } from "./CanvasContextSelector";
 import { useChatHistory } from "../hooks/useChatHistory";
@@ -30,6 +31,7 @@ const forslag = [
 ];
 
 export function ChatSection() {
+    const [mounted, setMounted] = useState(false);
     const [meldinger, settMeldinger] = useState<Melding[]>([]);
     const [tekstInput, settTekstInput] = useState("");
     const [skriver, settSkriver] = useState(false);
@@ -44,6 +46,11 @@ export function ChatSection() {
     const oppretterChatRef = useRef(false);
     const { selectedChatId, setSelectedChatId, newChatToken } = useUIStore();
     const sisteNySamtaleToken = useRef(newChatToken);
+
+    // Sett mounted etter første render for å unngå hydration mismatch
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     // KI tilkoblingstest 
     const {
@@ -197,10 +204,27 @@ export function ChatSection() {
                     settAnalysererDokument(false);
                 },
                 onError: (error) => {
+                    // Lag brukervennlig feilmelding for dokumentanalyse
+                    let feilTekst: string;
+                    
+                    if (error.message.includes("for stor") || error.message.includes("413")) {
+                        feilTekst = "Filen er for stor. Maksimal filstørrelse er 15MB.";
+                    } else if (error.message.includes("429") || error.message.includes("rate")) {
+                        feilTekst = "For mange forespørsler. Vent noen sekunder og prøv igjen.";
+                    } else if (error.message.includes("timeout") || error.message.includes("504")) {
+                        feilTekst = "Analysen tok for lang tid. Prøv med et mindre dokument.";
+                    } else if (error.message.includes("utilgjengelig") || error.message.includes("503")) {
+                        feilTekst = "Dokumentanalyse er midlertidig utilgjengelig. Prøv igjen om noen minutter.";
+                    } else if (error.message.includes("filtype") || error.message.includes("støttes ikke")) {
+                        feilTekst = "Filtypen støttes ikke. Prøv PDF, Word, eller tekstfiler.";
+                    } else {
+                        feilTekst = error.message || "Kunne ikke analysere dokumentet. Prøv igjen.";
+                    }
+                    
                     const feilMelding: Melding = {
                         id: (Date.now() + 1).toString(),
                         rolle: "assistant",
-                        innhold: `Kunne ikke analysere dokumentet: ${error.message}`,
+                        innhold: feilTekst,
                         tidsstempel: new Date(),
                     };
                     settMeldinger((tidligere) => [...tidligere, feilMelding]);
@@ -228,16 +252,50 @@ export function ChatSection() {
             { role: "user" as const, content: brukerMeldingInnhold },
         ];
 
-        // Send til ekte API (med guard hvis ingen Canvas-kontekst er valgt)
-        if (!harCanvasContext) {
-            const spørOmCanvas = /canvas|oppgave|assignment|kunngjør|announcement|emne|course|module|todo|frist|deadline|data/i.test(
-                brukerMeldingInnhold
-            );
-            if (spørOmCanvas) {
+        // Detektér hvilken type Canvas-data brukeren spør om
+        const spørOmKunngjøringer = /kunngjør|announcement|beskjed|melding fra foreleser/i.test(brukerMeldingInnhold);
+        const spørOmEmner = /emne|course|fag|kurs(?!gjøring)/i.test(brukerMeldingInnhold);
+        const spørOmOppgaver = /oppgave|assignment|innlevering|frist|deadline|todo|gjøremål/i.test(brukerMeldingInnhold);
+        const spørOmHendelser = /hendelse|event|kalender|møte|forelesning/i.test(brukerMeldingInnhold);
+        const spørOmCanvas = spørOmKunngjøringer || spørOmEmner || spørOmOppgaver || spørOmHendelser || 
+            /canvas|data|mine|hva har jeg/i.test(brukerMeldingInnhold);
+
+        // Sjekk om bruker spør om noe som ikke er valgt
+        if (spørOmCanvas) {
+            const manglerData: string[] = [];
+            
+            if (spørOmKunngjøringer && !canvasContext.includes("KUNNGJØRINGER")) {
+                manglerData.push("Kunngjøringer");
+            }
+            if (spørOmEmner && !canvasContext.includes("DINE EMNER")) {
+                manglerData.push("Emner");
+            }
+            if (spørOmOppgaver && !canvasContext.includes("FRISTER") && !canvasContext.includes("OPPGAVER")) {
+                manglerData.push("Oppgaver");
+            }
+            if (spørOmHendelser && !canvasContext.includes("HENDELSER")) {
+                manglerData.push("Hendelser");
+            }
+
+            // Hvis ingen context i det hele tatt
+            if (!harCanvasContext) {
                 const systemMelding: Melding = {
                     id: (Date.now() + 1).toString(),
                     rolle: "assistant",
-                    innhold: "Velg minst ett datasett under «Gi AI tilgang til» før jeg kan hente eller bruke Canvas-data.",
+                    innhold: "Du har ikke valgt noen Canvas-data. Velg minst ett datasett under «Gi AI tilgang til» for at jeg skal kunne hjelpe deg med Canvas-relaterte spørsmål.",
+                    tidsstempel: new Date(),
+                };
+                settMeldinger((tidligere) => [...tidligere, systemMelding]);
+                settSkriver(false);
+                return;
+            }
+            
+            // Hvis brukeren spør om noe spesifikt som ikke er valgt - STOPP
+            if (manglerData.length > 0) {
+                const systemMelding: Melding = {
+                    id: (Date.now() + 1).toString(),
+                    rolle: "assistant",
+                    innhold: `Jeg har ikke tilgang til ${manglerData.join(" eller ").toLowerCase()} fordi du ikke har valgt dette.\n\nVelg «${manglerData.join("» og «")}» under «Gi AI tilgang til» og prøv igjen.`,
                     tidsstempel: new Date(),
                 };
                 settMeldinger((tidligere) => [...tidligere, systemMelding]);
@@ -266,10 +324,30 @@ export function ChatSection() {
                 settSkriver(false);
             },
             onError: (error) => {
+                // Lag brukervennlig feilmelding basert på feiltype
+                let feilTekst: string;
+                const errorName = error.name;
+                
+                if (errorName === "KIRateLimitError") {
+                    feilTekst = "For mange forespørsler. Vent noen sekunder og prøv igjen.";
+                } else if (errorName === "KIServiceError") {
+                    feilTekst = "KI-tjenesten er midlertidig utilgjengelig. Prøv igjen om noen minutter.";
+                } else if (errorName === "KITimeoutError") {
+                    feilTekst = "Forespørselen tok for lang tid. Prøv å forenkle spørsmålet ditt.";
+                } else if (errorName === "KIAuthError") {
+                    feilTekst = "Du må logge inn på nytt for å bruke KI-assistenten.";
+                } else if (error.message.includes("timeout") || error.message.includes("504")) {
+                    feilTekst = "Forespørselen tok for lang tid. Prøv igjen eller forenkle spørsmålet.";
+                } else if (error.message.includes("429") || error.message.includes("rate")) {
+                    feilTekst = "For mange forespørsler. Vent litt og prøv igjen.";
+                } else {
+                    feilTekst = error.message || "Noe gikk galt. Prøv igjen.";
+                }
+                
                 const feilMelding: Melding = {
                     id: (Date.now() + 1).toString(),
                     rolle: "assistant",
-                    innhold: `Feil: ${error.message}. Prøv igjen senere.`,
+                    innhold: feilTekst,
                     tidsstempel: new Date(),
                 };
                 settMeldinger((tidligere) => [...tidligere, feilMelding]);
@@ -364,16 +442,23 @@ export function ChatSection() {
                         </div>
                     )}
 
-                    {/* Loading state */}
-                    {loading && (
+                    {/* Placeholder før hydration - matcher server-rendering */}
+                    {!mounted && (
+                        <div className="flex justify-center items-center py-12">
+                            <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+                        </div>
+                    )}
+
+                    {/* Loading state - vis kun etter mount for å unngå hydration mismatch */}
+                    {mounted && loading && (
                         <div className="flex justify-center items-center py-12">
                             <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
                             <p className="ml-3 text-sm text-slate-500">Laster samtalehistorikk...</p>
                         </div>
                     )}
 
-                    {/* Tomme meldinger - vis forslag */}
-                    {!loading && meldinger.length === 0 && (
+                    {/* Tomme meldinger - vis forslag (kun etter mount og når ikke loading) */}
+                    {mounted && !loading && meldinger.length === 0 && (
                         <div className="space-y-4">
                             <div className="text-center py-12">
                                 <Bot className="w-16 h-16 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
@@ -423,7 +508,10 @@ export function ChatSection() {
                             >
                                 {melding.rolle === "assistant" ? (
                                     <div className="text-sm prose prose-sm dark:prose-invert prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-pre:my-2 prose-code:text-blue-600 dark:prose-code:text-blue-400 prose-code:bg-slate-200 dark:prose-code:bg-slate-700 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none max-w-none">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        <ReactMarkdown 
+                                            remarkPlugins={[remarkGfm]}
+                                            rehypePlugins={[rehypeSanitize]}
+                                        >
                                             {melding.innhold}
                                         </ReactMarkdown>
                                     </div>

@@ -132,7 +132,23 @@ router.get("/users/self/upcoming_events", async (req, res) => {
       meta
     });
   } catch (error) {
+    const err = error as CanvasHttpError;
     logger.error({ err: error }, "Feil ved henting av upcoming_events");
+    
+    if (err.status === 401) {
+      return res.status(401).json({
+        feil: "Ugyldig Canvas-token",
+        melding: "Canvas-tokenet ditt er ugyldig eller utlopt. Oppdater tokenet i innstillinger.",
+      });
+    }
+    
+    if (err.status === 429) {
+      return res.status(429).json({
+        feil: "For mange foresp\u00f8rsler",
+        melding: "Canvas API er overbelastet. Vent noen sekunder og pr\u00f8v igjen.",
+      });
+    }
+    
     throw error;
   }
 });
@@ -148,7 +164,16 @@ router.get("/users/self/todo", async (req, res) => {
       meta
     });
   } catch (error) {
+    const err = error as CanvasHttpError;
     logger.error({ err: error }, "Feil ved henting av todo liste");
+    
+    if (err.status === 401) {
+      return res.status(401).json({
+        feil: "Ugyldig Canvas-token",
+        melding: "Canvas-tokenet ditt er ugyldig eller utlopt. Oppdater tokenet i innstillinger.",
+      });
+    }
+    
     throw error;
   }
 });
@@ -164,7 +189,23 @@ router.get("/emner", async (req, res) => {
       meta,
     });
   } catch (error) {
+    const err = error as CanvasHttpError;
     logger.error({ err: error }, "Feil under henting av emner");
+    
+    if (err.status === 401) {
+      return res.status(401).json({
+        feil: "Ugyldig Canvas-token",
+        melding: "Canvas-tokenet ditt er ugyldig eller utlopt. Oppdater tokenet i innstillinger.",
+      });
+    }
+    
+    if (err.status === 429) {
+      return res.status(429).json({
+        feil: "For mange foresp\u00f8rsler",
+        melding: "Canvas API er overbelastet. Vent noen sekunder og pr\u00f8v igjen.",
+      });
+    }
+    
     throw error;
   }
 });
@@ -182,7 +223,7 @@ router.get("/emner/:courseId", async (req, res) => {
       });
     }
     const { data: course } = await fetchCourse(req.canvasToken, courseIdNum);
-    logger.info({ courseId: course.id, name: course.name }, "Hentet emnedetaljer");
+    logger.info({ courseId: course.id }, "Hentet emnedetaljer");
     res.json(course);
   } catch (error) {
     logger.error({ err: error }, `Feil under henting av emne ${req.params.courseId}`);
@@ -249,7 +290,23 @@ router.get("/announcements", rateLimitCanvasTung, async (req, res) => {
       meta,
     });
   } catch (error) {
+    const err = error as CanvasHttpError;
     logger.error({ err: error }, "Feil under henting av annonseringer");
+    
+    if (err.status === 401) {
+      return res.status(401).json({
+        feil: "Ugyldig Canvas-token",
+        melding: "Canvas-tokenet ditt er ugyldig eller utlopt. Oppdater tokenet i innstillinger.",
+      });
+    }
+    
+    if (err.status === 429) {
+      return res.status(429).json({
+        feil: "For mange foresp\u00f8rsler",
+        melding: "Canvas API er overbelastet. Vent noen sekunder og pr\u00f8v igjen.",
+      });
+    }
+    
     throw error;
   }
 });
@@ -384,7 +441,31 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
     logger.info({ itemCount: payload.items.length, courseCount: courses.length }, "Bygget kalender-payload");
     res.json(payload);
   } catch (error) {
+    const err = error as CanvasHttpError;
     logger.error({ err: error }, "Feil ved henting av kalender-data");
+    
+    if (err.status === 401) {
+      return res.status(401).json({
+        feil: "Ugyldig Canvas-token",
+        melding: "Canvas-tokenet ditt er ugyldig eller utl\u00f8pt. Oppdater tokenet i innstillinger.",
+      });
+    }
+    
+    if (err.status === 429) {
+      return res.status(429).json({
+        feil: "For mange foresp\u00f8rsler",
+        melding: "Canvas API er overbelastet. Vent noen sekunder og pr\u00f8v igjen.",
+      });
+    }
+    
+    // Returner tom kalender ved andre feil for graceful degradation
+    if (err.message?.includes("timeout")) {
+      return res.status(504).json({
+        feil: "Tidsavbrudd",
+        melding: "Henting av kalenderdata tok for lang tid. Pr\u00f8v igjen.",
+      });
+    }
+    
     throw error;
   }
 });
@@ -568,7 +649,7 @@ router.get("/filer/:fileId", async (req, res) => {
     const fileIdNum = parseInt(fileId, 10);
     if (isNaN(fileIdNum)) return res.status(400).json({ feil: "Ugyldig fileId" });
     const { data: file } = await fetchFileMetadata(req.canvasToken, fileIdNum);
-    logger.info({ fileId, filename: file.filename }, "Hentet fil metadata");
+    logger.info({ fileId }, "Hentet fil metadata");
     res.json(file);
   } catch (error) {
     logger.error({ err: error }, `Feil ved henting av fil ${req.params.fileId}`);
@@ -630,7 +711,7 @@ router.get("/emner/:courseId/diskusjoner/:topicId", async (req, res) => {
       return res.status(400).json({ feil: "Ugyldig ID" });
     }
     const { data: topic } = await fetchDiscussionTopic(req.canvasToken, courseIdNum, topicIdNum);
-    logger.info({ courseId, topicId, title: topic.title }, "Hentet diskusjon");
+    logger.info({ courseId, topicId }, "Hentet diskusjon");
     res.json(topic);
   } catch (error) {
     logger.error({ err: error }, `Feil ved henting av diskusjon ${req.params.topicId}`);

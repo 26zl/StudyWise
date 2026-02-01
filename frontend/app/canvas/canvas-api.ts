@@ -42,6 +42,14 @@ export type {
   CanvasModuleItemDetail,
 } from "common/canvas";
 
+// Spesialisert feilklasse for manglende Canvas-token
+export class CanvasTokenMissingError extends Error {
+  constructor(message = "Canvas-token mangler") {
+    super(message);
+    this.name = "CanvasTokenMissingError";
+  }
+}
+
 // API funksjoner 
 async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>, forsoktRefresh = false): Promise<T> {
   // Bruker relativ URL slik at Next.js rewrites håndterer videresending til backend (i Docker eller localhost)
@@ -49,10 +57,26 @@ async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>, forsoktRefre
     credentials: "include",
     cache: "no-store",
   });
-  if ((res.status === 401 || res.status === 403) && !forsoktRefresh) {
+  
+  // Håndter 401 (ikke autentisert) - prøv refresh token
+  if (res.status === 401 && !forsoktRefresh) {
     await fornySesjon();
     return fetchCanvas(endpoint, schema, true);
   }
+  
+  // Håndter 403 (manglende Canvas-token) - ikke prøv refresh
+  if (res.status === 403) {
+    const errorText = await res.text();
+    let errorMessage = "Canvas-token mangler";
+    try {
+      const error = JSON.parse(errorText);
+      errorMessage = error.melding || error.feil || errorMessage;
+    } catch {
+      // Ignorer JSON-parse feil, bruk default melding
+    }
+    throw new CanvasTokenMissingError(errorMessage);
+  }
+  
   if (!res.ok) {
     const errorText = await res.text();
     let errorMessage = "API feil";

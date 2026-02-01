@@ -26,15 +26,15 @@ function InfoPanel({
   message: string;
 }) {
   const colors =
-    type === "error"
-      ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-200"
-      : type === "warning"
-        ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-200"
-        : "bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200";
+    type === "error" || type === "warning"
+      ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300"
+      : "bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200";
+
+  const iconColor = type === "error" || type === "warning" ? "text-red-500" : "";
 
   return (
     <div className={`flex items-center gap-3 p-4 rounded-lg border ${colors}`}>
-      <AlertCircle className="w-5 h-5 shrink-0" />
+      <AlertCircle className={`w-5 h-5 shrink-0 ${iconColor}`} />
       <p className="text-sm">{message}</p>
     </div>
   );
@@ -94,7 +94,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({ harCanvasToken = fal
   }, [assignments, selectedDate]);
 
   if (!harCanvasToken) {
-    return <InfoPanel type="warning" message="Du må lagre et gyldig Canvas API-token før kalenderen kan vises." />;
+    return <InfoPanel type="warning" message="Du må lagre en Canvas API-token før du kan hente kalenderen." />;
   }
 
   if (isLoading) {
@@ -107,7 +107,24 @@ export const CalendarSection: FC<CalendarSectionProps> = ({ harCanvasToken = fal
   }
 
   if (isError) {
-    return <InfoPanel type="error" message={error?.message || "Kunne ikke hente kalenderdata"} />;
+    // Lag brukervennlig feilmelding basert på feiltype
+    let feilMelding = "Kunne ikke hente kalenderdata";
+    const errorMessage = error?.message || "";
+    const errorName = error?.name || "";
+    
+    if (errorName === "CanvasTokenMissingError" || errorMessage.includes("token mangler")) {
+      feilMelding = "Canvas-token mangler. Legg til tokenet i innstillinger.";
+    } else if (errorMessage.includes("401") || errorMessage.includes("Ugyldig")) {
+      feilMelding = "Canvas-tokenet ditt er ugyldig eller utløpt. Oppdater tokenet i innstillinger.";
+    } else if (errorMessage.includes("429") || errorMessage.includes("rate")) {
+      feilMelding = "For mange forespørsler til Canvas. Vent noen sekunder og prøv igjen.";
+    } else if (errorMessage.includes("timeout") || errorMessage.includes("504")) {
+      feilMelding = "Henting av kalenderdata tok for lang tid. Prøv igjen.";
+    } else if (errorMessage.includes("Nettverk") || errorMessage.includes("fetch")) {
+      feilMelding = "Nettverksfeil. Sjekk internettforbindelsen din.";
+    }
+    
+    return <InfoPanel type="error" message={feilMelding} />;
   }
 
   return (

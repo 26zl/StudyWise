@@ -76,4 +76,45 @@ export const setCache = async (key: string, value: string, ttlSeconds: number = 
     }
 };
 
+/**
+ * Sletter alle cache-nøkler som matcher et mønster.
+ * Brukes for cache-invalidering ved token-endringer.
+ * @param pattern - Mønster som "canvas:tokenHash:*"
+ */
+export const invalidateCacheByPattern = async (pattern: string): Promise<number> => {
+    if (!client.isOpen) return 0;
+    try {
+        // Bruk KEYS for å finne matchende nøkler
+        // NB: KEYS kan være treg på store databaser, men er OK for cache-invalidering
+        // som skjer sjelden (kun ved token-endring)
+        const keys = await client.keys(pattern);
+        
+        if (keys.length === 0) {
+            return 0;
+        }
+        
+        // Slett alle matchende nøkler
+        await client.del(keys);
+        logger.info({ pattern, deletedCount: keys.length }, "Cache invalidert");
+        return keys.length;
+    } catch (error) {
+        logger.warn({ err: error, pattern }, "Cache invalidering feilet");
+        return 0;
+    }
+};
+
+/**
+ * Sletter enkelt cache-nøkkel.
+ */
+export const deleteCache = async (key: string): Promise<boolean> => {
+    if (!client.isOpen) return false;
+    try {
+        const result = await client.del(key);
+        return result > 0;
+    } catch (error) {
+        logger.warn({ err: error }, "Cache delete feilet");
+        return false;
+    }
+};
+
 export default client;

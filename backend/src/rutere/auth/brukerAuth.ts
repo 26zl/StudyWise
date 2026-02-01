@@ -9,6 +9,8 @@ import { User } from "../../database/models/User.js";
 import { decrypt, encrypt } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
 import { ZodError } from "zod";
+import { warmCanvasCache } from "../canvas/canvasService.js";
+import { invalidateCacheByPattern } from "../../cache/redis.js";
 import {
     CanvasTokenRequestSchema,
     CanvasTokenResponseSchema,
@@ -124,6 +126,15 @@ router.post("/login", rateLimitAuth, async (req, res) => {
         await user.save();
         settTilgangsCookie(res, tilgangsToken);
         settRefreshCookie(res, refreshToken);
+        
+        // Varm opp cache i bakgrunnen hvis bruker har Canvas-token (ikke blokker respons)
+        if (harCanvasToken && user.canvasApiToken) {
+            const decryptedToken = decrypt(user.canvasApiToken);
+            warmCanvasCache(decryptedToken).catch(() => {
+                // Ignorer feil - cache warming er ikke kritisk
+            });
+        }
+        
         return res.json(LoginResponseSchema.parse({
             melding: "Innlogging vellykket",
             user: AuthBrukerSchema.parse({
@@ -200,6 +211,21 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
                 logger.error({ err: error, userId }, "Feil ved dekryptering av eksisterende Canvas token");
             }
         }
+        
+        // Invalider gammel cache hvis bruker hadde et token før
+        // Cache-nøkler bruker SHA256(token).slice(0,12), så vi må dekryptere og hashe
+        if (bruker.canvasApiToken) {
+            try {
+                const gammeltToken = decrypt(bruker.canvasApiToken);
+                const gammelCachePrefix = crypto.createHash("sha256").update(gammeltToken).digest("hex").slice(0, 12);
+                invalidateCacheByPattern(`canvas:${gammelCachePrefix}:*`).catch(() => {
+                    // Ignorer feil - cache invalidering er ikke kritisk
+                });
+            } catch {
+                // Ignorer dekrypteringsfeil - tokenet kan være korrupt
+            }
+        }
+        
         // Krypter token
         const kryptertToken = encrypt(cleanToken);
         // Lagre til database (både kryptert og hash)
@@ -207,6 +233,12 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         bruker.canvasTokenHash = nyTokenHash;
         await bruker.save();
         logger.info({ userId }, "Canvas token lagret for bruker");
+        
+        // Varm opp cache med nytt token i bakgrunnen
+        warmCanvasCache(cleanToken).catch(() => {
+            // Ignorer feil - cache warming er ikke kritisk
+        });
+        
         return res.json(CanvasTokenResponseSchema.parse({
             melding: "Token lagret og kryptert",
             success: true

@@ -27,7 +27,7 @@ import {
     useCanvasPages,
     useCanvasFrontPage,
 } from "../canvas/canvas-api";
-import { createCanvasHtmlParser, parseCanvasHtml, sikkerHref } from "../canvas/canvasHtml";
+import { createCanvasHtmlParser, parseCanvasHtml, sikkerFilNedlastingUrl } from "../canvas/canvasHtml";
 import { CanvasPageVisning } from "./CanvasPageVisning";
 
 // Typer for Canvas visninger
@@ -111,6 +111,35 @@ function LasteSkjelett({ linjer = 3 }: { linjer?: number }) {
     );
 }
 
+// Hjelpefunksjon for brukervennlige Canvas-feilmeldinger
+function lagBrukervennligFeilmelding(error: Error | null, fallback: string): string {
+    const errorMsg = error?.message || "";
+    const errorName = error?.name || "";
+    
+    if (errorName === "CanvasTokenMissingError" || errorMsg.includes("token mangler")) {
+        return "Canvas-token mangler. Legg til tokenet i innstillinger.";
+    }
+    if (errorMsg.includes("401") || errorMsg.includes("Ugyldig") || errorMsg.includes("unauthorized")) {
+        return "Canvas-tokenet ditt er ugyldig eller utløpt. Oppdater tokenet i innstillinger.";
+    }
+    if (errorMsg.includes("403") || errorMsg.includes("Forbidden")) {
+        return "Du har ikke tilgang til denne ressursen i Canvas.";
+    }
+    if (errorMsg.includes("429") || errorMsg.includes("rate")) {
+        return "For mange forespørsler til Canvas. Vent noen sekunder og prøv igjen.";
+    }
+    if (errorMsg.includes("timeout") || errorMsg.includes("504")) {
+        return "Henting av data tok for lang tid. Prøv igjen.";
+    }
+    if (errorMsg.includes("Nettverk") || errorMsg.includes("fetch") || errorMsg.includes("network")) {
+        return "Nettverksfeil. Sjekk internettforbindelsen din.";
+    }
+    if (errorMsg.includes("404") || errorMsg.includes("Not Found")) {
+        return "Ressursen ble ikke funnet i Canvas.";
+    }
+    return fallback;
+}
+
 // Feilmelding-komponent
 function FeilMelding({ melding }: { melding: string }) {
     return (
@@ -142,7 +171,7 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     }
 
     if (isError) {
-        return <FeilMelding melding={error?.message || "Kunne ikke laste kunngjøringer"} />;
+        return <FeilMelding melding={lagBrukervennligFeilmelding(error, "Kunne ikke laste kunngjøringer. Prøv igjen.")} />;
     }
 
     if (!data?.announcements?.length) {
@@ -214,7 +243,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     }
 
     if (isError) {
-        return <FeilMelding melding={error?.message || "Kunne ikke laste emner"} />;
+        return <FeilMelding melding={lagBrukervennligFeilmelding(error, "Kunne ikke laste emner. Prøv igjen.")} />;
     }
 
     // Vis valgt side hvis satt
@@ -331,25 +360,45 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                         const isFile = item.type === "File";
                                         const isExternal = item.type === "ExternalUrl";
 
-                                        // Direkt nedlastingssti for filer (samme origin)
-                                        const downloadPath = isFile && item.content_id
-                                            ? `/api/canvas/filer/${item.content_id}/download`
+                                        // Sikker nedlastingssti for filer (validerer content_id)
+                                        // Returnerer kun relative URLs på egen server
+                                        const downloadPath = isFile 
+                                            ? sikkerFilNedlastingUrl(item.content_id)
                                             : undefined;
 
-                                        // Direktelenker for andre typer
-                                        const directUrl = isExternal
-                                            ? sikkerHref(item.external_url)
-                                            : sikkerHref(item.html_url);
+                                        // Endelig sikker href - inline validering for Snyk dataflyt-analyse
+                                        // Verifiserer protokoll eksplisitt for å forhindre XSS via javascript:, data: etc.
+                                        const safeHref: string = ((): string => {
+                                            // Prioritet 1: Relativ API-sti for filer (alltid trygg)
+                                            if (downloadPath && downloadPath.startsWith("/api/")) {
+                                                return downloadPath;
+                                            }
+                                            
+                                            // Prioritet 2: Eksterne URL-er - krever eksplisitt protokoll-validering
+                                            const rawUrl = isExternal ? item.external_url : item.html_url;
+                                            if (typeof rawUrl === "string" && rawUrl.length > 0) {
+                                                const trimmed = rawUrl.trim();
+                                                // Kun tillat http:// og https:// protokoller
+                                                if (trimmed.startsWith("https://") || trimmed.startsWith("http://")) {
+                                                    return trimmed;
+                                                }
+                                            }
+                                            
+                                            // Fallback: Sikker default
+                                            return "#";
+                                        })();
 
                                         // Håndter klikk på item
-                                        const handleClick = async (e: React.MouseEvent) => {
+                                        const handleClick = (e: React.MouseEvent) => {
                                             if (isPage && item.page_url) {
                                                 e.preventDefault();
                                                 settValgtSide({ pageId: item.page_url, courseId: valgtEmneId });
                                                 return;
                                             }
-                                            if (isFile && downloadPath) {
+                                            // For filer: åpne kun hvis downloadPath er en gyldig relativ API-sti
+                                            if (isFile && downloadPath && downloadPath.startsWith("/api/")) {
                                                 e.preventDefault();
+                                                // Sikker: kun relative stier på egen server
                                                 window.open(downloadPath, "_blank", "noopener,noreferrer");
                                             }
                                         };
@@ -358,7 +407,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                         return (
                                             <a
                                                 key={item.id}
-                                                href={downloadPath || directUrl}
+                                                href={safeHref}
                                                 target={isPage ? undefined : "_blank"}
                                                 rel="noopener noreferrer"
                                                 onClick={handleClick}
@@ -456,10 +505,13 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                     Filer
                                 </div>
                                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {filerQuery.data.map((f) => (
+                                    {filerQuery.data.map((f) => {
+                                        const filUrl = sikkerFilNedlastingUrl(f.id);
+                                        if (!filUrl) return null;
+                                        return (
                                         <a
                                             key={f.id}
-                                            href={`/api/canvas/filer/${f.id}/download`}
+                                            href={filUrl}
                                             className="flex px-4 py-3 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm text-slate-800 dark:text-slate-200 items-center gap-2"
                                             target="_blank"
                                             rel="noopener noreferrer"
@@ -467,7 +519,8 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                             <Download size={16} className="text-slate-400" />
                                             <span>{f.display_name || f.filename}</span>
                                         </a>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
@@ -496,10 +549,13 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                     Filer
                                 </div>
                                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {filerQuery.data.map((f) => (
+                                    {filerQuery.data.map((f) => {
+                                        const filUrl = sikkerFilNedlastingUrl(f.id);
+                                        if (!filUrl) return null;
+                                        return (
                                         <a
                                             key={f.id}
-                                            href={`/api/canvas/filer/${f.id}/download`}
+                                            href={filUrl}
                                             className="flex px-4 py-3 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm text-slate-800 dark:text-slate-200 items-center gap-2"
                                             target="_blank"
                                             rel="noopener noreferrer"
@@ -507,7 +563,8 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                             <Download size={16} className="text-slate-400" />
                                             <span>{f.display_name || f.filename}</span>
                                         </a>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
@@ -587,7 +644,7 @@ function DataVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     }
 
     if (isError) {
-        return <FeilMelding melding={error?.message || "Kunne ikke laste data"} />;
+        return <FeilMelding melding={lagBrukervennligFeilmelding(error, "Kunne ikke laste Canvas-data. Prøv igjen.")} />;
     }
 
     return (

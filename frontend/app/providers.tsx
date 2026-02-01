@@ -24,9 +24,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 2 * 60 * 1000, // Data er "fersk" i 2 minutter
-            gcTime: 2 * 60 * 1000,    // Hold i minnet i 2 minutter (sikkerhet på delte enheter)
-            retry: 1, // Prøv på nytt 1 gang ved feil
+            staleTime: 60 * 1000,       // Data er "fersk" i 1 minutt
+            gcTime: 5 * 60 * 1000,      // Hold i minnet i 5 minutter (cache > stale for bedre UX)
+            retry: 1,                    // Prøv på nytt 1 gang ved feil
+            refetchOnWindowFocus: false, // Unngå unødvendige refetches
           },
         },
       })

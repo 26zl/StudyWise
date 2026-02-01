@@ -6,6 +6,14 @@ import { CalendarItemsResponseSchema, type CalendarItem } from "common/calendar"
 import { fornySesjon } from "../auth/auth-api";
 import type { Assignment, Course, CourseColor } from "common/calendar-ui";
 
+// Spesialisert feilklasse for manglende Canvas-token
+export class CanvasTokenMissingError extends Error {
+  constructor(message = "Canvas-token mangler") {
+    super(message);
+    this.name = "CanvasTokenMissingError";
+  }
+}
+
 // Definer en palett av farger for kursene
 const COLOR_PALETTE: CourseColor[] = ["programming", "database", "network", "security", "math"];
 
@@ -15,10 +23,19 @@ async function fetchCalendarItems(forsoktRefresh = false) {
     credentials: "include",
     cache: "no-store",
   });
-  if ((res.status === 401 || res.status === 403) && !forsoktRefresh) {
+  
+  // Håndter 401 (ikke autentisert) - prøv refresh token
+  if (res.status === 401 && !forsoktRefresh) {
     await fornySesjon();
     return fetchCalendarItems(true);
   }
+  
+  // Håndter 403 (manglende Canvas-token) - ikke prøv refresh
+  if (res.status === 403) {
+    const errorBody = await res.json().catch(() => ({}));
+    throw new CanvasTokenMissingError(errorBody.melding || errorBody.feil || "Canvas-token mangler");
+  }
+  
   if (!res.ok) {
     const errorBody = await res.json().catch(() => ({}));
     throw new Error(errorBody.melding || errorBody.feil || "Kunne ikke hente kalenderdata");

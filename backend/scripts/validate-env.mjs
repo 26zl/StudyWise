@@ -1,27 +1,15 @@
+#!/usr/bin/env node
+/* eslint-env node */
 /*
- * Miljøvariabel-validering
- * Validerer alle påkrevde miljøvariabler ved oppstart.
- * Hvis noe mangler, avsluttes prosessen med en tydelig feilmelding.
+ * Pre-build script for backend
+ * Validerer at alle påkrevde miljøvariabler er satt før build.
+ * Kjøres automatisk før `tsc` ved `pnpm build`.
  */
 
-import { logger } from "./logger.js";
+import "dotenv/config";
 
 // Definerer forventede miljøvariabler og deres typer
-interface EnvConfig {
-    PORT: string;
-    WEB_ORIGIN: string;
-    CANVAS_BASE_URL: string;
-    MONGO_URI: string;
-    JWT_ACCESS_SECRET: string;
-    JWT_REFRESH_SECRET: string;
-    ENCRYPTION_KEY: string;
-    REDIS_URL: string;
-    NODE_ENV: string;
-    HUGGINGFACE_API_KEY: string;
-}
-
-// Alle miljøvariabler er påkrevde
-const requiredEnvVars: (keyof EnvConfig)[] = [
+const requiredEnvVars = [
     "PORT",
     "WEB_ORIGIN",
     "MONGO_URI",
@@ -36,10 +24,10 @@ const requiredEnvVars: (keyof EnvConfig)[] = [
 
 /**
  * Validerer at alle påkrevde miljøvariabler er satt.
- * Kaller process.exit(1) hvis noe mangler.
+ * Avslutter med exit code 1 hvis noe mangler.
  */
-export const validateEnv = (): void => {
-    const manglende: string[] = [];
+function validateEnvForBuild() {
+    const manglende = [];
 
     // Sjekk påkrevde variabler
     for (const key of requiredEnvVars) {
@@ -64,7 +52,7 @@ export const validateEnv = (): void => {
     }
 
     // Valider URLer
-    const validateUrl = (key: keyof EnvConfig) => {
+    const validateUrl = (key) => {
         const url = process.env[key];
         if (url) {
             try {
@@ -79,7 +67,7 @@ export const validateEnv = (): void => {
     validateUrl("REDIS_URL");
 
     // Valider JWT Secrets lengde
-    const validateSecret = (key: keyof EnvConfig) => {
+    const validateSecret = (key) => {
         const secret = process.env[key];
         if (secret && secret.length < 32) {
             manglende.push(`${key} (må være minst 32 tegn, er: ${secret.length})`);
@@ -89,17 +77,16 @@ export const validateEnv = (): void => {
     validateSecret("JWT_REFRESH_SECRET");
 
     // Spesiell validering for MONGO_URI format
-    // Må inneholde /studywise for å unngå å skrive til test-database
     const mongoUri = process.env.MONGO_URI;
     if (mongoUri && !mongoUri.match(/\/studywise(\?|$)/)) {
-        console.error("\nKRITISK FEIL: MONGO_URI peker ikke på 'studywise'-databasen! Du risikerer å skrive til 'test'-databasen.\n");
-        manglende.push(`MONGO_URI (må inneholde '/studywise', fikk: ...${mongoUri.slice(-15)})`);
+        console.error("\n[KRITISK FEIL] MONGO_URI peker ikke på 'studywise'-databasen!\n");
+        manglende.push(`MONGO_URI (må inneholde '/studywise')`);
     }
 
     // Valider REDIS_URL format - må peke til Redis Cloud
     const redisUrl = process.env.REDIS_URL;
     if (redisUrl && !redisUrl.includes("cloud.redislabs.com")) {
-        console.error("\nKRITISK FEIL: REDIS_URL peker ikke mot Redis Cloud! Forventet 'cloud.redislabs.com' i URL.\n");
+        console.error("\n[KRITISK FEIL] REDIS_URL peker ikke mot Redis Cloud!\n");
         manglende.push("REDIS_URL (må inneholde 'cloud.redislabs.com')");
     }
 
@@ -111,11 +98,18 @@ export const validateEnv = (): void => {
 
     // Avslutt hvis påkrevde variabler mangler
     if (manglende.length > 0) {
-        logger.fatal(
-            { manglende },
-            "Påkrevde miljøvariabler mangler - serveren kan ikke starte"
-        );
+        console.error("\n========================================");
+        console.error("[BUILD FEIL] Påkrevde miljøvariabler mangler:");
+        console.error("========================================");
+        for (const m of manglende) {
+            console.error(`  - ${m}`);
+        }
+        console.error("\nSjekk at backend/.env filen inneholder alle nødvendige variabler.");
+        console.error("========================================\n");
         process.exit(1);
     }
-    logger.info("Alle påkrevde miljøvariabler er validert");
-};
+
+    console.log("[validateEnv] Alle påkrevde backend-miljøvariabler er validert for build");
+}
+
+validateEnvForBuild();

@@ -34,6 +34,7 @@ export const CanvasCourseSchema = z.object({
   name: z.string(),
   course_code: z.string().optional(),
   enrollment_term_id: z.number().optional(),
+  workflow_state: z.string().optional(), // "available", "unpublished", etc.
 });
 
 // Schema for Canvas oppgave
@@ -52,6 +53,7 @@ export const CanvasAnnouncementSchema = z.object({
   title: z.string(),
   message: z.string().nullable().optional(),
   posted_at: z.string().nullable().optional(),
+  context_code: z.string().optional(), // f.eks. "course_12345"
   author: z
     .object({
       id: z.number(),
@@ -210,6 +212,7 @@ export const CanvasTodoItemSchema = z.object({
   ignore_permanently: z.string().optional(),
   html_url: z.string().optional(),
   context_type: z.string().optional(), // "Course"
+  context_name: z.string().optional(), // Kursnavn
   course_id: z.number().optional(),
   quiz: z.object({
     id: z.number(),

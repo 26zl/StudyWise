@@ -10,6 +10,10 @@ import Tesseract from "tesseract.js";
 import { logger } from "../utils/logger.js";
 import { DocumentParseResult } from "common/document";
 
+// Konfigurasjon
+const OCR_TIMEOUT_MS = 60000; // 60 sekunder timeout for OCR
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB maks filstørrelse for parsing
+
 // Støttede MIME-typer og deres filtype
 export const SUPPORTED_DOCUMENT_TYPES: Record<string, string> = {
     "application/pdf": "pdf",
@@ -89,23 +93,28 @@ function sanitizeText(text: string): { cleanText: string; redacted: boolean } {
 /**
  * Utfører OCR på et bilde med tesseract.js
  * Støtter norsk og engelsk tekst
+ * Inkluderer timeout for å unngå at prosessen henger på komplekse bilder
  */
 async function performOCR(buffer: Buffer): Promise<{ text: string; confidence: number }> {
     try {
         logger.info({ bufferLength: buffer.length }, "Starting OCR processing");
         
-        // Tesseract kan ta Buffer direkte
-        const result = await Tesseract.recognize(
-            buffer,
-            "nor+eng", // Norsk og engelsk
-            {
-                logger: (info: { status?: string; progress?: number }) => {
-                    if (info.status === "recognizing text") {
-                        logger.debug({ progress: info.progress }, "OCR progress");
-                    }
-                },
-            }
-        );
+        // Wrap OCR i en Promise med timeout
+        const ocrPromise = Tesseract.recognize(buffer, "nor+eng", {
+            logger: (info) => {
+                if (info.status === "recognizing text") {
+                    logger.debug({ progress: info.progress }, "OCR progress");
+                }
+            },
+        });
+        
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => {
+                reject(new Error(`OCR timed out after ${OCR_TIMEOUT_MS / 1000} seconds`));
+            }, OCR_TIMEOUT_MS);
+        });
+        
+        const result = await Promise.race([ocrPromise, timeoutPromise]);
 
         const text = result.data.text;
         const confidence = result.data.confidence;
@@ -461,6 +470,22 @@ export async function parseDocument(
     mimeType: string,
     filename?: string
 ): Promise<DocumentParseResult> {
+    // Sjekk filstørrelse først
+    if (buffer.length > MAX_FILE_SIZE_BYTES) {
+        const sizeMB = (buffer.length / (1024 * 1024)).toFixed(1);
+        const maxMB = (MAX_FILE_SIZE_BYTES / (1024 * 1024)).toFixed(0);
+        logger.warn({ fileSize: buffer.length, maxSize: MAX_FILE_SIZE_BYTES }, "File too large for parsing");
+        return {
+            success: false,
+            text: "",
+            pages: 0,
+            fileType: "unknown",
+            redacted: false,
+            truncated: false,
+            error: `Filen er for stor (${sizeMB}MB). Maksimal filstørrelse er ${maxMB}MB.`,
+        };
+    }
+
     // Sjekk at MIME-type er støttet
     let fileType = SUPPORTED_DOCUMENT_TYPES[mimeType];
 
@@ -470,7 +495,7 @@ export async function parseDocument(
         if (ext && EXTENSION_TO_MIME[ext]) {
             const detectedMime = EXTENSION_TO_MIME[ext];
             fileType = SUPPORTED_DOCUMENT_TYPES[detectedMime];
-            logger.info({ filename, detectedMime, fileType }, "Detected file type from extension");
+            logger.info({ detectedMime, fileType }, "Detected file type from extension");
         }
     }
 
@@ -486,7 +511,7 @@ export async function parseDocument(
         };
     }
 
-    logger.info({ mimeType, fileType, filename }, "Parsing document");
+    logger.info({ mimeType, fileType }, "Parsing document");
 
     // Velg riktig parser basert på filtype
     switch (fileType) {

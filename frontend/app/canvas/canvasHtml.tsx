@@ -5,12 +5,83 @@
 "use client";
 
 import type { ReactNode } from "react";
-import DOMPurify from "isomorphic-dompurify";
+import DOMPurify, { type Config as DOMPurifyConfig } from "isomorphic-dompurify";
 import parse, { Element, type HTMLReactParserOptions } from "html-react-parser";
 import { ExternalLink } from "lucide-react";
 
-// Validering mot DOM-basert XSS - tillater kun http/https for href
-export const sikkerHref = (u?: string | null) => (u && u.startsWith("http") ? u : "#");
+// DOMPurify konfigurasjon - streng XSS-beskyttelse
+const DOMPURIFY_CONFIG: DOMPurifyConfig = {
+    ALLOWED_TAGS: [
+        "p", "br", "strong", "b", "em", "i", "u", "s", "strike",
+        "h1", "h2", "h3", "h4", "h5", "h6",
+        "ul", "ol", "li", "dl", "dt", "dd",
+        "a", "img", "figure", "figcaption",
+        "table", "thead", "tbody", "tfoot", "tr", "th", "td",
+        "blockquote", "pre", "code", "span", "div",
+        "hr", "sub", "sup",
+    ],
+    ALLOWED_ATTR: [
+        "href", "src", "alt", "title", "class", "id",
+        "width", "height", "style",
+        "target", "rel",
+        "colspan", "rowspan", "scope",
+    ],
+    ALLOW_DATA_ATTR: false,  // Blokkerer data-* attributter
+    FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form", "input", "button"],
+    FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover"],
+};
+
+/**
+ * Validerer og saniterer URL-er for sikker bruk i href-attributter.
+ * Tillater kun http/https protokoller for å forhindre javascript: og data: XSS.
+ */
+export const sikkerHref = (u?: string | null): string => {
+    if (!u || typeof u !== "string") return "#";
+    
+    // Trim og normaliser
+    const trimmed = u.trim().toLowerCase();
+    
+    // Blokker farlige protokoller eksplisitt
+    const farligeProtokoll = [
+        "javascript:",
+        "data:",
+        "vbscript:",
+        "file:",
+    ];
+    
+    if (farligeProtokoll.some(p => trimmed.startsWith(p))) {
+        return "#";
+    }
+    
+    // Kun tillat http:// og https://
+    try {
+        const url = new URL(u, "https://placeholder.com");
+        if (url.protocol === "http:" || url.protocol === "https:") {
+            return u; // Returner original URL (med original casing)
+        }
+    } catch {
+        // Ugyldig URL
+    }
+    
+    return "#";
+};
+
+/**
+ * Validerer og konstruerer en sikker nedlastings-URL for Canvas-filer.
+ * Sikrer at content_id kun inneholder tall for å forhindre path traversal.
+ */
+export const sikkerFilNedlastingUrl = (contentId: number | string | undefined): string | undefined => {
+    if (contentId === undefined || contentId === null) return undefined;
+    
+    // Konverter til string og valider at det kun er tall
+    const idString = String(contentId);
+    if (!/^\d+$/.test(idString)) {
+        return undefined; // Ugyldig ID - ikke tall
+    }
+    
+    // Konstruer sikker URL med validert ID
+    return `/api/canvas/filer/${encodeURIComponent(idString)}/download`;
+};
 
 // Lager parser-opsjoner. Kan utvides med custom bilde-rendering fra konsument
 export const createCanvasHtmlParser = (renderImage?: (el: Element) => ReactNode): HTMLReactParserOptions => {
@@ -48,8 +119,8 @@ export const createCanvasHtmlParser = (renderImage?: (el: Element) => ReactNode)
     return { replace };
 };
 
-// Sanitiser + parse helper
+// Sanitiser + parse helper med streng konfigurasjon
 export const parseCanvasHtml = (
     html: string | null | undefined,
     parserOps: ReturnType<typeof createCanvasHtmlParser>
-) => parse(DOMPurify.sanitize(html || ""), parserOps);
+) => parse(DOMPurify.sanitize(html || "", DOMPURIFY_CONFIG) as string, parserOps);

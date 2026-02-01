@@ -73,7 +73,29 @@ export default function AuthPage() {
       settMelding("Bruker opprettet. Du kan nå logge inn.");
       settModus("login");
     } catch (err) {
-      settFeil(err instanceof Error ? err.message : "Noe gikk galt");
+      // Lag brukervennlig feilmelding
+      const errorMsg = err instanceof Error ? err.message : "";
+      let feilTekst: string;
+      
+      if (errorMsg.includes("401") || errorMsg.includes("feil passord") || errorMsg.includes("Unauthorized")) {
+        feilTekst = "Feil e-post eller passord. Sjekk at du har skrevet riktig.";
+      } else if (errorMsg.includes("404") || errorMsg.includes("finnes ikke") || errorMsg.includes("not found")) {
+        feilTekst = "Ingen bruker med denne e-postadressen. Opprett en konto først.";
+      } else if (errorMsg.includes("409") || errorMsg.includes("finnes allerede") || errorMsg.includes("eksisterer")) {
+        feilTekst = "En bruker med denne e-postadressen finnes allerede. Prøv å logge inn.";
+      } else if (errorMsg.includes("429") || errorMsg.includes("rate")) {
+        feilTekst = "For mange forsøk. Vent noen minutter og prøv igjen.";
+      } else if (errorMsg.includes("Nettverk") || errorMsg.includes("fetch") || errorMsg.includes("network")) {
+        feilTekst = "Nettverksfeil. Sjekk internettforbindelsen din.";
+      } else if (errorMsg.includes("passord") && errorMsg.includes("kort")) {
+        feilTekst = "Passordet er for kort. Bruk minst 6 tegn.";
+      } else if (errorMsg.includes("e-post") || errorMsg.includes("email")) {
+        feilTekst = "Ugyldig e-postadresse. Sjekk at formatet er riktig.";
+      } else {
+        feilTekst = errorMsg || "Noe gikk galt. Prøv igjen.";
+      }
+      
+      settFeil(feilTekst);
     }
   };
   // Indikator for lasting

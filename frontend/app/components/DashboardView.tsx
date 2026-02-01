@@ -4,18 +4,34 @@
  */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense, lazy } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 import { Sidebar, type VisningType } from "./Sidebar";
-import { ChatSection } from "./ChatSection";
-import { CanvasSection } from "./canvasSection";
-import { SettingsSection } from "./SettingsSection";
-import { CalendarSection } from "../calendar/CalendarSection";
+import { SectionErrorBoundary } from "./ErrorBoundary";
 import { useCanvasUser } from "../canvas/canvas-api";
 import { Footer } from "./footer";
 import { useMeg } from "../auth/auth-api";
 import { prefetchCanvasData } from "../canvas/canvas-api";
+
+// Lazy load tunge komponenter for raskere initial page load
+const ChatSection = lazy(() => import("./ChatSection").then(m => ({ default: m.ChatSection })));
+const CanvasSection = lazy(() => import("./canvasSection").then(m => ({ default: m.CanvasSection })));
+const SettingsSection = lazy(() => import("./SettingsSection").then(m => ({ default: m.SettingsSection })));
+const CalendarSection = lazy(() => import("../calendar/CalendarSection").then(m => ({ default: m.CalendarSection })));
+
+// Loading fallback komponent
+function SectionLoader({ text = "Laster..." }: { text?: string }) {
+  return (
+    <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex flex-col items-center gap-3">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <span className="text-sm text-slate-500 dark:text-slate-400">{text}</span>
+      </div>
+    </div>
+  );
+}
 
 // Hovedkomponent for dashboard-visningen
 export function DashboardView() {
@@ -78,19 +94,39 @@ export function DashboardView() {
             <main className="flex-1 flex flex-col min-h-0 pt-0 md:pt-0 relative">
                 {/* Innholds basert på aktiv visning */}
                 <div className="flex-1 min-h-0 overflow-hidden bg-white dark:bg-slate-900">
-                    {aktivVisning === "chat" && <ChatSection />}
-                     {aktivVisning === "calendar" && <CalendarSection harCanvasToken={harCanvasToken} />} 
+                    {aktivVisning === "chat" && (
+                        <SectionErrorBoundary sectionName="KI-chat">
+                            <Suspense fallback={<SectionLoader text="Laster KI-chat..." />}>
+                                <ChatSection />
+                            </Suspense>
+                        </SectionErrorBoundary>
+                    )}
+                    {aktivVisning === "calendar" && (
+                        <SectionErrorBoundary sectionName="kalender">
+                            <Suspense fallback={<SectionLoader text="Laster kalender..." />}>
+                                <CalendarSection harCanvasToken={harCanvasToken} />
+                            </Suspense>
+                        </SectionErrorBoundary>
+                    )}
                     {(aktivVisning === "canvas-announcements" ||
                         aktivVisning === "canvas-courses" ||
                         aktivVisning === "canvas-data") && (
-                            <CanvasSection startVisning={hentCanvasVisning()} harCanvasToken={harCanvasToken} />
-                        )}
+                        <SectionErrorBoundary sectionName="Canvas">
+                            <Suspense fallback={<SectionLoader text="Laster Canvas..." />}>
+                                <CanvasSection startVisning={hentCanvasVisning()} harCanvasToken={harCanvasToken} />
+                            </Suspense>
+                        </SectionErrorBoundary>
+                    )}
 
                     {aktivVisning === "settings" && (
-                        <SettingsSection
-                            brukernavn={brukernavn}
-                            harCanvasToken={harCanvasToken}
-                        />
+                        <SectionErrorBoundary sectionName="innstillinger">
+                            <Suspense fallback={<SectionLoader text="Laster innstillinger..." />}>
+                                <SettingsSection
+                                    brukernavn={brukernavn}
+                                    harCanvasToken={harCanvasToken}
+                                />
+                            </Suspense>
+                        </SectionErrorBoundary>
                     )}
                 </div>
                 <Footer />

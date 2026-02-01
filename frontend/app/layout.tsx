@@ -9,7 +9,12 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { Header } from "./components/header";
 import { ThemeProvider } from "./components/theme-provider";
+import { Toaster } from "./components/Toaster";
 import { getUserServer } from "./auth/auth-server";
+import { validateFrontendEnv } from "./lib/validateEnv";
+
+// Valider miljøvariabler ved oppstart (server-side)
+validateFrontendEnv();
 
 // Metadata for applikasjonen
 export const metadata: Metadata = {
@@ -49,6 +54,7 @@ export default async function RootLayout({
                 {children}
               </main>
             </div>
+            <Toaster />
           </Providers>
         </ThemeProvider>
       </body>

@@ -53,6 +53,22 @@ export default [
     },
   },
   {
+    // Config for Node.js scripts (mjs files)
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: {
+        process: "readonly",
+        console: "readonly",
+        URL: "readonly",
+      },
+    },
+    rules: {
+      "no-console": "off",
+    },
+  },
+  {
     ignores: ["dist/**", "node_modules/**", "*.config.js"],
   },
 ];

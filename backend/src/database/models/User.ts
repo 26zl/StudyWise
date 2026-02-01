@@ -63,4 +63,7 @@ const UserSchema: Schema = new Schema(
     }
 );
 
+// Merk: email og canvasTokenHash har allerede indekser via unique: true
+// Ikke legg til manuelle indekser for disse - det skaper duplikater
+
 export const User = mongoose.model<IUser>('User', UserSchema);

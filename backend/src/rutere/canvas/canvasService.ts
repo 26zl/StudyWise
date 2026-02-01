@@ -366,3 +366,26 @@ export async function fetchFrontPage(canvasToken: string | null | undefined, cou
     meta: response.meta,
   };
 }
+
+/**
+ * Varmer opp cache for vanlige Canvas-data.
+ * Kjøres asynkront etter login for å forbedre UX.
+ * Feil ignoreres - dette er kun optimalisering.
+ */
+export async function warmCanvasCache(canvasToken: string): Promise<void> {
+  try {
+    logger.info("Starter cache warming for Canvas-data");
+    
+    // Hent de viktigste dataene parallelt
+    await Promise.allSettled([
+      fetchCourses(canvasToken),
+      fetchAllAnnouncements(canvasToken),
+      fetchTodo(canvasToken),
+    ]);
+    
+    logger.info("Cache warming fullført");
+  } catch (error) {
+    // Ignorer feil - cache warming er ikke kritisk
+    logger.warn({ err: error }, "Cache warming feilet (ikke kritisk)");
+  }
+}

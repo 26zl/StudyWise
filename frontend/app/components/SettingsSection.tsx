@@ -10,6 +10,8 @@ import { Moon, Sun, Key, User, Shield, Info, Trash2, MessageSquare } from "lucid
 import { useLagreCanvasToken } from "../auth/auth-api";
 import { useTheme } from "next-themes";
 import { useChatHistory } from "../hooks/useChatHistory";
+import { showToast } from "./Toaster";
+import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
 
 // Typer for SettingsSection props
 interface SettingsSectionProps {
@@ -38,10 +40,6 @@ export function SettingsSection({
     const {
         mutateAsync,
         isPending,
-        isSuccess,
-        isError,
-        error,
-        data,
     } = useLagreCanvasToken();
 
     const [cooldown, setCooldown] = useState(false);
@@ -56,11 +54,13 @@ export function SettingsSection({
             await mutateAsync(trimmetToken);
             setCanvasToken("");
             queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+            showToast.success("Canvas-token lagret", "Canvas-data blir tilgjengelig om kort tid.");
             // Sett cooldown for å hindre spamming
             setCooldown(true);
             setTimeout(() => setCooldown(false), 3000);
-        } catch {
-            // Feil håndteres i UI
+        } catch (err) {
+            const feilmelding = lagBrukervennligFeilmelding(err instanceof Error ? err : null, { canvas: true });
+            showToast.error("Kunne ikke lagre token", feilmelding);
         }
     };
 
@@ -161,28 +161,6 @@ export function SettingsSection({
                                     <Info size={16} className="text-green-600 shrink-0 mt-0.5" />
                                     <p className="text-sm text-green-700 dark:text-green-300">
                                         Canvas-token er koblet til kontoen din.
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                        {isSuccess && (
-                            <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                                <div className="flex gap-2">
-                                    <Info size={16} className="text-green-600 shrink-0 mt-0.5" />
-                                    <p className="text-sm text-green-700 dark:text-green-300">
-                                        {data?.melding || "Token lagret. Canvas-data blir tilgjengelig om kort tid."}
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                        {isError && (
-                            <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                                <div className="flex gap-2">
-                                    <Info size={16} className="text-red-600 shrink-0 mt-0.5" />
-                                    <p className="text-sm text-red-700 dark:text-red-300">
-                                        {error instanceof Error ? error.message : "Kunne ikke lagre token"}
                                     </p>
                                 </div>
                             </div>
