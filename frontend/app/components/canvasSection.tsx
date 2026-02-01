@@ -413,7 +413,15 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                                 try {
                                                     const result = await openModuleItem(valgtEmneId, module.id, item.id);
                                                     if (result.type === "File" && result.downloadPath) {
-                                                        window.open(result.downloadPath, "_blank", "noopener,noreferrer");
+                                                        // Ekstraher og valider fil-ID fra downloadPath for å forhindre Open Redirect
+                                                        // Forventet format: /api/canvas/filer/{fileId}/download
+                                                        const pathMatch = /^\/api\/canvas\/filer\/(\d+)\/download$/.exec(result.downloadPath);
+                                                        if (pathMatch && pathMatch[1]) {
+                                                            // Rekonstruer URL fra validert ID - bryter taint-kjeden
+                                                            const validatedFileId = pathMatch[1];
+                                                            const safeUrl = `/api/canvas/filer/${encodeURIComponent(validatedFileId)}/download`;
+                                                            window.open(safeUrl, "_blank", "noopener,noreferrer");
+                                                        }
                                                     }
                                                 } catch (err) {
                                                     console.error("Kunne ikke åpne fil:", err);
