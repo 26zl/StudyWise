@@ -322,18 +322,59 @@ router.get("/me", autentiserJwt, rateLimitMe, async (req, res) => {
             return res.status(404).json({ feil: "Bruker ikke funnet" });
         }
         const harCanvasToken = !!bruker.canvasApiToken;
+        // Hent preferanser eller bruk default
+        const preferences = bruker.canvasContextPreferences || {
+            announcements: true,
+            courses: true,
+            assignments: true,
+            events: true,
+        };
         return res.json(MeResponseSchema.parse({
             user: AuthBrukerSchema.parse({
                 id: bruker._id.toString(),
                 email: bruker.email,
                 firstName: bruker.firstName,
                 lastName: bruker.lastName,
-                hasCanvasToken: harCanvasToken
+                hasCanvasToken: harCanvasToken,
+                canvasContextPreferences: preferences,
             }),
         }));
     } catch (error) {
         logger.error({ err: error }, "Feil ved henting av brukerprofil");
         return res.status(500).json({ feil: "Kunne ikke hente brukerprofil" });
+    }
+});
+
+// PUT /preferences (Beskyttet rute)
+// Oppdaterer brukerens Canvas-kontekst preferanser
+router.put("/preferences", autentiserJwt, async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) {
+            return res.status(401).json({ feil: "Ikke autentisert" });
+        }
+        const { canvasContextPreferences } = req.body;
+        if (!canvasContextPreferences) {
+            return res.status(400).json({ feil: "Mangler canvasContextPreferences" });
+        }
+        // Valider at alle felt er booleans
+        const { announcements, courses, assignments, events } = canvasContextPreferences;
+        if (
+            typeof announcements !== "boolean" ||
+            typeof courses !== "boolean" ||
+            typeof assignments !== "boolean" ||
+            typeof events !== "boolean"
+        ) {
+            return res.status(400).json({ feil: "Ugyldig format for preferanser" });
+        }
+        await User.findByIdAndUpdate(userId, {
+            canvasContextPreferences: { announcements, courses, assignments, events },
+        });
+        logger.info({ userId }, "Brukerpreferanser oppdatert");
+        return res.json({ melding: "Preferanser oppdatert", canvasContextPreferences: { announcements, courses, assignments, events } });
+    } catch (error) {
+        logger.error({ err: error }, "Feil ved oppdatering av preferanser");
+        return res.status(500).json({ feil: "Kunne ikke oppdatere preferanser" });
     }
 });
 

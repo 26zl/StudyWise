@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { 
   useCanvasAnnouncements, 
@@ -9,6 +9,7 @@ import {
   useCanvasUpcomingEvents 
 } from "../canvas/canvas-api";
 import { useUIStore, type CanvasContextSelection } from "../store/uiStore";
+import { useMeg, useOppdaterPreferanser } from "../auth/auth-api";
 
 interface CanvasContextSelectorProps {
   onContextChange: (context: string) => void;
@@ -18,6 +19,19 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
   // Bruk global state for valg så de bevares mellom view-bytter
   const selected = useUIStore((state) => state.canvasContextSelection);
   const setSelected = useUIStore((state) => state.setCanvasContextSelection);
+  
+  // Hent brukerdata og sync preferanser fra backend
+  const { data: megData } = useMeg();
+  const { mutate: oppdaterBackend } = useOppdaterPreferanser();
+  const initializedRef = useRef(false);
+  
+  // Synkroniser fra backend ved første load
+  useEffect(() => {
+    if (megData?.user?.canvasContextPreferences && !initializedRef.current) {
+      setSelected(megData.user.canvasContextPreferences);
+      initializedRef.current = true;
+    }
+  }, [megData?.user?.canvasContextPreferences, setSelected]);
 
   const { data: announcementsData, isLoading: loadingAnnouncements } = useCanvasAnnouncements();
   const { data: coursesData, isLoading: loadingCourses } = useCanvasCourses();
@@ -124,7 +138,10 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
   }, [byggContext, onContextChange]);
 
   const toggleOption = (key: keyof CanvasContextSelection) => {
-    setSelected({ ...selected, [key]: !selected[key] });
+    const newSelection = { ...selected, [key]: !selected[key] };
+    setSelected(newSelection);
+    // Lagre til backend
+    oppdaterBackend(newSelection);
   };
 
   // Hjelpetekst når alt er av
