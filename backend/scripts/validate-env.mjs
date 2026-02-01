@@ -4,7 +4,14 @@
  * Pre-build script for backend
  * Validerer at alle påkrevde miljøvariabler er satt før build.
  * Kjøres automatisk før `tsc` ved `pnpm build`.
+ * Hopper over validering i CI-miljø (GitHub Actions setter CI=true).
  */
+
+// Hopp over validering i CI-miljø - der trenger vi bare typecheck/lint/build
+if (process.env.CI === "true") {
+    console.log("[validateEnv] CI-miljø oppdaget, hopper over miljøvalidering");
+    process.exit(0);
+}
 
 import "dotenv/config";
 
