@@ -14,6 +14,7 @@ import { useCanvasUser } from "../canvas/canvas-api";
 import { Footer } from "./footer";
 import { useMeg } from "../auth/auth-api";
 import { prefetchCanvasData } from "../canvas/canvas-api";
+import type { CampusId } from "../calendar/calendar-api";
 
 // Lazy load tunge komponenter for raskere initial page load
 const ChatSection = lazy(() => import("./ChatSection").then(m => ({ default: m.ChatSection })));
@@ -42,6 +43,29 @@ export function DashboardView() {
     const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
     const brukerQueryAktiv = megQuery.isSuccess && harCanvasToken;
     const userQuery = useCanvasUser(brukerQueryAktiv);
+    
+    // Campus-valg for TimeEdit - hent fra localStorage
+    const [campus, setCampus] = useState<CampusId | undefined>(undefined);
+    
+    // Last inn lagret campus fra localStorage
+    useEffect(() => {
+        const savedCampus = localStorage.getItem("studywise_campus") as CampusId | null;
+        if (savedCampus) {
+            setCampus(savedCampus);
+        }
+    }, []);
+    
+    // Håndter campus-endring
+    const handleCampusChange = (newCampus: CampusId | undefined) => {
+        setCampus(newCampus);
+        if (newCampus) {
+            localStorage.setItem("studywise_campus", newCampus);
+        } else {
+            localStorage.removeItem("studywise_campus");
+        }
+        // Invalider TimeEdit-cache for å hente ny data
+        queryClient.invalidateQueries({ queryKey: ["timeEdit"] });
+    };
 
     // Redirect til innlogging hvis ikke autentisert
     useEffect(() => {
@@ -104,7 +128,7 @@ export function DashboardView() {
                     {aktivVisning === "calendar" && (
                         <SectionErrorBoundary sectionName="kalender">
                             <Suspense fallback={<SectionLoader text="Laster kalender..." />}>
-                                <CalendarSection harCanvasToken={harCanvasToken} />
+                                <CalendarSection harCanvasToken={harCanvasToken} campus={campus} />
                             </Suspense>
                         </SectionErrorBoundary>
                     )}
@@ -124,6 +148,8 @@ export function DashboardView() {
                                 <SettingsSection
                                     brukernavn={brukernavn}
                                     harCanvasToken={harCanvasToken}
+                                    campus={campus}
+                                    onCampusChange={handleCampusChange}
                                 />
                             </Suspense>
                         </SectionErrorBoundary>

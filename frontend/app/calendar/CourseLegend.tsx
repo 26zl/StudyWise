@@ -17,31 +17,50 @@ export function CourseLegend({ courses }: CourseLegendProps) {
         return null;
     }
 
+    // Regex for å ekstrahere emnekoder
+    const COURSE_CODE_REGEX = /^([A-ZÆØÅ]{2,5}\d{4,5}[A-Z]?|\d{4,5}[A-Z])/i;
+    
+    // Filtrer ut duplikater og håndter spesialtilfeller
+    const uniqueCourses = courses.filter((course, index, self) => {
+        // Hopp over "Annet" helt
+        if (course.code === "Annet") return false;
+        
+        // Ekstraher ren emnekode
+        const codeMatch = course.code.match(COURSE_CODE_REGEX);
+        const cleanCode = codeMatch ? codeMatch[0].toUpperCase() : course.code;
+        
+        // Sjekk om vi allerede har denne emnekoden
+        return self.findIndex(c => {
+            const otherMatch = c.code.match(COURSE_CODE_REGEX);
+            const otherClean = otherMatch ? otherMatch[0].toUpperCase() : c.code;
+            return otherClean === cleanCode;
+        }) === index;
+    });
+
     return (
-        <div className="mb-4 sm:mb-6 p-2 sm:p-3 bg-slate-100/50 dark:bg-slate-800/50 rounded-lg">
-            <span className="text-xs sm:text-sm font-medium text-slate-500 dark:text-slate-400 block mb-2 sm:hidden">
+        <div className="flex flex-wrap items-center gap-3 mb-4 px-3 py-2 bg-slate-100/50 dark:bg-slate-800/50 rounded-lg text-xs">
+            <span className="font-medium text-slate-500 dark:text-slate-400">
                 Emner:
             </span>
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1 sm:pb-0 sm:flex-wrap sm:gap-4">
-                <span className="text-sm font-medium text-slate-500 dark:text-slate-400 hidden sm:block shrink-0">
-                    Emner:
-                </span>
-                {courses.map((course) => (
-                    <div key={course.code} className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {uniqueCourses.map((course) => {
+                // Ekstraher kun emnekoden (f.eks. "BOP3000")
+                const codeMatch = course.code.match(COURSE_CODE_REGEX);
+                const displayCode = codeMatch ? codeMatch[0].toUpperCase() : course.code;
+                
+                return (
+                    <div key={course.code} className="flex items-center gap-1.5">
                         <span
                             className={cn(
-                                "w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full shrink-0",
+                                "w-2.5 h-2.5 rounded-full flex-shrink-0",
                                 COURSE_COLOR_CLASSES[course.color]
                             )}
                         />
-                        <span className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 whitespace-nowrap">
-                            {/* Vis kun kode på mobil, full tekst på desktop */}
-                            <span className="sm:hidden">{course.code}</span>
-                            <span className="hidden sm:inline">{course.code} - {course.name}</span>
+                        <span className="text-slate-700 dark:text-slate-200 font-medium">
+                            {displayCode}
                         </span>
                     </div>
-                ))}
-            </div>
+                );
+            })}
         </div>
     );
 }

@@ -27,6 +27,7 @@ import redisClient, { isRedisReady } from "./cache/redis.js";
 import canvasRuter from "./rutere/canvas/canvas.js";
 import kiRuter from "./rutere/ki/ki.js";
 import brukerAuthRuter from "./rutere/auth/brukerAuth.js";
+import timeplanRuter from "./rutere/timeplan/timeplan.js";
 import { autentiserJwt, knyttCanvasToken } from "./middleware/auth.js";
 import { noCache } from "./middleware/no-cache.js";
 
@@ -171,6 +172,7 @@ if (!isProd) {
 app.use("/api/canvas", noCache, knyttCanvasToken, canvasRuter);
 app.use("/api/ki", noCache, knyttCanvasToken, kiRuter);
 app.use("/api/user", brukerAuthRuter);
+app.use("/api/timeplan", noCache, knyttCanvasToken, timeplanRuter);
 
 // Feil håndtering globalt
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

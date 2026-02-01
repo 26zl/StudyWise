@@ -35,7 +35,7 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
       deler.push("KUNNGJØRINGER:");
       announcementsData.announcements.slice(0, 10).forEach((a) => {
         const dato = a.posted_at ? new Date(a.posted_at).toLocaleDateString("no-NO") : "";
-        const courseName = a.context_code?.replace("course_", "") || "";
+        const courseName = a.context_code ? a.context_code.replace("course_", "") : "";
         deler.push(`\n[${a.title}]${dato ? ` (${dato})` : ""}${courseName ? ` - Emne: ${courseName}` : ""}`);
         // Inkluder innhold (stripet for HTML)
         if (a.message) {
@@ -52,7 +52,7 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
     if (selected.courses && coursesData?.courses?.length) {
       deler.push("DINE EMNER:");
       coursesData.courses.forEach((c) => {
-        const status = c.workflow_state === "available" ? "aktiv" : c.workflow_state;
+        const status = c.workflow_state ? (c.workflow_state === "available" ? "aktiv" : c.workflow_state) : "ukjent";
         deler.push(`- ${c.name} (${c.course_code || "ukjent kode"}) [${status}]`);
       });
       deler.push("");
@@ -65,7 +65,7 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
         const navn = t.assignment?.name || t.quiz?.title || t.type || "Ukjent";
         const frist = t.assignment?.due_at || t.quiz?.due_at;
         const poeng = t.assignment?.points_possible;
-        const courseName = t.context_name || "";
+        const courseName = t.context_name ?? "";
         
         let linje = `- ${navn}`;
         if (courseName) linje += ` (${courseName})`;
