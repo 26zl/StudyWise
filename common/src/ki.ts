@@ -47,7 +47,7 @@ export const KIModelsResponseSchema = z.object({
   defaultModel: z.string(),
 });
 
-// PDF-analyse respons
+// PDF-analyse respons (legacy - bruk KIDocumentAnalyseResponseSchema)
 export const KIPdfAnalyseResponseSchema = z.object({
   suksess: z.boolean(),
   melding: z.string().optional(),
@@ -70,9 +70,34 @@ export const KIPdfAnalyseResponseSchema = z.object({
     .optional(),
 });
 
+// Dokumentanalyse respons (støtter PDF, Word, TXT, etc.)
+export const KIDocumentAnalyseResponseSchema = z.object({
+  suksess: z.boolean(),
+  melding: z.string().optional(),
+  response: z.string(),
+  model: z.string().optional(),
+  dokumentInfo: z
+    .object({
+      sider: z.number(),
+      tegn: z.number(),
+      fileType: z.string().optional(),
+      redacted: z.boolean(),
+      truncated: z.boolean(),
+    })
+    .optional(),
+  usage: z
+    .object({
+      prompt_tokens: z.number(),
+      completion_tokens: z.number(),
+      total_tokens: z.number(),
+    })
+    .optional(),
+});
+
 // Type exports
 export type KIMessage = z.infer<typeof KIMessageSchema>;
 export type KIChatRequest = z.infer<typeof KIChatRequestSchema>;
 export type KIChatResponse = z.infer<typeof KIChatResponseSchema>;
 export type KIModelsResponse = z.infer<typeof KIModelsResponseSchema>;
 export type KIPdfAnalyseResponse = z.infer<typeof KIPdfAnalyseResponseSchema>;
+export type KIDocumentAnalyseResponse = z.infer<typeof KIDocumentAnalyseResponseSchema>;

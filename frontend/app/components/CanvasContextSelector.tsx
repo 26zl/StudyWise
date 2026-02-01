@@ -2,21 +2,23 @@
 
 import { useState, useEffect } from "react";
 import { Check } from "lucide-react";
-import { useCanvasAnnouncements, useCanvasCourses } from "../canvas/canvas-api";
+import { useCanvasAnnouncements, useCanvasCourses, useCanvasTodo } from "../canvas/canvas-api";
 
 interface CanvasContextSelectorProps {
   onContextChange: (context: string) => void;
+  onContextStateChange?: (hasContext: boolean) => void;
 }
 
-export function CanvasContextSelector({ onContextChange }: CanvasContextSelectorProps) {
+export function CanvasContextSelector({ onContextChange, onContextStateChange }: CanvasContextSelectorProps) {
   const [selected, setSelected] = useState({
     announcements: true,
     courses: true,
-    assignments: false,
+    assignments: true,
   });
 
   const { data: announcementsData } = useCanvasAnnouncements();
   const { data: coursesData } = useCanvasCourses();
+  const { data: todoData } = useCanvasTodo(selected.assignments);
 
   // Bygg context string når bruker endrer valg
   useEffect(() => {
@@ -36,12 +38,29 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
       });
     }
 
+    if (selected.assignments && todoData?.todos) {
+      context += "\n\nOPPGAVER/TODO (fra Canvas):\n";
+      todoData.todos.slice(0, 5).forEach((t) => {
+        const navn = t.assignment?.name || t.quiz?.title || t.type || "Item";
+        const frist = t.assignment?.due_at || t.quiz?.due_at;
+        const fristStr = frist ? new Date(frist).toLocaleDateString("no-NO") : "";
+        context += `- ${navn}${fristStr ? ` (frist ${fristStr})` : ""}\n`;
+      });
+    }
+
     onContextChange(context);
-  }, [selected, announcementsData, coursesData, onContextChange]);
+    onContextStateChange?.(context.trim().length > 0);
+  }, [selected, announcementsData, coursesData, todoData, onContextChange]);
 
   const toggleOption = (key: keyof typeof selected) => {
     setSelected((prev) => ({ ...prev, [key]: !prev[key] }));
   };
+
+  // Hjelpetekst når alt er av
+  const allOff =
+    !selected.announcements &&
+    !selected.courses &&
+    !selected.assignments;
 
   const options = [
     {
@@ -59,9 +78,9 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
     {
       key: "assignments" as const,
       label: "Oppgaver",
-      count: 0,
-      description: "Kommende innleveringer (kommer snart)",
-      disabled: true,
+      count: todoData?.todos?.length || 0,
+      description: "Kommende innleveringer/todo fra Canvas",
+      disabled: false,
     },
   ];
 
@@ -70,6 +89,11 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
       <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-3">
         Gi AI tilgang til:
       </h3>
+      {allOff && (
+        <div className="mb-2 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 rounded">
+          Ingen data valgt. AI kan ikke svare på Canvas-spørsmål før du huker av minst ett datasett.
+        </div>
+      )}
       <div className="space-y-2">
         {options.map((option) => (
           <button

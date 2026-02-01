@@ -11,7 +11,7 @@ import { Sidebar, type VisningType } from "./Sidebar";
 import { ChatSection } from "./ChatSection";
 import { CanvasSection } from "./canvasSection";
 import { SettingsSection } from "./SettingsSection";
-import { CalendarSection } from "../../calendar";
+import { CalendarSection } from "../calendar/CalendarSection";
 import { useCanvasUser } from "../canvas/canvas-api";
 import { Footer } from "./footer";
 import { useMeg } from "../auth/auth-api";
@@ -79,9 +79,7 @@ export function DashboardView() {
                 {/* Innholds basert på aktiv visning */}
                 <div className="flex-1 min-h-0 overflow-hidden bg-white dark:bg-slate-900">
                     {aktivVisning === "chat" && <ChatSection />}
-
-                     {aktivVisning === "calendar" && <CalendarSection />} 
-
+                     {aktivVisning === "calendar" && <CalendarSection harCanvasToken={harCanvasToken} />} 
                     {(aktivVisning === "canvas-announcements" ||
                         aktivVisning === "canvas-courses" ||
                         aktivVisning === "canvas-data") && (

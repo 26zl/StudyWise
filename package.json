@@ -52,6 +52,7 @@
       "bcrypt",
       "esbuild",
       "sharp",
+      "tesseract.js",
       "unrs-resolver"
     ]
   },

@@ -9,17 +9,21 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { Header } from "./components/header";
 import { ThemeProvider } from "./components/theme-provider";
+import { getUserServer } from "./auth/auth-server";
 
+// Metadata for applikasjonen
 export const metadata: Metadata = {
   title: "StudyWise",
   description: "Bacheloroppgave i IT ved USN 2026",
 };
-
-export default function RootLayout({
+// RootLayout er hovedlayouten for applikasjonen
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const user = await getUserServer();
+  // Layout komponenten returnerer HTML-strukturen for applikasjonen
   return (
     <html lang="nb" suppressHydrationWarning>
       {/*
@@ -36,7 +40,7 @@ export default function RootLayout({
           {/* Providers pakker inn alt innhold slik at funksjonalitet som data-fetching virker overalt */}
           <Providers>
             <div className="flex flex-col min-h-screen">
-              <Header />
+              <Header user={user} />
               {/*
                 {children} er selve innholdet fra page.tsx.
                 Når du bytter side, er det bare denne delen som byttes ut.

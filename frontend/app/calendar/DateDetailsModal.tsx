@@ -8,12 +8,12 @@ import { useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { nb } from "date-fns/locale";
 import { Clock, Check, X as XIcon } from "lucide-react";
-import { cn } from "../app/lib/utils";
+import { cn } from "../lib/utils";
 import {
     Assignment,
     COURSE_BG_LIGHT_CLASSES,
     COURSE_DOT_CLASSES,
-} from "../app/types/calendar";
+} from "common/calendar-ui";
 
 interface DateDetailsModalProps {
     date: Date | null;
@@ -96,7 +96,7 @@ export function DateDetailsModal({
             </div>
 
             {/* Content */}
-            <div className="p-4 space-y-3 max-h-[400px] overflow-y-auto">
+            <div className="p-4 space-y-3 max-h-100 overflow-y-auto">
                 {dateAssignments.length === 0 ? (
                     <p className="text-slate-500 dark:text-slate-400 text-center py-6">
                         Ingen innleveringer denne dagen
@@ -149,7 +149,7 @@ export function DateDetailsModal({
                                 <button
                                     onClick={() => onToggleComplete(assignment.id)}
                                     className={cn(
-                                        "flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex-shrink-0",
+                                        "flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0",
                                         assignment.completed
                                             ? "bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-500"
                                             : "border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"

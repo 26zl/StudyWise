@@ -1,6 +1,6 @@
 /*
  * Miljøvariabel-validering
- * Validerer alle kritiske miljøvariabler ved oppstart.
+ * Validerer alle påkrevde miljøvariabler ved oppstart.
  * Hvis noe mangler, avsluttes prosessen med en tydelig feilmelding.
  */
 
@@ -10,37 +10,36 @@ import { logger } from "./logger.js";
 interface EnvConfig {
     PORT: string;
     WEB_ORIGIN: string;
+    CANVAS_BASE_URL: string;
     MONGO_URI: string;
     JWT_ACCESS_SECRET: string;
     JWT_REFRESH_SECRET: string;
     ENCRYPTION_KEY: string;
     REDIS_URL: string;
     NODE_ENV: string;
+    HUGGINGFACE_API_KEY: string;
 }
 
-// Liste over påkrevde og valgfrie miljøvariabler
+// Alle miljøvariabler er påkrevde
 const requiredEnvVars: (keyof EnvConfig)[] = [
     "PORT",
     "WEB_ORIGIN",
     "MONGO_URI",
+    "CANVAS_BASE_URL",
     "JWT_ACCESS_SECRET",
     "JWT_REFRESH_SECRET",
     "ENCRYPTION_KEY",
-];
-
-// REDIS_URL og NODE_ENV er valgfrie
-const optionalEnvVars: (keyof EnvConfig)[] = [
     "REDIS_URL",
     "NODE_ENV",
+    "HUGGINGFACE_API_KEY",
 ];
 
 /**
- * Validerer at alle kritiske miljøvariabler er satt.
+ * Validerer at alle påkrevde miljøvariabler er satt.
  * Kaller process.exit(1) hvis noe mangler.
  */
 export const validateEnv = (): void => {
     const manglende: string[] = [];
-    const advarsler: string[] = [];
 
     // Sjekk påkrevde variabler
     for (const key of requiredEnvVars) {
@@ -59,41 +58,57 @@ export const validateEnv = (): void => {
         }
     }
 
-    // Sjekk valgfrie variabler og gi advarsler
-    for (const key of optionalEnvVars) {
-        if (!process.env[key]) {
-            advarsler.push(key);
+    // Valider PORT er et tall
+    if (process.env.PORT && isNaN(Number(process.env.PORT))) {
+        manglende.push(`PORT (må være et tall, fikk: ${process.env.PORT})`);
+    }
+
+    // Valider URLer
+    const validateUrl = (key: keyof EnvConfig) => {
+        const url = process.env[key];
+        if (url) {
+            try {
+                new URL(url);
+            } catch {
+                manglende.push(`${key} (må være en gyldig URL, fikk: ${url})`);
+            }
         }
+    };
+    validateUrl("WEB_ORIGIN");
+    validateUrl("CANVAS_BASE_URL");
+    validateUrl("REDIS_URL");
+
+    // Valider JWT Secrets lengde
+    const validateSecret = (key: keyof EnvConfig) => {
+        const secret = process.env[key];
+        if (secret && secret.length < 32) {
+            manglende.push(`${key} (må være minst 32 tegn, er: ${secret.length})`);
+        }
+    };
+    validateSecret("JWT_ACCESS_SECRET");
+    validateSecret("JWT_REFRESH_SECRET");
+
+    // Spesiell validering for MONGO_URI format
+    // Må inneholde /studywise for å unngå å skrive til test-database
+    const mongoUri = process.env.MONGO_URI;
+    if (mongoUri && !mongoUri.match(/\/studywise(\?|$)/)) {
+        console.error("\nKRITISK FEIL: MONGO_URI peker ikke på 'studywise'-databasen! Du risikerer å skrive til 'test'-databasen.\n");
+        manglende.push(`MONGO_URI (må inneholde '/studywise', fikk: ...${mongoUri.slice(-15)})`);
     }
 
-    // Spesiell advarsel for Redis i produksjon
-    const isProd = process.env.NODE_ENV === "production";
-    if (isProd && !process.env.REDIS_URL) {
-        logger.warn(
-            "REDIS_URL mangler i produksjon - rate limiting vil ikke fungere på tvers av instanser"
-        );
-    }
-
-    // Hvis NODE_ENV ikke er satt, sett til development
-    if (!process.env.NODE_ENV) {
-        process.env.NODE_ENV = "development";
-    }
-
-    // Log advarsler for valgfrie variabler
-    if (advarsler.length > 0) {
-        logger.warn(
-            { manglende: advarsler },
-            "Valgfrie miljøvariabler mangler (appen vil fortsatt kjøre)"
-        );
+    // Valider NODE_ENV er gyldig verdi
+    const nodeEnv = process.env.NODE_ENV;
+    if (nodeEnv && !["development", "production", "test"].includes(nodeEnv)) {
+        manglende.push(`NODE_ENV (må være 'development', 'production' eller 'test', fikk: ${nodeEnv})`);
     }
 
     // Avslutt hvis påkrevde variabler mangler
     if (manglende.length > 0) {
         logger.fatal(
             { manglende },
-            "Kritiske miljøvariabler mangler - serveren kan ikke starte"
+            "Påkrevde miljøvariabler mangler - serveren kan ikke starte"
         );
         process.exit(1);
     }
-    logger.info("Alle kritiske miljøvariabler er validert");
+    logger.info("Alle påkrevde miljøvariabler er validert");
 };

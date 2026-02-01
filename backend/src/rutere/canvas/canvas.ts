@@ -6,15 +6,20 @@
 * Eksporterer en Express-router som kan brukes i hovedapplikasjonen.
 */
 import { Router } from "express";
+import crypto from "node:crypto";
 import { Readable } from "node:stream";
 import {
   krevCanvasToken,
   hentCanvasKonfig,
   validateCanvasRedirectUrl,
+  parseCourseIdFromContext,
+  erInnenforKalenderVindu,
 } from "./canvasUtils.js";
+import { CACHE_TTL } from "./canvasUtils.js";
 import { rateLimitCanvas, rateLimitCanvasTung } from "../../middleware/rate-limit.js";
 import { noCache } from "../../middleware/no-cache.js";
 import { logger } from "../../utils/logger.js";
+import { getCache, setCache } from "../../cache/redis.js";
 import { CanvasUser } from "../../database/models/CanvasUser.js";
 import { User } from "../../database/models/User.js";
 import {
@@ -37,6 +42,7 @@ import {
   fetchPages,
   fetchFrontPage,
 } from "./canvasService.js";
+import { CalendarItemsResponseSchema, type CalendarItem } from "common/calendar";
 
 // Feiltype for Canvas HTTP-feil
 interface CanvasHttpError extends Error {
@@ -55,28 +61,24 @@ router.use(rateLimitCanvas);
 // GET /whoami - Minimal brukerinfo
 router.get("/whoami", async (req, res) => {
   try {
-    // FIKSET: Bedre validering av req.user
+    // Bedre validering av req.user
     if (!req.user?.id) {
       return res.status(401).json({ feil: "Ikke autentisert" });
     }
-
     const { data: canvasUser } = await fetchUserProfile(req.canvasToken);
-    
-    // SJEKK: Er denne Canvas-brukeren allerede koblet til en ANNEN lokal bruker?
+    // Er denne Canvas-brukeren allerede koblet til en ANNEN lokal bruker?
     const eksisterendeKobling = await CanvasUser.findOne({ canvasId: canvasUser.id });
-    
-    // FIKSET: Sikre toString() på begge sider + null-check
+    // Sikre toString() på begge sider + null-check
     if (
       eksisterendeKobling && 
       eksisterendeKobling.localUser && 
       eksisterendeKobling.localUser.toString() !== req.user.id.toString()
     ) {
-      logger.warn({    
+      logger.info({    
         userId: req.user.id,
         existingLocalUser: eksisterendeKobling.localUser.toString(),
         canvasId: canvasUser.id
       }, "Forsøk på å koble til en Canvas-konto som allerede tilhører en annen bruker");
-      
       return res.status(409).json({
         feil: "Konflikt",
         melding: "Denne Canvas-kontoen er allerede koblet til en annen StudyWise-bruker."
@@ -107,11 +109,9 @@ router.get("/whoami", async (req, res) => {
       },
       { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true } // Opprett hvis ikke finnes
     );
-    
     if (oppdatertCanvasBruker?._id) {
       await User.findByIdAndUpdate(req.user.id, { canvasUser: oppdatertCanvasBruker._id });
     }
-    
     logger.info({ userId: canvasUser.id }, "Canvas /whoami endpoint kalt og bruker synkronisert");
     res.json(canvasUser);
   } catch (error) {
@@ -249,6 +249,138 @@ router.get("/announcements", rateLimitCanvasTung, async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, "Feil under henting av annonseringer");
+    throw error;
+  }
+});
+
+// GET /kalender - Aggregert kalender for frontend (assignments + events + todo)
+// Tyngre kall -> bruker rateLimitCanvasTung
+router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
+  try {
+    const token = req.canvasToken;
+    const tokenAvtrykk = token ? crypto.createHash("sha256").update(token).digest("hex").slice(0, 12) : "ukjent";
+    const cacheKey = `canvas:${tokenAvtrykk}:kalender-v1`;
+
+    // Forsøk cache først
+    try {
+      const cached = await getCache(cacheKey);
+      if (cached) {
+        logger.info({ cacheKey }, "Kalender cache HIT");
+        return res.json(JSON.parse(cached));
+      }
+      logger.info({ cacheKey }, "Kalender cache MISS");
+    } catch (cacheErr) {
+      logger.warn({ err: cacheErr }, "Kalender cache feilet - fortsetter uten cache");
+    }
+
+    const { data: courses } = await fetchCourses(req.canvasToken);
+    const courseMap = new Map(courses.map((c) => [c.id, c]));
+    // Hent oppgaver per emne i parallell, men ignorerer feil per emne
+    const assignmentsPerCourse = await Promise.all(
+      courses.map(async (course) => {
+        try {
+          const { data } = await fetchAssignments(req.canvasToken, course.id);
+          return { courseId: course.id, assignments: data };
+        } catch (error) {
+          logger.warn({ courseId: course.id, err: error }, "Klarte ikke hente oppgaver for kurs i kalender-endepunkt");
+          return { courseId: course.id, assignments: [] };
+        }
+      })
+    );
+    // Hent kommende hendelser og todo-liste parallelt
+    const [eventsResult, todosResult] = await Promise.allSettled([
+      fetchUpcomingEvents(req.canvasToken),
+      fetchTodo(req.canvasToken),
+    ]);
+    const events = eventsResult.status === "fulfilled" ? eventsResult.value.data : [];
+    const todos = todosResult.status === "fulfilled" ? todosResult.value.data : [];
+    if (eventsResult.status === "rejected") {
+      logger.warn({ err: eventsResult.reason }, "Kalender: upcoming_events feilet, fortsetter uten events");
+    }
+    if (todosResult.status === "rejected") {
+      logger.warn({ err: todosResult.reason }, "Kalender: todo feilet, fortsetter uten todo");
+    }
+    // Bygg kalender-items
+    const items: CalendarItem[] = [];
+    // Normaliser oppgaver (Canvas assignments)
+    assignmentsPerCourse.forEach(({ courseId, assignments }) => {
+      const course = courseMap.get(courseId);
+      assignments.forEach((assignment) => {
+        if (!erInnenforKalenderVindu(assignment.due_at)) return;
+        items.push({
+          id: `assignment-${assignment.id}`,
+          title: assignment.name,
+          due_at: assignment.due_at!,
+          course_id: courseId,
+          course_code: course?.course_code,
+          course_name: course?.name,
+          source: "assignment",
+          html_url: assignment.html_url,
+          raw_type: "assignment",
+        });
+      });
+    });
+
+    // Normaliser kommende hendelser (Canvas upcoming_events)
+    events.forEach((event) => {
+      const dueAt = event.start_at || event.end_at;
+      if (!erInnenforKalenderVindu(dueAt)) return;
+      const courseId = parseCourseIdFromContext(event.context_code);
+      const course = courseId ? courseMap.get(courseId) : undefined;
+      items.push({
+        id: `event-${event.id}`,
+        title: event.title || course?.name || "Hendelse",
+        due_at: dueAt!,
+        course_id: courseId ?? undefined,
+        course_code: course?.course_code,
+        course_name: course?.name,
+        source: "event",
+        html_url: event.html_url || event.url,
+        raw_type: "calendar_event",
+      });
+    });
+
+    // Normaliser todo-elementer (ofte assignments/quiz)
+    todos.forEach((todo, idx) => {
+      const dueAt = todo.assignment?.due_at || todo.quiz?.due_at || null;
+      if (!erInnenforKalenderVindu(dueAt)) return;
+      const courseId = todo.assignment?.course_id || todo.course_id || null;
+      const course = courseId ? courseMap.get(courseId) : undefined;
+      const id = todo.assignment?.id ?? todo.quiz?.id ?? idx;
+      items.push({
+        id: `todo-${id}`,
+        title: todo.assignment?.name || todo.quiz?.title || todo.type || "Todo",
+        due_at: dueAt!,
+        course_id: courseId ?? undefined,
+        course_code: course?.course_code,
+        course_name: course?.name,
+        source: "todo",
+        html_url: todo.assignment?.html_url || todo.quiz?.html_url,
+        raw_type: todo.type,
+      });
+    });
+    // Sorter etter dato
+    items.sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime());
+
+    const payload = CalendarItemsResponseSchema.parse({
+      items,
+      meta: {
+        generatedAt: new Date().toISOString(),
+        courseCount: courses.length,
+      },
+    });
+
+    // Sett cache (kort TTL siden data er fersk)
+    try {
+      await setCache(cacheKey, JSON.stringify(payload), CACHE_TTL.TODO);
+    } catch (cacheErr) {
+      logger.warn({ err: cacheErr }, "Kunne ikke sette kalender-cache");
+    }
+
+    logger.info({ itemCount: payload.items.length, courseCount: courses.length }, "Bygget kalender-payload");
+    res.json(payload);
+  } catch (error) {
+    logger.error({ err: error }, "Feil ved henting av kalender-data");
     throw error;
   }
 });

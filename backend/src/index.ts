@@ -14,6 +14,7 @@ import { validateEnv } from "./utils/validateEnv.js";
 validateEnv();
 import express from "express";
 import cors from "cors";
+import { RateLimiterMemory } from "rate-limiter-flexible";
 import compression from "compression";
 import helmet from "helmet";
 import swaggerUi from "swagger-ui-express";
@@ -78,6 +79,24 @@ app.use(compression());
 app.use(express.json({ limit: "10mb" })); 
 
 app.use("/api/ki", kiHistoryRouter); 
+
+// Rate Limiting med 100 requests per minutt per IP
+const rateLimiter = new RateLimiterMemory({
+  points: 100, // 100 forespørsler
+  duration: 60, // per 60 sekunder
+});
+// Middleware for rate limiting
+const rateLimiterMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  rateLimiter.consume(req.ip as string)
+    .then(() => {
+      next();
+    })
+    .catch(() => {
+      res.status(429).json({ error: "For mange forespørsler. Vennligst prøv igjen senere." });
+    });
+};
+// Setter i gang rate limiter middleware
+app.use(rateLimiterMiddleware);
 
 // CORS kun mot frontend (WEB_ORIGIN er validert ved oppstart i validateEnv)
 app.use(

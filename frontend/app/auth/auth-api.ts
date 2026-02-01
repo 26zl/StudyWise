@@ -19,7 +19,7 @@ import {
   type RefreshResponse,
   type LoginRequest,
   type RegisterRequest,
-} from "common";
+} from "common/auth";
 
 let refreshPromise: Promise<RefreshResponse> | null = null;
 
@@ -152,13 +152,22 @@ export function useRegistrer() {
   });
 }
 // Hook for å hente info om innlogget bruker
-export function useMeg() {
+export function useMeg(options?: { initialData?: MeResponse }) {
   return useQuery({
     queryKey: ["auth", "me"],
     queryFn: hentMeg,
-    retry: false, // Ikke retry auth-feil - brukeren er enten logget inn eller ikke
+    retry: (failureCount, error) => {
+      // Prøv igjen ved nettverksfeil eller serverfeil, men ikke ved ugyldig auth (401/403)
+      // Vi sjekker om error-meldingen eller status indikerer 401/403
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("401") || message.includes("403") || message.includes("Ikke autentisert")) {
+        return false;
+      }
+      return failureCount < 3;
+    },
     staleTime: 1000 * 60 * 5, // Cache i 5 minutter - unngår unødvendige requests
     refetchOnWindowFocus: false, // Ikke refetch ved window focus
+    initialData: options?.initialData,
   });
 }
 // Hook for utlogging

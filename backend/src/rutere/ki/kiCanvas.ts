@@ -19,6 +19,18 @@ import {
   fetchPages,
   fetchFrontPage,
 } from "../canvas/canvasService.js";
+import type {
+  CanvasCourse,
+  CanvasAssignment,
+  CanvasModule,
+  CanvasModuleItemDetail,
+  CanvasPage,
+  CanvasFile,
+} from "common/canvas";
+import pLimit from "p-limit";
+
+// Begrens samtidige kall til Canvas API for å unngå rate limiting
+const limit = pLimit(5); // Maks 5 samtidige connections
 
 // Feilhåndtering dersom canvas token ikke er satt
 export async function byggKiCanvasKontekst(canvasToken: string | undefined): Promise<string> {
@@ -62,76 +74,92 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
 
     // Hent oppgaver per emne
     const assignmentsPerCourse = await Promise.all(
-      emner.map(async (course) => {
-        const res = await fetchAssignments(canvasToken, course.id);
-        return { courseId: course.id, assignments: res.data };
-      })
+      emner.map((course: CanvasCourse) =>
+        limit(async (): Promise<{ courseId: number; assignments: CanvasAssignment[] }> => {
+          const res = await fetchAssignments(canvasToken, course.id);
+          return { courseId: course.id, assignments: res.data };
+        })
+      )
     );
     const modulesPerCourse = await Promise.all(
-      emner.map(async (course) => {
-        const res = await fetchModules(canvasToken, course.id);
-        return { courseId: course.id, modules: res.data.slice(0, MAX_MODULES_PER_COURSE) };
-      })
+      emner.map((course: CanvasCourse) =>
+        limit(async (): Promise<{ courseId: number; modules: CanvasModule[] }> => {
+          const res = await fetchModules(canvasToken, course.id);
+          return { courseId: course.id, modules: res.data.slice(0, MAX_MODULES_PER_COURSE) };
+        })
+      )
     );
     // Hent modul-items (med content_details) + aggreger sider/filer
     const moduleDetailsPerCourse = await Promise.all(
-      modulesPerCourse.map(async ({ courseId, modules }) => {
-        const modulesWithItems = await Promise.all(
-          modules.map(async (m) => {
-            const itemsRes = await fetchModuleItems(canvasToken, courseId, m.id);
-            const items = itemsRes.data.slice(0, MAX_ITEMS_PER_MODULE);
-            // Hent sider/filer for et begrenset utvalg
-            const pages = await Promise.all(
-              items
-                .filter((i) => i.type === "Page" && i.page_url)
-                .slice(0, MAX_PAGES)
-                .map(async (i) => {
-                  const pageRes = await fetchPage(canvasToken, courseId, i.page_url!);
-                  return {
-                    moduleName: m.name,
-                    courseId,
-                    title: pageRes.data.title || i.title,
-                    url: pageRes.data.url,
-                  };
-                })
-            );
-            const files = await Promise.all(
-              items
-                .filter((i) => i.type === "File" && i.content_id)
-                .slice(0, MAX_FILES)
-                .map(async (i) => {
-                  const fileRes = await fetchFileMetadata(canvasToken, i.content_id!);
-                  return {
-                    moduleName: m.name,
-                    courseId,
-                    name: fileRes.data.display_name || fileRes.data.filename,
-                    size: fileRes.data.size,
-                  };
-                })
-            );
-            return { module: m, items, pages, files };
-          })
-        );
-        return { courseId, modulesWithItems };
-      })
+      modulesPerCourse.map(({ courseId, modules }) =>
+        limit(async (): Promise<{
+          courseId: number;
+          modulesWithItems: {
+            module: CanvasModule;
+            items: CanvasModuleItemDetail[];
+            pages: { moduleName: string; courseId: number; title: string; url?: string }[];
+            files: { moduleName: string; courseId: number; name: string; size?: number }[];
+          }[];
+        }> => {
+          const modulesWithItems = await Promise.all(
+            modules.map((m: CanvasModule) =>
+              limit(async () => {
+                const itemsRes = await fetchModuleItems(canvasToken, courseId, m.id);
+                const items = itemsRes.data.slice(0, MAX_ITEMS_PER_MODULE);
+                // Hent sider/filer for et begrenset utvalg
+                const pages = await Promise.all(
+                  items
+                    .filter((i) => i.type === "Page" && i.page_url)
+                    .slice(0, MAX_PAGES)
+                    .map(async (i) => {
+                      const pageRes = await fetchPage(canvasToken, courseId, i.page_url!);
+                      return {
+                        moduleName: m.name,
+                        courseId,
+                        title: pageRes.data.title || i.title,
+                        url: pageRes.data.url,
+                      };
+                    })
+                );
+                const files = await Promise.all(
+                  items
+                    .filter((i) => i.type === "File" && i.content_id)
+                    .slice(0, MAX_FILES)
+                    .map(async (i) => {
+                      const fileRes = await fetchFileMetadata(canvasToken, i.content_id!);
+                      return {
+                        moduleName: m.name,
+                        courseId,
+                        name: fileRes.data.display_name || fileRes.data.filename,
+                        size: fileRes.data.size,
+                      };
+                    })
+                );
+                return { module: m, items, pages, files };
+              })
+            )
+          );
+          return { courseId, modulesWithItems };
+        })
+      )
     );
     // Bygg tekstlig kontekst
     const samletSider: { courseId: number; moduleName: string; title: string; url?: string }[] = [];
     const samletFiler: { courseId: number; moduleName: string; name: string; size?: number }[] = [];
     const filerPerCourse = await Promise.all(
-      emner.map(async (course) => {
+      emner.map(async (course: CanvasCourse) => {
         const res = await fetchFiles(canvasToken, course.id);
-        return { courseId: course.id, files: res.data.slice(0, MAX_FILES_PER_COURSE) };
+        return { courseId: course.id, files: res.data.slice(0, MAX_FILES_PER_COURSE) as CanvasFile[] };
       })
     );
     const siderPerCourse = await Promise.all(
-      emner.map(async (course) => {
+      emner.map(async (course: CanvasCourse) => {
         const res = await fetchPages(canvasToken, course.id);
-        return { courseId: course.id, pages: res.data.slice(0, MAX_PAGES) };
+        return { courseId: course.id, pages: res.data.slice(0, MAX_PAGES) as CanvasPage[] };
       })
     );
     const frontPagesPerCourse = await Promise.all(
-      emner.map(async (course) => {
+      emner.map(async (course: CanvasCourse) => {
         try {
           const res = await fetchFrontPage(canvasToken, course.id);
           return { courseId: course.id, page: res.data };
@@ -147,14 +175,14 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
       deler.push("\nEMNER:");
       emner.forEach((e) => deler.push(`- ${e.name}${e.course_code ? ` (${e.course_code})` : ""}`));
     }
-   if (kunngjoeringer.length > 0) {
+    if (kunngjoeringer.length > 0) {
       deler.push("\nKUNNGJØRINGER:");
       kunngjoeringer.slice(0, MAX_ANNOUNCEMENTS).forEach((k) => {
         const dato = k.posted_at ? new Date(k.posted_at).toLocaleDateString("no-NO") : "";
         deler.push(`- ${k.title}${dato ? ` (${dato})` : ""}`);
       });
     }
-   if (todos.length > 0) {
+    if (todos.length > 0) {
       deler.push("\nKOMMANDE FRISTER:");
       todos.slice(0, MAX_TODOS).forEach((t) => {
         if (t.assignment) {
@@ -162,8 +190,7 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
           const frist = fristStr ? new Date(fristStr) : null;
           const dagerIgjen = frist ? Math.ceil((frist.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
           deler.push(
-            `- ${t.assignment.name}${
-              frist ? ` - Frist: ${frist.toLocaleDateString("no-NO")}${dagerIgjen !== null ? ` (${dagerIgjen} dager)` : ""}` : ""
+            `- ${t.assignment.name}${frist ? ` - Frist: ${frist.toLocaleDateString("no-NO")}${dagerIgjen !== null ? ` (${dagerIgjen} dager)` : ""}` : ""
             }`
           );
         }
@@ -183,8 +210,8 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
         const start = p.plannable_date
           ? new Date(p.plannable_date).toLocaleDateString("no-NO")
           : p.plannable?.due_at
-          ? new Date(p.plannable.due_at).toLocaleDateString("no-NO")
-          : "";
+            ? new Date(p.plannable.due_at).toLocaleDateString("no-NO")
+            : "";
         const courseName = p.course_id ? emner.find((c) => c.id === p.course_id)?.name : undefined;
         const navn = p.plannable?.title || p.plannable_type || "Item";
         const prefix = courseName ? `${courseName}: ` : "";
@@ -240,7 +267,6 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
         deler.push(`- ${courseName} > ${f.moduleName}: ${f.name}${sizeMb}`);
       });
     }
-
     // Kurs som ikke bruker moduler: fall tilbake til frontpage/pages/files
     filerPerCourse.forEach(({ courseId, files }) => {
       if (files.length === 0) return;

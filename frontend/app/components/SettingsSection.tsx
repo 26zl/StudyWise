@@ -6,9 +6,10 @@
 
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Moon, Sun, Key, User, Shield, Info } from "lucide-react";
+import { Moon, Sun, Key, User, Shield, Info, Trash2, MessageSquare } from "lucide-react";
 import { useLagreCanvasToken } from "../auth/auth-api";
 import { useTheme } from "next-themes";
+import { useChatHistory } from "../hooks/useChatHistory";
 
 // Typer for SettingsSection props
 interface SettingsSectionProps {
@@ -44,6 +45,7 @@ export function SettingsSection({
     } = useLagreCanvasToken();
 
     const [cooldown, setCooldown] = useState(false);
+    const { clearAll: clearChatHistory, chats, loading: chatsLoading } = useChatHistory();
 
     // Håndter lagring av Canvas token
     const handleLagreToken = async () => {
@@ -232,6 +234,38 @@ export function SettingsSection({
                                     </ol>
                                 </div>
                             </div>
+                        </div>
+                    </section>
+
+                    {/* Samtalehistorikk */}
+                    <section className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
+                                <MessageSquare size={20} className="text-slate-600 dark:text-slate-300" />
+                            </div>
+                            <h3 className="font-semibold text-slate-900 dark:text-white">
+                                Samtalehistorikk
+                            </h3>
+                        </div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                            Samtalene lagres kryptert. Du kan slette alt her.
+                        </p>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-slate-700 dark:text-slate-300">
+                                    Lagrede samtaler
+                                </p>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">
+                                    {chatsLoading ? "Laster..." : `${chats.length} samtaler`}
+                                </p>
+                            </div>
+                            <button
+                                onClick={clearChatHistory}
+                                className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                            >
+                                <Trash2 size={16} />
+                                Slett alle samtaler
+                            </button>
                         </div>
                     </section>
 
