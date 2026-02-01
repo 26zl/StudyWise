@@ -5,12 +5,12 @@
 import Link from "next/link";
 import { Footer } from "../components/footer";
 import { BookOpen, Bot, ArrowRight, LayoutDashboard } from "lucide-react";
-import { getUserServer } from "../auth/auth-server";
+import { hasTokenServer } from "../auth/auth-server";
 
 export default async function Hjem() {
-  // Hent brukeren server-side for å unngå layout shift
-  const meg = await getUserServer();
-  const erInnlogget = Boolean(meg?.user);
+  // Rask sjekk om bruker har token (uten å kalle backend)
+  // Dette unngår race condition når backend starter opp
+  const erInnlogget = await hasTokenServer();
   const ctaWidth = "min-w-[200px]";
 
   return (

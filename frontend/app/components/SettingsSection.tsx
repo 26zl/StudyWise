@@ -1,17 +1,19 @@
 /*
  * SettingsSection - Brukerinnstillinger
- * Håndterer tema, Canvas-token og andre preferanser
+ * Håndterer tema, Canvas-token, AI-kontekst og andre preferanser
  */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Moon, Sun, Key, User, Shield, Info, Trash2, MessageSquare } from "lucide-react";
+import { Moon, Sun, Key, User, Shield, Info, Trash2, MessageSquare, Bot } from "lucide-react";
 import { useLagreCanvasToken } from "../auth/auth-api";
 import { useTheme } from "next-themes";
 import { useChatHistory } from "../hooks/useChatHistory";
 import { showToast } from "./Toaster";
 import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
+import { CanvasContextSelector } from "./CanvasContextSelector";
+import { useUIStore } from "../store/uiStore";
 
 // Typer for SettingsSection props
 interface SettingsSectionProps {
@@ -25,6 +27,13 @@ export function SettingsSection({
 }: SettingsSectionProps) {
     const { setTheme, resolvedTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
+    const setCanvasContext = useUIStore((state) => state.setCanvasContext);
+    
+    // Memoized callbacks for å unngå uendelig loop i CanvasContextSelector
+    const handleContextChange = useCallback((ctx: string) => {
+        setCanvasContext(ctx, ctx.length > 0);
+    }, [setCanvasContext]);
+    
     // Sett mounted til true etter første render
     useEffect(() => {
         setMounted(true);
@@ -77,7 +86,7 @@ export function SettingsSection({
             <div className="flex-1 overflow-y-auto p-4 md:p-6">
                 <div className="max-w-2xl space-y-6">
                     {/* Brukerinformasjon */}
-                    <section className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                    <section className="p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
                                 <User size={20} className="text-slate-600 dark:text-slate-300" />
@@ -103,7 +112,7 @@ export function SettingsSection({
                     </section>
 
                     {/* Utseende */}
-                    <section className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                    <section className="p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
                                 {isDarkMode ? (
@@ -140,7 +149,7 @@ export function SettingsSection({
                     </section>
 
                     {/* Canvas Token */}
-                    <section className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                    <section className="p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
                                 <Key size={20} className="text-slate-600 dark:text-slate-300" />
@@ -216,7 +225,7 @@ export function SettingsSection({
                     </section>
 
                     {/* Samtalehistorikk */}
-                    <section className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                    <section className="p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
                                 <MessageSquare size={20} className="text-slate-600 dark:text-slate-300" />
@@ -228,7 +237,7 @@ export function SettingsSection({
                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
                             Samtalene lagres kryptert. Du kan slette alt her.
                         </p>
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div>
                                 <p className="text-slate-700 dark:text-slate-300">
                                     Lagrede samtaler
@@ -239,7 +248,7 @@ export function SettingsSection({
                             </div>
                             <button
                                 onClick={clearChatHistory}
-                                className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors w-full sm:w-auto"
                             >
                                 <Trash2 size={16} />
                                 Slett alle samtaler
@@ -247,8 +256,28 @@ export function SettingsSection({
                         </div>
                     </section>
 
+                    {/* AI Canvas-kontekst - kun vis hvis bruker har Canvas token */}
+                    {harCanvasToken && (
+                        <section className="p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
+                                    <Bot size={20} className="text-slate-600 dark:text-slate-300" />
+                                </div>
+                                <h3 className="font-semibold text-slate-900 dark:text-white">
+                                    AI Canvas-kontekst
+                                </h3>
+                            </div>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                                Velg hvilken Canvas-data AI-en skal ha tilgang til når du chatter.
+                            </p>
+                            <CanvasContextSelector 
+                                onContextChange={handleContextChange}
+                            />
+                        </section>
+                    )}
+
                     {/* Personverninfo */}
-                    <section className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                    <section className="p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
                                 <Shield size={20} className="text-slate-600 dark:text-slate-300" />

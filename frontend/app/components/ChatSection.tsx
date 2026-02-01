@@ -10,7 +10,6 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
 import { useKITestTilkobling, useKIChat, useKIDocumentAnalyse, SUPPORTED_FILE_TYPES } from "../ki/ki-api";
-import { CanvasContextSelector } from "./CanvasContextSelector";
 import { useChatHistory } from "../hooks/useChatHistory";
 import { useUIStore } from "../store/uiStore";
 
@@ -35,8 +34,6 @@ export function ChatSection() {
     const [meldinger, settMeldinger] = useState<Melding[]>([]);
     const [tekstInput, settTekstInput] = useState("");
     const [skriver, settSkriver] = useState(false);
-    const [canvasContext, setCanvasContext] = useState("");
-    const [harCanvasContext, setHarCanvasContext] = useState(false);
     const [vedlagtFil, settVedlagtFil] = useState<File | null>(null);
     const [analyserarDokument, settAnalysererDokument] = useState(false);
     const [aktivChatId, setAktivChatId] = useState<string | null>(null);
@@ -44,7 +41,7 @@ export function ChatSection() {
     const tekstInputRef = useRef<HTMLTextAreaElement>(null);
     const filInputRef = useRef<HTMLInputElement>(null);
     const oppretterChatRef = useRef(false);
-    const { selectedChatId, setSelectedChatId, newChatToken } = useUIStore();
+    const { selectedChatId, setSelectedChatId, newChatToken, canvasContext, hasCanvasContext } = useUIStore();
     const sisteNySamtaleToken = useRef(newChatToken);
 
     // Sett mounted etter første render for å unngå hydration mismatch
@@ -111,8 +108,6 @@ export function ChatSection() {
             void lagreSamtale(meldinger);
         }
         settMeldinger([]);
-        setCanvasContext("");
-        setHarCanvasContext(false);
         setAktivChatId(null);
         settVedlagtFil(null);
     };
@@ -278,11 +273,11 @@ export function ChatSection() {
             }
 
             // Hvis ingen context i det hele tatt
-            if (!harCanvasContext) {
+            if (!hasCanvasContext) {
                 const systemMelding: Melding = {
                     id: (Date.now() + 1).toString(),
                     rolle: "assistant",
-                    innhold: "Du har ikke valgt noen Canvas-data. Velg minst ett datasett under «Gi AI tilgang til» for at jeg skal kunne hjelpe deg med Canvas-relaterte spørsmål.",
+                    innhold: "Du har ikke valgt noen Canvas-data. Gå til Innstillinger → AI Canvas-kontekst og velg minst ett datasett for at jeg skal kunne hjelpe deg med Canvas-relaterte spørsmål.",
                     tidsstempel: new Date(),
                 };
                 settMeldinger((tidligere) => [...tidligere, systemMelding]);
@@ -295,7 +290,7 @@ export function ChatSection() {
                 const systemMelding: Melding = {
                     id: (Date.now() + 1).toString(),
                     rolle: "assistant",
-                    innhold: `Jeg har ikke tilgang til ${manglerData.join(" eller ").toLowerCase()} fordi du ikke har valgt dette.\n\nVelg «${manglerData.join("» og «")}» under «Gi AI tilgang til» og prøv igjen.`,
+                    innhold: `Jeg har ikke tilgang til ${manglerData.join(" eller ").toLowerCase()} fordi dette ikke er aktivert.\n\nGå til Innstillinger → AI Canvas-kontekst og aktiver «${manglerData.join("» og «")}», og prøv igjen.`,
                     tidsstempel: new Date(),
                 };
                 settMeldinger((tidligere) => [...tidligere, systemMelding]);
@@ -409,14 +404,6 @@ export function ChatSection() {
                             </div>
                         </div>
                     </div>
-                </div>
-
-                {/* Canvas Context Selector */}
-                <div className="shrink-0 px-4 md:px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-                    <CanvasContextSelector
-                        onContextChange={(ctx) => setCanvasContext(ctx)}
-                        onContextStateChange={setHarCanvasContext}
-                    />
                 </div>
 
                 {/* Meldinger */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useCallback } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { 
   useCanvasAnnouncements, 
@@ -8,19 +8,16 @@ import {
   useCanvasTodo,
   useCanvasUpcomingEvents 
 } from "../canvas/canvas-api";
+import { useUIStore, type CanvasContextSelection } from "../store/uiStore";
 
 interface CanvasContextSelectorProps {
   onContextChange: (context: string) => void;
-  onContextStateChange?: (hasContext: boolean) => void;
 }
 
-export function CanvasContextSelector({ onContextChange, onContextStateChange }: CanvasContextSelectorProps) {
-  const [selected, setSelected] = useState({
-    announcements: true,
-    courses: true,
-    assignments: true,
-    events: true,
-  });
+export function CanvasContextSelector({ onContextChange }: CanvasContextSelectorProps) {
+  // Bruk global state for valg så de bevares mellom view-bytter
+  const selected = useUIStore((state) => state.canvasContextSelection);
+  const setSelected = useUIStore((state) => state.setCanvasContextSelection);
 
   const { data: announcementsData, isLoading: loadingAnnouncements } = useCanvasAnnouncements();
   const { data: coursesData, isLoading: loadingCourses } = useCanvasCourses();
@@ -124,11 +121,10 @@ export function CanvasContextSelector({ onContextChange, onContextStateChange }:
   useEffect(() => {
     const context = byggContext();
     onContextChange(context);
-    onContextStateChange?.(context.length > 0);
-  }, [byggContext, onContextChange, onContextStateChange]);
+  }, [byggContext, onContextChange]);
 
-  const toggleOption = (key: keyof typeof selected) => {
-    setSelected((prev) => ({ ...prev, [key]: !prev[key] }));
+  const toggleOption = (key: keyof CanvasContextSelection) => {
+    setSelected({ ...selected, [key]: !selected[key] });
   };
 
   // Hjelpetekst når alt er av
@@ -166,21 +162,21 @@ export function CanvasContextSelector({ onContextChange, onContextStateChange }:
   ];
 
   return (
-    <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+      <div className="flex items-center justify-between p-3 sm:p-4 border-b border-slate-200 dark:border-slate-700">
+        <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
           Gi AI tilgang til:
-        </h3>
+        </h4>
         {isLoading && (
           <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
         )}
       </div>
       {allOff && (
-        <div className="mb-2 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 rounded">
+        <div className="mx-3 sm:mx-4 mt-3 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 rounded">
           Ingen data valgt. AI kan ikke svare på Canvas-spørsmål før du velger minst ett datasett.
         </div>
       )}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+      <div className="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 sm:gap-3">
         {options.map((option) => (
           <button
             key={option.key}
@@ -189,7 +185,7 @@ export function CanvasContextSelector({ onContextChange, onContextStateChange }:
               selected[option.key]
                 ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
                 : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
-            } hover:border-blue-400 cursor-pointer`}
+            } hover:border-blue-400 active:bg-blue-100 dark:active:bg-blue-900/30 cursor-pointer`}
           >
             <div className="flex items-center gap-2 w-full">
               <div

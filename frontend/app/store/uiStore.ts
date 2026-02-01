@@ -5,6 +5,15 @@ import { create } from 'zustand';
  * Bruker Zustand for enkel state management på tvers av komponenter.
  * Dette erstatter behovet for "prop drilling" av sidebar-status.
  */
+
+// Type for Canvas-kontekst valg
+export interface CanvasContextSelection {
+    announcements: boolean;
+    courses: boolean;
+    assignments: boolean;
+    events: boolean;
+}
+
 interface UIState {
     // Holder styr på om sidebaren er åpen (true) eller lukket (false) på mobil
     isVenstreMenyOpen: boolean;
@@ -17,6 +26,13 @@ interface UIState {
     // Signal for å starte ny chat
     newChatToken: number;
     requestNewChat: () => void;
+    // Canvas-kontekst for KI-chat (settes fra SettingsSection)
+    canvasContext: string;
+    hasCanvasContext: boolean;
+    setCanvasContext: (context: string, hasContext: boolean) => void;
+    // Canvas-kontekst valg (hvilke datatyper som er valgt)
+    canvasContextSelection: CanvasContextSelection;
+    setCanvasContextSelection: (selection: CanvasContextSelection) => void;
     // Nullstiller all UI-tilstand (brukes ved utlogging)
     reset: () => void;
 }
@@ -30,5 +46,27 @@ export const useUIStore = create<UIState>((set) => ({
     setSelectedChatId: (id) => set({ selectedChatId: id }),
     newChatToken: 0,
     requestNewChat: () => set((state) => ({ newChatToken: state.newChatToken + 1 })),
-    reset: () => set({ isVenstreMenyOpen: false, selectedChatId: null, newChatToken: 0 }),
+    canvasContext: "",
+    hasCanvasContext: false,
+    setCanvasContext: (context, hasContext) => set({ canvasContext: context, hasCanvasContext: hasContext }),
+    canvasContextSelection: {
+        announcements: true,
+        courses: true,
+        assignments: true,
+        events: true,
+    },
+    setCanvasContextSelection: (selection) => set({ canvasContextSelection: selection }),
+    reset: () => set({ 
+        isVenstreMenyOpen: false, 
+        selectedChatId: null, 
+        newChatToken: 0, 
+        canvasContext: "", 
+        hasCanvasContext: false,
+        canvasContextSelection: {
+            announcements: true,
+            courses: true,
+            assignments: true,
+            events: true,
+        },
+    }),
 }));
