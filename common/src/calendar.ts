@@ -32,6 +32,7 @@ export const CalendarItemsResponseSchema = z.object({
     .optional(),
 });
 
+// TypeScript typer zod eksportering
 export type CalendarItem = z.infer<typeof CalendarItemSchema>;
 export type CalendarItemsResponse = z.infer<typeof CalendarItemsResponseSchema>;
 export type CalendarSource = z.infer<typeof CalendarSourceSchema>;

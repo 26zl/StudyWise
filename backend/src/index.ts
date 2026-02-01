@@ -27,7 +27,6 @@ import redisClient, { isRedisReady } from "./cache/redis.js";
 import canvasRuter from "./rutere/canvas/canvas.js";
 import kiRuter from "./rutere/ki/ki.js";
 import brukerAuthRuter from "./rutere/auth/brukerAuth.js";
-import { kiHistoryRouter } from "./rutere/ki/kiHistory.js";
 import { autentiserJwt, knyttCanvasToken } from "./middleware/auth.js";
 import { noCache } from "./middleware/no-cache.js";
 
@@ -77,8 +76,6 @@ app.use(compression());
 
 // JSON body parser med økt størrelse på 10mb
 app.use(express.json({ limit: "10mb" })); 
-
-app.use("/api/ki", kiHistoryRouter); 
 
 // Rate Limiting med 100 requests per minutt per IP
 const rateLimiter = new RateLimiterMemory({

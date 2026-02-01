@@ -1,3 +1,9 @@
+/*
+*
+* Type definisjoner og schemaer for dokument parsing resultater
+*/
+
+
 import { z } from "zod";
 
 export const DocumentParseResultSchema = z.object({

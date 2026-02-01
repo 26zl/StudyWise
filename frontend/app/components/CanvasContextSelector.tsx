@@ -94,13 +94,13 @@ export function CanvasContextSelector({ onContextChange, onContextStateChange }:
           Ingen data valgt. AI kan ikke svare på Canvas-spørsmål før du huker av minst ett datasett.
         </div>
       )}
-      <div className="space-y-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
         {options.map((option) => (
           <button
             key={option.key}
             onClick={() => !option.disabled && toggleOption(option.key)}
             disabled={option.disabled}
-            className={`w-full flex items-start gap-3 p-3 rounded-lg border transition-colors ${
+            className={`flex flex-col items-start gap-2 p-3 rounded-lg border transition-colors ${
               selected[option.key]
                 ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
                 : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
@@ -110,28 +110,30 @@ export function CanvasContextSelector({ onContextChange, onContextStateChange }:
                 : "hover:border-blue-400 cursor-pointer"
             }`}
           >
-            <div
-              className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 ${
-                selected[option.key]
-                  ? "border-blue-500 bg-blue-500"
-                  : "border-slate-300 dark:border-slate-600"
-              }`}
-            >
-              {selected[option.key] && <Check className="w-3 h-3 text-white" />}
-            </div>
-            <div className="flex-1 text-left">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-slate-900 dark:text-white">
-                  {option.label}
-                </span>
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                  ({option.count})
-                </span>
+            <div className="flex items-center gap-2 w-full">
+              <div
+                className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${
+                  selected[option.key]
+                    ? "border-blue-500 bg-blue-500"
+                    : "border-slate-300 dark:border-slate-600"
+                }`}
+              >
+                {selected[option.key] && <Check className="w-3 h-3 text-white" />}
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                {option.description}
-              </p>
+              <div className="text-left">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-slate-900 dark:text-white">
+                    {option.label}
+                  </span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    ({option.count})
+                  </span>
+                </div>
+              </div>
             </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {option.description}
+            </p>
           </button>
         ))}
       </div>

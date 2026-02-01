@@ -14,6 +14,9 @@ interface UIState {
     // Håndter valgt chat-id for å laste fra sidebar
     selectedChatId: string | null;
     setSelectedChatId: (id: string | null) => void;
+    // Signal for å starte ny chat
+    newChatToken: number;
+    requestNewChat: () => void;
     // Nullstiller all UI-tilstand (brukes ved utlogging)
     reset: () => void;
 }
@@ -25,5 +28,7 @@ export const useUIStore = create<UIState>((set) => ({
     settVenstreMenyOpen: (isOpen) => set({ isVenstreMenyOpen: isOpen }),
     selectedChatId: null,
     setSelectedChatId: (id) => set({ selectedChatId: id }),
-    reset: () => set({ isVenstreMenyOpen: false, selectedChatId: null }),
+    newChatToken: 0,
+    requestNewChat: () => set((state) => ({ newChatToken: state.newChatToken + 1 })),
+    reset: () => set({ isVenstreMenyOpen: false, selectedChatId: null, newChatToken: 0 }),
 }));

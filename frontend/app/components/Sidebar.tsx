@@ -52,7 +52,7 @@ export function Sidebar({
     const [erCanvasUtvidet, settErCanvasUtvidet] = useState(true);
     const loggUt = useLoggUt();
     const queryClient = useQueryClient();
-    const { setSelectedChatId } = useUIStore();
+    const { setSelectedChatId, requestNewChat } = useUIStore();
     const { chats } = useChatHistory();
 
     // Håndter navigasjon og lukk meny på mobil
@@ -157,7 +157,10 @@ export function Sidebar({
 
                     {/* Ny samtale-knapp */}
                     <button
-                        onClick={() => handleNavigasjon("chat")}
+                        onClick={() => {
+                            requestNewChat();
+                            handleNavigasjon("chat");
+                        }}
                         className="w-full flex items-center justify-center gap-2 px-4 py-2.5 mb-4 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium"
                     >
                         <Plus size={18} />

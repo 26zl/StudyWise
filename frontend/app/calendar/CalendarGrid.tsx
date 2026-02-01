@@ -20,7 +20,8 @@ import {
 } from "date-fns";
 import { AlertCircle } from "lucide-react";
 import { cn } from "../lib/utils";
-import { Assignment, COURSE_COLOR_CLASSES } from "common/calendar-ui";
+import { Assignment } from "common/calendar-ui";
+import { COURSE_COLOR_CLASSES } from "./calendarColors";
 
 interface CalendarGridProps {
     currentDate: Date;
@@ -105,7 +106,7 @@ export function CalendarGrid({
                             key={day.toISOString()}
                             onClick={() => onDateClick(day)}
                             className={cn(
-                                "min-h-[100px] p-2 border-b border-r border-slate-200 dark:border-slate-700 text-left transition-all duration-200 relative",
+                                "min-h-25 p-2 border-b border-r border-slate-200 dark:border-slate-700 text-left transition-all duration-200 relative",
                                 "hover:bg-slate-50 dark:hover:bg-slate-700/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset",
                                 !isCurrentMonth && "bg-slate-50 dark:bg-slate-900/50 text-slate-400 dark:text-slate-500",
                                 isSelected && "bg-blue-50 dark:bg-blue-900/30 ring-2 ring-blue-500 ring-inset",

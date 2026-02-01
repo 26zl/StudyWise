@@ -5,6 +5,8 @@
 
 import { z } from "zod";
 
+const EmailSchema = z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Ugyldig e-post");
+
 // Request schema for lagring av Canvas token
 export const CanvasTokenRequestSchema = z.object({
   token: z.string().min(1, "Token kan ikke vaere tom"),
@@ -19,7 +21,7 @@ export const CanvasTokenResponseSchema = z.object({
 // Auth bruker (lokal)
 export const AuthBrukerSchema = z.object({
   id: z.string(),
-  email: z.string().email(),
+  email: EmailSchema,
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   hasCanvasToken: z.boolean(),
@@ -27,12 +29,12 @@ export const AuthBrukerSchema = z.object({
 
 // Login/register/me/logout
 export const LoginRequestSchema = z.object({
-  email: z.string().email(),
+  email: EmailSchema,
   password: z.string().min(1),
 });
 // Register request schema
 export const RegisterRequestSchema = z.object({
-  email: z.string().email(),
+  email: EmailSchema,
   password: z.string().min(8),
   firstName: z.string().optional(),
   lastName: z.string().optional(),

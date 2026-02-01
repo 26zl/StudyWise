@@ -1,3 +1,9 @@
+/*
+* Type definisjoner for eksterne biblioteker uten egne typer
+*/
+
+
+// Typings for unpdf
 declare module "unpdf" {
   export function extractText(
     data: Uint8Array,
@@ -5,6 +11,7 @@ declare module "unpdf" {
   ): Promise<{ text: string; totalPages?: number }>;
 }
 
+// Typings for mammoth
 declare module "mammoth" {
   export interface MammothResult {
     value: string;
@@ -14,7 +21,7 @@ declare module "mammoth" {
   const mammothDefault: { extractRawText: typeof extractRawText };
   export default mammothDefault;
 }
-
+// Typings for tesseract.js
 declare module "tesseract.js" {
   interface RecognizeResult {
     data: { text: string; confidence: number };

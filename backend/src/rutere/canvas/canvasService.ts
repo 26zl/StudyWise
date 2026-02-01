@@ -172,7 +172,7 @@ export async function fetchUpcomingEvents(canvasToken?: string | null) {
   });
 
   if (invalid.length > 0) {
-    logger.warn(
+    logger.debug(
       { droppedCount: invalid.length, examples: invalid.slice(0, 3) },
       "Ignorerer ugyldige upcoming_events fra Canvas"
     );

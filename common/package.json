@@ -1,6 +1,7 @@
-
 {
   "name": "common",
+  "description": "StudyWise Common Types - Bachelor i IT 2026",
+  "private": true,
   "version": "0.0.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -8,25 +9,14 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
-    "./auth": {
-      "types": "./dist/auth.d.ts",
-      "default": "./dist/auth.js"
+      "import": "./dist/index.js"
     },
     "./canvas": {
       "types": "./dist/canvas.d.ts",
-      "default": "./dist/canvas.js"
+      "import": "./dist/canvas.js"
     },
     "./ki": {
       "types": "./dist/ki.d.ts",
-<<<<<<< HEAD
-      "default": "./dist/ki.js"
-    },
-    "./chat": {
-      "types": "./dist/chat.d.ts",
-      "default": "./dist/chat.js"
-=======
       "import": "./dist/ki.js"
     },
     "./auth": {
@@ -48,17 +38,16 @@
     "./calendar-ui": {
       "types": "./dist/calendar-ui.d.ts",
       "import": "./dist/calendar-ui.js"
->>>>>>> c38f7beed287a901aea825ad8a6571efb9520eb4
     }
   },
   "scripts": {
-    "build": "tsc"
-  },
-  "devDependencies": {
-    "@types/node": "^20.10.4",
-    "typescript": "^5.3.3"
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "zod": "^3.22.4"
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
   }
 }

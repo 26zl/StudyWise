@@ -34,29 +34,16 @@ export function ChatSection() {
     const [tekstInput, settTekstInput] = useState("");
     const [skriver, settSkriver] = useState(false);
     const [canvasContext, setCanvasContext] = useState("");
-<<<<<<< HEAD
-    const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-    
-    // OPPDATERT: Last sidebar state fra localStorage
-    const [showHistory, setShowHistory] = useState(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('studywise-show-history');
-            return saved === 'true';
-        }
-        return false;
-    });
-    
-=======
     const [harCanvasContext, setHarCanvasContext] = useState(false);
     const [vedlagtFil, settVedlagtFil] = useState<File | null>(null);
     const [analyserarDokument, settAnalysererDokument] = useState(false);
     const [aktivChatId, setAktivChatId] = useState<string | null>(null);
->>>>>>> c38f7beed287a901aea825ad8a6571efb9520eb4
     const meldingerSluttRef = useRef<HTMLDivElement>(null);
     const tekstInputRef = useRef<HTMLTextAreaElement>(null);
     const filInputRef = useRef<HTMLInputElement>(null);
     const oppretterChatRef = useRef(false);
-    const { selectedChatId, setSelectedChatId } = useUIStore();
+    const { selectedChatId, setSelectedChatId, newChatToken } = useUIStore();
+    const sisteNySamtaleToken = useRef(newChatToken);
 
     // KI tilkoblingstest 
     const {
@@ -66,16 +53,11 @@ export function ChatSection() {
     // KI chat hook
     const { sendMelding: sendTilAPI } = useKIChat();
 
-<<<<<<< HEAD
-    // Chat history hook - Laurent's version med database
-    const { chats, saveChat, loadChat, deleteChat, clearAll, loading } = useChatHistory();
-=======
     // Dokumentanalyse hook
     const { analyserDokument } = useKIDocumentAnalyse();
 
     // Chat history hook (lagret i DB, kryptert i backend)
-    const { saveChat, loadChat: loadChatById } = useChatHistory();
->>>>>>> c38f7beed287a901aea825ad8a6571efb9520eb4
+    const { saveChat, loadChat: loadChatById, loading } = useChatHistory();
 
     // Auto-scroll 
     const scrollTilBunn = () => {
@@ -95,25 +77,6 @@ export function ChatSection() {
         }
     }, [tekstInput]);
 
-<<<<<<< HEAD
-    // Auto-save hver 5. melding
-    useEffect(() => {
-        if (meldinger.length > 0 && meldinger.length % 5 === 0) {
-            saveChat(
-                meldinger.map((m) => ({
-                    rolle: m.rolle,
-                    innhold: m.innhold,
-                })),
-                currentChatId || undefined
-            );
-        }
-    }, [meldinger.length]);
-
-    // Lagre sidebar state til localStorage
-    useEffect(() => {
-        localStorage.setItem('studywise-show-history', showHistory.toString());
-    }, [showHistory]);
-=======
     const lagreSamtale = async (oppdatert: Melding[]) => {
         const payload = oppdatert.map((m) => ({
             rolle: m.rolle,
@@ -134,38 +97,10 @@ export function ChatSection() {
             oppretterChatRef.current = false;
         }
     };
->>>>>>> c38f7beed287a901aea825ad8a6571efb9520eb4
 
     // Ny samtale
     const nySamtale = async () => {
         if (meldinger.length > 0) {
-<<<<<<< HEAD
-            await saveChat(
-                meldinger.map((m) => ({
-                    rolle: m.rolle,
-                    innhold: m.innhold,
-                })),
-                currentChatId || undefined
-            );
-        }
-        settMeldinger([]);
-        setCanvasContext("");
-        setCurrentChatId(null);
-    };
-
-    // Last samtale fra database
-    const handleLoadChat = (chat: any) => {
-        settMeldinger(
-            chat.messages.map((m: any, i: number) => ({
-                id: `${Date.now()}-${i}`,
-                rolle: m.rolle,
-                innhold: m.innhold,
-                tidsstempel: new Date(),
-            }))
-        );
-        setCurrentChatId(chat.id);
-        setShowHistory(false);
-=======
             void lagreSamtale(meldinger);
         }
         settMeldinger([]);
@@ -174,6 +109,13 @@ export function ChatSection() {
         setAktivChatId(null);
         settVedlagtFil(null);
     };
+
+    // Start ny samtale fra globale triggers (f.eks. sidebar)
+    useEffect(() => {
+        if (sisteNySamtaleToken.current === newChatToken) return;
+        sisteNySamtaleToken.current = newChatToken;
+        void nySamtale();
+    }, [newChatToken]);
 
     // Håndter filvalg
     const handleFilValg = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -204,7 +146,6 @@ export function ChatSection() {
         if (filInputRef.current) {
             filInputRef.current.value = "";
         }
->>>>>>> c38f7beed287a901aea825ad8a6571efb9520eb4
     };
 
     const sendMelding = async () => {
@@ -248,7 +189,9 @@ export function ChatSection() {
                     };
                     settMeldinger((tidligere) => {
                         const oppdatert = [...tidligere, aiMelding];
-                        void lagreSamtale(oppdatert);
+                        lagreSamtale(oppdatert).catch((err) => {
+                            console.error("Feil ved lagring av samtale:", err);
+                        });
                         return oppdatert;
                     });
                     settAnalysererDokument(false);
@@ -314,8 +257,10 @@ export function ChatSection() {
                 };
                 settMeldinger((tidligere) => {
                     const oppdatert = [...tidligere, aiMelding];
-                    // Auto-save hele samtalen til historikk
-                    void lagreSamtale(oppdatert);
+                    // Auto-save hele samtalen til historikk (vent på at chat blir opprettet)
+                    lagreSamtale(oppdatert).catch((err) => {
+                        console.error("Feil ved lagring av samtale:", err);
+                    });
                     return oppdatert;
                 });
                 settSkriver(false);
@@ -367,20 +312,6 @@ export function ChatSection() {
 
     return (
         <div className="h-full flex">
-<<<<<<< HEAD
-            {/* Sidebar - Chat History */}
-            {showHistory && (
-                <ChatHistorySidebar
-                    chats={chats}
-                    selectedChatId={currentChatId}
-                    onLoadChat={handleLoadChat}
-                    onDeleteChat={deleteChat}
-                    onClearAll={clearAll}
-                />
-            )}
-
-=======
->>>>>>> c38f7beed287a901aea825ad8a6571efb9520eb4
             {/* Main Chat Area */}
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Header */}

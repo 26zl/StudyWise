@@ -237,8 +237,8 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
       zustand:
-        specifier: ^5.0.10
-        version: 5.0.10(@types/react@19.2.10)(react@19.2.4)
+        specifier: ^5.0.11
+        version: 5.0.11(@types/react@19.2.10)(react@19.2.4)
     devDependencies:
       '@eslint/js':
         specifier: ^9.39.2
@@ -274,8 +274,8 @@ importers:
         specifier: ^9.39.2
         version: 9.39.2(jiti@2.6.1)
       globals:
-        specifier: ^17.2.0
-        version: 17.2.0
+        specifier: ^17.3.0
+        version: 17.3.0
       tailwindcss:
         specifier: ^4.1.18
         version: 4.1.18
@@ -2348,8 +2348,8 @@ packages:
     resolution: {integrity: sha512-oahGvuMGQlPw/ivIYBjVSrWAfWLBeku5tpPE2fOPLi+WHffIWbuh2tCjhyQhTBPMf5E9jDEH4FOmTYgYwbKwtQ==}
     engines: {node: '>=18'}
 
-  globals@17.2.0:
-    resolution: {integrity: sha512-tovnCz/fEq+Ripoq+p/gN1u7l6A7wwkoBT9pRCzTHzsD/LvADIzXZdjmRymh5Ztf0DYC3Rwg5cZRYjxzBmzbWg==}
+  globals@17.3.0:
+    resolution: {integrity: sha512-yMqGUQVVCkD4tqjOJf3TnrvaaHDMYp4VlUSObbkIiuCPe/ofdMBFIAcBbCSRFWOnos6qRiTVStDwqPLUclaxIw==}
     engines: {node: '>=18'}
 
   gopd@1.2.0:
@@ -3646,11 +3646,11 @@ packages:
     resolution: {integrity: sha512-PSkbLUoxOFRzJYjjxHJt9xro7D+iilgMX/C9lawzVuYiIdcihh9DXmVibBe8lmcFrRi/VzlPjBxbN7rH24q8/Q==}
     engines: {node: '>=14.0.0'}
 
-  tldts-core@7.0.20:
-    resolution: {integrity: sha512-gF3cGE0wzboN8UuD0jldE/qIwC/Gaa2cHeWCbsaV1g51XLaL0cPtssjryUXHO9PGgphYPQWrinNwm1iMA3sMrA==}
+  tldts-core@7.0.21:
+    resolution: {integrity: sha512-oVOMdHvgjqyzUZH1rOESgJP1uNe2bVrfK0jUHHmiM2rpEiRbf3j4BrsIc6JigJRbHGanQwuZv/R+LTcHsw+bLA==}
 
-  tldts@7.0.20:
-    resolution: {integrity: sha512-TVQHdE8pbD1uhW4B79fQ7fkitS62TVGHZ1bwblOOobe3T8Zj96wvBVy7NFsAXexl1UYJ4z6f5fZp4AzOBIxRqA==}
+  tldts@7.0.21:
+    resolution: {integrity: sha512-Plu6V8fF/XU6d2k8jPtlQf5F4Xx2hAin4r2C2ca7wR8NK5MbRTo9huLUWRe28f3Uk8bYZfg74tit/dSjc18xnw==}
     hasBin: true
 
   toidentifier@1.0.1:
@@ -4009,8 +4009,8 @@ packages:
   zod@4.3.6:
     resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
 
-  zustand@5.0.10:
-    resolution: {integrity: sha512-U1AiltS1O9hSy3rul+Ub82ut2fqIAefiSuwECWt6jlMVUGejvf+5omLcRBSzqbRagSM3hQZbtzdeRc6QVScXTg==}
+  zustand@5.0.11:
+    resolution: {integrity: sha512-fdZY+dk7zn/vbWNCYmzZULHRrss0jx5pPFiOuMZ/5HJN6Yv3u+1Wswy/4MpZEkEGhtNH+pwxZB8OKgUBPzYAGg==}
     engines: {node: '>=12.20.0'}
     peerDependencies:
       '@types/react': '>=18.0.0'
@@ -6023,7 +6023,7 @@ snapshots:
 
   globals@14.0.0: {}
 
-  globals@17.2.0: {}
+  globals@17.3.0: {}
 
   gopd@1.2.0: {}
 
@@ -7666,17 +7666,17 @@ snapshots:
 
   tinyrainbow@3.0.3: {}
 
-  tldts-core@7.0.20: {}
+  tldts-core@7.0.21: {}
 
-  tldts@7.0.20:
+  tldts@7.0.21:
     dependencies:
-      tldts-core: 7.0.20
+      tldts-core: 7.0.21
 
   toidentifier@1.0.1: {}
 
   tough-cookie@6.0.0:
     dependencies:
-      tldts: 7.0.20
+      tldts: 7.0.21
 
   tr46@0.0.3: {}
 
@@ -7989,7 +7989,7 @@ snapshots:
 
   zod@4.3.6: {}
 
-  zustand@5.0.10(@types/react@19.2.10)(react@19.2.4):
+  zustand@5.0.11(@types/react@19.2.10)(react@19.2.4):
     optionalDependencies:
       '@types/react': 19.2.10
       react: 19.2.4

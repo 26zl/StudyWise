@@ -11,9 +11,8 @@ import { Clock, Check, X as XIcon } from "lucide-react";
 import { cn } from "../lib/utils";
 import {
     Assignment,
-    COURSE_BG_LIGHT_CLASSES,
-    COURSE_DOT_CLASSES,
 } from "common/calendar-ui";
+import { COURSE_BG_LIGHT_CLASSES, COURSE_DOT_CLASSES } from "./calendarColors";
 
 interface DateDetailsModalProps {
     date: Date | null;

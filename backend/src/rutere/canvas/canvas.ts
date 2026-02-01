@@ -8,6 +8,7 @@
 import { Router } from "express";
 import crypto from "node:crypto";
 import { Readable } from "node:stream";
+import pLimit from "p-limit";
 import {
   krevCanvasToken,
   hentCanvasKonfig,
@@ -275,17 +276,20 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
 
     const { data: courses } = await fetchCourses(req.canvasToken);
     const courseMap = new Map(courses.map((c) => [c.id, c]));
-    // Hent oppgaver per emne i parallell, men ignorerer feil per emne
+    // Hent oppgaver per emne med begrenset samtidighet for mindre trykk på Canvas
+    const limitAssignments = pLimit(6);
     const assignmentsPerCourse = await Promise.all(
-      courses.map(async (course) => {
-        try {
-          const { data } = await fetchAssignments(req.canvasToken, course.id);
-          return { courseId: course.id, assignments: data };
-        } catch (error) {
-          logger.warn({ courseId: course.id, err: error }, "Klarte ikke hente oppgaver for kurs i kalender-endepunkt");
-          return { courseId: course.id, assignments: [] };
-        }
-      })
+      courses.map((course) =>
+        limitAssignments(async (): Promise<{ courseId: number; assignments: Awaited<ReturnType<typeof fetchAssignments>>["data"] }> => {
+          try {
+            const { data } = await fetchAssignments(req.canvasToken, course.id);
+            return { courseId: course.id, assignments: data };
+          } catch (error) {
+            logger.warn({ courseId: course.id, err: error }, "Klarte ikke hente oppgaver for kurs i kalender-endepunkt");
+            return { courseId: course.id, assignments: [] };
+          }
+        })
+      )
     );
     // Hent kommende hendelser og todo-liste parallelt
     const [eventsResult, todosResult] = await Promise.allSettled([

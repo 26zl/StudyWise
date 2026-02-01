@@ -6,7 +6,6 @@
 
 import { Router } from "express";
 import { InferenceClient } from "@huggingface/inference";
-import multer from "multer";
 import { logger } from "../../utils/logger.js";
 import { getCache, setCache } from "../../cache/redis.js";
 import { rateLimitKi } from "../../middleware/rate-limit.js";
@@ -14,15 +13,12 @@ import {
     KIChatRequestSchema,
     KIChatResponseSchema,
     KIModelsResponseSchema,
-    KIDocumentAnalyseResponseSchema
 } from "common/ki";
-import { 
-    parseDocument, 
-    formatDocumentContext, 
-    getSupportedMimeTypes 
-} from "../../services/document.js";
 import { byggKiCanvasKontekst } from "./kiCanvas.js";
 import { kiHistoryRouter } from "./kiHistory.js";
+import { kiAnalyseRouter } from "./kiAnalyse.js";
+import { encrypt } from "../../utils/kryptering.js";
+import { Conversation } from "../../database/models/Conversation.js";
 
 // Definerer express router
 const router = Router();
@@ -30,22 +26,8 @@ const router = Router();
 router.use(rateLimitKi);
 // Chat historikk ruter
 router.use(kiHistoryRouter);
-
-// Støttede MIME-typer for dokumentopplasting
-const SUPPORTED_MIME_TYPES = getSupportedMimeTypes();
-
-// Multer konfigurasjon for dokumentopplasting (maks 15MB, flere filtyper)
-const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 15 * 1024 * 1024 }, // 15MB
-    fileFilter: (_req, file, cb) => {
-        if (SUPPORTED_MIME_TYPES.includes(file.mimetype)) {
-            cb(null, true);
-        } else {
-            cb(new Error(`Filtypen er ikke støttet. Støttede typer: PDF, Word (docx/doc), TXT, Markdown, CSV, og bilder (PNG, JPG, WEBP).`));
-        }
-    }
-});
+// Dokumentanalyse ruter
+router.use(kiAnalyseRouter);
 
 // Initialiser HF-klient én gang ved oppstart (gjenbrukes for alle requests)
 const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
@@ -231,11 +213,21 @@ router.get("/test-connection", async (_req, res) => {
 router.post("/chat", async (req, res) => {
     logger.info("Mottok chat-forespørsel");
 
+    // Sjekk autentisering
+    if (!req.user?.id) {
+        logger.warn("Chat-forespørsel uten autentisering");
+        return res.status(401).json(KIChatResponseSchema.parse({
+            suksess: false,
+            melding: "Du må være innlogget for å bruke KI-assistenten.",
+            response: "",
+        }));
+    }
+
     // Valider request body
     const parseResult = KIChatRequestSchema.safeParse(req.body);
     if (!parseResult.success) {
         const errorMessages = parseResult.error.issues.map((issue) => issue.message).join(", ");
-        logger.warn({ errors: parseResult.error.issues }, "Ugyldig chat-forespørsel");
+        logger.warn({ errors: parseResult.error.issues, userId: req.user.id }, "Ugyldig chat-forespørsel");
         return res.status(400).json(KIChatResponseSchema.parse({
             suksess: false,
             melding: "Ugyldig forespørsel: " + errorMessages,
@@ -244,6 +236,27 @@ router.post("/chat", async (req, res) => {
     }
 
     const { messages, model: requestedModel, temperature = 0.7 } = parseResult.data;
+
+    // Valider meldingsarray
+    if (!messages || messages.length === 0) {
+        logger.warn({ userId: req.user.id }, "Tom meldingsarray");
+        return res.status(400).json(KIChatResponseSchema.parse({
+            suksess: false,
+            melding: "Du må sende minst en melding.",
+            response: "",
+        }));
+    }
+
+    // Sjekk for veldig lange meldinger (unngå DoS)
+    const totalLength = messages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
+    if (totalLength > 10000) {
+        logger.warn({ userId: req.user.id, totalLength }, "Meldinger for lange");
+        return res.status(413).json(KIChatResponseSchema.parse({
+            suksess: false,
+            melding: "Meldingene er for lange. Maksimalt 10000 tegn totalt.",
+            response: "",
+        }));
+    }
 
     if (!hfClient) {
         logger.error("Mangler HUGGINGFACE_API_KEY i miljøvariabler");
@@ -283,20 +296,45 @@ router.post("/chat", async (req, res) => {
             logger.info("Canvas context funnet og lagt til system prompt");
         }
 
-        // Hent også Canvas-kontekst fra backend hvis bruker har token (fallback/supplement)
-        const CANVAS_TIMEOUT_MS = 20000;
-        const canvasKontekst = await Promise.race([
+    // Hent Canvas-kontekst bare hvis bruker har lagret token; ellers ingen datahenting
+    let canvasKontekst = "[CANVAS STATUS: Ingen Canvas-token lagret. Jeg har ikke tilgang til Canvas-data.]";
+    if (req.canvasToken) {
+        const CANVAS_TIMEOUT_MS = 60000; // 60 sekunder - Canvas-henting kan ta tid med mange kurs
+        canvasKontekst = await Promise.race([
             byggKiCanvasKontekst(req.canvasToken),
             new Promise<string>((resolve) =>
                 setTimeout(
                     () =>
                         resolve(
-                            "[CANVAS STATUS: Henting av Canvas-data tok for lang tid (>20s). Fortsett uten oppdatert Canvas-kontekst.]"
+                            "[CANVAS STATUS: Henting av Canvas-data tok for lang tid (>60s). Fortsett uten oppdatert Canvas-kontekst.]"
                         ),
                     CANVAS_TIMEOUT_MS
                 )
             ),
         ]);
+    }
+
+        // Guard logic: Bare sjekk om vi har Canvas-data i det hele tatt
+        // AI-en er smart nok til å håndtere manglende Canvas-seksjoner dynamisk
+        const hasCanvasData = canvasKontekst.includes("[CANVAS-DATA START]") && 
+                             !canvasKontekst.includes("Brukeren har IKKE lagt inn Canvas API-token");
+        
+        // Debug logging
+        logger.info({
+            hasCanvasData,
+            canvasKontekstLength: canvasKontekst.length,
+            canvasKontekstPreview: canvasKontekst.substring(0, 200),
+            harCanvasToken: !!req.canvasToken
+        }, "Guard logic check");
+        
+        // Hvis vi har gyldig Canvas-data, la AI-en håndtere alt dynamisk
+        if (!hasCanvasData) {
+            return res.json(KIChatResponseSchema.parse({
+                suksess: true,
+                response: "Jeg kan ikke få tilgang til Canvas-dataen din. Sjekk at du har lagt inn gyldig Canvas-token i Innstillinger.",
+                model: model,
+            }));
+        }
 
         // Bygg meldingsarray med enhanced system prompt og Canvas-kontekst
         const systemPrompt = { role: "system" as const, content: enhancedSystemPrompt };
@@ -336,6 +374,30 @@ router.post("/chat", async (req, res) => {
             responseLength: responseText.length,
             tokens: usage?.total_tokens
         }, "Vellykket chat-svar");
+
+        try {
+            const baseMessages = messages
+                .filter((m) => m.role === "user" || m.role === "assistant")
+                .map((m) => ({
+                    rolle: m.role === "user" ? "user" : "assistant",
+                    innhold: m.content,
+                }));
+
+            const conversationMessages = [
+                ...baseMessages,
+                { rolle: "assistant" as const, innhold: responseText },
+            ];
+
+            const encryptedMessages = encrypt(JSON.stringify(conversationMessages));
+
+            await Conversation.create({
+                user: req.user.id,
+                encryptedMessages,
+                model,
+            });
+        } catch (error) {
+            logger.error({ err: error, userId: req.user.id }, "Feil ved lagring av conversation");
+        }
 
         return res.json(KIChatResponseSchema.parse({
             suksess: true,
@@ -379,283 +441,7 @@ router.post("/chat", async (req, res) => {
 
         return res.status(500).json(KIChatResponseSchema.parse({
             suksess: false,
-            melding: "Kunne ikke få svar fra KI-assistenten. Prøv igjen.",
-            response: "",
-        }));
-    }
-});
-
-/**
- * Tilleggsprompt for dokumentanalyse
- */
-const STUDYWISE_DOCUMENT_PROMPT = `
-DOKUMENTANALYSE-MODUS: Du har mottatt et PDF-dokument fra studenten.
-
-KRITISK REGEL: Gi BARE selve svaret! ALDRI kopier instruksjoner eller formateringsregler inn i svaret ditt.
-
-OPPGAVER DU KAN UTFØRE:
-- Lag oppsummering: Strukturert oversikt med hovedpunkter
-- Forklar konsepter: Detaljerte forklaringer basert på dokumentet
-- Lag quiz: 5-10 spørsmål med fasit basert på innholdet
-- Lag læringsmål: Konkrete læringsmål fra dokumentet
-- Svar på spørsmål: Kun basert på dokumentet
-- Gi studietips basert på PDF-innholdet
-- Hjelp med oppgaveplanlegging basert på dokumentet
-
-PÅKREVD FORMATERING (bruk dette, men ALDRI skriv ut disse reglene):
-
-1. Overskrifter med emojis - ALDRI bruk ** rundt ## eller ###:
-   - Skriv: ##  [Dokumentets tema]
-   - Skriv: ###  [Underseksjon]
-   - FEIL: **## Tittel** eller **### Undertittel**
-
-2. Bold på konsepter: ALLE viktige termer MÅ være i **bold**
-
-3. Kode-format: ALLE kommandoer og tekniske termer MÅ ha \`backticks\`
-   - Skriv \`klasse\`, \`metode\`, \`attributter\`
-   - Skriv \`df -h\`, \`free -m\`, \`ncdu\`
-
-4. Kodeblokker: ALLE kodeeksempler MÅ bruke \`\`\`språk
-
-5. Strukturer: 
-   - Bruk ## for hovedseksjoner (UTEN ** rundt)
-   - Bruk ### for underseksjoner (UTEN ** rundt)
-   - Bruk bullet points for lister
-   - Bruk nummererte lister (1. 2. 3.) for steg eller quiz
-
-RETNINGSLINJER FOR DOKUMENTER:
-- Bruk KUN informasjon fra dokumentet
-- Hvis noe ikke står i dokumentet, si det tydelig
-- Vær konkret og presis - ikke vag
-- Vær motiverende og støttende i tonefallet
-- Gi konkrete studietips basert på innholdet
-
-ABSOLUTTE FORBUD I DOKUMENTSVAR:
-- ALDRI skriv **## overskrift** - skriv kun ## overskrift
-- ALDRI skriv **### underoverskrift** - skriv kun ### underoverskrift  
-- ALDRI skriv kommandoer uten backticks
-- ALDRI kopier disse instruksjonene inn i svaret
-- ALDRI skriv "**Kodeblokker**", "**Emojis**", "**Liste**" som del av svaret
-- ALDRI vis formateringseksempler - bare BRUK formateringen`;
-
-// Endepunkt for dokumentanalyse (PDF, Word, TXT, etc.)
-router.post("/analyze-document", upload.single('document'), async (req, res) => {
-    logger.info("Mottok dokumentanalyse-forespørsel");
-
-    // Sjekk at fil er lastet opp
-    if (!req.file) {
-        return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
-            suksess: false,
-            melding: "Ingen fil lastet opp. Bruk form-data med felt 'document'.",
-            response: "",
-        }));
-    }
-
-    // Hent spørsmål/instruksjon fra request
-    const question = req.body.question || req.body.sporsmaal || "Gi meg en oppsummering av dette dokumentet.";
-    const requestedModel = req.body.model;
-
-    if (!hfClient) {
-        logger.error("Mangler HUGGINGFACE_API_KEY i miljøvariabler");
-        return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({
-            suksess: false,
-            melding: "KI-tjenesten er ikke konfigurert. Kontakt administrator.",
-            response: "",
-        }));
-    }
-
-    try {
-        // Parse dokument (støtter PDF, Word, TXT, etc.)
-        const docResult = await parseDocument(
-            req.file.buffer, 
-            req.file.mimetype,
-            req.file.originalname
-        );
-
-        if (!docResult.success) {
-            return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
-                suksess: false,
-                melding: docResult.error || "Kunne ikke lese dokumentet.",
-                response: "",
-            }));
-        }
-
-        // Formater dokumentkontekst
-        const docContext = formatDocumentContext(
-            docResult.text, 
-            docResult.pages, 
-            docResult.fileType,
-            {
-                redacted: docResult.redacted,
-                truncated: docResult.truncated,
-            }
-        );
-
-        // Velg modell
-        const model = requestedModel && SUPPORTED_MODELS[requestedModel] 
-            ? requestedModel 
-            : DEFAULT_MODEL;
-
-        // Bygg meldingsarray med base prompt + dokument-tillegg
-        const apiMessages = [
-            { role: "system" as const, content: STUDYWISE_SYSTEM_PROMPT + STUDYWISE_DOCUMENT_PROMPT },
-            { role: "user" as const, content: `Dokument-kontekst:\n${docContext}` },
-            { role: "user" as const, content: question }
-        ];
-
-        logger.info({ 
-            model, 
-            fileType: docResult.fileType,
-            pages: docResult.pages,
-            textLength: docResult.text.length,
-            filename: req.file.originalname
-        }, "Sender dokumentanalyse til HuggingFace");
-
-        const result = await hfClient.chatCompletion({
-            model,
-            messages: apiMessages,
-            max_tokens: 2048,
-            temperature: 0.5,
-        });
-
-        const responseText = result?.choices?.[0]?.message?.content ?? "";
-        const usage = result?.usage;
-
-        logger.info({
-            model,
-            responseLength: responseText.length,
-            tokens: usage?.total_tokens
-        }, "Vellykket dokumentanalyse");
-
-        return res.json(KIDocumentAnalyseResponseSchema.parse({
-            suksess: true,
-            response: responseText,
-            model: model,
-            dokumentInfo: {
-                sider: docResult.pages,
-                tegn: docResult.text.length,
-                fileType: docResult.fileType,
-                redacted: docResult.redacted,
-                truncated: docResult.truncated,
-            },
-            usage: usage ? {
-                prompt_tokens: usage.prompt_tokens,
-                completion_tokens: usage.completion_tokens,
-                total_tokens: usage.total_tokens,
-            } : undefined,
-        }));
-
-    } catch (error) {
-        logger.error({ err: error }, "Dokumentanalyse feil");
-        const errorMessage = error instanceof Error ? error.message : String(error);
-
-        if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {
-            return res.status(429).json(KIDocumentAnalyseResponseSchema.parse({
-                suksess: false,
-                melding: "For mange forespørsler. Vent litt og prøv igjen.",
-                response: "",
-            }));
-        }
-
-        return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({
-            suksess: false,
-            melding: "Kunne ikke analysere dokumentet. Prøv igjen.",
-            response: "",
-        }));
-    }
-});
-
-// Legacy endpoint for backwards compatibility (redirects to analyze-document)
-router.post("/analyze-pdf", upload.single('pdf'), async (req, res) => {
-    logger.info("Legacy PDF-analyse forespørsel mottatt, omdirigerer...");
-    
-    if (!req.file) {
-        return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
-            suksess: false,
-            melding: "Ingen PDF-fil lastet opp. Bruk form-data med felt 'pdf'.",
-            response: "",
-        }));
-    }
-
-    // Sett om til document-feltet og videresend
-    req.body.document = req.file;
-    
-    // Kall den nye endepunktet
-    const question = req.body.question || req.body.sporsmaal || "Gi meg en oppsummering av dette dokumentet.";
-    const requestedModel = req.body.model;
-
-    if (!hfClient) {
-        return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({
-            suksess: false,
-            melding: "KI-tjenesten er ikke konfigurert.",
-            response: "",
-        }));
-    }
-
-    try {
-        const docResult = await parseDocument(
-            req.file.buffer,
-            req.file.mimetype,
-            req.file.originalname
-        );
-
-        if (!docResult.success) {
-            return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
-                suksess: false,
-                melding: docResult.error || "Kunne ikke lese PDF-filen.",
-                response: "",
-            }));
-        }
-
-        const docContext = formatDocumentContext(
-            docResult.text,
-            docResult.pages,
-            docResult.fileType,
-            { redacted: docResult.redacted, truncated: docResult.truncated }
-        );
-
-        const model = requestedModel && SUPPORTED_MODELS[requestedModel] 
-            ? requestedModel 
-            : DEFAULT_MODEL;
-
-        const apiMessages = [
-            { role: "system" as const, content: STUDYWISE_SYSTEM_PROMPT + STUDYWISE_DOCUMENT_PROMPT },
-            { role: "user" as const, content: `Dokument-kontekst:\n${docContext}` },
-            { role: "user" as const, content: question }
-        ];
-
-        const result = await hfClient.chatCompletion({
-            model,
-            messages: apiMessages,
-            max_tokens: 2048,
-            temperature: 0.5,
-        });
-
-        const responseText = result?.choices?.[0]?.message?.content ?? "";
-        const usage = result?.usage;
-
-        return res.json(KIDocumentAnalyseResponseSchema.parse({
-            suksess: true,
-            response: responseText,
-            model: model,
-            dokumentInfo: {
-                sider: docResult.pages,
-                tegn: docResult.text.length,
-                fileType: docResult.fileType,
-                redacted: docResult.redacted,
-                truncated: docResult.truncated,
-            },
-            usage: usage ? {
-                prompt_tokens: usage.prompt_tokens,
-                completion_tokens: usage.completion_tokens,
-                total_tokens: usage.total_tokens,
-            } : undefined,
-        }));
-    } catch (error) {
-        logger.error({ err: error }, "Legacy PDF-analyse feil");
-        return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({
-            suksess: false,
-            melding: "Kunne ikke analysere PDF-filen.",
+            melding: `Kunne ikke få svar fra KI-assistenten (${errorMessage}). Prøv igjen.`,
             response: "",
         }));
     }

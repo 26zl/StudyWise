@@ -5,7 +5,8 @@
 "use client";
 
 import { cn } from "../lib/utils";
-import { Course, COURSE_COLOR_CLASSES } from "common/calendar-ui";
+import { Course } from "common/calendar-ui";
+import { COURSE_COLOR_CLASSES } from "./calendarColors";
 
 interface CourseLegendProps {
     courses: Course[];
