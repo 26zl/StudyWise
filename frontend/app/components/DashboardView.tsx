@@ -93,7 +93,7 @@ export function DashboardView() {
             {/* Hovedinnhold */}
             <main className="flex-1 flex flex-col min-h-0 pt-0 md:pt-0 relative">
                 {/* Innholds basert på aktiv visning */}
-                <div className="flex-1 min-h-0 overflow-hidden bg-white dark:bg-slate-900">
+                <div className="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-slate-900">
                     {aktivVisning === "chat" && (
                         <SectionErrorBoundary sectionName="KI-chat">
                             <Suspense fallback={<SectionLoader text="Laster KI-chat..." />}>

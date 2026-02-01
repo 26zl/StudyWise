@@ -44,19 +44,21 @@ export function CalendarHeader({
     const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 
     return (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-            {/* Tittel og velgere */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 capitalize">
-                    {format(currentDate, "MMMM yyyy", { locale: nb })}
-                </h1>
-
+        <div className="flex flex-col gap-3 sm:gap-4 mb-4 sm:mb-6">
+            {/* Rad 1: Tittel */}
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 capitalize">
+                {format(currentDate, "MMMM yyyy", { locale: nb })}
+            </h1>
+            
+            {/* Rad 2: Velgere og navigasjon */}
+            <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4">
+                {/* Måned/År velgere */}
                 <div className="flex items-center gap-2">
                     {/* Maaned-velger */}
                     <select
                         value={currentDate.getMonth().toString()}
                         onChange={(e) => onMonthChange(parseInt(e.target.value))}
-                        className="h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="h-8 sm:h-9 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                         {MONTHS.map((month, index) => (
                             <option key={month} value={index.toString()}>
@@ -69,7 +71,7 @@ export function CalendarHeader({
                     <select
                         value={currentDate.getFullYear().toString()}
                         onChange={(e) => onYearChange(parseInt(e.target.value))}
-                        className="h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="h-8 sm:h-9 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                         {years.map((year) => (
                             <option key={year} value={year.toString()}>
@@ -78,36 +80,36 @@ export function CalendarHeader({
                         ))}
                     </select>
                 </div>
-            </div>
 
-            {/* Navigasjonsknapper */}
-            <div className="flex items-center gap-2">
-                {/* I dag-knapp */}
-                <button
-                    onClick={onToday}
-                    className="flex items-center gap-2 h-9 px-4 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                    <CalendarDays className="w-4 h-4" />
-                    I dag
-                </button>
+                {/* Navigasjonsknapper */}
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                    {/* I dag-knapp */}
+                    <button
+                        onClick={onToday}
+                        className="flex items-center gap-1.5 sm:gap-2 h-8 sm:h-9 px-2.5 sm:px-4 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-600 active:bg-slate-100 dark:active:bg-slate-500 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <CalendarDays className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        <span className="hidden xs:inline">I dag</span>
+                    </button>
 
-                {/* Forrige/Neste maaned */}
-                <div className="flex items-center border border-slate-200 dark:border-slate-600 rounded-lg overflow-hidden">
-                    <button
-                        onClick={onPrevMonth}
-                        className="h-9 w-9 flex items-center justify-center bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
-                        aria-label="Forrige maaned"
-                    >
-                        <ChevronLeft className="w-5 h-5" />
-                    </button>
-                    <div className="w-px h-9 bg-slate-200 dark:bg-slate-600" />
-                    <button
-                        onClick={onNextMonth}
-                        className="h-9 w-9 flex items-center justify-center bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
-                        aria-label="Neste maaned"
-                    >
-                        <ChevronRight className="w-5 h-5" />
-                    </button>
+                    {/* Forrige/Neste maaned */}
+                    <div className="flex items-center border border-slate-200 dark:border-slate-600 rounded-lg overflow-hidden">
+                        <button
+                            onClick={onPrevMonth}
+                            className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 active:bg-slate-100 dark:active:bg-slate-500 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
+                            aria-label="Forrige maaned"
+                        >
+                            <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                        </button>
+                        <div className="w-px h-8 sm:h-9 bg-slate-200 dark:bg-slate-600" />
+                        <button
+                            onClick={onNextMonth}
+                            className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 active:bg-slate-100 dark:active:bg-slate-500 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
+                            aria-label="Neste maaned"
+                        >
+                            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

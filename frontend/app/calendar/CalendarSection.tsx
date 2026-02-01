@@ -128,7 +128,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({ harCanvasToken = fal
   }
 
   return (
-    <div className="calendar-page">
+    <div className="p-3 sm:p-4 md:p-6 h-full animate-fade-in">
       <CalendarHeader
         currentDate={currentDate}
         onPrevMonth={handlePrevMonth}
@@ -140,7 +140,8 @@ export const CalendarSection: FC<CalendarSectionProps> = ({ harCanvasToken = fal
 
       <CourseLegend courses={courses} />
 
-      <div className="calendar-layout">
+      {/* Responsiv layout: stack på mobil, side-by-side på xl */}
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-4 sm:gap-6">
         <CalendarGrid
           currentDate={currentDate}
           assignments={assignments}
@@ -148,8 +149,9 @@ export const CalendarSection: FC<CalendarSectionProps> = ({ harCanvasToken = fal
           selectedDate={selectedDate}
         />
 
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 h-fit">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">
+        {/* Detaljer-panel - responsiv størrelse */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 h-fit order-first xl:order-last">
+          <h2 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3 sm:mb-4">
             {selectedDate
               ? `Innleveringer ${selectedDate.getDate()}. ${[
                   "januar",
@@ -169,22 +171,22 @@ export const CalendarSection: FC<CalendarSectionProps> = ({ harCanvasToken = fal
           </h2>
 
           {selectedDateAssignments.length > 0 ? (
-            <ul className="space-y-3">
+            <ul className="space-y-2 sm:space-y-3">
               {selectedDateAssignments.map((assignment) => (
                 <li
                   key={assignment.id}
-                  className="p-3 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600"
+                  className="p-2.5 sm:p-3 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600"
                 >
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-2.5 sm:gap-3">
                     <input
                       type="checkbox"
                       checked={assignment.completed}
                       onChange={() => handleToggleComplete(assignment.id)}
-                      className="mt-1 w-4 h-4 rounded border-slate-300 dark:border-slate-500"
+                      className="mt-1 w-4 h-4 sm:w-5 sm:h-5 rounded border-slate-300 dark:border-slate-500 cursor-pointer"
                     />
                     <div className="flex-1 min-w-0">
                       <p
-                        className={`font-medium text-slate-900 dark:text-slate-100 ${
+                        className={`text-sm sm:text-base font-medium text-slate-900 dark:text-slate-100 ${
                           assignment.completed ? "line-through opacity-50" : ""
                         }`}
                       >
@@ -206,7 +208,8 @@ export const CalendarSection: FC<CalendarSectionProps> = ({ harCanvasToken = fal
         </div>
       </div>
 
-      <div className="calendar-footer">
+      {/* Footer med responsiv styling */}
+      <div className="mt-4 sm:mt-6 text-center text-xs sm:text-sm text-slate-500 dark:text-slate-400">
         {assignments.length === 0
           ? "Ingen frister funnet i Canvas for valgt periode."
           : "Kalenderen synkroniseres med Canvas LMS"}

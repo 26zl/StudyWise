@@ -52,18 +52,18 @@ export function UpcomingDeadlines({
 
     return (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm h-fit">
-            {/* Header */}
-            <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+            {/* Header - responsiv padding */}
+            <div className="p-3 sm:p-4 border-b border-slate-200 dark:border-slate-700">
+                <h2 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-slate-100">
                     Kommende frister
                 </h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                     Dine neste innleveringer
                 </p>
             </div>
 
-            {/* Liste */}
-            <div className="p-3 space-y-2 max-h-150 overflow-y-auto">
+            {/* Liste - responsiv h-fit og padding */}
+            <div className="p-2 sm:p-3 space-y-2 max-h-64 sm:max-h-96 lg:max-h-[600px] overflow-y-auto">
                 {sortedAssignments.length === 0 ? (
                     <div className="py-8 text-center text-slate-500 dark:text-slate-400">
                         <CheckCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />

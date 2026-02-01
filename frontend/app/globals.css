@@ -170,31 +170,9 @@ body {
 }
 
 /* =============================================
-   Calendar Styles
+   Calendar Styles (kun for komplekse stiler)
    ============================================= */
 
-/* Calendar page layout */
-.calendar-page {
-    padding: 1.5rem;
-    height: 100%;
-    animation: fade-in 0.2s ease-out;
-}
-
-.calendar-layout {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-}
-
-@media (min-width: 1280px) {
-    .calendar-layout {
-        grid-template-columns: 1fr 340px;
-    }
-}
-
-.calendar-footer {
-    margin-top: 2rem;
-    text-align: center;
-    font-size: 0.875rem;
-    color: var(--muted);
-}
+/* Merk: De fleste kalender-stiler er flyttet til 
+   Tailwind-klasser direkte i komponentene for 
+   bedre co-location og responsivitet */
