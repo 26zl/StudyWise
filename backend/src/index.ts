@@ -8,10 +8,14 @@
 * databasen på nytt i rute-filene dine. Bare importer modellene og bruk dem direkte.
 */
 
+console.log(`[backend] Starting backend process...`);
+
 import "dotenv/config";
 // Validerer miljøvariabler FØR noe annet lastes
+console.log(`[backend] Validating environment variables...`);
 import { validateEnv } from "./utils/validateEnv.js";
 validateEnv();
+console.log(`[backend] Environment validated OK`);
 import express from "express";
 import cors from "cors";
 import { RateLimiterMemory } from "rate-limiter-flexible";
@@ -180,10 +184,18 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 // Start server og kobler til database med Mongoose
 const port = process.env.PORT!; // Allerede validert i validateEnv
-connectToDatabase().then(() => {
-  const server = app.listen(Number(port), () => {
-    logger.info(`Express API kjører på http://localhost:${port}`);
-  });
+
+// Debug: Logg før database-tilkobling (viktig for Cloud Run debugging)
+console.log(`[backend] Starting... PORT=${port}, NODE_ENV=${process.env.NODE_ENV}`);
+console.log(`[backend] Connecting to MongoDB...`);
+
+connectToDatabase()
+  .then(() => {
+    console.log(`[backend] MongoDB connected, starting server...`);
+    const server = app.listen(Number(port), () => {
+      logger.info(`Express API kjører på http://localhost:${port}`);
+      console.log(`[backend] Server listening on port ${port}`);
+    });
   // Graceful shutdown - håndterer SIGTERM/SIGINT for ryddig avslutning
   const gracefulShutdown = async (signal: string) => {
     logger.info({ signal }, "Mottok shutdown-signal, avslutter gracefully...");
@@ -215,4 +227,12 @@ connectToDatabase().then(() => {
 
   process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
   process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+}).catch((err) => {
+  console.error(`[backend] FATAL: Database connection failed:`, err);
+  process.exit(1);
 });
+
+// Timeout warning hvis database-tilkobling tar for lang tid
+setTimeout(() => {
+  console.warn(`[backend] WARNING: Still waiting for database connection after 10s...`);
+}, 10000);
