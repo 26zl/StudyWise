@@ -1,142 +1,193 @@
 #!/bin/sh
-# start.sh - Starter backend + frontend i samme container
-# - Backend: Node/Express på port 4000
-# - Frontend: Next.js standalone på $PORT (Cloud Run setter PORT)
+# =============================================================================
+# start.sh - Starter backend + frontend i samme container for Cloud Run
+# =============================================================================
 #
-# Denne fila er skrevet for å være kompatibel med Alpine/BusyBox (ash),
-# derfor brukes IKKE "wait -n" (som kan mangle).
+# Arkitektur:
+#   - Backend (Express): Intern på localhost:4000
+#   - Frontend (Next.js standalone): Ekstern på 0.0.0.0:$PORT (Cloud Run setter PORT=8080)
+#   - Frontend proxy'er /api/* til backend via Next.js rewrites
+#
+# Cloud Run krav:
+#   - Container MÅ lytte på $PORT (vanligvis 8080) innen timeout
+#   - Kun frontend eksponeres eksternt, backend er intern
+#
+# Kompatibilitet: POSIX sh (Alpine/BusyBox ash) - ingen bash-ismer
+# =============================================================================
 
 set -eu
 
-# -----------------------------
-# Konfig (kan endres ved behov)
-# -----------------------------
-BACKEND_PORT="${BACKEND_PORT:-4000}"
-BACKEND_HEALTH_URL="${BACKEND_HEALTH_URL:-http://127.0.0.1:${BACKEND_PORT}/health}"
-BACKEND_START_TIMEOUT="${BACKEND_START_TIMEOUT:-60}"  # sekunder
-SLEEP_BETWEEN_CHECKS="${SLEEP_BETWEEN_CHECKS:-1}"
+# =============================================================================
+# KONFIGURASJON
+# =============================================================================
 
-# Cloud Run setter PORT automatisk. Vi fallbacker til 8080 lokalt.
-PORT="${PORT:-8080}"
+# Backend kjører ALLTID på port 4000 internt (ignorerer Cloud Run PORT)
+BACKEND_PORT="4000"
+BACKEND_HOST="127.0.0.1"
+BACKEND_HEALTH_URL="http://${BACKEND_HOST}:${BACKEND_PORT}/health"
+BACKEND_START_TIMEOUT="${BACKEND_START_TIMEOUT:-60}"
 
-# PIDs for prosessene
+# Frontend bruker Cloud Run sin PORT (default 8080) og binder til alle interfaces
+FRONTEND_PORT="${PORT:-8080}"
+FRONTEND_HOST="0.0.0.0"
+
+# Timing
+HEALTH_CHECK_INTERVAL="1"
+
+# Process IDs
 BACKEND_PID=""
 FRONTEND_PID=""
 
-# -----------------------------
-# Cleanup ved exit / signal
-# -----------------------------
-cleanup() {
-  echo "[start.sh] Stopper prosesser..."
+# =============================================================================
+# LOGGING
+# =============================================================================
 
-  # Stop frontend først
+log() {
+  echo "[start.sh] $(date '+%H:%M:%S') $1"
+}
+
+log_error() {
+  echo "[start.sh] $(date '+%H:%M:%S') ERROR: $1" >&2
+}
+
+# =============================================================================
+# CLEANUP / GRACEFUL SHUTDOWN
+# =============================================================================
+
+cleanup() {
+  log "Mottok shutdown signal, stopper prosesser..."
+
+  # Stop frontend først (den er eksponert)
   if [ -n "${FRONTEND_PID}" ] && kill -0 "${FRONTEND_PID}" 2>/dev/null; then
-    echo "[start.sh] Stopper frontend (pid=${FRONTEND_PID})"
+    log "Stopper frontend (pid=${FRONTEND_PID})..."
     kill "${FRONTEND_PID}" 2>/dev/null || true
   fi
 
   # Stop backend
   if [ -n "${BACKEND_PID}" ] && kill -0 "${BACKEND_PID}" 2>/dev/null; then
-    echo "[start.sh] Stopper backend (pid=${BACKEND_PID})"
+    log "Stopper backend (pid=${BACKEND_PID})..."
     kill "${BACKEND_PID}" 2>/dev/null || true
   fi
 
-  # Vent litt på at de faktisk dør (best effort)
-  sleep 1
+  # Gi prosessene tid til graceful shutdown
+  sleep 2
 
-  # Hard kill hvis de fortsatt lever
+  # Force kill hvis de fortsatt lever
   if [ -n "${FRONTEND_PID}" ] && kill -0 "${FRONTEND_PID}" 2>/dev/null; then
-    echo "[start.sh] Frontend lever fortsatt, SIGKILL..."
+    log "Frontend svarer ikke, sender SIGKILL..."
     kill -9 "${FRONTEND_PID}" 2>/dev/null || true
   fi
+
   if [ -n "${BACKEND_PID}" ] && kill -0 "${BACKEND_PID}" 2>/dev/null; then
-    echo "[start.sh] Backend lever fortsatt, SIGKILL..."
+    log "Backend svarer ikke, sender SIGKILL..."
     kill -9 "${BACKEND_PID}" 2>/dev/null || true
   fi
 
-  echo "[start.sh] Cleanup ferdig."
+  log "Cleanup fullfort."
 }
 
-# Kjør cleanup ved ctrl+c / SIGTERM (Cloud Run sender SIGTERM ved shutdown)
+# Cloud Run sender SIGTERM ved shutdown
 trap cleanup INT TERM EXIT
 
-# -----------------------------
-# Hjelpefunksjon: sjekk URL
-# -----------------------------
-check_health() {
-  # Bruk wget hvis tilgjengelig (alpine har ofte wget). Fallback til curl hvis du har det.
+# =============================================================================
+# HEALTH CHECK
+# =============================================================================
+
+check_backend_health() {
   if command -v wget >/dev/null 2>&1; then
-    wget -q -O /dev/null "${BACKEND_HEALTH_URL}"
+    wget -q -O /dev/null --timeout=2 "${BACKEND_HEALTH_URL}" 2>/dev/null
   elif command -v curl >/dev/null 2>&1; then
-    curl -fsS "${BACKEND_HEALTH_URL}" >/dev/null
+    curl -fsS --connect-timeout 2 "${BACKEND_HEALTH_URL}" >/dev/null 2>&1
   else
-    echo "[start.sh] FEIL: Verken wget eller curl finnes i image."
+    log_error "Verken wget eller curl er tilgjengelig!"
     return 1
   fi
 }
 
-# -----------------------------
-# Start backend
-# -----------------------------
-echo "[start.sh] Starter backend på port ${BACKEND_PORT}..."
-# Antakelse: backend entry ligger i /app/backend/dist/index.js
-# (tilpass om du har annet entrypoint)
-node /app/backend/dist/index.js &
+# =============================================================================
+# START BACKEND
+# =============================================================================
+
+log "========================================"
+log "StudyWise Container Startup"
+log "========================================"
+log "Backend:  ${BACKEND_HOST}:${BACKEND_PORT} (intern)"
+log "Frontend: ${FRONTEND_HOST}:${FRONTEND_PORT} (ekstern/Cloud Run)"
+log "========================================"
+
+log "Starter backend..."
+
+# VIKTIG: Vi overstyrer PORT til 4000 KUN for backend-prosessen
+# Dette hindrer at backend arver Cloud Run sin PORT=8080
+PORT="${BACKEND_PORT}" node /app/backend/dist/index.js &
 BACKEND_PID="$!"
-echo "[start.sh] Backend pid=${BACKEND_PID}"
 
-# -----------------------------
-# Vent på at backend blir klar
-# -----------------------------
-echo "[start.sh] Venter på backend health: ${BACKEND_HEALTH_URL}"
-i=0
-while [ "${i}" -lt "${BACKEND_START_TIMEOUT}" ]; do
-  if check_health >/dev/null 2>&1; then
-    echo "[start.sh] Backend er klar ✅"
-    break
-  fi
+log "Backend startet med pid=${BACKEND_PID}, venter på health check..."
 
-  # Hvis backend døde under oppstart, feiler vi tidlig
+# =============================================================================
+# VENT PÅ BACKEND HEALTH
+# =============================================================================
+
+elapsed=0
+while [ "${elapsed}" -lt "${BACKEND_START_TIMEOUT}" ]; do
+  # Sjekk om backend fortsatt kjører
   if ! kill -0 "${BACKEND_PID}" 2>/dev/null; then
-    echo "[start.sh] FEIL: Backend avsluttet under oppstart."
+    log_error "Backend krasjet under oppstart!"
+    log_error "Sjekk at alle env-variabler er satt (MONGO_URI, JWT_*, etc.)"
     exit 1
   fi
 
-  i=$((i + 1))
-  sleep "${SLEEP_BETWEEN_CHECKS}"
+  # Sjekk health endpoint
+  if check_backend_health; then
+    log "Backend health check OK etter ${elapsed}s"
+    break
+  fi
+
+  elapsed=$((elapsed + HEALTH_CHECK_INTERVAL))
+  sleep "${HEALTH_CHECK_INTERVAL}"
 done
 
-if [ "${i}" -ge "${BACKEND_START_TIMEOUT}" ]; then
-  echo "[start.sh] FEIL: Backend ble ikke klar innen ${BACKEND_START_TIMEOUT}s."
-  echo "[start.sh] Tips: Sørg for at backend har GET /health som svarer 200."
+if [ "${elapsed}" -ge "${BACKEND_START_TIMEOUT}" ]; then
+  log_error "Backend ble ikke klar innen ${BACKEND_START_TIMEOUT}s!"
+  log_error "Health URL: ${BACKEND_HEALTH_URL}"
+  log_error "Mulige årsaker:"
+  log_error "  - Database connection timeout (sjekk MONGO_URI)"
+  log_error "  - Manglende env-variabler"
+  log_error "  - Backend lytter på feil port"
   exit 1
 fi
 
-# -----------------------------
-# Start frontend (Next standalone)
-# -----------------------------
-echo "[start.sh] Starter frontend på PORT=${PORT}..."
-# Antakelse: Next standalone server ligger i /app/server.js
-# (det er standard for Next standalone output)
-PORT="${PORT}" node /app/server.js &
-FRONTEND_PID="$!"
-echo "[start.sh] Frontend pid=${FRONTEND_PID}"
+# =============================================================================
+# START FRONTEND
+# =============================================================================
 
-# -----------------------------
-# Overvåk prosessene (portable)
-# - Hvis én dør, stopper vi den andre og exit'er
-# -----------------------------
-echo "[start.sh] Begge prosesser kjører. Overvåker..."
+log "Starter frontend på ${FRONTEND_HOST}:${FRONTEND_PORT}..."
+
+# Next.js standalone trenger HOSTNAME og PORT
+# HOSTNAME=0.0.0.0 sikrer at den binder til alle interfaces (påkrevd for Cloud Run)
+HOSTNAME="${FRONTEND_HOST}" PORT="${FRONTEND_PORT}" node /app/server.js &
+FRONTEND_PID="$!"
+
+log "Frontend startet med pid=${FRONTEND_PID}"
+log "========================================"
+log "Container er klar! Lytter på port ${FRONTEND_PORT}"
+log "========================================"
+
+# =============================================================================
+# OVERVÅK PROSESSER
+# =============================================================================
+
+# Hvis én prosess dør, avslutt containeren (Cloud Run vil restarte)
 while true; do
   if ! kill -0 "${BACKEND_PID}" 2>/dev/null; then
-    echo "[start.sh] Backend døde. Avslutter..."
+    log_error "Backend prosessen døde uventet!"
     exit 1
   fi
 
   if ! kill -0 "${FRONTEND_PID}" 2>/dev/null; then
-    echo "[start.sh] Frontend døde. Avslutter..."
+    log_error "Frontend prosessen døde uventet!"
     exit 1
   fi
 
-  sleep 1
+  sleep 5
 done
