@@ -94,13 +94,29 @@ export async function fetchCourse(canvasToken: string | null | undefined, course
 }
 
 // Hent oppgaver for et kurs
-export async function fetchAssignments(canvasToken: string | null | undefined, courseId: number) {
+// bucket parameter filtrerer oppgaver:
+// - "upcoming": Oppgaver som har frist i fremtiden og ikke er levert
+// - "future": Oppgaver med frist i fremtiden (inkl. leverte)
+// - "past": Oppgaver med frist i fortiden
+// - "undated": Oppgaver uten frist
+export async function fetchAssignments(
+  canvasToken: string | null | undefined, 
+  courseId: number,
+  options?: { bucket?: "past" | "overdue" | "undated" | "ungraded" | "unsubmitted" | "upcoming" | "future" }
+) {
   const token = requireToken(canvasToken);
+  const queryParams: Record<string, string | number | boolean> = { per_page: 100 };
+  
+  // Legg til bucket filter hvis spesifisert
+  if (options?.bucket) {
+    queryParams.bucket = options.bucket;
+  }
+  
   const response = await hentCanvasData<unknown[]>(
     `/api/v1/courses/${courseId}/assignments`,
     {
       token,
-      queryParams: { per_page: 100 },
+      queryParams,
       cacheTtl: CACHE_TTL.ASSIGNMENTS,
     }
   );

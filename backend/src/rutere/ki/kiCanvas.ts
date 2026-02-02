@@ -82,14 +82,43 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
     const MAX_PAGES_PER_COURSE = 10;
     const MAX_FILES_PER_COURSE = 20;
     const MAX_PAGE_CONTENT_LENGTH = 2000; // Tegn per side
+    
+    // Beregn semestergrenser for filtrering
+    // Vår: 1. januar - 30. juni, Høst: 1. august - 31. desember
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-11
+    
+    // Bestem nåværende semester
+    let semesterStart: Date;
+    let semesterEnd: Date;
+    if (currentMonth >= 0 && currentMonth <= 5) {
+      // Vårsemester (januar-juni)
+      semesterStart = new Date(currentYear, 0, 1); // 1. januar
+      semesterEnd = new Date(currentYear, 6, 31); // 31. juli (litt margin)
+    } else {
+      // Høstsemester (august-desember)
+      semesterStart = new Date(currentYear, 7, 1); // 1. august
+      semesterEnd = new Date(currentYear + 1, 0, 31); // 31. januar neste år (litt margin)
+    }
 
-    // Hent oppgaver per emne
+    // Hent oppgaver per emne - kun kommende/aktuelle
     const assignmentsPerCourse = await Promise.all(
       emner.map((course: CanvasCourse) =>
         limit(async (): Promise<{ courseId: number; assignments: CanvasAssignment[] }> => {
           try {
-            const res = await fetchAssignments(canvasToken, course.id);
-            return { courseId: course.id, assignments: res.data };
+            // Hent kun oppgaver som er relevante (upcoming = ikke forfalt ennå)
+            const res = await fetchAssignments(canvasToken, course.id, { bucket: "future" });
+            // Filtrer også på semester og ekskluder irrelevante oppgaver
+            const filteredAssignments = res.data.filter((a) => {
+              // Ekskluder spesifikke test-oppgaver som ikke er relevante
+              if (a.name?.toLowerCase().includes("test i kildebruk")) return false;
+              
+              if (!a.due_at) return true; // Inkluder oppgaver uten frist
+              const dueDate = new Date(a.due_at);
+              return dueDate >= semesterStart && dueDate <= semesterEnd;
+            });
+            return { courseId: course.id, assignments: filteredAssignments };
           } catch {
             return { courseId: course.id, assignments: [] };
           }
@@ -256,10 +285,20 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
       });
     }
     
-    // Kommende frister
-    if (todos.length > 0) {
+    // Kommende frister - kun fra nåværende semester
+    // Filtrer todos til kun de med frist i inneværende semester eller uten frist
+    const relevantTodos = todos.filter((t) => {
+      // Ekskluder spesifikke test-oppgaver
+      if (t.assignment?.name?.toLowerCase().includes("test i kildebruk")) return false;
+      
+      if (!t.assignment?.due_at) return true; // Inkluder uten frist
+      const dueDate = new Date(t.assignment.due_at);
+      return dueDate >= semesterStart && dueDate <= semesterEnd;
+    });
+    
+    if (relevantTodos.length > 0) {
       deler.push("\nKOMMANDE FRISTER:");
-      todos.slice(0, MAX_TODOS).forEach((t) => {
+      relevantTodos.slice(0, MAX_TODOS).forEach((t) => {
         if (t.assignment) {
           const fristStr = t.assignment.due_at;
           const fristFormatert = formaterDatoMedTid(fristStr);
