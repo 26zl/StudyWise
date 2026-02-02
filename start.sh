@@ -55,10 +55,10 @@ debug_info() {
   log "--- Fil-struktur ---"
   ls -la /app/ 2>/dev/null || log "Kunne ikke liste /app/"
   log "--- server.js sjekk ---"
-  if [ -f /app/server.js ]; then
-    log "server.js FINNES på /app/server.js"
+  if [ -f /app/frontend/server.js ]; then
+    log "server.js FINNES på /app/frontend/server.js"
   else
-    log_error "server.js MANGLER på /app/server.js!"
+    log_error "server.js MANGLER på /app/frontend/server.js!"
     log "Søker etter server.js..."
     find /app -name "server.js" 2>/dev/null | head -5 || true
   fi
@@ -117,14 +117,15 @@ debug_info
 
 log "STEG 1: Starter frontend på ${FRONTEND_HOST}:${FRONTEND_PORT}..."
 
-if [ ! -f /app/server.js ]; then
-  log_error "FATAL: /app/server.js finnes ikke!"
+if [ ! -f /app/frontend/server.js ]; then
+  log_error "FATAL: /app/frontend/server.js finnes ikke!"
   log_error "Next.js standalone build mangler. Sjekk Dockerfile COPY steg."
   exit 1
 fi
 
 # Start frontend - HOSTNAME og PORT er påkrevd for Next.js standalone
-HOSTNAME="${FRONTEND_HOST}" PORT="${FRONTEND_PORT}" node /app/server.js 2>&1 | sed -u 's/^/[frontend] /' &
+# Monorepo standalone output: /app/frontend/server.js (ikke /app/server.js)
+HOSTNAME="${FRONTEND_HOST}" PORT="${FRONTEND_PORT}" node /app/frontend/server.js 2>&1 | sed -u 's/^/[frontend] /' &
 FRONTEND_PID=$!
 
 log "Frontend startet (PID=${FRONTEND_PID})"
