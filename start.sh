@@ -5,14 +5,16 @@
 #
 # Arkitektur:
 #   - Backend (Express): Intern på localhost:4000
-#   - Frontend (Next.js standalone): Ekstern på 0.0.0.0:$PORT (Cloud Run setter PORT=8080)
+#   - Frontend (Next.js standalone): Ekstern på 0.0.0.0:$PORT (Cloud Run PORT=8080)
 #   - Frontend proxy'er /api/* til backend via Next.js rewrites
 #
-# Cloud Run krav:
-#   - Container MÅ lytte på $PORT (vanligvis 8080) innen timeout
-#   - Kun frontend eksponeres eksternt, backend er intern
+# Logging:
+#   - Backend output prefixes med [backend]
+#   - Frontend output prefixes med [frontend]
+#   - Script output prefixes med [start.sh]
+#   - Alt går til stdout/stderr som Cloud Run fanger opp
 #
-# Kompatibilitet: POSIX sh (Alpine/BusyBox ash) - ingen bash-ismer
+# Kompatibilitet: POSIX sh (Alpine/BusyBox ash)
 # =============================================================================
 
 set -eu
@@ -21,72 +23,80 @@ set -eu
 # KONFIGURASJON
 # =============================================================================
 
-# Backend kjører ALLTID på port 4000 internt (ignorerer Cloud Run PORT)
 BACKEND_PORT="4000"
 BACKEND_HOST="127.0.0.1"
 BACKEND_HEALTH_URL="http://${BACKEND_HOST}:${BACKEND_PORT}/health"
 BACKEND_START_TIMEOUT="${BACKEND_START_TIMEOUT:-60}"
 
-# Frontend bruker Cloud Run sin PORT (default 8080) og binder til alle interfaces
 FRONTEND_PORT="${PORT:-8080}"
 FRONTEND_HOST="0.0.0.0"
 
-# Timing
 HEALTH_CHECK_INTERVAL="1"
 
 # Process IDs
 BACKEND_PID=""
 FRONTEND_PID=""
+BACKEND_LOG_PID=""
+FRONTEND_LOG_PID=""
+
+# Named pipes for output prefixing
+BACKEND_FIFO="/tmp/backend_output_$$"
+FRONTEND_FIFO="/tmp/frontend_output_$$"
 
 # =============================================================================
 # LOGGING
 # =============================================================================
 
 log() {
-  echo "[start.sh] $(date '+%H:%M:%S') $1"
+  printf '[start.sh] %s %s\n' "$(date '+%H:%M:%S')" "$1"
 }
 
 log_error() {
-  echo "[start.sh] $(date '+%H:%M:%S') ERROR: $1" >&2
+  printf '[start.sh] %s ERROR: %s\n' "$(date '+%H:%M:%S')" "$1" >&2
 }
 
 # =============================================================================
-# CLEANUP / GRACEFUL SHUTDOWN
+# CLEANUP
 # =============================================================================
 
 cleanup() {
   log "Mottok shutdown signal, stopper prosesser..."
 
-  # Stop frontend først (den er eksponert)
-  if [ -n "${FRONTEND_PID}" ] && kill -0 "${FRONTEND_PID}" 2>/dev/null; then
-    log "Stopper frontend (pid=${FRONTEND_PID})..."
-    kill "${FRONTEND_PID}" 2>/dev/null || true
-  fi
+  # Stop hovedprosesser (SIGTERM først)
+  for pid in $FRONTEND_PID $BACKEND_PID; do
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+      log "Stopper prosess $pid..."
+      kill "$pid" 2>/dev/null || true
+    fi
+  done
 
-  # Stop backend
-  if [ -n "${BACKEND_PID}" ] && kill -0 "${BACKEND_PID}" 2>/dev/null; then
-    log "Stopper backend (pid=${BACKEND_PID})..."
-    kill "${BACKEND_PID}" 2>/dev/null || true
-  fi
-
-  # Gi prosessene tid til graceful shutdown
+  # Vent på graceful shutdown
   sleep 2
 
-  # Force kill hvis de fortsatt lever
-  if [ -n "${FRONTEND_PID}" ] && kill -0 "${FRONTEND_PID}" 2>/dev/null; then
-    log "Frontend svarer ikke, sender SIGKILL..."
-    kill -9 "${FRONTEND_PID}" 2>/dev/null || true
-  fi
+  # Force kill hvis nødvendig
+  for pid in $FRONTEND_PID $BACKEND_PID; do
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+      log "Force kill prosess $pid..."
+      kill -9 "$pid" 2>/dev/null || true
+    fi
+  done
 
-  if [ -n "${BACKEND_PID}" ] && kill -0 "${BACKEND_PID}" 2>/dev/null; then
-    log "Backend svarer ikke, sender SIGKILL..."
-    kill -9 "${BACKEND_PID}" 2>/dev/null || true
-  fi
+  # Vent litt så output flushes gjennom FIFO
+  sleep 1
 
-  log "Cleanup fullfort."
+  # Stop log-prefixere
+  for pid in $FRONTEND_LOG_PID $BACKEND_LOG_PID; do
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+    fi
+  done
+
+  # Rydd opp FIFOs
+  rm -f "$BACKEND_FIFO" "$FRONTEND_FIFO"
+
+  log "Cleanup fullført."
 }
 
-# Cloud Run sender SIGTERM ved shutdown
 trap cleanup INT TERM EXIT
 
 # =============================================================================
@@ -95,97 +105,137 @@ trap cleanup INT TERM EXIT
 
 check_backend_health() {
   if command -v wget >/dev/null 2>&1; then
-    wget -q -O /dev/null --timeout=2 "${BACKEND_HEALTH_URL}" 2>/dev/null
+    wget -q -O /dev/null --timeout=2 "$BACKEND_HEALTH_URL" 2>/dev/null
   elif command -v curl >/dev/null 2>&1; then
-    curl -fsS --connect-timeout 2 "${BACKEND_HEALTH_URL}" >/dev/null 2>&1
+    curl -fsS --connect-timeout 2 "$BACKEND_HEALTH_URL" >/dev/null 2>&1
   else
-    log_error "Verken wget eller curl er tilgjengelig!"
+    log_error "Verken wget eller curl tilgjengelig!"
     return 1
   fi
 }
 
 # =============================================================================
-# START BACKEND
+# OUTPUT PREFIXING VIA NAMED PIPE
+# =============================================================================
+# Bruker FIFO + sed for å prefixe hver linje med [prefix].
+# sed -u = unbuffered (line-buffered), støttes av BusyBox sed.
+# Dette lar oss beholde PID til hovedprosessen mens output prefixes.
+
+setup_output_prefix() {
+  _fifo="$1"
+  _prefix="$2"
+
+  # Fjern gammel FIFO hvis den finnes, opprett ny
+  rm -f "$_fifo"
+  mkfifo "$_fifo"
+
+  # Start prefixer i bakgrunnen
+  # sed leser fra FIFO og prefixer hver linje
+  sed -u "s/^/[${_prefix}] /" < "$_fifo" &
+
+  # Returner PID via echo (caller må fange med $())
+  echo $!
+}
+
+# =============================================================================
+# MAIN
 # =============================================================================
 
 log "========================================"
 log "StudyWise Container Startup"
 log "========================================"
 log "Backend:  ${BACKEND_HOST}:${BACKEND_PORT} (intern)"
-log "Frontend: ${FRONTEND_HOST}:${FRONTEND_PORT} (ekstern/Cloud Run)"
+log "Frontend: ${FRONTEND_HOST}:${FRONTEND_PORT} (ekstern)"
 log "========================================"
 
-log "Starter backend..."
+# -----------------------------------------------------------------------------
+# START BACKEND MED OUTPUT PREFIXING
+# -----------------------------------------------------------------------------
 
-# VIKTIG: Vi overstyrer PORT til 4000 KUN for backend-prosessen
-# Dette hindrer at backend arver Cloud Run sin PORT=8080
-PORT="${BACKEND_PORT}" node /app/backend/dist/index.js &
-BACKEND_PID="$!"
+log "Setter opp backend logging..."
+BACKEND_LOG_PID=$(setup_output_prefix "$BACKEND_FIFO" "backend")
+log "Backend log-prefixer startet (pid=${BACKEND_LOG_PID})"
 
-log "Backend startet med pid=${BACKEND_PID}, venter på health check..."
+log "Starter backend på port ${BACKEND_PORT}..."
 
-# =============================================================================
-# VENT PÅ BACKEND HEALTH
-# =============================================================================
+# VIKTIG: PORT=4000 overstyrer Cloud Run sin PORT=8080 kun for backend
+# Output går til FIFO som prefixes med [backend]
+PORT="${BACKEND_PORT}" node /app/backend/dist/index.js > "$BACKEND_FIFO" 2>&1 &
+BACKEND_PID=$!
+
+log "Backend startet (pid=${BACKEND_PID})"
+
+# -----------------------------------------------------------------------------
+# VENT PÅ BACKEND HEALTH CHECK
+# -----------------------------------------------------------------------------
+
+log "Venter på backend health: ${BACKEND_HEALTH_URL}"
 
 elapsed=0
-while [ "${elapsed}" -lt "${BACKEND_START_TIMEOUT}" ]; do
+while [ "$elapsed" -lt "$BACKEND_START_TIMEOUT" ]; do
   # Sjekk om backend fortsatt kjører
-  if ! kill -0 "${BACKEND_PID}" 2>/dev/null; then
+  if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
     log_error "Backend krasjet under oppstart!"
-    log_error "Sjekk at alle env-variabler er satt (MONGO_URI, JWT_*, etc.)"
+    log_error "Se [backend] linjer over for faktisk feilmelding."
+    # Vent på at buffret output flushes gjennom FIFO
+    sleep 3
     exit 1
   fi
 
   # Sjekk health endpoint
   if check_backend_health; then
-    log "Backend health check OK etter ${elapsed}s"
+    log "Backend health OK etter ${elapsed}s"
     break
   fi
 
   elapsed=$((elapsed + HEALTH_CHECK_INTERVAL))
-  sleep "${HEALTH_CHECK_INTERVAL}"
+  sleep "$HEALTH_CHECK_INTERVAL"
 done
 
-if [ "${elapsed}" -ge "${BACKEND_START_TIMEOUT}" ]; then
-  log_error "Backend ble ikke klar innen ${BACKEND_START_TIMEOUT}s!"
-  log_error "Health URL: ${BACKEND_HEALTH_URL}"
-  log_error "Mulige årsaker:"
-  log_error "  - Database connection timeout (sjekk MONGO_URI)"
-  log_error "  - Manglende env-variabler"
-  log_error "  - Backend lytter på feil port"
+if [ "$elapsed" -ge "$BACKEND_START_TIMEOUT" ]; then
+  log_error "Backend timeout etter ${BACKEND_START_TIMEOUT}s!"
+  log_error "Health URL svarte ikke: ${BACKEND_HEALTH_URL}"
+  log_error "Se [backend] linjer for detaljer."
+  sleep 2
   exit 1
 fi
 
-# =============================================================================
-# START FRONTEND
-# =============================================================================
+# -----------------------------------------------------------------------------
+# START FRONTEND MED OUTPUT PREFIXING
+# -----------------------------------------------------------------------------
+
+log "Setter opp frontend logging..."
+FRONTEND_LOG_PID=$(setup_output_prefix "$FRONTEND_FIFO" "frontend")
+log "Frontend log-prefixer startet (pid=${FRONTEND_LOG_PID})"
 
 log "Starter frontend på ${FRONTEND_HOST}:${FRONTEND_PORT}..."
 
-# Next.js standalone trenger HOSTNAME og PORT
-# HOSTNAME=0.0.0.0 sikrer at den binder til alle interfaces (påkrevd for Cloud Run)
-HOSTNAME="${FRONTEND_HOST}" PORT="${FRONTEND_PORT}" node /app/server.js &
-FRONTEND_PID="$!"
+# HOSTNAME=0.0.0.0 sikrer binding til alle interfaces (påkrevd for Cloud Run)
+HOSTNAME="${FRONTEND_HOST}" PORT="${FRONTEND_PORT}" node /app/server.js > "$FRONTEND_FIFO" 2>&1 &
+FRONTEND_PID=$!
 
-log "Frontend startet med pid=${FRONTEND_PID}"
+log "Frontend startet (pid=${FRONTEND_PID})"
+
 log "========================================"
-log "Container er klar! Lytter på port ${FRONTEND_PORT}"
+log "Container klar! Lytter på port ${FRONTEND_PORT}"
 log "========================================"
 
-# =============================================================================
+# -----------------------------------------------------------------------------
 # OVERVÅK PROSESSER
-# =============================================================================
+# -----------------------------------------------------------------------------
 
-# Hvis én prosess dør, avslutt containeren (Cloud Run vil restarte)
 while true; do
-  if ! kill -0 "${BACKEND_PID}" 2>/dev/null; then
-    log_error "Backend prosessen døde uventet!"
+  if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+    log_error "Backend døde uventet!"
+    log_error "Se [backend] linjer for feilmelding."
+    sleep 2
     exit 1
   fi
 
-  if ! kill -0 "${FRONTEND_PID}" 2>/dev/null; then
-    log_error "Frontend prosessen døde uventet!"
+  if ! kill -0 "$FRONTEND_PID" 2>/dev/null; then
+    log_error "Frontend døde uventet!"
+    log_error "Se [frontend] linjer for feilmelding."
+    sleep 2
     exit 1
   fi
 
