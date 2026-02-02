@@ -28,6 +28,7 @@ import {
     useCanvasFrontPage,
     openModuleItem,
 } from "../canvas/canvas-api";
+import { useUIStore } from "../store/uiStore";
 import { createCanvasHtmlParser, parseCanvasHtml, sikkerFilNedlastingUrl } from "../canvas/canvasHtml";
 import { CanvasPageVisning } from "./CanvasPageVisning";
 
@@ -115,9 +116,9 @@ function LasteSkjelett({ linjer = 3 }: { linjer?: number }) {
 }
 
 // Hjelpefunksjon for brukervennlige Canvas-feilmeldinger
-function lagBrukervennligFeilmelding(error: Error | null, fallback: string): string {
-    const errorMsg = error?.message || "";
-    const errorName = error?.name || "";
+function lagBrukervennligFeilmelding(error: unknown, fallback: string): string {
+    const errorMsg = error instanceof Error ? error.message : "";
+    const errorName = error instanceof Error ? error.name : "";
     
     if (errorName === "CanvasTokenMissingError" || errorMsg.includes("token mangler")) {
         return "Canvas-token mangler. Legg til tokenet i innstillinger.";
@@ -308,7 +309,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                             </div>
                         )}
                         {frontPageQuery.isError && (
-                            <FeilMelding melding={frontPageQuery.error?.message || "Kunne ikke laste forside"} />
+                            <FeilMelding melding={frontPageQuery.error instanceof Error ? frontPageQuery.error.message : "Kunne ikke laste forside"} />
                         )}
                         {frontPageQuery.data && (
                             <article className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
@@ -687,9 +688,30 @@ function DataVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     );
 }
 
+// Advarsel når Canvas-token er ugyldig/slettet
+function TokenUgyldigAdvarsel() {
+    return (
+        <div className="mx-4 md:mx-6 mt-4 p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
+            <div className="flex gap-3">
+                <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                    <h3 className="font-medium text-amber-800 dark:text-amber-200 mb-1">
+                        Canvas-tilkobling feilet
+                    </h3>
+                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                        Canvas API-tokenet ditt er ugyldig, utløpt eller slettet i Canvas.
+                        Gå til <strong>Innstillinger</strong> for å legge til et nytt token.
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // Hovedkomponent
 export function CanvasSection({ startVisning = "announcements", harCanvasToken = false }: CanvasSectionProps) {
     const [visning, settVisning] = useState<CanvasVisning>(startVisning);
+    const canvasTokenInvalid = useUIStore((state) => state.canvasTokenInvalid);
 
     // Oppdater visning hvis startVisning endres
     useEffect(() => {
@@ -710,6 +732,9 @@ export function CanvasSection({ startVisning = "announcements", harCanvasToken =
                     {visningTitler[visning]}
                 </h2>
             </div>
+
+            {/* Advarsel ved ugyldig token */}
+            {canvasTokenInvalid && <TokenUgyldigAdvarsel />}
 
             {/* Innhold */}
             <div className="flex-1 overflow-y-auto p-4 md:p-6">

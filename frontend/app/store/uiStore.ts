@@ -36,6 +36,9 @@ interface UIState {
     // Canvas-kontekst valg (hvilke datatyper som er valgt)
     canvasContextSelection: CanvasContextSelection;
     setCanvasContextSelection: (selection: CanvasContextSelection) => void;
+    // Canvas token status - stopper fetching ved ugyldig/slettet token
+    canvasTokenInvalid: boolean;
+    setCanvasTokenInvalid: (invalid: boolean) => void;
     // Nullstiller all UI-tilstand (brukes ved utlogging)
     reset: () => void;
 }
@@ -63,12 +66,15 @@ export const useUIStore = create<UIState>()((set) => ({
     setCanvasContext: (context, hasContext) => set({ canvasContext: context, hasCanvasContext: hasContext }),
     canvasContextSelection: defaultSelection,
     setCanvasContextSelection: (selection) => set({ canvasContextSelection: selection }),
-    reset: () => set({ 
-        isVenstreMenyOpen: false, 
-        selectedChatId: null, 
-        newChatToken: 0, 
-        canvasContext: "", 
+    canvasTokenInvalid: false,
+    setCanvasTokenInvalid: (invalid) => set({ canvasTokenInvalid: invalid }),
+    reset: () => set({
+        isVenstreMenyOpen: false,
+        selectedChatId: null,
+        newChatToken: 0,
+        canvasContext: "",
         hasCanvasContext: false,
         canvasContextSelection: defaultSelection,
+        canvasTokenInvalid: false,
     }),
 }));

@@ -41,7 +41,13 @@ export function ChatSection() {
     const tekstInputRef = useRef<HTMLTextAreaElement>(null);
     const filInputRef = useRef<HTMLInputElement>(null);
     const oppretterChatRef = useRef(false);
-    const { selectedChatId, setSelectedChatId, newChatToken, canvasContext, hasCanvasContext } = useUIStore();
+    const { selectedChatId, setSelectedChatId, newChatToken, canvasContext, canvasContextSelection } = useUIStore();
+
+    // Sjekk om brukeren har valgt minst ett Canvas-datasett (uavhengig av om data er lastet)
+    const harValgtCanvasData = canvasContextSelection.announcements ||
+        canvasContextSelection.courses ||
+        canvasContextSelection.assignments ||
+        canvasContextSelection.events;
     const sisteNySamtaleToken = useRef(newChatToken);
 
     // Sett mounted etter første render for å unngå hydration mismatch
@@ -260,25 +266,26 @@ export function ChatSection() {
         const spørOmCanvas = spørOmKunngjøringer || spørOmEmner || spørOmOppgaver || spørOmHendelser || 
             /canvas|data|mine|hva har jeg/i.test(brukerMeldingInnhold);
 
-        // Sjekk om bruker spør om noe som ikke er valgt
+        // Sjekk om bruker spør om noe som ikke er valgt i innstillinger
         if (spørOmCanvas) {
             const manglerData: string[] = [];
-            
-            if (spørOmKunngjøringer && !canvasContext.includes("KUNNGJØRINGER")) {
+
+            // Sjekk mot brukerens valg (canvasContextSelection), ikke kontekst-strengen
+            if (spørOmKunngjøringer && !canvasContextSelection.announcements) {
                 manglerData.push("Kunngjøringer");
             }
-            if (spørOmEmner && !canvasContext.includes("DINE EMNER")) {
+            if (spørOmEmner && !canvasContextSelection.courses) {
                 manglerData.push("Emner");
             }
-            if (spørOmOppgaver && !canvasContext.includes("FRISTER") && !canvasContext.includes("OPPGAVER")) {
+            if (spørOmOppgaver && !canvasContextSelection.assignments) {
                 manglerData.push("Oppgaver");
             }
-            if (spørOmHendelser && !canvasContext.includes("HENDELSER")) {
+            if (spørOmHendelser && !canvasContextSelection.events) {
                 manglerData.push("Hendelser");
             }
 
-            // Hvis ingen context i det hele tatt
-            if (!hasCanvasContext) {
+            // Hvis brukeren ikke har valgt noen Canvas-data i innstillinger
+            if (!harValgtCanvasData) {
                 const systemMelding: Melding = {
                     id: (Date.now() + 1).toString(),
                     rolle: "assistant",

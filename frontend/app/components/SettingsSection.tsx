@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Moon, Sun, Key, User, Shield, Info, Trash2, MessageSquare, Bot, CheckCircle } from "lucide-react";
 import { useLagreCanvasToken } from "../auth/auth-api";
+import { resetCanvasTokenStatus } from "../canvas/canvas-api";
 import { useTheme } from "next-themes";
 import { useChatHistory } from "../hooks/useChatHistory";
 import { showToast } from "./Toaster";
@@ -62,7 +63,11 @@ export function SettingsSection({
         try {
             await mutateAsync(trimmetToken);
             setCanvasToken("");
+            // Nullstill token-feilstatus slik at Canvas-queries aktiveres igjen
+            resetCanvasTokenStatus();
+            // Invalidér queries for å hente data på nytt
             queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+            queryClient.invalidateQueries({ queryKey: ["canvas"] });
             showToast.success("Canvas-token lagret", "Canvas-data blir tilgjengelig om kort tid.");
             // Sett cooldown for å hindre spamming
             setCooldown(true);

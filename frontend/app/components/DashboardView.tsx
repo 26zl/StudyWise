@@ -15,6 +15,7 @@ import { useCanvasUser } from "../canvas/canvas-api";
 import { Footer } from "./footer";
 import { useMeg } from "../auth/auth-api";
 import { prefetchCanvasData } from "../canvas/canvas-api";
+import { useUIStore } from "../store/uiStore";
 
 // Gyldige visningstyper for URL-validering
 const GYLDIGE_VISNINGER: VisningType[] = [
@@ -82,6 +83,15 @@ export function DashboardView() {
     const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
     const brukerQueryAktiv = megQuery.isSuccess && harCanvasToken;
     const userQuery = useCanvasUser(brukerQueryAktiv);
+    const setCanvasContextSelection = useUIStore((state) => state.setCanvasContextSelection);
+
+    // Synkroniser Canvas-kontekst preferanser fra backend til global state
+    useEffect(() => {
+        const prefs = megQuery.data?.user?.canvasContextPreferences;
+        if (prefs) {
+            setCanvasContextSelection(prefs);
+        }
+    }, [megQuery.data?.user?.canvasContextPreferences, setCanvasContextSelection]);
 
     // Redirect til innlogging hvis ikke autentisert
     useEffect(() => {

@@ -13,6 +13,7 @@ import { CalendarHeader } from "./CalendarHeader";
 import { CalendarGrid } from "./CalendarGrid";
 import { CourseLegend } from "./CourseLegend";
 import { useCombinedCalendarData } from "./calendar-api";
+import { useUIStore } from "../store/uiStore";
 import type { Assignment, CalendarFilterType } from "common/calendar-ui";
 
 // Props for CalendarSection
@@ -49,6 +50,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<CalendarFilterType>("all");
+  const canvasTokenInvalid = useUIStore((state) => state.canvasTokenInvalid);
   // Hent kombinert data fra Canvas
   const { data, isLoading, isError, error, hasLecturesData } = useCombinedCalendarData(
     filter,
@@ -102,6 +104,9 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
   }, [assignments, selectedDate]);
   if (!harCanvasToken) {
     return <InfoPanel type="warning" message="Du må lagre en Canvas API-token før du kan hente kalenderen." />;
+  }
+  if (canvasTokenInvalid) {
+    return <InfoPanel type="error" message="Canvas-tokenet ditt er ugyldig, utløpt eller slettet i Canvas. Gå til Innstillinger for å legge til et nytt token." />;
   }
   if (isLoading) {
     return (

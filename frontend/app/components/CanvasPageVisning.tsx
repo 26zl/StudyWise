@@ -39,10 +39,11 @@ export function CanvasPageVisning({ courseId, pageId, onBack }: CanvasPageVisnin
     }
     // Håndter feil ved lasting av side
     if (isError) {
+        const errorMessage = error instanceof Error ? error.message : "Ukjent feil";
         return (
             <div className="p-8 text-center">
-                <p className="text-red-500">Kunne ikke laste siden: {error?.message}</p>
-                <button 
+                <p className="text-red-500">Kunne ikke laste siden: {errorMessage}</p>
+                <button
                     onClick={onBack}
                     className="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm"
                 >

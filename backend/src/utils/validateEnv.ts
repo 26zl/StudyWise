@@ -92,7 +92,7 @@ export const validateEnv = (): void => {
     // Må inneholde /studywise for å unngå å skrive til test-database
     const mongoUri = process.env.MONGO_URI;
     if (mongoUri && !mongoUri.match(/\/studywise(\?|$)/)) {
-        console.error("\nKRITISK FEIL: MONGO_URI peker ikke på 'studywise'-databasen! Du risikerer å skrive til 'test'-databasen.\n");
+        logger.error("MONGO_URI peker ikke på 'studywise'-databasen - risikerer å skrive til 'test'-databasen");
         manglende.push(`MONGO_URI (må inneholde '/studywise', fikk: ...${mongoUri.slice(-15)})`);
     }
 
@@ -104,7 +104,7 @@ export const validateEnv = (): void => {
             // Sikker hostname-validering - må være eksakt match eller subdomain
             if (!parsedRedisUrl.hostname.endsWith(".cloud.redislabs.com") &&
                 parsedRedisUrl.hostname !== "cloud.redislabs.com") {
-                console.error("\nKRITISK FEIL: REDIS_URL peker ikke mot Redis Cloud! Forventet '*.cloud.redislabs.com' hostname.\n");
+                logger.error("REDIS_URL peker ikke mot Redis Cloud - forventet '*.cloud.redislabs.com' hostname");
                 manglende.push("REDIS_URL (hostname må slutte med '.cloud.redislabs.com')");
             }
         } catch {
