@@ -49,8 +49,29 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
     // Behandle resultater, ignorer feil
     const emner = emnerResult.status === "fulfilled" ? emnerResult.value.data : [];
     const kunngjoeringer = kunngjoeringerResult.status === "fulfilled" ? kunngjoeringerResult.value.data : [];
-    const todos = todoResult.status === "fulfilled" ? todoResult.value.data : [];
-    const events = eventsResult.status === "fulfilled" ? eventsResult.value.data : [];
+    const todosRaw = todoResult.status === "fulfilled" ? todoResult.value.data : [];
+    const eventsRaw = eventsResult.status === "fulfilled" ? eventsResult.value.data : [];
+
+    // Bygg Set med aktive emne-IDer for filtrering
+    const activeCoursIds = new Set(emner.map((c) => c.id));
+
+    // Filtrer todos til kun aktive emner
+    // Beholder items uten course_id (bruker-nivå) eller der course_id er i aktive emner
+    const todos = todosRaw.filter((todo) => {
+      if (!todo.course_id) return true; // Bruker-nivå todos
+      return activeCoursIds.has(todo.course_id);
+    });
+
+    // Filtrer events til kun aktive emner
+    // context_code er på formatet "course_123" eller "user_456"
+    const events = eventsRaw.filter((event) => {
+      if (!event.context_code) return true; // Ingen kontekst = vis
+      if (!event.context_code.startsWith("course_")) return true; // Bruker-events = vis
+      const courseIdMatch = event.context_code.match(/^course_(\d+)$/);
+      if (!courseIdMatch) return true; // Ukjent format = vis
+      const courseId = parseInt(courseIdMatch[1], 10);
+      return activeCoursIds.has(courseId);
+    });
 
     // Konfigurasjon for hvor mye innhold som hentes
     const MAX_ANNOUNCEMENTS = 15;
@@ -381,13 +402,15 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
     const totalAssignments = assignmentsPerCourse.reduce((sum, c) => sum + c.assignments.length, 0);
     const totalFrontPages = frontPagesPerCourse.filter(fp => fp.frontPage !== null).length;
     const totalFiles = filesPerCourse.reduce((sum, c) => sum + c.files.length, 0);
-    // Logger 
+    // Logger (inkluderer filtrering-statistikk)
     logger.info(
       {
         emnerCount: emner.length,
         kunngjoeringerCount: kunngjoeringer.length,
         todosCount: todos.length,
+        todosFiltered: todosRaw.length - todos.length, // Hvor mange ble filtrert bort
         eventsCount: events.length,
+        eventsFiltered: eventsRaw.length - events.length, // Hvor mange ble filtrert bort
         modulesCount: totalModules,
         pagesCount: totalPages,
         frontPagesCount: totalFrontPages,
@@ -395,7 +418,7 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
         assignmentsCount: totalAssignments,
         contextLength: deler.join("\n").length,
       },
-      "Canvas-kontekst bygget for KI (komplett med alt innhold)"
+      "Canvas-kontekst bygget for KI (filtrert til aktive emner)"
     );
     return deler.join("\n");
   } catch (error) {
