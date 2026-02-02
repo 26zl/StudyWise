@@ -1,27 +1,25 @@
 /**
  * CalendarSection - Kalender-seksjon for dashboardet
- * Henter frister/hendelser fra Canvas og timeplan fra TimeEdit
- * TimeEdit hentes AUTOMATISK basert på Canvas-emnekoder - ingen URL nødvendig!
- * Støtter campus-filtrering (Bø, Drammen, Kongsberg, etc.)
- * Inkluderer filter for å velge mellom innleveringer, timeplan eller begge
+ * Henter frister/hendelser og forelesninger fra Canvas Calendar API
+ * Inkluderer filter for å velge mellom innleveringer, forelesninger eller begge
  */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import type { FC } from "react";
 import { addMonths, setMonth, setYear, subMonths, format } from "date-fns";
-import { Loader2, AlertCircle, Clock, MapPin, User } from "lucide-react";
+import { Loader2, AlertCircle, Clock, MapPin } from "lucide-react";
 import { CalendarHeader } from "./CalendarHeader";
 import { CalendarGrid } from "./CalendarGrid";
 import { CourseLegend } from "./CourseLegend";
-import { useCombinedCalendarData, type CampusId } from "./calendar-api";
+import { useCombinedCalendarData } from "./calendar-api";
 import type { Assignment, CalendarFilterType } from "common/calendar-ui";
 
+// Props for CalendarSection
 interface CalendarSectionProps {
   harCanvasToken?: boolean;
-  campus?: CampusId;
 }
-
+// Informasjons-panel for feilmeldinger og varsler
 function InfoPanel({
   type = "info",
   message,
@@ -43,29 +41,26 @@ function InfoPanel({
     </div>
   );
 }
-
-export const CalendarSection: FC<CalendarSectionProps> = ({ 
+// Hoved-komponent
+export const CalendarSection: FC<CalendarSectionProps> = ({
   harCanvasToken = false,
-  campus,
 }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<CalendarFilterType>("all");
-
-  // Hent kombinert data - TimeEdit hentes AUTOMATISK med campus-filter
-  const { data, isLoading, isError, error, hasTimeEditData } = useCombinedCalendarData(
+  // Hent kombinert data fra Canvas
+  const { data, isLoading, isError, error, hasLecturesData } = useCombinedCalendarData(
     filter,
-    harCanvasToken,
-    campus
+    harCanvasToken
   );
   const assignmentsRaw = data?.assignments ?? [];
   const courses = data?.courses ?? [];
-
+  // Reset fullførte innleveringer når data endres
   useEffect(() => {
     setCompletedIds(new Set());
   }, [assignmentsRaw.length]);
-
+// Merk innleveringer som fullførte basert på lokal state
   const assignments: Assignment[] = useMemo(
     () =>
       assignmentsRaw.map((a) => ({
@@ -74,7 +69,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
       })),
     [assignmentsRaw, completedIds]
   );
-
+// Håndteringsfunksjoner for kalendernavigasjon og interaksjon
   const handlePrevMonth = () => setCurrentDate((prev) => subMonths(prev, 1));
   const handleNextMonth = () => setCurrentDate((prev) => addMonths(prev, 1));
   const handleToday = () => {
@@ -95,7 +90,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
       return next;
     });
   };
-
+// Filtrer innleveringer for valgt dato
   const selectedDateAssignments = useMemo(() => {
     if (!selectedDate) return [];
     return assignments.filter(
@@ -105,11 +100,9 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
         a.dueDate.getFullYear() === selectedDate.getFullYear()
     );
   }, [assignments, selectedDate]);
-
   if (!harCanvasToken) {
     return <InfoPanel type="warning" message="Du må lagre en Canvas API-token før du kan hente kalenderen." />;
   }
-
   if (isLoading) {
     return (
       <div className="flex items-center gap-3 p-4">
@@ -118,31 +111,29 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
       </div>
     );
   }
-
   if (isError) {
     // Lag brukervennlig feilmelding basert på feiltype
     let feilMelding = "Kunne ikke hente kalenderdata";
     const errorMessage = error?.message || "";
     const errorName = error?.name || "";
-    
+
     if (errorName === "CanvasTokenMissingError" || errorMessage.includes("token mangler")) {
       feilMelding = "Canvas-token mangler. Legg til tokenet i innstillinger.";
     } else if (errorMessage.includes("401") || errorMessage.includes("Ugyldig")) {
-      feilMelding = "Canvas-tokenet ditt er ugyldig eller utløpt. Oppdater tokenet i innstillinger.";
+      feilMelding = "Canvas-tokenet ditt er ugyldig eller utlopt. Oppdater tokenet i innstillinger.";
     } else if (errorMessage.includes("429") || errorMessage.includes("rate")) {
-      feilMelding = "For mange forespørsler til Canvas. Vent noen sekunder og prøv igjen.";
+      feilMelding = "For mange foresporrsler til Canvas. Vent noen sekunder og prov igjen.";
     } else if (errorMessage.includes("timeout") || errorMessage.includes("504")) {
-      feilMelding = "Henting av kalenderdata tok for lang tid. Prøv igjen.";
+      feilMelding = "Henting av kalenderdata tok for lang tid. Prov igjen.";
     } else if (errorMessage.includes("Nettverk") || errorMessage.includes("fetch")) {
       feilMelding = "Nettverksfeil. Sjekk internettforbindelsen din.";
     }
-    
     return <InfoPanel type="error" message={feilMelding} />;
   }
 
-  // Formater tid for timeplan-elementer
+  // Formater tid for forelesninger
   const formatTime = (date: Date) => format(date, "HH:mm");
-
+  // Hovedrendering
   return (
     <div className="calendar-page">
       <CalendarHeader
@@ -154,7 +145,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
         onYearChange={handleYearChange}
         filter={filter}
         onFilterChange={setFilter}
-        hasTimeEditData={hasTimeEditData}
+        hasLecturesData={hasLecturesData}
       />
 
       <CourseLegend courses={courses} />
@@ -167,10 +158,11 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
           selectedDate={selectedDate}
         />
 
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 h-fit">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">
+        {/* Detaljer-panel - mobile-first design */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 h-fit">
+          <h2 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3 sm:mb-4">
             {selectedDate
-              ? `${filter === "timetable" ? "Timeplan" : filter === "assignments" ? "Innleveringer" : "Hendelser"} ${selectedDate.getDate()}. ${[
+              ? `${filter === "timetable" ? "Forelesninger" : filter === "assignments" ? "Innleveringer" : "Hendelser"} ${selectedDate.getDate()}. ${[
                   "januar",
                   "februar",
                   "mars",
@@ -188,54 +180,47 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
           </h2>
 
           {selectedDateAssignments.length > 0 ? (
-            <ul className="space-y-3">
+            <ul className="space-y-2 sm:space-y-3">
               {selectedDateAssignments.map((assignment) => (
                 <li
                   key={assignment.id}
-                  className="p-3 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600"
+                  className="p-2 sm:p-3 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600"
                 >
-                  <div className="flex items-start gap-3">
-                    {assignment.source !== "timetable" && (
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    {assignment.source !== "event" && assignment.source !== "timetable" &&
+                     assignment.description !== "calendar_event" && (
                       <input
                         type="checkbox"
                         checked={assignment.completed}
                         onChange={() => handleToggleComplete(assignment.id)}
-                        className="mt-1 w-4 h-4 rounded border-slate-300 dark:border-slate-500"
+                        className="mt-0.5 sm:mt-1 w-4 h-4 rounded border-slate-300 dark:border-slate-500"
                       />
                     )}
                     <div className="flex-1 min-w-0">
                       <p
-                        className={`font-medium text-slate-900 dark:text-slate-100 ${
+                        className={`text-sm sm:text-base font-medium text-slate-900 dark:text-slate-100 ${
                           assignment.completed ? "line-through opacity-50" : ""
                         }`}
                       >
                         {assignment.title}
                       </p>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                      <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
                         {assignment.courseCode}
                       </p>
-                      
-                      {/* Vis tidspunkt for timeplan-elementer */}
-                      {assignment.source === "timetable" && assignment.endDate && (
+
+                      {/* Vis tidspunkt for forelesninger */}
+                      {(assignment.source === "event" || assignment.source === "timetable") && assignment.endDate && (
                         <div className="flex items-center gap-1 mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          <Clock className="w-3 h-3" />
+                          <Clock className="w-3 h-3 shrink-0" />
                           <span>{formatTime(assignment.dueDate)} - {formatTime(assignment.endDate)}</span>
                         </div>
                       )}
-                      
-                      {/* Vis lokasjon for timeplan-elementer */}
+
+                      {/* Vis lokasjon */}
                       {assignment.location && (
                         <div className="flex items-center gap-1 mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          <MapPin className="w-3 h-3" />
-                          <span>{assignment.location}</span>
-                        </div>
-                      )}
-                      
-                      {/* Vis foreleser for timeplan-elementer */}
-                      {assignment.teacher && (
-                        <div className="flex items-center gap-1 mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          <User className="w-3 h-3" />
-                          <span>{assignment.teacher}</span>
+                          <MapPin className="w-3 h-3 shrink-0" />
+                          <span className="truncate">{assignment.location}</span>
                         </div>
                       )}
                     </div>
@@ -244,33 +229,29 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
               ))}
             </ul>
           ) : selectedDate ? (
-            <p className="text-slate-500 dark:text-slate-400 text-sm">
-              {filter === "timetable" 
-                ? "Ingen timeplan-hendelser denne dagen."
+            <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm">
+              {filter === "timetable"
+                ? "Ingen forelesninger denne dagen."
                 : filter === "assignments"
                   ? "Ingen innleveringer denne dagen."
                   : "Ingen hendelser denne dagen."}
             </p>
           ) : (
-            <p className="text-slate-500 dark:text-slate-400 text-sm">Klikk på en dato i kalenderen for å se detaljer.</p>
+            <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm">Klikk pa en dato i kalenderen for a se detaljer.</p>
           )}
         </div>
       </div>
 
       <div className="calendar-footer">
-        {filter === "timetable" && !hasTimeEditData
-          ? "Fant ingen timeplan fra TimeEdit for dine emner. Universitetet har kanskje ikke publisert timeplanen enda."
+        {filter === "timetable" && !hasLecturesData
+          ? "Fant ingen forelesninger i Canvas for dine emner."
           : assignments.length === 0
             ? filter === "timetable"
-              ? "Ingen timeplan-hendelser funnet for dine emner."
+              ? "Ingen forelesninger funnet for dine emner."
               : filter === "assignments"
                 ? "Ingen frister funnet i Canvas for valgt periode."
                 : "Ingen hendelser funnet for valgt periode."
-            : filter === "timetable"
-              ? "Timeplanen synkroniseres automatisk med TimeEdit basert pa dine Canvas-emner"
-              : filter === "assignments"
-                ? "Kalenderen synkroniseres med Canvas LMS"
-                : "Kalenderen synkroniseres automatisk med Canvas LMS og TimeEdit"}
+            : "Kalenderen synkroniseres automatisk med Canvas LMS"}
       </div>
     </div>
   );

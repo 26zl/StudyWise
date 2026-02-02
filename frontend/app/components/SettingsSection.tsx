@@ -1,13 +1,12 @@
 /*
  * SettingsSection - Brukerinnstillinger
- * Håndterer tema, Canvas-token, AI-kontekst, campus-valg og andre preferanser
- * TimeEdit-integrasjon er automatisk basert på Canvas-emnekoder og valgt campus
+ * Håndterer tema, Canvas-token, AI-kontekst og andre preferanser
  */
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Moon, Sun, Key, User, Shield, Info, Trash2, MessageSquare, Bot, Calendar, CheckCircle, MapPin } from "lucide-react";
+import { Moon, Sun, Key, User, Shield, Info, Trash2, MessageSquare, Bot, CheckCircle } from "lucide-react";
 import { useLagreCanvasToken } from "../auth/auth-api";
 import { useTheme } from "next-themes";
 import { useChatHistory } from "../hooks/useChatHistory";
@@ -15,31 +14,26 @@ import { showToast } from "./Toaster";
 import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
 import { CanvasContextSelector } from "./CanvasContextSelector";
 import { useUIStore } from "../store/uiStore";
-import { USN_CAMPUSES, type CampusId } from "../calendar/calendar-api";
 
 // Typer for SettingsSection props
 interface SettingsSectionProps {
     brukernavn?: string;
     harCanvasToken?: boolean;
-    campus?: CampusId;
-    onCampusChange?: (campus: CampusId | undefined) => void;
 }
 // Settings seksjon komponent
 export function SettingsSection({
     brukernavn,
     harCanvasToken,
-    campus,
-    onCampusChange,
 }: SettingsSectionProps) {
     const { setTheme, resolvedTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
     const setCanvasContext = useUIStore((state) => state.setCanvasContext);
-    
+
     // Memoized callbacks for å unngå uendelig loop i CanvasContextSelector
     const handleContextChange = useCallback((ctx: string) => {
         setCanvasContext(ctx, ctx.length > 0);
     }, [setCanvasContext]);
-    
+
     // Sett mounted til true etter første render
     useEffect(() => {
         setMounted(true);
@@ -145,6 +139,7 @@ export function SettingsSection({
                                     }`}
                                 role="switch"
                                 aria-checked={isDarkMode}
+                                aria-label={isDarkMode ? "Deaktiver mork modus" : "Aktiver mork modus"}
                             >
                                 <span
                                     className={`block w-6 h-6 rounded-full bg-white shadow-sm transition-transform duration-200 ${isDarkMode ? "translate-x-6" : "translate-x-0"
@@ -166,14 +161,14 @@ export function SettingsSection({
                         </div>
 
                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                            Koble til din Canvas-konto for a hente emner, kunngjøringer og
-                            frister.
+                            Koble til din Canvas-konto for a hente emner, kunngjøringer,
+                            frister og forelesninger.
                         </p>
 
                         {harCanvasToken && (
                             <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
                                 <div className="flex gap-2">
-                                    <Info size={16} className="text-green-600 shrink-0 mt-0.5" />
+                                    <CheckCircle size={16} className="text-green-600 shrink-0 mt-0.5" />
                                     <p className="text-sm text-green-700 dark:text-green-300">
                                         Canvas-token er koblet til kontoen din.
                                     </p>
@@ -230,103 +225,6 @@ export function SettingsSection({
                         </div>
                     </section>
 
-                    {/* Campus-valg */}
-                    <section className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
-                                <MapPin size={20} className="text-slate-600 dark:text-slate-300" />
-                            </div>
-                            <h3 className="font-semibold text-slate-900 dark:text-white">
-                                Campus
-                            </h3>
-                        </div>
-
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                            Velg din campus for a filtrere timeplanen til riktig sted.
-                        </p>
-
-                        <div className="space-y-3">
-                            <select
-                                value={campus || ""}
-                                onChange={(e) => onCampusChange?.(e.target.value as CampusId || undefined)}
-                                className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                            >
-                                <option value="">Alle campuser (ingen filter)</option>
-                                {USN_CAMPUSES.map((c) => (
-                                    <option key={c.id} value={c.id}>
-                                        {c.name}
-                                    </option>
-                                ))}
-                            </select>
-
-                            {campus && (
-                                <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                                    <div className="flex gap-2">
-                                        <CheckCircle size={16} className="text-green-600 shrink-0 mt-0.5" />
-                                        <p className="text-sm text-green-700 dark:text-green-300">
-                                            Timeplanen filtreres for {USN_CAMPUSES.find(c => c.id === campus)?.name} campus.
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </section>
-
-                    {/* TimeEdit Integrasjon - Automatisk */}
-                    <section className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
-                                <Calendar size={20} className="text-slate-600 dark:text-slate-300" />
-                            </div>
-                            <h3 className="font-semibold text-slate-900 dark:text-white">
-                                TimeEdit Timeplan
-                            </h3>
-                        </div>
-
-                        {harCanvasToken ? (
-                            <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                                <div className="flex gap-2">
-                                    <CheckCircle size={16} className="text-green-600 shrink-0 mt-0.5" />
-                                    <div className="text-sm text-green-700 dark:text-green-300">
-                                        <p className="font-medium">Timeplanen synkroniseres automatisk!</p>
-                                        <p className="text-green-600 dark:text-green-400 mt-1">
-                                            Vi henter timeplanen automatisk fra TimeEdit basert pa emnekodene i dine Canvas-kurs
-                                            {campus ? ` for ${USN_CAMPUSES.find(c => c.id === campus)?.name} campus` : ""}.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
-                                <div className="flex gap-2">
-                                    <Info size={16} className="text-amber-600 shrink-0 mt-0.5" />
-                                    <div className="text-sm text-amber-700 dark:text-amber-300">
-                                        <p className="font-medium">Koble til Canvas for automatisk timeplan</p>
-                                        <p className="text-amber-600 dark:text-amber-400 mt-1">
-                                            Legg til Canvas API-token over for a aktivere automatisk synkronisering med TimeEdit.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Infoboks */}
-                        <div className="mt-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                            <div className="flex gap-2">
-                                <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />
-                                <div className="text-sm text-blue-700 dark:text-blue-300">
-                                    <p className="font-medium mb-1">Slik fungerer det:</p>
-                                    <ul className="list-disc list-inside space-y-1 text-blue-600 dark:text-blue-400">
-                                        <li>Vi leser emnekodene fra dine Canvas-kurs</li>
-                                        <li>Søker automatisk i USN TimeEdit etter disse emnene</li>
-                                        <li>Filtrerer pa din valgte campus (hvis satt)</li>
-                                        <li>Viser timeplanen sammen med frister i kalenderen</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
                     {/* Samtalehistorikk */}
                     <section className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
                         <div className="flex items-center gap-3 mb-4">
@@ -351,6 +249,7 @@ export function SettingsSection({
                             </div>
                             <button
                                 onClick={clearChatHistory}
+                                aria-label="Slett alle samtaler"
                                 className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                             >
                                 <Trash2 size={16} />
@@ -373,7 +272,7 @@ export function SettingsSection({
                             <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
                                 Velg hvilken Canvas-data AI-en skal ha tilgang til når du chatter.
                             </p>
-                            <CanvasContextSelector 
+                            <CanvasContextSelector
                                 onContextChange={handleContextChange}
                             />
                         </section>

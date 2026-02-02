@@ -20,7 +20,7 @@ export type CourseColor =
   | "emerald"
   | "sky"
   | "fuchsia"
-  | "timetable"; // For TimeEdit timeplan-elementer
+  | "timetable"; // For forelesninger/kalender-hendelser
 
 // Filter-typer for kalendervisning
 export type CalendarFilterType = "all" | "assignments" | "timetable";
@@ -28,7 +28,7 @@ export type CalendarFilterType = "all" | "assignments" | "timetable";
 // Kilde-typer for kalender-elementer
 export type CalendarSourceType = "assignment" | "event" | "todo" | "timetable";
 
-// Innlevering/oppgave (utvides med TimeEdit-felter)
+// Innlevering/oppgave/hendelse
 export interface Assignment {
   id: string;
   title: string;
@@ -38,15 +38,13 @@ export interface Assignment {
   courseColor: CourseColor;
   dueDate: Date;
   dueTime?: string;
-  endDate?: Date; // Sluttid (for TimeEdit forelesninger)
+  endDate?: Date; // Sluttid (for forelesninger/hendelser)
   completed: boolean;
   description?: string;
   source?: CalendarSourceType;
   url?: string | null;
-  // TimeEdit-spesifikke felter
+  // Hendelse-spesifikke felter
   location?: string; // Rom/lokasjon
-  teacher?: string; // Foreleser
-  activityType?: string; // Type aktivitet (forelesning, lab, etc.)
 }
 
 // Emne/kurs

@@ -5,8 +5,7 @@
 "use client";
 
 import { cn } from "../lib/utils";
-import { Course } from "common/calendar-ui";
-import { COURSE_COLOR_CLASSES } from "./calendarColors";
+import { Course, COURSE_COLOR_CLASSES } from "common/calendar-ui";
 
 interface CourseLegendProps {
     courses: Course[];
@@ -38,7 +37,7 @@ export function CourseLegend({ courses }: CourseLegendProps) {
     });
 
     return (
-        <div className="flex flex-wrap items-center gap-3 mb-4 px-3 py-2 bg-slate-100/50 dark:bg-slate-800/50 rounded-lg text-xs">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3 sm:mb-4 px-2 sm:px-3 py-1.5 sm:py-2 bg-slate-100/50 dark:bg-slate-800/50 rounded-lg text-[10px] sm:text-xs">
             <span className="font-medium text-slate-500 dark:text-slate-400">
                 Emner:
             </span>
@@ -46,12 +45,12 @@ export function CourseLegend({ courses }: CourseLegendProps) {
                 // Ekstraher kun emnekoden (f.eks. "BOP3000")
                 const codeMatch = course.code.match(COURSE_CODE_REGEX);
                 const displayCode = codeMatch ? codeMatch[0].toUpperCase() : course.code;
-                
+
                 return (
-                    <div key={course.code} className="flex items-center gap-1.5">
+                    <div key={course.code} className="flex items-center gap-1 sm:gap-1.5">
                         <span
                             className={cn(
-                                "w-2.5 h-2.5 rounded-full flex-shrink-0",
+                                "w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full shrink-0",
                                 COURSE_COLOR_CLASSES[course.color]
                             )}
                         />

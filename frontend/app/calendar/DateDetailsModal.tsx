@@ -10,10 +10,12 @@ import { nb } from "date-fns/locale";
 import { Clock, Check, X as XIcon } from "lucide-react";
 import { cn } from "../lib/utils";
 import {
-    Assignment,
+  Assignment,
+  COURSE_BG_LIGHT_CLASSES,
+  COURSE_DOT_CLASSES,
 } from "common/calendar-ui";
-import { COURSE_BG_LIGHT_CLASSES, COURSE_DOT_CLASSES } from "./calendarColors";
 
+// Props for DateDetailsModal
 interface DateDetailsModalProps {
     date: Date | null;
     assignments: Assignment[];
@@ -21,7 +23,7 @@ interface DateDetailsModalProps {
     onOpenChange: (open: boolean) => void;
     onToggleComplete: (id: string) => void;
 }
-
+// Modal komponent
 export function DateDetailsModal({
     date,
     assignments,
@@ -145,27 +147,32 @@ export function DateDetailsModal({
                                     )}
                                 </div>
 
-                                <button
-                                    onClick={() => onToggleComplete(assignment.id)}
-                                    className={cn(
-                                        "flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0",
-                                        assignment.completed
-                                            ? "bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-500"
-                                            : "border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
-                                    )}
-                                >
-                                    {assignment.completed ? (
-                                        <>
-                                            <XIcon className="w-4 h-4" />
-                                            Angre
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Check className="w-4 h-4" />
-                                            Fullfort
-                                        </>
-                                    )}
-                                </button>
+{/* Checkbox kun for innleveringer, ikke forelesninger */}
+                                {(assignment.source === "assignment" || assignment.source === "todo") &&
+                                 assignment.description !== "calendar_event" && (
+                                    <button
+                                        onClick={() => onToggleComplete(assignment.id)}
+                                        aria-label={assignment.completed ? `Angre fullfort for ${assignment.title}` : `Marker ${assignment.title} som fullfort`}
+                                        className={cn(
+                                            "flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0",
+                                            assignment.completed
+                                                ? "bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-500"
+                                                : "border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+                                        )}
+                                    >
+                                        {assignment.completed ? (
+                                            <>
+                                                <XIcon className="w-4 h-4" />
+                                                Angre
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Check className="w-4 h-4" />
+                                                Fullfort
+                                            </>
+                                        )}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ))

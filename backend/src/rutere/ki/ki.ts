@@ -17,8 +17,6 @@ import {
 import { byggKiCanvasKontekst } from "./kiCanvas.js";
 import { kiHistoryRouter } from "./kiHistory.js";
 import { kiAnalyseRouter } from "./kiAnalyse.js";
-import { encrypt } from "../../utils/kryptering.js";
-import { Conversation } from "../../database/models/Conversation.js";
 
 // Definerer express router
 const router = Router();
@@ -363,30 +361,6 @@ router.post("/chat", async (req, res) => {
             responseLength: responseText.length,
             tokens: usage?.total_tokens
         }, "Vellykket chat-svar");
-
-        try {
-            const baseMessages = messages
-                .filter((m) => m.role === "user" || m.role === "assistant")
-                .map((m) => ({
-                    rolle: m.role === "user" ? "user" : "assistant",
-                    innhold: m.content,
-                }));
-
-            const conversationMessages = [
-                ...baseMessages,
-                { rolle: "assistant" as const, innhold: responseText },
-            ];
-
-            const encryptedMessages = encrypt(JSON.stringify(conversationMessages));
-
-            await Conversation.create({
-                user: req.user.id,
-                encryptedMessages,
-                model,
-            });
-        } catch (error) {
-            logger.error({ err: error, userId: req.user.id }, "Feil ved lagring av conversation");
-        }
 
         return res.json(KIChatResponseSchema.parse({
             suksess: true,

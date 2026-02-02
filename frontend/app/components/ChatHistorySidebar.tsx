@@ -3,6 +3,7 @@
 import { Clock, Trash2, MessageSquare } from "lucide-react";
 import type { SavedChat } from "../hooks/useChatHistory";
 
+// Props for ChatHistorySidebar
 interface ChatHistorySidebarProps {
   chats: SavedChat[];
   selectedChatId?: string | null;
@@ -11,6 +12,7 @@ interface ChatHistorySidebarProps {
   onClearAll: () => void;
 }
 
+// Hovedkomponent for ChatHistorySidebar
 export function ChatHistorySidebar({
   chats,
   selectedChatId,

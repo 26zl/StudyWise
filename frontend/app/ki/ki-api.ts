@@ -67,21 +67,21 @@ export class KIAuthError extends Error {
         this.name = "KIAuthError";
     }
 }
-
+// Rate limit feil
 export class KIRateLimitError extends Error {
     constructor(message = "For mange forespørsler") {
         super(message);
         this.name = "KIRateLimitError";
     }
 }
-
+//  Tjeneste utilgjengelig feil
 export class KIServiceError extends Error {
     constructor(message = "KI-tjenesten er utilgjengelig") {
         super(message);
         this.name = "KIServiceError";
     }
 }
-
+// Timeout feil
 export class KITimeoutError extends Error {
     constructor(message = "Forespørselen tok for lang tid") {
         super(message);
@@ -107,19 +107,15 @@ async function fetchKI<T>(endpoint: string, schema: ZodType<T>, forsoktRefresh =
     if (res.status === 401) {
         throw new KIAuthError("Du må logge inn på nytt for å bruke KI-assistenten.");
     }
-    
     if (res.status === 429) {
         throw new KIRateLimitError("For mange forespørsler. Vent litt og prøv igjen.");
     }
-    
     if (res.status === 503 || res.status === 502) {
         throw new KIServiceError("KI-tjenesten er midlertidig utilgjengelig. Prøv igjen om noen minutter.");
     }
-    
     if (res.status === 504) {
         throw new KITimeoutError("Forespørselen tok for lang tid. Prøv å forenkle spørsmålet.");
     }
-    
     if (!res.ok) {
         const errorText = await res.text();
         let errorMessage = "API feil";
@@ -161,19 +157,15 @@ async function postKI<T>(
     if (res.status === 401) {
         throw new KIAuthError("Du må logge inn på nytt for å bruke KI-assistenten.");
     }
-    
     if (res.status === 429) {
         throw new KIRateLimitError("For mange forespørsler. Vent litt og prøv igjen.");
     }
-    
     if (res.status === 503 || res.status === 502) {
         throw new KIServiceError("KI-tjenesten er midlertidig utilgjengelig. Prøv igjen om noen minutter.");
     }
-    
     if (res.status === 504) {
         throw new KITimeoutError("Forespørselen tok for lang tid. Prøv å forenkle spørsmålet.");
     }
-    
     if (!res.ok) {
         const errorText = await res.text();
         let errorMessage = "API feil";
@@ -185,7 +177,6 @@ async function postKI<T>(
         }
         throw new Error(errorMessage);
     }
-
     const data = await res.json();
     return schema.parse(data);
 }
@@ -207,24 +198,19 @@ async function postKIFormData<T>(
         await fornySesjon();
         return postKIFormData(endpoint, formData, schema, true);
     }
-    
     // Håndter spesifikke feilkoder
     if (res.status === 401) {
         throw new KIAuthError("Du må logge inn på nytt for å analysere dokumenter.");
     }
-    
     if (res.status === 413) {
         throw new Error("Filen er for stor. Maksimal filstørrelse er 15MB.");
     }
-    
     if (res.status === 429) {
         throw new KIRateLimitError("For mange forespørsler. Vent litt og prøv igjen.");
     }
-    
     if (res.status === 503 || res.status === 502) {
         throw new KIServiceError("Dokumentanalyse er midlertidig utilgjengelig. Prøv igjen om noen minutter.");
     }
-    
     if (!res.ok) {
         const errorText = await res.text();
         let errorMessage = "API feil";

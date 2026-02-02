@@ -28,7 +28,7 @@ const forslag = [
     "Hjelp meg planlegge studieøkten min",
     "Vis meg kunngjøringer fra mine emner",
 ];
-
+// Hovedkomponent
 export function ChatSection() {
     const [mounted, setMounted] = useState(false);
     const [meldinger, settMeldinger] = useState<Melding[]>([]);
@@ -80,18 +80,16 @@ export function ChatSection() {
             tekstInputRef.current.style.height = `${Math.min(tekstInputRef.current.scrollHeight, 150)}px`;
         }
     }, [tekstInput]);
-
+    // Lagre samtale (ny eller eksisterende)
     const lagreSamtale = async (oppdatert: Melding[]) => {
         const payload = oppdatert.map((m) => ({
             rolle: m.rolle,
             innhold: m.innhold,
         }));
-
         if (aktivChatId) {
             await saveChat(payload, aktivChatId);
             return;
         }
-
         if (oppretterChatRef.current) return;
         oppretterChatRef.current = true;
         try {
@@ -149,7 +147,7 @@ export function ChatSection() {
             filInputRef.current.value = "";
         }
     };
-
+    // Send melding
     const sendMelding = async () => {
         if ((!tekstInput.trim() && !vedlagtFil) || skriver || analyserarDokument) return;
 
@@ -571,6 +569,7 @@ export function ChatSection() {
                                 onClick={fjernVedlagtFil}
                                 className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors"
                                 title="Fjern fil"
+                                aria-label="Fjern vedlagt fil"
                             >
                                 <X className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                             </button>
@@ -593,6 +592,7 @@ export function ChatSection() {
                             disabled={skriver || analyserarDokument}
                             className="shrink-0 w-12 h-12 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                             title="Last opp dokument (PDF, Word, TXT)"
+                            aria-label="Last opp dokument"
                         >
                             <Paperclip className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                         </button>
@@ -612,6 +612,7 @@ export function ChatSection() {
                             onClick={sendMelding}
                             disabled={(!tekstInput.trim() && !vedlagtFil) || skriver || analyserarDokument}
                             className="shrink-0 w-12 h-12 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                            aria-label={skriver || analyserarDokument ? "Sender melding" : "Send melding"}
                         >
                             {skriver || analyserarDokument ? (
                                 <Loader2 className="w-5 h-5 text-white animate-spin" />
@@ -621,7 +622,7 @@ export function ChatSection() {
                         </button>
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                        Trykk Enter for a sende, Shift+Enter for ny linje. Stotter PDF, Word, TXT og Markdown.
+                        Trykk Enter for å sende, Shift+Enter for ny linje. Støtter PDF, Word, TXT og Markdown.
                     </p>
                 </div>
             </div>

@@ -68,16 +68,59 @@ export const parseCourseIdFromContext = (contextCode?: string | null) => {
     return match ? Number(match[1]) : null;
 };
 
+// Kalender vindu konfigurasjon (måneder)
+export const KALENDER_VINDU = {
+    MÅNEDER_TILBAKE: 1,
+    MÅNEDER_FREM: 6,
+} as const;
+
+// Utvidet vindu for forelesninger/TimeEdit (henter mer data for å fange opp alle)
+export const FORELESNINGER_VINDU = {
+    MÅNEDER_TILBAKE: 3,
+    MÅNEDER_FREM: 12,
+} as const;
+
+// Helper: beregn kalendervindu-datoer for API-kall
+export const beregnKalenderVindu = (options?: {
+    månederTilbake?: number;
+    månederFrem?: number;
+}): { startDate: string; endDate: string } => {
+    const månederTilbake = options?.månederTilbake ?? KALENDER_VINDU.MÅNEDER_TILBAKE;
+    const månederFrem = options?.månederFrem ?? KALENDER_VINDU.MÅNEDER_FREM;
+    const now = new Date();
+    const startDate = new Date(now);
+    startDate.setMonth(startDate.getMonth() - månederTilbake);
+    const endDate = new Date(now);
+    endDate.setMonth(endDate.getMonth() + månederFrem);
+    return {
+        startDate: startDate.toISOString().split("T")[0],
+        endDate: endDate.toISOString().split("T")[0],
+    };
+};
+
+// Helper: beregn utvidet vindu for forelesninger
+export const beregnForelesningerVindu = (): { startDate: string; endDate: string } => {
+    return beregnKalenderVindu({
+        månederTilbake: FORELESNINGER_VINDU.MÅNEDER_TILBAKE,
+        månederFrem: FORELESNINGER_VINDU.MÅNEDER_FREM,
+    });
+};
+
 // Helper: avgrens kalender-vindu (nå -1 mnd til +6 mnd)
-export const erInnenforKalenderVindu = (isoDato?: string | null) => {
+export const erInnenforKalenderVindu = (isoDato?: string | null, options?: {
+    månederTilbake?: number;
+    månederFrem?: number;
+}) => {
     if (!isoDato) return false;
     const time = Date.parse(isoDato);
     if (Number.isNaN(time)) return false;
-    const seksMndFrem = new Date();
-    seksMndFrem.setMonth(seksMndFrem.getMonth() + 6);
-    const enMndTilbake = new Date();
-    enMndTilbake.setMonth(enMndTilbake.getMonth() - 1);
-    return time >= enMndTilbake.getTime() && time <= seksMndFrem.getTime();
+    const månederFrem = options?.månederFrem ?? KALENDER_VINDU.MÅNEDER_FREM;
+    const månederTilbake = options?.månederTilbake ?? KALENDER_VINDU.MÅNEDER_TILBAKE;
+    const endWindow = new Date();
+    endWindow.setMonth(endWindow.getMonth() + månederFrem);
+    const startWindow = new Date();
+    startWindow.setMonth(startWindow.getMonth() - månederTilbake);
+    return time >= startWindow.getTime() && time <= endWindow.getTime();
 };
 
 // Parse Link header for paginering
@@ -167,15 +210,16 @@ export async function hentCanvasData<T>(
     const cleanToken = canvasToken.replace(/^Bearer\s+/i, "").trim();
     // Sjekk om endepunktet inneholder sensitiv data som IKKE skal caches
     const erSensitiv = SENSITIVE_ENDPOINTS.some(p => endpoint.includes(p));
-    // Logg token-debug info (kun trygg info)
-    if (erSensitiv) { // Logg dette kun for sensitive kall (som often er de første som feiler)
+    // Logg debug info for sensitive endepunkter (uten token-data for sikkerhet)
+    if (erSensitiv) {
         logger.info({
-            tokenLength: cleanToken.length,
-            tokenStart: cleanToken.substring(0, 4) + "...",
+            tokenPresent: cleanToken.length > 0,
             endpoint
-        }, "Forbereder Canvas-kall");
+        }, "Forbereder Canvas-kall mot sensitivt endepunkt");
     }
     // Bygg URL med query params
+    // Canvas API forventer array-params som: context_codes[]=val1&context_codes[]=val2
+    // IKKE: context_codes[][]=val1 (dobbel brackets gir 500-feil)
     const url = new URL(`${baseUrl}${endpoint}`);
     const cacheNokkelParams: string[] = [];
     if (queryParams) {
@@ -183,9 +227,12 @@ export async function hentCanvasData<T>(
         Object.keys(queryParams).sort().forEach((key) => {
             const value = queryParams[key];
             if (Array.isArray(value)) {
+                // Hvis key allerede slutter på [], ikke legg til enda en []
+                // Dette fikser bug hvor context_codes[] ble til context_codes[][]
+                const arrayKey = key.endsWith("[]") ? key : `${key}[]`;
                 value.forEach((item) => {
-                    url.searchParams.append(`${key}[]`, String(item));
-                    cacheNokkelParams.push(`${key}[]=${item}`);
+                    url.searchParams.append(arrayKey, String(item));
+                    cacheNokkelParams.push(`${arrayKey}=${item}`);
                 });
             } else {
                 url.searchParams.append(key, String(value));
@@ -231,7 +278,6 @@ export async function hentCanvasData<T>(
                     },
                     signal: controller.signal,
                 });
-                clearTimeout(timeoutId);
                 // Logg rate limit status
                 loggRateLimitStatus(response, endpoint);
                 // Håndter rate limiting (429)
@@ -283,11 +329,13 @@ export async function hentCanvasData<T>(
                 // Suksess - bryt ut av retry-loop
                 break;
             } catch (error) {
-                clearTimeout(timeoutId);
                 if (error instanceof Error && error.name === "AbortError") {
                     throw new Error(`Canvas API timeout etter ${timeout}ms`);
                 }
                 throw error;
+            } finally {
+                // Sikrer at timeout alltid blir ryddet opp
+                clearTimeout(timeoutId);
             }
         }
         if (!response) {

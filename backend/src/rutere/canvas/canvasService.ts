@@ -7,6 +7,7 @@ import { z } from "zod";
 import {
   hentCanvasData,
   CACHE_TTL,
+  FORELESNINGER_VINDU,
 } from "./canvasUtils.js";
 import {
   CanvasUserSchema,
@@ -51,17 +52,32 @@ export async function fetchUserProfile(canvasToken?: string | null) {
 }
 
 // Hent aktive kurs for brukeren
+// Inkluderer alle kurs brukeren er tilknyttet (uten filtrering på state)
+// Inkluderer også enrollments for å få section_id (trengs for calendar_events)
 export async function fetchCourses(canvasToken?: string | null): Promise<
   CanvasResponseWithMeta<CanvasCourse[]>
 > {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown[]>("/api/v1/courses", {
     token,
-    queryParams: { enrollment_state: "active", per_page: 100 },
+    queryParams: {
+      per_page: 100,
+      "include[]": "total_students", // Trigger full enrollment data inkl. section
+    },
     cacheTtl: CACHE_TTL.COURSES,
   });
+  const allCourses = z.array(CanvasCourseSchema).parse(response.data);
+  // Logg alle hentede kurs for debugging
+  logger.info({
+    totalCourses: allCourses.length,
+    courseNames: allCourses.map(c => ({ name: c.name, code: c.course_code, state: c.workflow_state }))
+  }, "Hentet alle kurs fra Canvas");
+  // Filtrer ut kun slettede kurs
+  const validCourses = allCourses.filter(
+    (course) => course.workflow_state !== "deleted"
+  );
   return {
-    data: z.array(CanvasCourseSchema).parse(response.data),
+    data: validCourses,
     meta: response.meta,
   };
 }
@@ -172,23 +188,21 @@ export async function fetchUpcomingEvents(canvasToken?: string | null) {
     }
   });
 
-  if (invalid.length > 0) {
-    logger.debug(
-      { droppedCount: invalid.length, examples: invalid.slice(0, 3) },
-      "Ignorerer ugyldige upcoming_events fra Canvas"
-    );
-  }
-
   return {
     data: valid,
     meta: response.meta,
   };
 }
-
 // Hent planleggingsobjekter for brukeren innenfor et datointervall
+// Planner API returnerer alle assignments, quizzes, discussions, announcements etc. i ett kall
+// Dette er MAKS 3-4 API kall (paginering) i stedet for N kall per kurs
 export async function fetchPlannerItems(
   canvasToken: string | null | undefined,
-  query: { start_date?: string; end_date?: string }
+  query: {
+    start_date?: string;
+    end_date?: string;
+    maxPages?: number;
+  }
 ) {
   const token = requireToken(canvasToken);
   const queryParams: Record<string, string | number | boolean> = { per_page: 100 };
@@ -197,14 +211,157 @@ export async function fetchPlannerItems(
   const response = await hentCanvasData<unknown[]>("/api/v1/planner/items", {
     token,
     queryParams,
-    cacheTtl: CACHE_TTL.EVENTS,
+    cacheTtl: CACHE_TTL.ASSIGNMENTS, // 10 min cache
+    maxPages: query.maxPages ?? 5, // Konfigurerbar paginering
+  });
+  // Valider og filtrer ut ugyldige items
+  const valid: z.infer<typeof CanvasPlannerItemSchema>[] = [];
+  const invalid: number[] = [];
+  response.data.forEach((item, idx) => {
+    const parsed = CanvasPlannerItemSchema.safeParse(item);
+    if (parsed.success) {
+      valid.push(parsed.data);
+    } else {
+      invalid.push(idx);
+    }
   });
   return {
-    data: z.array(CanvasPlannerItemSchema).parse(response.data),
+    data: valid,
     meta: response.meta,
   };
 }
-
+/**
+ * Hent kalenderhendelser fra Canvas Calendar Events API
+ * Bruker context_codes[] for å hente brukerens og kursenes hendelser
+ */
+export async function fetchCalendarEvents(
+  canvasToken: string | null | undefined,
+  options: {
+    contextCodes: string[];
+    startDate?: string;
+    endDate?: string;
+    type?: "event" | "assignment";
+    maxPages?: number; // Konfigurerbar paginering (default 10 for calendar_events)
+  }
+) {
+  const token = requireToken(canvasToken);
+  // Bygg query params - Canvas API forventer context_codes[] som array
+  const queryParams: Record<string, string | number | boolean | string[]> = {
+    per_page: 100,
+  };
+  // Legg til context_codes som array
+  if (options.contextCodes.length > 0) {
+    queryParams["context_codes[]"] = options.contextCodes;
+  }
+  if (options.startDate) queryParams.start_date = options.startDate;
+  if (options.endDate) queryParams.end_date = options.endDate;
+  if (options.type) queryParams.type = options.type;
+  // Bruk høyere maxPages for calendar_events (mange events over lang periode)
+  const maxPages = options.maxPages ?? 10;
+  const response = await hentCanvasData<unknown[]>("/api/v1/calendar_events", {
+    token,
+    queryParams,
+    cacheTtl: CACHE_TTL.EVENTS,
+    maxPages,
+  });
+  // Valider hvert element og dropp ugyldige
+  const valid: z.infer<typeof CanvasCalendarEventSchema>[] = [];
+  const invalid: number[] = [];
+  response.data.forEach((item, idx) => {
+    // Normaliser id til number
+    const normalized =
+      typeof item === "object" && item !== null
+        ? { ...(item as Record<string, unknown>), id: Number((item as Record<string, unknown>).id) }
+        : item;
+    const parsed = CanvasCalendarEventSchema.safeParse(normalized);
+    if (parsed.success) {
+      valid.push(parsed.data);
+    } else {
+      invalid.push(idx);
+    }
+  });
+  if (invalid.length > 0) {
+    logger.warn({ invalidCount: invalid.length }, "Ignorerte ugyldige calendar_events");
+  }
+  return {
+    data: valid,
+    meta: response.meta,
+  };
+}
+// Type for enrollment data med section info
+export interface EnrollmentData {
+  course_id: number;
+  course_section_id?: number;
+}
+/**
+ * Hent brukerens enrollments med section_id
+ * Brukes for å bygge course_section context codes for calendar_events
+ * og for å mappe section_id -> course_id for TimeEdit-hendelser
+ */
+export async function fetchUserEnrollments(canvasToken?: string | null) {
+  const token = requireToken(canvasToken);
+  const response = await hentCanvasData<unknown[]>("/api/v1/users/self/enrollments", {
+    token,
+    queryParams: {
+      per_page: 100,
+      // Inkluder alle enrollment-states for å fange alle sections
+      state: ["active", "invited", "current_and_future"],
+    },
+    cacheTtl: CACHE_TTL.COURSES,
+  });
+  const enrollments = response.data as EnrollmentData[];
+  return {
+    data: enrollments,
+    meta: response.meta,
+  };
+}
+/**
+ * Bygg en mapping fra section_id til course_id basert på enrollments
+ * Brukes for å resolve course_section_XXX context_codes til course_id
+ */
+export function buildSectionToCourseMap(
+  enrollments: EnrollmentData[]
+): Map<number, number> {
+  const map = new Map<number, number>();
+  enrollments.forEach((enrollment) => {
+    if (enrollment.course_section_id) {
+      map.set(enrollment.course_section_id, enrollment.course_id);
+    }
+  });
+  return map;
+}
+/**
+ * Bygg context_codes array for en bruker og deres kurs
+ * Inkluderer både course_ og course_section_ context codes
+ * TimeEdit-hendelser er ofte koblet til sections, ikke direkte til kurs
+ */
+export function buildContextCodes(
+  userId: number | string,
+  courses: CanvasCourse[],
+  enrollments?: Array<{ course_id: number; course_section_id?: number }>
+): string[] {
+  const codes: string[] = [];
+  // Legg til brukerens context_code
+  codes.push(`user_${userId}`);
+  // Legg til context_codes for hvert kurs
+  courses.forEach((course) => {
+    codes.push(`course_${course.id}`);
+  });
+  // Legg til course_section context codes fra enrollments
+  // Dette er kritisk for TimeEdit-hendelser som er koblet til sections
+  if (enrollments) {
+    const sectionIds = new Set<number>();
+    enrollments.forEach((enrollment) => {
+      if (enrollment.course_section_id) {
+        sectionIds.add(enrollment.course_section_id);
+      }
+    });
+    sectionIds.forEach((sectionId) => {
+      codes.push(`course_section_${sectionId}`);
+    });
+  }
+  return codes;
+}
 // Hent moduler for et kurs
 // Inkluderer items med content_details for å få content_id for filer
 export async function fetchModules(canvasToken: string | null | undefined, courseId: number) {
@@ -371,7 +528,6 @@ export async function fetchFrontPage(canvasToken: string | null | undefined, cou
     meta: response.meta,
   };
 }
-
 /**
  * Varmer opp cache for vanlige Canvas-data.
  * Kjøres asynkront etter login for å forbedre UX.
@@ -380,17 +536,215 @@ export async function fetchFrontPage(canvasToken: string | null | undefined, cou
 export async function warmCanvasCache(canvasToken: string): Promise<void> {
   try {
     logger.info("Starter cache warming for Canvas-data");
-    
+
     // Hent de viktigste dataene parallelt
     await Promise.allSettled([
       fetchCourses(canvasToken),
       fetchAllAnnouncements(canvasToken),
       fetchTodo(canvasToken),
     ]);
-    
+
     logger.info("Cache warming fullført");
   } catch (error) {
     // Ignorer feil - cache warming er ikke kritisk
     logger.warn({ err: error }, "Cache warming feilet (ikke kritisk)");
   }
+}
+/**
+ * Normalisert format for Canvas Calendar Events (forelesninger/møter)
+ */
+export interface NormalizedCalendarEvent {
+  id: string;
+  source: "canvas_calendar";
+  title: string;
+  startAt: string; // ISO (UTC)
+  endAt: string | null;
+  allDay: boolean;
+  location: string | null;
+  courseId: string | null;
+  courseName: string | null;
+  url: string | null;
+  descriptionText: string | null;
+}
+/**
+ * Fjerner HTML-tags og stylesheet-linker fra description
+ * Returnerer ren tekst (eller null hvis tom)
+ */
+function stripHtmlFromDescription(html: string | null | undefined): string | null {
+  if (!html) return null;
+  // Fjern <link rel="stylesheet"> og <style> tags
+  let cleaned = html.replace(/<link[^>]*rel=["']stylesheet["'][^>]*>/gi, "");
+  cleaned = cleaned.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
+  // Fjern alle HTML-tags
+  cleaned = cleaned.replace(/<[^>]+>/g, " ");
+  // Dekod HTML-entities
+  cleaned = cleaned.replace(/&nbsp;/g, " ");
+  cleaned = cleaned.replace(/&amp;/g, "&");
+  cleaned = cleaned.replace(/&lt;/g, "<");
+  cleaned = cleaned.replace(/&gt;/g, ">");
+  cleaned = cleaned.replace(/&quot;/g, '"');
+  cleaned = cleaned.replace(/&#39;/g, "'");
+  // Fjern ekstra whitespace og trim
+  cleaned = cleaned.replace(/\s+/g, " ").trim();
+  return cleaned.length > 0 ? cleaned : null;
+}
+/**
+ * Ekstraherer kurs-ID fra context_code eller effective_context_code
+ * Returnerer course_xxx -> xxx, eller null hvis ikke kurs-kontekst
+ *
+ * Støtter nå section-to-course mapping for TimeEdit-hendelser:
+ * Hvis context_code er course_section_XXX og vi har en sectionToCourseMap,
+ * slår vi opp section_id for å finne tilhørende course_id.
+ *
+ * Eksportert for bruk i /kalender-endepunktet
+ */
+export function extractCourseIdFromContext(
+  contextCode: string | null | undefined,
+  effectiveContextCode: string | null | undefined,
+  allContextCodes: string | null | undefined,
+  sectionToCourseMap?: Map<number, number>
+): string | null {
+  // Prøv effective_context_code først (mest pålitelig)
+  if (effectiveContextCode) {
+    const match = effectiveContextCode.match(/^course_(\d+)$/);
+    if (match) return match[1];
+  }
+  // Prøv all_context_codes (komma-separert)
+  if (allContextCodes) {
+    const codes = allContextCodes.split(",");
+    for (const code of codes) {
+      const match = code.trim().match(/^course_(\d+)$/);
+      if (match) return match[1];
+    }
+  }
+  // Prøv context_code direkte for course_XXX
+  if (contextCode && !contextCode.startsWith("course_section_")) {
+    const match = contextCode.match(/^course_(\d+)$/);
+    if (match) return match[1];
+  }
+
+  // Prøv å resolve course_section_XXX via sectionToCourseMap
+  if (contextCode && contextCode.startsWith("course_section_") && sectionToCourseMap) {
+    const sectionMatch = contextCode.match(/^course_section_(\d+)$/);
+    if (sectionMatch) {
+      const sectionId = parseInt(sectionMatch[1], 10);
+      const courseId = sectionToCourseMap.get(sectionId);
+      if (courseId) {
+        return String(courseId);
+      }
+    }
+  }
+
+  return null;
+}
+/**
+ * Henter og normaliserer kalenderhendelser (forelesninger/møter) fra Canvas Calendar Events API.
+ *
+ * Flyt:
+ * 1. Henter aktive emner (courses)
+ * 2. Bygger context_codes[] for hvert emne
+ * 3. Henter calendar_events med type=event for gitt datointervall
+ * 4. Følger pagination via Link-header
+ * 5. Filtrerer bort events der hidden === true (parent-events)
+ * 6. Normaliserer til vårt interne format
+ */
+// Metadata for forelesninger-respons
+export interface ForelesningerMeta {
+  eventCount: number;
+  courseCount: number;
+  dateRange: { startDate: string; endDate: string };
+}
+//  Hent og normaliser Canvas-forelesninger
+export async function fetchCanvasLectures(
+  canvasToken: string | null | undefined,
+  options: { startDate?: string; endDate?: string } = {}
+): Promise<{ data: NormalizedCalendarEvent[]; meta: ForelesningerMeta }> {
+  const token = requireToken(canvasToken);
+  // Hent aktive emner og enrollments parallelt
+  const [coursesResult, enrollmentsResult] = await Promise.all([
+    fetchCourses(token),
+    fetchUserEnrollments(token),
+  ]);
+  const courses = coursesResult.data;
+  const enrollments = enrollmentsResult.data;
+
+  if (courses.length === 0) {
+    return {
+      data: [],
+      meta: { eventCount: 0, courseCount: 0, dateRange: { startDate: "", endDate: "" } },
+    };
+  }
+  // Bygg section-to-course mapping for TimeEdit events
+  const sectionToCourseMap = buildSectionToCourseMap(enrollments);
+  // Beregn datovindu (3 mnd tilbake, 12 mnd frem)
+  const now = new Date();
+  const defaultStart = new Date(now);
+  defaultStart.setMonth(defaultStart.getMonth() - FORELESNINGER_VINDU.MÅNEDER_TILBAKE);
+  const defaultEnd = new Date(now);
+  defaultEnd.setMonth(defaultEnd.getMonth() + FORELESNINGER_VINDU.MÅNEDER_FREM);
+  const startDate = options.startDate ?? defaultStart.toISOString().split("T")[0];
+  const endDate = options.endDate ?? defaultEnd.toISOString().split("T")[0];
+  // Bygg context_codes med både course og course_section
+  const contextCodes = buildContextCodes(0, courses, enrollments); // userId 0 - vi trenger bare kurs/sections
+  const { data: rawEvents } = await fetchCalendarEvents(token, {
+    contextCodes,
+    startDate,
+    endDate,
+    type: "event",
+    maxPages: 15,
+  });
+  // Filtrer hidden events (parent-events med children)
+  const visibleEvents = rawEvents.filter((event) => {
+    if (event.hidden !== true) return true;
+    // Inkluder hidden parent uten children (TimeEdit edge-case)
+    return (event.child_events_count ?? 0) === 0;
+  });
+  // Bygg kurs-navn-map
+  const courseNameMap = new Map(courses.map((c) => [String(c.id), c.name]));
+  // Normaliser til vårt format
+  const normalized: NormalizedCalendarEvent[] = visibleEvents
+    .filter((e) => e.start_at || e.all_day_date)
+    .map((event) => {
+      // Bruk sectionToCourseMap for å resolve course_section context codes
+      const courseId = extractCourseIdFromContext(
+        event.context_code,
+        event.effective_context_code,
+        event.all_context_codes,
+        sectionToCourseMap
+      );
+      const courseName = event.context_name || (courseId ? courseNameMap.get(courseId) : null) || null;
+      // Bygg location
+      let location: string | null = null;
+      if (event.location_name) {
+        location = event.location_name;
+        if (event.location_address && event.location_address !== event.location_name) {
+          location += `, ${event.location_address}`;
+        }
+      } else if (event.location_address) {
+        location = event.location_address;
+      }
+      // Returner normalisert event
+      return {
+        id: String(event.id),
+        source: "canvas_calendar" as const,
+        title: event.title,
+        startAt: event.start_at || event.all_day_date!,
+        endAt: event.end_at || null,
+        allDay: event.all_day === true,
+        location,
+        courseId,
+        courseName,
+        url: event.html_url || null,
+        descriptionText: stripHtmlFromDescription(event.description),
+      };
+    });
+// Returner normaliserte events med metadata
+  return {
+    data: normalized,
+    meta: {
+      eventCount: normalized.length,
+      courseCount: courses.length,
+      dateRange: { startDate, endDate },
+    },
+  };
 }

@@ -10,13 +10,16 @@ import { Clock, CheckCircle, AlertTriangle, CalendarPlus } from "lucide-react";
 import { cn } from "../lib/utils";
 import { Assignment, COURSE_BORDER_CLASSES } from "common/calendar-ui";
 
+// Props for UpcomingDeadlines-komponenten
 interface UpcomingDeadlinesProps {
     assignments: Assignment[];
     onToggleComplete: (id: string) => void;
 }
 
+// type for frist-status
 type DeadlineStatus = "overdue" | "today" | "soon" | "normal";
 
+// Hovedkomponent for kommende frister
 export function UpcomingDeadlines({
     assignments,
     onToggleComplete,
@@ -63,7 +66,7 @@ export function UpcomingDeadlines({
             </div>
 
             {/* Liste - responsiv h-fit og padding */}
-            <div className="p-2 sm:p-3 space-y-2 max-h-64 sm:max-h-96 lg:max-h-[600px] overflow-y-auto">
+            <div className="p-2 sm:p-3 space-y-2 max-h-64 sm:max-h-96 lg:max-h-150 overflow-y-auto">
                 {sortedAssignments.length === 0 ? (
                     <div className="py-8 text-center text-slate-500 dark:text-slate-400">
                         <CheckCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
@@ -116,18 +119,21 @@ export function UpcomingDeadlines({
                                         </div>
                                     </div>
 
-                                    {/* Checkbox for a markere som fullfort */}
-                                    <button
-                                        onClick={() => onToggleComplete(assignment.id)}
-                                        className={cn(
-                                            "w-5 h-5 rounded-full border-2 shrink-0 transition-all hover:scale-110",
-                                            status === "overdue"
-                                                ? "border-red-500 dark:border-red-400 hover:bg-red-100 dark:hover:bg-red-900/30"
-                                                : "border-blue-500 dark:border-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30"
-                                        )}
-                                        title="Marker som fullfort"
-                                        aria-label="Marker som fullfort"
-                                    />
+                                    {/* Checkbox kun for innleveringer, ikke forelesninger */}
+                                    {(assignment.source === "assignment" || assignment.source === "todo") &&
+                                     assignment.description !== "calendar_event" && (
+                                        <button
+                                            onClick={() => onToggleComplete(assignment.id)}
+                                            className={cn(
+                                                "w-5 h-5 rounded-full border-2 shrink-0 transition-all hover:scale-110",
+                                                status === "overdue"
+                                                    ? "border-red-500 dark:border-red-400 hover:bg-red-100 dark:hover:bg-red-900/30"
+                                                    : "border-blue-500 dark:border-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                                            )}
+                                            title="Marker som fullfort"
+                                            aria-label="Marker som fullfort"
+                                        />
+                                    )}
                                 </div>
 
                                 {/* Eksport-knapp */}

@@ -168,33 +168,57 @@ body {
 .scrollbar-hide::-webkit-scrollbar {
     display: none;
 }
+/*
+   Calendar Styles - Mobile First
 
-/* =============================================
-   Calendar Styles
-   ============================================= */
-
-/* Calendar page layout */
+/* Calendar page layout - mobile first padding */
 .calendar-page {
-    padding: 1.5rem;
-    height: 100%;
+    padding: 1rem;
+    min-height: fit-content;
     animation: fade-in 0.2s ease-out;
 }
 
+@media (min-width: 640px) {
+    .calendar-page {
+        padding: 1.5rem;
+    }
+}
+
+/* Calendar grid layout - single column on mobile, side panel on xl */
 .calendar-layout {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 1.5rem;
+    gap: 1rem;
+}
+
+@media (min-width: 640px) {
+    .calendar-layout {
+        gap: 1.5rem;
+    }
 }
 
 @media (min-width: 1280px) {
     .calendar-layout {
-        grid-template-columns: 1fr 340px;
+        grid-template-columns: 1fr 320px;
+    }
+}
+
+@media (min-width: 1536px) {
+    .calendar-layout {
+        grid-template-columns: 1fr 380px;
     }
 }
 
 .calendar-footer {
-    margin-top: 2rem;
+    margin-top: 1.5rem;
     text-align: center;
-    font-size: 0.875rem;
+    font-size: 0.75rem;
     color: var(--muted);
+}
+
+@media (min-width: 640px) {
+    .calendar-footer {
+        margin-top: 2rem;
+        font-size: 0.875rem;
+    }
 }

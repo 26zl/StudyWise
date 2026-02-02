@@ -8,13 +8,12 @@
 import { Router } from "express";
 import crypto from "node:crypto";
 import { Readable } from "node:stream";
-import pLimit from "p-limit";
 import {
   krevCanvasToken,
   hentCanvasKonfig,
   validateCanvasRedirectUrl,
-  parseCourseIdFromContext,
   erInnenforKalenderVindu,
+  beregnKalenderVindu,
 } from "./canvasUtils.js";
 import { CACHE_TTL } from "./canvasUtils.js";
 import { rateLimitCanvas, rateLimitCanvasTung } from "../../middleware/rate-limit.js";
@@ -31,6 +30,9 @@ import {
   fetchCourseAnnouncements,
   fetchAllAnnouncements,
   fetchPlannerItems,
+  fetchCalendarEvents,
+  buildContextCodes,
+  buildSectionToCourseMap,
   fetchModules,
   fetchModuleItems,
   fetchModuleItem,
@@ -42,6 +44,9 @@ import {
   fetchFiles,
   fetchPages,
   fetchFrontPage,
+  fetchCanvasLectures,
+  extractCourseIdFromContext,
+  fetchUserEnrollments,
 } from "./canvasService.js";
 import { CalendarItemsResponseSchema, type CalendarItem } from "common/calendar";
 
@@ -75,11 +80,8 @@ router.get("/whoami", async (req, res) => {
       eksisterendeKobling.localUser && 
       eksisterendeKobling.localUser.toString() !== req.user.id.toString()
     ) {
-      logger.info({    
-        userId: req.user.id,
-        existingLocalUser: eksisterendeKobling.localUser.toString(),
-        canvasId: canvasUser.id
-      }, "Forsøk på å koble til en Canvas-konto som allerede tilhører en annen bruker");
+      // Logg kun at konflikt oppsto, ikke bruker-IDer (GDPR)
+      logger.info("Forsøk på å koble Canvas-konto som tilhører annen bruker");
       return res.status(409).json({
         feil: "Konflikt",
         melding: "Denne Canvas-kontoen er allerede koblet til en annen StudyWise-bruker."
@@ -113,7 +115,7 @@ router.get("/whoami", async (req, res) => {
     if (oppdatertCanvasBruker?._id) {
       await User.findByIdAndUpdate(req.user.id, { canvasUser: oppdatertCanvasBruker._id });
     }
-    logger.info({ userId: canvasUser.id }, "Canvas /whoami endpoint kalt og bruker synkronisert");
+    logger.info("Canvas bruker synkronisert");
     res.json(canvasUser);
   } catch (error) {
     logger.error({ err: error }, "Klarte ikke å hente eller lagre brukerinformasjon (/whoami)");
@@ -152,7 +154,89 @@ router.get("/users/self/upcoming_events", async (req, res) => {
     throw error;
   }
 });
+// GET /calendar_events - Hent kalenderhendelser med context_codes
+// Bruker Canvas Calendar Events API for å hente brukerens og kursenes hendelser
+// Query params:
+// - start_date: Startdato (YYYY-MM-DD) - standard: 1 mnd tilbake
+// - end_date: Sluttdato (YYYY-MM-DD) - standard: 6 mnd frem
+// - type: "event" eller "assignment" (valgfritt, begge hvis ikke satt)
+router.get("/calendar_events", rateLimitCanvasTung, async (req, res) => {
+  try {
+    const { start_date, end_date, type } = req.query;
+    // Hent brukerens kurs for å bygge context_codes
+    const { data: courses } = await fetchCourses(req.canvasToken);
+    const { data: userProfile } = await fetchUserProfile(req.canvasToken);
+    // Bygg context_codes (bruker + alle kurs)
+    const contextCodes = buildContextCodes(userProfile.id, courses);
+    // Standard datointervall (bruker samme vindu som kalender-endepunktet)
+    const defaultRange = beregnKalenderVindu();
+    // Valider type-parameter
+    let eventType: "event" | "assignment" | undefined;
+    if (type === "event" || type === "assignment") {
+      eventType = type;
+    }
+    const { data: events, meta } = await fetchCalendarEvents(req.canvasToken, {
+      contextCodes,
+      startDate: typeof start_date === "string" ? start_date : defaultRange.startDate,
+      endDate: typeof end_date === "string" ? end_date : defaultRange.endDate,
+      type: eventType,
+    });
+    logger.info({ count: events.length, courseCount: courses.length }, "Hentet calendar_events");
+    res.json({
+      events,
+      meta,
+      context: { courseCount: courses.length },
+    });
+  } catch (error) {
+    const err = error as CanvasHttpError;
+    logger.error({ err: error }, "Feil ved henting av calendar_events");
+    if (err.status === 401) {
+      return res.status(401).json({
+        feil: "Ugyldig Canvas-token",
+        melding: "Canvas-tokenet ditt er ugyldig eller utlopt. Oppdater tokenet i innstillinger.",
+      });
+    }
+    if (err.status === 429) {
+      return res.status(429).json({
+        feil: "For mange foresp\u00f8rsler",
+        melding: "Canvas API er overbelastet. Vent noen sekunder og pr\u00f8v igjen.",
+      });
+    }
+    throw error;
+  }
+});
 
+// GET /forelesninger - Normaliserte forelesninger fra Canvas Calendar Events
+// Bruker utvidet datovindu (3 mnd tilbake, 12 mnd frem) for TimeEdit-events
+router.get("/forelesninger", rateLimitCanvasTung, async (req, res) => {
+  try {
+    const { start_date, end_date } = req.query;
+    const { data: lectures, meta } = await fetchCanvasLectures(req.canvasToken, {
+      startDate: typeof start_date === "string" ? start_date : undefined,
+      endDate: typeof end_date === "string" ? end_date : undefined,
+    });
+    res.json({
+      items: lectures,
+      meta: { generatedAt: new Date().toISOString(), ...meta },
+    });
+  } catch (error) {
+    const err = error as CanvasHttpError;
+    logger.error({ err: error }, "Feil ved henting av forelesninger");
+    if (err.status === 401) {
+      return res.status(401).json({
+        feil: "Ugyldig Canvas-token",
+        melding: "Canvas-tokenet ditt er ugyldig eller utløpt. Oppdater tokenet i innstillinger.",
+      });
+    }
+    if (err.status === 429) {
+      return res.status(429).json({
+        feil: "For mange forespørsler",
+        melding: "Canvas API er overbelastet. Vent noen sekunder og prøv igjen.",
+      });
+    }
+    throw error;
+  }
+});
 // GET /users/self/todo - Todo liste
 // Henter todo liste for brukeren
 router.get("/users/self/todo", async (req, res) => {
@@ -311,161 +395,310 @@ router.get("/announcements", rateLimitCanvasTung, async (req, res) => {
   }
 });
 
-// GET /kalender - Aggregert kalender for frontend (assignments + events + todo)
-// Tyngre kall -> bruker rateLimitCanvasTung
+// GET /kalender - Aggregert kalender for frontend (planner + calendar_events)
+// : Bruker Planner API i stedet for per-kurs assignment-henting
+// Dette reduserer API-kall fra N+3 til ~4 (uansett antall kurs)
+// Query params:
+//   - refresh=true: Bypass cache og hent ferske data
+//   - page=1: Sidenummer for paginering (default: 1)
+//   - limit=100: Antall items per side (default: 100, max: 500)
 router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
-  try {
-    const token = req.canvasToken;
-    const tokenAvtrykk = token ? crypto.createHash("sha256").update(token).digest("hex").slice(0, 12) : "ukjent";
-    const cacheKey = `canvas:${tokenAvtrykk}:kalender-v1`;
-
-    // Forsøk cache først
+  const token = req.canvasToken;
+  const tokenAvtrykk = token ? crypto.createHash("sha256").update(token).digest("hex").slice(0, 12) : "ukjent";
+  const cacheKey = `canvas:${tokenAvtrykk}:kalender-v3`; // Ny versjon med Planner API
+  const cacheTimestampKey = `${cacheKey}:timestamp`;
+  // Parse query params
+  const forceRefresh = req.query.refresh === "true";
+  const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+  const limit = Math.min(500, Math.max(1, parseInt(req.query.limit as string, 10) || 100));
+  // Hjelpefunksjon for å returnere cached data ved feil
+  const returnCachedOnError = async (error: unknown) => {
     try {
       const cached = await getCache(cacheKey);
       if (cached) {
-        logger.info({ cacheKey }, "Kalender cache HIT");
-        return res.json(JSON.parse(cached));
+        const cachedTimestamp = await getCache(cacheTimestampKey);
+        const cacheAge = cachedTimestamp ? Math.floor((Date.now() - parseInt(cachedTimestamp, 10)) / 1000) : undefined;
+        logger.warn({ cacheAge }, "Canvas API feilet - returnerer cached data som fallback");
+        const parsed = JSON.parse(cached);
+        // Legg til cache-metadata
+        parsed.meta = { ...parsed.meta, fromCache: true, cacheAge };
+        return res.json(parsed);
       }
-      logger.info({ cacheKey }, "Kalender cache MISS");
-    } catch (cacheErr) {
-      logger.warn({ err: cacheErr }, "Kalender cache feilet - fortsetter uten cache");
+    } catch {
+      // Cache også feilet - kast original feil
     }
-
-    const { data: courses } = await fetchCourses(req.canvasToken);
+    throw error;
+  };
+  try {
+    // Sjekk cache først (med mindre force-refresh er satt)
+    if (!forceRefresh) {
+      try {
+        const cached = await getCache(cacheKey);
+        if (cached) {
+          const cachedTimestamp = await getCache(cacheTimestampKey);
+          const cacheAge = cachedTimestamp ? Math.floor((Date.now() - parseInt(cachedTimestamp, 10)) / 1000) : undefined;
+          logger.info({ cacheKey, cacheAge }, "Kalender cache HIT");
+          const parsed = JSON.parse(cached);
+          // Legg til cache-metadata og paginer
+          const allItems: CalendarItem[] = parsed.items || [];
+          const paginatedItems = allItems.slice((page - 1) * limit, page * limit);
+          return res.json({
+            ...parsed,
+            items: paginatedItems,
+            meta: {
+              ...parsed.meta,
+              fromCache: true,
+              cacheAge,
+              pagination: {
+                page,
+                limit,
+                totalItems: allItems.length,
+                totalPages: Math.ceil(allItems.length / limit),
+                hasNextPage: page * limit < allItems.length,
+                hasPrevPage: page > 1,
+              },
+            },
+          });
+        }
+        logger.info({ cacheKey }, "Kalender cache MISS");
+      } catch (cacheErr) {
+        logger.warn({ err: cacheErr }, "Kalender cache lesing feilet");
+      }
+    } else {
+      logger.info({ cacheKey }, "Force refresh - skipper cache");
+    }
+    // Hent kurs, brukerprofil og enrollments (trengs for context_codes og kursinfo)
+    // Enrollments inkluderer section_id som trengs for TimeEdit-hendelser
+    const [coursesResult, userProfileResult, enrollmentsResult] = await Promise.all([
+      fetchCourses(req.canvasToken),
+      fetchUserProfile(req.canvasToken),
+      fetchUserEnrollments(req.canvasToken),
+    ]).catch(async (error) => {
+      // Kritisk feil - prøv cached data
+      return returnCachedOnError(error);
+    }) as [Awaited<ReturnType<typeof fetchCourses>>, Awaited<ReturnType<typeof fetchUserProfile>>, Awaited<ReturnType<typeof fetchUserEnrollments>>];
+    const courses = coursesResult.data;
+    const userProfile = userProfileResult.data;
+    const enrollments = enrollmentsResult.data;
     const courseMap = new Map(courses.map((c) => [c.id, c]));
-    // Hent oppgaver per emne med begrenset samtidighet for mindre trykk på Canvas
-    const limitAssignments = pLimit(6);
-    const assignmentsPerCourse = await Promise.all(
-      courses.map((course) =>
-        limitAssignments(async (): Promise<{ courseId: number; assignments: Awaited<ReturnType<typeof fetchAssignments>>["data"] }> => {
-          try {
-            const { data } = await fetchAssignments(req.canvasToken, course.id);
-            return { courseId: course.id, assignments: data };
-          } catch (error) {
-            logger.warn({ courseId: course.id, err: error }, "Klarte ikke hente oppgaver for kurs i kalender-endepunkt");
-            return { courseId: course.id, assignments: [] };
-          }
-        })
-      )
-    );
-    // Hent kommende hendelser og todo-liste parallelt
-    const [eventsResult, todosResult] = await Promise.allSettled([
-      fetchUpcomingEvents(req.canvasToken),
-      fetchTodo(req.canvasToken),
+
+    // Bygg section-to-course mapping fra enrollments
+    // Brukes for å resolve course_section_XXX til course_id for TimeEdit-hendelser
+    const sectionToCourseMap = buildSectionToCourseMap(enrollments);
+
+    // Bygg context_codes for Calendar Events API
+    // Inkluderer course_section context codes for TimeEdit-hendelser
+    const contextCodes = buildContextCodes(userProfile.id, courses, enrollments);
+    // Beregn datointervall
+    const { startDate, endDate } = beregnKalenderVindu();
+    // Bruk Planner API + Calendar Events i stedet for N assignment-kall
+    // Dette er maks 4-5 API-kall uansett hvor mange kurs brukeren har
+    const [plannerResult, calendarEventsResult] = await Promise.allSettled([
+      fetchPlannerItems(req.canvasToken, { start_date: startDate, end_date: endDate, maxPages: 5 }),
+      fetchCalendarEvents(req.canvasToken, { contextCodes, startDate, endDate }),
     ]);
-    const events = eventsResult.status === "fulfilled" ? eventsResult.value.data : [];
-    const todos = todosResult.status === "fulfilled" ? todosResult.value.data : [];
-    if (eventsResult.status === "rejected") {
-      logger.warn({ err: eventsResult.reason }, "Kalender: upcoming_events feilet, fortsetter uten events");
+    // Hent data fra resolved promises eller tomme lister ved feil
+    const plannerItems = plannerResult.status === "fulfilled" ? plannerResult.value.data : [];
+    const calendarEvents = calendarEventsResult.status === "fulfilled" ? calendarEventsResult.value.data : [];
+    if (plannerResult.status === "rejected") {
+      logger.warn({ err: plannerResult.reason }, "Kalender: planner feilet, fortsetter uten");
     }
-    if (todosResult.status === "rejected") {
-      logger.warn({ err: todosResult.reason }, "Kalender: todo feilet, fortsetter uten todo");
+    if (calendarEventsResult.status === "rejected") {
+      logger.warn({ err: calendarEventsResult.reason }, "Kalender: calendar_events feilet, fortsetter uten");
     }
-    // Bygg kalender-items
+    // Hvis begge API-kall feilet, prøv cached data
+    if (plannerResult.status === "rejected" && calendarEventsResult.status === "rejected") {
+      const error = plannerResult.reason || calendarEventsResult.reason;
+      return returnCachedOnError(error);
+    }
+    // Bygg kalender-items med deduplication
+    const seenIds = new Set<string>();
     const items: CalendarItem[] = [];
-    // Normaliser oppgaver (Canvas assignments)
-    assignmentsPerCourse.forEach(({ courseId, assignments }) => {
-      const course = courseMap.get(courseId);
-      assignments.forEach((assignment) => {
-        if (!erInnenforKalenderVindu(assignment.due_at)) return;
-        items.push({
-          id: `assignment-${assignment.id}`,
-          title: assignment.name,
-          due_at: assignment.due_at!,
-          course_id: courseId,
+    // Hjelpefunksjon for å legge til unike items
+    const addUniqueItem = (item: CalendarItem) => {
+      if (!seenIds.has(item.id)) {
+        seenIds.add(item.id);
+        items.push(item);
+      }
+    };
+
+    // Bygg set av calendar_event IDer for å sjekke duplikater
+    const calendarEventIds = new Set(calendarEvents.map(e => e.id));
+
+    // Normaliser Planner items (assignments, quizzes, discussions, etc.)
+    // Filtrer ut kunngjøringer og wiki-sider som ikke hører hjemme i kalenderen
+    const EXCLUDED_PLANNER_TYPES = ["announcement", "Announcement", "wiki_page", "WikiPage"];
+
+    plannerItems
+      .filter((item) => !EXCLUDED_PLANNER_TYPES.includes(item.plannable_type || ""))
+      .forEach((item) => {
+        const dueAt = item.plannable?.due_at || item.plannable_date;
+        if (!erInnenforKalenderVindu(dueAt)) return;
+        // Hent kursinfo
+        const courseId = item.course_id;
+        const course = courseId ? courseMap.get(courseId) : undefined;
+
+        // Bestem ID-prefiks og source basert på type
+        let id: string;
+        let source: "assignment" | "todo" | "event" = "assignment";
+        if (item.plannable_type === "assignment" || item.plannable_type === "Assignment") {
+          id = `assignment-${item.plannable_id}`;
+        } else if (item.plannable_type === "quiz" || item.plannable_type === "Quiz") {
+          id = `quiz-${item.plannable_id}`;
+          source = "todo";
+        } else if (item.plannable_type === "discussion_topic" || item.plannable_type === "DiscussionTopic") {
+          id = `discussion-${item.plannable_id}`;
+          source = "todo";
+        } else if (item.plannable_type === "calendar_event" || item.plannable_type === "CalendarEvent") {
+          // Calendar events fra planner - inkluder KUN hvis de IKKE finnes i calendar_events API
+          // TimeEdit-events kommer ofte kun via Planner, ikke via Calendar Events API
+          if (calendarEventIds.has(item.plannable_id)) {
+            // Finnes allerede i calendar_events, hopp over for å unngå duplikat
+            return;
+          }
+          // Ikke i calendar_events - inkluder fra planner
+          id = `event-${item.plannable_id}`;
+          source = "event";
+        } else {
+          id = `planner-${item.plannable_id}`;
+          source = "todo";
+        }
+        // Legg til item hvis unikt
+        // For calendar_events fra planner, inkluder end_at og location
+        const isCalendarEvent = source === "event";
+        addUniqueItem({
+          id,
+          title: item.plannable?.title || "Ukjent",
+          due_at: dueAt!,
+          end_at: isCalendarEvent ? item.plannable?.end_at : undefined,
+          course_id: courseId ?? undefined,
           course_code: course?.course_code,
           course_name: course?.name,
-          source: "assignment",
-          html_url: assignment.html_url,
-          raw_type: "assignment",
+          source,
+          html_url: item.html_url,
+          raw_type: item.plannable_type,
+          location: isCalendarEvent ? item.plannable?.location_name : undefined,
         });
       });
-    });
 
-    // Normaliser kommende hendelser (Canvas upcoming_events)
-    events.forEach((event) => {
-      const dueAt = event.start_at || event.end_at;
-      if (!erInnenforKalenderVindu(dueAt)) return;
-      const courseId = parseCourseIdFromContext(event.context_code);
-      const course = courseId ? courseMap.get(courseId) : undefined;
-      items.push({
-        id: `event-${event.id}`,
-        title: event.title || course?.name || "Hendelse",
-        due_at: dueAt!,
-        course_id: courseId ?? undefined,
-        course_code: course?.course_code,
-        course_name: course?.name,
-        source: "event",
-        html_url: event.html_url || event.url,
-        raw_type: "calendar_event",
-      });
-    });
+    // Normaliser calendar_events (forelesninger, møter, etc.)
+    // Filtrer bort hidden parent-events (de har children som vises separat)
+    const visibleEvents = calendarEvents.filter((e) => e.hidden !== true);
 
-    // Normaliser todo-elementer (ofte assignments/quiz)
-    todos.forEach((todo, idx) => {
-      const dueAt = todo.assignment?.due_at || todo.quiz?.due_at || null;
-      if (!erInnenforKalenderVindu(dueAt)) return;
-      const courseId = todo.assignment?.course_id || todo.course_id || null;
-      const course = courseId ? courseMap.get(courseId) : undefined;
-      const id = todo.assignment?.id ?? todo.quiz?.id ?? idx;
-      items.push({
-        id: `todo-${id}`,
-        title: todo.assignment?.name || todo.quiz?.title || todo.type || "Todo",
-        due_at: dueAt!,
-        course_id: courseId ?? undefined,
-        course_code: course?.course_code,
-        course_name: course?.name,
-        source: "todo",
-        html_url: todo.assignment?.html_url || todo.quiz?.html_url,
-        raw_type: todo.type,
+    visibleEvents.forEach((event) => {
+        const dueAt = event.start_at || event.end_at || event.all_day_date;
+        if (!erInnenforKalenderVindu(dueAt)) return;
+        // Hent kursinfo fra context_codes - bruker sectionToCourseMap for TimeEdit-events
+        const courseIdStr = extractCourseIdFromContext(
+          event.context_code,
+          event.effective_context_code,
+          event.all_context_codes,
+          sectionToCourseMap
+        );
+        const courseId = courseIdStr ? parseInt(courseIdStr, 10) : null;
+        const course = courseId ? courseMap.get(courseId) : undefined;
+
+        // Assignment-events dedupliseres med planner
+        if (event.assignment) {
+          addUniqueItem({
+            id: `assignment-${event.assignment.id}`,
+            title: event.assignment.name,
+            due_at: event.assignment.due_at || dueAt!,
+            course_id: courseId ?? undefined,
+            course_code: course?.course_code,
+            course_name: course?.name,
+            source: "assignment",
+            html_url: event.assignment.html_url || event.html_url,
+            raw_type: "assignment",
+          });
+        } else {
+          addUniqueItem({
+            id: `event-${event.id}`,
+            title: event.title || course?.name || "Hendelse",
+            due_at: dueAt!,
+            end_at: event.end_at,
+            course_id: courseId ?? undefined,
+            course_code: course?.course_code,
+            course_name: course?.name,
+            source: "event",
+            html_url: event.html_url || event.url,
+            raw_type: event.all_day ? "all_day_event" : "calendar_event",
+            location: event.location_name,
+          });
+        }
       });
-    });
+
     // Sorter etter dato
     items.sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime());
 
+    // Paginer resultatene
+    const totalItems = items.length;
+    const paginatedItems = items.slice((page - 1) * limit, page * limit);
+    // Bygg respons-payload
     const payload = CalendarItemsResponseSchema.parse({
-      items,
+      items: paginatedItems,
       meta: {
         generatedAt: new Date().toISOString(),
         courseCount: courses.length,
+        fromCache: false,
+        pagination: {
+          page,
+          limit,
+          totalItems,
+          totalPages: Math.ceil(totalItems / limit),
+          hasNextPage: page * limit < totalItems,
+          hasPrevPage: page > 1,
+        },
       },
     });
 
-    // Sett cache (kort TTL siden data er fersk)
+    // Lagre komplett liste i cache (uten paginering)
     try {
-      await setCache(cacheKey, JSON.stringify(payload), CACHE_TTL.TODO);
+      const cachePayload = { ...payload, items }; // Lagre alle items
+      await setCache(cacheKey, JSON.stringify(cachePayload), CACHE_TTL.ASSIGNMENTS); // 10 min cache
+      await setCache(cacheTimestampKey, String(Date.now()), CACHE_TTL.ASSIGNMENTS);
     } catch (cacheErr) {
       logger.warn({ err: cacheErr }, "Kunne ikke sette kalender-cache");
     }
+    // Tell source-typer for debugging
+    const sourceCounts = items.reduce((acc, item) => {
+      acc[item.source] = (acc[item.source] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
 
-    logger.info({ itemCount: payload.items.length, courseCount: courses.length }, "Bygget kalender-payload");
+    // Logg statistikk
+    logger.info({
+      itemCount: totalItems,
+      pageItems: paginatedItems.length,
+      page,
+      courseCount: courses.length,
+      plannerItems: plannerItems.length,
+      calendarEvents: calendarEvents.length,
+      sourceCounts, // Viser fordeling av source-typer (assignment, event, todo)
+    }, "Bygget kalender-payload (Planner API)");
+    // Returner paginerte data
     res.json(payload);
   } catch (error) {
     const err = error as CanvasHttpError;
     logger.error({ err: error }, "Feil ved henting av kalender-data");
-    
     if (err.status === 401) {
       return res.status(401).json({
         feil: "Ugyldig Canvas-token",
-        melding: "Canvas-tokenet ditt er ugyldig eller utl\u00f8pt. Oppdater tokenet i innstillinger.",
+        melding: "Canvas-tokenet ditt er ugyldig eller utløpt. Oppdater tokenet i innstillinger.",
       });
     }
-    
     if (err.status === 429) {
       return res.status(429).json({
-        feil: "For mange foresp\u00f8rsler",
-        melding: "Canvas API er overbelastet. Vent noen sekunder og pr\u00f8v igjen.",
+        feil: "For mange forespørsler",
+        melding: "Canvas API er overbelastet. Vent noen sekunder og prøv igjen.",
       });
     }
-    
-    // Returner tom kalender ved andre feil for graceful degradation
     if (err.message?.includes("timeout")) {
       return res.status(504).json({
         feil: "Tidsavbrudd",
-        melding: "Henting av kalenderdata tok for lang tid. Pr\u00f8v igjen.",
+        melding: "Henting av kalenderdata tok for lang tid. Prøv igjen.",
       });
     }
-    
     throw error;
   }
 });

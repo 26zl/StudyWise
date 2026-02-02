@@ -20,8 +20,7 @@ import {
 } from "date-fns";
 import { AlertCircle } from "lucide-react";
 import { cn } from "../lib/utils";
-import { Assignment } from "common/calendar-ui";
-import { COURSE_COLOR_CLASSES } from "./calendarColors";
+import { Assignment, COURSE_COLOR_CLASSES } from "common/calendar-ui";
 
 interface CalendarGridProps {
     currentDate: Date;
@@ -79,19 +78,20 @@ export function CalendarGrid({
 
     return (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-            {/* Ukedager header */}
+            {/* Ukedager header - kortere tekst på mobil */}
             <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-700">
                 {WEEK_DAYS.map((day) => (
                     <div
                         key={day}
-                        className="py-3 text-center text-sm font-semibold text-slate-500 dark:text-slate-400"
+                        className="py-2 md:py-3 text-center text-xs md:text-sm font-semibold text-slate-500 dark:text-slate-400"
                     >
-                        {day}
+                        <span className="hidden sm:inline">{day}</span>
+                        <span className="sm:hidden">{day.charAt(0)}</span>
                     </div>
                 ))}
             </div>
 
-            {/* Kalenderdager */}
+            {/* Kalenderdager - mobile-first med mindre høyde på små skjermer */}
             <div className="grid grid-cols-7">
                 {days.map((day, index) => {
                     const dayAssignments = getAssignmentsForDate(day);
@@ -105,8 +105,10 @@ export function CalendarGrid({
                         <button
                             key={day.toISOString()}
                             onClick={() => onDateClick(day)}
+                            aria-label={`${format(day, "d. MMMM")}${dayAssignments.length > 0 ? `, ${dayAssignments.length} ${dayAssignments.length === 1 ? "hendelse" : "hendelser"}` : ""}`}
                             className={cn(
-                                "min-h-25 p-2 border-b border-r border-slate-200 dark:border-slate-700 text-left transition-all duration-200 relative",
+                                // Mobile-first: mindre padding og høyde, større på desktop
+                                "min-h-16 sm:min-h-20 md:min-h-24 p-1 sm:p-1.5 md:p-2 border-b border-r border-slate-200 dark:border-slate-700 text-left transition-all duration-200 relative",
                                 "hover:bg-slate-50 dark:hover:bg-slate-700/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset",
                                 !isCurrentMonth && "bg-slate-50 dark:bg-slate-900/50 text-slate-400 dark:text-slate-500",
                                 isSelected && "bg-blue-50 dark:bg-blue-900/30 ring-2 ring-blue-500 ring-inset",
@@ -114,31 +116,34 @@ export function CalendarGrid({
                                 index % 7 === 6 && "border-r-0"
                             )}
                         >
-                            {/* Dagnummer */}
-                            <div className="flex items-center justify-between mb-1">
+                            {/* Dagnummer - mindre på mobil */}
+                            <div className="flex items-center justify-between mb-0.5 sm:mb-1">
                                 <span
                                     className={cn(
-                                        "text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full",
+                                        "text-xs sm:text-sm font-medium w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 flex items-center justify-center rounded-full",
                                         isTodayDate && "bg-blue-500 text-white"
                                     )}
                                 >
                                     {format(day, "d")}
                                 </span>
-                                {isUpcoming && !isOverdue && (
-                                    <AlertCircle className="w-4 h-4 text-amber-500 dark:text-amber-400" />
-                                )}
-                                {isOverdue && (
-                                    <AlertCircle className="w-4 h-4 text-red-500 dark:text-red-400" />
-                                )}
+                                {/* Varsler - kun vis på desktop eller når valgt */}
+                                <span className="hidden sm:block">
+                                    {isUpcoming && !isOverdue && (
+                                        <AlertCircle className="w-3 h-3 md:w-4 md:h-4 text-amber-500 dark:text-amber-400" />
+                                    )}
+                                    {isOverdue && (
+                                        <AlertCircle className="w-3 h-3 md:w-4 md:h-4 text-red-500 dark:text-red-400" />
+                                    )}
+                                </span>
                             </div>
 
-                            {/* Innleveringsbadges */}
-                            <div className="space-y-1">
-                                {dayAssignments.slice(0, 3).map((assignment) => (
+                            {/* Innleveringsbadges - skjult på mobil, vis bare antall */}
+                            <div className="hidden sm:block space-y-0.5 md:space-y-1">
+                                {dayAssignments.slice(0, 2).map((assignment) => (
                                     <div
                                         key={assignment.id}
                                         className={cn(
-                                            "text-xs px-1.5 py-0.5 rounded truncate text-white font-medium",
+                                            "text-[10px] md:text-xs px-1 md:px-1.5 py-0.5 rounded truncate text-white font-medium",
                                             COURSE_COLOR_CLASSES[assignment.courseColor],
                                             assignment.completed && "opacity-50 line-through"
                                         )}
@@ -147,16 +152,29 @@ export function CalendarGrid({
                                         {assignment.courseCode}
                                     </div>
                                 ))}
-                                {dayAssignments.length > 3 && (
-                                    <div className="text-xs text-slate-500 dark:text-slate-400 font-medium px-1">
-                                        +{dayAssignments.length - 3} mer
+                                {dayAssignments.length > 2 && (
+                                    <div className="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 font-medium px-1">
+                                        +{dayAssignments.length - 2} mer
                                     </div>
                                 )}
                             </div>
 
+                            {/* Mobil: Vis bare fargede prikker for hendelser */}
+                            <div className="flex flex-wrap gap-0.5 sm:hidden mt-0.5">
+                                {dayAssignments.slice(0, 3).map((assignment) => (
+                                    <div
+                                        key={assignment.id}
+                                        className={cn(
+                                            "w-1.5 h-1.5 rounded-full",
+                                            COURSE_COLOR_CLASSES[assignment.courseColor]
+                                        )}
+                                    />
+                                ))}
+                            </div>
+
                             {/* Antall innleveringer badge */}
                             {dayAssignments.length > 0 && (
-                                <div className="absolute top-1 right-1 w-5 h-5 bg-blue-500 dark:bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                                <div className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 dark:bg-blue-600 text-white text-[10px] sm:text-xs font-bold rounded-full flex items-center justify-center">
                                     {dayAssignments.length}
                                 </div>
                             )}

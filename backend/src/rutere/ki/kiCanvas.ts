@@ -163,7 +163,36 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
 
     // Bygg kontekst-tekst
     const deler: string[] = ["[CANVAS-DATA START]"];
-    
+
+    // Legg til dagens dato eksplisitt så AI vet hva "denne uken" betyr
+    const idag = new Date();
+    const dagNavn = ["søndag", "mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag"];
+    const maanedNavn = ["januar", "februar", "mars", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "desember"];
+    const ukedag = dagNavn[idag.getDay()];
+    const dato = idag.getDate();
+    const maaned = maanedNavn[idag.getMonth()];
+    const aar = idag.getFullYear();
+
+    // Beregn ukenummer (ISO week)
+    const getWeekNumber = (d: Date): number => {
+      const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      const dayNum = date.getUTCDay() || 7;
+      date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+      return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    };
+    const ukenummer = getWeekNumber(idag);
+
+    // Beregn start og slutt på denne uken (mandag-søndag)
+    const startAvUke = new Date(idag);
+    const dagIndex = idag.getDay() === 0 ? 6 : idag.getDay() - 1; // Mandag = 0
+    startAvUke.setDate(idag.getDate() - dagIndex);
+    const sluttAvUke = new Date(startAvUke);
+    sluttAvUke.setDate(startAvUke.getDate() + 6);
+
+    deler.push(`\nDAGENS DATO: ${ukedag} ${dato}. ${maaned} ${aar} (uke ${ukenummer})`);
+    deler.push(`DENNE UKEN: ${startAvUke.getDate()}. ${maanedNavn[startAvUke.getMonth()]} - ${sluttAvUke.getDate()}. ${maanedNavn[sluttAvUke.getMonth()]} ${sluttAvUke.getFullYear()}`);
+
     // Emner
     if (emner.length > 0) {
       deler.push("\nEMNER:");
@@ -334,7 +363,7 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
     const totalAssignments = assignmentsPerCourse.reduce((sum, c) => sum + c.assignments.length, 0);
     const totalFrontPages = frontPagesPerCourse.filter(fp => fp.frontPage !== null).length;
     const totalFiles = filesPerCourse.reduce((sum, c) => sum + c.files.length, 0);
-    
+    // Logger 
     logger.info(
       {
         emnerCount: emner.length,

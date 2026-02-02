@@ -11,6 +11,7 @@ import {
 import { useUIStore, type CanvasContextSelection } from "../store/uiStore";
 import { useMeg, useOppdaterPreferanser } from "../auth/auth-api";
 
+// Props for CanvasContextSelector komponenten
 interface CanvasContextSelectorProps {
   onContextChange: (context: string) => void;
 }

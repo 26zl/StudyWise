@@ -98,7 +98,9 @@ export const CanvasPlannerItemSchema = z.object({
       id: z.number(),
       title: z.string(),
       due_at: z.string().nullable().optional(),
+      end_at: z.string().nullable().optional(), // Sluttid for calendar_events
       points_possible: z.number().nullable().optional(),
+      location_name: z.string().nullable().optional(), // Lokasjon for calendar_events
     })
     .optional(),
 });
@@ -193,6 +195,7 @@ export const CanvasDiscussionTopicSchema = z.object({
 });
 
 // Schema for Calendar Event (Upcoming Events)
+// Brukes for /api/v1/calendar_events og /api/v1/users/self/upcoming_events
 export const CanvasCalendarEventSchema = z.object({
   id: z.coerce.number(), // Canvas kan sende ID som string - koer til number
   title: z.string(),
@@ -201,10 +204,32 @@ export const CanvasCalendarEventSchema = z.object({
   description: z.string().nullable().optional(),
   location_name: z.string().nullable().optional(),
   location_address: z.string().nullable().optional(),
-  context_code: z.string().optional(), // e.g. "course_123"
+  context_code: z.string().optional(), // e.g. "course_123" eller "user_456" eller "course_section_*"
+  workflow_state: z.string().optional(), // "active", "locked", "deleted"
+  all_day: z.boolean().optional(), // Heldagshendelse
+  all_day_date: z.string().nullable().optional(), // Dato for heldagshendelse (YYYY-MM-DD)
   html_url: z.string().optional(),
   url: z.string().optional(), // API url
-});
+  // Felter for duplikat-filtrering (parent vs child events)
+  hidden: z.boolean().optional(), // true = parent-event (skal filtreres bort)
+  effective_context_code: z.string().nullable().optional(), // Reell context_code (f.eks. course_123)
+  all_context_codes: z.string().nullable().optional(), // Komma-separert liste med context_codes
+  context_name: z.string().nullable().optional(), // Kursnavn
+  // Felter for repeterende events (rrule/series) - viktig for TimeEdit
+  rrule: z.string().nullable().optional(), // iCalendar RRULE for repeterende events
+  series_uuid: z.string().nullable().optional(), // UUID for event-serie
+  series_natural_language: z.string().nullable().optional(), // Menneskelesbar beskrivelse av serie
+  child_events_count: z.number().optional(), // Antall child-events (0 = ingen, >0 = har children)
+  parent_event_id: z.coerce.number().nullable().optional(), // ID til parent-event hvis dette er child
+  // Assignment-spesifikke felter (kan være med når type=assignment)
+  assignment: z.object({
+    id: z.number(),
+    name: z.string(),
+    due_at: z.string().nullable().optional(),
+    points_possible: z.number().nullable().optional(),
+    html_url: z.string().optional(),
+  }).optional(),
+}).passthrough(); // Tillat ukjente felt fra Canvas API
 
 // Schema for Todo Item
 // Todo items kan være assignments eller quizzes som må gjøres
@@ -255,6 +280,12 @@ export const UpcomingEventsResponseSchema = z.object({
   meta: MetaSchema.optional(),
 });
 
+// Svar-schema for calendar_events API
+export const CalendarEventsResponseSchema = z.object({
+  events: z.array(CanvasCalendarEventSchema),
+  meta: MetaSchema.optional(),
+});
+
 // Svar-schema for todo liste
 export const TodoResponseSchema = z.object({
   todos: z.array(CanvasTodoItemSchema),
@@ -274,5 +305,23 @@ export type CanvasCalendarEvent = z.infer<typeof CanvasCalendarEventSchema>;
 export type CanvasTodoItem = z.infer<typeof CanvasTodoItemSchema>;
 export type CanvasModuleItemDetail = z.infer<typeof CanvasModuleItemDetailSchema>;
 export type UpcomingEventsResponse = z.infer<typeof UpcomingEventsResponseSchema>;
+export type CalendarEventsResponse = z.infer<typeof CalendarEventsResponseSchema>;
 export type TodoResponse = z.infer<typeof TodoResponseSchema>;
 export type ModuleItemDetailsResponse = z.infer<typeof ModuleItemDetailsResponseSchema>;
+
+// Normalisert Canvas Calendar Event (kun felter vi bruker)
+export const NormalizedCanvasCalendarEventSchema = z.object({
+  id: z.string(),
+  source: z.literal("canvas_calendar"),
+  title: z.string(),
+  startAt: z.string(),
+  endAt: z.string().nullable(),
+  allDay: z.boolean(),
+  location: z.string().nullable(),
+  courseId: z.string().nullable(),
+  courseName: z.string().nullable(),
+  url: z.string().nullable(),
+  descriptionText: z.string().nullable(),
+}).passthrough();
+
+export type NormalizedCanvasCalendarEvent = z.infer<typeof NormalizedCanvasCalendarEventSchema>;

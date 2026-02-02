@@ -14,6 +14,7 @@ import { invalidateCacheByPattern } from "../../cache/redis.js";
 import {
     CanvasTokenRequestSchema,
     CanvasTokenResponseSchema,
+    CanvasContextPreferencesSchema,
     AuthBrukerSchema,
     LoginRequestSchema,
     LoginResponseSchema,
@@ -130,8 +131,9 @@ router.post("/login", rateLimitAuth, async (req, res) => {
         // Varm opp cache i bakgrunnen hvis bruker har Canvas-token (ikke blokker respons)
         if (harCanvasToken && user.canvasApiToken) {
             const decryptedToken = decrypt(user.canvasApiToken);
-            warmCanvasCache(decryptedToken).catch(() => {
-                // Ignorer feil - cache warming er ikke kritisk
+            warmCanvasCache(decryptedToken).catch((err) => {
+                // Logg feil men ikke blokker - cache warming er ikke kritisk
+                logger.warn({ err, userId: user._id }, "Cache warming feilet ved innlogging (ikke kritisk)");
             });
         }
         
@@ -193,15 +195,21 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
             }));
         }
         // Fallback: Sjekk dekryptert token (for gamle brukere uten hash)
+        // Bruker timing-safe sammenligning via hash for å unngå timing-angrep
         if (bruker.canvasApiToken && !bruker.canvasTokenHash) {
             try {
                 const eksisterendeToken = decrypt(bruker.canvasApiToken);
-                if (eksisterendeToken === cleanToken) {
+                // Hash begge tokens for timing-safe sammenligning (lik lengde)
+                const eksisterendeHash = hashToken(eksisterendeToken);
+                const eksisterendeHashBuffer = Buffer.from(eksisterendeHash, "hex");
+                const nyHashBuffer = Buffer.from(nyTokenHash, "hex");
+
+                if (crypto.timingSafeEqual(eksisterendeHashBuffer, nyHashBuffer)) {
                     // Oppdater hash for fremtidige sjekker
                     bruker.canvasTokenHash = nyTokenHash;
                     await bruker.save();
 
-                    logger.info({ userId }, "Canvas token identisk (dekryptert match)");
+                    logger.info({ userId }, "Canvas token identisk (dekryptert match, migrert til hash)");
                     return res.json(CanvasTokenResponseSchema.parse({
                         melding: "Token er allerede lagret",
                         success: true,
@@ -235,8 +243,8 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         logger.info({ userId }, "Canvas token lagret for bruker");
         
         // Varm opp cache med nytt token i bakgrunnen
-        warmCanvasCache(cleanToken).catch(() => {
-            // Ignorer feil - cache warming er ikke kritisk
+        warmCanvasCache(cleanToken).catch((err) => {
+            logger.warn({ err, userId }, "Cache warming feilet etter token-lagring (ikke kritisk)");
         });
         
         return res.json(CanvasTokenResponseSchema.parse({
@@ -346,48 +354,76 @@ router.get("/me", autentiserJwt, rateLimitMe, async (req, res) => {
 });
 
 // PUT /preferences (Beskyttet rute)
-// Oppdaterer brukerens Canvas-kontekst preferanser
+// Oppdaterer brukerens preferanser (Canvas-kontekst)
 router.put("/preferences", autentiserJwt, async (req, res) => {
     try {
         const userId = req.user?.id;
         if (!userId) {
             return res.status(401).json({ feil: "Ikke autentisert" });
         }
+
+        // Valider med Zod - importert fra common
         const { canvasContextPreferences } = req.body;
-        if (!canvasContextPreferences) {
-            return res.status(400).json({ feil: "Mangler canvasContextPreferences" });
+        if (canvasContextPreferences === undefined) {
+            return res.status(400).json({ feil: "Ingen preferanser oppgitt" });
         }
-        // Valider at alle felt er booleans
-        const { announcements, courses, assignments, events } = canvasContextPreferences;
-        if (
-            typeof announcements !== "boolean" ||
-            typeof courses !== "boolean" ||
-            typeof assignments !== "boolean" ||
-            typeof events !== "boolean"
-        ) {
-            return res.status(400).json({ feil: "Ugyldig format for preferanser" });
+
+        // Bruk Zod for validering (1:1 med common schema)
+        const validatedPrefs = CanvasContextPreferencesSchema.parse(canvasContextPreferences);
+
+        const oppdatertBruker = await User.findByIdAndUpdate(
+            userId,
+            { canvasContextPreferences: validatedPrefs },
+            { new: true }
+        );
+
+        if (!oppdatertBruker) {
+            return res.status(404).json({ feil: "Bruker ikke funnet" });
         }
-        await User.findByIdAndUpdate(userId, {
-            canvasContextPreferences: { announcements, courses, assignments, events },
-        });
+
         logger.info({ userId }, "Brukerpreferanser oppdatert");
-        return res.json({ melding: "Preferanser oppdatert", canvasContextPreferences: { announcements, courses, assignments, events } });
+
+        return res.json({
+            melding: "Preferanser oppdatert",
+            canvasContextPreferences: oppdatertBruker.canvasContextPreferences,
+        });
     } catch (error) {
+        if (error instanceof ZodError) {
+            return res.status(400).json({ feil: "Ugyldig format for preferanser", detaljer: error.issues });
+        }
         logger.error({ err: error }, "Feil ved oppdatering av preferanser");
         return res.status(500).json({ feil: "Kunne ikke oppdatere preferanser" });
     }
 });
 
 // POST /logout (Beskyttet rute)
-// Logger ut den autentiserte brukeren.
+// Logger ut den autentiserte brukeren og fjerner alle tokens fra NETTLESER.
+// Canvas-token forblir i database (kryptert) - den er knyttet til brukerkontoen.
 router.post("/logout", autentiserJwt, async (req, res) => {
     const userId = req.user?.id;
     if (userId) {
+        // Invalider Canvas-cache ved logout (sikkerhet - data skal ikke være tilgjengelig etter logout)
+        const bruker = await User.findById(userId).select("+canvasApiToken");
+        if (bruker?.canvasApiToken) {
+            try {
+                const token = decrypt(bruker.canvasApiToken);
+                const cachePrefix = crypto.createHash("sha256").update(token).digest("hex").slice(0, 12);
+                invalidateCacheByPattern(`canvas:${cachePrefix}:*`).catch(() => {
+                    // Ignorer feil - cache invalidering er ikke kritisk
+                });
+            } catch {
+                // Ignorer dekrypteringsfeil
+            }
+        }
+
+        // Fjern kun refresh token fra database (invaliderer sesjonen)
+        // Canvas-token beholdes - den er kryptert og knyttet til brukerkontoen
         await User.findByIdAndUpdate(userId, {
             refreshTokenHash: undefined,
             refreshTokenExpiresAt: undefined,
         });
     }
+    // Fjern JWT-cookies fra nettleseren
     fjernAuthCookies(res);
     return res.json(LogoutResponseSchema.parse({ melding: "Logget ut" }));
 });

@@ -5,19 +5,19 @@ import {
   ChatSavePayload,
 } from "common/chat";
 import { fornySesjon } from "../auth/auth-api";
-
+// Representasjon av en lagret samtale
 export interface SavedChat {
   id: string;
   title: string;
   messages: ChatMessage[];
   timestamp: Date;
 }
-
+// Maksimalt antall lagrede samtaler i klienten
 const MAX_CHATS = 50;
 const CHAT_HISTORY_QUERY_KEY = ["chat-history"] as const;
-
+// Utvidet feiltyper for API-kall
 type ApiError = Error & { status?: number; body?: unknown };
-
+// Hjelpefunksjon for å gjøre fetch med JSON-respons og håndtere autentisering
 async function fetchJson<T>(
   input: RequestInfo,
   init?: RequestInit,
@@ -48,14 +48,14 @@ async function fetchJson<T>(
   }
   return data as T;
 }
-
+// Sjekk om error indikerer manglende autentisering
 function erIkkeAutentisert(error: unknown) {
   if (!(error instanceof Error)) return false;
   const status = (error as ApiError).status;
   if (status === 401 || status === 403) return true;
   return /ikke autentisert/i.test(error.message) || /jwt/i.test(error.message) || /token/i.test(error.message);
 }
-
+// Hook for å håndtere chat-historikk
 export function useChatHistory() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
@@ -77,9 +77,9 @@ export function useChatHistory() {
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
   });
-
+  // Tilgjengelige samtaler
   const chats = data ?? [];
-
+  // Lagre en samtale (ny eller oppdatert)
   const saveChat = async (messages: ChatMessage[], chatId?: string) => {
     if (messages.length === 0) return undefined;
     const body = JSON.stringify({ messages } satisfies ChatSavePayload);
@@ -109,9 +109,9 @@ export function useChatHistory() {
       return undefined;
     }
   };
-
+  // Last inn en samtale etter ID
   const loadChat = (id: string) => chats.find((c) => c.id === id);
-
+  // Slett en samtale
   const deleteChat = async (id: string) => {
     try {
       await fetch("/api/ki/chat/history/" + id, { method: "DELETE", credentials: "include" });
@@ -123,7 +123,7 @@ export function useChatHistory() {
       throw error;
     }
   };
-
+// Slett alle samtaler
   const clearAll = async () => {
     if (!confirm("Er du sikker på at du vil slette hele samtalehistorikken?")) return;
     try {

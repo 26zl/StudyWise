@@ -1,33 +1,11 @@
 /*
-* Frontend API for å fetche kalenderdata fra Canvas og TimeEdit.
-* TimeEdit hentes AUTOMATISK basert på Canvas-emnekoder - ingen URL nødvendig!
-* Støtter campus-filtrering (Bø, Drammen, Kongsberg, etc.)
-* Inkluderer støtte for filtrering mellom innleveringer, timeplan og begge.
+* Frontend API for å fetche kalenderdata fra Canvas.
+* Inkluderer støtte for filtrering mellom innleveringer og forelesninger.
 */
 import { useQuery } from "@tanstack/react-query";
 import { CalendarItemsResponseSchema, type CalendarItem } from "common/calendar";
 import { fornySesjon } from "../auth/auth-api";
 import type { Assignment, Course, CourseColor, CalendarFilterType } from "common/calendar-ui";
-
-// USN Campus-typer
-export type CampusId = "bo" | "drammen" | "kongsberg" | "ringerike" | "vestfold" | "porsgrunn";
-
-export interface Campus {
-  id: CampusId;
-  code: string;
-  name: string;
-  aliases: string[];
-}
-
-// Liste over USN-campuser (matcher backend)
-export const USN_CAMPUSES: Campus[] = [
-  { id: "bo", code: "BO", name: "Bo", aliases: ["bo", "boe", "bø"] },
-  { id: "drammen", code: "DR", name: "Drammen", aliases: ["drammen", "dr"] },
-  { id: "kongsberg", code: "KO", name: "Kongsberg", aliases: ["kongsberg", "ko"] },
-  { id: "ringerike", code: "RI", name: "Ringerike", aliases: ["ringerike", "ri", "honefoss", "hønefoss"] },
-  { id: "vestfold", code: "VE", name: "Vestfold", aliases: ["vestfold", "ve", "bakkenteigen", "horten"] },
-  { id: "porsgrunn", code: "PO", name: "Porsgrunn", aliases: ["porsgrunn", "po"] },
-];
 
 // Spesialisert feilklasse for manglende Canvas-token
 export class CanvasTokenMissingError extends Error {
@@ -39,30 +17,46 @@ export class CanvasTokenMissingError extends Error {
 
 // Definer en utvidet palett av farger for kursene - gir hvert emne unik farge
 const COLOR_PALETTE: CourseColor[] = [
-  "blue", "green", "purple", "red", "amber", "cyan", 
+  "blue", "green", "purple", "red", "amber", "cyan",
   "pink", "indigo", "teal", "orange", "lime", "rose",
   "violet", "emerald", "sky", "fuchsia"
 ];
 
-// Funksjon for å hente kalenderdata fra backend (Canvas)
-async function fetchCalendarItems(forsoktRefresh = false) {
-  const res = await fetch("/api/canvas/kalender", {
+// Opsjoner for kalender-henting
+interface FetchCalendarOptions {
+  forceRefresh?: boolean; // Bypass cache og hent ferske data
+  page?: number; // Sidenummer for paginering
+  limit?: number; // Antall items per side
+}
+
+// Funksjon for å hente kalenderdata fra backend (Canvas planner + events)
+// : Støtter force-refresh og paginering
+async function fetchCalendarItems(
+  options: FetchCalendarOptions = {},
+  forsoktRefresh = false
+) {
+  const params = new URLSearchParams();
+  if (options.forceRefresh) params.set("refresh", "true");
+  if (options.page) params.set("page", String(options.page));
+  if (options.limit) params.set("limit", String(options.limit));
+
+  const queryString = params.toString();
+  const url = `/api/canvas/kalender${queryString ? `?${queryString}` : ""}`;
+
+  const res = await fetch(url, {
     credentials: "include",
     cache: "no-store",
   });
-  
   // Håndter 401 (ikke autentisert) - prøv refresh token
   if (res.status === 401 && !forsoktRefresh) {
     await fornySesjon();
-    return fetchCalendarItems(true);
+    return fetchCalendarItems(options, true);
   }
-  
   // Håndter 403 (manglende Canvas-token) - ikke prøv refresh
   if (res.status === 403) {
     const errorBody = await res.json().catch(() => ({}));
     throw new CanvasTokenMissingError(errorBody.melding || errorBody.feil || "Canvas-token mangler");
   }
-  
   if (!res.ok) {
     const errorBody = await res.json().catch(() => ({}));
     throw new Error(errorBody.melding || errorBody.feil || "Kunne ikke hente kalenderdata");
@@ -70,44 +64,20 @@ async function fetchCalendarItems(forsoktRefresh = false) {
   const data = await res.json();
   return CalendarItemsResponseSchema.parse(data);
 }
-
-// Funksjon for å hente timeplan fra TimeEdit AUTOMATISK (basert på Canvas-emnekoder)
-// Støtter campus-filtrering
-async function fetchTimeEditItems(campus?: CampusId, forsoktRefresh = false) {
-  // Bygg URL med campus-parameter hvis satt
-  const params = new URLSearchParams();
-  if (campus) {
-    params.set("campus", campus);
-  }
-  const url = params.toString() ? `/api/timeplan/kalender?${params}` : "/api/timeplan/kalender";
-  
-  const res = await fetch(url, {
-    credentials: "include",
-    cache: "no-store",
-  });
-  
-  if ((res.status === 401 || res.status === 403) && !forsoktRefresh) {
-    await fornySesjon();
-    return fetchTimeEditItems(campus, true);
-  }
-  
-  if (!res.ok) {
-    // Returner tom liste ved feil (ikke kræsj hele kalenderen)
-    const errorBody = await res.json().catch(() => ({}));
-    console.warn("TimeEdit-feil:", errorBody.melding || errorBody.feil);
-    return { items: [], meta: { automatic: true } };
-  }
-  
-  const data = await res.json();
-  return CalendarItemsResponseSchema.parse(data);
+// Regex for å ekstrahere emnekoder - gjenbrukes i mapping-funksjoner
+// Matcher: BOP3000, INF2010, DAT101, etc.
+const COURSE_CODE_REGEX = /([A-ZÆØÅ]{2,5}\d{4,5}[A-Z]?|\d{4,5}[A-Z])/i;
+// Hjelpefunksjon for å ekstrahere emnekode fra en streng
+function extractCourseCode(str: string): string | null {
+  if (!str) return null;
+  const codeMatch = str.match(COURSE_CODE_REGEX);
+  if (codeMatch) return codeMatch[0].toUpperCase();
+  return null;
 }
-
-// Funksjon for å mappe kalenderdata til oppgaver og kurs
-function mapCalendarItems(items: CalendarItem[]): { assignments: Assignment[]; courses: Course[] } {
-  const colorMap = new Map<string, CourseColor>();
-  let colorIndex = 0;
-// Funksjon for å tildele farger til kurs basert på en nøkkel
-  const getColorForKey = (key: string): CourseColor => {
+// Fargekart-helper som returnerer en funksjon for å tildele farger
+function createColorMapper(colorMap: Map<string, CourseColor>, startIndex = 0) {
+  let colorIndex = startIndex;
+  return (key: string): CourseColor => {
     if (!colorMap.has(key)) {
       const color = COLOR_PALETTE[colorIndex % COLOR_PALETTE.length];
       colorMap.set(key, color);
@@ -115,77 +85,62 @@ function mapCalendarItems(items: CalendarItem[]): { assignments: Assignment[]; c
     }
     return colorMap.get(key)!;
   };
+}
+// Funksjon for å mappe kalenderdata til oppgaver og kurs
+function mapCalendarItems(items: CalendarItem[]): { assignments: Assignment[]; courses: Course[] } {
+  const colorMap = new Map<string, CourseColor>();
+  const getColorForKey = createColorMapper(colorMap);
   // Lister for kurs og oppgaver
   const courses: Course[] = [];
   const assignments: Assignment[] = [];
-  
-  // Regex for å ekstrahere emnekoder
-  // Matcher: BOP3000, INF2010, DAT101, etc.
-  const COURSE_CODE_REGEX = /([A-ZÆØÅ]{2,5}\d{4,5}[A-Z]?|\d{4,5}[A-Z])/i;
-  // Matcher UE-format: UE_222_BOP3000_1_2026 -> BOP3000
-  const UE_CODE_REGEX = /UE_\d+_([A-ZÆØÅ]{2,5}\d{4,5}[A-Z]?)_/i;
-  
-  // Hjelpefunksjon for å ekstrahere emnekode fra en streng
-  const extractCourseCode = (str: string): string | null => {
-    if (!str) return null;
-    
-    // Prøv standard emnekode-format først
-    const codeMatch = str.match(COURSE_CODE_REGEX);
-    if (codeMatch) return codeMatch[0].toUpperCase();
-    
-    // Prøv UE-format
-    const ueMatch = str.match(UE_CODE_REGEX);
-    if (ueMatch && ueMatch[1]) return ueMatch[1].toUpperCase();
-    
-    return null;
-  };
-  
   // Behandle hvert kalenderobjekt
   items.forEach((item) => {
     // Prøv å ekstrahere emnekode fra ulike kilder
     let courseCode: string;
-    
+    let courseName: string;
     // Prøv i rekkefølge: course_code, course_name, title
-    const extractedCode = extractCourseCode(item.course_code || "") 
+    const extractedCode = extractCourseCode(item.course_code || "")
       || extractCourseCode(item.course_name || "")
       || extractCourseCode(item.title || "");
-    
     if (extractedCode) {
       courseCode = extractedCode;
-    } else if (item.course_id) {
-      courseCode = `Emne ${item.course_id}`;
+      courseName = item.course_name || extractedCode;
+    } else if (item.course_name) {
+      // Bruk kursnavnet direkte hvis ingen kode ble funnet
+      courseCode = item.course_name;
+      courseName = item.course_name;
+    } else if (item.course_code) {
+      // Bruk course_code som fallback
+      courseCode = item.course_code;
+      courseName = item.course_code;
     } else {
-      // Siste fallback - bruk "Timeplan" for TimeEdit-elementer
-      courseCode = item.source === "timetable" ? "Timeplan" : "Annet";
+      // Siste fallback - ukjent emne
+      courseCode = "Annet";
+      courseName = "Annet";
     }
-    
     const courseKey = item.course_id ? `course-${item.course_id}` : `code-${courseCode}`;
-    
-    // Gi hvert emne sin egen unike farge (også TimeEdit-elementer)
+    // Gi hvert emne sin egen unike farge
     const courseColor = getColorForKey(courseKey);
-    
     // Legg til kurs hvis det ikke allerede finnes
     if (courseCode && !courses.find((c) => c.code === courseCode)) {
       courses.push({
         id: item.course_id ?? undefined,
         code: courseCode,
-        name: item.course_name || courseCode,
+        name: courseName,
         color: courseColor,
       });
     }
     // Hopp over elementer uten forfallsdato
     const dueDate = new Date(item.due_at);
     if (Number.isNaN(dueDate.getTime())) return;
-    
-    // Parse sluttdato for TimeEdit-elementer
+    // Parse sluttdato
     const endDate = item.end_at ? new Date(item.end_at) : undefined;
-    
     // Legg til oppgaven
     assignments.push({
       id: item.id,
       title: item.title,
       courseCode,
-      courseName: item.course_name || courseCode,
+      courseName,
       courseId: item.course_id ?? undefined,
       courseColor,
       dueDate,
@@ -194,110 +149,94 @@ function mapCalendarItems(items: CalendarItem[]): { assignments: Assignment[]; c
       description: item.raw_type,
       source: item.source,
       url: item.html_url ?? null,
-      // TimeEdit-spesifikke felter
       location: item.location ?? undefined,
-      teacher: item.teacher ?? undefined,
-      activityType: item.activity_type ?? undefined,
     });
   });
   return { assignments, courses };
 }
 
+// Hjelpefunksjon for å sjekke om et element er en forelesning/kalenderhendelse
+function isLectureOrEvent(a: Assignment): boolean {
+  // Sjekk source
+  if (a.source === "event" || a.source === "timetable") return true;
+  // Sjekk raw_type (lagret i description) for calendar_events som feilaktig har source=todo
+  if (a.description === "calendar_event" || a.description === "CalendarEvent") return true;
+  return false;
+}
+
 // Filtrer kalender-elementer basert på filtertype
 function filterAssignments(
-  assignments: Assignment[], 
+  assignments: Assignment[],
   filter: CalendarFilterType
 ): Assignment[] {
   if (filter === "all") {
     return assignments;
   }
-  
   if (filter === "assignments") {
-    return assignments.filter(a => a.source !== "timetable");
+    // Vis kun innleveringer - ekskluder alle forelesninger/events
+    return assignments.filter(a => !isLectureOrEvent(a));
   }
-  
   if (filter === "timetable") {
-    return assignments.filter(a => a.source === "timetable");
+    // Vis kun forelesninger/events
+    return assignments.filter(a => isLectureOrEvent(a));
   }
-  
+
   return assignments;
 }
 
 // React Query hook for å bruke kalenderdata i komponenter
 export function useCalendarData(enabled = true) {
-  return useQuery({
+  const query = useQuery({
     queryKey: ["canvas", "calendar"],
     queryFn: async () => {
       const data = await fetchCalendarItems();
-      return mapCalendarItems(data.items);
+      return {
+        ...mapCalendarItems(data.items),
+        meta: data.meta, // Inkluder cache-metadata
+      };
     },
     enabled,
+    staleTime: 30 * 1000, // 30 sekunder før data anses som stale
+    refetchOnWindowFocus: true, // Oppdater når vinduet får fokus
+    gcTime: 5 * 60 * 1000, // Garbage collect etter 5 min inaktivitet
   });
+
+  return query;
 }
 
-// React Query hook for TimeEdit-data (AUTOMATISK - med campus-støtte)
-export function useTimeEditData(enabled = true, campus?: CampusId) {
-  return useQuery({
-    queryKey: ["timeEdit", "calendar", "automatic", campus],
-    queryFn: async () => {
-      const data = await fetchTimeEditItems(campus);
-      return mapCalendarItems(data.items);
-    },
-    enabled,
-    // Ikke feil hvis TimeEdit ikke er tilgjengelig
-    retry: false,
-  });
-}
-
-// React Query hook for kombinert kalender- og TimeEdit-data med filtrering og campus
+// React Query hook for kombinert kalender- og forelesningsdata med filtrering
+// Bruker kun /kalender - ingen ekstra fetch ved filter-bytte
 export function useCombinedCalendarData(
   filter: CalendarFilterType = "all",
-  hasCanvasToken: boolean = true,
-  campus?: CampusId
+  hasCanvasToken: boolean = true
 ) {
-  // Hent Canvas-data hvis ikke kun timeplan
-  const canvasQuery = useCalendarData(hasCanvasToken && filter !== "timetable");
-  
-  // Hent TimeEdit-data automatisk hvis ikke kun innleveringer (med campus-filter)
-  const timeEditQuery = useTimeEditData(hasCanvasToken && filter !== "assignments", campus);
-  
-  // Kombiner data
-  const isLoading = canvasQuery.isLoading || timeEditQuery.isLoading;
-  const isError = canvasQuery.isError && timeEditQuery.isError; // Bare feil hvis begge feiler
-  const error = canvasQuery.error || timeEditQuery.error;
-  
-  // Slå sammen assignments og courses
-  const canvasAssignments = canvasQuery.data?.assignments ?? [];
-  const canvasCourses = canvasQuery.data?.courses ?? [];
-  const timeEditAssignments = timeEditQuery.data?.assignments ?? [];
-  const timeEditCourses = timeEditQuery.data?.courses ?? [];
-  
-  // Kombiner og filtrer
-  const allAssignments = [...canvasAssignments, ...timeEditAssignments];
+  // Hent ALL data fra /kalender (inkluderer både assignments OG events/forelesninger)
+  // Filtreringen skjer client-side - ingen ekstra API-kall ved filter-bytte
+  const canvasQuery = useCalendarData(hasCanvasToken);
+
+  // Alle data kommer fra samme kilde
+  const allAssignments = canvasQuery.data?.assignments ?? [];
+  const allCourses = canvasQuery.data?.courses ?? [];
+
+  // Filtrer client-side basert på valgt filter (ingen ny fetch!)
   const filteredAssignments = filterAssignments(allAssignments, filter);
-  
+
   // Sorter etter dato
   filteredAssignments.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
-  
-  // Kombiner kurs (unngå duplikater)
-  const courseMap = new Map<string, Course>();
-  [...canvasCourses, ...timeEditCourses].forEach((course) => {
-    if (!courseMap.has(course.code)) {
-      courseMap.set(course.code, course);
-    }
-  });
-  const allCourses = Array.from(courseMap.values());
-  
+
   return {
     data: {
       assignments: filteredAssignments,
       courses: allCourses,
     },
-    isLoading,
-    isError,
-    error,
-    // Ekstra info for debugging
-    hasTimeEditData: timeEditAssignments.length > 0,
-    hasCanvasData: canvasAssignments.length > 0,
+    isLoading: canvasQuery.isLoading,
+    isError: canvasQuery.isError,
+    error: canvasQuery.error,
+    hasLecturesData: allAssignments.some(a => isLectureOrEvent(a)),
+    hasCanvasData: allAssignments.length > 0,
+    // Eksponerer refetch for manuell oppdatering
+    refetch: canvasQuery.refetch,
+    // Cache-metadata (fromCache, cacheAge)
+    cacheInfo: canvasQuery.data?.meta,
   };
 }

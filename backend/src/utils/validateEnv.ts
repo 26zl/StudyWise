@@ -96,11 +96,20 @@ export const validateEnv = (): void => {
         manglende.push(`MONGO_URI (må inneholde '/studywise', fikk: ...${mongoUri.slice(-15)})`);
     }
 
-    // Valider REDIS_URL format - må peke til Redis Cloud
+    // Valider REDIS_URL format - må peke til Redis Cloud (sikker hostname-validering)
     const redisUrl = process.env.REDIS_URL;
-    if (redisUrl && !redisUrl.includes("cloud.redislabs.com")) {
-        console.error("\nKRITISK FEIL: REDIS_URL peker ikke mot Redis Cloud! Forventet 'cloud.redislabs.com' i URL.\n");
-        manglende.push("REDIS_URL (må inneholde 'cloud.redislabs.com')");
+    if (redisUrl) {
+        try {
+            const parsedRedisUrl = new URL(redisUrl);
+            // Sikker hostname-validering - må være eksakt match eller subdomain
+            if (!parsedRedisUrl.hostname.endsWith(".cloud.redislabs.com") &&
+                parsedRedisUrl.hostname !== "cloud.redislabs.com") {
+                console.error("\nKRITISK FEIL: REDIS_URL peker ikke mot Redis Cloud! Forventet '*.cloud.redislabs.com' hostname.\n");
+                manglende.push("REDIS_URL (hostname må slutte med '.cloud.redislabs.com')");
+            }
+        } catch {
+            // URL parsing feilet - allerede håndtert av validateUrl() over
+        }
     }
 
     // Valider NODE_ENV er gyldig verdi

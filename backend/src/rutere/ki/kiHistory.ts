@@ -1,11 +1,15 @@
 import { Router } from "express";
 import { z } from "zod";
+import mongoose from "mongoose";
 import { ChatHistory } from "../../database/models/ChatHistory.js";
 import { encrypt, decrypt } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
 import { ChatMessageSchema, ChatSaveSchema, ChatHistoryResponseSchema } from "common/chat";
 
 export const kiHistoryRouter = Router();
+
+// Hjelpefunksjon for å validere MongoDB ObjectId
+const isValidObjectId = (id: string): boolean => mongoose.Types.ObjectId.isValid(id);
 
 // GET /chat/history - hent historikk for innlogget bruker (paginert)
 kiHistoryRouter.get("/chat/history", async (req, res) => {
@@ -21,9 +25,10 @@ kiHistoryRouter.get("/chat/history", async (req, res) => {
       ChatHistory.find({ user: userId }).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       ChatHistory.countDocuments({ user: userId }),
     ]);
-
     const chats = docs.map((doc) => {
-      const messages = JSON.parse(decrypt(doc.encryptedMessages)) as z.infer<typeof ChatMessageSchema>[];
+      // Dekrypter og valider med Zod for å sikre data-integritet
+      const decryptedData = JSON.parse(decrypt(doc.encryptedMessages));
+      const messages = z.array(ChatMessageSchema).parse(decryptedData);
       return {
         id: doc._id.toString(),
         title: doc.title,
@@ -90,6 +95,10 @@ kiHistoryRouter.put("/chat/history/:id", async (req, res) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ feil: "Ikke autentisert" });
     const { id } = req.params;
+    // Valider ObjectId for å unngå CastError
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ feil: "Ugyldig samtale-ID" });
+    }
     const parsed = ChatSaveSchema.parse(req.body);
     const firstUser = parsed.messages.find((m) => m.rolle === "user");
     const title =
@@ -127,6 +136,10 @@ kiHistoryRouter.delete("/chat/history/:id", async (req, res) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ feil: "Ikke autentisert" });
     const { id } = req.params;
+    // Valider ObjectId for å unngå CastError
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ feil: "Ugyldig samtale-ID" });
+    }
     await ChatHistory.deleteOne({ _id: id, user: userId });
     return res.status(204).send();
   } catch (error) {

@@ -3,7 +3,7 @@
   "description": "STUDYWISE. En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas Instructure. Bachelor i IT 2026.",
   "private": true,
   "scripts": {
-    "dev": "pnpm --parallel --filter frontend --filter backend --filter docs dev",
+    "dev": "concurrently -k --raw \"pnpm dev:backend\" \"wait-on tcp:4000 && pnpm dev:frontend\" \"pnpm dev:docs\"",
     "dev:frontend": "pnpm --filter frontend dev",
     "dev:backend": "pnpm --filter backend dev",
     "dev:docs": "pnpm --filter docs dev",
@@ -35,9 +35,11 @@
     "clean:install": "echo Cleaning all... && node -e \"const fs=require('fs');const paths=['backend/node_modules','backend/dist','frontend/node_modules','frontend/.next','common/node_modules','common/dist','docs/node_modules','docs/docs/.vitepress/dist','node_modules','pnpm-lock.yaml'];for(const p of paths){fs.rmSync(p,{recursive:true,force:true});}\" && echo Installing dependencies... && pnpm install && echo Building project... && pnpm run build"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "kill-port": "^2.0.1",
     "markdownlint-cli": "^0.47.0",
-    "rimraf": "^6.1.2"
+    "rimraf": "^6.1.2",
+    "wait-on": "^9.0.3"
   },
   "pnpm": {
     "overrides": {
