@@ -267,4 +267,4 @@ før du starter `pnpm dev` på nytt.
 
 ## Lisens
 
-Se LICENSE-fil for detaljer.
+Se LICENSE-fil for detaljer
