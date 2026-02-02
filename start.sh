@@ -115,11 +115,34 @@ fi
 
 log "Starter backend..."
 
-# Start backend UTEN pipe - direkte til stdout
-PORT="${BACKEND_PORT}" node /app/backend/dist/index.js &
+# Debug: Vis hvilke env vars som er satt (uten verdier for sikkerhet)
+log "Env vars satt: $(env | grep -E '^(MONGO_URI|JWT_|ENCRYPTION|REDIS|HUGGING|NODE_ENV|WEB_ORIGIN|CANVAS)' | cut -d= -f1 | tr '\n' ' ')"
+
+# Start backend med eksplisitt PORT
+# Output til fil for å fange crash-meldinger
+BACKEND_LOG="/tmp/backend.log"
+PORT="${BACKEND_PORT}" node /app/backend/dist/index.js > "$BACKEND_LOG" 2>&1 &
 BACKEND_PID=$!
 
 log "Backend PID: ${BACKEND_PID}"
+
+# Vent og sjekk om backend fortsatt kjører
+sleep 3
+if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+  log_error "Backend krasjet! Exit status og output:"
+  wait "$BACKEND_PID" 2>/dev/null
+  EXIT_CODE=$?
+  log_error "Exit code: $EXIT_CODE"
+  log_error "Backend log output:"
+  cat "$BACKEND_LOG" 2>/dev/null || log_error "(ingen output)"
+else
+  # Backend kjører, vis eventuelle tidlige meldinger
+  log "Backend kjører. Tidlig output:"
+  head -20 "$BACKEND_LOG" 2>/dev/null || true
+fi
+
+# Fortsett å streame backend logs til stdout
+tail -f "$BACKEND_LOG" 2>/dev/null &
 
 # -----------------------------------------------------------------------------
 # 3. VENT PÅ BACKEND HEALTH
