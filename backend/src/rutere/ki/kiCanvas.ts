@@ -9,7 +9,6 @@ import {
   fetchAllAnnouncements,
   fetchTodo,
   fetchUpcomingEvents,
-  fetchPlannerItems,
   fetchAssignments,
   fetchModules,
   fetchPages,
@@ -39,13 +38,12 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
 
   try {
     // Hent hoveddata parallelt
-    const [emnerResult, kunngjoeringerResult, todoResult, eventsResult, plannerResult] =
+    const [emnerResult, kunngjoeringerResult, todoResult, eventsResult] =
       await Promise.allSettled([
         fetchCourses(canvasToken),
         fetchAllAnnouncements(canvasToken),
         fetchTodo(canvasToken),
         fetchUpcomingEvents(canvasToken),
-        fetchPlannerItems(canvasToken, {}),
       ]);
 
     // Behandle resultater, ignorer feil
@@ -53,13 +51,11 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
     const kunngjoeringer = kunngjoeringerResult.status === "fulfilled" ? kunngjoeringerResult.value.data : [];
     const todos = todoResult.status === "fulfilled" ? todoResult.value.data : [];
     const events = eventsResult.status === "fulfilled" ? eventsResult.value.data : [];
-    const planner = plannerResult.status === "fulfilled" ? plannerResult.value.data : [];
 
     // Konfigurasjon for hvor mye innhold som hentes
     const MAX_ANNOUNCEMENTS = 15;
     const MAX_TODOS = 15;
     const MAX_EVENTS = 15;
-    const MAX_PLANNER = 15;
     const MAX_ASSIGNMENTS_PER_COURSE = 15;
     const MAX_MODULES_PER_COURSE = 10;
     const MAX_PAGES_PER_COURSE = 10;
@@ -161,6 +157,33 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
         .trim();
     };
 
+    // Hjelpefunksjon for konsistent datoformatering med norsk tidssone
+    const formaterDato = (isoString: string | null | undefined): string => {
+      if (!isoString) return "";
+      const d = new Date(isoString);
+      return d.toLocaleDateString("no-NO", { timeZone: "Europe/Oslo" });
+    };
+
+    const formaterDatoMedTid = (isoString: string | null | undefined): string => {
+      if (!isoString) return "";
+      const d = new Date(isoString);
+      const dato = d.toLocaleDateString("no-NO", { timeZone: "Europe/Oslo" });
+      const tid = d.toLocaleTimeString("no-NO", { timeZone: "Europe/Oslo", hour: "2-digit", minute: "2-digit" });
+      return `${dato} kl. ${tid}`;
+    };
+
+    // Beregn dager igjen fra midnatt til midnatt (norsk tid)
+    const beregnDagerIgjen = (isoString: string | null | undefined): number | null => {
+      if (!isoString) return null;
+      const frist = new Date(isoString);
+      const now = new Date();
+      // Konverter begge til midnatt i norsk tid for riktig sammenligning
+      const fristDato = new Date(frist.toLocaleDateString("en-CA", { timeZone: "Europe/Oslo" }));
+      const idagDato = new Date(now.toLocaleDateString("en-CA", { timeZone: "Europe/Oslo" }));
+      const diffMs = fristDato.getTime() - idagDato.getTime();
+      return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    };
+
     // Bygg kontekst-tekst
     const deler: string[] = ["[CANVAS-DATA START]"];
 
@@ -203,7 +226,7 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
     if (kunngjoeringer.length > 0) {
       deler.push("\nKUNNGJØRINGER:");
       kunngjoeringer.slice(0, MAX_ANNOUNCEMENTS).forEach((k) => {
-        const dato = k.posted_at ? new Date(k.posted_at).toLocaleDateString("no-NO") : "";
+        const dato = formaterDato(k.posted_at);
         deler.push(`\n[${k.title}]${dato ? ` (${dato})` : ""}`);
         if (k.message) {
           const content = stripHtml(k.message).substring(0, 500);
@@ -218,11 +241,22 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
       todos.slice(0, MAX_TODOS).forEach((t) => {
         if (t.assignment) {
           const fristStr = t.assignment.due_at;
-          const frist = fristStr ? new Date(fristStr) : null;
-          const dagerIgjen = frist ? Math.ceil((frist.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+          const fristFormatert = formaterDatoMedTid(fristStr);
+          const dagerIgjen = beregnDagerIgjen(fristStr);
+          let dagerTekst = "";
+          if (dagerIgjen !== null) {
+            if (dagerIgjen < 0) {
+              dagerTekst = ` (${Math.abs(dagerIgjen)} dager siden - FORFALT)`;
+            } else if (dagerIgjen === 0) {
+              dagerTekst = " (I DAG!)";
+            } else if (dagerIgjen === 1) {
+              dagerTekst = " (I MORGEN!)";
+            } else {
+              dagerTekst = ` (${dagerIgjen} dager igjen)`;
+            }
+          }
           deler.push(
-            `- ${t.assignment.name}${frist ? ` - Frist: ${frist.toLocaleDateString("no-NO")}${dagerIgjen !== null ? ` (${dagerIgjen} dager)` : ""}` : ""
-            }`
+            `- ${t.assignment.name}${fristFormatert ? ` - Frist: ${fristFormatert}${dagerTekst}` : ""}`
           );
         }
       });
@@ -232,25 +266,9 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
     if (events.length > 0) {
       deler.push("\nKOMMENDE HENDELSER:");
       events.slice(0, MAX_EVENTS).forEach((e) => {
-        const start = e.start_at ? new Date(e.start_at).toLocaleDateString("no-NO") : "";
+        const start = formaterDatoMedTid(e.start_at);
         const navn = e.title || e.context_code || "Hendelse";
         deler.push(`- ${navn}${start ? ` (${start})` : ""}`);
-      });
-    }
-    
-    // Planlegger
-    if (planner.length > 0) {
-      deler.push("\nPLANLEGGER:");
-      planner.slice(0, MAX_PLANNER).forEach((p) => {
-        const start = p.plannable_date
-          ? new Date(p.plannable_date).toLocaleDateString("no-NO")
-          : p.plannable?.due_at
-            ? new Date(p.plannable.due_at).toLocaleDateString("no-NO")
-            : "";
-        const courseName = p.course_id ? emner.find((c) => c.id === p.course_id)?.name : undefined;
-        const navn = p.plannable?.title || p.plannable_type || "Item";
-        const prefix = courseName ? `${courseName}: ` : "";
-        deler.push(`- ${prefix}${navn}${start ? ` (${start})` : ""}`);
       });
     }
     
@@ -262,7 +280,7 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
         if (assignments.length > 0) {
           deler.push(`\n[${courseName}]`);
           assignments.slice(0, MAX_ASSIGNMENTS_PER_COURSE).forEach((a) => {
-            const due = a.due_at ? new Date(a.due_at).toLocaleDateString("no-NO") : "";
+            const due = formaterDatoMedTid(a.due_at);
             const points = a.points_possible ? ` [${a.points_possible} poeng]` : "";
             deler.push(`- ${a.name}${due ? ` (frist ${due})` : ""}${points}`);
           });
@@ -370,7 +388,6 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
         kunngjoeringerCount: kunngjoeringer.length,
         todosCount: todos.length,
         eventsCount: events.length,
-        plannerCount: planner.length,
         modulesCount: totalModules,
         pagesCount: totalPages,
         frontPagesCount: totalFrontPages,

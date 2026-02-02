@@ -52,7 +52,8 @@ export async function fetchUserProfile(canvasToken?: string | null) {
 }
 
 // Hent aktive kurs for brukeren
-// Inkluderer alle kurs brukeren er tilknyttet (uten filtrering på state)
+// Henter kun aktive kurs brukeren er meldt opp i
+// enrollment_state=active filtrerer ut fullførte/avsluttede emner
 // Inkluderer også enrollments for å få section_id (trengs for calendar_events)
 export async function fetchCourses(canvasToken?: string | null): Promise<
   CanvasResponseWithMeta<CanvasCourse[]>
@@ -62,19 +63,15 @@ export async function fetchCourses(canvasToken?: string | null): Promise<
     token,
     queryParams: {
       per_page: 100,
+      enrollment_state: "active", // Kun kurs med aktiv påmelding
       "include[]": "total_students", // Trigger full enrollment data inkl. section
     },
     cacheTtl: CACHE_TTL.COURSES,
   });
   const allCourses = z.array(CanvasCourseSchema).parse(response.data);
-  // Logg alle hentede kurs for debugging
-  logger.info({
-    totalCourses: allCourses.length,
-    courseNames: allCourses.map(c => ({ name: c.name, code: c.course_code, state: c.workflow_state }))
-  }, "Hentet alle kurs fra Canvas");
-  // Filtrer ut kun slettede kurs
+  // Filtrer ut slettede og upubliserte kurs
   const validCourses = allCourses.filter(
-    (course) => course.workflow_state !== "deleted"
+    (course) => course.workflow_state === "available"
   );
   return {
     data: validCourses,
