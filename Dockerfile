@@ -25,7 +25,8 @@ COPY common/ common/
 COPY backend/ backend/
 COPY frontend/ frontend/
 
-# Bygg alt
+# Bygg alt (CI=true hopper over miljøvalidering i prebuild)
+ENV CI=true
 RUN pnpm --filter common build
 RUN pnpm --filter backend build
 RUN pnpm --filter frontend build
