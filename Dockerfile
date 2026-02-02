@@ -2,12 +2,12 @@
 # Bygger både frontend og backend i én container
 # Cloud Run kjører denne på PORT miljøvariabelen
 
-FROM node:20-alpine3.19 AS base
+FROM node:20-alpine AS base
 
-# Installer wget for health checks i start.sh
+# Installer wget for health checks og pnpm via npm (unngår corepack signatur-problemer)
 RUN apk update && apk upgrade && \
     apk add --no-cache wget && \
-    corepack enable && corepack prepare pnpm@10.28.2 --activate
+    npm install -g pnpm@10.28.2
 
 WORKDIR /app
 
@@ -31,12 +31,12 @@ RUN pnpm --filter backend build
 RUN pnpm --filter frontend build
 
 # Production stage
-FROM node:20-alpine3.19 AS production
+FROM node:20-alpine AS production
 
-# Installer wget for health checks i start.sh
+# Installer wget for health checks og pnpm via npm (unngår corepack signatur-problemer)
 RUN apk update && apk upgrade && \
     apk add --no-cache wget && \
-    corepack enable && corepack prepare pnpm@10.28.2 --activate
+    npm install -g pnpm@10.28.2
 
 WORKDIR /app
 
