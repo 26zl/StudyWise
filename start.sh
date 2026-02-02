@@ -1,6 +1,6 @@
 #!/bin/sh
 # =============================================================================
-# start.sh - Cloud Run optimalisert oppstart
+# start.sh - Cloud Run optimalisert oppstart (robust versjon)
 # =============================================================================
 #
 # KRITISK FOR CLOUD RUN:
@@ -30,45 +30,15 @@ FRONTEND_PID=""
 BACKEND_PID=""
 
 # =============================================================================
-# LOGGING
+# LOGGING (Cloud Run fanger stdout/stderr automatisk)
 # =============================================================================
 
 log() {
-  echo "[start.sh] $(date '+%Y-%m-%d %H:%M:%S') $1"
+  echo "[start.sh] $(date '+%H:%M:%S') $1"
 }
 
 log_error() {
-  echo "[start.sh] $(date '+%Y-%m-%d %H:%M:%S') ERROR: $1" >&2
-}
-
-# =============================================================================
-# DEBUG INFO (fjern etter deploy fungerer)
-# =============================================================================
-
-debug_info() {
-  log "=== DEBUG INFO ==="
-  log "PORT env: ${PORT:-not set}"
-  log "FRONTEND_PORT: ${FRONTEND_PORT}"
-  log "FRONTEND_HOST: ${FRONTEND_HOST}"
-  log "NODE_ENV: ${NODE_ENV:-not set}"
-  log "PWD: $(pwd)"
-  log "--- Fil-struktur ---"
-  ls -la /app/ 2>/dev/null || log "Kunne ikke liste /app/"
-  log "--- server.js sjekk ---"
-  if [ -f /app/frontend/server.js ]; then
-    log "server.js FINNES på /app/frontend/server.js"
-  else
-    log_error "server.js MANGLER på /app/frontend/server.js!"
-    log "Søker etter server.js..."
-    find /app -name "server.js" 2>/dev/null | head -5 || true
-  fi
-  log "--- backend dist sjekk ---"
-  if [ -f /app/backend/dist/index.js ]; then
-    log "backend/dist/index.js FINNES"
-  else
-    log_error "backend/dist/index.js MANGLER!"
-  fi
-  log "=== END DEBUG ==="
+  echo "[start.sh] $(date '+%H:%M:%S') ERROR: $1" >&2
 }
 
 # =============================================================================
@@ -78,7 +48,6 @@ debug_info() {
 cleanup() {
   log "Shutdown signal mottatt..."
 
-  # Stop prosesser
   for pid in $FRONTEND_PID $BACKEND_PID; do
     if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
       log "Stopper PID $pid..."
@@ -86,9 +55,8 @@ cleanup() {
     fi
   done
 
-  sleep 2
+  sleep 1
 
-  # Force kill
   for pid in $FRONTEND_PID $BACKEND_PID; do
     if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
       kill -9 "$pid" 2>/dev/null || true
@@ -96,85 +64,77 @@ cleanup() {
   done
 
   log "Cleanup ferdig."
+  exit 0
 }
 
-trap cleanup INT TERM EXIT
+trap cleanup INT TERM
 
 # =============================================================================
-# MAIN - FRONTEND FØRST FOR RASK PORT BINDING
+# MAIN
 # =============================================================================
 
 log "========================================"
 log "StudyWise Cloud Run Startup"
+log "Frontend: ${FRONTEND_HOST}:${FRONTEND_PORT}"
+log "Backend:  ${BACKEND_HOST}:${BACKEND_PORT}"
 log "========================================"
 
-# Kjør debug info
-debug_info
-
 # -----------------------------------------------------------------------------
-# 1. START FRONTEND FØRST (Cloud Run startup probe trenger 8080 ASAP)
+# 1. START FRONTEND (Cloud Run trenger port binding ASAP)
 # -----------------------------------------------------------------------------
-
-log "STEG 1: Starter frontend på ${FRONTEND_HOST}:${FRONTEND_PORT}..."
 
 if [ ! -f /app/frontend/server.js ]; then
   log_error "FATAL: /app/frontend/server.js finnes ikke!"
-  log_error "Next.js standalone build mangler. Sjekk Dockerfile COPY steg."
   exit 1
 fi
 
-# Start frontend - HOSTNAME og PORT er påkrevd for Next.js standalone
-# Monorepo standalone output: /app/frontend/server.js (ikke /app/server.js)
-HOSTNAME="${FRONTEND_HOST}" PORT="${FRONTEND_PORT}" node /app/frontend/server.js 2>&1 | sed -u 's/^/[frontend] /' &
+log "Starter frontend..."
+
+# Start frontend UTEN pipe - direkte til stdout
+HOSTNAME="${FRONTEND_HOST}" PORT="${FRONTEND_PORT}" node /app/frontend/server.js &
 FRONTEND_PID=$!
 
-log "Frontend startet (PID=${FRONTEND_PID})"
+log "Frontend PID: ${FRONTEND_PID}"
 
-# Gi frontend litt tid til å binde porten
-sleep 2
+# Kort pause for port-binding
+sleep 1
 
-# Verifiser at frontend kjører
 if ! kill -0 "$FRONTEND_PID" 2>/dev/null; then
-  log_error "Frontend krasjet umiddelbart!"
+  log_error "Frontend krasjet ved oppstart!"
   exit 1
 fi
 
-log "Frontend kjører, port ${FRONTEND_PORT} skal nå være tilgjengelig"
-
 # -----------------------------------------------------------------------------
-# 2. START BACKEND I BAKGRUNNEN
+# 2. START BACKEND
 # -----------------------------------------------------------------------------
-
-log "STEG 2: Starter backend på ${BACKEND_HOST}:${BACKEND_PORT}..."
 
 if [ ! -f /app/backend/dist/index.js ]; then
   log_error "FATAL: /app/backend/dist/index.js finnes ikke!"
   exit 1
 fi
 
-# Start backend med PORT=4000 (overstyrer Cloud Run sin PORT=8080)
-PORT="${BACKEND_PORT}" node /app/backend/dist/index.js 2>&1 | sed -u 's/^/[backend] /' &
+log "Starter backend..."
+
+# Start backend UTEN pipe - direkte til stdout
+PORT="${BACKEND_PORT}" node /app/backend/dist/index.js &
 BACKEND_PID=$!
 
-log "Backend startet (PID=${BACKEND_PID})"
+log "Backend PID: ${BACKEND_PID}"
 
 # -----------------------------------------------------------------------------
-# 3. VENT PÅ BACKEND HEALTH (ikke-blokkerende for Cloud Run probe)
+# 3. VENT PÅ BACKEND HEALTH
 # -----------------------------------------------------------------------------
 
-log "STEG 3: Venter på backend health check (i bakgrunnen)..."
-
-# Vent maks 30 sekunder på backend (ikke-kritisk for startup probe)
+log "Venter på backend health..."
 i=0
 while [ "$i" -lt 30 ]; do
   if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
     log_error "Backend krasjet under oppstart!"
-    # Ikke exit - la frontend fortsette å kjøre slik at Cloud Run probe passerer
     break
   fi
 
   if wget -q -O /dev/null --timeout=2 "http://${BACKEND_HOST}:${BACKEND_PORT}/health" 2>/dev/null; then
-    log "Backend health OK etter ${i}s"
+    log "Backend klar etter ${i}s"
     break
   fi
 
@@ -183,47 +143,21 @@ while [ "$i" -lt 30 ]; do
 done
 
 if [ "$i" -ge 30 ]; then
-  log_error "Backend health timeout (30s) - men frontend kjører fortsatt"
+  log_error "Backend health timeout"
 fi
 
 # -----------------------------------------------------------------------------
-# 4. BEKREFT STATUS
+# 4. KLAR - OVERVÅK
 # -----------------------------------------------------------------------------
 
 log "========================================"
-log "STARTUP FULLFØRT"
-log "========================================"
-log "Frontend: ${FRONTEND_HOST}:${FRONTEND_PORT} (PID=${FRONTEND_PID})"
-log "Backend:  ${BACKEND_HOST}:${BACKEND_PORT} (PID=${BACKEND_PID})"
+log "OPPSTART FULLFØRT"
 log "========================================"
 
-# Vis lyttende porter (debug)
-if command -v netstat >/dev/null 2>&1; then
-  log "Lyttende porter:"
-  netstat -tlnp 2>/dev/null | grep -E ":(${FRONTEND_PORT}|${BACKEND_PORT})" || log "(netstat fant ingen)"
-elif command -v ss >/dev/null 2>&1; then
-  log "Lyttende porter:"
-  ss -tlnp 2>/dev/null | grep -E ":(${FRONTEND_PORT}|${BACKEND_PORT})" || log "(ss fant ingen)"
-fi
+# Hold containeren i live ved å vente på frontend
+# Hvis frontend dør, exit med feil så Cloud Run restarter
+wait "$FRONTEND_PID"
+EXIT_CODE=$?
 
-# -----------------------------------------------------------------------------
-# 5. OVERVÅK PROSESSER
-# -----------------------------------------------------------------------------
-
-log "Overvåker prosesser..."
-
-while true; do
-  # Sjekk frontend (kritisk)
-  if ! kill -0 "$FRONTEND_PID" 2>/dev/null; then
-    log_error "Frontend døde! Container må restarte."
-    exit 1
-  fi
-
-  # Sjekk backend (viktig men ikke kritisk for Cloud Run probe)
-  if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
-    log_error "Backend døde! API-kall vil feile."
-    # Ikke exit - la Cloud Run håndtere restart hvis nødvendig
-  fi
-
-  sleep 10
-done
+log_error "Frontend avsluttet med kode $EXIT_CODE"
+exit $EXIT_CODE
