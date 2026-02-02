@@ -24,7 +24,7 @@ export async function hasTokenServer(): Promise<boolean> {
  * Bruker retry-logikk for å håndtere at backend kanskje ikke er klar
  */
 export async function getUserServer(): Promise<MeResponse | null> {
-  const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+  const apiUrl = process.env.INTERNAL_API_URL || "http://localhost:4000";
   const cookieStore = await cookies();
   
   // Hent token fra cookies

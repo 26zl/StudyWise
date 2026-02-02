@@ -1,56 +1,25 @@
 /*
  * Miljøvariabel-validering for frontend
- * Validerer at alle påkrevde miljøvariabler er satt ved oppstart.
- * Kjøres ved build-time og runtime for å sikre korrekt konfigurasjon.
+ *
+ * Frontend bruker relative paths (/api/...) som Next.js rewriter til backend.
+ * Server-side kode bruker INTERNAL_API_URL (settes i Docker/Cloud Run).
+ * Lokal utvikling trenger ingen env-variabler - default er localhost:4000.
  */
-
-// Definerer forventede miljøvariabler
-interface FrontendEnvConfig {
-    NEXT_PUBLIC_API_URL: string;
-}
-
-// Alle påkrevde miljøvariabler
-const requiredEnvVars: (keyof FrontendEnvConfig)[] = [
-    "NEXT_PUBLIC_API_URL",
-];
 
 /**
- * Validerer at alle påkrevde miljøvariabler er satt.
- * Kaster Error hvis noe mangler, som stopper build/start.
+ * Validerer frontend miljøvariabler.
+ * Foreløpig ingen påkrevde variabler siden vi bruker Next.js rewrites.
  */
 export function validateFrontendEnv(): void {
-    const manglende: string[] = [];
-
-    // Sjekk påkrevde variabler
-    for (const key of requiredEnvVars) {
-        if (!process.env[key]) {
-            manglende.push(key);
-        }
+    // Hopp over i CI-miljø
+    if (process.env.CI === "true") {
+        console.log("[validateEnv] CI-miljø oppdaget, hopper over miljøvalidering");
+        return;
     }
 
-    // Valider at NEXT_PUBLIC_API_URL er en gyldig URL
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-    if (apiUrl) {
-        try {
-            new URL(apiUrl);
-        } catch {
-            manglende.push(`NEXT_PUBLIC_API_URL (må være en gyldig URL, fikk: ${apiUrl})`);
-        }
+    // Informativ logging i development
+    if (process.env.NODE_ENV === "development") {
+        const apiUrl = process.env.INTERNAL_API_URL || "http://localhost:4000";
+        console.log(`[validateEnv] API URL: ${apiUrl}`);
     }
-
-    // Kast feil hvis påkrevde variabler mangler
-    if (manglende.length > 0) {
-        const errorMessage = `\n[KRITISK FEIL] Påkrevde miljøvariabler mangler - frontend kan ikke starte:\n  - ${manglende.join("\n  - ")}\n\nSjekk at .env filen inneholder alle nødvendige variabler.`;
-        console.error(errorMessage);
-        throw new Error(errorMessage);
-    }
-
-    console.log("[validateEnv] Alle påkrevde frontend-miljøvariabler er validert");
-}
-
-// Eksporter også en versjon som kan brukes i klient-komponenter
-export function getValidatedEnv() {
-    return {
-        apiUrl: process.env.NEXT_PUBLIC_API_URL!,
-    };
 }

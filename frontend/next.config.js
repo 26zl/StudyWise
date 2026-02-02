@@ -43,18 +43,11 @@ const nextConfig = {
     ];
   },
   async rewrites() {
-    // Setter internal api url for backend Docker som første prioritet, ellers bruk public URL
-    let apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL;
+    // INTERNAL_API_URL brukes i Docker/Cloud Run, ellers localhost for lokal utvikling
+    const apiUrl = process.env.INTERNAL_API_URL || "http://localhost:4000";
 
-    // I CI-miljø (Docker build) bruker vi en placeholder - den virkelige URL-en
-    // settes via miljøvariabler når containeren starter
-    if (!apiUrl) {
-      if (process.env.CI === "true") {
-        console.log("[next.config] CI-miljø oppdaget, bruker placeholder API URL for build");
-        apiUrl = "http://backend:4000";
-      } else {
-        throw new Error("API URL er ikke konfigurert, sjekk INTERNAL_API_URL i docker-compose.dev eller NEXT_PUBLIC_API_URL i .env filen.");
-      }
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[next.config] API rewrites peker til: ${apiUrl}`);
     }
 
     return [
