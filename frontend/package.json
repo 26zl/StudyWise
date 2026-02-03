@@ -19,7 +19,7 @@
     "clsx": "^2.1.1",
     "common": "workspace:*",
     "date-fns": "^4.1.0",
-    "html-react-parser": "^5.2.15",
+    "html-react-parser": "^5.2.16",
     "isomorphic-dompurify": "^2.35.0",
     "jsdom": "^27.4.0",
     "lucide-react": "^0.563.0",

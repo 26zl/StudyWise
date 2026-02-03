@@ -49,6 +49,23 @@ process.on("uncaughtException", (error) => {
 // Trust proxy for korrekt IP-håndtering bak proxyer (f.eks. ved bruk av Heroku, Vercel, eller Nginx)
 app.set("trust proxy", 1);
 
+// Host header validering i produksjon - blokkerer direkte tilgang via render subdomain
+if (isProd) {
+  const tillattHost = process.env.API_HOST; // f.eks. "api.studwize.page"
+  if (tillattHost) {
+    app.use((req, res, next) => {
+      const host = req.get("host");
+      // Tillat health checks fra Render (ingen host header eller intern IP)
+      if (req.path === "/health") return next();
+      if (host && !host.includes(tillattHost)) {
+        logger.warn({ host, path: req.path }, "Blokkert forespørsel fra ugyldig host");
+        return res.status(403).json({ feil: "Forbidden" });
+      }
+      next();
+    });
+  }
+}
+
 // Sikkerhets-headere via Helmet
 // I produksjon: Full CSP aktivert (Swagger er deaktivert)
 // I development: CSP deaktivert for Swagger UI

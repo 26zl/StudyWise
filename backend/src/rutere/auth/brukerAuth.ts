@@ -37,7 +37,7 @@ import {
     JWT_REFRESH_UTLOPER,
     JWT_REFRESH_MS,
 } from "../../middleware/auth.js";
-import { rateLimitToken, rateLimitAuth, rateLimitMe } from "../../middleware/rate-limit.js";
+import { rateLimitToken, rateLimitAuth, rateLimitMe, rateLimitRefresh } from "../../middleware/rate-limit.js";
 import { noCache } from "../../middleware/no-cache.js";
 
 const router = Router();
@@ -263,7 +263,7 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
 
 // POST /refresh (forny tilgangstoken)
 // Fornyer tilgangstoken ved hjelp av et gyldig refresh-token.
-router.post("/refresh", async (req, res) => {
+router.post("/refresh", rateLimitRefresh, async (req, res) => {
     try {
         const refreshToken = hentCookieVerdi(req, JWT_REFRESH_COOKIE_NAVN);
         if (!refreshToken) {
