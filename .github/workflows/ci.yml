@@ -46,3 +46,10 @@ jobs:
         run: pnpm build
         env:
           NEXT_PUBLIC_API_URL: "http://localhost:4000"
+
+      # Notify Vercel about check status
+      - name: Notify Vercel
+        if: always()
+        uses: vercel/repository-dispatch/actions/status@v1
+        with:
+          name: CI

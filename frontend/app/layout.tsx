@@ -12,6 +12,7 @@ import { ThemeProvider } from "./components/theme-provider";
 import { Toaster } from "./components/Toaster";
 import { getUserServer } from "./auth/auth-server";
 import { validateFrontendEnv } from "./lib/validateEnv";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 // Valider miljøvariabler ved oppstart (server-side)
 validateFrontendEnv();
@@ -55,6 +56,7 @@ export default async function RootLayout({
               </main>
             </div>
             <Toaster />
+            <SpeedInsights />
           </Providers>
         </ThemeProvider>
       </body>
