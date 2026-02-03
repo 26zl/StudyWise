@@ -2,6 +2,10 @@
 
 STUDYWISE - En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas Instructure. Bachelor i IT 2026.
 
+Produksjonsnettside - <https://www.studwize.page>
+
+> **Deploy:** Backend kjører hos Render, frontend hos Vercel. Cloudflare brukes for ekstra sikkerhet og ytelse. Dockerfile i root brukes for produksjonsbygg og deploy.
+
 **Utvikling?** Les [CONTRIBUTING.md](./CONTRIBUTING.md) for detaljert guide om hvordan du skal kode og utvikle dette prosjektet.
 
 ## Teknologi stack
@@ -32,17 +36,17 @@ git clone <repo-url>
 cd StudyWise
 ```
 
-2. **Installer dependencies**:
+1. **Installer dependencies**:
 
 ```bash
 pnpm install
 ```
 
-3. **Konfigurer miljøvariabler**:
+1. **Konfigurer miljøvariabler**:
 
 Opprett `backend/.env` (se `backend/.env.example`).
 
-4. **Bygg prosjektet**:
+1. **Bygg prosjektet**:
 
 ```bash
 pnpm build
@@ -67,8 +71,9 @@ pnpm --filter backend add <pakkenavn>
 pnpm --filter common add <pakkenavn>
 
 # Vedlikehold
-pnpm clean:install    # Full reinstall
+pnpm run clean:install    # Full reinstall
 pnpm kill:dev         # Stopp alle Node prosesser (Windows)
+pnpm run update       # Oppdater alle pakker
 ```
 
 ## Utviklingsservere
@@ -80,15 +85,6 @@ pnpm kill:dev         # Stopp alle Node prosesser (Windows)
 | Swagger UI   | <http://localhost:4000/api-docs> |
 | Health Check | <http://localhost:4000/health>   |
 
-## Docker (alternativ kjøring)
-
-```bash
-# Utvikling
-docker-compose -f docker-compose.dev.yml up --build
-
-# Stopp
-docker-compose -f docker-compose.dev.yml down
-```
 
 ## API Dokumentasjon
 
@@ -114,7 +110,7 @@ Backend har integrert Swagger UI: <http://localhost:4000/api-docs>
 - **Logging**: Bruk `pino` logger i backend, aldri `console.log`
 - **Validering**: Zod på alle grensesnitt
 - **Styling**: Tailwind CSS, mobile-first, dark mode støtte
-- **Navngivning**: Norske navn for ruter/variabler, engelske filnavn
+- **Navngivning**: Norske/Engelske navn for ruter/variabler, engelske filnavn
 
 ## Feilsøking
 
@@ -129,11 +125,6 @@ pnpm build:common  # Eller bare: pnpm build
 ```bash
 pnpm kill:dev
 ```
-
-### MongoDB tilkoblingsfeil
-
-- Sjekk at `MONGO_URI` i `.env` er riktig
-- Verifiser at IP er hvitelistet i MongoDB Atlas
 
 ## Lisens
 
