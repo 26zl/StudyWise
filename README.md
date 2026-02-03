@@ -1,31 +1,27 @@
 # StudyWise - Bachelor 2026
 
-STUDYWISE – En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas Instructure. Bachelor i IT 2026.
+STUDYWISE - En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas Instructure. Bachelor i IT 2026.
 
-**Utvikling?** Les [CONTRIBUTING.md](./CONTRIBUTING.md) for detaljert guide om
-hvordan du skal kode og utvikle dette prosjektet.
+**Utvikling?** Les [CONTRIBUTING.md](./CONTRIBUTING.md) for detaljert guide om hvordan du skal kode og utvikle dette prosjektet.
 
 ## Teknologi stack
 
-- **Frontend**: Next.js 16 + TypeScript + Tailwind CSS + React Query +
-  TanStack + Zod + Hookform + Zustand
-- **Backend**: Express 5 + TypeScript + Redis + Pino + Helmet + Zod + Hugging Face
+- **Frontend**: Next.js 16 + TypeScript + Tailwind CSS v4 + React Query + Zustand + Zod + React Hook Form
+- **Backend**: Express 5 + TypeScript + Redis + Pino + Helmet + Zod + HuggingFace Inference
 - **Database**: MongoDB (Atlas/Lokal) + Redis (Cloud/Lokal)
-- **Common**: Zod schemas (delt mellom frontend og backend)
+- **Common**: Delte Zod schemas og feiltyper (frontend + backend)
 - **Pakkehåndtering**: pnpm workspace (monorepo)
-- **Dokumentasjon**: VitePress
-- **Autentisering**: JWT
+- **Autentisering**: JWT (access + refresh tokens)
 
 ## Kom i gang
 
 ### Forutsetninger
 
-- Node.js 18+ installert
+- Node.js 20+ installert
 - pnpm installert (`npm install -g pnpm`)
 - Canvas LMS-konto (f.eks. USN Canvas)
 
-> **Viktig:** Husk å holde din lokale versjon oppdatert! Kjør `git pull origin main` jevnlig.
-> **Tips:** Kjør `pnpm typecheck`, `pnpm lint` og `pnpm build` jevnlig for å oppdage feil tidlig.
+> **Viktig:** Hold din lokale versjon oppdatert! Kjør `git pull origin main` jevnlig.
 
 ### Installasjon
 
@@ -36,235 +32,109 @@ git clone <repo-url>
 cd StudyWise
 ```
 
-1. **Installer dependencies**:
+2. **Installer dependencies**:
 
 ```bash
 pnpm install
 ```
 
-1. **Konfigurer miljøvariabler**:
+3. **Konfigurer miljøvariabler**:
 
 Opprett `backend/.env` (se `backend/.env.example`).
 
-## Kommandoer (kjør fra rot)
-
-```bash
-# Utvikling
-pnpm dev              # Start alt (frontend + backend + docs)
-pnpm dev:frontend     # Start kun frontend
-pnpm dev:backend      # Start kun backend
-pnpm dev:docs         # Start kun dokumentasjon
-pnpm dev:common       # Watch mode for common (type checking)
-
-# Linting
-pnpm lint             # Lint alle pakker (frontend + backend - kun kode)
-pnpm lint:md          # Lint markdown filer (docs + root)
-pnpm lint:frontend    # Lint kun frontend
-pnpm lint:backend     # Lint kun backend
-
-# Type checking
-pnpm typecheck        # Type-check alle pakker
-pnpm typecheck:frontend   # Type-check frontend
-pnpm typecheck:backend    # Type-check backend
-pnpm typecheck:common     # Type-check common
-
-# Bygg (NB: common bygges automatisk før frontend/backend)
-pnpm build            # Bygg alt (common → backend → frontend → docs)
-pnpm build:common     # Bygg kun common
-pnpm build:frontend   # Bygg common + frontend
-pnpm build:backend    # Bygg common + backend
-pnpm build:docs       # Bygg kun dokumentasjon
-
-# Produksjon
-pnpm start            # Start alt (frontend + backend)
-pnpm start:frontend   # Start kun frontend
-pnpm start:backend    # Start kun backend
-
-# Dependencies
-pnpm run outdated     # Sjekk utdaterte pakker (alle)
-pnpm run update       # Oppdater alle pakker
-pnpm update:frontend  # Oppdater kun frontend
-pnpm update:backend   # Oppdater kun backend
-pnpm update:common    # Oppdater kun common
-pnpm update:docs      # Oppdater kun docs
-
-# Installere nye pakker
-# VIKTIG: Ikke installer pakker i roten (uten --filter). Det skaper rot!
-pnpm --filter frontend add <pakkenavn>   # Installer i frontend
-pnpm --filter backend add <pakkenavn>    # Installer i backend
-pnpm --filter common add <pakkenavn>     # Installer i common
-
-# Vedlikehold
-pnpm run clean            # Fjern build-filer (dist, .next)
-pnpm run clean:install    # Full reinstall (sletter node_modules + lock)
-```
-
-**Utviklingsservere (lokal kjøring med `pnpm dev`):**
-
-| Tjeneste       | URL                              |
-| -------------- | -------------------------------- |
-| Frontend       | <http://localhost:3000>          |
-| Backend        | <http://localhost:4000>          |
-| Swagger UI     | <http://localhost:4000/api-docs> |
-| Health Check   | <http://localhost:4000/health>   |
-| Dokumentasjon  | <http://localhost:5173>          |
-
-## Docker (alternativ kjøring)
-
-Docker lar deg kjøre applikasjonen i containere, nyttig for produksjon og
-konsistent utvikling.
-
-**Krav:**
-
-- Docker installert
-- Docker Compose installert
-
-### Kjøre med Docker Compose
-
-Prosjektet har separate konfigurasjoner for utvikling og produksjon:
-
-- `docker-compose.dev.yml`: For utvikling (hot reload, volumes)
-- `docker-compose.prod.yml`: For produksjon
-
-**Docker-porter:**
-
-| Tjeneste  | URL                              | Fil                      |
-| --------- | -------------------------------- | ------------------------ |
-| Frontend  | <http://localhost:3000>          | Begge                    |
-| Backend   | <http://localhost:4000>          | Begge                    |
-| Swagger   | <http://localhost:4000/api-docs> | Begge                    |
-
-> **Merk:** Dokumentasjonsserveren (VitePress) er ikke inkludert i Docker-oppsettet.
-
-1. **Bygg og start alle services (Utvikling)**:
-
-```bash
-docker-compose -f docker-compose.dev.yml up --build
-```
-
-1. **Stopp services**:
-
-```bash
-docker-compose -f docker-compose.dev.yml down
-```
-
-1. **Kjør i bakgrunnen (detached mode)**:
-
-```bash
-docker-compose -f docker-compose.dev.yml up -d
-```
-
-1. **Se logger**:
-
-```bash
-docker-compose -f docker-compose.dev.yml logs -f
-```
-
-## API Dokumentasjon
-
-### Swagger UI (Interaktiv API-dokumentasjon)
-
-Backend har integrert Swagger UI for å utforske og teste API-endepunkter:
-
-- **URL**: <http://localhost:4000/api-docs>
-- **Dokumenterer**: Alle endpoints i `/api/auth`, `/api/canvas`, og `/health`
-- **Interaktivt**: Test API-kall direkte fra nettleseren
-
-**Nyttige endpoints:**
-
-- `GET /health` - Server health check (returnerer uptime, timestamp, status)
-- `GET /api/canvas/*` - Canvas LMS integrasjon
-- `GET /api/auth/*` - Autentisering
-
-### Eksterne API-er
-
-**Canvas API Dokumentasjon:**
-
-- [Canvas REST API Resources](https://developerdocs.instructure.com/services/canvas/resources/)
-- [Canvas Developer Documentation](https://developerdocs.instructure.com/services/canvas)
-
-### Kodestandarder
-
-- **TypeScript**: Bruk strict mode, unngå `any`
-- **Navngivning**: Bruk engelske/norske navn for ruter, komponenter, variabler og filnavn.
-- **Formatering**: Prosjektet bruker automatisk formatering
-- **Kommentarer**: Skriv kommentarer på norsk
-
-### Viktige Notater
-
-**Common Package:**
-
-- `common/` pakke må bygges før backend/frontend (`pnpm build:common`)
-- Build scripts håndterer dette automatisk (`pnpm build` bygger i riktig rekkefølge)
-- Eksporterer kompilerte `.js` filer og `.d.ts` type definisjoner
-- Alle packages bruker shared `tsconfig.base.json` for konsistens
-
-**TypeScript Konfigurasjoner:**
-
-- Root: `tsconfig.base.json` - Delt konfigurasjon
-- Common: Bygger til `dist/` med type definisjoner
-- Backend: NodeNext module resolution
-- Frontend: Bundler module resolution (Next.js)
-
-**Code Quality:**
-
-- ESLint konfigurert for både frontend og backend
-- Automatisk linting med `pnpm lint`
-- Snyk vulnerability scanning integrert
-- Dependency overrides for sikkerhet (glob, inflight)
-
-**Git Ignore & Autogenererte filer:**
-
-- `next-env.d.ts` er lagt til i `.gitignore`. Denne filen genereres automatisk av Next.js og endres ofte. Den vil opprettes automatisk hos deg når du kjører `pnpm dev` eller `pnpm build`, så du trenger ikke tenke på den.
-
-## Feilsøking
-
-### pnpm kommandoer virker ikke / Typefeil etter clean
-
-Hvis du opplever rare feil eller "missing module"-feil (spesielt relatert til `common`), kan en full reset være nødvendig.
-
-1. Kjør full clean:
-
-```bash
-pnpm clean:install
-```
-
-1. **VIKTIG:** Bygg prosjektet på nytt!
-`clean:install` tømmer alt, inkludert delte typer i `common`. Du **MÅ** bygge dem (minst `pnpm build:common`) før `pnpm typecheck` eller editor vil slutte å klage på manglende typer.
+4. **Bygg prosjektet**:
 
 ```bash
 pnpm build
 ```
 
-### Backend starter ikke / Port allerede i bruk
+## Kommandoer (kjør fra rot)
 
-Hvis du får feilmelding om at port 4000 eller 3000 er i bruk:
+```bash
+# Utvikling
+pnpm dev              # Start frontend + backend
+pnpm dev:frontend     # Start kun frontend
+pnpm dev:backend      # Start kun backend
 
-**Stopp alle Node prosesser:**
+# Kvalitetssikring
+pnpm typecheck        # Type-check alle pakker
+pnpm lint             # Lint alle pakker
+pnpm build            # Bygg alt (common → backend → frontend)
+
+# Installere pakker (VIKTIG: Bruk --filter)
+pnpm --filter frontend add <pakkenavn>
+pnpm --filter backend add <pakkenavn>
+pnpm --filter common add <pakkenavn>
+
+# Vedlikehold
+pnpm clean:install    # Full reinstall
+pnpm kill:dev         # Stopp alle Node prosesser (Windows)
+```
+
+## Utviklingsservere
+
+| Tjeneste     | URL                              |
+| ------------ | -------------------------------- |
+| Frontend     | <http://localhost:3000>          |
+| Backend      | <http://localhost:4000>          |
+| Swagger UI   | <http://localhost:4000/api-docs> |
+| Health Check | <http://localhost:4000/health>   |
+
+## Docker (alternativ kjøring)
+
+```bash
+# Utvikling
+docker-compose -f docker-compose.dev.yml up --build
+
+# Stopp
+docker-compose -f docker-compose.dev.yml down
+```
+
+## API Dokumentasjon
+
+### Swagger UI
+
+Backend har integrert Swagger UI: <http://localhost:4000/api-docs>
+
+### Hovedendepunkter
+
+- `GET /health` - Server health check
+- `GET /api/canvas/*` - Canvas LMS integrasjon
+- `POST /api/auth/*` - Autentisering
+- `POST /api/ki/*` - KI-assistenten
+
+### Canvas API
+
+- [Canvas REST API](https://developerdocs.instructure.com/services/canvas/resources/)
+- [Canvas Developer Docs](https://developerdocs.instructure.com/services/canvas)
+
+## Kodestandarder
+
+- **TypeScript**: Strict mode, unngå `any`
+- **Logging**: Bruk `pino` logger i backend, aldri `console.log`
+- **Validering**: Zod på alle grensesnitt
+- **Styling**: Tailwind CSS, mobile-first, dark mode støtte
+- **Navngivning**: Norske navn for ruter/variabler, engelske filnavn
+
+## Feilsøking
+
+### Common package feil
+
+```bash
+pnpm build:common  # Eller bare: pnpm build
+```
+
+### Port allerede i bruk
 
 ```bash
 pnpm kill:dev
 ```
 
-**Manuell feilsøking:**
+### MongoDB tilkoblingsfeil
 
-- Sjekk at `.env` er konfigurert riktig (ingen quotes rundt CANVAS_TOKEN)
-- Verifiser at port 4000 er ledig (`netstat -ano | findstr :4000` på Windows)
-- Sørg for at dotenv.config() kalles før andre imports i index.ts
-
-**Tips:** `Ctrl+C` stopper ikke alltid backend ordentlig. Bruk `pnpm kill:dev`
-før du starter `pnpm dev` på nytt.
-
-### Frontend kobler ikke til backend
-
-- Sjekk at `WEB_ORIGIN` i `backend/.env` matcher frontend URL
-- Verifiser CORS-innstillinger
-
-### Canvas API feiler
-
-- Verifiser at Canvas token er gyldig
-- Sjekk at `CANVAS_BASE_URL` er riktig
+- Sjekk at `MONGO_URI` i `.env` er riktig
+- Verifiser at IP er hvitelistet i MongoDB Atlas
 
 ## Lisens
 
-Se LICENSE-fil for detaljer
+Se LICENSE-fil for detaljer.

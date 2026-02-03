@@ -141,6 +141,7 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
     );
 
     // Hent sider per emne med innhold
+    // Feil håndteres gracefully med try/catch - negativ caching i canvasUtils hjelper ved gjentatte kall
     const pagesPerCourse = await Promise.all(
       emner.map((course: CanvasCourse) =>
         limit(async (): Promise<{ courseId: number; pages: CanvasPage[] }> => {

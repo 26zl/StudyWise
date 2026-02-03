@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, memo } from "react";
 import {
     startOfMonth,
     endOfMonth,
@@ -31,7 +31,7 @@ interface CalendarGridProps {
 
 const WEEK_DAYS = ["Man", "Tir", "Ons", "Tor", "Fre", "Lor", "Son"];
 
-export function CalendarGrid({
+export const CalendarGrid = memo(function CalendarGrid({
     currentDate,
     assignments,
     onDateClick,
@@ -47,27 +47,45 @@ export function CalendarGrid({
         return eachDayOfInterval({ start: calendarStart, end: calendarEnd });
     }, [currentDate]);
 
-    // Hent innleveringer for en gitt dato
-    const getAssignmentsForDate = (date: Date) => {
-        return assignments.filter((a) => isSameDay(a.dueDate, date));
+    // Pre-beregn assignments per dato i en Map for O(1) oppslag
+    // Dette erstatter 126+ filter-operasjoner med 1 enkelt pass
+    const assignmentsByDate = useMemo(() => {
+        const map = new Map<string, Assignment[]>();
+        for (const a of assignments) {
+            const key = format(a.dueDate, "yyyy-MM-dd");
+            const existing = map.get(key);
+            if (existing) {
+                existing.push(a);
+            } else {
+                map.set(key, [a]);
+            }
+        }
+        return map;
+    }, [assignments]);
+
+    // Pre-beregn today og threeDaysFromNow en gang
+    const today = useMemo(() => startOfDay(new Date()), []);
+    const threeDaysFromNow = useMemo(() => {
+        const d = new Date(today);
+        d.setDate(today.getDate() + 3);
+        return d;
+    }, [today]);
+
+    // Hent innleveringer for en gitt dato - O(1) oppslag
+    const getAssignmentsForDate = (date: Date): Assignment[] => {
+        const key = format(date, "yyyy-MM-dd");
+        return assignmentsByDate.get(key) || [];
     };
 
     // Sjekk om datoen har forfalte (overdue) innleveringer
-    const hasOverdueAssignment = (date: Date) => {
-        const dayAssignments = getAssignmentsForDate(date);
-        const today = startOfDay(new Date());
+    const hasOverdueAssignment = (dayAssignments: Assignment[]) => {
         return dayAssignments.some(
             (a) => !a.completed && isBefore(startOfDay(a.dueDate), today)
         );
     };
 
     // Sjekk om datoen har innleveringer som snart forfaller (innen 3 dager)
-    const hasUpcomingDeadline = (date: Date) => {
-        const today = startOfDay(new Date());
-        const threeDaysFromNow = new Date(today);
-        threeDaysFromNow.setDate(today.getDate() + 3);
-
-        const dayAssignments = getAssignmentsForDate(date);
+    const hasUpcomingDeadline = (dayAssignments: Assignment[]) => {
         return dayAssignments.some(
             (a) =>
                 !a.completed &&
@@ -98,8 +116,8 @@ export function CalendarGrid({
                     const isCurrentMonth = isSameMonth(day, currentDate);
                     const isSelected = selectedDate && isSameDay(day, selectedDate);
                     const isTodayDate = isToday(day);
-                    const isOverdue = hasOverdueAssignment(day);
-                    const isUpcoming = hasUpcomingDeadline(day);
+                    const isOverdue = hasOverdueAssignment(dayAssignments);
+                    const isUpcoming = hasUpcomingDeadline(dayAssignments);
 
                     return (
                         <button
@@ -184,6 +202,6 @@ export function CalendarGrid({
             </div>
         </div>
     );
-}
+});
 
 export default CalendarGrid;

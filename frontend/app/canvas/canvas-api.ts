@@ -43,28 +43,53 @@ export type {
   CanvasModuleItemDetail,
 } from "common/canvas";
 
-// Spesialisert feilklasse for manglende/ugyldig Canvas-token
-export class CanvasTokenMissingError extends Error {
-  constructor(message = "Canvas-token mangler") {
-    super(message);
-    this.name = "CanvasTokenMissingError";
-  }
-}
+// Importer delte feiltyper fra common
+import {
+  type CanvasErrorCode,
+  isRecoverableError as isRecoverableErrorCode,
+} from "common/canvasErrors";
 
-export class CanvasTokenInvalidError extends Error {
-  constructor(message = "Canvas-token er ugyldig eller utløpt") {
-    super(message);
-    this.name = "CanvasTokenInvalidError";
-  }
-}
+// Importer error-klasser fra felles error-modul
+import {
+  CanvasTokenMissingError,
+  CanvasTokenInvalidError,
+  CanvasPermissionError,
+  CanvasResourceError,
+  CanvasApiError,
+} from "../lib/errors";
 
-// Sjekk om en feil er en token-feil som ikke skal prøves på nytt
+// Re-eksporter for konsumenter
+export {
+  CanvasTokenMissingError,
+  CanvasTokenInvalidError,
+  CanvasPermissionError,
+  CanvasResourceError,
+  CanvasApiError,
+  type CanvasErrorCode,
+} from "../lib/errors";
+
+// Sjekk om en feil er en token-feil som krever re-autentisering
 function isTokenError(error: unknown): boolean {
   if (error instanceof CanvasTokenMissingError) return true;
   if (error instanceof CanvasTokenInvalidError) return true;
+  // Ny: CanvasPermissionError er IKKE en token-feil
+  if (error instanceof CanvasPermissionError) return false;
+  if (error instanceof CanvasResourceError) return false;
+  if (error instanceof CanvasApiError) {
+    return error.code === "token_invalid" || error.code === "token_missing";
+  }
   if (error instanceof Error) {
     const msg = error.message.toLowerCase();
+    // Kun ekte token-feil, ikke "ingen tilgang"
     return msg.includes("token") && (msg.includes("ugyldig") || msg.includes("mangler") || msg.includes("utløpt"));
+  }
+  return false;
+}
+
+// Sjekk om feil er gjenopprettbar (kan prøves igjen)
+export function isRecoverableError(error: unknown): boolean {
+  if (error instanceof CanvasApiError) {
+    return isRecoverableErrorCode(error.code);
   }
   return false;
 }
@@ -112,30 +137,88 @@ async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>, forsoktRefre
     throw new CanvasTokenInvalidError("Canvas-token er ugyldig eller utløpt. Oppdater tokenet i innstillinger.");
   }
 
-  // Håndter 403 (manglende Canvas-token) - ikke prøv refresh
+  // Håndter 403 - skille mellom "token mangler" (vår backend) og "permission denied" (Canvas)
   if (res.status === 403) {
     const errorText = await res.text();
-    let errorMessage = "Canvas-token mangler";
+    let errorMessage = "Ingen tilgang";
+    let errorCode: CanvasErrorCode = "permission_denied";
+    try {
+      const error = JSON.parse(errorText);
+      errorMessage = error.melding || error.feil || errorMessage;
+      errorCode = error.kode || errorCode;
+    } catch {
+      // Ignorer JSON-parse feil
+    }
+
+    // Kun marker token som ugyldig hvis det er en TOKEN-feil (fra vår backend)
+    // IKKE hvis det er permission denied fra Canvas (bruker kan mangle tilgang til én ressurs)
+    if (errorCode === "token_missing" || errorMessage.toLowerCase().includes("token mangler")) {
+      markTokenInvalid();
+      throw new CanvasTokenMissingError(errorMessage);
+    }
+
+    // Permission denied fra Canvas - IKKE marker token som ugyldig
+    // Token er OK, men bruker har ikke tilgang til denne spesifikke ressursen
+    throw new CanvasPermissionError(errorMessage);
+  }
+
+  // Håndter 404 - ressurs deaktivert eller ikke funnet
+  if (res.status === 404) {
+    const errorText = await res.text();
+    let errorMessage = "Ressursen ble ikke funnet";
+    let errorCode: CanvasErrorCode = "resource_not_found";
+    try {
+      const error = JSON.parse(errorText);
+      errorMessage = error.melding || error.feil || errorMessage;
+      errorCode = error.kode || errorCode;
+      // Sjekk om det er "deaktivert" i meldingen
+      if (errorMessage.toLowerCase().includes("deaktivert")) {
+        errorCode = "resource_disabled";
+      }
+    } catch {
+      // Ignorer JSON-parse feil
+    }
+    throw new CanvasResourceError(errorCode as "resource_disabled" | "resource_not_found", errorMessage);
+  }
+
+  // Håndter 429 - rate limited
+  if (res.status === 429) {
+    const errorText = await res.text();
+    let errorMessage = "For mange forespørsler";
     try {
       const error = JSON.parse(errorText);
       errorMessage = error.melding || error.feil || errorMessage;
     } catch {
-      // Ignorer JSON-parse feil, bruk default melding
+      // Ignorer JSON-parse feil
     }
-    markTokenInvalid();
-    throw new CanvasTokenMissingError(errorMessage);
+    throw new CanvasApiError("rate_limited", errorMessage, 429);
+  }
+
+  // Håndter 5xx - server error
+  if (res.status >= 500) {
+    const errorText = await res.text();
+    let errorMessage = "Serverfeil";
+    try {
+      const error = JSON.parse(errorText);
+      errorMessage = error.melding || error.feil || errorMessage;
+    } catch {
+      // Ignorer JSON-parse feil
+    }
+    throw new CanvasApiError("server_error", errorMessage, res.status);
   }
 
   if (!res.ok) {
     const errorText = await res.text();
     let errorMessage = "API feil";
+    let errorCode: CanvasErrorCode = "unknown";
     try {
       const error = JSON.parse(errorText);
       errorMessage = error.melding || error.feil || errorMessage;
+      errorCode = error.kode || errorCode;
     } catch {
       errorMessage = errorText || errorMessage;
     }
-    throw new Error(errorMessage);
+    throw new CanvasApiError(errorCode, errorMessage, res.status);
   }
   const data = await res.json();
   return schema.parse(data); // Type-safe parsing med Zod
@@ -162,15 +245,22 @@ async function fetchCanvasNullable<T>(endpoint: string, schema: ZodType<T>, fors
     throw new CanvasTokenInvalidError("Canvas-token er ugyldig eller utløpt. Oppdater tokenet i innstillinger.");
   }
 
+  // Håndter 403 - skille mellom "token mangler" og "permission denied"
   if (res.status === 403) {
     const errorText = await res.text();
-    let errorMessage = "Canvas-token mangler";
+    let errorMessage = "Ingen tilgang";
+    let errorCode: CanvasErrorCode = "permission_denied";
     try {
       const error = JSON.parse(errorText);
       errorMessage = error.melding || error.feil || errorMessage;
+      errorCode = error.kode || errorCode;
     } catch { /* ignorer */ }
-    markTokenInvalid();
-    throw new CanvasTokenMissingError(errorMessage);
+
+    if (errorCode === "token_missing" || errorMessage.toLowerCase().includes("token mangler")) {
+      markTokenInvalid();
+      throw new CanvasTokenMissingError(errorMessage);
+    }
+    throw new CanvasPermissionError(errorMessage);
   }
 
   // 204 No Content - returner null (ikke en feil)
@@ -178,16 +268,34 @@ async function fetchCanvasNullable<T>(endpoint: string, schema: ZodType<T>, fors
     return null;
   }
 
-  if (!res.ok) {
+  // Håndter 404 - kan være "ressurs deaktivert" eller "ikke funnet"
+  if (res.status === 404) {
     const errorText = await res.text();
-    let errorMessage = "API feil";
+    let errorMessage = "Ressursen ble ikke funnet";
+    let errorCode: CanvasErrorCode = "resource_not_found";
     try {
       const error = JSON.parse(errorText);
       errorMessage = error.melding || error.feil || errorMessage;
+      errorCode = error.kode || errorCode;
+      if (errorMessage.toLowerCase().includes("deaktivert")) {
+        errorCode = "resource_disabled";
+      }
+    } catch { /* ignorer */ }
+    throw new CanvasResourceError(errorCode as "resource_disabled" | "resource_not_found", errorMessage);
+  }
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    let errorMessage = "API feil";
+    let errorCode: CanvasErrorCode = "unknown";
+    try {
+      const error = JSON.parse(errorText);
+      errorMessage = error.melding || error.feil || errorMessage;
+      errorCode = error.kode || errorCode;
     } catch {
       errorMessage = errorText || errorMessage;
     }
-    throw new Error(errorMessage);
+    throw new CanvasApiError(errorCode, errorMessage, res.status);
   }
   const data = await res.json();
   return schema.parse(data);
@@ -411,5 +519,36 @@ export function prefetchCanvasData(queryClient: QueryClient) {
   queryClient.prefetchQuery({
     queryKey: ["canvas", "courses"],
     queryFn: () => fetchCanvas("/emner", CoursesResponseSchema),
+  });
+}
+
+// Schema for emner metadata respons
+const CourseContentMetadataSchema = z.object({
+  hasFrontPage: z.boolean(),
+  hasModules: z.boolean(),
+  hasFiles: z.boolean(),
+  modulesCount: z.number(),
+  filesCount: z.number(),
+});
+
+const CoursesMetadataResponseSchema = z.object({
+  metadata: z.record(z.string(), CourseContentMetadataSchema),
+  courseCount: z.number(),
+  generatedAt: z.string(),
+});
+
+export type CourseContentMetadata = z.infer<typeof CourseContentMetadataSchema>;
+export type CoursesMetadataResponse = z.infer<typeof CoursesMetadataResponseSchema>;
+
+// Hent innholds-metadata for alle emner (forside, moduler, filer)
+// Brukes for å dynamisk vise/skjule knapper basert på hva som finnes
+export function useCoursesMetadata(enabled = true) {
+  const isEnabled = useCanvasEnabled(enabled);
+  return useQuery({
+    queryKey: ["canvas", "courses-metadata"],
+    queryFn: () => fetchCanvas("/emner/metadata", CoursesMetadataResponseSchema),
+    enabled: isEnabled,
+    staleTime: 1000 * 60 * 30, // 30 minutter - metadata endres sjelden
+    refetchOnWindowFocus: false,
   });
 }

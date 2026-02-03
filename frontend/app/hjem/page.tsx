@@ -5,12 +5,13 @@
 import Link from "next/link";
 import { Footer } from "../components/footer";
 import { BookOpen, Bot, ArrowRight, LayoutDashboard } from "lucide-react";
-import { hasTokenServer } from "../auth/auth-server";
+import { getUserServer } from "../auth/auth-server";
 
 export default async function Hjem() {
-  // Rask sjekk om bruker har token (uten å kalle backend)
-  // Dette unngår race condition når backend starter opp
-  const erInnlogget = await hasTokenServer();
+  // Vi må verifisere at brukeren faktisk finnes for å unngå "zombie"-sessions
+  // der cookie finnes men brukeren er slettet fra backend.
+  const userResponse = await getUserServer();
+  const erInnlogget = !!userResponse?.user;
   const ctaWidth = "min-w-[200px]";
 
   return (

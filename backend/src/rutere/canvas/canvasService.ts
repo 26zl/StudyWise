@@ -7,6 +7,8 @@ import { z } from "zod";
 import {
   hentCanvasData,
   CACHE_TTL,
+  PAGE_SIZE,
+  MAX_PAGES,
   FORELESNINGER_VINDU,
 } from "./canvasUtils.js";
 import {
@@ -62,7 +64,7 @@ export async function fetchCourses(canvasToken?: string | null): Promise<
   const response = await hentCanvasData<unknown[]>("/api/v1/courses", {
     token,
     queryParams: {
-      per_page: 100,
+      per_page: PAGE_SIZE.DEFAULT,
       enrollment_state: "active", // Kun kurs med aktiv påmelding
       "include[]": "total_students", // Trigger full enrollment data inkl. section
     },
@@ -105,8 +107,8 @@ export async function fetchAssignments(
   options?: { bucket?: "past" | "overdue" | "undated" | "ungraded" | "unsubmitted" | "upcoming" | "future" }
 ) {
   const token = requireToken(canvasToken);
-  const queryParams: Record<string, string | number | boolean> = { per_page: 100 };
-  
+  const queryParams: Record<string, string | number | boolean> = { per_page: PAGE_SIZE.DEFAULT };
+
   // Legg til bucket filter hvis spesifisert
   if (options?.bucket) {
     queryParams.bucket = options.bucket;
@@ -133,7 +135,7 @@ export async function fetchCourseAnnouncements(canvasToken: string | null | unde
     `/api/v1/courses/${courseId}/discussion_topics`,
     {
       token,
-      queryParams: { only_announcements: true, per_page: 50 },
+      queryParams: { only_announcements: true, per_page: PAGE_SIZE.ANNOUNCEMENTS },
       cacheTtl: CACHE_TTL.ANNOUNCEMENTS,
     }
   );
@@ -154,7 +156,7 @@ export async function fetchAllAnnouncements(canvasToken?: string | null) {
   const contextCodes = courses.map((course: CanvasCourse) => `course_${course.id}`);
   const response = await hentCanvasData<unknown[]>("/api/v1/announcements", {
     token,
-    queryParams: { context_codes: contextCodes, active_only: true, per_page: 50 },
+    queryParams: { context_codes: contextCodes, active_only: true, per_page: PAGE_SIZE.ANNOUNCEMENTS },
     cacheTtl: CACHE_TTL.ANNOUNCEMENTS,
   });
   return {
@@ -218,14 +220,14 @@ export async function fetchPlannerItems(
   }
 ) {
   const token = requireToken(canvasToken);
-  const queryParams: Record<string, string | number | boolean> = { per_page: 100 };
+  const queryParams: Record<string, string | number | boolean> = { per_page: PAGE_SIZE.DEFAULT };
   if (query.start_date) queryParams.start_date = query.start_date;
   if (query.end_date) queryParams.end_date = query.end_date;
   const response = await hentCanvasData<unknown[]>("/api/v1/planner/items", {
     token,
     queryParams,
     cacheTtl: CACHE_TTL.ASSIGNMENTS, // 10 min cache
-    maxPages: query.maxPages ?? 5, // Konfigurerbar paginering
+    maxPages: query.maxPages ?? MAX_PAGES.DEFAULT, // Konfigurerbar paginering
   });
   // Valider og filtrer ut ugyldige items
   const valid: z.infer<typeof CanvasPlannerItemSchema>[] = [];
@@ -260,7 +262,7 @@ export async function fetchCalendarEvents(
   const token = requireToken(canvasToken);
   // Bygg query params - Canvas API forventer context_codes[] som array
   const queryParams: Record<string, string | number | boolean | string[]> = {
-    per_page: 100,
+    per_page: PAGE_SIZE.DEFAULT,
   };
   // Legg til context_codes som array
   if (options.contextCodes.length > 0) {
@@ -270,7 +272,7 @@ export async function fetchCalendarEvents(
   if (options.endDate) queryParams.end_date = options.endDate;
   if (options.type) queryParams.type = options.type;
   // Bruk høyere maxPages for calendar_events (mange events over lang periode)
-  const maxPages = options.maxPages ?? 10;
+  const maxPages = options.maxPages ?? MAX_PAGES.CALENDAR;
   const response = await hentCanvasData<unknown[]>("/api/v1/calendar_events", {
     token,
     queryParams,
@@ -316,7 +318,7 @@ export async function fetchUserEnrollments(canvasToken?: string | null) {
   const response = await hentCanvasData<unknown[]>("/api/v1/users/self/enrollments", {
     token,
     queryParams: {
-      per_page: 100,
+      per_page: PAGE_SIZE.DEFAULT,
       // Inkluder alle enrollment-states for å fange alle sections
       state: ["active", "invited", "current_and_future"],
     },
@@ -383,9 +385,9 @@ export async function fetchModules(canvasToken: string | null | undefined, cours
     `/api/v1/courses/${courseId}/modules`,
     {
       token,
-      queryParams: { 
+      queryParams: {
         include: ["items", "content_details"],
-        per_page: 50 
+        per_page: PAGE_SIZE.MODULES
       },
       cacheTtl: CACHE_TTL.MODULES,
     }
@@ -407,7 +409,7 @@ export async function fetchModuleItems(
     `/api/v1/courses/${courseId}/modules/${moduleId}/items`,
     {
       token,
-      queryParams: { "include[]": "content_details", per_page: 100 },
+      queryParams: { "include[]": "content_details", per_page: PAGE_SIZE.DEFAULT },
       cacheTtl: CACHE_TTL.MODULES,
     }
   );
@@ -499,7 +501,7 @@ export async function fetchFiles(canvasToken: string | null | undefined, courseI
     `/api/v1/courses/${courseId}/files`,
     {
       token,
-      queryParams: { per_page: 100 },
+      queryParams: { per_page: PAGE_SIZE.DEFAULT },
       cacheTtl: CACHE_TTL.FILES,
     }
   );
@@ -516,7 +518,7 @@ export async function fetchPages(canvasToken: string | null | undefined, courseI
     `/api/v1/courses/${courseId}/pages`,
     {
       token,
-      queryParams: { per_page: 100 },
+      queryParams: { per_page: PAGE_SIZE.DEFAULT },
       cacheTtl: CACHE_TTL.PAGES,
     }
   );
@@ -704,7 +706,7 @@ export async function fetchCanvasLectures(
     startDate,
     endDate,
     type: "event",
-    maxPages: 15,
+    maxPages: MAX_PAGES.LECTURES,
   });
   // Filtrer hidden events (parent-events med children)
   const visibleEvents = rawEvents.filter((event) => {

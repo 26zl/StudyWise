@@ -15,6 +15,10 @@
       "types": "./dist/canvas.d.ts",
       "import": "./dist/canvas.js"
     },
+    "./canvasErrors": {
+      "types": "./dist/canvasErrors.d.ts",
+      "import": "./dist/canvasErrors.js"
+    },
     "./ki": {
       "types": "./dist/ki.d.ts",
       "import": "./dist/ki.js"

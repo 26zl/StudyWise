@@ -13,7 +13,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { broadcastLogout } from "../hooks/use-auth-sync";
 import { useTheme } from "next-themes";
 import { type MeResponse } from "common/auth";
-import { useState, useEffect } from "react";
 
 // Props for Header-komponenten
 interface HeaderProps {
@@ -28,18 +27,12 @@ export function Header({ user }: HeaderProps) {
     const queryClient = useQueryClient();
     const megQuery = useMeg({ initialData: user || undefined });
 
-    // Sjekk om auth-cookie finnes for å unngå "flash of login" ved cold start
-    // Hvis vi har cookie men ingen bruker enda, vis loading/skeleton
-    const [harAuthCookie, settHarAuthCookie] = useState(false);
+    // Bruker fra query ELLER server-side prop
+    const aktivBruker = megQuery.data?.user || user?.user;
 
-    useEffect(() => {
-        // Enkel sjekk om auth-cookie finnes
-        const cookies = document.cookie.split(';');
-        const harCookie = cookies.some(c => c.trim().startsWith('studywise_auth='));
-        settHarAuthCookie(harCookie);
-    }, []);
-
-    const authLaster = megQuery.isLoading || megQuery.isFetching || (harAuthCookie && !megQuery.data?.user && !megQuery.isError);
+    // Vis loading KUN når vi faktisk laster og ikke har noen brukerdata
+    // Unngå "flash of login" ved å vise skeleton under første lasting
+    const authLaster = megQuery.isLoading && !aktivBruker;
     const loggUt = useLoggUt();
     const { theme, setTheme } = useTheme();
     // Håndter logg ut - rydder opp all cache og state før redirect
@@ -86,7 +79,7 @@ export function Header({ user }: HeaderProps) {
                 </Link>
                 {authLaster ? (
                     <span className="w-16 h-4 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" aria-hidden />
-                ) : megQuery.data?.user ? (
+                ) : aktivBruker ? (
                     <button
                         onClick={handleLoggUt}
                         className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"

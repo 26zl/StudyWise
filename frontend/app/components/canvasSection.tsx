@@ -22,18 +22,20 @@ import {
     useCanvasAnnouncements,
     useCanvasCourses,
     useCanvasModules,
-    useCanvasUser,
     useCanvasFiles,
     useCanvasPages,
     useCanvasFrontPage,
+    useCoursesMetadata,
     openModuleItem,
+    type CourseContentMetadata,
 } from "../canvas/canvas-api";
 import { useUIStore } from "../store/uiStore";
 import { createCanvasHtmlParser, parseCanvasHtml, sikkerFilNedlastingUrl } from "../canvas/canvasHtml";
 import { CanvasPageVisning } from "./CanvasPageVisning";
+import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
 
 // Typer for Canvas visninger
-type CanvasVisning = "announcements" | "courses" | "data";
+type CanvasVisning = "announcements" | "courses";
 
 // Props for CanvasSection komponent
 interface CanvasSectionProps {
@@ -115,35 +117,6 @@ function LasteSkjelett({ linjer = 3 }: { linjer?: number }) {
     );
 }
 
-// Hjelpefunksjon for brukervennlige Canvas-feilmeldinger
-function lagBrukervennligFeilmelding(error: unknown, fallback: string): string {
-    const errorMsg = error instanceof Error ? error.message : "";
-    const errorName = error instanceof Error ? error.name : "";
-    
-    if (errorName === "CanvasTokenMissingError" || errorMsg.includes("token mangler")) {
-        return "Canvas-token mangler. Legg til tokenet i innstillinger.";
-    }
-    if (errorMsg.includes("401") || errorMsg.includes("Ugyldig") || errorMsg.includes("unauthorized")) {
-        return "Canvas-tokenet ditt er ugyldig eller utløpt. Oppdater tokenet i innstillinger.";
-    }
-    if (errorMsg.includes("403") || errorMsg.includes("Forbidden")) {
-        return "Du har ikke tilgang til denne ressursen i Canvas.";
-    }
-    if (errorMsg.includes("429") || errorMsg.includes("rate")) {
-        return "For mange forespørsler til Canvas. Vent noen sekunder og prøv igjen.";
-    }
-    if (errorMsg.includes("timeout") || errorMsg.includes("504")) {
-        return "Henting av data tok for lang tid. Prøv igjen.";
-    }
-    if (errorMsg.includes("Nettverk") || errorMsg.includes("fetch") || errorMsg.includes("network")) {
-        return "Nettverksfeil. Sjekk internettforbindelsen din.";
-    }
-    if (errorMsg.includes("404") || errorMsg.includes("Not Found")) {
-        return "Ressursen ble ikke funnet i Canvas.";
-    }
-    return fallback;
-}
-
 // Feilmelding-komponent
 function FeilMelding({ melding }: { melding: string }) {
     return (
@@ -175,7 +148,7 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     }
 
     if (isError) {
-        return <FeilMelding melding={lagBrukervennligFeilmelding(error, "Kunne ikke laste kunngjøringer. Prøv igjen.")} />;
+        return <FeilMelding melding={lagBrukervennligFeilmelding(error instanceof Error ? error : null, { canvas: true }, "Kunne ikke laste kunngjøringer. Prøv igjen.")} />;
     }
 
     if (!data?.announcements?.length) {
@@ -222,13 +195,27 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
 // Emne-visning
 function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const { data, isLoading, isError, error } = useCanvasCourses(harCanvasToken);
+    const metadataQuery = useCoursesMetadata(harCanvasToken);
     const [valgtEmneId, settValgtEmneId] = useState<number | null>(null);
     const [valgtEmneVisning, settValgtEmneVisning] = useState<"modules" | "files" | "frontpage">("frontpage");
     const [valgtSide, settValgtSide] = useState<{ pageId: string; courseId: number } | null>(null);
-    const modulerQuery = useCanvasModules(valgtEmneId, harCanvasToken);
-    const filerQuery = useCanvasFiles(valgtEmneId, harCanvasToken);
-    const siderQuery = useCanvasPages(valgtEmneId, harCanvasToken);
-    const frontPageQuery = useCanvasFrontPage(valgtEmneId, harCanvasToken);
+
+    // Hent metadata for et emne (med fallback til "ukjent" hvis ikke lastet)
+    const getMetadata = (courseId: number): CourseContentMetadata | null => {
+        if (!metadataQuery.data?.metadata) return null;
+        return metadataQuery.data.metadata[String(courseId)] || null;
+    };
+
+    // Beregn om queries skal være aktivert basert på metadata
+    // Dette forhindrer unødvendige API-kall for innhold som ikke finnes eller brukeren ikke har tilgang til
+    const valgtMeta = valgtEmneId ? getMetadata(valgtEmneId) : null;
+    const metaReady = !metadataQuery.isLoading && !!metadataQuery.data?.metadata;
+
+    // Kun fetch hvis metadata sier innhold finnes, eller metadata ikke er klar ennå (for backward compat)
+    const modulerQuery = useCanvasModules(valgtEmneId, harCanvasToken && (!metaReady || valgtMeta?.hasModules === true));
+    const filerQuery = useCanvasFiles(valgtEmneId, harCanvasToken && (!metaReady || valgtMeta?.hasFiles === true));
+    const siderQuery = useCanvasPages(valgtEmneId, harCanvasToken && (!metaReady || valgtMeta?.hasModules === true)); // Pages brukes for moduler
+    const frontPageQuery = useCanvasFrontPage(valgtEmneId, harCanvasToken && (!metaReady || valgtMeta?.hasFrontPage === true));
 
     if (!harCanvasToken) {
         return <FeilMelding melding="Du må lagre en Canvas API-token før du kan hente emner." />;
@@ -247,7 +234,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     }
 
     if (isError) {
-        return <FeilMelding melding={lagBrukervennligFeilmelding(error, "Kunne ikke laste emner. Prøv igjen.")} />;
+        return <FeilMelding melding={lagBrukervennligFeilmelding(error instanceof Error ? error : null, { canvas: true }, "Kunne ikke laste emner. Prøv igjen.")} />;
     }
 
     // Vis valgt side hvis satt
@@ -279,26 +266,43 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     {course?.name}
                 </h3>
 
-                <div className="mb-4 flex gap-2">
-                    <button
-                        onClick={() => settValgtEmneVisning("frontpage")}
-                        className={`px-3 py-1 rounded-lg text-sm border ${valgtEmneVisning === "frontpage" ? "bg-blue-600 text-white border-blue-600" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"}`}
-                    >
-                        Se forside
-                    </button>
-                    <button
-                        onClick={() => settValgtEmneVisning("modules")}
-                        className={`px-3 py-1 rounded-lg text-sm border ${valgtEmneVisning === "modules" ? "bg-blue-600 text-white border-blue-600" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"}`}
-                    >
-                        Se moduler
-                    </button>
-                    <button
-                        onClick={() => settValgtEmneVisning("files")}
-                        className={`px-3 py-1 rounded-lg text-sm border ${valgtEmneVisning === "files" ? "bg-blue-600 text-white border-blue-600" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"}`}
-                    >
-                        Se filer
-                    </button>
-                </div>
+                {/* Vis tabs kun for innhold som finnes */}
+                {(() => {
+                    const meta = getMetadata(valgtEmneId);
+                    const metadataLaster = metadataQuery.isLoading;
+                    const visForsideTab = metadataLaster || !meta || meta.hasFrontPage;
+                    const visModulerTab = metadataLaster || !meta || meta.hasModules;
+                    const visFilerTab = metadataLaster || !meta || meta.hasFiles;
+
+                    return (
+                        <div className="mb-4 flex flex-wrap gap-2">
+                            {visForsideTab && (
+                                <button
+                                    onClick={() => settValgtEmneVisning("frontpage")}
+                                    className={`px-3 py-1 rounded-lg text-sm border ${valgtEmneVisning === "frontpage" ? "bg-blue-600 text-white border-blue-600" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"}`}
+                                >
+                                    Forside
+                                </button>
+                            )}
+                            {visModulerTab && (
+                                <button
+                                    onClick={() => settValgtEmneVisning("modules")}
+                                    className={`px-3 py-1 rounded-lg text-sm border ${valgtEmneVisning === "modules" ? "bg-blue-600 text-white border-blue-600" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"}`}
+                                >
+                                    Moduler{meta?.modulesCount ? ` (${meta.modulesCount})` : ""}
+                                </button>
+                            )}
+                            {visFilerTab && (
+                                <button
+                                    onClick={() => settValgtEmneVisning("files")}
+                                    className={`px-3 py-1 rounded-lg text-sm border ${valgtEmneVisning === "files" ? "bg-blue-600 text-white border-blue-600" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"}`}
+                                >
+                                    Filer{meta?.filesCount ? ` (${meta.filesCount})` : ""}
+                                </button>
+                            )}
+                        </div>
+                    );
+                })()}
 
                 {valgtEmneVisning === "frontpage" && (
                     <div className="space-y-3">
@@ -342,6 +346,11 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
 
                         {modulerQuery.isError && (
                             <FeilMelding melding="Ingen tilgang til moduler for dette emnet (403/unauthorized)." />
+                        )}
+
+                        {/* Vis melding når query er disabled pga metadata sier ingen moduler */}
+                        {!modulerQuery.isLoading && !modulerQuery.isError && !modulerQuery.data?.modules?.length && metaReady && valgtMeta?.hasModules === false && (
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Dette emnet har ingen moduler tilgjengelig.</p>
                         )}
 
                 {modulerQuery.data?.modules && modulerQuery.data.modules.length > 0 && (
@@ -569,6 +578,10 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                         {filerQuery.isError && (
                             <FeilMelding melding="Dette emnet har ingen filer eller du mangler tilgang (403/unauthorized)." />
                         )}
+                        {/* Vis melding når query er disabled pga metadata sier ingen filer */}
+                        {!filerQuery.isLoading && !filerQuery.isError && !filerQuery.data && metaReady && valgtMeta?.hasFiles === false && (
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Dette emnet har ingen filer tilgjengelig.</p>
+                        )}
                         {filerQuery.data && filerQuery.data.length === 0 && (
                             <p className="text-sm text-slate-500 dark:text-slate-400">Dette emnet har ingen filer å vise.</p>
                         )}
@@ -615,78 +628,77 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     // Render emner
         return (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {data.courses.map((emne) => (
-                <div
-                    key={emne.id}
-                    className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-left hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm transition-all group cursor-pointer"
-                    onClick={() => { settValgtEmneId(emne.id); settValgtEmneVisning("frontpage"); }}
-                >
-                    <h3 className="font-semibold text-slate-900 dark:text-white mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                        {emne.name}
-                    </h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
-                        {emne.course_code}
-                    </p>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("frontpage"); }}
-                            className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
+                {data.courses.map((emne) => {
+                    const meta = getMetadata(emne.id);
+                    const metadataLaster = metadataQuery.isLoading;
+
+                    // Bestem hvilken visning som skal være default basert på metadata
+                    const velgDefaultVisning = (): "frontpage" | "modules" | "files" => {
+                        if (!meta) return "frontpage"; // Fallback mens metadata laster
+                        if (meta.hasFrontPage) return "frontpage";
+                        if (meta.hasModules) return "modules";
+                        if (meta.hasFiles) return "files";
+                        return "frontpage";
+                    };
+
+                    // Vis knapper kun for innhold som finnes (eller alle mens metadata laster)
+                    const visForsideKnapp = metadataLaster || !meta || meta.hasFrontPage;
+                    const visModulerKnapp = metadataLaster || !meta || meta.hasModules;
+                    const visFilerKnapp = metadataLaster || !meta || meta.hasFiles;
+                    const harInnhold = visForsideKnapp || visModulerKnapp || visFilerKnapp;
+
+                    return (
+                        <div
+                            key={emne.id}
+                            className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-left hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm transition-all group cursor-pointer"
+                            onClick={() => { settValgtEmneId(emne.id); settValgtEmneVisning(velgDefaultVisning()); }}
                         >
-                            Se forside
-                            <ChevronRight size={16} />
-                        </button>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("modules"); }}
-                            className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
-                        >
-                            Se moduler
-                            <ChevronRight size={16} />
-                        </button>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("files"); }}
-                            className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
-                        >
-                            Se filer
-                            <ChevronRight size={16} />
-                        </button>
-                    </div>
-                </div>
-                ))}
+                            <h3 className="font-semibold text-slate-900 dark:text-white mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                                {emne.name}
+                            </h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
+                                {emne.course_code}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                {visForsideKnapp && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("frontpage"); }}
+                                        className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
+                                    >
+                                        Forside
+                                        <ChevronRight size={16} />
+                                    </button>
+                                )}
+                                {visModulerKnapp && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("modules"); }}
+                                        className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
+                                    >
+                                        Moduler{meta?.modulesCount ? ` (${meta.modulesCount})` : ""}
+                                        <ChevronRight size={16} />
+                                    </button>
+                                )}
+                                {visFilerKnapp && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("files"); }}
+                                        className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
+                                    >
+                                        Filer{meta?.filesCount ? ` (${meta.filesCount})` : ""}
+                                        <ChevronRight size={16} />
+                                    </button>
+                                )}
+                                {!harInnhold && (
+                                    <span className="text-sm text-slate-400 dark:text-slate-500 italic">
+                                        Ingen innhold
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
         );
     }
-
-// Data Visning
-function DataVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
-    const { data, isLoading, isError, error } = useCanvasUser(harCanvasToken);
-
-    if (!harCanvasToken) {
-        return <FeilMelding melding="Du må lagre en Canvas API-token før du kan hente Canvas-data." />;
-    }
-
-    if (isLoading) {
-        return (
-            <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
-                <LasteSkjelett linjer={5} />
-            </div>
-        );
-    }
-
-    if (isError) {
-        return <FeilMelding melding={lagBrukervennligFeilmelding(error, "Kunne ikke laste Canvas-data. Prøv igjen.")} />;
-    }
-
-    return (
-        <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
-            <h3 className="font-semibold text-slate-900 dark:text-white mb-4">
-                Din Canvas-data
-            </h3>
-            <pre className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg overflow-auto text-xs font-mono text-slate-700 dark:text-slate-300 max-h-125">
-                {JSON.stringify(data, null, 2)}
-            </pre>
-        </div>
-    );
-}
 
 // Advarsel når Canvas-token er ugyldig/slettet
 function TokenUgyldigAdvarsel() {
@@ -721,7 +733,6 @@ export function CanvasSection({ startVisning = "announcements", harCanvasToken =
     const visningTitler: Record<CanvasVisning, string> = {
         announcements: "Kunngjøringer",
         courses: "Mine emner",
-        data: "Canvas data",
     };
 
     return (
@@ -740,7 +751,6 @@ export function CanvasSection({ startVisning = "announcements", harCanvasToken =
             <div className="flex-1 overflow-y-auto p-4 md:p-6">
                 {visning === "announcements" && <KunngjoringVisning harCanvasToken={harCanvasToken} />}
                 {visning === "courses" && <EmneVisning harCanvasToken={harCanvasToken} />}
-                {visning === "data" && <DataVisning harCanvasToken={harCanvasToken} />}
             </div>
         </div>
     );

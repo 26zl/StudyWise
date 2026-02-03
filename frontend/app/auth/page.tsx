@@ -90,7 +90,7 @@ export default function AuthPage() {
       } else if (errorMsg.includes("passord") && errorMsg.includes("kort")) {
         feilTekst = "Passordet er for kort. Bruk minst 6 tegn.";
       } else if (errorMsg.includes("e-post") || errorMsg.includes("email")) {
-        feilTekst = "Ugyldig e-postadresse. Sjekk at formatet er riktig.";
+        feilTekst = "Ugyldig e-postadresse eller passord. Sjekk at formatet er riktig.";
       } else {
         feilTekst = errorMsg || "Noe gikk galt. Prøv igjen.";
       }

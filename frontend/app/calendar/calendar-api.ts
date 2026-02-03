@@ -6,14 +6,10 @@ import { useQuery } from "@tanstack/react-query";
 import { CalendarItemsResponseSchema, type CalendarItem } from "common/calendar";
 import { fornySesjon } from "../auth/auth-api";
 import type { Assignment, Course, CourseColor, CalendarFilterType } from "common/calendar-ui";
+import { CanvasTokenMissingError } from "../lib/errors";
 
-// Spesialisert feilklasse for manglende Canvas-token
-export class CanvasTokenMissingError extends Error {
-  constructor(message = "Canvas-token mangler") {
-    super(message);
-    this.name = "CanvasTokenMissingError";
-  }
-}
+// Re-eksporter for bakoverkompatibilitet
+export { CanvasTokenMissingError } from "../lib/errors";
 
 // Definer en utvidet palett av farger for kursene - gir hvert emne unik farge
 const COLOR_PALETTE: CourseColor[] = [

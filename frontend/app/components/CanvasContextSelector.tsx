@@ -151,9 +151,9 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
   const options = [
     {
       key: "announcements" as const,
-      label: "Kunngjøringer",
+      label: "Nyheter",
       count: announcementsData?.announcements?.length || 0,
-      description: "Meldinger fra forelesere",
+      description: "Kunngjøringer fra forelesere",
       loading: loadingAnnouncements,
     },
     {

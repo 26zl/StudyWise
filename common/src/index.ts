@@ -4,6 +4,7 @@
  */
 
 export * from "./canvas.js";
+export * from "./canvasErrors.js";
 export * from "./ki.js";
 export * from "./auth.js";
 export * from "./calendar.js";

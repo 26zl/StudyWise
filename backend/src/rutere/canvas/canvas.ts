@@ -14,8 +14,8 @@ import {
   validateCanvasRedirectUrl,
   erInnenforKalenderVindu,
   beregnKalenderVindu,
+  CACHE_TTL,
 } from "./canvasUtils.js";
-import { CACHE_TTL } from "./canvasUtils.js";
 import { rateLimitCanvas, rateLimitCanvasTung } from "../../middleware/rate-limit.js";
 import { noCache } from "../../middleware/no-cache.js";
 import { logger } from "../../utils/logger.js";
@@ -50,10 +50,18 @@ import {
 } from "./canvasService.js";
 import { CalendarItemsResponseSchema, type CalendarItem } from "common/calendar";
 
-// Feiltype for Canvas HTTP-feil
+import {
+  type CanvasApiError,
+  type CanvasErrorCode,
+  getErrorResponse,
+  classifyHttpStatus,
+} from "./canvasErrors.js";
+
+// Legacy feiltype for bakoverkompatibilitet
 interface CanvasHttpError extends Error {
   status?: number;
   details?: string;
+  code?: CanvasErrorCode;
 }
 
 // Oppretter express router
@@ -76,16 +84,20 @@ router.get("/whoami", async (req, res) => {
     const eksisterendeKobling = await CanvasUser.findOne({ canvasId: canvasUser.id });
     // Sikre toString() på begge sider + null-check
     if (
-      eksisterendeKobling && 
-      eksisterendeKobling.localUser && 
+      eksisterendeKobling &&
+      eksisterendeKobling.localUser &&
       eksisterendeKobling.localUser.toString() !== req.user.id.toString()
     ) {
-      // Logg kun at konflikt oppsto, ikke bruker-IDer (GDPR)
-      logger.info("Forsøk på å koble Canvas-konto som tilhører annen bruker");
-      return res.status(409).json({
-        feil: "Konflikt",
-        melding: "Denne Canvas-kontoen er allerede koblet til en annen StudyWise-bruker."
+      // Canvas-brukeren er koblet til en annen lokal bruker.
+      // Løsning: Vi antar at den som har gyldig token nå er eieren.
+      // Vi sletter koblingen fra den GAMLE brukeren for å rydde opp.
+      logger.warn(`Canvas-bruker ${canvasUser.id} var koblet til bruker ${eksisterendeKobling.localUser}. Flytter kobling til ${req.user.id}.`);
+
+      await User.findByIdAndUpdate(eksisterendeKobling.localUser, {
+        $unset: { canvasUser: 1 }
       });
+
+      // Vi trenger ikke returnere 409 - koden under vil oppdatere CanvasUser til å peke på req.user.id
     }
 
     // Lagre eller oppdater bruker i vår egen database (kun canvas data, ikke lokal bruker fra vårt eget auth system)
@@ -116,7 +128,15 @@ router.get("/whoami", async (req, res) => {
       await User.findByIdAndUpdate(req.user.id, { canvasUser: oppdatertCanvasBruker._id });
     }
     logger.info("Canvas bruker synkronisert");
-    res.json(canvasUser);
+    // Returner Canvas-data med created_at
+    // Prioritet: Canvas sin dato > vår lagrede Canvas-dato > når brukeren koblet til StudyWise
+    const createdAt = canvasUser.created_at
+      || oppdatertCanvasBruker?.canvasUserCreatedAt?.toISOString()
+      || (oppdatertCanvasBruker as unknown as { createdAt?: Date })?.createdAt?.toISOString();
+    res.json({
+      ...canvasUser,
+      created_at: createdAt,
+    });
   } catch (error) {
     logger.error({ err: error }, "Klarte ikke å hente eller lagre brukerinformasjon (/whoami)");
     throw error;
@@ -136,21 +156,21 @@ router.get("/users/self/upcoming_events", async (req, res) => {
   } catch (error) {
     const err = error as CanvasHttpError;
     logger.error({ err: error }, "Feil ved henting av upcoming_events");
-    
+
     if (err.status === 401) {
       return res.status(401).json({
         feil: "Ugyldig Canvas-token",
         melding: "Canvas-tokenet ditt er ugyldig eller utlopt. Oppdater tokenet i innstillinger.",
       });
     }
-    
+
     if (err.status === 429) {
       return res.status(429).json({
         feil: "For mange foresp\u00f8rsler",
         melding: "Canvas API er overbelastet. Vent noen sekunder og pr\u00f8v igjen.",
       });
     }
-    
+
     throw error;
   }
 });
@@ -250,14 +270,14 @@ router.get("/users/self/todo", async (req, res) => {
   } catch (error) {
     const err = error as CanvasHttpError;
     logger.error({ err: error }, "Feil ved henting av todo liste");
-    
+
     if (err.status === 401) {
       return res.status(401).json({
         feil: "Ugyldig Canvas-token",
         melding: "Canvas-tokenet ditt er ugyldig eller utlopt. Oppdater tokenet i innstillinger.",
       });
     }
-    
+
     throw error;
   }
 });
@@ -275,21 +295,141 @@ router.get("/emner", async (req, res) => {
   } catch (error) {
     const err = error as CanvasHttpError;
     logger.error({ err: error }, "Feil under henting av emner");
-    
+
     if (err.status === 401) {
       return res.status(401).json({
         feil: "Ugyldig Canvas-token",
         melding: "Canvas-tokenet ditt er ugyldig eller utlopt. Oppdater tokenet i innstillinger.",
       });
     }
-    
+
     if (err.status === 429) {
       return res.status(429).json({
         feil: "For mange foresp\u00f8rsler",
         melding: "Canvas API er overbelastet. Vent noen sekunder og pr\u00f8v igjen.",
       });
     }
-    
+
+    throw error;
+  }
+});
+
+// GET /emner/metadata - Hent innholds-metadata for alle emner
+// Returnerer info om hvilke emner som har forside, moduler, filer etc.
+// Brukes for å vise/skjule knapper i frontend dynamisk
+router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
+  const token = req.canvasToken;
+  const tokenAvtrykk = token ? crypto.createHash("sha256").update(token).digest("hex").slice(0, 12) : "ukjent";
+  const cacheKey = `canvas:${tokenAvtrykk}:emner-metadata`;
+
+  try {
+    // Sjekk om force refresh er satt
+    const forceRefresh = req.query.refresh === "true";
+
+    // Sjekk cache først (med mindre force refresh)
+    if (!forceRefresh) {
+      const cached = await getCache(cacheKey);
+      if (cached) {
+        logger.info({ cacheKey }, "Emner metadata cache HIT");
+        return res.json(JSON.parse(cached));
+      }
+    } else {
+      logger.info({ cacheKey }, "Emner metadata force refresh");
+    }
+
+    // Hent alle emner
+    const { data: courses } = await fetchCourses(req.canvasToken);
+
+    // Begrens parallelle kall for å unngå rate limiting
+    const pLimit = (await import("p-limit")).default;
+    const limit = pLimit(5);
+
+    // Hent all metadata for hvert kurs parallelt (én fase i stedet for to)
+    const metadataPromises = courses.map((course) =>
+      limit(async () => {
+        const courseId = course.id;
+
+        // Hent alle 4 ressurser parallelt per kurs
+        const [courseDetailsResult, frontPageResult, modulesResult, filesResult] = await Promise.allSettled([
+          fetchCourse(req.canvasToken, courseId),
+          fetchFrontPage(req.canvasToken, courseId),
+          fetchModules(req.canvasToken, courseId),
+          fetchFiles(req.canvasToken, courseId),
+        ]);
+
+        // Sjekk kursdetaljer for syllabus
+        const courseDetails = courseDetailsResult.status === "fulfilled"
+          ? courseDetailsResult.value.data
+          : null;
+
+        // Sjekk frontpage - kun true hvis det finnes faktisk innhold å vise
+        let wikiHasContent = false;
+        if (frontPageResult.status === "fulfilled" && frontPageResult.value.data) {
+          const page = frontPageResult.value.data;
+          wikiHasContent = !!(page.body && page.body.trim().length > 0);
+        }
+
+        // Sjekk syllabus
+        const syllabusHasContent = !!(courseDetails?.syllabus_body && courseDetails.syllabus_body.trim().length > 0);
+
+        // Hent moduler og filer
+        const modules = modulesResult.status === "fulfilled" ? modulesResult.value.data : [];
+        const files = filesResult.status === "fulfilled" ? filesResult.value.data : [];
+
+        return {
+          courseId,
+          hasFrontPage: wikiHasContent || syllabusHasContent,
+          hasModules: modules.length > 0,
+          hasFiles: files.length > 0,
+          modulesCount: modules.length,
+          filesCount: files.length,
+        };
+      })
+    );
+
+    const metadataResults = await Promise.all(metadataPromises);
+
+    // Bygg respons som map for enkel oppslag
+    const metadataMap: Record<number, {
+      hasFrontPage: boolean;
+      hasModules: boolean;
+      hasFiles: boolean;
+      modulesCount: number;
+      filesCount: number;
+    }> = {};
+
+    metadataResults.forEach((m) => {
+      metadataMap[m.courseId] = {
+        hasFrontPage: m.hasFrontPage,
+        hasModules: m.hasModules,
+        hasFiles: m.hasFiles,
+        modulesCount: m.modulesCount,
+        filesCount: m.filesCount,
+      };
+    });
+
+    const response = {
+      metadata: metadataMap,
+      courseCount: courses.length,
+      generatedAt: new Date().toISOString(),
+    };
+
+    // Cache i 30 minutter
+    await setCache(cacheKey, JSON.stringify(response), CACHE_TTL.MODULES);
+
+    logger.info({ courseCount: courses.length }, "Generert emner metadata");
+    res.json(response);
+  } catch (error) {
+    const err = error as CanvasHttpError;
+    logger.error({ err: error }, "Feil ved henting av emner metadata");
+
+    if (err.status === 401) {
+      return res.status(401).json({
+        feil: "Ugyldig Canvas-token",
+        melding: "Canvas-tokenet ditt er ugyldig eller utløpt.",
+      });
+    }
+
     throw error;
   }
 });
@@ -376,21 +516,21 @@ router.get("/announcements", rateLimitCanvasTung, async (req, res) => {
   } catch (error) {
     const err = error as CanvasHttpError;
     logger.error({ err: error }, "Feil under henting av annonseringer");
-    
+
     if (err.status === 401) {
       return res.status(401).json({
         feil: "Ugyldig Canvas-token",
         melding: "Canvas-tokenet ditt er ugyldig eller utlopt. Oppdater tokenet i innstillinger.",
       });
     }
-    
+
     if (err.status === 429) {
       return res.status(429).json({
         feil: "For mange foresp\u00f8rsler",
         melding: "Canvas API er overbelastet. Vent noen sekunder og pr\u00f8v igjen.",
       });
     }
-    
+
     throw error;
   }
 });
@@ -586,47 +726,47 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
     const visibleEvents = calendarEvents.filter((e) => e.hidden !== true);
 
     visibleEvents.forEach((event) => {
-        const dueAt = event.start_at || event.end_at || event.all_day_date;
-        if (!erInnenforKalenderVindu(dueAt)) return;
-        // Hent kursinfo fra context_codes - bruker sectionToCourseMap for TimeEdit-events
-        const courseIdStr = extractCourseIdFromContext(
-          event.context_code,
-          event.effective_context_code,
-          event.all_context_codes,
-          sectionToCourseMap
-        );
-        const courseId = courseIdStr ? parseInt(courseIdStr, 10) : null;
-        const course = courseId ? courseMap.get(courseId) : undefined;
+      const dueAt = event.start_at || event.end_at || event.all_day_date;
+      if (!erInnenforKalenderVindu(dueAt)) return;
+      // Hent kursinfo fra context_codes - bruker sectionToCourseMap for TimeEdit-events
+      const courseIdStr = extractCourseIdFromContext(
+        event.context_code,
+        event.effective_context_code,
+        event.all_context_codes,
+        sectionToCourseMap
+      );
+      const courseId = courseIdStr ? parseInt(courseIdStr, 10) : null;
+      const course = courseId ? courseMap.get(courseId) : undefined;
 
-        // Assignment-events dedupliseres med planner
-        if (event.assignment) {
-          addUniqueItem({
-            id: `assignment-${event.assignment.id}`,
-            title: event.assignment.name,
-            due_at: event.assignment.due_at || dueAt!,
-            course_id: courseId ?? undefined,
-            course_code: course?.course_code,
-            course_name: course?.name,
-            source: "assignment",
-            html_url: event.assignment.html_url || event.html_url,
-            raw_type: "assignment",
-          });
-        } else {
-          addUniqueItem({
-            id: `event-${event.id}`,
-            title: event.title || course?.name || "Hendelse",
-            due_at: dueAt!,
-            end_at: event.end_at,
-            course_id: courseId ?? undefined,
-            course_code: course?.course_code,
-            course_name: course?.name,
-            source: "event",
-            html_url: event.html_url || event.url,
-            raw_type: event.all_day ? "all_day_event" : "calendar_event",
-            location: event.location_name,
-          });
-        }
-      });
+      // Assignment-events dedupliseres med planner
+      if (event.assignment) {
+        addUniqueItem({
+          id: `assignment-${event.assignment.id}`,
+          title: event.assignment.name,
+          due_at: event.assignment.due_at || dueAt!,
+          course_id: courseId ?? undefined,
+          course_code: course?.course_code,
+          course_name: course?.name,
+          source: "assignment",
+          html_url: event.assignment.html_url || event.html_url,
+          raw_type: "assignment",
+        });
+      } else {
+        addUniqueItem({
+          id: `event-${event.id}`,
+          title: event.title || course?.name || "Hendelse",
+          due_at: dueAt!,
+          end_at: event.end_at,
+          course_id: courseId ?? undefined,
+          course_code: course?.course_code,
+          course_name: course?.name,
+          source: "event",
+          html_url: event.html_url || event.url,
+          raw_type: event.all_day ? "all_day_event" : "calendar_event",
+          location: event.location_name,
+        });
+      }
+    });
 
     // Sorter etter dato
     items.sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime());
@@ -872,17 +1012,19 @@ router.get("/emner/:courseId/frontpage", async (req, res) => {
     logger.info({ courseId, pageUrl: page.url }, "Hentet frontpage");
     res.json({ page, meta });
   } catch (error) {
-    // Canvas returnerer 404 når et kurs ikke har en satt frontpage - prøv syllabus som fallback
-    const err = error as CanvasHttpError;
-    if (err.status === 404) {
+    // Canvas returnerer 404/resource_not_found når et kurs ikke har en satt frontpage
+    // Prøv syllabus som fallback
+    const err = error as CanvasHttpError & { code?: CanvasErrorCode };
+    const isNotFound = err.status === 404 || err.code === "resource_not_found" || err.code === "resource_disabled";
+
+    if (isNotFound) {
       try {
         // Hent kurs med syllabus_body som fallback
         const { data: course } = await fetchCourse(req.canvasToken, parseInt(req.params.courseId, 10));
-        if (course.syllabus_body) {
+        if (course.syllabus_body && course.syllabus_body.trim().length > 0) {
           logger.info({ courseId: req.params.courseId }, "Bruker syllabus som fallback for frontpage");
           // Returner syllabus som en "side" for kompatibilitet med frontend
-          // Utelater created_at/updated_at siden de er optional i skjemaet
-          res.json({ 
+          res.json({
             page: {
               url: "syllabus",
               title: "Kursplan",
@@ -984,25 +1126,36 @@ router.get("/emner/:courseId/diskusjoner/:topicId", async (req, res) => {
 
 // Global error handler for dette routeret
 router.use((error: Error, _req: unknown, res: unknown, _next: unknown) => {
-  logger.error({ err: error }, "Canvas API feil");
-  // Global error handler for dette endpointet
   const response = res as { status: (code: number) => { json: (data: unknown) => void } };
+
   // Zod validering feil
   if (error.name === "ZodError") {
+    logger.error({ err: error }, "Canvas Zod validering feilet");
     return response.status(500).json({
       feil: "Validering feilet",
       melding: "Canvas returnerte uventet data-format",
+      kode: "validation_error" as CanvasErrorCode,
       detaljer: error?.message,
     });
   }
-  // Canvas API feil - Sjekk om error har en status-kode
-  const canvasError = error as CanvasHttpError;
-  const status = typeof canvasError.status === "number" ? canvasError.status : 500;
-  const melding = typeof canvasError.details === "string" ? canvasError.details : error.message;
-  response.status(status).json({
-    feil: status === 401 ? "Ugyldig Canvas-token" : "Canvas API feil",
-    melding: melding,
-  });
+
+  // Strukturert Canvas API-feil (fra canvasErrors.ts)
+  const canvasError = error as CanvasApiError | CanvasHttpError;
+  const httpStatus = (canvasError as CanvasHttpError).status ?? (canvasError as CanvasApiError).httpStatus ?? 500;
+  const errorCode: CanvasErrorCode = (canvasError as CanvasApiError).code
+    || classifyHttpStatus(httpStatus, canvasError.details || error.message);
+
+  // Logg strukturert feilinfo (uten sensitiv data)
+  logger.error({
+    errorCode,
+    httpStatus,
+    errorName: error.name,
+    // Ikke logg full details da den kan inneholde sensitiv data
+  }, `Canvas API feil: ${errorCode}`);
+
+  // Returner strukturert feilrespons med feilkode
+  const errorResponse = getErrorResponse(errorCode, canvasError.details);
+  return response.status(httpStatus).json(errorResponse);
 });
 
 export default router;  

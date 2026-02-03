@@ -19,7 +19,7 @@ import { useUIStore } from "../store/uiStore";
 
 // Gyldige visningstyper for URL-validering
 const GYLDIGE_VISNINGER: VisningType[] = [
-  "chat", "canvas-announcements", "calendar", "canvas-courses", "canvas-data", "settings"
+  "chat", "canvas-announcements", "calendar", "canvas-courses", "settings"
 ];
 
 // Lazy load tunge komponenter for raskere initial page load
@@ -119,7 +119,6 @@ export function DashboardView() {
     const hentCanvasVisning = () => {
         if (aktivVisning === "canvas-announcements") return "announcements";
         if (aktivVisning === "canvas-courses") return "courses";
-        if (aktivVisning === "canvas-data") return "data";
         return "announcements";
     };
     // Vis lasteskjerm mens brukerdata hentes eller hvis vi redirecter
@@ -159,8 +158,7 @@ export function DashboardView() {
                         </SectionErrorBoundary>
                     )}
                     {(aktivVisning === "canvas-announcements" ||
-                        aktivVisning === "canvas-courses" ||
-                        aktivVisning === "canvas-data") && (
+                        aktivVisning === "canvas-courses") && (
                         <SectionErrorBoundary sectionName="Canvas">
                             <Suspense fallback={<SectionLoader text="Laster Canvas..." />}>
                                 <CanvasSection startVisning={hentCanvasVisning()} harCanvasToken={harCanvasToken} />
@@ -172,8 +170,8 @@ export function DashboardView() {
                         <SectionErrorBoundary sectionName="innstillinger">
                             <Suspense fallback={<SectionLoader text="Laster innstillinger..." />}>
                                 <SettingsSection
-                                    brukernavn={brukernavn}
                                     harCanvasToken={harCanvasToken}
+                                    lokalBrukerEpost={megQuery.data?.user?.email}
                                 />
                             </Suspense>
                         </SectionErrorBoundary>

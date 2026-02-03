@@ -6,6 +6,11 @@ import validator from "validator";
 import { Request, Response as ExpressResponse, NextFunction } from "express";
 import { getCache, setCache } from "../../cache/redis.js";
 import { logger } from "../../utils/logger.js";
+import {
+  createCanvasError,
+  classifyHttpStatus,
+  type CanvasErrorCode,
+} from "./canvasErrors.js";
 
 // Typer og Interfaces
 // Canvas fetch funksjon med paginering og timeout
@@ -26,11 +31,16 @@ export interface CanvasResponse<T> {
         itemsCount: number;
     };
 }
-// Feiltype for Canvas HTTP-feil
+// Re-eksporter error types for bakoverkompatibilitet
+export type { CanvasApiError, CanvasErrorCode, CanvasWarning } from "./canvasErrors.js";
+export { createCanvasError, classifyHttpStatus, createWarningFromError, getErrorResponse, getHttpStatusForCode, requiresReauth, isRecoverableError } from "./canvasErrors.js";
+
+// Legacy feiltype for bakoverkompatibilitet (deprecated - bruk CanvasApiError)
 interface CanvasHttpError extends Error {
     status?: number;
     details?: string;
     retryAfter?: number;
+    code?: CanvasErrorCode;
 }
 
 // Standard cache TTL verdier (i sekunder)
@@ -48,8 +58,46 @@ export const CACHE_TTL = {
     DEFAULT: 600,       // 10 min - standard fallback
 } as const;
 
+// Paginering: per_page verdier for ulike endepunkt-typer
+export const PAGE_SIZE = {
+    DEFAULT: 100,       // Standard for de fleste lister
+    ANNOUNCEMENTS: 50,  // Kunngjøringer har ofte mye innhold
+    MODULES: 50,        // Moduler inkluderer items, begrens størrelse
+} as const;
+
+// Paginering: maks antall sider å hente (forhindrer uendelige loops)
+export const MAX_PAGES = {
+    DEFAULT: 5,         // Standard for de fleste endepunkter
+    CALENDAR: 10,       // Kalenderhendelser kan spenne over mange sider
+    LECTURES: 15,       // Forelesninger over lengre periode trenger mer data
+} as const;
+
 // Hjelpefunksjon for å vente med exponential backoff
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Hjelpefunksjon for å generere feilmelding basert på kode
+function getErrorMessageForCode(code: CanvasErrorCode, rawError?: string): string {
+    switch (code) {
+        case "token_invalid":
+            return "Ugyldig Canvas-token";
+        case "token_missing":
+            return "Canvas-token mangler";
+        case "permission_denied":
+            return "Ingen tilgang til denne ressursen";
+        case "resource_disabled":
+            return "Ressursen er deaktivert for dette emnet";
+        case "resource_not_found":
+            return "Ressursen ble ikke funnet";
+        case "rate_limited":
+            return "For mange forespørsler til Canvas";
+        case "timeout":
+            return "Forespørselen tok for lang tid";
+        case "server_error":
+            return "Canvas-serveren opplever problemer";
+        default:
+            return rawError || "Ukjent Canvas API-feil";
+    }
+}
 
 // Hjelpefunksjoner
 // Henter Canvas konfig fra miljøvariabler
@@ -142,12 +190,16 @@ export function krevCanvasToken(req: Request, res: ExpressResponse, next: NextFu
             return res.status(401).json({
                 feil: "Ikke autentisert",
                 melding: "Logg inn for å bruke Canvas-funksjoner.",
+                kode: "token_invalid" as CanvasErrorCode,
             });
         }
         if (!req.canvasToken) {
+            // Viktig: Inkluder kode="token_missing" slik at frontend vet at dette er
+            // en token-feil fra vår backend, IKKE en permission denied fra Canvas
             return res.status(403).json({
                 feil: "Canvas-token mangler",
                 melding: "Koble brukeren til Canvas før du bruker disse endepunktene.",
+                kode: "token_missing" as CanvasErrorCode,
             });
         }
         next();
@@ -156,6 +208,7 @@ export function krevCanvasToken(req: Request, res: ExpressResponse, next: NextFu
         return res.status(500).json({
             feil: "Kunne ikke verifisere Canvas-token",
             melding: "Kunne ikke validere brukerens Canvas-token.",
+            kode: "server_error" as CanvasErrorCode,
         });
     }
 }
@@ -248,11 +301,27 @@ export async function hentCanvasData<T>(
         try {
             const cachedData = await getCache(cacheNokkel);
             if (cachedData) {
+                const parsed = JSON.parse(cachedData);
+                // Sjekk om dette er en cachet negativ respons (feilet tidligere)
+                if (parsed.error && parsed.cached) {
+                    logger.info({ cacheKey: cacheNokkel, errorCode: parsed.error }, "Redis Cache HIT (negativ)");
+                    // Re-throw den samme feilen som vi ville fått fra API
+                    const error = createCanvasError(
+                        parsed.error as CanvasErrorCode,
+                        getErrorMessageForCode(parsed.error as CanvasErrorCode, ""),
+                        { httpStatus: parsed.error === "permission_denied" ? 403 : 404, endpoint }
+                    );
+                    throw error;
+                }
                 logger.info({ cacheKey: cacheNokkel }, "Redis Cache HIT");
-                return JSON.parse(cachedData);
+                return parsed;
             }
             logger.info({ cacheKey: cacheNokkel }, "Redis Cache MISS");
         } catch (err) {
+            // Re-throw Canvas errors (inkludert cached negative responses)
+            if (err instanceof Error && err.name === "CanvasApiError") {
+                throw err;
+            }
             logger.error({ err }, "Cache henting feilet");
         }
     } else {
@@ -311,19 +380,44 @@ export async function hentCanvasData<T>(
                     retryCount++;
                     continue;
                 }
-                // Annen feil
+                // Annen feil - klassifiser basert på status og respons
                 if (!response.ok) {
                     const errorText = await response.text();
-                    if (response.status === 401) {
-                        const error = new Error("Ugyldig Canvas-token") as CanvasHttpError;
-                        error.status = 401;
-                        error.details = errorText;
-                        throw error;
+                    const errorCode = classifyHttpStatus(response.status, errorText);
+
+                    // Logg strukturert feil (uten sensitiv data)
+                    logger.warn({
+                        endpoint,
+                        httpStatus: response.status,
+                        errorCode,
+                        // Ikke logg token eller full errorText (kan inneholde sensitiv data)
+                    }, `Canvas API feil: ${errorCode}`);
+
+                    // Cache "permanente" feil (permission denied, resource disabled/not found)
+                    // Dette forhindrer gjentatte kall til endpoints som alltid vil feile
+                    const permanentErrors = ["permission_denied", "resource_disabled", "resource_not_found"];
+                    if (!erSensitiv && cacheTtl > 0 && permanentErrors.includes(errorCode)) {
+                        const negativeResult = {
+                            data: null,
+                            error: errorCode,
+                            cached: true,
+                        };
+                        // Cache negative result med kortere TTL (5 minutter)
+                        const negativeCacheTtl = Math.min(cacheTtl, 300);
+                        await setCache(cacheNokkel, JSON.stringify(negativeResult), negativeCacheTtl);
+                        logger.debug({ endpoint, errorCode, cacheTtl: negativeCacheTtl }, "Cachet negativ respons");
                     }
-                    const error = new Error(
-                        `Canvas API feil (${response.status}): ${errorText || response.statusText}`
-                    ) as CanvasHttpError;
-                    error.status = response.status;
+
+                    // Opprett strukturert feil
+                    const error = createCanvasError(
+                        errorCode,
+                        getErrorMessageForCode(errorCode, errorText),
+                        {
+                            httpStatus: response.status,
+                            endpoint,
+                            details: errorText,
+                        }
+                    );
                     throw error;
                 }
                 // Suksess - bryt ut av retry-loop

@@ -11,6 +11,7 @@ import {
     KIChatResponseSchema,
     KIModelsResponseSchema,
     KIDocumentAnalyseResponseSchema,
+    KI_MAX_MESSAGE_LENGTH_FRONTEND,
     type KIChatRequest,
     type KIModelsResponse,
     type KIDocumentAnalyseResponse,
@@ -60,34 +61,83 @@ export const SUPPORTED_MIME_TYPES = [
     "image/tiff",
 ];
 
-// Spesialiserte feilklasser for bedre feilhåndtering
-export class KIAuthError extends Error {
-    constructor(message = "Ikke autentisert") {
-        super(message);
-        this.name = "KIAuthError";
+// Maks tegn for meldinger (importert fra common)
+
+/**
+ * Trimmer meldingshistorikk for å holde seg under maks tegngrense.
+ * Beholder alltid:
+ * 1. System-meldingen (hvis den finnes)
+ * 2. Den nyeste bruker-meldingen
+ * 3. Så mange eldre meldinger som mulig (nyeste først)
+ */
+function trimMessages(
+    messages: Array<{ role: string; content: string }>,
+    maxLength: number = KI_MAX_MESSAGE_LENGTH_FRONTEND
+): Array<{ role: string; content: string }> {
+    if (messages.length === 0) return messages;
+
+    // Beregn total lengde
+    const totalLength = messages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
+    if (totalLength <= maxLength) return messages;
+
+    // Separer system-melding fra resten
+    const systemMessage = messages.find(m => m.role === "system");
+    const nonSystemMessages = messages.filter(m => m.role !== "system");
+
+    // Start med system-melding og nyeste melding
+    const result: Array<{ role: string; content: string }> = [];
+    let currentLength = 0;
+
+    // Legg til system-melding først (hvis den finnes)
+    if (systemMessage) {
+        result.push(systemMessage);
+        currentLength += systemMessage.content?.length || 0;
     }
-}
-// Rate limit feil
-export class KIRateLimitError extends Error {
-    constructor(message = "For mange forespørsler") {
-        super(message);
-        this.name = "KIRateLimitError";
+
+    // Legg til meldinger fra nyeste til eldste
+    const reversedMessages = [...nonSystemMessages].reverse();
+    const messagesToAdd: Array<{ role: string; content: string }> = [];
+
+    for (const msg of reversedMessages) {
+        const msgLength = msg.content?.length || 0;
+        if (currentLength + msgLength <= maxLength) {
+            messagesToAdd.unshift(msg); // Legg til i starten for å bevare rekkefølge
+            currentLength += msgLength;
+        } else {
+            // Ikke plass til flere hele meldinger
+            break;
+        }
     }
-}
-//  Tjeneste utilgjengelig feil
-export class KIServiceError extends Error {
-    constructor(message = "KI-tjenesten er utilgjengelig") {
-        super(message);
-        this.name = "KIServiceError";
+
+    // Kombiner system-melding med de andre meldingene
+    result.push(...messagesToAdd);
+
+    // Logg hvis vi trimmet
+    if (result.length < messages.length) {
+        console.info(
+            `[KI] Trimmet samtalehistorikk: ${messages.length} → ${result.length} meldinger ` +
+            `(${totalLength} → ${currentLength} tegn)`
+        );
     }
+
+    return result;
 }
-// Timeout feil
-export class KITimeoutError extends Error {
-    constructor(message = "Forespørselen tok for lang tid") {
-        super(message);
-        this.name = "KITimeoutError";
-    }
-}
+
+// Spesialiserte feilklasser - importert fra felles error-modul
+import {
+    KIAuthError,
+    KIRateLimitError,
+    KIServiceError,
+    KITimeoutError,
+} from "../lib/errors";
+
+// Re-eksporter for konsumenter
+export {
+    KIAuthError,
+    KIRateLimitError,
+    KIServiceError,
+    KITimeoutError,
+};
 
 // API funksjoner
 async function fetchKI<T>(endpoint: string, schema: ZodType<T>, forsoktRefresh = false): Promise<T> {
@@ -152,10 +202,13 @@ async function postKI<T>(
         await fornySesjon();
         return postKI(endpoint, body, schema, true);
     }
-    
+
     // Håndter spesifikke feilkoder med egne feilklasser
     if (res.status === 401) {
         throw new KIAuthError("Du må logge inn på nytt for å bruke KI-assistenten.");
+    }
+    if (res.status === 413) {
+        throw new Error("Samtalen er for lang. Start en ny samtale for å fortsette.");
     }
     if (res.status === 429) {
         throw new KIRateLimitError("For mange forespørsler. Vent litt og prøv igjen.");
@@ -263,15 +316,18 @@ export function useKIChat() {
                 onError?: (error: Error) => void;
             }
         ) => {
+            // Trim meldinger for å unngå 413 Payload Too Large
+            const trimmedMessages = trimMessages(messages);
+
             const request: KIChatRequest = {
-                messages: messages.map(m => ({
+                messages: trimmedMessages.map(m => ({
                     role: m.role as "user" | "assistant" | "system",
                     content: m.content,
                 })),
                 model: options?.model,
                 temperature: options?.temperature,
             };
-            
+
             mutation.mutate(request, {
                 onSuccess: options?.onSuccess,
                 onError: options?.onError,

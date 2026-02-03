@@ -10,14 +10,35 @@ import { User } from "../database/models/User.js";
 import { decrypt } from "../utils/kryptering.js";
 import { logger } from "../utils/logger.js";
 import type { JwtBrukerPayload } from "../typer/express.js";
+import { AUTH_COOKIE_NAME, AUTH_REFRESH_COOKIE_NAME } from "common/auth";
 
-// Utvid Express Request for å inkludere brukerinfo og Canvas token
-export const JWT_COOKIE_NAVN = process.env.JWT_COOKIE_NAVN || "studywise_auth";
-export const JWT_REFRESH_COOKIE_NAVN = process.env.JWT_REFRESH_COOKIE_NAVN || "studywise_auth_refresh";
-export const JWT_TILGANG_UTLOPER = "30m";
-export const JWT_REFRESH_UTLOPER = "14d";
-export const JWT_TILGANG_MS = 30 * 60 * 1000;
-export const JWT_REFRESH_MS = 14 * 24 * 60 * 60 * 1000;
+// Cookie-navn (bruker common constants som default, tillater env var override)
+export const JWT_COOKIE_NAVN = process.env.JWT_COOKIE_NAVN || AUTH_COOKIE_NAME;
+export const JWT_REFRESH_COOKIE_NAVN = process.env.JWT_REFRESH_COOKIE_NAVN || AUTH_REFRESH_COOKIE_NAME;
+
+// JWT utløpstider (konfigurerbare via miljøvariabler)
+// Formater: "30m", "1h", "14d" - brukes av jsonwebtoken
+export const JWT_TILGANG_UTLOPER = process.env.JWT_ACCESS_EXPIRES ?? "30m";
+export const JWT_REFRESH_UTLOPER = process.env.JWT_REFRESH_EXPIRES ?? "14d";
+
+// Parse utløpstid til millisekunder for cookie maxAge
+function parseUtlopTilMs(utlopStreng: string, defaultMs: number): number {
+    const match = utlopStreng.match(/^(\d+)([smhd])$/);
+    if (!match) return defaultMs;
+    const verdi = parseInt(match[1], 10);
+    const enhet = match[2];
+    switch (enhet) {
+        case "s": return verdi * 1000;
+        case "m": return verdi * 60 * 1000;
+        case "h": return verdi * 60 * 60 * 1000;
+        case "d": return verdi * 24 * 60 * 60 * 1000;
+        default: return defaultMs;
+    }
+}
+
+// Millisekunder for cookie maxAge (beregnet fra utløpsstrenger)
+export const JWT_TILGANG_MS = parseUtlopTilMs(JWT_TILGANG_UTLOPER, 30 * 60 * 1000);
+export const JWT_REFRESH_MS = parseUtlopTilMs(JWT_REFRESH_UTLOPER, 14 * 24 * 60 * 60 * 1000);
 
 // Hent token fra Authorization header
 const hentBearerToken = (req: Request): string | null => {

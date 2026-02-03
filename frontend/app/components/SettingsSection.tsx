@@ -6,10 +6,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Moon, Sun, Key, User, Shield, Info, Trash2, MessageSquare, Bot, CheckCircle } from "lucide-react";
-import { useLagreCanvasToken } from "../auth/auth-api";
-import { resetCanvasTokenStatus } from "../canvas/canvas-api";
+import { Moon, Sun, Key, User, Info, Trash2, MessageSquare, Bot, CheckCircle } from "lucide-react";
+import { useLagreCanvasToken, useSlettCanvasToken } from "../auth/auth-api";
+import { resetCanvasTokenStatus, useCanvasUser } from "../canvas/canvas-api";
 import { useTheme } from "next-themes";
+import { format } from "date-fns";
+import { nb } from "date-fns/locale";
 import { useChatHistory } from "../hooks/useChatHistory";
 import { showToast } from "./Toaster";
 import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
@@ -18,13 +20,13 @@ import { useUIStore } from "../store/uiStore";
 
 // Typer for SettingsSection props
 interface SettingsSectionProps {
-    brukernavn?: string;
     harCanvasToken?: boolean;
+    lokalBrukerEpost?: string;
 }
 // Settings seksjon komponent
 export function SettingsSection({
-    brukernavn,
     harCanvasToken,
+    lokalBrukerEpost,
 }: SettingsSectionProps) {
     const { setTheme, resolvedTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
@@ -44,7 +46,6 @@ export function SettingsSection({
     const isDarkMode = mounted && resolvedTheme === "dark";
     const toggleTheme = () => setTheme(isDarkMode ? "light" : "dark");
     const queryClient = useQueryClient();
-    const erCanvasTokenDeaktivert = false;
     const [canvasToken, setCanvasToken] = useState("");
     const [visToken, setVisToken] = useState(false);
     const {
@@ -52,12 +53,36 @@ export function SettingsSection({
         isPending,
     } = useLagreCanvasToken();
 
+    const {
+        mutateAsync: slettToken,
+        isPending: isSlettingToken,
+    } = useSlettCanvasToken();
+
+    const [visSlettBekreftelse, setVisSlettBekreftelse] = useState(false);
+
     const [cooldown, setCooldown] = useState(false);
     const { clearAll: clearChatHistory, chats, loading: chatsLoading } = useChatHistory();
 
+    // Hent Canvas-brukerdata for profil-visning
+    const canvasUserQuery = useCanvasUser(harCanvasToken);
+    const canvasUser = canvasUserQuery.data;
+
+    // Formater opprettelsesdato hvis tilgjengelig
+    const opprettetDato = canvasUser?.created_at
+        ? format(new Date(canvasUser.created_at), "d. MMMM yyyy", { locale: nb })
+        : null;
+
+    // Sanitize avatar URL - kun tillat https:// for å forhindre XSS
+    const getSafeAvatarUrl = (url: string | undefined, fallbackSeed: string, bgColor: string): string => {
+        if (url && url.startsWith("https://")) {
+            return url;
+        }
+        return `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(fallbackSeed)}&backgroundColor=${bgColor}`;
+    };
+
     // Håndter lagring av Canvas token
     const handleLagreToken = async () => {
-        if (erCanvasTokenDeaktivert || cooldown) return;
+        if (cooldown) return;
         const trimmetToken = canvasToken.trim();
         if (!trimmetToken) return;
         try {
@@ -75,6 +100,21 @@ export function SettingsSection({
         } catch (err) {
             const feilmelding = lagBrukervennligFeilmelding(err instanceof Error ? err : null, { canvas: true });
             showToast.error("Kunne ikke lagre token", feilmelding);
+        }
+    };
+
+    // Håndter sletting av Canvas token
+    const handleSlettToken = async () => {
+        try {
+            await slettToken();
+            setVisSlettBekreftelse(false);
+            // Invalidér queries for å oppdatere UI
+            queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+            queryClient.invalidateQueries({ queryKey: ["canvas"] });
+            showToast.success("Canvas-token slettet", "Canvas-tilkoblingen er fjernet.");
+        } catch (err) {
+            const feilmelding = lagBrukervennligFeilmelding(err instanceof Error ? err : null, { canvas: true });
+            showToast.error("Kunne ikke slette token", feilmelding);
         }
     };
 
@@ -101,17 +141,68 @@ export function SettingsSection({
                             </h3>
                         </div>
 
-                        <div className="flex items-center gap-4">
-                            <div className="w-16 h-16 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-2xl font-medium text-slate-600 dark:text-slate-300">
-                                {brukernavn ? brukernavn.charAt(0).toUpperCase() : "?"}
+                        <div className="space-y-4">
+                            {/* Lokal StudyWise-konto */}
+                            <div className="flex items-center gap-4">
+                                <img
+                                    src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(lokalBrukerEpost || "user")}&backgroundColor=3b82f6`}
+                                    alt="Profilbilde"
+                                    className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30"
+                                />
+                                <div>
+                                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                        StudyWise-konto
+                                    </p>
+                                    <p className="font-medium text-slate-900 dark:text-white">
+                                        {lokalBrukerEpost || "Ikke innlogget"}
+                                    </p>
+                                </div>
                             </div>
+
+                            {/* Skillelinje */}
+                            <div className="border-t border-slate-100 dark:border-slate-700" />
+
+                            {/* Canvas-tilkobling */}
                             <div>
-                                <p className="font-medium text-slate-900 dark:text-white">
-                                    {brukernavn || "Ikke innlogget"}
+                                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">
+                                    Canvas-tilkobling
                                 </p>
-                                <p className="text-sm text-slate-500 dark:text-slate-400">
-                                    Canvas-bruker
-                                </p>
+                                {canvasUserQuery.isLoading ? (
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                                        <div className="space-y-2">
+                                            <div className="h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                                            <div className="h-3 w-48 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                                        </div>
+                                    </div>
+                                ) : harCanvasToken && canvasUser ? (
+                                    <div className="flex items-center gap-4">
+                                        <img
+                                            src={getSafeAvatarUrl(canvasUser.avatar_url, canvasUser.name || "canvas", "22c55e")}
+                                            alt={canvasUser.name || "Profilbilde"}
+                                            className="w-12 h-12 rounded-full object-cover bg-slate-200 dark:bg-slate-700"
+                                        />
+                                        <div>
+                                            <p className="font-medium text-slate-900 dark:text-white">
+                                                {canvasUser.name}
+                                            </p>
+                                            {canvasUser.primary_email && (
+                                                <p className="text-sm text-slate-500 dark:text-slate-400">
+                                                    {canvasUser.primary_email}
+                                                </p>
+                                            )}
+                                            {opprettetDato && (
+                                                <p className="text-sm text-slate-500 dark:text-slate-400">
+                                                    Tilkoblet siden {opprettetDato}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                                        Ikke tilkoblet. Legg til Canvas API-token nedenfor.
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </section>
@@ -172,19 +263,48 @@ export function SettingsSection({
 
                         {harCanvasToken && (
                             <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                                <div className="flex gap-2">
-                                    <CheckCircle size={16} className="text-green-600 shrink-0 mt-0.5" />
-                                    <p className="text-sm text-green-700 dark:text-green-300">
-                                        Canvas-token er koblet til kontoen din.
-                                    </p>
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex gap-2">
+                                        <CheckCircle size={16} className="text-green-600 shrink-0 mt-0.5" />
+                                        <p className="text-sm text-green-700 dark:text-green-300">
+                                            Canvas-token er koblet til kontoen din.
+                                        </p>
+                                    </div>
+                                    {/* Slett bekreftelse - Forenklet */}
+                                    {!visSlettBekreftelse ? (
+                                        <button
+                                            onClick={() => setVisSlettBekreftelse(true)}
+                                            className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                                        >
+                                            Slett tilkobling
+                                        </button>
+                                    ) : (
+                                        <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
+                                            <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+                                                Er du sikker?
+                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={handleSlettToken}
+                                                    disabled={isSlettingToken}
+                                                    className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded transition-colors disabled:opacity-50"
+                                                >
+                                                    {isSlettingToken ? "Sletter..." : "Ja, slett Canvas API Token"}
+                                                </button>
+                                                <button
+                                                    onClick={() => setVisSlettBekreftelse(false)}
+                                                    className="px-2 py-1 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs rounded transition-colors"
+                                                >
+                                                    Avbryt
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
 
-                        <fieldset
-                            disabled={erCanvasTokenDeaktivert}
-                            className={`space-y-3 ${erCanvasTokenDeaktivert ? "opacity-60 cursor-not-allowed" : ""}`}
-                        >
+                        <fieldset className="space-y-3">
                             <div className="relative">
                                 <input
                                     type={visToken ? "text" : "password"}
@@ -206,7 +326,7 @@ export function SettingsSection({
 
                             <button
                                 onClick={handleLagreToken}
-                                disabled={!canvasToken.trim() || erCanvasTokenDeaktivert || isPending || cooldown}
+                                disabled={!canvasToken.trim() || isPending || cooldown}
                                 className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
                                 {isPending ? "Lagrer..." : "Lagre token"}
@@ -218,10 +338,10 @@ export function SettingsSection({
                             <div className="flex gap-2">
                                 <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />
                                 <div className="text-sm text-blue-700 dark:text-blue-300">
-                                    <p className="font-medium mb-1">Slik far du en API token:</p>
+                                    <p className="font-medium mb-1">Slik får du en API token:</p>
                                     <ol className="list-decimal list-inside space-y-1 text-blue-600 dark:text-blue-400">
-                                        <li>Logg inn pa Canvas</li>
-                                        <li>Ga til Innstillinger → Godkjente integrasjoner</li>
+                                        <li>Logg inn på Canvas</li>
+                                        <li>Gå til Innstillinger → Godkjente integrasjoner</li>
                                         <li>Klikk &quot;Ny tilgangstoken&quot;</li>
                                         <li>Kopier token og lim inn her</li>
                                     </ol>
@@ -283,31 +403,6 @@ export function SettingsSection({
                         </section>
                     )}
 
-                    {/* Personverninfo */}
-                    <section className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
-                                <Shield size={20} className="text-slate-600 dark:text-slate-300" />
-                            </div>
-                            <h3 className="font-semibold text-slate-900 dark:text-white">
-                                Personvern
-                            </h3>
-                        </div>
-
-                        <div className="space-y-3 text-sm text-slate-600 dark:text-slate-400">
-                            <p>
-                                Din Canvas API token lagres kryptert og brukes kun til a hente
-                                dine egne data fra Canvas.
-                            </p>
-                            <p>
-                                Vi sender aldri personlig informasjon til eksterne AI-tjenester
-                                uten anonymisering.
-                            </p>
-                            <p>
-                                Du kan slette kontoen din og all tilknyttet data nar som helst.
-                            </p>
-                        </div>
-                    </section>
                 </div>
             </div>
         </div>

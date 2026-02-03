@@ -71,6 +71,11 @@ export const RefreshResponseSchema = z.object({
   melding: z.string(),
 });
 
+// Cookie-navn konstanter (delt mellom frontend og backend)
+export const AUTH_COOKIE_NAME = "studywise_auth";
+export const AUTH_REFRESH_COOKIE_NAME = "studywise_auth_refresh";
+export const AUTH_CHANNEL_NAME = "studywise_auth_sync";
+
 // TypeScript typer eksportering
 export type CanvasContextPreferences = z.infer<typeof CanvasContextPreferencesSchema>;
 export type CanvasTokenRequest = z.infer<typeof CanvasTokenRequestSchema>;

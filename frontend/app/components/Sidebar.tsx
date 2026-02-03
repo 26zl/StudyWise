@@ -10,7 +10,6 @@ import {
     MessageSquare,
     BookOpen,
     Megaphone,
-    FolderOpen,
     Settings,
     ChevronDown,
     ChevronRight,
@@ -32,7 +31,6 @@ export type VisningType =
     | "canvas-announcements"
     | "calendar"
     | "canvas-courses"
-    | "canvas-data"
     | "settings";
 
 // Props for Sidebar-komponenten
@@ -228,12 +226,6 @@ export function Sidebar({
                                     view="canvas-courses"
                                     icon={BookOpen}
                                     label="Mine emner"
-                                    indent
-                                />
-                                <NavElement
-                                    view="canvas-data"
-                                    icon={FolderOpen}
-                                    label="Canvas data"
                                     indent
                                 />
                             </div>

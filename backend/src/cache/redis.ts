@@ -65,14 +65,22 @@ export const getCache = async (key: string): Promise<string | null> => {
 
 // Setter cache (standard 10 minutter)
 export const setCache = async (key: string, value: string, ttlSeconds: number = 600) => {
-    if (!client.isOpen)
+    if (!client.isOpen) {
+        logger.warn({ key }, "Redis setCache: klient ikke åpen");
         return;
+    }
     try {
+        const valueSize = Buffer.byteLength(value, "utf8");
+        // Redis maks value størrelse er 512MB, men vi advarer ved 1MB
+        if (valueSize > 1024 * 1024) {
+            logger.warn({ key, valueSize }, "Redis setCache: stor verdi (> 1MB)");
+        }
         await client.set(key, value, {
             EX: ttlSeconds,
         });
+        logger.debug({ key, ttlSeconds, valueSize }, "Redis cache SET");
     } catch (error) {
-        logger.warn({ err: error }, "Redis error");
+        logger.error({ err: error, key }, "Redis setCache feilet");
     }
 };
 

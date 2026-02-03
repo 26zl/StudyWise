@@ -1,9 +1,8 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-
+import { AUTH_CHANNEL_NAME } from "common/auth";
 
 // Konstantverdier for BroadcastChannel
-const AUTH_CHANNEL_NAME = "studywise_auth_sync";
 const LOGOUT_MESSAGE = "logout";
 const LOGIN_MESSAGE = "login";
 

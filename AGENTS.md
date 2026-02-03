@@ -10,94 +10,26 @@ Dette er et **pnpm monorepo-prosjekt** som består av:
 
 ---
 
-## 1. Komplett Prosjektstruktur
+## 1. Teknologistack
 
-```text
-StudyWise/
-├── common/                  # Delte Zod schemas (workspace pakke)
-│   ├── src/
-│   │   ├── auth.ts              # Auth schemas
-│   │   ├── canvas.ts            # Canvas API schemas
-│   │   ├── ki.ts                # KI API schemas
-│   │   └── index.ts             # Eksporterer alle schemas
-│   ├── dist/                    # Kompilerte filer (.js + .d.ts)
-│   ├── package.json             # Inkluderer build script
-│   └── tsconfig.json            # Extends ../tsconfig.base.json
-├── frontend/                # Next.js frontend
-│   ├── app/                # App Router
-│   │   ├── hjem/           # Hjemmeside / Landing page
-│   │   │   └── page.tsx
-│   │   ├── canvas/         # Canvas
-│   │   │   └── canvas-api.ts    # Kun API-logikk (hooks)
-│   │   ├── dashboard/      # Dashboard (SPA Hub)
-│   │   │   └── page.tsx         # Hovedsiden som styrer visningene
-│   │   ├── auth/           # Autentisering
-│   │   │   ├── auth-api.ts      # Auth API hooks
-│   │   │   └── page.tsx         # Login-side
-│   │   ├── ki/                 # KI-sider
-│   │   │   └── ki-api.ts        # Kun API-logikk (hooks)
-│   │   ├── layout.tsx      # Root layout (Providers + Global CSS)
-│   │   ├── page.tsx        # Root page (redirecter til /hjem)
-│   │   ├── providers.tsx   # React Query provider
-│   │   ├── globals.css     # Global styling (Tailwind v4)
-│   │   ├── components/     # Gjenbrukbare komponenter
-│   │       ├── canvasSection.tsx    # Viser Canvas-innhold i dashboard
-│   │       ├── kiSection.tsx        # Viser AI-chat i dashboard
-│   │       ├── header.tsx           # Global header
-│   │       └── footer.tsx           # Global footer
-│   ├── package.json
-│   ├── postcss.config.mjs  # Tailwind v4 config
-│   └── tsconfig.json
-├── backend/                # Express backend
-│   ├── src/
-│   │   ├── database/       # Database-kobling
-│   │   │   └── database.ts      # Kobler til MongoDB
-│   │   ├── rutere/         # API-ruter
-│   │   │   ├── canvas/
-│   │   │   │   └── canvas.ts    # Canvas LMS API endpoints
-│   │   │   ├── auth/
-│   │   │   │   └── auth.ts      # Autentisering endpoints
-│   │   │   └── ki/
-│   │   │       └── ki.ts        # KI/AI endpoints
-│   │   ├── swagger.ts      # Swagger/OpenAPI konfigurasjon
-│   │   └── index.ts        # Server entry point + /health endpoint
-│   ├── package.json
-│   └── tsconfig.json       # Extends ../tsconfig.base.json
-├── tsconfig.base.json      # Delt TypeScript konfigurasjon
-├── package.json            # Workspace root (monorepo scripts)
-├── pnpm-workspace.yaml     # pnpm workspace config
-└── docker-compose.yml      # Docker Compose config
-```
+### Frontend
 
----
-
-## 2. Teknologistack (Deep Dive)
-
-- **Core**: Next.js 16.1.4, React 19.2.3, TypeScript 5.9.
-- **Styling**: Tailwind CSS v4.1 (med `@tailwindcss/postcss`).
-- **State/Data**: `@tanstack/react-query` v5 for server-state. `zustand` for client-state.
-- **Forms**: `react-hook-form` + `@hookform/resolvers` + `zod`.
-- **Routing**: Next.js App Router (Server Components default).
-
-### Dashboard (SPA-Container)
-
-Lokasjon: `frontend/app/dashboard/page.tsx`
-
-Dette er hjertet av applikasjonen og fungerer som en **sentral hub** for studenten.
-
-- **Formål**: Samler læringsplattform (Canvas) og støtteverktøy (KI) i ett grensesnitt.
-- **Virkemåte**: Bygget som en **SPA (Single Page Application) container**. Den laster ikke siden på nytt når man bytter fane, men bruker React state (`activeView`) for å bytte komponenter (`CanvasSection`, `KISection`) umiddelbart.
+- **Core**: Next.js 16.1.4, React 19.2.3, TypeScript 5.9
+- **Styling**: Tailwind CSS v4.1 (med `@tailwindcss/postcss`)
+- **State/Data**: `@tanstack/react-query` v5 for server-state, `zustand` for client-state
+- **Forms**: `react-hook-form` + `@hookform/resolvers` + `zod`
+- **Routing**: Next.js App Router (Server Components default)
 
 ### Backend
 
-- **Core**: Express 5.2.1, Node.js 20+.
-- **Language**: TypeScript (kjøres med `tsx` i dev, `node` i prod).
-- **Database**: MongoDB via `mongoose` v9.1.
-- **Validation**: `zod` (gjenbruker schema fra `common`).
-- **API Docs**: `swagger-ui-express` + `swagger-jsdoc`.
-- **Logging**: `pino` + `pino-http`. Bruk ALLTID `logger.info/error`, ALDRI `console.log`.
-- **Cache**: `redis` client interfacing with Redis Cloud.
-- **AI**: `@huggingface/inference` for integrasjon mot HuggingFace modeller.
+- **Core**: Express 5.2.1, Node.js 20+
+- **Language**: TypeScript (kjøres med `tsx` i dev, `node` i prod)
+- **Database**: MongoDB via `mongoose` v9.1
+- **Validation**: `zod` (gjenbruker schema fra `common`)
+- **API Docs**: `swagger-ui-express` + `swagger-jsdoc`
+- **Logging**: `pino` + `pino-http`. Bruk ALLTID `logger.info/error`, ALDRI `console.log`
+- **Cache**: `redis` client interfacing with Redis Cloud
+- **AI**: `@huggingface/inference` for integrasjon mot HuggingFace modeller
 
 ### Common
 
@@ -105,7 +37,16 @@ Dette er hjertet av applikasjonen og fungerer som en **sentral hub** for student
 
 ---
 
-## 3. Dataflyt & Nettverk
+## 2. Dataflyt & Arkitektur
+
+### Dashboard (SPA-Container)
+
+Lokasjon: `frontend/app/dashboard/page.tsx`
+
+Dette er hjertet av applikasjonen og fungerer som en **sentral hub** for studenten.
+
+- **Formål**: Samler læringsplattform (Canvas) og støtteverktøy (KI) i ett grensesnitt
+- **Virkemåte**: Bygget som en **SPA (Single Page Application) container**. Den laster ikke siden på nytt når man bytter fane, men bruker React state (`activeView`) for å bytte komponenter umiddelbart
 
 ### API Kommunikasjon
 
@@ -125,7 +66,7 @@ Vi bruker standard host-networking konsept der alt er tilgjengelig via `localhos
 
 ---
 
-## 4. Utviklingsrutiner
+## 3. Utviklingsrutiner
 
 ### Installasjon & Setup
 
@@ -178,7 +119,7 @@ cd backend && pnpm add <pakke>
 
 ---
 
-## 5. Regler for Koding
+## 4. Regler for Koding
 
 ### Mappestruktur Regler
 
@@ -204,12 +145,62 @@ cd backend && pnpm add <pakke>
 - Bruk Zod i `common` for å validere data *før* det treffer databasen.
 - **Bruk Mongoose Models**: Bruk alltid Mongoose-modeller slik de er ment å brukes (`.find()`, `.create()`, osv.). Unngå native MongoDB driver kall med mindre strengt nødvendig.
 
-- **Bruk Mongoose Models**: Bruk alltid Mongoose-modeller slik de er ment å brukes (`.find()`, `.create()`, osv.). Unngå native MongoDB driver kall med mindre strengt nødvendig.
-
 ### Generelle Regler
 
 - **Emojis**: Det skal IKKE brukes emojis i kode (tekst, knapper, kommentarer osv) med mindre brukeren SPESIFIKT ber om det.
 - **Konfigurasjon**: AI-agenter skal IKKE endre eller overskrive NOEN SOM HELST konfigurasjonsfiler i hele prosjektet (uansett filtype/navn) med mindre det er strengt nødvendig for kritisk funksjonalitet. Spør ALLTID brukeren først ved slike endringer.
+
+---
+
+## 5. Feilhåndtering
+
+### Backend (`backend/src/utils/apiError.ts`)
+
+Bruk standardisert feilhåndtering:
+
+```typescript
+import { apiError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
+
+// Autentiseringsfeil
+apiError.unauthorized(res, "Du må logge inn");
+
+// Valideringsfeil
+apiError.badRequest(res, "Ugyldig input", detaljer);
+
+// Ikke funnet
+apiError.notFound(res, "Bruker");
+
+// Zod feil
+if (error instanceof ZodError) {
+  return sendZodError(res, error, "Registrering");
+}
+
+// Ukjent feil
+return sendUnknownError(res, error, { kontekst: "minFunksjon" });
+```
+
+### Frontend (`frontend/app/lib/errors.ts`)
+
+Bruk felles error-klasser:
+
+```typescript
+import {
+  KIAuthError,
+  KIRateLimitError,
+  CanvasTokenMissingError,
+  AppError
+} from "../lib/errors";
+
+// Sjekk error type
+if (error instanceof KIRateLimitError) {
+  // Vis "vent litt" melding
+}
+
+// Sjekk om reauth kreves
+if (AppError.isAppError(error) && error.requiresReauth()) {
+  // Redirect til innlogging
+}
+```
 
 ---
 
@@ -227,7 +218,18 @@ cd backend && pnpm add <pakke>
 
 ---
 
-## 7. Sikkerhet og Personvern (nulltoleranse)
+## 7. Konfigurasjonsfiler
+
+Viktige konfigurasjonsfiler som styrer systemets oppførsel:
+
+- `backend/src/rutere/ki/aiModels.ts` - AI-modeller og standardmodell
+- `backend/src/rutere/ki/systemPrompt.ts` - System prompt for KI-assistenten
+- `backend/src/rutere/canvas/canvasUtils.ts` - Paginering og cache-innstillinger
+- `backend/src/middleware/auth.ts` - JWT utløpstider (konfigurerbar via miljøvariabler)
+
+---
+
+## 8. Sikkerhet og Personvern (nulltoleranse)
 
 ### Ingen Hardkoding av Hemmeligheter
 

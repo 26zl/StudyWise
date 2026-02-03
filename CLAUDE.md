@@ -10,113 +10,38 @@ StudyWise - AI-powered study assistant with Canvas LMS integration. pnpm monorep
 
 ---
 
-## 1. Complete Project Structure
-
-```text
-StudyWise/
-├── common/                  # Shared Zod schemas (workspace package)
-│   ├── src/
-│   │   ├── auth.ts              # Auth schemas
-│   │   ├── canvas.ts            # Canvas API schemas
-│   │   ├── ki.ts                # AI API schemas
-│   │   ├── calendar.ts          # Calendar/deadline schemas
-│   │   ├── chat.ts              # Chat history schemas
-│   │   └── index.ts             # Exports all schemas
-│   ├── dist/                    # Compiled files (.js + .d.ts)
-│   ├── package.json             # Includes build script
-│   └── tsconfig.json            # Extends ../tsconfig.base.json
-├── frontend/                # Next.js frontend
-│   ├── app/                # App Router
-│   │   ├── hjem/           # Home / Landing page
-│   │   │   └── page.tsx
-│   │   ├── canvas/         # Canvas
-│   │   │   └── canvas-api.ts    # API logic only (hooks)
-│   │   ├── dashboard/      # Dashboard (SPA Hub)
-│   │   │   └── page.tsx         # Main page controlling views
-│   │   ├── auth/           # Authentication
-│   │   │   ├── auth-api.ts      # Auth API hooks
-│   │   │   ├── auth-server.ts   # Server-side auth helpers
-│   │   │   └── page.tsx         # Login page
-│   │   ├── ki/                  # AI pages
-│   │   │   └── ki-api.ts        # API logic only (hooks)
-│   │   ├── hooks/               # Custom React hooks
-│   │   │   ├── useChatHistory.ts    # Chat history hook
-│   │   │   └── use-auth-sync.ts     # Cross-tab auth sync
-│   │   ├── layout.tsx      # Root layout (Providers + Global CSS)
-│   │   ├── page.tsx        # Root page (redirects to /hjem)
-│   │   ├── providers.tsx   # React Query provider
-│   │   ├── globals.css     # Global styling (Tailwind v4)
-│   │   └── components/     # Reusable components
-│   │       ├── canvasSection.tsx    # Shows Canvas content in dashboard
-│   │       ├── kiSection.tsx        # Shows AI chat in dashboard
-│   │       ├── header.tsx           # Global header
-│   │       └── footer.tsx           # Global footer
-│   ├── calendar/           # Calendar feature (outside app/)
-│   │   ├── calendar-api.ts      # Calendar data hooks
-│   │   ├── CalendarSection.tsx  # Main calendar component
-│   │   ├── CalendarGrid.tsx     # Calendar grid view
-│   │   ├── CalendarHeader.tsx   # Calendar navigation
-│   │   ├── DateDetailsModal.tsx # Date details popup
-│   │   ├── UpcomingDeadlines.tsx # Deadline list
-│   │   └── CourseLegend.tsx     # Course color legend
-│   ├── package.json
-│   ├── postcss.config.mjs  # Tailwind v4 config
-│   └── tsconfig.json
-├── backend/                # Express backend
-│   ├── src/
-│   │   ├── database/       # Database connection and models
-│   │   │   ├── database.ts      # Connects to MongoDB
-│   │   │   └── models/          # Mongoose models
-│   │   │       ├── User.ts          # Local user (auth, encrypted Canvas token)
-│   │   │       ├── CanvasUser.ts    # Cached Canvas profile data
-│   │   │       └── ChatHistory.ts   # Encrypted chat history
-│   │   ├── rutere/         # API routes
-│   │   │   ├── canvas/
-│   │   │   │   └── canvas.ts    # Canvas LMS API endpoints
-│   │   │   ├── auth/
-│   │   │   │   └── auth.ts      # Authentication endpoints
-│   │   │   └── ki/
-│   │   │       └── ki.ts        # AI endpoints
-│   │   ├── swagger.ts      # Swagger/OpenAPI configuration
-│   │   └── index.ts        # Server entry point + /health endpoint
-│   ├── package.json
-│   └── tsconfig.json       # Extends ../tsconfig.base.json
-├── tsconfig.base.json      # Shared TypeScript configuration
-├── package.json            # Workspace root (monorepo scripts)
-├── pnpm-workspace.yaml     # pnpm workspace config
-└── docker-compose.yml      # Docker Compose config
-```
-
----
-
-## 2. Technology Stack
+## 1. Technology Stack
 
 ### Frontend
 
-- **Core**: Next.js 16.1.4, React 19.2.3, TypeScript 5.9
-- **Styling**: Tailwind CSS v4.1 (with `@tailwindcss/postcss`)
+- **Core**: Next.js 16, React 19, TypeScript 5.9
+- **Styling**: Tailwind CSS v4 (with `@tailwindcss/postcss`)
 - **State/Data**: `@tanstack/react-query` v5 for server-state, `zustand` for client-state
 - **Forms**: `react-hook-form` + `@hookform/resolvers` + `zod`
 - **Routing**: Next.js App Router (Server Components default)
+- **Error handling**: Shared error classes in `frontend/app/lib/errors.ts`
 
 ### Backend
 
-- **Core**: Express 5.2.1, Node.js 20+
+- **Core**: Express 5, Node.js 20+
 - **Language**: TypeScript (runs with `tsx` in dev, `node` in prod)
-- **Database**: MongoDB via `mongoose` v9.1
+- **Database**: MongoDB via `mongoose` v9
 - **Validation**: `zod` (reuses schemas from `common`)
 - **API Docs**: `swagger-ui-express` + `swagger-jsdoc`
 - **Logging**: `pino` + `pino-http`. ALWAYS use `logger.info/error`, NEVER `console.log`
-- **Cache**: `redis` client interfacing with Redis Cloud
-- **AI**: `@huggingface/inference` for HuggingFace model integration
+- **Cache**: `redis` client with Redis Cloud
+- **AI**: `@huggingface/inference` for HuggingFace models
+- **Error handling**: Standardized via `backend/src/utils/apiError.ts`
 
 ### Common
 
-- Only `zod` definitions and TypeScript interfaces/types. No business logic.
+- Zod schemas and TypeScript interfaces shared between frontend and backend
+- Error types and codes (`canvasErrors.ts`)
+- Constants (cookie names, message limits)
 
 ---
 
-## 3. Commands
+## 2. Commands
 
 ```bash
 pnpm dev                    # Start frontend (3000) + backend (4000)
@@ -135,7 +60,7 @@ pnpm clean:install          # Full reinstall
 
 ---
 
-## 4. Architecture
+## 3. Architecture
 
 ### Data Flow
 
@@ -151,56 +76,34 @@ pnpm clean:install          # Full reinstall
 5. Frontend validates and displays data to user
 ```
 
-Frontend never calls external APIs directly. All `/api/*` requests proxy through Next.js to backend (configured in `next.config.js`). Backend validates requests, calls external APIs (Canvas, HuggingFace), and returns validated data.
+Frontend never calls external APIs directly. All `/api/*` requests proxy through Next.js to backend (configured in `next.config.js`).
 
 ### Dashboard (SPA Container)
 
 Location: `frontend/app/dashboard/page.tsx`
 
-This is the heart of the application and functions as a **central hub** for the student.
-
-- **Purpose**: Combines learning platform (Canvas) and support tools (AI) in one interface
-- **How it works**: Built as an **SPA (Single Page Application) container**. It doesn't reload the page when switching tabs, but uses React state (`activeView`) to switch components (`CanvasSection`, `KISection`) immediately.
+- **Purpose**: Combines Canvas and AI tools in one interface
+- **How it works**: SPA container using React state (`activeView`) to switch components without page reload
 
 ### Database Models
 
-- **User** (`backend/src/database/models/User.ts`): Local auth (email, password, canvasApiToken encrypted). This is where we store the Canvas API Token.
-- **CanvasUser** (`backend/src/database/models/CanvasUser.ts`): Cache of public profile info from Canvas (name, avatar, settings). Links back to User via `localUser` field.
-- **ChatHistory** (`backend/src/database/models/ChatHistory.ts`): Encrypted chat history per user. Messages are encrypted with AES-256-GCM before storage.
+- **User**: Local auth (email, password, encrypted canvasApiToken)
+- **CanvasUser**: Cache of Canvas profile info, links to User via `localUser`
+- **ChatHistory**: Encrypted chat history per user (AES-256-GCM)
+
+### Key Configuration Files
+
+- **AI models**: `backend/src/rutere/ki/aiModels.ts`
+- **System prompt**: `backend/src/rutere/ki/systemPrompt.ts`
+- **Canvas pagination**: `PAGE_SIZE`, `MAX_PAGES` in `canvasUtils.ts`
+- **Cache TTL**: `CACHE_TTL` in `canvasUtils.ts`
+- **JWT expiry**: Configurable via `JWT_ACCESS_EXPIRES`, `JWT_REFRESH_EXPIRES` env vars
+- **Cookie names**: `common/src/auth.ts`
+- **Message limits**: `common/src/ki.ts`
 
 ---
 
-## 5. Coding Rules
-
-### Folder Structure Rules
-
-**Frontend:**
-
-- Page components (`page.tsx`) should be thin. Move logic to `app/components/`
-- New components go in `frontend/app/components/`
-- API calls abstracted in hooks (e.g., `canvas-api.ts`)
-- SPA container remains in `frontend/app/dashboard/page.tsx`
-
-**Backend:**
-
-- Each "resource" (Canvas, Auth, KI) gets its own folder under `src/rutere/`
-- No logic in `src/index.ts` - setup only
-
-### Styling Rules (Tailwind)
-
-- NEVER use custom `.css` files (except `globals.css`)
-- **Dark Mode**: All colors MUST have a `dark:` variant
-  - Example: `bg-white dark:bg-gray-900 text-black dark:text-white`
-- **Mobile First**: Always design for mobile first, then add breakpoints (`sm:`, `md:`, `lg:`)
-  - Correct: `w-full md:w-1/2` (Starts full width, becomes half on desktop)
-  - Wrong: `w-1/2 max-md:w-full` (Starts desktop, fixes for mobile)
-- **Responsiveness**: Always test that design works on mobile, tablet, and desktop
-
-### Database Rules
-
-- Define schemas in `backend/src/database/models/`
-- Use Zod in `common` to validate data *before* it hits the database
-- **Use Mongoose Models**: Always use Mongoose models as intended (`.find()`, `.create()`, etc.). Avoid native MongoDB driver calls unless strictly necessary.
+## 4. Coding Rules
 
 ### General Rules
 
@@ -209,15 +112,51 @@ This is the heart of the application and functions as a **central hub** for the 
 - **Zod validation** - At all package boundaries
 - **Relative URLs** - Frontend uses `/api/...`, Next.js rewrites to backend
 - **No emojis** - Unless user explicitly requests
-- **Config protection** - Don't modify tsconfig/eslint/next.config without asking first
+- **Config protection** - Don't modify tsconfig/eslint/next.config without asking
 - **Norwegian naming** - Routes, components, variables in Norwegian; filenames in English
+
+### Styling Rules (Tailwind)
+
+- NEVER use custom `.css` files (except `globals.css`)
+- **Dark Mode**: All colors MUST have a `dark:` variant
+- **Mobile First**: Always design for mobile first, then add breakpoints (`sm:`, `md:`, `lg:`)
+  - Correct: `w-full md:w-1/2`
+  - Wrong: `w-1/2 max-md:w-full`
+
+### Error Handling
+
+**Backend** - Use `backend/src/utils/apiError.ts`:
+```typescript
+import { apiError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
+
+apiError.unauthorized(res, "Message");
+apiError.badRequest(res, "Message", details);
+apiError.notFound(res, "Resource");
+sendZodError(res, zodError, "Context");
+sendUnknownError(res, error, { kontekst: "function" });
+```
+
+**Frontend** - Use `frontend/app/lib/errors.ts`:
+```typescript
+import { KIAuthError, CanvasTokenMissingError, AppError } from "../lib/errors";
+
+if (AppError.isAppError(error) && error.requiresReauth()) {
+  // Handle reauth
+}
+```
+
+### Database Rules
+
+- Define schemas in `backend/src/database/models/`
+- Use Zod in `common` to validate data before it hits the database
+- Use Mongoose models as intended (`.find()`, `.create()`, etc.)
 
 ---
 
-## 6. Git & Workflow
+## 5. Git & Workflow
 
-1. **Stay updated**: Run `git pull origin main` often to avoid conflicts
-2. **Quality check**: Run `pnpm typecheck`, `pnpm lint`, and `pnpm build` regularly to catch errors early
+1. **Stay updated**: Run `git pull origin main` often
+2. **Quality check**: Run `pnpm typecheck`, `pnpm lint`, and `pnpm build` regularly
 3. NEVER use `npm`. This is a `pnpm` project.
 
 ```bash
@@ -228,11 +167,9 @@ pnpm build  # Builds common package first!
 
 ---
 
-## 7. Security and Privacy (Zero Tolerance)
+## 6. Security and Privacy (Zero Tolerance)
 
 ### No Hardcoding of Secrets
-
-It is **strictly forbidden** to hardcode sensitive data.
 
 - **API Keys**: Must always be loaded from `.env` files
 - **Tokens**: Must never be checked into git
@@ -240,20 +177,18 @@ It is **strictly forbidden** to hardcode sensitive data.
 
 ### Privacy (GDPR)
 
-We handle student data.
-
-- **Logging**: Never log personally identifiable information (PII) like names/emails in production
+- **Logging**: Never log PII (names/emails) in production
 - **Data Flow**: Send only necessary data to frontend
-- **AI**: **Never** send PII to external AI services (OpenAI/HuggingFace) without anonymization
+- **AI**: Never send PII to external AI services without anonymization
 
 ---
 
-## 8. Troubleshooting
+## 7. Troubleshooting
 
-- **"Can't resolve 'common'"** → `pnpm build:common` or just `pnpm build`
+- **"Can't resolve 'common'"** → `pnpm build:common` or `pnpm build`
 - **Port in use** → `pnpm kill:dev`
 - **Type errors after clean** → `pnpm build`
-- **"MongoNetworkError"** → Check that MongoDB is running (if local) or that `MONGO_URI` in `backend/.env` is correct. Check that your IP is whitelisted in MongoDB Atlas if using cloud database.
+- **"MongoNetworkError"** → Check `MONGO_URI` in `.env` and IP whitelist in MongoDB Atlas
 
 ---
 

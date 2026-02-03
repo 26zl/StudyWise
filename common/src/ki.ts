@@ -2,8 +2,11 @@
 * Felles zod schemaer for KI API
 */
 
-
 import { z } from "zod";
+
+// Meldingslengde-grenser
+export const KI_MAX_MESSAGE_LENGTH_BACKEND = 50000; // Backend hard limit
+export const KI_MAX_MESSAGE_LENGTH_FRONTEND = 45000; // Frontend limit (buffer under backend)
 
 // zod schemas for KI API
 export const KIMessageSchema = z.object({

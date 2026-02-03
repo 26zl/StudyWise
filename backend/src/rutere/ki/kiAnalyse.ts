@@ -15,6 +15,7 @@ import {
     formatDocumentContext,
     getSupportedMimeTypes
 } from "../../services/document.js";
+import { SUPPORTED_MODELS, DEFAULT_MODEL } from "./aiModels.js";
 
 // Definerer express router
 const router = Router();
@@ -34,36 +35,6 @@ const upload = multer({
 // Initialiser HF-klient
 const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
 const hfClient = HF_API_KEY ? new InferenceClient(HF_API_KEY) : null;
-
-// Støttede modeller
-const SUPPORTED_MODELS: Record<string, { name: string; description: string }> = {
-    "Qwen/Qwen3-1.7B": {
-        name: "Qwen 3 1.7B",
-        description: "Ultralett og rask modell for enkel bruk"
-    },
-    "Qwen/Qwen2.5-7B-Instruct": {
-        name: "Qwen 2.5 7B",
-        description: "Rask og effektiv modell for generelle oppgaver"
-    },
-    "Qwen/Qwen2.5-72B-Instruct": {
-        name: "Qwen 2.5 72B",
-        description: "Kraftigere modell for komplekse oppgaver"
-    },
-    "Qwen/Qwen2.5-Coder-32B-Instruct": {
-        name: "Qwen 2.5 Coder 32B",
-        description: "Spesialisert for programmering og kode"
-    },
-    "mistralai/Mistral-7B-Instruct-v0.3": {
-        name: "Mistral 7B",
-        description: "Effektiv europeisk modell"
-    },
-    "meta-llama/Llama-3.2-3B-Instruct": {
-        name: "Llama 3.2 3B",
-        description: "Kompakt og rask modell fra Meta"
-    },
-};
-
-const DEFAULT_MODEL = process.env.KI_DEFAULT_MODEL || "Qwen/Qwen2.5-7B-Instruct";
 
 // System prompt for StudyWise KI-assistenten
 const STUDYWISE_SYSTEM_PROMPT = `Du er en ekspert norsk studieassistent ved USN.

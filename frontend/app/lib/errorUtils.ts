@@ -3,6 +3,14 @@
  * Samler all feilmeldingslogikk på ett sted for konsistens
  */
 
+import { type CanvasErrorCode, getErrorMessage as getCanvasErrorMessage } from "common/canvasErrors";
+
+// Interface for strukturerte Canvas-feil med feilkode
+interface StructuredCanvasError extends Error {
+    code?: CanvasErrorCode;
+    httpStatus?: number;
+}
+
 // Feiltyper som kan identifiseres
 export type FeilType = 
   | "auth"
@@ -80,8 +88,16 @@ export function lagBrukervennligFeilmelding(
   kontekst: FeilmeldingKontekst = {},
   fallback = "Noe gikk galt. Prøv igjen."
 ): string {
+  // Sjekk for strukturert Canvas-feilkode først (høyeste prioritet)
+  if (kontekst.canvas && error && typeof error === "object") {
+    const structuredError = error as StructuredCanvasError;
+    if (structuredError.code) {
+      return getCanvasErrorMessage(structuredError.code);
+    }
+  }
+
   const feiltype = identifiserFeiltype(error);
-  
+
   // Canvas-spesifikke meldinger
   if (kontekst.canvas) {
     switch (feiltype) {
@@ -171,16 +187,4 @@ export function lagBrukervennligFeilmelding(
       return fallback;
     }
   }
-}
-
-// Hjelpefunksjon for å sjekke om feil krever re-autentisering
-export function kreverReautentisering(error: Error | string | null): boolean {
-  const feiltype = identifiserFeiltype(error);
-  return feiltype === "auth";
-}
-
-// Hjelpefunksjon for å sjekke om feil er midlertidig (kan prøves igjen)
-export function erMidlertidigFeil(error: Error | string | null): boolean {
-  const feiltype = identifiserFeiltype(error);
-  return feiltype === "rate_limit" || feiltype === "timeout" || feiltype === "network" || feiltype === "server";
 }

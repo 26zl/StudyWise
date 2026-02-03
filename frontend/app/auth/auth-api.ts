@@ -185,6 +185,26 @@ export function useLagreCanvasToken() {
   });
 }
 
+// Slett Canvas token for innlogget bruker
+async function slettCanvasToken(): Promise<CanvasTokenResponse> {
+  const res = await fetch("/api/user/token", {
+    method: "DELETE",
+    credentials: "include",
+  });
+  const json = await hentJson(res);
+  if (!res.ok) {
+    throw new Error(json.melding || json.feil || "Kunne ikke slette token");
+  }
+  return CanvasTokenResponseSchema.parse(json);
+}
+
+// Hook for sletting av Canvas token
+export function useSlettCanvasToken() {
+  return useMutation({
+    mutationFn: slettCanvasToken,
+  });
+}
+
 // Oppdater Canvas-kontekst preferanser
 async function oppdaterPreferanser(preferences: CanvasContextPreferences): Promise<{ melding: string; canvasContextPreferences: CanvasContextPreferences }> {
   const res = await fetch("/api/user/preferences", {
