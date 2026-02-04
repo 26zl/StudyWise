@@ -214,7 +214,7 @@ importers:
         version: 4.1.0
       html-react-parser:
         specifier: ^5.2.16
-        version: 5.2.16(@types/react@19.2.10)(react@19.2.4)
+        version: 5.2.16(@types/react@19.2.11)(react@19.2.4)
       isomorphic-dompurify:
         specifier: ^2.35.0
         version: 2.35.0(@noble/hashes@1.8.0)
@@ -241,7 +241,7 @@ importers:
         version: 7.71.1(react@19.2.4)
       react-markdown:
         specifier: ^10.1.0
-        version: 10.1.0(@types/react@19.2.10)(react@19.2.4)
+        version: 10.1.0(@types/react@19.2.11)(react@19.2.4)
       rehype-sanitize:
         specifier: ^6.0.0
         version: 6.0.0
@@ -256,7 +256,7 @@ importers:
         version: 4.3.6
       zustand:
         specifier: ^5.0.11
-        version: 5.0.11(@types/react@19.2.10)(react@19.2.4)
+        version: 5.0.11(@types/react@19.2.11)(react@19.2.4)
     devDependencies:
       '@eslint/js':
         specifier: ^9.39.2
@@ -269,16 +269,16 @@ importers:
         version: 6.9.1
       '@testing-library/react':
         specifier: ^16.3.2
-        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.10))(@types/react@19.2.10)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.11))(@types/react@19.2.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@types/node':
         specifier: ^25.2.0
         version: 25.2.0
       '@types/react':
-        specifier: ^19.2.10
-        version: 19.2.10
+        specifier: ^19.2.11
+        version: 19.2.11
       '@types/react-dom':
         specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.10)
+        version: 19.2.3(@types/react@19.2.11)
       '@typescript-eslint/eslint-plugin':
         specifier: ^8.54.0
         version: 8.54.0(@typescript-eslint/parser@8.54.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
@@ -1506,8 +1506,8 @@ packages:
     peerDependencies:
       '@types/react': ^19.2.0
 
-  '@types/react@19.2.10':
-    resolution: {integrity: sha512-WPigyYuGhgZ/cTPRXB2EwUw+XvsRA3GqHlsP4qteqrnnjDrApbS7MxcGr/hke5iUoeB7E/gQtrs9I37zAJ0Vjw==}
+  '@types/react@19.2.11':
+    resolution: {integrity: sha512-tORuanb01iEzWvMGVGv2ZDhYZVeRMrw453DCSAIn/5yvcSVnMoUMTyf33nQJLahYEnv9xqrTNbgz4qY5EfSh0g==}
 
   '@types/send@1.2.1':
     resolution: {integrity: sha512-arsCikDvlU99zl1g69TcAB3mzZPpxgw0UQnaHeC1Nwb015xp8bknZv5rIfri9xTOcMuaVgvabfIRA7PSZVuZIQ==}
@@ -3777,11 +3777,11 @@ packages:
     resolution: {integrity: sha512-PSkbLUoxOFRzJYjjxHJt9xro7D+iilgMX/C9lawzVuYiIdcihh9DXmVibBe8lmcFrRi/VzlPjBxbN7rH24q8/Q==}
     engines: {node: '>=14.0.0'}
 
-  tldts-core@7.0.21:
-    resolution: {integrity: sha512-oVOMdHvgjqyzUZH1rOESgJP1uNe2bVrfK0jUHHmiM2rpEiRbf3j4BrsIc6JigJRbHGanQwuZv/R+LTcHsw+bLA==}
+  tldts-core@7.0.22:
+    resolution: {integrity: sha512-KgbTDC5wzlL6j/x6np6wCnDSMUq4kucHNm00KXPbfNzmllCmtmvtykJHfmgdHntwIeupW04y8s1N/43S1PkQDw==}
 
-  tldts@7.0.21:
-    resolution: {integrity: sha512-Plu6V8fF/XU6d2k8jPtlQf5F4Xx2hAin4r2C2ca7wR8NK5MbRTo9huLUWRe28f3Uk8bYZfg74tit/dSjc18xnw==}
+  tldts@7.0.22:
+    resolution: {integrity: sha512-nqpKFC53CgopKPjT6Wfb6tpIcZXHcI6G37hesvikhx0EmUGPkZrujRyAjgnmp1SHNgpQfKVanZ+KfpANFt2Hxw==}
     hasBin: true
 
   toidentifier@1.0.1:
@@ -5094,15 +5094,15 @@ snapshots:
       picocolors: 1.1.1
       redent: 3.0.0
 
-  '@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.10))(@types/react@19.2.10)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+  '@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.11))(@types/react@19.2.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
       '@babel/runtime': 7.28.6
       '@testing-library/dom': 10.4.1
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
     optionalDependencies:
-      '@types/react': 19.2.10
-      '@types/react-dom': 19.2.3(@types/react@19.2.10)
+      '@types/react': 19.2.11
+      '@types/react-dom': 19.2.3(@types/react@19.2.11)
 
   '@types/aria-query@5.0.4': {}
 
@@ -5225,11 +5225,11 @@ snapshots:
 
   '@types/range-parser@1.2.7': {}
 
-  '@types/react-dom@19.2.3(@types/react@19.2.10)':
+  '@types/react-dom@19.2.3(@types/react@19.2.11)':
     dependencies:
-      '@types/react': 19.2.10
+      '@types/react': 19.2.11
 
-  '@types/react@19.2.10':
+  '@types/react@19.2.11':
     dependencies:
       csstype: 3.2.3
 
@@ -6307,7 +6307,7 @@ snapshots:
     transitivePeerDependencies:
       - '@noble/hashes'
 
-  html-react-parser@5.2.16(@types/react@19.2.10)(react@19.2.4):
+  html-react-parser@5.2.16(@types/react@19.2.11)(react@19.2.4):
     dependencies:
       domhandler: 5.0.3
       html-dom-parser: 5.1.7
@@ -6315,7 +6315,7 @@ snapshots:
       react-property: 2.0.2
       style-to-js: 1.1.21
     optionalDependencies:
-      '@types/react': 19.2.10
+      '@types/react': 19.2.11
 
   html-url-attributes@3.0.1: {}
 
@@ -7427,11 +7427,11 @@ snapshots:
 
   react-is@17.0.2: {}
 
-  react-markdown@10.1.0(@types/react@19.2.10)(react@19.2.4):
+  react-markdown@10.1.0(@types/react@19.2.11)(react@19.2.4):
     dependencies:
       '@types/hast': 3.0.4
       '@types/mdast': 4.0.4
-      '@types/react': 19.2.10
+      '@types/react': 19.2.11
       devlop: 1.1.0
       hast-util-to-jsx-runtime: 2.3.6
       html-url-attributes: 3.0.1
@@ -7922,17 +7922,17 @@ snapshots:
 
   tinyrainbow@3.0.3: {}
 
-  tldts-core@7.0.21: {}
+  tldts-core@7.0.22: {}
 
-  tldts@7.0.21:
+  tldts@7.0.22:
     dependencies:
-      tldts-core: 7.0.21
+      tldts-core: 7.0.22
 
   toidentifier@1.0.1: {}
 
   tough-cookie@6.0.0:
     dependencies:
-      tldts: 7.0.21
+      tldts: 7.0.22
 
   tr46@0.0.3: {}
 
@@ -8277,9 +8277,9 @@ snapshots:
 
   zod@4.3.6: {}
 
-  zustand@5.0.11(@types/react@19.2.10)(react@19.2.4):
+  zustand@5.0.11(@types/react@19.2.11)(react@19.2.4):
     optionalDependencies:
-      '@types/react': 19.2.10
+      '@types/react': 19.2.11
       react: 19.2.4
 
   zwitch@2.0.4: {}
