@@ -36,7 +36,7 @@ export async function getUserServer(): Promise<MeResponse | null> {
   // Bygg cookie-header med alle relevante cookies
   const cookieHeader = [
     tokenCookie?.value ? `${AUTH_COOKIE_NAME}=${tokenCookie.value}` : null,
-    refreshCookie?.value ? `studywise_refresh=${refreshCookie.value}` : null,
+    refreshCookie?.value ? `${AUTH_REFRESH_COOKIE_NAME}=${refreshCookie.value}` : null,
   ].filter(Boolean).join("; ");
 
   // Hjelpefunksjon for å hente /me

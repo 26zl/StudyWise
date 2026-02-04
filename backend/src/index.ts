@@ -112,15 +112,33 @@ const rateLimiterMiddleware = (req: express.Request, res: express.Response, next
 // Setter i gang rate limiter middleware
 app.use(rateLimiterMiddleware);
 
-// CORS kun mot frontend (WEB_ORIGIN er validert ved oppstart i validateEnv)
-// I produksjon kreves HTTPS for sikker cookie-overføring
-if (isProd && process.env.WEB_ORIGIN && !process.env.WEB_ORIGIN.startsWith("https://")) {
-  logger.warn("ADVARSEL: WEB_ORIGIN bruker ikke HTTPS i produksjon. " +
-    "Dette er usikkert for credentials/cookies.");
+// CORS mot frontend - støtter flere origins via WEB_ORIGINS (kommaseparert)
+// Faller tilbake til WEB_ORIGIN for bakoverkompatibilitet
+const allowedOrigins = new Set(
+  (process.env.WEB_ORIGINS ?? process.env.WEB_ORIGIN ?? "")
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean)
+);
+
+// I produksjon: advar hvis noen origins ikke bruker HTTPS
+if (isProd) {
+  for (const o of allowedOrigins) {
+    if (!o.startsWith("https://")) {
+      logger.warn(`ADVARSEL: Origin uten HTTPS i produksjon: ${o}. ` +
+        "Dette er usikkert for credentials/cookies.");
+    }
+  }
 }
+
 app.use(
   cors({
-    origin: process.env.WEB_ORIGIN!,
+    origin: (origin, cb) => {
+      // Forespørsler uten origin (curl, same-origin, health checks) tillates
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.has(origin)) return cb(null, true);
+      return cb(new Error(`CORS blokkert for origin: ${origin}`));
+    },
     credentials: true,
   })
 );

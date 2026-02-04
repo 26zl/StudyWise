@@ -18,7 +18,6 @@ import "dotenv/config";
 // Definerer forventede miljøvariabler og deres typer
 const requiredEnvVars = [
     "PORT",
-    "WEB_ORIGIN",
     "MONGO_URI",
     "CANVAS_BASE_URL",
     "JWT_ACCESS_SECRET",
@@ -58,6 +57,11 @@ function validateEnvForBuild() {
         manglende.push(`PORT (må være et tall, fikk: ${process.env.PORT})`);
     }
 
+    // Valider at minst én av WEB_ORIGIN eller WEB_ORIGINS er satt
+    if (!process.env.WEB_ORIGIN && !process.env.WEB_ORIGINS) {
+        manglende.push("WEB_ORIGIN eller WEB_ORIGINS (minst én må være satt)");
+    }
+
     // Valider URLer
     const validateUrl = (key) => {
         const url = process.env[key];
@@ -72,6 +76,19 @@ function validateEnvForBuild() {
     validateUrl("WEB_ORIGIN");
     validateUrl("CANVAS_BASE_URL");
     validateUrl("REDIS_URL");
+
+    // Valider alle origins i WEB_ORIGINS (kommaseparert liste)
+    const webOrigins = process.env.WEB_ORIGINS;
+    if (webOrigins) {
+        const origins = webOrigins.split(",").map(s => s.trim()).filter(Boolean);
+        for (const origin of origins) {
+            try {
+                new URL(origin);
+            } catch {
+                manglende.push(`WEB_ORIGINS (ugyldig URL i listen: ${origin})`);
+            }
+        }
+    }
 
     // Valider JWT Secrets lengde
     const validateSecret = (key) => {
