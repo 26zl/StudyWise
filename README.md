@@ -71,6 +71,7 @@ pnpm --filter backend add <pakkenavn>
 pnpm --filter common add <pakkenavn>
 
 # Vedlikehold
+pnpm run clean:all # Fjerner alt: node_modules, dist, .next, pnpm-lock.yaml 
 pnpm run clean:install    # Full reinstall
 pnpm kill:dev         # Stopp alle Node prosesser (Windows)
 pnpm run update       # Oppdater alle pakker

@@ -32,9 +32,8 @@
     "update:common": "pnpm --filter common update",
     "update:docs": "pnpm --filter docs update",
     "outdated": "pnpm -r outdated",
-    "clean": "rimraf backend/dist frontend/.next frontend/.turbo common/dist docs/docs/.vitepress/dist docs/docs/.vitepress/cache .turbo",
-    "clean:all": "rimraf backend/dist backend/node_modules frontend/.next frontend/.turbo frontend/node_modules common/dist common/node_modules docs/docs/.vitepress/dist docs/docs/.vitepress/cache docs/node_modules node_modules .turbo pnpm-lock.yaml",
-    "clean:install": "echo Cleaning all... && node -e \"const fs=require('fs');const paths=['backend/node_modules','backend/dist','frontend/node_modules','frontend/.next','common/node_modules','common/dist','docs/node_modules','docs/docs/.vitepress/dist','node_modules','pnpm-lock.yaml'];for(const p of paths){fs.rmSync(p,{recursive:true,force:true});}\" && echo Installing dependencies... && pnpm install && echo Building project... && pnpm run build"
+    "clean:all": "node scripts/clean.mjs",
+    "clean:install": "node scripts/clean.mjs && pnpm install && pnpm build"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
