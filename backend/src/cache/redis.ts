@@ -84,18 +84,25 @@ export const setCache = async (key: string, value: string, ttlSeconds: number = 
     }
 };
 
-// Regex for å validere cache-nøkler (kun alfanumerisk, kolon, bindestrek, understrek)
-// Forhindrer path traversal og andre injection-angrep
-const VALID_CACHE_KEY_PATTERN = /^[a-zA-Z0-9:_-]+$/;
+// Regex for å validere cache-nøkler
+// Tillater tegn som brukes i Canvas API cache-nøkler:
+// - Alfanumerisk, kolon, bindestrek, understrek (basis)
+// - Skråstrek (/) for URL-paths
+// - Spørsmålstegn (?) for query string
+// - Ampersand (&) og likhetstegn (=) for query params
+// - Hakeparenteser ([]) for array-params som include[]
+// Blokkerer farlige tegn som kan brukes til injection (newlines, null bytes, etc.)
+const VALID_CACHE_KEY_PATTERN = /^[a-zA-Z0-9:_/?.&=[\]-]+$/;
 /**
  * Validerer at en cache-nøkkel er trygg å bruke.
- * Forhindrer path traversal og injection ved å kun tillate kjente tegn.
+ * Tillater URL-lignende nøkler mens den blokkerer potensielt farlige tegn.
  */
 const isValidCacheKey = (key: string): boolean => {
     return typeof key === "string" &&
         key.length > 0 &&
-        key.length < 256 &&
-        VALID_CACHE_KEY_PATTERN.test(key);
+        key.length < 512 && // Økt fra 256 for lange Canvas API URLs
+        VALID_CACHE_KEY_PATTERN.test(key) &&
+        !key.includes(".."); // Ekstra sjekk mot path traversal
 };
 /**
  * Bruker SCAN i stedet for KEYS for å unngå å blokkere Redis
@@ -105,9 +112,9 @@ const isValidCacheKey = (key: string): boolean => {
 export const invalidateCacheByPattern = async (pattern: string): Promise<number> => {
     if (!client.isOpen) return 0;
     // Valider at pattern er trygt (forhindrer injection i SCAN)
-    // Tillat wildcard (*) i tillegg til vanlige tegn
-    const safePatternRegex = /^[a-zA-Z0-9:_*-]+$/;
-    if (!safePatternRegex.test(pattern)) {
+    // Tillat wildcard (*) og URL-tegn i tillegg til vanlige tegn
+    const safePatternRegex = /^[a-zA-Z0-9:_/?.&=[\]*-]+$/;
+    if (!safePatternRegex.test(pattern) || pattern.includes("..")) {
         logger.warn({ pattern }, "Ugyldig cache-mønster avvist");
         return 0;
     }
