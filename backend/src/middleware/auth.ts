@@ -135,7 +135,8 @@ export const autentiserJwt = (req: Request, res: Response, next: NextFunction) =
         if (!erGyldigBrukerPayload(payload)) {
             return res.status(403).json({ feil: "Ugyldig token-payload" });
         }
-        if (payload.tokenType && payload.tokenType !== "access") {
+        // Token-type KREVES for å forhindre misbruk av refresh-tokens som access-tokens
+        if (!payload.tokenType || payload.tokenType !== "access") {
             return res.status(403).json({ feil: "Ugyldig token-type" });
         }
 

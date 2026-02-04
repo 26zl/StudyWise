@@ -1153,8 +1153,9 @@ router.use((error: Error, _req: unknown, res: unknown, _next: unknown) => {
     // Ikke logg full details da den kan inneholde sensitiv data
   }, `Canvas API feil: ${errorCode}`);
 
-  // Returner strukturert feilrespons med feilkode
-  const errorResponse = getErrorResponse(errorCode, canvasError.details);
+  // Returner strukturert feilrespons UTEN interne detaljer (sikkerhet)
+  // Detaljer kan inneholde sensitiv info fra Canvas API-responser
+  const errorResponse = getErrorResponse(errorCode);
   return response.status(httpStatus).json(errorResponse);
 });
 

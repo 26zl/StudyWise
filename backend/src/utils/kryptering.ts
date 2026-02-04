@@ -12,6 +12,15 @@ const getKey = (): Buffer => {
     if (keyHex.length !== 64) {
         throw new Error('ENCRYPTION_KEY må være 64 hex-tegn (32 bytes) for AES-256-GCM.');
     }
+    // Sjekk at nøkkelen ikke er et svakt mønster (f.eks. repeating bytes)
+    // En sterk nøkkel bør ha høy entropi - sjekk at den har minst 16 unike bytes
+    const uniqueBytes = new Set(keyHex.match(/.{2}/g) || []);
+    if (uniqueBytes.size < 16) {
+        throw new Error(
+            'ENCRYPTION_KEY er for svak (for lite entropi). ' +
+            'Generer en sikker nøkkel med: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+        );
+    }
     const key = Buffer.from(keyHex, 'hex');
     if (key.length !== 32) {
         throw new Error('ENCRYPTION_KEY må være 32 bytes etter hex-dekoding.');

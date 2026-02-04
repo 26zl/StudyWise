@@ -84,29 +84,64 @@ export const setCache = async (key: string, value: string, ttlSeconds: number = 
     }
 };
 
+// Regex for å validere cache-nøkler (kun alfanumerisk, kolon, bindestrek, understrek)
+// Forhindrer path traversal og andre injection-angrep
+const VALID_CACHE_KEY_PATTERN = /^[a-zA-Z0-9:_-]+$/;
 /**
- * Sletter alle cache-nøkler som matcher et mønster.
- * Brukes for cache-invalidering ved token-endringer.
- * @param pattern - Mønster som "canvas:tokenHash:*"
- *
- * Merk: Bruker KEYS-kommando som kan være treg på store databaser,
- * men dette er akseptabelt her fordi cache-invalidering skjer sjelden
- * (kun ved token-endring) og cache-størrelsen er begrenset.
+ * Validerer at en cache-nøkkel er trygg å bruke.
+ * Forhindrer path traversal og injection ved å kun tillate kjente tegn.
+ */
+const isValidCacheKey = (key: string): boolean => {
+    return typeof key === "string" &&
+        key.length > 0 &&
+        key.length < 256 &&
+        VALID_CACHE_KEY_PATTERN.test(key);
+};
+/**
+ * Bruker SCAN i stedet for KEYS for å unngå å blokkere Redis
+ * ved store databaser. SCAN er ikke-blokkerende og itererer
+ * gjennom nøkler i batches.
  */
 export const invalidateCacheByPattern = async (pattern: string): Promise<number> => {
     if (!client.isOpen) return 0;
+    // Valider at pattern er trygt (forhindrer injection i SCAN)
+    // Tillat wildcard (*) i tillegg til vanlige tegn
+    const safePatternRegex = /^[a-zA-Z0-9:_*-]+$/;
+    if (!safePatternRegex.test(pattern)) {
+        logger.warn({ pattern }, "Ugyldig cache-mønster avvist");
+        return 0;
+    }
     try {
-        // Finn alle matchende nøkler
-        const keys = await client.keys(pattern);
-
-        if (keys.length === 0) {
+        // Bruk SCAN for ikke-blokkerende iterasjon (i stedet for KEYS som blokkerer)
+        const keysToDelete: string[] = [];
+        // scanIterator returnerer batches av keys per iterasjon
+        for await (const keys of client.scanIterator({ MATCH: pattern, COUNT: 100 })) {
+            // Hver iterasjon gir en batch av keys (array)
+            if (Array.isArray(keys)) {
+                keysToDelete.push(...keys);
+            } else {
+                keysToDelete.push(keys);
+            }
+        }
+        if (keysToDelete.length === 0) {
             return 0;
         }
-
-        // Slett alle matchende nøkler
-        await client.del(keys);
-        logger.info({ pattern, deletedCount: keys.length }, "Cache invalidert");
-        return keys.length;
+        // Filtrer til kun gyldige nøkler (defense in depth)
+        const validKeys = keysToDelete.filter(key => {
+            if (!isValidCacheKey(key)) {
+                logger.warn({ key: key.slice(0, 50) }, "Ugyldig cache-nøkkel hoppet over");
+                return false;
+            }
+            return true;
+        });
+        if (validKeys.length === 0) {
+            return 0;
+        }
+        // Slett alle gyldige nøkler med Redis DEL-kommando
+        // Merk: Dette er Redis DEL (database-operasjon), IKKE fs.unlink (filsystem)
+        const deletedCount = await client.del(validKeys);
+        logger.info({ pattern, deletedCount }, "Cache invalidert");
+        return deletedCount;
     } catch (error) {
         logger.warn({ err: error, pattern }, "Cache invalidering feilet");
         return 0;

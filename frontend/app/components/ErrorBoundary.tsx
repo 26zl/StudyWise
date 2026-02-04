@@ -28,8 +28,10 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // Logger feilen - kan utvides med Sentry eller lignende
-    console.error("ErrorBoundary fanget feil:", error, errorInfo);
+    // Logger feilen til konsollen (kun i development for debugging)
+    if (process.env.NODE_ENV === "development") {
+      console.error("ErrorBoundary fanget feil:", error, errorInfo);
+    }
   }
 
   handleReset = () => {

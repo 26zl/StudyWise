@@ -104,10 +104,14 @@ router.post("/login", rateLimitAuth, async (req, res) => {
         const { email, password } = LoginRequestSchema.parse(req.body);
         const user = await User.findOne({ email }).select("+canvasApiToken");
         if (!user) {
+            // Logg mislykket forsøk for audit trail (uten å avsløre om brukeren finnes)
+            logger.warn({ email: "[REDACTED]", reason: "user_not_found" }, "Mislykket innloggingsforsøk");
             return apiError.unauthorized(res, "Ugyldig e-postadresse eller passord.");
         }
         const match = await bcrypt.compare(password, user.passwordHash);
         if (!match) {
+            // Logg mislykket forsøk for audit trail (bruker finnes, feil passord)
+            logger.warn({ userId: user._id, reason: "invalid_password" }, "Mislykket innloggingsforsøk");
             return apiError.unauthorized(res, "Ugyldig e-postadresse eller passord.");
         }
         // JWT secrets er validert ved oppstart i validateEnv.ts

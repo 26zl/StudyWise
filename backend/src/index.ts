@@ -113,6 +113,11 @@ const rateLimiterMiddleware = (req: express.Request, res: express.Response, next
 app.use(rateLimiterMiddleware);
 
 // CORS kun mot frontend (WEB_ORIGIN er validert ved oppstart i validateEnv)
+// I produksjon kreves HTTPS for sikker cookie-overføring
+if (isProd && process.env.WEB_ORIGIN && !process.env.WEB_ORIGIN.startsWith("https://")) {
+  logger.warn("ADVARSEL: WEB_ORIGIN bruker ikke HTTPS i produksjon. " +
+    "Dette er usikkert for credentials/cookies.");
+}
 app.use(
   cors({
     origin: process.env.WEB_ORIGIN!,
