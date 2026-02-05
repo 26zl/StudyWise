@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FC } from "react";
 import { addMonths, setMonth, setYear, subMonths, format } from "date-fns";
-import { Loader2, AlertCircle, Clock, MapPin } from "lucide-react";
+import { AlertCircle, Clock, MapPin } from "lucide-react";
 import { CalendarHeader } from "./CalendarHeader";
 import { CalendarGrid } from "./CalendarGrid";
 import { CourseLegend } from "./CourseLegend";
@@ -110,9 +110,41 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
   }
   if (isLoading) {
     return (
-      <div className="flex items-center gap-3 p-4">
-        <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-        <span className="text-sm text-slate-600 dark:text-slate-300">Laster kalenderdata...</span>
+      <div className="calendar-page animate-pulse">
+        {/* Header skeleton */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded bg-slate-200 dark:bg-slate-700" />
+            <div className="h-6 w-36 rounded bg-slate-200 dark:bg-slate-700" />
+            <div className="h-8 w-8 rounded bg-slate-200 dark:bg-slate-700" />
+          </div>
+          <div className="hidden sm:flex gap-2">
+            <div className="h-8 w-20 rounded bg-slate-200 dark:bg-slate-700" />
+            <div className="h-8 w-28 rounded bg-slate-200 dark:bg-slate-700" />
+            <div className="h-8 w-28 rounded bg-slate-200 dark:bg-slate-700" />
+          </div>
+        </div>
+        {/* Grid skeleton */}
+        <div className="calendar-layout">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <div key={`h-${i}`} className="h-5 rounded bg-slate-200 dark:bg-slate-700 mb-1" />
+              ))}
+              {Array.from({ length: 35 }).map((_, i) => (
+                <div key={`c-${i}`} className="min-h-16 sm:min-h-20 md:min-h-24 rounded bg-slate-100 dark:bg-slate-800" />
+              ))}
+            </div>
+          </div>
+          {/* Detaljer-panel skeleton */}
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 h-fit">
+            <div className="h-5 w-32 rounded bg-slate-200 dark:bg-slate-700 mb-4" />
+            <div className="space-y-2">
+              <div className="h-12 rounded bg-slate-100 dark:bg-slate-800" />
+              <div className="h-12 rounded bg-slate-100 dark:bg-slate-800" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

@@ -83,7 +83,7 @@ function createColorMapper(colorMap: Map<string, CourseColor>, startIndex = 0) {
   };
 }
 // Funksjon for å mappe kalenderdata til oppgaver og kurs
-function mapCalendarItems(items: CalendarItem[]): { assignments: Assignment[]; courses: Course[] } {
+export function mapCalendarItems(items: CalendarItem[]): { assignments: Assignment[]; courses: Course[] } {
   const colorMap = new Map<string, CourseColor>();
   const getColorForKey = createColorMapper(colorMap);
   // Lister for kurs og oppgaver

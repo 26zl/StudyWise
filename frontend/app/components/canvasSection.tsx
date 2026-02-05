@@ -641,10 +641,10 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                         return "frontpage";
                     };
 
-                    // Vis knapper kun for innhold som finnes (eller alle mens metadata laster)
-                    const visForsideKnapp = metadataLaster || !meta || meta.hasFrontPage;
-                    const visModulerKnapp = metadataLaster || !meta || meta.hasModules;
-                    const visFilerKnapp = metadataLaster || !meta || meta.hasFiles;
+                    // Vis knapper kun for innhold som finnes
+                    const visForsideKnapp = !meta || meta.hasFrontPage;
+                    const visModulerKnapp = !meta || meta.hasModules;
+                    const visFilerKnapp = !meta || meta.hasFiles;
                     const harInnhold = visForsideKnapp || visModulerKnapp || visFilerKnapp;
 
                     return (
@@ -660,37 +660,47 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                 {emne.course_code}
                             </p>
                             <div className="flex flex-wrap gap-2">
-                                {visForsideKnapp && (
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("frontpage"); }}
-                                        className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
-                                    >
-                                        Forside
-                                        <ChevronRight size={16} />
-                                    </button>
-                                )}
-                                {visModulerKnapp && (
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("modules"); }}
-                                        className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
-                                    >
-                                        Moduler{meta?.modulesCount ? ` (${meta.modulesCount})` : ""}
-                                        <ChevronRight size={16} />
-                                    </button>
-                                )}
-                                {visFilerKnapp && (
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("files"); }}
-                                        className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
-                                    >
-                                        Filer{meta?.filesCount ? ` (${meta.filesCount})` : ""}
-                                        <ChevronRight size={16} />
-                                    </button>
-                                )}
-                                {!harInnhold && (
-                                    <span className="text-sm text-slate-400 dark:text-slate-500 italic">
-                                        Ingen innhold
-                                    </span>
+                                {metadataLaster ? (
+                                    <>
+                                        <div className="h-6 w-16 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                                        <div className="h-6 w-20 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                                        <div className="h-6 w-14 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                                    </>
+                                ) : (
+                                    <>
+                                        {visForsideKnapp && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("frontpage"); }}
+                                                className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
+                                            >
+                                                Forside
+                                                <ChevronRight size={16} />
+                                            </button>
+                                        )}
+                                        {visModulerKnapp && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("modules"); }}
+                                                className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
+                                            >
+                                                Moduler{meta?.modulesCount ? ` (${meta.modulesCount})` : ""}
+                                                <ChevronRight size={16} />
+                                            </button>
+                                        )}
+                                        {visFilerKnapp && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("files"); }}
+                                                className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
+                                            >
+                                                Filer{meta?.filesCount ? ` (${meta.filesCount})` : ""}
+                                                <ChevronRight size={16} />
+                                            </button>
+                                        )}
+                                        {!harInnhold && (
+                                            <span className="text-sm text-slate-400 dark:text-slate-500 italic">
+                                                Ingen innhold
+                                            </span>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         </div>

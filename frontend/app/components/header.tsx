@@ -51,7 +51,7 @@ export function Header({ user }: HeaderProps) {
             // Nullstill UI-tilstand
             resetUIStore();
             // Hard redirect til hjemmesiden
-            window.location.href = "/hjem";
+            window.location.href = "/";
         }
     };
 
@@ -74,13 +74,13 @@ export function Header({ user }: HeaderProps) {
                     </button>
                 )}
                 <div className="font-semibold text-lg text-slate-900 dark:text-white">
-                    <Link href="/hjem">StudyWise</Link>
+                    <Link href="/">StudyWise</Link>
                 </div>
             </div>
 
             {/* Desktop navigasjon */}
             <nav className="hidden md:flex items-center gap-6 text-sm text-slate-600 dark:text-slate-400">
-                <Link href="/hjem" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                <Link href="/" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
                     Hjem
                 </Link>
                 <Link href="/dashboard" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
@@ -125,7 +125,7 @@ export function Header({ user }: HeaderProps) {
                 <nav className="md:hidden absolute top-14 left-0 right-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-lg z-40">
                     <div className="flex flex-col p-4 gap-4 text-sm text-slate-600 dark:text-slate-400">
                         <Link
-                            href="/hjem"
+                            href="/"
                             onClick={handleMobilNavigation}
                             className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-2"
                         >

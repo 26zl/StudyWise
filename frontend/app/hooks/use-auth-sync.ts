@@ -53,7 +53,7 @@ export function useAuthSync() {
             if (event.data === LOGOUT_MESSAGE) {
                 // En annen fane har logget ut - rydd opp og redirect
                 queryClient.clear();
-                window.location.href = "/hjem";
+                window.location.href = "/";
             } else if (event.data === LOGIN_MESSAGE) {
                 // En annen fane har logget inn - oppdater queries og redirect til dashboard
                 queryClient.invalidateQueries({ queryKey: ["auth", "me"] });

@@ -553,6 +553,8 @@ export async function warmCanvasCache(canvasToken: string): Promise<void> {
     logger.info("Starter cache warming for Canvas-data");
 
     // Hent de viktigste dataene parallelt
+    // Per-kurs-cacher (frontpage, modules, files) varmes av /emner/metadata-prefetch
+    // fra frontend, så vi unngår duplikate Canvas API-kall her
     await Promise.allSettled([
       fetchCourses(canvasToken),
       fetchAllAnnouncements(canvasToken),

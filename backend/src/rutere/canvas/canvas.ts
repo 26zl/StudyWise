@@ -340,6 +340,9 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
     // Hent alle emner
     const { data: courses } = await fetchCourses(req.canvasToken);
 
+    // Avbryt tidlig hvis klienten har koblet fra
+    if (req.socket.destroyed) return;
+
     // Begrens parallelle kall for å unngå rate limiting
     const pLimit = (await import("p-limit")).default;
     const limit = pLimit(5);
@@ -348,6 +351,11 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
     const metadataPromises = courses.map((course) =>
       limit(async () => {
         const courseId = course.id;
+
+        // Hopp over hvis klienten har koblet fra
+        if (req.socket.destroyed) {
+          return { courseId, hasFrontPage: false, hasModules: false, hasFiles: false, modulesCount: 0, filesCount: 0 };
+        }
 
         // Hent alle 4 ressurser parallelt per kurs
         const [courseDetailsResult, frontPageResult, modulesResult, filesResult] = await Promise.allSettled([
@@ -607,6 +615,9 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
     } else {
       logger.info({ cacheKey }, "Force refresh - skipper cache");
     }
+    // Avbryt tidlig hvis klienten har koblet fra
+    if (req.socket.destroyed) return;
+
     // Hent kurs, brukerprofil og enrollments (trengs for context_codes og kursinfo)
     // Enrollments inkluderer section_id som trengs for TimeEdit-hendelser
     const [coursesResult, userProfileResult, enrollmentsResult] = await Promise.all([
@@ -617,6 +628,10 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
       // Kritisk feil - prøv cached data
       return returnCachedOnError(error);
     }) as [Awaited<ReturnType<typeof fetchCourses>>, Awaited<ReturnType<typeof fetchUserProfile>>, Awaited<ReturnType<typeof fetchUserEnrollments>>];
+
+    // Avbryt hvis klienten har koblet fra etter data-henting
+    if (req.socket.destroyed) return;
+
     const courses = coursesResult.data;
     const userProfile = userProfileResult.data;
     const enrollments = enrollmentsResult.data;

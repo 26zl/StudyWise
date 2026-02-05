@@ -520,6 +520,25 @@ export function prefetchCanvasData(queryClient: QueryClient) {
     queryKey: ["canvas", "courses"],
     queryFn: () => fetchCanvas("/emner", CoursesResponseSchema),
   });
+  // Metadata for emner (frontpage/modules/files tilgjengelighet)
+  queryClient.prefetchQuery({
+    queryKey: ["canvas", "courses-metadata"],
+    queryFn: () => fetchCanvas("/emner/metadata", CoursesMetadataResponseSchema),
+    staleTime: 1000 * 60 * 30,
+  });
+  // Kalenderdata (frister, forelesninger, hendelser)
+  queryClient.prefetchQuery({
+    queryKey: ["canvas", "calendar"],
+    queryFn: async () => {
+      const { CalendarItemsResponseSchema } = await import("common/calendar");
+      const { mapCalendarItems } = await import("../calendar/calendar-api");
+      const res = await fetch("/api/canvas/kalender", { credentials: "include", cache: "no-store" });
+      if (!res.ok) throw new Error("Kalender prefetch feilet");
+      const data = CalendarItemsResponseSchema.parse(await res.json());
+      return { ...mapCalendarItems(data.items), meta: data.meta };
+    },
+    staleTime: 30 * 1000,
+  });
 }
 
 // Schema for emner metadata respons

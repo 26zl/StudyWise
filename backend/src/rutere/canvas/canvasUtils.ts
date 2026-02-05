@@ -242,10 +242,65 @@ const SENSITIVE_ENDPOINTS = [
     "/api/v1/conversations"
 ];
 
-// Hovedfunksjon
+// In-flight request map for singleflight deduplication
+// Når flere kall til samme cache key er in-flight samtidig, deles én promise
+const inflightRequests = new Map<string, Promise<CanvasResponse<unknown>>>();
+
+// Hovedfunksjon - med singleflight deduplication
 export async function hentCanvasData<T>(
     endpoint: string,
     options: CanvasFetchOptions = {}
+): Promise<CanvasResponse<T>> {
+    const { baseUrl } = hentCanvasKonfig();
+    const canvasToken = hentCanvasToken(options.token);
+    if (!canvasToken) throw new Error("Canvas-token mangler for innlogget bruker");
+    if (!baseUrl) throw new Error("CANVAS_BASE_URL er ikke konfigurert");
+    const cleanToken = canvasToken.replace(/^Bearer\s+/i, "").trim();
+    const erSensitiv = SENSITIVE_ENDPOINTS.some(p => endpoint.includes(p));
+
+    // Sensitive endepunkter skal ikke dedupliseres
+    if (erSensitiv) {
+        return hentCanvasDataImpl<T>(endpoint, options, cleanToken, baseUrl);
+    }
+
+    // Bygg cache key for deduplication (samme logikk som i impl)
+    const tokenAvtrykk = crypto.createHash("sha256").update(cleanToken).digest("hex").slice(0, 12);
+    const sortedParams: string[] = [];
+    if (options.queryParams) {
+        Object.keys(options.queryParams).sort().forEach((key) => {
+            const value = options.queryParams![key];
+            if (Array.isArray(value)) {
+                const arrayKey = key.endsWith("[]") ? key : `${key}[]`;
+                value.forEach((item) => sortedParams.push(`${arrayKey}=${item}`));
+            } else {
+                sortedParams.push(`${key}=${value}`);
+            }
+        });
+    }
+    const dedupKey = `canvas:${tokenAvtrykk}:${endpoint}?${sortedParams.join("&")}`;
+
+    // Sjekk om det allerede er en in-flight request for denne nøkkelen
+    const existing = inflightRequests.get(dedupKey);
+    if (existing) {
+        return existing as Promise<CanvasResponse<T>>;
+    }
+
+    // Opprett og registrer ny request
+    const promise = hentCanvasDataImpl<T>(endpoint, options, cleanToken, baseUrl)
+        .finally(() => {
+            inflightRequests.delete(dedupKey);
+        });
+
+    inflightRequests.set(dedupKey, promise as Promise<CanvasResponse<unknown>>);
+    return promise;
+}
+
+// Intern implementasjon av hentCanvasData
+async function hentCanvasDataImpl<T>(
+    endpoint: string,
+    options: CanvasFetchOptions,
+    cleanToken: string,
+    baseUrl: string
 ): Promise<CanvasResponse<T>> {
     const {
         queryParams,
@@ -254,13 +309,6 @@ export async function hentCanvasData<T>(
         cacheTtl = CACHE_TTL.DEFAULT,
         maxRetries = 3
     } = options;
-    const config = hentCanvasKonfig();
-    const canvasToken = hentCanvasToken(options.token);
-    const { baseUrl } = config;
-    if (!canvasToken) throw new Error("Canvas-token mangler for innlogget bruker");
-    if (!baseUrl) throw new Error("CANVAS_BASE_URL er ikke konfigurert");
-    // Fjern "Bearer " hvis det ligger i tokenet (vanlig feil ved copy-paste)
-    const cleanToken = canvasToken.replace(/^Bearer\s+/i, "").trim();
     // Sjekk om endepunktet inneholder sensitiv data som IKKE skal caches
     const erSensitiv = SENSITIVE_ENDPOINTS.some(p => endpoint.includes(p));
     // Logg debug info for sensitive endepunkter (uten token-data for sikkerhet)

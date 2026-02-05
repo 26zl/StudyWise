@@ -75,7 +75,7 @@ export function Sidebar({
             // Nullstill UI-tilstand
             resetUIStore();
             // Hard redirect til hjemmesiden
-            window.location.href = "/hjem";
+            window.location.href = "/";
         }
     };
     // Enkel komponent for navigasjonselementer

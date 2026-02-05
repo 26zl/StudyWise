@@ -1,6 +1,6 @@
 /*
 * Henter brukeren server-side for å unngå layout shift
-* Brukes i app/hjem/page.tsx for å sjekke om brukeren er innlogget
+* Brukes i app/page.tsx for å sjekke om brukeren er innlogget
 */
 import { cookies } from "next/headers";
 import { MeResponseSchema, type MeResponse, AUTH_COOKIE_NAME, AUTH_REFRESH_COOKIE_NAME } from "common/auth";
