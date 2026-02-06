@@ -109,6 +109,29 @@ export function DashboardView() {
         }
     }, [harCanvasToken, queryClient]);
 
+    // Prefetch samtalehistorikk for innstillinger (uavhengig av Canvas-token)
+    useEffect(() => {
+        if (megQuery.isSuccess) {
+            queryClient.prefetchQuery({
+                queryKey: ["chat-history"],
+                queryFn: async () => {
+                    const { ChatHistoryResponseSchema } = await import("common/chat");
+                    const res = await fetch("/api/ki/chat/history?limit=20&page=1", {
+                        credentials: "include",
+                        cache: "no-store",
+                    });
+                    if (!res.ok) return [];
+                    const data = await res.json();
+                    const parsed = ChatHistoryResponseSchema.parse(data);
+                    return parsed.chats
+                        .slice(0, 50)
+                        .map((c: { timestamp: string | Date }) => ({ ...c, timestamp: new Date(c.timestamp) }));
+                },
+                staleTime: 1000 * 60 * 5,
+            });
+        }
+    }, [megQuery.isSuccess, queryClient]);
+
     // Hent fornavn fra Canvas brukerdata
     const brukernavn =
         userQuery.data?.name?.split(" ")[0] ||

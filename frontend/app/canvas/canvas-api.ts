@@ -539,6 +539,21 @@ export function prefetchCanvasData(queryClient: QueryClient) {
     },
     staleTime: 30 * 1000,
   });
+  // Canvas-bruker (brukes av innstillinger-profil)
+  queryClient.prefetchQuery({
+    queryKey: ["canvas", "whoami"],
+    queryFn: () => fetchCanvas("/whoami", CanvasUserSchema),
+  });
+  // Todo-liste (brukes av AI Canvas-kontekst i innstillinger)
+  queryClient.prefetchQuery({
+    queryKey: ["canvas", "todo"],
+    queryFn: () => fetchCanvas("/users/self/todo", TodoResponseSchema),
+  });
+  // Kommende hendelser (brukes av AI Canvas-kontekst i innstillinger)
+  queryClient.prefetchQuery({
+    queryKey: ["canvas", "upcoming_events"],
+    queryFn: () => fetchCanvas("/users/self/upcoming_events", UpcomingEventsResponseSchema),
+  });
 }
 
 // Schema for emner metadata respons
