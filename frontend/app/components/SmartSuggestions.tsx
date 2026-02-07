@@ -1,5 +1,5 @@
-"use client";
-
+"use client"; 
+ 
 import { useState, useEffect } from "react";
 import { Sparkles } from "lucide-react";
 
@@ -17,7 +17,11 @@ export function SmartSuggestions({
   const [suggestions, setSuggestions] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!lastAIMessage) return;
+    // Returner tidlig hvis ingen melding
+    if (!lastAIMessage || lastAIMessage.trim() === "") {
+      setSuggestions([]);
+      return;
+    }
 
     // Generer suggestions basert på AI's siste svar
     const newSuggestions: string[] = [];
@@ -34,11 +38,11 @@ export function SmartSuggestions({
     } else if (lowerMessage.includes("eksamen")) {
       newSuggestions.push("Gi meg studietips");
       newSuggestions.push("Hva bør jeg fokusere på?");
-    } else if (lowerMessage.match(/\d+\.\s/g) && lowerMessage.match(/\d+\.\s/g).length >= 3) {
+    } else if (lowerMessage.match(/\d+\.\s/g) && lowerMessage.match(/\d+\.\s/g)!.length >= 3) {
       // AI ga en liste - tilby å utdype punkter
       newSuggestions.push("Forklar punkt 1 mer detaljert");
       newSuggestions.push("Gi meg eksempler");
-    } else if (lowerMessage.includes("```")) { 
+    } else if (lowerMessage.includes("```")) {
       // AI ga kodeeksempel
       newSuggestions.push("Forklar koden linje for linje");
       newSuggestions.push("Gi meg et lignende eksempel");
@@ -53,10 +57,11 @@ export function SmartSuggestions({
     setSuggestions(newSuggestions.slice(0, 3));
   }, [lastAIMessage]);
 
+  // Ikke vis noe hvis ingen suggestions
   if (suggestions.length === 0) return null;
 
   return (
-    <div className="flex items-start gap-2 py-3 border-t border-slate-200 dark:border-slate-800">
+    <div className="flex items-start gap-2 py-3 px-4 md:px-6 border-t border-slate-200 dark:border-slate-800">
       <Sparkles className="w-4 h-4 text-purple-500 mt-1 shrink-0" />
       <div className="flex-1">
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
@@ -77,4 +82,4 @@ export function SmartSuggestions({
       </div>
     </div>
   );
-}  
+}
