@@ -56,6 +56,11 @@ jobs:
       # Notify Vercel about check status
       - name: Notify Vercel
         if: always()
-        uses: vercel/repository-dispatch/actions/status@v1
+        uses: amondnet/vercel-action@v20
         with:
-          name: CI
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          zeit-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
