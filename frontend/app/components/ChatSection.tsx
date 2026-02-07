@@ -9,6 +9,7 @@ import { Send, Loader2, Bot, User, Sparkles, Paperclip, X, FileText } from "luci
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
+import { SmartSuggestions } from "./SmartSuggestions";
 import { useKITestTilkobling, useKIChat, useKIDocumentAnalyse, SUPPORTED_FILE_TYPES } from "../ki/ki-api";
 import { useChatHistory } from "../hooks/useChatHistory";
 import { useUIStore } from "../store/uiStore";
@@ -28,6 +29,7 @@ const forslag = [
     "Hjelp meg planlegge studieøkten min",
     "Vis meg kunngjøringer fra mine emner",
 ];
+
 // Hovedkomponent
 export function ChatSection() {
     const [mounted, setMounted] = useState(false);
@@ -86,6 +88,7 @@ export function ChatSection() {
             tekstInputRef.current.style.height = `${Math.min(tekstInputRef.current.scrollHeight, 150)}px`;
         }
     }, [tekstInput]);
+
     // Lagre samtale (ny eller eksisterende)
     const lagreSamtale = async (oppdatert: Melding[]) => {
         const payload = oppdatert.map((m) => ({
@@ -153,6 +156,7 @@ export function ChatSection() {
             filInputRef.current.value = "";
         }
     };
+
     // Send melding
     const sendMelding = async () => {
         if ((!tekstInput.trim() && !vedlagtFil) || skriver || analyserarDokument) return;
@@ -560,6 +564,18 @@ export function ChatSection() {
                     <div ref={meldingerSluttRef} />
                 </div>
 
+                {/* Smart suggestions - VIS KUN NÅR DET ER MELDINGER OG IKKE SKRIVER */}
+                {meldinger.length > 0 && !skriver && !analyserarDokument && (
+                    <SmartSuggestions
+                        lastAIMessage={meldinger[meldinger.length - 1]?.innhold || ""}
+                        onSelectSuggestion={(suggestion) => {
+                            settTekstInput(suggestion);
+                            tekstInputRef.current?.focus();
+                        }}
+                        disabled={skriver || analyserarDokument}
+                    />
+                )}
+
                 {/* Input */}
                 <div className="shrink-0 p-4 md:p-6 border-t border-slate-200 dark:border-slate-800">
                     {/* Vedlagt fil visning */}
@@ -635,4 +651,4 @@ export function ChatSection() {
             </div>
         </div>
     );
-} 
+}
