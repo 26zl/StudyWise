@@ -1,11 +1,11 @@
 /*
  * ChatSection - KI chat grensesnitt
  * Hovedområdet for samtaler med AI-assistenten
- */
+ */ 
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Bot, User, Sparkles, Paperclip, X, FileText } from "lucide-react";
+import { Send, Loader2, Bot, User, Sparkles, Paperclip, X, FileText, Download } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
@@ -13,6 +13,7 @@ import { SmartSuggestions } from "./SmartSuggestions";
 import { useKITestTilkobling, useKIChat, useKIDocumentAnalyse, SUPPORTED_FILE_TYPES } from "../ki/ki-api";
 import { useChatHistory } from "../hooks/useChatHistory";
 import { useUIStore } from "../store/uiStore";
+import { exportToMarkdown } from "../utils/exportChat";
 
 // Meldings-typer
 interface Melding {
@@ -426,6 +427,17 @@ export function ChatSection() {
                                 </p>
                             </div>
                         </div>
+                        
+                        {/* Export button i header */}
+                        <button
+                            onClick={() => exportToMarkdown(meldinger)}
+                            disabled={meldinger.length === 0}
+                            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Eksporter samtale til Markdown"
+                            aria-label="Eksporter samtale"
+                        >
+                            <Download className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                        </button>
                     </div>
                 </div>
 
@@ -651,4 +663,4 @@ export function ChatSection() {
             </div>
         </div>
     );
-}
+} 
