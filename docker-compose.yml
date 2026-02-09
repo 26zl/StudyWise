@@ -1,0 +1,54 @@
+# StudyWise - Lokal kjøring med Docker
+# Bruk: docker compose up --build
+#
+# Forutsetninger:
+#   - Kopier backend/.env.example til backend/.env og fyll inn verdier
+#   - MongoDB og Redis kjører via denne compose-filen (ikke nødvendig lokalt)
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: .
+      target: backend
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    env_file:
+      - backend/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - MONGO_URI=mongodb://mongo:27017/bachelor-db
+      - REDIS_URL=redis://redis:6379
+      - WEB_ORIGIN=http://localhost:3000
+    depends_on:
+      - mongo
+      - redis
+
+  frontend:
+    build:
+      context: .
+      target: frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - INTERNAL_API_URL=http://backend:4000
+      - HOSTNAME=0.0.0.0
+    depends_on:
+      - backend

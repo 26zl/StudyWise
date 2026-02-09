@@ -1,34 +1,34 @@
-"use client"; 
- 
+"use client";
+
+// SmartSuggestions-komponenten genererer og viser smarte forslag basert på den siste AI-meldingen
 import { useState, useEffect } from "react";
 import { Sparkles } from "lucide-react";
 
+// Props for SmartSuggestions-komponenten
 interface SmartSuggestionsProps {
   lastAIMessage: string;
   onSelectSuggestion: (suggestion: string) => void;
   disabled?: boolean;
 }
-
+// Komponent for å vise smarte forslag basert på den siste AI-meldingen
 export function SmartSuggestions({
   lastAIMessage,
   onSelectSuggestion,
   disabled = false,
 }: SmartSuggestionsProps) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
-
+// Bruk useEffect for å oppdatere forslagene hver gang den siste AI-meldingen endres
   useEffect(() => {
-    // Returner tidlig hvis ingen melding
     if (!lastAIMessage || lastAIMessage.trim() === "") {
       setSuggestions([]);
       return;
     }
 
-    // Generer suggestions basert på AI's siste svar
+    // Enkle heuristikker for å generere relevante forslag basert på innholdet i AI-meldingen
     const newSuggestions: string[] = [];
-
-    // Kontekst-baserte suggestions
     const lowerMessage = lastAIMessage.toLowerCase();
-    
+
+    // Eksempler på heuristikker:
     if (lowerMessage.includes("modul") || lowerMessage.includes("forelesning")) {
       newSuggestions.push("Vis meg neste modul");
       newSuggestions.push("Hva er pensum for denne modulen?");
@@ -38,28 +38,26 @@ export function SmartSuggestions({
     } else if (lowerMessage.includes("eksamen")) {
       newSuggestions.push("Gi meg studietips");
       newSuggestions.push("Hva bør jeg fokusere på?");
-    } else if (lowerMessage.match(/\d+\.\s/g) && lowerMessage.match(/\d+\.\s/g)!.length >= 3) {
-      // AI ga en liste - tilby å utdype punkter
-      newSuggestions.push("Forklar punkt 1 mer detaljert");
-      newSuggestions.push("Gi meg eksempler");
-    } else if (lowerMessage.includes("```")) {
-      // AI ga kodeeksempel
-      newSuggestions.push("Forklar koden linje for linje");
-      newSuggestions.push("Gi meg et lignende eksempel");
+    } else {
+      const listeMatch = lowerMessage.match(/\d+\.\s/g);
+      if (listeMatch && listeMatch.length >= 3) {
+        newSuggestions.push("Forklar punkt 1 mer detaljert");
+        newSuggestions.push("Gi meg eksempler");
+      } else if (lowerMessage.includes("```")) {
+        newSuggestions.push("Forklar koden linje for linje");
+        newSuggestions.push("Gi meg et lignende eksempel");
+      }
     }
-
-    // Alltid tilgjengelige suggestions
+    // Hvis heuristikkene ikke gir nok forslag, legg til noen generiske forslag
     if (newSuggestions.length < 3) {
       newSuggestions.push("Fortsett...");
       newSuggestions.push("Forklar enklere");
     }
-
+    // Begrens antall forslag til 3
     setSuggestions(newSuggestions.slice(0, 3));
   }, [lastAIMessage]);
-
-  // Ikke vis noe hvis ingen suggestions
   if (suggestions.length === 0) return null;
-
+// Render forslagene
   return (
     <div className="flex items-start gap-2 py-3 px-4 md:px-6 border-t border-slate-200 dark:border-slate-800">
       <Sparkles className="w-4 h-4 text-purple-500 mt-1 shrink-0" />

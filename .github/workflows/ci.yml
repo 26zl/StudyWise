@@ -53,13 +53,12 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: "http://localhost:4000"
 
-      # Notify Vercel about check status
-      - name: Notify Vercel
-        if: always()
-        uses: amondnet/vercel-action@v20
+      # Deploy til Vercel kun hvis alt er OK
+      - name: Deploy til Vercel
+        if: success() && github.event_name == 'push'
+        uses: amondnet/vercel-action@v25
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          zeit-token: ${{ secrets.VERCEL_TOKEN }} # Gir feilmelding hvis ikke begge er satt, selv om zeit-token er deprecated vi bruker vercel-token bare.
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           vercel-args: '--prod'

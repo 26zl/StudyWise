@@ -38,6 +38,8 @@ StudyWise - AI-powered study assistant with Canvas LMS integration. pnpm monorep
 - Zod schemas and TypeScript interfaces shared between frontend and backend
 - Error types and codes (`canvasErrors.ts`)
 - Constants (cookie names, message limits)
+- Chat schemas (`chat.ts`) and document schemas (`document.ts`)
+- Calendar schemas (`calendar.ts`, `calendar-ui.ts`)
 
 ---
 
@@ -57,6 +59,18 @@ pnpm clean:install          # Full reinstall
 ```
 
 **Build order**: `common` must be built before frontend/backend. `pnpm build` handles this automatically.
+
+### Docker
+
+```bash
+docker compose up --build   # Run full stack locally (MongoDB, Redis, backend, frontend)
+```
+
+### Deployment
+
+- **Backend**: Render (Docker)
+- **Frontend**: Vercel
+- **Security/CDN**: Cloudflare (DDoS, SSL/TLS, caching)
 
 ---
 
@@ -126,6 +140,7 @@ Location: `frontend/app/dashboard/page.tsx`
 ### Error Handling
 
 **Backend** - Use `backend/src/utils/apiError.ts`:
+
 ```typescript
 import { apiError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
 
@@ -137,6 +152,7 @@ sendUnknownError(res, error, { kontekst: "function" });
 ```
 
 **Frontend** - Use `frontend/app/lib/errors.ts`:
+
 ```typescript
 import { KIAuthError, CanvasTokenMissingError, AppError } from "../lib/errors";
 

@@ -50,19 +50,19 @@ Dette er hjertet av applikasjonen og fungerer som en **sentral hub** for student
 
 ### API Kommunikasjon
 
-Frontend snakker aldri direkte til eksterne APIer (Canvas, OpenAI, etc). Alt går via backend proxy for sikkerhet.
+Frontend snakker aldri direkte til eksterne APIer (Canvas, HuggingFace, etc). Alt går via backend proxy for sikkerhet.
 
 1. **Frontend Browser**: `fetch('/api/canvas/courses')`
 2. **Next.js Server**: Proxyer `http://localhost:3000/api/*` -> `http://localhost:4000/api/*` (definert i `next.config.js`).
 3. **Express Backend**: Mottar request, validerer token, kaller eksternt system (f.eks Canvas API), og returnerer data.
 
-### Docker Nettverk
+### Docker
 
-Vi bruker standard host-networking konsept der alt er tilgjengelig via `localhost`.
+Prosjektet kan kjøres lokalt via Docker med `docker compose up --build`. Dette starter MongoDB, Redis, backend og frontend. Dockerfile bruker multi-stage build med separate targets for backend og frontend.
 
-**Miljøvariabler i `frontend/.env`:**
+**Miljøvariabler for Docker/produksjon:**
 
-- `NEXT_PUBLIC_API_URL`: URL til backend (f.eks `http://localhost:4000`).
+- `INTERNAL_API_URL`: URL til backend i Docker/produksjon (f.eks `http://backend:4000`). Settes automatisk i `docker-compose.yml`. For lokal utvikling uten Docker brukes default `http://localhost:4000`.
 
 ---
 
@@ -110,11 +110,12 @@ pnpm build
 
 ### Legge til pakker
 
-Gå ALLTID inn i riktig mappe først.
+Bruk ALLTID `--filter` fra rot:
 
 ```bash
-cd frontend && pnpm add <pakke>
-cd backend && pnpm add <pakke>
+pnpm --filter frontend add <pakke>
+pnpm --filter backend add <pakke>
+pnpm --filter common add <pakke>
 ```
 
 ---

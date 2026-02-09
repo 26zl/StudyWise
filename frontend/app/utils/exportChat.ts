@@ -1,12 +1,15 @@
-interface Message {
-  rolle: "user" | "assistant";
-  innhold: string;
+import type { ChatMessage } from "common/chat";
+
+// Denne funksjonen eksporterer en samtale til Markdown-format, som kan åpnes i tekstredigerere eller vises på plattformer som støtter Markdown. 
+// Den inkluderer dato, tid, roller (bruker og KI-assistent), og innholdet i meldingene.
+// Meldinger må ha en tidsstempel for å kunne vises i eksporten, så vi utvider ChatMessage med en tidsstempel.
+interface EksporterbarMelding extends ChatMessage {
   tidsstempel: Date;
 }
-
-export function exportToMarkdown(messages: Message[], title?: string): void {
-  let markdown = "# 💬 Samtale med StudyWise KI-Assistent\n\n";
-  
+// Eksportering 
+export function exportToMarkdown(meldinger: EksporterbarMelding[], tittel?: string): void {
+  let markdown = "#💬 Samtale med StudyWise KI-Assistent\n\n";
+  // Legg til dato og tid for eksporten
   markdown += `**Dato:** ${new Date().toLocaleDateString("no-NO", {
     day: "numeric",
     month: "long",
@@ -14,42 +17,41 @@ export function exportToMarkdown(messages: Message[], title?: string): void {
     hour: "2-digit",
     minute: "2-digit",
   })}\n\n`;
-
-  if (title) {
-    markdown += `**Tittel:** ${title}\n\n`;
+// Legg til tittel hvis den finnes
+  if (tittel) {
+    markdown += `**Tittel:** ${tittel}\n\n`;
   }
-
-  markdown += `**Antall meldinger:** ${messages.length}\n\n`;
+// Legg til antall meldinger
+  markdown += `**Antall meldinger:** ${meldinger.length}\n\n`;
   markdown += "---\n\n";
-
-  messages.forEach((m, index) => {
-    const role = m.rolle === "user" ? "👤 **Deg**" : "🤖 **AI-Assistent**";
-    const time = m.tidsstempel.toLocaleTimeString("no-NO", {
+// Legg til hver melding i Markdown-format
+  meldinger.forEach((m, index) => {
+    const rolle = m.rolle === "user" ? "**Deg**" : "🤖 **KI-Assistent**";
+    const tid = m.tidsstempel.toLocaleTimeString("no-NO", {
       hour: "2-digit",
       minute: "2-digit",
     });
-
-    markdown += `### ${role} _(${time})_\n\n`;
+    // Legg til meldingens rolle, tid og innhold
+    markdown += `### ${rolle} _(${tid})_\n\n`;
     markdown += `${m.innhold}\n\n`;
-
-    if (index < messages.length - 1) {
+    // Legg til en horisontal linje mellom meldinger, unntatt etter den siste meldingen
+    if (index < meldinger.length - 1) {
       markdown += "---\n\n";
     }
   });
-
-  markdown += "\n\n*Generert av StudyWise - https://studywise.no*\n";
-
-  // Last ned som fil
+// Legg til en avsluttende linje som indikerer at eksporten er generert av StudyWise
+  markdown += "\n\n*Generert av StudyWise*\n";
+// Opprett en Blob med Markdown-innholdet og last ned filen
   const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  
+// Bruk dagens dato i filnavnet for å gjøre det unikt og lett å identifisere
   const timestamp = new Date().toISOString().slice(0, 10);
   link.download = `studywise-samtale-${timestamp}.md`;
-  
+// Legg til lenken i dokumentet, klikk for å starte nedlastingen, og fjern deretter lenken
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
-}  
+}

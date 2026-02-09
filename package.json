@@ -33,7 +33,7 @@
     "update:docs": "pnpm --filter docs update",
     "outdated": "pnpm -r outdated",
     "clean:all": "node scripts/clean.mjs",
-    "clean:install": "node scripts/clean.mjs && pnpm install && pnpm build"
+    "clean:install": "node scripts/clean.mjs && pnpm install && pnpm -r update && pnpm build"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

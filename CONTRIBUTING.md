@@ -34,16 +34,19 @@ Guide for utvikling i StudyWise prosjektet.
 
 Det er kritisk å forstå skillet mellom "Lokal Bruker" og "Canvas Bruker".
 
-**Lokal Bruker (User)**
+### Lokal Bruker (User)
+
 - Innlogging, passord, epost, og hemmeligheter
 - Her lagres Canvas API Token (kryptert)
 - Denne modellen representerer en person som kan logge inn
 
-**Canvas Bruker (CanvasUser)**
+### Canvas Bruker (CanvasUser)
+
 - Cache av offentlig profilinfo fra Canvas (navn, bilde, innstillinger)
 - Har felt `localUser` som peker tilbake på `User`
 
-**Flyten:**
+### Flyten
+
 1. Bruker logger inn (JWT Auth med `User` data)
 2. Backend bruker `User.canvasApiToken` for å snakke med Canvas API
 3. Resultatet fra `/whoami` lagres/oppdateres i `CanvasUser`
@@ -136,11 +139,13 @@ Common inneholder data-definisjoner og valideringsregler som deles mellom backen
 ### Når bruker du Common?
 
 **JA:**
+
 - Data som sendes mellom backend og frontend
 - Data fra eksterne APIer (Canvas, HuggingFace)
 - Delte feiltyper og error codes
 
 **NEI:**
+
 - React komponenter
 - Express middleware
 - CSS styling
@@ -152,7 +157,10 @@ Common inneholder data-definisjoner og valideringsregler som deles mellom backen
 - `canvas.ts` - Canvas API schemas
 - `canvasErrors.ts` - Strukturerte Canvas-feilkoder
 - `ki.ts` - KI API schemas og meldingslengde-grenser
+- `chat.ts` - Chat-melding schemas og samtalehistorikk
+- `document.ts` - Dokumentanalyse schemas
 - `calendar.ts` - Kalender schemas
+- `calendar-ui.ts` - Kalender UI schemas
 
 ---
 
@@ -168,6 +176,7 @@ Common inneholder data-definisjoner og valideringsregler som deles mellom backen
 ### Viktige konvensjoner
 
 **Logging:**
+
 ```typescript
 // RIKTIG - Bruk pino logger
 logger.info({ data }, "Hentet data");
@@ -178,6 +187,7 @@ console.log(data);
 ```
 
 **Database:**
+
 ```typescript
 // RIKTIG - Bruk Mongoose modeller
 const users = await User.find({ active: true });
@@ -187,6 +197,7 @@ const users = await User.find({ active: true });
 ```
 
 **Konfigurasjon:**
+
 - AI-modeller: `backend/src/rutere/ki/aiModels.ts`
 - System prompt: `backend/src/rutere/ki/systemPrompt.ts`
 - Canvas paginering: `PAGE_SIZE` og `MAX_PAGES` i `canvasUtils.ts`
@@ -199,6 +210,7 @@ const users = await User.find({ active: true });
 ### Styling (Tailwind CSS)
 
 **Mobile First:**
+
 ```typescript
 // RIKTIG - Start med mobil, legg til breakpoints
 className="w-full md:w-1/2"
@@ -208,6 +220,7 @@ className="w-1/2 max-md:w-full"
 ```
 
 **Dark Mode:**
+
 ```typescript
 // RIKTIG - Alltid ha dark: variant
 className="bg-white dark:bg-slate-900 text-black dark:text-white"
@@ -216,6 +229,7 @@ className="bg-white dark:bg-slate-900 text-black dark:text-white"
 ### Data fetching
 
 **Bruk relative URL-er:**
+
 ```typescript
 // RIKTIG - Next.js rewrites håndterer resten
 const res = await fetch("/api/canvas/emner");
@@ -335,11 +349,13 @@ git push origin feature/min-funksjon
 ### Debugging
 
 **Backend:**
+
 ```typescript
 logger.info({ data }, "Debug info");
 ```
 
 **Frontend:**
+
 ```typescript
 console.log("Data:", data);
 ```
@@ -350,6 +366,17 @@ console.log("Data:", data);
 2. Sjekk at du har eksportert fra Common
 3. Kjør `pnpm typecheck` for å se alle feil
 4. Kjør `pnpm build` hvis common-typer mangler
+
+### Docker
+
+Hele prosjektet kan kjøres lokalt via Docker:
+
+```bash
+# Start alt (MongoDB, Redis, backend, frontend)
+docker compose up --build
+```
+
+Forutsetning: `backend/.env` må finnes med HuggingFace-nøkkel, JWT-secrets og ENCRYPTION_KEY. MongoDB og Redis startes automatisk av Docker.
 
 ### Hjelp
 
