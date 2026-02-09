@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   verify:
-    name: Verifiser bygging og linting
+    name: Verifiser bygging og checks, deploy etter hvis alt er vellykket
     runs-on: ubuntu-latest
     
     steps:
