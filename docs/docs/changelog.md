@@ -12,21 +12,13 @@ Prosjektet er under aktiv utvikling. Denne loggen oppdateres fortløpende.
 
 ### Laurent (26zl)
 
-- Fikset CI/CD-pipeline: deploy kun ved vellykket build, ikke på feilede bygg (`if: always()` → `if: success()`)
+- **Fikset CI/CD-pipeline** - deploy kun ved vellykket build, oppgradert Vercel-action til v25, fjernet utdatert `zeit-token`
 - Lagt til Vercel-secrets-oppsett for automatisk produksjonsdeployment
-- Opprettet komplett endringslogg i VitePress-docs med daglig struktur og kreditering per bidragsyter
-- Oppdatert introduksjonsside med prosjektbeskrivelse, teknologitabell og teamoversikt
-- Fikset kodekvalitet i `SmartSuggestions` og `exportChat` (dobbel regex, dupliserte typer, hardkodet URL)
-- Rettet markdown-lint-feil i `CLAUDE.md` og `CONTRIBUTING.md`
-- Forbedret `clean:install`-script til å også kjøre `pnpm -r update` etter install
-- Oppdatert avhengigheter i alle pakker (pino, rate-limiter-flexible, typescript-eslint, vue, html-react-parser, isomorphic-dompurify m.fl.)
-- Generalisert Dockerfile med separate targets for backend og frontend (erstatter GCP-spesifikk versjon)
-- Ny `docker-compose.yml` for lokal kjøring av hele stacken (MongoDB, Redis, backend, frontend)
-- Oppdatert README.md med Docker-kommandoer og korrekt deployment-beskrivelse (Render/Vercel/Cloudflare)
-- Oppdatert AGENTS.md: fikset `NEXT_PUBLIC_API_URL` → `INTERNAL_API_URL`, "OpenAI" → "HuggingFace", konsistent `pnpm --filter`-bruk
-- Oppdatert CONTRIBUTING.md med Docker-seksjon og manglende common-filer (`chat.ts`, `document.ts`, `calendar-ui.ts`)
-- Oppdatert CLAUDE.md med Docker-seksjon, deployment-info og manglende common-schemas
-- Fjernet utdatert `zeit-token` fra CI og oppgradert Vercel-action fra v20 til v25
+- Generalisert Dockerfile med separate targets + ny `docker-compose.yml` for lokal kjøring
+- Opprettet komplett VitePress-dokumentasjon (endringslogg, introduksjon, teamoversikt)
+- Fikset kodekvalitet i `SmartSuggestions` og `exportChat`
+- Oppdatert all prosjektdokumentasjon (README, CLAUDE.md, AGENTS.md, CONTRIBUTING.md)
+- Forbedret `clean:install`-script og oppdatert avhengigheter
 
 ---
 
