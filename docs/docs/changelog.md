@@ -1,9 +1,10 @@
 # Endringslogg
 
-Daglig oversikt over endringer i StudyWise-prosjektet, basert på commit-historikk. Hver dag viser hva som ble gjort og av hvem.
+Oversikt over endringer i StudyWise-prosjektet. Hver dag viser hva som ble gjort og av hvem.
 
 ::: info
 Prosjektet er under aktiv utvikling. Denne loggen oppdateres fortløpende.
+Endringene er oppsummert på et overordnet nivå. For detaljerte endringer, se commit-historikken på GitHub.
 :::
 
 ---
@@ -12,13 +13,10 @@ Prosjektet er under aktiv utvikling. Denne loggen oppdateres fortløpende.
 
 ### Laurent (26zl)
 
-- **Fikset CI/CD-pipeline** - deploy kun ved vellykket build, oppgradert Vercel-action til v25, fjernet utdatert `zeit-token`
-- Lagt til Vercel-secrets-oppsett for automatisk produksjonsdeployment
-- Generalisert Dockerfile med separate targets + ny `docker-compose.yml` for lokal kjøring
-- Opprettet komplett VitePress-dokumentasjon (endringslogg, introduksjon, teamoversikt)
-- Fikset kodekvalitet i `SmartSuggestions` og `exportChat`
-- Oppdatert all prosjektdokumentasjon (README, CLAUDE.md, AGENTS.md, CONTRIBUTING.md)
-- Forbedret `clean:install`-script og oppdatert avhengigheter
+- Fikset og forbedret CI/CD-pipeline med Vercel-deployment
+- Generalisert Docker-oppsett for lokal kjøring
+- Opprettet prosjektdokumentasjon med VitePress
+- Kodekvalitet og oppdaterte avhengigheter
 
 ---
 
@@ -26,29 +24,22 @@ Prosjektet er under aktiv utvikling. Denne loggen oppdateres fortløpende.
 
 ### Laurent (26zl)
 
-- Kommentert ut deler av CI-workflow for midlertidig fiks
+- Midlertidig fiks i CI-workflow
 
 ### Anwar (Hersino)
 
-- Lagt til eksport av chat-samtaler til Markdown-format
-- Lagt til smarte oppfølgingsforslag basert på KI-responsens kontekst
+- Lagt til eksport av chat-samtaler
+- Lagt til smarte oppfølgingsforslag i KI-chat
 
 ---
 
-## 6. februar 2026
+## 5.-6. februar 2026
 
 ### Laurent (26zl)
 
-- Ytelsesforbedringer og oppdaterte avhengigheter
-
----
-
-## 5. februar 2026
-
-### Laurent (26zl)
-
-- Store ytelsesforbedringer
-- Fiks for produksjonsmiljø
+- Ytelsesforbedringer
+- Fikser for produksjonsmiljø
+- Oppdaterte avhengigheter
 
 ---
 
@@ -56,10 +47,9 @@ Prosjektet er under aktiv utvikling. Denne loggen oppdateres fortløpende.
 
 ### Laurent (26zl)
 
-- Sikkerhetsfikser for caching-lag
-- Sikkerhet- og personvernherding (Security/Privacy hardening)
-- Fikset header-komponent for mobilvisning
-- Oppdaterte avhengigheter og diverse fikser
+- Sikkerhets- og personvernforbedringer
+- Fikset mobilvisning av header
+- Oppdaterte avhengigheter
 
 ---
 
@@ -67,12 +57,10 @@ Prosjektet er under aktiv utvikling. Denne loggen oppdateres fortløpende.
 
 ### Laurent (26zl)
 
-- **Store forbedringer** i feilhåndtering, sikkerhet og personvern på tvers av backend og frontend
+- Forbedret feilhåndtering, sikkerhet og personvern
 - Strukturelle forbedringer i backend og frontend
-- Bedre brukeropplevelse (UI/UX)
+- UI/UX-forbedringer
 - Lagt til Vercel-varsling i CI-workflow
-- Oppdatert README.md
-- Rydding i kodebasen
 
 ---
 
@@ -80,19 +68,14 @@ Prosjektet er under aktiv utvikling. Denne loggen oppdateres fortløpende.
 
 ### Laurent (26zl)
 
-- **Gjort klar for deployment til Google Cloud** - Docker-oppsett, CI-tilpasninger
-- Fikset corepack-signaturfeil - bruker npm install for pnpm i Docker
-- Satt `CI=true` under Docker build for å hoppe over env-validering
-- Fikset riktig sti til standalone server og konsistente start-scripts
-- Fjernet `NEXT_PUBLIC_API_URL`-krav - bruker relative paths med rewrites
-- Fjernet ikke-aktive emner fra KI-chat-svar
-- Endret kalenderlogikk til å bruke Canvas-data, fikset masse kode og logikk
-- Diverse debugging og fikser for backend-oppstart i sky
+- Gjort klar for sky-deployment med Docker og CI-tilpasninger
+- Forbedret kalenderlogikk med Canvas-data
+- Diverse feilrettinger for backend i produksjon
 
 ### Abdinasir (Abdinasir909)
 
-- Lagt til filtrering av oppgaver og frister basert på semester i `fetchAssignments` og `kiCanvas`
-- Oppdatert systemprompt for KI-assistenten med detaljer om tilgjengelige data og forbud mot hallusinerende svar
+- Lagt til semesterbasert filtrering av oppgaver og frister
+- Forbedret systemprompt for KI-assistenten
 
 ---
 
@@ -100,29 +83,16 @@ Prosjektet er under aktiv utvikling. Denne loggen oppdateres fortløpende.
 
 ### Laurent (26zl)
 
-- **Forbedret feilhåndtering** over hele applikasjonen med bedre logikk
-- Forbedret sikkerhet og personvern med klarere tilbakemeldinger til bruker
-- Fikset kode, dataflyt, struktur og logikk
-- Forbedret dataflyt på tvers av hele prosjektet, fikset avhengighetsproblemer
-- Fikset canvas-fetching og bildehåndtering for KI-analyse
-- Fikset responsiv kalender
-- Fikset feil i logikk flere steder
-- Forbedret fil-nedlasting og frontpage-håndtering for Canvas
-- Skip env-validering i CI-miljø
-- Fikset samtalehistorikk og auth-håndteringsfeil
-- Sårbarhetsfikser (vuln fix)
+- Forbedret feilhåndtering, sikkerhet og personvern
+- Forbedret dataflyt og Canvas-integrasjon
+- Fikset kalender, samtalehistorikk og autentisering
+- Sårbarhetsfikser
+- Lagt til kryptering av samtalehistorikk (AES-256-GCM)
 
 ### Abdinasir (Abdinasir909)
 
-- Forbedret fargepalett for emner med unike farger per emne
-- Lagt til hooks for TimeEdit og kombinert kalenderdata med filtre
-- Forbedret `SettingsSection` med campusvalg og TimeEdit-informasjon
-- Forbedret kalenderlogikk og lagt til API for kalender
+- Lagt til kalender og filtre
 - Lagt til OCR-støtte for bilder og skannede PDF-er
-
-### Anwar (Hersino)
-
-- Forbedret samtalehistorikk-logikk med kryptering (AES-256-GCM) og databaselagring
 
 ---
 
@@ -130,27 +100,19 @@ Prosjektet er under aktiv utvikling. Denne loggen oppdateres fortløpende.
 
 ### Laurent (26zl)
 
-- Lagt til funksjonalitet for å vise ressurser for emner som ikke bruker moduler
-- Splittet opp logikk i frontend for bedre struktur
-- Merge av `testinglaurent`-branch
-- Dark mode-fiks
-- Fikset kode og oppdatert avhengigheter
+- Lagt til visning av ressurser for emner uten moduler
+- Strukturforbedringer i frontend
+- Dark mode-fiks og oppdaterte avhengigheter
 
 ### Abdinasir (Abdinasir909)
 
-- Forbedret Canvas-kontekst-håndtering i KI-chat
-- La til kalenderkomponenter i egen mappe
-- Implementert kalenderfunksjon med `CalendarHeader`, `CalendarGrid` og `CalendarSection`
-- Oppdatert import av DOMPurify fra `isomorphic-dompurify` til `dompurify`
-- Diverse fikser
+- Implementert kalenderkomponenter
+- Forbedret Canvas-kontekst i KI-chat
 
 ### Anwar (Hersino)
 
-- Lagre chat i databasen
-- Lagt til logg-funksjon
-- Lagt til chat-historikk med localStorage
-- Lagt til kunngjøringsvisning
-- Kalenderkomponent
+- Lagt til chat-lagring i database
+- Lagt til visning av chat-historikk
 
 ---
 
@@ -158,22 +120,17 @@ Prosjektet er under aktiv utvikling. Denne loggen oppdateres fortløpende.
 
 ### Laurent (26zl)
 
-- **Lagt til JWT-autentisering og lokal auth** (e-post/passord)
-- Mulighet for bruk av personlig Canvas-token
-- Forbedret sikkerhet og personvern
-- Endret UI/UX-logikk og pyntet på landing page
-- Fikset Docker og avhengighetsproblemer
-- Forbedret feilhåndtering på server
-- Oppdatert README.md
+- Lagt til JWT-autentisering og lokal innlogging
+- Støtte for personlig Canvas-token
+- Forbedret sikkerhet, UI/UX og feilhåndtering
 
 ### Abdinasir (Abdinasir909)
 
-- **Ny funksjon: last opp PDF-er og få AI til å analysere dem**
-- Lagt til PDF-opplasting, Markdown-rendering og typography-styling
+- Lagt til PDF-opplasting med KI-analyse
 
 ### Anwar (Hersino)
 
-- Implementert KI-chat-funksjonalitet (AI chat endpoint)
+- Implementert KI-chat-funksjonalitet
 
 ---
 
@@ -181,13 +138,10 @@ Prosjektet er under aktiv utvikling. Denne loggen oppdateres fortløpende.
 
 ### Laurent (26zl)
 
-- Lagt til visning og nedlasting av Canvas-modulers innhold (eksternt innhold)
-- La til flere API-endepunkter for Canvas-kall
-- Lagt til VitePress-docs for lettere dokumentasjon av endringer
-- Fikset CI: setup pnpm før node for å aktivere caching
-- Fikset docs: lagt til base path for GitHub Pages deployment
-- Fjernet dependabot (ikke fungerende)
-- Oppdatert avhengigheter og diverse fikser
+- Lagt til visning og nedlasting av Canvas-modulinnhold
+- Nye API-endepunkter for Canvas
+- Satt opp VitePress-dokumentasjon
+- Forbedret CI-pipeline og oppdaterte avhengigheter
 
 ---
 
@@ -195,22 +149,14 @@ Prosjektet er under aktiv utvikling. Denne loggen oppdateres fortløpende.
 
 ### Laurent (26zl)
 
-- Endringer i navnekonvensjoner, ryddet i kode
-- Fikset bruk av Zod-schema for common-dataflyt
-- Kommentert kode
-- Fjernet prosjektstrukturbeskrivelse (under aktiv utvikling)
-- Dark mode-fiks
-- Merge av `testinglaurent`-branch og diverse fikser
-- Oppdatert avhengigheter
+- Forbedret kodestruktur og navnekonvensjoner
+- Forbedret datavalidering med Zod
+- Dark mode-fiks og oppdaterte avhengigheter
 
 ### Abdinasir (Abdinasir909)
 
-- Lagt til OpenAI-avhengighet
-- Oppdatert rate limiter til å bruke Redis
-- Implementert chat-endpoint for KI-interaksjoner
-- Forbedret `ChatSection`-komponent med ny chat-funksjonalitet
-- Lagt til `useKIChat`-hook for chat-API-interaksjoner
-- Oppdatert `DashboardPage` med dynamic import for ytelse
+- Implementert KI-chat-endpoint med Redis rate limiting
+- Forbedret chat-UI og dashboard-ytelse
 
 ---
 
@@ -218,12 +164,9 @@ Prosjektet er under aktiv utvikling. Denne loggen oppdateres fortløpende.
 
 ### Laurent (26zl)
 
-- Endret struktur i backend, forbedret Canvas API-håndtering
-- Lagt til backend-kode for håndtering av Canvas-token
-- Optimalisert API-kall
-- **Lagt til rate-limiting** for API-endepunkter
+- Forbedret backend-struktur og Canvas API-håndtering
+- Lagt til rate-limiting for API-endepunkter
 - UI/UX-prototype
-- Lint og diverse fikser
 
 ---
 
@@ -231,20 +174,13 @@ Prosjektet er under aktiv utvikling. Denne loggen oppdateres fortløpende.
 
 ### Laurent (26zl)
 
-- Bruker global default-pakke for ESLint
-- Lagt til HTML React-parsing og rettet opp sårbarheter
-- **Lagt til Redis** for optimaliserte kall mot Canvas API
-- Oppdatert pnpm og lagt til Redis i `.env.example`
-- Ryddet i kode, bedre feilhåndtering og logging med Pino for debugging
-- Lagt til kommentarer og fikset `docker-compose.dev`
-- Fikset Docker, lagt til støtte for POSIX-systemer
-- Konfigurasjonsendring, lagt til Turbopack
-- Diverse endringer og navnendringer
+- Lagt til Redis for caching av Canvas API-kall
+- Forbedret feilhåndtering og logging
+- Fikset Docker-oppsett og lagt til Turbopack
 
 ### Abdinasir (Abdinasir909)
 
-- Ny KiChat UI med animerte gradient-orbs og støtte for light/dark mode
-- Revert av KiChat UI-endring
+- Eksperimentert med ny KI-chat UI
 
 ---
 
@@ -252,13 +188,9 @@ Prosjektet er under aktiv utvikling. Denne loggen oppdateres fortløpende.
 
 ### Laurent (26zl)
 
-- **Lagt til CI/CD** for automatisk build/lint/typecheck og installering av pakker
-- **Lagt til grunnstruktur for integrert KI** med forklaringer og endringer
-- La til Dependabot for hjelp til oppdatering av pakker
-- Nye kommentarer, små endringer i struktur og kode i frontend
-- Endring i kommentarer, fjernet hardkodede fallbacks
-- Endret `docker-compose`, lagt til `agent.md` for sikker AI-bruk
-- Filnavnendringer og små endringer
+- Lagt til CI/CD-pipeline
+- Lagt til grunnstruktur for integrert KI
+- Docker- og konfigurasjonsforbedringer
 
 ---
 
@@ -266,7 +198,7 @@ Prosjektet er under aktiv utvikling. Denne loggen oppdateres fortløpende.
 
 ### Laurent (26zl)
 
-- **Grunnstruktur** for hele prosjektet lagt på plass
+- Grunnstruktur for hele prosjektet lagt på plass
 
 ---
 
@@ -274,7 +206,4 @@ Prosjektet er under aktiv utvikling. Denne loggen oppdateres fortløpende.
 
 ### Laurent (26zl)
 
-- **Initial commit** - første versjon av prosjektet
-- Endret struktur
-- Lagt til workflow for Discord-varsling
-- Testing av oppsett
+- Initial commit - første versjon av prosjektet

@@ -47,10 +47,10 @@ StudyWise er et pågående bachelorprosjekt og er i konstant endring. Funksjonal
 
 | Medlem | GitHub | Rolle |
 | ------ | ------ | ----- |
-| **Laurent Zogaj** | [26zl](https://github.com/26zl) | Prosjektleder / fullstack / arkitekt |
-| **Abdinasir** | [Abdinasir909](https://github.com/Abdinasir909) | Fullstack / KI-integrasjon / kalender |
-| **Anwar** | [Hersino](https://github.com/Hersino) | Fullstack / chat-historikk / KI-chat |
-| **Ylli Ujkani** | [yujk7](https://github.com/yujk7) | Dokumentasjon / bidrar med kode |
+| **Laurent Zogaj** | [26zl](https://github.com/26zl) | Prosjektleder / Fullstack / Canvas-integrasjon / Arkitekt |
+| **Abdinasir** | [Abdinasir909](https://github.com/Abdinasir909) | Fullstack / KI-integrasjon og tjenester / UI/UX |
+| **Anwar** | [Hersino](https://github.com/Hersino) | Fullstack / KI-integrasjon og tjenester / UI/UX |
+| **Ylli Ujkani** | [yujk7](https://github.com/yujk7) | Dokumentasjon / Bidrar med kode |
 
 ## Innhold
 
