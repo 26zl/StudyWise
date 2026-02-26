@@ -50,7 +50,8 @@
       "lodash.isequal": "npm:lodash@^4.17.21",
       "esbuild": "^0.25.0",
       "markdown-it": ">=14.1.1",
-      "qs": ">=6.14.2"
+      "qs": ">=6.14.2",
+      "minimatch": ">=10.2.1"
     },
     "onlyBuiltDependencies": [
       "@scarf/scarf",
