@@ -1,16 +1,21 @@
 import { Router } from "express";
-import { auth } from "../../middleware/auth.js";
 import { logger } from "../../utils/logger.js";
 import { TaskBreakdown } from "../../database/models/TaskBreakdown.js";
+import { rateLimitKi } from "../../middleware/rate-limit.js";
 
 const router = Router();
-router.use(auth); 
+router.use(rateLimitKi); // Bruk rate limiting i stedet for auth
 
 // GET /api/ki/task-breakdown/:assignmentId
 router.get("/:assignmentId", async (req, res) => {
   try {
     const { assignmentId } = req.params;
-    const userId = req.user!.id;
+    
+    // Vi trenger userId - hvis det finnes req.user fra global auth middleware
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
 
     const breakdown = await TaskBreakdown.findOne({
       userId,
@@ -33,7 +38,11 @@ router.post("/:assignmentId", async (req, res) => {
   try {
     const { assignmentId } = req.params;
     const { subtasks } = req.body;
-    const userId = req.user!.id;
+    
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
 
     if (!Array.isArray(subtasks)) {
       return res.status(400).json({ error: "Invalid subtasks format" });
@@ -62,7 +71,11 @@ router.post("/:assignmentId", async (req, res) => {
 router.put("/:assignmentId/toggle/:taskId", async (req, res) => {
   try {
     const { assignmentId, taskId } = req.params;
-    const userId = req.user!.id;
+    
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
 
     const breakdown = await TaskBreakdown.findOne({ userId, assignmentId });
     if (!breakdown) {
@@ -86,7 +99,11 @@ router.put("/:assignmentId/toggle/:taskId", async (req, res) => {
 router.delete("/:assignmentId", async (req, res) => {
   try {
     const { assignmentId } = req.params;
-    const userId = req.user!.id;
+    
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
 
     await TaskBreakdown.deleteOne({ userId, assignmentId });
 
