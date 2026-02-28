@@ -27,6 +27,7 @@ import redisClient, { isRedisReady } from "./cache/redis.js";
 import canvasRuter from "./rutere/canvas/canvas.js";
 import kiRuter from "./rutere/ki/ki.js";
 import brukerAuthRuter from "./rutere/auth/brukerAuth.js";
+import taskBreakdownRouter from "./rutere/ki/taskBreakdown.js";
 import { autentiserJwt, knyttCanvasToken } from "./middleware/auth.js";
 import { noCache } from "./middleware/no-cache.js";
 
@@ -83,6 +84,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Deaktiverer "X-Powered-By" header for sikkerhet
 app.disable("x-powered-by");
+
+app.use("/api/ki/task-breakdown", taskBreakdownRouter); 
 
 // Logger middleware
 app.use(pinoHttp({ logger }));
