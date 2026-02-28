@@ -55,6 +55,14 @@ jobs:
           NEXT_PUBLIC_API_URL: "http://localhost:4000"
 
       # Deploy til Vercel via CLI
+      # Overstyr git-author slik at alle deploys bruker autorisert Vercel-epost
+      - name: Sett git-forfatter for Vercel
+        if: success() && github.event_name == 'push'
+        run: |
+          git config user.email "${{ secrets.VERCEL_GIT_EMAIL }}"
+          git config user.name "StudyWise CI"
+          git commit --amend --no-edit --reset-author
+
       - name: Installer Vercel CLI
         if: success() && github.event_name == 'push'
         run: npm install -g vercel@latest
