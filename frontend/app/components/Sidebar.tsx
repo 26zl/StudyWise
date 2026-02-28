@@ -18,11 +18,14 @@ import {
     LayoutDashboard,
     LogOut,
     CalendarDays,
+    Sparkles,
 } from "lucide-react";
 import { useLoggUt } from "../auth/auth-api";
 import { useQueryClient } from "@tanstack/react-query";
 import { broadcastLogout } from "../hooks/use-auth-sync";
 import { useChatHistory } from "../hooks/useChatHistory";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 
 // Typer for de ulike visningene i sidebar
@@ -52,6 +55,7 @@ export function Sidebar({
     const queryClient = useQueryClient();
     const { setSelectedChatId, requestNewChat } = useUIStore();
     const { chats } = useChatHistory();
+    const pathname = usePathname();
 
     // Håndter navigasjon og lukk meny på mobil
     const handleNavigasjon = (visning: VisningType) => {
@@ -170,6 +174,28 @@ export function Sidebar({
                         <div className="mb-2">
                             <NavElement view="chat" icon={MessageSquare} label="KI Assistent" />
                         </div>
+                        
+                        {/* NY LENKE TIL AI TASK BREAKDOWN */}
+                        <Link
+                            href="/test-ai-breakdown"
+                            onClick={() => {
+                                if (window.innerWidth < 768) {
+                                    lukkVenstreMeny();
+                                }
+                            }}
+                            className={`
+                                w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm
+                                transition-colors duration-150
+                                ${pathname === "/test-ai-breakdown"
+                                    ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
+                                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
+                                }
+                            `}
+                        >
+                            <Sparkles size={18} className="shrink-0" />
+                            <span className="truncate">AI Task Breakdown</span>
+                        </Link>
+                        
                         <p className="px-3 py-2 text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                             Samtalehistorikk
                         </p>
@@ -265,4 +291,4 @@ export function Sidebar({
             </aside>
         </>
     );
-}
+}  
