@@ -1,9 +1,11 @@
 import js from "@eslint/js";
 import tseslint from "@typescript-eslint/eslint-plugin";
 import tsparser from "@typescript-eslint/parser";
+import security from "eslint-plugin-security";
 
 export default [
   js.configs.recommended,
+  security.configs.recommended,
   {
     files: ["src/**/*.ts"],
     languageOptions: {
@@ -38,6 +40,8 @@ export default [
     },
     rules: {
       ...tseslint.configs.recommended.rules,
+      // TypeScript's type system already prevents prototype pollution caught by this rule
+      "security/detect-object-injection": "off",
       "@typescript-eslint/no-unused-vars": [
         "warn",
         {

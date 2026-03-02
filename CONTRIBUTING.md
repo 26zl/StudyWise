@@ -162,6 +162,10 @@ Common inneholder data-definisjoner og valideringsregler som deles mellom backen
 - `calendar.ts` - Kalender schemas
 - `calendar-ui.ts` - Kalender UI schemas
 
+### Docs-pakken
+
+Prosjektet har en `docs/`-pakke som bruker VitePress for prosjektdokumentasjon. Den bygges og deployes separat til GitHub Pages via `deploy.docs.yml`. Startes lokalt med `pnpm dev:docs`.
+
 ---
 
 ## Backend - API server

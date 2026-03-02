@@ -1,26 +1,23 @@
 import { Router } from "express";
 import { logger } from "../../utils/logger.js";
+import { apiError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
 import { TaskBreakdown } from "../../database/models/TaskBreakdown.js";
 import { rateLimitKi } from "../../middleware/rate-limit.js";
+import { SubTaskSchema } from "common";
 
 const router = Router();
-router.use(rateLimitKi); // Bruk rate limiting i stedet for auth
+router.use(rateLimitKi);
 
 // GET /api/ki/task-breakdown/:assignmentId
 router.get("/:assignmentId", async (req, res) => {
   try {
     const { assignmentId } = req.params;
-    
-    // Vi trenger userId - hvis det finnes req.user fra global auth middleware
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
+      return apiError.unauthorized(res);
     }
 
-    const breakdown = await TaskBreakdown.findOne({
-      userId,
-      assignmentId,
-    });
+    const breakdown = await TaskBreakdown.findOne({ userId, assignmentId });
 
     if (!breakdown) {
       return res.json({ subtasks: [] });
@@ -28,8 +25,7 @@ router.get("/:assignmentId", async (req, res) => {
 
     res.json({ subtasks: breakdown.subtasks });
   } catch (error) {
-    logger.error({ err: error }, "Failed to fetch task breakdown");
-    res.status(500).json({ error: "Failed to fetch task breakdown" });
+    sendUnknownError(res, error, { kontekst: "GET task-breakdown" });
   }
 });
 
@@ -37,33 +33,26 @@ router.get("/:assignmentId", async (req, res) => {
 router.post("/:assignmentId", async (req, res) => {
   try {
     const { assignmentId } = req.params;
-    const { subtasks } = req.body;
-    
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
+      return apiError.unauthorized(res);
     }
 
-    if (!Array.isArray(subtasks)) {
-      return res.status(400).json({ error: "Invalid subtasks format" });
+    const parsed = SubTaskSchema.array().safeParse(req.body.subtasks);
+    if (!parsed.success) {
+      return sendZodError(res, parsed.error, "subtasks");
     }
 
     const breakdown = await TaskBreakdown.findOneAndUpdate(
       { userId, assignmentId },
-      {
-        userId,
-        assignmentId,
-        subtasks,
-        updatedAt: new Date(),
-      },
+      { userId, assignmentId, subtasks: parsed.data, updatedAt: new Date() },
       { upsert: true, new: true }
     );
 
     logger.info({ userId, assignmentId }, "Saved task breakdown");
     res.json({ subtasks: breakdown.subtasks });
   } catch (error) {
-    logger.error({ err: error }, "Failed to save task breakdown");
-    res.status(500).json({ error: "Failed to save task breakdown" });
+    sendUnknownError(res, error, { kontekst: "POST task-breakdown" });
   }
 });
 
@@ -71,27 +60,27 @@ router.post("/:assignmentId", async (req, res) => {
 router.put("/:assignmentId/toggle/:taskId", async (req, res) => {
   try {
     const { assignmentId, taskId } = req.params;
-    
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
+      return apiError.unauthorized(res);
     }
 
     const breakdown = await TaskBreakdown.findOne({ userId, assignmentId });
     if (!breakdown) {
-      return res.status(404).json({ error: "Task breakdown not found" });
+      return apiError.notFound(res, "Task breakdown");
     }
 
-    const task = breakdown.subtasks.find((t: any) => t.id === taskId);
-    if (task) {
-      task.completed = !task.completed;
-      await breakdown.save();
+    const task = breakdown.subtasks.find((t) => t.id === taskId);
+    if (!task) {
+      return apiError.notFound(res, "Subtask");
     }
+
+    task.completed = !task.completed;
+    await breakdown.save();
 
     res.json({ subtasks: breakdown.subtasks });
   } catch (error) {
-    logger.error({ err: error }, "Failed to toggle task");
-    res.status(500).json({ error: "Failed to toggle task" });
+    sendUnknownError(res, error, { kontekst: "PUT task-breakdown toggle" });
   }
 });
 
@@ -99,20 +88,18 @@ router.put("/:assignmentId/toggle/:taskId", async (req, res) => {
 router.delete("/:assignmentId", async (req, res) => {
   try {
     const { assignmentId } = req.params;
-    
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
+      return apiError.unauthorized(res);
     }
 
     await TaskBreakdown.deleteOne({ userId, assignmentId });
 
     logger.info({ userId, assignmentId }, "Deleted task breakdown");
-    res.json({ success: true });
+    res.json({ subtasks: [] });
   } catch (error) {
-    logger.error({ err: error }, "Failed to delete task breakdown");
-    res.status(500).json({ error: "Failed to delete task breakdown" });
+    sendUnknownError(res, error, { kontekst: "DELETE task-breakdown" });
   }
 });
 
-export default router; 
+export default router;

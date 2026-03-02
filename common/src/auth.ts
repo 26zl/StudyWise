@@ -71,6 +71,12 @@ export const RefreshResponseSchema = z.object({
   melding: z.string(),
 });
 
+// Response schema for oppdatering av preferanser
+export const PreferencesResponseSchema = z.object({
+  melding: z.string(),
+  canvasContextPreferences: CanvasContextPreferencesSchema,
+});
+
 // Cookie-navn konstanter (delt mellom frontend og backend)
 export const AUTH_COOKIE_NAME = "studywise_auth";
 export const AUTH_REFRESH_COOKIE_NAME = "studywise_auth_refresh";
@@ -88,3 +94,4 @@ export type RegisterResponse = z.infer<typeof RegisterResponseSchema>;
 export type MeResponse = z.infer<typeof MeResponseSchema>;
 export type LogoutResponse = z.infer<typeof LogoutResponseSchema>;
 export type RefreshResponse = z.infer<typeof RefreshResponseSchema>;
+export type PreferencesResponse = z.infer<typeof PreferencesResponseSchema>;

@@ -202,12 +202,21 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
             filename: req.file.originalname
         }, "Sender dokumentanalyse til HuggingFace");
 
-        const result = await hfClient.chatCompletion({
-            model,
-            messages: apiMessages,
-            max_tokens: 2048,
-            temperature: 0.5,
-        });
+        // Timeout guard — dokumentanalyse kan ta lengre tid enn chat, men bør ikke henge evig
+        const ANALYSE_TIMEOUT_MS = 60000;
+        const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("ANALYSE_TIMEOUT")), ANALYSE_TIMEOUT_MS)
+        );
+
+        const result = await Promise.race([
+            hfClient.chatCompletion({
+                model,
+                messages: apiMessages,
+                max_tokens: 2048,
+                temperature: 0.5,
+            }),
+            timeoutPromise,
+        ]);
 
         const responseText = result?.choices?.[0]?.message?.content ?? "";
         const usage = result?.usage;
@@ -239,6 +248,14 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
     } catch (error) {
         logger.error({ err: error }, "Dokumentanalyse feil");
         const errorMessage = error instanceof Error ? error.message : String(error);
+
+        if (errorMessage === "ANALYSE_TIMEOUT") {
+            return res.status(504).json(KIDocumentAnalyseResponseSchema.parse({
+                suksess: false,
+                melding: "Dokumentanalysen tok for lang tid. Prøv med et mindre dokument eller prøv igjen.",
+                response: "",
+            }));
+        }
 
         if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {
             return res.status(429).json(KIDocumentAnalyseResponseSchema.parse({
@@ -316,12 +333,20 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req: Request, res: Resp
             { role: "user" as const, content: question }
         ];
 
-        const result = await hfClient.chatCompletion({
-            model,
-            messages: apiMessages,
-            max_tokens: 2048,
-            temperature: 0.5,
-        });
+        const ANALYSE_TIMEOUT_MS = 60000;
+        const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("ANALYSE_TIMEOUT")), ANALYSE_TIMEOUT_MS)
+        );
+
+        const result = await Promise.race([
+            hfClient.chatCompletion({
+                model,
+                messages: apiMessages,
+                max_tokens: 2048,
+                temperature: 0.5,
+            }),
+            timeoutPromise,
+        ]);
 
         const responseText = result?.choices?.[0]?.message?.content ?? "";
         const usage = result?.usage;
@@ -345,6 +370,16 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req: Request, res: Resp
         }));
     } catch (error) {
         logger.error({ err: error }, "Legacy PDF-analyse feil");
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        if (errorMessage === "ANALYSE_TIMEOUT") {
+            return res.status(504).json(KIDocumentAnalyseResponseSchema.parse({
+                suksess: false,
+                melding: "PDF-analysen tok for lang tid. Prøv igjen.",
+                response: "",
+            }));
+        }
+
         return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({
             suksess: false,
             melding: "Kunne ikke analysere PDF-filen.",

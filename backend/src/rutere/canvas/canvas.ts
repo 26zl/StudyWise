@@ -1114,6 +1114,12 @@ router.get("/filer/:fileId/download", async (req, res) => {
     const disposition = canvasRes.headers.get("content-disposition");
     if (disposition) res.setHeader("Content-Disposition", disposition);
     const nodeStream = Readable.fromWeb(canvasRes.body as unknown as ReadableStream);
+    nodeStream.on("error", (err) => {
+      logger.error({ err, fileId: req.params.fileId }, "Feil under fil-streaming fra Canvas");
+      if (!res.headersSent) {
+        res.status(502).json({ feil: "Fil-streaming fra Canvas feilet" });
+      }
+    });
     nodeStream.pipe(res);
   } catch (error) {
     logger.error({ err: error }, `Feil ved filnedlasting ${req.params.fileId}`);

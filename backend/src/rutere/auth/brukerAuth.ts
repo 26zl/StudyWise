@@ -368,10 +368,19 @@ router.post("/refresh", rateLimitRefresh, async (req, res) => {
             return apiError.unauthorized(res, "Ingen refresh-token funnet.");
         }
         const { tilgangSecret, refreshSecret } = hentJwtSecrets();
-        const payload = jwt.verify(refreshToken, refreshSecret, { algorithms: ["HS256"] });
-        if (typeof payload === "string" || !payload || typeof payload !== "object") {
-            return apiError.unauthorized(res, "Ugyldig refresh-token.");
+
+        // Verifiser JWT separat for å skille token-feil fra DB-feil
+        let payload: jwt.JwtPayload;
+        try {
+            const decoded = jwt.verify(refreshToken, refreshSecret, { algorithms: ["HS256"] });
+            if (typeof decoded === "string" || !decoded || typeof decoded !== "object") {
+                return apiError.unauthorized(res, "Ugyldig refresh-token.");
+            }
+            payload = decoded;
+        } catch {
+            return apiError.unauthorized(res, "Ugyldig eller utløpt refresh-token.");
         }
+
         const tokenType = (payload as { tokenType?: string }).tokenType;
         if (tokenType !== "refresh") {
             return apiError.unauthorized(res, "Ugyldig token-type.");
@@ -410,9 +419,9 @@ router.post("/refresh", rateLimitRefresh, async (req, res) => {
         settRefreshCookie(res, nyttRefreshToken);
         return res.json(RefreshResponseSchema.parse({ melding: "Tilgang oppdatert" }));
     } catch (error) {
-        // JWT verify feil betyr ugyldig token - ikke server error
-        logger.warn({ err: error }, "Feil ved token refresh");
-        return apiError.unauthorized(res, "Ugyldig eller utløpt refresh-token.");
+        // DB-feil (findById, save) — dette er server-error, ikke auth-feil
+        logger.error({ err: error }, "Serverfeil ved token refresh");
+        return res.status(500).json({ feil: "Serverfeil ved fornyelse av sesjon. Prøv igjen." });
     }
 });
 
@@ -499,30 +508,35 @@ router.put("/preferences", autentiserJwt, async (req, res) => {
 // Logger ut den autentiserte brukeren og fjerner alle tokens fra NETTLESER.
 // Canvas-token forblir i database (kryptert) - den er knyttet til brukerkontoen.
 router.post("/logout", autentiserJwt, async (req, res) => {
-    const userId = req.user?.id;
-    if (userId) {
-        // Invalider Canvas-cache ved logout (sikkerhet - data skal ikke være tilgjengelig etter logout)
-        const bruker = await User.findById(userId).select("+canvasApiToken");
-        if (bruker?.canvasApiToken) {
-            try {
-                const token = decrypt(bruker.canvasApiToken);
-                const cachePrefix = crypto.createHash("sha256").update(token).digest("hex").slice(0, 12);
-                invalidateCacheByPattern(`canvas:${cachePrefix}:*`).catch(() => {
-                    // Ignorer feil - cache invalidering er ikke kritisk
-                });
-            } catch {
-                // Ignorer dekrypteringsfeil
+    try {
+        const userId = req.user?.id;
+        if (userId) {
+            // Invalider Canvas-cache ved logout (sikkerhet - data skal ikke være tilgjengelig etter logout)
+            const bruker = await User.findById(userId).select("+canvasApiToken");
+            if (bruker?.canvasApiToken) {
+                try {
+                    const token = decrypt(bruker.canvasApiToken);
+                    const cachePrefix = crypto.createHash("sha256").update(token).digest("hex").slice(0, 12);
+                    invalidateCacheByPattern(`canvas:${cachePrefix}:*`).catch(() => {
+                        // Ignorer feil - cache invalidering er ikke kritisk
+                    });
+                } catch {
+                    // Ignorer dekrypteringsfeil
+                }
             }
-        }
 
-        // Fjern kun refresh token fra database (invaliderer sesjonen)
-        // Canvas-token beholdes - den er kryptert og knyttet til brukerkontoen
-        await User.findByIdAndUpdate(userId, {
-            refreshTokenHash: undefined,
-            refreshTokenExpiresAt: undefined,
-        });
+            // Fjern kun refresh token fra database (invaliderer sesjonen)
+            // Canvas-token beholdes - den er kryptert og knyttet til brukerkontoen
+            await User.findByIdAndUpdate(userId, {
+                refreshTokenHash: undefined,
+                refreshTokenExpiresAt: undefined,
+            });
+        }
+    } catch (error) {
+        // Logg feil, men ALLTID fjern cookies slik at brukeren kan logge ut
+        logger.error({ err: error }, "Feil under logout-opprydding");
     }
-    // Fjern JWT-cookies fra nettleseren
+    // Fjern JWT-cookies fra nettleseren — kjøres uansett
     fjernAuthCookies(res);
     return res.json(LogoutResponseSchema.parse({ melding: "Logget ut" }));
 });

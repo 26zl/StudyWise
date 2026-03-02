@@ -14,6 +14,7 @@ Produksjonsnettside - <https://www.studwize.page>
 - **Backend**: Express 5 + TypeScript + Redis + Pino + Helmet + Zod + HuggingFace Inference
 - **Database**: MongoDB (Atlas/Lokal) + Redis (Cloud/Lokal)
 - **Common**: Delte Zod schemas og feiltyper (frontend + backend)
+- **Docs**: VitePress dokumentasjon
 - **Pakkehåndtering**: pnpm workspace (monorepo)
 - **Autentisering**: JWT (access + refresh tokens)
 
@@ -31,39 +32,40 @@ Produksjonsnettside - <https://www.studwize.page>
 
 1. **Klon repoet**:
 
-```bash
-git clone <repo-url>
-cd StudyWise
-```
+   ```bash
+   git clone <repo-url>
+   cd StudyWise
+   ```
 
-1. **Installer dependencies**:
+2. **Installer dependencies**:
 
-```bash
-pnpm install
-```
+   ```bash
+   pnpm install
+   ```
 
-1. **Konfigurer miljøvariabler**:
+3. **Konfigurer miljøvariabler**:
 
-Opprett `backend/.env` (se `backend/.env.example`).
+   Opprett `backend/.env` (se `backend/.env.example`).
 
-1. **Bygg prosjektet**:
+4. **Bygg prosjektet**:
 
-```bash
-pnpm build
-```
+   ```bash
+   pnpm build
+   ```
 
 ## Kommandoer (kjør fra rot)
 
 ```bash
 # Utvikling
-pnpm dev              # Start frontend + backend
+pnpm dev              # Start frontend + backend + docs
 pnpm dev:frontend     # Start kun frontend
 pnpm dev:backend      # Start kun backend
+pnpm dev:docs         # Start kun dokumentasjon
 
 # Kvalitetssikring
 pnpm typecheck        # Type-check alle pakker
 pnpm lint             # Lint alle pakker
-pnpm build            # Bygg alt (common → backend → frontend)
+pnpm build            # Bygg alt (common → backend → frontend → docs)
 
 # Installere pakker (VIKTIG: Bruk --filter)
 pnpm --filter frontend add <pakkenavn>
@@ -100,8 +102,8 @@ Backend har integrert Swagger UI: <http://localhost:4000/api-docs>
 
 - `GET /health` - Server health check
 - `GET /api/canvas/*` - Canvas LMS integrasjon
-- `POST /api/auth/*` - Autentisering
-- `POST /api/ki/*` - KI-assistenten
+- `/api/user/*` - Autentisering (login, register, refresh, logout)
+- `/api/ki/*` - KI-assistenten (chat, dokumentanalyse, task breakdown)
 
 ### Canvas API
 

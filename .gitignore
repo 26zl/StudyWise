@@ -44,8 +44,6 @@ coverage/
 .claude/
 kill-dev.bat
 nul
-.windsurf/
-
 # TypeScript
 *.tsbuildinfo
 
@@ -56,7 +54,6 @@ backend/pnpm-lock.yaml
 common/node_modules/
 
 # Next.js specific
-.next/
 next-env.d.ts
 
 # Vercel
@@ -66,8 +63,8 @@ next-env.d.ts
 **/.vitepress/dist
 **/.vitepress/cache
 
-# Snyk Security Extension - AI Rules (auto-generated)
-.windsurf/rules/snyk_rules.md
+# Windsurf / Snyk
+.windsurf/
 
 # Tesseract OCR language data (auto-downloaded)
 *.traineddata

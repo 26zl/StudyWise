@@ -1,6 +1,6 @@
 /*
-* Felles zod schemaer for KI API
-*/
+ * Felles zod schemaer for KI API
+ */
 
 import { z } from "zod";
 
@@ -45,7 +45,7 @@ export const KIModelsResponseSchema = z.object({
       name: z.string(),
       description: z.string(),
       isDefault: z.boolean(),
-    })
+    }),
   ),
   defaultModel: z.string(),
 });
@@ -97,10 +97,31 @@ export const KIDocumentAnalyseResponseSchema = z.object({
     .optional(),
 });
 
+// Subtask schema for task breakdown API.
+// SubTaskSchema og TaskBreakdownResponseSchema brukes av backend for validering (taskBreakdown.ts)
+// og skal brukes av en dedikert frontend-hook for å validere API-svar når AI-integrasjonen er ferdig.
+// I frontend-komponenter importeres kun typen (SubTask), ikke skjemaet.
+export const SubTaskSchema = z.object({
+  id: z.string(),
+  title: z.string().max(200),
+  description: z.string().max(1000),
+  estimatedTime: z.string(),
+  priority: z.enum(["low", "medium", "high"]),
+  completed: z.boolean(),
+});
+
+export const TaskBreakdownResponseSchema = z.object({
+  subtasks: z.array(SubTaskSchema),
+});
+
 // Type exports
 export type KIMessage = z.infer<typeof KIMessageSchema>;
 export type KIChatRequest = z.infer<typeof KIChatRequestSchema>;
 export type KIChatResponse = z.infer<typeof KIChatResponseSchema>;
 export type KIModelsResponse = z.infer<typeof KIModelsResponseSchema>;
 export type KIPdfAnalyseResponse = z.infer<typeof KIPdfAnalyseResponseSchema>;
-export type KIDocumentAnalyseResponse = z.infer<typeof KIDocumentAnalyseResponseSchema>;
+export type KIDocumentAnalyseResponse = z.infer<
+  typeof KIDocumentAnalyseResponseSchema
+>;
+export type SubTask = z.infer<typeof SubTaskSchema>;
+export type TaskBreakdownResponse = z.infer<typeof TaskBreakdownResponseSchema>;

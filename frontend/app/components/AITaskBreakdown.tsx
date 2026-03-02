@@ -6,18 +6,18 @@
 
 import { useState } from "react";
 import { Sparkles, Edit2, Check, X, Plus, Trash2, RefreshCw, Loader2, ThumbsUp, ThumbsDown } from "lucide-react";
+import { toast } from "sonner";
 import { useKIChat } from "../ki/ki-api";
+import type { SubTask } from "common/ki";
+// Kun typen importeres her — komponenten håndterer ikke API-kall direkte.
+// Når ekte AI-integrasjon legges til, skal henting og validering (med TaskBreakdownResponseSchema)
+// ligge i en dedikert hook (se mønsteret i frontend/app/ki/ki-api.ts).
 
-interface SubTask {
-  id: string;
-  title: string;
-  description: string;
-  estimatedTime: string;
-  priority: "low" | "medium" | "high";
-  completed: boolean;
-  approved?: boolean; // NY: Godkjent av bruker?
+// UI-state utvider SubTask med godkjenningsstatus — strippes før onSave
+interface SubTaskUI extends SubTask {
+  approved?: boolean; // Godkjent av bruker?
 }
-
+// Props for AITaskBreakdown-komponenten
 interface AITaskBreakdownProps {
   assignmentTitle: string;
   assignmentDescription?: string;
@@ -26,19 +26,19 @@ interface AITaskBreakdownProps {
 }
 
 export function AITaskBreakdown({
-  assignmentTitle,
-  assignmentDescription,
-  dueDate,
+  assignmentTitle: _assignmentTitle,
+  assignmentDescription: _assignmentDescription,
+  dueDate: _dueDate,
   onSave,
 }: AITaskBreakdownProps) {
-  const [subtasks, setSubtasks] = useState<SubTask[]>([]);
+  const [subtasks, setSubtasks] = useState<SubTaskUI[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<SubTask>>({});
   const [showEditor, setShowEditor] = useState(false);
-  const [showApprovalPrompt, setShowApprovalPrompt] = useState(false); // NY
+  const [showApprovalPrompt, setShowApprovalPrompt] = useState(false);
 
-  const { sendMelding } = useKIChat();
+  const { sendMelding: _sendMelding } = useKIChat();
 
   // Generer deloppgaver med AI
   const generateSubtasks = async () => {
@@ -46,7 +46,7 @@ export function AITaskBreakdown({
 
     // MOCK DATA - Erstatt med ekte AI når HuggingFace fungerer
     setTimeout(() => {
-      const mockSubtasks: SubTask[] = [
+      const mockSubtasks: SubTaskUI[] = [
         {
           id: `task-${Date.now()}-1`,
           title: "Research og kildeinnsamling",
@@ -54,7 +54,7 @@ export function AITaskBreakdown({
           estimatedTime: "2t",
           priority: "high",
           completed: false,
-          approved: false, // NY
+          approved: false, 
         },
         {
           id: `task-${Date.now()}-2`,
@@ -63,7 +63,7 @@ export function AITaskBreakdown({
           estimatedTime: "1t",
           priority: "high",
           completed: false,
-          approved: false, // NY
+          approved: false,
         },
         {
           id: `task-${Date.now()}-3`,
@@ -72,7 +72,7 @@ export function AITaskBreakdown({
           estimatedTime: "1.5t",
           priority: "medium",
           completed: false,
-          approved: false, // NY
+          approved: false,
         },
         {
           id: `task-${Date.now()}-4`,
@@ -81,38 +81,38 @@ export function AITaskBreakdown({
           estimatedTime: "4t",
           priority: "high",
           completed: false,
-          approved: false, // NY
+          approved: false, 
         },
       ];
 
       setSubtasks(mockSubtasks);
       setShowEditor(true);
-      setShowApprovalPrompt(true); // NY: Vis godkjenne/avvise prompt
+      setShowApprovalPrompt(true); // Vis godkjenne/avvise prompt
       setIsGenerating(false);
     }, 2000);
   };
 
-  // NY: Godkjenn alle forslag
+  // Godkjenn alle forslag
   const approveAll = () => {
     setSubtasks((prev) => prev.map((task) => ({ ...task, approved: true })));
     setShowApprovalPrompt(false);
   };
 
-  // NY: Avvis alle forslag og start på nytt
+  // Avvis alle forslag og start på nytt
   const rejectAll = () => {
     setSubtasks([]);
     setShowEditor(false);
     setShowApprovalPrompt(false);
   };
 
-  // NY: Godkjenn enkelt oppgave
+  // Godkjenn enkelt oppgave
   const approveTask = (id: string) => {
     setSubtasks((prev) =>
       prev.map((task) => (task.id === id ? { ...task, approved: true } : task))
     );
   };
 
-  // NY: Avvis enkelt oppgave
+  // Avvis enkelt oppgave
   const rejectTask = (id: string) => {
     setSubtasks((prev) => prev.filter((task) => task.id !== id));
   };
@@ -149,7 +149,7 @@ export function AITaskBreakdown({
 
   // Legg til ny deloppgave
   const addNewTask = () => {
-    const newTask: SubTask = {
+    const newTask: SubTaskUI = {
       id: `task-${Date.now()}`,
       title: "Ny deloppgave",
       description: "Beskriv hva som må gjøres",
@@ -173,15 +173,15 @@ export function AITaskBreakdown({
 
   // Lagre til parent
   const handleSave = () => {
-    // Sjekk at alle er godkjent
     const allApproved = subtasks.every((task) => task.approved);
     if (!allApproved) {
-      alert("Du må godkjenne eller redigere alle forslagene før lagring!");
+      toast.error("Du må godkjenne eller redigere alle forslagene før lagring!");
       return;
     }
 
     if (onSave) {
-      onSave(subtasks);
+      // Strip UI-only felt (approved) før grensen mot parent/API
+      onSave(subtasks.map(({ approved: _approved, ...task }) => task));
     }
     setShowEditor(false);
   };
@@ -527,7 +527,7 @@ export function AITaskBreakdown({
           <div className="space-y-2">
             <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-blue-500 to-purple-600 transition-all duration-500"
+                className="h-full bg-linear-to-r from-blue-500 to-purple-600 transition-all duration-500"
                 style={{
                   width: `${(subtasks.filter((t) => t.completed).length / subtasks.length) * 100}%`,
                 }}

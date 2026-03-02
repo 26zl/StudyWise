@@ -40,25 +40,42 @@ StudyWise - AI-powered study assistant with Canvas LMS integration. pnpm monorep
 - Constants (cookie names, message limits)
 - Chat schemas (`chat.ts`) and document schemas (`document.ts`)
 - Calendar schemas (`calendar.ts`, `calendar-ui.ts`)
+- KI schemas (`ki.ts`): `SubTaskSchema`, `TaskBreakdownResponseSchema`, `KIChatRequestSchema`, etc.
 
 ---
 
 ## 2. Commands
 
 ```bash
-pnpm dev                    # Start frontend (3000) + backend (4000)
+pnpm dev                    # Start frontend (3000) + backend (4000) + docs
 pnpm typecheck              # Type-check all packages
 pnpm lint                   # Lint all packages
-pnpm build                  # Build all (common → backend → frontend)
+pnpm lint:md                # Lint markdown files
+pnpm build                  # Build all (common → backend → frontend → docs)
+
+# Targeted builds (each also builds common first)
+pnpm build:common           # Build only common package
+pnpm build:frontend         # Build common + frontend
+pnpm build:backend          # Build common + backend
 
 pnpm --filter frontend add <pkg>   # Add package to frontend
 pnpm --filter backend add <pkg>    # Add package to backend
 
 pnpm kill:dev               # Kill all Node processes (Windows)
-pnpm clean:install          # Full reinstall
+pnpm clean:all              # Delete all build artifacts and node_modules
+pnpm clean:install          # Full reinstall (clean + install + update + build)
 ```
 
 **Build order**: `common` must be built before frontend/backend. `pnpm build` handles this automatically.
+
+### Tests
+
+Vitest is configured for both `frontend` and `backend` (with `supertest`). No test files exist yet.
+
+```bash
+pnpm --filter backend test   # Run backend tests (vitest)
+pnpm --filter frontend test  # Run frontend tests (vitest + @testing-library/react)
+```
 
 ### Docker
 
@@ -104,6 +121,7 @@ Location: `frontend/app/dashboard/page.tsx`
 - **User**: Local auth (email, password, encrypted canvasApiToken)
 - **CanvasUser**: Cache of Canvas profile info, links to User via `localUser`
 - **ChatHistory**: Encrypted chat history per user (AES-256-GCM)
+- **TaskBreakdown**: AI-generated task breakdowns with editable subtasks
 
 ### Key Configuration Files
 
@@ -115,6 +133,24 @@ Location: `frontend/app/dashboard/page.tsx`
 - **Cookie names**: `common/src/auth.ts`
 - **Message limits**: `common/src/ki.ts`
 
+### AI Routes (`backend/src/rutere/ki/`)
+
+Each file handles a distinct AI feature:
+
+- `ki.ts` - General chat endpoint
+- `kiCanvas.ts` - Canvas-context AI queries
+- `kiAnalyse.ts` - Assignment analysis
+- `kiHistory.ts` - Chat history management
+- `taskBreakdown.ts` - Task breakdown generation
+
+### Document Processing
+
+The backend accepts file uploads via `multer` and processes them with:
+
+- `unpdf` + `mammoth` - Extract text from PDFs and Word docs
+- `tesseract.js` + `sharp` - OCR for images
+- Extracted text is passed as AI context
+
 ---
 
 ## 4. Coding Rules
@@ -125,9 +161,13 @@ Location: `frontend/app/dashboard/page.tsx`
 - **Pino logger** - Never console.log in backend
 - **Zod validation** - At all package boundaries
 - **Relative URLs** - Frontend uses `/api/...`, Next.js rewrites to backend
-- **No emojis** - Unless user explicitly requests
 - **Config protection** - Don't modify tsconfig/eslint/next.config without asking
 - **Norwegian naming** - Routes, components, variables in Norwegian; filenames in English
+- **Rate limiting** - Apply `rate-limiter-flexible` middleware for new sensitive endpoints (see `backend/src/middleware/rate-limit.ts`)
+- **Security linting** - `pnpm lint` includes `eslint-plugin-security` (SAST) in both frontend and backend. Runs automatically in CI.
+- **Toast notifications** - Frontend must use `sonner` for user-facing notifications. Never use `alert()` or `confirm()`
+- **`req.user` typing** - Globally typed via `backend/src/typer/express.d.ts`. Never cast with `as any`
+- **Middleware ordering** - In `backend/src/index.ts`, mount all route handlers AFTER body parsers, CORS, and auth middleware. Mounting before means `req.body` and `req.user` will be `undefined`
 
 ### Styling Rules (Tailwind)
 
@@ -159,6 +199,21 @@ import { KIAuthError, CanvasTokenMissingError, AppError } from "../lib/errors";
 if (AppError.isAppError(error) && error.requiresReauth()) {
   // Handle reauth
 }
+```
+
+### UI-only State Pattern
+
+When a common type needs UI-only fields (e.g. optimistic state), extend it locally and strip the extra fields before calling the API:
+
+```typescript
+import type { SubTask } from "common/ki";
+
+interface SubTaskUI extends SubTask {
+  approved?: boolean; // UI-only — never sent to backend
+}
+
+// Strip at the API boundary
+onSave(subtasks.map(({ approved: _approved, ...task }) => task));
 ```
 
 ### Database Rules

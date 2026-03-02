@@ -7,6 +7,7 @@
 import { Router } from "express";
 import { InferenceClient } from "@huggingface/inference";
 import { logger } from "../../utils/logger.js";
+import { apiError } from "../../utils/apiError.js";
 import { getCache, setCache } from "../../cache/redis.js";
 import { rateLimitKi } from "../../middleware/rate-limit.js";
 import {
@@ -119,11 +120,7 @@ router.post("/chat", async (req, res) => {
     // Sjekk autentisering
     if (!req.user?.id) {
         logger.warn("Chat-forespørsel uten autentisering");
-        return res.status(401).json(KIChatResponseSchema.parse({
-            suksess: false,
-            melding: "Du må være innlogget for å bruke KI-assistenten.",
-            response: "",
-        }));
+        return apiError.unauthorized(res);
     }
 
     // Valider request body

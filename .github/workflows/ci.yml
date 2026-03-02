@@ -2,31 +2,27 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 permissions:
-  actions: read
   contents: read
-  statuses: write
-  checks: write
-  deployments: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  verify:
-    name: Verifiser bygging og checks, deploy etter hvis alt er vellykket.
+  quality:
+    name: Code Quality
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Installer pnpm
+      - name: Install pnpm
         uses: pnpm/action-setup@v3
         with:
           version: 10
@@ -35,12 +31,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'pnpm'
+          cache: "pnpm"
 
-      - name: Installer dependencies
+      - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build Common
+      - name: Build common
         run: pnpm --filter common build
 
       - name: Typecheck
@@ -49,77 +45,41 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Build
+      - name: Lint markdown
+        run: pnpm lint:md
+
+      - name: Verify build
         run: pnpm build
         env:
           NEXT_PUBLIC_API_URL: "http://localhost:4000"
 
-      # Deploy til Vercel via CLI
-      # Overstyr git-author slik at alle deploys bruker autorisert Vercel-epost
-      - name: Sett git-forfatter for Vercel
-        if: success() && github.event_name == 'push'
-        run: |
-          git config user.email "${{ secrets.VERCEL_GIT_EMAIL }}"
-          git config user.name "StudyWise CI"
-          git commit --amend --no-edit --reset-author
+  secret-scan:
+    name: Secret Scan (TruffleHog)
+    runs-on: ubuntu-latest
 
-      - name: Installer Vercel CLI
-        if: success() && github.event_name == 'push'
-        run: npm install -g vercel@latest
-
-      - name: Pull Vercel-konfigurasjon
-        if: success() && github.event_name == 'push'
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      - name: Bygg med Vercel
-        if: success() && github.event_name == 'push'
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      - name: Deploy til Vercel
-        if: success() && github.event_name == 'push'
-        id: deploy
-        run: |
-          url=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
-          echo "url=$url" >> $GITHUB_OUTPUT
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      - name: Oppdater GitHub deployment-status
-        if: success() && github.event_name == 'push'
-        continue-on-error: true
-        uses: actions/github-script@v7
+    steps:
+      - name: Checkout code (full history)
+        uses: actions/checkout@v4
         with:
-          script: |
-            async function retry(fn, retries = 3, delay = 5000) {
-              for (let i = 0; i < retries; i++) {
-                try { return await fn(); }
-                catch (e) {
-                  if (e.status === 429 && i < retries - 1) {
-                    await new Promise(r => setTimeout(r, delay * (i + 1)));
-                  } else throw e;
-                }
-              }
-            }
-            const deployment = await retry(() => github.rest.repos.createDeployment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: context.sha,
-              environment: 'Production',
-              auto_merge: false,
-              required_contexts: [],
-            }));
-            await retry(() => github.rest.repos.createDeploymentStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              deployment_id: deployment.data.id,
-              state: 'success',
-              environment_url: 'https://www.studwize.page',
-              log_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-            }));
+          fetch-depth: 0
+
+      - name: TruffleHog - Scan for leaked secrets
+        uses: trufflesecurity/trufflehog@v3.93.6
+        with:
+          extra_args: --only-verified
+
+  dependency-scan:
+    name: Dependency Scan (pnpm audit)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Audit dependencies
+        run: pnpm audit --audit-level=high

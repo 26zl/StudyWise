@@ -17,19 +17,24 @@ import {
   type MeResponse,
   type LogoutResponse,
   type RefreshResponse,
+  PreferencesResponseSchema,
   type LoginRequest,
   type RegisterRequest,
   type CanvasContextPreferences,
+  type PreferencesResponse,
 } from "common/auth";
 
 let refreshPromise: Promise<RefreshResponse> | null = null;
 
-// Hent json uansett for bedre feilhåndtering
+// Hent JSON fra response — returnerer tomt objekt kun hvis body er tomt (204 etc.)
 const hentJson = async (res: Response) => {
+  const text = await res.text();
+  if (!text) return {};
   try {
-    return await res.json();
+    return JSON.parse(text);
   } catch {
-    return {};
+    // Ikke-JSON respons (f.eks. HTML feilside) — kast med kontekst
+    throw new Error(`Uventet respons fra server (${res.status}): ${text.slice(0, 100)}`);
   }
 };
 // Innlogging
@@ -206,7 +211,7 @@ export function useSlettCanvasToken() {
 }
 
 // Oppdater Canvas-kontekst preferanser
-async function oppdaterPreferanser(preferences: CanvasContextPreferences): Promise<{ melding: string; canvasContextPreferences: CanvasContextPreferences }> {
+async function oppdaterPreferanser(preferences: CanvasContextPreferences): Promise<PreferencesResponse> {
   const res = await fetch("/api/user/preferences", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -217,7 +222,7 @@ async function oppdaterPreferanser(preferences: CanvasContextPreferences): Promi
   if (!res.ok) {
     throw new Error(json.melding || json.feil || "Kunne ikke oppdatere preferanser");
   }
-  return json;
+  return PreferencesResponseSchema.parse(json);
 }
 
 // Hook for oppdatering av Canvas-kontekst preferanser

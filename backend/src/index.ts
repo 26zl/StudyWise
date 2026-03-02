@@ -85,8 +85,6 @@ app.use(express.urlencoded({ extended: true }));
 // Deaktiverer "X-Powered-By" header for sikkerhet
 app.disable("x-powered-by");
 
-app.use("/api/ki/task-breakdown", taskBreakdownRouter); 
-
 // Logger middleware
 app.use(pinoHttp({ logger }));
 
@@ -147,6 +145,9 @@ app.use(
 );
 
 // Krev JWT for alle endepunkter, bortsett fra innlogging/registrering/health/swagger
+// VIKTIG: Dette dekker ALLE ruter montert nedenfor — inkludert /api/ki, /api/canvas og /api/ki/task-breakdown.
+// req.user-sjekker inne i rute-filer (f.eks. kiHistory.ts, taskBreakdown.ts) er defensive
+// fallbacks, ikke sikkerhetshull. Globalt middleware her er den faktiske porten.
 const offentligSti = new Set(["/api/user/login", "/api/user/register", "/api/user/refresh", "/health"]);
 app.use((req, res, next) => {
   if (offentligSti.has(req.path)) return next();
@@ -213,6 +214,7 @@ if (!isProd) {
 // noCache hindrer at sensitive data caches i nettleseren etter utlogging
 app.use("/api/canvas", noCache, knyttCanvasToken, canvasRuter);
 app.use("/api/ki", noCache, knyttCanvasToken, kiRuter);
+app.use("/api/ki/task-breakdown", noCache, taskBreakdownRouter);
 app.use("/api/user", brukerAuthRuter);
 
 // Feil håndtering globalt

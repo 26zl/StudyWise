@@ -52,3 +52,6 @@ services:
       - HOSTNAME=0.0.0.0
     depends_on:
       - backend
+
+volumes:
+  mongo-data:

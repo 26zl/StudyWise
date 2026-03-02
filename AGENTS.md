@@ -7,6 +7,7 @@ Dette er et **pnpm monorepo-prosjekt** som består av:
 1. **Frontend**: Next.js 16 (App Router)
 2. **Backend**: Express 5 API Server
 3. **Common**: Delte TypeScript-typer og Zod-skjemaer
+4. **Docs**: VitePress-dokumentasjon (Vue 3)
 
 ---
 
@@ -14,17 +15,18 @@ Dette er et **pnpm monorepo-prosjekt** som består av:
 
 ### Frontend
 
-- **Core**: Next.js 16.1.4, React 19.2.3, TypeScript 5.9
-- **Styling**: Tailwind CSS v4.1 (med `@tailwindcss/postcss`)
+- **Core**: Next.js 16, React 19, TypeScript 5.9
+- **Styling**: Tailwind CSS v4 (med `@tailwindcss/postcss`)
 - **State/Data**: `@tanstack/react-query` v5 for server-state, `zustand` for client-state
 - **Forms**: `react-hook-form` + `@hookform/resolvers` + `zod`
 - **Routing**: Next.js App Router (Server Components default)
+- **Notifications**: `sonner` for toast-meldinger. Bruk ALDRI `alert()` i frontend.
 
 ### Backend
 
-- **Core**: Express 5.2.1, Node.js 20+
+- **Core**: Express 5, Node.js 20+
 - **Language**: TypeScript (kjøres med `tsx` i dev, `node` i prod)
-- **Database**: MongoDB via `mongoose` v9.1
+- **Database**: MongoDB via `mongoose` v9
 - **Validation**: `zod` (gjenbruker schema fra `common`)
 - **API Docs**: `swagger-ui-express` + `swagger-jsdoc`
 - **Logging**: `pino` + `pino-http`. Bruk ALLTID `logger.info/error`, ALDRI `console.log`
@@ -34,6 +36,7 @@ Dette er et **pnpm monorepo-prosjekt** som består av:
 ### Common
 
 - Kun `zod` definisjoner og TypeScript interface/types. Ingen forretningslogikk.
+- **KI-skjemaer** (`common/src/ki.ts`): `SubTaskSchema`, `TaskBreakdownResponseSchema`, samt eksporterte typer `SubTask` og `TaskBreakdownResponse`. Disse brukes av både frontend og backend.
 
 ---
 
@@ -104,8 +107,11 @@ pnpm typecheck
 # Linting
 pnpm lint
 
-# Bygg for produksjon
+# Bygg for produksjon (common → backend → frontend → docs)
 pnpm build
+
+# Bygg kun common (nødvendig etter endringer i common/)
+pnpm build:common
 ```
 
 ### Legge til pakker
@@ -145,11 +151,52 @@ pnpm --filter common add <pakke>
 - Definer Schema i `backend/src/database/models/`.
 - Bruk Zod i `common` for å validere data *før* det treffer databasen.
 - **Bruk Mongoose Models**: Bruk alltid Mongoose-modeller slik de er ment å brukes (`.find()`, `.create()`, osv.). Unngå native MongoDB driver kall med mindre strengt nødvendig.
+- **Modeller**: `User`, `CanvasUser`, `ChatHistory`, `TaskBreakdown`
+
+### Backend Middleware-rekkefølge
+
+Ruter i `backend/src/index.ts` MÅ monteres **etter** alle middleware (body parser, CORS, auth). Feil rekkefølge medfører at `req.body` og `req.user` er `undefined`.
+
+```typescript
+// RIKTIG — ruter monteres sist
+app.use(express.json());     // body parser
+app.use(cors(...));          // CORS
+app.use(autentiserJwt);      // auth
+app.use("/api/ki", kiRuter); // ruter
+```
+
+### Typing av `req.user` i Backend
+
+`req.user` er globalt typet via `backend/src/typer/express.d.ts`. Bruk **aldri** `(req as any).user`.
+
+```typescript
+// RIKTIG
+const userId = req.user?.id;
+
+// FEIL
+const userId = (req as any).user?.id;
+```
+
+### SubTaskUI-mønster i Frontend
+
+Når en common-type trenger UI-only felt (f.eks. `approved` for optimistisk UI), lag et lokalt interface som *utvider* common-typen. Strip UI-felt ved API-grensen.
+
+```typescript
+import type { SubTask } from "common/ki";
+
+interface SubTaskUI extends SubTask {
+  approved?: boolean; // UI-only, sendes ikke til API
+}
+
+// Strip ved lagring
+onSave(subtasks.map(({ approved: _approved, ...task }) => task));
+```
 
 ### Generelle Regler
 
-- **Emojis**: Det skal IKKE brukes emojis i kode (tekst, knapper, kommentarer osv) med mindre brukeren SPESIFIKT ber om det.
 - **Konfigurasjon**: AI-agenter skal IKKE endre eller overskrive NOEN SOM HELST konfigurasjonsfiler i hele prosjektet (uansett filtype/navn) med mindre det er strengt nødvendig for kritisk funksjonalitet. Spør ALLTID brukeren først ved slike endringer.
+- **Rate limiting**: Bruk eksisterende `rateLimitKi` middleware for KI-endepunkter.
+- **Varsler i frontend**: Bruk `sonner` toast, aldri `alert()` eller `confirm()`.
 
 ---
 
@@ -205,7 +252,38 @@ if (AppError.isAppError(error) && error.requiresReauth()) {
 
 ---
 
-## 6. Feilsøking (Troubleshooting)
+## 6. CI/CD & Workflows
+
+Alle workflow-filer er på engelsk og ligger i `.github/workflows/`.
+
+### ci.yml — Kodekvalitet
+
+Kjøres ved push og PR mot `main`. Tre parallelle jobber:
+
+- **quality**: typecheck, lint, lint:md, verify build
+- **secret-scan**: TruffleHog (pinnet til spesifikk versjon, f.eks. `@v3.93.6`) — skanner for lekkede hemmeligheter
+- **dependency-scan**: `pnpm audit --audit-level=high`
+
+### deploy.yml — Produksjonsdeploy
+
+Utløses via `workflow_run` på "CI" workflow. Deployer **kun** når:
+
+- Alle CI-jobber er grønne (`conclusion == 'success'`)
+- Triggeren var en push (ikke PR)
+
+Deploy-steg: pnpm install → build common → Vercel pull/build/deploy → Render deploy hook.
+
+### deploy.docs.yml — GitHub Pages
+
+Utløses ved push til `docs/**`. Bygger VitePress-dokumentasjon og deployer til GitHub Pages.
+
+### dependabot.yml
+
+Ukentlige oppdateringer (mandager) for: `github-actions`, rot, `frontend`, `backend`, `common`, `docs`. Grupperer alle oppdateringer per pakke i én PR.
+
+---
+
+## 7. Feilsøking (Troubleshooting)
 
 ### "Module not found: Can't resolve 'common'"
 
@@ -217,9 +295,13 @@ if (AppError.isAppError(error) && error.requiresReauth()) {
 - **Løsning**: Sjekk at MongoDB kjører (hvis lokalt) eller at `MONGO_URI` i `backend/.env` er korrekt.
 - Sjekk at din IP er whitelistet i MongoDB Atlas hvis du bruker sky-database.
 
+### TypeScript-feil etter endringer i `common/`
+
+- Kjør `pnpm build:common` for å regenerere typer, deretter `pnpm typecheck`.
+
 ---
 
-## 7. Konfigurasjonsfiler
+## 8. Konfigurasjonsfiler
 
 Viktige konfigurasjonsfiler som styrer systemets oppførsel:
 
@@ -227,10 +309,13 @@ Viktige konfigurasjonsfiler som styrer systemets oppførsel:
 - `backend/src/rutere/ki/systemPrompt.ts` - System prompt for KI-assistenten
 - `backend/src/rutere/canvas/canvasUtils.ts` - Paginering og cache-innstillinger
 - `backend/src/middleware/auth.ts` - JWT utløpstider (konfigurerbar via miljøvariabler)
+- `common/src/ki.ts` - Delte KI-skjemaer inkl. `SubTaskSchema`
+- `common/src/auth.ts` - Cookie-navn
+- `common/src/ki.ts` - Meldingsgrenser
 
 ---
 
-## 8. Sikkerhet og Personvern (nulltoleranse)
+## 9. Sikkerhet og Personvern (nulltoleranse)
 
 ### Ingen Hardkoding av Hemmeligheter
 
@@ -239,6 +324,12 @@ Det er **strengt forbudt** å hardkode sensitive data.
 - **API Nøkler**: Skal alltid lastes fra `.env` filer.
 - **Tokens**: Skal aldri sjekkes inn i git.
 - **URLer**: Bruk miljøvariabler.
+
+### Sikkerhetsscanning i CI
+
+- **TruffleHog**: Skanner hele git-historikken for lekkede hemmeligheter ved hver push.
+- **pnpm audit**: Sjekker for kjente sårbarheter i avhengigheter (nivå: high+).
+- **eslint-plugin-security**: Kjøres automatisk via `pnpm lint` i CI. Regel `detect-object-injection` er deaktivert for TypeScript-filer (falske positiver pga. typesystemet).
 
 ### Personvern (GDPR)
 

@@ -1,0 +1,68 @@
+version: 2
+
+updates:
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels: ["dependencies", "github-actions"]
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  # Root (devDependencies shared across workspace)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels: ["dependencies"]
+    groups:
+      root:
+        patterns: ["*"]
+
+  # Frontend
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels: ["dependencies", "frontend"]
+    groups:
+      frontend:
+        patterns: ["*"]
+
+  # Backend
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels: ["dependencies", "backend"]
+    groups:
+      backend:
+        patterns: ["*"]
+
+  # Common
+  - package-ecosystem: "npm"
+    directory: "/common"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels: ["dependencies", "common"]
+    groups:
+      common:
+        patterns: ["*"]
+
+  # Docs
+  - package-ecosystem: "npm"
+    directory: "/docs"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels: ["dependencies", "docs"]
+    groups:
+      docs:
+        patterns: ["*"]
