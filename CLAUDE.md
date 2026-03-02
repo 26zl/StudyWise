@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-StudyWise - AI-powered study assistant with Canvas LMS integration. pnpm monorepo with `frontend`, `backend`, and `common` packages.
+StudyWise - AI-powered study assistant with Canvas LMS integration. pnpm monorepo with `frontend`, `backend`, `common`, and `docs` packages.
 
 ---
 

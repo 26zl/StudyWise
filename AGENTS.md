@@ -309,9 +309,8 @@ Viktige konfigurasjonsfiler som styrer systemets oppførsel:
 - `backend/src/rutere/ki/systemPrompt.ts` - System prompt for KI-assistenten
 - `backend/src/rutere/canvas/canvasUtils.ts` - Paginering og cache-innstillinger
 - `backend/src/middleware/auth.ts` - JWT utløpstider (konfigurerbar via miljøvariabler)
-- `common/src/ki.ts` - Delte KI-skjemaer inkl. `SubTaskSchema`
-- `common/src/auth.ts` - Cookie-navn
-- `common/src/ki.ts` - Meldingsgrenser
+- `common/src/ki.ts` - Delte KI-skjemaer inkl. `SubTaskSchema` og meldingsgrenser
+- `common/src/auth.ts` - Cookie-navn og auth-skjemaer
 
 ---
 
