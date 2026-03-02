@@ -148,7 +148,7 @@ async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>, forsoktRefre
       errorCode = error.kode || errorCode;
     } catch {
       // Ignorer JSON-parse feil
-    }
+    } 
 
     // Kun marker token som ugyldig hvis det er en TOKEN-feil (fra vår backend)
     // IKKE hvis det er permission denied fra Canvas (bruker kan mangle tilgang til én ressurs)
@@ -415,6 +415,44 @@ export function useCanvasTodo(enabled = true) {
   });
 }
 
+// Hent ALLE oppgaver på tvers av emner
+export function useCanvasAllAssignments(options?: { enabled?: boolean }) {
+  const isEnabled = useCanvasEnabled(options?.enabled ?? true);
+  const coursesQuery = useCanvasCourses(isEnabled);
+  
+  return useQuery({
+    queryKey: ["canvas", "all-assignments"],
+    queryFn: async () => {
+      const courses: any = coursesQuery.data;
+      if (!courses) return [];
+      
+      // Hent oppgaver for alle emner parallelt
+      const assignmentsPromises = courses.map(async (course: any) => {
+        try {
+          const response: any = await fetchCanvas(
+            `/emner/${course.id}/oppgaver`,
+            AssignmentsResponseSchema
+          );
+          // Legg til course_name på hver oppgave
+          return response.map((assignment: any) => ({
+            ...assignment,
+            course_name: course.name,
+            course_id: course.id,
+          }));
+        } catch (error) {
+          console.error(`Failed to fetch assignments for course ${course.id}:`, error);
+          return [];
+        }
+      });
+      
+      const allAssignments = await Promise.all(assignmentsPromises);
+      return allAssignments.flat();
+    },
+    enabled: isEnabled && !!coursesQuery.data && (coursesQuery.data as any).length > 0,
+    ...canvasQueryOptions,
+  });
+}  
+ 
 // Hent detaljerte modul-items
 export function useCanvasModuleItemDetails(courseId: number, moduleId: number, enabled = true) {
   const isEnabled = useCanvasEnabled(enabled);
@@ -585,4 +623,4 @@ export function useCoursesMetadata(enabled = true) {
     staleTime: 1000 * 60 * 30, // 30 minutter - metadata endres sjelden
     refetchOnWindowFocus: false,
   });
-}
+} 
