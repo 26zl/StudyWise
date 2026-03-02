@@ -1,11 +1,11 @@
 /*
- * AITaskBreakdown - KI-foreslåtte deloppgaver som kan redigeres
+ * AITaskBreakdown - KI-foreslåtte deloppgaver med godkjenne/avvise kontroll
  * Genererer smart nedbrytning av Canvas-oppgaver med AI
  */
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Edit2, Check, X, Plus, Trash2, RefreshCw, Loader2 } from "lucide-react";
+import { Sparkles, Edit2, Check, X, Plus, Trash2, RefreshCw, Loader2, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useKIChat } from "../ki/ki-api";
 
 interface SubTask {
@@ -15,6 +15,7 @@ interface SubTask {
   estimatedTime: string;
   priority: "low" | "medium" | "high";
   completed: boolean;
+  approved?: boolean; // NY: Godkjent av bruker?
 }
 
 interface AITaskBreakdownProps {
@@ -35,6 +36,7 @@ export function AITaskBreakdown({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<SubTask>>({});
   const [showEditor, setShowEditor] = useState(false);
+  const [showApprovalPrompt, setShowApprovalPrompt] = useState(false); // NY
 
   const { sendMelding } = useKIChat();
 
@@ -42,76 +44,77 @@ export function AITaskBreakdown({
   const generateSubtasks = async () => {
     setIsGenerating(true);
 
-    const prompt = `Du er en studieassistent. Bryt ned følgende Canvas-oppgave i logiske deloppgaver:
+    // MOCK DATA - Erstatt med ekte AI når HuggingFace fungerer
+    setTimeout(() => {
+      const mockSubtasks: SubTask[] = [
+        {
+          id: `task-${Date.now()}-1`,
+          title: "Research og kildeinnsamling",
+          description: "Finn 5-7 relevante fagartikler og noter nøkkelpunkter fra pensum",
+          estimatedTime: "2t",
+          priority: "high",
+          completed: false,
+          approved: false, // NY
+        },
+        {
+          id: `task-${Date.now()}-2`,
+          title: "Lage disposisjon",
+          description: "Strukturer oppgaven i logiske seksjoner basert på pensum og krav",
+          estimatedTime: "1t",
+          priority: "high",
+          completed: false,
+          approved: false, // NY
+        },
+        {
+          id: `task-${Date.now()}-3`,
+          title: "Skriv introduksjon",
+          description: "Presenter problemstilling og gi oversikt over oppgavens struktur",
+          estimatedTime: "1.5t",
+          priority: "medium",
+          completed: false,
+          approved: false, // NY
+        },
+        {
+          id: `task-${Date.now()}-4`,
+          title: "Hovedtekst - Implementasjon",
+          description: "Skriv hovedinnhold med teori, kode og analyse",
+          estimatedTime: "4t",
+          priority: "high",
+          completed: false,
+          approved: false, // NY
+        },
+      ];
 
-**Oppgave:** ${assignmentTitle}
-${assignmentDescription ? `**Beskrivelse:** ${assignmentDescription}` : ""}
-${dueDate ? `**Frist:** ${dueDate.toLocaleDateString("nb-NO")}` : ""}
+      setSubtasks(mockSubtasks);
+      setShowEditor(true);
+      setShowApprovalPrompt(true); // NY: Vis godkjenne/avvise prompt
+      setIsGenerating(false);
+    }, 2000);
+  };
 
-Lag 4-6 konkrete deloppgaver som studenten kan følge. For hver deloppgave, inkluder:
-1. En kort tittel (maks 50 tegn)
-2. En beskrivelse av hva som må gjøres (1-2 setninger)
-3. Estimert tidsbruk (i timer, f.eks. "2t" eller "30min")
-4. Prioritet (low, medium, high)
+  // NY: Godkjenn alle forslag
+  const approveAll = () => {
+    setSubtasks((prev) => prev.map((task) => ({ ...task, approved: true })));
+    setShowApprovalPrompt(false);
+  };
 
-Formater svaret NØYAKTIG som dette JSON-format (INGEN annen tekst):
-\`\`\`json
-[
-  {
-    "title": "Research og kildeinnsamling",
-    "description": "Finn 5-7 relevante fagartikler og notér nøkkelpunkter",
-    "estimatedTime": "2t",
-    "priority": "high"
-  },
-  {
-    "title": "Lage disposisjon",
-    "description": "Strukturer oppgaven i logiske seksjoner basert på pensum",
-    "estimatedTime": "1t",
-    "priority": "high"
-  }
-]
-\`\`\`
+  // NY: Avvis alle forslag og start på nytt
+  const rejectAll = () => {
+    setSubtasks([]);
+    setShowEditor(false);
+    setShowApprovalPrompt(false);
+  };
 
-Returner KUN JSON-arrayet, ingenting annet.`;
+  // NY: Godkjenn enkelt oppgave
+  const approveTask = (id: string) => {
+    setSubtasks((prev) =>
+      prev.map((task) => (task.id === id ? { ...task, approved: true } : task))
+    );
+  };
 
-    const messages = [
-      { role: "user" as const, content: prompt },
-    ];
-
-    sendMelding(messages, {
-      onSuccess: (data) => {
-        try {
-          // Ekstraher JSON fra AI-svar
-          const jsonMatch = data.response.match(/```json\n([\s\S]*?)\n```/);
-          const jsonString = jsonMatch ? jsonMatch[1] : data.response;
-
-          const parsed = JSON.parse(jsonString);
-
-          // Konverter til SubTask format
-          const newSubtasks: SubTask[] = parsed.map((task: any, index: number) => ({
-            id: `task-${Date.now()}-${index}`,
-            title: task.title,
-            description: task.description,
-            estimatedTime: task.estimatedTime,
-            priority: task.priority,
-            completed: false,
-          }));
-
-          setSubtasks(newSubtasks);
-          setShowEditor(true);
-          setIsGenerating(false);
-        } catch (error) {
-          console.error("Failed to parse AI response:", error);
-          setIsGenerating(false);
-          alert("Kunne ikke generere deloppgaver. Prøv igjen.");
-        }
-      },
-      onError: (error) => {
-        console.error("AI error:", error);
-        setIsGenerating(false);
-        alert("Feil ved generering av deloppgaver. Prøv igjen.");
-      },
-    });
+  // NY: Avvis enkelt oppgave
+  const rejectTask = (id: string) => {
+    setSubtasks((prev) => prev.filter((task) => task.id !== id));
   };
 
   // Start redigering av en deloppgave
@@ -126,7 +129,7 @@ Returner KUN JSON-arrayet, ingenting annet.`;
 
     setSubtasks((prev) =>
       prev.map((task) =>
-        task.id === editingId ? { ...task, ...editForm } : task
+        task.id === editingId ? { ...task, ...editForm, approved: true } : task
       )
     );
     setEditingId(null);
@@ -153,6 +156,7 @@ Returner KUN JSON-arrayet, ingenting annet.`;
       estimatedTime: "1t",
       priority: "medium",
       completed: false,
+      approved: false,
     };
     setSubtasks((prev) => [...prev, newTask]);
     startEditing(newTask);
@@ -169,6 +173,13 @@ Returner KUN JSON-arrayet, ingenting annet.`;
 
   // Lagre til parent
   const handleSave = () => {
+    // Sjekk at alle er godkjent
+    const allApproved = subtasks.every((task) => task.approved);
+    if (!allApproved) {
+      alert("Du må godkjenne eller redigere alle forslagene før lagring!");
+      return;
+    }
+
     if (onSave) {
       onSave(subtasks);
     }
@@ -219,6 +230,45 @@ Returner KUN JSON-arrayet, ingenting annet.`;
       {/* Editor */}
       {showEditor && (
         <div className="space-y-4">
+          {/* NY: Godkjenne/Avvise Banner */}
+          {showApprovalPrompt && (
+            <div className="p-4 rounded-lg bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800">
+              <div className="flex items-start gap-3">
+                <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <h4 className="text-sm font-semibold text-purple-900 dark:text-purple-100 mb-1">
+                    AI har generert {subtasks.length} deloppgaver for deg
+                  </h4>
+                  <p className="text-xs text-purple-700 dark:text-purple-300 mb-3">
+                    Gå gjennom forslagene og godkjenn, avvis, eller rediger dem etter din arbeidsstil.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={approveAll}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                    >
+                      <ThumbsUp className="w-4 h-4" />
+                      Godkjenn alle
+                    </button>
+                    <button
+                      onClick={rejectAll}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                    >
+                      <ThumbsDown className="w-4 h-4" />
+                      Avvis alle
+                    </button>
+                    <button
+                      onClick={() => setShowApprovalPrompt(false)}
+                      className="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Gå gjennom manuelt
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -227,7 +277,7 @@ Returner KUN JSON-arrayet, ingenting annet.`;
                 KI-foreslåtte deloppgaver
               </h3>
               <span className="text-sm text-slate-500 dark:text-slate-400">
-                ({subtasks.length} oppgaver)
+                ({subtasks.filter(t => t.approved).length}/{subtasks.length} godkjent)
               </span>
             </div>
 
@@ -257,7 +307,9 @@ Returner KUN JSON-arrayet, ingenting annet.`;
               <div
                 key={task.id}
                 className={`p-4 rounded-lg border transition-all ${
-                  task.completed
+                  task.approved
+                    ? "border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20"
+                    : task.completed
                     ? "border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20"
                     : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
                 }`}
@@ -265,7 +317,6 @@ Returner KUN JSON-arrayet, ingenting annet.`;
                 {editingId === task.id ? (
                   // Edit Mode
                   <div className="space-y-3">
-                    {/* Title */}
                     <input
                       type="text"
                       value={editForm.title || ""}
@@ -276,7 +327,6 @@ Returner KUN JSON-arrayet, ingenting annet.`;
                       placeholder="Tittel på deloppgave"
                     />
 
-                    {/* Description */}
                     <textarea
                       value={editForm.description || ""}
                       onChange={(e) =>
@@ -287,7 +337,6 @@ Returner KUN JSON-arrayet, ingenting annet.`;
                       placeholder="Beskrivelse av hva som må gjøres"
                     />
 
-                    {/* Time and Priority */}
                     <div className="flex gap-3">
                       <input
                         type="text"
@@ -315,14 +364,13 @@ Returner KUN JSON-arrayet, ingenting annet.`;
                       </select>
                     </div>
 
-                    {/* Actions */}
                     <div className="flex gap-2">
                       <button
                         onClick={saveEdit}
                         className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
                       >
                         <Check className="w-4 h-4" />
-                        Lagre
+                        Lagre og godkjenn
                       </button>
                       <button
                         onClick={cancelEdit}
@@ -336,32 +384,55 @@ Returner KUN JSON-arrayet, ingenting annet.`;
                   // View Mode
                   <div className="space-y-2">
                     <div className="flex items-start gap-3">
-                      {/* Checkbox */}
                       <button
                         onClick={() => toggleCompleted(task.id)}
                         className={`shrink-0 w-5 h-5 rounded border-2 mt-0.5 transition-colors ${
-                          task.completed
+                          task.completed || task.approved
                             ? "border-green-500 bg-green-500"
                             : "border-slate-300 dark:border-slate-600 hover:border-green-500"
                         }`}
                       >
-                        {task.completed && <Check className="w-3 h-3 text-white" />}
+                        {(task.completed || task.approved) && <Check className="w-3 h-3 text-white" />}
                       </button>
 
-                      {/* Content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2 mb-1">
                           <h4
                             className={`text-sm font-semibold ${
                               task.completed
                                 ? "line-through text-slate-500"
+                                : task.approved
+                                ? "text-green-700 dark:text-green-400"
                                 : "text-slate-900 dark:text-white"
                             }`}
                           >
                             {index + 1}. {task.title}
+                            {task.approved && (
+                              <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                                Godkjent
+                              </span>
+                            )}
                           </h4>
 
                           <div className="flex items-center gap-1 shrink-0">
+                            {!task.approved && !task.completed && (
+                              <>
+                                <button
+                                  onClick={() => approveTask(task.id)}
+                                  className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                                  title="Godkjenn"
+                                >
+                                  <ThumbsUp className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                                </button>
+                                <button
+                                  onClick={() => rejectTask(task.id)}
+                                  className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                                  title="Avvis"
+                                >
+                                  <ThumbsDown className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                                </button>
+                              </>
+                            )}
                             <button
                               onClick={() => startEditing(task)}
                               className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
@@ -412,8 +483,7 @@ Returner KUN JSON-arrayet, ingenting annet.`;
           {/* Info Banner */}
           <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
             <p className="text-xs text-blue-700 dark:text-blue-300">
-              💡 <strong>Tips:</strong> Rediger deloppgavene slik at de passer din måte å jobbe på. 
-              Du kan endre tittel, beskrivelse, tidsestimat og prioritet.
+              💡 <strong>Tips:</strong> Godkjenn forslagene du liker, avvis de du ikke trenger, eller rediger dem slik at de passer din måte å jobbe på.
             </p>
           </div>
 
@@ -429,6 +499,7 @@ Returner KUN JSON-arrayet, ingenting annet.`;
               onClick={() => {
                 setShowEditor(false);
                 setSubtasks([]);
+                setShowApprovalPrompt(false);
               }}
               className="px-4 py-3 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors"
             >
@@ -438,7 +509,7 @@ Returner KUN JSON-arrayet, ingenting annet.`;
         </div>
       )}
 
-      {/* Progress Summary (when saved) */}
+      {/* Progress Summary */}
       {!showEditor && subtasks.length > 0 && (
         <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
           <div className="flex items-center justify-between mb-2">
@@ -454,7 +525,6 @@ Returner KUN JSON-arrayet, ingenting annet.`;
           </div>
 
           <div className="space-y-2">
-            {/* Progress Bar */}
             <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-blue-500 to-purple-600 transition-all duration-500"
@@ -464,7 +534,6 @@ Returner KUN JSON-arrayet, ingenting annet.`;
               />
             </div>
 
-            {/* Stats */}
             <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
               <span>
                 {subtasks.filter((t) => t.completed).length} av {subtasks.length} fullført
