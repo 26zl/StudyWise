@@ -542,7 +542,7 @@ export function AITaskBreakdown({
                 {Math.round((subtasks.filter((t) => t.completed).length / subtasks.length) * 100)}%
               </span>
             </div>
-          </div>
+          </div> 
         </div>
       )}
     </div>
