@@ -8,7 +8,14 @@ import { useState } from "react";
 import { Sparkles, Edit2, Check, X, Plus, Trash2, RefreshCw, Loader2, ThumbsUp, ThumbsDown } from "lucide-react";
 import { toast } from "sonner";
 import { useKIChat } from "../ki/ki-api";
-import type { SubTask } from "common/ki";
+interface SubTask {
+  id: string;
+  title: string;
+  description: string;
+  estimatedTime: string;
+  priority: "low" | "medium" | "high";
+  completed: boolean;
+}  
 // Kun typen importeres her — komponenten håndterer ikke API-kall direkte.
 // Når ekte AI-integrasjon legges til, skal henting og validering (med TaskBreakdownResponseSchema)
 // ligge i en dedikert hook (se mønsteret i frontend/app/ki/ki-api.ts).
