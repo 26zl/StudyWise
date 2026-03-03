@@ -5,102 +5,22 @@
  */
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FC } from "react";
 import { addMonths, setMonth, setYear, subMonths, format } from "date-fns";
 import { nb } from "date-fns/locale";
-import { AlertCircle, Clock, MapPin, Loader2, Sparkles, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
+import { AlertCircle, Clock, MapPin } from "lucide-react";
 import { CalendarHeader } from "./CalendarHeader";
 import { CalendarGrid } from "./CalendarGrid";
 import { CourseLegend } from "./CourseLegend";
 import { useCombinedCalendarData } from "./calendar-api";
 import { useUIStore } from "../store/uiStore";
-import { useKIOppsummering, type KIOppsummeringResponse } from "../ki/ki-api";
-import { showToast } from "../components/Toaster";
+import { KIOppsummering } from "../components/KIOppsummering";
 import type { Assignment, CalendarFilterType } from "common/calendar-ui";
 
 // Props for CalendarSection
 interface CalendarSectionProps {
   harCanvasToken?: boolean;
-}
-
-// KI-oppsummering for kalenderhendelse/oppgave
-function KalenderOppsummering({ tekst }: { tekst: string }) {
-  const { oppsummer, isPending, data, error } = useKIOppsummering();
-  const [aapen, settAapen] = useState(false);
-  const [resultat, settResultat] = useState<KIOppsummeringResponse | null>(null);
-
-  const handleOppsummer = useCallback(() => {
-    if (resultat) {
-      settAapen((v) => !v);
-      return;
-    }
-    oppsummer(tekst, {
-      type: "begge",
-      onSuccess: (d) => {
-        settResultat(d);
-        settAapen(true);
-      },
-      onError: (err) => {
-        showToast.error("Kunne ikke oppsummere", err.message);
-      },
-    });
-  }, [tekst, oppsummer, resultat]);
-
-  useEffect(() => {
-    if (data?.suksess && !resultat) {
-      settResultat(data);
-      settAapen(true);
-    }
-  }, [data, resultat]);
-
-  return (
-    <div className="mt-2">
-      <button
-        type="button"
-        onClick={handleOppsummer}
-        disabled={isPending}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors disabled:opacity-50"
-      >
-        {isPending ? (
-          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-        ) : (
-          <Sparkles className="w-3.5 h-3.5" />
-        )}
-        {resultat ? (aapen ? "Skjul oppsummering" : "Vis oppsummering") : "Oppsummer med KI"}
-        {resultat && (aapen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />)}
-      </button>
-      {aapen && resultat && (
-        <div className="mt-2 p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 space-y-2">
-          {resultat.oppsummering && (
-            <div>
-              <h4 className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-0.5">TL;DR</h4>
-              <p className="text-xs text-slate-700 dark:text-slate-300">{resultat.oppsummering}</p>
-            </div>
-          )}
-          {resultat.handlinger && resultat.handlinger.length > 0 && (
-            <div>
-              <h4 className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-0.5">Hovedpunkter</h4>
-              <ul className="space-y-0.5">
-                {resultat.handlinger.map((punkt, i) => (
-                  <li key={i} className="flex items-start gap-1.5 text-xs text-slate-700 dark:text-slate-300">
-                    <CheckCircle2 className="w-3 h-3 text-purple-500 mt-0.5 shrink-0" />
-                    {punkt}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {!resultat.oppsummering && (!resultat.handlinger || resultat.handlinger.length === 0) && (
-            <p className="text-xs text-slate-500 dark:text-slate-400">Ingen oppsummering tilgjengelig.</p>
-          )}
-        </div>
-      )}
-      {error && !resultat && (
-        <p className="mt-1 text-[10px] text-red-500 dark:text-red-400">{error.message}</p>
-      )}
-    </div>
-  );
 }
 
 // Informasjons-panel for feilmeldinger og varsler
@@ -352,7 +272,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
                           </div>
                         )}
 
-                        <KalenderOppsummering tekst={oppsummeringstekst} />
+                        <KIOppsummering tekst={oppsummeringstekst} storrelse="sm" />
                       </div>
                     </div>
                   </li>

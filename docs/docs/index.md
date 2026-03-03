@@ -52,6 +52,3 @@ StudyWise er et pågående bachelorprosjekt og er i konstant endring. Funksjonal
 | **Anwar** | [Hersino](https://github.com/Hersino) | Fullstack / KI-integrasjon og tjenester / UI/UX |
 | **Ylli Ujkani** | [yujk7](https://github.com/yujk7) | Dokumentasjon / Bidrar med kode |
 
-## Innhold
-
-- [**Endringslogg**](/changelog) - Daglig oversikt over alle endringer i prosjektet

@@ -29,7 +29,7 @@ export default function TestPage() {
     <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950 min-h-screen">
       <Sidebar aktivVisning="chat" byttVisning={byttVisning} brukernavn={brukernavn} />
       <main className="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-slate-900">
-    <div className="min-h-full bg-slate-50 dark:bg-slate-900 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="min-h-full bg-slate-50 dark:bg-slate-900 px-4 py-6 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto space-y-6">
         <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mb-4 sm:mb-6">
           🧪 Test: AI Task Breakdown
@@ -88,9 +88,8 @@ export default function TestPage() {
           />
         </div>
       </div>
-    </div>
+        </div>
       </main>
     </div>
   );
 }
- 

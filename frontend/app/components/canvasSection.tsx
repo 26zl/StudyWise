@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, type CSSProperties } from "react";
+import { useState, useEffect, useMemo, type CSSProperties } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { nb } from "date-fns/locale";
 import {
@@ -17,10 +17,6 @@ import {
     AlertCircle,
     Download,
     BookOpen,
-    Sparkles,
-    ChevronDown,
-    ChevronUp,
-    CheckCircle2,
 } from "lucide-react";
 import {
     useCanvasAnnouncements,
@@ -36,8 +32,7 @@ import {
     type AssignmentMedEmne,
 } from "../canvas/canvas-api";
 import { useUIStore } from "../store/uiStore";
-import { useKIOppsummering, type KIOppsummeringResponse } from "../ki/ki-api";
-import { showToast } from "./Toaster";
+import { KIOppsummering } from "./KIOppsummering";
 import { createCanvasHtmlParser, parseCanvasHtml, sikkerFilNedlastingUrl } from "../canvas/canvasHtml";
 import { CanvasPageVisning } from "./CanvasPageVisning";
 import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
@@ -135,99 +130,6 @@ function FeilMelding({ melding }: { melding: string }) {
     );
 }
 
-// KI-oppsummering for én kunngjøring
-function KunngjoringOppsummering({ tekst, variant = "default" }: { tekst: string; variant?: "default" | "inline" }) {
-    const { oppsummer, isPending, data, error } = useKIOppsummering();
-    const [aapen, settAapen] = useState(false);
-    const [resultat, settResultat] = useState<KIOppsummeringResponse | null>(null);
-
-    const handleOppsummer = useCallback(() => {
-        if (resultat) {
-            settAapen((v) => !v);
-            return;
-        }
-        oppsummer(tekst, {
-            type: "begge",
-            onSuccess: (data) => {
-                settResultat(data);
-                settAapen(true);
-            },
-            onError: (err) => {
-                showToast.error("Kunne ikke oppsummere", err.message);
-            },
-        });
-    }, [tekst, oppsummer, resultat]);
-
-    // Oppdater resultat fra data
-    useEffect(() => {
-        if (data?.suksess && !resultat) {
-            settResultat(data);
-            settAapen(true);
-        }
-    }, [data, resultat]);
-
-    const isInline = variant === "inline";
-    const wrapperClass = isInline ? `self-center ${aapen && resultat ? "w-full basis-full order-10" : ""}` : "mt-3";
-    const summaryBoxClass = "mt-3 p-4 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 space-y-3";
-
-    return (
-        <div className={wrapperClass}>
-            <button
-                type="button"
-                onClick={handleOppsummer}
-                disabled={isPending}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors disabled:opacity-50"
-            >
-                {isPending ? (
-                    <Loader2 size={14} className="animate-spin" />
-                ) : (
-                    <Sparkles size={14} />
-                )}
-                {resultat ? (aapen ? "Skjul oppsummering" : "Vis oppsummering") : "Oppsummer med KI"}
-                {resultat && (aapen ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
-            </button>
-
-            {aapen && resultat && (
-                <div className={summaryBoxClass}>
-                    {resultat.oppsummering && (
-                        <div>
-                            <h4 className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-1">
-                                TL;DR
-                            </h4>
-                            <p className="text-sm text-slate-700 dark:text-slate-300 leading-snug">
-                                {resultat.oppsummering}
-                            </p>
-                        </div>
-                    )}
-                    {resultat.handlinger && resultat.handlinger.length > 0 && (
-                        <div>
-                            <h4 className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-1">
-                                Handlingspunkter
-                            </h4>
-                            <ul className="space-y-1">
-                                {resultat.handlinger.map((handling, i) => (
-                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
-                                        <CheckCircle2 size={14} className="text-purple-500 dark:text-purple-400 mt-0.5 shrink-0" />
-                                        {handling}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-                    {!resultat.oppsummering && (!resultat.handlinger || resultat.handlinger.length === 0) && (
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                            Ingen oppsummering tilgjengelig.
-                        </p>
-                    )}
-                </div>
-            )}
-
-            {error && !resultat && (
-                <p className="mt-2 text-xs text-red-500 dark:text-red-400">{error.message}</p>
-            )}
-        </div>
-    );
-}
 
 // Kunngjørings-visning
 function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
@@ -290,7 +192,7 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     )}
 
                     {announcement.message && (
-                        <KunngjoringOppsummering tekst={announcement.message} />
+                        <KIOppsummering tekst={announcement.message} storrelse="md" />
                     )}
                 </article>
             ))}
@@ -413,7 +315,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                             )}
                             {/* Oppsummer med KI: oppsummerer alle modulene (ved siden av Moduler-knappen) */}
                             {visModulerTab && modulOppsummeringTekst.length > 0 && (
-                                <KunngjoringOppsummering variant="inline" tekst={modulOppsummeringTekst} />
+                                <KIOppsummering variant="inline" tekst={modulOppsummeringTekst} storrelse="md" />
                             )}
                             {visFilerTab && (
                                 <button
@@ -865,7 +767,7 @@ export function CanvasSection({ startVisning = "announcements", harCanvasToken =
 
     const visningTitler: Record<CanvasVisning, string> = {
         announcements: "Kunngjøringer",
-        courses: "Mine emner",
+        courses: "Emner",
         assignments: "Oppgaver",
     };
 
@@ -1075,7 +977,7 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                     )}
                                 </div>
                             </div>
-                            <KunngjoringOppsummering tekst={oppsummeringstekst} />
+                            <KIOppsummering tekst={oppsummeringstekst} storrelse="md" />
                         </div>
                     );
                 })}

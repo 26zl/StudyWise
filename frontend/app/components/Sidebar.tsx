@@ -9,7 +9,9 @@ import { useUIStore } from "../store/uiStore";
 import {
     MessageSquare,
     BookOpen,
+    ClipboardList,
     Megaphone,
+    Bell,
     Settings,
     ChevronDown,
     ChevronRight,
@@ -34,6 +36,7 @@ export type VisningType =
     | "calendar"
     | "canvas-courses"
     | "canvas-assignments"
+    | "varslinger"
     | "settings";
 
 // Props for Sidebar-komponenten
@@ -263,9 +266,15 @@ export function Sidebar({
                         {erCanvasUtvidet && (
                             <div className="mt-4 space-y-2">
                                 <NavElement
-                                    view="canvas-announcements"
-                                    icon={Megaphone}
-                                    label="Kunngjøringer"
+                                    view="varslinger"
+                                    icon={Bell}
+                                    label="Varslinger"
+                                    indent
+                                />
+                                <NavElement
+                                    view="canvas-courses"
+                                    icon={BookOpen}
+                                    label="Emner"
                                     indent
                                 />
                                 <NavElement
@@ -275,15 +284,15 @@ export function Sidebar({
                                     indent
                                 />
                                 <NavElement
-                                    view="canvas-courses"
-                                    icon={BookOpen}
-                                    label="Mine emner"
+                                    view="canvas-assignments"
+                                    icon={ClipboardList}
+                                    label="Oppgaver"
                                     indent
                                 />
                                 <NavElement
-                                    view="canvas-assignments"
-                                    icon={BookOpen}
-                                    label="Oppgaver"
+                                    view="canvas-announcements"
+                                    icon={Megaphone}
+                                    label="Kunngjøringer"
                                     indent
                                 />
                             </div>

@@ -1,0 +1,175 @@
+/*
+ * KIOppsummering - Delt oppsummeringskomponent for KI
+ * Erstatter KunngjoringOppsummering, SideOppsummering og KalenderOppsummering
+ */
+"use client";
+
+import { useState, useCallback, useEffect } from "react";
+import { Sparkles, Loader2, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
+import { useKIOppsummering as useKIOppsummeringHook, type KIOppsummeringResponse } from "../ki/ki-api";
+import { showToast } from "./Toaster";
+
+// Størrelseskonfigurasjoner
+const storrelser = {
+    sm: {
+        knapp: "px-2.5 py-1 text-xs",
+        ikonKlasse: "w-3.5 h-3.5",
+        boks: "p-3 space-y-2",
+        overskrift: "text-[10px]",
+        tekst: "text-xs",
+        sjekkIkon: "w-3 h-3",
+        feil: "text-[10px]",
+        feilMargin: "mt-1",
+    },
+    md: {
+        knapp: "px-3 py-1.5 text-xs",
+        ikonKlasse: undefined as undefined,
+        ikonStr: 14,
+        boks: "p-4 space-y-3",
+        overskrift: "text-xs",
+        tekst: "text-sm",
+        sjekkIkon: undefined as undefined,
+        sjekkIkonStr: 14,
+        feil: "text-xs",
+        feilMargin: "mt-2",
+    },
+    lg: {
+        knapp: "px-4 py-2 text-sm",
+        ikonKlasse: undefined as undefined,
+        ikonStr: 16,
+        boks: "p-4 space-y-3",
+        overskrift: "text-xs",
+        tekst: "text-sm",
+        sjekkIkon: undefined as undefined,
+        sjekkIkonStr: 14,
+        feil: "text-xs",
+        feilMargin: "mt-2",
+    },
+} as const;
+// Props for KIOppsummering komponenten
+interface KIOppsummeringProps {
+    tekst: string;
+    storrelse: "sm" | "md" | "lg";
+    variant?: "default" | "inline";
+}
+// Hovedkomponenten for KI-oppsummering
+export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOppsummeringProps) {
+    const { oppsummer, isPending, data, error } = useKIOppsummeringHook();
+    const [aapen, settAapen] = useState(false);
+    const [resultat, settResultat] = useState<KIOppsummeringResponse | null>(null);
+    const harTekst = tekst.trim().length > 0;
+
+    const s = storrelser[storrelse];
+
+    // Håndterer klikk på oppsummeringsknappen
+    const handleOppsummer = useCallback(() => {
+        if (resultat) {
+            settAapen((v) => !v);
+            return;
+        }
+        if (!harTekst) return;
+        oppsummer(tekst, {
+            type: "begge",
+            onSuccess: (data) => {
+                settResultat(data);
+                settAapen(true);
+            },
+            onError: (err) => {
+                showToast.error("Kunne ikke oppsummere", err.message);
+            },
+        });
+    }, [tekst, oppsummer, resultat, harTekst]);
+    // Oppdaterer resultat og åpner oppsummering når data kommer inn
+    useEffect(() => {
+        if (data?.suksess && !resultat) {
+            settResultat(data);
+            settAapen(true);
+        }
+    }, [data, resultat]);
+
+    const isInline = variant === "inline";
+    const wrapperClass = isInline
+        ? `self-center ${aapen && resultat ? "w-full basis-full order-10" : ""}`
+        : storrelse === "lg" ? "px-8 pb-6" : storrelse === "md" ? "mt-3" : "mt-2";
+
+    // Ikon-rendering basert på størrelse
+    const renderIkon = (SpinnerEllerIkon: typeof Loader2 | typeof Sparkles) => {
+        if (storrelse === "sm") {
+            return <SpinnerEllerIkon className={`${s.ikonKlasse} ${SpinnerEllerIkon === Loader2 ? "animate-spin" : ""}`} />;
+        }
+        const str = storrelse === "md" ? 14 : 16;
+        return <SpinnerEllerIkon size={str} className={SpinnerEllerIkon === Loader2 ? "animate-spin" : ""} />;
+    };
+    // Chevron-rendering basert på størrelse
+    const renderChevron = (Chevron: typeof ChevronUp | typeof ChevronDown) => {
+        if (storrelse === "sm") {
+            return <Chevron className="w-3.5 h-3.5" />;
+        }
+        return <Chevron size={storrelse === "md" ? 14 : 14} />;
+    };
+    // Sjekk-ikon-rendering basert på størrelse
+    const renderSjekkIkon = () => {
+        if (storrelse === "sm") {
+            return <CheckCircle2 className="w-3 h-3 text-purple-500 mt-0.5 shrink-0" />;
+        }
+        return <CheckCircle2 size={14} className="text-purple-500 dark:text-purple-400 mt-0.5 shrink-0" />;
+    };
+    // Bestemmer knappetekst basert på tilstand
+    const knappTekst = resultat
+        ? (aapen ? "Skjul oppsummering" : "Vis oppsummering")
+        : harTekst ? "Oppsummer med KI" : "Ingen innhold å oppsummere";
+    // Håndterer loading state
+    return (
+        <div className={wrapperClass}>
+            <button
+                type="button"
+                onClick={handleOppsummer}
+                disabled={isPending || !harTekst}
+                className={`inline-flex items-center gap-1.5 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors disabled:opacity-50 ${s.knapp}`}
+            >
+                {renderIkon(isPending ? Loader2 : Sparkles)}
+                {knappTekst}
+                {resultat && renderChevron(aapen ? ChevronUp : ChevronDown)}
+            </button>
+
+            {aapen && resultat && (
+                <div className={`mt-2 sm:mt-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 ${s.boks}`}>
+                    {resultat.oppsummering && (
+                        <div>
+                            <h4 className={`${s.overskrift} font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-0.5 sm:mb-1`}>
+                                TL;DR
+                            </h4>
+                            <p className={`${s.tekst} text-slate-700 dark:text-slate-300 leading-snug`}>
+                                {resultat.oppsummering}
+                            </p>
+                        </div>
+                    )}
+                    {resultat.handlinger && resultat.handlinger.length > 0 && (
+                        <div>
+                            <h4 className={`${s.overskrift} font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-0.5 sm:mb-1`}>
+                                Hovedpunkter
+                            </h4>
+                            <ul className="space-y-0.5 sm:space-y-1">
+                                {resultat.handlinger.map((punkt, i) => (
+                                    <li key={i} className={`flex items-start gap-1.5 sm:gap-2 ${s.tekst} text-slate-700 dark:text-slate-300`}>
+                                        {renderSjekkIkon()}
+                                        {punkt}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                    {!resultat.oppsummering && (!resultat.handlinger || resultat.handlinger.length === 0) && (
+                        <p className={`${s.tekst} text-slate-500 dark:text-slate-400`}>
+                            Ingen oppsummering tilgjengelig.
+                        </p>
+                    )}
+                </div>
+            )}
+
+            {error && !resultat && (
+                <p className={`${s.feilMargin} ${s.feil} text-red-500 dark:text-red-400`}>{error.message}</p>
+            )}
+        </div>
+    );
+}

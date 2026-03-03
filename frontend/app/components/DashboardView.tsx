@@ -14,8 +14,9 @@ import { SectionErrorBoundary } from "./ErrorBoundary";
 import { useCanvasUser } from "../canvas/canvas-api";
 import { Footer } from "./footer";
 import { useMeg } from "../auth/auth-api";
-import { prefetchCanvasData } from "../canvas/canvas-api";
+import { prefetchCanvasData, useCanvasAllAssignments } from "../canvas/canvas-api";
 import { useUIStore } from "../store/uiStore";
+import { useFristVarsler } from "../hooks/useFristVarsler";
 
 // Gyldige visningstyper for URL-validering
 const GYLDIGE_VISNINGER: VisningType[] = [
@@ -24,6 +25,7 @@ const GYLDIGE_VISNINGER: VisningType[] = [
   "calendar",
   "canvas-courses",
   "canvas-assignments",
+  "varslinger",
   "settings",
 ];
 
@@ -32,6 +34,7 @@ const ChatSection = lazy(() => import("./ChatSection").then(m => ({ default: m.C
 const CanvasSection = lazy(() => import("./canvasSection").then(m => ({ default: m.CanvasSection })));
 const SettingsSection = lazy(() => import("./SettingsSection").then(m => ({ default: m.SettingsSection })));
 const CalendarSection = lazy(() => import("../calendar/CalendarSection").then(m => ({ default: m.CalendarSection })));
+const VarslingerSection = lazy(() => import("./VarslingerSection").then(m => ({ default: m.VarslingerSection })));
 
 // Loading fallback komponent
 function SectionLoader({ text = "Laster..." }: { text?: string }) {
@@ -89,6 +92,10 @@ export function DashboardView() {
     const brukerQueryAktiv = megQuery.isSuccess && harCanvasToken;
     const userQuery = useCanvasUser(brukerQueryAktiv);
     const setCanvasContextSelection = useUIStore((state) => state.setCanvasContextSelection);
+
+    // Frist-varsler: hent oppgaver og vis toast-varsler for nærliggende frister
+    const fristOppgaverQuery = useCanvasAllAssignments({ enabled: harCanvasToken });
+    useFristVarsler(fristOppgaverQuery.data);
 
     // Synkroniser Canvas-kontekst preferanser fra backend til global state
     useEffect(() => {
@@ -196,6 +203,13 @@ export function DashboardView() {
                         </SectionErrorBoundary>
                     )}
 
+                    {aktivVisning === "varslinger" && (
+                        <SectionErrorBoundary sectionName="varslinger">
+                            <Suspense fallback={<SectionLoader text="Laster varslinger..." />}>
+                                <VarslingerSection harCanvasToken={harCanvasToken} />
+                            </Suspense>
+                        </SectionErrorBoundary>
+                    )}
                     {aktivVisning === "settings" && (
                         <SectionErrorBoundary sectionName="innstillinger">
                             <Suspense fallback={<SectionLoader text="Laster innstillinger..." />}>

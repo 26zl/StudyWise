@@ -76,7 +76,7 @@ export default function OversiktPage() {
         <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950 min-h-screen">
             <Sidebar aktivVisning="chat" byttVisning={byttVisning} brukernavn={brukernavn} />
             <main className="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-slate-900">
-        <div className="min-h-full bg-slate-50 dark:bg-slate-950">
+                <div className="min-h-full bg-slate-50 dark:bg-slate-950">
             {/* Header */}
             <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -211,7 +211,7 @@ export default function OversiktPage() {
                             color="purple"
                         />
                         <QuickActionCard
-                            title="Mine emner"
+                            title="Emner"
                             description="Se alle dine Canvas-emner"
                             icon={BookOpen}
                             href="/dashboard?view=canvas-courses"
@@ -289,8 +289,8 @@ export default function OversiktPage() {
                         </div>
                     </div>
                 )}
-            </div>
-        </div>
+                    </div>
+                </div>
             </main>
         </div>
     );
