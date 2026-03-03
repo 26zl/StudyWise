@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useState, useEffect, useCallback, type CSSProperties } from "react";
+import { useState, useEffect, useCallback, useMemo, type CSSProperties } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { nb } from "date-fns/locale";
 import {
@@ -30,8 +30,10 @@ import {
     useCanvasPages,
     useCanvasFrontPage,
     useCoursesMetadata,
+    useCanvasAllAssignments,
     openModuleItem,
     type CourseContentMetadata,
+    type AssignmentMedEmne,
 } from "../canvas/canvas-api";
 import { useUIStore } from "../store/uiStore";
 import { useKIOppsummering, type KIOppsummeringResponse } from "../ki/ki-api";
@@ -41,7 +43,7 @@ import { CanvasPageVisning } from "./CanvasPageVisning";
 import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
 
 // Typer for Canvas visninger
-type CanvasVisning = "announcements" | "courses";
+type CanvasVisning = "announcements" | "courses" | "assignments";
 
 // Props for CanvasSection komponent
 interface CanvasSectionProps {
@@ -134,7 +136,7 @@ function FeilMelding({ melding }: { melding: string }) {
 }
 
 // KI-oppsummering for én kunngjøring
-function KunngjoringOppsummering({ tekst }: { tekst: string }) {
+function KunngjoringOppsummering({ tekst, variant = "default" }: { tekst: string; variant?: "default" | "inline" }) {
     const { oppsummer, isPending, data, error } = useKIOppsummering();
     const [aapen, settAapen] = useState(false);
     const [resultat, settResultat] = useState<KIOppsummeringResponse | null>(null);
@@ -164,12 +166,17 @@ function KunngjoringOppsummering({ tekst }: { tekst: string }) {
         }
     }, [data, resultat]);
 
+    const isInline = variant === "inline";
+    const wrapperClass = isInline ? `self-center ${aapen && resultat ? "w-full basis-full order-10" : ""}` : "mt-3";
+    const summaryBoxClass = "mt-3 p-4 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 space-y-3";
+
     return (
-        <div className="mt-3">
+        <div className={wrapperClass}>
             <button
+                type="button"
                 onClick={handleOppsummer}
                 disabled={isPending}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors disabled:opacity-50"
             >
                 {isPending ? (
                     <Loader2 size={14} className="animate-spin" />
@@ -181,13 +188,13 @@ function KunngjoringOppsummering({ tekst }: { tekst: string }) {
             </button>
 
             {aapen && resultat && (
-                <div className="mt-3 p-4 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 space-y-3">
+                <div className={summaryBoxClass}>
                     {resultat.oppsummering && (
                         <div>
                             <h4 className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-1">
                                 TL;DR
                             </h4>
-                            <p className="text-sm text-slate-700 dark:text-slate-300">
+                            <p className="text-sm text-slate-700 dark:text-slate-300 leading-snug">
                                 {resultat.oppsummering}
                             </p>
                         </div>
@@ -200,7 +207,7 @@ function KunngjoringOppsummering({ tekst }: { tekst: string }) {
                             <ul className="space-y-1">
                                 {resultat.handlinger.map((handling, i) => (
                                     <li key={i} className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
-                                        <CheckCircle2 size={14} className="text-purple-500 mt-0.5 shrink-0" />
+                                        <CheckCircle2 size={14} className="text-purple-500 dark:text-purple-400 mt-0.5 shrink-0" />
                                         {handling}
                                     </li>
                                 ))}
@@ -373,8 +380,21 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     const visModulerTab = metadataLaster || !meta || meta.hasModules;
                     const visFilerTab = metadataLaster || !meta || meta.hasFiles;
 
+                    // Tekst for å oppsummere alle modulene (navn + innholdslister)
+                    const modulOppsummeringTekst =
+                        course?.name && modulerQuery.data?.modules?.length
+                            ? [
+                                  `Emne: ${course.name}.`,
+                                  "",
+                                  ...modulerQuery.data.modules.flatMap((m, i) => {
+                                      const innhold = m.items?.map((it) => it.title).filter(Boolean).join(", ") || "Ingen punkter";
+                                      return [`Modul ${i + 1}: ${m.name}.`, `Innhold: ${innhold}.`, ""];
+                                  }),
+                              ].join("\n")
+                            : "";
+
                     return (
-                        <div className="mb-4 flex flex-wrap gap-2">
+                        <div className="mb-4 flex flex-wrap items-center gap-2">
                             {visForsideTab && (
                                 <button
                                     onClick={() => settValgtEmneVisning("frontpage")}
@@ -390,6 +410,10 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                 >
                                     Moduler{meta?.modulesCount ? ` (${meta.modulesCount})` : ""}
                                 </button>
+                            )}
+                            {/* Oppsummer med KI: oppsummerer alle modulene (ved siden av Moduler-knappen) */}
+                            {visModulerTab && modulOppsummeringTekst.length > 0 && (
+                                <KunngjoringOppsummering variant="inline" tekst={modulOppsummeringTekst} />
                             )}
                             {visFilerTab && (
                                 <button
@@ -415,12 +439,12 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                             <FeilMelding melding={frontPageQuery.error instanceof Error ? frontPageQuery.error.message : "Kunne ikke laste forside"} />
                         )}
                         {frontPageQuery.data && (
-                            <article className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                            <article className="min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4">
                                 <header className="mb-3 flex items-center gap-2 text-slate-900 dark:text-white font-semibold">
                                     <BookOpen size={18} /> {frontPageQuery.data.title || "Forside"}
                                 </header>
                                 {frontPageQuery.data.body ? (
-                                    <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-200">
+                                    <div className="min-w-0 overflow-x-auto prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-200 prose-table:block prose-table:overflow-x-auto prose-img:max-w-full prose-img:h-auto [&_iframe]:max-w-full">
                                         {parseCanvasHtml(frontPageQuery.data.body, htmlParser)}
                                     </div>
                                 ) : (
@@ -602,12 +626,12 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                         )}
 
                         {frontPageQuery.data && (
-                            <article className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                            <article className="min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4">
                                 <header className="mb-3 flex items-center gap-2 text-slate-900 dark:text-white font-semibold">
                                     <BookOpen size={18} /> Forside
                                 </header>
                                 {frontPageQuery.data.body ? (
-                                    <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-200">
+                                    <div className="min-w-0 overflow-x-auto prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-200 prose-img:max-w-full prose-img:h-auto [&_iframe]:max-w-full">
                                         {parseCanvasHtml(frontPageQuery.data.body, htmlParser)}
                                     </div>
                                 ) : (
@@ -842,6 +866,7 @@ export function CanvasSection({ startVisning = "announcements", harCanvasToken =
     const visningTitler: Record<CanvasVisning, string> = {
         announcements: "Kunngjøringer",
         courses: "Mine emner",
+        assignments: "Oppgaver",
     };
 
     return (
@@ -860,7 +885,212 @@ export function CanvasSection({ startVisning = "announcements", harCanvasToken =
             <div className="flex-1 overflow-y-auto p-4 md:p-6">
                 {visning === "announcements" && <KunngjoringVisning harCanvasToken={harCanvasToken} />}
                 {visning === "courses" && <EmneVisning harCanvasToken={harCanvasToken} />}
+                {visning === "assignments" && <OppgaverVisning harCanvasToken={harCanvasToken} />}
             </div>
         </div>
     );
-}  
+}
+
+// Oppgave-visning - alle oppgaver på tvers av emner
+function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
+    const assignmentsQuery = useCanvasAllAssignments({ enabled: harCanvasToken });
+    const allAssignments: AssignmentMedEmne[] = assignmentsQuery.data || [];
+
+    const [filter, settFilter] = useState<"alle" | "kommende" | "forfalt" | "uten-frist">("kommende");
+    const [sortering, settSortering] = useState<"frist" | "emne">("frist");
+    const [visAlle, settVisAlle] = useState(false);
+
+    const filtrerteOppgaver = useMemo(() => {
+        const naa = new Date();
+        let filtrert = [...allAssignments];
+
+        if (filter === "kommende") {
+            filtrert = filtrert.filter((a) => a.due_at && new Date(a.due_at) >= naa);
+        } else if (filter === "forfalt") {
+            filtrert = filtrert.filter((a) => a.due_at && new Date(a.due_at) < naa);
+        } else if (filter === "uten-frist") {
+            filtrert = filtrert.filter((a) => !a.due_at);
+        }
+
+        if (sortering === "frist") {
+            filtrert.sort((a, b) => {
+                if (!a.due_at && !b.due_at) return 0;
+                if (!a.due_at) return 1;
+                if (!b.due_at) return -1;
+                return new Date(a.due_at).getTime() - new Date(b.due_at).getTime();
+            });
+        } else {
+            filtrert.sort((a, b) => a.course_name.localeCompare(b.course_name, "nb"));
+        }
+
+        return filtrert;
+    }, [allAssignments, filter, sortering]);
+
+    if (!harCanvasToken) {
+        return <FeilMelding melding="Du må lagre en Canvas API-token før du kan hente oppgaver." />;
+    }
+
+    if (assignmentsQuery.isLoading) {
+        return (
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-8 text-center">
+                <div className="animate-pulse space-y-3">
+                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mx-auto" />
+                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2 mx-auto" />
+                </div>
+            </div>
+        );
+    }
+
+    if (allAssignments.length === 0) {
+        return (
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-8 text-center">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Ingen oppgaver funnet. Når du har aktive oppgaver i Canvas-emnene dine, dukker de opp her.
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-slate-500 dark:text-slate-400">
+                    Viser {filtrerteOppgaver.length} av {allAssignments.length} oppgaver
+                </span>
+                <div className="flex-1" />
+                <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
+                    {(["alle", "kommende", "forfalt", "uten-frist"] as const).map((f) => {
+                        const labels = {
+                            alle: "Alle",
+                            kommende: "Kommende",
+                            forfalt: "Forfalt",
+                            "uten-frist": "Uten frist",
+                        };
+                        return (
+                            <button
+                                key={f}
+                                onClick={() => settFilter(f)}
+                                className={`px-3 py-1 rounded-full border transition-colors ${
+                                    filter === f
+                                        ? "bg-blue-600 text-white border-blue-600"
+                                        : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                }`}
+                            >
+                                {labels[f]}
+                            </button>
+                        );
+                    })}
+                    <button
+                        onClick={() => settSortering(sortering === "frist" ? "emne" : "frist")}
+                        className="px-3 py-1 rounded-full border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    >
+                        {sortering === "frist" ? "Sortert etter frist" : "Sortert etter emne"}
+                    </button>
+                </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 divide-y divide-slate-200 dark:divide-slate-700">
+                {(visAlle ? filtrerteOppgaver : filtrerteOppgaver.slice(0, 15)).map((assignment) => {
+                    const naa = new Date();
+                    const harFrist = !!assignment.due_at;
+                    const fristDato = harFrist ? new Date(assignment.due_at!) : null;
+                    const erForfalt = fristDato ? fristDato < naa : false;
+
+                    let dagerTekst = "";
+                    if (fristDato) {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const dueDay = new Date(fristDato);
+                        dueDay.setHours(0, 0, 0, 0);
+                        const dagerIgjen = Math.round(
+                            (dueDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+                        );
+                        if (dagerIgjen < 0) dagerTekst = `${Math.abs(dagerIgjen)} dager siden`;
+                        else if (dagerIgjen === 0) dagerTekst = "I dag";
+                        else if (dagerIgjen === 1) dagerTekst = "I morgen";
+                        else dagerTekst = `Om ${dagerIgjen} dager`;
+                    }
+
+                    const erInnlevert =
+                        assignment.submission &&
+                        (assignment.submission.workflow_state === "submitted" ||
+                            assignment.submission.workflow_state === "graded" ||
+                            assignment.submission.workflow_state === "pending_review");
+
+                    const oppsummeringstekst = [
+                        assignment.name,
+                        `Emne: ${assignment.course_name}`,
+                        erInnlevert ? "Innlevert" : "",
+                        assignment.points_possible != null ? `Poeng: ${assignment.points_possible}` : "",
+                        assignment.due_at ? `Frist: ${new Date(assignment.due_at).toLocaleDateString("nb-NO", { day: "numeric", month: "long", year: "numeric" })}` : "",
+                    ].filter(Boolean).join(". ");
+
+                    return (
+                        <div
+                            key={`${assignment.course_id}-${assignment.id}`}
+                            className="px-4 py-3 flex flex-col gap-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                        >
+                            <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4">
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-medium text-sm sm:text-base text-slate-900 dark:text-white truncate">
+                                        {assignment.name}
+                                    </h3>
+                                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                        <span>{assignment.course_name}</span>
+                                        {assignment.points_possible ? (
+                                            <span>· {assignment.points_possible} poeng</span>
+                                        ) : null}
+                                        {erInnlevert && (
+                                            <span className="inline-flex items-center rounded-md bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 text-xs font-medium text-green-800 dark:text-green-300">
+                                                Innlevert
+                                            </span>
+                                        )}
+                                    </p>
+                                </div>
+                                <div className="text-right shrink-0 text-xs sm:text-sm">
+                                    {harFrist ? (
+                                        <>
+                                            <div
+                                                className={`font-medium ${
+                                                    erForfalt
+                                                        ? "text-red-600 dark:text-red-400"
+                                                        : "text-slate-700 dark:text-slate-300"
+                                                }`}
+                                            >
+                                                {dagerTekst}
+                                            </div>
+                                            <div className="text-slate-500 dark:text-slate-400 mt-0.5">
+                                                {fristDato!.toLocaleDateString("nb-NO", {
+                                                    day: "numeric",
+                                                    month: "short",
+                                                    hour: "2-digit",
+                                                    minute: "2-digit",
+                                                })}
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <span className="italic text-slate-400 dark:text-slate-500">
+                                            Ingen frist
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                            <KunngjoringOppsummering tekst={oppsummeringstekst} />
+                        </div>
+                    );
+                })}
+            </div>
+
+            {filtrerteOppgaver.length > 15 && (
+                <button
+                    onClick={() => settVisAlle((v) => !v)}
+                    className="w-full text-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 py-2"
+                >
+                    {visAlle
+                        ? "Vis færre oppgaver"
+                        : `Vis alle ${filtrerteOppgaver.length} oppgaver`}
+                </button>
+            )}
+        </div>
+    );
+}

@@ -33,6 +33,7 @@ export type VisningType =
     | "canvas-announcements"
     | "calendar"
     | "canvas-courses"
+    | "canvas-assignments"
     | "settings";
 
 // Props for Sidebar-komponenten
@@ -81,34 +82,42 @@ export function Sidebar({
             window.location.href = "/";
         }
     };
+    // KI Assistent er kun «aktiv» når vi faktisk er på dashboard
+    const erChatAktiv = pathname === "/dashboard" && aktivVisning === "chat";
+
     // Enkel komponent for navigasjonselementer
     const NavElement = ({
         view,
         icon: Icon,
         label,
         indent = false,
+        isActiveOverride,
     }: {
         view: VisningType;
         icon: React.ElementType;
         label: string;
         indent?: boolean;
-    }) => (
-        <button
-            onClick={() => handleNavigasjon(view)}
-            className={`
-                w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm
-                transition-colors duration-150
-                ${indent ? "pl-9" : ""}
-                ${aktivVisning === view
-                    ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
-                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
-                }
-            `}
-        >
-            <Icon size={18} className="shrink-0" />
-            <span className="truncate">{label}</span>
-        </button>
-    );
+        isActiveOverride?: boolean;
+    }) => {
+        const erAktiv = isActiveOverride !== undefined ? isActiveOverride : aktivVisning === view;
+        return (
+            <button
+                onClick={() => handleNavigasjon(view)}
+                className={`
+                    w-full flex items-center gap-3 px-5 py-3.5 rounded-xl text-left text-sm
+                    transition-colors duration-150
+                    ${indent ? "pl-11" : ""}
+                    ${erAktiv
+                        ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
+                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
+                    }
+                `}
+            >
+                <Icon size={18} className="shrink-0" />
+                <span className="truncate">{label}</span>
+            </button>
+        );
+    };
     // Render
     return (
         <>
@@ -149,9 +158,9 @@ export function Sidebar({
                 </div>
 
                 {/* Navigasjon */}
-                <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+                <nav className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-3">
                     {/* Hovednavigasjon */}
-                    <div className="mb-2">
+                    <div className="mb-4">
                         <Link
                             href="/oversikt"
                             onClick={() => {
@@ -160,7 +169,7 @@ export function Sidebar({
                                 }
                             }}
                             className={`
-                                w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm
+                                w-full flex items-center gap-3 px-5 py-3.5 rounded-xl text-left text-sm
                                 transition-colors duration-150
                                 ${pathname === "/oversikt"
                                     ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
@@ -180,19 +189,19 @@ export function Sidebar({
                             requestNewChat();
                             handleNavigasjon("chat");
                         }}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 mb-4 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium"
+                        className="w-full flex items-center justify-center gap-2 px-5 py-3.5 mb-8 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium"
                     >
                         <Plus size={18} />
                         <span>Ny samtale</span>
                     </button>
 
                     {/* Chat-historikk */}
-                    <div className="mb-4">
-                        <div className="mb-2">
-                            <NavElement view="chat" icon={MessageSquare} label="KI Assistent" />
+                    <div className="mb-8">
+                        <div className="mb-4">
+                            <NavElement view="chat" icon={MessageSquare} label="KI Assistent" isActiveOverride={erChatAktiv} />
                         </div>
                         
-                        {/* NY LENKE TIL AI TASK BREAKDOWN */}
+                        {/* AI TASK BREAKDOWN */}
                         <Link
                             href="/test-ai-breakdown"
                             onClick={() => {
@@ -201,7 +210,7 @@ export function Sidebar({
                                 }
                             }}
                             className={`
-                                w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm
+                                w-full flex items-center gap-3 px-5 py-3.5 rounded-xl text-left text-sm
                                 transition-colors duration-150
                                 ${pathname === "/test-ai-breakdown"
                                     ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
@@ -213,11 +222,11 @@ export function Sidebar({
                             <span className="truncate">AI Task Breakdown</span>
                         </Link>
                         
-                        <p className="px-3 py-2 text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                        <p className="px-5 pt-6 pb-3 text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                             Samtalehistorikk
                         </p>
                         {chats.length === 0 ? (
-                            <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
+                            <div className="px-5 py-4 text-xs text-slate-500 dark:text-slate-400">
                                 Ingen samtaler ennå
                             </div>
                         ) : (
@@ -228,7 +237,7 @@ export function Sidebar({
                                         setSelectedChatId(chat.id);
                                         handleNavigasjon("chat");
                                     }}
-                                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200 transition-colors"
+                                    className="w-full flex items-center gap-3 px-5 py-3 rounded-xl text-left text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200 transition-colors"
                                 >
                                     <MessageSquare size={16} className="shrink-0 opacity-50" />
                                     <span className="truncate">{chat.title}</span>
@@ -238,10 +247,10 @@ export function Sidebar({
                     </div>
 
                     {/* Canvas-seksjon */}
-                    <div className="border-t border-slate-200 dark:border-slate-800 pt-4 mb-2">
+                    <div className="border-t border-slate-200 dark:border-slate-800 pt-8 pb-3">
                         <button
                             onClick={() => settErCanvasUtvidet(!erCanvasUtvidet)}
-                            className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                            className="w-full flex items-center justify-between px-5 py-3.5 text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-xl"
                         >
                             <span>Canvas</span>
                             {erCanvasUtvidet ? (
@@ -252,7 +261,7 @@ export function Sidebar({
                         </button>
 
                         {erCanvasUtvidet && (
-                            <div className="mt-1 space-y-0.5">
+                            <div className="mt-4 space-y-2">
                                 <NavElement
                                     view="canvas-announcements"
                                     icon={Megaphone}
@@ -271,33 +280,39 @@ export function Sidebar({
                                     label="Mine emner"
                                     indent
                                 />
+                                <NavElement
+                                    view="canvas-assignments"
+                                    icon={BookOpen}
+                                    label="Oppgaver"
+                                    indent
+                                />
                             </div>
                         )}
                     </div>
 
                     {/* Innstillinger */}
-                    <div className="border-t border-slate-200 dark:border-slate-800 pt-4">
+                    <div className="border-t border-slate-200 dark:border-slate-800 pt-8">
                         <NavElement view="settings" icon={Settings} label="Innstillinger" />
                     </div>
                 </nav>
 
                 {/* Bruker-seksjon */}
-                <div className="p-4 border-t border-slate-200 dark:border-slate-800">
-                    <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-medium text-sm">
+                <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-medium text-sm">
                             {brukernavn ? brukernavn.charAt(0).toUpperCase() : "?"}
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                        <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
+                            <p className="text-sm font-medium text-slate-900 dark:text-white truncate leading-tight">
                                 {brukernavn || "Ikke innlogget"}
                             </p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight">
                                 Canvas bruker
                             </p>
                         </div>
                         <button
                             onClick={handleLoggUt}
-                            className="p-2 -mr-2 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                            className="shrink-0 p-2 -mr-2 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center"
                             aria-label="Logg ut"
                             title="Logg ut"
                         >

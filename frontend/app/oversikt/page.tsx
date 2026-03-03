@@ -4,10 +4,11 @@
  */
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { Sparkles, Calendar, BookOpen, MessageSquare, TrendingUp, Clock, AlertCircle } from "lucide-react";
 import { WeeklyPlanSuggestions } from "../components/WeeklyPlanSuggestions";
-import { useCanvasCourses, useCanvasAllAssignments, type AssignmentMedEmne } from "../canvas/canvas-api";
+import { Sidebar, type VisningType } from "../components/Sidebar";
+import { useCanvasCourses, useCanvasAllAssignments, useCanvasUser, type AssignmentMedEmne } from "../canvas/canvas-api";
 import { useMeg } from "../auth/auth-api";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -15,6 +16,18 @@ import { useRouter } from "next/navigation";
 export default function OversiktPage() {
     const router = useRouter();
     const megQuery = useMeg();
+    const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
+    const userQuery = useCanvasUser(megQuery.isSuccess && harCanvasToken);
+    const brukernavn =
+        userQuery.data?.name?.split(" ")[0] ||
+        megQuery.data?.user?.firstName ||
+        megQuery.data?.user?.email?.split("@")[0];
+    const byttVisning = useCallback(
+        (visning: VisningType) => {
+            router.push(visning === "chat" ? "/dashboard" : `/dashboard?view=${visning}`);
+        },
+        [router]
+    );
 
     // Redirect til innlogging hvis ikke autentisert
     useEffect(() => {
@@ -50,14 +63,20 @@ export default function OversiktPage() {
     // Vis lasteskjerm mens brukerdata hentes
     if (megQuery.isLoading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950 min-h-screen">
+                <Sidebar aktivVisning="chat" byttVisning={byttVisning} brukernavn={brukernavn} />
+                <main className="flex-1 min-h-0 overflow-y-auto flex items-center justify-center p-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+                </main>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+        <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950 min-h-screen">
+            <Sidebar aktivVisning="chat" byttVisning={byttVisning} brukernavn={brukernavn} />
+            <main className="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-slate-900">
+        <div className="min-h-full bg-slate-50 dark:bg-slate-950">
             {/* Header */}
             <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -217,6 +236,11 @@ export default function OversiktPage() {
                                     (dueDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
                                 );
                                 const isUrgent = daysUntil <= 2;
+                                const erInnlevert =
+                                    assignment.submission &&
+                                    (assignment.submission.workflow_state === "submitted" ||
+                                        assignment.submission.workflow_state === "graded" ||
+                                        assignment.submission.workflow_state === "pending_review");
 
                                 return (
                                     <div
@@ -228,8 +252,13 @@ export default function OversiktPage() {
                                                 <h3 className="font-medium text-slate-900 dark:text-white truncate">
                                                     {assignment.name}
                                                 </h3>
-                                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                                                    {assignment.course_name}
+                                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                                    <span>{assignment.course_name}</span>
+                                                    {erInnlevert && (
+                                                        <span className="inline-flex items-center rounded-md bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 text-xs font-medium text-green-800 dark:text-green-300">
+                                                            Innlevert
+                                                        </span>
+                                                    )}
                                                 </p>
                                             </div>
                                             <div className="text-right shrink-0">
@@ -261,6 +290,8 @@ export default function OversiktPage() {
                     </div>
                 )}
             </div>
+        </div>
+            </main>
         </div>
     );
 }

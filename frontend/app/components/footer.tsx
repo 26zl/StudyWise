@@ -6,8 +6,8 @@ import Link from "next/link";
 export function Footer() {
     return (
         <footer className="shrink-0 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-            <div className="px-4 py-6">
-                <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mb-4">
+            <div className="px-4 py-3">
+                <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mb-2">
                     <Link
                         href="/om-oss"
                         className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
@@ -39,7 +39,7 @@ export function Footer() {
                         Kontakt
                     </Link>
                 </div>
-                <p className="text-xs text-slate-400 dark:text-slate-500 text-center">
+                <p className="text-xs text-slate-400 dark:text-slate-500 text-center leading-tight">
                     © 2025 StudyWise - USN Bachelorprosjekt. Alle rettigheter reservert.
                 </p>
             </div>

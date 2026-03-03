@@ -40,6 +40,18 @@ export const CanvasCourseSchema = z.object({
   default_view: z.string().optional(), // "feed", "wiki", "modules", "syllabus", "assignments"
 });
 
+// Valgfri submission fra Canvas (når include[]=submission brukes)
+export const CanvasAssignmentSubmissionSchema = z
+  .object({
+    workflow_state: z.string().optional(), // "submitted" | "graded" | "pending_review" | "unsubmitted"
+    submitted_at: z.string().nullable().optional(),
+    score: z.number().nullable().optional(),
+    grade: z.string().nullable().optional(),
+  })
+  .loose()
+  .optional()
+  .nullable();
+
 // Schema for Canvas oppgave
 export const CanvasAssignmentSchema = z.object({
   id: z.number(),
@@ -48,6 +60,7 @@ export const CanvasAssignmentSchema = z.object({
   points_possible: z.number().nullable(),
   html_url: z.string().optional(),
   course_id: z.number().optional(),
+  submission: CanvasAssignmentSubmissionSchema,
 });
 
 // Schema for Canvas kunngjøring
@@ -229,7 +242,7 @@ export const CanvasCalendarEventSchema = z.object({
     points_possible: z.number().nullable().optional(),
     html_url: z.string().optional(),
   }).optional(),
-}).passthrough(); // Tillat ukjente felt fra Canvas API
+}).loose(); // Tillat ukjente felt fra Canvas API
 
 // Schema for Todo Item
 // Todo items kan være assignments eller quizzes som må gjøres
@@ -322,6 +335,6 @@ export const NormalizedCanvasCalendarEventSchema = z.object({
   courseName: z.string().nullable(),
   url: z.string().nullable(),
   descriptionText: z.string().nullable(),
-}).passthrough();
+}).loose();
 
 export type NormalizedCanvasCalendarEvent = z.infer<typeof NormalizedCanvasCalendarEventSchema>;

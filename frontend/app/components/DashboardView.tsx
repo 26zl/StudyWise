@@ -11,8 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Sidebar, type VisningType } from "./Sidebar";
 import { SectionErrorBoundary } from "./ErrorBoundary";
-import { useCanvasUser, useCanvasAllAssignments } from "../canvas/canvas-api";
-import { useFristVarsler } from "../hooks/useFristVarsler";
+import { useCanvasUser } from "../canvas/canvas-api";
 import { Footer } from "./footer";
 import { useMeg } from "../auth/auth-api";
 import { prefetchCanvasData } from "../canvas/canvas-api";
@@ -20,7 +19,12 @@ import { useUIStore } from "../store/uiStore";
 
 // Gyldige visningstyper for URL-validering
 const GYLDIGE_VISNINGER: VisningType[] = [
-  "chat", "canvas-announcements", "calendar", "canvas-courses", "settings"
+  "chat",
+  "canvas-announcements",
+  "calendar",
+  "canvas-courses",
+  "canvas-assignments",
+  "settings",
 ];
 
 // Lazy load tunge komponenter for raskere initial page load
@@ -86,10 +90,6 @@ export function DashboardView() {
     const userQuery = useCanvasUser(brukerQueryAktiv);
     const setCanvasContextSelection = useUIStore((state) => state.setCanvasContextSelection);
 
-    // Frist-varsler: hent oppgaver og vis toast-varsler for nærliggende frister
-    const assignmentsQuery = useCanvasAllAssignments({ enabled: harCanvasToken });
-    useFristVarsler(assignmentsQuery.data);
-
     // Synkroniser Canvas-kontekst preferanser fra backend til global state
     useEffect(() => {
         const prefs = megQuery.data?.user?.canvasContextPreferences;
@@ -147,6 +147,7 @@ export function DashboardView() {
     const hentCanvasVisning = () => {
         if (aktivVisning === "canvas-announcements") return "announcements";
         if (aktivVisning === "canvas-courses") return "courses";
+        if (aktivVisning === "canvas-assignments") return "assignments";
         return "announcements";
     };
     // Vis lasteskjerm mens brukerdata hentes eller hvis vi redirecter
@@ -186,7 +187,8 @@ export function DashboardView() {
                         </SectionErrorBoundary>
                     )}
                     {(aktivVisning === "canvas-announcements" ||
-                        aktivVisning === "canvas-courses") && (
+                        aktivVisning === "canvas-courses" ||
+                        aktivVisning === "canvas-assignments") && (
                         <SectionErrorBoundary sectionName="Canvas">
                             <Suspense fallback={<SectionLoader text="Laster Canvas..." />}>
                                 <CanvasSection startVisning={hentCanvasVisning()} harCanvasToken={harCanvasToken} />

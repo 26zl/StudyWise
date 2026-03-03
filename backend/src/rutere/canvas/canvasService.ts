@@ -107,7 +107,10 @@ export async function fetchAssignments(
   options?: { bucket?: "past" | "overdue" | "undated" | "ungraded" | "unsubmitted" | "upcoming" | "future" }
 ) {
   const token = requireToken(canvasToken);
-  const queryParams: Record<string, string | number | boolean> = { per_page: PAGE_SIZE.DEFAULT };
+  const queryParams: Record<string, string | number | boolean> = {
+    per_page: PAGE_SIZE.DEFAULT,
+    "include[]": "submission", // Inkluder brukerens innleveringsstatus
+  };
 
   // Legg til bucket filter hvis spesifisert
   if (options?.bucket) {

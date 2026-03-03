@@ -24,7 +24,7 @@ interface HeaderProps {
 export function Header({ user }: HeaderProps) {
     const pathname = usePathname();
     const { toggleVenstreMeny, reset: resetUIStore } = useUIStore();
-    const erDashboard = pathname === "/dashboard";
+    const harSidebar = ["/dashboard", "/oversikt", "/test-ai-breakdown"].includes(pathname);
     const queryClient = useQueryClient();
     const megQuery = useMeg({ initialData: user || undefined });
     const [mobilMenyOpen, setMobilMenyOpen] = useState(false);
@@ -64,7 +64,7 @@ export function Header({ user }: HeaderProps) {
     return (
         <header className="shrink-0 h-14 px-4 md:px-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-900 sticky top-0 z-30">
             <div className="flex items-center gap-3">
-                {erDashboard && (
+                {harSidebar && (
                     <button
                         onClick={toggleVenstreMeny}
                         className="md:hidden p-1 -ml-1 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"

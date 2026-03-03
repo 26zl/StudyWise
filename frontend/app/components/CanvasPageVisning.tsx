@@ -4,12 +4,14 @@
 */
 "use client";
 
-import type { JSX } from "react";
+import { useState, useCallback, useEffect, type JSX } from "react";
 import { useCanvasPage } from "../canvas/canvas-api";
-import { ArrowLeft, Calendar } from "lucide-react";
+import { ArrowLeft, Calendar, Sparkles, Loader2, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
 import { createCanvasHtmlParser, parseCanvasHtml } from "../canvas/canvasHtml";
 import { format } from "date-fns";
 import { nb } from "date-fns/locale";
+import { useKIOppsummering, type KIOppsummeringResponse } from "../ki/ki-api";
+import { showToast } from "./Toaster";
 
 // Props for CanvasPageVisning komponenten
 interface CanvasPageVisningProps {
@@ -20,6 +22,96 @@ interface CanvasPageVisningProps {
 
 // HTML parser alternativer (samme som i CanvasSection, kan evt. flyttes til en shared utility)
 const htmlParser = createCanvasHtmlParser();
+
+// KI-oppsummering av sideinnhold
+function SideOppsummering({ tekst }: { tekst: string }) {
+    const { oppsummer, isPending, data, error } = useKIOppsummering();
+    const [aapen, settAapen] = useState(false);
+    const [resultat, settResultat] = useState<KIOppsummeringResponse | null>(null);
+    const harTekst = tekst.trim().length > 0;
+
+    const handleOppsummer = useCallback(() => {
+        if (resultat) {
+            settAapen((v) => !v);
+            return;
+        }
+        if (!harTekst) return;
+        oppsummer(tekst, {
+            type: "begge",
+            onSuccess: (data) => {
+                settResultat(data);
+                settAapen(true);
+            },
+            onError: (err) => {
+                showToast.error("Kunne ikke oppsummere", err.message);
+            },
+        });
+    }, [tekst, oppsummer, resultat, harTekst]);
+
+    useEffect(() => {
+        if (data?.suksess && !resultat) {
+            settResultat(data);
+            settAapen(true);
+        }
+    }, [data, resultat]);
+
+    return (
+        <div className="px-8 pb-6">
+            <button
+                onClick={handleOppsummer}
+                disabled={isPending || !harTekst}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors disabled:opacity-50"
+            >
+                {isPending ? (
+                    <Loader2 size={16} className="animate-spin" />
+                ) : (
+                    <Sparkles size={16} />
+                )}
+                {resultat ? (aapen ? "Skjul oppsummering" : "Vis oppsummering") : harTekst ? "Oppsummer med KI" : "Ingen innhold å oppsummere"}
+                {resultat && (aapen ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
+            </button>
+
+            {aapen && resultat && (
+                <div className="mt-3 p-4 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 space-y-3">
+                    {resultat.oppsummering && (
+                        <div>
+                            <h4 className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-1">
+                                TL;DR
+                            </h4>
+                            <p className="text-sm text-slate-700 dark:text-slate-300">
+                                {resultat.oppsummering}
+                            </p>
+                        </div>
+                    )}
+                    {resultat.handlinger && resultat.handlinger.length > 0 && (
+                        <div>
+                            <h4 className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-1">
+                                Hovedpunkter
+                            </h4>
+                            <ul className="space-y-1">
+                                {resultat.handlinger.map((punkt, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+                                        <CheckCircle2 size={14} className="text-purple-500 mt-0.5 shrink-0" />
+                                        {punkt}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                    {!resultat.oppsummering && (!resultat.handlinger || resultat.handlinger.length === 0) && (
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Ingen oppsummering tilgjengelig.
+                        </p>
+                    )}
+                </div>
+            )}
+
+            {error && !resultat && (
+                <p className="mt-2 text-xs text-red-500 dark:text-red-400">{error.message}</p>
+            )}
+        </div>
+    );
+}
 
 // Hovedkomponenten for visning av en Canvas-side
 export function CanvasPageVisning({ courseId, pageId, onBack }: CanvasPageVisningProps): JSX.Element | null {
@@ -81,9 +173,12 @@ export function CanvasPageVisning({ courseId, pageId, onBack }: CanvasPageVisnin
                     </div>
                 </header>
 
+                {/* KI-oppsummering av sideinnhold – alltid synlig per modul */}
+                <SideOppsummering tekst={(page.body && page.body.trim()) || page.title || ""} />
+
                 <div className="p-8 prose prose-slate dark:prose-invert max-w-none">
-                     {/* 
-                        OBS: Canvas HTML innhold kan være komplekst. 
+                     {/*
+                        OBS: Canvas HTML innhold kan være komplekst.
                         Vi bruker DOMPurify for sikkerhet og html-react-parser for å kunne tilpasse elementer (f.eks linker).
                      */}
                     {parseCanvasHtml(page.body, htmlParser)}

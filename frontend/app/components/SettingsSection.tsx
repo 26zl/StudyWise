@@ -128,10 +128,10 @@ export function SettingsSection({
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-4 md:p-6">
-                <div className="max-w-2xl space-y-6">
+            <div className="flex-1 overflow-y-auto p-6 md:p-8 flex justify-center">
+                <div className="max-w-4xl w-full space-y-8">
                     {/* Brukerinformasjon */}
-                    <section className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                    <section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
                                 <User size={20} className="text-slate-600 dark:text-slate-300" />
@@ -208,7 +208,7 @@ export function SettingsSection({
                     </section>
 
                     {/* Utseende */}
-                    <section className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                    <section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
                                 {isDarkMode ? (
@@ -246,7 +246,7 @@ export function SettingsSection({
                     </section>
 
                     {/* Canvas Token */}
-                    <section className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                    <section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
                                 <Key size={20} className="text-slate-600 dark:text-slate-300" />
@@ -351,7 +351,7 @@ export function SettingsSection({
                     </section>
 
                     {/* Samtalehistorikk */}
-                    <section className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                    <section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
                                 <MessageSquare size={20} className="text-slate-600 dark:text-slate-300" />
@@ -385,7 +385,7 @@ export function SettingsSection({
 
                     {/* AI Canvas-kontekst - kun vis hvis bruker har Canvas token */}
                     {harCanvasToken && (
-                        <section className="p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                        <section className="p-5 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
                                     <Bot size={20} className="text-slate-600 dark:text-slate-300" />
