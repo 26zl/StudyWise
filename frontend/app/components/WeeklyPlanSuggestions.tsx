@@ -109,7 +109,7 @@ export function WeeklyPlanSuggestions({ assignments, onAddToCalendar }: WeeklyPl
             }, 0);
 
             setWeeklyPlan({
-                week: `Uke ${new Date().getWeek()}`,
+                week: `Uke ${getWeekNumber(new Date())}`,
                 totalHours,
                 blocks,
                 tips,
@@ -134,7 +134,7 @@ export function WeeklyPlanSuggestions({ assignments, onAddToCalendar }: WeeklyPl
                 className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-full bg-linear-to-br from-purple-500 to-blue-600 flex items-center justify-center">
                         <Sparkles className="w-5 h-5 text-white" />
                     </div>
                     <div className="text-left">
@@ -264,17 +264,11 @@ export function WeeklyPlanSuggestions({ assignments, onAddToCalendar }: WeeklyPl
     );
 }
 
-// Helper function for week number
-declare global {
-    interface Date {
-        getWeek(): number;
-    }
-}
-
-Date.prototype.getWeek = function () {
-    const d = new Date(Date.UTC(this.getFullYear(), this.getMonth(), this.getDate()));
+// Hjelpefunksjon for ukenummer (ISO 8601)
+function getWeekNumber(date: Date): number {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
     const dayNum = d.getUTCDay() || 7;
     d.setUTCDate(d.getUTCDate() + 4 - dayNum);
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
     return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-}; 
+}

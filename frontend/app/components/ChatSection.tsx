@@ -428,16 +428,6 @@ export function ChatSection() {
                             </div>
                         </div>
                         
-                        {/* Export button i header */}
-                        <button
-                            onClick={() => exportToMarkdown(meldinger)}
-                            disabled={meldinger.length === 0}
-                            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Eksporter samtale til Markdown"
-                            aria-label="Eksporter samtale"
-                        >
-                            <Download className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                        </button>
                     </div>
                 </div>
 
@@ -621,6 +611,17 @@ export function ChatSection() {
                             className="hidden"
                         />
                         
+                        {/* Eksporter samtale */}
+                        <button
+                            onClick={() => exportToMarkdown(meldinger)}
+                            disabled={meldinger.length === 0}
+                            className="shrink-0 w-12 h-12 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                            title="Eksporter samtale til Markdown"
+                            aria-label="Eksporter samtale"
+                        >
+                            <Download className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                        </button>
+
                         {/* Filopplastingsknapp */}
                         <button
                             onClick={() => filInputRef.current?.click()}

@@ -4,35 +4,57 @@
  */
 "use client";
 
+import { useEffect } from "react";
 import { Sparkles, Calendar, BookOpen, MessageSquare, TrendingUp, Clock, AlertCircle } from "lucide-react";
 import { WeeklyPlanSuggestions } from "../components/WeeklyPlanSuggestions";
-import { useCanvasCourses, useCanvasAllAssignments } from "../canvas/canvas-api";
+import { useCanvasCourses, useCanvasAllAssignments, type AssignmentMedEmne } from "../canvas/canvas-api";
+import { useMeg } from "../auth/auth-api";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
- 
+
 export default function OversiktPage() {
     const router = useRouter();
+    const megQuery = useMeg();
+
+    // Redirect til innlogging hvis ikke autentisert
+    useEffect(() => {
+        const erIkkeAutentisert = megQuery.isError ||
+            (megQuery.isFetched && !megQuery.isLoading && !megQuery.data?.user);
+        if (erIkkeAutentisert) {
+            router.replace("/auth");
+        }
+    }, [megQuery.isError, megQuery.isFetched, megQuery.isLoading, megQuery.data?.user, router]);
+
     const coursesQuery = useCanvasCourses(true);
     const assignmentsQuery = useCanvasAllAssignments({ enabled: true });
 
     // Beregn statistikk
-const totalCourses = (coursesQuery.data as any)?.length || 0;
-const allAssignments = (assignmentsQuery.data || []) as any[];
-const totalAssignments = allAssignments.length;
+    const totalCourses = coursesQuery.data?.courses?.length || 0;
+    const allAssignments: AssignmentMedEmne[] = assignmentsQuery.data || [];
+    const totalAssignments = allAssignments.length;
 
-// Kommende oppgaver (neste 7 dager)
-const upcomingAssignments = allAssignments.filter((a: any) => {
-    if (!a.due_at) return false;
-    const dueDate = new Date(a.due_at);
-    const now = new Date();
-    const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    return dueDate >= now && dueDate <= weekFromNow;
-});
+    // Kommende oppgaver (neste 7 dager)
+    const upcomingAssignments = allAssignments.filter((a) => {
+        if (!a.due_at) return false;
+        const dueDate = new Date(a.due_at);
+        const now = new Date();
+        const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        return dueDate >= now && dueDate <= weekFromNow;
+    });
 
-// Aktive emner (emner med oppgaver)
-const activeCoursesCount = new Set(
-    allAssignments.map((a: any) => a.course_id)
-).size;  
+    // Aktive emner (emner med oppgaver)
+    const activeCoursesCount = new Set(
+        allAssignments.filter((a) => a.course_id != null).map((a) => a.course_id)
+    ).size;
+
+    // Vis lasteskjerm mens brukerdata hentes
+    if (megQuery.isLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -115,16 +137,14 @@ const activeCoursesCount = new Set(
                         </div>
                     ) : allAssignments.length > 0 ? (
                         <WeeklyPlanSuggestions
-                            assignments={allAssignments.map((a: any) => ({
-                                id: a.id?.toString() || "",
-                                name: a.name || "",
+                            assignments={allAssignments.map((a) => ({
+                                id: a.id.toString(),
+                                name: a.name,
                                 dueAt: a.due_at || undefined,
-                                courseName: a.course_name || "",
-                                description: a.description || undefined,
+                                courseName: a.course_name,
                                 pointsPossible: a.points_possible || undefined,
                             }))}
-                            onAddToCalendar={(block) => {
-                                console.log("Legg til i kalender:", block);
+                            onAddToCalendar={() => {
                                 // TODO: Implementer kalenderfunksjon
                             }}
                         />
@@ -175,11 +195,8 @@ const activeCoursesCount = new Set(
                             title="Mine emner"
                             description="Se alle dine Canvas-emner"
                             icon={BookOpen}
-                            href="/dashboard"
+                            href="/dashboard?view=canvas-courses"
                             color="green"
-                            onClick={() => {
-                                router.push("/dashboard");
-                            }}
                         />
                     </div>
                 </div>
@@ -191,10 +208,13 @@ const activeCoursesCount = new Set(
                             Kommende frister (neste 7 dager)
                         </h2>
                         <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
-                            {upcomingAssignments.slice(0, 5).map((assignment: any) => {
-                                const daysUntil = Math.ceil(
-                                    (new Date(assignment.due_at).getTime() - Date.now()) / 
-                                    (1000 * 60 * 60 * 24)
+                            {upcomingAssignments.slice(0, 5).map((assignment) => {
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                const dueDay = new Date(assignment.due_at!);
+                                dueDay.setHours(0, 0, 0, 0);
+                                const daysUntil = Math.round(
+                                    (dueDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
                                 );
                                 const isUrgent = daysUntil <= 2;
 
@@ -227,7 +247,7 @@ const activeCoursesCount = new Set(
                                                         : `Om ${daysUntil} dager`}
                                                 </div>
                                                 <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                                    {new Date(assignment.due_at).toLocaleDateString("nb-NO", {
+                                                    {new Date(assignment.due_at!).toLocaleDateString("nb-NO", {
                                                         month: "short",
                                                         day: "numeric",
                                                     })}
@@ -316,4 +336,4 @@ function QuickActionCard({ title, description, icon: Icon, href, color, onClick 
             </p>
         </Link>
     );
-} 
+}

@@ -4,6 +4,7 @@
  * som kan brukes i KI-prompten. Gjenbrukes av ki.ts.
  */
 import { logger } from "../../utils/logger.js";
+import { stripHtml } from "../../utils/htmlUtils.js";
 import {
   fetchCourses,
   fetchAllAnnouncements,
@@ -193,20 +194,6 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
         })
       )
     );
-
-    // Hjelpefunksjon for å strippe HTML
-    const stripHtml = (html: string): string => {
-      return html
-        .replace(/<[^>]*>/g, " ")
-        .replace(/&nbsp;/g, " ")
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/\s+/g, " ")
-        .trim();
-    };
 
     // Hjelpefunksjon for konsistent datoformatering med norsk tidssone
     const formaterDato = (isoString: string | null | undefined): string => {

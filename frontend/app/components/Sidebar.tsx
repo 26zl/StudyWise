@@ -25,9 +25,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { broadcastLogout } from "../hooks/use-auth-sync";
 import { useChatHistory } from "../hooks/useChatHistory";
 import Link from "next/link";
-import { usePathname } from "next/navigation"; 
+import { usePathname } from "next/navigation";
 
- 
 // Typer for de ulike visningene i sidebar
 export type VisningType =
     | "chat"
@@ -154,24 +153,24 @@ export function Sidebar({
                     {/* Hovednavigasjon */}
                     <div className="mb-2">
                         <Link
-    href="/oversikt"
-    onClick={() => {
-        if (window.innerWidth < 768) {
-            lukkVenstreMeny();
-        }
-    }}
-    className={`
-        w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm
-        transition-colors duration-150
-        ${pathname === "/oversikt"
-            ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
-            : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
-        }
-    `}
->
-    <LayoutDashboard size={18} className="shrink-0" />
-    <span className="truncate">Oversikt</span>
-</Link>
+                            href="/oversikt"
+                            onClick={() => {
+                                if (window.innerWidth < 768) {
+                                    lukkVenstreMeny();
+                                }
+                            }}
+                            className={`
+                                w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm
+                                transition-colors duration-150
+                                ${pathname === "/oversikt"
+                                    ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
+                                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
+                                }
+                            `}
+                        >
+                            <LayoutDashboard size={18} className="shrink-0" />
+                            <span className="truncate">Oversikt</span>
+                        </Link>
                     </div>
 
 

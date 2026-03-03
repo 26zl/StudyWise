@@ -22,7 +22,7 @@ const router = Router();
 const SUPPORTED_MIME_TYPES = getSupportedMimeTypes();
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 100 * 1024 * 1024 },
+    limits: { fileSize: 15 * 1024 * 1024 }, // 15MB - matcher frontend-grensen
     fileFilter: (_req, file, cb) => {
         if (SUPPORTED_MIME_TYPES.includes(file.mimetype)) {
             cb(null, true);

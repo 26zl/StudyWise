@@ -8,6 +8,7 @@
 import { Router } from "express";
 import crypto from "node:crypto";
 import { Readable } from "node:stream";
+import { sendUnknownError } from "../../utils/apiError.js";
 import {
   krevCanvasToken,
   hentCanvasKonfig,
@@ -139,7 +140,7 @@ router.get("/whoami", async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, "Klarte ikke å hente eller lagre brukerinformasjon (/whoami)");
-    throw error;
+    sendUnknownError(res, error, { kontekst: "GET /whoami" });
   }
 });
 

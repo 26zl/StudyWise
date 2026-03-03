@@ -8,14 +8,7 @@ import { useState } from "react";
 import { Sparkles, Edit2, Check, X, Plus, Trash2, RefreshCw, Loader2, ThumbsUp, ThumbsDown } from "lucide-react";
 import { toast } from "sonner";
 import { useKIChat } from "../ki/ki-api";
-interface SubTask {
-  id: string;
-  title: string;
-  description: string;
-  estimatedTime: string;
-  priority: "low" | "medium" | "high";
-  completed: boolean;
-}  
+import type { SubTask } from "common/ki";
 // Kun typen importeres her — komponenten håndterer ikke API-kall direkte.
 // Når ekte AI-integrasjon legges til, skal henting og validering (med TaskBreakdownResponseSchema)
 // ligge i en dedikert hook (se mønsteret i frontend/app/ki/ki-api.ts).
@@ -549,7 +542,7 @@ export function AITaskBreakdown({
                 {Math.round((subtasks.filter((t) => t.completed).length / subtasks.length) * 100)}%
               </span>
             </div>
-          </div> 
+          </div>
         </div>
       )}
     </div>

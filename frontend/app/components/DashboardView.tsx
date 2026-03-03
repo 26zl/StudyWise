@@ -11,7 +11,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Sidebar, type VisningType } from "./Sidebar";
 import { SectionErrorBoundary } from "./ErrorBoundary";
-import { useCanvasUser } from "../canvas/canvas-api";
+import { useCanvasUser, useCanvasAllAssignments } from "../canvas/canvas-api";
+import { useFristVarsler } from "../hooks/useFristVarsler";
 import { Footer } from "./footer";
 import { useMeg } from "../auth/auth-api";
 import { prefetchCanvasData } from "../canvas/canvas-api";
@@ -84,6 +85,10 @@ export function DashboardView() {
     const brukerQueryAktiv = megQuery.isSuccess && harCanvasToken;
     const userQuery = useCanvasUser(brukerQueryAktiv);
     const setCanvasContextSelection = useUIStore((state) => state.setCanvasContextSelection);
+
+    // Frist-varsler: hent oppgaver og vis toast-varsler for nærliggende frister
+    const assignmentsQuery = useCanvasAllAssignments({ enabled: harCanvasToken });
+    useFristVarsler(assignmentsQuery.data);
 
     // Synkroniser Canvas-kontekst preferanser fra backend til global state
     useEffect(() => {

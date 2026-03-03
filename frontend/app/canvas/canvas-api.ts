@@ -22,6 +22,8 @@ import {
   TodoResponseSchema,
   ModuleItemDetailsResponseSchema,
   MetaSchema,
+  type CanvasAssignment,
+  type CanvasCourse,
 } from "common/canvas";
 
 // Eksporter typer
@@ -148,7 +150,7 @@ async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>, forsoktRefre
       errorCode = error.kode || errorCode;
     } catch {
       // Ignorer JSON-parse feil
-    } 
+    }
 
     // Kun marker token som ugyldig hvis det er en TOKEN-feil (fra vår backend)
     // IKKE hvis det er permission denied fra Canvas (bruker kan mangle tilgang til én ressurs)
@@ -415,44 +417,52 @@ export function useCanvasTodo(enabled = true) {
   });
 }
 
+// Oppgave med emnenavn (frontend-only berikelse av CanvasAssignment)
+export interface AssignmentMedEmne extends CanvasAssignment {
+  course_name: string;
+}
+
 // Hent ALLE oppgaver på tvers av emner
 export function useCanvasAllAssignments(options?: { enabled?: boolean }) {
   const isEnabled = useCanvasEnabled(options?.enabled ?? true);
   const coursesQuery = useCanvasCourses(isEnabled);
-  
-  return useQuery({
-    queryKey: ["canvas", "all-assignments"],
+
+  const courseIds = coursesQuery.data?.courses?.map((c) => c.id) ?? [];
+
+  return useQuery<AssignmentMedEmne[]>({
+    queryKey: ["canvas", "all-assignments", courseIds],
     queryFn: async () => {
-      const courses: any = coursesQuery.data;
+      const courses = coursesQuery.data?.courses;
       if (!courses) return [];
-      
+
       // Hent oppgaver for alle emner parallelt
-      const assignmentsPromises = courses.map(async (course: any) => {
+      const assignmentsPromises = courses.map(async (course: CanvasCourse) => {
         try {
-          const response: any = await fetchCanvas(
+          const response = await fetchCanvas(
             `/emner/${course.id}/oppgaver`,
             AssignmentsResponseSchema
           );
           // Legg til course_name på hver oppgave
-          return response.map((assignment: any) => ({
+          return response.assignments.map((assignment): AssignmentMedEmne => ({
             ...assignment,
             course_name: course.name,
             course_id: course.id,
           }));
-        } catch (error) {
-          console.error(`Failed to fetch assignments for course ${course.id}:`, error);
+        } catch {
+          // Ignorer emner der vi ikke har tilgang til oppgaver
           return [];
         }
       });
-      
+
       const allAssignments = await Promise.all(assignmentsPromises);
       return allAssignments.flat();
     },
-    enabled: isEnabled && !!coursesQuery.data && (coursesQuery.data as any).length > 0,
+    enabled: isEnabled && !!coursesQuery.data?.courses && coursesQuery.data.courses.length > 0,
     ...canvasQueryOptions,
   });
-}  
- 
+}
+
+
 // Hent detaljerte modul-items
 export function useCanvasModuleItemDetails(courseId: number, moduleId: number, enabled = true) {
   const isEnabled = useCanvasEnabled(enabled);
@@ -623,4 +633,4 @@ export function useCoursesMetadata(enabled = true) {
     staleTime: 1000 * 60 * 30, // 30 minutter - metadata endres sjelden
     refetchOnWindowFocus: false,
   });
-} 
+}

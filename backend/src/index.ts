@@ -28,6 +28,7 @@ import canvasRuter from "./rutere/canvas/canvas.js";
 import kiRuter from "./rutere/ki/ki.js";
 import brukerAuthRuter from "./rutere/auth/brukerAuth.js";
 import taskBreakdownRouter from "./rutere/ki/taskBreakdown.js";
+import { kiOppsummeringRouter } from "./rutere/ki/kiOppsummering.js";
 import { autentiserJwt, knyttCanvasToken } from "./middleware/auth.js";
 import { noCache } from "./middleware/no-cache.js";
 
@@ -214,6 +215,7 @@ if (!isProd) {
 // noCache hindrer at sensitive data caches i nettleseren etter utlogging
 app.use("/api/canvas", noCache, knyttCanvasToken, canvasRuter);
 app.use("/api/ki", noCache, knyttCanvasToken, kiRuter);
+app.use("/api/ki", noCache, knyttCanvasToken, kiOppsummeringRouter);
 app.use("/api/ki/task-breakdown", noCache, taskBreakdownRouter);
 app.use("/api/user", brukerAuthRuter);
 

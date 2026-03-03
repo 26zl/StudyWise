@@ -114,9 +114,24 @@ export const TaskBreakdownResponseSchema = z.object({
   subtasks: z.array(SubTaskSchema),
 });
 
+// KI Oppsummering (kunngjøringer)
+export const KIOppsummeringRequestSchema = z.object({
+  tekst: z.string().min(1).max(50000),
+  type: z.enum(["tldr", "handlinger", "begge"]).optional().default("begge"),
+});
 
+export const KIOppsummeringResponseSchema = z.object({
+  suksess: z.boolean(),
+  oppsummering: z.string().optional(),
+  handlinger: z.array(z.string()).optional(),
+  melding: z.string().optional(),
+});
 
 // Type exports
+export type KIOppsummeringRequest = z.infer<typeof KIOppsummeringRequestSchema>;
+export type KIOppsummeringResponse = z.infer<
+  typeof KIOppsummeringResponseSchema
+>;
 export type KIMessage = z.infer<typeof KIMessageSchema>;
 export type KIChatRequest = z.infer<typeof KIChatRequestSchema>;
 export type KIChatResponse = z.infer<typeof KIChatResponseSchema>;
