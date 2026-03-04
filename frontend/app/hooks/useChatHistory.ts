@@ -1,4 +1,5 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
 import {
   ChatHistoryResponseSchema,
   ChatMessage,
@@ -137,4 +138,30 @@ export function useChatHistory() {
 
   return { chats, saveChat, loadChat, deleteChat, clearAll, loading: isLoading };
 }
- 
+
+/** Stabil prefetch-funksjon for chat-historikk (bruk i DashboardView) */
+export function useChatHistoryPrefetch() {
+  const prefetchChatHistory = useCallback((queryClient: QueryClient) => {
+    queryClient.prefetchQuery({
+      queryKey: CHAT_HISTORY_QUERY_KEY,
+      queryFn: async () => {
+        try {
+          const raw = await fetchJson<unknown>(
+            "/api/ki/chat/history?limit=20&page=1"
+          );
+          const parsed = ChatHistoryResponseSchema.parse(raw);
+          return parsed.chats
+            .slice(0, MAX_CHATS)
+            .map((c) => ({ ...c, timestamp: new Date(c.timestamp) }));
+        } catch (error) {
+          if (erIkkeAutentisert(error)) return [];
+          throw error;
+        }
+      },
+      staleTime: 1000 * 60 * 5,
+    });
+  }, []);
+
+  return { prefetchChatHistory };
+}
+

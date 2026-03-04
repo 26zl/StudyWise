@@ -1,11 +1,10 @@
 /*
-*
-* Type definisjoner og schemaer for dokument parsing resultater
-*/
-
+ *
+ * Type definisjoner og schemaer for dokument parsing resultater
+ */
 
 import { z } from "zod";
-
+// Schema for resultat av dokument parsing (f.eks. PDF, Word)
 export const DocumentParseResultSchema = z.object({
   success: z.boolean(),
   text: z.string(),

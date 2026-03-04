@@ -5,6 +5,7 @@
  */
 import { logger } from "../../utils/logger.js";
 import { stripHtml } from "../../utils/htmlUtils.js";
+import { getWeekNumber } from "common/dateUtils";
 import {
   fetchCourses,
   fetchAllAnnouncements,
@@ -39,7 +40,7 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
 
   try {
     // Hent hoveddata parallelt
-    const [emnerResult, kunngjoeringerResult, todoResult, eventsResult] =
+    const [emnerResult, kunngjøringerResult, todoResult, eventsResult] =
       await Promise.allSettled([
         fetchCourses(canvasToken),
         fetchAllAnnouncements(canvasToken),
@@ -49,7 +50,7 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
 
     // Behandle resultater, ignorer feil
     const emner = emnerResult.status === "fulfilled" ? emnerResult.value.data : [];
-    const kunngjoeringer = kunngjoeringerResult.status === "fulfilled" ? kunngjoeringerResult.value.data : [];
+    const kunngjøringer = kunngjøringerResult.status === "fulfilled" ? kunngjøringerResult.value.data : [];
     const todosRaw = todoResult.status === "fulfilled" ? todoResult.value.data : [];
     const eventsRaw = eventsResult.status === "fulfilled" ? eventsResult.value.data : [];
 
@@ -228,20 +229,12 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
     // Legg til dagens dato eksplisitt så AI vet hva "denne uken" betyr
     const idag = new Date();
     const dagNavn = ["søndag", "mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag"];
-    const maanedNavn = ["januar", "februar", "mars", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "desember"];
+    const månedNavn = ["januar", "februar", "mars", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "desember"];
     const ukedag = dagNavn[idag.getDay()];
     const dato = idag.getDate();
-    const maaned = maanedNavn[idag.getMonth()];
-    const aar = idag.getFullYear();
+    const måned = månedNavn[idag.getMonth()];
+    const år = idag.getFullYear();
 
-    // Beregn ukenummer (ISO week)
-    const getWeekNumber = (d: Date): number => {
-      const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-      const dayNum = date.getUTCDay() || 7;
-      date.setUTCDate(date.getUTCDate() + 4 - dayNum);
-      const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-      return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-    };
     const ukenummer = getWeekNumber(idag);
 
     // Beregn start og slutt på denne uken (mandag-søndag)
@@ -251,8 +244,8 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
     const sluttAvUke = new Date(startAvUke);
     sluttAvUke.setDate(startAvUke.getDate() + 6);
 
-    deler.push(`\nDAGENS DATO: ${ukedag} ${dato}. ${maaned} ${aar} (uke ${ukenummer})`);
-    deler.push(`DENNE UKEN: ${startAvUke.getDate()}. ${maanedNavn[startAvUke.getMonth()]} - ${sluttAvUke.getDate()}. ${maanedNavn[sluttAvUke.getMonth()]} ${sluttAvUke.getFullYear()}`);
+    deler.push(`\nDAGENS DATO: ${ukedag} ${dato}. ${måned} ${år} (uke ${ukenummer})`);
+    deler.push(`DENNE UKEN: ${startAvUke.getDate()}. ${månedNavn[startAvUke.getMonth()]} - ${sluttAvUke.getDate()}. ${månedNavn[sluttAvUke.getMonth()]} ${sluttAvUke.getFullYear()}`);
 
     // Emner
     if (emner.length > 0) {
@@ -261,9 +254,9 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
     }
     
     // Kunngjøringer med innhold
-    if (kunngjoeringer.length > 0) {
+    if (kunngjøringer.length > 0) {
       deler.push("\nKUNNGJØRINGER:");
-      kunngjoeringer.slice(0, MAX_ANNOUNCEMENTS).forEach((k) => {
+      kunngjøringer.slice(0, MAX_ANNOUNCEMENTS).forEach((k) => {
         const dato = formaterDato(k.posted_at);
         deler.push(`\n[${k.title}]${dato ? ` (${dato})` : ""}`);
         if (k.message) {
@@ -433,7 +426,7 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
     logger.info(
       {
         emnerCount: emner.length,
-        kunngjoeringerCount: kunngjoeringer.length,
+        kunngjøringerCount: kunngjøringer.length,
         todosCount: todos.length,
         todosFiltered: todosRaw.length - todos.length, // Hvor mange ble filtrert bort
         eventsCount: events.length,

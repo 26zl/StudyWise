@@ -9,6 +9,8 @@ import { logger } from "../../utils/logger.js";
 import {
   createCanvasError,
   classifyHttpStatus,
+  getErrorMessage,
+  getErrorResponse,
   type CanvasErrorCode,
 } from "./canvasErrors.js";
 
@@ -74,30 +76,6 @@ export const MAX_PAGES = {
 
 // Hjelpefunksjon for å vente med exponential backoff
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-// Hjelpefunksjon for å generere feilmelding basert på kode
-function getErrorMessageForCode(code: CanvasErrorCode, rawError?: string): string {
-    switch (code) {
-        case "token_invalid":
-            return "Ugyldig Canvas-token";
-        case "token_missing":
-            return "Canvas-token mangler";
-        case "permission_denied":
-            return "Ingen tilgang til denne ressursen";
-        case "resource_disabled":
-            return "Ressursen er deaktivert for dette emnet";
-        case "resource_not_found":
-            return "Ressursen ble ikke funnet";
-        case "rate_limited":
-            return "For mange forespørsler til Canvas";
-        case "timeout":
-            return "Forespørselen tok for lang tid";
-        case "server_error":
-            return "Canvas-serveren opplever problemer";
-        default:
-            return rawError || "Ukjent Canvas API-feil";
-    }
-}
 
 // Hjelpefunksjoner
 // Henter Canvas konfig fra miljøvariabler
@@ -187,29 +165,15 @@ export function parseLinkHeader(linkHeader: string | null): string | null {
 export function krevCanvasToken(req: Request, res: ExpressResponse, next: NextFunction) {
     try {
         if (!req.user?.id) {
-            return res.status(401).json({
-                feil: "Ikke autentisert",
-                melding: "Logg inn for å bruke Canvas-funksjoner.",
-                kode: "token_invalid" as CanvasErrorCode,
-            });
+            return res.status(401).json(getErrorResponse("token_invalid"));
         }
         if (!req.canvasToken) {
-            // Viktig: Inkluder kode="token_missing" slik at frontend vet at dette er
-            // en token-feil fra vår backend, IKKE en permission denied fra Canvas
-            return res.status(403).json({
-                feil: "Canvas-token mangler",
-                melding: "Koble brukeren til Canvas før du bruker disse endepunktene.",
-                kode: "token_missing" as CanvasErrorCode,
-            });
+            return res.status(403).json(getErrorResponse("token_missing"));
         }
         next();
     } catch (error) {
         logger.error({ err: error }, "Feil ved validering av Canvas-token");
-        return res.status(500).json({
-            feil: "Kunne ikke verifisere Canvas-token",
-            melding: "Kunne ikke validere brukerens Canvas-token.",
-            kode: "server_error" as CanvasErrorCode,
-        });
+        return res.status(500).json(getErrorResponse("server_error"));
     }
 }
 
@@ -356,7 +320,7 @@ async function hentCanvasDataImpl<T>(
                     // Re-throw den samme feilen som vi ville fått fra API
                     const error = createCanvasError(
                         parsed.error as CanvasErrorCode,
-                        getErrorMessageForCode(parsed.error as CanvasErrorCode, ""),
+                        getErrorMessage(parsed.error as CanvasErrorCode),
                         { httpStatus: parsed.error === "permission_denied" ? 403 : 404, endpoint }
                     );
                     throw error;
@@ -459,7 +423,7 @@ async function hentCanvasDataImpl<T>(
                     // Opprett strukturert feil
                     const error = createCanvasError(
                         errorCode,
-                        getErrorMessageForCode(errorCode, errorText),
+                        getErrorMessage(errorCode),
                         {
                             httpStatus: response.status,
                             endpoint,

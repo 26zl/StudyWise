@@ -8,6 +8,7 @@ import {
   apiError,
   sendZodError,
   sendUnknownError,
+  requireUserId,
 } from "../../utils/apiError.js";
 import {
   ChatMessageSchema,
@@ -24,8 +25,8 @@ const isValidObjectId = (id: string): boolean =>
 // GET /chat/history - hent historikk for innlogget bruker (paginert)
 kiHistoryRouter.get("/chat/history", async (req, res) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) return apiError.unauthorized(res);
+    const userId = requireUserId(req, res);
+    if (!userId) return;
 
     const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
     const page = Math.max(Number(req.query.page) || 1, 1);
@@ -80,8 +81,8 @@ kiHistoryRouter.get("/chat/history", async (req, res) => {
 // POST /chat/history - lagre ny historikkoppføring
 kiHistoryRouter.post("/chat/history", async (req, res) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) return apiError.unauthorized(res);
+    const userId = requireUserId(req, res);
+    if (!userId) return;
 
     const parsed = ChatSaveSchema.parse(req.body);
     const firstUser = parsed.messages.find((m) => m.rolle === "user");
@@ -118,8 +119,8 @@ kiHistoryRouter.post("/chat/history", async (req, res) => {
 // PUT /chat/history/:id - oppdater eksisterende historikk
 kiHistoryRouter.put("/chat/history/:id", async (req, res) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) return apiError.unauthorized(res);
+    const userId = requireUserId(req, res);
+    if (!userId) return;
     const { id } = req.params;
     // Valider ObjectId for å unngå CastError
     if (!isValidObjectId(id)) {
@@ -161,8 +162,8 @@ kiHistoryRouter.put("/chat/history/:id", async (req, res) => {
 // DELETE /chat/history/:id - slett én historikk
 kiHistoryRouter.delete("/chat/history/:id", async (req, res) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) return apiError.unauthorized(res);
+    const userId = requireUserId(req, res);
+    if (!userId) return;
     const { id } = req.params;
     // Valider ObjectId for å unngå CastError
     if (!isValidObjectId(id)) {
@@ -178,8 +179,8 @@ kiHistoryRouter.delete("/chat/history/:id", async (req, res) => {
 // DELETE /chat/history - slett all historikk for bruker
 kiHistoryRouter.delete("/chat/history", async (req, res) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) return apiError.unauthorized(res);
+    const userId = requireUserId(req, res);
+    if (!userId) return;
     await ChatHistory.deleteMany({ user: userId });
     return res.status(204).send();
   } catch (error) {

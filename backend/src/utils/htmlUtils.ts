@@ -1,11 +1,19 @@
 /*
  * HTML-verktøy for tekstutvinning
- * Strippping av HTML-tagger for ren tekst
+ * Stripping av HTML-tagger for ren tekst
  */
 
 /** Fjerner HTML-tagger og dekoder vanlige HTML-entiteter */
-export const stripHtml = (html: string): string => {
-  return html
+export const stripHtml = (html: string, options?: { removeStyles?: boolean }): string => {
+  let cleaned = html;
+
+  // Fjern <link rel="stylesheet"> og <style> tags hvis ønsket
+  if (options?.removeStyles) {
+    cleaned = cleaned.replace(/<link[^>]*rel=["']stylesheet["'][^>]*>/gi, "");
+    cleaned = cleaned.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
+  }
+
+  return cleaned
     .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")

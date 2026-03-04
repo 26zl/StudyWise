@@ -4,7 +4,6 @@
  */
 
 import { Router, type Request, type Response } from "express";
-import { InferenceClient } from "@huggingface/inference";
 import crypto from "crypto";
 import { logger } from "../../utils/logger.js";
 import { stripHtml } from "../../utils/htmlUtils.js";
@@ -15,12 +14,12 @@ import {
 import { createRateLimiter } from "../../middleware/rate-limit.js";
 import { getCache, setCache } from "../../cache/redis.js";
 import { sendZodError, sendUnknownError } from "../../utils/apiError.js";
+import { handleHFError } from "./handleHFError.js";
 import { DEFAULT_MODEL } from "./aiModels.js";
+import { hfClient } from "./hfClient.js";
+import { isProd } from "../../utils/env.js";
 
 const router = Router();
-
-// Rate limiting: 10 req/min i prod, generøst i dev
-const isProd = process.env.NODE_ENV === "production";
 const rateLimitOppsummering = isProd
   ? createRateLimiter({
       points: 10,
@@ -33,11 +32,7 @@ const rateLimitOppsummering = isProd
       keyPrefix: "rlflx:ki:oppsummering:dev",
     });
 
-// HuggingFace-klient
-const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
-const hfClient = HF_API_KEY ? new InferenceClient(HF_API_KEY) : null;
-
-const CACHE_TTL = 3600; // 1 time
+import { KI_OPPSUMMERING_CACHE_TTL } from "./kiConstants.js";
 
 /**
  * POST /oppsummering
@@ -188,7 +183,7 @@ Hvis det ikke er noen handlingspunkter, skriv "HANDLINGER: Ingen handlingspunkte
 
       // Cache resultatet
       try {
-        await setCache(cacheKey, JSON.stringify(response), CACHE_TTL);
+        await setCache(cacheKey, JSON.stringify(response), KI_OPPSUMMERING_CACHE_TTL);
       } catch {
         // Cache-feil ignoreres
       }
@@ -199,27 +194,11 @@ Hvis det ikke er noen handlingspunkter, skriv "HANDLINGER: Ingen handlingspunkte
       );
       return res.json(response);
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-
-      if (errorMessage === "OPPSUMMERING_TIMEOUT") {
-        return res.status(504).json(
-          KIOppsummeringResponseSchema.parse({
-            suksess: false,
-            melding: "Oppsummeringen tok for lang tid. Prøv igjen.",
-          }),
-        );
-      }
-
-      if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {
-        return res.status(429).json(
-          KIOppsummeringResponseSchema.parse({
-            suksess: false,
-            melding:
-              "For mange forespørsler til KI-tjenesten. Vent litt og prøv igjen.",
-          }),
-        );
-      }
+      if (handleHFError(res, error, KIOppsummeringResponseSchema, {
+        timeoutLabel: "OPPSUMMERING_TIMEOUT",
+        timeoutMessage: "Oppsummeringen tok for lang tid. Prøv igjen.",
+        kontekst: "kiOppsummering",
+      })) return;
 
       return sendUnknownError(res, error, { kontekst: "kiOppsummering" });
     }

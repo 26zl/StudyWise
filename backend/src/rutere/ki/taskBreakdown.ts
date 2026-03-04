@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { logger } from "../../utils/logger.js";
-import { apiError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
+import { apiError, sendZodError, sendUnknownError, requireUserId } from "../../utils/apiError.js";
 import { TaskBreakdown } from "../../database/models/TaskBreakdown.js";
 import { rateLimitKi } from "../../middleware/rate-limit.js";
 import { SubTaskSchema } from "common";
@@ -12,10 +12,8 @@ router.use(rateLimitKi);
 router.get("/:assignmentId", async (req, res) => {
   try {
     const { assignmentId } = req.params;
-    const userId = req.user?.id;
-    if (!userId) {
-      return apiError.unauthorized(res);
-    }
+    const userId = requireUserId(req, res);
+    if (!userId) return;
 
     const breakdown = await TaskBreakdown.findOne({ userId, assignmentId });
 
@@ -33,10 +31,8 @@ router.get("/:assignmentId", async (req, res) => {
 router.post("/:assignmentId", async (req, res) => {
   try {
     const { assignmentId } = req.params;
-    const userId = req.user?.id;
-    if (!userId) {
-      return apiError.unauthorized(res);
-    }
+    const userId = requireUserId(req, res);
+    if (!userId) return;
 
     const parsed = SubTaskSchema.array().safeParse(req.body.subtasks);
     if (!parsed.success) {
@@ -60,10 +56,8 @@ router.post("/:assignmentId", async (req, res) => {
 router.put("/:assignmentId/toggle/:taskId", async (req, res) => {
   try {
     const { assignmentId, taskId } = req.params;
-    const userId = req.user?.id;
-    if (!userId) {
-      return apiError.unauthorized(res);
-    }
+    const userId = requireUserId(req, res);
+    if (!userId) return;
 
     const breakdown = await TaskBreakdown.findOne({ userId, assignmentId });
     if (!breakdown) {
@@ -88,10 +82,8 @@ router.put("/:assignmentId/toggle/:taskId", async (req, res) => {
 router.delete("/:assignmentId", async (req, res) => {
   try {
     const { assignmentId } = req.params;
-    const userId = req.user?.id;
-    if (!userId) {
-      return apiError.unauthorized(res);
-    }
+    const userId = requireUserId(req, res);
+    if (!userId) return;
 
     await TaskBreakdown.deleteOne({ userId, assignmentId });
 

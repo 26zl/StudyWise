@@ -24,7 +24,7 @@ interface AITaskBreakdownProps {
   dueDate?: Date;
   onSave?: (subtasks: SubTask[]) => void;
 }
-
+// Hovedkomponent for AI-generert deloppgaveoversikt med godkjenningskontroll
 export function AITaskBreakdown({
   assignmentTitle: _assignmentTitle,
   assignmentDescription: _assignmentDescription,

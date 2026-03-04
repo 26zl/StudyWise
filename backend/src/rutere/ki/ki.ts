@@ -5,7 +5,6 @@
 */
 
 import { Router } from "express";
-import { InferenceClient } from "@huggingface/inference";
 import { logger } from "../../utils/logger.js";
 import { apiError } from "../../utils/apiError.js";
 import { getCache, setCache } from "../../cache/redis.js";
@@ -21,6 +20,8 @@ import { kiHistoryRouter } from "./kiHistory.js";
 import { kiAnalyseRouter } from "./kiAnalyse.js";
 import { SUPPORTED_MODELS, DEFAULT_MODEL } from "./aiModels.js";
 import { STUDYWISE_SYSTEM_PROMPT } from "./systemPrompt.js";
+import { hfClient } from "./hfClient.js";
+import { handleHFError } from "./handleHFError.js";
 
 // Definerer express router
 const router = Router();
@@ -31,13 +32,10 @@ router.use(kiHistoryRouter);
 // Dokumentanalyse ruter
 router.use(kiAnalyseRouter);
 
-// Initialiser HF-klient én gang ved oppstart (gjenbrukes for alle requests)
-const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
-const hfClient = HF_API_KEY ? new InferenceClient(HF_API_KEY) : null;
+import { KI_CACHE_TTL, KI_TIMEOUT_MS } from "./kiConstants.js";
 
 // Cache-konfigurasjon
 const CACHE_KEY = "ki:test-connection";
-const KI_CACHE_TTL = 300; // 5 minutter
 
 // Endepunkt for å liste støttede modeller
 router.get("/models", (_req, res) => {
@@ -93,18 +91,7 @@ router.get("/test-connection", async (_req, res) => {
         await setCache(CACHE_KEY, JSON.stringify(response), KI_CACHE_TTL);
         return res.json(response);
     } catch (error) {
-        logger.error({ err: error }, "Hugging Face Error");
-        const errorMessage = error instanceof Error ? error.message : String(error);
-
-        // Håndter fakturerings-/kredittfeil fra HuggingFace
-        if (errorMessage.includes("Credit balance") || errorMessage.includes("depleted") || errorMessage.includes("purchase")) {
-            return res.status(503).json(KIChatResponseSchema.parse({
-                suksess: false,
-                melding: "KI-tjenesten er midlertidig utilgjengelig.",
-                response: "",
-            }));
-        }
-
+        if (handleHFError(res, error, KIChatResponseSchema, { kontekst: "HF test-connection" })) return;
         return res.status(500).json(KIChatResponseSchema.parse({
             suksess: false,
             melding: "Feil under kommunikasjon med KI-tjenesten. Prøv igjen senere.",
@@ -204,13 +191,12 @@ router.post("/chat", async (req, res) => {
         
         // ALLTID hent full Canvas-kontekst fra backend (inkluderer moduler, sider, filer)
         if (req.canvasToken) {
-            const CANVAS_TIMEOUT_MS = 60000;
             canvasKontekst = await Promise.race([
                 byggKiCanvasKontekst(req.canvasToken),
                 new Promise<string>((resolve) =>
                     setTimeout(
                         () => resolve("[CANVAS STATUS: Henting tok for lang tid. Prøv igjen.]"),
-                        CANVAS_TIMEOUT_MS
+                        KI_TIMEOUT_MS
                     )
                 ),
             ]);
@@ -305,56 +291,15 @@ router.post("/chat", async (req, res) => {
         }));
 
     } catch (error) {
-        // Logg feil uten sensitiv data (unngå å logge hele Canvas-konteksten)
-        const sanitizedError = error instanceof Error ? {
-            name: error.name,
-            message: error.message,
-            // Inkluder httpResponse men IKKE httpRequest.body (som inneholder Canvas-data)
-            ...(('httpResponse' in error) ? {
-                httpResponse: (error as Record<string, unknown>).httpResponse
-            } : {}),
-        } : String(error);
-        logger.error({ err: sanitizedError, model }, "HuggingFace chat feil");
-        const errorMessage = error instanceof Error ? error.message : String(error);
-
-        if (error instanceof Error && error.message === "CHAT_TIMEOUT") {
-            return res.status(504).json(KIChatResponseSchema.parse({
-                suksess: false,
-                melding: "Chat-forespørselen tok for lang tid (timeout etter 25s). Prøv igjen eller forenkle spørsmålet.",
-                response: "",
-            }));
-        }
-        
-        // Sjekk for vanlige feil
-        if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {
-            return res.status(429).json(KIChatResponseSchema.parse({
-                suksess: false,
-                melding: "For mange forespørsler. Vent litt og prøv igjen.",
-                response: "",
-            }));
-        }
-        
-        if (errorMessage.includes("model") && errorMessage.includes("not found")) {
-            return res.status(503).json(KIChatResponseSchema.parse({
-                suksess: false,
-                melding: `Modellen "${model}" er midlertidig utilgjengelig. Prøv igjen senere.`,
-                response: "",
-            }));
-        }
-
-        // Håndter fakturerings-/kredittfeil fra HuggingFace
-        if (errorMessage.includes("Credit balance") || errorMessage.includes("depleted") || errorMessage.includes("purchase")) {
-            logger.warn({ model }, "HuggingFace kreditt oppbrukt");
-            return res.status(503).json(KIChatResponseSchema.parse({
-                suksess: false,
-                melding: "KI-tjenesten er midlertidig utilgjengelig. Vennligst prøv igjen senere.",
-                response: "",
-            }));
-        }
+        if (handleHFError(res, error, KIChatResponseSchema, {
+            timeoutLabel: "CHAT_TIMEOUT",
+            timeoutMessage: "Chat-forespørselen tok for lang tid (timeout etter 25s). Prøv igjen eller forenkle spørsmålet.",
+            kontekst: "HuggingFace chat",
+        })) return;
 
         return res.status(500).json(KIChatResponseSchema.parse({
             suksess: false,
-            melding: `Kunne ikke få svar fra KI-assistenten. Prøv igjen senere.`,
+            melding: "Kunne ikke få svar fra KI-assistenten. Prøv igjen senere.",
             response: "",
         }));
     }

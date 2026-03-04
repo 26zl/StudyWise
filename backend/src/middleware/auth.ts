@@ -9,6 +9,7 @@ import jwt, { JwtPayload } from "jsonwebtoken";
 import { User } from "../database/models/User.js";
 import { decrypt } from "../utils/kryptering.js";
 import { logger } from "../utils/logger.js";
+import { apiError, sendError } from "../utils/apiError.js";
 import type { JwtBrukerPayload } from "../typer/express.js";
 import { AUTH_COOKIE_NAME, AUTH_REFRESH_COOKIE_NAME } from "common/auth";
 
@@ -120,24 +121,24 @@ export const autentiserJwt = (req: Request, res: Response, next: NextFunction) =
     const token = hentBearerToken(req) ?? hentCookieVerdi(req, JWT_COOKIE_NAVN);
 
     if (!token) {
-        return res.status(401).json({ feil: "Ingen JWT token gitt" });
+        return apiError.unauthorized(res, "Ingen JWT token gitt");
     }
 
     if (!process.env.JWT_ACCESS_SECRET) {
         logger.error("JWT_ACCESS_SECRET er ikke definert i miljøvariabler");
-        return res.status(500).json({ feil: "Intern serverfeil" });
+        return apiError.serverError(res);
     }
     // Verifiser JWT-token
     jwt.verify(token, process.env.JWT_ACCESS_SECRET, { algorithms: ["HS256"] }, (err, payload) => {
         if (err || !payload || typeof payload === "string") {
-            return res.status(403).json({ feil: "Ugyldig token" });
+            return sendError(res, "auth_error", { feil: "Ugyldig token", status: 403 });
         }
         if (!erGyldigBrukerPayload(payload)) {
-            return res.status(403).json({ feil: "Ugyldig token-payload" });
+            return sendError(res, "auth_error", { feil: "Ugyldig token-payload", status: 403 });
         }
         // Token-type KREVES for å forhindre misbruk av refresh-tokens som access-tokens
         if (!payload.tokenType || payload.tokenType !== "access") {
-            return res.status(403).json({ feil: "Ugyldig token-type" });
+            return sendError(res, "auth_error", { feil: "Ugyldig token-type", status: 403 });
         }
 
         req.user = { id: payload.id, email: payload.email };
@@ -148,12 +149,12 @@ export const autentiserJwt = (req: Request, res: Response, next: NextFunction) =
 // Middleware for å knytte Canvas API-token til request
 export const knyttCanvasToken = async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user?.id) {
-        return res.status(401).json({ feil: "Ikke autentisert" });
+        return apiError.unauthorized(res);
     }
     try {
         const user = await User.findById(req.user.id).select("+canvasApiToken");
         if (!user) {
-            return res.status(401).json({ feil: "Ugyldig bruker" });
+            return apiError.unauthorized(res, "Ugyldig bruker");
         }
 
         if (user?.canvasApiToken) {

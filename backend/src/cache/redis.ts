@@ -4,8 +4,8 @@
 import { createClient } from "redis";
 import { logger } from "../utils/logger.js";
 
-// Sjekk om vi er i produksjon og hent Redis URL fra miljøvariabler
-const isProd = process.env.NODE_ENV === "production";
+import { isProd } from "../utils/env.js";
+// Hent Redis URL fra miljøvariabler
 const redisUrl = process.env.REDIS_URL;
 
 const client = createClient({

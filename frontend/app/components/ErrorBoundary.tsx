@@ -7,45 +7,50 @@
 import { Component, type ReactNode } from "react";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 
+// Props og state for ErrorBoundary
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
 }
 
+// Hovedkomponent for ErrorBoundary
 interface State {
   hasError: boolean;
   error: Error | null;
 }
 
+// ErrorBoundary klassekomponent som fanger feil i underliggende komponenter
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null };
   }
 
+  // Oppdater state når en feil fanges
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
+  // Logg feilen for debugging (kun i development)
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     // Logger feilen til konsollen (kun i development for debugging)
     if (process.env.NODE_ENV === "development") {
       console.error("ErrorBoundary fanget feil:", error, errorInfo);
     }
   }
-
+  // Håndteringsfunksjoner for knappene i fallback UI
   handleReset = () => {
     this.setState({ hasError: false, error: null });
   };
-
+  // Last inn siden på nytt
   handleReload = () => {
     window.location.reload();
   };
-
+  // Gå til dashboardet
   handleGoHome = () => {
     window.location.href = "/dashboard";
   };
-
+  // Render fallback UI hvis det er en feil, ellers render children
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) {

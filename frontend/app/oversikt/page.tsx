@@ -13,6 +13,7 @@ import { useMeg } from "../auth/auth-api";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+// Denne siden er hovedoversikten for innloggede brukere, og viser en personlig ukeplan, statistikk og rask tilgang til funksjoner. Den håndterer også redirect til innlogging hvis ikke autentisert.
 export default function OversiktPage() {
     const router = useRouter();
     const megQuery = useMeg();

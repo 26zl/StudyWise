@@ -1,8 +1,8 @@
 /*
-* Canvas API klient for frontend
-* Håndterer kommunikasjon med backend API for Canvas data
-* Henter zod schemas fra common for validering av data
-*/
+ * Canvas API klient for frontend
+ * Håndterer kommunikasjon med backend API for Canvas data
+ * Henter zod schemas fra common for validering av data
+ */
 import { z, type ZodType } from "zod";
 import { useQuery, type QueryClient } from "@tanstack/react-query";
 import { fornySesjon } from "../auth/auth-api";
@@ -21,9 +21,12 @@ import {
   UpcomingEventsResponseSchema,
   TodoResponseSchema,
   ModuleItemDetailsResponseSchema,
+  ModuleItemOpenResponseSchema,
+  CoursesMetadataResponseSchema,
   MetaSchema,
   type CanvasAssignment,
   type CanvasCourse,
+  type ModuleItemOpenResponse,
 } from "common/canvas";
 
 // Eksporter typer
@@ -43,6 +46,9 @@ export type {
   CanvasFile,
   CanvasDiscussionTopic,
   CanvasModuleItemDetail,
+  ModuleItemOpenResponse,
+  CourseContentMetadata,
+  CoursesMetadataResponse,
 } from "common/canvas";
 
 // Importer delte feiltyper fra common
@@ -83,7 +89,12 @@ function isTokenError(error: unknown): boolean {
   if (error instanceof Error) {
     const msg = error.message.toLowerCase();
     // Kun ekte token-feil, ikke "ingen tilgang"
-    return msg.includes("token") && (msg.includes("ugyldig") || msg.includes("mangler") || msg.includes("utløpt"));
+    return (
+      msg.includes("token") &&
+      (msg.includes("ugyldig") ||
+        msg.includes("mangler") ||
+        msg.includes("utløpt"))
+    );
   }
   return false;
 }
@@ -114,29 +125,24 @@ export function resetCanvasTokenStatus() {
   useUIStore.getState().setCanvasTokenInvalid(false);
 }
 
-// API funksjoner
-async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>, forsoktRefresh = false): Promise<T> {
-  // Sjekk om token allerede er markert som ugyldig
-  if (useUIStore.getState().canvasTokenInvalid) {
-    throw new CanvasTokenInvalidError("Canvas-token er ugyldig. Oppdater tokenet i innstillinger.");
-  }
-
-  // Bruker relativ URL slik at Next.js rewrites håndterer videresending til backend (i Docker eller localhost)
-  const res = await fetch(`/api/canvas${endpoint}`, {
-    credentials: "include",
-    cache: "no-store",
-  });
-
+// Felles feilhåndtering for Canvas API-responser
+// Håndterer 401, 403, 404, 429, 5xx og generelle feil
+async function håndterFeilRespons<T>(
+  res: Response,
+  forsoktRefresh: boolean,
+  rekursivFn: () => Promise<T>,
+): Promise<void> {
   // Håndter 401 (ikke autentisert / ugyldig token)
   if (res.status === 401) {
-    // Prøv refresh først
     if (!forsoktRefresh) {
       await fornySesjon();
-      return fetchCanvas(endpoint, schema, true);
+      // Kaster resultatet som en "suksess-avbrudd" — fanges av kalleren
+      throw { __retry: true, result: await rekursivFn() };
     }
-    // Etter refresh-forsøk, marker token som ugyldig
     markTokenInvalid();
-    throw new CanvasTokenInvalidError("Canvas-token er ugyldig eller utløpt. Oppdater tokenet i innstillinger.");
+    throw new CanvasTokenInvalidError(
+      "Canvas-token er ugyldig eller utløpt. Oppdater tokenet i innstillinger.",
+    );
   }
 
   // Håndter 403 - skille mellom "token mangler" (vår backend) og "permission denied" (Canvas)
@@ -152,15 +158,13 @@ async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>, forsoktRefre
       // Ignorer JSON-parse feil
     }
 
-    // Kun marker token som ugyldig hvis det er en TOKEN-feil (fra vår backend)
-    // IKKE hvis det er permission denied fra Canvas (bruker kan mangle tilgang til én ressurs)
-    if (errorCode === "token_missing" || errorMessage.toLowerCase().includes("token mangler")) {
+    if (
+      errorCode === "token_missing" ||
+      errorMessage.toLowerCase().includes("token mangler")
+    ) {
       markTokenInvalid();
       throw new CanvasTokenMissingError(errorMessage);
     }
-
-    // Permission denied fra Canvas - IKKE marker token som ugyldig
-    // Token er OK, men bruker har ikke tilgang til denne spesifikke ressursen
     throw new CanvasPermissionError(errorMessage);
   }
 
@@ -173,14 +177,16 @@ async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>, forsoktRefre
       const error = JSON.parse(errorText);
       errorMessage = error.melding || error.feil || errorMessage;
       errorCode = error.kode || errorCode;
-      // Sjekk om det er "deaktivert" i meldingen
       if (errorMessage.toLowerCase().includes("deaktivert")) {
         errorCode = "resource_disabled";
       }
     } catch {
       // Ignorer JSON-parse feil
     }
-    throw new CanvasResourceError(errorCode as "resource_disabled" | "resource_not_found", errorMessage);
+    throw new CanvasResourceError(
+      errorCode as "resource_disabled" | "resource_not_found",
+      errorMessage,
+    );
   }
 
   // Håndter 429 - rate limited
@@ -196,7 +202,7 @@ async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>, forsoktRefre
     throw new CanvasApiError("rate_limited", errorMessage, 429);
   }
 
-  // Håndter 5xx - server error
+  // Håndter 5xx - server error (504 er timeout, resten er server_error)
   if (res.status >= 500) {
     const errorText = await res.text();
     let errorMessage = "Serverfeil";
@@ -206,9 +212,11 @@ async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>, forsoktRefre
     } catch {
       // Ignorer JSON-parse feil
     }
-    throw new CanvasApiError("server_error", errorMessage, res.status);
+    const code = res.status === 504 ? "timeout" : "server_error";
+    throw new CanvasApiError(code, errorMessage, res.status);
   }
 
+  // Generell feil for andre ikke-OK statuser
   if (!res.ok) {
     const errorText = await res.text();
     let errorMessage = "API feil";
@@ -222,15 +230,18 @@ async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>, forsoktRefre
     }
     throw new CanvasApiError(errorCode, errorMessage, res.status);
   }
-  const data = await res.json();
-  return schema.parse(data); // Type-safe parsing med Zod
 }
 
-// Variant som tillater null-respons (for 204 No Content)
-async function fetchCanvasNullable<T>(endpoint: string, schema: ZodType<T>, forsoktRefresh = false): Promise<T | null> {
-  // Sjekk om token allerede er markert som ugyldig
+// API funksjoner
+async function fetchCanvas<T>(
+  endpoint: string,
+  schema: ZodType<T>,
+  forsoktRefresh = false,
+): Promise<T> {
   if (useUIStore.getState().canvasTokenInvalid) {
-    throw new CanvasTokenInvalidError("Canvas-token er ugyldig. Oppdater tokenet i innstillinger.");
+    throw new CanvasTokenInvalidError(
+      "Canvas-token er ugyldig. Oppdater tokenet i innstillinger.",
+    );
   }
 
   const res = await fetch(`/api/canvas${endpoint}`, {
@@ -238,31 +249,47 @@ async function fetchCanvasNullable<T>(endpoint: string, schema: ZodType<T>, fors
     cache: "no-store",
   });
 
-  if (res.status === 401) {
-    if (!forsoktRefresh) {
-      await fornySesjon();
-      return fetchCanvasNullable(endpoint, schema, true);
+  try {
+    await håndterFeilRespons(res, forsoktRefresh, () =>
+      fetchCanvas(endpoint, schema, true),
+    );
+  } catch (e) {
+    if (e && typeof e === "object" && "__retry" in e) {
+      return (e as unknown as { result: T }).result;
     }
-    markTokenInvalid();
-    throw new CanvasTokenInvalidError("Canvas-token er ugyldig eller utløpt. Oppdater tokenet i innstillinger.");
+    throw e;
   }
 
-  // Håndter 403 - skille mellom "token mangler" og "permission denied"
-  if (res.status === 403) {
-    const errorText = await res.text();
-    let errorMessage = "Ingen tilgang";
-    let errorCode: CanvasErrorCode = "permission_denied";
-    try {
-      const error = JSON.parse(errorText);
-      errorMessage = error.melding || error.feil || errorMessage;
-      errorCode = error.kode || errorCode;
-    } catch { /* ignorer */ }
+  const data = await res.json();
+  return schema.parse(data);
+}
 
-    if (errorCode === "token_missing" || errorMessage.toLowerCase().includes("token mangler")) {
-      markTokenInvalid();
-      throw new CanvasTokenMissingError(errorMessage);
+// Variant som tillater null-respons (for 204 No Content)
+async function fetchCanvasNullable<T>(
+  endpoint: string,
+  schema: ZodType<T>,
+  forsoktRefresh = false,
+): Promise<T | null> {
+  if (useUIStore.getState().canvasTokenInvalid) {
+    throw new CanvasTokenInvalidError(
+      "Canvas-token er ugyldig. Oppdater tokenet i innstillinger.",
+    );
+  }
+
+  const res = await fetch(`/api/canvas${endpoint}`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  try {
+    await håndterFeilRespons(res, forsoktRefresh, () =>
+      fetchCanvasNullable(endpoint, schema, true),
+    );
+  } catch (e) {
+    if (e && typeof e === "object" && "__retry" in e) {
+      return (e as unknown as { result: T | null }).result;
     }
-    throw new CanvasPermissionError(errorMessage);
+    throw e;
   }
 
   // 204 No Content - returner null (ikke en feil)
@@ -270,57 +297,19 @@ async function fetchCanvasNullable<T>(endpoint: string, schema: ZodType<T>, fors
     return null;
   }
 
-  // Håndter 404 - kan være "ressurs deaktivert" eller "ikke funnet"
-  if (res.status === 404) {
-    const errorText = await res.text();
-    let errorMessage = "Ressursen ble ikke funnet";
-    let errorCode: CanvasErrorCode = "resource_not_found";
-    try {
-      const error = JSON.parse(errorText);
-      errorMessage = error.melding || error.feil || errorMessage;
-      errorCode = error.kode || errorCode;
-      if (errorMessage.toLowerCase().includes("deaktivert")) {
-        errorCode = "resource_disabled";
-      }
-    } catch { /* ignorer */ }
-    throw new CanvasResourceError(errorCode as "resource_disabled" | "resource_not_found", errorMessage);
-  }
-
-  if (!res.ok) {
-    const errorText = await res.text();
-    let errorMessage = "API feil";
-    let errorCode: CanvasErrorCode = "unknown";
-    try {
-      const error = JSON.parse(errorText);
-      errorMessage = error.melding || error.feil || errorMessage;
-      errorCode = error.kode || errorCode;
-    } catch {
-      errorMessage = errorText || errorMessage;
-    }
-    throw new CanvasApiError(errorCode, errorMessage, res.status);
-  }
   const data = await res.json();
   return schema.parse(data);
 }
-
-// Schema for modul-item open respons
-const ModuleItemOpenResponseSchema = z.union([
-  z.object({ type: z.literal("File"), downloadPath: z.string() }),
-  z.object({ type: z.literal("ExternalUrl"), url: z.string() }),
-  z.object({ type: z.literal("Page"), page_url: z.string(), html_url: z.string().optional() }),
-]);
-
-export type ModuleItemOpenResponse = z.infer<typeof ModuleItemOpenResponseSchema>;
 
 // Åpne modul-item via backend (henter fil-info dynamisk for filer uten content_id)
 export async function openModuleItem(
   courseId: number,
   moduleId: number,
-  itemId: number
+  itemId: number,
 ): Promise<ModuleItemOpenResponse> {
   return fetchCanvas(
     `/emner/${courseId}/modules/${moduleId}/items/${itemId}/open`,
-    ModuleItemOpenResponseSchema
+    ModuleItemOpenResponseSchema,
   );
 }
 
@@ -400,7 +389,8 @@ export function useCanvasUpcomingEvents(enabled = true) {
   const isEnabled = useCanvasEnabled(enabled);
   return useQuery({
     queryKey: ["canvas", "upcoming_events"],
-    queryFn: () => fetchCanvas("/users/self/upcoming_events", UpcomingEventsResponseSchema),
+    queryFn: () =>
+      fetchCanvas("/users/self/upcoming_events", UpcomingEventsResponseSchema),
     enabled: isEnabled,
     ...canvasQueryOptions,
   });
@@ -440,14 +430,16 @@ export function useCanvasAllAssignments(options?: { enabled?: boolean }) {
         try {
           const response = await fetchCanvas(
             `/emner/${course.id}/oppgaver`,
-            AssignmentsResponseSchema
+            AssignmentsResponseSchema,
           );
           // Legg til course_name på hver oppgave
-          return response.assignments.map((assignment): AssignmentMedEmne => ({
-            ...assignment,
-            course_name: course.name,
-            course_id: course.id,
-          }));
+          return response.assignments.map(
+            (assignment): AssignmentMedEmne => ({
+              ...assignment,
+              course_name: course.name,
+              course_id: course.id,
+            }),
+          );
         } catch {
           // Ignorer emner der vi ikke har tilgang til oppgaver
           return [];
@@ -457,29 +449,44 @@ export function useCanvasAllAssignments(options?: { enabled?: boolean }) {
       const allAssignments = await Promise.all(assignmentsPromises);
       return allAssignments.flat();
     },
-    enabled: isEnabled && !!coursesQuery.data?.courses && coursesQuery.data.courses.length > 0,
+    enabled:
+      isEnabled &&
+      !!coursesQuery.data?.courses &&
+      coursesQuery.data.courses.length > 0,
     ...canvasQueryOptions,
   });
 }
 
-
 // Hent detaljerte modul-items
-export function useCanvasModuleItemDetails(courseId: number, moduleId: number, enabled = true) {
+export function useCanvasModuleItemDetails(
+  courseId: number,
+  moduleId: number,
+  enabled = true,
+) {
   const isEnabled = useCanvasEnabled(enabled);
   return useQuery({
     queryKey: ["canvas", "module_items_detailed", courseId, moduleId],
-    queryFn: () => fetchCanvas(`/emner/${courseId}/modules/${moduleId}/items`, ModuleItemDetailsResponseSchema),
+    queryFn: () =>
+      fetchCanvas(
+        `/emner/${courseId}/modules/${moduleId}/items`,
+        ModuleItemDetailsResponseSchema,
+      ),
     enabled: !!courseId && !!moduleId && isEnabled,
     ...canvasQueryOptions,
   });
 }
 
 // Hent wiki page
-export function useCanvasPage(courseId: number, pageId: string | number, enabled = true) {
+export function useCanvasPage(
+  courseId: number,
+  pageId: string | number,
+  enabled = true,
+) {
   const isEnabled = useCanvasEnabled(enabled);
   return useQuery({
     queryKey: ["canvas", "page", courseId, pageId],
-    queryFn: () => fetchCanvas(`/emner/${courseId}/pages/${pageId}`, CanvasPageSchema),
+    queryFn: () =>
+      fetchCanvas(`/emner/${courseId}/pages/${pageId}`, CanvasPageSchema),
     enabled: !!courseId && !!pageId && isEnabled,
     ...canvasQueryOptions,
   });
@@ -497,11 +504,19 @@ export function useCanvasFile(fileId: number, enabled = true) {
 }
 
 // Hent diskusjon
-export function useCanvasDiscussion(courseId: number, topicId: number, enabled = true) {
+export function useCanvasDiscussion(
+  courseId: number,
+  topicId: number,
+  enabled = true,
+) {
   const isEnabled = useCanvasEnabled(enabled);
   return useQuery({
     queryKey: ["canvas", "discussion", courseId, topicId],
-    queryFn: () => fetchCanvas(`/emner/${courseId}/diskusjoner/${topicId}`, CanvasDiscussionTopicSchema),
+    queryFn: () =>
+      fetchCanvas(
+        `/emner/${courseId}/diskusjoner/${topicId}`,
+        CanvasDiscussionTopicSchema,
+      ),
     enabled: !!courseId && !!topicId && isEnabled,
     ...canvasQueryOptions,
   });
@@ -515,7 +530,10 @@ export function useCanvasFiles(courseId: number | null, enabled = true) {
     queryFn: () =>
       fetchCanvas(
         `/emner/${courseId}/files`,
-        z.object({ files: z.array(CanvasFileSchema), meta: MetaSchema.optional() })
+        z.object({
+          files: z.array(CanvasFileSchema),
+          meta: MetaSchema.optional(),
+        }),
       ),
     select: (res) => res.files,
     enabled: !!courseId && isEnabled,
@@ -531,7 +549,10 @@ export function useCanvasPages(courseId: number | null, enabled = true) {
     queryFn: () =>
       fetchCanvas(
         `/emner/${courseId}/pages`,
-        z.object({ pages: z.array(CanvasPageSchema), meta: MetaSchema.optional() })
+        z.object({
+          pages: z.array(CanvasPageSchema),
+          meta: MetaSchema.optional(),
+        }),
       ),
     select: (res) => res.pages,
     enabled: !!courseId && isEnabled,
@@ -547,7 +568,7 @@ export function useCanvasFrontPage(courseId: number | null, enabled = true) {
     queryFn: async () => {
       const result = await fetchCanvasNullable(
         `/emner/${courseId}/frontpage`,
-        z.object({ page: CanvasPageSchema, meta: MetaSchema.optional() })
+        z.object({ page: CanvasPageSchema, meta: MetaSchema.optional() }),
       );
       return result?.page ?? null;
     },
@@ -571,7 +592,8 @@ export function prefetchCanvasData(queryClient: QueryClient) {
   // Metadata for emner (frontpage/modules/files tilgjengelighet)
   queryClient.prefetchQuery({
     queryKey: ["canvas", "courses-metadata"],
-    queryFn: () => fetchCanvas("/emner/metadata", CoursesMetadataResponseSchema),
+    queryFn: () =>
+      fetchCanvas("/emner/metadata", CoursesMetadataResponseSchema),
     staleTime: 1000 * 60 * 30,
   });
   // Kalenderdata (frister, forelesninger, hendelser)
@@ -580,7 +602,10 @@ export function prefetchCanvasData(queryClient: QueryClient) {
     queryFn: async () => {
       const { CalendarItemsResponseSchema } = await import("common/calendar");
       const { mapCalendarItems } = await import("../calendar/calendar-api");
-      const res = await fetch("/api/canvas/kalender", { credentials: "include", cache: "no-store" });
+      const res = await fetch("/api/canvas/kalender", {
+        credentials: "include",
+        cache: "no-store",
+      });
       if (!res.ok) throw new Error("Kalender prefetch feilet");
       const data = CalendarItemsResponseSchema.parse(await res.json());
       return { ...mapCalendarItems(data.items), meta: data.meta };
@@ -600,27 +625,10 @@ export function prefetchCanvasData(queryClient: QueryClient) {
   // Kommende hendelser (brukes av AI Canvas-kontekst i innstillinger)
   queryClient.prefetchQuery({
     queryKey: ["canvas", "upcoming_events"],
-    queryFn: () => fetchCanvas("/users/self/upcoming_events", UpcomingEventsResponseSchema),
+    queryFn: () =>
+      fetchCanvas("/users/self/upcoming_events", UpcomingEventsResponseSchema),
   });
 }
-
-// Schema for emner metadata respons
-const CourseContentMetadataSchema = z.object({
-  hasFrontPage: z.boolean(),
-  hasModules: z.boolean(),
-  hasFiles: z.boolean(),
-  modulesCount: z.number(),
-  filesCount: z.number(),
-});
-
-const CoursesMetadataResponseSchema = z.object({
-  metadata: z.record(z.string(), CourseContentMetadataSchema),
-  courseCount: z.number(),
-  generatedAt: z.string(),
-});
-
-export type CourseContentMetadata = z.infer<typeof CourseContentMetadataSchema>;
-export type CoursesMetadataResponse = z.infer<typeof CoursesMetadataResponseSchema>;
 
 // Hent innholds-metadata for alle emner (forside, moduler, filer)
 // Brukes for å dynamisk vise/skjule knapper basert på hva som finnes
@@ -628,7 +636,8 @@ export function useCoursesMetadata(enabled = true) {
   const isEnabled = useCanvasEnabled(enabled);
   return useQuery({
     queryKey: ["canvas", "courses-metadata"],
-    queryFn: () => fetchCanvas("/emner/metadata", CoursesMetadataResponseSchema),
+    queryFn: () =>
+      fetchCanvas("/emner/metadata", CoursesMetadataResponseSchema),
     enabled: isEnabled,
     staleTime: 1000 * 60 * 30, // 30 minutter - metadata endres sjelden
     refetchOnWindowFocus: false,

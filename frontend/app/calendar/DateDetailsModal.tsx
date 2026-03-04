@@ -147,7 +147,7 @@ export function DateDetailsModal({
                                     )}
                                 </div>
 
-{/* Checkbox kun for innleveringer, ikke forelesninger */}
+                                {/* Checkbox kun for innleveringer, ikke forelesninger */}
                                 {(assignment.source === "assignment" || assignment.source === "todo") &&
                                  assignment.description !== "calendar_event" && (
                                     <button

@@ -10,7 +10,7 @@ import { CanvasUser } from "../../database/models/CanvasUser.js";
 import { decrypt, encrypt } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
 import { ZodError } from "zod";
-import { apiError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
+import { apiError, sendError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
 import { warmCanvasCache, fetchUserProfile } from "../canvas/canvasService.js";
 import { invalidateCacheByPattern } from "../../cache/redis.js";
 import {
@@ -421,7 +421,7 @@ router.post("/refresh", rateLimitRefresh, async (req, res) => {
     } catch (error) {
         // DB-feil (findById, save) — dette er server-error, ikke auth-feil
         logger.error({ err: error }, "Serverfeil ved token refresh");
-        return res.status(500).json({ feil: "Serverfeil ved fornyelse av sesjon. Prøv igjen." });
+        return sendError(res, "server_error", { melding: "Serverfeil ved fornyelse av sesjon. Prøv igjen." });
     }
 });
 

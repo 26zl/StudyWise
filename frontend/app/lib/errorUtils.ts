@@ -3,16 +3,19 @@
  * Samler all feilmeldingslogikk på ett sted for konsistens
  */
 
-import { type CanvasErrorCode, getErrorMessage as getCanvasErrorMessage } from "common/canvasErrors";
+import {
+  type CanvasErrorCode,
+  getErrorMessage as getCanvasErrorMessage,
+} from "common/canvasErrors";
 
 // Interface for strukturerte Canvas-feil med feilkode
 interface StructuredCanvasError extends Error {
-    code?: CanvasErrorCode;
-    httpStatus?: number;
+  code?: CanvasErrorCode;
+  httpStatus?: number;
 }
 
 // Feiltyper som kan identifiseres
-export type FeilType = 
+export type FeilType =
   | "auth"
   | "token"
   | "rate_limit"
@@ -25,12 +28,16 @@ export type FeilType =
   | "unknown";
 
 // Identifiser feiltype basert på feilmelding eller HTTP-status
-export function identifiserFeiltype(error: Error | string | null, status?: number): FeilType {
+export function identifiserFeiltype(
+  error: Error | string | null,
+  status?: number,
+): FeilType {
   const msg = typeof error === "string" ? error : error?.message || "";
   const name = typeof error === "object" && error !== null ? error.name : "";
-  
+
   // Sjekk error.name først (for spesialiserte feilklasser)
-  if (name === "KIAuthError" || name === "CanvasTokenMissingError") return "auth";
+  if (name === "KIAuthError" || name === "CanvasTokenMissingError")
+    return "auth";
   if (name === "KIRateLimitError") return "rate_limit";
   if (name === "KITimeoutError") return "timeout";
   if (name === "KIServiceError") return "server";
@@ -45,32 +52,59 @@ export function identifiserFeiltype(error: Error | string | null, status?: numbe
 
   // Sjekk feilmelding
   const lowerMsg = msg.toLowerCase();
-  
-  if (lowerMsg.includes("401") || lowerMsg.includes("unauthorized") || lowerMsg.includes("ugyldig")) {
+
+  if (
+    lowerMsg.includes("401") ||
+    lowerMsg.includes("unauthorized") ||
+    lowerMsg.includes("ugyldig")
+  ) {
     return "auth";
   }
-  if (lowerMsg.includes("403") || lowerMsg.includes("forbidden") || lowerMsg.includes("ingen tilgang")) {
+  if (
+    lowerMsg.includes("403") ||
+    lowerMsg.includes("forbidden") ||
+    lowerMsg.includes("ingen tilgang")
+  ) {
     return "forbidden";
   }
-  if (lowerMsg.includes("404") || lowerMsg.includes("not found") || lowerMsg.includes("finnes ikke")) {
+  if (
+    lowerMsg.includes("404") ||
+    lowerMsg.includes("not found") ||
+    lowerMsg.includes("finnes ikke")
+  ) {
     return "not_found";
   }
-  if (lowerMsg.includes("429") || lowerMsg.includes("rate") || lowerMsg.includes("for mange")) {
+  if (
+    lowerMsg.includes("429") ||
+    lowerMsg.includes("rate") ||
+    lowerMsg.includes("for mange")
+  ) {
     return "rate_limit";
   }
-  if (lowerMsg.includes("timeout") || lowerMsg.includes("504") || lowerMsg.includes("tok for lang")) {
+  if (
+    lowerMsg.includes("timeout") ||
+    lowerMsg.includes("504") ||
+    lowerMsg.includes("tok for lang")
+  ) {
     return "timeout";
   }
-  if (lowerMsg.includes("network") || lowerMsg.includes("fetch") || lowerMsg.includes("nettverksfeil")) {
+  if (
+    lowerMsg.includes("network") ||
+    lowerMsg.includes("fetch") ||
+    lowerMsg.includes("nettverksfeil")
+  ) {
     return "network";
   }
-  if (lowerMsg.includes("token") && (lowerMsg.includes("mangler") || lowerMsg.includes("missing"))) {
+  if (
+    lowerMsg.includes("token") &&
+    (lowerMsg.includes("mangler") || lowerMsg.includes("missing"))
+  ) {
     return "token";
   }
   if (lowerMsg.includes("validering") || lowerMsg.includes("ugyldig format")) {
     return "validation";
   }
-  
+
   return "unknown";
 }
 
@@ -86,7 +120,7 @@ interface FeilmeldingKontekst {
 export function lagBrukervennligFeilmelding(
   error: Error | string | null,
   kontekst: FeilmeldingKontekst = {},
-  fallback = "Noe gikk galt. Prøv igjen."
+  fallback = "Noe gikk galt. Prøv igjen.",
 ): string {
   // Sjekk for strukturert Canvas-feilkode først (høyeste prioritet)
   if (kontekst.canvas && error && typeof error === "object") {
@@ -96,6 +130,7 @@ export function lagBrukervennligFeilmelding(
     }
   }
 
+  // Identifiser feiltype
   const feiltype = identifiserFeiltype(error);
 
   // Canvas-spesifikke meldinger
@@ -116,7 +151,7 @@ export function lagBrukervennligFeilmelding(
         return "Kunne ikke koble til Canvas. Sjekk internettforbindelsen din.";
     }
   }
-  
+
   // KI-spesifikke meldinger
   if (kontekst.ki) {
     switch (feiltype) {
@@ -132,7 +167,7 @@ export function lagBrukervennligFeilmelding(
         return "Kunne ikke koble til KI-tjenesten. Sjekk internettforbindelsen din.";
     }
   }
-  
+
   // Auth-spesifikke meldinger
   if (kontekst.auth) {
     switch (feiltype) {
@@ -146,7 +181,7 @@ export function lagBrukervennligFeilmelding(
         return "Ugyldig e-postadresse eller passord. Sjekk at formatet er riktig.";
     }
   }
-  
+
   // Kalender-spesifikke meldinger
   if (kontekst.kalender) {
     switch (feiltype) {
@@ -159,8 +194,8 @@ export function lagBrukervennligFeilmelding(
         return "Henting av kalenderdata tok for lang tid. Prøv igjen.";
     }
   }
-  
-  // Generiske meldinger
+
+// Generiske meldinger
   switch (feiltype) {
     case "auth":
       return "Du må logge inn på nytt.";
@@ -186,5 +221,23 @@ export function lagBrukervennligFeilmelding(
       }
       return fallback;
     }
+  }
+}
+
+/**
+ * Parser en feilrespons fra backend.
+ * Prøver å tolke JSON-body med { melding, feil } felter,
+ * faller tilbake til ren tekst eller en standardmelding.
+ */
+export async function parseApiError(
+  res: Response,
+  fallback = "API feil",
+): Promise<string> {
+  const errorText = await res.text();
+  try {
+    const error = JSON.parse(errorText);
+    return error.melding || error.feil || fallback;
+  } catch {
+    return errorText || fallback;
   }
 }

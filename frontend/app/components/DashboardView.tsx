@@ -17,6 +17,7 @@ import { useMeg } from "../auth/auth-api";
 import { prefetchCanvasData, useCanvasAllAssignments } from "../canvas/canvas-api";
 import { useUIStore } from "../store/uiStore";
 import { useFristVarsler } from "../hooks/useFristVarsler";
+import { useChatHistoryPrefetch } from "../hooks/useChatHistory";
 
 // Gyldige visningstyper for URL-validering
 const GYLDIGE_VISNINGER: VisningType[] = [
@@ -86,7 +87,7 @@ export function DashboardView() {
             });
         }
     }, [searchParams, aktivVisning]);
-
+    // Hent brukerdata og Canvas-token status
     const megQuery = useMeg();
     const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
     const brukerQueryAktiv = megQuery.isSuccess && harCanvasToken;
@@ -121,28 +122,14 @@ export function DashboardView() {
         }
     }, [harCanvasToken, queryClient]);
 
-    // Prefetch samtalehistorikk for innstillinger (uavhengig av Canvas-token)
+    // Prefetch samtalehistorikk — useChatHistory i ChatSection bruker samme query key
+    // Prefetch her slik at data er klar når bruker åpner chatten
+    const { prefetchChatHistory } = useChatHistoryPrefetch();
     useEffect(() => {
         if (megQuery.isSuccess) {
-            queryClient.prefetchQuery({
-                queryKey: ["chat-history"],
-                queryFn: async () => {
-                    const { ChatHistoryResponseSchema } = await import("common/chat");
-                    const res = await fetch("/api/ki/chat/history?limit=20&page=1", {
-                        credentials: "include",
-                        cache: "no-store",
-                    });
-                    if (!res.ok) return [];
-                    const data = await res.json();
-                    const parsed = ChatHistoryResponseSchema.parse(data);
-                    return parsed.chats
-                        .slice(0, 50)
-                        .map((c: { timestamp: string | Date }) => ({ ...c, timestamp: new Date(c.timestamp) }));
-                },
-                staleTime: 1000 * 60 * 5,
-            });
+            prefetchChatHistory(queryClient);
         }
-    }, [megQuery.isSuccess, queryClient]);
+    }, [megQuery.isSuccess, queryClient, prefetchChatHistory]);
 
     // Hent fornavn fra Canvas brukerdata
     const brukernavn =

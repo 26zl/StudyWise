@@ -110,6 +110,7 @@ export const SubTaskSchema = z.object({
   completed: z.boolean(),
 });
 
+// Task breakdown response schema for KI task breakdown API
 export const TaskBreakdownResponseSchema = z.object({
   subtasks: z.array(SubTaskSchema),
 });
@@ -120,6 +121,7 @@ export const KIOppsummeringRequestSchema = z.object({
   type: z.enum(["tldr", "handlinger", "begge"]).optional().default("begge"),
 });
 
+// Saniteringsregler for HTML-innhold i Canvas-data
 export const KIOppsummeringResponseSchema = z.object({
   suksess: z.boolean(),
   oppsummering: z.string().optional(),

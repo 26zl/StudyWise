@@ -23,6 +23,7 @@ import {
   type CanvasWarning,
   getErrorMessage,
   classifyHttpStatus,
+  isRecoverableError,
 } from "common/canvasErrors";
 
 // Backend-spesifikk: Strukturert Canvas-feil med all nødvendig info
@@ -55,7 +56,7 @@ export function createCanvasError(
   error.endpoint = options?.endpoint;
   error.details = options?.details;
   error.retryAfter = options?.retryAfter;
-  error.recoverable = ["rate_limited", "timeout", "server_error", "network_error"].includes(code);
+  error.recoverable = isRecoverableError(code);
   return error;
 }
 
@@ -80,8 +81,24 @@ export function createWarningFromError(
   };
 }
 
+// Korte feil-labels for API-respons (brukes i `feil`-feltet)
+const ERROR_LABELS: Record<CanvasErrorCode, string> = {
+  token_invalid: "Ugyldig Canvas-token",
+  token_missing: "Canvas-token mangler",
+  permission_denied: "Ingen tilgang",
+  resource_disabled: "Ressurs deaktivert",
+  resource_not_found: "Ikke funnet",
+  rate_limited: "For mange forespørsler",
+  timeout: "Tidsavbrudd",
+  server_error: "Serverfeil",
+  network_error: "Nettverksfeil",
+  validation_error: "Validering feilet",
+  unknown: "Ukjent feil",
+};
+
 /**
- * Generer strukturert API feilrespons
+ * Generer strukturert API feilrespons.
+ * Bruker getErrorMessage() fra common for konsistente brukervenlige meldinger.
  */
 export function getErrorResponse(code: CanvasErrorCode, details?: string): {
   feil: string;
@@ -89,56 +106,9 @@ export function getErrorResponse(code: CanvasErrorCode, details?: string): {
   kode: CanvasErrorCode;
   detaljer?: string;
 } {
-  const baseMessages: Record<CanvasErrorCode, { feil: string; melding: string }> = {
-    token_invalid: {
-      feil: "Ugyldig Canvas-token",
-      melding: "Canvas-tokenet ditt er ugyldig eller utløpt. Oppdater tokenet i innstillinger.",
-    },
-    token_missing: {
-      feil: "Canvas-token mangler",
-      melding: "Koble brukeren til Canvas før du bruker disse funksjonene.",
-    },
-    permission_denied: {
-      feil: "Ingen tilgang",
-      melding: "Du har ikke tilgang til denne ressursen i Canvas.",
-    },
-    resource_disabled: {
-      feil: "Ressurs deaktivert",
-      melding: "Denne funksjonen er deaktivert for dette emnet.",
-    },
-    resource_not_found: {
-      feil: "Ikke funnet",
-      melding: "Ressursen ble ikke funnet i Canvas.",
-    },
-    rate_limited: {
-      feil: "For mange forespørsler",
-      melding: "Canvas API er overbelastet. Vent noen sekunder og prøv igjen.",
-    },
-    timeout: {
-      feil: "Tidsavbrudd",
-      melding: "Forespørselen tok for lang tid. Prøv igjen.",
-    },
-    server_error: {
-      feil: "Serverfeil",
-      melding: "Canvas eller serveren opplever problemer. Prøv igjen senere.",
-    },
-    network_error: {
-      feil: "Nettverksfeil",
-      melding: "Kunne ikke nå Canvas. Sjekk nettverksforbindelsen.",
-    },
-    validation_error: {
-      feil: "Validering feilet",
-      melding: "Canvas returnerte uventet data-format.",
-    },
-    unknown: {
-      feil: "Ukjent feil",
-      melding: "En uventet feil oppstod.",
-    },
-  };
-
-  const base = baseMessages[code] || baseMessages.unknown;
   return {
-    ...base,
+    feil: ERROR_LABELS[code] || ERROR_LABELS.unknown,
+    melding: getErrorMessage(code),
     kode: code,
     detaljer: details,
   };

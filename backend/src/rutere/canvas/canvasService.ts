@@ -586,26 +586,14 @@ export interface NormalizedCalendarEvent {
   url: string | null;
   descriptionText: string | null;
 }
+import { stripHtml } from "../../utils/htmlUtils.js";
 /**
  * Fjerner HTML-tags og stylesheet-linker fra description
  * Returnerer ren tekst (eller null hvis tom)
  */
 function stripHtmlFromDescription(html: string | null | undefined): string | null {
   if (!html) return null;
-  // Fjern <link rel="stylesheet"> og <style> tags
-  let cleaned = html.replace(/<link[^>]*rel=["']stylesheet["'][^>]*>/gi, "");
-  cleaned = cleaned.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
-  // Fjern alle HTML-tags
-  cleaned = cleaned.replace(/<[^>]+>/g, " ");
-  // Dekod HTML-entities
-  cleaned = cleaned.replace(/&nbsp;/g, " ");
-  cleaned = cleaned.replace(/&amp;/g, "&");
-  cleaned = cleaned.replace(/&lt;/g, "<");
-  cleaned = cleaned.replace(/&gt;/g, ">");
-  cleaned = cleaned.replace(/&quot;/g, '"');
-  cleaned = cleaned.replace(/&#39;/g, "'");
-  // Fjern ekstra whitespace og trim
-  cleaned = cleaned.replace(/\s+/g, " ").trim();
+  const cleaned = stripHtml(html, { removeStyles: true });
   return cleaned.length > 0 ? cleaned : null;
 }
 /**

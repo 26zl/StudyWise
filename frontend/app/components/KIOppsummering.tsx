@@ -46,16 +46,18 @@ const storrelser = {
         feilMargin: "mt-2",
     },
 } as const;
+
 // Props for KIOppsummering komponenten
 interface KIOppsummeringProps {
     tekst: string;
     storrelse: "sm" | "md" | "lg";
     variant?: "default" | "inline";
 }
+
 // Hovedkomponenten for KI-oppsummering
 export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOppsummeringProps) {
     const { oppsummer, isPending, data, error } = useKIOppsummeringHook();
-    const [aapen, settAapen] = useState(false);
+    const [åpen, settÅpen] = useState(false);
     const [resultat, settResultat] = useState<KIOppsummeringResponse | null>(null);
     const harTekst = tekst.trim().length > 0;
 
@@ -64,7 +66,7 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
     // Håndterer klikk på oppsummeringsknappen
     const handleOppsummer = useCallback(() => {
         if (resultat) {
-            settAapen((v) => !v);
+            settÅpen((v) => !v);
             return;
         }
         if (!harTekst) return;
@@ -72,24 +74,26 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
             type: "begge",
             onSuccess: (data) => {
                 settResultat(data);
-                settAapen(true);
+                settÅpen(true);
             },
             onError: (err) => {
                 showToast.error("Kunne ikke oppsummere", err.message);
             },
         });
     }, [tekst, oppsummer, resultat, harTekst]);
+
     // Oppdaterer resultat og åpner oppsummering når data kommer inn
     useEffect(() => {
         if (data?.suksess && !resultat) {
             settResultat(data);
-            settAapen(true);
+            settÅpen(true);
         }
     }, [data, resultat]);
 
+    // Bestemmer knappetekst basert på tilstand
     const isInline = variant === "inline";
     const wrapperClass = isInline
-        ? `self-center ${aapen && resultat ? "w-full basis-full order-10" : ""}`
+        ? `self-center ${åpen && resultat ? "w-full basis-full order-10" : ""}`
         : storrelse === "lg" ? "px-8 pb-6" : storrelse === "md" ? "mt-3" : "mt-2";
 
     // Ikon-rendering basert på størrelse
@@ -100,6 +104,7 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
         const str = storrelse === "md" ? 14 : 16;
         return <SpinnerEllerIkon size={str} className={SpinnerEllerIkon === Loader2 ? "animate-spin" : ""} />;
     };
+
     // Chevron-rendering basert på størrelse
     const renderChevron = (Chevron: typeof ChevronUp | typeof ChevronDown) => {
         if (storrelse === "sm") {
@@ -107,6 +112,7 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
         }
         return <Chevron size={storrelse === "md" ? 14 : 14} />;
     };
+
     // Sjekk-ikon-rendering basert på størrelse
     const renderSjekkIkon = () => {
         if (storrelse === "sm") {
@@ -114,10 +120,12 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
         }
         return <CheckCircle2 size={14} className="text-purple-500 dark:text-purple-400 mt-0.5 shrink-0" />;
     };
+
     // Bestemmer knappetekst basert på tilstand
     const knappTekst = resultat
-        ? (aapen ? "Skjul oppsummering" : "Vis oppsummering")
+        ? (åpen ? "Skjul oppsummering" : "Vis oppsummering")
         : harTekst ? "Oppsummer med KI" : "Ingen innhold å oppsummere";
+
     // Håndterer loading state
     return (
         <div className={wrapperClass}>
@@ -129,10 +137,10 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
             >
                 {renderIkon(isPending ? Loader2 : Sparkles)}
                 {knappTekst}
-                {resultat && renderChevron(aapen ? ChevronUp : ChevronDown)}
+                {resultat && renderChevron(åpen ? ChevronUp : ChevronDown)}
             </button>
 
-            {aapen && resultat && (
+            {åpen && resultat && (
                 <div className={`mt-2 sm:mt-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 ${s.boks}`}>
                     {resultat.oppsummering && (
                         <div>

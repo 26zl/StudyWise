@@ -6,6 +6,7 @@ import type { Request, Response, NextFunction } from "express";
 import { RateLimiterMemory, RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import redisClient, { isRedisReady } from "../cache/redis.js";
 import { logger } from "../utils/logger.js";
+import { apiError, sendError } from "../utils/apiError.js";
 
 
 // Ratelimit konfigurasjonstype
@@ -62,22 +63,16 @@ export const createRateLimiter = ({ points, duration, keyPrefix = "rlflx" }: Rat
             if (isRateLimiterResult(err)) {
                 setRateLimitHeaders(res, err, points);
                 res.setHeader("Retry-After", String(Math.ceil(err.msBeforeNext / 1000)));
-                return res.status(429).json({
-                    feil: "For mange forespørsler",
-                    melding: "Du har nådd grensen for forespørsler. Prøv igjen senere.",
-                });
+                return apiError.rateLimited(res, "Du har nådd grensen for forespørsler. Prøv igjen senere.");
             }
             logger.error({ err }, "Rate limiter feil");
-            return res.status(500).json({
-                feil: "Rate limiter feil",
-                melding: "Kunne ikke verifisere rate limit. Prøv igjen senere.",
-            });
+            return sendError(res, "server_error", { melding: "Kunne ikke verifisere rate limit. Prøv igjen senere." });
         }
     };
 };
 
+import { isProd } from "../utils/env.js";
 // Miljø-avhengige begrensninger (balansert beskyttelse)
-const isProd = process.env.NODE_ENV === "production";
 
 // Sjenerøse grenser i utvikling for god utvikleropplevelse
 const devKiLimit = { points: 300, duration: 60, keyPrefix: "rlflx:ki:dev" };

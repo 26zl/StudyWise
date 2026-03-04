@@ -1,21 +1,43 @@
 /*
-* Frontend API for å fetche kalenderdata fra Canvas.
-* Inkluderer støtte for filtrering mellom innleveringer og forelesninger.
-*/
+ * Frontend API for å fetche kalenderdata fra Canvas.
+ * Inkluderer støtte for filtrering mellom innleveringer og forelesninger.
+ */
 import { useQuery } from "@tanstack/react-query";
-import { CalendarItemsResponseSchema, type CalendarItem } from "common/calendar";
+import {
+  CalendarItemsResponseSchema,
+  type CalendarItem,
+} from "common/calendar";
 import { fornySesjon } from "../auth/auth-api";
-import type { Assignment, Course, CourseColor, CalendarFilterType } from "common/calendar-ui";
+import type {
+  Assignment,
+  Course,
+  CourseColor,
+  CalendarFilterType,
+} from "common/calendar-ui";
 import { CanvasTokenMissingError } from "../lib/errors";
+import { parseApiError } from "../lib/errorUtils";
 
 // Re-eksporter for bakoverkompatibilitet
 export { CanvasTokenMissingError } from "../lib/errors";
 
 // Definer en utvidet palett av farger for kursene - gir hvert emne unik farge
 const COLOR_PALETTE: CourseColor[] = [
-  "blue", "green", "purple", "red", "amber", "cyan",
-  "pink", "indigo", "teal", "orange", "lime", "rose",
-  "violet", "emerald", "sky", "fuchsia"
+  "blue",
+  "green",
+  "purple",
+  "red",
+  "amber",
+  "cyan",
+  "pink",
+  "indigo",
+  "teal",
+  "orange",
+  "lime",
+  "rose",
+  "violet",
+  "emerald",
+  "sky",
+  "fuchsia",
 ];
 
 // Opsjoner for kalender-henting
@@ -29,16 +51,19 @@ interface FetchCalendarOptions {
 // : Støtter force-refresh og paginering
 async function fetchCalendarItems(
   options: FetchCalendarOptions = {},
-  forsoktRefresh = false
+  forsoktRefresh = false,
 ) {
+  // Bygg query params basert på opsjoner
   const params = new URLSearchParams();
   if (options.forceRefresh) params.set("refresh", "true");
   if (options.page) params.set("page", String(options.page));
   if (options.limit) params.set("limit", String(options.limit));
 
+  // Bygg URL med query params
   const queryString = params.toString();
   const url = `/api/canvas/kalender${queryString ? `?${queryString}` : ""}`;
 
+  // Gjør fetch med autentisering og håndtering av 401/403
   const res = await fetch(url, {
     credentials: "include",
     cache: "no-store",
@@ -50,12 +75,14 @@ async function fetchCalendarItems(
   }
   // Håndter 403 (manglende Canvas-token) - ikke prøv refresh
   if (res.status === 403) {
-    const errorBody = await res.json().catch(() => ({}));
-    throw new CanvasTokenMissingError(errorBody.melding || errorBody.feil || "Canvas-token mangler");
+    throw new CanvasTokenMissingError(
+      await parseApiError(res, "Canvas-token mangler"),
+    );
   }
   if (!res.ok) {
-    const errorBody = await res.json().catch(() => ({}));
-    throw new Error(errorBody.melding || errorBody.feil || "Kunne ikke hente kalenderdata");
+    throw new Error(
+      await parseApiError(res, "Kunne ikke hente kalenderdata"),
+    );
   }
   const data = await res.json();
   return CalendarItemsResponseSchema.parse(data);
@@ -83,7 +110,10 @@ function createColorMapper(colorMap: Map<string, CourseColor>, startIndex = 0) {
   };
 }
 // Funksjon for å mappe kalenderdata til oppgaver og kurs
-export function mapCalendarItems(items: CalendarItem[]): { assignments: Assignment[]; courses: Course[] } {
+export function mapCalendarItems(items: CalendarItem[]): {
+  assignments: Assignment[];
+  courses: Course[];
+} {
   const colorMap = new Map<string, CourseColor>();
   const getColorForKey = createColorMapper(colorMap);
   // Lister for kurs og oppgaver
@@ -95,9 +125,10 @@ export function mapCalendarItems(items: CalendarItem[]): { assignments: Assignme
     let courseCode: string;
     let courseName: string;
     // Prøv i rekkefølge: course_code, course_name, title
-    const extractedCode = extractCourseCode(item.course_code || "")
-      || extractCourseCode(item.course_name || "")
-      || extractCourseCode(item.title || "");
+    const extractedCode =
+      extractCourseCode(item.course_code || "") ||
+      extractCourseCode(item.course_name || "") ||
+      extractCourseCode(item.title || "");
     if (extractedCode) {
       courseCode = extractedCode;
       courseName = item.course_name || extractedCode;
@@ -114,7 +145,9 @@ export function mapCalendarItems(items: CalendarItem[]): { assignments: Assignme
       courseCode = "Annet";
       courseName = "Annet";
     }
-    const courseKey = item.course_id ? `course-${item.course_id}` : `code-${courseCode}`;
+    const courseKey = item.course_id
+      ? `course-${item.course_id}`
+      : `code-${courseCode}`;
     // Gi hvert emne sin egen unike farge
     const courseColor = getColorForKey(courseKey);
     // Legg til kurs hvis det ikke allerede finnes
@@ -156,25 +189,26 @@ function isLectureOrEvent(a: Assignment): boolean {
   // Sjekk source
   if (a.source === "event" || a.source === "timetable") return true;
   // Sjekk raw_type (lagret i description) for calendar_events som feilaktig har source=todo
-  if (a.description === "calendar_event" || a.description === "CalendarEvent") return true;
+  if (a.description === "calendar_event" || a.description === "CalendarEvent")
+    return true;
   return false;
 }
 
 // Filtrer kalender-elementer basert på filtertype
 function filterAssignments(
   assignments: Assignment[],
-  filter: CalendarFilterType
+  filter: CalendarFilterType,
 ): Assignment[] {
   if (filter === "all") {
     return assignments;
   }
   if (filter === "assignments") {
     // Vis kun innleveringer - ekskluder alle forelesninger/events
-    return assignments.filter(a => !isLectureOrEvent(a));
+    return assignments.filter((a) => !isLectureOrEvent(a));
   }
   if (filter === "timetable") {
     // Vis kun forelesninger/events
-    return assignments.filter(a => isLectureOrEvent(a));
+    return assignments.filter((a) => isLectureOrEvent(a));
   }
 
   return assignments;
@@ -204,7 +238,7 @@ export function useCalendarData(enabled = true) {
 // Bruker kun /kalender - ingen ekstra fetch ved filter-bytte
 export function useCombinedCalendarData(
   filter: CalendarFilterType = "all",
-  hasCanvasToken: boolean = true
+  hasCanvasToken: boolean = true,
 ) {
   // Hent ALL data fra /kalender (inkluderer både assignments OG events/forelesninger)
   // Filtreringen skjer client-side - ingen ekstra API-kall ved filter-bytte
@@ -228,7 +262,7 @@ export function useCombinedCalendarData(
     isLoading: canvasQuery.isLoading,
     isError: canvasQuery.isError,
     error: canvasQuery.error,
-    hasLecturesData: allAssignments.some(a => isLectureOrEvent(a)),
+    hasLecturesData: allAssignments.some((a) => isLectureOrEvent(a)),
     hasCanvasData: allAssignments.length > 0,
     // Eksponerer refetch for manuell oppdatering
     refetch: canvasQuery.refetch,

@@ -6,17 +6,17 @@ import { z } from "zod";
 
 // Stabile feilkoder som brukes på tvers av frontend og backend
 export const CanvasErrorCodeSchema = z.enum([
-  "token_invalid",      // 401 - Token ugyldig/utløpt, krever re-autentisering
-  "token_missing",      // 403 fra vår backend - ingen token lagret
-  "permission_denied",  // 403 fra Canvas - bruker har ikke tilgang til ressursen
-  "resource_disabled",  // 404 - Ressursen er deaktivert i kurset (f.eks. Pages)
+  "token_invalid", // 401 - Token ugyldig/utløpt, krever re-autentisering
+  "token_missing", // 403 fra vår backend - ingen token lagret
+  "permission_denied", // 403 fra Canvas - bruker har ikke tilgang til ressursen
+  "resource_disabled", // 404 - Ressursen er deaktivert i kurset (f.eks. Pages)
   "resource_not_found", // 404 - Ressursen finnes ikke
-  "rate_limited",       // 429 - For mange forespørsler
-  "timeout",            // Tidsavbrudd
-  "server_error",       // 5xx - Canvas/server-feil
-  "network_error",      // Nettverksfeil
-  "validation_error",   // Zod validering feilet
-  "unknown",            // Ukjent feil
+  "rate_limited", // 429 - For mange forespørsler
+  "timeout", // Tidsavbrudd
+  "server_error", // 5xx - Canvas/server-feil
+  "network_error", // Nettverksfeil
+  "validation_error", // Zod validering feilet
+  "unknown", // Ukjent feil
 ]);
 
 export type CanvasErrorCode = z.infer<typeof CanvasErrorCodeSchema>;
@@ -24,7 +24,7 @@ export type CanvasErrorCode = z.infer<typeof CanvasErrorCodeSchema>;
 // Strukturert advarsel for delvis suksess (brukes i aggregerte endepunkter)
 export const CanvasWarningSchema = z.object({
   scope: z.enum(["course", "user", "global"]),
-  resource: z.string(),  // f.eks. "files", "pages", "modules"
+  resource: z.string(), // f.eks. "files", "pages", "modules"
   code: CanvasErrorCodeSchema,
   httpStatus: z.number().optional(),
   message: z.string(),
@@ -56,7 +56,9 @@ export function requiresReauth(code: CanvasErrorCode): boolean {
  * Sjekk om feil er gjenopprettbar (kan prøves igjen)
  */
 export function isRecoverableError(code: CanvasErrorCode): boolean {
-  return ["rate_limited", "timeout", "server_error", "network_error"].includes(code);
+  return ["rate_limited", "timeout", "server_error", "network_error"].includes(
+    code,
+  );
 }
 
 /**
@@ -64,7 +66,7 @@ export function isRecoverableError(code: CanvasErrorCode): boolean {
  */
 export function classifyHttpStatus(
   status: number,
-  errorBody?: string
+  errorBody?: string,
 ): CanvasErrorCode {
   const lowerBody = errorBody?.toLowerCase() || "";
 
@@ -74,7 +76,10 @@ export function classifyHttpStatus(
 
     case 403:
       // Skille mellom "token mangler" (vår feil) og "permission denied" (Canvas)
-      if (lowerBody.includes("unauthorized") || lowerBody.includes("ikke autorisert")) {
+      if (
+        lowerBody.includes("unauthorized") ||
+        lowerBody.includes("ikke autorisert")
+      ) {
         return "permission_denied";
       }
       if (lowerBody.includes("token") && lowerBody.includes("mangler")) {
@@ -105,8 +110,13 @@ export function classifyHttpStatus(
 /**
  * Brukervenlige feilmeldinger basert på feilkode
  */
-export function getErrorMessage(code: CanvasErrorCode, resource?: string): string {
-  const resourceName = resource ? getResourceDisplayName(resource) : "ressursen";
+export function getErrorMessage(
+  code: CanvasErrorCode,
+  resource?: string,
+): string {
+  const resourceName = resource
+    ? getResourceDisplayName(resource)
+    : "ressursen";
 
   switch (code) {
     case "token_invalid":
@@ -176,7 +186,7 @@ function getResourceDisplayName(resource: string): string {
   };
   return names[resource] || resource;
 }
-
+// Stor bokstav først
 function capitalizeFirst(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }

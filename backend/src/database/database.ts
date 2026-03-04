@@ -6,8 +6,7 @@
 import mongoose from "mongoose";
 import { logger } from "../utils/logger.js";
 
-// Miljø-basert konfigurasjon
-const isProd = process.env.NODE_ENV === "production";
+import { isProd } from "../utils/env.js";
 
 // MongoDB klient opsjoner med connection pooling
 const clientOptions: mongoose.ConnectOptions = {

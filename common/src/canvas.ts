@@ -338,3 +338,36 @@ export const NormalizedCanvasCalendarEventSchema = z.object({
 }).loose();
 
 export type NormalizedCanvasCalendarEvent = z.infer<typeof NormalizedCanvasCalendarEventSchema>;
+
+// Schema for modul-item "open" respons
+export const ModuleItemOpenResponseSchema = z.union([
+  z.object({ type: z.literal("File"), downloadPath: z.string() }),
+  z.object({ type: z.literal("ExternalUrl"), url: z.string() }),
+  z.object({
+    type: z.literal("Page"),
+    page_url: z.string(),
+    html_url: z.string().optional(),
+  }),
+]);
+
+export type ModuleItemOpenResponse = z.infer<typeof ModuleItemOpenResponseSchema>;
+
+// Schema for innholds-metadata per emne
+export const CourseContentMetadataSchema = z.object({
+  hasFrontPage: z.boolean(),
+  hasModules: z.boolean(),
+  hasFiles: z.boolean(),
+  modulesCount: z.number(),
+  filesCount: z.number(),
+});
+
+export type CourseContentMetadata = z.infer<typeof CourseContentMetadataSchema>;
+
+// Schema for samlet emner-metadata respons
+export const CoursesMetadataResponseSchema = z.object({
+  metadata: z.record(z.string(), CourseContentMetadataSchema),
+  courseCount: z.number(),
+  generatedAt: z.string(),
+});
+
+export type CoursesMetadataResponse = z.infer<typeof CoursesMetadataResponseSchema>;

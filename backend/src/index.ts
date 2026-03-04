@@ -31,11 +31,13 @@ import taskBreakdownRouter from "./rutere/ki/taskBreakdown.js";
 import { kiOppsummeringRouter } from "./rutere/ki/kiOppsummering.js";
 import { autentiserJwt, knyttCanvasToken } from "./middleware/auth.js";
 import { noCache } from "./middleware/no-cache.js";
+import { apiError, sendError } from "./utils/apiError.js";
 
 // Initialiserer Express app
 const app = express();
 const startTime = Date.now();
-const isProd = process.env.NODE_ENV === "production";
+import { isProd } from "./utils/env.js";
+
 
 // Global error handlers - fanger uventede feil
 process.on("unhandledRejection", (reason, promise) => {
@@ -61,7 +63,7 @@ if (isProd) {
       if (req.path === "/health") return next();
       if (host && !host.includes(tillattHost)) {
         logger.warn({ host, path: req.path }, "Blokkert forespørsel fra ugyldig host");
-        return res.status(403).json({ feil: "Forbidden" });
+        return sendError(res, "auth_error", { feil: "Forbidden", status: 403 });
       }
       next();
     });
@@ -108,7 +110,7 @@ const rateLimiterMiddleware = (req: express.Request, res: express.Response, next
       next();
     })
     .catch(() => {
-      res.status(429).json({ error: "For mange forespørsler. Vennligst prøv igjen senere." });
+      apiError.rateLimited(res, "Vennligst prøv igjen senere.");
     });
 };
 // Setter i gang rate limiter middleware
@@ -222,7 +224,7 @@ app.use("/api/user", brukerAuthRuter);
 // Feil håndtering globalt
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   logger.error({ err }, "Internal Server Error");
-  res.status(500).json({ error: "Internal Server Error" });
+  apiError.serverError(res);
 });
 
 // Start server og kobler til database med Mongoose

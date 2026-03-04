@@ -803,13 +803,13 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const [visAlle, settVisAlle] = useState(false);
 
     const filtrerteOppgaver = useMemo(() => {
-        const naa = new Date();
+        const nå = new Date();
         let filtrert = [...allAssignments];
 
         if (filter === "kommende") {
-            filtrert = filtrert.filter((a) => a.due_at && new Date(a.due_at) >= naa);
+            filtrert = filtrert.filter((a) => a.due_at && new Date(a.due_at) >= nå);
         } else if (filter === "forfalt") {
-            filtrert = filtrert.filter((a) => a.due_at && new Date(a.due_at) < naa);
+            filtrert = filtrert.filter((a) => a.due_at && new Date(a.due_at) < nå);
         } else if (filter === "uten-frist") {
             filtrert = filtrert.filter((a) => !a.due_at);
         }
@@ -893,10 +893,10 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
 
             <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 divide-y divide-slate-200 dark:divide-slate-700">
                 {(visAlle ? filtrerteOppgaver : filtrerteOppgaver.slice(0, 15)).map((assignment) => {
-                    const naa = new Date();
+                    const nå = new Date();
                     const harFrist = !!assignment.due_at;
                     const fristDato = harFrist ? new Date(assignment.due_at!) : null;
-                    const erForfalt = fristDato ? fristDato < naa : false;
+                    const erForfalt = fristDato ? fristDato < nå : false;
 
                     let dagerTekst = "";
                     if (fristDato) {

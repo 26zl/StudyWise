@@ -10,6 +10,7 @@ import { nb } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, CalendarDays, Filter } from "lucide-react";
 import type { CalendarFilterType } from "common/calendar-ui";
 
+// Props for CalendarHeader-komponenten
 interface CalendarHeaderProps {
     currentDate: Date;
     onPrevMonth: () => void;
@@ -21,7 +22,7 @@ interface CalendarHeaderProps {
     onFilterChange?: (filter: CalendarFilterType) => void;
     hasLecturesData?: boolean; // Viser om det finnes forelesningsdata
 }
-
+// Månder på norsk for dropdown-velgeren
 const MONTHS = [
     "Januar",
     "Februar",
@@ -36,13 +37,13 @@ const MONTHS = [
     "November",
     "Desember",
 ];
-
+// Fargepalett for kurs - gir hvert emne en unik farge
 const FILTER_OPTIONS: { value: CalendarFilterType; label: string; shortLabel: string }[] = [
     { value: "all", label: "Alle hendelser", shortLabel: "Alle" },
     { value: "assignments", label: "Kun innleveringer", shortLabel: "Oppgaver" },
     { value: "timetable", label: "Kun forelesninger", shortLabel: "Forelesninger" },
 ];
-
+// Hovedkomponent for kalender-header med navigasjon og filter
 export function CalendarHeader({
     currentDate,
     onPrevMonth,
@@ -107,12 +108,12 @@ export function CalendarHeader({
                         I dag
                     </button>
 
-                    {/* Forrige/Neste maaned */}
+                    {/* Forrige/Neste måned */}
                     <div className="flex items-center border border-slate-200 dark:border-slate-600 rounded-lg overflow-hidden">
                         <button
                             onClick={onPrevMonth}
                             className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
-                            aria-label="Forrige maaned"
+                            aria-label="Forrige måned"
                         >
                             <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
                         </button>
@@ -120,7 +121,7 @@ export function CalendarHeader({
                         <button
                             onClick={onNextMonth}
                             className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
-                            aria-label="Neste maaned"
+                            aria-label="Neste måned"
                         >
                             <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
                         </button>

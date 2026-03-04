@@ -6,7 +6,9 @@
 
 import { useState } from "react";
 import { Calendar, Sparkles, Loader2, Check, Clock, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { getWeekNumber } from "common/dateUtils";
 
+// Typer for oppgaver og studieblokker
 interface Assignment {
     id: string;
     name: string;
@@ -16,6 +18,7 @@ interface Assignment {
     pointsPossible?: number;
 }
 
+// Studieblokk i ukeplanen
 interface StudyBlock {
     day: string;
     timeSlot: string;
@@ -24,27 +27,30 @@ interface StudyBlock {
     priority: "high" | "medium" | "low";
     courseName: string;
 }
-
+// Struktur for ukeplanen
 interface WeeklyPlan {
     week: string;
     totalHours: number;
     blocks: StudyBlock[];
     tips: string[];
 }
-
+// Props for WeeklyPlanSuggestions-komponenten
 interface WeeklyPlanSuggestionsProps {
     assignments: Assignment[];
     onAddToCalendar?: (block: StudyBlock) => void;
 }
 
+// Fargemapping for prioritet
 const PRIORITY_COLORS = {
     high: "bg-red-100 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300",
     medium: "bg-yellow-100 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-300",
     low: "bg-green-100 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-300",
 };
 
+// Dager på norsk for visning
 const DAYS_NORWEGIAN = ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag", "Søndag"];
 
+// Hovedkomponent for å vise KI-genererte ukeplanforslag basert på Canvas-oppgaver
 export function WeeklyPlanSuggestions({ assignments, onAddToCalendar }: WeeklyPlanSuggestionsProps) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(null);
@@ -264,11 +270,3 @@ export function WeeklyPlanSuggestions({ assignments, onAddToCalendar }: WeeklyPl
     );
 }
 
-// Hjelpefunksjon for ukenummer (ISO 8601)
-function getWeekNumber(date: Date): number {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-}

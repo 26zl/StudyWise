@@ -7,10 +7,12 @@
 import { cn } from "../lib/utils";
 import { Course, COURSE_COLOR_CLASSES } from "common/calendar-ui";
 
+// Props for CourseLegend-komponenten
 interface CourseLegendProps {
     courses: Course[];
 }
 
+// Hovedkomponent for CourseLegend som viser unike emnekoder med fargeindikatorer
 export function CourseLegend({ courses }: CourseLegendProps) {
     if (courses.length === 0) {
         return null;

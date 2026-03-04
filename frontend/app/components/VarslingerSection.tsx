@@ -23,6 +23,7 @@ import {
     useCanvasUpcomingEvents,
     type AssignmentMedEmne,
 } from "../canvas/canvas-api";
+import { FRIST_VINDU_TIMER, klassifiserFrist, formaterTid, type FristStatus } from "../lib/fristUtils";
 import { KIOppsummering } from "./KIOppsummering";
 
 // Tab-typer
@@ -41,7 +42,7 @@ interface FristElement {
     emne: string;
     dato: Date;
     timerIgjen: number;
-    nivaa: "kritisk" | "snart" | "kommende";
+    status: FristStatus;
     erInnlevert: boolean;
 }
 // Kunngjøring fra Canvas
@@ -66,15 +67,15 @@ interface HendelseElement {
 type VarslingElement = FristElement | KunngjoringElement | HendelseElement;
 
 // Fargekoder for fristnivå
-function fristFarge(nivaa: "kritisk" | "snart" | "kommende") {
-    if (nivaa === "kritisk") return "border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20";
-    if (nivaa === "snart") return "border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20";
+function fristFarge(status: FristStatus) {
+    if (status === "kritisk") return "border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20";
+    if (status === "snart") return "border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20";
     return "border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20";
 }
 // Hovedkomponenten for Varslinger-seksjonen
-function fristBadgeFarge(nivaa: "kritisk" | "snart" | "kommende") {
-    if (nivaa === "kritisk") return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300";
-    if (nivaa === "snart") return "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300";
+function fristBadgeFarge(status: FristStatus) {
+    if (status === "kritisk") return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300";
+    if (status === "snart") return "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300";
     return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300";
 }
 // Hovedkomponenten for Varslinger-seksjonen
@@ -90,15 +91,15 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
     // Frister innen 72 timer
     const frister: FristElement[] = useMemo(() => {
         const oppgaver = assignmentsQuery.data ?? [];
-        const naa = Date.now();
+        const nå = Date.now();
         return oppgaver
             .filter((o: AssignmentMedEmne) => {
                 if (!o.due_at) return false;
-                const timer = (new Date(o.due_at).getTime() - naa) / (1000 * 60 * 60);
-                return timer > 0 && timer <= 72;
+                const timer = (new Date(o.due_at).getTime() - nå) / (1000 * 60 * 60);
+                return timer > 0 && timer <= FRIST_VINDU_TIMER;
             })
             .map((o: AssignmentMedEmne) => {
-                const timerIgjen = (new Date(o.due_at!).getTime() - naa) / (1000 * 60 * 60);
+                const timerIgjen = (new Date(o.due_at!).getTime() - nå) / (1000 * 60 * 60);
                 const erInnlevert = !!(o.submission && (
                     o.submission.workflow_state === "submitted" ||
                     o.submission.workflow_state === "graded" ||
@@ -111,7 +112,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                     emne: o.course_name,
                     dato: new Date(o.due_at!),
                     timerIgjen,
-                    nivaa: timerIgjen < 24 ? "kritisk" as const : timerIgjen < 48 ? "snart" as const : "kommende" as const,
+                    status: klassifiserFrist(timerIgjen),
                     erInnlevert,
                 };
             })
@@ -161,7 +162,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
         { id: "kunngjøringer", label: "Kunngjøringer", antall: kunngjøringer.length },
         { id: "hendelser", label: "Hendelser", antall: hendelser.length },
     ];
-
+    // Velg aktive elementer basert på valgt tab
     const aktiveListe = aktivTab === "alle" ? alleElementer
         : aktivTab === "frister" ? frister
         : aktivTab === "kunngjøringer" ? kunngjøringer
@@ -245,14 +246,10 @@ function VarslingKort({ element }: { element: VarslingElement }) {
 }
 // Kort for fristoppgave
 function FristKort({ frist }: { frist: FristElement }) {
-    const tidTekst = frist.timerIgjen < 1
-        ? "under 1 time"
-        : frist.timerIgjen < 24
-            ? `${Math.round(frist.timerIgjen)} timer`
-            : `${Math.floor(frist.timerIgjen / 24)} dager`;
+    const tidTekst = formaterTid(frist.timerIgjen);
 
     return (
-        <div className={`p-4 rounded-lg border ${fristFarge(frist.nivaa)} transition-colors`}>
+        <div className={`p-4 rounded-lg border ${fristFarge(frist.status)} transition-colors`}>
             <div className="flex items-start gap-3">
                 <Clock className="w-5 h-5 mt-0.5 shrink-0 text-slate-500 dark:text-slate-400" />
                 <div className="flex-1 min-w-0">
@@ -271,7 +268,7 @@ function FristKort({ frist }: { frist: FristElement }) {
                                 )}
                             </p>
                         </div>
-                        <span className={`shrink-0 px-2 py-1 rounded-md text-xs font-semibold ${fristBadgeFarge(frist.nivaa)}`}>
+                        <span className={`shrink-0 px-2 py-1 rounded-md text-xs font-semibold ${fristBadgeFarge(frist.status)}`}>
                             {tidTekst} igjen
                         </span>
                     </div>

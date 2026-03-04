@@ -19,6 +19,7 @@ import {
   type KIOppsummeringResponse,
 } from "common/ki";
 import { fornySesjon } from "../auth/auth-api";
+import { parseApiError } from "../lib/errorUtils";
 
 // Eksporter typer
 export type { KIChatResponse, KIMessage } from "common/ki";
@@ -136,28 +137,16 @@ import {
 // Re-eksporter for konsumenter
 export { KIAuthError, KIRateLimitError, KIServiceError, KITimeoutError };
 
-// API funksjoner
-async function fetchKI<T>(
-  endpoint: string,
-  schema: ZodType<T>,
-  forsoktRefresh = false,
-): Promise<T> {
-  // Bruker relativ URL slik at Next.js rewrites håndterer videresending
-  const res = await fetch(`/api/ki${endpoint}`, {
-    credentials: "include",
-    cache: "no-store",
-  });
-
-  // Håndter 401 (ikke autentisert) - prøv refresh token
-  if (res.status === 401 && !forsoktRefresh) {
-    await fornySesjon();
-    return fetchKI(endpoint, schema, true);
-  }
-
-  // Håndter spesifikke feilkoder med egne feilklasser
+// Felles feilhåndtering for KI API-responser
+async function håndterKIFeilRespons(res: Response): Promise<void> {
   if (res.status === 401) {
     throw new KIAuthError(
       "Du må logge inn på nytt for å bruke KI-assistenten.",
+    );
+  }
+  if (res.status === 413) {
+    throw new Error(
+      "For mye data. Prøv med mindre innhold eller start en ny samtale.",
     );
   }
   if (res.status === 429) {
@@ -176,16 +165,27 @@ async function fetchKI<T>(
     );
   }
   if (!res.ok) {
-    const errorText = await res.text();
-    let errorMessage = "API feil";
-    try {
-      const error = JSON.parse(errorText);
-      errorMessage = error.melding || error.feil || errorMessage;
-    } catch {
-      errorMessage = errorText || errorMessage;
-    }
-    throw new Error(errorMessage);
+    throw new Error(await parseApiError(res));
   }
+}
+
+// API funksjoner
+async function fetchKI<T>(
+  endpoint: string,
+  schema: ZodType<T>,
+  forsoktRefresh = false,
+): Promise<T> {
+  const res = await fetch(`/api/ki${endpoint}`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  if (res.status === 401 && !forsoktRefresh) {
+    await fornySesjon();
+    return fetchKI(endpoint, schema, true);
+  }
+
+  await håndterKIFeilRespons(res);
   const data = await res.json();
   return schema.parse(data);
 }
@@ -200,60 +200,21 @@ async function postKI<T>(
   const res = await fetch(`/api/ki${endpoint}`, {
     method: "POST",
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 
-  // Håndter 401 (ikke autentisert) - prøv refresh token
   if (res.status === 401 && !forsoktRefresh) {
     await fornySesjon();
     return postKI(endpoint, body, schema, true);
   }
 
-  // Håndter spesifikke feilkoder med egne feilklasser
-  if (res.status === 401) {
-    throw new KIAuthError(
-      "Du må logge inn på nytt for å bruke KI-assistenten.",
-    );
-  }
-  if (res.status === 413) {
-    throw new Error(
-      "Samtalen er for lang. Start en ny samtale for å fortsette.",
-    );
-  }
-  if (res.status === 429) {
-    throw new KIRateLimitError(
-      "For mange forespørsler. Vent litt og prøv igjen.",
-    );
-  }
-  if (res.status === 503 || res.status === 502) {
-    throw new KIServiceError(
-      "KI-tjenesten er midlertidig utilgjengelig. Prøv igjen om noen minutter.",
-    );
-  }
-  if (res.status === 504) {
-    throw new KITimeoutError(
-      "Forespørselen tok for lang tid. Prøv å forenkle spørsmålet.",
-    );
-  }
-  if (!res.ok) {
-    const errorText = await res.text();
-    let errorMessage = "API feil";
-    try {
-      const error = JSON.parse(errorText);
-      errorMessage = error.melding || error.feil || errorMessage;
-    } catch {
-      errorMessage = errorText || errorMessage;
-    }
-    throw new Error(errorMessage);
-  }
+  await håndterKIFeilRespons(res);
   const data = await res.json();
   return schema.parse(data);
 }
 
-// POST funksjon for FormData (brukes av PDF-analyse) med samme auth-retry som øvrige kall
+// POST funksjon for FormData (brukes av dokumentanalyse)
 async function postKIFormData<T>(
   endpoint: string,
   formData: FormData,
@@ -265,41 +226,13 @@ async function postKIFormData<T>(
     credentials: "include",
     body: formData,
   });
-  // Håndter 401 (ikke autentisert) - prøv refresh token
+
   if (res.status === 401 && !forsoktRefresh) {
     await fornySesjon();
     return postKIFormData(endpoint, formData, schema, true);
   }
-  // Håndter spesifikke feilkoder
-  if (res.status === 401) {
-    throw new KIAuthError(
-      "Du må logge inn på nytt for å analysere dokumenter.",
-    );
-  }
-  if (res.status === 413) {
-    throw new Error("Filen er for stor. Maksimal filstørrelse er 15MB.");
-  }
-  if (res.status === 429) {
-    throw new KIRateLimitError(
-      "For mange forespørsler. Vent litt og prøv igjen.",
-    );
-  }
-  if (res.status === 503 || res.status === 502) {
-    throw new KIServiceError(
-      "Dokumentanalyse er midlertidig utilgjengelig. Prøv igjen om noen minutter.",
-    );
-  }
-  if (!res.ok) {
-    const errorText = await res.text();
-    let errorMessage = "API feil";
-    try {
-      const error = JSON.parse(errorText);
-      errorMessage = error.melding || error.feil || errorMessage;
-    } catch {
-      errorMessage = errorText || errorMessage;
-    }
-    throw new Error(errorMessage);
-  }
+
+  await håndterKIFeilRespons(res);
   const data = await res.json();
   return schema.parse(data);
 }
@@ -374,16 +307,16 @@ export function useKIDocumentAnalyse() {
   const mutation = useMutation({
     mutationFn: async ({
       fil,
-      sporsmaal,
+      spørsmål,
       model,
     }: {
       fil: File;
-      sporsmaal?: string;
+      spørsmål?: string;
       model?: string;
     }) => {
       const formData = new FormData();
       formData.append("document", fil);
-      if (sporsmaal) formData.append("question", sporsmaal);
+      if (spørsmål) formData.append("question", spørsmål);
       if (model) formData.append("model", model);
       return postKIFormData(
         "/analyze-document",
@@ -396,7 +329,7 @@ export function useKIDocumentAnalyse() {
   return {
     analyserDokument: (
       fil: File,
-      sporsmaal?: string,
+      spørsmål?: string,
       options?: {
         model?: string;
         onSuccess?: (data: DocumentAnalyseResponse) => void;
@@ -404,7 +337,7 @@ export function useKIDocumentAnalyse() {
       },
     ) => {
       mutation.mutate(
-        { fil, sporsmaal, model: options?.model },
+        { fil, spørsmål, model: options?.model },
         {
           onSuccess: options?.onSuccess,
           onError: options?.onError,

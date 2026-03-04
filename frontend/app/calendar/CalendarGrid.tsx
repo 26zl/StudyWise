@@ -22,6 +22,7 @@ import { AlertCircle } from "lucide-react";
 import { cn } from "../lib/utils";
 import { Assignment, COURSE_COLOR_CLASSES } from "common/calendar-ui";
 
+// Props for CalendarGrid-komponenten
 interface CalendarGridProps {
     currentDate: Date;
     assignments: Assignment[];
@@ -29,8 +30,10 @@ interface CalendarGridProps {
     selectedDate: Date | null;
 }
 
+// Ukedager - kortere tekst for mobil
 const WEEK_DAYS = ["Man", "Tir", "Ons", "Tor", "Fre", "Lor", "Son"];
 
+// Hovedkomponent for kalendergrid som viser dager og innleveringer
 export const CalendarGrid = memo(function CalendarGrid({
     currentDate,
     assignments,

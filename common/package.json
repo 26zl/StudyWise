@@ -42,6 +42,10 @@
     "./calendar-ui": {
       "types": "./dist/calendar-ui.d.ts",
       "import": "./dist/calendar-ui.js"
+    },
+    "./dateUtils": {
+      "types": "./dist/dateUtils.d.ts",
+      "import": "./dist/dateUtils.js"
     }
   },
   "scripts": {

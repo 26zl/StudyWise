@@ -3,7 +3,7 @@
  * Gir konsistente feilresponser på tvers av alle ruter.
  */
 
-import { Response } from "express";
+import type { Request, Response } from "express";
 import { ZodError } from "zod";
 import { logger } from "./logger.js";
 
@@ -158,3 +158,16 @@ export const apiError = {
     // Server error
     serverError: (res: Response) => sendError(res, "server_error"),
 };
+
+/**
+ * Henter bruker-ID fra req.user, sender 401 hvis mangler.
+ * Returnerer userId eller null (null betyr respons allerede sendt).
+ */
+export function requireUserId(req: Request, res: Response): string | null {
+    const userId = req.user?.id;
+    if (!userId) {
+        apiError.unauthorized(res);
+        return null;
+    }
+    return userId;
+}

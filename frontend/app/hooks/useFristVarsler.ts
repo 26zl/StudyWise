@@ -7,6 +7,7 @@
 import { useEffect, useRef } from "react";
 import { showToast } from "../components/Toaster";
 import type { AssignmentMedEmne } from "../canvas/canvas-api";
+import { FRIST_VINDU_TIMER, klassifiserFrist, formaterTid, type FristStatus } from "../lib/fristUtils";
 
 const STORAGE_KEY = "studywise:frist-varsler";
 const SJEKK_INTERVALL_MS = 15 * 60 * 1000; // 15 minutter
@@ -17,7 +18,7 @@ interface FristOppgave {
   navn: string;
   emne: string;
   timerIgjen: number;
-  nivaa: "kritisk" | "snart" | "kommende";
+  status: FristStatus;
 }
 
 /** Hent allerede varslete oppgave-IDer fra sessionStorage */
@@ -41,53 +42,33 @@ function lagreVarslet(ider: Set<number>) {
 }
 
 /** Finn oppgaver med nærliggende frister */
-function finnNaerligendeFrister(oppgaver: AssignmentMedEmne[]): FristOppgave[] {
-  const naa = Date.now();
+function finnNærligendeFrister(oppgaver: AssignmentMedEmne[]): FristOppgave[] {
+  const nå = Date.now();
   const resultater: FristOppgave[] = [];
 
   for (const oppgave of oppgaver) {
     if (!oppgave.due_at) continue;
 
     const frist = new Date(oppgave.due_at).getTime();
-    const timerIgjen = (frist - naa) / (1000 * 60 * 60);
+    const timerIgjen = (frist - nå) / (1000 * 60 * 60);
 
-    // Ignorer oppgaver som allerede er forfalt eller mer enn 72 timer unna
-    if (timerIgjen < 0 || timerIgjen > 72) continue;
+    // Ignorer oppgaver som allerede er forfalt eller mer enn vinduet unna
+    if (timerIgjen < 0 || timerIgjen > FRIST_VINDU_TIMER) continue;
 
-    let nivaa: FristOppgave["nivaa"];
-    if (timerIgjen < 24) {
-      nivaa = "kritisk";
-    } else if (timerIgjen < 48) {
-      nivaa = "snart";
-    } else {
-      nivaa = "kommende";
-    }
-
+    const status = klassifiserFrist(timerIgjen);
+    // Legg til i resultatene
     resultater.push({
       id: oppgave.id,
       navn: oppgave.name,
       emne: oppgave.course_name,
       timerIgjen,
-      nivaa,
+      status,
     });
   }
 
   // Sorter mest presserende først
   resultater.sort((a, b) => a.timerIgjen - b.timerIgjen);
   return resultater;
-}
-
-/** Formater timer igjen til lesbar tekst */
-function formaterTid(timer: number): string {
-  if (timer < 1) return "under 1 time";
-  if (timer < 24) return `${Math.round(timer)} timer`;
-  const dager = Math.floor(timer / 24);
-  const restTimer = Math.round(timer % 24);
-  if (dager === 1)
-    return restTimer > 0 ? `1 dag og ${restTimer} timer` : "1 dag";
-  return restTimer > 0
-    ? `${dager} dager og ${restTimer} timer`
-    : `${dager} dager`;
 }
 
 /**
@@ -101,11 +82,11 @@ export function useFristVarsler(oppgaver: AssignmentMedEmne[] | undefined) {
     if (!oppgaver || oppgaver.length === 0) return;
 
     const sjekkFrister = () => {
-      const naerliggende = finnNaerligendeFrister(oppgaver);
-      if (naerliggende.length === 0) return;
+      const nærliggende = finnNærligendeFrister(oppgaver);
+      if (nærliggende.length === 0) return;
 
       const varslet = hentVarslet();
-      const ikkVarslet = naerliggende.filter((o) => !varslet.has(o.id));
+      const ikkVarslet = nærliggende.filter((o) => !varslet.has(o.id));
       if (ikkVarslet.length === 0) return;
 
       // Vis maks MAKS_TOASTS, mest presserende først
@@ -115,9 +96,9 @@ export function useFristVarsler(oppgaver: AssignmentMedEmne[] | undefined) {
         const tidTekst = formaterTid(oppgave.timerIgjen);
         const beskrivelse = `${oppgave.emne} - ${tidTekst} igjen`;
 
-        if (oppgave.nivaa === "kritisk") {
+        if (oppgave.status === "kritisk") {
           showToast.error(`Frist snart: ${oppgave.navn}`, beskrivelse);
-        } else if (oppgave.nivaa === "snart") {
+        } else if (oppgave.status === "snart") {
           showToast.warning(`Frist nærmer seg: ${oppgave.navn}`, beskrivelse);
         } else {
           showToast.info(`Kommende frist: ${oppgave.navn}`, beskrivelse);
