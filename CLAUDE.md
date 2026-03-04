@@ -255,11 +255,13 @@ onSave(subtasks.map(({ approved: _approved, ...task }) => task));
 ### Shared Utilities (reuse, don't duplicate)
 
 **Backend**:
+
 - `backend/src/utils/env.ts` — `isProd` boolean (use instead of inline `process.env.NODE_ENV === "production"`)
 - `backend/src/utils/htmlUtils.ts` — `stripHtml(html, { removeStyles?: boolean })`
 - `backend/src/utils/logger.ts` — Pino logger singleton (auto-redacts PII)
 
 **Frontend**:
+
 - `frontend/app/lib/fristUtils.ts` — `klassifiserFrist()`, `formaterTid()`, deadline thresholds
 - `frontend/app/lib/errorUtils.ts` — `parseApiError()`, `lagBrukervennligFeilmelding()`
 - `frontend/app/lib/errors.ts` — `AppError` class hierarchy for typed error handling
