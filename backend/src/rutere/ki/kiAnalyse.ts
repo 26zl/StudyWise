@@ -1,6 +1,7 @@
 /*
  * PDF og Dokumentanalyse-endepunkter
  * Håndterer analyse av dokumenter via AI (HuggingFace / Anthropic)
+ * Bilder sendes direkte til Claude Vision når tilgjengelig, med OCR som fallback.
  */
 
 import { Router, Request, Response } from "express";
@@ -15,9 +16,25 @@ import {
     getSupportedMimeTypes
 } from "../../services/document.js";
 import { SUPPORTED_MODELS, DEFAULT_MODEL } from "./aiModels.js";
-import { chatCompletion, isClientAvailable } from "./aiClient.js";
+import { chatCompletion, chatCompletionWithVision, isClientAvailable, isVisionAvailable } from "./aiClient.js";
+import type { ImageAttachment } from "./aiClient.js";
 import { STUDYWISE_SYSTEM_PROMPT, STUDYWISE_DOCUMENT_PROMPT } from "./systemPrompt.js";
 import { handleAIError } from "./handleAIError.js";
+
+/** MIME-typer som Claude Vision støtter direkte */
+const VISION_MIME_TYPES = new Set([
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+]);
+
+/** Sjekk om filens MIME-type kan sendes direkte til Claude Vision */
+function erVisionBilde(mimetype: string): boolean {
+    // Normaliser image/jpg → image/jpeg
+    const normalized = mimetype === "image/jpg" ? "image/jpeg" : mimetype;
+    return VISION_MIME_TYPES.has(normalized);
+}
 
 // Definerer express router
 const router = Router();
@@ -67,42 +84,53 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
     }
 
     try {
-        // Parse dokument
-        const docResult = await parseDocument(req.file.buffer, req.file.mimetype, req.file.originalname);
+        const filMimetype = req.file.mimetype;
+        const filBuffer = req.file.buffer;
+        const brukerVision = erVisionBilde(filMimetype) && isVisionAvailable(model);
 
-        if (!docResult.success) {
-            return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
-                suksess: false,
-                melding: docResult.error || "Kunne ikke lese dokumentet.",
-                response: "",
-            }));
-        }
+        // For Vision-bilder: send bildet direkte til Claude + OCR som fallback
+        // For dokumenter: parse som før (tekst-ekstraksjon)
+        let docResult: Awaited<ReturnType<typeof parseDocument>> | null = null;
+        let docContext = "";
+        let ocrFallbackText = "";
 
-        // Formater dokumentkontekst
-        const docContext = formatDocumentContext(
-            docResult.text,
-            docResult.pages,
-            docResult.fileType,
-            {
-                redacted: docResult.redacted,
-                truncated: docResult.truncated,
+        if (brukerVision) {
+            // Kjør OCR i bakgrunnen for HuggingFace-fallback
+            try {
+                docResult = await parseDocument(filBuffer, filMimetype, req.file.originalname);
+                if (docResult.success) {
+                    ocrFallbackText = formatDocumentContext(
+                        docResult.text,
+                        docResult.pages,
+                        docResult.fileType,
+                        { redacted: docResult.redacted, truncated: docResult.truncated },
+                    );
+                }
+            } catch {
+                logger.warn("OCR-fallback feilet for bilde, fortsetter med ren Vision");
             }
-        );
+        } else {
+            // Ikke et bilde eller Vision utilgjengelig: parse dokumentet som vanlig
+            docResult = await parseDocument(filBuffer, filMimetype, req.file.originalname);
+
+            if (!docResult.success) {
+                return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
+                    suksess: false,
+                    melding: docResult.error || "Kunne ikke lese dokumentet.",
+                    response: "",
+                }));
+            }
+
+            docContext = formatDocumentContext(
+                docResult.text,
+                docResult.pages,
+                docResult.fileType,
+                { redacted: docResult.redacted, truncated: docResult.truncated },
+            );
+        }
 
         // Bygg meldingsarray med base prompt + dokument-tillegg
         const systemPrompt = STUDYWISE_SYSTEM_PROMPT + STUDYWISE_DOCUMENT_PROMPT;
-        const apiMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: `Dokument-kontekst:\n${docContext}\n\nSpørsmål: ${question}` }
-        ];
-
-        logger.info({
-            model,
-            fileType: docResult.fileType,
-            pages: docResult.pages,
-            textLength: docResult.text.length,
-            filename: req.file.originalname
-        }, "Sender dokumentanalyse til AI-tjenesten");
 
         // Timeout guard — dokumentanalyse kan ta lengre tid enn chat, men bør ikke henge evig
         const ANALYSE_TIMEOUT_MS = 60000;
@@ -110,15 +138,65 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
             setTimeout(() => reject(new Error("ANALYSE_TIMEOUT")), ANALYSE_TIMEOUT_MS)
         );
 
-        const result = await Promise.race([
-            chatCompletion({
+        let result;
+
+        if (brukerVision) {
+            // --- Claude Vision: send bildet direkte ---
+            const normalizedMime = filMimetype === "image/jpg" ? "image/jpeg" : filMimetype;
+            const imageAttachment: ImageAttachment = {
+                data: filBuffer.toString("base64"),
+                mediaType: normalizedMime as ImageAttachment["mediaType"],
+            };
+
+            const visionMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: `Spørsmål: ${question}\n\n[BILDE_VEDLEGG]` },
+            ];
+
+            logger.info({
                 model,
-                messages: apiMessages,
-                max_tokens: 2048,
-                temperature: 0.5,
-            }),
-            timeoutPromise,
-        ]);
+                fileType: "image (vision)",
+                imageSize: filBuffer.length,
+                mimetype: normalizedMime,
+                filename: req.file.originalname,
+            }, "Sender bilde direkte til Claude Vision");
+
+            result = await Promise.race([
+                chatCompletionWithVision({
+                    model,
+                    messages: visionMessages,
+                    images: [imageAttachment],
+                    max_tokens: 2048,
+                    temperature: 0.5,
+                    fallbackText: ocrFallbackText || undefined,
+                }),
+                timeoutPromise,
+            ]);
+        } else {
+            // --- Vanlig tekst-basert dokumentanalyse ---
+            const apiMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: `Dokument-kontekst:\n${docContext}\n\nSpørsmål: ${question}` },
+            ];
+
+            logger.info({
+                model,
+                fileType: docResult?.fileType,
+                pages: docResult?.pages,
+                textLength: docResult?.text.length,
+                filename: req.file.originalname,
+            }, "Sender dokumentanalyse til AI-tjenesten");
+
+            result = await Promise.race([
+                chatCompletion({
+                    model,
+                    messages: apiMessages,
+                    max_tokens: 2048,
+                    temperature: 0.5,
+                }),
+                timeoutPromise,
+            ]);
+        }
 
         const responseText = result.text;
         const usage = result.usage;
@@ -133,12 +211,18 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
             suksess: true,
             response: responseText,
             model: model,
-            dokumentInfo: {
+            dokumentInfo: docResult ? {
                 sider: docResult.pages,
                 tegn: docResult.text.length,
                 fileType: docResult.fileType,
                 redacted: docResult.redacted,
                 truncated: docResult.truncated,
+            } : {
+                sider: 1,
+                tegn: 0,
+                fileType: "image",
+                redacted: false,
+                truncated: false,
             },
             usage: usage ? {
                 prompt_tokens: usage.prompt_tokens,

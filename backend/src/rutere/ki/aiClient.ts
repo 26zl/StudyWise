@@ -26,6 +26,14 @@ export interface ChatMessage {
     content: string;
 }
 
+/** Bildevedlegg for Claude Vision */
+export interface ImageAttachment {
+    /** Base64-kodet bildedata (uten data:...-prefiks) */
+    data: string;
+    /** MIME-type, f.eks. "image/png" */
+    mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+}
+
 export interface ChatCompletionResult {
     text: string;
     usage?: {
@@ -126,6 +134,92 @@ export function getMissingClientError(model: string): string {
     return "Mangler HUGGINGFACE_API_KEY i miljøvariabler";
 }
 
+/**
+ * Sjekker om vi kan sende bilder direkte til modellen (Claude Vision).
+ * Kun Anthropic-modeller støtter vision — HuggingFace fallback støtter det ikke.
+ */
+export function isVisionAvailable(model: string): boolean {
+    return isAnthropicModel(model) && anthropicClient !== null;
+}
+
+// --- Vision-støtte (Claude Vision API) ---
+
+/**
+ * Sender chat completion med bildevedlegg til Claude Vision.
+ * Bygger multimodal content-blokker (image + text) for user-meldinger.
+ *
+ * Hvis Claude Vision feiler og HuggingFace er tilgjengelig, faller tilbake
+ * til ren tekst-modus (OCR-tekst via fallbackText).
+ */
+export async function chatCompletionWithVision(options: {
+    model: string;
+    messages: ChatMessage[];
+    images: ImageAttachment[];
+    max_tokens: number;
+    temperature: number;
+    /** OCR-tekst som fallback for HuggingFace (som ikke har vision) */
+    fallbackText?: string;
+}): Promise<ChatCompletionResult> {
+    const { model, messages, images, max_tokens, temperature, fallbackText } = options;
+
+    let result: ChatCompletionResult;
+
+    try {
+        if (isAnthropicModel(model) && anthropicClient) {
+            result = await callAnthropicWithVision({
+                model,
+                messages,
+                images,
+                max_tokens,
+                temperature,
+            });
+        } else if (fallbackText) {
+            // Ikke-vision modell: bruk OCR-tekst i stedet
+            logger.info("Vision ikke tilgjengelig for modell %s — bruker OCR-tekst fallback", model);
+            const textMessages = messages.map(m => {
+                if (m.role === "user" && m.content.includes("[BILDE_VEDLEGG]")) {
+                    return { ...m, content: m.content.replace("[BILDE_VEDLEGG]", fallbackText) };
+                }
+                return m;
+            });
+            result = await callHuggingFace({ model, messages: textMessages, max_tokens, temperature });
+        } else {
+            throw new Error("Vision er ikke tilgjengelig for denne modellen og ingen OCR-fallback ble gitt");
+        }
+    } catch (primaryError) {
+        // Fallback: Hvis Claude feilet og HF + fallbackText
+        if (isAnthropicModel(model) && hfClient && fallbackText) {
+            logger.warn(
+                { primaryModel: model, fallbackModel: FALLBACK_MODEL, err: primaryError },
+                "Claude Vision feilet — prøver HuggingFace fallback med OCR-tekst",
+            );
+            try {
+                const textMessages = messages.map(m => {
+                    if (m.role === "user" && m.content.includes("[BILDE_VEDLEGG]")) {
+                        return { ...m, content: m.content.replace("[BILDE_VEDLEGG]", fallbackText) };
+                    }
+                    return m;
+                });
+                result = await callHuggingFace({
+                    model: FALLBACK_MODEL,
+                    messages: textMessages,
+                    max_tokens,
+                    temperature,
+                });
+                logger.info({ fallbackModel: FALLBACK_MODEL }, "HuggingFace fallback vellykket (OCR-tekst)");
+            } catch (fallbackError) {
+                logger.error({ err: fallbackError }, "HuggingFace fallback feilet også");
+                throw primaryError;
+            }
+        } else {
+            throw primaryError;
+        }
+    }
+
+    result.text = stripAnalyseTags(result.text);
+    return result;
+}
+
 // --- Private hjelpefunksjoner ---
 
 async function callAnthropic(options: {
@@ -171,6 +265,106 @@ async function callAnthropic(options: {
         messages: anthropicMessages,
         max_tokens,
         temperature: Math.min(Math.max(temperature, 0), 1), // Anthropic: 0-1
+    });
+
+    const text = result.content
+        .filter(block => block.type === "text")
+        .map(block => block.text)
+        .join("");
+
+    return {
+        text,
+        usage: {
+            prompt_tokens: result.usage.input_tokens,
+            completion_tokens: result.usage.output_tokens,
+            total_tokens: result.usage.input_tokens + result.usage.output_tokens,
+        },
+    };
+}
+
+/**
+ * Sender meldinger med bildevedlegg til Claude Vision.
+ * Bygger multimodal content-blokker (image + text).
+ */
+async function callAnthropicWithVision(options: {
+    model: string;
+    messages: ChatMessage[];
+    images: ImageAttachment[];
+    max_tokens: number;
+    temperature: number;
+}): Promise<ChatCompletionResult> {
+    if (!anthropicClient) {
+        throw new Error("Anthropic-klient ikke initialisert (mangler ANTHROPIC_API_KEY)");
+    }
+
+    const { model, messages, images, max_tokens, temperature } = options;
+
+    // Ekstraher system-meldinger
+    const systemMessages = messages.filter(m => m.role === "system");
+    const systemPrompt = systemMessages.map(m => m.content).join("\n\n");
+    const nonSystemMessages = messages.filter(m => m.role !== "system");
+
+    // Bygg Anthropic-meldinger med multimodal content for siste user-melding
+    type AnthropicMessage = {
+        role: "user" | "assistant";
+        content: string | Array<Anthropic.Messages.ContentBlockParam>;
+    };
+
+    const anthropicMessages: AnthropicMessage[] = nonSystemMessages.map((m, idx) => {
+        // Siste user-melding: legg til bildeblokker
+        const erSisteUserMelding =
+            m.role === "user" &&
+            idx === nonSystemMessages.length - 1;
+
+        if (erSisteUserMelding && images.length > 0) {
+            const contentBlocks: Anthropic.Messages.ContentBlockParam[] = [];
+
+            // Legg til alle bilder først
+            for (const img of images) {
+                contentBlocks.push({
+                    type: "image",
+                    source: {
+                        type: "base64",
+                        media_type: img.mediaType,
+                        data: img.data,
+                    },
+                });
+            }
+
+            // Deretter teksten
+            contentBlocks.push({
+                type: "text",
+                text: m.content,
+            });
+
+            return {
+                role: m.role as "user" | "assistant",
+                content: contentBlocks,
+            };
+        }
+
+        return {
+            role: m.role as "user" | "assistant",
+            content: m.content,
+        };
+    });
+
+    // Sørg for at meldingene starter med "user" (Anthropic-krav)
+    if (anthropicMessages.length > 0 && anthropicMessages[0].role !== "user") {
+        anthropicMessages.unshift({ role: "user", content: "Start samtale." });
+    }
+
+    logger.info(
+        { model, messageCount: anthropicMessages.length, imageCount: images.length },
+        "Sender til Anthropic Claude Vision",
+    );
+
+    const result = await anthropicClient.messages.create({
+        model,
+        system: systemPrompt || undefined,
+        messages: anthropicMessages,
+        max_tokens,
+        temperature: Math.min(Math.max(temperature, 0), 1),
     });
 
     const text = result.content
