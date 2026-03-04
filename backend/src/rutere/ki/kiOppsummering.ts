@@ -17,6 +17,7 @@ import { sendZodError, sendUnknownError } from "../../utils/apiError.js";
 import { DEFAULT_MODEL } from "./aiModels.js";
 import { chatCompletion, isClientAvailable } from "./aiClient.js";
 import { isProd } from "../../utils/env.js";
+import { KI_OPPSUMMERING_CACHE_TTL } from "./kiConstants.js";
 
 const router = Router();
 const rateLimitOppsummering = isProd
@@ -30,8 +31,6 @@ const rateLimitOppsummering = isProd
       duration: 60,
       keyPrefix: "rlflx:ki:oppsummering:dev",
     });
-
-import { KI_OPPSUMMERING_CACHE_TTL } from "./kiConstants.js";
 
 /**
  * POST /oppsummering
@@ -182,7 +181,11 @@ Hvis det ikke er noen handlingspunkter, skriv "HANDLINGER: Ingen handlingspunkte
 
       // Cache resultatet
       try {
-        await setCache(cacheKey, JSON.stringify(response), KI_OPPSUMMERING_CACHE_TTL);
+        await setCache(
+          cacheKey,
+          JSON.stringify(response),
+          KI_OPPSUMMERING_CACHE_TTL,
+        );
       } catch {
         // Cache-feil ignoreres
       }

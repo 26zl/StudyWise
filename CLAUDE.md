@@ -35,12 +35,21 @@ StudyWise - AI-powered study assistant with Canvas LMS integration. pnpm monorep
 
 ### Common
 
-- Zod schemas and TypeScript interfaces shared between frontend and backend
-- Error types and codes (`canvasErrors.ts`)
-- Constants (cookie names, message limits)
-- Chat schemas (`chat.ts`) and document schemas (`document.ts`)
-- Calendar schemas (`calendar.ts`, `calendar-ui.ts`)
-- KI schemas (`ki.ts`): `SubTaskSchema`, `TaskBreakdownResponseSchema`, `KIChatRequestSchema`, etc.
+Zod schemas and TypeScript interfaces shared between frontend and backend. **Subpath imports** (use these, not `common/src/...`):
+
+```typescript
+import { CanvasCourseSchema } from "common/canvas";       // Canvas API types
+import { classifyHttpStatus } from "common/canvasErrors";  // Error codes & helpers
+import { SubTaskSchema } from "common/ki";                 // KI/AI feature types
+import { ChatMessageSchema } from "common/chat";           // Chat history types
+import { CalendarItemSchema } from "common/calendar";      // Calendar API types
+import { CalendarUIEventSchema } from "common/calendar-ui"; // Calendar UI types
+import { DocumentSchema } from "common/document";          // Document processing types
+import { COOKIE_NAMES } from "common/auth";                // Auth constants
+import { getWeekNumber } from "common/dateUtils";          // Date utilities
+```
+
+When adding a new schema to common, add a subpath export in `common/package.json` `"exports"` map.
 
 ---
 
@@ -127,6 +136,7 @@ Location: `frontend/app/dashboard/page.tsx`
 
 - **AI models**: `backend/src/rutere/ki/aiModels.ts`
 - **System prompt**: `backend/src/rutere/ki/systemPrompt.ts`
+- **KI timeouts/cache**: `backend/src/rutere/ki/kiConstants.ts`
 - **Canvas pagination**: `PAGE_SIZE`, `MAX_PAGES` in `canvasUtils.ts`
 - **Cache TTL**: `CACHE_TTL` in `canvasUtils.ts`
 - **JWT expiry**: Configurable via `JWT_ACCESS_EXPIRES`, `JWT_REFRESH_EXPIRES` env vars
@@ -139,9 +149,17 @@ Each file handles a distinct AI feature:
 
 - `ki.ts` - General chat endpoint
 - `kiCanvas.ts` - Canvas-context AI queries
-- `kiAnalyse.ts` - Assignment analysis
+- `kiAnalyse.ts` - Assignment analysis (uses `analyzeDocumentCore()` shared by both endpoints)
+- `kiOppsummering.ts` - Text summarization
 - `kiHistory.ts` - Chat history management
 - `taskBreakdown.ts` - Task breakdown generation
+
+Shared infrastructure (reuse these, don't duplicate):
+
+- `hfClient.ts` - Singleton HuggingFace `InferenceClient` (import `hfClient`)
+- `handleHFError.ts` - Shared HF error handler for timeout/rate-limit/503 (import `handleHFError`)
+- `kiConstants.ts` - `KI_CACHE_TTL`, `KI_OPPSUMMERING_CACHE_TTL`, `KI_TIMEOUT_MS`
+- `systemPrompt.ts` - Single source for `STUDYWISE_SYSTEM_PROMPT`
 
 ### Document Processing
 
@@ -182,13 +200,24 @@ The backend accepts file uploads via `multer` and processes them with:
 **Backend** - Use `backend/src/utils/apiError.ts`:
 
 ```typescript
-import { apiError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
+import { apiError, sendZodError, sendUnknownError, requireUserId } from "../../utils/apiError.js";
+
+// Auth guard (returns userId or sends 401 and returns null)
+const userId = requireUserId(req, res);
+if (!userId) return;
 
 apiError.unauthorized(res, "Message");
 apiError.badRequest(res, "Message", details);
 apiError.notFound(res, "Resource");
 sendZodError(res, zodError, "Context");
 sendUnknownError(res, error, { kontekst: "function" });
+```
+
+**Backend Canvas errors** - Use `backend/src/rutere/canvas/canvasErrors.ts`:
+
+```typescript
+import { createCanvasError, getErrorResponse, classifyHttpStatus } from "./canvasErrors.js";
+// createCanvasError() for throwing, getErrorResponse() for JSON responses
 ```
 
 **Frontend** - Use `frontend/app/lib/errors.ts`:
@@ -199,6 +228,13 @@ import { KIAuthError, CanvasTokenMissingError, AppError } from "../lib/errors";
 if (AppError.isAppError(error) && error.requiresReauth()) {
   // Handle reauth
 }
+```
+
+**Frontend API error parsing** - Use `frontend/app/lib/errorUtils.ts`:
+
+```typescript
+import { parseApiError, lagBrukervennligFeilmelding } from "../lib/errorUtils";
+const melding = await parseApiError(res, "Fallback tekst");
 ```
 
 ### UI-only State Pattern
@@ -215,6 +251,20 @@ interface SubTaskUI extends SubTask {
 // Strip at the API boundary
 onSave(subtasks.map(({ approved: _approved, ...task }) => task));
 ```
+
+### Shared Utilities (reuse, don't duplicate)
+
+**Backend**:
+
+- `backend/src/utils/env.ts` — `isProd` boolean (use instead of inline `process.env.NODE_ENV === "production"`)
+- `backend/src/utils/htmlUtils.ts` — `stripHtml(html, { removeStyles?: boolean })`
+- `backend/src/utils/logger.ts` — Pino logger singleton (auto-redacts PII)
+
+**Frontend**:
+
+- `frontend/app/lib/fristUtils.ts` — `klassifiserFrist()`, `formaterTid()`, deadline thresholds
+- `frontend/app/lib/errorUtils.ts` — `parseApiError()`, `lagBrukervennligFeilmelding()`
+- `frontend/app/lib/errors.ts` — `AppError` class hierarchy for typed error handling
 
 ### Database Rules
 

@@ -35,8 +35,21 @@ Dette er et **pnpm monorepo-prosjekt** som består av:
 
 ### Common
 
-- Kun `zod` definisjoner og TypeScript interface/types. Ingen forretningslogikk.
-- **KI-skjemaer** (`common/src/ki.ts`): `SubTaskSchema`, `TaskBreakdownResponseSchema`, samt eksporterte typer `SubTask` og `TaskBreakdownResponse`. Disse brukes av både frontend og backend.
+Delte Zod-skjemaer og TypeScript-typer mellom frontend og backend. **Bruk subpath-imports** (ikke `common/src/...`):
+
+```typescript
+import { CanvasCourseSchema } from "common/canvas";       // Canvas API-typer
+import { classifyHttpStatus } from "common/canvasErrors";  // Feilkoder og hjelpere
+import { SubTaskSchema } from "common/ki";                 // KI/AI-typer
+import { ChatMessageSchema } from "common/chat";           // Chat-historikk-typer
+import { CalendarItemSchema } from "common/calendar";      // Kalender API-typer
+import { CalendarUIEventSchema } from "common/calendar-ui"; // Kalender UI-typer
+import { DocumentSchema } from "common/document";          // Dokumentbehandling
+import { COOKIE_NAMES } from "common/auth";                // Auth-konstanter
+import { getWeekNumber } from "common/dateUtils";          // Dato-hjelpefunksjoner
+```
+
+Når du legger til et nytt skjema i common, legg til en subpath-eksport i `common/package.json` `"exports"`-kartet.
 
 ---
 
@@ -137,6 +150,7 @@ pnpm --filter common add <pakke>
   - Mens SPA (Single Page Application) container forblir i `frontend/app/dashboard/page.tsx`.
 - **Backend**:
   - Hver "ressurs" (Canvas, Auth, KI) får sin egen mappe under `src/rutere/`.
+  - Delte hjelpefunksjoner i `src/utils/` (apiError, logger, env, htmlUtils, kryptering).
   - Ingen logikk i `src/index.ts` - kun oppsett.
 
 ### Styling Regler (Tailwind)
@@ -207,24 +221,41 @@ onSave(subtasks.map(({ approved: _approved, ...task }) => task));
 Bruk standardisert feilhåndtering:
 
 ```typescript
-import { apiError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
+import { apiError, sendZodError, sendUnknownError, requireUserId } from "../../utils/apiError.js";
 
-// Autentiseringsfeil
+// Auth-guard (returnerer userId eller sender 401 og returnerer null)
+const userId = requireUserId(req, res);
+if (!userId) return;
+
+// Standardfeil
 apiError.unauthorized(res, "Du må logge inn");
-
-// Valideringsfeil
 apiError.badRequest(res, "Ugyldig input", detaljer);
-
-// Ikke funnet
 apiError.notFound(res, "Bruker");
 
-// Zod feil
+// Zod-feil
 if (error instanceof ZodError) {
   return sendZodError(res, error, "Registrering");
 }
 
-// Ukjent feil
+// Ukjent feil (logges automatisk)
 return sendUnknownError(res, error, { kontekst: "minFunksjon" });
+```
+
+### Backend Canvas-feil (`backend/src/rutere/canvas/canvasErrors.ts`)
+
+Re-eksporterer alt fra `common/canvasErrors` + backend-spesifikke utvidelser:
+
+```typescript
+import { createCanvasError, getErrorResponse, classifyHttpStatus } from "./canvasErrors.js";
+
+// Kast strukturert Canvas-feil
+throw createCanvasError("token_invalid", "Token er ugyldig", { httpStatus: 401 });
+
+// Generer JSON-respons med feilkode
+res.status(403).json(getErrorResponse("token_missing"));
+
+// Klassifiser HTTP-status til feilkode
+const code = classifyHttpStatus(503); // → "server_error"
 ```
 
 ### Frontend (`frontend/app/lib/errors.ts`)
@@ -232,12 +263,7 @@ return sendUnknownError(res, error, { kontekst: "minFunksjon" });
 Bruk felles error-klasser:
 
 ```typescript
-import {
-  KIAuthError,
-  KIRateLimitError,
-  CanvasTokenMissingError,
-  AppError
-} from "../lib/errors";
+import { KIAuthError, KIRateLimitError, CanvasTokenMissingError, AppError } from "../lib/errors";
 
 // Sjekk error type
 if (error instanceof KIRateLimitError) {
@@ -248,6 +274,18 @@ if (error instanceof KIRateLimitError) {
 if (AppError.isAppError(error) && error.requiresReauth()) {
   // Redirect til innlogging
 }
+```
+
+### Frontend feilhjelp (`frontend/app/lib/errorUtils.ts`)
+
+```typescript
+import { parseApiError, lagBrukervennligFeilmelding } from "../lib/errorUtils";
+
+// Parse feilrespons fra backend
+const melding = await parseApiError(res, "Fallback tekst");
+
+// Lag brukervennlig melding med kontekst
+const brukerMelding = lagBrukervennligFeilmelding(error, { canvas: true });
 ```
 
 ---
@@ -301,16 +339,39 @@ Ukentlige oppdateringer (mandager) for: `github-actions`, rot, `frontend`, `back
 
 ---
 
-## 8. Konfigurasjonsfiler
+## 8. Konfigurasjonsfiler og delt infrastruktur
 
-Viktige konfigurasjonsfiler som styrer systemets oppførsel:
+### Konfigurasjon
 
 - `backend/src/rutere/ki/aiModels.ts` - AI-modeller og standardmodell
 - `backend/src/rutere/ki/systemPrompt.ts` - System prompt for KI-assistenten
+- `backend/src/rutere/ki/kiConstants.ts` - KI cache-TTL og timeout-verdier
 - `backend/src/rutere/canvas/canvasUtils.ts` - Paginering og cache-innstillinger
 - `backend/src/middleware/auth.ts` - JWT utløpstider (konfigurerbar via miljøvariabler)
 - `common/src/ki.ts` - Delte KI-skjemaer inkl. `SubTaskSchema` og meldingsgrenser
 - `common/src/auth.ts` - Cookie-navn og auth-skjemaer
+
+### Delte KI-hjelpefiler (`backend/src/rutere/ki/`)
+
+Gjenbruk disse — **ikke dupliser**:
+
+- `hfClient.ts` — Singleton `InferenceClient` (import `hfClient`)
+- `handleHFError.ts` — Felles HF-feilhåndterer for timeout/rate-limit/503 (import `handleHFError`)
+- `kiConstants.ts` — `KI_CACHE_TTL`, `KI_OPPSUMMERING_CACHE_TTL`, `KI_TIMEOUT_MS`
+- `systemPrompt.ts` — Én kilde for `STUDYWISE_SYSTEM_PROMPT`
+
+### Delte backend-hjelpefiler (`backend/src/utils/`)
+
+- `env.ts` — `isProd` boolean (bruk i stedet for inline `process.env.NODE_ENV === "production"`)
+- `htmlUtils.ts` — `stripHtml(html, { removeStyles?: boolean })`
+- `logger.ts` — Pino-logger singleton (auto-redakter PII)
+- `apiError.ts` — Standardisert feilrespons + `requireUserId()`
+
+### Delte frontend-hjelpefiler (`frontend/app/lib/`)
+
+- `fristUtils.ts` — `klassifiserFrist()`, `formaterTid()`, frist-terskler
+- `errorUtils.ts` — `parseApiError()`, `lagBrukervennligFeilmelding()`
+- `errors.ts` — `AppError`-klassehierarki for typet feilhåndtering
 
 ---
 
