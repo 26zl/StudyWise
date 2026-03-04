@@ -14,9 +14,8 @@ import {
 import { createRateLimiter } from "../../middleware/rate-limit.js";
 import { getCache, setCache } from "../../cache/redis.js";
 import { sendZodError, sendUnknownError } from "../../utils/apiError.js";
-import { handleHFError } from "./handleHFError.js";
 import { DEFAULT_MODEL } from "./aiModels.js";
-import { hfClient } from "./hfClient.js";
+import { chatCompletion, isClientAvailable } from "./aiClient.js";
 import { isProd } from "../../utils/env.js";
 
 const router = Router();
@@ -54,8 +53,8 @@ router.post(
 
     const { tekst, type } = parsed.data;
 
-    if (!hfClient) {
-      logger.error("Mangler HUGGINGFACE_API_KEY for oppsummering");
+    if (!isClientAvailable(DEFAULT_MODEL)) {
+      logger.error("AI-klient ikke tilgjengelig for oppsummering");
       return res.status(500).json(
         KIOppsummeringResponseSchema.parse({
           suksess: false,
@@ -116,7 +115,7 @@ Hvis det ikke er noen handlingspunkter, skriv "HANDLINGER: Ingen handlingspunkte
       );
 
       const result = await Promise.race([
-        hfClient.chatCompletion({
+        chatCompletion({
           model: DEFAULT_MODEL,
           messages: [
             { role: "system", content: instruksjon },
@@ -128,7 +127,7 @@ Hvis det ikke er noen handlingspunkter, skriv "HANDLINGER: Ingen handlingspunkte
         timeoutPromise,
       ]);
 
-      const responseText = result?.choices?.[0]?.message?.content ?? "";
+      const responseText = result.text;
 
       // Parse respons basert på type
       let oppsummering: string | undefined;
@@ -194,11 +193,25 @@ Hvis det ikke er noen handlingspunkter, skriv "HANDLINGER: Ingen handlingspunkte
       );
       return res.json(response);
     } catch (error) {
-      if (handleHFError(res, error, KIOppsummeringResponseSchema, {
-        timeoutLabel: "OPPSUMMERING_TIMEOUT",
-        timeoutMessage: "Oppsummeringen tok for lang tid. Prøv igjen.",
-        kontekst: "kiOppsummering",
-      })) return;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      if (errorMessage === "OPPSUMMERING_TIMEOUT") {
+        return res.status(504).json(
+          KIOppsummeringResponseSchema.parse({
+            suksess: false,
+            melding: "Oppsummeringen tok for lang tid. Prøv igjen.",
+          }),
+        );
+      }
+
+      if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {
+        return res.status(429).json(
+          KIOppsummeringResponseSchema.parse({
+            suksess: false,
+            melding: "For mange forespørsler. Vent litt og prøv igjen.",
+          }),
+        );
+      }
 
       return sendUnknownError(res, error, { kontekst: "kiOppsummering" });
     }

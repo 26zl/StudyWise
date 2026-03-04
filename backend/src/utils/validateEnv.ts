@@ -19,6 +19,7 @@ interface EnvConfig {
     REDIS_URL: string;
     NODE_ENV: string;
     HUGGINGFACE_API_KEY: string;
+    ANTHROPIC_API_KEY: string;
 }
 
 // Alle miljøvariabler er påkrevde (WEB_ORIGIN/WEB_ORIGINS sjekkes separat)
@@ -144,5 +145,11 @@ export const validateEnv = (): void => {
         );
         process.exit(1);
     }
+
+    // Valgfrie variabler — logg advarsel hvis de mangler
+    if (!process.env.ANTHROPIC_API_KEY) {
+        logger.warn("ANTHROPIC_API_KEY er ikke satt — Claude-modeller vil ikke være tilgjengelige");
+    }
+
     logger.info("Alle påkrevde miljøvariabler er validert");
 };

@@ -4,7 +4,29 @@
  * Bruker unpdf for PDF, mammoth for Word, sharp for bildeforbehandling, og tesseract.js for OCR
  */
 
-import { extractText } from "unpdf";
+// --- Polyfill: ArrayBuffer.prototype.transfer / transferToFixedLength ---
+// pdf.js (brukt av unpdf) kaller transferToFixedLength under rendering.
+// Metoden ble lagt til i Node 22; i Node 20 mangler den og rendring feiler stille
+// med ein blank PNG. Polyfill-en gjenskaper semantikken: kopier data til ny buffer
+// og detach originalen (via structured clone av 0-byte slice).
+if (!ArrayBuffer.prototype.transfer) {
+    ArrayBuffer.prototype.transfer = function (newByteLength?: number): ArrayBuffer {
+        const len = newByteLength ?? this.byteLength;
+        const newBuf = new ArrayBuffer(len);
+        new Uint8Array(newBuf).set(new Uint8Array(this, 0, Math.min(this.byteLength, len)));
+        // Detach the original buffer by transferring a zero-length slice through structuredClone
+        try { structuredClone(this, { transfer: [this] }); } catch { /* already detached or unsupported */ }
+        return newBuf;
+    };
+}
+if (!ArrayBuffer.prototype.transferToFixedLength) {
+    ArrayBuffer.prototype.transferToFixedLength = function (newByteLength?: number): ArrayBuffer {
+        return this.transfer(newByteLength);
+    };
+}
+// --- End polyfill ---
+
+import { extractText, renderPageAsImage } from "unpdf";
 import mammoth from "mammoth";
 import Tesseract from "tesseract.js";
 import sharp from "sharp";
@@ -14,6 +36,7 @@ import { DocumentParseResult } from "common/document";
 // Konfigurasjon
 const OCR_TIMEOUT_MS = 60000; // 60 sekunder timeout for OCR
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB maks filstørrelse for parsing
+const MAX_OCR_PAGES = 10; // Maks antall PDF-sider som OCR-es (ytelsesgrense)
 
 // Støttede MIME-typer og deres filtype
 export const SUPPORTED_DOCUMENT_TYPES: Record<string, string> = {
@@ -272,33 +295,127 @@ async function parseImageDocument(buffer: Buffer): Promise<DocumentParseResult> 
 }
 
 /**
+ * Rasteriserer PDF-sider til bilder og kjører OCR på dem.
+ * Bruker unpdf sin renderPageAsImage for å konvertere sider til PNG,
+ * deretter Tesseract for tekstgjenkjenning.
+ */
+async function ocrPdfPages(pdfData: Uint8Array, numPages: number): Promise<{ text: string; avgConfidence: number; pagesProcessed: number }> {
+    const pagesToProcess = Math.min(numPages, MAX_OCR_PAGES);
+    logger.info({ totalPages: numPages, pagesToProcess }, "Starting PDF page rasterization for OCR");
+
+    const pageTexts: string[] = [];
+    let totalConfidence = 0;
+    let successfulPages = 0;
+
+    // VIKTIG: Vi sender rå pdfData til renderPageAsImage i stedet for en
+    // forhåndsopprettet proxy. renderPageAsImage kaller getDocumentProxy
+    // internt og sender med CanvasFactory hentet fra canvasImport.
+    // Uten dette bruker pdf.js den bundlede NodeCanvasFactory som har en
+    // ødelagt require-path (erstatt av bundler med en Proxy som kaster feil).
+
+    for (let page = 1; page <= pagesToProcess; page++) {
+        try {
+            // Rasteriser PDF-side til PNG-bilde (scale 2.0 for bedre OCR-kvalitet)
+            // canvasImport er påkrevd i Node.js — unpdf auto-detecter IKKE @napi-rs/canvas
+            const imageBuffer = await renderPageAsImage(pdfData, page, {
+                scale: 2.0,
+                canvasImport: () => import("@napi-rs/canvas"),
+            });
+
+            // Konverter ArrayBuffer til Buffer for Tesseract
+            const imgBuffer = Buffer.from(imageBuffer);
+
+            logger.info({ page, imageSize: imgBuffer.length }, "PDF page rasterized, running OCR");
+
+            // Kjør OCR på det rasteriserte bildet
+            const { text, confidence } = await performOCR(imgBuffer);
+
+            if (text && text.trim().length > 0) {
+                pageTexts.push(`--- Side ${page} ---\n${text.trim()}`);
+                totalConfidence += confidence;
+                successfulPages++;
+            } else {
+                logger.warn({ page }, "OCR returned empty text for PDF page");
+            }
+        } catch (pageError) {
+            logger.warn({ page, err: pageError }, "Failed to OCR PDF page, skipping");
+        }
+    }
+
+    const avgConfidence = successfulPages > 0 ? totalConfidence / successfulPages : 0;
+
+    logger.info({
+        pagesProcessed: pagesToProcess,
+        pagesWithText: successfulPages,
+        avgConfidence,
+        skippedPages: numPages > MAX_OCR_PAGES ? numPages - MAX_OCR_PAGES : 0,
+    }, "PDF OCR completed");
+
+    let fullText = pageTexts.join("\n\n");
+    if (numPages > MAX_OCR_PAGES) {
+        fullText += `\n\n[... OCR utført på ${pagesToProcess} av ${numPages} sider. Resterende sider er hoppet over ...]`;
+    }
+
+    return { text: fullText, avgConfidence, pagesProcessed: successfulPages };
+}
+
+/**
  * Parser en PDF-fil med unpdf
  */
 async function parsePdfDocument(buffer: Buffer): Promise<DocumentParseResult> {
     try {
-        // unpdf kan ta Buffer direkte, men vi konverterer til Uint8Array for å være sikre
-        // Buffer.from sørger for at vi har en ren kopi av dataene
-        const pdfData = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+        // Lag en uavhengig kopi av PDF-dataene.
+        // extractText() (pdf.js) detacher den underliggende ArrayBuffer-en via
+        // transferToFixedLength, noe som gjør originaldataene ubrukelige for
+        // etterfølgende kall (som getDocumentProxy i OCR-fallback).
+        // Derfor lager vi to separate kopier: én for extractText og én for OCR.
+        const pdfDataForExtract = new Uint8Array(buffer);
+        const pdfDataForOcr = new Uint8Array(buffer);
         
-        logger.info({ bufferLength: buffer.length, pdfDataLength: pdfData.length }, "Starting PDF extraction");
+        logger.info({ bufferLength: buffer.length, pdfDataLength: pdfDataForExtract.length }, "Starting PDF extraction");
         
         // Ekstraher tekst direkte - unpdf håndterer dette internt
-        const result = await extractText(pdfData, { mergePages: true });
+        const result = await extractText(pdfDataForExtract, { mergePages: true });
         
         logger.info({ resultKeys: Object.keys(result), totalPages: result.totalPages }, "PDF extraction completed");
         
         const text = result.text;
         const numPages = result.totalPages || 1;
 
-        // Valider at vi faktisk fikk tekst - hvis ikke, prøv OCR
-        if (!text || text.trim().length === 0) {
-            logger.warn("PDF inneholder ingen lesbar tekst via standard ekstraksjon, prøver OCR");
+        // Sjekk om teksten inneholder ekte lesbart innhold.
+        // Mange skannede PDF-er har usynlige tekstlag med whitespace, kontrollkarakterer
+        // eller uleselige tegn som passerer en enkel lengdesjekk.
+        const hasRealText = typeof text === "string"
+            && text.trim().length > 0
+            && /[a-zA-ZæøåÆØÅ0-9]{3,}/.test(text);
+
+        logger.info({
+            extractedTextLength: typeof text === "string" ? text.length : 0,
+            trimmedLength: typeof text === "string" ? text.trim().length : 0,
+            hasRealText,
+            sample: typeof text === "string" ? text.slice(0, 120) : "(not a string)",
+        }, "PDF text extraction quality check");
+
+        // Valider at vi faktisk fikk ekte tekst - hvis ikke, rasteriser sider og kjør OCR
+        if (!hasRealText) {
+            logger.warn("PDF inneholder ingen lesbar tekst via standard ekstraksjon, rasteriserer sider for OCR");
             
-            // Prøv OCR som fallback for bilde-baserte PDFer
+            // Rasteriser PDF-sider til bilder og kjør OCR per side
             try {
-                const ocrResult = await performOCR(buffer);
+                const ocrResult = await ocrPdfPages(pdfDataForOcr, numPages);
+                logger.info({
+                    ocrTextLength: ocrResult.text.length,
+                    ocrTrimmedLength: ocrResult.text.trim().length,
+                    avgConfidence: ocrResult.avgConfidence,
+                    pagesProcessed: ocrResult.pagesProcessed,
+                    sample: ocrResult.text.slice(0, 120),
+                }, "PDF OCR fallback result");
+
                 if (ocrResult.text && ocrResult.text.trim().length > 0) {
-                    logger.info({ confidence: ocrResult.confidence }, "OCR fallback successful for PDF");
+                    logger.info({
+                        avgConfidence: ocrResult.avgConfidence,
+                        pagesProcessed: ocrResult.pagesProcessed,
+                    }, "PDF OCR fallback successful");
                     
                     const { cleanText, redacted } = sanitizeText(ocrResult.text);
                     const truncated = cleanText.length > 50000;
@@ -316,8 +433,13 @@ async function parsePdfDocument(buffer: Buffer): Promise<DocumentParseResult> {
                         truncated,
                     };
                 }
+                logger.warn("OCR returned empty text despite processing pages");
             } catch (ocrError) {
-                logger.warn({ err: ocrError }, "OCR fallback also failed for PDF");
+                logger.error({
+                    err: ocrError,
+                    message: ocrError instanceof Error ? ocrError.message : String(ocrError),
+                    stack: ocrError instanceof Error ? ocrError.stack : undefined,
+                }, "PDF OCR fallback failed with exception");
             }
             
             return {
@@ -327,7 +449,7 @@ async function parsePdfDocument(buffer: Buffer): Promise<DocumentParseResult> {
                 fileType: "pdf",
                 redacted: false,
                 truncated: false,
-                error: "PDF-filen inneholder ingen lesbar tekst. Den kan være basert på bilder som ikke kunne leses.",
+                error: "PDF-filen inneholder ingen lesbar tekst. Verken tekstekstraksjon eller OCR klarte å lese innholdet.",
             };
         }
 
@@ -401,15 +523,124 @@ async function parsePdfDocument(buffer: Buffer): Promise<DocumentParseResult> {
 }
 
 /**
- * Parser Word-dokumenter (docx/doc) med mammoth
+ * Ekstraherer innebygde bilder fra et Word-dokument (.docx) via mammoth.
+ * Returnerer en liste med Buffer-er, én per bilde.
+ */
+async function extractImagesFromDocx(buffer: Buffer): Promise<Buffer[]> {
+    const images: Buffer[] = [];
+
+    await mammoth.convertToHtml(
+        { buffer },
+        {
+            convertImage: mammoth.images.inline((element) => {
+                return element.read("base64").then((base64Data) => {
+                    images.push(Buffer.from(base64Data, "base64"));
+                    // Returnerer et dummy src — vi bryr oss ikke om HTML-output
+                    return { src: "data:image/png;base64," };
+                });
+            }),
+        },
+    );
+
+    return images;
+}
+
+/**
+ * Kjører OCR på en liste med bildeBuffere og returnerer kombinert tekst.
+ */
+async function ocrImageBuffers(
+    images: Buffer[],
+    maxImages: number = MAX_OCR_PAGES,
+): Promise<{ text: string; avgConfidence: number; imagesProcessed: number }> {
+    const imagesToProcess = Math.min(images.length, maxImages);
+    logger.info({ totalImages: images.length, imagesToProcess }, "Starting OCR on extracted images");
+
+    const texts: string[] = [];
+    let totalConfidence = 0;
+    let successfulImages = 0;
+
+    for (let i = 0; i < imagesToProcess; i++) {
+        try {
+            const { text, confidence } = await performOCR(images[i]);
+
+            if (text && text.trim().length > 0) {
+                texts.push(`--- Bilde ${i + 1} ---\n${text.trim()}`);
+                totalConfidence += confidence;
+                successfulImages++;
+            } else {
+                logger.warn({ image: i + 1 }, "OCR returned empty text for image");
+            }
+        } catch (err) {
+            logger.warn({ image: i + 1, err }, "Failed to OCR image, skipping");
+        }
+    }
+
+    const avgConfidence = successfulImages > 0 ? totalConfidence / successfulImages : 0;
+    return { text: texts.join("\n\n"), avgConfidence, imagesProcessed: successfulImages };
+}
+
+/**
+ * Parser Word-dokumenter (docx/doc) med mammoth.
+ * Hvis dokumentet inneholder lite/ingen tekst men har bilder,
+ * kjøres OCR på bildene for å fange bildebasert innhold.
  */
 async function parseWordDocument(buffer: Buffer): Promise<DocumentParseResult> {
     try {
         const result = await mammoth.extractRawText({ buffer });
         const text = result.value;
 
-        if (!text || text.trim().length === 0) {
-            logger.warn("Word-dokument inneholder ingen lesbar tekst");
+        const hasRealTextContent = typeof text === "string"
+            && text.trim().length > 0
+            && /[a-zA-ZæøåÆØÅ0-9]{3,}/.test(text);
+
+        logger.info({
+            extractedTextLength: text?.length ?? 0,
+            hasRealText: hasRealTextContent,
+        }, "Word text extraction result");
+
+        // Hvis teksten er mangelfull, forsøk å ekstrahere og OCR-e bilder
+        if (!hasRealTextContent) {
+            logger.info("Word-dokument mangler lesbar tekst, forsøker bilde-OCR");
+
+            try {
+                const images = await extractImagesFromDocx(buffer);
+                logger.info({ imageCount: images.length }, "Images extracted from Word document");
+
+                if (images.length > 0) {
+                    const ocrResult = await ocrImageBuffers(images);
+
+                    logger.info({
+                        ocrTextLength: ocrResult.text.length,
+                        avgConfidence: ocrResult.avgConfidence,
+                        imagesProcessed: ocrResult.imagesProcessed,
+                    }, "Word image OCR result");
+
+                    if (ocrResult.text && ocrResult.text.trim().length > 0) {
+                        const { cleanText, redacted } = sanitizeText(ocrResult.text);
+                        const truncated = cleanText.length > 50000;
+                        const limitedText = truncated
+                            ? cleanText.slice(0, 50000) +
+                              "\n\n[... Dokumentet fortsetter, men er forkortet for analyse ...]"
+                            : cleanText;
+                        const estimatedPages = Math.ceil(limitedText.length / 3000);
+
+                        return {
+                            success: true,
+                            text: limitedText,
+                            pages: estimatedPages,
+                            fileType: "docx",
+                            redacted,
+                            truncated,
+                            warning: ocrResult.avgConfidence < 70
+                                ? "Lav OCR-konfidens. Teksten kan inneholde feil."
+                                : undefined,
+                        };
+                    }
+                }
+            } catch (ocrError) {
+                logger.warn({ err: ocrError }, "Word image OCR fallback failed");
+            }
+
             return {
                 success: false,
                 text: "",
@@ -434,24 +665,48 @@ async function parseWordDocument(buffer: Buffer): Promise<DocumentParseResult> {
         // Word-dokumenter har ikke sideantall på samme måte
         const estimatedPages = Math.ceil(limitedText.length / 3000);
 
+        // Sjekk om dokumentet også har bilder som bør OCR-es
+        // (f.eks. tekst + bilder med viktig innhold)
+        let imageOcrText = "";
+        try {
+            const images = await extractImagesFromDocx(buffer);
+            if (images.length > 0) {
+                logger.info({ imageCount: images.length }, "Word document has embedded images, running OCR");
+                const ocrResult = await ocrImageBuffers(images);
+                if (ocrResult.text && ocrResult.text.trim().length > 0 && ocrResult.avgConfidence >= 50) {
+                    imageOcrText = "\n\n--- Tekst fra innebygde bilder ---\n" + ocrResult.text.trim();
+                }
+            }
+        } catch (imgErr) {
+            logger.warn({ err: imgErr }, "Failed to extract/OCR images from Word document");
+        }
+
+        const combinedText = limitedText + imageOcrText;
+        const finalTruncated = combinedText.length > 50000;
+        const finalText = finalTruncated
+            ? combinedText.slice(0, 50000) +
+              "\n\n[... Dokumentet fortsetter, men er forkortet for analyse ...]"
+            : combinedText;
+
         logger.info(
             {
                 estimatedPages,
-                textLength: limitedText.length,
-                wasTruncated: truncated,
+                textLength: finalText.length,
+                wasTruncated: finalTruncated,
                 redacted,
                 warnings: result.messages.length,
+                hasImageOcr: imageOcrText.length > 0,
             },
             "Word document parsed successfully"
         );
 
         return {
             success: true,
-            text: limitedText,
+            text: finalText,
             pages: estimatedPages,
             fileType: "docx",
             redacted,
-            truncated,
+            truncated: finalTruncated,
         };
     } catch (error) {
         logger.error({ err: error }, "Word document parsing failed");

@@ -1,7 +1,6 @@
 /*
 * Rutere for KI-relaterte endepunkter
-* Bruker huggingface/inference for å kommunisere med Hugging Face API
-* Støtter flere modeller: Qwen, Mistral, og andre HuggingFace-modeller
+* Støtter flere leverandører: HuggingFace og Anthropic (Claude)
 */
 
 import { Router } from "express";
@@ -20,8 +19,7 @@ import { kiHistoryRouter } from "./kiHistory.js";
 import { kiAnalyseRouter } from "./kiAnalyse.js";
 import { SUPPORTED_MODELS, DEFAULT_MODEL } from "./aiModels.js";
 import { STUDYWISE_SYSTEM_PROMPT } from "./systemPrompt.js";
-import { hfClient } from "./hfClient.js";
-import { handleHFError } from "./handleHFError.js";
+import { chatCompletion, isClientAvailable, getMissingClientError } from "./aiClient.js";
 
 // Definerer express router
 const router = Router();
@@ -42,15 +40,16 @@ router.get("/models", (_req, res) => {
     logger.info("Henter liste over støttede modeller");
     const models = Object.entries(SUPPORTED_MODELS).map(([id, info]) => ({
         id,
-        ...info,
+        name: info.name,
+        description: info.description,
         isDefault: id === DEFAULT_MODEL
     }));
     return res.json(KIModelsResponseSchema.parse({ models, defaultModel: DEFAULT_MODEL }));
 });
 
-// Endepunkt for å teste tilkobling til Hugging Face API
+// Endepunkt for å teste tilkobling til AI-tjenesten
 router.get("/test-connection", async (_req, res) => {
-    logger.info("Testing Hugging Face connection...");
+    logger.info("Testing AI connection...");
 
     // Sjekk cache først
     const cached = await getCache(CACHE_KEY);
@@ -58,18 +57,20 @@ router.get("/test-connection", async (_req, res) => {
         logger.info("Returnerer cachet KI test-resultat");
         return res.json(KIChatResponseSchema.parse(JSON.parse(cached)));
     }
-    if (!hfClient) {
-        logger.error("Mangler HUGGINGFACE_API_KEY i miljøvariabler");
+
+    const model = DEFAULT_MODEL;
+
+    if (!isClientAvailable(model)) {
+        logger.error(getMissingClientError(model));
         return res.status(500).json(KIChatResponseSchema.parse({
             suksess: false,
-            melding: "Mangler HUGGINGFACE_API_KEY i miljøvariabler.",
+            melding: getMissingClientError(model),
             response: "",
         }));
     }
-    // Sender testmelding med gjenbrukt klient
+
     try {
-        const model = DEFAULT_MODEL;
-        const result = await hfClient.chatCompletion({
+        const result = await chatCompletion({
             model,
             messages: [
                 { role: "system", content: STUDYWISE_SYSTEM_PROMPT },
@@ -78,20 +79,30 @@ router.get("/test-connection", async (_req, res) => {
             max_tokens: 150,
             temperature: 0.7,
         });
-        // Henter svartekst fra resultatet
-        const text = result?.choices?.[0]?.message?.content ?? "";
-        logger.info("Vellykket svar fra Hugging Face");
+
+        logger.info("Vellykket svar fra AI-tjenesten");
         const response = KIChatResponseSchema.parse({
             suksess: true,
-            melding: "Vellykket kobling til Hugging Face API!",
-            response: text,
+            melding: "Vellykket kobling til AI-tjenesten!",
+            response: result.text,
             model: model,
         });
         // Cache resultatet
         await setCache(CACHE_KEY, JSON.stringify(response), KI_CACHE_TTL);
         return res.json(response);
     } catch (error) {
-        if (handleHFError(res, error, KIChatResponseSchema, { kontekst: "HF test-connection" })) return;
+        logger.error({ err: error }, "AI Connection Error");
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        // Håndter fakturerings-/kredittfeil
+        if (errorMessage.includes("Credit balance") || errorMessage.includes("depleted") || errorMessage.includes("purchase")) {
+            return res.status(503).json(KIChatResponseSchema.parse({
+                suksess: false,
+                melding: "KI-tjenesten er midlertidig utilgjengelig.",
+                response: "",
+            }));
+        }
+
         return res.status(500).json(KIChatResponseSchema.parse({
             suksess: false,
             melding: "Feil under kommunikasjon med KI-tjenesten. Prøv igjen senere.",
@@ -145,19 +156,19 @@ router.post("/chat", async (req, res) => {
         }));
     }
 
-    if (!hfClient) {
-        logger.error("Mangler HUGGINGFACE_API_KEY i miljøvariabler");
+    // Velg modell (bruk forespurt modell hvis støttet, ellers default)
+    const model = requestedModel && SUPPORTED_MODELS[requestedModel]
+        ? requestedModel
+        : DEFAULT_MODEL;
+
+    if (!isClientAvailable(model)) {
+        logger.error(getMissingClientError(model));
         return res.status(500).json(KIChatResponseSchema.parse({
             suksess: false,
             melding: "KI-tjenesten er ikke konfigurert. Kontakt administrator.",
             response: "",
         }));
     }
-
-    // Velg modell (bruk forespurt modell hvis støttet, ellers default)
-    const model = requestedModel && SUPPORTED_MODELS[requestedModel]
-        ? requestedModel
-        : DEFAULT_MODEL;
 
     if (requestedModel && !SUPPORTED_MODELS[requestedModel]) {
         logger.warn({ requestedModel }, "Forespurt modell ikke støttet, bruker default");
@@ -252,26 +263,26 @@ router.post("/chat", async (req, res) => {
             messageCount: fullMessages.length, 
             harCanvasToken: !!req.canvasToken, 
             brukerFrontendContext 
-        }, "Sender til HuggingFace");
+        }, "Sender til AI-tjenesten");
 
-        // Egen timeout guard (race) så klienten får svar selv om HF henger
+        // Egen timeout guard (race) så klienten får svar selv om AI henger
         const TIMEOUT_MS = 25000;
         const timeoutPromise = new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error("CHAT_TIMEOUT")), TIMEOUT_MS)
         );
 
         const result = await Promise.race([
-            hfClient.chatCompletion({
+            chatCompletion({
                 model,
                 messages: fullMessages,
                 max_tokens: 1024,
-                temperature: Math.min(Math.max(temperature, 0), 2), // Clamp mellom 0-2
+                temperature: Math.min(Math.max(temperature, 0), 2),
             }),
             timeoutPromise,
         ]);
 
-        const responseText = result?.choices?.[0]?.message?.content ?? "";
-        const usage = result?.usage;
+        const responseText = result.text;
+        const usage = result.usage;
 
         logger.info({
             model,
@@ -291,11 +302,52 @@ router.post("/chat", async (req, res) => {
         }));
 
     } catch (error) {
-        if (handleHFError(res, error, KIChatResponseSchema, {
-            timeoutLabel: "CHAT_TIMEOUT",
-            timeoutMessage: "Chat-forespørselen tok for lang tid (timeout etter 25s). Prøv igjen eller forenkle spørsmålet.",
-            kontekst: "HuggingFace chat",
-        })) return;
+        // Logg feil uten sensitiv data (unngå å logge hele Canvas-konteksten)
+        const sanitizedError = error instanceof Error ? {
+            name: error.name,
+            message: error.message,
+            // Inkluder httpResponse men IKKE httpRequest.body (som inneholder Canvas-data)
+            ...(('httpResponse' in error) ? {
+                httpResponse: (error as Record<string, unknown>).httpResponse
+            } : {}),
+        } : String(error);
+        logger.error({ err: sanitizedError, model }, "AI chat feil");
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        if (error instanceof Error && error.message === "CHAT_TIMEOUT") {
+            return res.status(504).json(KIChatResponseSchema.parse({
+                suksess: false,
+                melding: "Chat-forespørselen tok for lang tid (timeout etter 25s). Prøv igjen eller forenkle spørsmålet.",
+                response: "",
+            }));
+        }
+        
+        // Sjekk for vanlige feil
+        if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {
+            return res.status(429).json(KIChatResponseSchema.parse({
+                suksess: false,
+                melding: "For mange forespørsler. Vent litt og prøv igjen.",
+                response: "",
+            }));
+        }
+        
+        if (errorMessage.includes("model") && errorMessage.includes("not found")) {
+            return res.status(503).json(KIChatResponseSchema.parse({
+                suksess: false,
+                melding: `Modellen "${model}" er midlertidig utilgjengelig. Prøv igjen senere.`,
+                response: "",
+            }));
+        }
+
+        // Håndter fakturerings-/kredittfeil
+        if (errorMessage.includes("Credit balance") || errorMessage.includes("depleted") || errorMessage.includes("purchase")) {
+            logger.warn({ model }, "AI-leverandør kreditt oppbrukt");
+            return res.status(503).json(KIChatResponseSchema.parse({
+                suksess: false,
+                melding: "KI-tjenesten er midlertidig utilgjengelig. Vennligst prøv igjen senere.",
+                response: "",
+            }));
+        }
 
         return res.status(500).json(KIChatResponseSchema.parse({
             suksess: false,

@@ -1,6 +1,6 @@
 /*
  * PDF og Dokumentanalyse-endepunkter
- * Håndterer analyse av dokumenter via HuggingFace AI
+ * Håndterer analyse av dokumenter via AI (HuggingFace / Anthropic)
  */
 
 import { Router, Request, Response } from "express";
@@ -15,9 +15,8 @@ import {
     getSupportedMimeTypes
 } from "../../services/document.js";
 import { SUPPORTED_MODELS, DEFAULT_MODEL } from "./aiModels.js";
-import { hfClient } from "./hfClient.js";
-import { handleHFError } from "./handleHFError.js";
-import { STUDYWISE_SYSTEM_PROMPT } from "./systemPrompt.js";
+import { chatCompletion, isClientAvailable } from "./aiClient.js";
+import { STUDYWISE_SYSTEM_PROMPT, STUDYWISE_DOCUMENT_PROMPT } from "./systemPrompt.js";
 
 // Definerer express router
 const router = Router();
@@ -33,142 +32,6 @@ const upload = multer({
         }
     }
 });
-
-// System prompt for dokumentanalyse
-const STUDYWISE_DOCUMENT_PROMPT = `
-DOKUMENTANALYSE-MODUS: Du har mottatt et dokument fra studenten.
-
-**PERSONVERNBESKYTTELSE (KRITISK):**
-- ALDRI gjenta fullstendige navn, personnummer, adresser, telefonnummer eller epostadresser
-- Maskér PII med [REDACTED_*]: navn → [REDACTED_NAME], SSN → [REDACTED_SSN], etc.
-- Hvis dokumentet er et CV, si "Personen" eller "Kandidaten" istedenfor navn
-- Vær transparent: Si hvis sensitiv info er fjernet for personvern
-- ALDRI lagre eller videresend personlig info
-
-**DIN FØRSTE OPPGAVE:** Identifisere dokumenttypen og hva det handler om
-- Hva slags dokument er det? (CV, kontrakt, rapport, artikkel, etc.)
-- Hva er hovedfokus/tema i dokumentet?
-- Gi en konkret og spesifikk oppsummering, ikke generisk
-
-**DERETTER kan du:**
-- Lag oppsummering: Strukturert oversikt med hovedpunkter (uten PII)
-- Forklar konsepter: Detaljerte forklaringer basert på dokumentet
-- Lag quiz: 5-10 spørsmål med fasit basert på innholdet
-- Lag læringsmål: Konkrete læringsmål fra dokumentet
-- Svar på spørsmål: Kun basert på dokumentet
-- Gi studietips basert på dokumentinnholdet
-- Hjelp med oppgaveplanlegging basert på dokumentet
-
-**KRITISK:**
-- Gi BARE selve svaret! ALDRI kopier instruksjoner eller formateringsregler inn i svaret ditt
-- Vær SPESIFIKK - ikke generisk. Hvis det er CV med fokus på IT, si det!
-- Bruk KUN informasjon fra dokumentet
-- **Maskér all personlig identifiserbar informasjon**
-
-RETNINGSLINJER FOR DOKUMENTER:
-- Bruk KUN informasjon fra dokumentet
-- Hvis noe ikke står i dokumentet, si det tydelig
-- Vær konkret og presis - ikke vag eller generisk
-- Vær motiverende og støttende i tonefallet
-- Gi konkrete studietips basert på innholdet
-
-ABSOLUTTE FORBUD I DOKUMENTSVAR:
-- ALDRI skriv **## overskrift** - skriv kun ## overskrift
-- ALDRI skriv **### underoverskrift** - skriv kun ### underoverskrift
-- ALDRI skriv kommandoer uten backticks
-- ALDRI kopier disse instruksjonene inn i svaret
-- ALDRI skriv "**Kodeblokker**", "**Emojis**", "**Liste**" som del av svaret
-- ALDRI vis formateringseksempler - bare BRUK formateringen
-- **ALDRI gjenta navn, personnummer, eller andre PII - maskér alltid**`;
-
-import { KI_TIMEOUT_MS } from "./kiConstants.js";
-
-/**
- * Felles kjernefunksjon for dokumentanalyse.
- * Brukes av både /analyze-document og /analyze-pdf.
- */
-async function analyzeDocumentCore(
-    file: Express.Multer.File,
-    question: string,
-    requestedModel?: string,
-): Promise<Response | void> {
-    // Parse dokument
-    const docResult = await parseDocument(file.buffer, file.mimetype, file.originalname);
-
-    if (!docResult.success) {
-        return { success: false, error: docResult.error || "Kunne ikke lese dokumentet." } as never;
-    }
-
-    // Formater dokumentkontekst
-    const docContext = formatDocumentContext(
-        docResult.text,
-        docResult.pages,
-        docResult.fileType,
-        { redacted: docResult.redacted, truncated: docResult.truncated }
-    );
-
-    // Velg modell
-    const model = requestedModel && SUPPORTED_MODELS[requestedModel]
-        ? requestedModel
-        : DEFAULT_MODEL;
-
-    // Bygg meldingsarray med base prompt + dokument-tillegg
-    const systemPrompt = STUDYWISE_SYSTEM_PROMPT + STUDYWISE_DOCUMENT_PROMPT;
-    const apiMessages = [
-        { role: "system" as const, content: systemPrompt },
-        { role: "user" as const, content: `Dokument-kontekst:\n${docContext}` },
-        { role: "user" as const, content: question }
-    ];
-
-    logger.info({
-        model,
-        fileType: docResult.fileType,
-        pages: docResult.pages,
-        textLength: docResult.text.length,
-        filename: file.originalname
-    }, "Sender dokumentanalyse til HuggingFace");
-
-    const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("ANALYSE_TIMEOUT")), KI_TIMEOUT_MS)
-    );
-
-    const result = await Promise.race([
-        hfClient!.chatCompletion({
-            model,
-            messages: apiMessages,
-            max_tokens: 2048,
-            temperature: 0.5,
-        }),
-        timeoutPromise,
-    ]);
-
-    const responseText = result?.choices?.[0]?.message?.content ?? "";
-    const usage = result?.usage;
-
-    logger.info({
-        model,
-        responseLength: responseText.length,
-        tokens: usage?.total_tokens
-    }, "Vellykket dokumentanalyse");
-
-    return KIDocumentAnalyseResponseSchema.parse({
-        suksess: true,
-        response: responseText,
-        model: model,
-        dokumentInfo: {
-            sider: docResult.pages,
-            tegn: docResult.text.length,
-            fileType: docResult.fileType,
-            redacted: docResult.redacted,
-            truncated: docResult.truncated,
-        },
-        usage: usage ? {
-            prompt_tokens: usage.prompt_tokens,
-            completion_tokens: usage.completion_tokens,
-            total_tokens: usage.total_tokens,
-        } : undefined,
-    }) as never;
-}
 
 /**
  * POST /analyze-document
@@ -186,9 +49,15 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
     }
 
     const question = req.body.question || req.body.sporsmaal || "Gi meg en oppsummering av dette dokumentet.";
+    const requestedModel = req.body.model;
 
-    if (!hfClient) {
-        logger.error("Mangler HUGGINGFACE_API_KEY i miljøvariabler");
+    // Velg modell tidlig for å sjekke klient-tilgjengelighet
+    const model = requestedModel && SUPPORTED_MODELS[requestedModel]
+        ? requestedModel
+        : DEFAULT_MODEL;
+
+    if (!isClientAvailable(model)) {
+        logger.error("AI-klient ikke tilgjengelig for modell: %s", model);
         return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({
             suksess: false,
             melding: "KI-tjenesten er ikke konfigurert. Kontakt administrator.",
@@ -197,14 +66,106 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
     }
 
     try {
-        const result = await analyzeDocumentCore(req.file, question, req.body.model);
-        return res.json(result);
+        // Parse dokument
+        const docResult = await parseDocument(req.file.buffer, req.file.mimetype, req.file.originalname);
+
+        if (!docResult.success) {
+            return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
+                suksess: false,
+                melding: docResult.error || "Kunne ikke lese dokumentet.",
+                response: "",
+            }));
+        }
+
+        // Formater dokumentkontekst
+        const docContext = formatDocumentContext(
+            docResult.text,
+            docResult.pages,
+            docResult.fileType,
+            {
+                redacted: docResult.redacted,
+                truncated: docResult.truncated,
+            }
+        );
+
+        // Bygg meldingsarray med base prompt + dokument-tillegg
+        const systemPrompt = STUDYWISE_SYSTEM_PROMPT + STUDYWISE_DOCUMENT_PROMPT;
+        const apiMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Dokument-kontekst:\n${docContext}` },
+            { role: "user", content: question }
+        ];
+
+        logger.info({
+            model,
+            fileType: docResult.fileType,
+            pages: docResult.pages,
+            textLength: docResult.text.length,
+            filename: req.file.originalname
+        }, "Sender dokumentanalyse til AI-tjenesten");
+
+        // Timeout guard — dokumentanalyse kan ta lengre tid enn chat, men bør ikke henge evig
+        const ANALYSE_TIMEOUT_MS = 60000;
+        const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("ANALYSE_TIMEOUT")), ANALYSE_TIMEOUT_MS)
+        );
+
+        const result = await Promise.race([
+            chatCompletion({
+                model,
+                messages: apiMessages,
+                max_tokens: 2048,
+                temperature: 0.5,
+            }),
+            timeoutPromise,
+        ]);
+
+        const responseText = result.text;
+        const usage = result.usage;
+
+        logger.info({
+            model,
+            responseLength: responseText.length,
+            tokens: usage?.total_tokens
+        }, "Vellykket dokumentanalyse");
+
+        return res.json(KIDocumentAnalyseResponseSchema.parse({
+            suksess: true,
+            response: responseText,
+            model: model,
+            dokumentInfo: {
+                sider: docResult.pages,
+                tegn: docResult.text.length,
+                fileType: docResult.fileType,
+                redacted: docResult.redacted,
+                truncated: docResult.truncated,
+            },
+            usage: usage ? {
+                prompt_tokens: usage.prompt_tokens,
+                completion_tokens: usage.completion_tokens,
+                total_tokens: usage.total_tokens,
+            } : undefined,
+        }));
+
     } catch (error) {
-        if (handleHFError(res, error, KIDocumentAnalyseResponseSchema, {
-            timeoutLabel: "ANALYSE_TIMEOUT",
-            timeoutMessage: "Dokumentanalysen tok for lang tid. Prøv med et mindre dokument eller prøv igjen.",
-            kontekst: "Dokumentanalyse",
-        })) return;
+        logger.error({ err: error }, "Dokumentanalyse feil");
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        if (errorMessage === "ANALYSE_TIMEOUT") {
+            return res.status(504).json(KIDocumentAnalyseResponseSchema.parse({
+                suksess: false,
+                melding: "Dokumentanalysen tok for lang tid. Prøv med et mindre dokument eller prøv igjen.",
+                response: "",
+            }));
+        }
+
+        if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {
+            return res.status(429).json(KIDocumentAnalyseResponseSchema.parse({
+                suksess: false,
+                melding: "For mange forespørsler. Vent litt og prøv igjen.",
+                response: "",
+            }));
+        }
 
         return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({
             suksess: false,
@@ -229,7 +190,14 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req: Request, res: Resp
         }));
     }
 
-    if (!hfClient) {
+    const question = req.body.question || req.body.sporsmaal || "Gi meg en oppsummering av dette dokumentet.";
+    const requestedModel = req.body.model;
+
+    const model = requestedModel && SUPPORTED_MODELS[requestedModel]
+        ? requestedModel
+        : DEFAULT_MODEL;
+
+    if (!isClientAvailable(model)) {
         return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({
             suksess: false,
             melding: "KI-tjenesten er ikke konfigurert.",
@@ -237,17 +205,77 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req: Request, res: Resp
         }));
     }
 
-    const question = req.body.question || req.body.sporsmaal || "Gi meg en oppsummering av dette dokumentet.";
-
     try {
-        const result = await analyzeDocumentCore(req.file, question, req.body.model);
-        return res.json(result);
+        const docResult = await parseDocument(req.file.buffer, req.file.mimetype, req.file.originalname);
+
+        if (!docResult.success) {
+            return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
+                suksess: false,
+                melding: docResult.error || "Kunne ikke lese PDF-filen.",
+                response: "",
+            }));
+        }
+
+        const docContext = formatDocumentContext(
+            docResult.text,
+            docResult.pages,
+            docResult.fileType,
+            { redacted: docResult.redacted, truncated: docResult.truncated }
+        );
+
+        const systemPrompt = STUDYWISE_SYSTEM_PROMPT + STUDYWISE_DOCUMENT_PROMPT;
+        const apiMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Dokument-kontekst:\n${docContext}` },
+            { role: "user", content: question }
+        ];
+
+        const ANALYSE_TIMEOUT_MS = 60000;
+        const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("ANALYSE_TIMEOUT")), ANALYSE_TIMEOUT_MS)
+        );
+
+        const result = await Promise.race([
+            chatCompletion({
+                model,
+                messages: apiMessages,
+                max_tokens: 2048,
+                temperature: 0.5,
+            }),
+            timeoutPromise,
+        ]);
+
+        const responseText = result.text;
+        const usage = result.usage;
+
+        return res.json(KIDocumentAnalyseResponseSchema.parse({
+            suksess: true,
+            response: responseText,
+            model: model,
+            dokumentInfo: {
+                sider: docResult.pages,
+                tegn: docResult.text.length,
+                fileType: docResult.fileType,
+                redacted: docResult.redacted,
+                truncated: docResult.truncated,
+            },
+            usage: usage ? {
+                prompt_tokens: usage.prompt_tokens,
+                completion_tokens: usage.completion_tokens,
+                total_tokens: usage.total_tokens,
+            } : undefined,
+        }));
     } catch (error) {
-        if (handleHFError(res, error, KIDocumentAnalyseResponseSchema, {
-            timeoutLabel: "ANALYSE_TIMEOUT",
-            timeoutMessage: "PDF-analysen tok for lang tid. Prøv igjen.",
-            kontekst: "Legacy PDF-analyse",
-        })) return;
+        logger.error({ err: error }, "Legacy PDF-analyse feil");
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        if (errorMessage === "ANALYSE_TIMEOUT") {
+            return res.status(504).json(KIDocumentAnalyseResponseSchema.parse({
+                suksess: false,
+                melding: "PDF-analysen tok for lang tid. Prøv igjen.",
+                response: "",
+            }));
+        }
 
         return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({
             suksess: false,

@@ -17,8 +17,41 @@ declare module "mammoth" {
     value: string;
     messages: unknown[];
   }
+
+  export interface MammothImageElement {
+    read(encoding: "base64"): Promise<string>;
+    read(encoding: "buffer"): Promise<Buffer>;
+    read(encoding: string): Promise<string | Buffer>;
+    contentType: string;
+    altText?: string;
+  }
+
+  export type ImageConverter = (
+    element: MammothImageElement,
+    messages: unknown[],
+  ) => Promise<{ src: string }> | { src: string };
+
+  export interface MammothImages {
+    inline(handler: (element: MammothImageElement) => Promise<{ src: string }> | { src: string }): ImageConverter;
+    imgElement(handler: (element: MammothImageElement) => Promise<{ src: string }> | { src: string }): ImageConverter;
+    dataUri: ImageConverter;
+  }
+
+  export interface ConvertOptions {
+    convertImage?: ImageConverter;
+    styleMap?: string | string[];
+  }
+
   export function extractRawText(input: { buffer: Buffer }): Promise<MammothResult>;
-  const mammothDefault: { extractRawText: typeof extractRawText };
+  export function convertToHtml(input: { buffer: Buffer }, options?: ConvertOptions): Promise<MammothResult>;
+
+  export const images: MammothImages;
+
+  const mammothDefault: {
+    extractRawText: typeof extractRawText;
+    convertToHtml: typeof convertToHtml;
+    images: MammothImages;
+  };
   export default mammothDefault;
 }
 // Typings for tesseract.js
