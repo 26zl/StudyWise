@@ -90,6 +90,7 @@ docker compose up --build # Starter MongoDB, Redis, backend og frontend
 | Backend      | <http://localhost:4000>          |
 | Swagger UI   | <http://localhost:4000/api-docs> |
 | Health Check | <http://localhost:4000/health>   |
+| Docs         | <http://localhost:5173>          |
 
 
 ## API Dokumentasjon
@@ -101,9 +102,9 @@ Backend har integrert Swagger UI: <http://localhost:4000/api-docs>
 ### Hovedendepunkter
 
 - `GET /health` - Server health check
-- `GET /api/canvas/*` - Canvas LMS integrasjon
+- `GET /api/canvas/*` - Canvas LMS integrasjon (emner, oppgaver, moduler, kunngjøringer, kalender)
 - `/api/user/*` - Autentisering (login, register, refresh, logout)
-- `/api/ki/*` - KI-assistenten (chat, dokumentanalyse, task breakdown)
+- `/api/ki/*` - KI-assistenten (chat, dokumentanalyse, oppsummering, task breakdown)
 
 ### Canvas API
 
