@@ -4,8 +4,9 @@
  */ 
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Bot, User, Sparkles, Paperclip, X, FileText, Download } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Send, Loader2, Bot, User, Sparkles, Paperclip, Download } from "lucide-react";
+import { AttachmentStrip } from "./AttachmentStrip";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
@@ -37,7 +38,7 @@ export function ChatSection() {
     const [meldinger, settMeldinger] = useState<Melding[]>([]);
     const [tekstInput, settTekstInput] = useState("");
     const [skriver, settSkriver] = useState(false);
-    const [vedlagtFil, settVedlagtFil] = useState<File | null>(null);
+    const [vedlegg, settVedlegg] = useState<File[]>([]);
     const [analyserarDokument, settAnalysererDokument] = useState(false);
     const [aktivChatId, setAktivChatId] = useState<string | null>(null);
     const meldingerSluttRef = useRef<HTMLDivElement>(null);
@@ -117,7 +118,7 @@ export function ChatSection() {
         }
         settMeldinger([]);
         setAktivChatId(null);
-        settVedlagtFil(null);
+        settVedlegg([]);
     };
 
     // Start ny samtale fra globale triggers (f.eks. sidebar)
@@ -127,42 +128,99 @@ export function ChatSection() {
         void nySamtale();
     }, [newChatToken]);
 
-    // Håndter filvalg
-    const handleFilValg = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const fil = e.target.files?.[0];
-        if (fil) {
-            // Sjekk filstørrelse (maks 15MB)
+    // Håndter filer (gjenbrukbar for filvalg, innliming og dra-og-slipp)
+    const håndterFiler = useCallback((filer: File[]) => {
+        const godkjente: File[] = [];
+        for (const fil of filer) {
             if (fil.size > 15 * 1024 * 1024) {
                 const feilMelding: Melding = {
                     id: Date.now().toString(),
                     rolle: "assistant",
-                    innhold: "Filen er for stor. Maksimal filstørrelse er 15MB.",
+                    innhold: `Filen «${fil.name}» er for stor. Maksimal filstørrelse er 15 MB.`,
                     tidsstempel: new Date(),
                 };
                 settMeldinger((tidligere) => [...tidligere, feilMelding]);
-                return;
+            } else {
+                godkjente.push(fil);
             }
-            settVedlagtFil(fil);
         }
-        // Reset input
+        if (godkjente.length > 0) {
+            settVedlegg((prev) => [...prev, ...godkjente]);
+        }
+    }, []);
+
+    // Håndter filvalg fra input-element (støtter multiple)
+    const handleFilValg = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const filer = e.target.files;
+        if (filer && filer.length > 0) {
+            håndterFiler(Array.from(filer));
+        }
+        // Reset input slik at samme fil kan velges igjen
         if (filInputRef.current) {
             filInputRef.current.value = "";
         }
     };
 
-    // Fjern vedlagt fil
-    const fjernVedlagtFil = () => {
-        settVedlagtFil(null);
-        if (filInputRef.current) {
-            filInputRef.current.value = "";
-        }
-    };
+    // Lim-inn håndtering (Ctrl+V) – fanger bilder fra utklippstavlen
+    useEffect(() => {
+        const textarea = tekstInputRef.current;
+        if (!textarea) return;
+
+        const onPaste = (e: ClipboardEvent) => {
+            const items = e.clipboardData?.items;
+            if (!items) return;
+
+            const bildeFiler: File[] = [];
+            let harTekst = false;
+
+            for (const item of items) {
+                if (item.type.startsWith("image/")) {
+                    const fil = item.getAsFile();
+                    if (fil) {
+                        const ext = fil.type.split("/")[1] || "png";
+                        const ts = new Date()
+                            .toISOString()
+                            .replace(/[:.]/g, "-");
+                        bildeFiler.push(
+                            new File(
+                                [fil],
+                                `innlimt-bilde-${ts}-${bildeFiler.length + 1}.${ext}`,
+                                { type: fil.type },
+                            ),
+                        );
+                    }
+                } else if (item.type === "text/plain") {
+                    harTekst = true;
+                }
+            }
+
+            if (bildeFiler.length > 0) {
+                håndterFiler(bildeFiler);
+                // Hvis utklippstavlen kun har bilder (skjermbilde etc.),
+                // forhindre at nettleseren limer inn ubrukelig data.
+                // Har den også tekst (f.eks. kopiert fra Word), la teksten passere.
+                if (!harTekst) {
+                    e.preventDefault();
+                }
+            }
+        };
+
+        textarea.addEventListener("paste", onPaste);
+        return () => textarea.removeEventListener("paste", onPaste);
+    }, [håndterFiler]);
+
+    // Fjern ett vedlegg fra listen
+    const fjernVedlegg = useCallback((index: number) => {
+        settVedlegg((prev) => prev.filter((_, i) => i !== index));
+    }, []);
 
     // Send melding
     const sendMelding = async () => {
-        if ((!tekstInput.trim() && !vedlagtFil) || skriver || analyserarDokument) return;
+        const harVedlegg = vedlegg.length > 0;
+        if ((!tekstInput.trim() && !harVedlegg) || skriver || analyserarDokument) return;
 
-        const brukerMeldingInnhold = tekstInput.trim() || (vedlagtFil ? `Analyser dokumentet: ${vedlagtFil.name}` : "");
+        const vedlagtNavn = vedlegg.map((f) => f.name).join(", ");
+        const brukerMeldingInnhold = tekstInput.trim() || (harVedlegg ? `Analyser dokumentet: ${vedlagtNavn}` : "");
         settTekstInput("");
 
         // Reset høyde
@@ -174,19 +232,21 @@ export function ChatSection() {
         const brukerMelding: Melding = {
             id: Date.now().toString(),
             rolle: "user",
-            innhold: vedlagtFil 
-                ? `${brukerMeldingInnhold}\n\n[Vedlagt: ${vedlagtFil.name}]` 
+            innhold: harVedlegg
+                ? `${brukerMeldingInnhold}\n\n[Vedlagt: ${vedlagtNavn}]`
                 : brukerMeldingInnhold,
             tidsstempel: new Date(),
         };
 
         settMeldinger((tidligere) => [...tidligere, brukerMelding]);
 
-        // Hvis det er en vedlagt fil, bruk dokumentanalyse
-        if (vedlagtFil) {
+        // Hvis det er vedlegg, bruk dokumentanalyse (én fil om gangen)
+        // NB: Backend-API-et aksepterer kun én fil per forespørsel.
+        // Vi sender den første filen; ønsker man batch-analyse må backend utvides.
+        if (harVedlegg) {
             settAnalysererDokument(true);
-            const filTilAnalyse = vedlagtFil;
-            settVedlagtFil(null);
+            const filTilAnalyse = vedlegg[0];
+            settVedlegg([]);
 
             analyserDokument(filTilAnalyse, brukerMeldingInnhold || "Gi meg en oppsummering av dette dokumentet.", {
                 onSuccess: (data) => {
@@ -580,26 +640,8 @@ export function ChatSection() {
 
                 {/* Input */}
                 <div className="shrink-0 p-4 md:p-6 border-t border-slate-200 dark:border-slate-800">
-                    {/* Vedlagt fil visning */}
-                    {vedlagtFil && (
-                        <div className="mb-3 flex items-center gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                            <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                            <span className="flex-1 text-sm text-blue-700 dark:text-blue-300 truncate">
-                                {vedlagtFil.name}
-                            </span>
-                            <span className="text-xs text-blue-500 dark:text-blue-400">
-                                {(vedlagtFil.size / 1024).toFixed(1)} KB
-                            </span>
-                            <button
-                                onClick={fjernVedlagtFil}
-                                className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors"
-                                title="Fjern fil"
-                                aria-label="Fjern vedlagt fil"
-                            >
-                                <X className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                            </button>
-                        </div>
-                    )}
+                    {/* Vedleggsliste (kompakt stripe) */}
+                    <AttachmentStrip vedlegg={vedlegg} onFjern={fjernVedlegg} />
                     
                     <div className="flex gap-3">
                         {/* Skjult fil-input */}
@@ -608,6 +650,7 @@ export function ChatSection() {
                             type="file"
                             accept={SUPPORTED_FILE_TYPES.join(",")}
                             onChange={handleFilValg}
+                            multiple
                             className="hidden"
                         />
                         
@@ -638,7 +681,7 @@ export function ChatSection() {
                             value={tekstInput}
                             onChange={(e) => settTekstInput(e.target.value)}
                             onKeyDown={handterTastetrykk}
-                            placeholder={vedlagtFil ? "Skriv et spørsmål om dokumentet..." : "Skriv en melding..."}
+                            placeholder={vedlegg.length > 0 ? "Skriv et spørsmål om vedlegget..." : "Skriv en melding..."}
                             disabled={skriver || analyserarDokument}
                             rows={1}
                             className="flex-1 resize-none rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -646,7 +689,7 @@ export function ChatSection() {
                         />
                         <button
                             onClick={sendMelding}
-                            disabled={(!tekstInput.trim() && !vedlagtFil) || skriver || analyserarDokument}
+                            disabled={(!tekstInput.trim() && vedlegg.length === 0) || skriver || analyserarDokument}
                             className="shrink-0 w-12 h-12 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                             aria-label={skriver || analyserarDokument ? "Sender melding" : "Send melding"}
                         >
@@ -658,7 +701,7 @@ export function ChatSection() {
                         </button>
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                        Trykk Enter for å sende, Shift+Enter for ny linje. Støtter PDF, Word, TXT og Markdown.
+                        Trykk Enter for å sende, Shift+Enter for ny linje. Støtter PDF, Word, bilder og mer. Lim inn bilder med Ctrl+V.
                     </p>
                 </div>
             </div>
