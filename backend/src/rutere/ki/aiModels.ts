@@ -56,7 +56,7 @@ export const SUPPORTED_MODELS: Record<string, ModelInfo> = {
 };
 
 // Standard modell (kan overstyres via miljøvariabel)
-export const DEFAULT_MODEL = "claude-sonnet-4-20250514";
+export const DEFAULT_MODEL = "claude-sonnet-4-20250514";   // endre til den modellen du ønsker som default
 
 // Typedefinisjoner
 export type SupportedModelId = keyof typeof SUPPORTED_MODELS;
