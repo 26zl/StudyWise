@@ -97,11 +97,15 @@ export const validateEnv = (): void => {
         }
     }
 
-    // Valider JWT Secrets lengde
+    // Valider JWT Secrets lengde og entropi
     const validateSecret = (key: keyof EnvConfig) => {
         const secret = process.env[key];
         if (secret && secret.length < 32) {
             manglende.push(`${key} (må være minst 32 tegn, er: ${secret.length})`);
+        }
+        // Enkel entropi-sjekk: avvis secrets som består av kun ett gjentatt tegn
+        if (secret && /^(.)\1+$/.test(secret)) {
+            manglende.push(`${key} (for lav entropi — ser ut som et gjentatt tegn)`);
         }
     };
     validateSecret("JWT_ACCESS_SECRET");
@@ -115,9 +119,9 @@ export const validateEnv = (): void => {
         manglende.push(`MONGO_URI (må inneholde '/studywise', fikk: ...${mongoUri.slice(-15)})`);
     }
 
-    // Valider REDIS_URL format - må peke til Redis Cloud (sikker hostname-validering)
+    // Valider REDIS_URL format - må peke til Redis Cloud i produksjon
     const redisUrl = process.env.REDIS_URL;
-    if (redisUrl) {
+    if (redisUrl && process.env.NODE_ENV === "production") {
         try {
             const parsedRedisUrl = new URL(redisUrl);
             // Sikker hostname-validering - må være eksakt match eller subdomain
@@ -135,6 +139,29 @@ export const validateEnv = (): void => {
     const nodeEnv = process.env.NODE_ENV;
     if (nodeEnv && !["development", "production", "test"].includes(nodeEnv)) {
         manglende.push(`NODE_ENV (må være 'development', 'production' eller 'test', fikk: ${nodeEnv})`);
+    }
+
+    // Valider ANTHROPIC_API_KEY format
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    if (anthropicKey && !anthropicKey.startsWith("sk-ant-")) {
+        manglende.push("ANTHROPIC_API_KEY (må starte med 'sk-ant-')");
+    }
+
+    // Valider JWT expiry-format (tall + enhet: s/m/h/d)
+    const validateExpiry = (key: string) => {
+        const value = process.env[key];
+        if (value && !/^\d+[smhd]$/.test(value)) {
+            manglende.push(`${key} (ugyldig format '${value}', forventet f.eks. '30m', '14d')`);
+        }
+    };
+    validateExpiry("JWT_ACCESS_EXPIRES");
+    validateExpiry("JWT_REFRESH_EXPIRES");
+
+    // Valider LOG_LEVEL er gyldig Pino-nivå
+    const logLevel = process.env.LOG_LEVEL;
+    const gyldigeNivaer = ["trace", "debug", "info", "warn", "error", "fatal", "silent"];
+    if (logLevel && !gyldigeNivaer.includes(logLevel)) {
+        manglende.push(`LOG_LEVEL (må være en av: ${gyldigeNivaer.join(", ")}, fikk: ${logLevel})`);
     }
 
     // Avslutt hvis påkrevde variabler mangler
