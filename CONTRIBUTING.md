@@ -141,7 +141,7 @@ Common inneholder data-definisjoner og valideringsregler som deles mellom backen
 **JA:**
 
 - Data som sendes mellom backend og frontend
-- Data fra eksterne APIer (Canvas, HuggingFace)
+- Data fra eksterne APIer (Canvas, Anthropic/Claude, HuggingFace)
 - Delte feiltyper og error codes
 
 **NEI:**
@@ -172,7 +172,7 @@ Prosjektet har en `docs/`-pakke som bruker VitePress for prosjektdokumentasjon. 
 
 ### Hva gjør backend?
 
-1. Henter data fra Canvas API og HuggingFace
+1. Henter data fra Canvas API og AI-tjenester (Claude/HuggingFace)
 2. Validerer at dataene er korrekte med Zod
 3. Transformerer data til vårt format
 4. Sender data til frontend
@@ -380,7 +380,7 @@ Hele prosjektet kan kjøres lokalt via Docker:
 docker compose up --build
 ```
 
-Forutsetning: `backend/.env` må finnes med HuggingFace-nøkkel, JWT-secrets og ENCRYPTION_KEY. MongoDB og Redis startes automatisk av Docker.
+Forutsetning: `backend/.env` må finnes med Anthropic API-nøkkel (påkrevd), HuggingFace-nøkkel (valgfri fallback), JWT-secrets og ENCRYPTION_KEY. MongoDB og Redis startes automatisk av Docker.
 
 ### Hjelp
 

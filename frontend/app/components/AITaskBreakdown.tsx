@@ -44,7 +44,7 @@ export function AITaskBreakdown({
   const generateSubtasks = async () => {
     setIsGenerating(true);
 
-    // MOCK DATA - Erstatt med ekte AI når HuggingFace fungerer
+    // MOCK DATA - Erstatt med ekte Claude AI-kall
     setTimeout(() => {
       const mockSubtasks: SubTaskUI[] = [
         {

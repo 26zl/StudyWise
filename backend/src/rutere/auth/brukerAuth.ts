@@ -481,9 +481,9 @@ router.put("/preferences", autentiserJwt, async (req, res) => {
         const validatedPrefs = CanvasContextPreferencesSchema.parse(canvasContextPreferences);
 
         const oppdatertBruker = await User.findByIdAndUpdate(
-            userId,
-            { canvasContextPreferences: validatedPrefs },
-            { new: true }
+          userId,
+          { canvasContextPreferences: validatedPrefs },
+          { returnDocument: "after" },
         );
 
         if (!oppdatertBruker) {

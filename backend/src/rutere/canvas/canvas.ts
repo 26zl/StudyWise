@@ -167,7 +167,7 @@ router.get("/whoami", async (req, res) => {
       },
       {
         upsert: true,
-        new: true,
+        returnDocument: "after",
         setDefaultsOnInsert: true,
         runValidators: true,
       }, // Opprett hvis ikke finnes

@@ -1,7 +1,7 @@
 /*
  * AI Model Configuration
- * Felles konfigurasjon for støttede AI-modeller
- * Støtter leverandører: HuggingFace og Anthropic (Claude)
+ * Claude er primær-AI, HuggingFace er fallback.
+ * Støtter leverandører: Anthropic (Claude) og HuggingFace
  */
 
 // Leverandørtype for AI-modeller
@@ -16,13 +16,13 @@ export interface ModelInfo {
 
 // Støttede modeller med beskrivelser og leverandør
 export const SUPPORTED_MODELS: Record<string, ModelInfo> = {
-    // --- Anthropic (Claude) ---
+    // --- Anthropic (Claude) — primær ---
     "claude-sonnet-4-20250514": {
         name: "Claude Sonnet 4",
         description: "Avansert resonneringsmodell fra Anthropic",
         provider: "anthropic",
     },
-    // --- HuggingFace ---
+    // --- HuggingFace — fallback ---
     "Qwen/Qwen3-1.7B": {
         name: "Qwen 3 1.7B",
         description: "Ultralett og rask modell for enkel bruk",
@@ -55,8 +55,11 @@ export const SUPPORTED_MODELS: Record<string, ModelInfo> = {
     },
 };
 
-// Standard modell (kan overstyres via miljøvariabel)
-export const DEFAULT_MODEL = "claude-sonnet-4-20250514";   // endre til den modellen du ønsker som default
+// Standard modell — Claude er primær
+export const DEFAULT_MODEL = "claude-sonnet-4-20250514";
+
+// Fallback-modell brukes automatisk hvis Claude feiler og HF er tilgjengelig
+export const FALLBACK_MODEL = "Qwen/Qwen2.5-7B-Instruct";
 
 // Typedefinisjoner
 export type SupportedModelId = keyof typeof SUPPORTED_MODELS;

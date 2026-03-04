@@ -31,7 +31,7 @@ Dette er et **pnpm monorepo-prosjekt** som består av:
 - **API Docs**: `swagger-ui-express` + `swagger-jsdoc`
 - **Logging**: `pino` + `pino-http`. Bruk ALLTID `logger.info/error`, ALDRI `console.log`
 - **Cache**: `redis` client interfacing with Redis Cloud
-- **AI**: `@huggingface/inference` for integrasjon mot HuggingFace modeller
+- **AI**: `@anthropic-ai/sdk` for Claude (primær), `@huggingface/inference` for HuggingFace (fallback)
 
 ### Common
 
@@ -355,8 +355,9 @@ Ukentlige oppdateringer (mandager) for: `github-actions`, rot, `frontend`, `back
 
 Gjenbruk disse — **ikke dupliser**:
 
-- `hfClient.ts` — Singleton `InferenceClient` (import `hfClient`)
-- `handleHFError.ts` — Felles HF-feilhåndterer for timeout/rate-limit/503 (import `handleHFError`)
+- `aiClient.ts` — Unified AI-klient med Claude (primær) + HuggingFace (fallback) (import `chatCompletion`, `isClientAvailable`)
+- `handleAIError.ts` — Sentralisert AI-feilhåndterer for timeout/rate-limit/billing/503 (import `handleAIError`)
+- `aiModels.ts` — Modellkonfigurasjon, `DEFAULT_MODEL`, `FALLBACK_MODEL`
 - `kiConstants.ts` — `KI_CACHE_TTL`, `KI_OPPSUMMERING_CACHE_TTL`, `KI_TIMEOUT_MS`
 - `systemPrompt.ts` — Én kilde for `STUDYWISE_SYSTEM_PROMPT`
 

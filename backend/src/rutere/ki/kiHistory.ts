@@ -139,7 +139,7 @@ kiHistoryRouter.put("/chat/history/:id", async (req, res) => {
     const doc = await ChatHistory.findOneAndUpdate(
       { _id: id, user: userId },
       { title, encryptedMessages },
-      { new: true },
+      { returnDocument: "after" },
     );
     if (!doc) return apiError.notFound(res, "Samtale");
 

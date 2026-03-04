@@ -17,6 +17,7 @@ import {
 import { SUPPORTED_MODELS, DEFAULT_MODEL } from "./aiModels.js";
 import { chatCompletion, isClientAvailable } from "./aiClient.js";
 import { STUDYWISE_SYSTEM_PROMPT, STUDYWISE_DOCUMENT_PROMPT } from "./systemPrompt.js";
+import { handleAIError } from "./handleAIError.js";
 
 // Definerer express router
 const router = Router();
@@ -92,8 +93,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
         const systemPrompt = STUDYWISE_SYSTEM_PROMPT + STUDYWISE_DOCUMENT_PROMPT;
         const apiMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
             { role: "system", content: systemPrompt },
-            { role: "user", content: `Dokument-kontekst:\n${docContext}` },
-            { role: "user", content: question }
+            { role: "user", content: `Dokument-kontekst:\n${docContext}\n\nSpørsmål: ${question}` }
         ];
 
         logger.info({
@@ -148,24 +148,11 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
         }));
 
     } catch (error) {
-        logger.error({ err: error }, "Dokumentanalyse feil");
-        const errorMessage = error instanceof Error ? error.message : String(error);
-
-        if (errorMessage === "ANALYSE_TIMEOUT") {
-            return res.status(504).json(KIDocumentAnalyseResponseSchema.parse({
-                suksess: false,
-                melding: "Dokumentanalysen tok for lang tid. Prøv med et mindre dokument eller prøv igjen.",
-                response: "",
-            }));
-        }
-
-        if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {
-            return res.status(429).json(KIDocumentAnalyseResponseSchema.parse({
-                suksess: false,
-                melding: "For mange forespørsler. Vent litt og prøv igjen.",
-                response: "",
-            }));
-        }
+        if (handleAIError(res, error, KIDocumentAnalyseResponseSchema, {
+            timeoutLabel: "ANALYSE_TIMEOUT",
+            timeoutMessage: "Dokumentanalysen tok for lang tid. Prøv med et mindre dokument eller prøv igjen.",
+            kontekst: "dokumentanalyse",
+        })) return;
 
         return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({
             suksess: false,
@@ -226,8 +213,7 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req: Request, res: Resp
         const systemPrompt = STUDYWISE_SYSTEM_PROMPT + STUDYWISE_DOCUMENT_PROMPT;
         const apiMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
             { role: "system", content: systemPrompt },
-            { role: "user", content: `Dokument-kontekst:\n${docContext}` },
-            { role: "user", content: question }
+            { role: "user", content: `Dokument-kontekst:\n${docContext}\n\nSpørsmål: ${question}` }
         ];
 
         const ANALYSE_TIMEOUT_MS = 60000;
@@ -266,16 +252,11 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req: Request, res: Resp
             } : undefined,
         }));
     } catch (error) {
-        logger.error({ err: error }, "Legacy PDF-analyse feil");
-        const errorMessage = error instanceof Error ? error.message : String(error);
-
-        if (errorMessage === "ANALYSE_TIMEOUT") {
-            return res.status(504).json(KIDocumentAnalyseResponseSchema.parse({
-                suksess: false,
-                melding: "PDF-analysen tok for lang tid. Prøv igjen.",
-                response: "",
-            }));
-        }
+        if (handleAIError(res, error, KIDocumentAnalyseResponseSchema, {
+            timeoutLabel: "ANALYSE_TIMEOUT",
+            timeoutMessage: "PDF-analysen tok for lang tid. Prøv igjen.",
+            kontekst: "legacy-pdf-analyse",
+        })) return;
 
         return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({
             suksess: false,

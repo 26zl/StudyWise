@@ -21,6 +21,7 @@ import {
     useCanvasAllAssignments,
     useCanvasAnnouncements,
     useCanvasUpcomingEvents,
+    useCanvasCourses,
     type AssignmentMedEmne,
 } from "../canvas/canvas-api";
 import { FRIST_VINDU_TIMER, klassifiserFrist, formaterTid, type FristStatus } from "../lib/fristUtils";
@@ -85,8 +86,19 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
     const assignmentsQuery = useCanvasAllAssignments({ enabled: harCanvasToken });
     const announcementsQuery = useCanvasAnnouncements(harCanvasToken);
     const eventsQuery = useCanvasUpcomingEvents(harCanvasToken);
+    const coursesQuery = useCanvasCourses(harCanvasToken);
 
     const isLoading = assignmentsQuery.isLoading || announcementsQuery.isLoading || eventsQuery.isLoading;
+
+    // Map context_code → emnenavn for kunngjøringer
+    const emneNavnMap = useMemo(() => {
+        const courses = coursesQuery.data?.courses ?? [];
+        const map = new Map<string, string>();
+        for (const c of courses) {
+            map.set(`course_${c.id}`, c.name);
+        }
+        return map;
+    }, [coursesQuery.data]);
 
     // Frister innen 72 timer
     const frister: FristElement[] = useMemo(() => {
@@ -126,11 +138,11 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
             type: "kunngjoring" as const,
             id: `kunngjoring-${a.id}`,
             tittel: a.title,
-            emne: a.context_code?.replace("course_", "Emne ") ?? "",
+            emne: (a.context_code && emneNavnMap.get(a.context_code)) ?? a.context_code?.replace("course_", "Emne ") ?? "",
             dato: a.posted_at ? new Date(a.posted_at) : new Date(),
             melding: a.message ?? "",
         }));
-    }, [announcementsQuery.data]);
+    }, [announcementsQuery.data, emneNavnMap]);
 
     // Hendelser
     const hendelser: HendelseElement[] = useMemo(() => {

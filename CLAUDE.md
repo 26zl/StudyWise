@@ -30,7 +30,7 @@ StudyWise - AI-powered study assistant with Canvas LMS integration. pnpm monorep
 - **API Docs**: `swagger-ui-express` + `swagger-jsdoc`
 - **Logging**: `pino` + `pino-http`. ALWAYS use `logger.info/error`, NEVER `console.log`
 - **Cache**: `redis` client with Redis Cloud
-- **AI**: `@huggingface/inference` for HuggingFace models
+- **AI**: `@anthropic-ai/sdk` for Claude (primær), `@huggingface/inference` for HuggingFace (fallback)
 - **Error handling**: Standardized via `backend/src/utils/apiError.ts`
 
 ### Common
@@ -156,8 +156,9 @@ Each file handles a distinct AI feature:
 
 Shared infrastructure (reuse these, don't duplicate):
 
-- `hfClient.ts` - Singleton HuggingFace `InferenceClient` (import `hfClient`)
-- `handleHFError.ts` - Shared HF error handler for timeout/rate-limit/503 (import `handleHFError`)
+- `aiClient.ts` - Unified AI client with Claude (primær) + HuggingFace (fallback) (import `chatCompletion`, `isClientAvailable`)
+- `handleAIError.ts` - Centralized AI error handler for timeout/rate-limit/billing/503 (import `handleAIError`)
+- `aiModels.ts` - Model config, `DEFAULT_MODEL`, `FALLBACK_MODEL`
 - `kiConstants.ts` - `KI_CACHE_TTL`, `KI_OPPSUMMERING_CACHE_TTL`, `KI_TIMEOUT_MS`
 - `systemPrompt.ts` - Single source for `STUDYWISE_SYSTEM_PROMPT`
 

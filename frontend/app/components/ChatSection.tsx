@@ -638,7 +638,7 @@ export function ChatSection() {
                             value={tekstInput}
                             onChange={(e) => settTekstInput(e.target.value)}
                             onKeyDown={handterTastetrykk}
-                            placeholder={vedlagtFil ? "Skriv et sporsmal om dokumentet..." : "Skriv en melding..."}
+                            placeholder={vedlagtFil ? "Skriv et spørsmål om dokumentet..." : "Skriv en melding..."}
                             disabled={skriver || analyserarDokument}
                             rows={1}
                             className="flex-1 resize-none rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"

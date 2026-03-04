@@ -20,6 +20,7 @@ import { kiAnalyseRouter } from "./kiAnalyse.js";
 import { SUPPORTED_MODELS, DEFAULT_MODEL } from "./aiModels.js";
 import { STUDYWISE_SYSTEM_PROMPT } from "./systemPrompt.js";
 import { chatCompletion, isClientAvailable, getMissingClientError } from "./aiClient.js";
+import { handleAIError } from "./handleAIError.js";
 
 // Definerer express router
 const router = Router();
@@ -37,324 +38,353 @@ const CACHE_KEY = "ki:test-connection";
 
 // Endepunkt for å liste støttede modeller
 router.get("/models", (_req, res) => {
-    logger.info("Henter liste over støttede modeller");
-    const models = Object.entries(SUPPORTED_MODELS).map(([id, info]) => ({
-        id,
-        name: info.name,
-        description: info.description,
-        isDefault: id === DEFAULT_MODEL
-    }));
-    return res.json(KIModelsResponseSchema.parse({ models, defaultModel: DEFAULT_MODEL }));
+  logger.info("Henter liste over støttede modeller");
+  const models = Object.entries(SUPPORTED_MODELS).map(([id, info]) => ({
+    id,
+    name: info.name,
+    description: info.description,
+    isDefault: id === DEFAULT_MODEL,
+  }));
+  return res.json(
+    KIModelsResponseSchema.parse({ models, defaultModel: DEFAULT_MODEL }),
+  );
 });
 
 // Endepunkt for å teste tilkobling til AI-tjenesten
 router.get("/test-connection", async (_req, res) => {
-    logger.info("Testing AI connection...");
+  logger.info("Testing AI connection...");
 
-    // Sjekk cache først
-    const cached = await getCache(CACHE_KEY);
-    if (cached) {
-        logger.info("Returnerer cachet KI test-resultat");
-        return res.json(KIChatResponseSchema.parse(JSON.parse(cached)));
-    }
+  // Sjekk cache først
+  const cached = await getCache(CACHE_KEY);
+  if (cached) {
+    logger.info("Returnerer cachet KI test-resultat");
+    return res.json(KIChatResponseSchema.parse(JSON.parse(cached)));
+  }
 
-    const model = DEFAULT_MODEL;
+  const model = DEFAULT_MODEL;
 
-    if (!isClientAvailable(model)) {
-        logger.error(getMissingClientError(model));
-        return res.status(500).json(KIChatResponseSchema.parse({
-            suksess: false,
-            melding: getMissingClientError(model),
-            response: "",
-        }));
-    }
+  if (!isClientAvailable(model)) {
+    logger.error(getMissingClientError(model));
+    return res.status(500).json(
+      KIChatResponseSchema.parse({
+        suksess: false,
+        melding: getMissingClientError(model),
+        response: "",
+      }),
+    );
+  }
 
-    try {
-        const result = await chatCompletion({
-            model,
-            messages: [
-                { role: "system", content: STUDYWISE_SYSTEM_PROMPT },
-                { role: "user", content: "Hei! Hvem er du?" }
-            ],
-            max_tokens: 150,
-            temperature: 0.7,
-        });
+  try {
+    const result = await chatCompletion({
+      model,
+      messages: [
+        { role: "system", content: STUDYWISE_SYSTEM_PROMPT },
+        { role: "user", content: "Hei! Hvem er du?" },
+      ],
+      max_tokens: 150,
+      temperature: 0.7,
+    });
 
-        logger.info("Vellykket svar fra AI-tjenesten");
-        const response = KIChatResponseSchema.parse({
-            suksess: true,
-            melding: "Vellykket kobling til AI-tjenesten!",
-            response: result.text,
-            model: model,
-        });
-        // Cache resultatet
-        await setCache(CACHE_KEY, JSON.stringify(response), KI_CACHE_TTL);
-        return res.json(response);
-    } catch (error) {
-        logger.error({ err: error }, "AI Connection Error");
-        const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.info("Vellykket svar fra AI-tjenesten");
+    const response = KIChatResponseSchema.parse({
+      suksess: true,
+      melding: "Vellykket kobling til AI-tjenesten!",
+      response: result.text,
+      model: model,
+    });
+    // Cache resultatet
+    await setCache(CACHE_KEY, JSON.stringify(response), KI_CACHE_TTL);
+    return res.json(response);
+  } catch (error) {
+    if (
+      handleAIError(res, error, KIChatResponseSchema, {
+        kontekst: "test-connection",
+      })
+    )
+      return;
 
-        // Håndter fakturerings-/kredittfeil
-        if (errorMessage.includes("Credit balance") || errorMessage.includes("depleted") || errorMessage.includes("purchase")) {
-            return res.status(503).json(KIChatResponseSchema.parse({
-                suksess: false,
-                melding: "KI-tjenesten er midlertidig utilgjengelig.",
-                response: "",
-            }));
-        }
-
-        return res.status(500).json(KIChatResponseSchema.parse({
-            suksess: false,
-            melding: "Feil under kommunikasjon med KI-tjenesten. Prøv igjen senere.",
-            response: "",
-        }));
-    }
+    return res.status(500).json(
+      KIChatResponseSchema.parse({
+        suksess: false,
+        melding:
+          "Feil under kommunikasjon med KI-tjenesten. Prøv igjen senere.",
+        response: "",
+      }),
+    );
+  }
 });
 
 // Hovedendepunkt for chat
 router.post("/chat", async (req, res) => {
-    logger.info("Mottok chat-forespørsel");
+  logger.info("Mottok chat-forespørsel");
 
-    // Sjekk autentisering
-    if (!req.user?.id) {
-        logger.warn("Chat-forespørsel uten autentisering");
-        return apiError.unauthorized(res);
+  // Sjekk autentisering
+  if (!req.user?.id) {
+    logger.warn("Chat-forespørsel uten autentisering");
+    return apiError.unauthorized(res);
+  }
+
+  // Valider request body
+  const parseResult = KIChatRequestSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    const errorMessages = parseResult.error.issues
+      .map((issue) => issue.message)
+      .join(", ");
+    logger.warn(
+      { errors: parseResult.error.issues, userId: req.user.id },
+      "Ugyldig chat-forespørsel",
+    );
+    return res.status(400).json(
+      KIChatResponseSchema.parse({
+        suksess: false,
+        melding: "Ugyldig forespørsel: " + errorMessages,
+        response: "",
+      }),
+    );
+  }
+
+  const {
+    messages,
+    model: requestedModel,
+    temperature = 0.7,
+  } = parseResult.data;
+
+  // Valider meldingsarray
+  if (!messages || messages.length === 0) {
+    logger.warn({ userId: req.user.id }, "Tom meldingsarray");
+    return res.status(400).json(
+      KIChatResponseSchema.parse({
+        suksess: false,
+        melding: "Du må sende minst en melding.",
+        response: "",
+      }),
+    );
+  }
+
+  // Sjekk for veldig lange meldinger (unngå DoS)
+  const totalLength = messages.reduce(
+    (sum, m) => sum + (m.content?.length || 0),
+    0,
+  );
+  if (totalLength > KI_MAX_MESSAGE_LENGTH_BACKEND) {
+    logger.warn(
+      {
+        userId: req.user.id,
+        totalLength,
+        maxLength: KI_MAX_MESSAGE_LENGTH_BACKEND,
+      },
+      "Meldinger for lange",
+    );
+    return res.status(413).json(
+      KIChatResponseSchema.parse({
+        suksess: false,
+        melding: `Meldingene er for lange. Maksimalt ${KI_MAX_MESSAGE_LENGTH_BACKEND} tegn totalt. Start en ny samtale.`,
+        response: "",
+      }),
+    );
+  }
+
+  // Velg modell (bruk forespurt modell hvis støttet, ellers default)
+  const model =
+    requestedModel && SUPPORTED_MODELS[requestedModel]
+      ? requestedModel
+      : DEFAULT_MODEL;
+
+  if (!isClientAvailable(model)) {
+    logger.error(getMissingClientError(model));
+    return res.status(500).json(
+      KIChatResponseSchema.parse({
+        suksess: false,
+        melding: "KI-tjenesten er ikke konfigurert. Kontakt administrator.",
+        response: "",
+      }),
+    );
+  }
+
+  if (requestedModel && !SUPPORTED_MODELS[requestedModel]) {
+    logger.warn(
+      { requestedModel },
+      "Forespurt modell ikke støttet, bruker default",
+    );
+  }
+
+  try {
+    // Finn Canvas context message fra frontend (hvis sendt)
+    const canvasContextMessage = messages.find(
+      (m: { role: string; content: string }) =>
+        m.role === "system" && m.content.includes("Canvas data"),
+    );
+
+    // Start med base system prompt
+    let enhancedSystemPrompt = STUDYWISE_SYSTEM_PROMPT;
+
+    // Filtrer ut Canvas context message fra messages for å unngå duplikater
+    let filteredMessages = messages;
+
+    // Finn Canvas context message fra frontend (for å vite brukerens valg)
+    // Men ALLTID hent full data fra backend for å få moduler og innhold
+    let canvasKontekst: string;
+    let brukerFrontendContext = false;
+
+    // Sjekk om frontend sendte context (indikerer at brukeren har gjort valg)
+    if (
+      canvasContextMessage &&
+      canvasContextMessage.content.trim().length > 20
+    ) {
+      brukerFrontendContext = true;
+      filteredMessages = messages.filter(
+        (m: { role: string; content: string }) => m !== canvasContextMessage,
+      );
     }
 
-    // Valider request body
-    const parseResult = KIChatRequestSchema.safeParse(req.body);
-    if (!parseResult.success) {
-        const errorMessages = parseResult.error.issues.map((issue) => issue.message).join(", ");
-        logger.warn({ errors: parseResult.error.issues, userId: req.user.id }, "Ugyldig chat-forespørsel");
-        return res.status(400).json(KIChatResponseSchema.parse({
-            suksess: false,
-            melding: "Ugyldig forespørsel: " + errorMessages,
-            response: "",
-        }));
+    // ALLTID hent full Canvas-kontekst fra backend (inkluderer moduler, sider, filer)
+    if (req.canvasToken) {
+      canvasKontekst = await Promise.race([
+        byggKiCanvasKontekst(req.canvasToken),
+        new Promise<string>((resolve) =>
+          setTimeout(
+            () =>
+              resolve("[CANVAS STATUS: Henting tok for lang tid. Prøv igjen.]"),
+            KI_TIMEOUT_MS,
+          ),
+        ),
+      ]);
+      logger.info(
+        {
+          contextLength: canvasKontekst.length,
+          brukerFrontendContext,
+        },
+        "Hentet full Canvas-context fra backend for KI",
+      );
+    } else {
+      canvasKontekst =
+        "[CANVAS STATUS: Ingen Canvas-token. Brukeren må legge inn token i Innstillinger.]";
     }
 
-    const { messages, model: requestedModel, temperature = 0.7 } = parseResult.data;
+    // Sjekk om vi faktisk har Canvas-data (fra backend-kontekst)
+    const hasCanvasData =
+      (canvasKontekst.includes("CANVAS-DATA") ||
+        canvasKontekst.includes("KUNNGJØRINGER") ||
+        canvasKontekst.includes("EMNER") ||
+        canvasKontekst.includes("OPPGAVER") ||
+        canvasKontekst.includes("FRISTER") ||
+        canvasKontekst.includes("MODULER")) &&
+      !canvasKontekst.includes("Ingen Canvas-token") &&
+      !canvasKontekst.includes("IKKE lagt inn");
 
-    // Valider meldingsarray
-    if (!messages || messages.length === 0) {
-        logger.warn({ userId: req.user.id }, "Tom meldingsarray");
-        return res.status(400).json(KIChatResponseSchema.parse({
-            suksess: false,
-            melding: "Du må sende minst en melding.",
-            response: "",
-        }));
+    logger.info(
+      {
+        hasCanvasData,
+        brukerFrontendContext,
+        canvasKontekstLength: canvasKontekst.length,
+        harCanvasToken: !!req.canvasToken,
+        inkludererModuler: canvasKontekst.includes("MODULER"),
+      },
+      "Canvas-kontekst status",
+    );
+
+    // Hvis ingen Canvas-data tilgjengelig, informer brukeren
+    if (!hasCanvasData) {
+      return res.json(
+        KIChatResponseSchema.parse({
+          suksess: true,
+          response:
+            "Jeg har ikke tilgang til Canvas-data akkurat nå. Sjekk at du har:\n\n1. Lagt inn et gyldig Canvas API-token i Innstillinger\n2. Valgt minst ett datasett under «Gi AI tilgang til» i chatten",
+          model: model,
+        }),
+      );
     }
 
-    // Sjekk for veldig lange meldinger (unngå DoS)
-    const totalLength = messages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
-    if (totalLength > KI_MAX_MESSAGE_LENGTH_BACKEND) {
-        logger.warn({ userId: req.user.id, totalLength, maxLength: KI_MAX_MESSAGE_LENGTH_BACKEND }, "Meldinger for lange");
-        return res.status(413).json(KIChatResponseSchema.parse({
-            suksess: false,
-            melding: `Meldingene er for lange. Maksimalt ${KI_MAX_MESSAGE_LENGTH_BACKEND} tegn totalt. Start en ny samtale.`,
-            response: "",
-        }));
-    }
+    // Bygg meldingsarray med system prompt og Canvas-kontekst
+    const systemPrompt = {
+      role: "system" as const,
+      content: enhancedSystemPrompt,
+    };
+    const fullMessages = [
+      systemPrompt,
+      { role: "user" as const, content: canvasKontekst },
+      {
+        role: "assistant" as const,
+        content:
+          "Forstått, jeg har tilgang til Canvas-dataen din og er klar til å hjelpe deg.",
+      },
+      ...filteredMessages.map((m: { role: string; content: string }) => ({
+        role: m.role as "user" | "assistant" | "system",
+        content: m.content,
+      })),
+    ];
 
-    // Velg modell (bruk forespurt modell hvis støttet, ellers default)
-    const model = requestedModel && SUPPORTED_MODELS[requestedModel]
-        ? requestedModel
-        : DEFAULT_MODEL;
+    logger.info(
+      {
+        model,
+        messageCount: fullMessages.length,
+        harCanvasToken: !!req.canvasToken,
+        brukerFrontendContext,
+      },
+      "Sender til AI-tjenesten",
+    );
 
-    if (!isClientAvailable(model)) {
-        logger.error(getMissingClientError(model));
-        return res.status(500).json(KIChatResponseSchema.parse({
-            suksess: false,
-            melding: "KI-tjenesten er ikke konfigurert. Kontakt administrator.",
-            response: "",
-        }));
-    }
+    // Egen timeout guard (race) så klienten får svar selv om AI henger
+    const TIMEOUT_MS = 25000;
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("CHAT_TIMEOUT")), TIMEOUT_MS),
+    );
 
-    if (requestedModel && !SUPPORTED_MODELS[requestedModel]) {
-        logger.warn({ requestedModel }, "Forespurt modell ikke støttet, bruker default");
-    }
+    const result = await Promise.race([
+      chatCompletion({
+        model,
+        messages: fullMessages,
+        max_tokens: 1024,
+        temperature: Math.min(Math.max(temperature, 0), 2),
+      }),
+      timeoutPromise,
+    ]);
 
-    try {
-        // Finn Canvas context message fra frontend (hvis sendt)
-        const canvasContextMessage = messages.find(
-            (m: { role: string; content: string }) => 
-                m.role === "system" && m.content.includes("Canvas data")
-        );
+    const responseText = result.text;
+    const usage = result.usage;
 
-        // Start med base system prompt
-        let enhancedSystemPrompt = STUDYWISE_SYSTEM_PROMPT;
+    logger.info(
+      {
+        model,
+        responseLength: responseText.length,
+        tokens: usage?.total_tokens,
+      },
+      "Vellykket chat-svar",
+    );
 
-        // Filtrer ut Canvas context message fra messages for å unngå duplikater
-        let filteredMessages = messages;
-        
-        // Finn Canvas context message fra frontend (for å vite brukerens valg)
-        // Men ALLTID hent full data fra backend for å få moduler og innhold
-        let canvasKontekst: string;
-        let brukerFrontendContext = false;
-        
-        // Sjekk om frontend sendte context (indikerer at brukeren har gjort valg)
-        if (canvasContextMessage && canvasContextMessage.content.trim().length > 20) {
-            brukerFrontendContext = true;
-            filteredMessages = messages.filter(
-                (m: { role: string; content: string }) => m !== canvasContextMessage
-            );
-        }
-        
-        // ALLTID hent full Canvas-kontekst fra backend (inkluderer moduler, sider, filer)
-        if (req.canvasToken) {
-            canvasKontekst = await Promise.race([
-                byggKiCanvasKontekst(req.canvasToken),
-                new Promise<string>((resolve) =>
-                    setTimeout(
-                        () => resolve("[CANVAS STATUS: Henting tok for lang tid. Prøv igjen.]"),
-                        KI_TIMEOUT_MS
-                    )
-                ),
-            ]);
-            logger.info({ 
-                contextLength: canvasKontekst.length,
-                brukerFrontendContext
-            }, "Hentet full Canvas-context fra backend (inkl. moduler og innhold)");
-        } else {
-            canvasKontekst = "[CANVAS STATUS: Ingen Canvas-token. Brukeren må legge inn token i Innstillinger.]";
-        }
+    return res.json(
+      KIChatResponseSchema.parse({
+        suksess: true,
+        response: responseText,
+        model: model,
+        usage: usage
+          ? {
+              prompt_tokens: usage.prompt_tokens,
+              completion_tokens: usage.completion_tokens,
+              total_tokens: usage.total_tokens,
+            }
+          : undefined,
+      }),
+    );
+  } catch (error) {
+    if (
+      handleAIError(res, error, KIChatResponseSchema, {
+        timeoutLabel: "CHAT_TIMEOUT",
+        timeoutMessage:
+          "Chat-forespørselen tok for lang tid (timeout etter 25s). Prøv igjen eller forenkle spørsmålet.",
+        kontekst: "ki-chat",
+      })
+    )
+      return;
 
-        // Sjekk om vi faktisk har Canvas-data (fra backend-kontekst)
-        const hasCanvasData = (
-            canvasKontekst.includes("CANVAS-DATA") || 
-            canvasKontekst.includes("KUNNGJØRINGER") ||
-            canvasKontekst.includes("EMNER") ||
-            canvasKontekst.includes("OPPGAVER") ||
-            canvasKontekst.includes("FRISTER") ||
-            canvasKontekst.includes("MODULER")
-        ) && !canvasKontekst.includes("Ingen Canvas-token") && !canvasKontekst.includes("IKKE lagt inn");
-        
-        logger.info({
-            hasCanvasData,
-            brukerFrontendContext,
-            canvasKontekstLength: canvasKontekst.length,
-            harCanvasToken: !!req.canvasToken,
-            inkludererModuler: canvasKontekst.includes("MODULER")
-        }, "Canvas-kontekst status");
-        
-        // Hvis ingen Canvas-data tilgjengelig, informer brukeren
-        if (!hasCanvasData) {
-            return res.json(KIChatResponseSchema.parse({
-                suksess: true,
-                response: "Jeg har ikke tilgang til Canvas-data akkurat nå. Sjekk at du har:\n\n1. Lagt inn et gyldig Canvas API-token i Innstillinger\n2. Valgt minst ett datasett under «Gi AI tilgang til» i chatten",
-                model: model,
-            }));
-        }
-
-        // Bygg meldingsarray med system prompt og Canvas-kontekst
-        const systemPrompt = { role: "system" as const, content: enhancedSystemPrompt };
-        const fullMessages = [
-            systemPrompt,
-            { role: "user" as const, content: canvasKontekst },
-            { role: "assistant" as const, content: "Forstått, jeg har tilgang til Canvas-dataen din og er klar til å hjelpe deg." },
-            ...filteredMessages.map((m: { role: string; content: string }) => ({
-                role: m.role as "user" | "assistant" | "system",
-                content: m.content
-            }))
-        ];
-
-        logger.info({ 
-            model, 
-            messageCount: fullMessages.length, 
-            harCanvasToken: !!req.canvasToken, 
-            brukerFrontendContext 
-        }, "Sender til AI-tjenesten");
-
-        // Egen timeout guard (race) så klienten får svar selv om AI henger
-        const TIMEOUT_MS = 25000;
-        const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("CHAT_TIMEOUT")), TIMEOUT_MS)
-        );
-
-        const result = await Promise.race([
-            chatCompletion({
-                model,
-                messages: fullMessages,
-                max_tokens: 1024,
-                temperature: Math.min(Math.max(temperature, 0), 2),
-            }),
-            timeoutPromise,
-        ]);
-
-        const responseText = result.text;
-        const usage = result.usage;
-
-        logger.info({
-            model,
-            responseLength: responseText.length,
-            tokens: usage?.total_tokens
-        }, "Vellykket chat-svar");
-
-        return res.json(KIChatResponseSchema.parse({
-            suksess: true,
-            response: responseText,
-            model: model,
-            usage: usage ? {
-                prompt_tokens: usage.prompt_tokens,
-                completion_tokens: usage.completion_tokens,
-                total_tokens: usage.total_tokens,
-            } : undefined,
-        }));
-
-    } catch (error) {
-        // Logg feil uten sensitiv data (unngå å logge hele Canvas-konteksten)
-        const sanitizedError = error instanceof Error ? {
-            name: error.name,
-            message: error.message,
-            // Inkluder httpResponse men IKKE httpRequest.body (som inneholder Canvas-data)
-            ...(('httpResponse' in error) ? {
-                httpResponse: (error as Record<string, unknown>).httpResponse
-            } : {}),
-        } : String(error);
-        logger.error({ err: sanitizedError, model }, "AI chat feil");
-        const errorMessage = error instanceof Error ? error.message : String(error);
-
-        if (error instanceof Error && error.message === "CHAT_TIMEOUT") {
-            return res.status(504).json(KIChatResponseSchema.parse({
-                suksess: false,
-                melding: "Chat-forespørselen tok for lang tid (timeout etter 25s). Prøv igjen eller forenkle spørsmålet.",
-                response: "",
-            }));
-        }
-        
-        // Sjekk for vanlige feil
-        if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {
-            return res.status(429).json(KIChatResponseSchema.parse({
-                suksess: false,
-                melding: "For mange forespørsler. Vent litt og prøv igjen.",
-                response: "",
-            }));
-        }
-        
-        if (errorMessage.includes("model") && errorMessage.includes("not found")) {
-            return res.status(503).json(KIChatResponseSchema.parse({
-                suksess: false,
-                melding: `Modellen "${model}" er midlertidig utilgjengelig. Prøv igjen senere.`,
-                response: "",
-            }));
-        }
-
-        // Håndter fakturerings-/kredittfeil
-        if (errorMessage.includes("Credit balance") || errorMessage.includes("depleted") || errorMessage.includes("purchase")) {
-            logger.warn({ model }, "AI-leverandør kreditt oppbrukt");
-            return res.status(503).json(KIChatResponseSchema.parse({
-                suksess: false,
-                melding: "KI-tjenesten er midlertidig utilgjengelig. Vennligst prøv igjen senere.",
-                response: "",
-            }));
-        }
-
-        return res.status(500).json(KIChatResponseSchema.parse({
-            suksess: false,
-            melding: "Kunne ikke få svar fra KI-assistenten. Prøv igjen senere.",
-            response: "",
-        }));
-    }
+    return res.status(500).json(
+      KIChatResponseSchema.parse({
+        suksess: false,
+        melding: "Kunne ikke få svar fra KI-assistenten. Prøv igjen senere.",
+        response: "",
+      }),
+    );
+  }
 });
 
 export default router;

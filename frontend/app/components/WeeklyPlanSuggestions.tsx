@@ -62,7 +62,7 @@ export function WeeklyPlanSuggestions({ assignments, onAddToCalendar }: WeeklyPl
         setIsGenerating(true);
         setError(null);
 
-        // MOCK DATA - i produksjon, send til backend som kaller HuggingFace/OpenAI
+        // MOCK DATA - i produksjon, send til backend som kaller Claude AI
         setTimeout(() => {
             // Sorter oppgaver etter frist
             const sortedAssignments = [...assignments]

@@ -50,7 +50,8 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
       deler.push("KUNNGJØRINGER:");
       announcementsData.announcements.slice(0, 10).forEach((a) => {
         const dato = a.posted_at ? new Date(a.posted_at).toLocaleDateString("no-NO") : "";
-        const courseName = a.context_code ? a.context_code.replace("course_", "") : "";
+        const courseId = a.context_code ? Number(a.context_code.replace("course_", "")) : null;
+        const courseName = (courseId && coursesData?.courses?.find((c) => c.id === courseId)?.name) ?? "";
         deler.push(`\n[${a.title}]${dato ? ` (${dato})` : ""}${courseName ? ` - Emne: ${courseName}` : ""}`);
         // Inkluder innhold (stripet for HTML)
         if (a.message) {

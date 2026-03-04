@@ -14,6 +14,7 @@ import {
 import { createRateLimiter } from "../../middleware/rate-limit.js";
 import { getCache, setCache } from "../../cache/redis.js";
 import { sendZodError, sendUnknownError } from "../../utils/apiError.js";
+import { handleAIError } from "./handleAIError.js";
 import { DEFAULT_MODEL } from "./aiModels.js";
 import { chatCompletion, isClientAvailable } from "./aiClient.js";
 import { isProd } from "../../utils/env.js";
@@ -196,25 +197,11 @@ Hvis det ikke er noen handlingspunkter, skriv "HANDLINGER: Ingen handlingspunkte
       );
       return res.json(response);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-
-      if (errorMessage === "OPPSUMMERING_TIMEOUT") {
-        return res.status(504).json(
-          KIOppsummeringResponseSchema.parse({
-            suksess: false,
-            melding: "Oppsummeringen tok for lang tid. Prøv igjen.",
-          }),
-        );
-      }
-
-      if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {
-        return res.status(429).json(
-          KIOppsummeringResponseSchema.parse({
-            suksess: false,
-            melding: "For mange forespørsler. Vent litt og prøv igjen.",
-          }),
-        );
-      }
+      if (handleAIError(res, error, KIOppsummeringResponseSchema, {
+        timeoutLabel: "OPPSUMMERING_TIMEOUT",
+        timeoutMessage: "Oppsummeringen tok for lang tid. Prøv igjen.",
+        kontekst: "kiOppsummering",
+      })) return;
 
       return sendUnknownError(res, error, { kontekst: "kiOppsummering" });
     }

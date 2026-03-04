@@ -1,13 +1,13 @@
 /*
  * AI Client Factory
- * Sentralisert initialisering av AI-klienter (HuggingFace + Anthropic)
+ * Claude er primær-AI, HuggingFace er fallback.
  * Alle KI-ruter bruker denne modulen for å sende forespørsler.
  */
 
 import { InferenceClient } from "@huggingface/inference";
 import Anthropic from "@anthropic-ai/sdk";
 import { logger } from "../../utils/logger.js";
-import { isAnthropicModel } from "./aiModels.js";
+import { isAnthropicModel, FALLBACK_MODEL } from "./aiModels.js";
 
 // --- Klient-initialisering (én gang ved oppstart) ---
 
@@ -56,6 +56,9 @@ function stripAnalyseTags(raw: string): string {
  * Sender chat completion til riktig leverandør basert på modellens provider.
  * Abstraherer bort forskjellene mellom HuggingFace og Anthropic API.
  * Stripper automatisk <analyse>-tagger fra responsen.
+ *
+ * Fallback-logikk: Hvis Claude feiler og HuggingFace er tilgjengelig,
+ * prøver automatisk med FALLBACK_MODEL.
  */
 export async function chatCompletion(options: {
     model: string;
@@ -66,10 +69,35 @@ export async function chatCompletion(options: {
     const { model, messages, max_tokens, temperature } = options;
 
     let result: ChatCompletionResult;
-    if (isAnthropicModel(model)) {
-        result = await callAnthropic({ model, messages, max_tokens, temperature });
-    } else {
-        result = await callHuggingFace({ model, messages, max_tokens, temperature });
+    try {
+        if (isAnthropicModel(model)) {
+            result = await callAnthropic({ model, messages, max_tokens, temperature });
+        } else {
+            result = await callHuggingFace({ model, messages, max_tokens, temperature });
+        }
+    } catch (primaryError) {
+        // Fallback: Hvis Claude feilet og HF er tilgjengelig, prøv HF
+        if (isAnthropicModel(model) && hfClient) {
+            logger.warn(
+                { primaryModel: model, fallbackModel: FALLBACK_MODEL, err: primaryError },
+                "Claude feilet — prøver HuggingFace fallback",
+            );
+            try {
+                result = await callHuggingFace({
+                    model: FALLBACK_MODEL,
+                    messages,
+                    max_tokens,
+                    temperature,
+                });
+                logger.info({ fallbackModel: FALLBACK_MODEL }, "HuggingFace fallback vellykket");
+            } catch (fallbackError) {
+                logger.error({ err: fallbackError }, "HuggingFace fallback feilet også");
+                // Kast den opprinnelige feilen (Claude) da den er mest relevant
+                throw primaryError;
+            }
+        } else {
+            throw primaryError;
+        }
     }
 
     // Strip <analyse>/<svar>-tagger slik at brukeren kun ser det rene svaret
@@ -79,10 +107,11 @@ export async function chatCompletion(options: {
 
 /**
  * Sjekker om AI-klienten for en gitt modell er tilgjengelig.
+ * For Anthropic-modeller returnerer true også hvis HF er tilgjengelig (fallback).
  */
 export function isClientAvailable(model: string): boolean {
     if (isAnthropicModel(model)) {
-        return anthropicClient !== null;
+        return anthropicClient !== null || hfClient !== null;
     }
     return hfClient !== null;
 }
@@ -92,7 +121,7 @@ export function isClientAvailable(model: string): boolean {
  */
 export function getMissingClientError(model: string): string {
     if (isAnthropicModel(model)) {
-        return "Mangler ANTHROPIC_API_KEY i miljøvariabler";
+        return "Mangler ANTHROPIC_API_KEY og HUGGINGFACE_API_KEY — ingen AI-leverandør tilgjengelig";
     }
     return "Mangler HUGGINGFACE_API_KEY i miljøvariabler";
 }

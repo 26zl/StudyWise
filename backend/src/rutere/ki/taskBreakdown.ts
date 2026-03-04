@@ -42,7 +42,7 @@ router.post("/:assignmentId", async (req, res) => {
     const breakdown = await TaskBreakdown.findOneAndUpdate(
       { userId, assignmentId },
       { userId, assignmentId, subtasks: parsed.data, updatedAt: new Date() },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" },
     );
 
     logger.info({ userId, assignmentId }, "Saved task breakdown");

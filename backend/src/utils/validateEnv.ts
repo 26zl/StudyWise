@@ -32,7 +32,7 @@ const requiredEnvVars: (keyof EnvConfig)[] = [
     "ENCRYPTION_KEY",
     "REDIS_URL",
     "NODE_ENV",
-    "HUGGINGFACE_API_KEY",
+    "ANTHROPIC_API_KEY",
 ];
 
 /**
@@ -147,8 +147,8 @@ export const validateEnv = (): void => {
     }
 
     // Valgfrie variabler — logg advarsel hvis de mangler
-    if (!process.env.ANTHROPIC_API_KEY) {
-        logger.warn("ANTHROPIC_API_KEY er ikke satt — Claude-modeller vil ikke være tilgjengelige");
+    if (!process.env.HUGGINGFACE_API_KEY) {
+        logger.warn("HUGGINGFACE_API_KEY er ikke satt — HuggingFace fallback vil ikke være tilgjengelig");
     }
 
     logger.info("Alle påkrevde miljøvariabler er validert");
