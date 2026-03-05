@@ -31,7 +31,7 @@ Dette er et **pnpm monorepo-prosjekt** som består av:
 - **API Docs**: `swagger-ui-express` + `swagger-jsdoc`
 - **Logging**: `pino` + `pino-http`. Bruk ALLTID `logger.info/error`, ALDRI `console.log`
 - **Cache**: `redis` client interfacing with Redis Cloud
-- **AI**: `@anthropic-ai/sdk` for Claude (primær), `@huggingface/inference` for HuggingFace (fallback)
+- **AI**: `@anthropic-ai/sdk` for Claude
 
 ### Common
 
@@ -66,7 +66,7 @@ Dette er hjertet av applikasjonen og fungerer som en **sentral hub** for student
 
 ### API Kommunikasjon
 
-Frontend snakker aldri direkte til eksterne APIer (Canvas, HuggingFace, etc). Alt går via backend proxy for sikkerhet.
+Frontend snakker aldri direkte til eksterne APIer (Canvas, etc). Alt går via backend proxy for sikkerhet.
 
 1. **Frontend Browser**: `fetch('/api/canvas/courses')`
 2. **Next.js Server**: Proxyer `http://localhost:3000/api/*` -> `http://localhost:4000/api/*` (definert i `next.config.js`).
@@ -355,9 +355,9 @@ Ukentlige oppdateringer (mandager) for: `github-actions`, rot, `frontend`, `back
 
 Gjenbruk disse — **ikke dupliser**:
 
-- `aiClient.ts` — Unified AI-klient med Claude (primær) + HuggingFace (fallback) (import `chatCompletion`, `isClientAvailable`)
+- `aiClient.ts` — AI-klient for Claude (import `chatCompletion`, `isClientAvailable`)
 - `handleAIError.ts` — Sentralisert AI-feilhåndterer for timeout/rate-limit/billing/503 (import `handleAIError`)
-- `aiModels.ts` — Modellkonfigurasjon, `DEFAULT_MODEL`, `FALLBACK_MODEL`
+- `aiModels.ts` — Modellkonfigurasjon, `DEFAULT_MODEL`
 - `kiConstants.ts` — `KI_CACHE_TTL`, `KI_OPPSUMMERING_CACHE_TTL`, `KI_TIMEOUT_MS`
 - `systemPrompt.ts` — Én kilde for `STUDYWISE_SYSTEM_PROMPT`
 
@@ -399,7 +399,7 @@ Vi behandler studentdata.
 
 - **Loggføring**: Aldri loggfør personidentifiserbare data (PII) navn/epost i produksjon.
 - **Dataflyt**: Send kun nødvendig data til frontend.
-- **AI**: Send **aldri** PII til eksterne AI-tjenester (OpenAI/HuggingFace) uten anonymisering.
+- **AI**: Send **aldri** PII til eksterne AI-tjenester uten anonymisering.
 
 ---
 

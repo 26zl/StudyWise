@@ -25,7 +25,6 @@ const requiredEnvVars = [
     "ENCRYPTION_KEY",
     "REDIS_URL",
     "NODE_ENV",
-    "HUGGINGFACE_API_KEY",
 ];
 
 /**

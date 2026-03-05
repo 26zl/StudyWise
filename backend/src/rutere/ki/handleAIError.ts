@@ -1,5 +1,5 @@
 /*
- * Sentralisert feilhåndtering for AI-kall (Claude + HuggingFace)
+ * Sentralisert feilhåndtering for AI-kall (Claude)
  * Brukes av ki.ts, kiAnalyse.ts og kiOppsummering.ts
  */
 
@@ -47,7 +47,7 @@ export function handleAIError(
         return true;
     }
 
-    // Rate limit (HuggingFace og Anthropic)
+    // Rate limit
     if (errorMessage.includes("rate limit") || errorMessage.includes("429") || errorMessage.includes("rate_limit")) {
         res.status(429).json(parseErrorResponse(schema, "For mange forespørsler. Vent litt og prøv igjen."));
         return true;
@@ -59,7 +59,7 @@ export function handleAIError(
         return true;
     }
 
-    // Kreditt-/faktureringsfeil (HuggingFace + Anthropic)
+    // Kreditt-/faktureringsfeil
     if (
         errorMessage.includes("Credit balance") ||
         errorMessage.includes("depleted") ||

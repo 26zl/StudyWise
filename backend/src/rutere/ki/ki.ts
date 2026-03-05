@@ -1,6 +1,6 @@
 /*
 * Rutere for KI-relaterte endepunkter
-* Støtter flere leverandører: HuggingFace og Anthropic (Claude)
+* Bruker Claude (Anthropic) som AI-leverandør
 */
 
 import { Router } from "express";
@@ -447,7 +447,6 @@ router.post("/chat", async (req, res) => {
         messages: fullMessages,
         max_tokens: maxTokens,
         temperature: Math.min(Math.max(temperature, 0), 2),
-        skipFallback: intent === "canvas_full",
       }),
       timeoutPromise,
     ]);

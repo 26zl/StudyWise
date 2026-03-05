@@ -1,20 +1,15 @@
 /*
  * AI Client Factory
- * Claude er primær-AI, HuggingFace er fallback.
- * Alle KI-ruter bruker denne modulen for å sende forespørsler.
+ * Alle KI-ruter bruker denne modulen for å sende forespørsler til Claude.
  */
 
-import { InferenceClient } from "@huggingface/inference";
 import Anthropic from "@anthropic-ai/sdk";
 import { logger } from "../../utils/logger.js";
-import { isAnthropicModel, FALLBACK_MODEL } from "./aiModels.js";
 
 // --- Klient-initialisering (én gang ved oppstart) ---
 
-const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
-export const hfClient = HF_API_KEY ? new InferenceClient(HF_API_KEY) : null;
 export const anthropicClient = ANTHROPIC_API_KEY
     ? new Anthropic({ apiKey: ANTHROPIC_API_KEY })
     : null;
@@ -61,54 +56,18 @@ function stripAnalyseTags(raw: string): string {
 }
 
 /**
- * Sender chat completion til riktig leverandør basert på modellens provider.
- * Abstraherer bort forskjellene mellom HuggingFace og Anthropic API.
+ * Sender chat completion til Claude.
  * Stripper automatisk <analyse>-tagger fra responsen.
- *
- * Fallback-logikk: Hvis Claude feiler og HuggingFace er tilgjengelig,
- * prøver automatisk med FALLBACK_MODEL.
  */
 export async function chatCompletion(options: {
     model: string;
     messages: ChatMessage[];
     max_tokens: number;
     temperature: number;
-    /** Hopp over HuggingFace-fallback (f.eks. når konteksten er for stor for HF) */
-    skipFallback?: boolean;
 }): Promise<ChatCompletionResult> {
-    const { model, messages, max_tokens, temperature, skipFallback } = options;
+    const { model, messages, max_tokens, temperature } = options;
 
-    let result: ChatCompletionResult;
-    try {
-        if (isAnthropicModel(model)) {
-            result = await callAnthropic({ model, messages, max_tokens, temperature });
-        } else {
-            result = await callHuggingFace({ model, messages, max_tokens, temperature });
-        }
-    } catch (primaryError) {
-        // Fallback: Hvis Claude feilet og HF er tilgjengelig (og ikke hoppet over)
-        if (isAnthropicModel(model) && hfClient && !skipFallback) {
-            logger.warn(
-                { primaryModel: model, fallbackModel: FALLBACK_MODEL, err: primaryError },
-                "Claude feilet — prøver HuggingFace fallback",
-            );
-            try {
-                result = await callHuggingFace({
-                    model: FALLBACK_MODEL,
-                    messages,
-                    max_tokens,
-                    temperature,
-                });
-                logger.info({ fallbackModel: FALLBACK_MODEL }, "HuggingFace fallback vellykket");
-            } catch (fallbackError) {
-                logger.error({ err: fallbackError }, "HuggingFace fallback feilet også");
-                // Kast den opprinnelige feilen (Claude) da den er mest relevant
-                throw primaryError;
-            }
-        } else {
-            throw primaryError;
-        }
-    }
+    const result = await callAnthropic({ model, messages, max_tokens, temperature });
 
     // Strip <analyse>/<svar>-tagger slik at brukeren kun ser det rene svaret
     result.text = stripAnalyseTags(result.text);
@@ -116,32 +75,24 @@ export async function chatCompletion(options: {
 }
 
 /**
- * Sjekker om AI-klienten for en gitt modell er tilgjengelig.
- * For Anthropic-modeller returnerer true også hvis HF er tilgjengelig (fallback).
+ * Sjekker om AI-klienten er tilgjengelig.
  */
-export function isClientAvailable(model: string): boolean {
-    if (isAnthropicModel(model)) {
-        return anthropicClient !== null || hfClient !== null;
-    }
-    return hfClient !== null;
+export function isClientAvailable(_model: string): boolean {
+    return anthropicClient !== null;
 }
 
 /**
  * Returnerer en beskrivende feilmelding hvis klienten mangler.
  */
-export function getMissingClientError(model: string): string {
-    if (isAnthropicModel(model)) {
-        return "Mangler ANTHROPIC_API_KEY og HUGGINGFACE_API_KEY — ingen AI-leverandør tilgjengelig";
-    }
-    return "Mangler HUGGINGFACE_API_KEY i miljøvariabler";
+export function getMissingClientError(_model: string): string {
+    return "Mangler ANTHROPIC_API_KEY — ingen AI-leverandør tilgjengelig";
 }
 
 /**
  * Sjekker om vi kan sende bilder direkte til modellen (Claude Vision).
- * Kun Anthropic-modeller støtter vision — HuggingFace fallback støtter det ikke.
  */
-export function isVisionAvailable(model: string): boolean {
-    return isAnthropicModel(model) && anthropicClient !== null;
+export function isVisionAvailable(_model: string): boolean {
+    return anthropicClient !== null;
 }
 
 // --- Vision-støtte (Claude Vision API) ---
@@ -149,9 +100,6 @@ export function isVisionAvailable(model: string): boolean {
 /**
  * Sender chat completion med bildevedlegg til Claude Vision.
  * Bygger multimodal content-blokker (image + text) for user-meldinger.
- *
- * Hvis Claude Vision feiler og HuggingFace er tilgjengelig, faller tilbake
- * til ren tekst-modus (OCR-tekst via fallbackText).
  */
 export async function chatCompletionWithVision(options: {
     model: string;
@@ -159,63 +107,33 @@ export async function chatCompletionWithVision(options: {
     images: ImageAttachment[];
     max_tokens: number;
     temperature: number;
-    /** OCR-tekst som fallback for HuggingFace (som ikke har vision) */
+    /** OCR-tekst som fallback hvis Vision ikke er tilgjengelig */
     fallbackText?: string;
 }): Promise<ChatCompletionResult> {
     const { model, messages, images, max_tokens, temperature, fallbackText } = options;
 
     let result: ChatCompletionResult;
 
-    try {
-        if (isAnthropicModel(model) && anthropicClient) {
-            result = await callAnthropicWithVision({
-                model,
-                messages,
-                images,
-                max_tokens,
-                temperature,
-            });
-        } else if (fallbackText) {
-            // Ikke-vision modell: bruk OCR-tekst i stedet
-            logger.info("Vision ikke tilgjengelig for modell %s — bruker OCR-tekst fallback", model);
-            const textMessages = messages.map(m => {
-                if (m.role === "user" && m.content.includes("[BILDE_VEDLEGG]")) {
-                    return { ...m, content: m.content.replace("[BILDE_VEDLEGG]", fallbackText) };
-                }
-                return m;
-            });
-            result = await callHuggingFace({ model, messages: textMessages, max_tokens, temperature });
-        } else {
-            throw new Error("Vision er ikke tilgjengelig for denne modellen og ingen OCR-fallback ble gitt");
-        }
-    } catch (primaryError) {
-        // Fallback: Hvis Claude feilet og HF + fallbackText
-        if (isAnthropicModel(model) && hfClient && fallbackText) {
-            logger.warn(
-                { primaryModel: model, fallbackModel: FALLBACK_MODEL, err: primaryError },
-                "Claude Vision feilet — prøver HuggingFace fallback med OCR-tekst",
-            );
-            try {
-                const textMessages = messages.map(m => {
-                    if (m.role === "user" && m.content.includes("[BILDE_VEDLEGG]")) {
-                        return { ...m, content: m.content.replace("[BILDE_VEDLEGG]", fallbackText) };
-                    }
-                    return m;
-                });
-                result = await callHuggingFace({
-                    model: FALLBACK_MODEL,
-                    messages: textMessages,
-                    max_tokens,
-                    temperature,
-                });
-                logger.info({ fallbackModel: FALLBACK_MODEL }, "HuggingFace fallback vellykket (OCR-tekst)");
-            } catch (fallbackError) {
-                logger.error({ err: fallbackError }, "HuggingFace fallback feilet også");
-                throw primaryError;
+    if (anthropicClient) {
+        result = await callAnthropicWithVision({
+            model,
+            messages,
+            images,
+            max_tokens,
+            temperature,
+        });
+    } else if (fallbackText) {
+        // Klient ikke tilgjengelig men har OCR-tekst
+        logger.info("Vision ikke tilgjengelig — bruker OCR-tekst fallback");
+        const textMessages = messages.map(m => {
+            if (m.role === "user" && m.content.includes("[BILDE_VEDLEGG]")) {
+                return { ...m, content: m.content.replace("[BILDE_VEDLEGG]", fallbackText) };
             }
-        } else {
-            throw primaryError;
-        }
+            return m;
+        });
+        result = await callAnthropic({ model, messages: textMessages, max_tokens, temperature });
+    } else {
+        throw new Error("Vision er ikke tilgjengelig og ingen OCR-fallback ble gitt");
     }
 
     result.text = stripAnalyseTags(result.text);
@@ -381,41 +299,6 @@ async function callAnthropicWithVision(options: {
             completion_tokens: result.usage.output_tokens,
             total_tokens: result.usage.input_tokens + result.usage.output_tokens,
         },
-    };
-}
-
-async function callHuggingFace(options: {
-    model: string;
-    messages: ChatMessage[];
-    max_tokens: number;
-    temperature: number;
-}): Promise<ChatCompletionResult> {
-    if (!hfClient) {
-        throw new Error("HuggingFace-klient ikke initialisert (mangler HUGGINGFACE_API_KEY)");
-    }
-
-    const { model, messages, max_tokens, temperature } = options;
-
-    const result = await hfClient.chatCompletion({
-        model,
-        messages: messages.map(m => ({
-            role: m.role,
-            content: m.content,
-        })),
-        max_tokens,
-        temperature: Math.min(Math.max(temperature, 0), 2), // HF: 0-2
-    });
-
-    const text = result?.choices?.[0]?.message?.content ?? "";
-    const usage = result?.usage;
-
-    return {
-        text,
-        usage: usage ? {
-            prompt_tokens: usage.prompt_tokens,
-            completion_tokens: usage.completion_tokens,
-            total_tokens: usage.total_tokens,
-        } : undefined,
     };
 }
 

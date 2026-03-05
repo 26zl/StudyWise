@@ -1,6 +1,6 @@
 /*
  * PDF og Dokumentanalyse-endepunkter
- * Håndterer analyse av dokumenter via AI (HuggingFace / Anthropic)
+ * Håndterer analyse av dokumenter via Claude (Anthropic)
  * Bilder sendes direkte til Claude Vision når tilgjengelig, med OCR som fallback.
  */
 
@@ -116,7 +116,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
         let ocrFallbackText = "";
 
         if (brukerVision) {
-            // Kjør OCR i bakgrunnen for HuggingFace-fallback
+            // Kjør OCR i bakgrunnen som fallback hvis Vision ikke er tilgjengelig
             try {
                 docResult = await parseDocument(filBuffer, filMimetype, req.file.originalname);
                 if (docResult.success) {

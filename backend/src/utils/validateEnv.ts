@@ -18,7 +18,6 @@ interface EnvConfig {
     ENCRYPTION_KEY: string;
     REDIS_URL: string;
     NODE_ENV: string;
-    HUGGINGFACE_API_KEY: string;
     ANTHROPIC_API_KEY: string;
 }
 
@@ -171,11 +170,6 @@ export const validateEnv = (): void => {
             "Påkrevde miljøvariabler mangler - serveren kan ikke starte"
         );
         process.exit(1);
-    }
-
-    // Valgfrie variabler — logg advarsel hvis de mangler
-    if (!process.env.HUGGINGFACE_API_KEY) {
-        logger.warn("HUGGINGFACE_API_KEY er ikke satt — HuggingFace fallback vil ikke være tilgjengelig");
     }
 
     logger.info("Alle påkrevde miljøvariabler er validert");

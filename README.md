@@ -11,7 +11,7 @@ Produksjonsnettside - <https://www.studwize.page>
 ## Teknologi stack
 
 - **Frontend**: Next.js 16 + TypeScript + Tailwind CSS v4 + React Query + Zustand + Zod + React Hook Form
-- **Backend**: Express 5 + TypeScript + Redis + Pino + Helmet + Zod + Anthropic Claude (primær AI) + HuggingFace (fallback)
+- **Backend**: Express 5 + TypeScript + Redis + Pino + Helmet + Zod + Anthropic Claude
 - **Database**: MongoDB (Atlas/Lokal) + Redis (Cloud/Lokal)
 - **Common**: Delte Zod schemas og feiltyper (frontend + backend)
 - **Docs**: VitePress dokumentasjon
