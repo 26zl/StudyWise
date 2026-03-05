@@ -1,7 +1,7 @@
 /**
  * CalendarSection - Kalender-seksjon for dashboardet
- * Henter frister/hendelser og forelesninger fra Canvas Calendar API
- * Inkluderer filter for å velge mellom innleveringer, forelesninger eller begge
+ * Henter frister/hendelser og forelesninger fra Canvas Calendar API.
+ * Inkluderer header (navigasjon, filter), emneforklaring og grid.
  */
 "use client";
 
@@ -9,14 +9,22 @@ import { useEffect, useMemo, useState } from "react";
 import type { FC } from "react";
 import { addMonths, setMonth, setYear, subMonths, format } from "date-fns";
 import { nb } from "date-fns/locale";
-import { AlertCircle, Clock, MapPin } from "lucide-react";
-import { CalendarHeader } from "./CalendarHeader";
+import { AlertCircle, Clock, MapPin, ChevronLeft, ChevronRight, CalendarDays, Filter } from "lucide-react";
 import { CalendarGrid } from "./CalendarGrid";
-import { CourseLegend } from "./CourseLegend";
 import { useCombinedCalendarData } from "./calendar-api";
 import { useUIStore } from "../store/uiStore";
 import { KIOppsummering } from "../components/KIOppsummering";
+import { cn } from "../lib/utils";
 import type { Assignment, CalendarFilterType } from "common/calendar-ui";
+import { COURSE_COLOR_CLASSES } from "common/calendar-ui";
+
+const MONTHS = ["Januar", "Februar", "Mars", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Desember"];
+const FILTER_OPTIONS: { value: CalendarFilterType; label: string; shortLabel: string }[] = [
+  { value: "all", label: "Alle hendelser", shortLabel: "Alle" },
+  { value: "assignments", label: "Kun innleveringer", shortLabel: "Oppgaver" },
+  { value: "timetable", label: "Kun forelesninger", shortLabel: "Forelesninger" },
+];
+const COURSE_CODE_REGEX = /^([A-ZÆØÅ]{2,5}\d{4,5}[A-Z]?|\d{4,5}[A-Z])/i;
 
 // Props for CalendarSection
 interface CalendarSectionProps {
@@ -173,22 +181,107 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
 
   // Formater tid for forelesninger
   const formatTime = (date: Date) => format(date, "HH:mm");
-  // Hovedrendering
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
+  const uniqueCourses = useMemo(() => {
+    return courses.filter((course, index, self) => {
+      if (course.code === "Annet") return false;
+      const codeMatch = course.code.match(COURSE_CODE_REGEX);
+      const cleanCode = codeMatch ? codeMatch[0].toUpperCase() : course.code;
+      return self.findIndex((c) => (c.code.match(COURSE_CODE_REGEX)?.[0]?.toUpperCase() ?? c.code) === cleanCode) === index;
+    });
+  }, [courses]);
+
   return (
     <div className="calendar-page">
-      <CalendarHeader
-        currentDate={currentDate}
-        onPrevMonth={handlePrevMonth}
-        onNextMonth={handleNextMonth}
-        onToday={handleToday}
-        onMonthChange={handleMonthChange}
-        onYearChange={handleYearChange}
-        filter={filter}
-        onFilterChange={setFilter}
-        hasLecturesData={hasLecturesData}
-      />
+      {/* Header: måned/år, navigasjon, filter */}
+      <div className="flex flex-col gap-3 sm:gap-4 mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 capitalize">
+              {format(currentDate, "MMMM yyyy", { locale: nb })}
+            </h1>
+            <div className="flex items-center gap-2">
+              <select
+                value={currentDate.getMonth().toString()}
+                onChange={(e) => handleMonthChange(parseInt(e.target.value))}
+                className="h-8 sm:h-9 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {MONTHS.map((month, index) => (
+                  <option key={month} value={index.toString()}>{month}</option>
+                ))}
+              </select>
+              <select
+                value={currentDate.getFullYear().toString()}
+                onChange={(e) => handleYearChange(parseInt(e.target.value))}
+                className="h-8 sm:h-9 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {years.map((year) => (
+                  <option key={year} value={year.toString()}>{year}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleToday}
+              className="flex items-center gap-1.5 sm:gap-2 h-8 sm:h-9 px-2.5 sm:px-4 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <CalendarDays className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              I dag
+            </button>
+            <div className="flex items-center border border-slate-200 dark:border-slate-600 rounded-lg overflow-hidden">
+              <button onClick={handlePrevMonth} className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors" aria-label="Forrige måned">
+                <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+              <div className="w-px h-8 sm:h-9 bg-slate-200 dark:bg-slate-600" />
+              <button onClick={handleNextMonth} className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors" aria-label="Neste måned">
+                <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 pb-2 border-b border-slate-200 dark:border-slate-700">
+          <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+            <Filter className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>Vis:</span>
+          </div>
+          <div className="flex items-center gap-1">
+            {FILTER_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => setFilter(option.value)}
+                className={cn(
+                  "px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors",
+                  filter === option.value ? "bg-blue-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                )}
+              >
+                <span className="sm:hidden">{option.shortLabel}</span>
+                <span className="hidden sm:inline">{option.label}</span>
+              </button>
+            ))}
+          </div>
+          {filter === "timetable" && !hasLecturesData && (
+            <span className="text-[10px] sm:text-xs text-amber-600 dark:text-amber-400">(Ingen forelesninger funnet)</span>
+          )}
+        </div>
+      </div>
 
-      <CourseLegend courses={courses} />
+      {/* Emneforklaring */}
+      {uniqueCourses.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3 sm:mb-4 px-2 sm:px-3 py-1.5 sm:py-2 bg-slate-100/50 dark:bg-slate-800/50 rounded-lg text-[10px] sm:text-xs">
+          <span className="font-medium text-slate-500 dark:text-slate-400">Emner:</span>
+          {uniqueCourses.map((course) => {
+            const displayCode = course.code.match(COURSE_CODE_REGEX)?.[0]?.toUpperCase() ?? course.code;
+            return (
+              <div key={course.code} className="flex items-center gap-1 sm:gap-1.5">
+                <span className={cn("w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full shrink-0", COURSE_COLOR_CLASSES[course.color])} />
+                <span className="text-slate-700 dark:text-slate-200 font-medium">{displayCode}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="calendar-layout">
         <CalendarGrid

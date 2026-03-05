@@ -90,20 +90,23 @@ router.post(
     let instruksjon: string;
     if (type === "tldr") {
       instruksjon =
-        "Gi en kort TL;DR-oppsummering av denne kunngjøringen på 1-3 setninger. Skriv på norsk bokmål.";
+        "Gi en detaljert TL;DR-oppsummering (3-5 setninger) som forklarer hovedinnholdet, hva studenten lærer eller får ut av det, og eventuelle nøkkelbegreper eller viktige poeng. Skriv på norsk bokmål.";
     } else if (type === "handlinger") {
       instruksjon =
-        "List opp konkrete handlingspunkter (ting studenten MÅ gjøre) fra denne kunngjøringen. Returner som en nummerert liste. Hvis det ikke er noen handlingspunkter, si det. Skriv på norsk bokmål.";
+        "List opp hovedpunkter eller handlingspunkter med en kort forklaring for hvert punkt (f.eks. «Gjennomfør leksjon X – den dekker tema Y»). Gi gjerne 2-3 setninger per punkt der det er nyttig. Returner som en nummerert liste. Hvis det ikke er noen handlingspunkter, si det. Skriv på norsk bokmål.";
     } else {
-      instruksjon = `Analyser denne kunngjøringen og gi:
-1. En kort TL;DR-oppsummering (1-3 setninger)
-2. En liste med konkrete handlingspunkter (ting studenten MÅ gjøre)
+      instruksjon = `Analyser teksten (kunngjøring, modul, kalenderhendelse eller annet innhold) og gi en detaljert og oppfyllende oppsummering.
+
+1. TL;DR (3-5 setninger): Beskriv hva innholdet handler om, hva studenten lærer eller får ut av det, og eventuelle nøkkelbegreper eller viktige poeng. Vær konkret og læringsorientert.
+
+2. Hovedpunkter: List opp de viktigste punktene eller handlingene. For hvert punkt kan du gjerne legge til en kort forklaring (f.eks. etter bindestrek) som sier hva det innebærer eller hvorfor det er viktig. Vær presis og nyttig for en student.
 
 Format svaret ditt NØYAKTIG slik:
-OPPSUMMERING: <din oppsummering>
+OPPSUMMERING: <din detaljerte oppsummering>
 HANDLINGER:
-- <handling 1>
-- <handling 2>
+- <punkt 1, gjerne med kort forklaring>
+- <punkt 2>
+- ...
 
 Hvis det ikke er noen handlingspunkter, skriv "HANDLINGER: Ingen handlingspunkter." Skriv på norsk bokmål.`;
     }
@@ -121,7 +124,7 @@ Hvis det ikke er noen handlingspunkter, skriv "HANDLINGER: Ingen handlingspunkte
             { role: "system", content: instruksjon },
             { role: "user", content: renTekst.slice(0, 10000) },
           ],
-          max_tokens: 512,
+          max_tokens: 1024,
           temperature: 0.3,
         }),
         timeoutPromise,

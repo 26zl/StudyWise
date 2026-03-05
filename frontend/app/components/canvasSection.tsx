@@ -33,7 +33,7 @@ import {
 } from "../canvas/canvas-api";
 import { useUIStore } from "../store/uiStore";
 import { KIOppsummering } from "./KIOppsummering";
-import { ModulForklaring } from "./ModulForklaring";
+import { erInnlevert as erInnlevertOppgave } from "../canvas/canvasUtils";
 import { createCanvasHtmlParser, parseCanvasHtml, sikkerFilNedlastingUrl } from "../canvas/canvasHtml";
 import { CanvasPageVisning } from "./CanvasPageVisning";
 import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
@@ -283,19 +283,6 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     const visModulerTab = metadataLaster || !meta || meta.hasModules;
                     const visFilerTab = metadataLaster || !meta || meta.hasFiles;
 
-                    // Tekst for å oppsummere alle modulene (navn + innholdslister)
-                    const modulOppsummeringTekst =
-                        course?.name && modulerQuery.data?.modules?.length
-                            ? [
-                                  `Emne: ${course.name}.`,
-                                  "",
-                                  ...modulerQuery.data.modules.flatMap((m, i) => {
-                                      const innhold = m.items?.map((it) => it.title).filter(Boolean).join(", ") || "Ingen punkter";
-                                      return [`Modul ${i + 1}: ${m.name}.`, `Innhold: ${innhold}.`, ""];
-                                  }),
-                              ].join("\n")
-                            : "";
-
                     return (
                         <div className="mb-4 flex flex-wrap items-center gap-2">
                             {visForsideTab && (
@@ -313,10 +300,6 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                 >
                                     Moduler{meta?.modulesCount ? ` (${meta.modulesCount})` : ""}
                                 </button>
-                            )}
-                            {/* Oppsummer med KI: oppsummerer alle modulene (ved siden av Moduler-knappen) */}
-                            {visModulerTab && modulOppsummeringTekst.length > 0 && (
-                                <KIOppsummering variant="inline" tekst={modulOppsummeringTekst} storrelse="md" />
                             )}
                             {visFilerTab && (
                                 <button
@@ -392,13 +375,21 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                     </h4>
                                 </div>
 
-                                {/* NY KOMPONENT - LEGG TIL HER */}
-        <div className="px-4">
-            <ModulForklaring 
-                module={module}
-                courseName={course?.name || "Emne"}   
-            />
-        </div>  
+                                {/* Oppsummer med KI for denne modulen – bruker samme KI-oppsummering som ellers */}
+                                <div className="px-4 pt-1 pb-2">
+                                    <KIOppsummering
+                                        tekst={[
+                                            `Modul: ${module.name}.`,
+                                            course?.name ? `Emne: ${course.name}.` : "",
+                                            module.items?.length
+                                                ? `Innhold: ${module.items.map((it) => it.title).filter(Boolean).join(", ")}.`
+                                                : "Ingen punkter.",
+                                        ]
+                                            .filter(Boolean)
+                                            .join(" ")}
+                                        storrelse="sm"
+                                    />
+                                </div>
 
                                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {module.items?.map((item) => {
@@ -922,11 +913,7 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                         else dagerTekst = `Om ${dagerIgjen} dager`;
                     }
 
-                    const erInnlevert =
-                        assignment.submission &&
-                        (assignment.submission.workflow_state === "submitted" ||
-                            assignment.submission.workflow_state === "graded" ||
-                            assignment.submission.workflow_state === "pending_review");
+                    const erInnlevert = erInnlevertOppgave(assignment);
 
                     const oppsummeringstekst = [
                         assignment.name,

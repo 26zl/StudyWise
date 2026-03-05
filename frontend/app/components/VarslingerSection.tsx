@@ -1,10 +1,10 @@
 /*
- * VarslingerSection - Universal varslingside for dashboardet
- * Samler frister, kunngjøringer og hendelser med tab-navigasjon
+ * VarslingerSection - Varslingside for dashboardet
+ * Deler data og lest/ulest med popup-toast via useVarsler og varslerStore.
  */
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import { nb } from "date-fns/locale";
 import {
@@ -17,168 +17,58 @@ import {
     Loader2,
     CheckCircle2,
 } from "lucide-react";
-import {
-    useCanvasAllAssignments,
-    useCanvasAnnouncements,
-    useCanvasUpcomingEvents,
-    useCanvasCourses,
-    type AssignmentMedEmne,
-} from "../canvas/canvas-api";
-import { FRIST_VINDU_TIMER, klassifiserFrist, formaterTid, type FristStatus } from "../lib/fristUtils";
+import { useVarsler, type VarslingTab } from "../hooks/useVarsler";
+import { formaterTid, type FristStatus } from "../lib/varsler";
+import type { FristElement, KunngjoringElement, HendelseElement, VarslingElement } from "../lib/varsler";
 import { KIOppsummering } from "./KIOppsummering";
 
-// Tab-typer
-type VarslingTab = "alle" | "frister" | "kunngjøringer" | "hendelser";
-
-// Interfaces for varslingsobjekter
 interface VarslingerSectionProps {
     harCanvasToken?: boolean;
 }
-
-// Fristoppgave med beregnet urgency
-interface FristElement {
-    type: "frist";
-    id: string;
-    tittel: string;
-    emne: string;
-    dato: Date;
-    timerIgjen: number;
-    status: FristStatus;
-    erInnlevert: boolean;
-}
-// Kunngjøring fra Canvas
-interface KunngjoringElement {
-    type: "kunngjoring";
-    id: string;
-    tittel: string;
-    emne: string;
-    dato: Date;
-    melding: string;
-}
-// Hendelse i kalenderen
-interface HendelseElement {
-    type: "hendelse";
-    id: string;
-    tittel: string;
-    dato: Date;
-    sluttDato: Date | null;
-    lokasjon: string | null;
-}
-// Unionstype for alle varslingsobjekter
-type VarslingElement = FristElement | KunngjoringElement | HendelseElement;
-
-// Fargekoder for fristnivå
+// Varslinger-seksjonen håndterer visning av frister, kunngjøringer og hendelser, med faner for filtrering.
 function fristFarge(status: FristStatus) {
     if (status === "kritisk") return "border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20";
     if (status === "snart") return "border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20";
     return "border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20";
 }
-// Hovedkomponenten for Varslinger-seksjonen
+// Fargevalg for frist-kort basert på klassifisering (kritisk/snart/normal).
 function fristBadgeFarge(status: FristStatus) {
     if (status === "kritisk") return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300";
     if (status === "snart") return "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300";
     return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300";
 }
-// Hovedkomponenten for Varslinger-seksjonen
+// VarslingerSection - hovedkomponent for varslinger-siden, med faner og kortvisning. Deler data og lest/ulest-status med popup via useVarsler og uiStore.
 export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionProps) {
     const [aktivTab, settAktivTab] = useState<VarslingTab>("alle");
 
-    const assignmentsQuery = useCanvasAllAssignments({ enabled: harCanvasToken });
-    const announcementsQuery = useCanvasAnnouncements(harCanvasToken);
-    const eventsQuery = useCanvasUpcomingEvents(harCanvasToken);
-    const coursesQuery = useCanvasCourses(harCanvasToken);
+    const {
+        frister,
+        kunngjøringer,
+        hendelser,
+        alleElementer,
+        markAllAsLest,
+        isLoading,
+    } = useVarsler(harCanvasToken);
 
-    const isLoading = assignmentsQuery.isLoading || announcementsQuery.isLoading || eventsQuery.isLoading;
-
-    // Map context_code → emnenavn for kunngjøringer
-    const emneNavnMap = useMemo(() => {
-        const courses = coursesQuery.data?.courses ?? [];
-        const map = new Map<string, string>();
-        for (const c of courses) {
-            map.set(`course_${c.id}`, c.name);
+    // Når bruker åpner varslinger-siden, markér alle som lest (synk med popup)
+    useEffect(() => {
+        if (harCanvasToken && alleElementer.length > 0) {
+            markAllAsLest();
         }
-        return map;
-    }, [coursesQuery.data]);
+    }, [harCanvasToken, alleElementer.length, markAllAsLest]);
 
-    // Frister innen 72 timer
-    const frister: FristElement[] = useMemo(() => {
-        const oppgaver = assignmentsQuery.data ?? [];
-        const nå = Date.now();
-        return oppgaver
-            .filter((o: AssignmentMedEmne) => {
-                if (!o.due_at) return false;
-                const timer = (new Date(o.due_at).getTime() - nå) / (1000 * 60 * 60);
-                return timer > 0 && timer <= FRIST_VINDU_TIMER;
-            })
-            .map((o: AssignmentMedEmne) => {
-                const timerIgjen = (new Date(o.due_at!).getTime() - nå) / (1000 * 60 * 60);
-                const erInnlevert = !!(o.submission && (
-                    o.submission.workflow_state === "submitted" ||
-                    o.submission.workflow_state === "graded" ||
-                    o.submission.workflow_state === "pending_review"
-                ));
-                return {
-                    type: "frist" as const,
-                    id: `frist-${o.id}`,
-                    tittel: o.name,
-                    emne: o.course_name,
-                    dato: new Date(o.due_at!),
-                    timerIgjen,
-                    status: klassifiserFrist(timerIgjen),
-                    erInnlevert,
-                };
-            })
-            .sort((a, b) => a.timerIgjen - b.timerIgjen);
-    }, [assignmentsQuery.data]);
-
-    // Kunngjøringer
-    const kunngjøringer: KunngjoringElement[] = useMemo(() => {
-        const announcements = announcementsQuery.data?.announcements ?? [];
-        return announcements.map((a) => ({
-            type: "kunngjoring" as const,
-            id: `kunngjoring-${a.id}`,
-            tittel: a.title,
-            emne: (a.context_code && emneNavnMap.get(a.context_code)) ?? a.context_code?.replace("course_", "Emne ") ?? "",
-            dato: a.posted_at ? new Date(a.posted_at) : new Date(),
-            melding: a.message ?? "",
-        }));
-    }, [announcementsQuery.data, emneNavnMap]);
-
-    // Hendelser
-    const hendelser: HendelseElement[] = useMemo(() => {
-        const events = eventsQuery.data?.events ?? [];
-        return events
-            .filter((e) => e.start_at)
-            .map((e) => ({
-                type: "hendelse" as const,
-                id: `hendelse-${e.id}`,
-                tittel: e.title,
-                dato: new Date(e.start_at!),
-                sluttDato: e.end_at ? new Date(e.end_at) : null,
-                lokasjon: e.location_name ?? null,
-            }))
-            .sort((a, b) => a.dato.getTime() - b.dato.getTime());
-    }, [eventsQuery.data]);
-
-    // Alle elementer kronologisk blandet
-    const alleElementer: VarslingElement[] = useMemo(() => {
-        return [...frister, ...kunngjøringer, ...hendelser].sort(
-            (a, b) => a.dato.getTime() - b.dato.getTime()
-        );
-    }, [frister, kunngjøringer, hendelser]);
-
-    // Tab-data
     const tabs: { id: VarslingTab; label: string; antall: number }[] = [
         { id: "alle", label: "Alle", antall: alleElementer.length },
         { id: "frister", label: "Frister", antall: frister.length },
         { id: "kunngjøringer", label: "Kunngjøringer", antall: kunngjøringer.length },
         { id: "hendelser", label: "Hendelser", antall: hendelser.length },
     ];
-    // Velg aktive elementer basert på valgt tab
-    const aktiveListe = aktivTab === "alle" ? alleElementer
-        : aktivTab === "frister" ? frister
-        : aktivTab === "kunngjøringer" ? kunngjøringer
-        : hendelser;
+
+    const aktiveListe =
+        aktivTab === "alle" ? alleElementer
+            : aktivTab === "frister" ? frister
+            : aktivTab === "kunngjøringer" ? kunngjøringer
+            : hendelser;
 
     if (!harCanvasToken) {
         return (
@@ -195,7 +85,6 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
 
     return (
         <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-            {/* Header */}
             <div className="flex items-center gap-3">
                 <Bell className="w-6 h-6 text-slate-700 dark:text-slate-300" />
                 <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
@@ -203,7 +92,6 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                 </h1>
             </div>
 
-            {/* Tab-navigasjon */}
             <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-700 pb-3">
                 {tabs.map((tab) => (
                     <button
@@ -227,7 +115,6 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                 ))}
             </div>
 
-            {/* Innhold */}
             {isLoading ? (
                 <div className="flex items-center justify-center py-12">
                     <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -250,13 +137,12 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
     );
 }
 
-// Individuelt varslingskort
 function VarslingKort({ element }: { element: VarslingElement }) {
     if (element.type === "frist") return <FristKort frist={element} />;
     if (element.type === "kunngjoring") return <KunngjoringKort kunngjoring={element} />;
     return <HendelseKort hendelse={element} />;
 }
-// Kort for fristoppgave
+
 function FristKort({ frist }: { frist: FristElement }) {
     const tidTekst = formaterTid(frist.timerIgjen);
 
@@ -292,7 +178,7 @@ function FristKort({ frist }: { frist: FristElement }) {
         </div>
     );
 }
-// Kort for kunngjøring
+
 function KunngjoringKort({ kunngjoring }: { kunngjoring: KunngjoringElement }) {
     return (
         <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
@@ -311,7 +197,7 @@ function KunngjoringKort({ kunngjoring }: { kunngjoring: KunngjoringElement }) {
         </div>
     );
 }
-// Kort for kalenderhendelse
+
 function HendelseKort({ hendelse }: { hendelse: HendelseElement }) {
     return (
         <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">

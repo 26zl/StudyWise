@@ -2,12 +2,13 @@
 
 import { useEffect, useCallback, useRef } from "react";
 import { Check, Loader2 } from "lucide-react";
-import { 
-  useCanvasAnnouncements, 
-  useCanvasCourses, 
+import {
+  useCanvasAnnouncements,
+  useCanvasCourses,
   useCanvasTodo,
-  useCanvasUpcomingEvents 
+  useCanvasUpcomingEvents,
 } from "../canvas/canvas-api";
+import { formaterEmneStatus } from "../canvas/canvasUtils";
 import { useUIStore, type CanvasContextSelection } from "../store/uiStore";
 import { useMeg, useOppdaterPreferanser } from "../auth/auth-api";
 
@@ -68,7 +69,7 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
     if (selected.courses && coursesData?.courses?.length) {
       deler.push("DINE EMNER:");
       coursesData.courses.forEach((c) => {
-        const status = c.workflow_state ? (c.workflow_state === "available" ? "aktiv" : c.workflow_state) : "ukjent";
+        const status = formaterEmneStatus(c.workflow_state);
         deler.push(`- ${c.name} (${c.course_code || "ukjent kode"}) [${status}]`);
       });
       deler.push("");

@@ -370,7 +370,8 @@ Gjenbruk disse — **ikke dupliser**:
 
 ### Delte frontend-hjelpefiler (`frontend/app/lib/`)
 
-- `fristUtils.ts` — `klassifiserFrist()`, `formaterTid()`, frist-terskler
+- `varsler.ts` — frist-terskler, `klassifiserFrist()`, `formaterTid()`, varsler-typer og byggelogikk
+- `frontend/app/canvas/canvasUtils.ts` — Canvas-data-utils (`erInnlevert()`, `formaterEmneStatus()`); bruk denne filen for slik logikk
 - `errorUtils.ts` — `parseApiError()`, `lagBrukervennligFeilmelding()`
 - `errors.ts` — `AppError`-klassehierarki for typet feilhåndtering
 

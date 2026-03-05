@@ -9,6 +9,7 @@ import { Sparkles, Calendar, BookOpen, MessageSquare, TrendingUp, Clock, AlertCi
 import { WeeklyPlanSuggestions } from "../components/WeeklyPlanSuggestions";
 import { Sidebar, type VisningType } from "../components/Sidebar";
 import { useCanvasCourses, useCanvasAllAssignments, useCanvasUser, type AssignmentMedEmne } from "../canvas/canvas-api";
+import { erInnlevert } from "../canvas/canvasUtils";
 import { useMeg } from "../auth/auth-api";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -39,16 +40,26 @@ export default function OversiktPage() {
         }
     }, [megQuery.isError, megQuery.isFetched, megQuery.isLoading, megQuery.data?.user, router]);
 
-    const coursesQuery = useCanvasCourses(true);
-    const assignmentsQuery = useCanvasAllAssignments({ enabled: true });
+    const coursesQuery = useCanvasCourses(harCanvasToken);
+    const assignmentsQuery = useCanvasAllAssignments({ enabled: harCanvasToken });
+
+    // Fersk data når bruker åpner oversikt (både emner og oppgaver)
+    useEffect(() => {
+        if (!harCanvasToken) return;
+        void coursesQuery.refetch();
+        void assignmentsQuery.refetch();
+    }, [harCanvasToken]); 
+
+    // Kun oppgaver som ikke er innlevert (riktig grunnlag for ukeplan og kommende)
+    const allAssignments: AssignmentMedEmne[] = assignmentsQuery.data || [];
+    const ikkeInnleverteAssignments = allAssignments.filter((a) => !erInnlevert(a));
 
     // Beregn statistikk
     const totalCourses = coursesQuery.data?.courses?.length || 0;
-    const allAssignments: AssignmentMedEmne[] = assignmentsQuery.data || [];
     const totalAssignments = allAssignments.length;
 
-    // Kommende oppgaver (neste 7 dager)
-    const upcomingAssignments = allAssignments.filter((a) => {
+    // Kommende oppgaver (neste 7 dager) – kun ikke-innleverte
+    const upcomingAssignments = ikkeInnleverteAssignments.filter((a) => {
         if (!a.due_at) return false;
         const dueDate = new Date(a.due_at);
         const now = new Date();
@@ -155,9 +166,9 @@ export default function OversiktPage() {
                                 <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2 mx-auto"></div>
                             </div>
                         </div>
-                    ) : allAssignments.length > 0 ? (
+                    ) : ikkeInnleverteAssignments.length > 0 ? (
                         <WeeklyPlanSuggestions
-                            assignments={allAssignments.map((a) => ({
+                            assignments={ikkeInnleverteAssignments.map((a) => ({
                                 id: a.id.toString(),
                                 name: a.name,
                                 dueAt: a.due_at || undefined,
@@ -221,7 +232,7 @@ export default function OversiktPage() {
                     </div>
                 </div>
 
-                {/* Kommende oppgaver */}
+                {/* Kommende oppgaver (kun ikke-innleverte) */}
                 {upcomingAssignments.length > 0 && (
                     <div className="space-y-2">
                         <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
@@ -237,11 +248,6 @@ export default function OversiktPage() {
                                     (dueDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
                                 );
                                 const isUrgent = daysUntil <= 2;
-                                const erInnlevert =
-                                    assignment.submission &&
-                                    (assignment.submission.workflow_state === "submitted" ||
-                                        assignment.submission.workflow_state === "graded" ||
-                                        assignment.submission.workflow_state === "pending_review");
 
                                 return (
                                     <div
@@ -253,13 +259,8 @@ export default function OversiktPage() {
                                                 <h3 className="font-medium text-slate-900 dark:text-white truncate">
                                                     {assignment.name}
                                                 </h3>
-                                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                                                    <span>{assignment.course_name}</span>
-                                                    {erInnlevert && (
-                                                        <span className="inline-flex items-center rounded-md bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 text-xs font-medium text-green-800 dark:text-green-300">
-                                                            Innlevert
-                                                        </span>
-                                                    )}
+                                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                                    {assignment.course_name}
                                                 </p>
                                             </div>
                                             <div className="text-right shrink-0">

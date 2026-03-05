@@ -157,13 +157,25 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
                             <h4 className={`${s.overskrift} font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-0.5 sm:mb-1`}>
                                 Hovedpunkter
                             </h4>
-                            <ul className="space-y-0.5 sm:space-y-1">
-                                {resultat.handlinger.map((punkt, i) => (
-                                    <li key={i} className={`flex items-start gap-1.5 sm:gap-2 ${s.tekst} text-slate-700 dark:text-slate-300`}>
-                                        {renderSjekkIkon()}
-                                        {punkt}
-                                    </li>
-                                ))}
+                            <ul className="space-y-1 sm:space-y-1.5">
+                                {resultat.handlinger.map((punkt, i) => {
+                                    const medForklaring = punkt.split(/\s+[–—]\s+/);
+                                    const hoveddel = medForklaring[0] ?? punkt;
+                                    const forklaring = medForklaring.length > 1 ? medForklaring.slice(1).join(" – ").trim() : null;
+                                    return (
+                                        <li key={i} className={`flex items-start gap-1.5 sm:gap-2 ${s.tekst} text-slate-700 dark:text-slate-300`}>
+                                            {renderSjekkIkon()}
+                                            <span>
+                                                {hoveddel}
+                                                {forklaring && (
+                                                    <span className="block text-slate-600 dark:text-slate-400 mt-0.5 pl-5 sm:pl-6 text-[0.9em]">
+                                                        {forklaring}
+                                                    </span>
+                                                )}
+                                            </span>
+                                        </li>
+                                    );
+                                })}
                             </ul>
                         </div>
                     )}

@@ -14,9 +14,9 @@ import { SectionErrorBoundary } from "./ErrorBoundary";
 import { useCanvasUser } from "../canvas/canvas-api";
 import { Footer } from "./footer";
 import { useMeg } from "../auth/auth-api";
-import { prefetchCanvasData, useCanvasAllAssignments } from "../canvas/canvas-api";
+import { prefetchCanvasData } from "../canvas/canvas-api";
 import { useUIStore } from "../store/uiStore";
-import { useFristVarsler } from "../hooks/useFristVarsler";
+import { useVarslerPopups, VARSLER_TOAST_VIST_KEY } from "../hooks/useVarsler";
 import { useChatHistoryPrefetch } from "../hooks/useChatHistory";
 
 // Gyldige visningstyper for URL-validering
@@ -94,9 +94,21 @@ export function DashboardView() {
     const userQuery = useCanvasUser(brukerQueryAktiv);
     const setCanvasContextSelection = useUIStore((state) => state.setCanvasContextSelection);
 
-    // Frist-varsler: hent oppgaver og vis toast-varsler for nærliggende frister
-    const fristOppgaverQuery = useCanvasAllAssignments({ enabled: harCanvasToken });
-    useFristVarsler(fristOppgaverQuery.data);
+    // Popup-varsler: én toast "Du har X uleste meldinger" (respekterer innleverte), integrert med varslinger-siden
+    useVarslerPopups(harCanvasToken, {
+        onGåTilVarslinger: () => settAktivVisning("varslinger"),
+    });
+
+    // Marker at bruker har åpnet varslinger (så popup ikke vises unødvendig)
+    useEffect(() => {
+        if (aktivVisning === "varslinger") {
+            try {
+                sessionStorage.setItem(VARSLER_TOAST_VIST_KEY, "1");
+            } catch {
+                // ignore
+            }
+        }
+    }, [aktivVisning]);
 
     // Synkroniser Canvas-kontekst preferanser fra backend til global state
     useEffect(() => {

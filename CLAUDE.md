@@ -263,7 +263,8 @@ onSave(subtasks.map(({ approved: _approved, ...task }) => task));
 
 **Frontend**:
 
-- `frontend/app/lib/fristUtils.ts` — `klassifiserFrist()`, `formaterTid()`, deadline thresholds
+- `frontend/app/lib/varsler.ts` — frist-terskler, `klassifiserFrist()`, `formaterTid()`, varsler-typer og byggelogikk
+- `frontend/app/canvas/canvasUtils.ts` — Canvas-data-utils for frontend (`erInnlevert()`, `formaterEmneStatus()`); andre filer bør importere herfra
 - `frontend/app/lib/errorUtils.ts` — `parseApiError()`, `lagBrukervennligFeilmelding()`
 - `frontend/app/lib/errors.ts` — `AppError` class hierarchy for typed error handling
 
