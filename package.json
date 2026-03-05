@@ -45,6 +45,7 @@
   },
   "pnpm": {
     "overrides": {
+      "dompurify": ">=3.3.2",
       "glob@<8": ">=8.0.0",
       "inflight": "npm:@node-rs/inflight@latest",
       "lodash.get": "npm:lodash@^4.17.21",
