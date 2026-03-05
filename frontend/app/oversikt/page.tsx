@@ -5,6 +5,7 @@
 "use client";
 
 import { useCallback, useEffect } from "react";
+import { startOfDay, addDays } from "date-fns";
 import { Sparkles, Calendar, BookOpen, MessageSquare, TrendingUp, Clock, AlertCircle } from "lucide-react";
 import { WeeklyPlanSuggestions } from "../components/WeeklyPlanSuggestions";
 import { Sidebar, type VisningType } from "../components/Sidebar";
@@ -58,13 +59,13 @@ export default function OversiktPage() {
     const totalCourses = coursesQuery.data?.courses?.length || 0;
     const totalAssignments = allAssignments.length;
 
-    // Kommende oppgaver (neste 7 dager) – kun ikke-innleverte
+    // Kommende oppgaver: frist innen 7 kalenderdager (i dag inkludert) – kun ikke-innleverte
+    const todayStart = startOfDay(new Date());
+    const sevenDaysEnd = addDays(todayStart, 7);
     const upcomingAssignments = ikkeInnleverteAssignments.filter((a) => {
         if (!a.due_at) return false;
-        const dueDate = new Date(a.due_at);
-        const now = new Date();
-        const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-        return dueDate >= now && dueDate <= weekFromNow;
+        const dueDay = startOfDay(new Date(a.due_at));
+        return dueDay >= todayStart && dueDay < sevenDaysEnd;
     });
 
     // Aktive emner (emner med oppgaver)
