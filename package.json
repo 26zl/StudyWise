@@ -10,7 +10,7 @@
     "dev:common": "pnpm --filter common typecheck --watch",
     "kill:dev": "node scripts/kill-dev.mjs",
     "lint": "pnpm -r lint",
-    "lint:md": "markdownlint \"**/*.md\" --ignore node_modules",
+    "lint:md": "remark . --ignore-path .remarkignore --use remark-preset-lint-recommended",
     "lint:frontend": "pnpm --filter frontend lint",
     "lint:backend": "pnpm --filter backend lint",
     "typecheck": "pnpm -r typecheck",
@@ -39,7 +39,8 @@
     "concurrently": "^9.2.1",
     "docx": "^9.6.0",
     "kill-port": "^2.0.1",
-    "markdownlint-cli": "^0.47.0",
+    "remark-cli": "^12.0.1",
+    "remark-preset-lint-recommended": "^7.0.1",
     "rimraf": "^6.1.3",
     "wait-on": "^9.0.4"
   },
@@ -47,6 +48,7 @@
     "overrides": {
       "dompurify": ">=3.3.2",
       "glob@<8": ">=8.0.0",
+      "glob": ">=13.0.0",
       "inflight": "npm:@node-rs/inflight@latest",
       "lodash.get": "npm:lodash@^4.17.21",
       "lodash.isequal": "npm:lodash@^4.17.21",
