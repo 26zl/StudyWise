@@ -124,7 +124,7 @@ Hvis det ikke er noen handlingspunkter, skriv "HANDLINGER: Ingen handlingspunkte
             { role: "system", content: instruksjon },
             { role: "user", content: renTekst.slice(0, 10000) },
           ],
-          max_tokens: 1024,
+          max_tokens: 2048,
           temperature: 0.3,
         }),
         timeoutPromise,

@@ -4,7 +4,7 @@
  * Bilder sendes direkte til Claude Vision når tilgjengelig, med OCR som fallback.
  */
 
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import multer from "multer";
 import { logger } from "../../utils/logger.js";
 import {
@@ -56,14 +56,33 @@ const upload = multer({
  * Analyser dokument (PDF, Word, TXT, etc.)
  */
 router.post("/analyze-document", upload.single('document'), async (req: Request, res: Response) => {
+  // Set SSE headers FIRST — prevents proxy buffering timeout
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.removeHeader("Content-Encoding");
+  req.socket.setTimeout(120000);
+  res.flushHeaders();
+
+  // Keepalive to prevent proxy (Next.js rewrite) from timing out during AI processing
+  const keepaliveInterval = setInterval(() => {
+      if (!res.writableEnded) res.write(": keepalive\n\n");
+  }, 10000);
+
+  try {
+
     logger.info("Mottok dokumentanalyse-forespørsel");
 
     if (!req.file) {
-        return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
+        clearInterval(keepaliveInterval);
+        res.write(`data: ${JSON.stringify(KIDocumentAnalyseResponseSchema.parse({
             suksess: false,
-            melding: "Ingen fil lastet opp. Bruk form-data med felt 'document'.",
+            melding: "Ingen fil mottatt.",
             response: "",
-        }));
+        }))}\n\n`);
+        res.end();
+        return;
     }
 
     const question = req.body.question || req.body.sporsmaal || "Gi meg en oppsummering av dette dokumentet.";
@@ -76,14 +95,16 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
 
     if (!isClientAvailable(model)) {
         logger.error("AI-klient ikke tilgjengelig for modell: %s", model);
-        return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({
+        clearInterval(keepaliveInterval);
+        res.write(`data: ${JSON.stringify(KIDocumentAnalyseResponseSchema.parse({
             suksess: false,
             melding: "KI-tjenesten er ikke konfigurert. Kontakt administrator.",
             response: "",
-        }));
+        }))}\n\n`);
+        res.end();
+        return;
     }
 
-    try {
         const filMimetype = req.file.mimetype;
         const filBuffer = req.file.buffer;
         const brukerVision = erVisionBilde(filMimetype) && isVisionAvailable(model);
@@ -111,14 +132,40 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
             }
         } else {
             // Ikke et bilde eller Vision utilgjengelig: parse dokumentet som vanlig
-            docResult = await parseDocument(filBuffer, filMimetype, req.file.originalname);
+            try {
+                docResult = await parseDocument(filBuffer, filMimetype, req.file.originalname);
+            } catch (parseError) {
+                logger.error({ err: parseError }, "File parsing failed");
+                clearInterval(keepaliveInterval);
+                res.write(`data: ${JSON.stringify(KIDocumentAnalyseResponseSchema.parse({
+                    suksess: false,
+                    melding: "Kunne ikke lese filen. Prøv et annet format.",
+                    response: "",
+                }))}\n\n`);
+                res.end();
+                return;
+            }
 
             if (!docResult.success) {
-                return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
+                clearInterval(keepaliveInterval);
+                res.write(`data: ${JSON.stringify(KIDocumentAnalyseResponseSchema.parse({
                     suksess: false,
                     melding: docResult.error || "Kunne ikke lese dokumentet.",
                     response: "",
-                }));
+                }))}\n\n`);
+                res.end();
+                return;
+            }
+
+            if (!docResult.text || docResult.text.trim().length === 0) {
+                clearInterval(keepaliveInterval);
+                res.write(`data: ${JSON.stringify(KIDocumentAnalyseResponseSchema.parse({
+                    suksess: false,
+                    melding: "Filen inneholder ingen lesbar tekst.",
+                    response: "",
+                }))}\n\n`);
+                res.end();
+                return;
             }
 
             docContext = formatDocumentContext(
@@ -133,7 +180,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
         const systemPrompt = STUDYWISE_SYSTEM_PROMPT + STUDYWISE_DOCUMENT_PROMPT;
 
         // Timeout guard — dokumentanalyse kan ta lengre tid enn chat, men bør ikke henge evig
-        const ANALYSE_TIMEOUT_MS = 60000;
+        const ANALYSE_TIMEOUT_MS = 120000;
         const timeoutPromise = new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error("ANALYSE_TIMEOUT")), ANALYSE_TIMEOUT_MS)
         );
@@ -150,7 +197,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
 
             const visionMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
                 { role: "system", content: systemPrompt },
-                { role: "user", content: `Spørsmål: ${question}\n\n[BILDE_VEDLEGG]` },
+                { role: "user", content: `Spørsmål: ${question}\n\nImportant: Cover every single concept, framework, and named model in the document explicitly. When a framework has named components (e.g. VRIO has V, R, I, O), list every component individually. Never group items with 'and others' or 'etc.' Write out every item in every list. Do not end your response until all concepts in the document have been addressed.\n\n[BILDE_VEDLEGG]` },
             ];
 
             logger.info({
@@ -166,7 +213,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
                     model,
                     messages: visionMessages,
                     images: [imageAttachment],
-                    max_tokens: 2048,
+                    max_tokens: 6000,
                     temperature: 0.5,
                     fallbackText: ocrFallbackText || undefined,
                 }),
@@ -176,7 +223,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
             // --- Vanlig tekst-basert dokumentanalyse ---
             const apiMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
                 { role: "system", content: systemPrompt },
-                { role: "user", content: `Dokument-kontekst:\n${docContext}\n\nSpørsmål: ${question}` },
+                { role: "user", content: `Dokument-kontekst:\n${docContext}\n\nSpørsmål: ${question}\n\nImportant: Cover every single concept, framework, and named model in the document explicitly. When a framework has named components (e.g. VRIO has V, R, I, O), list every component individually. Never group items with 'and others' or 'etc.' Write out every item in every list. Do not end your response until all concepts in the document have been addressed.` },
             ];
 
             logger.info({
@@ -191,7 +238,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
                 chatCompletion({
                     model,
                     messages: apiMessages,
-                    max_tokens: 2048,
+                    max_tokens: 6000,
                     temperature: 0.5,
                 }),
                 timeoutPromise,
@@ -207,7 +254,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
             tokens: usage?.total_tokens
         }, "Vellykket dokumentanalyse");
 
-        return res.json(KIDocumentAnalyseResponseSchema.parse({
+        const payload = KIDocumentAnalyseResponseSchema.parse({
             suksess: true,
             response: responseText,
             model: model,
@@ -229,21 +276,32 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
                 completion_tokens: usage.completion_tokens,
                 total_tokens: usage.total_tokens,
             } : undefined,
-        }));
+        });
+        clearInterval(keepaliveInterval);
+        res.write(`data: ${JSON.stringify(payload)}\n\n`);
+        res.end();
+        return;
 
-    } catch (error) {
-        if (handleAIError(res, error, KIDocumentAnalyseResponseSchema, {
-            timeoutLabel: "ANALYSE_TIMEOUT",
-            timeoutMessage: "Dokumentanalysen tok for lang tid. Prøv med et mindre dokument eller prøv igjen.",
-            kontekst: "dokumentanalyse",
-        })) return;
-
-        return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({
-            suksess: false,
-            melding: "Kunne ikke analysere dokumentet. Prøv igjen.",
-            response: "",
-        }));
+  } catch (error) {
+    clearInterval(keepaliveInterval);
+    logger.error({ err: error }, "analyze-document unhandled error");
+    if (!res.writableEnded) {
+        try {
+            const isTimeout = error instanceof Error && error.message === "ANALYSE_TIMEOUT";
+            const errorPayload = KIDocumentAnalyseResponseSchema.parse({
+                suksess: false,
+                melding: isTimeout
+                    ? "Dokumentanalysen tok for lang tid. Prøv med et mindre dokument eller prøv igjen."
+                    : "Kunne ikke analysere dokumentet. Prøv igjen.",
+                response: "",
+            });
+            res.write(`data: ${JSON.stringify(errorPayload)}\n\n`);
+            res.end();
+        } catch {
+            // Headers already ended, nothing to do
+        }
     }
+  }
 });
 
 /**
@@ -297,7 +355,7 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req: Request, res: Resp
         const systemPrompt = STUDYWISE_SYSTEM_PROMPT + STUDYWISE_DOCUMENT_PROMPT;
         const apiMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
             { role: "system", content: systemPrompt },
-            { role: "user", content: `Dokument-kontekst:\n${docContext}\n\nSpørsmål: ${question}` }
+            { role: "user", content: `Dokument-kontekst:\n${docContext}\n\nSpørsmål: ${question}\n\nImportant: Cover every single concept, framework, and named model in the document explicitly. When a framework has named components (e.g. VRIO has V, R, I, O), list every component individually. Never group items with 'and others' or 'etc.' Write out every item in every list. Do not end your response until all concepts in the document have been addressed.` }
         ];
 
         const ANALYSE_TIMEOUT_MS = 60000;
@@ -309,7 +367,7 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req: Request, res: Resp
             chatCompletion({
                 model,
                 messages: apiMessages,
-                max_tokens: 2048,
+                max_tokens: 6000,
                 temperature: 0.5,
             }),
             timeoutPromise,
@@ -348,6 +406,20 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req: Request, res: Resp
             response: "",
         }));
     }
+});
+
+// Multer / upload error handler
+router.use((err: Error, _req: Request, res: Response, next: NextFunction) => {
+    if (err) {
+        const isFileTooLarge = "code" in err && (err as unknown as { code: string }).code === "LIMIT_FILE_SIZE";
+        logger.warn({ err }, "Multer/upload error");
+        return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
+            suksess: false,
+            melding: isFileTooLarge ? "Filen er for stor. Maks 15 MB." : err.message || "Feil ved filopplasting.",
+            response: "",
+        }));
+    }
+    next();
 });
 
 export const kiAnalyseRouter = router;

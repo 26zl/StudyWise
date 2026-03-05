@@ -190,7 +190,7 @@ async function fetchKI<T>(
   return schema.parse(data);
 }
 
-// POST funksjon for chat
+// POST funksjon for chat (støtter SSE-streaming fra backend)
 async function postKI<T>(
   endpoint: string,
   body: unknown,
@@ -210,6 +210,28 @@ async function postKI<T>(
   }
 
   await håndterKIFeilRespons(res);
+
+  const contentType = res.headers.get("Content-Type") || "";
+
+  // SSE-svar fra /chat endepunktet (text/event-stream)
+  if (contentType.includes("text/event-stream")) {
+    const text = await res.text();
+    const lines = text.split("\n");
+    let lastData: string | null = null;
+
+    for (const line of lines) {
+      if (line.startsWith("data: ") && line !== "data: [DONE]") {
+        lastData = line.slice(6);
+      }
+    }
+
+    if (!lastData) {
+      throw new Error("Ingen respons mottatt fra KI-tjenesten.");
+    }
+    return schema.parse(JSON.parse(lastData));
+  }
+
+  // Vanlig JSON-svar (feilresponser, andre endepunkter)
   const data = await res.json();
   return schema.parse(data);
 }
@@ -233,6 +255,28 @@ async function postKIFormData<T>(
   }
 
   await håndterKIFeilRespons(res);
+
+  const contentType = res.headers.get("Content-Type") || "";
+
+  // SSE-svar fra analyze-document endepunktet (text/event-stream)
+  if (contentType.includes("text/event-stream")) {
+    const text = await res.text();
+    const lines = text.split("\n");
+    let lastData: string | null = null;
+
+    for (const line of lines) {
+      if (line.startsWith("data: ") && line !== "data: [DONE]") {
+        lastData = line.slice(6);
+      }
+    }
+
+    if (!lastData) {
+      throw new Error("Ingen respons mottatt fra KI-tjenesten.");
+    }
+    return schema.parse(JSON.parse(lastData));
+  }
+
+  // Vanlig JSON-svar (feilresponser, andre endepunkter)
   const data = await res.json();
   return schema.parse(data);
 }

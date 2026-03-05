@@ -91,8 +91,15 @@ app.disable("x-powered-by");
 // Logger middleware
 app.use(pinoHttp({ logger }));
 
-// Gzip komprimering
-app.use(compression()); 
+// Gzip komprimering — skip SSE responses (text/event-stream) to prevent buffering
+app.use(compression({
+  filter: (req, res) => {
+    if (res.getHeader("Content-Type") === "text/event-stream") {
+      return false;
+    }
+    return compression.filter(req, res);
+  },
+})); 
 
 
 // JSON body parser med økt størrelse på 10mb

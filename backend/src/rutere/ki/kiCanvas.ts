@@ -40,19 +40,20 @@ const MAX_PDF_FILE_SIZE = 5 * 1024 * 1024;
  * Trimmer Canvas-kontekst progressivt til den er under maxChars tegn.
  * Fjerner seksjoner i prioritert rekkefølge (minst viktig først).
  */
-export function trimCanvasKontekst(kontekst: string, maxChars = 80000): string {
+export function trimCanvasKontekst(kontekst: string, maxChars = 120000): string {
   if (kontekst.length <= maxChars) return kontekst;
 
   let trimmed = kontekst;
 
   // Prioritert rekkefølge for fjerning (minst viktig → mest viktig)
+  // MODULER OG INNHOLD er mest verdifull — fjernes sist, kun om absolutt nødvendig
   const sections = [
-    { name: "SIDEINNHOLD", pattern: /\nSIDEINNHOLD:[\s\S]*?(?=\n(?:PDF-FILINNHOLD|EMNEFORSIDER|FILER I EMNER|---)|$)/ },
-    { name: "PDF-FILINNHOLD", pattern: /\nPDF-FILINNHOLD:[\s\S]*?(?=\n(?:SIDEINNHOLD|EMNEFORSIDER|FILER I EMNER|---)|$)/ },
-    { name: "EMNEFORSIDER", pattern: /\nEMNEFORSIDER \(Landing Pages\):[\s\S]*?(?=\n(?:FILER I EMNER|SIDEINNHOLD|PDF-FILINNHOLD|---)|$)/ },
-    { name: "FILER I EMNER", pattern: /\nFILER I EMNER:[\s\S]*?(?=\n(?:SIDEINNHOLD|PDF-FILINNHOLD|EMNEFORSIDER|---)|$)/ },
-    { name: "MODULER OG INNHOLD", pattern: /\nMODULER OG INNHOLD:[\s\S]*?(?=\n(?:EMNEFORSIDER|FILER I EMNER|SIDEINNHOLD|PDF-FILINNHOLD|---)|$)/ },
+    { name: "SIDEINNHOLD", pattern: /\nSIDEINNHOLD:[\s\S]*?(?=\n(?:PDF-FILINNHOLD|EMNEFORSIDER|FILER I EMNER|MODULER OG INNHOLD|---)|$)/ },
+    { name: "FILER I EMNER", pattern: /\nFILER I EMNER:[\s\S]*?(?=\n(?:SIDEINNHOLD|PDF-FILINNHOLD|EMNEFORSIDER|MODULER OG INNHOLD|---)|$)/ },
+    { name: "PDF-FILINNHOLD", pattern: /\nPDF-FILINNHOLD:[\s\S]*?(?=\n(?:SIDEINNHOLD|EMNEFORSIDER|FILER I EMNER|MODULER OG INNHOLD|---)|$)/ },
+    { name: "EMNEFORSIDER", pattern: /\nEMNEFORSIDER \(Landing Pages\):[\s\S]*?(?=\n(?:FILER I EMNER|SIDEINNHOLD|PDF-FILINNHOLD|MODULER OG INNHOLD|---)|$)/ },
     { name: "OPPGAVER", pattern: /\nOPPGAVER:[\s\S]*?(?=\n(?:MODULER|EMNEFORSIDER|FILER|SIDEINNHOLD|PDF-FILINNHOLD|---)|$)/ },
+    { name: "MODULER OG INNHOLD", pattern: /\nMODULER OG INNHOLD:[\s\S]*?(?=\n(?:EMNEFORSIDER|FILER I EMNER|SIDEINNHOLD|PDF-FILINNHOLD|---)|$)/ },
   ];
 
   for (const section of sections) {
@@ -77,6 +78,327 @@ export function trimCanvasKontekst(kontekst: string, maxChars = 80000): string {
   }
 
   return trimmed;
+}
+
+/**
+ * Lett Canvas-kontekst: kun emnenavn + kommende frister (neste 14 dager).
+ * Brukes for enkel Canvas-relaterte spørsmål ("hvilke fag har jeg", "neste frist").
+ * Mål: ~2 000 tokens i stedet for ~50 000.
+ */
+export async function byggLettCanvasKontekst(canvasToken: string): Promise<string> {
+  try {
+    const [emnerResult, todoResult, eventsResult] = await Promise.allSettled([
+      fetchCoursesForKI(canvasToken),
+      fetchTodo(canvasToken),
+      fetchUpcomingEvents(canvasToken),
+    ]);
+
+    const emner = emnerResult.status === "fulfilled" ? emnerResult.value.data : [];
+    const todosRaw = todoResult.status === "fulfilled" ? todoResult.value.data : [];
+    const eventsRaw = eventsResult.status === "fulfilled" ? eventsResult.value.data : [];
+
+    const activeCoursIds = new Set(emner.map((c) => c.id));
+
+    // Filtrer todos til kun aktive emner
+    const todos = todosRaw.filter((todo) => {
+      if (!todo.course_id) return true;
+      return activeCoursIds.has(todo.course_id);
+    });
+
+    // Filtrer events til kun aktive emner
+    const events = eventsRaw.filter((event) => {
+      if (!event.context_code) return true;
+      if (!event.context_code.startsWith("course_")) return true;
+      const courseIdMatch = event.context_code.match(/^course_(\d+)$/);
+      if (!courseIdMatch) return true;
+      return activeCoursIds.has(parseInt(courseIdMatch[1], 10));
+    });
+
+    // Hent oppgaver for kommende frister (kun aktive emner, kun fremtidige)
+    const now = new Date();
+    const twoWeeksFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+    const assignmentsPerCourse = await Promise.all(
+      emner.slice(0, 20).map((course: CanvasCourse) =>
+        limit(async () => {
+          try {
+            const res = await fetchAssignments(canvasToken, course.id, { bucket: "future" });
+            return {
+              courseId: course.id,
+              courseName: course.name,
+              assignments: res.data.filter((a) => {
+                if (!a.due_at) return false;
+                const d = new Date(a.due_at);
+                return d >= now && d <= twoWeeksFromNow;
+              }),
+            };
+          } catch {
+            return { courseId: course.id, courseName: course.name, assignments: [] };
+          }
+        })
+      )
+    );
+
+    // Dato-formatering
+    const formaterDatoMedTid = (isoString: string | null | undefined): string => {
+      if (!isoString) return "";
+      const d = new Date(isoString);
+      const dato = d.toLocaleDateString("no-NO", { timeZone: "Europe/Oslo" });
+      const tid = d.toLocaleTimeString("no-NO", { timeZone: "Europe/Oslo", hour: "2-digit", minute: "2-digit" });
+      return `${dato} kl. ${tid}`;
+    };
+
+    // Bygg kompakt kontekst
+    const deler: string[] = ["[CANVAS-DATA START] (lett kontekst)"];
+
+    // Dagens dato
+    const idag = new Date();
+    const dagNavn = ["søndag", "mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag"];
+    const månedNavn = ["januar", "februar", "mars", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "desember"];
+    deler.push(`\nDAGENS DATO: ${dagNavn[idag.getDay()]} ${idag.getDate()}. ${månedNavn[idag.getMonth()]} ${idag.getFullYear()} (uke ${getWeekNumber(idag)})`);
+
+    // Emner
+    if (emner.length > 0) {
+      deler.push("\nEMNER:");
+      emner.forEach((e) => {
+        const avsluttet = (e as CanvasCourseForKI).__completed ? " [Avsluttet]" : "";
+        deler.push(`- ${e.name}${e.course_code ? ` (${e.course_code})` : ""}${avsluttet}`);
+      });
+    }
+
+    // Kommende innleveringer (neste 14 dager)
+    const alleKommende = assignmentsPerCourse
+      .flatMap(({ courseName, assignments }) =>
+        assignments.map((a) => ({ name: a.name, courseName, dueAt: a.due_at }))
+      )
+      .sort((a, b) => new Date(a.dueAt!).getTime() - new Date(b.dueAt!).getTime());
+
+    if (alleKommende.length > 0) {
+      deler.push("\nKOMMENDE INNLEVERINGER (neste 14 dager):");
+      for (const a of alleKommende.slice(0, 15)) {
+        deler.push(`- ${a.name} | ${a.courseName} | Frist: ${formaterDatoMedTid(a.dueAt)}`);
+      }
+    }
+
+    // Todos
+    if (todos.length > 0) {
+      deler.push("\nGJØREMÅL:");
+      todos.slice(0, 10).forEach((todo) => {
+        const name = todo.assignment?.name || "Ukjent";
+        deler.push(`- ${name}${todo.assignment?.due_at ? ` (frist: ${formaterDatoMedTid(todo.assignment.due_at)})` : ""}`);
+      });
+    }
+
+    // Events
+    if (events.length > 0) {
+      deler.push("\nKOMMENDE HENDELSER:");
+      events.slice(0, 10).forEach((event) => {
+        deler.push(`- ${event.title}${event.start_at ? ` (${formaterDatoMedTid(event.start_at)})` : ""}`);
+      });
+    }
+
+    deler.push("\n---");
+    deler.push("Dette er en lett Canvas-oversikt (emner + frister). For detaljert innhold (moduler, PDF-er, sider), be brukeren stille et mer spesifikt spørsmål.");
+    deler.push("[CANVAS-DATA SLUTT]");
+
+    const kontekst = deler.join("\n");
+    logger.info(
+      { emnerCount: emner.length, kommendeFrister: alleKommende.length, contextLength: kontekst.length },
+      "Lett Canvas-kontekst bygget (~2k tokens)",
+    );
+
+    return kontekst;
+  } catch (error) {
+    logger.error({ err: error }, "Feil ved bygging av lett Canvas-kontekst");
+    return "[CANVAS STATUS: Kunne ikke hente Canvas-data. Prøv igjen.]";
+  }
+}
+
+/**
+ * Målrettet Canvas-kontekst: henter kun innhold fra det emnet/modulen brukeren spør om.
+ * Reduserer ~48 000 tokens → ~5 000–10 000 tokens for modulspesifikke spørsmål.
+ */
+export async function byggMålrettetCanvasKontekst(
+  canvasToken: string,
+  target: { courseHint: string | null; moduleHint: string | null; fileHint: string | null },
+): Promise<string> {
+  try {
+    // 1. Hent alle emner
+    const { data: allCourses } = await fetchCoursesForKI(canvasToken);
+
+    // 2. Finn matchende emne
+    let matchedCourse: CanvasCourse | undefined;
+    if (target.courseHint) {
+      const hint = target.courseHint.toLowerCase();
+      matchedCourse = allCourses.find((c) =>
+        c.name.toLowerCase().includes(hint) ||
+        (c.course_code && c.course_code.toLowerCase().includes(hint)),
+      );
+    }
+
+    // Hvis vi har modulhint men ikke emnehint, søk i alle emner etter modulnavn
+    if (!matchedCourse && target.moduleHint) {
+      for (const course of allCourses) {
+        try {
+          const { data: mods } = await fetchModules(canvasToken, course.id);
+          const found = mods.some((m) =>
+            m.name.toLowerCase().includes(target.moduleHint!.toLowerCase()),
+          );
+          if (found) {
+            matchedCourse = course;
+            break;
+          }
+        } catch {
+          // Emnet kan mangle modultilgang — hopp videre
+        }
+      }
+    }
+
+    // Fallback: ingen match → returner lett kontekst (emner + frister)
+    if (!matchedCourse) {
+      logger.info(
+        { target },
+        "Målrettet kontekst: Fant ikke matchende emne — faller tilbake til lett kontekst",
+      );
+      return await byggLettCanvasKontekst(canvasToken);
+    }
+
+    // 3. Hent moduler kun for dette emnet
+    const { data: modules } = await fetchModules(canvasToken, matchedCourse.id);
+
+    // 4. Finn matchende modul (hvis moduleHint finnes)
+    let targetModules = modules;
+    if (target.moduleHint) {
+      const hint = target.moduleHint.toLowerCase();
+      const matched = modules.filter((m) => m.name.toLowerCase().includes(hint));
+      if (matched.length > 0) {
+        targetModules = matched;
+      }
+      // Hvis ingen match, bruk alle moduler i emnet (bedre enn ingenting)
+    }
+
+    // 5. Bygg kontekst
+    const deler: string[] = ["[CANVAS-DATA START] (målrettet kontekst)"];
+
+    const idag = new Date();
+    const dagNavn = ["søndag", "mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag"];
+    const månedNavn = ["januar", "februar", "mars", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "desember"];
+    deler.push(`\nDAGENS DATO: ${dagNavn[idag.getDay()]} ${idag.getDate()}. ${månedNavn[idag.getMonth()]} ${idag.getFullYear()}`);
+
+    deler.push(`\n=== EMNE: ${matchedCourse.name}${matchedCourse.course_code ? ` (${matchedCourse.course_code})` : ""} ===`);
+
+    // Oppgaver for dette emnet (kommende)
+    try {
+      const { data: assignments } = await fetchAssignments(canvasToken, matchedCourse.id, { bucket: "future" });
+      if (assignments.length > 0) {
+        deler.push("\nOPPGAVER:");
+        for (const a of assignments.slice(0, 10)) {
+          const frist = a.due_at
+            ? new Date(a.due_at).toLocaleDateString("no-NO", { timeZone: "Europe/Oslo" })
+            : "ingen frist";
+          deler.push(`- ${a.name} (frist: ${frist})`);
+        }
+      }
+    } catch {
+      // Oppgaver ikke tilgjengelig
+    }
+
+    // Moduler med innhold
+    deler.push("\nMODULER OG INNHOLD:");
+    const MAX_PAGE_CONTENT_LENGTH = 2000;
+    const MAX_PDFS_IN_TARGET = 5;
+    let pdfCount = 0;
+
+    for (const mod of targetModules) {
+      deler.push(`\n--- ${mod.name} ---`);
+
+      if (!mod.items || mod.items.length === 0) continue;
+
+      for (const item of mod.items) {
+        if (item.type === "Assignment") {
+          deler.push(`  - [Oppgave] ${item.title}`);
+        } else if (item.type === "Discussion") {
+          deler.push(`  - [Diskusjon] ${item.title}`);
+        } else if (item.type === "ExternalUrl") {
+          deler.push(`  - [Lenke] ${item.title}`);
+        } else if (item.type === "Page" && item.page_url) {
+          // Hent sideinnhold
+          try {
+            const { data: pageData } = await fetchPage(canvasToken, matchedCourse.id, item.page_url);
+            if (pageData.body) {
+              const content = stripHtml(pageData.body).substring(0, MAX_PAGE_CONTENT_LENGTH);
+              deler.push(`\n  [Side: ${item.title}]`);
+              if (content) {
+                deler.push(`  ${content}${pageData.body.length > MAX_PAGE_CONTENT_LENGTH ? "..." : ""}`);
+              }
+            } else {
+              deler.push(`  - [Side] ${item.title}`);
+            }
+          } catch {
+            deler.push(`  - [Side] ${item.title}`);
+          }
+        } else if (item.type === "File" && item.content_id && pdfCount < MAX_PDFS_IN_TARGET) {
+          // Hent fil-metadata og eventuelt PDF-innhold
+          try {
+            const { data: fileMeta } = await fetchFileMetadata(canvasToken, item.content_id);
+            const isPdf =
+              fileMeta.mime_type === "application/pdf" ||
+              (fileMeta.filename || "").toLowerCase().endsWith(".pdf");
+
+            if (isPdf && fileMeta.size <= MAX_PDF_FILE_SIZE) {
+              const pdfResult = await fetchPdfContent(canvasToken, fileMeta);
+              if (pdfResult) {
+                pdfCount++;
+                const truncLabel = pdfResult.truncated ? " (forkortet)" : "";
+                deler.push(`\n  --- FILINNHOLD START: ${fileMeta.display_name || fileMeta.filename}${truncLabel} ---`);
+                deler.push(`  ${pdfResult.content}`);
+                deler.push(`  --- FILINNHOLD SLUTT: ${fileMeta.display_name || fileMeta.filename} ---`);
+              } else {
+                deler.push(`  - [Fil] ${item.title}`);
+              }
+            } else {
+              deler.push(`  - [Fil] ${item.title}${fileMeta.mime_type ? ` [${fileMeta.mime_type}]` : ""}`);
+            }
+          } catch {
+            deler.push(`  - [Fil] ${item.title}`);
+          }
+        } else if (item.type === "File") {
+          deler.push(`  - [Fil] ${item.title}`);
+        }
+      }
+    }
+
+    // Vis også liste over ALLE moduler i emnet for kontekst
+    if (targetModules.length < modules.length) {
+      deler.push(`\nALLE MODULER I ${matchedCourse.name}:`);
+      for (const mod of modules) {
+        const isTarget = targetModules.some((tm) => tm.id === mod.id);
+        deler.push(`  ${isTarget ? "→" : "-"} ${mod.name}${isTarget ? " (detaljert over)" : ""}`);
+      }
+    }
+
+    deler.push("\n---");
+    deler.push("Dette er målrettet Canvas-kontekst for det spesifikke emnet/modulen brukeren spurte om.");
+    deler.push("[CANVAS-DATA SLUTT]");
+
+    const kontekst = deler.join("\n");
+    logger.info(
+      {
+        course: matchedCourse.name,
+        targetModules: targetModules.map((m) => m.name),
+        totalModules: modules.length,
+        pdfCount,
+        contextLength: kontekst.length,
+        target,
+      },
+      "Målrettet Canvas-kontekst bygget",
+    );
+
+    return kontekst;
+  } catch (error) {
+    logger.error({ err: error, target }, "Feil ved bygging av målrettet Canvas-kontekst");
+    return await byggLettCanvasKontekst(canvasToken);
+  }
 }
 
 // Feilhåndtering dersom canvas token ikke er satt
@@ -446,47 +768,60 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
 
     // PDF-FILINNHOLD — hent tekst fra PDF-filer i emnene
     // Strategi: Bruk modul-items som primær kilde (mer pålitelig enn /courses/{id}/files
-    // som kan returnere 403 for noen emner). Hent maks 2 PDFer per emne for spredning.
-    const MAX_PDFS_TOTAL = 8;
-    const MAX_PDFS_PER_COURSE = 2;
-    const pdfCandidates: Array<{ courseId: number; contentId: number; title: string }> = [];
+    // som kan returnere 403 for noen emner). Hent maks PDFer per emne for spredning.
+    const MAX_PDFS_TOTAL = 10;
+    // Samle ALLE File-items (ikke bare PDFer) — PDF-filter skjer i metadata-steget.
+    // Høyere grenser her fordi ikke alle filer er PDFer.
+    const MAX_FILE_CANDIDATES_PER_COURSE = 6;
+    const MAX_FILE_CANDIDATES_TOTAL = 40;
+    const pdfCandidates: Array<{ courseId: number; contentId: number; title: string; moduleName?: string }> = [];
     const seenFileIds = new Set<number>();
 
-    // Samle PDF-kandidater fra modul-items (primær kilde — fungerer selv uten /files tilgang)
+    // Samle fil-kandidater fra modul-items (primær kilde — fungerer selv uten /files tilgang).
+    // Canvas module items av type "File" har content_id = Canvas file ID.
+    // Vi filtrerer IKKE på filnavn/tittel her — titler er display-navn, ikke filnavn.
+    // PDF-sjekk skjer i metadata-steget (mime_type).
     const perCoursePdfCount = new Map<number, number>();
     for (const { courseId, modules } of modulesPerCourse) {
       for (const mod of modules) {
-        if (mod.items) {
-          for (const item of mod.items) {
-            const currentCount = perCoursePdfCount.get(courseId) || 0;
-            if (
-              item.type === "File" &&
-              item.content_id &&
-              !seenFileIds.has(item.content_id) &&
-              (item.title.toLowerCase().endsWith(".pdf")) &&
-              currentCount < MAX_PDFS_PER_COURSE &&
-              pdfCandidates.length < MAX_PDFS_TOTAL
-            ) {
-              // Prioriter forelesnings-PDFer (ikke øvelser/fasiter)
-              const isExercise = /øvelse|fasit|forklar/i.test(item.title);
-              if (!isExercise || currentCount === 0) {
-                pdfCandidates.push({ courseId, contentId: item.content_id, title: item.title });
-                seenFileIds.add(item.content_id);
-                perCoursePdfCount.set(courseId, currentCount + 1);
-              }
-            }
+        for (const item of mod.items ?? []) {
+          const currentCount = perCoursePdfCount.get(courseId) || 0;
+          if (
+            item.type === "File" &&
+            item.content_id &&
+            !seenFileIds.has(item.content_id) &&
+            currentCount < MAX_FILE_CANDIDATES_PER_COURSE &&
+            pdfCandidates.length < MAX_FILE_CANDIDATES_TOTAL
+          ) {
+            pdfCandidates.push({
+              courseId,
+              contentId: item.content_id,
+              title: item.title,
+              moduleName: mod.name,
+            });
+            seenFileIds.add(item.content_id);
+            perCoursePdfCount.set(courseId, currentCount + 1);
           }
         }
       }
     }
 
+    logger.info(
+      {
+        fileCandidatesFromModules: pdfCandidates.length,
+        coursesWithCandidates: perCoursePdfCount.size,
+        totalModulesScanned: modulesPerCourse.reduce((s, c) => s + c.modules.length, 0),
+      },
+      "Fil-kandidater samlet fra modul-items (før metadata/PDF-filter)",
+    );
+
     // Fallback: Sjekk også course files listing for PDFer som ikke er i moduler
-    if (pdfCandidates.length < MAX_PDFS_TOTAL) {
+    if (pdfCandidates.length < MAX_FILE_CANDIDATES_TOTAL) {
       for (const { courseId, files } of filesPerCourse) {
         const currentCount = perCoursePdfCount.get(courseId) || 0;
-        if (currentCount >= MAX_PDFS_PER_COURSE) continue;
+        if (currentCount >= MAX_FILE_CANDIDATES_PER_COURSE) continue;
         for (const file of files) {
-          if (pdfCandidates.length >= MAX_PDFS_TOTAL) break;
+          if (pdfCandidates.length >= MAX_FILE_CANDIDATES_TOTAL) break;
           if (seenFileIds.has(file.id)) continue;
           const isPdf = file.mime_type === "application/pdf" || file.filename.toLowerCase().endsWith(".pdf");
           if (isPdf && file.size <= MAX_PDF_FILE_SIZE) {
@@ -499,11 +834,11 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
     }
 
     logger.info(
-      { pdfCandidateCount: pdfCandidates.length, courses: perCoursePdfCount.size },
-      "PDF-kandidater identifisert fra moduler og filer",
+      { totalCandidates: pdfCandidates.length, fromModules: pdfCandidates.filter(c => c.moduleName).length, fromCourseFiles: pdfCandidates.filter(c => !c.moduleName).length, courses: perCoursePdfCount.size },
+      "Totale fil-kandidater (moduler + course files) før metadata/PDF-filter",
     );
 
-    // Hent metadata og innhold for alle PDF-kandidater
+    // Hent metadata for alle fil-kandidater og filtrer til kun PDFer
     const pdfFiles: Array<{ courseId: number; file: CanvasFile }> = [];
     if (pdfCandidates.length > 0) {
       const metadataResults = await Promise.all(
@@ -511,26 +846,38 @@ Hvis brukeren spør om Canvas-data, må du informere dem om at de må legge inn 
           limit(async () => {
             try {
               const { data: fileMeta } = await fetchFileMetadata(canvasToken!, contentId);
-              if (fileMeta.size <= MAX_PDF_FILE_SIZE) {
-                return { courseId, file: fileMeta };
+              // Sjekk at filen faktisk er en PDF (modul-titler inneholder ikke filtype)
+              const isPdf =
+                fileMeta.mime_type === "application/pdf" ||
+                (fileMeta.filename || "").toLowerCase().endsWith(".pdf") ||
+                (fileMeta.display_name || "").toLowerCase().endsWith(".pdf");
+              if (!isPdf) {
+                logger.debug({ contentId, title, mimeType: fileMeta.mime_type }, "Hopper over ikke-PDF fil fra modul");
+                return null;
               }
-              logger.info({ contentId, title, size: fileMeta.size }, "PDF for stor etter metadata-sjekk");
-              return null;
+              if (fileMeta.size > MAX_PDF_FILE_SIZE) {
+                logger.info({ contentId, title, size: fileMeta.size }, "PDF for stor etter metadata-sjekk");
+                return null;
+              }
+              return { courseId, file: fileMeta };
             } catch (err) {
-              logger.warn({ contentId, title, err }, "Kunne ikke hente filmetadata for PDF");
+              logger.warn({ contentId, title, err }, "Kunne ikke hente filmetadata");
               return null;
             }
           }),
         ),
       );
       for (const result of metadataResults) {
-        if (result) pdfFiles.push(result);
+        if (result) {
+          pdfFiles.push(result);
+          if (pdfFiles.length >= MAX_PDFS_TOTAL) break;
+        }
       }
     }
 
     logger.info(
-      { pdfFileCount: pdfFiles.length, fromCourseFiles: filesPerCourse.reduce((s, fc) => s + fc.files.length, 0) },
-      "PDF-filer klar for tekstekstraksjon",
+      { pdfFileCount: pdfFiles.length, candidatesChecked: pdfCandidates.length },
+      "PDF-filer etter metadata-filtrering (klar for tekstekstraksjon)",
     );
 
     if (pdfFiles.length > 0) {
