@@ -27,6 +27,12 @@ import {
   type CanvasCourse,
 } from "common/canvas";
 import { logger } from "../../utils/logger.js";
+import pdfParse from "pdf-parse";
+
+/** Maks antall tegn filinnhold per PDF i KI-kontekst */
+const MAX_PDF_CONTENT_LENGTH = 12000;
+/** Maks filstørrelse vi laster ned for PDF-ekstraksjon (5 MB) */
+const MAX_PDF_FILE_SIZE = 5 * 1024 * 1024;
 
 // Generisk type for Canvas API-respons med valgfri metadata
 type CanvasResponseWithMeta<T> = {
@@ -78,6 +84,53 @@ export async function fetchCourses(canvasToken?: string | null): Promise<
   return {
     data: validCourses,
     meta: response.meta,
+  };
+}
+
+// Hent kurs for KI-kontekst: inkluderer både aktive og fullførte emner
+// Returnerer kurs med __completed flag slik at KI kan merke avsluttede emner
+// Faller tilbake til kun aktive kurs dersom henting av fullførte feiler
+export type CanvasCourseForKI = CanvasCourse & { __completed?: boolean };
+
+export async function fetchCoursesForKI(canvasToken?: string | null): Promise<
+  CanvasResponseWithMeta<CanvasCourseForKI[]>
+> {
+  // Hent aktive kurs først (dette er baseline og skal aldri feile)
+  const activeResult = await fetchCourses(canvasToken);
+  const activeCourses: CanvasCourseForKI[] = activeResult.data.map(
+    (c) => ({ ...c, __completed: false }),
+  );
+
+  // Prøv å hente fullførte kurs i tillegg — men feil er ikke kritisk
+  try {
+    const token = requireToken(canvasToken);
+    const completedRes = await hentCanvasData<unknown[]>("/api/v1/courses", {
+      token,
+      queryParams: {
+        per_page: PAGE_SIZE.DEFAULT,
+        enrollment_state: "completed",
+        "include[]": "total_students",
+      },
+      cacheTtl: CACHE_TTL.COURSES,
+    });
+
+    const parsed = z.array(CanvasCourseSchema).safeParse(completedRes.data);
+    if (parsed.success) {
+      const completedCourses = parsed.data
+        .filter((c) => c.workflow_state === "available" || c.workflow_state === "completed")
+        .map((c): CanvasCourseForKI => ({ ...c, __completed: true }));
+
+      // Dedupliser (et emne kan være i begge lister)
+      const seen = new Set(activeCourses.map((c) => c.id));
+      activeCourses.push(...completedCourses.filter((c) => !seen.has(c.id)));
+    }
+  } catch (error) {
+    logger.warn({ err: error }, "Kunne ikke hente fullførte emner — bruker kun aktive");
+  }
+
+  return {
+    data: activeCourses,
+    meta: activeResult.meta,
   };
 }
 
@@ -546,6 +599,77 @@ export async function fetchFrontPage(canvasToken: string | null | undefined, cou
     meta: response.meta,
   };
 }
+
+/**
+ * Laster ned en PDF-fil fra Canvas og ekstraherer tekst med pdf-parse.
+ * Returnerer ekstrahert tekst, begrenset til MAX_PDF_CONTENT_LENGTH tegn.
+ * Returnerer null dersom filen ikke er PDF, er for stor, eller parsing feiler.
+ */
+export async function fetchPdfContent(
+  canvasToken: string | null | undefined,
+  file: { id: number; filename: string; url: string; size: number; mime_type?: string },
+): Promise<{ content: string; truncated: boolean } | null> {
+  // Sjekk at filen er en PDF
+  const isPdf = file.mime_type === "application/pdf" || file.filename.toLowerCase().endsWith(".pdf");
+  if (!isPdf) return null;
+
+  // Sjekk filstørrelse
+  if (file.size > MAX_PDF_FILE_SIZE) {
+    logger.info({ fileId: file.id, filename: file.filename, size: file.size }, "PDF for stor for KI-kontekst");
+    return null;
+  }
+
+  try {
+    // Hent fersk metadata for signert URL (den i file.url kan ha utløpt)
+    const token = requireToken(canvasToken);
+    const { data: freshFile } = await fetchFileMetadata(token, file.id);
+    const downloadUrl = freshFile.url;
+
+    if (!downloadUrl) {
+      logger.warn({ fileId: file.id, filename: file.filename }, "Ingen download-URL for PDF");
+      return null;
+    }
+
+    const response = await fetch(downloadUrl, {
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!response.ok) {
+      logger.warn(
+        { fileId: file.id, filename: file.filename, status: response.status },
+        "Kunne ikke laste ned PDF fra Canvas",
+      );
+      return null;
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const parsed = await pdfParse(buffer);
+    const fullText = parsed.text?.trim() || "";
+
+    if (fullText.length === 0) {
+      logger.info({ fileId: file.id, filename: file.filename }, "PDF inneholdt ingen lesbar tekst");
+      return null;
+    }
+
+    const truncated = fullText.length > MAX_PDF_CONTENT_LENGTH;
+    const content = truncated ? fullText.substring(0, MAX_PDF_CONTENT_LENGTH) : fullText;
+
+    logger.info(
+      { fileId: file.id, filename: file.filename, pages: parsed.numpages, textLength: fullText.length, truncated },
+      "PDF-tekst ekstrahert for KI-kontekst",
+    );
+
+    return { content, truncated };
+  } catch (error) {
+    logger.warn(
+      { err: error, fileId: file.id, filename: file.filename },
+      "Feil ved PDF-tekstekstraksjon for KI-kontekst",
+    );
+    return null;
+  }
+}
+
 /**
  * Varmer opp cache for vanlige Canvas-data.
  * Kjøres asynkront etter login for å forbedre UX.

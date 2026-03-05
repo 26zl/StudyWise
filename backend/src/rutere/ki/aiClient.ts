@@ -73,8 +73,10 @@ export async function chatCompletion(options: {
     messages: ChatMessage[];
     max_tokens: number;
     temperature: number;
+    /** Hopp over HuggingFace-fallback (f.eks. når konteksten er for stor for HF) */
+    skipFallback?: boolean;
 }): Promise<ChatCompletionResult> {
-    const { model, messages, max_tokens, temperature } = options;
+    const { model, messages, max_tokens, temperature, skipFallback } = options;
 
     let result: ChatCompletionResult;
     try {
@@ -84,8 +86,8 @@ export async function chatCompletion(options: {
             result = await callHuggingFace({ model, messages, max_tokens, temperature });
         }
     } catch (primaryError) {
-        // Fallback: Hvis Claude feilet og HF er tilgjengelig, prøv HF
-        if (isAnthropicModel(model) && hfClient) {
+        // Fallback: Hvis Claude feilet og HF er tilgjengelig (og ikke hoppet over)
+        if (isAnthropicModel(model) && hfClient && !skipFallback) {
             logger.warn(
                 { primaryModel: model, fallbackModel: FALLBACK_MODEL, err: primaryError },
                 "Claude feilet — prøver HuggingFace fallback",

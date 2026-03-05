@@ -14,7 +14,7 @@ import {
     KIModelsResponseSchema,
     KI_MAX_MESSAGE_LENGTH_BACKEND,
 } from "common/ki";
-import { byggKiCanvasKontekst } from "./kiCanvas.js";
+import { byggKiCanvasKontekst, trimCanvasKontekst } from "./kiCanvas.js";
 import { kiHistoryRouter } from "./kiHistory.js";
 import { kiAnalyseRouter } from "./kiAnalyse.js";
 import { SUPPORTED_MODELS, DEFAULT_MODEL } from "./aiModels.js";
@@ -209,35 +209,18 @@ router.post("/chat", async (req, res) => {
   }
 
   try {
-    // Finn Canvas context message fra frontend (hvis sendt)
-    const canvasContextMessage = messages.find(
-      (m: { role: string; content: string }) =>
-        m.role === "system" && m.content.includes("Canvas data"),
-    );
-
     // Start med base system prompt
     let enhancedSystemPrompt = STUDYWISE_SYSTEM_PROMPT;
 
-    // Filtrer ut Canvas context message fra messages for å unngå duplikater
-    let filteredMessages = messages;
+    // Filtrer ut eventuelle Canvas context-meldinger fra frontend
+    // Backend henter alltid sin egen fullstendige Canvas-kontekst
+    const filteredMessages = messages.filter(
+      (m: { role: string; content: string }) =>
+        !(m.role === "system" && m.content.includes("Canvas data")),
+    );
 
-    // Finn Canvas context message fra frontend (for å vite brukerens valg)
-    // Men ALLTID hent full data fra backend for å få moduler og innhold
+    // Hent full Canvas-kontekst fra backend (moduler, sider, filer)
     let canvasKontekst: string;
-    let brukerFrontendContext = false;
-
-    // Sjekk om frontend sendte context (indikerer at brukeren har gjort valg)
-    if (
-      canvasContextMessage &&
-      canvasContextMessage.content.trim().length > 20
-    ) {
-      brukerFrontendContext = true;
-      filteredMessages = messages.filter(
-        (m: { role: string; content: string }) => m !== canvasContextMessage,
-      );
-    }
-
-    // ALLTID hent full Canvas-kontekst fra backend (inkluderer moduler, sider, filer)
     if (req.canvasToken) {
       canvasKontekst = await Promise.race([
         byggKiCanvasKontekst(req.canvasToken),
@@ -249,19 +232,18 @@ router.post("/chat", async (req, res) => {
           ),
         ),
       ]);
+      // Trim konteksten for å unngå token-overflyt
+      canvasKontekst = trimCanvasKontekst(canvasKontekst);
       logger.info(
-        {
-          contextLength: canvasKontekst.length,
-          brukerFrontendContext,
-        },
-        "Hentet full Canvas-context fra backend for KI",
+        { contextLength: canvasKontekst.length },
+        "Hentet Canvas-context fra backend for KI",
       );
     } else {
       canvasKontekst =
         "[CANVAS STATUS: Ingen Canvas-token. Brukeren må legge inn token i Innstillinger.]";
     }
 
-    // Sjekk om vi faktisk har Canvas-data (fra backend-kontekst)
+    // Sjekk om vi faktisk har Canvas-data
     const hasCanvasData =
       (canvasKontekst.includes("CANVAS-DATA") ||
         canvasKontekst.includes("KUNNGJØRINGER") ||
@@ -275,10 +257,8 @@ router.post("/chat", async (req, res) => {
     logger.info(
       {
         hasCanvasData,
-        brukerFrontendContext,
         canvasKontekstLength: canvasKontekst.length,
         harCanvasToken: !!req.canvasToken,
-        inkludererModuler: canvasKontekst.includes("MODULER"),
       },
       "Canvas-kontekst status",
     );
@@ -295,37 +275,35 @@ router.post("/chat", async (req, res) => {
       );
     }
 
-    // Bygg meldingsarray med system prompt og Canvas-kontekst
-    const systemPrompt = {
-      role: "system" as const,
-      content: enhancedSystemPrompt,
-    };
+    // Legg Canvas-kontekst inn i system-prompten (ikke som user-melding)
+    // Dette forhindrer at konteksten akkumuleres i chat-historikken
+    enhancedSystemPrompt += "\n\n" + canvasKontekst;
+
+    // Bygg meldingsarray — kun system prompt + brukerens meldinger
     const fullMessages = [
-      systemPrompt,
-      { role: "user" as const, content: canvasKontekst },
-      {
-        role: "assistant" as const,
-        content:
-          "Forstått, jeg har tilgang til Canvas-dataen din og er klar til å hjelpe deg.",
-      },
+      { role: "system" as const, content: enhancedSystemPrompt },
       ...filteredMessages.map((m: { role: string; content: string }) => ({
         role: m.role as "user" | "assistant" | "system",
         content: m.content,
       })),
     ];
 
+    // Dynamisk timeout og max_tokens basert på kontekststørrelse
+    const harStorKontekst = canvasKontekst.length > 5000;
+    const maxTokens = harStorKontekst ? 4096 : 1024;
+    const TIMEOUT_MS = harStorKontekst ? 45000 : 25000;
+
     logger.info(
       {
         model,
         messageCount: fullMessages.length,
         harCanvasToken: !!req.canvasToken,
-        brukerFrontendContext,
+        maxTokens,
+        timeoutMs: TIMEOUT_MS,
       },
       "Sender til AI-tjenesten",
     );
 
-    // Egen timeout guard (race) så klienten får svar selv om AI henger
-    const TIMEOUT_MS = 25000;
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("CHAT_TIMEOUT")), TIMEOUT_MS),
     );
@@ -334,8 +312,9 @@ router.post("/chat", async (req, res) => {
       chatCompletion({
         model,
         messages: fullMessages,
-        max_tokens: 1024,
+        max_tokens: maxTokens,
         temperature: Math.min(Math.max(temperature, 0), 2),
+        skipFallback: harStorKontekst,
       }),
       timeoutPromise,
     ]);
@@ -371,7 +350,7 @@ router.post("/chat", async (req, res) => {
       handleAIError(res, error, KIChatResponseSchema, {
         timeoutLabel: "CHAT_TIMEOUT",
         timeoutMessage:
-          "Chat-forespørselen tok for lang tid (timeout etter 25s). Prøv igjen eller forenkle spørsmålet.",
+          "Chat-forespørselen tok for lang tid. Prøv igjen eller forenkle spørsmålet.",
         kontekst: "ki-chat",
       })
     )
