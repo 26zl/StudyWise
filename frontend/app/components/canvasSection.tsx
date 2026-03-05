@@ -33,6 +33,7 @@ import {
 } from "../canvas/canvas-api";
 import { useUIStore } from "../store/uiStore";
 import { KIOppsummering } from "./KIOppsummering";
+import { ModulForklaring } from "./ModulForklaring";
 import { createCanvasHtmlParser, parseCanvasHtml, sikkerFilNedlastingUrl } from "../canvas/canvasHtml";
 import { CanvasPageVisning } from "./CanvasPageVisning";
 import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
@@ -390,6 +391,14 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                         {module.name}
                                     </h4>
                                 </div>
+
+                                {/* NY KOMPONENT - LEGG TIL HER */}
+        <div className="px-4">
+            <ModulForklaring 
+                module={module}
+                courseName={course?.name || "Emne"}   
+            />
+        </div>  
 
                                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {module.items?.map((item) => {
