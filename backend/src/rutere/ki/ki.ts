@@ -20,13 +20,7 @@ import { SUPPORTED_MODELS, DEFAULT_MODEL } from "./aiModels.js";
 import { STUDYWISE_SYSTEM_PROMPT } from "./systemPrompt.js";
 import { chatCompletion, isClientAvailable, getMissingClientError } from "./aiClient.js";
 import { handleAIError } from "./handleAIError.js";
-import { loadCanvasContext, ensureCanvasSync } from "../../services/context-loader.service.js";
-
-// ————————————————————————————————————————————————————————
-// Intent-deteksjon: avgjør om meldingen trenger Canvas-kontekst
-// 3 nivåer: general_chat (0 tokens), canvas_light (~2k), canvas_full (~50k)
-// ————————————————————————————————————————————————————————
-type ChatIntent = "general_chat" | "canvas_light" | "canvas_full";
+import { loadCanvasContext, ensureCanvasSync, type IntentType } from "../../services/context-loader.service.js";
 
 /** Nøkkelord som krever full kontekst (moduler, PDFer, sideinnhold) */
 const CANVAS_FULL_KEYWORDS = [
@@ -45,7 +39,7 @@ const CANVAS_LIGHT_KEYWORDS = [
   "hva skjer", "kommende", "kalender", "timeplan", "når",
 ];
 
-function detectIntent(messages: Array<{ role: string; content: string }>): ChatIntent {
+function detectIntent(messages: Array<{ role: string; content: string }>): IntentType {
   // Sjekk de siste bruker-meldingene (maks 3) for nøkkelord
   const recentUserMessages = messages
     .filter((m) => m.role === "user")

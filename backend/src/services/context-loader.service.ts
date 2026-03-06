@@ -18,7 +18,7 @@
 
 import { logger } from "../utils/logger.js";
 import { getCache, isRedisReady } from "../cache/redis.js";
-import { syncCanvasDataForUser, hasCanvasSyncData } from "./canvas-sync.service.js";
+import { syncCanvasDataForUser, hasCanvasSyncData, userKey } from "./canvas-sync.service.js";
 import { byggLettCanvasKontekst, byggMålrettetCanvasKontekst } from "../rutere/ki/kiCanvas.js";
 import type { TargetedQuery } from "../rutere/ki/ki.js";
 
@@ -30,13 +30,6 @@ export interface ContextResult {
   kontekst: string;
   hasCanvasData: boolean;
   source: "redis" | "api" | "none";
-}
-
-// ─── Hjelpefunksjoner ──────────────────────────────────────
-
-/** Bygger Redis-nøkkel med bruker-prefiks */
-function userKey(userId: string, ...parts: string[]): string {
-  return `canvas:user:${userId}:${parts.join(":")}`;
 }
 
 /**

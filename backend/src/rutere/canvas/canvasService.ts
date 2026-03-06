@@ -32,7 +32,7 @@ import pdfParse from "pdf-parse";
 /** Maks antall tegn filinnhold per PDF i KI-kontekst */
 const MAX_PDF_CONTENT_LENGTH = 12000;
 /** Maks filstørrelse vi laster ned for PDF-ekstraksjon (5 MB) */
-const MAX_PDF_FILE_SIZE = 5 * 1024 * 1024;
+export const MAX_PDF_FILE_SIZE = 5 * 1024 * 1024;
 
 // Generisk type for Canvas API-respons med valgfri metadata
 type CanvasResponseWithMeta<T> = {

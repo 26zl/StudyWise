@@ -73,7 +73,7 @@ function sha256(data: string): string {
 }
 
 /** Bygger Redis-nøkkel med bruker-prefiks */
-function userKey(userId: string, ...parts: string[]): string {
+export function userKey(userId: string, ...parts: string[]): string {
   return `canvas:user:${userId}:${parts.join(":")}`;
 }
 
@@ -368,16 +368,3 @@ export async function hasCanvasSyncData(userId: string): Promise<boolean> {
   return meta !== null;
 }
 
-/**
- * Henter synkroniserings-metadata for en bruker.
- */
-export async function getSyncMeta(userId: string): Promise<SyncMeta | null> {
-  if (!isRedisReady()) return null;
-  const raw = await getCache(userKey(userId, "syncMeta"));
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as SyncMeta;
-  } catch {
-    return null;
-  }
-}
