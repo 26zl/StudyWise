@@ -15,9 +15,14 @@ interface EnvConfig {
     MONGO_URI: string;
     JWT_ACCESS_SECRET: string;
     JWT_REFRESH_SECRET: string;
+    JWT_COOKIE_NAVN: string;
+    JWT_REFRESH_COOKIE_NAVN: string;
+    JWT_ACCESS_EXPIRES: string;
+    JWT_REFRESH_EXPIRES: string;
     ENCRYPTION_KEY: string;
     REDIS_URL: string;
     NODE_ENV: string;
+    LOG_LEVEL: string;
     ANTHROPIC_API_KEY: string;
 }
 
@@ -28,9 +33,14 @@ const requiredEnvVars: (keyof EnvConfig)[] = [
     "CANVAS_BASE_URL",
     "JWT_ACCESS_SECRET",
     "JWT_REFRESH_SECRET",
+    "JWT_COOKIE_NAVN",
+    "JWT_REFRESH_COOKIE_NAVN",
+    "JWT_ACCESS_EXPIRES",
+    "JWT_REFRESH_EXPIRES",
     "ENCRYPTION_KEY",
     "REDIS_URL",
     "NODE_ENV",
+    "LOG_LEVEL",
     "ANTHROPIC_API_KEY",
 ];
 
@@ -134,7 +144,7 @@ export const validateEnv = (): void => {
     const mongoUri = process.env.MONGO_URI;
     if (mongoUri && !mongoUri.match(/\/studywise(\?|$)/)) {
         logger.error("MONGO_URI peker ikke på 'studywise'-databasen - risikerer å skrive til 'test'-databasen");
-        manglende.push(`MONGO_URI (må inneholde '/studywise', fikk: ...${mongoUri.slice(-15)})`);
+        manglende.push("MONGO_URI (må inneholde '/studywise')");
     }
 
     // Valider REDIS_URL format - må peke til Redis Cloud i produksjon
@@ -165,20 +175,34 @@ export const validateEnv = (): void => {
         manglende.push("ANTHROPIC_API_KEY (må starte med 'sk-ant-')");
     }
 
-    // Valider JWT expiry-format (tall + enhet: s/m/h/d)
+    // Valider JWT cookie-navn (påkrevd, ikke tomme)
+    const cookieNavn = process.env.JWT_COOKIE_NAVN;
+    if (!cookieNavn || !cookieNavn.trim()) {
+        manglende.push("JWT_COOKIE_NAVN (må være satt og ikke tom)");
+    }
+    const refreshCookieNavn = process.env.JWT_REFRESH_COOKIE_NAVN;
+    if (!refreshCookieNavn || !refreshCookieNavn.trim()) {
+        manglende.push("JWT_REFRESH_COOKIE_NAVN (må være satt og ikke tom)");
+    }
+
+    // Valider JWT expiry-format (påkrevd, tall + enhet: s/m/h/d)
     const validateExpiry = (key: string) => {
         const value = process.env[key];
-        if (value && !/^\d+[smhd]$/.test(value)) {
+        if (!value || !value.trim()) {
+            manglende.push(`${key} (må være satt, f.eks. '30m', '14d')`);
+        } else if (!/^\d+[smhd]$/.test(value.trim())) {
             manglende.push(`${key} (ugyldig format '${value}', forventet f.eks. '30m', '14d')`);
         }
     };
     validateExpiry("JWT_ACCESS_EXPIRES");
     validateExpiry("JWT_REFRESH_EXPIRES");
 
-    // Valider LOG_LEVEL er gyldig Pino-nivå
+    // Valider LOG_LEVEL er gyldig Pino-nivå (påkrevd)
     const logLevel = process.env.LOG_LEVEL;
     const gyldigeNivaer = ["trace", "debug", "info", "warn", "error", "fatal", "silent"];
-    if (logLevel && !gyldigeNivaer.includes(logLevel)) {
+    if (!logLevel || !logLevel.trim()) {
+        manglende.push("LOG_LEVEL (må være satt)");
+    } else if (!gyldigeNivaer.includes(logLevel)) {
         manglende.push(`LOG_LEVEL (må være en av: ${gyldigeNivaer.join(", ")}, fikk: ${logLevel})`);
     }
 

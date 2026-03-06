@@ -22,9 +22,15 @@ const requiredEnvVars = [
     "CANVAS_BASE_URL",
     "JWT_ACCESS_SECRET",
     "JWT_REFRESH_SECRET",
+    "JWT_COOKIE_NAVN",
+    "JWT_REFRESH_COOKIE_NAVN",
+    "JWT_ACCESS_EXPIRES",
+    "JWT_REFRESH_EXPIRES",
     "ENCRYPTION_KEY",
     "REDIS_URL",
     "NODE_ENV",
+    "LOG_LEVEL",
+    "ANTHROPIC_API_KEY",
 ];
 
 /**
@@ -108,11 +114,14 @@ function validateEnvForBuild() {
         }
     }
 
-    // Valider JWT Secrets lengde
+    // Valider JWT Secrets lengde og entropi (som validateEnv.ts)
     const validateSecret = (key) => {
         const secret = process.env[key];
         if (secret && secret.length < 32) {
             manglende.push(`${key} (må være minst 32 tegn, er: ${secret.length})`);
+        }
+        if (secret && /^(.)\1+$/.test(secret)) {
+            manglende.push(`${key} (for lav entropi — ser ut som et gjentatt tegn)`);
         }
     };
     validateSecret("JWT_ACCESS_SECRET");
@@ -125,17 +134,62 @@ function validateEnvForBuild() {
         manglende.push(`MONGO_URI (må inneholde '/studywise')`);
     }
 
-    // Valider REDIS_URL format - må peke til Redis Cloud
+    // Valider REDIS_URL format - må peke til Redis Cloud kun i produksjon (som validateEnv.ts)
     const redisUrl = process.env.REDIS_URL;
-    if (redisUrl && !redisUrl.includes("cloud.redislabs.com")) {
-        console.error("\n[KRITISK FEIL] REDIS_URL peker ikke mot Redis Cloud!\n");
-        manglende.push("REDIS_URL (må inneholde 'cloud.redislabs.com')");
+    if (redisUrl && process.env.NODE_ENV === "production") {
+        try {
+            const parsedRedisUrl = new URL(redisUrl);
+            if (!parsedRedisUrl.hostname.endsWith(".cloud.redislabs.com") &&
+                parsedRedisUrl.hostname !== "cloud.redislabs.com") {
+                console.error("\n[KRITISK FEIL] REDIS_URL peker ikke mot Redis Cloud - forventet '*.cloud.redislabs.com' hostname\n");
+                manglende.push("REDIS_URL (hostname må slutte med '.cloud.redislabs.com')");
+            }
+        } catch {
+            // URL ugyldig – allerede fanget av validateUrl over
+        }
     }
 
     // Valider NODE_ENV er gyldig verdi
     const nodeEnv = process.env.NODE_ENV;
     if (nodeEnv && !["development", "production", "test"].includes(nodeEnv)) {
         manglende.push(`NODE_ENV (må være 'development', 'production' eller 'test', fikk: ${nodeEnv})`);
+    }
+
+    // Valider JWT cookie-navn (påkrevd, ikke tomme)
+    const cookieNavn = process.env.JWT_COOKIE_NAVN;
+    if (!cookieNavn || !String(cookieNavn).trim()) {
+        manglende.push("JWT_COOKIE_NAVN (må være satt og ikke tom)");
+    }
+    const refreshCookieNavn = process.env.JWT_REFRESH_COOKIE_NAVN;
+    if (!refreshCookieNavn || !String(refreshCookieNavn).trim()) {
+        manglende.push("JWT_REFRESH_COOKIE_NAVN (må være satt og ikke tom)");
+    }
+
+    // Valider JWT expiry-format (påkrevd, tall + enhet: s/m/h/d)
+    const validateExpiry = (key) => {
+        const value = process.env[key];
+        if (!value || !String(value).trim()) {
+            manglende.push(`${key} (må være satt, f.eks. '30m', '14d')`);
+        } else if (!/^\d+[smhd]$/.test(String(value).trim())) {
+            manglende.push(`${key} (ugyldig format, forventet f.eks. '30m', '14d')`);
+        }
+    };
+    validateExpiry("JWT_ACCESS_EXPIRES");
+    validateExpiry("JWT_REFRESH_EXPIRES");
+
+    // Valider LOG_LEVEL er gyldig Pino-nivå
+    const logLevel = process.env.LOG_LEVEL;
+    const gyldigeNivaer = ["trace", "debug", "info", "warn", "error", "fatal", "silent"];
+    if (!logLevel || !String(logLevel).trim()) {
+        manglende.push("LOG_LEVEL (må være satt)");
+    } else if (!gyldigeNivaer.includes(logLevel)) {
+        manglende.push(`LOG_LEVEL (må være en av: ${gyldigeNivaer.join(", ")})`);
+    }
+
+    // Valider ANTHROPIC_API_KEY format
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    if (anthropicKey && !anthropicKey.startsWith("sk-ant-")) {
+        manglende.push("ANTHROPIC_API_KEY (må starte med 'sk-ant-')");
     }
 
     // Avslutt hvis påkrevde variabler mangler
