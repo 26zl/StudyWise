@@ -14,13 +14,13 @@ import {
     KIModelsResponseSchema,
     KI_MAX_MESSAGE_LENGTH_BACKEND,
 } from "common/ki";
-import { byggLettCanvasKontekst, byggMålrettetCanvasKontekst } from "./kiCanvas.js";
 import { kiHistoryRouter } from "./kiHistory.js";
 import { kiAnalyseRouter } from "./kiAnalyse.js";
 import { SUPPORTED_MODELS, DEFAULT_MODEL } from "./aiModels.js";
 import { STUDYWISE_SYSTEM_PROMPT } from "./systemPrompt.js";
 import { chatCompletion, isClientAvailable, getMissingClientError } from "./aiClient.js";
 import { handleAIError } from "./handleAIError.js";
+import { loadCanvasContext, ensureCanvasSync } from "../../services/context-loader.service.js";
 
 // ————————————————————————————————————————————————————————
 // Intent-deteksjon: avgjør om meldingen trenger Canvas-kontekst
@@ -89,19 +89,30 @@ function extractQueryTarget(message: string): TargetedQuery {
     "ikt", "informasjon", "system", "programmering", "java", "c#",
     "embedded", "elektronikk", "fysikk", "diskret",
   ];
-  const courseHint = courseKeywords.find((kw) => lower.includes(kw)) ?? null;
 
-  // Ekstraher filnavn-hints (f.eks. "kapittel3.pdf")
-  const fileMatch = lower.match(/[\wæøå][\wæøå\s-]*\.pdf/i);
-  const fileHint = fileMatch ? fileMatch[0].trim() : null;
+  // Fjern filnavn-mønstre fra søketeksten for å unngå falske positive
+  // (f.eks. "BinarySearchTree.java" matcher "java" selv om bruker mener Algoritmer-emnet)
+  const cleanedForCourse = lower.replace(/[\w.-]+\.\w{1,5}\b/g, "");
+  const courseHint = courseKeywords.find((kw) => cleanedForCourse.includes(kw)) ?? null;
+
+  // Ekstraher filnavn-hints (f.eks. "kapittel3.pdf", "2_Analyse_av_tema.pdf")
+  // Filnavn med mellomrom fanges ved å lete etter anførselstegn eller kjente mønstre
+  const quotedFileMatch = message.match(/["'«»]([^"'«»]+\.pdf)["'«»]/i);
+  let fileHint: string | null = null;
+  if (quotedFileMatch) {
+    fileHint = quotedFileMatch[1].trim();
+  } else {
+    // Fang filnavn uten mellomrom (underscore/bindestrek-separert)
+    const simpleFileMatch = lower.match(/[\wæøå][\wæøå.-]*\.pdf/i);
+    if (simpleFileMatch) {
+      fileHint = simpleFileMatch[0].trim();
+    }
+  }
 
   return { courseHint, moduleHint, fileHint };
 }
 
-/** Cache-TTL for ferdigbygd Canvas-kontekst (5 min) */
-const CANVAS_CONTEXT_CACHE_TTL = 300;
-
-// Definerer express router
+/** Definerer express router */
 const router = Router();
 // Rate limiting for KI-endepunkter
 router.use(rateLimitKi);
@@ -303,8 +314,6 @@ router.post("/chat", async (req, res) => {
 
     // ——— Intent-deteksjon: Trenger denne meldingen Canvas-data? ———
     const intent = detectIntent(filteredMessages);
-    let canvasKontekst = "";
-    let hasCanvasData = false;
 
     if (intent !== "general_chat" && !req.canvasToken) {
       // Brukeren spør om Canvas men har ikke token
@@ -319,77 +328,47 @@ router.post("/chat", async (req, res) => {
       );
     }
 
-    if (intent === "canvas_full" && req.canvasToken) {
-      // Sjekk om brukeren spør om et spesifikt emne/modul
+    // ——— Laste Canvas-kontekst via context-loader (Redis → API fallback) ———
+    let canvasKontekst = "";
+    let hasCanvasData = false;
+
+    if (intent !== "general_chat" && req.canvasToken && req.user?.id) {
+      // Sikre at bakgrunns-sync er igangsatt for neste gang
+      ensureCanvasSync(req.user.id, req.canvasToken);
+
+      // Ekstraher eventuelle emne/modul-hint fra siste brukermelding
       const lastUserMsg = filteredMessages.filter((m: { role: string }) => m.role === "user").at(-1)?.content ?? "";
       const target = extractQueryTarget(lastUserMsg);
-      const hasSpecificTarget = !!(target.courseHint || target.moduleHint || target.fileHint);
-
-      if (hasSpecificTarget) {
-        // Målrettet kontekst — kun det ene emnet/modulen som er relevant
-        // Saniter hint for cache-nøkkel (kun [a-zA-Z0-9_-]) for å unngå cache injection
-        const safe = (s: string | null | undefined) =>
-          (s ?? "")
-            .replace(/[^a-zA-Z0-9_-]/g, "_")
-            .slice(0, 64);
-        const targetKey = `ki:tgtctx:${req.user!.id}:${safe(target.courseHint) || "_"}:${safe(target.moduleHint) || "_"}`;
-        const cachedTarget = await getCache(targetKey);
-        if (cachedTarget) {
-          canvasKontekst = cachedTarget;
-          logger.info(
-            { intent, target, contextLength: canvasKontekst.length, fromCache: true },
-            "Målrettet Canvas-kontekst fra cache",
-          );
-        } else {
-          canvasKontekst = await Promise.race([
-            byggMålrettetCanvasKontekst(req.canvasToken, target),
-            new Promise<string>((resolve) =>
-              setTimeout(
-                () => resolve("[CANVAS STATUS: Henting tok for lang tid. Prøv igjen.]"),
-                KI_TIMEOUT_MS,
-              ),
-            ),
-          ]);
-
-          // Cache målrettet kontekst (5 min TTL)
-          if (canvasKontekst.includes("CANVAS-DATA")) {
-            await setCache(targetKey, canvasKontekst, CANVAS_CONTEXT_CACHE_TTL);
-          }
-          logger.info(
-            { intent, target, contextLength: canvasKontekst.length, fromCache: false },
-            "Målrettet Canvas-kontekst bygget og cachet",
-          );
-        }
-      } else {
-        // Ingen spesifikt mål — bruk lett kontekst i stedet for alt
-        canvasKontekst = await byggLettCanvasKontekst(req.canvasToken);
-        logger.info(
-          { intent, contextLength: canvasKontekst.length },
-          "canvas_full uten spesifikt mål — bruker lett kontekst",
-        );
-      }
-
-      hasCanvasData =
-        (canvasKontekst.includes("CANVAS-DATA") ||
-          canvasKontekst.includes("KUNNGJØRINGER") ||
-          canvasKontekst.includes("EMNER") ||
-          canvasKontekst.includes("OPPGAVER") ||
-          canvasKontekst.includes("FRISTER") ||
-          canvasKontekst.includes("MODULER")) &&
-        !canvasKontekst.includes("Ingen Canvas-token") &&
-        !canvasKontekst.includes("IKKE lagt inn");
-
-    } else if (intent === "canvas_light" && req.canvasToken) {
-      // Lett kontekst — kun emner + kommende frister (~2k tokens)
-      canvasKontekst = await byggLettCanvasKontekst(req.canvasToken);
-      hasCanvasData = canvasKontekst.includes("CANVAS-DATA");
 
       logger.info(
-        { intent, contextLength: canvasKontekst.length },
-        "Lett Canvas-kontekst hentet (canvas_light)",
+        { intent, target, messagePreview: lastUserMsg.substring(0, 100) },
+        "KI chat: intent og target ekstrahert",
       );
-    } else {
-      // general_chat — ingen Canvas-kontekst trengs
+
+      const contextResult = await Promise.race([
+        loadCanvasContext(req.user.id, req.canvasToken, intent, target),
+        new Promise<{ kontekst: string; hasCanvasData: boolean; source: "none" }>((resolve) =>
+          setTimeout(
+            () => resolve({ kontekst: "[CANVAS STATUS: Henting tok for lang tid. Prøv igjen.]", hasCanvasData: false, source: "none" }),
+            KI_TIMEOUT_MS,
+          ),
+        ),
+      ]);
+
+      canvasKontekst = contextResult.kontekst;
+      hasCanvasData = contextResult.hasCanvasData;
+
+      logger.info(
+        {
+          intent,
+          source: contextResult.source,
+          contextLength: canvasKontekst.length,
+          hasCanvasData,
+          harCanvasToken: true,
+        },
+        "Canvas-kontekst lastet via context-loader",
+      );
+    } else if (intent === "general_chat") {
       logger.info(
         { intent, harCanvasToken: !!req.canvasToken },
         "Generell chat — hopper over Canvas-kontekst",
@@ -401,10 +380,16 @@ router.post("/chat", async (req, res) => {
       enhancedSystemPrompt += "\n\n" + canvasKontekst;
     }
 
+    // Trim samtalehistorikk til siste 5 meldinger for å holde token-bruken lav
+    const MAX_HISTORY_MESSAGES = 5;
+    const trimmedMessages = filteredMessages.length > MAX_HISTORY_MESSAGES
+      ? filteredMessages.slice(-MAX_HISTORY_MESSAGES)
+      : filteredMessages;
+
     // Bygg meldingsarray — kun system prompt + brukerens meldinger
     const fullMessages = [
       { role: "system" as const, content: enhancedSystemPrompt },
-      ...filteredMessages.map((m: { role: string; content: string }) => ({
+      ...trimmedMessages.map((m: { role: string; content: string }) => ({
         role: m.role as "user" | "assistant" | "system",
         content: m.content,
       })),

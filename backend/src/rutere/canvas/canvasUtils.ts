@@ -160,6 +160,135 @@ export function parseLinkHeader(linkHeader: string | null): string | null {
     return null;
 }
 
+/**
+ * Henter ALLE sider fra et Canvas API-endepunkt ved å følge Link-header paginering.
+ * Ingen maxPages-begrensning (utover sikkerhetsgrense på 100).
+ * Ingen caching — ment for sync-tjenester som håndterer egen lagring.
+ *
+ * @param endpoint - API-path, f.eks. `/api/v1/courses/123/modules`
+ * @param token    - Dekryptert Canvas API-token
+ * @param queryParams - Valgfrie query-parametere (per_page, include, etc.)
+ * @returns Sammenslått array med alle resultater fra alle sider
+ */
+export async function fetchAllPages<T>(
+    endpoint: string,
+    token: string,
+    queryParams?: Record<string, string | number | boolean | string[]>,
+): Promise<T[]> {
+    const { baseUrl } = hentCanvasKonfig();
+    if (!baseUrl) throw new Error("CANVAS_BASE_URL er ikke konfigurert");
+    const cleanToken = token.replace(/^Bearer\s+/i, "").trim();
+
+    // Bygg initial URL med query params
+    const initialUrl = new URL(`${baseUrl}${endpoint}`);
+    if (queryParams) {
+        for (const [key, value] of Object.entries(queryParams)) {
+            if (Array.isArray(value)) {
+                const arrayKey = key.endsWith("[]") ? key : `${key}[]`;
+                for (const item of value) {
+                    initialUrl.searchParams.append(arrayKey, String(item));
+                }
+            } else {
+                initialUrl.searchParams.append(key, String(value));
+            }
+        }
+    }
+
+    const allItems: unknown[] = [];
+    let currentUrl: string | null = initialUrl.toString();
+    let pagesFetched = 0;
+    const maxRetries = 3;
+    const timeout = 15_000;
+    const safetyMaxPages = 100;
+
+    while (currentUrl && pagesFetched < safetyMaxPages) {
+        let retryCount = 0;
+        let response: globalThis.Response | null = null;
+
+        while (retryCount <= maxRetries) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+            try {
+                response = await fetch(currentUrl, {
+                    method: "GET",
+                    headers: {
+                        Authorization: `Bearer ${cleanToken}`,
+                        "Content-Type": "application/json",
+                    },
+                    signal: controller.signal,
+                });
+
+                if (response.status === 429) {
+                    if (retryCount >= maxRetries) {
+                        throw new Error(`Canvas rate limit nådd under paginert henting av ${endpoint}`);
+                    }
+                    const retryAfterHeader = response.headers.get("Retry-After");
+                    const retryAfterSeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null;
+                    const backoffMs = retryAfterSeconds
+                        ? retryAfterSeconds * 1000
+                        : Math.min(1000 * Math.pow(2, retryCount), 10_000);
+                    logger.warn(
+                        { endpoint, retryCount: retryCount + 1, maxRetries, backoffMs },
+                        "Canvas rate limit (429) under paginert henting — venter",
+                    );
+                    await sleep(backoffMs);
+                    retryCount++;
+                    continue;
+                }
+
+                if (!response.ok) {
+                    throw new Error(
+                        `Canvas API-feil ${response.status} under paginert henting av ${endpoint}`,
+                    );
+                }
+
+                break;
+            } catch (error) {
+                if (error instanceof Error && error.name === "AbortError") {
+                    throw new Error(
+                        `Canvas API timeout etter ${timeout}ms under paginert henting av ${endpoint}`,
+                    );
+                }
+                throw error;
+            } finally {
+                clearTimeout(timeoutId);
+            }
+        }
+
+        if (!response) {
+            throw new Error("Uventet feil: ingen respons under paginert henting");
+        }
+
+        const data = await response.json();
+        pagesFetched++;
+
+        if (Array.isArray(data)) {
+            allItems.push(...data);
+        } else {
+            // Enkelt-objekt respons — returner som array med ett element
+            return [data as T];
+        }
+
+        const linkHeader = response.headers.get("Link");
+        currentUrl = parseLinkHeader(linkHeader);
+    }
+
+    if (pagesFetched >= safetyMaxPages) {
+        logger.warn(
+            { endpoint, pagesFetched },
+            "fetchAllPages nådde sikkerhetsgrense for antall sider",
+        );
+    }
+
+    logger.info(
+        { endpoint, pagesFetched, itemsCount: allItems.length },
+        "Alle sider hentet (paginert sync)",
+    );
+
+    return allItems as T[];
+}
+
 // Middleware
 // Sjekk at Canvas token er konfigurert
 export function krevCanvasToken(req: Request, res: ExpressResponse, next: NextFunction) {

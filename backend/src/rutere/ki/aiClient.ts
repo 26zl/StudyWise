@@ -177,29 +177,91 @@ async function callAnthropic(options: {
     // Slå sammen påfølgende meldinger med samme rolle (Anthropic tillater ikke dette)
     anthropicMessages = mergeConsecutiveSameRole(anthropicMessages);
 
+    // Bygg system-parameter med Prompt Caching (cache_control: ephemeral)
+    // Anthropic cacher systemprompten slik at gjentatte kall med samme prompt
+    // bruker cached input tokens (90 % billigere, ~50 ms i stedet for re-parsing)
+    const systemParam: Anthropic.Messages.MessageCreateParams["system"] = systemPrompt
+        ? [
+              {
+                  type: "text" as const,
+                  text: systemPrompt,
+                  cache_control: { type: "ephemeral" as const },
+              },
+          ]
+        : undefined;
+
     logger.info({ model, messageCount: anthropicMessages.length }, "Sender til Anthropic Claude");
 
-    const result = await anthropicClient.messages.create({
-        model,
-        system: systemPrompt || undefined,
-        messages: anthropicMessages,
-        max_tokens,
-        temperature: Math.min(Math.max(temperature, 0), 1), // Anthropic: 0-1
-    });
+    // Retry med eksponentiell backoff for 529 (overloaded) og 500 (server error)
+    const MAX_RETRIES = 3;
+    let lastError: unknown;
 
-    const text = result.content
-        .filter(block => block.type === "text")
-        .map(block => block.text)
-        .join("");
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            const result = await anthropicClient.messages.create({
+                model,
+                system: systemParam,
+                messages: anthropicMessages,
+                max_tokens,
+                temperature: Math.min(Math.max(temperature, 0), 1), // Anthropic: 0-1
+            });
 
-    return {
-        text,
-        usage: {
-            prompt_tokens: result.usage.input_tokens,
-            completion_tokens: result.usage.output_tokens,
-            total_tokens: result.usage.input_tokens + result.usage.output_tokens,
-        },
-    };
+            const text = result.content
+                .filter(block => block.type === "text")
+                .map(block => block.text)
+                .join("");
+
+            // Logg prompt caching statistikk
+            // Anthropic returnerer cache_read_input_tokens og cache_creation_input_tokens
+            // som ekstra felter i usage-objektet med prompt caching
+            const usageAny = result.usage as unknown as Record<string, unknown>;
+            const cacheRead = typeof usageAny.cache_read_input_tokens === "number" ? usageAny.cache_read_input_tokens : undefined;
+            const cacheCreation = typeof usageAny.cache_creation_input_tokens === "number" ? usageAny.cache_creation_input_tokens : undefined;
+            if (cacheRead || cacheCreation) {
+                logger.info(
+                    {
+                        model,
+                        cachedInputTokens: cacheRead ?? 0,
+                        cacheCreationTokens: cacheCreation ?? 0,
+                        inputTokens: result.usage.input_tokens,
+                        outputTokens: result.usage.output_tokens,
+                    },
+                    "Anthropic Prompt Caching statistikk",
+                );
+            }
+
+            return {
+                text,
+                usage: {
+                    prompt_tokens: result.usage.input_tokens,
+                    completion_tokens: result.usage.output_tokens,
+                    total_tokens: result.usage.input_tokens + result.usage.output_tokens,
+                },
+            };
+        } catch (error) {
+            lastError = error;
+
+            // Sjekk om feilen er retryable (529 overloaded, 500 server error)
+            const status = (error as { status?: number }).status;
+            const isRetryable = status === 529 || status === 500;
+
+            if (isRetryable && attempt < MAX_RETRIES) {
+                const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 8000); // 1s, 2s, 4s (maks 8s)
+                logger.warn(
+                    { attempt, maxRetries: MAX_RETRIES, status, delayMs },
+                    "Anthropic retryable feil — venter før nytt forsøk",
+                );
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+                continue;
+            }
+
+            // Ikke retryable eller siste forsøk — kast feilen
+            throw error;
+        }
+    }
+
+    // Bør aldri nås, men for TypeScript
+    throw lastError;
 }
 
 /**
@@ -279,9 +341,20 @@ async function callAnthropicWithVision(options: {
         "Sender til Anthropic Claude Vision",
     );
 
+    // Bygg system-parameter med Prompt Caching
+    const systemParam: Anthropic.Messages.MessageCreateParams["system"] = systemPrompt
+        ? [
+              {
+                  type: "text" as const,
+                  text: systemPrompt,
+                  cache_control: { type: "ephemeral" as const },
+              },
+          ]
+        : undefined;
+
     const result = await anthropicClient.messages.create({
         model,
-        system: systemPrompt || undefined,
+        system: systemParam,
         messages: anthropicMessages,
         max_tokens,
         temperature: Math.min(Math.max(temperature, 0), 1),
