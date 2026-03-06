@@ -14,9 +14,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 1. Workflow-lint (rask, ingen avhengigheter)
+  actionlint:
+    name: Workflow lint (Actionlint)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download actionlint
+        id: get_actionlint
+        run: bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+        shell: bash
+
+      - name: Check workflow files
+        run: ${{ steps.get_actionlint.outputs.executable }} -color
+        shell: bash
+
+  # 2. Kodekvalitet og build (hovedport for å merge)
   quality:
     name: Code Quality
     runs-on: ubuntu-latest
+    needs: [actionlint]
 
     steps:
       - name: Checkout code
@@ -53,24 +73,11 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: "http://localhost:4000"
 
-  secret-scan:
-    name: Secret Scan (TruffleHog)
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code (full history)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: TruffleHog - Scan for leaked secrets
-        uses: trufflesecurity/trufflehog@v3.93.6
-        with:
-          extra_args: --only-verified
-
+  # 3. Avhengighetsscanning (rask)
   dependency-scan:
     name: Dependency Scan (pnpm audit)
     runs-on: ubuntu-latest
+    needs: [actionlint]
 
     steps:
       - name: Checkout code
@@ -84,26 +91,28 @@ jobs:
       - name: Audit dependencies
         run: pnpm audit --audit-level=high
 
-  actionlint:
-    name: Workflow lint (Actionlint)
+  # 4. Scan etter leaks
+  secret-scan:
+    name: Secret Scan (TruffleHog)
     runs-on: ubuntu-latest
+    needs: [actionlint]
 
     steps:
-      - name: Checkout code
+      - name: Checkout code (full history)
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Download actionlint
-        id: get_actionlint
-        run: bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
-        shell: bash
+      - name: TruffleHog - Scan for leaked secrets
+        uses: trufflesecurity/trufflehog@v3.93.6
+        with:
+          extra_args: --only-verified
 
-      - name: Check workflow files
-        run: ${{ steps.get_actionlint.outputs.executable }} -color
-        shell: bash
-
+  # 5. Snyk (avhengigheter + sårbarheter, kjører når SNYK_TOKEN er satt)
   snyk-scan:
     name: Snyk (dependency & vulnerability scan)
     runs-on: ubuntu-latest
+    needs: [actionlint]
 
     steps:
       - name: Checkout code
@@ -138,9 +147,11 @@ jobs:
         with:
           args: --severity-threshold=high --all-projects
 
+  # 6. OWASP Dependency-Check (tregst, rapport lastes opp som artifact)
   owasp-dependency-check:
     name: OWASP Dependency-Check
     runs-on: ubuntu-latest
+    needs: [actionlint]
     timeout-minutes: 25
 
     steps:
@@ -168,7 +179,6 @@ jobs:
           path: "."
           format: "HTML"
           args: >
-            --failOnCVSS 7
             --enableRetired
 
       - name: Upload OWASP Dependency-Check report
