@@ -104,8 +104,6 @@ jobs:
   snyk-scan:
     name: Snyk (dependency & vulnerability scan)
     runs-on: ubuntu-latest
-    # Kjør kun når repo-variabel SNYK_ENABLED er 'true' (sett under Settings → Secrets and variables → Actions → Variables).
-    # Legg også til secret SNYK_TOKEN fra https://app.snyk.io
     if: vars.SNYK_ENABLED == 'true'
 
     steps:
