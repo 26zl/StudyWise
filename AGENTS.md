@@ -42,10 +42,10 @@ import { CanvasCourseSchema } from "common/canvas";       // Canvas API-typer
 import { classifyHttpStatus } from "common/canvasErrors";  // Feilkoder og hjelpere
 import { SubTaskSchema } from "common/ki";                 // KI/AI-typer
 import { ChatMessageSchema } from "common/chat";           // Chat-historikk-typer
-import { CalendarItemSchema } from "common/calendar";      // Kalender API-typer
-import { CalendarUIEventSchema } from "common/calendar-ui"; // Kalender UI-typer
-import { DocumentSchema } from "common/document";          // Dokumentbehandling
-import { COOKIE_NAMES } from "common/auth";                // Auth-konstanter
+import { CalendarItemSchema } from "common/calendar";           // Kalender API-typer
+import { Assignment, COURSE_COLOR_CLASSES } from "common/calendar-ui"; // Kalender UI-typer
+import { DocumentParseResultSchema } from "common/document";   // Dokumentbehandling
+import { AUTH_COOKIE_NAME, AUTH_REFRESH_COOKIE_NAME } from "common/auth"; // Auth-konstanter
 import { getWeekNumber } from "common/dateUtils";          // Dato-hjelpefunksjoner
 ```
 

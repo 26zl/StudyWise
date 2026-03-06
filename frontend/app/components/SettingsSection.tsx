@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Moon, Sun, Key, User, Info, Trash2, MessageSquare, Bot, CheckCircle } from "lucide-react";
 import { useLagreCanvasToken, useSlettCanvasToken } from "../auth/auth-api";
@@ -61,7 +61,14 @@ export function SettingsSection({
     const [visSlettBekreftelse, setVisSlettBekreftelse] = useState(false);
 
     const [cooldown, setCooldown] = useState(false);
+    const cooldownTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const { clearAll: clearChatHistory, chats, loading: chatsLoading } = useChatHistory();
+
+    useEffect(() => {
+        return () => {
+            if (cooldownTimeoutRef.current) clearTimeout(cooldownTimeoutRef.current);
+        };
+    }, []);
 
     // Hent Canvas-brukerdata for profil-visning
     const canvasUserQuery = useCanvasUser(harCanvasToken);
@@ -72,12 +79,22 @@ export function SettingsSection({
         ? format(new Date(canvasUser.created_at), "d. MMMM yyyy", { locale: nb })
         : null;
 
-    // Sanitize avatar URL - kun tillat https:// for å forhindre XSS
+    // Avatar URL: kun https og host må være på allowlist (Canvas CDN / Instructure) for å unngå XSS og tracking
     const getSafeAvatarUrl = (url: string | undefined, fallbackSeed: string, bgColor: string): string => {
-        if (url && url.startsWith("https://")) {
-            return url;
+        if (!url || !url.startsWith("https://")) {
+            return `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(fallbackSeed)}&backgroundColor=${bgColor}`;
         }
-        return `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(fallbackSeed)}&backgroundColor=${bgColor}`;
+        try {
+            const hostname = new URL(url).hostname.toLowerCase();
+            const allowed =
+                hostname === "instructure-uploads.s3.amazonaws.com" ||
+                hostname.endsWith(".instructure.com") ||
+                hostname === "instructure.com";
+            if (!allowed) return `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(fallbackSeed)}&backgroundColor=${bgColor}`;
+            return url;
+        } catch {
+            return `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(fallbackSeed)}&backgroundColor=${bgColor}`;
+        }
     };
 
     // Håndter lagring av Canvas token
@@ -94,9 +111,10 @@ export function SettingsSection({
             queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
             queryClient.invalidateQueries({ queryKey: ["canvas"] });
             showToast.success("Canvas-token lagret", "Canvas-data blir tilgjengelig om kort tid.");
-            // Sett cooldown for å hindre spamming
+            // Sett cooldown for å hindre spamming (clear ved unmount)
             setCooldown(true);
-            setTimeout(() => setCooldown(false), 3000);
+            if (cooldownTimeoutRef.current) clearTimeout(cooldownTimeoutRef.current);
+            cooldownTimeoutRef.current = setTimeout(() => setCooldown(false), 3000);
         } catch (err) {
             const feilmelding = lagBrukervennligFeilmelding(err instanceof Error ? err : null, { canvas: true });
             showToast.error("Kunne ikke lagre token", feilmelding);

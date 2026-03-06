@@ -13,6 +13,7 @@ import {
   krevCanvasToken,
   hentCanvasKonfig,
   validateCanvasRedirectUrl,
+  isSafePathSegment,
   erInnenforKalenderVindu,
   beregnKalenderVindu,
   CACHE_TTL,
@@ -1125,6 +1126,7 @@ router.get("/emner/:courseId/pages/:pageId", async (req, res) => {
     const { courseId, pageId } = req.params;
     const courseIdNum = parseInt(courseId, 10);
     if (isNaN(courseIdNum)) return apiError.badRequest(res, "Ugyldig courseId");
+    if (!isSafePathSegment(pageId)) return apiError.badRequest(res, "Ugyldig pageId", "pageId inneholder ugyldige tegn (path traversal ikke tillatt)");
     const { data: page } = await fetchPage(
       req.canvasToken,
       courseIdNum,

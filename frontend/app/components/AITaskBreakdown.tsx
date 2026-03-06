@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Sparkles, Edit2, Check, X, Plus, Trash2, RefreshCw, Loader2, ThumbsUp, ThumbsDown } from "lucide-react";
 import { toast } from "sonner";
 import { useKIChat } from "../ki/ki-api";
@@ -37,6 +37,16 @@ export function AITaskBreakdown({
   const [editForm, setEditForm] = useState<Partial<SubTask>>({});
   const [showEditor, setShowEditor] = useState(false);
   const [showApprovalPrompt, setShowApprovalPrompt] = useState(false);
+  const isMountedRef = useRef(true);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   const { sendMelding: _sendMelding } = useKIChat();
 
@@ -45,7 +55,8 @@ export function AITaskBreakdown({
     setIsGenerating(true);
 
     // MOCK DATA - Erstatt med ekte Claude AI-kall
-    setTimeout(() => {
+    timeoutRef.current = setTimeout(() => {
+      if (!isMountedRef.current) return;
       const mockSubtasks: SubTaskUI[] = [
         {
           id: `task-${Date.now()}-1`,

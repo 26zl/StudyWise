@@ -479,6 +479,16 @@ async function hentCanvasDataImpl<T>(
     return result;
 }
 
+/**
+ * Sjekker at en streng er trygg som path-segment (ingen path traversal).
+ * Avviser "..", "/", "\\" og null-byte for å forhindre path traversal i API-URLer.
+ */
+export function isSafePathSegment(value: string): boolean {
+    if (typeof value !== "string" || value.length === 0 || value.length > 500) return false;
+    if (value.includes("..") || value.includes("/") || value.includes("\\") || value.includes("\0")) return false;
+    return true;
+}
+
 // Valider redirect URL for å forhindre Open Redirect sårbarheter
 export function validateCanvasRedirectUrl(urlStr: string, allowedOrigin: string, pathPrefix?: string): string | null {
     try {

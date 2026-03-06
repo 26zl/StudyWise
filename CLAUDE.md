@@ -42,10 +42,10 @@ import { CanvasCourseSchema } from "common/canvas";       // Canvas API types
 import { classifyHttpStatus } from "common/canvasErrors";  // Error codes & helpers
 import { SubTaskSchema } from "common/ki";                 // KI/AI feature types
 import { ChatMessageSchema } from "common/chat";           // Chat history types
-import { CalendarItemSchema } from "common/calendar";      // Calendar API types
-import { CalendarUIEventSchema } from "common/calendar-ui"; // Calendar UI types
-import { DocumentSchema } from "common/document";          // Document processing types
-import { COOKIE_NAMES } from "common/auth";                // Auth constants
+import { CalendarItemSchema } from "common/calendar";           // Calendar API types
+import { Assignment, COURSE_COLOR_CLASSES } from "common/calendar-ui"; // Calendar UI types
+import { DocumentParseResultSchema } from "common/document";   // Document processing types
+import { AUTH_COOKIE_NAME, AUTH_REFRESH_COOKIE_NAME } from "common/auth"; // Auth constants
 import { getWeekNumber } from "common/dateUtils";          // Date utilities
 ```
 

@@ -57,6 +57,70 @@ export const SUPPORTED_DOCUMENT_TYPES: Record<string, string> = {
     "image/tiff": "image",
 };
 
+/**
+ * Magic bytes (file signatures) for støttede formater – brukes for å validere at filinnhold
+ * matcher deklarert MIME-type (mot MIME-spoofing og farlige filtyper).
+ * Kilde: https://en.wikipedia.org/wiki/List_of_file_signatures
+ */
+const MAGIC_SIGNATURES: Array<{ mime: string; sig: number[]; offset?: number }> = [
+    { mime: "application/pdf", sig: [0x25, 0x50, 0x44, 0x46] }, // %PDF
+    { mime: "image/png", sig: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },
+    { mime: "image/jpeg", sig: [0xff, 0xd8, 0xff] },
+    { mime: "image/gif", sig: [0x47, 0x49, 0x46, 0x38] }, // GIF8
+    { mime: "image/bmp", sig: [0x42, 0x4d] },
+    { mime: "image/webp", sig: [0x52, 0x49, 0x46, 0x46], offset: 0 }, // RIFF
+    { mime: "image/tiff", sig: [0x49, 0x49, 0x2a, 0x00] }, // little-endian
+    { mime: "image/tiff", sig: [0x4d, 0x4d, 0x00, 0x2a] }, // big-endian
+    { mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", sig: [0x50, 0x4b, 0x03, 0x04] },
+    { mime: "application/msword", sig: [0xd0, 0xcf, 0x11, 0xe0] }, // Eldre .doc (CFB)
+    { mime: "application/rtf", sig: [0x7b, 0x5c, 0x72, 0x74, 0x66] }, // {\rtf
+];
+
+function getMimeFromMagicBytes(buffer: Buffer): string | null {
+    if (buffer.length < 12) return null;
+    for (const { mime, sig, offset = 0 } of MAGIC_SIGNATURES) {
+        if (offset + sig.length > buffer.length) continue;
+        if (sig.every((byte, i) => buffer[offset + i] === byte)) {
+            if (mime === "image/webp") {
+                if (buffer.length >= 12 && buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50) return mime;
+                continue;
+            }
+            return mime;
+        }
+    }
+    return null;
+}
+
+/**
+ * Sjekker at buffer matcher forventet MIME (eller at det er ren tekst for text/*).
+ * Returnerer feilmelding ved mismatch, ellers null.
+ */
+export function validateFileMagicBytes(buffer: Buffer, declaredMimeType: string): string | null {
+    const fromMagic = getMimeFromMagicBytes(buffer);
+    const declaredNorm = declaredMimeType.toLowerCase().trim();
+
+    if (declaredNorm.startsWith("text/") || declaredNorm === "text/plain" || declaredNorm === "text/markdown" || declaredNorm === "text/csv") {
+        if (fromMagic !== null) {
+            return `Filen inneholder binært innhold (signatur for ${fromMagic}), ikke tekst. Opplastet som "${declaredMimeType}".`;
+        }
+        return null;
+    }
+
+    if (fromMagic === null) {
+        if (declaredNorm === "application/rtf") return null;
+        return `Kunne ikke bekrefte filtype fra innhold (ingen kjent signatur). Forventet ${declaredMimeType}.`;
+    }
+
+    const allowedForDocx = ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword"];
+    if (fromMagic === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" && allowedForDocx.includes(declaredNorm)) return null;
+    if (fromMagic === "application/msword" && declaredNorm === "application/msword") return null;
+
+    if (fromMagic !== declaredNorm) {
+        return `Filinnhold matcher ikke deklarert type: innhold ser ut som ${fromMagic}, opplastet som ${declaredMimeType}.`;
+    }
+    return null;
+}
+
 // Filendelser til MIME-type mapping (fallback)
 export const EXTENSION_TO_MIME: Record<string, string> = {
     ".pdf": "application/pdf",
@@ -793,11 +857,20 @@ async function parseTextDocument(
  * Hovedfunksjon for å parse dokumenter
  * Velger riktig parser basert på MIME-type
  */
+/** Normaliserer filnavn til trygg basename (ingen path traversal i logging/extension) */
+function safeBasename(filename: string | undefined): string {
+    if (!filename || typeof filename !== "string") return "";
+    const normalized = filename.replace(/\\/g, "/");
+    const last = normalized.split("/").pop() ?? "";
+    return last.includes("..") ? "" : last.slice(0, 255);
+}
+
 export async function parseDocument(
     buffer: Buffer,
     mimeType: string,
     filename?: string
 ): Promise<DocumentParseResult> {
+    const safeName = safeBasename(filename);
     // Sjekk filstørrelse først
     if (buffer.length > MAX_FILE_SIZE_BYTES) {
         const sizeMB = (buffer.length / (1024 * 1024)).toFixed(1);
@@ -814,12 +887,27 @@ export async function parseDocument(
         };
     }
 
+    // Valider at filinnhold matcher deklarert MIME (mot MIME-spoofing / farlige filtyper)
+    const magicError = validateFileMagicBytes(buffer, mimeType);
+    if (magicError) {
+        logger.warn({ mimeType, filename: safeName || undefined }, "File magic bytes mismatch");
+        return {
+            success: false,
+            text: "",
+            pages: 0,
+            fileType: "unknown",
+            redacted: false,
+            truncated: false,
+            error: magicError,
+        };
+    }
+
     // Sjekk at MIME-type er støttet
     let fileType = SUPPORTED_DOCUMENT_TYPES[mimeType];
 
-    // Fallback til filendelse hvis MIME-type ikke er støttet
-    if (!fileType && filename) {
-        const ext = filename.toLowerCase().match(/\.[^.]+$/)?.[0];
+    // Fallback til filendelse hvis MIME-type ikke er støttet (bruk safe basename)
+    if (!fileType && safeName) {
+        const ext = safeName.toLowerCase().match(/\.[^.]+$/)?.[0];
         if (ext && EXTENSION_TO_MIME[ext]) {
             const detectedMime = EXTENSION_TO_MIME[ext];
             fileType = SUPPORTED_DOCUMENT_TYPES[detectedMime];

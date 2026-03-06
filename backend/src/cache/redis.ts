@@ -52,9 +52,22 @@ if (redisUrl) {
 /** Sjekker om Redis er tilkoblet og klar */
 export const isRedisReady = (): boolean => client.isOpen && client.isReady;
 
+/** Validerer cache-nøkkel for å unngå cache injection og farlige tegn (eksporteres for tester) */
+export const isValidCacheKey = (key: string): boolean => {
+    return typeof key === "string" &&
+        key.length > 0 &&
+        key.length < 512 &&
+        VALID_CACHE_KEY_PATTERN.test(key) &&
+        !key.includes("..");
+};
+// Henter cache-verdi for gitt nøkkel, eller null hvis ikke tilgjengelig eller ved feil
 export const getCache = async (key: string): Promise<string | null> => {
     if (!client.isOpen)
         return null;
+    if (!isValidCacheKey(key)) {
+        logger.warn({ key: key.slice(0, 50) }, "Redis getCache: ugyldig nøkkel avvist");
+        return null;
+    }
     try {
         return await client.get(key);
     } catch (error) {
@@ -67,6 +80,10 @@ export const getCache = async (key: string): Promise<string | null> => {
 export const setCache = async (key: string, value: string, ttlSeconds: number = 600) => {
     if (!client.isOpen) {
         logger.warn({ key }, "Redis setCache: klient ikke åpen");
+        return;
+    }
+    if (!isValidCacheKey(key)) {
+        logger.warn({ key: key.slice(0, 50) }, "Redis setCache: ugyldig nøkkel avvist");
         return;
     }
     try {
@@ -97,13 +114,6 @@ const VALID_CACHE_KEY_PATTERN = /^[a-zA-Z0-9:_/?.&=[\]-]+$/;
  * Validerer at en cache-nøkkel er trygg å bruke.
  * Tillater URL-lignende nøkler mens den blokkerer potensielt farlige tegn.
  */
-const isValidCacheKey = (key: string): boolean => {
-    return typeof key === "string" &&
-        key.length > 0 &&
-        key.length < 512 && // Økt fra 256 for lange Canvas API URLs
-        VALID_CACHE_KEY_PATTERN.test(key) &&
-        !key.includes(".."); // Ekstra sjekk mot path traversal
-};
 /**
  * Bruker SCAN i stedet for KEYS for å unngå å blokkere Redis
  * ved store databaser. SCAN er ikke-blokkerende og itererer

@@ -197,7 +197,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
 
             const visionMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
                 { role: "system", content: systemPrompt },
-                { role: "user", content: `Spørsmål: ${question}\n\nImportant: Cover every single concept, framework, and named model in the document explicitly. When a framework has named components (e.g. VRIO has V, R, I, O), list every component individually. Never group items with 'and others' or 'etc.' Write out every item in every list. Do not end your response until all concepts in the document have been addressed.\n\n[BILDE_VEDLEGG]` },
+                { role: "user", content: `<<USER_CONTENT>>\nSpørsmål: ${question}\n\n<</USER_CONTENT>>\n\nImportant: Cover every single concept, framework, and named model in the document explicitly. When a framework has named components (e.g. VRIO has V, R, I, O), list every component individually. Never group items with 'and others' or 'etc.' Write out every item in every list. Do not end your response until all concepts in the document have been addressed.\n\n[BILDE_VEDLEGG]` },
             ];
 
             logger.info({
@@ -223,7 +223,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
             // --- Vanlig tekst-basert dokumentanalyse ---
             const apiMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
                 { role: "system", content: systemPrompt },
-                { role: "user", content: `Dokument-kontekst:\n${docContext}\n\nSpørsmål: ${question}\n\nImportant: Cover every single concept, framework, and named model in the document explicitly. When a framework has named components (e.g. VRIO has V, R, I, O), list every component individually. Never group items with 'and others' or 'etc.' Write out every item in every list. Do not end your response until all concepts in the document have been addressed.` },
+                { role: "user", content: `<<USER_CONTENT>>\nDokument-kontekst:\n${docContext}\n\nSpørsmål: ${question}\n<</USER_CONTENT>>\n\nImportant: Cover every single concept, framework, and named model in the document explicitly. When a framework has named components (e.g. VRIO has V, R, I, O), list every component individually. Never group items with 'and others' or 'etc.' Write out every item in every list. Do not end your response until all concepts in the document have been addressed.` },
             ];
 
             logger.info({
@@ -355,7 +355,7 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req: Request, res: Resp
         const systemPrompt = STUDYWISE_SYSTEM_PROMPT + STUDYWISE_DOCUMENT_PROMPT;
         const apiMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
             { role: "system", content: systemPrompt },
-            { role: "user", content: `Dokument-kontekst:\n${docContext}\n\nSpørsmål: ${question}\n\nImportant: Cover every single concept, framework, and named model in the document explicitly. When a framework has named components (e.g. VRIO has V, R, I, O), list every component individually. Never group items with 'and others' or 'etc.' Write out every item in every list. Do not end your response until all concepts in the document have been addressed.` }
+            { role: "user", content: `<<USER_CONTENT>>\nDokument-kontekst:\n${docContext}\n\nSpørsmål: ${question}\n<</USER_CONTENT>>\n\nImportant: Cover every single concept, framework, and named model in the document explicitly. When a framework has named components (e.g. VRIO has V, R, I, O), list every component individually. Never group items with 'and others' or 'etc.' Write out every item in every list. Do not end your response until all concepts in the document have been addressed.` }
         ];
 
         const ANALYSE_TIMEOUT_MS = 60000;

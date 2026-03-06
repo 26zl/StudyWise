@@ -327,7 +327,12 @@ router.post("/chat", async (req, res) => {
 
       if (hasSpecificTarget) {
         // Målrettet kontekst — kun det ene emnet/modulen som er relevant
-        const targetKey = `ki:tgtctx:${req.user!.id}:${target.courseHint ?? "_"}:${target.moduleHint ?? "_"}`;
+        // Saniter hint for cache-nøkkel (kun [a-zA-Z0-9_-]) for å unngå cache injection
+        const safe = (s: string | null | undefined) =>
+          (s ?? "")
+            .replace(/[^a-zA-Z0-9_-]/g, "_")
+            .slice(0, 64);
+        const targetKey = `ki:tgtctx:${req.user!.id}:${safe(target.courseHint) || "_"}:${safe(target.moduleHint) || "_"}`;
         const cachedTarget = await getCache(targetKey);
         if (cachedTarget) {
           canvasKontekst = cachedTarget;

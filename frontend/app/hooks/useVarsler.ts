@@ -158,7 +158,10 @@ const FRIST_MAKS_TOASTS = 3;
 function hentFristVarslet(): Set<number> {
     try {
         const raw = sessionStorage.getItem(FRIST_VARSLET_KEY);
-        return raw ? new Set(JSON.parse(raw) as number[]) : new Set();
+        if (!raw) return new Set();
+        const arr = JSON.parse(raw) as unknown;
+        if (!Array.isArray(arr)) return new Set();
+        return new Set(arr.filter((x): x is number => typeof x === "number" && !Number.isNaN(x)));
     } catch {
         return new Set();
     }

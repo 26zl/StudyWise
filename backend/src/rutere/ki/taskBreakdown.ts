@@ -3,7 +3,7 @@ import { logger } from "../../utils/logger.js";
 import { apiError, sendZodError, sendUnknownError, requireUserId } from "../../utils/apiError.js";
 import { TaskBreakdown } from "../../database/models/TaskBreakdown.js";
 import { rateLimitKi } from "../../middleware/rate-limit.js";
-import { SubTaskSchema } from "common";
+import { SubTaskSchema, TaskBreakdownResponseSchema } from "common/ki";
 
 const router = Router();
 router.use(rateLimitKi);
@@ -18,10 +18,12 @@ router.get("/:assignmentId", async (req, res) => {
     const breakdown = await TaskBreakdown.findOne({ userId, assignmentId });
 
     if (!breakdown) {
-      return res.json({ subtasks: [] });
+      const empty = TaskBreakdownResponseSchema.parse({ subtasks: [] });
+      return res.json(empty);
     }
 
-    res.json({ subtasks: breakdown.subtasks });
+    const payload = TaskBreakdownResponseSchema.parse({ subtasks: breakdown.subtasks });
+    return res.json(payload);
   } catch (error) {
     sendUnknownError(res, error, { kontekst: "GET task-breakdown" });
   }
@@ -46,7 +48,8 @@ router.post("/:assignmentId", async (req, res) => {
     );
 
     logger.info({ userId, assignmentId }, "Saved task breakdown");
-    res.json({ subtasks: breakdown.subtasks });
+    const payload = TaskBreakdownResponseSchema.parse({ subtasks: breakdown!.subtasks });
+    return res.json(payload);
   } catch (error) {
     sendUnknownError(res, error, { kontekst: "POST task-breakdown" });
   }
@@ -72,7 +75,8 @@ router.put("/:assignmentId/toggle/:taskId", async (req, res) => {
     task.completed = !task.completed;
     await breakdown.save();
 
-    res.json({ subtasks: breakdown.subtasks });
+    const payload = TaskBreakdownResponseSchema.parse({ subtasks: breakdown.subtasks });
+    return res.json(payload);
   } catch (error) {
     sendUnknownError(res, error, { kontekst: "PUT task-breakdown toggle" });
   }
@@ -88,7 +92,8 @@ router.delete("/:assignmentId", async (req, res) => {
     await TaskBreakdown.deleteOne({ userId, assignmentId });
 
     logger.info({ userId, assignmentId }, "Deleted task breakdown");
-    res.json({ subtasks: [] });
+    const payload = TaskBreakdownResponseSchema.parse({ subtasks: [] });
+    return res.json(payload);
   } catch (error) {
     sendUnknownError(res, error, { kontekst: "DELETE task-breakdown" });
   }

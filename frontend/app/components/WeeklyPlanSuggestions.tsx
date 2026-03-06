@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Calendar, Sparkles, Loader2, Check, Clock, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { getWeekNumber } from "common/dateUtils";
 
@@ -56,6 +56,16 @@ export function WeeklyPlanSuggestions({ assignments, onAddToCalendar }: WeeklyPl
     const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(null);
     const [isExpanded, setIsExpanded] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const isMountedRef = useRef(true);
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        };
+    }, []);
 
     // Generer ukeplan med KI (MOCK - erstatt med ekte API)
     const generateWeeklyPlan = async () => {
@@ -63,7 +73,8 @@ export function WeeklyPlanSuggestions({ assignments, onAddToCalendar }: WeeklyPl
         setError(null);
 
         // MOCK DATA - i produksjon, send til backend som kaller Claude AI
-        setTimeout(() => {
+        timeoutRef.current = setTimeout(() => {
+            if (!isMountedRef.current) return;
             // Sorter oppgaver etter frist
             const sortedAssignments = [...assignments]
                 .filter(a => a.dueAt)
@@ -71,8 +82,10 @@ export function WeeklyPlanSuggestions({ assignments, onAddToCalendar }: WeeklyPl
                 .slice(0, 5); // Ta de 5 nærmeste fristene
 
             if (sortedAssignments.length === 0) {
-                setError("Ingen oppgaver med frister funnet. Legg til oppgaver i Canvas først.");
-                setIsGenerating(false);
+                if (isMountedRef.current) {
+                    setError("Ingen oppgaver med frister funnet. Legg til oppgaver i Canvas først.");
+                    setIsGenerating(false);
+                }
                 return;
             }
 
@@ -114,6 +127,7 @@ export function WeeklyPlanSuggestions({ assignments, onAddToCalendar }: WeeklyPl
                 return sum + hours;
             }, 0);
 
+            if (!isMountedRef.current) return;
             setWeeklyPlan({
                 week: `Uke ${getWeekNumber(new Date())}`,
                 totalHours,

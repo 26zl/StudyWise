@@ -204,7 +204,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
             <div className="flex items-center gap-2">
               <select
                 value={currentDate.getMonth().toString()}
-                onChange={(e) => handleMonthChange(parseInt(e.target.value))}
+                onChange={(e) => handleMonthChange(parseInt(e.target.value, 10))}
                 className="h-8 sm:h-9 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {MONTHS.map((month, index) => (
@@ -213,7 +213,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
               </select>
               <select
                 value={currentDate.getFullYear().toString()}
-                onChange={(e) => handleYearChange(parseInt(e.target.value))}
+                onChange={(e) => handleYearChange(parseInt(e.target.value, 10))}
                 className="h-8 sm:h-9 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {years.map((year) => (
