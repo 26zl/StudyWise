@@ -17,10 +17,10 @@ Dette er et **pnpm monorepo-prosjekt** som består av:
 
 - **Core**: Next.js 16, React 19, TypeScript 5.9
 - **Styling**: Tailwind CSS v4 (med `@tailwindcss/postcss`)
-- **State/Data**: `@tanstack/react-query` v5 for server-state, `zustand` for client-state
+- **State/Data**: `@tanstack/react-query` v5 for server-state, `zustand` for client-state, **nuqs** for URL-synkronisert state (f.eks. dashboard `?view=`)
 - **Forms**: `react-hook-form` + `@hookform/resolvers` + `zod`
 - **Routing**: Next.js App Router (Server Components default)
-- **Notifications**: `sonner` for toast-meldinger. Bruk ALDRI `alert()` i frontend.
+- **Notifications**: `sonner` for toast-meldinger. Bruk ALDRI `alert()` eller `confirm()` i frontend.
 
 ### Backend
 
@@ -62,7 +62,7 @@ Lokasjon: `frontend/app/dashboard/page.tsx`
 Dette er hjertet av applikasjonen og fungerer som en **sentral hub** for studenten.
 
 - **Formål**: Samler læringsplattform (Canvas) og støtteverktøy (KI) i ett grensesnitt
-- **Virkemåte**: Bygget som en **SPA (Single Page Application) container**. Den laster ikke siden på nytt når man bytter fane, men bruker React state (`activeView`) for å bytte komponenter umiddelbart
+- **Virkemåte**: Bygget som en **SPA (Single Page Application) container**. Den laster ikke siden på nytt når man bytter fane; aktiv visning styres av URL-parametren `?view=` via **nuqs** (`useQueryState`) i `DashboardView`.
 
 ### API Kommunikasjon
 
@@ -370,7 +370,8 @@ Gjenbruk disse — **ikke dupliser**:
 
 ### Delte frontend-hjelpefiler (`frontend/app/lib/`)
 
-- `varsler.ts` — frist-terskler, `klassifiserFrist()`, `formaterTid()`, varsler-typer og byggelogikk
+- `dato.ts` — dato- og klokkeslettformatering (`formaterDatoShort()`, `formaterKlokkeslett()`, `dagerFraIdag()`, `formaterDagerRelativtFrist()`); bruk disse i stedet for `toLocaleDateString`/`toLocaleTimeString` direkte
+- `varsler.ts` — frist-terskler (`FRIST_VINDU_DAGER`, `klassifiserFrist()`), `formaterTid()`, varsler-typer og byggelogikk
 - `frontend/app/canvas/canvasUtils.ts` — Canvas-data-utils (`erInnlevert()`, `formaterEmneStatus()`); bruk denne filen for slik logikk
 - `errorUtils.ts` — `parseApiError()`, `lagBrukervennligFeilmelding()`
 - `errors.ts` — `AppError`-klassehierarki for typet feilhåndtering

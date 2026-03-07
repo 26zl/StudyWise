@@ -16,7 +16,7 @@ StudyWise - AI-powered study assistant with Canvas LMS integration. pnpm monorep
 
 - **Core**: Next.js 16, React 19, TypeScript 5.9
 - **Styling**: Tailwind CSS v4 (with `@tailwindcss/postcss`)
-- **State/Data**: `@tanstack/react-query` v5 for server-state, `zustand` for client-state
+- **State/Data**: `@tanstack/react-query` v5 for server-state, `zustand` for client-state, **nuqs** for URL-synced state (e.g. dashboard `?view=`)
 - **Forms**: `react-hook-form` + `@hookform/resolvers` + `zod`
 - **Routing**: Next.js App Router (Server Components default)
 - **Error handling**: Shared error classes in `frontend/app/lib/errors.ts`
@@ -120,10 +120,10 @@ Frontend never calls external APIs directly. All `/api/*` requests proxy through
 
 ### Dashboard (SPA Container)
 
-Location: `frontend/app/dashboard/page.tsx`
+Location: `frontend/app/dashboard/page.tsx` (page) and `frontend/app/components/DashboardView.tsx` (main UI).
 
 - **Purpose**: Combines Canvas and AI tools in one interface
-- **How it works**: SPA container using React state (`activeView`) to switch components without page reload
+- **How it works**: SPA container; active view is driven by the `?view=` URL param via **nuqs** (`useQueryState`) in `DashboardView`, so switching tabs does not reload the page and the URL stays in sync
 
 ### Database Models
 
@@ -263,8 +263,9 @@ onSave(subtasks.map(({ approved: _approved, ...task }) => task));
 
 **Frontend**:
 
-- `frontend/app/lib/varsler.ts` — frist-terskler, `klassifiserFrist()`, `formaterTid()`, varsler-typer og byggelogikk
-- `frontend/app/canvas/canvasUtils.ts` — Canvas-data-utils for frontend (`erInnlevert()`, `formaterEmneStatus()`); andre filer bør importere herfra
+- `frontend/app/lib/dato.ts` — date/time formatting (`formaterDatoShort()`, `formaterKlokkeslett()`, `dagerFraIdag()`, `formaterDagerRelativtFrist()`); use these instead of raw `toLocaleDateString`/`toLocaleTimeString`
+- `frontend/app/lib/varsler.ts` — frist thresholds (`FRIST_VINDU_DAGER`), `klassifiserFrist()`, `formaterTid()`, varsler types and build logic
+- `frontend/app/canvas/canvasUtils.ts` — Canvas data utils (`erInnlevert()`, `formaterEmneStatus()`); other files should import from here
 - `frontend/app/lib/errorUtils.ts` — `parseApiError()`, `lagBrukervennligFeilmelding()`
 - `frontend/app/lib/errors.ts` — `AppError` class hierarchy for typed error handling
 

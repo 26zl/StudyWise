@@ -10,7 +10,7 @@ Produksjonsnettside - <https://www.studwize.page>
 
 ## Teknologi stack
 
-- **Frontend**: Next.js 16 + TypeScript + Tailwind CSS v4 + React Query + Zustand + Zod + React Hook Form
+- **Frontend**: Next.js 16 + TypeScript + Tailwind CSS v4 + React Query + Zustand + Zod + React Hook Form + nuqs (URL-synkronisert state for dashboard)
 - **Backend**: Express 5 + TypeScript + Redis + Pino + Helmet + Zod + Anthropic Claude
 - **Database**: MongoDB (Atlas/Lokal) + Redis (Cloud/Lokal)
 - **Common**: Delte Zod schemas og feiltyper (frontend + backend)
@@ -91,7 +91,6 @@ docker compose up --build # Starter MongoDB, Redis, backend og frontend
 | Swagger UI   | <http://localhost:4000/api-docs> |
 | Health Check | <http://localhost:4000/health>   |
 | Docs         | <http://localhost:5173>          |
-
 
 ## API Dokumentasjon
 

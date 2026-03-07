@@ -70,7 +70,7 @@ export const MinDataSchema = z.object({
 export type MinData = z.infer<typeof MinDataSchema>;
 ```
 
-Oppdater `common/src/index.ts` for å eksportere.
+Legg til en subpath-eksport i `common/package.json` under `"exports"` (f.eks. `"./minFunksjon"`) som peker på den kompilerte filen i `dist/`.
 
 ### Steg 2: Lag backend endpoint
 
