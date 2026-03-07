@@ -22,6 +22,7 @@ import type {
   CanvasCourse,
 } from "common/canvas";
 import pLimit from "p-limit";
+import { mapReduceIfNeeded } from "../../services/summarization.service.js";
 
 // Begrens samtidige kall til Canvas API for å unngå rate limiting
 const limit = pLimit(3);
@@ -294,9 +295,17 @@ export async function byggMålrettetCanvasKontekst(
               const pdfResult = await fetchPdfContent(canvasToken, fileMeta);
               if (pdfResult) {
                 pdfCount++;
-                const truncLabel = pdfResult.truncated ? " (forkortet)" : "";
-                deler.push(`\n  --- FILINNHOLD START: ${fileMeta.display_name || fileMeta.filename}${truncLabel} ---`);
-                deler.push(`  ${pdfResult.content}`);
+
+                // Bruk map-reduce for lange PDF-er (>3 000 ord)
+                const mr = await mapReduceIfNeeded(pdfResult.content, "canvas_file", {
+                  fileName: fileMeta.display_name || fileMeta.filename,
+                  courseName: matchedCourse.name,
+                  moduleName: mod.name,
+                });
+
+                const label = mr.summarized ? " (oppsummert)" : pdfResult.truncated ? " (forkortet)" : "";
+                deler.push(`\n  --- FILINNHOLD START: ${fileMeta.display_name || fileMeta.filename}${label} ---`);
+                deler.push(`  ${mr.text}`);
                 deler.push(`  --- FILINNHOLD SLUTT: ${fileMeta.display_name || fileMeta.filename} ---`);
               } else {
                 deler.push(`  - [Fil] ${item.title}`);

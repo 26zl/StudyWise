@@ -15,6 +15,7 @@ import {
     formatDocumentContext,
     getSupportedMimeTypes
 } from "../../services/document.js";
+import { shouldUseMapReduce, mapReduceIfNeeded, countWords } from "../../services/summarization.service.js";
 import { resolveModel } from "./aiModels.js";
 import { chatCompletion, chatCompletionWithVision, isClientAvailable, isVisionAvailable } from "./aiClient.js";
 import type { ImageAttachment } from "./aiClient.js";
@@ -169,6 +170,15 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
                 docResult.fileType,
                 { redacted: docResult.redacted, truncated: docResult.truncated },
             );
+        }
+
+        // For lange dokumenter (>3 000 ord): bruk map-reduce oppsummering
+        if (docResult?.text && shouldUseMapReduce(docResult.text)) {
+            const ordAntall = countWords(docResult.text);
+            const mr = await mapReduceIfNeeded(docResult.text, "uploaded_file", { fileName: req.file!.originalname });
+            if (mr.summarized) {
+                docContext = `[MAP-REDUCE OPPSUMMERING av ${docResult.pages || 1} sider, ${ordAntall} ord]\n\n${mr.text}`;
+            }
         }
 
         // Bygg meldingsarray med base prompt + dokument-tillegg
@@ -336,17 +346,26 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req: Request, res: Resp
             }));
         }
 
-        const docContext = formatDocumentContext(
+        let legacyDocContext = formatDocumentContext(
             docResult.text,
             docResult.pages,
             docResult.fileType,
             { redacted: docResult.redacted, truncated: docResult.truncated }
         );
 
+        // For lange dokumenter (>3 000 ord): bruk map-reduce oppsummering
+        if (shouldUseMapReduce(docResult.text)) {
+            const ordAntall = countWords(docResult.text);
+            const mr = await mapReduceIfNeeded(docResult.text, "uploaded_file", { fileName: req.file!.originalname });
+            if (mr.summarized) {
+                legacyDocContext = `[MAP-REDUCE OPPSUMMERING av ${docResult.pages || 1} sider, ${ordAntall} ord]\n\n${mr.text}`;
+            }
+        }
+
         const systemPrompt = STUDYWISE_SYSTEM_PROMPT + STUDYWISE_DOCUMENT_PROMPT;
         const apiMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
             { role: "system", content: systemPrompt },
-            { role: "user", content: `<<USER_CONTENT>>\nDokument-kontekst:\n${docContext}\n\nSpørsmål: ${question}\n<</USER_CONTENT>>\n\nImportant: Cover every single concept, framework, and named model in the document explicitly. When a framework has named components (e.g. VRIO has V, R, I, O), list every component individually. Never group items with 'and others' or 'etc.' Write out every item in every list. Do not end your response until all concepts in the document have been addressed.` }
+            { role: "user", content: `<<USER_CONTENT>>\nDokument-kontekst:\n${legacyDocContext}\n\nSpørsmål: ${question}\n<</USER_CONTENT>>\n\nImportant: Cover every single concept, framework, and named model in the document explicitly. When a framework has named components (e.g. VRIO has V, R, I, O), list every component individually. Never group items with 'and others' or 'etc.' Write out every item in every list. Do not end your response until all concepts in the document have been addressed.` }
         ];
 
         const ANALYSE_TIMEOUT_MS = 60000;
