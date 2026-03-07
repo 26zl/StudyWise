@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useCallback, useRef } from "react";
-import { Check, Loader2 } from "lucide-react";
+import { Check } from "lucide-react";
+import { LoadingSpinner } from "./LoadingSpinner";
 import {
   useCanvasAnnouncements,
   useCanvasCourses,
@@ -13,6 +14,8 @@ import { useUIStore, type CanvasContextSelection } from "../store/uiStore";
 import { formaterDato, formaterKlokkeslett } from "../lib/dato";
 import { FRIST_VINDU_DAGER } from "../lib/varsler";
 import { useMeg, useOppdaterPreferanser } from "../auth/auth-api";
+import { showToast } from "./Toaster";
+import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
 
 // Props for CanvasContextSelector komponenten
 interface CanvasContextSelectorProps {
@@ -26,7 +29,10 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
   
   // Hent brukerdata og sync preferanser fra backend
   const { data: megData } = useMeg();
-  const { mutate: oppdaterBackend } = useOppdaterPreferanser();
+  const {
+    mutateAsync: oppdaterBackend,
+    isPending: oppdatererPreferanser,
+  } = useOppdaterPreferanser();
   const initializedRef = useRef(false);
   
   // Synkroniser fra backend ved første load
@@ -42,7 +48,12 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
   const { data: todoData, isLoading: loadingTodo } = useCanvasTodo(selected.assignments);
   const { data: eventsData, isLoading: loadingEvents } = useCanvasUpcomingEvents(selected.events);
 
-  const isLoading = loadingAnnouncements || loadingCourses || loadingTodo || loadingEvents;
+  const isLoading =
+    loadingAnnouncements ||
+    loadingCourses ||
+    loadingTodo ||
+    loadingEvents ||
+    oppdatererPreferanser;
 
   // Memoize callback for å unngå uendelig loop
   const byggContext = useCallback(() => {
@@ -142,11 +153,26 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
     onContextChange(context);
   }, [byggContext, onContextChange]);
 
-  const toggleOption = (key: keyof CanvasContextSelection) => {
+  const toggleOption = async (key: keyof CanvasContextSelection) => {
+    if (oppdatererPreferanser) return;
+
+    const previousSelection = selected;
     const newSelection = { ...selected, [key]: !selected[key] };
     setSelected(newSelection);
-    // Lagre til backend
-    oppdaterBackend(newSelection);
+
+    try {
+      await oppdaterBackend(newSelection);
+    } catch (error) {
+      setSelected(previousSelection);
+      showToast.error(
+        "Kunne ikke oppdatere AI-kontekst",
+        lagBrukervennligFeilmelding(
+          error instanceof Error ? error : null,
+          { canvas: true },
+          "Prøv igjen.",
+        ),
+      );
+    }
   };
 
   // Hjelpetekst når alt er av
@@ -190,7 +216,7 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
           Gi AI tilgang til:
         </h4>
         {isLoading && (
-          <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+          <LoadingSpinner className="w-4 h-4 text-blue-600 dark:text-blue-400 animate-spin" />
         )}
       </div>
       {allOff && (
@@ -202,12 +228,14 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
         {options.map((option) => (
           <button
             key={option.key}
-            onClick={() => toggleOption(option.key)}
+            type="button"
+            onClick={() => void toggleOption(option.key)}
+            disabled={oppdatererPreferanser}
             className={`flex flex-col items-start gap-1.5 p-3 rounded-lg border transition-colors ${
               selected[option.key]
                 ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
                 : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
-            } hover:border-blue-400 active:bg-blue-100 dark:active:bg-blue-900/30 cursor-pointer`}
+            } hover:border-blue-400 active:bg-blue-100 dark:active:bg-blue-900/30 cursor-pointer disabled:opacity-60 disabled:cursor-wait`}
           >
             <div className="flex items-center gap-2 w-full">
               <div
@@ -225,7 +253,7 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
                     {option.label}
                   </span>
                   {option.loading ? (
-                    <Loader2 className="w-3 h-3 animate-spin text-slate-400" />
+                    <LoadingSpinner className="w-3 h-3 text-blue-600 dark:text-blue-400 animate-spin" />
                   ) : (
                     <span className="text-xs text-slate-500 dark:text-slate-400">
                       ({option.count})

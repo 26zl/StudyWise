@@ -115,6 +115,13 @@ function shouldRetryCanvasQuery(failureCount: number, error: unknown): boolean {
   return failureCount < 2;
 }
 
+function shouldIgnoreAssignmentError(error: unknown): boolean {
+  return (
+    error instanceof CanvasPermissionError ||
+    error instanceof CanvasResourceError
+  );
+}
+
 // Marker token som ugyldig i global state
 function markTokenInvalid() {
   useUIStore.getState().setCanvasTokenInvalid(true);
@@ -233,7 +240,7 @@ async function håndterFeilRespons<T>(
 }
 
 // API funksjoner
-async function fetchCanvas<T>(
+export async function fetchCanvas<T>(
   endpoint: string,
   schema: ZodType<T>,
   forsoktRefresh = false,
@@ -422,17 +429,22 @@ export function useCanvasAllAssignments(options?: { enabled?: boolean }) {
   return useQuery<AssignmentMedEmne[]>({
     queryKey: ["canvas", "all-assignments", courseIds],
     queryFn: async () => {
+      if (coursesQuery.isError) {
+        throw coursesQuery.error;
+      }
+
       const courses = coursesQuery.data?.courses;
       if (!courses) return [];
 
-      // Hent oppgaver for alle emner parallelt
-      const assignmentsPromises = courses.map(async (course: CanvasCourse) => {
-        try {
+      // Hent oppgaver for alle emner parallelt.
+      // Ignorer kun forventede per-emne tilgangsfeil; ikke skjul systemiske parse/API-feil som tom liste.
+      const assignmentResults = await Promise.allSettled(
+        courses.map(async (course: CanvasCourse) => {
           const response = await fetchCanvas(
             `/emner/${course.id}/oppgaver`,
             AssignmentsResponseSchema,
           );
-          // Legg til course_name på hver oppgave
+
           return response.assignments.map(
             (assignment): AssignmentMedEmne => ({
               ...assignment,
@@ -440,19 +452,32 @@ export function useCanvasAllAssignments(options?: { enabled?: boolean }) {
               course_id: course.id,
             }),
           );
-        } catch {
-          // Ignorer emner der vi ikke har tilgang til oppgaver
-          return [];
-        }
-      });
+        }),
+      );
 
-      const allAssignments = await Promise.all(assignmentsPromises);
-      return allAssignments.flat();
+      const allAssignments: AssignmentMedEmne[] = [];
+      const criticalErrors: unknown[] = [];
+
+      for (const result of assignmentResults) {
+        if (result.status === "fulfilled") {
+          allAssignments.push(...result.value);
+          continue;
+        }
+
+        if (!shouldIgnoreAssignmentError(result.reason)) {
+          criticalErrors.push(result.reason);
+        }
+      }
+
+      if (criticalErrors.length > 0) {
+        throw criticalErrors[0];
+      }
+
+      return allAssignments;
     },
     enabled:
       isEnabled &&
-      !!coursesQuery.data?.courses &&
-      coursesQuery.data.courses.length > 0,
+      (coursesQuery.isSuccess || coursesQuery.isError),
     ...canvasQueryOptions,
   });
 }
@@ -600,14 +625,10 @@ export function prefetchCanvasData(queryClient: QueryClient) {
   queryClient.prefetchQuery({
     queryKey: ["canvas", "calendar"],
     queryFn: async () => {
-      const { CalendarItemsResponseSchema } = await import("common/calendar");
-      const { mapCalendarItems } = await import("../calendar/calendar-api");
-      const res = await fetch("/api/canvas/kalender", {
-        credentials: "include",
-        cache: "no-store",
-      });
-      if (!res.ok) throw new Error("Kalender prefetch feilet");
-      const data = CalendarItemsResponseSchema.parse(await res.json());
+      const { fetchAllCalendarItems, mapCalendarItems } = await import(
+        "../calendar/calendar-api"
+      );
+      const data = await fetchAllCalendarItems();
       return { ...mapCalendarItems(data.items), meta: data.meta };
     },
     staleTime: 30 * 1000,

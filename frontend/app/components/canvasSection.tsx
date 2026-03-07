@@ -13,11 +13,11 @@ import {
     ChevronRight,
     ExternalLink,
     FileText,
-    Loader2,
     AlertCircle,
     Download,
     BookOpen,
 } from "lucide-react";
+import { LoadingSpinner } from "./LoadingSpinner";
 import {
     useCanvasAnnouncements,
     useCanvasCourses,
@@ -33,6 +33,7 @@ import {
 } from "../canvas/canvas-api";
 import { useUIStore } from "../store/uiStore";
 import { KIOppsummering } from "./KIOppsummering";
+import { showToast } from "./Toaster";
 import { erInnlevert as erInnlevertOppgave } from "../canvas/canvasUtils";
 import { createCanvasHtmlParser, parseCanvasHtml, sikkerFilNedlastingUrl } from "../canvas/canvasHtml";
 import { CanvasPageVisning } from "./CanvasPageVisning";
@@ -207,7 +208,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const { data, isLoading, isError, error } = useCanvasCourses(harCanvasToken);
     const metadataQuery = useCoursesMetadata(harCanvasToken);
     const [valgtEmneId, settValgtEmneId] = useState<number | null>(null);
-    const [valgtEmneVisning, settValgtEmneVisning] = useState<"modules" | "files" | "frontpage">("frontpage");
+    const [valgtEmneVisning, settValgtEmneVisning] = useState<"modules" | "files" | "frontpage" | "pages">("frontpage");
     const [valgtSide, settValgtSide] = useState<{ pageId: string; courseId: number } | null>(null);
 
     // Hent metadata for et emne (med fallback til "ukjent" hvis ikke lastet)
@@ -224,7 +225,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     // Kun fetch hvis metadata sier innhold finnes, eller metadata ikke er klar ennå (for backward compat)
     const modulerQuery = useCanvasModules(valgtEmneId, harCanvasToken && (!metaReady || valgtMeta?.hasModules === true));
     const filerQuery = useCanvasFiles(valgtEmneId, harCanvasToken && (!metaReady || valgtMeta?.hasFiles === true));
-    const siderQuery = useCanvasPages(valgtEmneId, harCanvasToken && (!metaReady || valgtMeta?.hasModules === true)); // Pages brukes for moduler
+    const siderQuery = useCanvasPages(valgtEmneId, harCanvasToken); // Sider kan finnes selv om kurset ikke har moduler
     const frontPageQuery = useCanvasFrontPage(valgtEmneId, harCanvasToken && (!metaReady || valgtMeta?.hasFrontPage === true));
 
     if (!harCanvasToken) {
@@ -282,6 +283,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     const metadataLaster = metadataQuery.isLoading;
                     const visForsideTab = metadataLaster || !meta || meta.hasFrontPage;
                     const visModulerTab = metadataLaster || !meta || meta.hasModules;
+                    const visSiderTab = metadataLaster || !meta || meta.hasPages;
                     const visFilerTab = metadataLaster || !meta || meta.hasFiles;
 
                     return (
@@ -302,6 +304,14 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                     Moduler{meta?.modulesCount ? ` (${meta.modulesCount})` : ""}
                                 </button>
                             )}
+                            {visSiderTab && (
+                                <button
+                                    onClick={() => settValgtEmneVisning("pages")}
+                                    className={`px-3 py-1 rounded-lg text-sm border ${valgtEmneVisning === "pages" ? "bg-blue-600 text-white border-blue-600" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"}`}
+                                >
+                                    Sider{meta?.pagesCount ? ` (${meta.pagesCount})` : ""}
+                                </button>
+                            )}
                             {visFilerTab && (
                                 <button
                                     onClick={() => settValgtEmneVisning("files")}
@@ -318,7 +328,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     <div className="space-y-3">
                         {frontPageQuery.isLoading && (
                             <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                                <Loader2 size={16} className="animate-spin" />
+                                <LoadingSpinner className="w-4 h-4" />
                                 Laster forside...
                             </div>
                         )}
@@ -349,7 +359,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     <>
                         {modulerQuery.isLoading && (
                     <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                        <Loader2 size={16} className="animate-spin" />
+                        <LoadingSpinner className="w-4 h-4" />
                         Laster moduler...
                     </div>
                 )}
@@ -459,10 +469,25 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                                             const validatedFileId = pathMatch[1];
                                                             const safeUrl = `/api/canvas/filer/${encodeURIComponent(validatedFileId)}/download`;
                                                             window.open(safeUrl, "_blank", "noopener,noreferrer");
+                                                            return;
                                                         }
                                                     }
+                                                    showToast.error(
+                                                        "Kunne ikke åpne fil",
+                                                        "Canvas returnerte ingen gyldig nedlastingslenke for denne filen.",
+                                                    );
                                                 } catch (err) {
-                                                    console.error("Kunne ikke åpne fil:", err);
+                                                    if (process.env.NODE_ENV !== "production") {
+                                                        console.error("Kunne ikke åpne fil:", err);
+                                                    }
+                                                    showToast.error(
+                                                        "Kunne ikke åpne fil",
+                                                        lagBrukervennligFeilmelding(
+                                                            err instanceof Error ? err : null,
+                                                            { canvas: true },
+                                                            "Prøv igjen om litt.",
+                                                        ),
+                                                    );
                                                 }
                                             }
                                         };
@@ -523,7 +548,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     <div className="space-y-4">
                         {frontPageQuery.isLoading && (
                             <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                                <Loader2 size={16} className="animate-spin" />
+                                <LoadingSpinner className="w-4 h-4" />
                                 Laster forside...
                             </div>
                         )}
@@ -593,11 +618,50 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     </>
                 )}
 
+                {valgtEmneVisning === "pages" && (
+                    <div className="space-y-3">
+                        {siderQuery.isLoading && (
+                            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                                <LoadingSpinner className="w-4 h-4" />
+                                Laster sider...
+                            </div>
+                        )}
+                        {siderQuery.isError && (
+                            <FeilMelding melding="Dette emnet har ingen sider eller du mangler tilgang (403/unauthorized)." />
+                        )}
+                        {!siderQuery.isLoading && !siderQuery.isError && !siderQuery.data && metaReady && valgtMeta?.hasPages === false && (
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Dette emnet har ingen sider tilgjengelig.</p>
+                        )}
+                        {siderQuery.data && siderQuery.data.length === 0 && (
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Dette emnet har ingen sider å vise.</p>
+                        )}
+                        {siderQuery.data && siderQuery.data.length > 0 && (
+                            <div className="rounded-xl border border-slate-200 dark:border-slate-700">
+                                <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 font-medium text-slate-900 dark:text-white">
+                                    Sider
+                                </div>
+                                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {siderQuery.data.map((p) => (
+                                        <button
+                                            key={p.url}
+                                            onClick={() => settValgtSide({ pageId: p.url, courseId: valgtEmneId! })}
+                                            className="w-full text-left px-4 py-3 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm text-slate-800 dark:text-slate-200 flex items-center gap-2"
+                                        >
+                                            <FileText size={16} className="text-slate-400" />
+                                            <span>{p.title || p.url}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {valgtEmneVisning === "files" && (
                     <div className="space-y-3">
                         {filerQuery.isLoading && (
                             <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                                <Loader2 size={16} className="animate-spin" />
+                                <LoadingSpinner className="w-4 h-4" />
                                 Laster filer...
                             </div>
                         )}
@@ -659,10 +723,11 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     const metadataLaster = metadataQuery.isLoading;
 
                     // Bestem hvilken visning som skal være default basert på metadata
-                    const velgDefaultVisning = (): "frontpage" | "modules" | "files" => {
+                    const velgDefaultVisning = (): "frontpage" | "modules" | "files" | "pages" => {
                         if (!meta) return "frontpage"; // Fallback mens metadata laster
                         if (meta.hasFrontPage) return "frontpage";
                         if (meta.hasModules) return "modules";
+                        if (meta.hasPages) return "pages";
                         if (meta.hasFiles) return "files";
                         return "frontpage";
                     };
@@ -670,8 +735,9 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     // Vis knapper kun for innhold som finnes
                     const visForsideKnapp = !meta || meta.hasFrontPage;
                     const visModulerKnapp = !meta || meta.hasModules;
+                    const visSiderKnapp = !meta || meta.hasPages;
                     const visFilerKnapp = !meta || meta.hasFiles;
-                    const harInnhold = visForsideKnapp || visModulerKnapp || visFilerKnapp;
+                    const harInnhold = visForsideKnapp || visModulerKnapp || visSiderKnapp || visFilerKnapp;
 
                     return (
                         <div
@@ -709,6 +775,15 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                                 className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
                                             >
                                                 Moduler{meta?.modulesCount ? ` (${meta.modulesCount})` : ""}
+                                                <ChevronRight size={16} />
+                                            </button>
+                                        )}
+                                        {visSiderKnapp && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("pages"); }}
+                                                className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
+                                            >
+                                                Sider{meta?.pagesCount ? ` (${meta.pagesCount})` : ""}
                                                 <ChevronRight size={16} />
                                             </button>
                                         )}
@@ -841,6 +916,18 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2 mx-auto" />
                 </div>
             </div>
+        );
+    }
+
+    if (assignmentsQuery.isError) {
+        return (
+            <FeilMelding
+                melding={lagBrukervennligFeilmelding(
+                    assignmentsQuery.error instanceof Error ? assignmentsQuery.error : null,
+                    { canvas: true },
+                    "Kunne ikke laste oppgaver. Prøv igjen.",
+                )}
+            />
         );
     }
 
