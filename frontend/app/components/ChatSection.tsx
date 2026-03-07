@@ -5,7 +5,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Bot, User, Sparkles, Paperclip, Download, Copy } from "lucide-react";
+import { Send, Bot, Download, Copy, Share2, RefreshCw, ThumbsUp, ThumbsDown, MoreHorizontal, Plus, Image, FileText, User } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { toast } from "sonner";
 import { AttachmentStrip } from "./AttachmentStrip";
@@ -17,7 +17,6 @@ import { useKIChat, useKIDocumentAnalyse, useKITestTilkobling, SUPPORTED_FILE_TY
 import { useChatHistory } from "../hooks/useChatHistory";
 import { FeilMelding } from "./FeilMelding";
 import { useUIStore } from "../store/uiStore";
-import { exportToMarkdown } from "../utils/exportChat";
 import { formaterKlokkeslett } from "../lib/dato";
 
 // Meldings-typer
@@ -26,6 +25,7 @@ interface Melding {
     rolle: "user" | "assistant";
     innhold: string;
     tidsstempel: Date;
+    vedleggNavn?: string[];
 }
 
 // Forslag til spørsmål
@@ -35,6 +35,56 @@ const forslag = [
     "Hjelp meg planlegge studieøkten min",
     "Vis meg kunngjøringer fra mine emner",
 ];
+
+/** Parse vedlegg-info fra meldingsinnhold og returner ren tekst + filnavn */
+function parseVedlegg(innhold: string): { tekst: string; filer: string[] } {
+    const vedleggMatch = innhold.match(/\n?\n?\[Vedlagt:\s*(.+?)\]\s*$/);
+    if (!vedleggMatch) return { tekst: innhold, filer: [] };
+    const tekst = innhold.slice(0, vedleggMatch.index).trim();
+    const filnavn = vedleggMatch[1].split(",").map((s) => s.trim()).filter(Boolean);
+    return { tekst, filer: filnavn };
+}
+
+function erBildefil(navn: string): boolean {
+    return /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(navn);
+}
+
+/** Felles klassenavn for handlingsknapper under AI-svar */
+const actionBtnClass = "p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-md hover:bg-slate-100 dark:hover:bg-slate-800";
+
+/** Lag brukervennlig feilmelding basert på error */
+function lagFeilTekst(error: Error, kontekst: "chat" | "dokument"): string {
+    const msg = error.message;
+    const name = error.name;
+    // Navngitte feilklasser (fra ki-api)
+    if (name === "KIRateLimitError" || msg.includes("429") || msg.includes("rate")) {
+        return "For mange forespørsler. Vent noen sekunder og prøv igjen.";
+    }
+    if (name === "KIServiceError" || msg.includes("utilgjengelig") || msg.includes("503")) {
+        return kontekst === "dokument"
+            ? "Dokumentanalyse er midlertidig utilgjengelig. Prøv igjen om noen minutter."
+            : "KI-tjenesten er midlertidig utilgjengelig. Prøv igjen om noen minutter.";
+    }
+    if (name === "KITimeoutError" || msg.includes("timeout") || msg.includes("504")) {
+        return kontekst === "dokument"
+            ? "Analysen tok for lang tid. Prøv med et mindre dokument."
+            : "Forespørselen tok for lang tid. Prøv å forenkle spørsmålet ditt.";
+    }
+    if (name === "KIAuthError") {
+        return "Du må logge inn på nytt for å bruke KI-assistenten.";
+    }
+    // Generelle HTTP-feil
+    if (msg.includes("for stor") || msg.includes("413")) {
+        return "Filen er for stor. Maksimal filstørrelse er 15MB.";
+    }
+    if (msg.includes("filtype") || msg.includes("støttes ikke")) {
+        return "Filtypen støttes ikke. Prøv PDF, Word, eller tekstfiler.";
+    }
+    if (msg.includes("Internal Server Error") || msg.includes("500") || msg.includes("Server Error") || msg.includes("serveren")) {
+        return "Noe gikk galt på serveren. Prøv igjen om litt, eller forenkle spørsmålet ditt.";
+    }
+    return msg || (kontekst === "dokument" ? "Kunne ikke analysere dokumentet. Prøv igjen." : "Noe gikk galt. Prøv igjen.");
+}
 
 // Hovedkomponent
 export function ChatSection() {
@@ -110,7 +160,7 @@ export function ChatSection() {
     useEffect(() => {
         if (tekstInputRef.current) {
             tekstInputRef.current.style.height = "auto";
-            tekstInputRef.current.style.height = `${Math.min(tekstInputRef.current.scrollHeight, 150)}px`;
+            tekstInputRef.current.style.height = `${tekstInputRef.current.scrollHeight}px`;
         }
     }, [tekstInput]);
 
@@ -282,10 +332,9 @@ export function ChatSection() {
         const brukerMelding: Melding = {
             id: Date.now().toString(),
             rolle: "user",
-            innhold: harVedlegg
-                ? `${brukerMeldingInnhold}\n\n[Vedlagt: ${vedlagtNavn}]`
-                : brukerMeldingInnhold,
+            innhold: brukerMeldingInnhold,
             tidsstempel: new Date(),
+            vedleggNavn: harVedlegg ? vedlegg.map((f) => f.name) : undefined,
         };
 
         settMeldinger((tidligere) => [...tidligere, brukerMelding]);
@@ -319,21 +368,7 @@ export function ChatSection() {
                     settAnalysererDokument(false);
                 },
                 onError: (error) => {
-                    // Lag brukervennlig feilmelding for dokumentanalyse
-                    let feilTekst: string;
-                    if (error.message.includes("for stor") || error.message.includes("413")) {
-                        feilTekst = "Filen er for stor. Maksimal filstørrelse er 15MB.";
-                    } else if (error.message.includes("429") || error.message.includes("rate")) {
-                        feilTekst = "For mange forespørsler. Vent noen sekunder og prøv igjen.";
-                    } else if (error.message.includes("timeout") || error.message.includes("504")) {
-                        feilTekst = "Analysen tok for lang tid. Prøv med et mindre dokument.";
-                    } else if (error.message.includes("utilgjengelig") || error.message.includes("503")) {
-                        feilTekst = "Dokumentanalyse er midlertidig utilgjengelig. Prøv igjen om noen minutter.";
-                    } else if (error.message.includes("filtype") || error.message.includes("støttes ikke")) {
-                        feilTekst = "Filtypen støttes ikke. Prøv PDF, Word, eller tekstfiler.";
-                    } else {
-                        feilTekst = error.message || "Kunne ikke analysere dokumentet. Prøv igjen.";
-                    }
+                    const feilTekst = lagFeilTekst(error, "dokument");
                     toast.error("Dokumentanalyse feilet", { description: feilTekst });
                     const feilMelding: Melding = {
                         id: (Date.now() + 1).toString(),
@@ -457,30 +492,7 @@ export function ChatSection() {
                 }
             },
             onError: (error) => {
-                let feilTekst: string;
-                const errorName = error.name;
-                if (errorName === "KIRateLimitError") {
-                    feilTekst = "For mange forespørsler. Vent noen sekunder og prøv igjen.";
-                } else if (errorName === "KIServiceError") {
-                    feilTekst = "KI-tjenesten er midlertidig utilgjengelig. Prøv igjen om noen minutter.";
-                } else if (errorName === "KITimeoutError") {
-                    feilTekst = "Forespørselen tok for lang tid. Prøv å forenkle spørsmålet ditt.";
-                } else if (errorName === "KIAuthError") {
-                    feilTekst = "Du må logge inn på nytt for å bruke KI-assistenten.";
-                } else if (error.message.includes("timeout") || error.message.includes("504")) {
-                    feilTekst = "Forespørselen tok for lang tid. Prøv igjen eller forenkle spørsmålet.";
-                } else if (error.message.includes("429") || error.message.includes("rate")) {
-                    feilTekst = "For mange forespørsler. Vent litt og prøv igjen.";
-                } else if (
-                    error.message.includes("Internal Server Error") ||
-                    error.message.includes("500") ||
-                    error.message.includes("Server Error") ||
-                    error.message.includes("serveren")
-                ) {
-                    feilTekst = "Noe gikk galt på serveren. Prøv igjen om litt, eller forenkle spørsmålet ditt.";
-                } else {
-                    feilTekst = error.message || "Noe gikk galt. Prøv igjen.";
-                }
+                const feilTekst = lagFeilTekst(error, "chat");
                 toast.error("KI-svar feilet", { description: feilTekst });
                 const feilMelding: Melding = {
                     id: (Date.now() + 1).toString(),
@@ -540,28 +552,9 @@ export function ChatSection() {
         <div className="h-full flex">
             {/* Main Chat Area */}
             <div className="flex-1 flex flex-col min-w-0">
-                {/* Header */}
-                <div className="shrink-0 px-4 md:px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                                <Sparkles className="w-5 h-5 text-white" />
-                            </div>
-                            <div>
-                                <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
-                                    KI Assistent
-                                </h2>
-                                <p className="text-sm text-slate-500 dark:text-slate-400">
-                                    Din personlige studieassistent
-                                </p>
-                            </div>
-                        </div>
-                        
-                    </div>
-                </div>
-
                 {/* Meldinger */}
-                <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+                <div className="flex-1 overflow-y-auto p-4 md:p-6">
+                  <div className="max-w-[940px] mx-auto space-y-5">
                     {/* Tilkoblingsfeil – bruk felles FeilMelding */}
                     {erTilkoblingsFeil && (
                         <FeilMelding melding="Kunne ikke koble til KI-assistenten. Prøv igjen senere." />
@@ -616,24 +609,24 @@ export function ChatSection() {
                     {meldinger.map((melding) => (
                         <div
                             key={melding.id}
-                            className={`flex gap-3 ${melding.rolle === "user" ? "justify-end" : "justify-start"}`}
+                            className={`flex items-start gap-3 ${melding.rolle === "user" ? "justify-end" : "justify-start"}`}
                         >
+                            {/* AI-avatar (venstre) */}
                             {melding.rolle === "assistant" && (
-                                <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
-                                    <Bot className="w-4 h-4 text-white" />
+                                <div className="shrink-0 w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center mt-1">
+                                    <Bot className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                                 </div>
                             )}
-
-                            <div
-                                className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                                    melding.rolle === "user"
-                                        ? "bg-blue-600 text-white"
-                                        : "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white"
-                                }`}
-                            >
-                                {melding.rolle === "assistant" ? (
-                                    <>
-                                        <div className="text-sm prose prose-sm dark:prose-invert prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-pre:my-2 prose-code:text-blue-600 dark:prose-code:text-blue-400 prose-code:bg-slate-200 dark:prose-code:bg-slate-700 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none max-w-none">
+                            <div className={melding.rolle === "user" ? "max-w-[80%]" : "w-full min-w-0"}>
+                                <div
+                                    className={
+                                        melding.rolle === "user"
+                                            ? "rounded-2xl px-5 py-3.5 bg-stone-100 dark:bg-slate-700 text-slate-900 dark:text-white"
+                                            : "text-slate-900 dark:text-white"
+                                    }
+                                >
+                                    {melding.rolle === "assistant" ? (
+                                        <div className="prose prose-base dark:prose-invert prose-p:my-2 prose-p:leading-relaxed prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-pre:my-3 prose-code:text-blue-600 dark:prose-code:text-blue-400 prose-code:bg-slate-200 dark:prose-code:bg-slate-700 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none max-w-none">
                                             <ReactMarkdown 
                                                 remarkPlugins={[remarkGfm]}
                                                 rehypePlugins={[rehypeSanitize]}
@@ -641,10 +634,63 @@ export function ChatSection() {
                                                 {melding.innhold}
                                             </ReactMarkdown>
                                         </div>
-                                        <div className="flex items-center justify-between gap-2 mt-2">
-                                            <p className="text-xs text-slate-500 dark:text-slate-400">
-                                                {formaterKlokkeslett(melding.tidsstempel)}
-                                            </p>
+                                    ) : (
+                                        <>
+                                            {(() => {
+                                                const alleFiler = melding.vedleggNavn ?? parseVedlegg(melding.innhold).filer;
+                                                const renTekst = melding.vedleggNavn ? melding.innhold : parseVedlegg(melding.innhold).tekst;
+                                                return (
+                                                    <>
+                                                        <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{renTekst}</p>
+                                                        {alleFiler.length > 0 && (
+                                                            <div className="flex flex-wrap gap-2 mt-2.5">
+                                                                {alleFiler.map((navn, i) => (
+                                                                    <span
+                                                                        key={i}
+                                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/80 dark:bg-slate-600/50 text-xs text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-600"
+                                                                    >
+                                                                        {erBildefil(navn) ? <Image className="w-3.5 h-3.5 text-slate-400" /> : <FileText className="w-3.5 h-3.5 text-slate-400" />}
+                                                                        {navn}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                );
+                                            })()}
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Handlingsknapper under AI-svar */}
+                                {melding.rolle === "assistant" && (
+                                    <div className="flex items-center justify-between mt-1.5 px-0.5">
+                                        <div className="flex items-center gap-0.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => toast.info("Del-funksjon kommer snart")}
+                                                className={actionBtnClass}
+                                                title="Del"
+                                            >
+                                                <Share2 className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const blob = new Blob([melding.innhold], { type: "text/markdown" });
+                                                    const url = URL.createObjectURL(blob);
+                                                    const a = document.createElement("a");
+                                                    a.href = url;
+                                                    a.download = `svar-${formaterKlokkeslett(melding.tidsstempel)}.md`;
+                                                    a.click();
+                                                    URL.revokeObjectURL(url);
+                                                    toast.success("Svar lastet ned");
+                                                }}
+                                                className={actionBtnClass}
+                                                title="Last ned svar"
+                                            >
+                                                <Download className="w-4 h-4" />
+                                            </button>
                                             <button
                                                 type="button"
                                                 onClick={async () => {
@@ -655,27 +701,53 @@ export function ChatSection() {
                                                         toast.error("Kunne ikke kopiere");
                                                     }
                                                 }}
-                                                className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
-                                                title="Kopier hele svaret"
+                                                className={actionBtnClass}
+                                                title="Kopier"
                                             >
-                                                <Copy className="w-3.5 h-3.5 shrink-0" />
-                                                Kopier
+                                                <Copy className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => toast.info("Regenerer-funksjon kommer snart")}
+                                                className={actionBtnClass}
+                                                title="Regenerer svar"
+                                            >
+                                                <RefreshCw className="w-4 h-4" />
                                             </button>
                                         </div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <p className="text-sm whitespace-pre-wrap">{melding.innhold}</p>
-                                        <p className="text-xs mt-1 text-blue-100">
-                                            {formaterKlokkeslett(melding.tidsstempel)}
-                                        </p>
-                                    </>
+                                        <div className="flex items-center gap-0.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => toast.success("Positiv tilbakemelding registrert")}
+                                                className={actionBtnClass}
+                                                title="Bra svar"
+                                            >
+                                                <ThumbsUp className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => toast.success("Negativ tilbakemelding registrert")}
+                                                className={actionBtnClass}
+                                                title="Dårlig svar"
+                                            >
+                                                <ThumbsDown className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => toast.info("Flere valg kommer snart")}
+                                                className={actionBtnClass}
+                                                title="Flere valg"
+                                            >
+                                                <MoreHorizontal className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
-
+                            {/* Bruker-avatar (høyre) */}
                             {melding.rolle === "user" && (
-                                <div className="w-8 h-8 rounded-full bg-slate-700 dark:bg-slate-600 flex items-center justify-center shrink-0">
-                                    <User className="w-4 h-4 text-white" />
+                                <div className="shrink-0 w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center mt-1">
+                                    <User className="w-5 h-5 text-slate-600 dark:text-slate-300" />
                                 </div>
                             )}
                         </div>
@@ -683,11 +755,11 @@ export function ChatSection() {
 
                     {/* Skriver indikator */}
                     {(skriver || analyserarDokument) && (
-                        <div className="flex gap-3">
-                            <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
-                                <Bot className="w-4 h-4 text-white" />
+                        <div className="flex items-start gap-3 justify-start">
+                            <div className="shrink-0 w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center mt-1">
+                                <Bot className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                             </div>
-                            <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl px-4 py-3">
+                            <div className="py-3">
                                 {analyserarDokument ? (
                                     <div className="flex items-center gap-2">
                                         <LoadingSpinner className="w-4 h-4" />
@@ -705,6 +777,7 @@ export function ChatSection() {
                     )}
 
                     <div ref={meldingerSluttRef} />
+                  </div>
                 </div>
 
                 {/* Smart suggestions - VIS KUN NÅR DET ER MELDINGER OG IKKE SKRIVER */}
@@ -720,11 +793,12 @@ export function ChatSection() {
                 )}
 
                 {/* Input */}
-                <div className="shrink-0 p-4 md:p-6 border-t border-slate-200 dark:border-slate-800">
+                <div className="shrink-0 px-4 md:px-6 pb-4 pt-3">
+                  <div className="max-w-[940px] mx-auto">
                     {/* Vedleggsliste (kompakt stripe) */}
                     <AttachmentStrip vedlegg={vedlegg} onFjern={fjernVedlegg} />
                     
-                    <div className="flex gap-3">
+                    <div className="flex items-end gap-2 rounded-2xl border border-slate-200 dark:border-slate-700 focus-within:border-slate-200 dark:focus-within:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 focus-within:outline-none focus-within:ring-0">
                         {/* Skjult fil-input */}
                         <input
                             ref={filInputRef}
@@ -735,29 +809,15 @@ export function ChatSection() {
                             className="hidden"
                         />
                         
-                        {/* Eksporter samtale */}
-                        <button
-                            onClick={() => {
-                                exportToMarkdown(meldinger);
-                                toast.success("Samtale eksportert", { description: "Filen lastes ned." });
-                            }}
-                            disabled={meldinger.length === 0}
-                            className="shrink-0 w-12 h-12 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-                            title="Eksporter samtale til Markdown"
-                            aria-label="Eksporter samtale"
-                        >
-                            <Download className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                        </button>
-
-                        {/* Filopplastingsknapp */}
+                        {/* Filopplasting */}
                         <button
                             onClick={() => filInputRef.current?.click()}
                             disabled={skriver || analyserarDokument}
-                            className="shrink-0 w-12 h-12 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                            className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                             title="Last opp dokument (PDF, Word, TXT)"
                             aria-label="Last opp dokument"
                         >
-                            <Paperclip className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                            <Plus className="w-5 h-5 text-slate-400 dark:text-slate-500" />
                         </button>
                         
                         <textarea
@@ -768,25 +828,26 @@ export function ChatSection() {
                             placeholder={vedlegg.length > 0 ? "Skriv et spørsmål om vedlegget..." : "Skriv en melding..."}
                             disabled={skriver || analyserarDokument}
                             rows={1}
-                            className="flex-1 resize-none rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                            style={{ maxHeight: "150px" }}
+                            className="flex-1 resize-none bg-transparent py-2 text-[15px] text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:outline-none focus:ring-0 border-none shadow-none disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
+                            style={{ outline: "none" }}
                         />
                         <button
                             onClick={sendMelding}
                             disabled={(!tekstInput.trim() && vedlegg.length === 0) || skriver || analyserarDokument}
-                            className="shrink-0 w-12 h-12 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                            className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                             aria-label={skriver || analyserarDokument ? "Sender melding" : "Send melding"}
                         >
                             {skriver || analyserarDokument ? (
-                                <LoadingSpinner className="w-5 h-5 text-white animate-spin" />
+                                <LoadingSpinner className="w-4 h-4 text-slate-400 animate-spin" />
                             ) : (
-                                <Send className="w-5 h-5 text-white" />
+                                <Send className="w-4 h-4 text-slate-400 dark:text-slate-500" />
                             )}
                         </button>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                        Trykk Enter for å sende, Shift+Enter for ny linje. Støtter PDF, Word, bilder og mer. Lim inn bilder med Ctrl+V.
+                    <p className="text-xs text-center text-slate-400 dark:text-slate-500 mt-2">
+                        Trykk Enter for å sende · Shift+Enter for ny linje
                     </p>
+                  </div>
                 </div>
             </div>
         </div>
