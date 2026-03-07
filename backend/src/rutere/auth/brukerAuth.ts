@@ -24,8 +24,8 @@ import {
     RegisterResponseSchema,
     MeResponseSchema,
     LogoutResponseSchema,
-    RefreshResponseSchema
-} from "common";
+    RefreshResponseSchema,
+} from "common/auth";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import {
@@ -51,6 +51,18 @@ router.use(noCache);
 const hashToken = (token: string) => {
     return crypto.createHash("sha256").update(token).digest("hex");
 };
+
+/** Invalider Redis Canvas-cache for et (kryptert) token. Brukes ved token-sletting eller -bytte. */
+async function invalidateCanvasCacheForToken(encryptedToken: string | undefined): Promise<void> {
+    if (!encryptedToken) return;
+    try {
+        const gammeltToken = decrypt(encryptedToken);
+        const prefix = crypto.createHash("sha256").update(gammeltToken).digest("hex").slice(0, 12);
+        await invalidateCacheByPattern(`canvas:${prefix}:*`).catch(() => {});
+    } catch {
+        // Ignorer dekrypteringsfeil – tokenet kan være korrupt
+    }
+}
 
 // Hent JWT secrets fra miljøvariabler (validert ved oppstart i validateEnv.ts)
 const hentJwtSecrets = () => {
@@ -270,18 +282,8 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
             }
         }
 
-        // Invalider gammel cache hvis bruker hadde et token før
-        // Cache-nøkler bruker SHA256(token).slice(0,12), så vi må dekryptere og hashe
         if (bruker.canvasApiToken) {
-            try {
-                const gammeltToken = decrypt(bruker.canvasApiToken);
-                const gammelCachePrefix = crypto.createHash("sha256").update(gammeltToken).digest("hex").slice(0, 12);
-                invalidateCacheByPattern(`canvas:${gammelCachePrefix}:*`).catch(() => {
-                    // Ignorer feil - cache invalidering er ikke kritisk
-                });
-            } catch {
-                // Ignorer dekrypteringsfeil - tokenet kan være korrupt
-            }
+            invalidateCanvasCacheForToken(bruker.canvasApiToken).catch(() => {});
         }
 
         // Krypter token
@@ -326,16 +328,7 @@ router.delete("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         if (!bruker.canvasApiToken) {
             return apiError.badRequest(res, "Ingen Canvas-token å slette");
         }
-        // Invalider cache for dette tokenet
-        try {
-            const gammeltToken = decrypt(bruker.canvasApiToken);
-            const gammelCachePrefix = crypto.createHash("sha256").update(gammeltToken).digest("hex").slice(0, 12);
-            invalidateCacheByPattern(`canvas:${gammelCachePrefix}:*`).catch(() => {
-                // Ignorer feil - cache invalidering er ikke kritisk
-            });
-        } catch {
-            // Ignorer dekrypteringsfeil
-        }
+        await invalidateCanvasCacheForToken(bruker.canvasApiToken);
         // Slett koblingene i databasen fullstendig
         if (bruker.canvasUser) {
             // Slett hele CanvasUser-dokumentet

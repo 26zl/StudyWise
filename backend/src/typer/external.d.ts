@@ -1,15 +1,7 @@
 /*
-* Type definisjoner for eksterne biblioteker uten egne typer
-*/
-
-
-// Typings for unpdf
-declare module "unpdf" {
-  export function extractText(
-    data: Uint8Array,
-    options?: { mergePages?: boolean }
-  ): Promise<{ text: string; totalPages?: number }>;
-}
+ * Type definisjoner for eksterne biblioteker uten egne typer.
+ * unpdf-typer er samlet i typer/unpdf.d.ts.
+ */
 
 // Typings for mammoth
 declare module "mammoth" {

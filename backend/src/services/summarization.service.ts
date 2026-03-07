@@ -8,6 +8,7 @@
  *   3. REDUCE: Kombinerer deloppsummeringene til én sammenhengende tekst (med streaming)
  *
  * For korte tekster (≤ 3 000 ord) brukes direkte oppsummering uten map-reduce.
+ * IKKE I BRUK ATM!
  */
 
 import { logger } from "../utils/logger.js";

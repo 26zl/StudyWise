@@ -5,7 +5,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, Bot, User, Sparkles, Paperclip, Download } from "lucide-react";
+import { Send, Loader2, Bot, User, Sparkles, Paperclip, Download, Copy } from "lucide-react";
+import { toast } from "sonner";
 import { AttachmentStrip } from "./AttachmentStrip";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -15,6 +16,7 @@ import { useKITestTilkobling, useKIChat, useKIDocumentAnalyse, SUPPORTED_FILE_TY
 import { useChatHistory } from "../hooks/useChatHistory";
 import { useUIStore } from "../store/uiStore";
 import { exportToMarkdown } from "../utils/exportChat";
+import { formaterKlokkeslett } from "../lib/dato";
 
 // Meldings-typer
 interface Melding {
@@ -270,7 +272,6 @@ export function ChatSection() {
                 onError: (error) => {
                     // Lag brukervennlig feilmelding for dokumentanalyse
                     let feilTekst: string;
-                    
                     if (error.message.includes("for stor") || error.message.includes("413")) {
                         feilTekst = "Filen er for stor. Maksimal filstørrelse er 15MB.";
                     } else if (error.message.includes("429") || error.message.includes("rate")) {
@@ -284,7 +285,7 @@ export function ChatSection() {
                     } else {
                         feilTekst = error.message || "Kunne ikke analysere dokumentet. Prøv igjen.";
                     }
-                    
+                    toast.error("Dokumentanalyse feilet", { description: feilTekst });
                     const feilMelding: Melding = {
                         id: (Date.now() + 1).toString(),
                         rolle: "assistant",
@@ -396,10 +397,8 @@ export function ChatSection() {
                 settSkriver(false);
             },
             onError: (error) => {
-                // Lag brukervennlig feilmelding basert på feiltype
                 let feilTekst: string;
                 const errorName = error.name;
-                
                 if (errorName === "KIRateLimitError") {
                     feilTekst = "For mange forespørsler. Vent noen sekunder og prøv igjen.";
                 } else if (errorName === "KIServiceError") {
@@ -415,7 +414,7 @@ export function ChatSection() {
                 } else {
                     feilTekst = error.message || "Noe gikk galt. Prøv igjen.";
                 }
-                
+                toast.error("KI-svar feilet", { description: feilTekst });
                 const feilMelding: Melding = {
                     id: (Date.now() + 1).toString(),
                     rolle: "assistant",
@@ -567,29 +566,45 @@ export function ChatSection() {
                                 }`}
                             >
                                 {melding.rolle === "assistant" ? (
-                                    <div className="text-sm prose prose-sm dark:prose-invert prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-pre:my-2 prose-code:text-blue-600 dark:prose-code:text-blue-400 prose-code:bg-slate-200 dark:prose-code:bg-slate-700 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none max-w-none">
-                                        <ReactMarkdown 
-                                            remarkPlugins={[remarkGfm]}
-                                            rehypePlugins={[rehypeSanitize]}
-                                        >
-                                            {melding.innhold}
-                                        </ReactMarkdown>
-                                    </div>
+                                    <>
+                                        <div className="text-sm prose prose-sm dark:prose-invert prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-pre:my-2 prose-code:text-blue-600 dark:prose-code:text-blue-400 prose-code:bg-slate-200 dark:prose-code:bg-slate-700 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none max-w-none">
+                                            <ReactMarkdown 
+                                                remarkPlugins={[remarkGfm]}
+                                                rehypePlugins={[rehypeSanitize]}
+                                            >
+                                                {melding.innhold}
+                                            </ReactMarkdown>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-2 mt-2">
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                                {formaterKlokkeslett(melding.tidsstempel)}
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={async () => {
+                                                    try {
+                                                        await navigator.clipboard.writeText(melding.innhold);
+                                                        toast.success("Kopiert til utklippstavle");
+                                                    } catch {
+                                                        toast.error("Kunne ikke kopiere");
+                                                    }
+                                                }}
+                                                className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+                                                title="Kopier hele svaret"
+                                            >
+                                                <Copy className="w-3.5 h-3.5 shrink-0" />
+                                                Kopier
+                                            </button>
+                                        </div>
+                                    </>
                                 ) : (
-                                    <p className="text-sm whitespace-pre-wrap">{melding.innhold}</p>
+                                    <>
+                                        <p className="text-sm whitespace-pre-wrap">{melding.innhold}</p>
+                                        <p className="text-xs mt-1 text-blue-100">
+                                            {formaterKlokkeslett(melding.tidsstempel)}
+                                        </p>
+                                    </>
                                 )}
-                                <p
-                                    className={`text-xs mt-1 ${
-                                        melding.rolle === "user"
-                                            ? "text-blue-100"
-                                            : "text-slate-500 dark:text-slate-400"
-                                    }`}
-                                >
-                                    {melding.tidsstempel.toLocaleTimeString("no-NO", {
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                    })}
-                                </p>
                             </div>
 
                             {melding.rolle === "user" && (
@@ -656,7 +671,10 @@ export function ChatSection() {
                         
                         {/* Eksporter samtale */}
                         <button
-                            onClick={() => exportToMarkdown(meldinger)}
+                            onClick={() => {
+                                exportToMarkdown(meldinger);
+                                toast.success("Samtale eksportert", { description: "Filen lastes ned." });
+                            }}
                             disabled={meldinger.length === 0}
                             className="shrink-0 w-12 h-12 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                             title="Eksporter samtale til Markdown"

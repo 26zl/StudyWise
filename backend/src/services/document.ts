@@ -998,13 +998,6 @@ Bruk dette dokumentet til å svare på studentens spørsmål.${info}
 }
 
 /**
- * Henter liste over støttede filtyper for frontend
- */
-export function getSupportedFileTypes(): string[] {
-    return Object.keys(EXTENSION_TO_MIME).map((ext) => ext.slice(1)); // Fjern punktum
-}
-
-/**
  * Henter MIME-typer for multer accept
  */
 export function getSupportedMimeTypes(): string[] {

@@ -5,7 +5,7 @@
  */
 import { logger } from "../../utils/logger.js";
 import { stripHtml } from "../../utils/htmlUtils.js";
-import { getWeekNumber } from "common/dateUtils";
+import { getWeekNumber, TWO_WEEKS_MS } from "common/dateUtils";
 import {
   fetchCoursesForKI,
   fetchTodo,
@@ -25,6 +25,23 @@ import pLimit from "p-limit";
 
 // Begrens samtidige kall til Canvas API for å unngå rate limiting
 const limit = pLimit(3);
+
+const DAG_NAVN = ["søndag", "mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag"];
+const MÅNED_NAVN = ["januar", "februar", "mars", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "desember"];
+
+function formaterDatoMedTid(isoString: string | null | undefined): string {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  const dato = d.toLocaleDateString("no-NO", { timeZone: "Europe/Oslo" });
+  const tid = d.toLocaleTimeString("no-NO", { timeZone: "Europe/Oslo", hour: "2-digit", minute: "2-digit" });
+  return `${dato} kl. ${tid}`;
+}
+
+function dagensDatoStreng(includeWeek = false): string {
+  const idag = new Date();
+  const base = `${DAG_NAVN[idag.getDay()]} ${idag.getDate()}. ${MÅNED_NAVN[idag.getMonth()]} ${idag.getFullYear()}`;
+  return includeWeek ? `${base} (uke ${getWeekNumber(idag)})` : base;
+}
 
 /**
  * Lett Canvas-kontekst: kun emnenavn + kommende frister (neste 14 dager).
@@ -62,7 +79,7 @@ export async function byggLettCanvasKontekst(canvasToken: string): Promise<strin
 
     // Hent oppgaver for kommende frister (kun aktive emner, kun fremtidige)
     const now = new Date();
-    const twoWeeksFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const twoWeeksFromNow = new Date(now.getTime() + TWO_WEEKS_MS);
 
     const assignmentsPerCourse = await Promise.all(
       emner.slice(0, 20).map((course: CanvasCourse) =>
@@ -85,23 +102,9 @@ export async function byggLettCanvasKontekst(canvasToken: string): Promise<strin
       )
     );
 
-    // Dato-formatering
-    const formaterDatoMedTid = (isoString: string | null | undefined): string => {
-      if (!isoString) return "";
-      const d = new Date(isoString);
-      const dato = d.toLocaleDateString("no-NO", { timeZone: "Europe/Oslo" });
-      const tid = d.toLocaleTimeString("no-NO", { timeZone: "Europe/Oslo", hour: "2-digit", minute: "2-digit" });
-      return `${dato} kl. ${tid}`;
-    };
-
     // Bygg kompakt kontekst
     const deler: string[] = ["[CANVAS-DATA START] (lett kontekst)"];
-
-    // Dagens dato
-    const idag = new Date();
-    const dagNavn = ["søndag", "mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag"];
-    const månedNavn = ["januar", "februar", "mars", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "desember"];
-    deler.push(`\nDAGENS DATO: ${dagNavn[idag.getDay()]} ${idag.getDate()}. ${månedNavn[idag.getMonth()]} ${idag.getFullYear()} (uke ${getWeekNumber(idag)})`);
+    deler.push(`\nDAGENS DATO: ${dagensDatoStreng(true)}`);
 
     // Emner
     if (emner.length > 0) {
@@ -225,11 +228,7 @@ export async function byggMålrettetCanvasKontekst(
 
     // 5. Bygg kontekst
     const deler: string[] = ["[CANVAS-DATA START] (målrettet kontekst)"];
-
-    const idag = new Date();
-    const dagNavn = ["søndag", "mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag"];
-    const månedNavn = ["januar", "februar", "mars", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "desember"];
-    deler.push(`\nDAGENS DATO: ${dagNavn[idag.getDay()]} ${idag.getDate()}. ${månedNavn[idag.getMonth()]} ${idag.getFullYear()}`);
+    deler.push(`\nDAGENS DATO: ${dagensDatoStreng()}`);
 
     deler.push(`\n=== EMNE: ${matchedCourse.name}${matchedCourse.course_code ? ` (${matchedCourse.course_code})` : ""} ===`);
 

@@ -37,6 +37,7 @@ import { erInnlevert as erInnlevertOppgave } from "../canvas/canvasUtils";
 import { createCanvasHtmlParser, parseCanvasHtml, sikkerFilNedlastingUrl } from "../canvas/canvasHtml";
 import { CanvasPageVisning } from "./CanvasPageVisning";
 import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
+import { formaterDatoLong, formaterDatoMedTid, dagerFraIdag, formaterDagerRelativtFrist } from "../lib/dato";
 
 // Typer for Canvas visninger
 type CanvasVisning = "announcements" | "courses" | "assignments";
@@ -898,20 +899,7 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     const fristDato = harFrist ? new Date(assignment.due_at!) : null;
                     const erForfalt = fristDato ? fristDato < nå : false;
 
-                    let dagerTekst = "";
-                    if (fristDato) {
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        const dueDay = new Date(fristDato);
-                        dueDay.setHours(0, 0, 0, 0);
-                        const dagerIgjen = Math.round(
-                            (dueDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
-                        );
-                        if (dagerIgjen < 0) dagerTekst = `${Math.abs(dagerIgjen)} dager siden`;
-                        else if (dagerIgjen === 0) dagerTekst = "I dag";
-                        else if (dagerIgjen === 1) dagerTekst = "I morgen";
-                        else dagerTekst = `Om ${dagerIgjen} dager`;
-                    }
+                    const dagerTekst = fristDato ? formaterDagerRelativtFrist(dagerFraIdag(fristDato)) : "";
 
                     const erInnlevert = erInnlevertOppgave(assignment);
 
@@ -920,7 +908,7 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                         `Emne: ${assignment.course_name}`,
                         erInnlevert ? "Innlevert" : "",
                         assignment.points_possible != null ? `Poeng: ${assignment.points_possible}` : "",
-                        assignment.due_at ? `Frist: ${new Date(assignment.due_at).toLocaleDateString("nb-NO", { day: "numeric", month: "long", year: "numeric" })}` : "",
+                        assignment.due_at ? `Frist: ${formaterDatoLong(assignment.due_at)}` : "",
                     ].filter(Boolean).join(". ");
 
                     return (
@@ -958,12 +946,7 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                                 {dagerTekst}
                                             </div>
                                             <div className="text-slate-500 dark:text-slate-400 mt-0.5">
-                                                {fristDato!.toLocaleDateString("nb-NO", {
-                                                    day: "numeric",
-                                                    month: "short",
-                                                    hour: "2-digit",
-                                                    minute: "2-digit",
-                                                })}
+                                                {formaterDatoMedTid(fristDato!)}
                                             </div>
                                         </>
                                     ) : (

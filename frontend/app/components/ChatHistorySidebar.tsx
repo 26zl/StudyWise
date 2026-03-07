@@ -2,6 +2,7 @@
 
 import { Clock, Trash2, MessageSquare } from "lucide-react";
 import type { SavedChat } from "../hooks/useChatHistory";
+import { formaterDatoShort } from "../lib/dato";
 
 // Props for ChatHistorySidebar
 interface ChatHistorySidebarProps {
@@ -59,10 +60,7 @@ export function ChatHistorySidebar({
                   </p>
                   <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                     <Clock className="w-3 h-3" />
-                    {new Date(chat.timestamp).toLocaleDateString("no-NO", {
-                      day: "numeric",
-                      month: "short",
-                    })}
+                    {formaterDatoShort(chat.timestamp)}
                   </div>
                 </button>
                 <button

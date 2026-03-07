@@ -10,6 +10,8 @@ import {
 } from "../canvas/canvas-api";
 import { formaterEmneStatus } from "../canvas/canvasUtils";
 import { useUIStore, type CanvasContextSelection } from "../store/uiStore";
+import { formaterDato, formaterKlokkeslett } from "../lib/dato";
+import { FRIST_VINDU_DAGER } from "../lib/varsler";
 import { useMeg, useOppdaterPreferanser } from "../auth/auth-api";
 
 // Props for CanvasContextSelector komponenten
@@ -50,7 +52,7 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
     if (selected.announcements && announcementsData?.announcements?.length) {
       deler.push("KUNNGJØRINGER:");
       announcementsData.announcements.slice(0, 10).forEach((a) => {
-        const dato = a.posted_at ? new Date(a.posted_at).toLocaleDateString("no-NO") : "";
+        const dato = a.posted_at ? formaterDato(a.posted_at) : "";
         const courseId = a.context_code ? Number(a.context_code.replace("course_", "")) : null;
         const courseName = (courseId && coursesData?.courses?.find((c) => c.id === courseId)?.name) ?? "";
         deler.push(`\n[${a.title}]${dato ? ` (${dato})` : ""}${courseName ? ` - Emne: ${courseName}` : ""}`);
@@ -89,8 +91,8 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
         if (frist) {
           const fristDato = new Date(frist);
           const dagerIgjen = Math.ceil((fristDato.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-          linje += ` - Frist: ${fristDato.toLocaleDateString("no-NO")}`;
-          if (dagerIgjen <= 7 && dagerIgjen >= 0) {
+          linje += ` - Frist: ${formaterDato(fristDato)}`;
+          if (dagerIgjen <= FRIST_VINDU_DAGER && dagerIgjen >= 0) {
             linje += ` (${dagerIgjen} dager igjen!)`;
           } else if (dagerIgjen < 0) {
             linje += " (FORFALT)";
@@ -112,10 +114,10 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
         
         let linje = `- ${tittel}`;
         if (start) {
-          linje += ` - ${start.toLocaleDateString("no-NO")}`;
+          linje += ` - ${formaterDato(start)}`;
           if (slutt && start.toDateString() === slutt.toDateString()) {
-            linje += ` kl ${start.toLocaleTimeString("no-NO", { hour: "2-digit", minute: "2-digit" })}`;
-            linje += `-${slutt.toLocaleTimeString("no-NO", { hour: "2-digit", minute: "2-digit" })}`;
+            linje += ` kl ${formaterKlokkeslett(start)}`;
+            linje += `-${formaterKlokkeslett(slutt)}`;
           }
         }
         if (e.location_name) linje += ` @ ${e.location_name}`;

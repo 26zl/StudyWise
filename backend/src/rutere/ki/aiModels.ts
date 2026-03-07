@@ -20,5 +20,10 @@ export const SUPPORTED_MODELS: Record<string, ModelInfo> = {
 // Standard modell
 export const DEFAULT_MODEL = "claude-sonnet-4-20250514";
 
+/** Velg modell: forespurt hvis støttet, ellers default. */
+export function resolveModel(requested?: string | null): string {
+  return requested && SUPPORTED_MODELS[requested] ? requested : DEFAULT_MODEL;
+}
+
 // Typedefinisjoner
 export type SupportedModelId = keyof typeof SUPPORTED_MODELS;

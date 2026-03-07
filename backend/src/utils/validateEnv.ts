@@ -208,9 +208,10 @@ export const validateEnv = (): void => {
 
     // Avslutt hvis påkrevde variabler mangler
     if (manglende.length > 0) {
+        const liste = manglende.join(", ");
         logger.fatal(
             { manglende },
-            "Påkrevde miljøvariabler mangler - serveren kan ikke starte"
+            `Påkrevde miljøvariabler mangler eller er ugyldige - serveren kan ikke starte. Mangler/ugyldige: ${liste}`
         );
         process.exit(1);
     }

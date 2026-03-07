@@ -1,12 +1,13 @@
 /*
  * DashboardView - Presentasjonskomponent for dashboardet
  * Inneholder all tilstand og logikk for visning av dashboardet
- * Bruker URL search params for å bevare visning ved refresh
+ * Bruker nuqs for URL-synkronisert view-state (?view=).
  */
 "use client";
 
-import { useState, useEffect, Suspense, lazy, useCallback, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, Suspense, lazy, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Sidebar, type VisningType } from "./Sidebar";
@@ -19,8 +20,7 @@ import { useUIStore } from "../store/uiStore";
 import { useVarslerPopups, VARSLER_TOAST_VIST_KEY } from "../hooks/useVarsler";
 import { useChatHistoryPrefetch } from "../hooks/useChatHistory";
 
-// Gyldige visningstyper for URL-validering
-const GYLDIGE_VISNINGER: VisningType[] = [
+const GYLDIGE_VISNINGER = [
   "chat",
   "canvas-announcements",
   "calendar",
@@ -28,7 +28,7 @@ const GYLDIGE_VISNINGER: VisningType[] = [
   "canvas-assignments",
   "varslinger",
   "settings",
-];
+] as const satisfies readonly VisningType[];
 
 // Lazy load tunge komponenter for raskere initial page load
 const ChatSection = lazy(() => import("./ChatSection").then(m => ({ default: m.ChatSection })));
@@ -52,41 +52,19 @@ function SectionLoader({ text = "Laster..." }: { text?: string }) {
 // Hovedkomponent for dashboard-visningen
 export function DashboardView() {
     const router = useRouter();
-    const searchParams = useSearchParams();
     const queryClient = useQueryClient();
 
-    // Les visning fra URL, fallback til "chat"
-    const visningFraUrl = searchParams.get("view") as VisningType | null;
-    const initialVisning = visningFraUrl && GYLDIGE_VISNINGER.includes(visningFraUrl) ? visningFraUrl : "chat";
-    const [aktivVisning, settAktivVisningState] = useState<VisningType>(initialVisning);
-    const [, startTransition] = useTransition();
+    const [aktivVisning, setView] = useQueryState(
+        "view",
+        parseAsStringLiteral(GYLDIGE_VISNINGER).withDefault("chat"),
+    );
+    const settAktivVisning = useCallback(
+        (nyVisning: VisningType) => {
+            setView(nyVisning === "chat" ? null : nyVisning);
+        },
+        [setView],
+    );
 
-    // Oppdater URL og visning med transition (unngår flicker)
-    const settAktivVisning = useCallback((nyVisning: VisningType) => {
-        // Bruk startTransition for å holde forrige innhold synlig til ny er klar
-        startTransition(() => {
-            settAktivVisningState(nyVisning);
-        });
-        // Oppdater URL uten full page reload
-        const url = new URL(window.location.href);
-        if (nyVisning === "chat") {
-            url.searchParams.delete("view");
-        } else {
-            url.searchParams.set("view", nyVisning);
-        }
-        router.replace(url.pathname + url.search, { scroll: false });
-    }, [router]);
-
-    // Synkroniser state med URL ved browser back/forward
-    useEffect(() => {
-        const visning = searchParams.get("view") as VisningType | null;
-        const gyldigVisning = visning && GYLDIGE_VISNINGER.includes(visning) ? visning : "chat";
-        if (gyldigVisning !== aktivVisning) {
-            startTransition(() => {
-                settAktivVisningState(gyldigVisning);
-            });
-        }
-    }, [searchParams, aktivVisning]);
     // Hent brukerdata og Canvas-token status
     const megQuery = useMeg();
     const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;

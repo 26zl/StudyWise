@@ -16,7 +16,7 @@ import {
 } from "common/ki";
 import { kiHistoryRouter } from "./kiHistory.js";
 import { kiAnalyseRouter } from "./kiAnalyse.js";
-import { SUPPORTED_MODELS, DEFAULT_MODEL } from "./aiModels.js";
+import { SUPPORTED_MODELS, DEFAULT_MODEL, resolveModel } from "./aiModels.js";
 import { STUDYWISE_SYSTEM_PROMPT } from "./systemPrompt.js";
 import { chatCompletion, isClientAvailable, getMissingClientError } from "./aiClient.js";
 import { handleAIError } from "./handleAIError.js";
@@ -268,11 +268,7 @@ router.post("/chat", async (req, res) => {
     );
   }
 
-  // Velg modell (bruk forespurt modell hvis støttet, ellers default)
-  const model =
-    requestedModel && SUPPORTED_MODELS[requestedModel]
-      ? requestedModel
-      : DEFAULT_MODEL;
+  const model = resolveModel(requestedModel);
 
   if (!isClientAvailable(model)) {
     logger.error(getMissingClientError(model));

@@ -101,6 +101,22 @@ function handleCanvasError(
   sendUnknownError(res, error, { kontekst });
 }
 
+/** Parser numerisk route-param; sender badRequest og returnerer null ved ugyldig verdi. */
+function parseNumericParam(
+  res: import("express").Response,
+  value: string | string[] | undefined,
+  paramName: string,
+  detail?: string,
+): number | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const num = raw != null ? parseInt(String(raw), 10) : NaN;
+  if (isNaN(num)) {
+    apiError.badRequest(res, `Ugyldig ${paramName}`, detail);
+    return null;
+  }
+  return num;
+}
+
 // Oppretter express router
 const router = Router();
 // Bruk middleware på alle ruter
@@ -454,15 +470,8 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
 // Henter detaljer for et spesifikt emne
 router.get("/emner/:courseId", async (req, res) => {
   try {
-    const { courseId } = req.params;
-    const courseIdNum = parseInt(courseId, 10);
-    if (isNaN(courseIdNum)) {
-      return apiError.badRequest(
-        res,
-        "Ugyldig courseId",
-        "courseId må være et tall",
-      );
-    }
+    const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId", "courseId må være et tall");
+    if (courseIdNum === null) return;
     const { data: course } = await fetchCourse(req.canvasToken, courseIdNum);
     logger.info({ courseId: course.id }, "Hentet emnedetaljer");
     res.json(course);
@@ -479,11 +488,8 @@ router.get("/emner/:courseId", async (req, res) => {
 // Henter oppgaver for et spesifikt emne
 router.get("/emner/:courseId/oppgaver", async (req, res) => {
   try {
-    const { courseId } = req.params;
-    const courseIdNum = parseInt(courseId, 10);
-    if (isNaN(courseIdNum)) {
-      return apiError.badRequest(res, "Ugyldig courseId");
-    }
+    const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId");
+    if (courseIdNum === null) return;
     const { data: assignments, meta } = await fetchAssignments(
       req.canvasToken,
       courseIdNum,
@@ -509,15 +515,8 @@ router.get("/emner/:courseId/oppgaver", async (req, res) => {
 // Henter announcements for et spesifikt emne
 router.get("/emner/:courseId/announcements", async (req, res) => {
   try {
-    const { courseId } = req.params;
-    const courseIdNum = parseInt(courseId, 10);
-    if (isNaN(courseIdNum)) {
-      return apiError.badRequest(
-        res,
-        "Ugyldig courseId",
-        "courseId må være et tall",
-      );
-    }
+    const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId", "courseId må være et tall");
+    if (courseIdNum === null) return;
     const { data: announcements, meta } = await fetchCourseAnnouncements(
       req.canvasToken,
       courseIdNum,
@@ -970,15 +969,8 @@ router.get("/planlegger", async (req, res) => {
 // Henter moduler for et spesifikt emne
 router.get("/emner/:courseId/modules", async (req, res) => {
   try {
-    const { courseId } = req.params;
-    const courseIdNum = parseInt(courseId, 10);
-    if (isNaN(courseIdNum)) {
-      return apiError.badRequest(
-        res,
-        "Ugyldig courseId",
-        "courseId må være et tall",
-      );
-    }
+    const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId", "courseId må være et tall");
+    if (courseIdNum === null) return;
     const { data: modules, meta } = await fetchModules(
       req.canvasToken,
       courseIdNum,
@@ -1004,19 +996,16 @@ router.get("/emner/:courseId/modules", async (req, res) => {
 // Henter detaljerte modul-items for en spesifikk modul i et emne
 router.get("/emner/:courseId/modules/:moduleId/items", async (req, res) => {
   try {
-    const { courseId, moduleId } = req.params;
-    const courseIdNum = parseInt(courseId, 10);
-    const moduleIdNum = parseInt(moduleId, 10);
-    if (isNaN(courseIdNum) || isNaN(moduleIdNum)) {
-      return apiError.badRequest(res, "Ugyldig ID");
-    }
+    const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId");
+    const moduleIdNum = courseIdNum !== null ? parseNumericParam(res, req.params.moduleId, "moduleId") : null;
+    if (courseIdNum === null || moduleIdNum === null) return;
     const { data: items, meta } = await fetchModuleItems(
       req.canvasToken,
       courseIdNum,
       moduleIdNum,
     );
     logger.info(
-      { courseId, moduleId, itemCount: items.length },
+      { courseId: courseIdNum, moduleId: moduleIdNum, itemCount: items.length },
       "Hentet modul items med detaljer",
     );
     res.json({
@@ -1041,13 +1030,10 @@ router.get(
   rateLimitCanvasTung,
   async (req, res) => {
     try {
-      const { courseId, moduleId, itemId } = req.params;
-      const courseIdNum = parseInt(String(courseId), 10);
-      const moduleIdNum = parseInt(String(moduleId), 10);
-      const itemIdNum = parseInt(String(itemId), 10);
-      if ([courseIdNum, moduleIdNum, itemIdNum].some((n) => Number.isNaN(n))) {
-        return apiError.badRequest(res, "Ugyldig ID");
-      }
+      const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId");
+      const moduleIdNum = courseIdNum !== null ? parseNumericParam(res, req.params.moduleId, "moduleId") : null;
+      const itemIdNum = moduleIdNum !== null ? parseNumericParam(res, req.params.itemId, "itemId") : null;
+      if (courseIdNum === null || moduleIdNum === null || itemIdNum === null) return;
       // Hent detaljene for modul-itemet slik at vi kan finne riktig mål
       const { data: item } = await fetchModuleItem(
         req.canvasToken,
@@ -1123,16 +1109,16 @@ router.get(
 // GET /emner/:courseId/pages/:pageId - Hent wiki page innhold
 router.get("/emner/:courseId/pages/:pageId", async (req, res) => {
   try {
-    const { courseId, pageId } = req.params;
-    const courseIdNum = parseInt(courseId, 10);
-    if (isNaN(courseIdNum)) return apiError.badRequest(res, "Ugyldig courseId");
+    const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId");
+    if (courseIdNum === null) return;
+    const { pageId } = req.params;
     if (!isSafePathSegment(pageId)) return apiError.badRequest(res, "Ugyldig pageId", "pageId inneholder ugyldige tegn (path traversal ikke tillatt)");
     const { data: page } = await fetchPage(
       req.canvasToken,
       courseIdNum,
       pageId,
     );
-    logger.info({ courseId, pageUrl: page.url }, "Hentet wiki page");
+    logger.info({ courseId: courseIdNum, pageUrl: page.url }, "Hentet wiki page");
     res.json(page);
   } catch (error) {
     logger.error(
@@ -1146,14 +1132,13 @@ router.get("/emner/:courseId/pages/:pageId", async (req, res) => {
 // GET /emner/:courseId/pages - Liste alle sider i kurs
 router.get("/emner/:courseId/pages", async (req, res) => {
   try {
-    const { courseId } = req.params;
-    const courseIdNum = parseInt(courseId, 10);
-    if (isNaN(courseIdNum)) return apiError.badRequest(res, "Ugyldig courseId");
+    const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId");
+    if (courseIdNum === null) return;
     const { data: pages, meta } = await fetchPages(
       req.canvasToken,
       courseIdNum,
     );
-    logger.info({ courseId, count: pages.length }, "Hentet liste over sider");
+    logger.info({ courseId: courseIdNum, count: pages.length }, "Hentet liste over sider");
     res.json({ pages, meta });
   } catch (error) {
     logger.error(
@@ -1169,14 +1154,13 @@ router.get("/emner/:courseId/pages", async (req, res) => {
 // Prøver først front_page wiki, deretter syllabus_body som fallback
 router.get("/emner/:courseId/frontpage", async (req, res) => {
   try {
-    const { courseId } = req.params;
-    const courseIdNum = parseInt(courseId, 10);
-    if (isNaN(courseIdNum)) return apiError.badRequest(res, "Ugyldig courseId");
+    const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId");
+    if (courseIdNum === null) return;
     const { data: page, meta } = await fetchFrontPage(
       req.canvasToken,
       courseIdNum,
     );
-    logger.info({ courseId, pageUrl: page.url }, "Hentet frontpage");
+    logger.info({ courseId: courseIdNum, pageUrl: page.url }, "Hentet frontpage");
     res.json({ page, meta });
   } catch (error) {
     // Canvas returnerer 404/resource_not_found når et kurs ikke har en satt frontpage
@@ -1189,10 +1173,12 @@ router.get("/emner/:courseId/frontpage", async (req, res) => {
 
     if (isNotFound) {
       try {
+        const fallbackId = parseInt(String(req.params.courseId), 10);
+        if (Number.isNaN(fallbackId)) return;
         // Hent kurs med syllabus_body som fallback
         const { data: course } = await fetchCourse(
           req.canvasToken,
-          parseInt(req.params.courseId, 10),
+          fallbackId,
         );
         if (course.syllabus_body && course.syllabus_body.trim().length > 0) {
           logger.info(
@@ -1235,11 +1221,10 @@ router.get("/emner/:courseId/frontpage", async (req, res) => {
 // GET /filer/:fileId - Hent fil metadata
 router.get("/filer/:fileId", async (req, res) => {
   try {
-    const { fileId } = req.params;
-    const fileIdNum = parseInt(fileId, 10);
-    if (isNaN(fileIdNum)) return apiError.badRequest(res, "Ugyldig fileId");
+    const fileIdNum = parseNumericParam(res, req.params.fileId, "fileId");
+    if (fileIdNum === null) return;
     const { data: file } = await fetchFileMetadata(req.canvasToken, fileIdNum);
-    logger.info({ fileId }, "Hentet fil metadata");
+    logger.info({ fileId: fileIdNum }, "Hentet fil metadata");
     res.json(file);
   } catch (error) {
     logger.error(
@@ -1253,14 +1238,13 @@ router.get("/filer/:fileId", async (req, res) => {
 // GET /emner/:courseId/files - Hent filer i kurs
 router.get("/emner/:courseId/files", async (req, res) => {
   try {
-    const { courseId } = req.params;
-    const courseIdNum = parseInt(courseId, 10);
-    if (isNaN(courseIdNum)) return apiError.badRequest(res, "Ugyldig courseId");
+    const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId");
+    if (courseIdNum === null) return;
     const { data: files, meta } = await fetchFiles(
       req.canvasToken,
       courseIdNum,
     );
-    logger.info({ courseId, count: files.length }, "Hentet filer for kurs");
+    logger.info({ courseId: courseIdNum, count: files.length }, "Hentet filer for kurs");
     res.json({ files, meta });
   } catch (error) {
     logger.error(
@@ -1274,9 +1258,8 @@ router.get("/emner/:courseId/files", async (req, res) => {
 // GET /filer/:fileId/download - Strømming av fil uten redirect (unngår open redirect)
 router.get("/filer/:fileId/download", async (req, res) => {
   try {
-    const { fileId } = req.params;
-    const fileIdNum = parseInt(fileId, 10);
-    if (isNaN(fileIdNum)) return apiError.badRequest(res, "Ugyldig fileId");
+    const fileIdNum = parseNumericParam(res, req.params.fileId, "fileId");
+    if (fileIdNum === null) return;
     const canvasBaseUrl = hentCanvasKonfig().baseUrl;
     if (!canvasBaseUrl)
       return sendError(res, "server_error", {
@@ -1326,18 +1309,15 @@ router.get("/filer/:fileId/download", async (req, res) => {
 // GET /emner/:courseId/diskusjoner/:topicId - Hent diskusjon
 router.get("/emner/:courseId/diskusjoner/:topicId", async (req, res) => {
   try {
-    const { courseId, topicId } = req.params;
-    const courseIdNum = parseInt(courseId, 10);
-    const topicIdNum = parseInt(topicId, 10);
-    if (isNaN(courseIdNum) || isNaN(topicIdNum)) {
-      return apiError.badRequest(res, "Ugyldig ID");
-    }
+    const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId");
+    const topicIdNum = courseIdNum !== null ? parseNumericParam(res, req.params.topicId, "topicId") : null;
+    if (courseIdNum === null || topicIdNum === null) return;
     const { data: topic } = await fetchDiscussionTopic(
       req.canvasToken,
       courseIdNum,
       topicIdNum,
     );
-    logger.info({ courseId, topicId }, "Hentet diskusjon");
+    logger.info({ courseId: courseIdNum, topicId: topicIdNum }, "Hentet diskusjon");
     res.json(topic);
   } catch (error) {
     logger.error(

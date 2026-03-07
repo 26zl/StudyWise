@@ -15,7 +15,7 @@ import {
     formatDocumentContext,
     getSupportedMimeTypes
 } from "../../services/document.js";
-import { SUPPORTED_MODELS, DEFAULT_MODEL } from "./aiModels.js";
+import { resolveModel } from "./aiModels.js";
 import { chatCompletion, chatCompletionWithVision, isClientAvailable, isVisionAvailable } from "./aiClient.js";
 import type { ImageAttachment } from "./aiClient.js";
 import { STUDYWISE_SYSTEM_PROMPT, STUDYWISE_DOCUMENT_PROMPT } from "./systemPrompt.js";
@@ -86,12 +86,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
     }
 
     const question = req.body.question || req.body.sporsmaal || "Gi meg en oppsummering av dette dokumentet.";
-    const requestedModel = req.body.model;
-
-    // Velg modell tidlig for å sjekke klient-tilgjengelighet
-    const model = requestedModel && SUPPORTED_MODELS[requestedModel]
-        ? requestedModel
-        : DEFAULT_MODEL;
+    const model = resolveModel(req.body.model);
 
     if (!isClientAvailable(model)) {
         logger.error("AI-klient ikke tilgjengelig for modell: %s", model);
@@ -320,11 +315,7 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req: Request, res: Resp
     }
 
     const question = req.body.question || req.body.sporsmaal || "Gi meg en oppsummering av dette dokumentet.";
-    const requestedModel = req.body.model;
-
-    const model = requestedModel && SUPPORTED_MODELS[requestedModel]
-        ? requestedModel
-        : DEFAULT_MODEL;
+    const model = resolveModel(req.body.model);
 
     if (!isClientAvailable(model)) {
         return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({

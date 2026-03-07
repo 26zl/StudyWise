@@ -6,10 +6,25 @@
  * Lokal utvikling trenger ingen env-variabler - default er localhost:4000.
  */
 
+/** Påkrevde frontend env-variabler (tom ved lokal dev; legg til ved behov for prod). */
+const requiredFrontendEnvVars: string[] = [];
+
 /**
  * Validerer frontend miljøvariabler.
- * Foreløpig ingen påkrevde variabler siden vi bruker Next.js rewrites.
+ * Ved feil kastes en feil med tydelig liste over manglende/ugyldige variabler.
  */
 export function validateFrontendEnv(): void {
-    // Ingen validering nødvendig - frontend bruker relative paths
+    const manglende: string[] = [];
+    for (const key of requiredFrontendEnvVars) {
+        const value = typeof process.env[key] !== "undefined" ? process.env[key] : "";
+        if (!value || String(value).trim() === "") {
+            manglende.push(key);
+        }
+    }
+    if (manglende.length > 0) {
+        const liste = manglende.join(", ");
+        throw new Error(
+            `Påkrevde frontend-miljøvariabler mangler - appen kan ikke starte. Mangler: ${liste}`
+        );
+    }
 }

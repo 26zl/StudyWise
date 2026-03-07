@@ -10,6 +10,7 @@ import { User } from "../database/models/User.js";
 import { decrypt } from "../utils/kryptering.js";
 import { logger } from "../utils/logger.js";
 import { apiError, sendError } from "../utils/apiError.js";
+import { isProd } from "../utils/env.js";
 import type { JwtBrukerPayload } from "../typer/express.js";
 import { AUTH_COOKIE_NAME, AUTH_REFRESH_COOKIE_NAME } from "common/auth";
 
@@ -74,11 +75,10 @@ const erGyldigBrukerPayload = (payload: string | JwtPayload): payload is JwtBruk
 
 // Sett cookies for tilgangs- og refresh-tokens
 export const settTilgangsCookie = (res: Response, token: string) => {
-    const erProd = process.env.NODE_ENV === "production";
     res.cookie(JWT_COOKIE_NAVN, token, {
         httpOnly: true,
-        secure: erProd,
-        sameSite: erProd ? "none" : "lax",
+        secure: isProd,
+        sameSite: isProd ? "none" : "lax",
         maxAge: JWT_TILGANG_MS,
         path: "/",
     });
@@ -86,11 +86,10 @@ export const settTilgangsCookie = (res: Response, token: string) => {
 
 // Setter refresh-token cookie
 export const settRefreshCookie = (res: Response, token: string) => {
-    const erProd = process.env.NODE_ENV === "production";
     res.cookie(JWT_REFRESH_COOKIE_NAVN, token, {
         httpOnly: true,
-        secure: erProd,
-        sameSite: erProd ? "none" : "lax",
+        secure: isProd,
+        sameSite: isProd ? "none" : "lax",
         maxAge: JWT_REFRESH_MS,
         path: "/",
     });
@@ -98,17 +97,16 @@ export const settRefreshCookie = (res: Response, token: string) => {
 
 // Fjern autentiseringscookies
 export const fjernAuthCookies = (res: Response) => {
-    const erProd = process.env.NODE_ENV === "production";
     res.clearCookie(JWT_COOKIE_NAVN, {
         httpOnly: true,
-        secure: erProd,
-        sameSite: erProd ? "none" : "lax",
+        secure: isProd,
+        sameSite: isProd ? "none" : "lax",
         path: "/",
     });
     res.clearCookie(JWT_REFRESH_COOKIE_NAVN, {
         httpOnly: true,
-        secure: erProd,
-        sameSite: erProd ? "none" : "lax",
+        secure: isProd,
+        sameSite: isProd ? "none" : "lax",
         path: "/",
     });
 };

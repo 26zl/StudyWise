@@ -9,7 +9,9 @@ import { erInnlevert } from "../canvas/canvasUtils";
 
 // —— Frist-terrkler og -typer ——
 
-export const FRIST_VINDU_TIMER = 72;
+/** Antall dager frem i tid vi viser frister (varslinger, oversikt, kontekst). Brukes overalt for konsistens. */
+export const FRIST_VINDU_DAGER = 7;
+export const FRIST_VINDU_TIMER = FRIST_VINDU_DAGER * 24;
 export const FRIST_KRITISK_TIMER = 24;
 export const FRIST_SNART_TIMER = 48;
 

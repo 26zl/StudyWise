@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { AITaskBreakdown } from "../components/AITaskBreakdown";
 import { Sidebar, type VisningType } from "../components/Sidebar";
 import { useMeg } from "../auth/auth-api";
@@ -60,7 +61,7 @@ export default function TestPage() {
             assignmentDescription="Lag en komplett database-applikasjon med MongoDB, inkludert CRUD-operasjoner, autentisering og deployment."
             dueDate={new Date("2024-03-15")}
             onSave={(subtasks) => {
-              alert(`🎉 Lagret ${subtasks.length} deloppgaver!`);
+              toast.success(`Lagret ${subtasks.length} deloppgaver!`);
             }}
           />
         </div>
@@ -83,7 +84,7 @@ export default function TestPage() {
             assignmentDescription="Lag en responsiv nettside med React og TypeScript"
             dueDate={new Date("2024-04-01")}
             onSave={(subtasks) => {
-              alert(`🎉 Lagret ${subtasks.length} deloppgaver!`);
+              toast.success(`Lagret ${subtasks.length} deloppgaver!`);
             }}
           />
         </div>

@@ -14,8 +14,8 @@ interface StructuredCanvasError extends Error {
   httpStatus?: number;
 }
 
-// Feiltyper som kan identifiseres
-export type FeilType =
+// Feiltyper som kan identifiseres (kun brukt internt i lagBrukervennligFeilmelding)
+type FeilType =
   | "auth"
   | "token"
   | "rate_limit"
@@ -27,8 +27,7 @@ export type FeilType =
   | "validation"
   | "unknown";
 
-// Identifiser feiltype basert på feilmelding eller HTTP-status
-export function identifiserFeiltype(
+function identifiserFeiltype(
   error: Error | string | null,
   status?: number,
 ): FeilType {

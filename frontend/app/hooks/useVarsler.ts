@@ -1,18 +1,16 @@
 /*
- * useVarsler – data, lest/ulest, popup-toast og frist-toasts for varsler.
+ * useVarsler – data, lest/ulest og popup-toast for varsler.
  * Brukes av DashboardView (popup) og VarslingerSection (siden).
  */
 
 import { useEffect, useMemo, useRef } from "react";
-import { toast, showToast } from "../components/Toaster";
-import type { AssignmentMedEmne } from "../canvas/canvas-api";
+import { toast } from "../components/Toaster";
 import {
     useCanvasAllAssignments,
     useCanvasAnnouncements,
     useCanvasUpcomingEvents,
     useCanvasCourses,
 } from "../canvas/canvas-api";
-import { erInnlevert } from "../canvas/canvasUtils";
 import {
     buildFrister,
     buildKunngjøringer,
@@ -23,7 +21,6 @@ import {
     type HendelseElement,
     type VarslingElement,
 } from "../lib/varsler";
-import { FRIST_VINDU_TIMER, klassifiserFrist, formaterTid, type FristStatus } from "../lib/varsler";
 import { useUIStore } from "../store/uiStore";
 
 export type VarslingTab = "alle" | "frister" | "kunngjøringer" | "hendelser";
@@ -147,86 +144,4 @@ export function useVarslerPopups(harCanvasToken: boolean, options: UseVarslerPop
 
         return () => clearTimeout(t);
     }, [harCanvasToken, isLoading, ulesteCount]);
-}
-
-// —— Frist-toasts (individuelle toasts per nærliggende frist, respekterer innleverte) ——
-
-const FRIST_VARSLET_KEY = "studywise:frist-varsler";
-const FRIST_SJEKK_INTERVAL_MS = 15 * 60 * 1000;
-const FRIST_MAKS_TOASTS = 3;
-
-function hentFristVarslet(): Set<number> {
-    try {
-        const raw = sessionStorage.getItem(FRIST_VARSLET_KEY);
-        if (!raw) return new Set();
-        const arr = JSON.parse(raw) as unknown;
-        if (!Array.isArray(arr)) return new Set();
-        return new Set(arr.filter((x): x is number => typeof x === "number" && !Number.isNaN(x)));
-    } catch {
-        return new Set();
-    }
-}
-// Lagrer en Set av nærliggende frist-IDs som det allerede er vist toast for, i sessionStorage.
-function lagreFristVarslet(ider: Set<number>) {
-    try {
-        sessionStorage.setItem(FRIST_VARSLET_KEY, JSON.stringify([...ider]));
-    } catch {
-        // ignore
-    }
-}
-// Hjelpefunksjon for å finne oppgaver med nærliggende frister (innen 72t, ekskl. innleverte), og klassifisere dem.
-function finnNærligendeFrister(oppgaver: AssignmentMedEmne[]): { id: number; navn: string; emne: string; timerIgjen: number; status: FristStatus }[] {
-    const nå = Date.now();
-    const resultater: { id: number; navn: string; emne: string; timerIgjen: number; status: FristStatus }[] = [];
-    for (const o of oppgaver) {
-        if (!o.due_at || erInnlevert(o)) continue;
-        const timerIgjen = (new Date(o.due_at).getTime() - nå) / (1000 * 60 * 60);
-        if (timerIgjen < 0 || timerIgjen > FRIST_VINDU_TIMER) continue;
-        resultater.push({
-            id: o.id,
-            navn: o.name,
-            emne: o.course_name,
-            timerIgjen,
-            status: klassifiserFrist(timerIgjen),
-        });
-    }
-    resultater.sort((a, b) => a.timerIgjen - b.timerIgjen);
-    return resultater;
-}
-
-/**
- * Viser toast per oppgave med nærliggende frist (innen 72t, ekskl. innleverte).
- * Sjekkes ved mount og hvert 15. min. Brukes ved behov ved siden av useVarslerPopups.
- */
-export function useFristVarsler(oppgaver: AssignmentMedEmne[] | undefined) {
-    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-    useEffect(() => {
-        if (!oppgaver?.length) return;
-
-        const sjekk = () => {
-            const nærliggende = finnNærligendeFrister(oppgaver);
-            if (nærliggende.length === 0) return;
-            const varslet = hentFristVarslet();
-            const åVise = nærliggende.filter((o) => !varslet.has(o.id)).slice(0, FRIST_MAKS_TOASTS);
-            if (åVise.length === 0) return;
-
-            for (const o of åVise) {
-                const tidTekst = formaterTid(o.timerIgjen);
-                const beskrivelse = `${o.emne} - ${tidTekst} igjen`;
-                if (o.status === "kritisk") showToast.error(`Frist snart: ${o.navn}`, beskrivelse);
-                else if (o.status === "snart") showToast.warning(`Frist nærmer seg: ${o.navn}`, beskrivelse);
-                else showToast.info(`Kommende frist: ${o.navn}`, beskrivelse);
-                varslet.add(o.id);
-            }
-            lagreFristVarslet(varslet);
-        };
-
-        const t = setTimeout(sjekk, 2000);
-        intervalRef.current = setInterval(sjekk, FRIST_SJEKK_INTERVAL_MS);
-        return () => {
-            clearTimeout(t);
-            if (intervalRef.current) clearInterval(intervalRef.current);
-        };
-    }, [oppgaver]);
 }

@@ -1,4 +1,5 @@
 import type { ChatMessage } from "common/chat";
+import { formaterDatoOgTid, formaterKlokkeslett } from "../lib/dato";
 
 // Denne funksjonen eksporterer en samtale til Markdown-format, som kan åpnes i tekstredigerere eller vises på plattformer som støtter Markdown. 
 // Den inkluderer dato, tid, roller (bruker og KI-assistent), og innholdet i meldingene.
@@ -10,13 +11,7 @@ interface EksporterbarMelding extends ChatMessage {
 export function exportToMarkdown(meldinger: EksporterbarMelding[], tittel?: string): void {
   let markdown = "#💬 Samtale med StudyWise KI-Assistent\n\n";
   // Legg til dato og tid for eksporten
-  markdown += `**Dato:** ${new Date().toLocaleDateString("no-NO", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })}\n\n`;
+  markdown += `**Dato:** ${formaterDatoOgTid(new Date())}\n\n`;
 // Legg til tittel hvis den finnes
   if (tittel) {
     markdown += `**Tittel:** ${tittel}\n\n`;
@@ -27,10 +22,7 @@ export function exportToMarkdown(meldinger: EksporterbarMelding[], tittel?: stri
 // Legg til hver melding i Markdown-format
   meldinger.forEach((m, index) => {
     const rolle = m.rolle === "user" ? "**Deg**" : "🤖 **KI-Assistent**";
-    const tid = m.tidsstempel.toLocaleTimeString("no-NO", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const tid = formaterKlokkeslett(m.tidsstempel);
     // Legg til meldingens rolle, tid og innhold
     markdown += `### ${rolle} _(${tid})_\n\n`;
     markdown += `${m.innhold}\n\n`;

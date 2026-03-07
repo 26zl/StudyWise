@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
+import { toast } from "sonner";
 import {
   ChatHistoryResponseSchema,
   ChatMessage,
@@ -119,22 +120,34 @@ export function useChatHistory() {
       queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) =>
         (prev ?? []).filter((c) => c.id !== id)
       );
+      toast.success("Samtale slettet");
     } catch (error) {
       if (erIkkeAutentisert(error)) return;
+      toast.error("Kunne ikke slette samtalen");
       throw error;
     }
   };
-// Slett alle samtaler
-  const clearAll = async () => {
-    if (!confirm("Er du sikker på at du vil slette hele samtalehistorikken?")) return;
-    try {
-      await fetch("/api/ki/chat/history", { method: "DELETE", credentials: "include" });
-      queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, []);
-    } catch (error) {
-      if (erIkkeAutentisert(error)) return;
-      throw error;
-    }
-  };
+// Slett alle samtaler – viser bekreftelses-toast med Slett/Avbryt
+  const clearAll = useCallback(() => {
+    toast("Slett hele samtalehistorikken?", {
+      description: "Alle lagrede samtaler fjernes. Dette kan ikke angres.",
+      action: {
+        label: "Slett",
+        onClick: async () => {
+          try {
+            await fetch("/api/ki/chat/history", { method: "DELETE", credentials: "include" });
+            queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, []);
+            toast.success("Samtalehistorikk slettet");
+          } catch (error) {
+            if (erIkkeAutentisert(error)) return;
+            toast.error("Kunne ikke slette historikken");
+            throw error;
+          }
+        },
+      },
+      cancel: { label: "Avbryt", onClick: () => {} },
+    });
+  }, [queryClient]);
 
   return { chats, saveChat, loadChat, deleteChat, clearAll, loading: isLoading };
 }

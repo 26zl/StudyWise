@@ -1,4 +1,5 @@
-import { create } from 'zustand';
+import { create } from "zustand";
+import type { CanvasContextPreferences } from "common/auth";
 
 /**
  * UI Store - Global tilstand for brukergrensesnitt
@@ -33,13 +34,8 @@ function saveVarslerLestIds(ids: Set<string>) {
     }
 }
 
-// Type for Canvas-kontekst valg (må matche backend/common)
-export interface CanvasContextSelection {
-    announcements: boolean;
-    courses: boolean;
-    assignments: boolean;
-    events: boolean;
-}
+/** Alias for common/auth – brukes i UI-store og komponenter. */
+export type CanvasContextSelection = CanvasContextPreferences;
 
 interface UIState {
     // Holder styr på om sidebaren er åpen (true) eller lukket (false) på mobil
@@ -58,8 +54,8 @@ interface UIState {
     hasCanvasContext: boolean;
     setCanvasContext: (context: string, hasContext: boolean) => void;
     // Canvas-kontekst valg (hvilke datatyper som er valgt)
-    canvasContextSelection: CanvasContextSelection;
-    setCanvasContextSelection: (selection: CanvasContextSelection) => void;
+    canvasContextSelection: CanvasContextPreferences;
+    setCanvasContextSelection: (selection: CanvasContextPreferences) => void;
     // Canvas token status - stopper fetching ved ugyldig/slettet token
     canvasTokenInvalid: boolean;
     setCanvasTokenInvalid: (invalid: boolean) => void;
@@ -71,8 +67,8 @@ interface UIState {
     reset: () => void;
 }
 
-// Default preferanser
-const defaultSelection: CanvasContextSelection = {
+// Default preferanser (samme form som common/auth CanvasContextPreferences)
+const defaultSelection: CanvasContextPreferences = {
     announcements: true,
     courses: true,
     assignments: true,

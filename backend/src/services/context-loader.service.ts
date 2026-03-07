@@ -21,6 +21,7 @@ import { getCache, isRedisReady } from "../cache/redis.js";
 import { syncCanvasDataForUser, hasCanvasSyncData, userKey } from "./canvas-sync.service.js";
 import { byggLettCanvasKontekst, byggMålrettetCanvasKontekst } from "../rutere/ki/kiCanvas.js";
 import type { TargetedQuery } from "../rutere/ki/ki.js";
+import { TWO_WEEKS_MS } from "common/dateUtils";
 
 // ─── Typer ─────────────────────────────────────────────────
 
@@ -50,7 +51,7 @@ async function byggLettKontekstFraRedis(userId: string): Promise<string | null> 
     if (emner.length === 0) return null;
 
     const now = new Date();
-    const twoWeeksFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const twoWeeksFromNow = new Date(now.getTime() + TWO_WEEKS_MS);
 
     let kontekst = "[CANVAS-DATA START]\n";
     kontekst += `EMNER (${emner.length} aktive):\n`;

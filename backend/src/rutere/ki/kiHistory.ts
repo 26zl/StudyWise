@@ -22,6 +22,15 @@ export const kiHistoryRouter = Router();
 const isValidObjectId = (id: string): boolean =>
   mongoose.Types.ObjectId.isValid(id);
 
+/** Hent tittel fra lagret chat (eksplisitt tittel eller første brukermelding). */
+function getChatTitleFromSave(parsed: { title?: string; messages: Array<{ rolle: string; innhold: string }> }, defaultTitle = "Samtale"): string {
+  if (parsed.title) return parsed.title;
+  const firstUser = parsed.messages.find((m) => m.rolle === "user");
+  return firstUser
+    ? firstUser.innhold.slice(0, 80) + (firstUser.innhold.length > 80 ? "..." : "")
+    : defaultTitle;
+}
+
 // GET /chat/history - hent historikk for innlogget bruker (paginert)
 kiHistoryRouter.get("/chat/history", async (req, res) => {
   try {
@@ -85,14 +94,7 @@ kiHistoryRouter.post("/chat/history", async (req, res) => {
     if (!userId) return;
 
     const parsed = ChatSaveSchema.parse(req.body);
-    const firstUser = parsed.messages.find((m) => m.rolle === "user");
-    const title =
-      parsed.title ||
-      (firstUser
-        ? firstUser.innhold.slice(0, 80) +
-          (firstUser.innhold.length > 80 ? "..." : "")
-        : "Samtale");
-
+    const title = getChatTitleFromSave(parsed);
     const encryptedMessages = encrypt(JSON.stringify(parsed.messages));
     const doc = await ChatHistory.create({
       user: userId,
@@ -127,14 +129,7 @@ kiHistoryRouter.put("/chat/history/:id", async (req, res) => {
       return apiError.badRequest(res, "Ugyldig samtale-ID");
     }
     const parsed = ChatSaveSchema.parse(req.body);
-    const firstUser = parsed.messages.find((m) => m.rolle === "user");
-    const title =
-      parsed.title ||
-      (firstUser
-        ? firstUser.innhold.slice(0, 80) +
-          (firstUser.innhold.length > 80 ? "..." : "")
-        : "Samtale");
-
+    const title = getChatTitleFromSave(parsed);
     const encryptedMessages = encrypt(JSON.stringify(parsed.messages));
     const doc = await ChatHistory.findOneAndUpdate(
       { _id: id, user: userId },

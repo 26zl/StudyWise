@@ -165,18 +165,4 @@ export const invalidateCacheByPattern = async (pattern: string): Promise<number>
     }
 };
 
-/**
- * Sletter enkelt cache-nøkkel.
- */
-export const deleteCache = async (key: string): Promise<boolean> => {
-    if (!client.isOpen) return false;
-    try {
-        const result = await client.del(key);
-        return result > 0;
-    } catch (error) {
-        logger.warn({ err: error }, "Cache delete feilet");
-        return false;
-    }
-};
-
 export default client;

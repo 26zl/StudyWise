@@ -14,6 +14,8 @@ import { erInnlevert } from "../canvas/canvasUtils";
 import { useMeg } from "../auth/auth-api";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { formaterDatoFull, formaterDatoShort, dagerFraIdag, formaterDagerRelativtFrist } from "../lib/dato";
+import { FRIST_VINDU_DAGER } from "../lib/varsler";
 
 // Denne siden er hovedoversikten for innloggede brukere, og viser en personlig ukeplan, statistikk og rask tilgang til funksjoner. Den håndterer også redirect til innlogging hvis ikke autentisert.
 export default function OversiktPage() {
@@ -59,13 +61,13 @@ export default function OversiktPage() {
     const totalCourses = coursesQuery.data?.courses?.length || 0;
     const totalAssignments = allAssignments.length;
 
-    // Kommende oppgaver: frist innen 7 kalenderdager (i dag inkludert) – kun ikke-innleverte
+    // Kommende oppgaver: frist innen FRIST_VINDU_DAGER (samme vindu som varslinger)
     const todayStart = startOfDay(new Date());
-    const sevenDaysEnd = addDays(todayStart, 7);
+    const vinduSlutt = addDays(todayStart, FRIST_VINDU_DAGER);
     const upcomingAssignments = ikkeInnleverteAssignments.filter((a) => {
         if (!a.due_at) return false;
         const dueDay = startOfDay(new Date(a.due_at));
-        return dueDay >= todayStart && dueDay < sevenDaysEnd;
+        return dueDay >= todayStart && dueDay < vinduSlutt;
     });
 
     // Aktive emner (emner med oppgaver)
@@ -99,12 +101,7 @@ export default function OversiktPage() {
                                 Oversikt
                             </h1>
                             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                                {new Date().toLocaleDateString("nb-NO", {
-                                    weekday: "long",
-                                    year: "numeric",
-                                    month: "long",
-                                    day: "numeric",
-                                })}
+                                {formaterDatoFull(new Date())}
                             </p>
                         </div>
                         <div className="flex items-center gap-3">
@@ -237,17 +234,11 @@ export default function OversiktPage() {
                 {upcomingAssignments.length > 0 && (
                     <div className="space-y-2">
                         <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
-                            Kommende frister (neste 7 dager)
+                            Kommende frister (neste {FRIST_VINDU_DAGER} dager)
                         </h2>
                         <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
                             {upcomingAssignments.slice(0, 5).map((assignment) => {
-                                const today = new Date();
-                                today.setHours(0, 0, 0, 0);
-                                const dueDay = new Date(assignment.due_at!);
-                                dueDay.setHours(0, 0, 0, 0);
-                                const daysUntil = Math.round(
-                                    (dueDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-                                );
+                                const daysUntil = dagerFraIdag(assignment.due_at!);
                                 const isUrgent = daysUntil <= 2;
 
                                 return (
@@ -272,17 +263,10 @@ export default function OversiktPage() {
                                                             : "text-slate-700 dark:text-slate-300"
                                                     }`}
                                                 >
-                                                    {daysUntil === 0
-                                                        ? "I dag"
-                                                        : daysUntil === 1
-                                                        ? "I morgen"
-                                                        : `Om ${daysUntil} dager`}
+                                                    {formaterDagerRelativtFrist(daysUntil)}
                                                 </div>
                                                 <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                                    {new Date(assignment.due_at!).toLocaleDateString("nb-NO", {
-                                                        month: "short",
-                                                        day: "numeric",
-                                                    })}
+                                                    {formaterDatoShort(assignment.due_at!)}
                                                 </div>
                                             </div>
                                         </div>

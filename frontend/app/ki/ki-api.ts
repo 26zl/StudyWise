@@ -9,12 +9,10 @@ import { z } from "zod";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   KIChatResponseSchema,
-  KIModelsResponseSchema,
   KIDocumentAnalyseResponseSchema,
   KIOppsummeringResponseSchema,
   KI_MAX_MESSAGE_LENGTH_FRONTEND,
   type KIChatRequest,
-  type KIModelsResponse,
   type KIDocumentAnalyseResponse,
   type KIOppsummeringResponse,
 } from "common/ki";
@@ -23,8 +21,6 @@ import { parseApiError } from "../lib/errorUtils";
 
 // Eksporter typer
 export type { KIChatResponse, KIMessage } from "common/ki";
-
-export type ModelsResponse = KIModelsResponse;
 
 // Støttede filtyper for dokumentopplasting (inkluderer bilder for OCR)
 export const SUPPORTED_FILE_TYPES = [
@@ -43,22 +39,6 @@ export const SUPPORTED_FILE_TYPES = [
   ".bmp",
   ".tiff",
   ".tif",
-];
-
-export const SUPPORTED_MIME_TYPES = [
-  "application/pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/msword",
-  "text/plain",
-  "text/markdown",
-  "text/csv",
-  // Bilder for OCR
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/gif",
-  "image/bmp",
-  "image/tiff",
 ];
 
 // Maks tegn for meldinger (importert fra common)
@@ -292,15 +272,6 @@ export function useKITestTilkobling() {
   });
 }
 
-// Hent støttede modeller
-export function useKIModeller() {
-  return useQuery({
-    queryKey: ["ki", "models"],
-    queryFn: () => fetchKI("/models", KIModelsResponseSchema),
-    staleTime: 1000 * 60 * 5, // Cache i 5 minutter
-  });
-}
-
 // Chat mutation hook
 export function useKIChat() {
   const mutation = useMutation({
@@ -431,16 +402,3 @@ export function useKIOppsummering() {
   };
 }
 
-// Legacy PDF hook (bruk useKIDocumentAnalyse i stedet)
-export function useKIPdfAnalyse() {
-  const docAnalyse = useKIDocumentAnalyse();
-
-  return {
-    analyserPdf: docAnalyse.analyserDokument,
-    isLoading: docAnalyse.isLoading,
-    error: docAnalyse.error,
-    data: docAnalyse.data,
-    reset: docAnalyse.reset,
-    mutation: docAnalyse.mutation,
-  };
-}

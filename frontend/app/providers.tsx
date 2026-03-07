@@ -8,6 +8,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useAuthSync } from "./hooks/use-auth-sync";
 
 // Komponent for å lytte etter utlogging i andre faner
@@ -38,8 +39,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   // Dette gjør at alle komponenter inni kan bruke hooks som useQuery().
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthSyncListener />
-      {children}
+      <NuqsAdapter>
+        <AuthSyncListener />
+        {children}
+      </NuqsAdapter>
     </QueryClientProvider>
   );
 }

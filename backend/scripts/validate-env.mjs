@@ -194,8 +194,10 @@ function validateEnvForBuild() {
 
     // Avslutt hvis påkrevde variabler mangler
     if (manglende.length > 0) {
+        const liste = manglende.join(", ");
         console.error("\n========================================");
-        console.error("[BUILD FEIL] Påkrevde miljøvariabler mangler:");
+        console.error("[BUILD FEIL] Påkrevde miljøvariabler mangler eller er ugyldige.");
+        console.error("Mangler/ugyldige: " + liste);
         console.error("========================================");
         for (const m of manglende) {
             console.error(`  - ${m}`);

@@ -16,7 +16,9 @@ import {
     MapPin,
     Loader2,
     CheckCircle2,
+    CheckCheck,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useVarsler, type VarslingTab } from "../hooks/useVarsler";
 import { formaterTid, type FristStatus } from "../lib/varsler";
 import type { FristElement, KunngjoringElement, HendelseElement, VarslingElement } from "../lib/varsler";
@@ -46,6 +48,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
         kunngjøringer,
         hendelser,
         alleElementer,
+        ulesteCount,
         markAllAsLest,
         isLoading,
     } = useVarsler(harCanvasToken);
@@ -92,6 +95,29 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                 </h1>
             </div>
 
+            {alleElementer.length > 0 && (
+                <div>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            markAllAsLest();
+                            if (ulesteCount > 0) toast.success("Alle varsler markert som lest");
+                        }}
+                        disabled={ulesteCount === 0}
+                        className={`
+                            inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                            ${ulesteCount === 0
+                                ? "text-slate-400 dark:text-slate-500 cursor-default"
+                                : "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                            }
+                        `}
+                    >
+                        <CheckCheck className="w-4 h-4 shrink-0" />
+                        {ulesteCount === 0 ? "Alle markert som lest" : "Marker alle som lest"}
+                    </button>
+                </div>
+            )}
+
             <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-700 pb-3">
                 {tabs.map((tab) => (
                     <button
@@ -104,13 +130,15 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                         }`}
                     >
                         {tab.label}
-                        <span className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-xs font-semibold ${
-                            aktivTab === tab.id
-                                ? "bg-blue-600 dark:bg-blue-500 text-white"
-                                : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                        }`}>
-                            {tab.antall}
-                        </span>
+                        {ulesteCount > 0 && (
+                            <span className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-xs font-semibold ${
+                                aktivTab === tab.id
+                                    ? "bg-blue-600 dark:bg-blue-500 text-white"
+                                    : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                            }`}>
+                                {tab.antall}
+                            </span>
+                        )}
                     </button>
                 ))}
             </div>

@@ -2,6 +2,9 @@
  * Delte dato-hjelpefunksjoner for frontend og backend
  */
 
+/** Millisekunder for 14 dager (brukes f.eks. for «neste 14 dager»-vinduer). */
+export const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
+
 /** Beregn ISO 8601 ukenummer for en gitt dato */
 export function getWeekNumber(date: Date): number {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));

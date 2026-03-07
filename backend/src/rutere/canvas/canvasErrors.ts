@@ -20,9 +20,7 @@ export {
 
 import {
   type CanvasErrorCode,
-  type CanvasWarning,
   getErrorMessage,
-  classifyHttpStatus,
   isRecoverableError,
 } from "common/canvasErrors";
 
@@ -58,27 +56,6 @@ export function createCanvasError(
   error.retryAfter = options?.retryAfter;
   error.recoverable = isRecoverableError(code);
   return error;
-}
-
-/**
- * Opprett advarsel fra feil (for delvis suksess i aggregerte endepunkter)
- */
-export function createWarningFromError(
-  error: unknown,
-  resource: string,
-  courseId?: number
-): CanvasWarning {
-  const canvasError = error as CanvasApiError;
-  const code = canvasError.code || classifyHttpStatus(canvasError.httpStatus || 500);
-
-  return {
-    scope: courseId ? "course" : "global",
-    resource,
-    code,
-    httpStatus: canvasError.httpStatus,
-    message: getErrorMessage(code, resource),
-    courseId,
-  };
 }
 
 // Korte feil-labels for API-respons (brukes i `feil`-feltet)
