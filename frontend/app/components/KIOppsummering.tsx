@@ -7,7 +7,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { Sparkles, Loader2, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
 import { useKIOppsummering as useKIOppsummeringHook, type KIOppsummeringResponse } from "../ki/ki-api";
-import { showToast } from "./Toaster";
 
 // Størrelseskonfigurasjoner
 const storrelser = {
@@ -76,9 +75,6 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
                 settResultat(data);
                 settÅpen(true);
             },
-            onError: (err) => {
-                showToast.error("Kunne ikke oppsummere", err.message);
-            },
         });
     }, [tekst, oppsummer, resultat, harTekst]);
 
@@ -97,12 +93,13 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
         : storrelse === "lg" ? "px-8 pb-6" : storrelse === "md" ? "mt-3" : "mt-2";
 
     // Ikon-rendering basert på størrelse
+    const spinnerClass = "text-blue-600 dark:text-blue-400 animate-spin";
     const renderIkon = (SpinnerEllerIkon: typeof Loader2 | typeof Sparkles) => {
         if (storrelse === "sm") {
-            return <SpinnerEllerIkon className={`${s.ikonKlasse} ${SpinnerEllerIkon === Loader2 ? "animate-spin" : ""}`} />;
+            return <SpinnerEllerIkon className={`${s.ikonKlasse} ${SpinnerEllerIkon === Loader2 ? spinnerClass : ""}`} />;
         }
         const str = storrelse === "md" ? 14 : 16;
-        return <SpinnerEllerIkon size={str} className={SpinnerEllerIkon === Loader2 ? "animate-spin" : ""} />;
+        return <SpinnerEllerIkon size={str} className={SpinnerEllerIkon === Loader2 ? spinnerClass : ""} />;
     };
 
     // Chevron-rendering basert på størrelse

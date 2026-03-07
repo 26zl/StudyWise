@@ -28,6 +28,8 @@ import { broadcastLogout } from "../hooks/use-auth-sync";
 import { useChatHistory } from "../hooks/useChatHistory";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { toast } from "sonner";
+import { AppError } from "../lib/errors";
 
 // Typer for de ulike visningene i sidebar
 export type VisningType =
@@ -72,18 +74,20 @@ export function Sidebar({
     const handleLoggUt = async () => {
         try {
             await loggUt.mutateAsync();
-        } catch {
-            // Ignorer feil - vi logger ut uansett
-        } finally {
-            // Varsle andre faner om utlogging
-            broadcastLogout();
-            // Rydd opp all cached data
-            queryClient.clear();
-            // Nullstill UI-tilstand
-            resetUIStore();
-            // Hard redirect til hjemmesiden
-            window.location.href = "/";
+        } catch (error) {
+            if (!AppError.isAppError(error) || !error.requiresReauth()) {
+                toast.error("Kunne ikke logge ut. Prøv igjen.");
+                return;
+            }
         }
+        // Varsle andre faner om utlogging
+        broadcastLogout();
+        // Rydd opp all cached data
+        queryClient.clear();
+        // Nullstill UI-tilstand
+        resetUIStore();
+        // Hard redirect til hjemmesiden
+        window.location.href = "/";
     };
     // KI Assistent er kun «aktiv» når vi faktisk er på dashboard
     const erChatAktiv = pathname === "/dashboard" && aktivVisning === "chat";

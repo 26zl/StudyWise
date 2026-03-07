@@ -23,8 +23,18 @@ import {
   type CanvasContextPreferences,
   type PreferencesResponse,
 } from "common/auth";
+import { SessionExpiredError } from "../lib/errors";
 
 let refreshPromise: Promise<RefreshResponse> | null = null;
+
+export class CanvasTokenConflictError extends Error {
+  readonly canvasKonflikt = true;
+  readonly name = "CanvasTokenConflictError";
+
+  constructor(message: string) {
+    super(message);
+  }
+}
 
 // Hent JSON fra response — returnerer tomt objekt kun hvis body er tomt (204 etc.)
 const hentJson = async (res: Response) => {
@@ -99,12 +109,27 @@ async function hentMeg(): Promise<MeResponse> {
   throw new Error(json.melding || json.feil || "Ikke autentisert");
 }
 // Utlogging
-async function loggUt(): Promise<LogoutResponse> {
+async function loggUt(
+  forsoktRefresh = false,
+): Promise<LogoutResponse> {
   const res = await fetch("/api/user/logout", {
     method: "POST",
     credentials: "include",
   });
   const json = await hentJson(res);
+  if ((res.status === 401 || res.status === 403) && !forsoktRefresh) {
+    try {
+      await fornySesjon();
+    } catch {
+      throw new SessionExpiredError("Sesjonen er allerede utløpt.");
+    }
+    return loggUt(true);
+  }
+  if (res.status === 401 || res.status === 403) {
+    throw new SessionExpiredError(
+      json.melding || json.feil || "Sesjonen er allerede utløpt.",
+    );
+  }
   if (!res.ok) {
     throw new Error(json.melding || json.feil || "Kunne ikke logge ut");
   }
@@ -131,8 +156,17 @@ export async function fornySesjon(): Promise<RefreshResponse> {
   }
 }
 // Lagre Canvas token for innlogget bruker
-async function lagreCanvasToken(token: string): Promise<CanvasTokenResponse> {
-  const res = await fetch("/api/user/token", {
+interface SaveCanvasTokenInput {
+  token: string;
+  forceRelink?: boolean;
+}
+
+async function lagreCanvasToken({
+  token,
+  forceRelink = false,
+}: SaveCanvasTokenInput): Promise<CanvasTokenResponse> {
+  const url = forceRelink ? "/api/user/token?force=true" : "/api/user/token";
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -141,6 +175,11 @@ async function lagreCanvasToken(token: string): Promise<CanvasTokenResponse> {
   // Hent json uansett for bedre feilhåndtering
   const json = await hentJson(res);
   if (!res.ok) {
+    if (json.canvasKonflikt) {
+      throw new CanvasTokenConflictError(
+        json.melding || json.feil || "Canvas-kontoen er allerede koblet til en annen bruker",
+      );
+    }
     throw new Error(json.melding || json.feil || "Kunne ikke lagre token");
   }
   return CanvasTokenResponseSchema.parse(json);
@@ -180,7 +219,7 @@ export function useMeg(options?: { initialData?: MeResponse }) {
 // Hook for utlogging
 export function useLoggUt() {
   return useMutation({
-    mutationFn: loggUt,
+    mutationFn: () => loggUt(),
   });
 }
 // Hook for lagring av Canvas token

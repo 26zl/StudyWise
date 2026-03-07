@@ -5,7 +5,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, Bot, User, Sparkles, Paperclip, Download, Copy } from "lucide-react";
+import { Send, Bot, User, Sparkles, Paperclip, Download, Copy } from "lucide-react";
+import { LoadingSpinner } from "./LoadingSpinner";
 import { toast } from "sonner";
 import { AttachmentStrip } from "./AttachmentStrip";
 import ReactMarkdown from "react-markdown";
@@ -504,14 +505,14 @@ export function ChatSection() {
                     {/* Placeholder før hydration - matcher server-rendering */}
                     {!mounted && (
                         <div className="flex justify-center items-center py-12">
-                            <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+                            <LoadingSpinner />
                         </div>
                     )}
 
                     {/* Loading state - vis kun etter mount for å unngå hydration mismatch */}
                     {mounted && loading && (
                         <div className="flex justify-center items-center py-12">
-                            <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+                            <LoadingSpinner />
                             <p className="ml-3 text-sm text-slate-500">Laster samtalehistorikk...</p>
                         </div>
                     )}
@@ -624,7 +625,7 @@ export function ChatSection() {
                             <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl px-4 py-3">
                                 {analyserarDokument ? (
                                     <div className="flex items-center gap-2">
-                                        <Loader2 className="w-4 h-4 text-slate-500 animate-spin" />
+                                        <LoadingSpinner className="w-4 h-4" />
                                         <span className="text-sm text-slate-500 dark:text-slate-400">Analyserer dokument...</span>
                                     </div>
                                 ) : (
@@ -712,7 +713,7 @@ export function ChatSection() {
                             aria-label={skriver || analyserarDokument ? "Sender melding" : "Send melding"}
                         >
                             {skriver || analyserarDokument ? (
-                                <Loader2 className="w-5 h-5 text-white animate-spin" />
+                                <LoadingSpinner className="w-5 h-5 text-white animate-spin" />
                             ) : (
                                 <Send className="w-5 h-5 text-white" />
                             )}

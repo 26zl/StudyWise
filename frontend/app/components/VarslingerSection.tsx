@@ -14,15 +14,16 @@ import {
     CalendarDays,
     AlertCircle,
     MapPin,
-    Loader2,
     CheckCircle2,
     CheckCheck,
 } from "lucide-react";
+import { LoadingSpinner } from "./LoadingSpinner";
 import { toast } from "sonner";
 import { useVarsler, type VarslingTab } from "../hooks/useVarsler";
 import { formaterTid, type FristStatus } from "../lib/varsler";
 import type { FristElement, KunngjoringElement, HendelseElement, VarslingElement } from "../lib/varsler";
 import { KIOppsummering } from "./KIOppsummering";
+import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
 
 interface VarslingerSectionProps {
     harCanvasToken?: boolean;
@@ -51,14 +52,17 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
         ulesteCount,
         markAllAsLest,
         isLoading,
+        isError,
+        hasPartialError,
+        error,
     } = useVarsler(harCanvasToken);
 
     // Når bruker åpner varslinger-siden, markér alle som lest (synk med popup)
     useEffect(() => {
-        if (harCanvasToken && alleElementer.length > 0) {
+        if (harCanvasToken && !isError && alleElementer.length > 0) {
             markAllAsLest();
         }
-    }, [harCanvasToken, alleElementer.length, markAllAsLest]);
+    }, [harCanvasToken, isError, alleElementer.length, markAllAsLest]);
 
     const tabs: { id: VarslingTab; label: string; antall: number }[] = [
         { id: "alle", label: "Alle", antall: alleElementer.length },
@@ -95,7 +99,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                 </h1>
             </div>
 
-            {alleElementer.length > 0 && (
+            {!isError && alleElementer.length > 0 && (
                 <div>
                     <button
                         type="button"
@@ -118,34 +122,64 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                 </div>
             )}
 
-            <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-700 pb-3">
-                {tabs.map((tab) => (
-                    <button
-                        key={tab.id}
-                        onClick={() => settAktivTab(tab.id)}
-                        className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            aktivTab === tab.id
-                                ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        }`}
-                    >
-                        {tab.label}
-                        {ulesteCount > 0 && (
-                            <span className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-xs font-semibold ${
+            {hasPartialError && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
+                    <div className="flex items-center gap-3">
+                        <AlertCircle className="h-5 w-5 shrink-0 text-amber-500" />
+                        <p className="text-sm text-amber-800 dark:text-amber-200">
+                            {lagBrukervennligFeilmelding(
+                                error instanceof Error ? error : null,
+                                { canvas: true },
+                                "Noen varsler kunne ikke lastes. Resten vises under.",
+                            )}
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {!isError && (
+                <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-700 pb-3">
+                    {tabs.map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => settAktivTab(tab.id)}
+                            className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                                 aktivTab === tab.id
-                                    ? "bg-blue-600 dark:bg-blue-500 text-white"
-                                    : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                            }`}>
-                                {tab.antall}
-                            </span>
-                        )}
-                    </button>
-                ))}
-            </div>
+                                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            }`}
+                        >
+                            {tab.label}
+                            {ulesteCount > 0 && (
+                                <span className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-xs font-semibold ${
+                                    aktivTab === tab.id
+                                        ? "bg-blue-600 dark:bg-blue-500 text-white"
+                                        : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                                }`}>
+                                    {tab.antall}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {isLoading ? (
                 <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                    <LoadingSpinner />
+                </div>
+            ) : isError ? (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
+                    <div className="flex items-center gap-3">
+                        <AlertCircle className="h-5 w-5 shrink-0 text-red-500" />
+                        <p className="text-sm text-red-700 dark:text-red-300">
+                            {lagBrukervennligFeilmelding(
+                                error instanceof Error ? error : null,
+                                { canvas: true },
+                                "Kunne ikke laste varsler. Prøv igjen.",
+                            )}
+                        </p>
+                    </div>
                 </div>
             ) : aktiveListe.length === 0 ? (
                 <div className="text-center py-12">

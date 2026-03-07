@@ -55,14 +55,15 @@ app.set("trust proxy", 1);
 
 // Host header validering i produksjon - blokkerer direkte tilgang via render subdomain
 if (isProd) {
-  const tillattHost = process.env.API_HOST; // f.eks. "api.studwize.page"
+  const tillattHost = process.env.API_HOST?.trim().toLowerCase(); // f.eks. "api.studwize.page"
   if (tillattHost) {
     app.use((req, res, next) => {
       const host = req.get("host");
+      const requestHost = host?.split(":")[0]?.trim().toLowerCase();
       // Tillat health checks fra Render (ingen host header eller intern IP)
       if (req.path === "/health") return next();
-      if (host && !host.includes(tillattHost)) {
-        logger.warn({ host, path: req.path }, "Blokkert forespørsel fra ugyldig host");
+      if (requestHost && requestHost !== tillattHost) {
+        logger.warn({ host, requestHost, path: req.path }, "Blokkert forespørsel fra ugyldig host");
         return sendError(res, "auth_error", { feil: "Forbidden", status: 403 });
       }
       next();

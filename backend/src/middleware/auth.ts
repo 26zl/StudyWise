@@ -9,7 +9,7 @@ import jwt, { JwtPayload } from "jsonwebtoken";
 import { User } from "../database/models/User.js";
 import { decrypt } from "../utils/kryptering.js";
 import { logger } from "../utils/logger.js";
-import { apiError, sendError } from "../utils/apiError.js";
+import { apiError } from "../utils/apiError.js";
 import { isProd } from "../utils/env.js";
 import type { JwtBrukerPayload } from "../typer/express.js";
 import { AUTH_COOKIE_NAME, AUTH_REFRESH_COOKIE_NAME } from "common/auth";
@@ -129,14 +129,14 @@ export const autentiserJwt = (req: Request, res: Response, next: NextFunction) =
     // Verifiser JWT-token
     jwt.verify(token, process.env.JWT_ACCESS_SECRET, { algorithms: ["HS256"] }, (err, payload) => {
         if (err || !payload || typeof payload === "string") {
-            return sendError(res, "auth_error", { feil: "Ugyldig token", status: 403 });
+            return apiError.unauthorized(res, "Ugyldig eller utløpt token");
         }
         if (!erGyldigBrukerPayload(payload)) {
-            return sendError(res, "auth_error", { feil: "Ugyldig token-payload", status: 403 });
+            return apiError.unauthorized(res, "Ugyldig token-payload");
         }
         // Token-type KREVES for å forhindre misbruk av refresh-tokens som access-tokens
         if (!payload.tokenType || payload.tokenType !== "access") {
-            return sendError(res, "auth_error", { feil: "Ugyldig token-type", status: 403 });
+            return apiError.unauthorized(res, "Ugyldig token-type");
         }
 
         req.user = { id: payload.id, email: payload.email };

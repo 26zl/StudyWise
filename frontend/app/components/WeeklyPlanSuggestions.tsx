@@ -5,7 +5,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Calendar, Sparkles, Loader2, Check, Clock, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Calendar, Sparkles, Check, Clock, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { LoadingSpinner } from "./LoadingSpinner";
 import { getWeekNumber } from "common/dateUtils";
 
 // Typer for oppgaver og studieblokker
@@ -171,7 +172,7 @@ export function WeeklyPlanSuggestions({ assignments, onAddToCalendar }: WeeklyPl
                     </div>
                 </div>
                 {isGenerating ? (
-                    <Loader2 className="w-5 h-5 text-purple-600 dark:text-purple-400 animate-spin" />
+                    <LoadingSpinner className="w-5 h-5 text-purple-600 dark:text-purple-400 animate-spin" />
                 ) : weeklyPlan ? (
                     isExpanded ? (
                         <ChevronUp className="w-5 h-5 text-slate-400" />

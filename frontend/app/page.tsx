@@ -35,7 +35,7 @@ export default async function Hjem() {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
               <Link
                 href="/dashboard"
-                className={`group inline-flex items-center justify-center gap-2 px-8 py-4 ${ctaWidth} bg-blue-600 hover:bg-blue-700 text-white rounded-full font-medium transition-all hover:shadow-lg hover:shadow-blue-500/25`}
+                className={`group inline-flex items-center justify-center gap-2 px-8 py-4 ${ctaWidth} bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-full font-medium transition-all hover:shadow-lg hover:shadow-blue-500/25`}
               >
                 {erInnlogget ? "Fortsett til Dashboard" : "Gå til Dashboard"}
                 <ArrowRight

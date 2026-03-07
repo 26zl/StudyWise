@@ -73,6 +73,7 @@ export function buildFrister(oppgaver: AssignmentMedEmne[]): FristElement[] {
     return oppgaver
         .filter((o) => {
             if (!o.due_at) return false;
+            if (erInnlevert(o)) return false;
             const timer = (new Date(o.due_at).getTime() - nå) / (1000 * 60 * 60);
             return timer > 0 && timer <= FRIST_VINDU_TIMER;
         })

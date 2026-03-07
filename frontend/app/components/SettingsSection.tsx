@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Moon, Sun, Key, User, Info, Trash2, MessageSquare, Bot, CheckCircle } from "lucide-react";
-import { useLagreCanvasToken, useSlettCanvasToken } from "../auth/auth-api";
+import { CanvasTokenConflictError, useLagreCanvasToken, useSlettCanvasToken } from "../auth/auth-api";
 import { resetCanvasTokenStatus, useCanvasUser } from "../canvas/canvas-api";
 import { useTheme } from "next-themes";
 import { format } from "date-fns";
@@ -47,6 +47,10 @@ export function SettingsSection({
     const toggleTheme = () => setTheme(isDarkMode ? "light" : "dark");
     const queryClient = useQueryClient();
     const [canvasToken, setCanvasToken] = useState("");
+    const [canvasKonflikt, setCanvasKonflikt] = useState<{
+        token: string;
+        melding: string;
+    } | null>(null);
     const [visToken, setVisToken] = useState(false);
     const {
         mutateAsync,
@@ -98,13 +102,14 @@ export function SettingsSection({
     };
 
     // Håndter lagring av Canvas token
-    const handleLagreToken = async () => {
+    const handleLagreToken = async (forceRelink = false) => {
         if (cooldown) return;
-        const trimmetToken = canvasToken.trim();
+        const trimmetToken = (forceRelink ? canvasKonflikt?.token : canvasToken)?.trim();
         if (!trimmetToken) return;
         try {
-            await mutateAsync(trimmetToken);
+            await mutateAsync({ token: trimmetToken, forceRelink });
             setCanvasToken("");
+            setCanvasKonflikt(null);
             // Nullstill token-feilstatus slik at Canvas-queries aktiveres igjen
             resetCanvasTokenStatus();
             // Invalidér queries for å hente data på nytt
@@ -116,6 +121,17 @@ export function SettingsSection({
             if (cooldownTimeoutRef.current) clearTimeout(cooldownTimeoutRef.current);
             cooldownTimeoutRef.current = setTimeout(() => setCooldown(false), 3000);
         } catch (err) {
+            if (err instanceof CanvasTokenConflictError) {
+                setCanvasKonflikt({
+                    token: trimmetToken,
+                    melding: err.message,
+                });
+                showToast.warning(
+                    "Canvas-kontoen er allerede koblet",
+                    "Hvis dette er din konto, kan du gjenopprette tilkoblingen her.",
+                );
+                return;
+            }
             const feilmelding = lagBrukervennligFeilmelding(err instanceof Error ? err : null, { canvas: true });
             showToast.error("Kunne ikke lagre token", feilmelding);
         }
@@ -126,6 +142,7 @@ export function SettingsSection({
         try {
             await slettToken();
             setVisSlettBekreftelse(false);
+            setCanvasKonflikt(null);
             // Invalidér queries for å oppdatere UI
             queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
             queryClient.invalidateQueries({ queryKey: ["canvas"] });
@@ -323,12 +340,32 @@ export function SettingsSection({
                         )}
 
                         <fieldset className="space-y-3">
+                            {canvasKonflikt && (
+                                <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
+                                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                                        {canvasKonflikt.melding}
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleLagreToken(true)}
+                                        disabled={isPending || cooldown}
+                                        className="mt-3 inline-flex items-center rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isPending ? "Gjenoppretter..." : "Gjenopprett tilkobling"}
+                                    </button>
+                                </div>
+                            )}
+
                             <div className="relative">
                                 <input
                                     type={visToken ? "text" : "password"}
                                     value={canvasToken}
                                     onChange={(e) => {
-                                        setCanvasToken(e.target.value);
+                                        const nesteToken = e.target.value;
+                                        setCanvasToken(nesteToken);
+                                        if (canvasKonflikt && nesteToken.trim() !== canvasKonflikt.token) {
+                                            setCanvasKonflikt(null);
+                                        }
                                     }}
                                     placeholder="Lim inn din Canvas API token"
                                     className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
@@ -343,7 +380,7 @@ export function SettingsSection({
                             </div>
 
                             <button
-                                onClick={handleLagreToken}
+                                onClick={() => void handleLagreToken()}
                                 disabled={!canvasToken.trim() || isPending || cooldown}
                                 className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >

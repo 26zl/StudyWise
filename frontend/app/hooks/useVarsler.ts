@@ -35,6 +35,9 @@ export interface UseVarslerResult {
     markAsLest: (id: string) => void;
     markAllAsLest: () => void;
     isLoading: boolean;
+    isError: boolean;
+    hasPartialError: boolean;
+    error: unknown;
 }
 // Hoved-hook for å hente og organisere varsler-data, samt håndtere lest/ulest-status.
 export function useVarsler(harCanvasToken: boolean): UseVarslerResult {
@@ -78,6 +81,15 @@ export function useVarsler(harCanvasToken: boolean): UseVarslerResult {
 
     const isLoading =
         assignmentsQuery.isLoading || announcementsQuery.isLoading || eventsQuery.isLoading;
+    const errors = [
+        assignmentsQuery.error,
+        announcementsQuery.error,
+        eventsQuery.error,
+    ].filter(Boolean);
+    const hasAnyData = alleElementer.length > 0;
+    const error = errors[0] ?? null;
+    const isError = errors.length > 0 && !hasAnyData;
+    const hasPartialError = errors.length > 0 && hasAnyData;
 
     return {
         frister,
@@ -89,6 +101,9 @@ export function useVarsler(harCanvasToken: boolean): UseVarslerResult {
         markAsLest,
         markAllAsLest,
         isLoading,
+        isError,
+        hasPartialError,
+        error,
     };
 }
 
@@ -96,6 +111,32 @@ export function useVarsler(harCanvasToken: boolean): UseVarslerResult {
 
 export const VARSLER_TOAST_VIST_KEY = "studywise:varsler-toast-vist";
 const TOAST_DELAY_MS = 2500;
+const MAX_VISTE_VARSLER = 500;
+
+function loadVisteVarsler(): Set<string> {
+    if (typeof window === "undefined") return new Set();
+    try {
+        const raw = sessionStorage.getItem(VARSLER_TOAST_VIST_KEY);
+        if (!raw) return new Set();
+        const parsed = JSON.parse(raw) as unknown;
+        if (!Array.isArray(parsed)) return new Set();
+        return new Set(parsed.filter((value): value is string => typeof value === "string"));
+    } catch {
+        return new Set();
+    }
+}
+
+function saveVisteVarsler(ids: Set<string>) {
+    if (typeof window === "undefined") return;
+    try {
+        sessionStorage.setItem(
+            VARSLER_TOAST_VIST_KEY,
+            JSON.stringify([...ids].slice(-MAX_VISTE_VARSLER)),
+        );
+    } catch {
+        // ignore
+    }
+}
 
 export interface UseVarslerPopupsOptions {
     onGåTilVarslinger?: () => void;
@@ -103,45 +144,79 @@ export interface UseVarslerPopupsOptions {
 // Viser en toast hvis det finnes uleste varsler (som ikke er markert lest i UI-storen).
 export function useVarslerPopups(harCanvasToken: boolean, options: UseVarslerPopupsOptions = {}) {
     const { onGåTilVarslinger } = options;
-    const vistRef = useRef(false);
+    const planlagtSignaturRef = useRef<string | null>(null);
     const onGåRef = useRef(onGåTilVarslinger);
     onGåRef.current = onGåTilVarslinger;
 
-    const { ulesteCount, markAllAsLest, isLoading } = useVarsler(harCanvasToken);
+    const { ulesteCount, alleElementer, lestIds, markAllAsLest, isLoading, isError } = useVarsler(harCanvasToken);
     const markAllRef = useRef(markAllAsLest);
     markAllRef.current = markAllAsLest;
+    const ulesteIds = useMemo(
+        () =>
+            alleElementer
+                .filter((element) => !lestIds.has(element.id))
+                .map((element) => element.id)
+                .sort(),
+        [alleElementer, lestIds],
+    );
+    const ulesteSignatur = useMemo(() => ulesteIds.join("|"), [ulesteIds]);
 
     useEffect(() => {
-        if (!harCanvasToken || isLoading || ulesteCount <= 0) return;
-        try {
-            if (sessionStorage.getItem(VARSLER_TOAST_VIST_KEY) === "1" || vistRef.current) return;
-        } catch {
-            return;
-        }
-
-        const t = setTimeout(() => {
-            vistRef.current = true;
+        if (!harCanvasToken) {
+            planlagtSignaturRef.current = null;
             try {
-                sessionStorage.setItem(VARSLER_TOAST_VIST_KEY, "1");
+                sessionStorage.removeItem(VARSLER_TOAST_VIST_KEY);
             } catch {
                 // ignore
             }
-            const melding = ulesteCount === 1 ? "Du har 1 ulest melding" : `Du har ${ulesteCount} uleste meldinger`;
-            toast.info(melding, {
-                description: "Klikk for å åpne varslinger.",
-                duration: 6000,
-                action: onGåRef.current
-                    ? {
-                          label: "Se varsler",
-                          onClick: () => {
-                              markAllRef.current();
-                              onGåRef.current?.();
-                          },
-                      }
-                    : undefined,
-            });
-        }, TOAST_DELAY_MS);
+            return;
+        }
 
-        return () => clearTimeout(t);
-    }, [harCanvasToken, isLoading, ulesteCount]);
+        if (isLoading || isError || ulesteCount <= 0 || ulesteIds.length === 0) {
+            if (ulesteCount <= 0) {
+                planlagtSignaturRef.current = null;
+            }
+            return;
+        }
+
+        const visteIds = loadVisteVarsler();
+        const harNyeUleste = ulesteIds.some((id) => !visteIds.has(id));
+        if (!harNyeUleste || planlagtSignaturRef.current === ulesteSignatur) return;
+
+        planlagtSignaturRef.current = ulesteSignatur;
+        try {
+            const t = setTimeout(() => {
+                ulesteIds.forEach((id) => visteIds.add(id));
+                saveVisteVarsler(visteIds);
+
+                const melding =
+                    ulesteCount === 1
+                        ? "Du har 1 ulest varsel"
+                        : `Du har ${ulesteCount} uleste varsler`;
+
+                toast.info(melding, {
+                    description: "Klikk for å åpne varslinger.",
+                    duration: 6000,
+                    action: onGåRef.current
+                        ? {
+                              label: "Se varsler",
+                              onClick: () => {
+                                  markAllRef.current();
+                                  onGåRef.current?.();
+                              },
+                          }
+                        : undefined,
+                });
+            }, TOAST_DELAY_MS);
+
+            return () => {
+                clearTimeout(t);
+                if (planlagtSignaturRef.current === ulesteSignatur) {
+                    planlagtSignaturRef.current = null;
+                }
+            };
+        } catch {
+            planlagtSignaturRef.current = null;
+        }
+    }, [harCanvasToken, isLoading, isError, ulesteCount, ulesteIds, ulesteSignatur]);
 }

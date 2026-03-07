@@ -9,15 +9,16 @@ import { useEffect, Suspense, lazy, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "./LoadingSpinner";
 import { Sidebar, type VisningType } from "./Sidebar";
 import { SectionErrorBoundary } from "./ErrorBoundary";
 import { useCanvasUser } from "../canvas/canvas-api";
 import { Footer } from "./footer";
 import { useMeg } from "../auth/auth-api";
+import { skalRedirecteTilAuth } from "../auth/authUtils";
 import { prefetchCanvasData } from "../canvas/canvas-api";
 import { useUIStore } from "../store/uiStore";
-import { useVarslerPopups, VARSLER_TOAST_VIST_KEY } from "../hooks/useVarsler";
+import { useVarslerPopups } from "../hooks/useVarsler";
 import { useChatHistoryPrefetch } from "../hooks/useChatHistory";
 
 const GYLDIGE_VISNINGER = [
@@ -42,7 +43,7 @@ function SectionLoader({ text = "Laster..." }: { text?: string }) {
   return (
     <div className="flex-1 flex items-center justify-center p-8">
       <div className="flex flex-col items-center gap-3">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <LoadingSpinner />
         <span className="text-sm text-slate-500 dark:text-slate-400">{text}</span>
       </div>
     </div>
@@ -72,21 +73,10 @@ export function DashboardView() {
     const userQuery = useCanvasUser(brukerQueryAktiv);
     const setCanvasContextSelection = useUIStore((state) => state.setCanvasContextSelection);
 
-    // Popup-varsler: én toast "Du har X uleste meldinger" (respekterer innleverte), integrert med varslinger-siden
+    // Popup-varsler: én toast for nye uleste varsler, integrert med varslinger-siden
     useVarslerPopups(harCanvasToken, {
         onGåTilVarslinger: () => settAktivVisning("varslinger"),
     });
-
-    // Marker at bruker har åpnet varslinger (så popup ikke vises unødvendig)
-    useEffect(() => {
-        if (aktivVisning === "varslinger") {
-            try {
-                sessionStorage.setItem(VARSLER_TOAST_VIST_KEY, "1");
-            } catch {
-                // ignore
-            }
-        }
-    }, [aktivVisning]);
 
     // Synkroniser Canvas-kontekst preferanser fra backend til global state
     useEffect(() => {
@@ -98,10 +88,7 @@ export function DashboardView() {
 
     // Redirect til innlogging hvis ikke autentisert
     useEffect(() => {
-        // Redirect hvis query feilet eller hvis lasting er ferdig uten brukerdata
-        const erIkkeAutentisert = megQuery.isError ||
-            (megQuery.isFetched && !megQuery.isLoading && !megQuery.data?.user);
-        if (erIkkeAutentisert) {
+        if (skalRedirecteTilAuth(megQuery)) {
             router.replace("/auth");
         }
     }, [megQuery.isError, megQuery.isFetched, megQuery.isLoading, megQuery.data?.user, router]);
@@ -138,7 +125,7 @@ export function DashboardView() {
     if (megQuery.isLoading || (megQuery.isError && !brukerQueryAktiv)) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <LoadingSpinner />
             </div>
         );
     }

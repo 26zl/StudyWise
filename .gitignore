@@ -62,6 +62,7 @@ next-env.d.ts
 # VitePress
 **/.vitepress/dist
 **/.vitepress/cache
+**/.vitepress/.temp
 
 # Windsurf / Snyk
 .windsurf/

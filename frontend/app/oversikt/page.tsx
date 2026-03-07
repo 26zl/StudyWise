@@ -12,10 +12,13 @@ import { Sidebar, type VisningType } from "../components/Sidebar";
 import { useCanvasCourses, useCanvasAllAssignments, useCanvasUser, type AssignmentMedEmne } from "../canvas/canvas-api";
 import { erInnlevert } from "../canvas/canvasUtils";
 import { useMeg } from "../auth/auth-api";
+import { skalRedirecteTilAuth } from "../auth/authUtils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formaterDatoFull, formaterDatoShort, dagerFraIdag, formaterDagerRelativtFrist } from "../lib/dato";
 import { FRIST_VINDU_DAGER } from "../lib/varsler";
+import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
+import { LoadingSpinner } from "../components/LoadingSpinner";
 
 // Denne siden er hovedoversikten for innloggede brukere, og viser en personlig ukeplan, statistikk og rask tilgang til funksjoner. Den håndterer også redirect til innlogging hvis ikke autentisert.
 export default function OversiktPage() {
@@ -36,9 +39,7 @@ export default function OversiktPage() {
 
     // Redirect til innlogging hvis ikke autentisert
     useEffect(() => {
-        const erIkkeAutentisert = megQuery.isError ||
-            (megQuery.isFetched && !megQuery.isLoading && !megQuery.data?.user);
-        if (erIkkeAutentisert) {
+        if (skalRedirecteTilAuth(megQuery)) {
             router.replace("/auth");
         }
     }, [megQuery.isError, megQuery.isFetched, megQuery.isLoading, megQuery.data?.user, router]);
@@ -54,7 +55,7 @@ export default function OversiktPage() {
     }, [harCanvasToken]); 
 
     // Kun oppgaver som ikke er innlevert (riktig grunnlag for ukeplan og kommende)
-    const allAssignments: AssignmentMedEmne[] = assignmentsQuery.data || [];
+    const allAssignments: AssignmentMedEmne[] = assignmentsQuery.isError ? [] : (assignmentsQuery.data || []);
     const ikkeInnleverteAssignments = allAssignments.filter((a) => !erInnlevert(a));
 
     // Beregn statistikk
@@ -81,7 +82,7 @@ export default function OversiktPage() {
             <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950 min-h-screen">
                 <Sidebar aktivVisning="chat" byttVisning={byttVisning} brukernavn={brukernavn} />
                 <main className="flex-1 min-h-0 overflow-y-auto flex items-center justify-center p-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+                    <LoadingSpinner />
                 </main>
             </div>
         );
@@ -125,19 +126,19 @@ export default function OversiktPage() {
                     <StatCard
                         icon={BookOpen}
                         label="Aktive emner"
-                        value={activeCoursesCount}
+                        value={assignmentsQuery.isError ? "—" : activeCoursesCount}
                         color="blue"
                     />
                     <StatCard
                         icon={Clock}
                         label="Kommende oppgaver"
-                        value={upcomingAssignments.length}
+                        value={assignmentsQuery.isError ? "—" : upcomingAssignments.length}
                         color="yellow"
                     />
                     <StatCard
                         icon={TrendingUp}
                         label="Totalt oppgaver"
-                        value={totalAssignments}
+                        value={assignmentsQuery.isError ? "—" : totalAssignments}
                         color="green"
                     />
                     <StatCard
@@ -162,6 +163,24 @@ export default function OversiktPage() {
                             <div className="animate-pulse space-y-3">
                                 <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mx-auto"></div>
                                 <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2 mx-auto"></div>
+                            </div>
+                        </div>
+                    ) : assignmentsQuery.isError ? (
+                        <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-8">
+                            <div className="flex flex-col items-center justify-center text-center space-y-3">
+                                <AlertCircle className="w-12 h-12 text-red-500 dark:text-red-400 shrink-0" />
+                                <div>
+                                    <h3 className="font-semibold text-red-800 dark:text-red-200 mb-1">
+                                        Kunne ikke hente oppgaver
+                                    </h3>
+                                    <p className="text-sm text-red-700 dark:text-red-300">
+                                        {lagBrukervennligFeilmelding(
+                                            assignmentsQuery.error instanceof Error ? assignmentsQuery.error : null,
+                                            { canvas: true },
+                                            "Prøv igjen om litt.",
+                                        )}
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     ) : ikkeInnleverteAssignments.length > 0 ? (
@@ -287,7 +306,7 @@ export default function OversiktPage() {
 interface StatCardProps {
     icon: React.ComponentType<{ size?: number; className?: string }>;
     label: string;
-    value: number;
+    value: number | string;
     color: "blue" | "green" | "yellow" | "purple";
 }
 

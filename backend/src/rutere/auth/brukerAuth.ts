@@ -203,7 +203,14 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         });
         if (eksisterendeTokenBruker) {
             logger.warn({ userId, existingUserId: eksisterendeTokenBruker._id }, "Forsøk på å bruke eksisterende Canvas token");
-            return apiError.conflict(res, "Dette Canvas-tokenet er allerede koblet til en annen bruker.");
+            if (!forceRelink) {
+                return res.status(409).json(CanvasTokenResponseSchema.parse({
+                    feil: "Canvas-konto konflikt",
+                    melding: "Dette Canvas-tokenet er allerede koblet til en annen bruker. " +
+                        "Hvis dette er din konto, kan du bruke 'Gjenopprett tilkobling' for å flytte den hit.",
+                    canvasKonflikt: true,
+                }));
+            }
         }
         // Sjekk hash først (raskt og sikkert for SAMME bruker)
         if (bruker.canvasTokenHash && bruker.canvasTokenHash === nyTokenHash) {
@@ -243,12 +250,12 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
                     // Avvis uten force-flagg - dette er en sikkerhetsrisiko
                     logger.warn({ userId, existingUserId: eksisterendeKobling.localUser, canvasId: canvasUserId },
                         "Canvas-konto tilhører allerede en annen bruker - avvist");
-                    return res.status(409).json({
+                    return res.status(409).json(CanvasTokenResponseSchema.parse({
                         feil: "Canvas-konto konflikt",
                         melding: "Denne Canvas-kontoen er allerede koblet til en annen StudyWise-bruker. " +
                             "Hvis dette er din konto, kan du bruke 'Gjenopprett tilkobling' for å flytte den hit.",
                         canvasKonflikt: true, // Frontend kan bruke dette til å vise "Gjenopprett"-knapp
-                    });
+                    }));
                 }
             }
         } catch (canvasError) {
@@ -280,6 +287,12 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
             } catch (error) {
                 logger.error({ err: error, userId }, "Feil ved dekryptering av eksisterende Canvas token");
             }
+        }
+
+        if (forceRelink && eksisterendeTokenBruker) {
+            await User.findByIdAndUpdate(eksisterendeTokenBruker._id, {
+                $unset: { canvasApiToken: 1, canvasTokenHash: 1, canvasUser: 1 }
+            });
         }
 
         if (bruker.canvasApiToken) {
@@ -357,6 +370,7 @@ router.delete("/token", autentiserJwt, rateLimitToken, async (req, res) => {
 router.post("/refresh", rateLimitRefresh, async (req, res) => {
     try {
         const refreshToken = hentCookieVerdi(req, JWT_REFRESH_COOKIE_NAVN);
+        const erSsrRefresh = req.headers["x-studywise-ssr-refresh"] === "1";
         if (!refreshToken) {
             return apiError.unauthorized(res, "Ingen refresh-token funnet.");
         }
@@ -400,16 +414,22 @@ router.post("/refresh", rateLimitRefresh, async (req, res) => {
             tilgangSecret,
             { expiresIn: JWT_TILGANG_UTLOPER as jwt.SignOptions["expiresIn"] }
         );
-        const nyttRefreshToken = jwt.sign(
-            { id: bruker._id, email: bruker.email, tokenType: "refresh" },
-            refreshSecret,
-            { expiresIn: JWT_REFRESH_UTLOPER as jwt.SignOptions["expiresIn"] }
-        );
-        bruker.refreshTokenHash = hashToken(nyttRefreshToken);
-        bruker.refreshTokenExpiresAt = new Date(Date.now() + JWT_REFRESH_MS);
-        await bruker.save();
+
+        // Ved SSR-refresh (x-studywise-ssr-refresh: 1) roterer vi ikke refresh-token,
+        // slik at browser-cookiene ikke desynkroniseres; kun ny access-cookie sendes.
+        if (!erSsrRefresh) {
+            const nyttRefreshToken = jwt.sign(
+                { id: bruker._id, email: bruker.email, tokenType: "refresh" },
+                refreshSecret,
+                { expiresIn: JWT_REFRESH_UTLOPER as jwt.SignOptions["expiresIn"] }
+            );
+            bruker.refreshTokenHash = hashToken(nyttRefreshToken);
+            bruker.refreshTokenExpiresAt = new Date(Date.now() + JWT_REFRESH_MS);
+            await bruker.save();
+            settRefreshCookie(res, nyttRefreshToken);
+        }
+
         settTilgangsCookie(res, nyttTilgangsToken);
-        settRefreshCookie(res, nyttRefreshToken);
         return res.json(RefreshResponseSchema.parse({ melding: "Tilgang oppdatert" }));
     } catch (error) {
         // DB-feil (findById, save) — dette er server-error, ikke auth-feil

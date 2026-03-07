@@ -19,6 +19,7 @@ import {
   type RegisterRequest,
 } from "common/auth";
 import { Footer } from "../components/footer";
+import { LoadingSpinner } from "../components/LoadingSpinner";
 import { useLoggInn, useRegistrer, useMeg } from "./auth-api";
 import { broadcastLogin } from "../hooks/use-auth-sync";
 
@@ -86,7 +87,7 @@ export default function AuthPage() {
   if (venterPaMeg || megQuery.data?.user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        <LoadingSpinner />
       </div>
     );
   }
@@ -133,8 +134,12 @@ export default function AuthPage() {
         feilTekst = "For mange forsøk. Vent noen minutter og prøv igjen.";
       } else if (errorMsg.includes("Nettverk") || errorMsg.includes("fetch") || errorMsg.includes("network")) {
         feilTekst = "Nettverksfeil. Sjekk internettforbindelsen din.";
-      } else if (errorMsg.includes("passord") && errorMsg.includes("kort")) {
-        feilTekst = "Passordet er for kort. Bruk minst 6 tegn.";
+      } else if (
+        (/passord/i.test(errorMsg) && /(kort|minst|least|length|tegn|characters?)/i.test(errorMsg)) ||
+        /at least 8/i.test(errorMsg) ||
+        /minimum 8/i.test(errorMsg)
+      ) {
+        feilTekst = "Passordet er for kort. Bruk minst 8 tegn.";
         setError("password", { type: "server", message: feilTekst });
         return;
       } else if (errorMsg.includes("e-post") || errorMsg.includes("email")) {

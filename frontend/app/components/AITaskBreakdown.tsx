@@ -5,7 +5,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Sparkles, Edit2, Check, X, Plus, Trash2, RefreshCw, Loader2, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Sparkles, Edit2, Check, X, Plus, Trash2, RefreshCw, ThumbsUp, ThumbsDown } from "lucide-react";
+import { LoadingSpinner } from "./LoadingSpinner";
 import { toast } from "sonner";
 import { useKIChat } from "../ki/ki-api";
 import type { SubTask } from "common/ki";
@@ -221,7 +222,7 @@ export function AITaskBreakdown({
           <div className="flex items-center justify-center gap-3">
             {isGenerating ? (
               <>
-                <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                <LoadingSpinner className="w-5 h-5" />
                 <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
                   Genererer deloppgaver...
                 </span>

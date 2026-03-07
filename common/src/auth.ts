@@ -16,6 +16,7 @@ export const CanvasTokenResponseSchema = z.object({
   melding: z.string().optional(),
   success: z.boolean().optional(),
   feil: z.string().optional(),
+  canvasKonflikt: z.boolean().optional(),
 });
 
 // Canvas kontekst preferanser

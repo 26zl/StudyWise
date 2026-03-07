@@ -6,16 +6,16 @@ import { useQuery } from "@tanstack/react-query";
 import {
   CalendarItemsResponseSchema,
   type CalendarItem,
+  type CalendarItemsResponse,
 } from "common/calendar";
-import { fornySesjon } from "../auth/auth-api";
 import type {
   Assignment,
   Course,
   CourseColor,
   CalendarFilterType,
 } from "common/calendar-ui";
-import { CanvasTokenMissingError } from "../lib/errors";
-import { parseApiError } from "../lib/errorUtils";
+import { fetchCanvas } from "../canvas/canvas-api";
+import { useUIStore } from "../store/uiStore";
 
 // Re-eksporter for bakoverkompatibilitet
 export { CanvasTokenMissingError } from "../lib/errors";
@@ -47,12 +47,9 @@ interface FetchCalendarOptions {
   limit?: number; // Antall items per side
 }
 
-// Funksjon for å hente kalenderdata fra backend (Canvas planner + events)
-// : Støtter force-refresh og paginering
-async function fetchCalendarItems(
-  options: FetchCalendarOptions = {},
-  forsoktRefresh = false,
-) {
+const CALENDAR_PAGE_LIMIT = 500;
+
+function buildCalendarEndpoint(options: FetchCalendarOptions = {}): string {
   // Bygg query params basert på opsjoner
   const params = new URLSearchParams();
   if (options.forceRefresh) params.set("refresh", "true");
@@ -61,31 +58,64 @@ async function fetchCalendarItems(
 
   // Bygg URL med query params
   const queryString = params.toString();
-  const url = `/api/canvas/kalender${queryString ? `?${queryString}` : ""}`;
+  return `/kalender${queryString ? `?${queryString}` : ""}`;
+}
 
-  // Gjør fetch med autentisering og håndtering av 401/403
-  const res = await fetch(url, {
-    credentials: "include",
-    cache: "no-store",
+async function fetchCalendarPage(
+  options: FetchCalendarOptions = {},
+): Promise<CalendarItemsResponse> {
+  return fetchCanvas(buildCalendarEndpoint(options), CalendarItemsResponseSchema);
+}
+
+// Hent alle kalender-sider slik at frontend ikke mister elementer etter backend-paginering.
+export async function fetchAllCalendarItems(
+  options: Omit<FetchCalendarOptions, "page"> = {},
+): Promise<CalendarItemsResponse> {
+  const pageSize = options.limit ?? CALENDAR_PAGE_LIMIT;
+  const firstPage = await fetchCalendarPage({
+    ...options,
+    page: 1,
+    limit: pageSize,
   });
-  // Håndter 401 (ikke autentisert) - prøv refresh token
-  if (res.status === 401 && !forsoktRefresh) {
-    await fornySesjon();
-    return fetchCalendarItems(options, true);
+  const totalPages = firstPage.meta?.pagination?.totalPages ?? 1;
+
+  if (totalPages <= 1) {
+    return firstPage;
   }
-  // Håndter 403 (manglende Canvas-token) - ikke prøv refresh
-  if (res.status === 403) {
-    throw new CanvasTokenMissingError(
-      await parseApiError(res, "Canvas-token mangler"),
-    );
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, index) =>
+      fetchCalendarPage({
+        ...options,
+        page: index + 2,
+        limit: pageSize,
+      }),
+    ),
+  );
+
+  const items = [
+    ...firstPage.items,
+    ...remainingPages.flatMap((page) => page.items),
+  ];
+
+  if (!firstPage.meta) {
+    return { items };
   }
-  if (!res.ok) {
-    throw new Error(
-      await parseApiError(res, "Kunne ikke hente kalenderdata"),
-    );
-  }
-  const data = await res.json();
-  return CalendarItemsResponseSchema.parse(data);
+
+  return {
+    items,
+    meta: {
+      ...firstPage.meta,
+      pagination: {
+        page: 1,
+        limit: items.length,
+        totalItems: items.length,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPrevPage: false,
+      },
+    },
+  };
 }
 // Regex for å ekstrahere emnekoder - gjenbrukes i mapping-funksjoner
 // Matcher: BOP3000, INF2010, DAT101, etc.
@@ -216,16 +246,18 @@ function filterAssignments(
 
 // React Query hook for å bruke kalenderdata i komponenter
 export function useCalendarData(enabled = true) {
+  const tokenInvalid = useUIStore((state) => state.canvasTokenInvalid);
+  const isEnabled = enabled && !tokenInvalid;
   const query = useQuery({
     queryKey: ["canvas", "calendar"],
     queryFn: async () => {
-      const data = await fetchCalendarItems();
+      const data = await fetchAllCalendarItems();
       return {
         ...mapCalendarItems(data.items),
         meta: data.meta, // Inkluder cache-metadata
       };
     },
-    enabled,
+    enabled: isEnabled,
     staleTime: 30 * 1000, // 30 sekunder før data anses som stale
     refetchOnWindowFocus: true, // Oppdater når vinduet får fokus
     gcTime: 5 * 60 * 1000, // Garbage collect etter 5 min inaktivitet
