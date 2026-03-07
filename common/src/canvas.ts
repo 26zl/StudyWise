@@ -63,6 +63,17 @@ export const CanvasAssignmentSchema = z.object({
   submission: CanvasAssignmentSubmissionSchema,
 });
 
+/** Sjekk om en oppgave er innlevert (submitted, graded eller pending_review). */
+export function isCanvasAssignmentSubmitted(assignment: {
+  submission?: { workflow_state?: string | null; submitted_at?: string | null } | null;
+}): boolean {
+  const sub = assignment?.submission;
+  if (!sub) return false;
+  const state = sub.workflow_state;
+  if (state === "submitted" || state === "graded" || state === "pending_review") return true;
+  return Boolean(sub.submitted_at);
+}
+
 // Schema for Canvas kunngjøring
 export const CanvasAnnouncementSchema = z.object({
   id: z.number(),
@@ -357,8 +368,10 @@ export const CourseContentMetadataSchema = z.object({
   hasFrontPage: z.boolean(),
   hasModules: z.boolean(),
   hasFiles: z.boolean(),
+  hasPages: z.boolean().default(false),
   modulesCount: z.number(),
   filesCount: z.number(),
+  pagesCount: z.number().default(0),
 });
 
 export type CourseContentMetadata = z.infer<typeof CourseContentMetadataSchema>;

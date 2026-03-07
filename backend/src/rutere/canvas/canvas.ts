@@ -369,22 +369,26 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
             hasFrontPage: false,
             hasModules: false,
             hasFiles: false,
+            hasPages: false,
             modulesCount: 0,
             filesCount: 0,
+            pagesCount: 0,
           };
         }
 
-        // Hent alle 4 ressurser parallelt per kurs
+        // Hent alle 5 ressurser parallelt per kurs
         const [
           courseDetailsResult,
           frontPageResult,
           modulesResult,
           filesResult,
+          pagesResult,
         ] = await Promise.allSettled([
           fetchCourse(req.canvasToken, courseId),
           fetchFrontPage(req.canvasToken, courseId),
           fetchModules(req.canvasToken, courseId),
           fetchFiles(req.canvasToken, courseId),
+          fetchPages(req.canvasToken, courseId),
         ]);
 
         // Sjekk kursdetaljer for syllabus
@@ -409,19 +413,23 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
           courseDetails.syllabus_body.trim().length > 0
         );
 
-        // Hent moduler og filer
+        // Hent moduler, filer og sider
         const modules =
           modulesResult.status === "fulfilled" ? modulesResult.value.data : [];
         const files =
           filesResult.status === "fulfilled" ? filesResult.value.data : [];
+        const pages =
+          pagesResult.status === "fulfilled" ? pagesResult.value.data : [];
 
         return {
           courseId,
           hasFrontPage: wikiHasContent || syllabusHasContent,
           hasModules: modules.length > 0,
           hasFiles: files.length > 0,
+          hasPages: pages.length > 0,
           modulesCount: modules.length,
           filesCount: files.length,
+          pagesCount: pages.length,
         };
       }),
     );
@@ -435,8 +443,10 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
         hasFrontPage: boolean;
         hasModules: boolean;
         hasFiles: boolean;
+        hasPages: boolean;
         modulesCount: number;
         filesCount: number;
+        pagesCount: number;
       }
     > = {};
 
@@ -445,8 +455,10 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
         hasFrontPage: m.hasFrontPage,
         hasModules: m.hasModules,
         hasFiles: m.hasFiles,
+        hasPages: m.hasPages,
         modulesCount: m.modulesCount,
         filesCount: m.filesCount,
+        pagesCount: m.pagesCount,
       };
     });
 
