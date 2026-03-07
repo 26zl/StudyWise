@@ -147,6 +147,7 @@ export function useVarslerPopups(harCanvasToken: boolean, options: UseVarslerPop
     const planlagtSignaturRef = useRef<string | null>(null);
     const onGåRef = useRef(onGåTilVarslinger);
     onGåRef.current = onGåTilVarslinger;
+    const ulesteCountRef = useRef(0);
 
     const { ulesteCount, alleElementer, lestIds, markAllAsLest, isLoading, isError } = useVarsler(harCanvasToken);
     const markAllRef = useRef(markAllAsLest);
@@ -162,6 +163,8 @@ export function useVarslerPopups(harCanvasToken: boolean, options: UseVarslerPop
     const ulesteSignatur = useMemo(() => ulesteIds.join("|"), [ulesteIds]);
 
     useEffect(() => {
+        ulesteCountRef.current = ulesteCount;
+
         if (!harCanvasToken) {
             planlagtSignaturRef.current = null;
             try {
@@ -186,13 +189,14 @@ export function useVarslerPopups(harCanvasToken: boolean, options: UseVarslerPop
         planlagtSignaturRef.current = ulesteSignatur;
         try {
             const t = setTimeout(() => {
+                if (ulesteCountRef.current <= 0) return;
                 ulesteIds.forEach((id) => visteIds.add(id));
                 saveVisteVarsler(visteIds);
 
                 const melding =
-                    ulesteCount === 1
+                    ulesteCountRef.current === 1
                         ? "Du har 1 ulest varsel"
-                        : `Du har ${ulesteCount} uleste varsler`;
+                        : `Du har ${ulesteCountRef.current} uleste varsler`;
 
                 toast.info(melding, {
                     description: "Klikk for å åpne varslinger.",

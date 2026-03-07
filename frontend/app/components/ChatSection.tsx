@@ -13,8 +13,9 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
 import { SmartSuggestions } from "./SmartSuggestions";
-import { useKITestTilkobling, useKIChat, useKIDocumentAnalyse, SUPPORTED_FILE_TYPES } from "../ki/ki-api";
+import { useKIChat, useKIDocumentAnalyse, useKITestTilkobling, SUPPORTED_FILE_TYPES } from "../ki/ki-api";
 import { useChatHistory } from "../hooks/useChatHistory";
+import { FeilMelding } from "./FeilMelding";
 import { useUIStore } from "../store/uiStore";
 import { exportToMarkdown } from "../utils/exportChat";
 import { formaterKlokkeslett } from "../lib/dato";
@@ -47,7 +48,16 @@ export function ChatSection() {
     const meldingerSluttRef = useRef<HTMLDivElement>(null);
     const tekstInputRef = useRef<HTMLTextAreaElement>(null);
     const filInputRef = useRef<HTMLInputElement>(null);
+    const meldingerRef = useRef<Melding[]>([]);
     const oppretterChatRef = useRef(false);
+    const isMountedRef = useRef(true);
+    /** Kontekst for pågående KI-forespørsel – brukes i onSuccess/onError så vi kan lagre riktig chat selv om brukeren har forlatt */
+    const pendingChatRef = useRef<{
+        chatId: string | null;
+        messagesBefore: Melding[];
+        userMessage: Melding;
+        visibleMessageIds: string[];
+    } | null>(null);
     const { selectedChatId, setSelectedChatId, newChatToken, canvasContext, canvasContextSelection } = useUIStore();
 
     // Sjekk om brukeren har valgt minst ett Canvas-datasett (uavhengig av om data er lastet)
@@ -62,10 +72,16 @@ export function ChatSection() {
         setMounted(true);
     }, []);
 
-    // KI tilkoblingstest 
-    const {
-        isError: erTilkoblingsFeil
-    } = useKITestTilkobling();
+    // Spor om komponenten er montert (for pågående forespørsler som fullfører etter navigering)
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
+
+    // KI tilkoblingstest (viser feilmelding hvis KI er utilgjengelig)
+    const { isError: erTilkoblingsFeil } = useKITestTilkobling(mounted);
 
     // KI chat hook
     const { sendMelding: sendTilAPI } = useKIChat();
@@ -85,6 +101,10 @@ export function ChatSection() {
     useEffect(() => {
         scrollTilBunn();
     }, [meldinger, skriver]);
+
+    useEffect(() => {
+        meldingerRef.current = meldinger;
+    }, [meldinger]);
 
     // Auto-resize textarea
     useEffect(() => {
@@ -111,6 +131,33 @@ export function ChatSection() {
             if (nyId) setAktivChatId(nyId);
         } finally {
             oppretterChatRef.current = false;
+        }
+    };
+
+    const kanOppdatereSynligSamtale = (pending: NonNullable<typeof pendingChatRef.current>) => {
+        const currentIds = meldingerRef.current.map((m) => m.id);
+        return (
+            currentIds.length === pending.visibleMessageIds.length &&
+            currentIds.every((id, index) => id === pending.visibleMessageIds[index])
+        );
+    };
+
+    const persistPendingConversation = async (
+        pending: NonNullable<typeof pendingChatRef.current>,
+        sisteMelding: Melding,
+    ) => {
+        const payload = [...pending.messagesBefore, pending.userMessage, sisteMelding].map((m) => ({
+            rolle: m.rolle,
+            innhold: m.innhold,
+        }));
+        const savedChatId = await saveChat(payload, pending.chatId ?? undefined);
+        if (
+            savedChatId &&
+            !pending.chatId &&
+            isMountedRef.current &&
+            kanOppdatereSynligSamtale(pending)
+        ) {
+            setAktivChatId(savedChatId);
         }
     };
 
@@ -242,6 +289,7 @@ export function ChatSection() {
         };
 
         settMeldinger((tidligere) => [...tidligere, brukerMelding]);
+        meldingerRef.current = [...meldinger, brukerMelding];
 
         // Hvis det er vedlegg, bruk dokumentanalyse (én fil om gangen)
         // NB: Backend-API-et aksepterer kun én fil per forespørsel.
@@ -309,6 +357,14 @@ export function ChatSection() {
 
         // Vanlig chat uten fil
         settSkriver(true);
+
+        // Lagre kontekst for denne forespørselen så vi kan lagre riktig chat selv om brukeren forlater siden
+        pendingChatRef.current = {
+            chatId: aktivChatId,
+            messagesBefore: [...meldinger],
+            userMessage: brukerMelding,
+            visibleMessageIds: [...meldinger, brukerMelding].map((m) => m.id),
+        };
 
         // Forbered meldingshistorikk for API
         const apiMeldinger = [
@@ -378,7 +434,7 @@ export function ChatSection() {
             }
         }
 
-        // Send til ekte API
+        // Send til ekte API (fullfører i bakgrunnen selv om brukeren forlater chatten)
         sendTilAPI(apiMeldinger, {
             onSuccess: (data) => {
                 const aiMelding: Melding = {
@@ -387,15 +443,18 @@ export function ChatSection() {
                     innhold: data.response,
                     tidsstempel: new Date(),
                 };
-                settMeldinger((tidligere) => {
-                    const oppdatert = [...tidligere, aiMelding];
-                    // Auto-save hele samtalen til historikk (vent på at chat blir opprettet)
-                    lagreSamtale(oppdatert).catch((err) => {
-                        console.error("Feil ved lagring av samtale:", err);
-                    });
-                    return oppdatert;
-                });
-                settSkriver(false);
+                const pending = pendingChatRef.current;
+                pendingChatRef.current = null;
+                const skalOppdatereSynlig = pending ? kanOppdatereSynligSamtale(pending) : false;
+                if (pending) {
+                    void persistPendingConversation(pending, aiMelding);
+                }
+                if (isMountedRef.current) {
+                    if (skalOppdatereSynlig) {
+                        settMeldinger((tidligere) => [...tidligere, aiMelding]);
+                    }
+                    settSkriver(false);
+                }
             },
             onError: (error) => {
                 let feilTekst: string;
@@ -412,6 +471,13 @@ export function ChatSection() {
                     feilTekst = "Forespørselen tok for lang tid. Prøv igjen eller forenkle spørsmålet.";
                 } else if (error.message.includes("429") || error.message.includes("rate")) {
                     feilTekst = "For mange forespørsler. Vent litt og prøv igjen.";
+                } else if (
+                    error.message.includes("Internal Server Error") ||
+                    error.message.includes("500") ||
+                    error.message.includes("Server Error") ||
+                    error.message.includes("serveren")
+                ) {
+                    feilTekst = "Noe gikk galt på serveren. Prøv igjen om litt, eller forenkle spørsmålet ditt.";
                 } else {
                     feilTekst = error.message || "Noe gikk galt. Prøv igjen.";
                 }
@@ -422,15 +488,18 @@ export function ChatSection() {
                     innhold: feilTekst,
                     tidsstempel: new Date(),
                 };
-                settMeldinger((tidligere) => {
-                    const oppdatert = [...tidligere, feilMelding];
-                    // Lagre samtale selv ved feil
-                    lagreSamtale(oppdatert).catch((err) => {
-                        console.error("Feil ved lagring av samtale:", err);
-                    });
-                    return oppdatert;
-                });
-                settSkriver(false);
+                const pending = pendingChatRef.current;
+                pendingChatRef.current = null;
+                const skalOppdatereSynlig = pending ? kanOppdatereSynligSamtale(pending) : false;
+                if (pending) {
+                    void persistPendingConversation(pending, feilMelding);
+                }
+                if (isMountedRef.current) {
+                    if (skalOppdatereSynlig) {
+                        settMeldinger((tidligere) => [...tidligere, feilMelding]);
+                    }
+                    settSkriver(false);
+                }
             },
         });
     };
@@ -493,13 +562,9 @@ export function ChatSection() {
 
                 {/* Meldinger */}
                 <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
-                    {/* Tilkoblingsfeil */}
+                    {/* Tilkoblingsfeil – bruk felles FeilMelding */}
                     {erTilkoblingsFeil && (
-                        <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4">
-                            <p className="text-sm text-red-700 dark:text-red-300">
-                                Kunne ikke koble til KI-assistenten. Prøv igjen senere.
-                            </p>
-                        </div>
+                        <FeilMelding melding="Kunne ikke koble til KI-assistenten. Prøv igjen senere." />
                     )}
 
                     {/* Placeholder før hydration - matcher server-rendering */}
@@ -513,7 +578,7 @@ export function ChatSection() {
                     {mounted && loading && (
                         <div className="flex justify-center items-center py-12">
                             <LoadingSpinner />
-                            <p className="ml-3 text-sm text-slate-500">Laster samtalehistorikk...</p>
+                            <p className="ml-3 text-sm text-slate-500 dark:text-slate-400">Laster samtalehistorikk...</p>
                         </div>
                     )}
 

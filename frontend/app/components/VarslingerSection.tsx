@@ -18,6 +18,7 @@ import {
     CheckCheck,
 } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
+import { FeilMelding } from "./FeilMelding";
 import { toast } from "sonner";
 import { useVarsler, type VarslingTab } from "../hooks/useVarsler";
 import { formaterTid, type FristStatus } from "../lib/varsler";
@@ -169,18 +170,13 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                     <LoadingSpinner />
                 </div>
             ) : isError ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
-                    <div className="flex items-center gap-3">
-                        <AlertCircle className="h-5 w-5 shrink-0 text-red-500" />
-                        <p className="text-sm text-red-700 dark:text-red-300">
-                            {lagBrukervennligFeilmelding(
-                                error instanceof Error ? error : null,
-                                { canvas: true },
-                                "Kunne ikke laste varsler. Prøv igjen.",
-                            )}
-                        </p>
-                    </div>
-                </div>
+                <FeilMelding
+                    melding={lagBrukervennligFeilmelding(
+                        error instanceof Error ? error : null,
+                        { canvas: true },
+                        "Kunne ikke laste varsler. Prøv igjen.",
+                    )}
+                />
             ) : aktiveListe.length === 0 ? (
                 <div className="text-center py-12">
                     <Bell className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />

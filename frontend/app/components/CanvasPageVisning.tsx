@@ -8,6 +8,7 @@ import type { JSX } from "react";
 import { useCanvasPage } from "../canvas/canvas-api";
 import { ArrowLeft, Calendar } from "lucide-react";
 import { createCanvasHtmlParser, parseCanvasHtml } from "../canvas/canvasHtml";
+import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
 import { format } from "date-fns";
 import { nb } from "date-fns/locale";
 import { KIOppsummering } from "./KIOppsummering";
@@ -40,10 +41,14 @@ export function CanvasPageVisning({ courseId, pageId, onBack }: CanvasPageVisnin
     }
     // Håndter feil ved lasting av side
     if (isError) {
-        const errorMessage = error instanceof Error ? error.message : "Ukjent feil";
+        const feilMelding = lagBrukervennligFeilmelding(
+            error instanceof Error ? error : null,
+            { canvas: true },
+            "Kunne ikke laste siden. Prøv igjen."
+        );
         return (
-            <div className="p-8 text-center">
-                <p className="text-red-600 dark:text-red-400">Kunne ikke laste siden: {errorMessage}</p>
+            <div className="p-8 text-center space-y-4">
+                <p className="text-red-600 dark:text-red-400">{feilMelding}</p>
                 <button
                     onClick={onBack}
                     className="mt-4 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-sm transition-colors"

@@ -7,6 +7,7 @@
 import { useCallback, useEffect } from "react";
 import { startOfDay, addDays } from "date-fns";
 import { Sparkles, Calendar, BookOpen, MessageSquare, TrendingUp, Clock, AlertCircle } from "lucide-react";
+import { FeilMelding } from "../components/FeilMelding";
 import { WeeklyPlanSuggestions } from "../components/WeeklyPlanSuggestions";
 import { Sidebar, type VisningType } from "../components/Sidebar";
 import { useCanvasCourses, useCanvasAllAssignments, useCanvasUser, type AssignmentMedEmne } from "../canvas/canvas-api";
@@ -79,7 +80,7 @@ export default function OversiktPage() {
     // Vis lasteskjerm mens brukerdata hentes
     if (megQuery.isLoading) {
         return (
-            <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950 min-h-screen">
+            <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950">
                 <Sidebar aktivVisning="chat" byttVisning={byttVisning} brukernavn={brukernavn} />
                 <main className="flex-1 min-h-0 overflow-y-auto flex items-center justify-center p-8">
                     <LoadingSpinner />
@@ -89,7 +90,7 @@ export default function OversiktPage() {
     }
 
     return (
-        <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950 min-h-screen">
+        <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950">
             <Sidebar aktivVisning="chat" byttVisning={byttVisning} brukernavn={brukernavn} />
             <main className="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-slate-900">
                 <div className="min-h-full bg-slate-50 dark:bg-slate-950">
@@ -166,22 +167,14 @@ export default function OversiktPage() {
                             </div>
                         </div>
                     ) : assignmentsQuery.isError ? (
-                        <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-8">
-                            <div className="flex flex-col items-center justify-center text-center space-y-3">
-                                <AlertCircle className="w-12 h-12 text-red-500 dark:text-red-400 shrink-0" />
-                                <div>
-                                    <h3 className="font-semibold text-red-800 dark:text-red-200 mb-1">
-                                        Kunne ikke hente oppgaver
-                                    </h3>
-                                    <p className="text-sm text-red-700 dark:text-red-300">
-                                        {lagBrukervennligFeilmelding(
-                                            assignmentsQuery.error instanceof Error ? assignmentsQuery.error : null,
-                                            { canvas: true },
-                                            "Prøv igjen om litt.",
-                                        )}
-                                    </p>
-                                </div>
-                            </div>
+                        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6">
+                            <FeilMelding
+                                melding={lagBrukervennligFeilmelding(
+                                    assignmentsQuery.error instanceof Error ? assignmentsQuery.error : null,
+                                    { canvas: true },
+                                    "Kunne ikke hente oppgaver. Prøv igjen.",
+                                )}
+                            />
                         </div>
                     ) : ikkeInnleverteAssignments.length > 0 ? (
                         <WeeklyPlanSuggestions

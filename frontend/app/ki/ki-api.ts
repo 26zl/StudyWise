@@ -6,7 +6,7 @@
 
 import type { ZodType } from "zod";
 import { z } from "zod";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   KIChatResponseSchema,
   KIDocumentAnalyseResponseSchema,
@@ -144,41 +144,27 @@ async function håndterKIFeilRespons(res: Response): Promise<void> {
       "Forespørselen tok for lang tid. Prøv å forenkle spørsmålet.",
     );
   }
+  if (res.status >= 500) {
+    throw new KIServiceError(
+      "Noe gikk galt på serveren. Prøv igjen om litt, eller forenkle spørsmålet ditt.",
+    );
+  }
   if (!res.ok) {
     throw new Error(await parseApiError(res));
   }
 }
 
 // API funksjoner
-async function fetchKI<T>(
-  endpoint: string,
-  schema: ZodType<T>,
-  forsoktRefresh = false,
-): Promise<T> {
-  const res = await fetch(`/api/ki${endpoint}`, {
-    credentials: "include",
-    cache: "no-store",
-  });
-
-  if (res.status === 401 && !forsoktRefresh) {
-    await fornySesjon();
-    return fetchKI(endpoint, schema, true);
-  }
-
-  await håndterKIFeilRespons(res);
-  const data = await res.json();
-  return schema.parse(data);
-}
-
 // POST funksjon for chat (støtter SSE-streaming fra backend)
 async function postKI<T>(
   endpoint: string,
   body: unknown,
   schema: ZodType<T>,
   forsoktRefresh = false,
+  method: "POST" | "PUT" | "DELETE" = "POST",
 ): Promise<T> {
   const res = await fetch(`/api/ki${endpoint}`, {
-    method: "POST",
+    method,
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -186,7 +172,7 @@ async function postKI<T>(
 
   if (res.status === 401 && !forsoktRefresh) {
     await fornySesjon();
-    return postKI(endpoint, body, schema, true);
+    return postKI(endpoint, body, schema, true, method);
   }
 
   await håndterKIFeilRespons(res);
@@ -263,13 +249,39 @@ async function postKIFormData<T>(
 
 // React query hooks
 
-// Test tilkobling
-export function useKITestTilkobling() {
-  return useQuery({
+/** Test tilkobling til KI-tjenesten (GET /test-connection). Brukes for å vise feilmelding i chat hvis KI er utilgjengelig. */
+export function useKITestTilkobling(enabled = true) {
+  const query = useQuery({
     queryKey: ["ki", "test-connection"],
-    queryFn: () => fetchKI("/test-connection", KIChatResponseSchema),
-    enabled: false, // Kun kjør manuelt (via refetch)
+    queryFn: async () => {
+      const res = await fetch("/api/ki/test-connection", {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        let message = "Kunne ikke koble til KI-assistenten.";
+        try {
+          const json = JSON.parse(text);
+          message = json.melding || json.feil || message;
+        } catch {
+          // bruk default
+        }
+        throw new Error(message);
+      }
+      return res.json();
+    },
+    enabled,
+    staleTime: 60 * 1000, // 1 minutt
+    retry: false,
   });
+  return {
+    isError: query.isError,
+    error: query.error,
+    isLoading: query.isLoading,
+    refetch: query.refetch,
+  };
 }
 
 // Chat mutation hook

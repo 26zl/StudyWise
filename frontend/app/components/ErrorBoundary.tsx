@@ -6,6 +6,7 @@
 
 import { Component, type ReactNode } from "react";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
+import { FeilMelding } from "./FeilMelding";
 
 // Props og state for ErrorBoundary
 interface Props {
@@ -107,23 +108,18 @@ export class ErrorBoundary extends Component<Props, State> {
 }
 
 // Enkel wrapper for seksjoner som kan feile
-export function SectionErrorBoundary({ 
-  children, 
-  sectionName 
-}: { 
-  children: ReactNode; 
+export function SectionErrorBoundary({
+  children,
+  sectionName,
+}: {
+  children: ReactNode;
   sectionName: string;
 }) {
   return (
     <ErrorBoundary
       fallback={
-        <div className="p-6 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-            <AlertTriangle className="w-4 h-4 text-red-500" />
-            <span className="text-sm text-red-700 dark:text-red-300">
-              Kunne ikke laste {sectionName}. Prøv å laste siden på nytt.
-            </span>
-          </div>
+        <div className="p-6">
+          <FeilMelding melding={`Kunne ikke laste ${sectionName}. Prøv å laste siden på nytt.`} />
         </div>
       }
     >

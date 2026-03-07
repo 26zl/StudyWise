@@ -13,11 +13,11 @@ import {
     ChevronRight,
     ExternalLink,
     FileText,
-    AlertCircle,
     Download,
     BookOpen,
 } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
+import { FeilMelding } from "./FeilMelding";
 import {
     useCanvasAnnouncements,
     useCanvasCourses,
@@ -122,17 +122,6 @@ function LasteSkjelett({ linjer = 3 }: { linjer?: number }) {
         </div>
     );
 }
-
-// Feilmelding-komponent
-function FeilMelding({ melding }: { melding: string }) {
-    return (
-        <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-            <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
-            <p className="text-sm text-red-700 dark:text-red-300">{melding}</p>
-        </div>
-    );
-}
-
 
 // Kunngjørings-visning
 function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
@@ -333,7 +322,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                             </div>
                         )}
                         {frontPageQuery.isError && (
-                            <FeilMelding melding={frontPageQuery.error instanceof Error ? frontPageQuery.error.message : "Kunne ikke laste forside"} />
+                            <FeilMelding melding={lagBrukervennligFeilmelding(frontPageQuery.error instanceof Error ? frontPageQuery.error : null, { canvas: true }, "Kunne ikke laste forside. Prøv igjen.")} />
                         )}
                         {frontPageQuery.data && (
                             <article className="min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4">
@@ -814,19 +803,11 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
 // Advarsel når Canvas-token er ugyldig/slettet
 function TokenUgyldigAdvarsel() {
     return (
-        <div className="mx-4 md:mx-6 mt-4 p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
-            <div className="flex gap-3">
-                <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                    <h3 className="font-medium text-amber-800 dark:text-amber-200 mb-1">
-                        Canvas-tilkobling feilet
-                    </h3>
-                    <p className="text-sm text-amber-700 dark:text-amber-300">
-                        Canvas API-tokenet ditt er ugyldig, utløpt eller slettet i Canvas.
-                        Gå til <strong>Innstillinger</strong> for å legge til et nytt token.
-                    </p>
-                </div>
-            </div>
+        <div className="mx-4 md:mx-6 mt-4">
+            <FeilMelding
+                type="warning"
+                melding="Canvas API-tokenet ditt er ugyldig, utløpt eller slettet i Canvas. Gå til Innstillinger for å legge til et nytt token."
+            />
         </div>
     );
 }

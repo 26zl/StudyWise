@@ -4,9 +4,10 @@
  */
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Sparkles, Loader2, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
 import { useKIOppsummering as useKIOppsummeringHook, type KIOppsummeringResponse } from "../ki/ki-api";
+import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
 
 // Størrelseskonfigurasjoner
 const storrelser = {
@@ -58,29 +59,40 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
     const { oppsummer, isPending, data, error } = useKIOppsummeringHook();
     const [åpen, settÅpen] = useState(false);
     const [resultat, settResultat] = useState<KIOppsummeringResponse | null>(null);
+    const [requesting, setRequesting] = useState(false);
+    const tekstRef = useRef(tekst);
+    tekstRef.current = tekst;
     const harTekst = tekst.trim().length > 0;
+    const visLoading = isPending || requesting;
 
     const s = storrelser[storrelse];
 
-    // Håndterer klikk på oppsummeringsknappen
+    // Håndterer klikk på oppsummeringsknappen – stabil callback, umiddelbar loading-feedback
     const handleOppsummer = useCallback(() => {
         if (resultat) {
             settÅpen((v) => !v);
             return;
         }
-        if (!harTekst) return;
-        oppsummer(tekst, {
+        const currentTekst = tekstRef.current.trim();
+        if (!currentTekst) return;
+        setRequesting(true);
+        oppsummer(currentTekst, {
             type: "begge",
             onSuccess: (data) => {
+                setRequesting(false);
                 settResultat(data);
                 settÅpen(true);
             },
+            onError: () => {
+                setRequesting(false);
+            },
         });
-    }, [tekst, oppsummer, resultat, harTekst]);
+    }, [oppsummer, resultat]);
 
-    // Oppdaterer resultat og åpner oppsummering når data kommer inn
+    // Oppdaterer resultat og åpner oppsummering når data kommer inn (fallback for cache/race)
     useEffect(() => {
         if (data?.suksess && !resultat) {
+            setRequesting(false);
             settResultat(data);
             settÅpen(true);
         }
@@ -129,10 +141,10 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
             <button
                 type="button"
                 onClick={handleOppsummer}
-                disabled={isPending || !harTekst}
+                disabled={visLoading || !harTekst}
                 className={`inline-flex items-center gap-1.5 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors disabled:opacity-50 ${s.knapp}`}
             >
-                {renderIkon(isPending ? Loader2 : Sparkles)}
+                {renderIkon(visLoading ? Loader2 : Sparkles)}
                 {knappTekst}
                 {resultat && renderChevron(åpen ? ChevronUp : ChevronDown)}
             </button>
@@ -185,7 +197,9 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
             )}
 
             {error && !resultat && (
-                <p className={`${s.feilMargin} ${s.feil} text-red-500 dark:text-red-400`}>{error.message}</p>
+                <p className={`${s.feilMargin} ${s.feil} text-red-500 dark:text-red-400`}>
+                    {lagBrukervennligFeilmelding(error instanceof Error ? error : null, { ki: true })}
+                </p>
             )}
         </div>
     );

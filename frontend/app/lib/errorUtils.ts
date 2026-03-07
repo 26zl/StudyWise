@@ -25,6 +25,7 @@ type FeilType =
   | "forbidden"
   | "server"
   | "validation"
+  | "conflict"
   | "unknown";
 
 function identifiserFeiltype(
@@ -45,6 +46,7 @@ function identifiserFeiltype(
   if (status === 401) return "auth";
   if (status === 403) return "forbidden";
   if (status === 404) return "not_found";
+  if (status === 409) return "conflict";
   if (status === 429) return "rate_limit";
   if (status === 504 || status === 408) return "timeout";
   if (status && status >= 500) return "server";
@@ -102,6 +104,13 @@ function identifiserFeiltype(
   }
   if (lowerMsg.includes("validering") || lowerMsg.includes("ugyldig format")) {
     return "validation";
+  }
+  if (
+    lowerMsg.includes("409") ||
+    (lowerMsg.includes("eksisterer") && lowerMsg.includes("allerede")) ||
+    lowerMsg.includes("finnes allerede")
+  ) {
+    return "conflict";
   }
 
   return "unknown";
@@ -167,17 +176,23 @@ export function lagBrukervennligFeilmelding(
     }
   }
 
-  // Auth-spesifikke meldinger
+  // Auth-spesifikke meldinger (innlogging/registrering)
   if (kontekst.auth) {
     switch (feiltype) {
       case "auth":
-        return "Feil e-post eller passord. Sjekk at du har skrevet riktig.";
+        return "Feil e-post eller passord. Sjekk at du har skrevet riktig og prøv igjen.";
       case "not_found":
-        return "Ingen bruker med denne e-postadressen. Opprett en konto først.";
+        return "Ingen bruker med denne e-postadressen. Opprett en konto under «Registrer» først.";
+      case "conflict":
+        return "En bruker med denne e-postadressen finnes allerede. Logg inn i stedet, eller bruk en annen e-post.";
       case "rate_limit":
         return "For mange forsøk. Vent noen minutter og prøv igjen.";
       case "validation":
         return "Ugyldig e-postadresse eller passord. Sjekk at formatet er riktig.";
+      case "network":
+        return "Kunne ikke koble til serveren. Sjekk internettforbindelsen din og prøv igjen.";
+      case "server":
+        return "Noe gikk galt på serveren. Prøv igjen om litt.";
     }
   }
 
@@ -200,6 +215,8 @@ export function lagBrukervennligFeilmelding(
       return "Du må logge inn på nytt.";
     case "forbidden":
       return "Du har ikke tilgang til denne ressursen.";
+    case "conflict":
+      return "Ressursen finnes allerede.";
     case "rate_limit":
       return "For mange forespørsler. Vent litt og prøv igjen.";
     case "timeout":

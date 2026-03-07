@@ -20,8 +20,10 @@ import {
 } from "common/auth";
 import { Footer } from "../components/footer";
 import { LoadingSpinner } from "../components/LoadingSpinner";
+import { FeilMelding } from "../components/FeilMelding";
 import { useLoggInn, useRegistrer, useMeg } from "./auth-api";
 import { broadcastLogin } from "../hooks/use-auth-sync";
+import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
 
 /** Om bruker er på innlogging- eller registreringsskjema */
 type Modus = "login" | "register";
@@ -118,37 +120,27 @@ export default function AuthPage() {
         firstName: data.firstName || undefined,
         lastName: data.lastName || undefined,
       });
-      settMelding("Bruker opprettet. Du kan nå logge inn.");
+      settMelding("Kontoen er opprettet. Du kan nå logge inn med e-post og passord.");
       settModus("login");
       reset(defaultValues);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "";
       let feilTekst: string;
-      if (errorMsg.includes("401") || errorMsg.includes("feil passord") || errorMsg.includes("Unauthorized")) {
-        feilTekst = "Feil e-post eller passord. Sjekk at du har skrevet riktig.";
-      } else if (errorMsg.includes("404") || errorMsg.includes("finnes ikke") || errorMsg.includes("not found")) {
-        feilTekst = "Ingen bruker med denne e-postadressen. Opprett en konto først.";
-      } else if (errorMsg.includes("409") || errorMsg.includes("finnes allerede") || errorMsg.includes("eksisterer")) {
-        feilTekst = "En bruker med denne e-postadressen finnes allerede. Prøv å logge inn.";
-      } else if (errorMsg.includes("429") || errorMsg.includes("rate")) {
-        feilTekst = "For mange forsøk. Vent noen minutter og prøv igjen.";
-      } else if (errorMsg.includes("Nettverk") || errorMsg.includes("fetch") || errorMsg.includes("network")) {
-        feilTekst = "Nettverksfeil. Sjekk internettforbindelsen din.";
-      } else if (
+      if (
         (/passord/i.test(errorMsg) && /(kort|minst|least|length|tegn|characters?)/i.test(errorMsg)) ||
         /at least 8/i.test(errorMsg) ||
         /minimum 8/i.test(errorMsg)
       ) {
-        feilTekst = "Passordet er for kort. Bruk minst 8 tegn.";
+        feilTekst = "Passordet må ha minst 8 tegn. Skriv et lengre passord.";
         setError("password", { type: "server", message: feilTekst });
         return;
-      } else if (errorMsg.includes("e-post") || errorMsg.includes("email")) {
-        feilTekst = "Ugyldig e-postadresse eller passord. Sjekk at formatet er riktig.";
+      }
+      if (errorMsg.includes("e-post") || errorMsg.includes("email")) {
+        feilTekst = "Skriv inn en gyldig e-postadresse (f.eks. navn@eksempel.no).";
         setError("email", { type: "server", message: feilTekst });
         return;
-      } else {
-        feilTekst = errorMsg || "Noe gikk galt. Prøv igjen.";
       }
+      feilTekst = lagBrukervennligFeilmelding(err instanceof Error ? err : null, { auth: true });
       settFeil(feilTekst);
     }
   };
@@ -163,13 +155,13 @@ export default function AuthPage() {
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors">
       <div className="flex-1 flex items-center justify-center p-4">
-        <main className="flex flex-col gap-6 p-8 max-w-md w-full bg-white dark:bg-gray-900 rounded-lg shadow-lg border dark:border-gray-800">
+        <main className="flex flex-col gap-6 p-8 max-w-md w-full bg-white dark:bg-slate-900 rounded-lg shadow-lg border border-slate-200 dark:border-slate-800">
           {/* Sidetittel og beskrivelse */}
           <div className="text-center space-y-2">
             <h1 className="text-3xl font-bold text-black dark:text-white">
               {modus === "login" ? "Innlogging" : "Registrering"}
             </h1>
-            <p className="text-zinc-600 dark:text-gray-400">
+            <p className="text-slate-600 dark:text-slate-400">
               Logg inn for å bruke Canvas og KI-funksjoner.
             </p>
           </div>
@@ -208,14 +200,13 @@ export default function AuthPage() {
 
           {/* Feilmelding fra API (generell) */}
           {feil && (
-            <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-300">
-              {feil}
-            </div>
+            <FeilMelding melding={feil} />
           )}
           {/* Suksessmelding (f.eks. etter registrering) */}
           {melding && (
-            <div className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 px-3 py-2 text-sm text-green-700 dark:text-green-300">
-              {melding}
+            <div className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 px-4 py-3 text-sm text-green-800 dark:text-green-200 flex items-center gap-3" role="status">
+              <span aria-hidden className="text-green-600 dark:text-green-400 font-medium">✓</span>
+              <p>{melding}</p>
             </div>
           )}
 

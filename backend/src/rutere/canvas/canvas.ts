@@ -208,11 +208,11 @@ router.get("/whoami", async (req, res) => {
       created_at: createdAt,
     });
   } catch (error) {
-    logger.error(
-      { err: error },
+    handleCanvasError(
+      res,
+      error,
       "Klarte ikke å hente eller lagre brukerinformasjon (/whoami)",
     );
-    sendUnknownError(res, error, { kontekst: "GET /whoami" });
   }
 });
 

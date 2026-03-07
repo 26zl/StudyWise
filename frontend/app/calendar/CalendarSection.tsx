@@ -9,8 +9,10 @@ import { useEffect, useMemo, useState } from "react";
 import type { FC } from "react";
 import { addMonths, setMonth, setYear, subMonths, format } from "date-fns";
 import { nb } from "date-fns/locale";
-import { AlertCircle, Clock, MapPin, ChevronLeft, ChevronRight, CalendarDays, Filter } from "lucide-react";
+import { Clock, MapPin, ChevronLeft, ChevronRight, CalendarDays, Filter } from "lucide-react";
 import { CalendarGrid } from "./CalendarGrid";
+import { FeilMelding } from "../components/FeilMelding";
+import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
 import { useCombinedCalendarData } from "./calendar-api";
 import { useUIStore } from "../store/uiStore";
 import { KIOppsummering } from "../components/KIOppsummering";
@@ -31,28 +33,6 @@ interface CalendarSectionProps {
   harCanvasToken?: boolean;
 }
 
-// Informasjons-panel for feilmeldinger og varsler
-function InfoPanel({
-  type = "info",
-  message,
-}: {
-  type?: "info" | "warning" | "error";
-  message: string;
-}) {
-  const colors =
-    type === "error" || type === "warning"
-      ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300"
-      : "bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200";
-
-  const iconColor = type === "error" || type === "warning" ? "text-red-500" : "";
-
-  return (
-    <div className={`flex items-center gap-3 p-4 rounded-lg border ${colors}`}>
-      <AlertCircle className={`w-5 h-5 shrink-0 ${iconColor}`} />
-      <p className="text-sm">{message}</p>
-    </div>
-  );
-}
 // Hoved-komponent
 export const CalendarSection: FC<CalendarSectionProps> = ({
   harCanvasToken = false,
@@ -114,10 +94,10 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
     );
   }, [assignments, selectedDate]);
   if (!harCanvasToken) {
-    return <InfoPanel type="warning" message="Du må lagre en Canvas API-token før du kan hente kalenderen." />;
+    return <FeilMelding type="warning" melding="Du må lagre en Canvas API-token før du kan hente kalenderen." />;
   }
   if (canvasTokenInvalid) {
-    return <InfoPanel type="error" message="Canvas-tokenet ditt er ugyldig, utløpt eller slettet i Canvas. Gå til Innstillinger for å legge til et nytt token." />;
+    return <FeilMelding melding="Canvas-tokenet ditt er ugyldig, utløpt eller slettet i Canvas. Gå til Innstillinger for å legge til et nytt token." />;
   }
   if (isLoading) {
     return (
@@ -160,23 +140,12 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
     );
   }
   if (isError) {
-    // Lag brukervennlig feilmelding basert på feiltype
-    let feilMelding = "Kunne ikke hente kalenderdata";
-    const errorMessage = error?.message || "";
-    const errorName = error?.name || "";
-
-    if (errorName === "CanvasTokenMissingError" || errorMessage.includes("token mangler")) {
-      feilMelding = "Canvas-token mangler. Legg til tokenet i innstillinger.";
-    } else if (errorMessage.includes("401") || errorMessage.includes("Ugyldig")) {
-      feilMelding = "Canvas-tokenet ditt er ugyldig eller utlopt. Oppdater tokenet i innstillinger.";
-    } else if (errorMessage.includes("429") || errorMessage.includes("rate")) {
-      feilMelding = "For mange foresporrsler til Canvas. Vent noen sekunder og prov igjen.";
-    } else if (errorMessage.includes("timeout") || errorMessage.includes("504")) {
-      feilMelding = "Henting av kalenderdata tok for lang tid. Prov igjen.";
-    } else if (errorMessage.includes("Nettverk") || errorMessage.includes("fetch")) {
-      feilMelding = "Nettverksfeil. Sjekk internettforbindelsen din.";
-    }
-    return <InfoPanel type="error" message={feilMelding} />;
+    const feilMelding = lagBrukervennligFeilmelding(
+      error instanceof Error ? error : null,
+      { kalender: true },
+      "Kunne ikke hente kalenderdata. Prøv igjen."
+    );
+    return <FeilMelding melding={feilMelding} />;
   }
 
   // Formater tid for forelesninger

@@ -5,6 +5,7 @@ import {
   ChatHistoryResponseSchema,
   ChatMessage,
   ChatSavePayload,
+  ChatSaveResponseSchema,
 } from "common/chat";
 import { fornySesjon } from "../auth/auth-api";
 // Representasjon av en lagret samtale
@@ -30,6 +31,10 @@ async function fetchJson<T>(
     cache: "no-store",
     ...init,
   });
+  // 204 No Content – ingen body, unngå JSON-parse
+  if (res.status === 204) {
+    return undefined as T;
+  }
   const data = await res.json().catch(() => ({}));
   if ((res.status === 401 || res.status === 403) && !forsoktRefresh) {
     try {
@@ -88,20 +93,22 @@ export function useChatHistory() {
     const endpoint = chatId ? `/api/ki/chat/history/${chatId}` : "/api/ki/chat/history";
     const method = chatId ? "PUT" : "POST";
     try {
-      const data = await fetchJson<{ chat: SavedChat }>(endpoint, {
+      const raw = await fetchJson<unknown>(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
         body,
       });
+      const data = ChatSaveResponseSchema.parse(raw);
+      const chat = {
+        ...data.chat,
+        timestamp: data.chat.timestamp instanceof Date ? data.chat.timestamp : new Date(data.chat.timestamp),
+      };
       queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) => {
         const existing = prev ?? [];
-        const updated = [
-          { ...data.chat, timestamp: new Date(data.chat.timestamp) },
-          ...existing.filter((c) => c.id !== data.chat.id),
-        ];
+        const updated = [chat, ...existing.filter((c) => c.id !== chat.id)];
         return updated.slice(0, MAX_CHATS);
       });
-      return data.chat.id;
+      return chat.id;
     } catch (error) {
       if (erIkkeAutentisert(error)) return undefined;
       // Ikke la lagring feile hele UI-et; logg i dev og svelg
@@ -116,7 +123,9 @@ export function useChatHistory() {
   // Slett en samtale
   const deleteChat = async (id: string) => {
     try {
-      await fetch("/api/ki/chat/history/" + id, { method: "DELETE", credentials: "include" });
+      await fetchJson<unknown>("/api/ki/chat/history/" + id, {
+        method: "DELETE",
+      });
       queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) =>
         (prev ?? []).filter((c) => c.id !== id)
       );
@@ -127,15 +136,18 @@ export function useChatHistory() {
       throw error;
     }
   };
-// Slett alle samtaler – viser bekreftelses-toast med Slett/Avbryt
+// Slett alle samtaler – viser bekreftelses-toast i midten for brukervennlighet
   const clearAll = useCallback(() => {
     toast("Slett hele samtalehistorikken?", {
       description: "Alle lagrede samtaler fjernes. Dette kan ikke angres.",
+      position: "top-center",
       action: {
         label: "Slett",
         onClick: async () => {
           try {
-            await fetch("/api/ki/chat/history", { method: "DELETE", credentials: "include" });
+            await fetchJson<unknown>("/api/ki/chat/history", {
+              method: "DELETE",
+            });
             queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, []);
             toast.success("Samtalehistorikk slettet");
           } catch (error) {
