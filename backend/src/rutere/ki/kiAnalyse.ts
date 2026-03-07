@@ -15,7 +15,7 @@ import {
     formatDocumentContext,
     getSupportedMimeTypes
 } from "../../services/document.js";
-import { shouldUseMapReduce, mapReduceIfNeeded, countWords } from "../../services/summarization.service.js";
+import { summarizeIfNeeded, countWords } from "../../services/summarization.service.js";
 import { resolveModel } from "./aiModels.js";
 import { chatCompletion, chatCompletionWithVision, isClientAvailable, isVisionAvailable } from "./aiClient.js";
 import type { ImageAttachment } from "./aiClient.js";
@@ -172,12 +172,11 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
             );
         }
 
-        // For lange dokumenter (>3 000 ord): bruk map-reduce oppsummering
-        if (docResult?.text && shouldUseMapReduce(docResult.text)) {
-            const ordAntall = countWords(docResult.text);
-            const mr = await mapReduceIfNeeded(docResult.text, "uploaded_file", { fileName: req.file!.originalname });
+        // For lange dokumenter: pre-oppsummer via single-call
+        if (docResult?.text) {
+            const mr = await summarizeIfNeeded(docResult.text, "uploaded_file", { fileName: req.file!.originalname });
             if (mr.summarized) {
-                docContext = `[MAP-REDUCE OPPSUMMERING av ${docResult.pages || 1} sider, ${ordAntall} ord]\n\n${mr.text}`;
+                docContext = `[OPPSUMMERING av ${docResult.pages || 1} sider, ${countWords(docResult.text)} ord]\n\n${mr.text}`;
             }
         }
 
@@ -353,12 +352,11 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req: Request, res: Resp
             { redacted: docResult.redacted, truncated: docResult.truncated }
         );
 
-        // For lange dokumenter (>3 000 ord): bruk map-reduce oppsummering
-        if (shouldUseMapReduce(docResult.text)) {
-            const ordAntall = countWords(docResult.text);
-            const mr = await mapReduceIfNeeded(docResult.text, "uploaded_file", { fileName: req.file!.originalname });
+        // For lange dokumenter: pre-oppsummer via single-call
+        {
+            const mr = await summarizeIfNeeded(docResult.text, "uploaded_file", { fileName: req.file!.originalname });
             if (mr.summarized) {
-                legacyDocContext = `[MAP-REDUCE OPPSUMMERING av ${docResult.pages || 1} sider, ${ordAntall} ord]\n\n${mr.text}`;
+                legacyDocContext = `[OPPSUMMERING av ${docResult.pages || 1} sider, ${countWords(docResult.text)} ord]\n\n${mr.text}`;
             }
         }
 

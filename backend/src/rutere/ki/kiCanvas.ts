@@ -22,7 +22,7 @@ import type {
   CanvasCourse,
 } from "common/canvas";
 import pLimit from "p-limit";
-import { mapReduceIfNeeded } from "../../services/summarization.service.js";
+import { summarizeIfNeeded } from "../../services/summarization.service.js";
 
 // Begrens samtidige kall til Canvas API for å unngå rate limiting
 const limit = pLimit(3);
@@ -296,8 +296,8 @@ export async function byggMålrettetCanvasKontekst(
               if (pdfResult) {
                 pdfCount++;
 
-                // Bruk map-reduce for lange PDF-er (>3 000 ord)
-                const mr = await mapReduceIfNeeded(pdfResult.content, "canvas_file", {
+                // Pre-oppsummer lange PDF-er via single-call
+                const mr = await summarizeIfNeeded(pdfResult.content, "canvas_file", {
                   fileName: fileMeta.display_name || fileMeta.filename,
                   courseName: matchedCourse.name,
                   moduleName: mod.name,

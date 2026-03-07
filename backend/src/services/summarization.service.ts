@@ -24,8 +24,8 @@ const INTRO_RATIO = 0.3;
 /** Tegngrense for å aktivere extract+summarize (under dette sendes tekst direkte) */
 const EXTRACT_THRESHOLD_CHARS = 12_000;
 
-/** Ordgrense for å aktivere oppsummering (beholdt for bakoverkompatibilitet) */
-const MAP_REDUCE_THRESHOLD = 2500;
+/** Ordgrense for å aktivere oppsummering */
+const SUMMARIZE_THRESHOLD = 2500;
 
 /** max_tokens for enkel oppsummering */
 const MAX_RESPONSE_TOKENS = 4096;
@@ -56,8 +56,8 @@ export function countWords(text: string): number {
 }
 
 /** Returnerer true når teksten er lang nok til at oppsummering lønner seg */
-export function shouldUseMapReduce(text: string): boolean {
-  return countWords(text) > MAP_REDUCE_THRESHOLD;
+export function shouldSummarize(text: string): boolean {
+  return countWords(text) > SUMMARIZE_THRESHOLD;
 }
 
 // Intelligent tekstekstraksjon
@@ -303,19 +303,17 @@ export async function summarizeContent(
   }
 }
 
-// Bakoverkompatibel wrapper
-
 /**
  * Wrapper: oppsummerer tekst via single-call hvis den overstiger terskelen.
  * Returnerer \`{ text, summarized }\` — der \`text\` er enten oppsummert eller uendret,
  * og \`summarized\` indikerer om oppsummering ble brukt.
  */
-export async function mapReduceIfNeeded(
+export async function summarizeIfNeeded(
   text: string,
   source: ContentSource,
   metadata?: SummarizationMetadata,
 ): Promise<{ text: string; summarized: boolean }> {
-  if (!shouldUseMapReduce(text)) {
+  if (!shouldSummarize(text)) {
     return { text, summarized: false };
   }
 
