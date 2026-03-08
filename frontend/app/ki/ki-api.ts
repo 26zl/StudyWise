@@ -50,6 +50,22 @@ export const SUPPORTED_FILE_TYPES = [
  * 2. Den nyeste bruker-meldingen
  * 3. Så mange eldre meldinger som mulig (nyeste først)
  */
+function truncateContentPreservingEnds(
+  content: string,
+  maxLength: number,
+): string {
+  if (content.length <= maxLength) return content;
+  if (maxLength <= 8) return content.slice(-maxLength);
+
+  const separator = "\n...\n";
+  const remaining = maxLength - separator.length;
+  if (remaining <= 0) return content.slice(0, maxLength);
+
+  const headLength = Math.ceil(remaining / 2);
+  const tailLength = Math.floor(remaining / 2);
+  return `${content.slice(0, headLength)}${separator}${content.slice(-tailLength)}`;
+}
+
 function trimMessages(
   messages: Array<{ role: string; content: string }>,
   maxLength: number = KI_MAX_MESSAGE_LENGTH_FRONTEND,
@@ -66,15 +82,45 @@ function trimMessages(
   // Separer system-melding fra resten
   const systemMessage = messages.find((m) => m.role === "system");
   const nonSystemMessages = messages.filter((m) => m.role !== "system");
+  if (nonSystemMessages.length === 0) {
+    if (!systemMessage) return [];
+    return [
+      {
+        ...systemMessage,
+        content: truncateContentPreservingEnds(
+          systemMessage.content,
+          maxLength,
+        ),
+      },
+    ];
+  }
 
-  // Start med system-melding og nyeste melding
+  // Behold alltid siste brukermelding. Hvis det ikke finnes en brukermelding,
+  // behold i det minste siste ikke-system-melding.
+  const latestUserMessage =
+    [...nonSystemMessages].reverse().find((m) => m.role === "user") ??
+    nonSystemMessages[nonSystemMessages.length - 1];
+  const latestMessage = {
+    ...latestUserMessage,
+    content: truncateContentPreservingEnds(
+      latestUserMessage.content,
+      maxLength,
+    ),
+  };
+
+  // Start med system-melding og reserver plass til siste melding
   const result: Array<{ role: string; content: string }> = [];
   let currentLength = 0;
+  const budgetBeforeLatest = Math.max(0, maxLength - latestMessage.content.length);
 
   // Legg til system-melding først (hvis den finnes)
-  if (systemMessage) {
-    result.push(systemMessage);
-    currentLength += systemMessage.content?.length || 0;
+  if (systemMessage && budgetBeforeLatest > 0) {
+    const systemContent = truncateContentPreservingEnds(
+      systemMessage.content,
+      budgetBeforeLatest,
+    );
+    result.push({ ...systemMessage, content: systemContent });
+    currentLength += systemContent.length;
   }
 
   // Legg til meldinger fra nyeste til eldste
@@ -82,8 +128,9 @@ function trimMessages(
   const messagesToAdd: Array<{ role: string; content: string }> = [];
 
   for (const msg of reversedMessages) {
+    if (msg === latestUserMessage) continue;
     const msgLength = msg.content?.length || 0;
-    if (currentLength + msgLength <= maxLength) {
+    if (currentLength + msgLength + latestMessage.content.length <= maxLength) {
       messagesToAdd.unshift(msg); // Legg til i starten for å bevare rekkefølge
       currentLength += msgLength;
     } else {
@@ -92,16 +139,8 @@ function trimMessages(
     }
   }
 
-  // Kombiner system-melding med de andre meldingene
-  result.push(...messagesToAdd);
-
-  // Logg hvis vi trimmet
-  if (result.length < messages.length) {
-    console.info(
-      `[KI] Trimmet samtalehistorikk: ${messages.length} → ${result.length} meldinger ` +
-        `(${totalLength} → ${currentLength} tegn)`,
-    );
-  }
+  // Kombiner system-melding, historikk og siste melding
+  result.push(...messagesToAdd, latestMessage);
 
   return result;
 }
@@ -154,52 +193,61 @@ async function håndterKIFeilRespons(res: Response): Promise<void> {
   }
 }
 
+/** Parser KI-respons: SSE (siste data:-linje) eller vanlig JSON. */
+async function parseKIResponse<T>(res: Response, schema: ZodType<T>): Promise<T> {
+  const contentType = res.headers.get("Content-Type") || "";
+  if (contentType.includes("text/event-stream")) {
+    const text = await res.text();
+    const lines = text.split("\n");
+    let lastData: string | null = null;
+    for (const line of lines) {
+      if (line.startsWith("data: ") && line !== "data: [DONE]") {
+        lastData = line.slice(6);
+      }
+    }
+    if (!lastData) {
+      throw new Error("Ingen respons mottatt fra KI-tjenesten.");
+    }
+    return schema.parse(JSON.parse(lastData));
+  }
+  const data = await res.json();
+  return schema.parse(data);
+}
+
+async function requestKI<T>(
+  endpoint: string,
+  schema: ZodType<T>,
+  init: RequestInit = {},
+  forsoktRefresh = false,
+): Promise<T> {
+  const res = await fetch(`/api/ki${endpoint}`, {
+    credentials: "include",
+    cache: "no-store",
+    ...init,
+  });
+
+  if (res.status === 401 && !forsoktRefresh) {
+    await fornySesjon();
+    return requestKI(endpoint, schema, init, true);
+  }
+
+  await håndterKIFeilRespons(res);
+  return parseKIResponse(res, schema);
+}
+
 // API funksjoner
 // POST funksjon for chat (støtter SSE-streaming fra backend)
 async function postKI<T>(
   endpoint: string,
   body: unknown,
   schema: ZodType<T>,
-  forsoktRefresh = false,
   method: "POST" | "PUT" | "DELETE" = "POST",
 ): Promise<T> {
-  const res = await fetch(`/api/ki${endpoint}`, {
+  return requestKI(endpoint, schema, {
     method,
-    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-
-  if (res.status === 401 && !forsoktRefresh) {
-    await fornySesjon();
-    return postKI(endpoint, body, schema, true, method);
-  }
-
-  await håndterKIFeilRespons(res);
-
-  const contentType = res.headers.get("Content-Type") || "";
-
-  // SSE-svar fra /chat endepunktet (text/event-stream)
-  if (contentType.includes("text/event-stream")) {
-    const text = await res.text();
-    const lines = text.split("\n");
-    let lastData: string | null = null;
-
-    for (const line of lines) {
-      if (line.startsWith("data: ") && line !== "data: [DONE]") {
-        lastData = line.slice(6);
-      }
-    }
-
-    if (!lastData) {
-      throw new Error("Ingen respons mottatt fra KI-tjenesten.");
-    }
-    return schema.parse(JSON.parse(lastData));
-  }
-
-  // Vanlig JSON-svar (feilresponser, andre endepunkter)
-  const data = await res.json();
-  return schema.parse(data);
 }
 
 // POST funksjon for FormData (brukes av dokumentanalyse)
@@ -207,44 +255,11 @@ async function postKIFormData<T>(
   endpoint: string,
   formData: FormData,
   schema: ZodType<T>,
-  forsoktRefresh = false,
 ): Promise<T> {
-  const res = await fetch(`/api/ki${endpoint}`, {
+  return requestKI(endpoint, schema, {
     method: "POST",
-    credentials: "include",
     body: formData,
   });
-
-  if (res.status === 401 && !forsoktRefresh) {
-    await fornySesjon();
-    return postKIFormData(endpoint, formData, schema, true);
-  }
-
-  await håndterKIFeilRespons(res);
-
-  const contentType = res.headers.get("Content-Type") || "";
-
-  // SSE-svar fra analyze-document endepunktet (text/event-stream)
-  if (contentType.includes("text/event-stream")) {
-    const text = await res.text();
-    const lines = text.split("\n");
-    let lastData: string | null = null;
-
-    for (const line of lines) {
-      if (line.startsWith("data: ") && line !== "data: [DONE]") {
-        lastData = line.slice(6);
-      }
-    }
-
-    if (!lastData) {
-      throw new Error("Ingen respons mottatt fra KI-tjenesten.");
-    }
-    return schema.parse(JSON.parse(lastData));
-  }
-
-  // Vanlig JSON-svar (feilresponser, andre endepunkter)
-  const data = await res.json();
-  return schema.parse(data);
 }
 
 // React query hooks
@@ -253,25 +268,10 @@ async function postKIFormData<T>(
 export function useKITestTilkobling(enabled = true) {
   const query = useQuery({
     queryKey: ["ki", "test-connection"],
-    queryFn: async () => {
-      const res = await fetch("/api/ki/test-connection", {
+    queryFn: () =>
+      requestKI("/test-connection", KIChatResponseSchema, {
         method: "GET",
-        credentials: "include",
-        cache: "no-store",
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        let message = "Kunne ikke koble til KI-assistenten.";
-        try {
-          const json = JSON.parse(text);
-          message = json.melding || json.feil || message;
-        } catch {
-          // bruk default
-        }
-        throw new Error(message);
-      }
-      return res.json();
-    },
+      }),
     enabled,
     staleTime: 60 * 1000, // 1 minutt
     retry: false,
@@ -329,6 +329,17 @@ export function useKIChat() {
 // Schema for dokumentanalyse respons
 export type DocumentAnalyseResponse = KIDocumentAnalyseResponse;
 
+function assertSuccessfulDocumentAnalyse(
+  data: DocumentAnalyseResponse,
+): DocumentAnalyseResponse {
+  if (!data.suksess) {
+    throw new Error(
+      data.melding || "Kunne ikke analysere dokumentet. Prøv igjen.",
+    );
+  }
+  return data;
+}
+
 // Dokumentanalyse hook (støtter PDF, Word, TXT, etc.)
 export function useKIDocumentAnalyse() {
   const mutation = useMutation({
@@ -345,10 +356,12 @@ export function useKIDocumentAnalyse() {
       formData.append("document", fil);
       if (spørsmål) formData.append("question", spørsmål);
       if (model) formData.append("model", model);
-      return postKIFormData(
-        "/analyze-document",
-        formData,
-        KIDocumentAnalyseResponseSchema,
+      return assertSuccessfulDocumentAnalyse(
+        await postKIFormData(
+          "/analyze-document",
+          formData,
+          KIDocumentAnalyseResponseSchema,
+        ),
       );
     },
   });
@@ -413,4 +426,3 @@ export function useKIOppsummering() {
     reset: mutation.reset,
   };
 }
-

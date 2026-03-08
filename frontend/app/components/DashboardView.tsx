@@ -18,7 +18,7 @@ import { useMeg } from "../auth/auth-api";
 import { skalRedirecteTilAuth } from "../auth/authUtils";
 import { prefetchCanvasData } from "../canvas/canvas-api";
 import { useUIStore } from "../store/uiStore";
-import { useVarslerPopups } from "../hooks/useVarsler";
+import { useVarslerPopups, useVarslerStateSync } from "../hooks/useVarsler";
 import { useChatHistoryPrefetch } from "../hooks/useChatHistory";
 
 const GYLDIGE_VISNINGER = [
@@ -72,6 +72,8 @@ export function DashboardView() {
     const brukerQueryAktiv = megQuery.isSuccess && harCanvasToken;
     const userQuery = useCanvasUser(brukerQueryAktiv);
     const setCanvasContextSelection = useUIStore((state) => state.setCanvasContextSelection);
+
+    useVarslerStateSync(megQuery.isSuccess, megQuery.data?.user?.varslerState);
 
     // Popup-varsler: én toast for nye uleste varsler, integrert med varslinger-siden
     useVarslerPopups(harCanvasToken, {

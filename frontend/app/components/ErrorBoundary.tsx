@@ -32,17 +32,10 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  // Logg feilen for debugging (kun i development)
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // Logger feilen til konsollen (kun i development for debugging)
-    if (process.env.NODE_ENV === "development") {
-      console.error("ErrorBoundary fanget feil:", error, errorInfo);
-    }
+  // Feilen vises i fallback-UI i dev (this.state.error.message)
+  componentDidCatch(_error: Error, _errorInfo: React.ErrorInfo) {
+    // Ingen console – bruk fallback-UI og devtools for debugging
   }
-  // Håndteringsfunksjoner for knappene i fallback UI
-  handleReset = () => {
-    this.setState({ hasError: false, error: null });
-  };
   // Last inn siden på nytt
   handleReload = () => {
     window.location.reload();
@@ -59,7 +52,7 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="min-h-100 flex items-center justify-center p-6">
+        <div className="min-h-[25rem] flex items-center justify-center p-6">
           <div className="max-w-md w-full text-center space-y-6">
             <div className="mx-auto w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
               <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />

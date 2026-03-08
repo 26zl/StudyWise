@@ -13,10 +13,12 @@ import { ZodError } from "zod";
 import { apiError, sendError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
 import { warmCanvasCache, fetchUserProfile } from "../canvas/canvasService.js";
 import { invalidateCacheByPattern } from "../../cache/redis.js";
+import { invalidateUserCanvasCache } from "../../services/canvas-sync.service.js";
 import {
     CanvasTokenRequestSchema,
     CanvasTokenResponseSchema,
     CanvasContextPreferencesSchema,
+    PreferencesUpdateSchema,
     AuthBrukerSchema,
     LoginRequestSchema,
     LoginResponseSchema,
@@ -25,6 +27,8 @@ import {
     MeResponseSchema,
     LogoutResponseSchema,
     RefreshResponseSchema,
+    VarslerStateSchema,
+    VARSLER_MAX_IDS,
 } from "common/auth";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
@@ -44,6 +48,35 @@ import { noCache } from "../../middleware/no-cache.js";
 
 const router = Router();
 
+const DEFAULT_CANVAS_CONTEXT_PREFERENCES: {
+    announcements: boolean;
+    courses: boolean;
+    assignments: boolean;
+    events: boolean;
+} = {
+    announcements: true,
+    courses: true,
+    assignments: true,
+    events: true,
+};
+
+const DEFAULT_VARSLER_STATE: {
+    lestIds: string[];
+    toastVistIds: string[];
+} = {
+    lestIds: [],
+    toastVistIds: [],
+};
+
+function getSanitizedVarslerState(
+    varslerState?: { lestIds?: readonly string[]; toastVistIds?: readonly string[] } | null,
+) {
+    return VarslerStateSchema.parse({
+        lestIds: (varslerState?.lestIds ?? []).slice(-VARSLER_MAX_IDS),
+        toastVistIds: (varslerState?.toastVistIds ?? []).slice(-VARSLER_MAX_IDS),
+    });
+}
+
 // Ikke cache auth-responser i browser eller mellomlagring
 router.use(noCache);
 
@@ -62,6 +95,14 @@ async function invalidateCanvasCacheForToken(encryptedToken: string | undefined)
     } catch {
         // Ignorer dekrypteringsfeil – tokenet kan være korrupt
     }
+}
+
+async function invalidateCanvasCachesForUser(userId: string, encryptedToken?: string): Promise<void> {
+    const invalidations: Array<Promise<unknown>> = [invalidateUserCanvasCache(userId)];
+    if (encryptedToken) {
+        invalidations.push(invalidateCanvasCacheForToken(encryptedToken));
+    }
+    await Promise.allSettled(invalidations);
 }
 
 // Hent JWT secrets fra miljøvariabler (validert ved oppstart i validateEnv.ts)
@@ -161,7 +202,9 @@ router.post("/login", rateLimitAuth, async (req, res) => {
                 email: user.email,
                 firstName: user.firstName,
                 lastName: user.lastName,
-                hasCanvasToken: harCanvasToken
+                hasCanvasToken: harCanvasToken,
+                canvasContextPreferences: user.canvasContextPreferences || DEFAULT_CANVAS_CONTEXT_PREFERENCES,
+                varslerState: getSanitizedVarslerState(user.varslerState),
             })
         }));
     } catch (error) {
@@ -181,6 +224,7 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         const { token } = CanvasTokenRequestSchema.parse(req.body);
         const userId = req.user?.id;
         const forceRelink = req.query.force === "true";
+        const usersToInvalidate = new Set<string>();
 
         if (!token) {
             return apiError.badRequest(res, "Token mangler");
@@ -214,6 +258,7 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         }
         // Sjekk hash først (raskt og sikkert for SAMME bruker)
         if (bruker.canvasTokenHash && bruker.canvasTokenHash === nyTokenHash) {
+            await invalidateCanvasCachesForUser(userId.toString(), bruker.canvasApiToken);
             logger.info({ userId }, "Canvas token identisk (hash match)");
             return res.json(CanvasTokenResponseSchema.parse({
                 melding: "Token er allerede lagret",
@@ -237,6 +282,7 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
                     // Bruker har bedt om å gjenvinne kontoen - fjern gammel kobling
                     logger.info({ userId, oldUserId: eksisterendeKobling.localUser, canvasId: canvasUserId },
                         "Canvas-konto re-kobles til ny bruker (force relink)");
+                    usersToInvalidate.add(eksisterendeKobling.localUser.toString());
 
                     // Slett gammel Canvas-token fra den andre brukeren
                     await User.findByIdAndUpdate(eksisterendeKobling.localUser, {
@@ -277,6 +323,7 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
                     // Oppdater hash for fremtidige sjekker
                     bruker.canvasTokenHash = nyTokenHash;
                     await bruker.save();
+                    await invalidateCanvasCachesForUser(userId.toString(), bruker.canvasApiToken);
 
                     logger.info({ userId }, "Canvas token identisk (dekryptert match, migrert til hash)");
                     return res.json(CanvasTokenResponseSchema.parse({
@@ -290,14 +337,18 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         }
 
         if (forceRelink && eksisterendeTokenBruker) {
+            usersToInvalidate.add(eksisterendeTokenBruker._id.toString());
             await User.findByIdAndUpdate(eksisterendeTokenBruker._id, {
                 $unset: { canvasApiToken: 1, canvasTokenHash: 1, canvasUser: 1 }
             });
         }
 
-        if (bruker.canvasApiToken) {
-            invalidateCanvasCacheForToken(bruker.canvasApiToken).catch(() => {});
-        }
+        await invalidateCanvasCachesForUser(userId.toString(), bruker.canvasApiToken);
+
+        usersToInvalidate.delete(userId.toString());
+        await Promise.allSettled(
+            [...usersToInvalidate].map((targetUserId) => invalidateCanvasCachesForUser(targetUserId))
+        );
 
         // Krypter token
         const kryptertToken = encrypt(cleanToken);
@@ -341,7 +392,7 @@ router.delete("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         if (!bruker.canvasApiToken) {
             return apiError.badRequest(res, "Ingen Canvas-token å slette");
         }
-        await invalidateCanvasCacheForToken(bruker.canvasApiToken);
+        await invalidateCanvasCachesForUser(userId.toString(), bruker.canvasApiToken);
         // Slett koblingene i databasen fullstendig
         if (bruker.canvasUser) {
             // Slett hele CanvasUser-dokumentet
@@ -454,12 +505,8 @@ router.get("/me", autentiserJwt, rateLimitMe, async (req, res) => {
         }
         const harCanvasToken = !!bruker.canvasApiToken;
         // Hent preferanser eller bruk default
-        const preferences = bruker.canvasContextPreferences || {
-            announcements: true,
-            courses: true,
-            assignments: true,
-            events: true,
-        };
+        const preferences = bruker.canvasContextPreferences || DEFAULT_CANVAS_CONTEXT_PREFERENCES;
+        const varslerState = getSanitizedVarslerState(bruker.varslerState || DEFAULT_VARSLER_STATE);
         return res.json(MeResponseSchema.parse({
             user: AuthBrukerSchema.parse({
                 id: bruker._id.toString(),
@@ -468,6 +515,7 @@ router.get("/me", autentiserJwt, rateLimitMe, async (req, res) => {
                 lastName: bruker.lastName,
                 hasCanvasToken: harCanvasToken,
                 canvasContextPreferences: preferences,
+                varslerState,
             }),
         }));
     } catch (error) {
@@ -484,18 +532,21 @@ router.put("/preferences", autentiserJwt, async (req, res) => {
             return apiError.unauthorized(res);
         }
 
-        // Valider med Zod - importert fra common
-        const { canvasContextPreferences } = req.body;
-        if (canvasContextPreferences === undefined) {
-            return apiError.badRequest(res, "Ingen preferanser oppgitt");
+        const { canvasContextPreferences, varslerState } = PreferencesUpdateSchema.parse(req.body);
+        const updateFields: {
+            canvasContextPreferences?: typeof DEFAULT_CANVAS_CONTEXT_PREFERENCES;
+            varslerState?: ReturnType<typeof getSanitizedVarslerState>;
+        } = {};
+        if (canvasContextPreferences !== undefined) {
+            updateFields.canvasContextPreferences = CanvasContextPreferencesSchema.parse(canvasContextPreferences);
         }
-
-        // Bruk Zod for validering (1:1 med common schema)
-        const validatedPrefs = CanvasContextPreferencesSchema.parse(canvasContextPreferences);
+        if (varslerState !== undefined) {
+            updateFields.varslerState = getSanitizedVarslerState(varslerState);
+        }
 
         const oppdatertBruker = await User.findByIdAndUpdate(
           userId,
-          { canvasContextPreferences: validatedPrefs },
+          updateFields,
           { returnDocument: "after" },
         );
 
@@ -507,7 +558,8 @@ router.put("/preferences", autentiserJwt, async (req, res) => {
 
         return res.json({
             melding: "Preferanser oppdatert",
-            canvasContextPreferences: oppdatertBruker.canvasContextPreferences,
+            canvasContextPreferences: oppdatertBruker.canvasContextPreferences || DEFAULT_CANVAS_CONTEXT_PREFERENCES,
+            varslerState: getSanitizedVarslerState(oppdatertBruker.varslerState || DEFAULT_VARSLER_STATE),
         });
     } catch (error) {
         if (error instanceof ZodError) {
@@ -527,15 +579,9 @@ router.post("/logout", autentiserJwt, async (req, res) => {
             // Invalider Canvas-cache ved logout (sikkerhet - data skal ikke være tilgjengelig etter logout)
             const bruker = await User.findById(userId).select("+canvasApiToken");
             if (bruker?.canvasApiToken) {
-                try {
-                    const token = decrypt(bruker.canvasApiToken);
-                    const cachePrefix = crypto.createHash("sha256").update(token).digest("hex").slice(0, 12);
-                    invalidateCacheByPattern(`canvas:${cachePrefix}:*`).catch(() => {
-                        // Ignorer feil - cache invalidering er ikke kritisk
-                    });
-                } catch {
-                    // Ignorer dekrypteringsfeil
-                }
+                await invalidateCanvasCachesForUser(userId.toString(), bruker.canvasApiToken);
+            } else {
+                await invalidateCanvasCachesForUser(userId.toString());
             }
 
             // Fjern kun refresh token fra database (invaliderer sesjonen)

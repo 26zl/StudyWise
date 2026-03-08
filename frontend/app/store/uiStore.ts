@@ -1,37 +1,16 @@
 import { create } from "zustand";
-import type { CanvasContextPreferences } from "common/auth";
+import { type CanvasContextPreferences, type VarslerState, VARSLER_MAX_IDS } from "common/auth";
 
 /**
  * UI Store - Global tilstand for brukergrensesnitt
  * Bruker Zustand for enkel state management på tvers av komponenter.
  * Dette erstatter behovet for "prop drilling" av sidebar-status.
- * Canvas-kontekst preferanser synkroniseres med backend via /api/user/me
- * og /api/user/preferences. Varsler lest/ulest persisteres i localStorage.
+ * Canvas-kontekst og varslerstatus synkroniseres med backend via /api/user/me
+ * og /api/user/preferences.
  */
 
-const VARSLER_LEST_KEY = "studywise:varsler-lest";
-const MAX_VARSLER_LEST = 500;
-// Hjelpefunksjon for å laste en Set av lest varsler fra localStorage
-function loadVarslerLestIds(): Set<string> {
-    if (typeof window === "undefined") return new Set();
-    try {
-        const raw = localStorage.getItem(VARSLER_LEST_KEY);
-        if (!raw) return new Set();
-        const arr = JSON.parse(raw) as unknown;
-        if (!Array.isArray(arr)) return new Set();
-        return new Set(arr.filter((x): x is string => typeof x === "string"));
-    } catch {
-        return new Set();
-    }
-}
-// Lagrer en Set av lest varsler i localStorage (kun de siste 500 for å begrense størrelse)
-function saveVarslerLestIds(ids: Set<string>) {
-    if (typeof window === "undefined") return;
-    try {
-        localStorage.setItem(VARSLER_LEST_KEY, JSON.stringify([...ids].slice(-MAX_VARSLER_LEST)));
-    } catch {
-        // ignore
-    }
+function trimVarslerIds(ids: Iterable<string>): Set<string> {
+    return new Set(Array.from(new Set(ids)).slice(-VARSLER_MAX_IDS));
 }
 
 /** Alias for common/auth – brukes i UI-store og komponenter. */
@@ -61,8 +40,11 @@ interface UIState {
     setCanvasTokenInvalid: (invalid: boolean) => void;
     // Varsler lest/ulest (delt mellom popup og varslinger-siden)
     varslerLestIds: Set<string>;
-    addVarslerLest: (ids: string[]) => void;
+    varslerToastVistIds: Set<string>;
+    varslerStateHydrated: boolean;
+    setVarslerState: (state?: VarslerState | null) => void;
     markAllVarslerAsLest: (ids: string[]) => void;
+    addVarslerToastVist: (ids: string[]) => void;
     // Nullstiller all UI-tilstand (brukes ved utlogging)
     reset: () => void;
 }
@@ -92,27 +74,29 @@ export const useUIStore = create<UIState>()((set) => ({
     setCanvasContextSelection: (selection) => set({ canvasContextSelection: selection }),
     canvasTokenInvalid: false,
     setCanvasTokenInvalid: (invalid) => set({ canvasTokenInvalid: invalid }),
-    varslerLestIds: loadVarslerLestIds(),
-    addVarslerLest: (ids) => {
-        if (ids.length === 0) return;
-        set((s) => {
-            const next = new Set(s.varslerLestIds);
-            ids.forEach((id) => next.add(id));
-            saveVarslerLestIds(next);
-            return { varslerLestIds: next };
-        });
-    },
+    varslerLestIds: new Set(),
+    varslerToastVistIds: new Set(),
+    varslerStateHydrated: false,
+    setVarslerState: (state) => set({
+        varslerLestIds: trimVarslerIds(state?.lestIds ?? []),
+        varslerToastVistIds: trimVarslerIds(state?.toastVistIds ?? []),
+        varslerStateHydrated: true,
+    }),
     markAllVarslerAsLest: (ids) => {
         if (ids.length === 0) return;
         set((s) => {
-            const next = new Set(s.varslerLestIds);
-            ids.forEach((id) => next.add(id));
-            saveVarslerLestIds(next);
+            const next = trimVarslerIds([...s.varslerLestIds, ...ids]);
             return { varslerLestIds: next };
         });
     },
+    addVarslerToastVist: (ids) => {
+        if (ids.length === 0) return;
+        set((s) => {
+            const next = trimVarslerIds([...s.varslerToastVistIds, ...ids]);
+            return { varslerToastVistIds: next };
+        });
+    },
     reset: () => {
-        saveVarslerLestIds(new Set());
         set({
             isVenstreMenyOpen: false,
             selectedChatId: null,
@@ -122,6 +106,8 @@ export const useUIStore = create<UIState>()((set) => ({
             canvasContextSelection: defaultSelection,
             canvasTokenInvalid: false,
             varslerLestIds: new Set(),
+            varslerToastVistIds: new Set(),
+            varslerStateHydrated: false,
         });
     },
 }));

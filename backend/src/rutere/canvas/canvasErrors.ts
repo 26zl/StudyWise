@@ -6,10 +6,8 @@
 // Re-eksporter alt fra common for enkel import
 export {
   CanvasErrorCodeSchema,
-  CanvasWarningSchema,
   CanvasErrorResponseSchema,
   type CanvasErrorCode,
-  type CanvasWarning,
   type CanvasErrorResponse,
   requiresReauth,
   isRecoverableError,

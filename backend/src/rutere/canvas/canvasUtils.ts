@@ -34,7 +34,7 @@ export interface CanvasResponse<T> {
     };
 }
 // Re-eksporter error types for bakoverkompatibilitet
-export type { CanvasApiError, CanvasErrorCode, CanvasWarning } from "./canvasErrors.js";
+export type { CanvasApiError, CanvasErrorCode } from "./canvasErrors.js";
 export { createCanvasError, classifyHttpStatus, getErrorResponse, getHttpStatusForCode, requiresReauth, isRecoverableError } from "./canvasErrors.js";
 
 // Legacy feiltype for bakoverkompatibilitet (deprecated - bruk CanvasApiError)

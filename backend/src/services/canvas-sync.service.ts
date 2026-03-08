@@ -143,7 +143,7 @@ export async function syncCanvasDataForUser(
   const emneListe = courses.map((c) => ({
     id: c.id,
     name: c.name,
-    course_code: c.course_code,
+    course_code: c.course_code ?? "",
   }));
   await setCache(userKey(userId, "emner"), JSON.stringify(emneListe), SYNC_CACHE_TTL);
 
@@ -181,7 +181,7 @@ export async function syncCanvasDataForUser(
             meta: {
               id: course.id,
               name: course.name,
-              course_code: course.course_code,
+              course_code: course.course_code ?? "",
             },
             moduler,
             oppgaver,
@@ -367,4 +367,3 @@ export async function hasCanvasSyncData(userId: string): Promise<boolean> {
   const meta = await getCache(userKey(userId, "syncMeta"));
   return meta !== null;
 }
-

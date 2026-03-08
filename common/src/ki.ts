@@ -50,6 +50,23 @@ export const KIModelsResponseSchema = z.object({
   defaultModel: z.string(),
 });
 
+// Request-body for dokumentanalyse (question/sporsmaal, model) – multer sender ofte string eller string[]
+const documentAnalyseBodySchema = z.object({
+  question: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((v) => (Array.isArray(v) ? v[0] : v)),
+  sporsmaal: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((v) => (Array.isArray(v) ? v[0] : v)),
+  model: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((v) => (Array.isArray(v) ? v[0] : v)),
+});
+export const KIDocumentAnalyseRequestSchema = documentAnalyseBodySchema;
+
 // Dokumentanalyse respons (støtter PDF, Word, TXT, etc.)
 export const KIDocumentAnalyseResponseSchema = z.object({
   suksess: z.boolean(),

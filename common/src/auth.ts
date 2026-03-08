@@ -5,7 +5,7 @@
 
 import { z } from "zod";
 
-const EmailSchema = z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Ugyldig e-post");
+export const EmailSchema = z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Ugyldig e-post");
 
 // Request schema for lagring av Canvas token
 export const CanvasTokenRequestSchema = z.object({
@@ -27,6 +27,26 @@ export const CanvasContextPreferencesSchema = z.object({
   events: z.boolean(),
 });
 
+/** Maks antall varsel-IDs per liste (lestIds / toastVistIds) – brukes i schema, frontend og backend. */
+export const VARSLER_MAX_IDS = 500;
+
+export const VarslerStateSchema = z.object({
+  lestIds: z.array(z.string()).max(VARSLER_MAX_IDS),
+  toastVistIds: z.array(z.string()).max(VARSLER_MAX_IDS),
+});
+
+export const PreferencesUpdateSchema = z
+  .object({
+    canvasContextPreferences: CanvasContextPreferencesSchema.optional(),
+    varslerState: VarslerStateSchema.optional(),
+  })
+  .refine(
+    (data) =>
+      data.canvasContextPreferences !== undefined ||
+      data.varslerState !== undefined,
+    "Ingen preferanser oppgitt",
+  );
+
 // Auth bruker (lokal)
 export const AuthBrukerSchema = z.object({
   id: z.string(),
@@ -35,6 +55,7 @@ export const AuthBrukerSchema = z.object({
   lastName: z.string().optional(),
   hasCanvasToken: z.boolean(),
   canvasContextPreferences: CanvasContextPreferencesSchema.optional(),
+  varslerState: VarslerStateSchema.optional(),
 });
 
 // Login/register/me/logout
@@ -75,7 +96,8 @@ export const RefreshResponseSchema = z.object({
 // Response schema for oppdatering av preferanser
 export const PreferencesResponseSchema = z.object({
   melding: z.string(),
-  canvasContextPreferences: CanvasContextPreferencesSchema,
+  canvasContextPreferences: CanvasContextPreferencesSchema.optional(),
+  varslerState: VarslerStateSchema.optional(),
 });
 
 // Cookie-navn konstanter (delt mellom frontend og backend)
@@ -85,8 +107,10 @@ export const AUTH_CHANNEL_NAME = "studywise_auth_sync";
 
 // TypeScript typer eksportering
 export type CanvasContextPreferences = z.infer<typeof CanvasContextPreferencesSchema>;
+export type VarslerState = z.infer<typeof VarslerStateSchema>;
 export type CanvasTokenRequest = z.infer<typeof CanvasTokenRequestSchema>;
 export type CanvasTokenResponse = z.infer<typeof CanvasTokenResponseSchema>;
+export type PreferencesUpdate = z.infer<typeof PreferencesUpdateSchema>;
 export type AuthBruker = z.infer<typeof AuthBrukerSchema>;
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;
 export type RegisterRequest = z.infer<typeof RegisterRequestSchema>;

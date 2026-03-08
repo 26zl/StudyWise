@@ -7,8 +7,26 @@ import { formaterDatoOgTid, formaterKlokkeslett } from "../lib/dato";
 interface EksporterbarMelding extends ChatMessage {
   tidsstempel: Date;
 }
+
+function lastNedMarkdown(markdown: string, filnavnBase: string): void {
+  const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  const timestamp = new Date().toISOString().slice(0, 10);
+  link.download = `${filnavnBase}-${timestamp}.md`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 // Eksportering 
-export function exportToMarkdown(meldinger: EksporterbarMelding[], tittel?: string): void {
+export function exportToMarkdown(
+  meldinger: EksporterbarMelding[],
+  tittel?: string,
+  filnavnBase = "studywise-samtale",
+): void {
   let markdown = "#💬 Samtale med StudyWise KI-Assistent\n\n";
   // Legg til dato og tid for eksporten
   markdown += `**Dato:** ${formaterDatoOgTid(new Date())}\n\n`;
@@ -33,17 +51,6 @@ export function exportToMarkdown(meldinger: EksporterbarMelding[], tittel?: stri
   });
 // Legg til en avsluttende linje som indikerer at eksporten er generert av StudyWise
   markdown += "\n\n*Generert av StudyWise*\n";
-// Opprett en Blob med Markdown-innholdet og last ned filen
-  const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-// Bruk dagens dato i filnavnet for å gjøre det unikt og lett å identifisere
-  const timestamp = new Date().toISOString().slice(0, 10);
-  link.download = `studywise-samtale-${timestamp}.md`;
-// Legg til lenken i dokumentet, klikk for å starte nedlastingen, og fjern deretter lenken
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  lastNedMarkdown(markdown, filnavnBase);
 }
+

@@ -62,25 +62,26 @@ function erIkkeAutentisert(error: unknown) {
   if (status === 401 || status === 403) return true;
   return /ikke autentisert/i.test(error.message) || /jwt/i.test(error.message) || /token/i.test(error.message);
 }
+
+async function loadChatHistory(): Promise<SavedChat[]> {
+  try {
+    const raw = await fetchJson<unknown>("/api/ki/chat/history?limit=20&page=1");
+    const parsed = ChatHistoryResponseSchema.parse(raw);
+    return parsed.chats
+      .slice(0, MAX_CHATS)
+      .map((c) => ({ ...c, timestamp: new Date(c.timestamp) }));
+  } catch (error) {
+    if (erIkkeAutentisert(error)) return [];
+    throw error;
+  }
+}
+
 // Hook for å håndtere chat-historikk
 export function useChatHistory() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: CHAT_HISTORY_QUERY_KEY,
-    queryFn: async () => {
-      try {
-        const raw = await fetchJson<unknown>(
-          "/api/ki/chat/history?limit=20&page=1"
-        );
-        const parsed = ChatHistoryResponseSchema.parse(raw);
-        return parsed.chats
-          .slice(0, MAX_CHATS)
-          .map((c) => ({ ...c, timestamp: new Date(c.timestamp) }));
-      } catch (error) {
-        if (erIkkeAutentisert(error)) return [];
-        throw error;
-      }
-    },
+    queryFn: loadChatHistory,
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
   });
@@ -111,15 +112,14 @@ export function useChatHistory() {
       return chat.id;
     } catch (error) {
       if (erIkkeAutentisert(error)) return undefined;
-      // Ikke la lagring feile hele UI-et; logg i dev og svelg
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("Klarte ikke lagre chat:", error);
-      }
+      toast.error("Kunne ikke lagre samtalen", {
+        description: "Prøv igjen senere.",
+      });
       return undefined;
     }
   };
   // Last inn en samtale etter ID
-  const loadChat = (id: string) => chats.find((c) => c.id === id);
+  const loadChat = useCallback((id: string) => chats.find((c) => c.id === id), [chats]);
   // Slett en samtale
   const deleteChat = async (id: string) => {
     try {
@@ -169,24 +169,10 @@ export function useChatHistoryPrefetch() {
   const prefetchChatHistory = useCallback((queryClient: QueryClient) => {
     queryClient.prefetchQuery({
       queryKey: CHAT_HISTORY_QUERY_KEY,
-      queryFn: async () => {
-        try {
-          const raw = await fetchJson<unknown>(
-            "/api/ki/chat/history?limit=20&page=1"
-          );
-          const parsed = ChatHistoryResponseSchema.parse(raw);
-          return parsed.chats
-            .slice(0, MAX_CHATS)
-            .map((c) => ({ ...c, timestamp: new Date(c.timestamp) }));
-        } catch (error) {
-          if (erIkkeAutentisert(error)) return [];
-          throw error;
-        }
-      },
+      queryFn: loadChatHistory,
       staleTime: 1000 * 60 * 5,
     });
   }, []);
 
   return { prefetchChatHistory };
 }
-

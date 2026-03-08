@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useMemo, useRef } from "react";
+import { type VarslerState, VARSLER_MAX_IDS } from "common/auth";
 import { toast } from "../components/Toaster";
 import {
     useCanvasAllAssignments,
@@ -22,6 +23,20 @@ import {
     type VarslingElement,
 } from "../lib/varsler";
 import { useUIStore } from "../store/uiStore";
+import { useOppdaterVarslerState } from "../auth/auth-api";
+
+function normalizeVarslerState(state?: VarslerState | null): VarslerState {
+    return {
+        lestIds: Array.from(new Set(state?.lestIds ?? [])).slice(-VARSLER_MAX_IDS),
+        toastVistIds: Array.from(new Set(state?.toastVistIds ?? [])).slice(-VARSLER_MAX_IDS),
+    };
+}
+
+function createVarslerStateSignature(state: VarslerState): string {
+    const lestSignature = [...state.lestIds].sort().join("|");
+    const toastSignature = [...state.toastVistIds].sort().join("|");
+    return `${lestSignature}::${toastSignature}`;
+}
 
 export type VarslingTab = "alle" | "frister" | "kunngjøringer" | "hendelser";
 // Hoved-hook for å hente og organisere varsler-data, samt håndtere lest/ulest-status.
@@ -32,13 +47,91 @@ export interface UseVarslerResult {
     alleElementer: VarslingElement[];
     ulesteCount: number;
     lestIds: Set<string>;
-    markAsLest: (id: string) => void;
     markAllAsLest: () => void;
     isLoading: boolean;
     isError: boolean;
     hasPartialError: boolean;
     error: unknown;
+    isHydrated: boolean;
 }
+
+export function useVarslerStateSync(authReady: boolean, serverState?: VarslerState) {
+    const setVarslerState = useUIStore((s) => s.setVarslerState);
+    const varslerLestIds = useUIStore((s) => s.varslerLestIds);
+    const varslerToastVistIds = useUIStore((s) => s.varslerToastVistIds);
+    const varslerStateHydrated = useUIStore((s) => s.varslerStateHydrated);
+    const {
+        mutate: persistVarslerState,
+        isPending: persistererVarslerState,
+        failureCount: varslerPersistFailureCount,
+    } = useOppdaterVarslerState();
+
+    const normalizedServerState = useMemo(
+        () => normalizeVarslerState(serverState),
+        [serverState],
+    );
+    const serverSignature = useMemo(
+        () => createVarslerStateSignature(normalizedServerState),
+        [normalizedServerState],
+    );
+    const normalizedLocalState = useMemo(
+        () =>
+            normalizeVarslerState({
+                lestIds: Array.from(varslerLestIds),
+                toastVistIds: Array.from(varslerToastVistIds),
+            }),
+        [varslerLestIds, varslerToastVistIds],
+    );
+    const localSignature = useMemo(
+        () => createVarslerStateSignature(normalizedLocalState),
+        [normalizedLocalState],
+    );
+    const lastSyncedSignatureRef = useRef<string | null>(null);
+
+    // Hydrer fra server, men overskriv ikke lokale endringer som ennå ikke er synket
+    useEffect(() => {
+        if (!authReady) return;
+        const hasUnsyncedLocalChanges =
+            varslerStateHydrated && localSignature !== lastSyncedSignatureRef.current;
+        if (hasUnsyncedLocalChanges) return;
+        lastSyncedSignatureRef.current = serverSignature;
+        setVarslerState(normalizedServerState);
+    }, [authReady, normalizedServerState, serverSignature, setVarslerState, varslerStateHydrated, localSignature]);
+
+    useEffect(() => {
+        if (!authReady || !varslerStateHydrated) return;
+        if (localSignature === lastSyncedSignatureRef.current) return;
+        if (persistererVarslerState) return;
+
+        const retryDelayMs =
+            varslerPersistFailureCount > 0
+                ? Math.min(5000, 1000 * 2 ** (varslerPersistFailureCount - 1))
+                : 300;
+
+        const timeoutId = window.setTimeout(() => {
+            persistVarslerState(normalizedLocalState, {
+                onSuccess: (data) => {
+                    const persistedState = normalizeVarslerState(
+                        data.varslerState ?? normalizedLocalState,
+                    );
+                    lastSyncedSignatureRef.current =
+                        createVarslerStateSignature(persistedState);
+                },
+            });
+        }, retryDelayMs);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [
+        authReady,
+        localSignature,
+        normalizedLocalState,
+        persistVarslerState,
+        persistererVarslerState,
+        varslerPersistFailureCount,
+        varslerStateHydrated,
+    ]);
+}
+
 // Hoved-hook for å hente og organisere varsler-data, samt håndtere lest/ulest-status.
 export function useVarsler(harCanvasToken: boolean): UseVarslerResult {
     const assignmentsQuery = useCanvasAllAssignments({ enabled: harCanvasToken });
@@ -48,7 +141,7 @@ export function useVarsler(harCanvasToken: boolean): UseVarslerResult {
 
     const lestIds = useUIStore((s) => s.varslerLestIds);
     const markAllAsLestStore = useUIStore((s) => s.markAllVarslerAsLest);
-    const addLest = useUIStore((s) => s.addVarslerLest);
+    const isHydrated = useUIStore((s) => s.varslerStateHydrated);
 
     const emneNavnMap = useMemo(() => {
         const courses = coursesQuery.data?.courses ?? [];
@@ -77,7 +170,6 @@ export function useVarsler(harCanvasToken: boolean): UseVarslerResult {
         () => () => markAllAsLestStore(alleElementer.map((e) => e.id)),
         [markAllAsLestStore, alleElementer],
     );
-    const markAsLest = useMemo(() => (id: string) => addLest([id]), [addLest]);
 
     const isLoading =
         assignmentsQuery.isLoading || announcementsQuery.isLoading || eventsQuery.isLoading;
@@ -98,45 +190,17 @@ export function useVarsler(harCanvasToken: boolean): UseVarslerResult {
         alleElementer,
         ulesteCount,
         lestIds,
-        markAsLest,
         markAllAsLest,
         isLoading,
         isError,
         hasPartialError,
         error,
+        isHydrated,
     };
 }
 
 // —— Popup-toast (samme fil, deler useVarsler) ——
-
-export const VARSLER_TOAST_VIST_KEY = "studywise:varsler-toast-vist";
 const TOAST_DELAY_MS = 2500;
-const MAX_VISTE_VARSLER = 500;
-
-function loadVisteVarsler(): Set<string> {
-    if (typeof window === "undefined") return new Set();
-    try {
-        const raw = sessionStorage.getItem(VARSLER_TOAST_VIST_KEY);
-        if (!raw) return new Set();
-        const parsed = JSON.parse(raw) as unknown;
-        if (!Array.isArray(parsed)) return new Set();
-        return new Set(parsed.filter((value): value is string => typeof value === "string"));
-    } catch {
-        return new Set();
-    }
-}
-
-function saveVisteVarsler(ids: Set<string>) {
-    if (typeof window === "undefined") return;
-    try {
-        sessionStorage.setItem(
-            VARSLER_TOAST_VIST_KEY,
-            JSON.stringify([...ids].slice(-MAX_VISTE_VARSLER)),
-        );
-    } catch {
-        // ignore
-    }
-}
 
 export interface UseVarslerPopupsOptions {
     onGåTilVarslinger?: () => void;
@@ -148,8 +212,18 @@ export function useVarslerPopups(harCanvasToken: boolean, options: UseVarslerPop
     const onGåRef = useRef(onGåTilVarslinger);
     onGåRef.current = onGåTilVarslinger;
     const ulesteCountRef = useRef(0);
+    const visteIds = useUIStore((s) => s.varslerToastVistIds);
+    const addToastVist = useUIStore((s) => s.addVarslerToastVist);
 
-    const { ulesteCount, alleElementer, lestIds, markAllAsLest, isLoading, isError } = useVarsler(harCanvasToken);
+    const {
+        ulesteCount,
+        alleElementer,
+        lestIds,
+        markAllAsLest,
+        isLoading,
+        isError,
+        isHydrated,
+    } = useVarsler(harCanvasToken);
     const markAllRef = useRef(markAllAsLest);
     markAllRef.current = markAllAsLest;
     const ulesteIds = useMemo(
@@ -167,13 +241,10 @@ export function useVarslerPopups(harCanvasToken: boolean, options: UseVarslerPop
 
         if (!harCanvasToken) {
             planlagtSignaturRef.current = null;
-            try {
-                sessionStorage.removeItem(VARSLER_TOAST_VIST_KEY);
-            } catch {
-                // ignore
-            }
             return;
         }
+
+        if (!isHydrated) return;
 
         if (isLoading || isError || ulesteCount <= 0 || ulesteIds.length === 0) {
             if (ulesteCount <= 0) {
@@ -182,7 +253,6 @@ export function useVarslerPopups(harCanvasToken: boolean, options: UseVarslerPop
             return;
         }
 
-        const visteIds = loadVisteVarsler();
         const harNyeUleste = ulesteIds.some((id) => !visteIds.has(id));
         if (!harNyeUleste || planlagtSignaturRef.current === ulesteSignatur) return;
 
@@ -190,8 +260,8 @@ export function useVarslerPopups(harCanvasToken: boolean, options: UseVarslerPop
         try {
             const t = setTimeout(() => {
                 if (ulesteCountRef.current <= 0) return;
-                ulesteIds.forEach((id) => visteIds.add(id));
-                saveVisteVarsler(visteIds);
+                const nyeToastIds = ulesteIds.filter((id) => !visteIds.has(id));
+                addToastVist(nyeToastIds);
 
                 const melding =
                     ulesteCountRef.current === 1
@@ -222,5 +292,15 @@ export function useVarslerPopups(harCanvasToken: boolean, options: UseVarslerPop
         } catch {
             planlagtSignaturRef.current = null;
         }
-    }, [harCanvasToken, isLoading, isError, ulesteCount, ulesteIds, ulesteSignatur]);
+    }, [
+        addToastVist,
+        harCanvasToken,
+        isHydrated,
+        isLoading,
+        isError,
+        ulesteCount,
+        ulesteIds,
+        ulesteSignatur,
+        visteIds,
+    ]);
 }

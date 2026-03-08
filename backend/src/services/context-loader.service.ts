@@ -33,6 +33,10 @@ export interface ContextResult {
   source: "redis" | "api" | "none";
 }
 
+function formatCourseLabel(name: string, courseCode?: string): string {
+  return courseCode ? `${name} (${courseCode})` : name;
+}
+
 /**
  * Bygger lett kontekst fra Redis-data.
  * Inkluderer: emneliste + oppgaver med frister (neste 14 dager).
@@ -45,7 +49,7 @@ async function byggLettKontekstFraRedis(userId: string): Promise<string | null> 
     const emner = JSON.parse(emnerRaw) as Array<{
       id: number;
       name: string;
-      course_code: string;
+      course_code?: string;
     }>;
 
     if (emner.length === 0) return null;
@@ -56,11 +60,11 @@ async function byggLettKontekstFraRedis(userId: string): Promise<string | null> 
     let kontekst = "[CANVAS-DATA START]\n";
     kontekst += `EMNER (${emner.length} aktive):\n`;
     for (const emne of emner) {
-      kontekst += `- ${emne.name} (${emne.course_code})\n`;
+      kontekst += `- ${formatCourseLabel(emne.name, emne.course_code)}\n`;
     }
 
     // Hent oppgaver for alle emner og filtrer til kommende frister
-    const fristLinjer: string[] = [];
+    const fristLinjer: Array<{ dueAt: number; line: string }> = [];
     for (const emne of emner) {
       const oppgaverRaw = await getCache(userKey(userId, "emne", String(emne.id), "oppgaver"));
       if (!oppgaverRaw) continue;
@@ -78,9 +82,10 @@ async function byggLettKontekstFraRedis(userId: string): Promise<string | null> 
           if (frist >= now && frist <= twoWeeksFromNow) {
             const dagerIgjen = Math.ceil((frist.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
             const status = oppg.has_submitted_submissions ? "✓ levert" : "⏳ ikke levert";
-            fristLinjer.push(
-              `- ${oppg.name} (${emne.course_code}) — frist: ${frist.toLocaleDateString("nb-NO")} (${dagerIgjen}d) [${status}]`,
-            );
+            fristLinjer.push({
+              dueAt: frist.getTime(),
+              line: `- ${oppg.name}${emne.course_code ? ` (${emne.course_code})` : ""} — frist: ${frist.toLocaleDateString("nb-NO")} (${dagerIgjen}d) [${status}]`,
+            });
           }
         }
       } catch {
@@ -89,9 +94,9 @@ async function byggLettKontekstFraRedis(userId: string): Promise<string | null> 
     }
 
     if (fristLinjer.length > 0) {
-      fristLinjer.sort(); // Sorter kronologisk (dato-prefiks)
+      fristLinjer.sort((a, b) => a.dueAt - b.dueAt);
       kontekst += `\nKOMMANDE FRISTER (neste 14 dager):\n`;
-      kontekst += fristLinjer.join("\n") + "\n";
+      kontekst += fristLinjer.map((item) => item.line).join("\n") + "\n";
     } else {
       kontekst += "\nINGEN FRISTER de neste 14 dagene.\n";
     }
@@ -122,18 +127,20 @@ async function byggMålrettetKontekstFraRedis(
     const emner = JSON.parse(emnerRaw) as Array<{
       id: number;
       name: string;
-      course_code: string;
+      course_code?: string;
     }>;
 
     // Finn matchende emne basert på courseHint
-    let matchedCourse: { id: number; name: string; course_code: string } | undefined;
+    let matchedCourse:
+      | { id: number; name: string; course_code?: string }
+      | undefined;
 
     if (target.courseHint) {
       const hint = target.courseHint.toLowerCase();
       matchedCourse = emner.find(
         (e) =>
           e.name.toLowerCase().includes(hint) ||
-          e.course_code.toLowerCase().includes(hint),
+          (e.course_code ?? "").toLowerCase().includes(hint),
       );
       logger.info(
         { userId, courseHint: target.courseHint, matched: !!matchedCourse, matchedName: matchedCourse?.name },
@@ -234,7 +241,7 @@ async function byggMålrettetKontekstFraRedis(
     );
 
     let kontekst = "[CANVAS-DATA START]\n";
-    kontekst += `EMNE: ${matchedCourse.name} (${matchedCourse.course_code})\n\n`;
+    kontekst += `EMNE: ${formatCourseLabel(matchedCourse.name, matchedCourse.course_code)}\n\n`;
 
     // Moduler
     if (modulerRaw) {

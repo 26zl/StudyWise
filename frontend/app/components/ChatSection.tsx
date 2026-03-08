@@ -17,7 +17,7 @@ import { useKIChat, useKIDocumentAnalyse, useKITestTilkobling, SUPPORTED_FILE_TY
 import { useChatHistory } from "../hooks/useChatHistory";
 import { FeilMelding } from "./FeilMelding";
 import { useUIStore } from "../store/uiStore";
-import { formaterKlokkeslett } from "../lib/dato";
+import { exportToMarkdown } from "../utils/exportChat";
 
 // Meldings-typer
 interface Melding {
@@ -230,6 +230,8 @@ export function ChatSection() {
 
     // Håndter filer (gjenbrukbar for filvalg, innliming og dra-og-slipp)
     const håndterFiler = useCallback((filer: File[]) => {
+        if (filer.length === 0) return;
+
         const godkjente: File[] = [];
         for (const fil of filer) {
             if (fil.size > 15 * 1024 * 1024) {
@@ -244,10 +246,17 @@ export function ChatSection() {
                 godkjente.push(fil);
             }
         }
-        if (godkjente.length > 0) {
-            settVedlegg((prev) => [...prev, ...godkjente]);
+
+        if (godkjente.length === 0) return;
+
+        if (vedlegg.length > 0 || godkjente.length > 1) {
+            toast.info("Kun ett vedlegg om gangen", {
+                description: "Jeg bruker bare det første vedlegget.",
+            });
         }
-    }, []);
+
+        settVedlegg([godkjente[0]]);
+    }, [vedlegg.length]);
 
     // Håndter filvalg fra input-element (støtter multiple)
     const handleFilValg = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -340,9 +349,8 @@ export function ChatSection() {
         settMeldinger((tidligere) => [...tidligere, brukerMelding]);
         meldingerRef.current = [...meldinger, brukerMelding];
 
-        // Hvis det er vedlegg, bruk dokumentanalyse (én fil om gangen)
-        // NB: Backend-API-et aksepterer kun én fil per forespørsel.
-        // Vi sender den første filen; ønsker man batch-analyse må backend utvides.
+        // Hvis det er vedlegg, bruk dokumentanalyse.
+        // UI-en tillater kun én fil om gangen for å matche backend-endepunktet.
         if (harVedlegg) {
             settAnalysererDokument(true);
             const filTilAnalyse = vedlegg[0];
@@ -360,8 +368,8 @@ export function ChatSection() {
                     };
                     settMeldinger((tidligere) => {
                         const oppdatert = [...tidligere, aiMelding];
-                        lagreSamtale(oppdatert).catch((err) => {
-                            console.error("Feil ved lagring av samtale:", err);
+                        lagreSamtale(oppdatert).catch(() => {
+                            toast.error("Kunne ikke lagre samtalen", { description: "Prøv igjen senere." });
                         });
                         return oppdatert;
                     });
@@ -379,8 +387,8 @@ export function ChatSection() {
                     settMeldinger((tidligere) => {
                         const oppdatert = [...tidligere, feilMelding];
                         // Lagre samtale selv ved feil
-                        lagreSamtale(oppdatert).catch((err) => {
-                            console.error("Feil ved lagring av samtale:", err);
+                        lagreSamtale(oppdatert).catch(() => {
+                            toast.error("Kunne ikke lagre samtalen", { description: "Prøv igjen senere." });
                         });
                         return oppdatert;
                     });
@@ -530,11 +538,12 @@ export function ChatSection() {
         tekstInputRef.current?.focus();
     };
 
-    // Last chat valgt fra sidebar
+    // Last chat valgt fra sidebar (sjekk isMountedRef for å unngå setState etter unmount)
+    // Nullstill selectedChatId kun når chat er lastet, slik at valget beholdes hvis chats ennå ikke er hentet
     useEffect(() => {
         if (!selectedChatId) return;
         const chat = loadChatById(selectedChatId);
-        if (chat) {
+        if (chat && isMountedRef.current) {
             settMeldinger(
                 chat.messages.map((m, i) => ({
                     id: `${Date.now()}-${i}`,
@@ -544,9 +553,14 @@ export function ChatSection() {
                 }))
             );
             setAktivChatId(chat.id);
+            setSelectedChatId(null);
+            return;
         }
-        setSelectedChatId(null);
-    }, [selectedChatId, loadChatById, setSelectedChatId]);
+
+        if (!loading) {
+            setSelectedChatId(null);
+        }
+    }, [selectedChatId, loadChatById, setSelectedChatId, loading]);
 
     return (
         <div className="h-full flex">
@@ -677,13 +691,15 @@ export function ChatSection() {
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    const blob = new Blob([melding.innhold], { type: "text/markdown" });
-                                                    const url = URL.createObjectURL(blob);
-                                                    const a = document.createElement("a");
-                                                    a.href = url;
-                                                    a.download = `svar-${formaterKlokkeslett(melding.tidsstempel)}.md`;
-                                                    a.click();
-                                                    URL.revokeObjectURL(url);
+                                                    exportToMarkdown(
+                                                        [{
+                                                            rolle: melding.rolle,
+                                                            innhold: melding.innhold,
+                                                            tidsstempel: melding.tidsstempel,
+                                                        }],
+                                                        "AI-svar",
+                                                        "studywise-svar",
+                                                    );
                                                     toast.success("Svar lastet ned");
                                                 }}
                                                 className={actionBtnClass}
@@ -799,13 +815,12 @@ export function ChatSection() {
                     <AttachmentStrip vedlegg={vedlegg} onFjern={fjernVedlegg} />
                     
                     <div className="flex items-end gap-2 rounded-2xl border border-slate-200 dark:border-slate-700 focus-within:border-slate-200 dark:focus-within:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 focus-within:outline-none focus-within:ring-0">
-                        {/* Skjult fil-input */}
+                        {/* Skjult fil-input - én fil om gangen for å matche backend */}
                         <input
                             ref={filInputRef}
                             type="file"
                             accept={SUPPORTED_FILE_TYPES.join(",")}
                             onChange={handleFilValg}
-                            multiple
                             className="hidden"
                         />
                         

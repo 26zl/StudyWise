@@ -21,11 +21,14 @@ import {
   type LoginRequest,
   type RegisterRequest,
   type CanvasContextPreferences,
+  type VarslerState,
   type PreferencesResponse,
 } from "common/auth";
 import { SessionExpiredError } from "../lib/errors";
+import type { ZodType } from "zod";
 
 let refreshPromise: Promise<RefreshResponse> | null = null;
+const AUTH_ME_QUERY_KEY = ["auth", "me"] as const;
 
 export class CanvasTokenConflictError extends Error {
   readonly canvasKonflikt = true;
@@ -34,6 +37,21 @@ export class CanvasTokenConflictError extends Error {
   constructor(message: string) {
     super(message);
   }
+}
+
+function mergeCachedUserPreferences(
+  current: MeResponse | undefined,
+  updated: PreferencesResponse,
+): MeResponse | undefined {
+  if (!current) return current;
+  return MeResponseSchema.parse({
+    user: {
+      ...current.user,
+      canvasContextPreferences:
+        updated.canvasContextPreferences ?? current.user.canvasContextPreferences,
+      varslerState: updated.varslerState ?? current.user.varslerState,
+    },
+  });
 }
 
 // Hent JSON fra response — returnerer tomt objekt kun hvis body er tomt (204 etc.)
@@ -47,6 +65,39 @@ const hentJson = async (res: Response) => {
     throw new Error(`Uventet respons fra server (${res.status}): ${text.slice(0, 100)}`);
   }
 };
+
+async function requestAuthedJson<T>(
+  url: string,
+  schema: ZodType<T>,
+  defaultErrorMessage: string,
+  init: RequestInit = {},
+  forsoktRefresh = false,
+): Promise<T> {
+  const res = await fetch(url, {
+    credentials: "include",
+    cache: "no-store",
+    ...init,
+  });
+  const json = await hentJson(res);
+
+  if ((res.status === 401 || res.status === 403) && !forsoktRefresh) {
+    await fornySesjon();
+    return requestAuthedJson(
+      url,
+      schema,
+      defaultErrorMessage,
+      init,
+      true,
+    );
+  }
+
+  if (!res.ok) {
+    throw new Error(json.melding || json.feil || defaultErrorMessage);
+  }
+
+  return schema.parse(json);
+}
+
 // Innlogging
 async function loggInn(data: LoginRequest): Promise<LoginResponse> {
   const res = await fetch("/api/user/login", {
@@ -161,19 +212,23 @@ interface SaveCanvasTokenInput {
   forceRelink?: boolean;
 }
 
-async function lagreCanvasToken({
-  token,
-  forceRelink = false,
-}: SaveCanvasTokenInput): Promise<CanvasTokenResponse> {
+async function lagreCanvasTokenRequest(
+  { token, forceRelink = false }: SaveCanvasTokenInput,
+  forsoktRefresh = false,
+): Promise<CanvasTokenResponse> {
   const url = forceRelink ? "/api/user/token?force=true" : "/api/user/token";
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
+    cache: "no-store",
     body: JSON.stringify({ token }),
   });
-  // Hent json uansett for bedre feilhåndtering
   const json = await hentJson(res);
+  if ((res.status === 401 || res.status === 403) && !forsoktRefresh) {
+    await fornySesjon();
+    return lagreCanvasTokenRequest({ token, forceRelink }, true);
+  }
   if (!res.ok) {
     if (json.canvasKonflikt) {
       throw new CanvasTokenConflictError(
@@ -183,6 +238,10 @@ async function lagreCanvasToken({
     throw new Error(json.melding || json.feil || "Kunne ikke lagre token");
   }
   return CanvasTokenResponseSchema.parse(json);
+}
+
+async function lagreCanvasToken(input: SaveCanvasTokenInput): Promise<CanvasTokenResponse> {
+  return lagreCanvasTokenRequest(input);
 }
 // Hook for innlogging
 export function useLoggInn() {
@@ -199,7 +258,7 @@ export function useRegistrer() {
 // Hook for å hente info om innlogget bruker
 export function useMeg(options?: { initialData?: MeResponse }) {
   return useQuery({
-    queryKey: ["auth", "me"],
+    queryKey: AUTH_ME_QUERY_KEY,
     queryFn: hentMeg,
     retry: (failureCount, error) => {
       // Ikke prøv igjen ved ugyldig auth (401/403)
@@ -231,15 +290,14 @@ export function useLagreCanvasToken() {
 
 // Slett Canvas token for innlogget bruker
 async function slettCanvasToken(): Promise<CanvasTokenResponse> {
-  const res = await fetch("/api/user/token", {
-    method: "DELETE",
-    credentials: "include",
-  });
-  const json = await hentJson(res);
-  if (!res.ok) {
-    throw new Error(json.melding || json.feil || "Kunne ikke slette token");
-  }
-  return CanvasTokenResponseSchema.parse(json);
+  return requestAuthedJson(
+    "/api/user/token",
+    CanvasTokenResponseSchema,
+    "Kunne ikke slette token",
+    {
+      method: "DELETE",
+    },
+  );
 }
 
 // Hook for sletting av Canvas token
@@ -249,29 +307,50 @@ export function useSlettCanvasToken() {
   });
 }
 
-// Oppdater Canvas-kontekst preferanser
-async function oppdaterPreferanser(preferences: CanvasContextPreferences): Promise<PreferencesResponse> {
-  const res = await fetch("/api/user/preferences", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ canvasContextPreferences: preferences }),
+type UserPreferencesUpdate = {
+  canvasContextPreferences?: CanvasContextPreferences;
+  varslerState?: VarslerState;
+};
+
+async function oppdaterBrukerPreferanser(
+  preferences: UserPreferencesUpdate,
+): Promise<PreferencesResponse> {
+  return requestAuthedJson(
+    "/api/user/preferences",
+    PreferencesResponseSchema,
+    "Kunne ikke oppdatere preferanser",
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(preferences),
+    },
+  );
+}
+
+function useOppdaterBrukerPreferanser<TValue>(
+  toUpdate: (value: TValue) => UserPreferencesUpdate,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (value: TValue) => oppdaterBrukerPreferanser(toUpdate(value)),
+    onSuccess: (data) => {
+      queryClient.setQueryData<MeResponse | undefined>(
+        AUTH_ME_QUERY_KEY,
+        (current) => mergeCachedUserPreferences(current, data),
+      );
+    },
   });
-  const json = await hentJson(res);
-  if (!res.ok) {
-    throw new Error(json.melding || json.feil || "Kunne ikke oppdatere preferanser");
-  }
-  return PreferencesResponseSchema.parse(json);
 }
 
 // Hook for oppdatering av Canvas-kontekst preferanser
 export function useOppdaterPreferanser() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: oppdaterPreferanser,
-    onSuccess: () => {
-      // Oppdater cached brukerdata
-      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
-    },
-  });
+  return useOppdaterBrukerPreferanser((canvasContextPreferences: CanvasContextPreferences) => ({
+    canvasContextPreferences,
+  }));
+}
+
+export function useOppdaterVarslerState() {
+  return useOppdaterBrukerPreferanser((varslerState: VarslerState) => ({
+    varslerState,
+  }));
 }

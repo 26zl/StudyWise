@@ -1,6 +1,6 @@
 /*
  * VarslingerSection - Varslingside for dashboardet
- * Deler data og lest/ulest med popup-toast via useVarsler og varslerStore.
+ * Deler data og lest/ulest med popup-toast via useVarsler og uiStore.
  */
 "use client";
 
@@ -56,14 +56,15 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
         isError,
         hasPartialError,
         error,
+        isHydrated,
     } = useVarsler(harCanvasToken);
 
     // Når bruker åpner varslinger-siden, markér alle som lest (synk med popup)
     useEffect(() => {
-        if (harCanvasToken && !isError && alleElementer.length > 0) {
+        if (harCanvasToken && isHydrated && !isError && alleElementer.length > 0) {
             markAllAsLest();
         }
-    }, [harCanvasToken, isError, alleElementer.length, markAllAsLest]);
+    }, [harCanvasToken, isHydrated, isError, alleElementer.length, markAllAsLest]);
 
     const tabs: { id: VarslingTab; label: string; antall: number }[] = [
         { id: "alle", label: "Alle", antall: alleElementer.length },

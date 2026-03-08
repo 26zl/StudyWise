@@ -21,18 +21,6 @@ export const CanvasErrorCodeSchema = z.enum([
 
 export type CanvasErrorCode = z.infer<typeof CanvasErrorCodeSchema>;
 
-// Strukturert advarsel for delvis suksess (brukes i aggregerte endepunkter)
-export const CanvasWarningSchema = z.object({
-  scope: z.enum(["course", "user", "global"]),
-  resource: z.string(), // f.eks. "files", "pages", "modules"
-  code: CanvasErrorCodeSchema,
-  httpStatus: z.number().optional(),
-  message: z.string(),
-  courseId: z.number().optional(),
-});
-
-export type CanvasWarning = z.infer<typeof CanvasWarningSchema>;
-
 // API feilrespons med strukturert feilkode
 export const CanvasErrorResponseSchema = z.object({
   feil: z.string(),

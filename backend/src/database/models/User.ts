@@ -8,6 +8,11 @@ export interface ICanvasContextPreferences {
     events: boolean;
 }
 
+export interface IVarslerState {
+    lestIds: string[];
+    toastVistIds: string[];
+}
+
 export interface IUser extends Document {
     email: string;
     passwordHash: string;
@@ -20,6 +25,7 @@ export interface IUser extends Document {
     refreshTokenExpiresAt?: Date;
     // Brukerpreferanser for AI Canvas-kontekst
     canvasContextPreferences?: ICanvasContextPreferences;
+    varslerState?: IVarslerState;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -79,6 +85,16 @@ const UserSchema: Schema = new Schema(
                 courses: true,
                 assignments: true,
                 events: true,
+            },
+        },
+        varslerState: {
+            type: {
+                lestIds: { type: [String], default: [] },
+                toastVistIds: { type: [String], default: [] },
+            },
+            default: {
+                lestIds: [],
+                toastVistIds: [],
             },
         },
     },

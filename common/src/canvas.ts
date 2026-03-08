@@ -3,8 +3,7 @@
  */
 
 import { z } from "zod";
-
-const EmailSchema = z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Ugyldig e-post");
+import { EmailSchema } from "./auth.js";
 
 // Schema for Canvas bruker
 export const CanvasUserSchema = z.object({

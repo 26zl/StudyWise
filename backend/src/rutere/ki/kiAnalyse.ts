@@ -8,7 +8,8 @@ import { Router, Request, Response, NextFunction } from "express";
 import multer from "multer";
 import { logger } from "../../utils/logger.js";
 import {
-    KIDocumentAnalyseResponseSchema
+    KIDocumentAnalyseResponseSchema,
+    KIDocumentAnalyseRequestSchema,
 } from "common/ki";
 import {
     parseDocument,
@@ -21,6 +22,7 @@ import { chatCompletion, chatCompletionWithVision, isClientAvailable, isVisionAv
 import type { ImageAttachment } from "./aiClient.js";
 import { STUDYWISE_SYSTEM_PROMPT, STUDYWISE_DOCUMENT_PROMPT } from "./systemPrompt.js";
 import { handleAIError } from "./handleAIError.js";
+import { sendZodError } from "../../utils/apiError.js";
 
 /** MIME-typer som Claude Vision støtter direkte */
 const VISION_MIME_TYPES = new Set([
@@ -86,8 +88,21 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
         return;
     }
 
-    const question = req.body.question || req.body.sporsmaal || "Gi meg en oppsummering av dette dokumentet.";
-    const model = resolveModel(req.body.model);
+    const bodyResult = KIDocumentAnalyseRequestSchema.safeParse(req.body);
+    if (!bodyResult.success) {
+        clearInterval(keepaliveInterval);
+        const melding = bodyResult.error.issues.map((issue) => issue.message).join("; ") || "Ugyldig forespørsel.";
+        res.write(`data: ${JSON.stringify(KIDocumentAnalyseResponseSchema.parse({
+            suksess: false,
+            melding,
+            response: "",
+        }))}\n\n`);
+        res.end();
+        return;
+    }
+    const { question: q, sporsmaal: s, model: bodyModel } = bodyResult.data;
+    const question = q || s || "Gi meg en oppsummering av dette dokumentet.";
+    const model = resolveModel(bodyModel);
 
     if (!isClientAvailable(model)) {
         logger.error("AI-klient ikke tilgjengelig for modell: %s", model);
@@ -323,8 +338,13 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req: Request, res: Resp
         }));
     }
 
-    const question = req.body.question || req.body.sporsmaal || "Gi meg en oppsummering av dette dokumentet.";
-    const model = resolveModel(req.body.model);
+    const bodyResult = KIDocumentAnalyseRequestSchema.safeParse(req.body);
+    if (!bodyResult.success) {
+        return sendZodError(res, bodyResult.error, "Dokumentanalyse");
+    }
+    const { question: q, sporsmaal: s, model: bodyModel } = bodyResult.data;
+    const question = q || s || "Gi meg en oppsummering av dette dokumentet.";
+    const model = resolveModel(bodyModel);
 
     if (!isClientAvailable(model)) {
         return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({

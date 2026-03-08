@@ -208,7 +208,7 @@ router.get("/whoami", async (req, res) => {
       created_at: createdAt,
     });
   } catch (error) {
-    handleCanvasError(
+    return handleCanvasError(
       res,
       error,
       "Klarte ikke å hente eller lagre brukerinformasjon (/whoami)",
@@ -227,7 +227,7 @@ router.get("/users/self/upcoming_events", async (req, res) => {
       meta,
     });
   } catch (error) {
-    handleCanvasError(res, error, "Feil ved henting av upcoming_events");
+    return handleCanvasError(res, error, "Feil ved henting av upcoming_events");
   }
 });
 // GET /calendar_events - Hent kalenderhendelser med context_codes
@@ -268,7 +268,7 @@ router.get("/calendar_events", rateLimitCanvasTung, async (req, res) => {
       context: { courseCount: courses.length },
     });
   } catch (error) {
-    handleCanvasError(res, error, "Feil ved henting av calendar_events");
+    return handleCanvasError(res, error, "Feil ved henting av calendar_events");
   }
 });
 
@@ -289,7 +289,7 @@ router.get("/forelesninger", rateLimitCanvasTung, async (req, res) => {
       meta: { generatedAt: new Date().toISOString(), ...meta },
     });
   } catch (error) {
-    handleCanvasError(res, error, "Feil ved henting av forelesninger");
+    return handleCanvasError(res, error, "Feil ved henting av forelesninger");
   }
 });
 // GET /users/self/todo - Todo liste
@@ -303,7 +303,7 @@ router.get("/users/self/todo", async (req, res) => {
       meta,
     });
   } catch (error) {
-    handleCanvasError(res, error, "Feil ved henting av todo liste");
+    return handleCanvasError(res, error, "Feil ved henting av todo liste");
   }
 });
 
@@ -318,7 +318,7 @@ router.get("/emner", async (req, res) => {
       meta,
     });
   } catch (error) {
-    handleCanvasError(res, error, "Feil under henting av emner");
+    return handleCanvasError(res, error, "Feil under henting av emner");
   }
 });
 
@@ -474,7 +474,7 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
     logger.info({ courseCount: courses.length }, "Generert emner metadata");
     res.json(response);
   } catch (error) {
-    handleCanvasError(res, error, "Feil ved henting av emner metadata");
+    return handleCanvasError(res, error, "Feil ved henting av emner metadata");
   }
 });
 
@@ -564,7 +564,7 @@ router.get("/announcements", rateLimitCanvasTung, async (req, res) => {
       meta,
     });
   } catch (error) {
-    handleCanvasError(res, error, "Feil under henting av annonseringer");
+    return handleCanvasError(res, error, "Feil under henting av annonseringer");
   }
 });
 
@@ -589,6 +589,35 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
     500,
     Math.max(1, parseInt(req.query.limit as string, 10) || 100),
   );
+  const buildCachedCalendarResponse = (
+    cached: string,
+    cacheAge?: number,
+  ) => {
+    const parsed = JSON.parse(cached);
+    const allItems: CalendarItem[] = parsed.items || [];
+    const paginatedItems = allItems.slice(
+      (page - 1) * limit,
+      page * limit,
+    );
+
+    return {
+      ...parsed,
+      items: paginatedItems,
+      meta: {
+        ...parsed.meta,
+        fromCache: true,
+        cacheAge,
+        pagination: {
+          page,
+          limit,
+          totalItems: allItems.length,
+          totalPages: Math.ceil(allItems.length / limit),
+          hasNextPage: page * limit < allItems.length,
+          hasPrevPage: page > 1,
+        },
+      },
+    };
+  };
   // Hjelpefunksjon for å returnere cached data ved feil
   const returnCachedOnError = async (error: unknown) => {
     try {
@@ -602,10 +631,7 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
           { cacheAge },
           "Canvas API feilet - returnerer cached data som fallback",
         );
-        const parsed = JSON.parse(cached);
-        // Legg til cache-metadata
-        parsed.meta = { ...parsed.meta, fromCache: true, cacheAge };
-        return res.json(parsed);
+        return res.json(buildCachedCalendarResponse(cached, cacheAge));
       }
     } catch {
       // Cache også feilet - kast original feil
@@ -623,30 +649,7 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
             ? Math.floor((Date.now() - parseInt(cachedTimestamp, 10)) / 1000)
             : undefined;
           logger.info({ cacheKey, cacheAge }, "Kalender cache HIT");
-          const parsed = JSON.parse(cached);
-          // Legg til cache-metadata og paginer
-          const allItems: CalendarItem[] = parsed.items || [];
-          const paginatedItems = allItems.slice(
-            (page - 1) * limit,
-            page * limit,
-          );
-          return res.json({
-            ...parsed,
-            items: paginatedItems,
-            meta: {
-              ...parsed.meta,
-              fromCache: true,
-              cacheAge,
-              pagination: {
-                page,
-                limit,
-                totalItems: allItems.length,
-                totalPages: Math.ceil(allItems.length / limit),
-                hasNextPage: page * limit < allItems.length,
-                hasPrevPage: page > 1,
-              },
-            },
-          });
+          return res.json(buildCachedCalendarResponse(cached, cacheAge));
         }
         logger.info({ cacheKey }, "Kalender cache MISS");
       } catch (cacheErr) {
@@ -660,19 +663,21 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
 
     // Hent kurs, brukerprofil og enrollments (trengs for context_codes og kursinfo)
     // Enrollments inkluderer section_id som trengs for TimeEdit-hendelser
-    const [coursesResult, userProfileResult, enrollmentsResult] =
-      (await Promise.all([
-        fetchCourses(req.canvasToken),
-        fetchUserProfile(req.canvasToken),
-        fetchUserEnrollments(req.canvasToken),
-      ]).catch(async (error) => {
-        // Kritisk feil - prøv cached data
-        return returnCachedOnError(error);
-      })) as [
-        Awaited<ReturnType<typeof fetchCourses>>,
-        Awaited<ReturnType<typeof fetchUserProfile>>,
-        Awaited<ReturnType<typeof fetchUserEnrollments>>,
-      ];
+    let coursesResult: Awaited<ReturnType<typeof fetchCourses>>;
+    let userProfileResult: Awaited<ReturnType<typeof fetchUserProfile>>;
+    let enrollmentsResult: Awaited<ReturnType<typeof fetchUserEnrollments>>;
+    try {
+      [coursesResult, userProfileResult, enrollmentsResult] = await Promise.all(
+        [
+          fetchCourses(req.canvasToken),
+          fetchUserProfile(req.canvasToken),
+          fetchUserEnrollments(req.canvasToken),
+        ],
+      );
+    } catch (error) {
+      // Kritisk feil - prøv cached data og avslutt route hvis fallback lykkes
+      return await returnCachedOnError(error);
+    }
 
     // Avbryt hvis klienten har koblet fra etter data-henting
     if (req.socket.destroyed) return;
@@ -947,7 +952,7 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
         "Henting av kalenderdata tok for lang tid. Prøv igjen.",
       );
     }
-    handleCanvasError(res, error, "Feil ved henting av kalender-data");
+    return handleCanvasError(res, error, "Feil ved henting av kalender-data");
   }
 });
 
