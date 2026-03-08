@@ -9,6 +9,7 @@
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
     "incremental": true,
+    "typeRoots": ["./node_modules/@types"],
     "plugins": [
       {
         "name": "next"

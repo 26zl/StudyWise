@@ -4,6 +4,8 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+let rewritesLogged = false;
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["common"],
@@ -46,7 +48,8 @@ const nextConfig = {
     // INTERNAL_API_URL brukes i Docker/Cloud Run, ellers localhost for lokal utvikling
     const apiUrl = process.env.INTERNAL_API_URL || "http://localhost:4000";
 
-    if (process.env.NODE_ENV === "development") {
+    if (process.env.NODE_ENV === "development" && !rewritesLogged) {
+      rewritesLogged = true;
       console.log(`[next.config] API rewrites peker til: ${apiUrl}`);
     }
 
