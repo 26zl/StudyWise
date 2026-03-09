@@ -96,20 +96,19 @@ function buildCookieHeader(
 }
 
 /**
- * Henter brukeren fra backend API-et ved å sende med cookies
- * Bruker retry-logikk for å håndtere at backend kanskje ikke er klar
- * Prøver også refresh hvis access token er utløpt
+ * Henter brukeren fra backend API-et ved å sende med cookies.
+ * Returnerer null kun ved ekte gjest (ingen auth-cookies).
+ * Ved transient feil (nettverk, !res.ok, parse-feil) kastes feil – da caches ikke null som "gjest" på klient.
  */
 export const getUserServer = cache(async (): Promise<MeResponse | null> => {
   const apiUrl = process.env.INTERNAL_API_URL || "http://localhost:4000";
   const cookieStore = await cookies();
 
-  // Hent tokens fra cookies
   const tokenCookie = cookieStore.get(AUTH_COOKIE_NAME);
   const refreshCookie = cookieStore.get(AUTH_REFRESH_COOKIE_NAME);
 
   if (!tokenCookie?.value && !refreshCookie?.value) {
-    return null;
+    return null; // Ekte gjest – ingen cookies
   }
 
   // Bygg cookie-header med alle relevante cookies
@@ -160,13 +159,41 @@ export const getUserServer = cache(async (): Promise<MeResponse | null> => {
     }
 
     if (!res.ok) {
-      return null;
+      // Vi har cookies men backend svarte med feil – ikke cache null som "gjest" (unngår 5 min guest-state)
+      throw new Error("Kunne ikke verifisere innloggingsstatus");
     }
     const json = await res.json();
     return MeResponseSchema.parse(json);
+  } catch (err) {
+    // Vi har allerede passert «ingen cookies»-sjekken – feil her er transient (nettverk/backend). Kast så vi ikke cacher null som gjest.
+    throw err instanceof Error ? err : new Error("Kunne ikke verifisere innloggingsstatus");
+  }
+});
+
+/**
+ * Trygg variant for SSR-layout/landingsside.
+ * Ved transient auth/backend-feil degraderer vi til "ukjent bruker" i server-render,
+ * mens klienten fortsatt får hente /me selv i stedet for å cache gjest som initialData.
+ */
+export const getUserServerSafe = cache(async (): Promise<MeResponse | null> => {
+  try {
+    return await getUserServer();
   } catch {
-    // Feil ved henting av bruker (f.eks. backend ikke klar) - returner null
-    // Client-side vil prøve igjen med retry-logikk
     return null;
   }
 });
+
+/**
+ * For landingssiden: returnerer bruker + om server vet at det er gjest (ingen cookies).
+ * Når noCookies === true og user === null, kan UI vise "Logg inn / Registrer" med én gang uten å vente på klient-fetch.
+ */
+export const getLandingAuthState = cache(
+  async (): Promise<{ user: MeResponse | null; noCookies: boolean }> => {
+    try {
+      const user = await getUserServer();
+      return { user, noCookies: user === null };
+    } catch {
+      return { user: null, noCookies: false };
+    }
+  },
+);

@@ -11,6 +11,7 @@ export type { CanvasErrorCode } from "common/canvasErrors";
 // KI-spesifikke feilkoder
 export type KIErrorCode =
   | "ki_auth"
+  | "ki_config"
   | "ki_rate_limit"
   | "ki_service"
   | "ki_timeout";
@@ -86,6 +87,18 @@ export class KIAuthError extends AppError {
 
   constructor(message = "Ikke autentisert") {
     super(message, { httpStatus: 401 });
+  }
+}
+
+/**
+ * KI er ikke konfigurert riktig i miljøet
+ */
+export class KIConfigError extends AppError {
+  readonly code = "ki_config" as const;
+  readonly name = "KIConfigError";
+
+  constructor(message = "KI-tjenesten er ikke konfigurert riktig") {
+    super(message, { httpStatus: 500 });
   }
 }
 

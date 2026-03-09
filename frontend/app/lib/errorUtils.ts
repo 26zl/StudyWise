@@ -78,7 +78,9 @@ function identifiserFeiltype(
   if (
     lowerMsg.includes("429") ||
     lowerMsg.includes("rate") ||
-    lowerMsg.includes("for mange")
+    lowerMsg.includes("for mange") ||
+    lowerMsg.includes("grensen for forespørsler") ||
+    lowerMsg.includes("vennligst prøv igjen senere")
   ) {
     return "rate_limit";
   }
@@ -122,6 +124,14 @@ interface FeilmeldingKontekst {
   ki?: boolean;
   auth?: boolean;
   kalender?: boolean;
+}
+
+/** Fallback for feil ved lasting av brukerdata (/me). Én kilde for DashboardView og oversikt. */
+const BRUKERDATA_FEIL_FALLBACK = "Kunne ikke laste brukerdata. Sjekk internettforbindelsen og prøv igjen.";
+
+/** Brukervennlig feilmelding for feil ved henting av brukerdata (auth-kontekst, inkl. 429 rate limit). */
+export function getBrukerdataFeilmelding(error: Error | string | null | undefined): string {
+  return lagBrukervennligFeilmelding(error ?? null, { auth: true }, BRUKERDATA_FEIL_FALLBACK);
 }
 
 // Hent brukervennlig feilmelding basert på feiltype og kontekst

@@ -108,10 +108,10 @@ app.use(
 // JSON body parser med økt størrelse på 10mb
 app.use(express.json({ limit: "10mb" }));
 
-// Rate Limiting med 100 requests per minutt per IP
+// Rate limiting: 300 req/min per IP – unngår 429 ved mange refreshes (SSR + client kaller /me ofte)
 const rateLimiter = new RateLimiterMemory({
-  points: 100, // 100 forespørsler
-  duration: 60, // per 60 sekunder
+  points: 300,
+  duration: 60,
 });
 // Middleware for rate limiting
 const rateLimiterMiddleware = (
@@ -152,13 +152,40 @@ if (isProd) {
   }
 }
 
+// Avvis ugyldige cross-origin requests eksplisitt før cors()-middleware.
+// Ellers kaster cors() en feil som ender som generisk 500 i global error-handler.
+app.use((req, res, next) => {
+  const origin = req.get("origin");
+  const host = req.get("host");
+  const backendOrigin = host
+    ? `${req.protocol}://${host}`.toLowerCase()
+    : null;
+
+  if (
+    !origin ||
+    allowedOrigins.has(origin) ||
+    (backendOrigin !== null && origin.toLowerCase() === backendOrigin)
+  ) {
+    return next();
+  }
+
+  logger.warn(
+    { origin, path: req.path, method: req.method },
+    "Blokkert forespørsel fra ugyldig CORS-origin",
+  );
+  return sendError(res, "validation_error", {
+    status: 403,
+    feil: "Forbidden",
+    melding: "Ugyldig origin for foresporselen.",
+  });
+});
+
 app.use(
   cors({
     origin: (origin, cb) => {
       // Forespørsler uten origin (curl, same-origin, health checks) tillates
       if (!origin) return cb(null, true);
-      if (allowedOrigins.has(origin)) return cb(null, true);
-      return cb(new Error(`CORS blokkert for origin: ${origin}`));
+      return cb(null, allowedOrigins.has(origin));
     },
     credentials: true,
   }),

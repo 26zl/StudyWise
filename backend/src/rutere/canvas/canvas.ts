@@ -77,11 +77,11 @@ interface CanvasHttpError extends Error {
 /** Én felles oversetter: Canvas/Zod-feil → strukturert JSON-respons. Brukes av både handleCanvasError og router.use. */
 function sendCanvasErrorResponse(res: import("express").Response, error: unknown): void {
   if (error instanceof ZodError) {
+    // Ikke send error.message til klient – kan inneholde interne feltstier (f.eks. courses.0.name)
     res.status(500).json({
       feil: "Validering feilet",
       melding: "Canvas returnerte uventet data-format",
       kode: "validation_error" as CanvasErrorCode,
-      detaljer: error.message,
     });
     return;
   }
@@ -97,7 +97,7 @@ function sendCanvasErrorResponse(res: import("express").Response, error: unknown
     res.status(legacyErr.status).json(getErrorResponse(code));
     return;
   }
-  sendUnknownError(res, error, { kontekst: "Canvas-router" });
+  sendUnknownError(res, error, { kontekst: "Canvas-router", melding: "Kunne ikke hente Canvas-data. Prøv igjen." });
 }
 
 function handleCanvasError(

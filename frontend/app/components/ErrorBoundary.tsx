@@ -52,7 +52,7 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="min-h-[25rem] flex items-center justify-center p-6">
+        <div className="min-h-100 flex items-center justify-center p-6">
           <div className="max-w-md w-full text-center space-y-6">
             <div className="mx-auto w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
               <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
@@ -60,10 +60,10 @@ export class ErrorBoundary extends Component<Props, State> {
             
             <div className="space-y-2">
               <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
-                Noe gikk galt
+                En feil oppstod
               </h2>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                En uventet feil oppstod. Prøv å laste siden på nytt, eller gå tilbake til dashboardet.
+                Noe gikk galt i denne delen av siden. Prøv å laste inn på nytt, eller gå tilbake til dashboardet.
               </p>
             </div>
 

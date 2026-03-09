@@ -96,22 +96,23 @@ export function sendZodError(res: Response, error: ZodError, kontekst?: string):
 
 /**
  * Håndterer ukjente feil og logger dem.
+ * Valgfri melding vises til brukeren; ellers brukes standardtekst.
  */
 export function sendUnknownError(
     res: Response,
     error: unknown,
-    logContext?: Record<string, unknown>
+    logContext?: Record<string, unknown> & { melding?: string }
 ): void {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    const { melding: brukerMelding, ...context } = logContext ?? {};
 
-    // Logg feilen
     logger.error(
-        { err: error, ...logContext },
+        { err: error, ...context },
         `Ukjent feil: ${errorMessage.substring(0, 100)}`
     );
 
     sendError(res, "server_error", {
-        melding: "Noe gikk galt. Prøv igjen senere.",
+        melding: brukerMelding ?? "Noe gikk galt. Prøv igjen senere.",
     });
 }
 

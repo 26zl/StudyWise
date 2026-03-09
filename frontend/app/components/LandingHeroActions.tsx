@@ -13,13 +13,20 @@ import { useMeg } from "../auth/auth-api";
 interface LandingHeroActionsProps {
   /** Brukerdata fra server (f.eks. fra forsidens fetch av /me) – brukes som initialData for rask første render */
   initialUser: MeResponse | null;
+  /** True når server så at det ikke var noen auth-cookies – da vet vi at det er gjest og viser «Logg inn» med én gang */
+  noCookies?: boolean;
 }
 
-export function LandingHeroActions({ initialUser }: LandingHeroActionsProps) {
-  const megQuery = useMeg({ initialData: initialUser || undefined });
-  const erInnlogget = Boolean(megQuery.data?.user || initialUser?.user);
-  /** Vis "Logg inn"-knapp kun når vi vet at brukeren ikke er innlogget (unngår blink) */
-  const authAvklart = megQuery.isFetched || erInnlogget;
+export function LandingHeroActions({ initialUser, noCookies }: LandingHeroActionsProps) {
+  // Kun bruk server-data som initialData når vi har bekrevet innlogget bruker – aldri null (unngår at transient SSR-feil caches som gjest)
+  const megQuery = useMeg({ initialData: initialUser?.user ? initialUser : undefined });
+  const erInnlogget = Boolean(megQuery.data?.user ?? initialUser?.user);
+  /** Avklart når vi har hentet, er innlogget, har server-data, eller server bekrevet gjest (noCookies) – unngår at «Logg inn» forsvinner et øyeblikk ved refresh */
+  const authAvklart =
+    megQuery.isFetched ||
+    erInnlogget ||
+    megQuery.data !== undefined ||
+    (noCookies === true && !initialUser?.user);
   const ctaWidth = "min-w-[200px]";
 
   return (

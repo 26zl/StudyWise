@@ -207,7 +207,7 @@ Hvis det ikke er noen handlingspunkter, skriv "HANDLINGER: Ingen handlingspunkte
         kontekst: "kiOppsummering",
       })) return;
 
-      return sendUnknownError(res, error, { kontekst: "kiOppsummering" });
+      return sendUnknownError(res, error, { kontekst: "kiOppsummering", melding: "Kunne ikke oppsummere teksten. Prøv igjen." });
     }
   },
 );

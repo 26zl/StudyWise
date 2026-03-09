@@ -23,11 +23,13 @@ export function Header({ user }: HeaderProps) {
     const pathname = usePathname();
     const { toggleVenstreMeny } = useUIStore();
     const harSidebar = ["/dashboard", "/oversikt", "/test-ai-breakdown"].includes(pathname);
-    const megQuery = useMeg({ initialData: user || undefined });
+    // Kun bruk server-data som initialData når vi har bekrevet innlogget bruker – aldri null (unngår at transient SSR-feil caches som gjest)
+    const megQuery = useMeg({ initialData: user?.user ? user : undefined });
     const [mobilMenyOpen, setMobilMenyOpen] = useState(false);
 
-    const aktivBruker = megQuery.data?.user || user?.user;
-    const authLaster = megQuery.isLoading && !aktivBruker;
+    const aktivBruker = megQuery.data?.user ?? user?.user;
+    /** Ikke vis lasteskeleton når vi har server-data (user) – unngår blink ved refresh */
+    const authLaster = megQuery.isLoading && !aktivBruker && megQuery.data === undefined;
     const handleLoggUt = useLoggUtWithRedirect();
     const { theme, setTheme } = useTheme();
 

@@ -49,7 +49,7 @@ router.get("/:assignmentId", async (req, res) => {
     });
     return res.json(payload);
   } catch (error) {
-    return sendUnknownError(res, error, { kontekst: "GET task-breakdown" });
+    return sendUnknownError(res, error, { kontekst: "GET task-breakdown", melding: "Kunne ikke laste oppgavedeling. Prøv igjen." });
   }
 });
 
@@ -82,7 +82,7 @@ router.post("/:assignmentId", async (req, res) => {
     });
     return res.json(payload);
   } catch (error) {
-    return sendUnknownError(res, error, { kontekst: "POST task-breakdown" });
+    return sendUnknownError(res, error, { kontekst: "POST task-breakdown", melding: "Kunne ikke lagre oppgavedeling. Prøv igjen." });
   }
 });
 
@@ -114,7 +114,7 @@ router.put("/:assignmentId/toggle/:taskId", async (req, res) => {
     });
     return res.json(payload);
   } catch (error) {
-    return sendUnknownError(res, error, { kontekst: "PUT task-breakdown toggle" });
+    return sendUnknownError(res, error, { kontekst: "PUT task-breakdown toggle", melding: "Kunne ikke oppdatere deloppgave. Prøv igjen." });
   }
 });
 
@@ -131,7 +131,7 @@ router.delete("/:assignmentId", async (req, res) => {
     const payload = TaskBreakdownResponseSchema.parse({ subtasks: [] });
     return res.json(payload);
   } catch (error) {
-    return sendUnknownError(res, error, { kontekst: "DELETE task-breakdown" });
+    return sendUnknownError(res, error, { kontekst: "DELETE task-breakdown", melding: "Kunne ikke slette oppgavedeling. Prøv igjen." });
   }
 });
 

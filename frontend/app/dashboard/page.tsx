@@ -5,8 +5,20 @@
  */
 "use client";
 
+import { Suspense } from "react";
 import { DashboardView } from "../components/DashboardView";
+import { LoadingSpinner } from "../components/LoadingSpinner";
 
 export default function DashboardPage() {
-    return <DashboardView />;
+    return (
+        <Suspense
+            fallback={
+                <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+                    <LoadingSpinner />
+                </div>
+            }
+        >
+            <DashboardView />
+        </Suspense>
+    );
 }

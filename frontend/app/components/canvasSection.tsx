@@ -90,7 +90,7 @@ const TilpassetBilde = ({
                 src={src}
                 alt={alt}
                 {...props}
-                className={`transition-opacity duration-500 ${laster ? "opacity-0" : "opacity-100"} max-w-full max-h-[18.75rem] w-auto h-auto object-contain`}
+                className={`transition-opacity duration-500 ${laster ? "opacity-0" : "opacity-100"} max-w-full max-h-75 w-auto h-auto object-contain`}
                 style={safeStyle}
                 onLoad={() => settLaster(false)}
                 loading="lazy"

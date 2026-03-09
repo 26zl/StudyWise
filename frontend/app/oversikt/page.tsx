@@ -13,12 +13,12 @@ import { Sidebar, type VisningType } from "../components/Sidebar";
 import { useCanvasCourses, useCanvasAllAssignments, useCanvasUser, type AssignmentMedEmne } from "../canvas/canvas-api";
 import { erInnlevert } from "../canvas/canvasUtils";
 import { useMeg } from "../auth/auth-api";
-import { useAuthRedirect } from "../auth/authUtils";
+import { useAuthRedirect, skalRedirecteTilAuth } from "../auth/authUtils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formaterDatoFull, formaterDatoShort, dagerFraIdag, formaterDagerRelativtFrist } from "../lib/dato";
 import { FRIST_VINDU_DAGER } from "../lib/varsler";
-import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
+import { getBrukerdataFeilmelding, lagBrukervennligFeilmelding } from "../lib/errorUtils";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 
 // Denne siden er hovedoversikten for innloggede brukere, og viser en personlig ukeplan, statistikk og rask tilgang til funksjoner. Den håndterer også redirect til innlogging hvis ikke autentisert.
@@ -84,13 +84,26 @@ export default function OversiktPage() {
         );
     }
 
-    // Feil uten brukerdata: vis feilmelding og retry (useAuthRedirect håndterer auth-feil)
+    // Skal redirecte til innlogging: vis spinner i stedet for feilmelding (unngår rød flash)
+    if (skalRedirecteTilAuth(megQuery)) {
+        return (
+            <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950">
+                <Sidebar aktivVisning="chat" byttVisning={byttVisning} />
+                <main className="flex-1 min-h-0 overflow-y-auto flex items-center justify-center p-8">
+                    <LoadingSpinner />
+                </main>
+            </div>
+        );
+    }
+
+    // Feil uten brukerdata (f.eks. nettverksfeil, 429 rate limit): vis feilmelding og retry (useAuthRedirect håndterer auth-feil)
     if (megQuery.isError && !megQuery.data?.user) {
+        const feilmelding = getBrukerdataFeilmelding(megQuery.error);
         return (
             <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950">
                 <Sidebar aktivVisning="chat" byttVisning={byttVisning} />
                 <main className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center gap-4 p-6">
-                    <FeilMelding melding="Kunne ikke laste brukerdata. Sjekk internettforbindelsen og prøv igjen." />
+                    <FeilMelding melding={feilmelding} />
                     <button
                         type="button"
                         onClick={() => megQuery.refetch()}

@@ -6,6 +6,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { Send, Bot, Download, Copy, Share2, RefreshCw, ThumbsUp, ThumbsDown, MoreHorizontal, Plus, Image, FileText, User } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { toast } from "sonner";
@@ -14,9 +15,9 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
 import { SmartSuggestions } from "./SmartSuggestions";
-import { useKIChat, useKIDocumentAnalyse, useKITestTilkobling, SUPPORTED_FILE_TYPES } from "../ki/ki-api";
+import { useKIChat, useKIDocumentAnalyse, useKITestTilkobling, SUPPORTED_FILE_TYPES, getKIErrorMessage, getKIBannerForError, type KIErrorContext } from "../ki/ki-api";
 import { useChatHistory } from "../hooks/useChatHistory";
-import { FeilMelding } from "./FeilMelding";
+import { FeilMelding, type FeilMeldingType } from "./FeilMelding";
 import { useUIStore } from "../store/uiStore";
 import { exportToMarkdown } from "../utils/exportChat";
 
@@ -125,38 +126,15 @@ function erBildefil(navn: string): boolean {
 /** Felles klassenavn for handlingsknapper under AI-svar */
 const actionBtnClass = "p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-md hover:bg-slate-100 dark:hover:bg-slate-800";
 
-/** Lag brukervennlig feilmelding basert på error */
-function lagFeilTekst(error: Error, kontekst: "chat" | "dokument"): string {
-    const msg = error.message;
-    const name = error.name;
-    // Navngitte feilklasser (fra ki-api)
-    if (name === "KIRateLimitError" || msg.includes("429") || msg.includes("rate")) {
-        return "For mange forespørsler. Vent noen sekunder og prøv igjen.";
-    }
-    if (name === "KIServiceError" || msg.includes("utilgjengelig") || msg.includes("503")) {
-        return kontekst === "dokument"
-            ? "Dokumentanalyse er midlertidig utilgjengelig. Prøv igjen om noen minutter."
-            : "KI-tjenesten er midlertidig utilgjengelig. Prøv igjen om noen minutter.";
-    }
-    if (name === "KITimeoutError" || msg.includes("timeout") || msg.includes("504")) {
-        return kontekst === "dokument"
-            ? "Analysen tok for lang tid. Prøv med et mindre dokument."
-            : "Forespørselen tok for lang tid. Prøv å forenkle spørsmålet ditt.";
-    }
-    if (name === "KIAuthError") {
-        return "Du må logge inn på nytt for å bruke KI-assistenten.";
-    }
-    // Generelle HTTP-feil
-    if (msg.includes("for stor") || msg.includes("413")) {
-        return "Filen er for stor. Maksimal filstørrelse er 15 MB.";
-    }
-    if (msg.includes("filtype") || msg.includes("støttes ikke")) {
-        return "Filtypen støttes ikke. Prøv PDF, Word, eller tekstfiler.";
-    }
-    if (msg.includes("Internal Server Error") || msg.includes("500") || msg.includes("Server Error") || msg.includes("serveren")) {
-        return "Noe gikk galt på serveren. Prøv igjen om litt, eller forenkle spørsmålet ditt.";
-    }
-    return msg || (kontekst === "dokument" ? "Kunne ikke analysere dokumentet. Prøv igjen." : "Noe gikk galt. Prøv igjen.");
+/** Brukervennlig feilmelding for toast – delegerer til ki-api (én kilde for KI-feilklassifisering). */
+function lagFeilTekst(error: Error, kontekst: KIErrorContext): string {
+    return getKIErrorMessage(error, kontekst);
+}
+
+/** Banner for tilkoblingsfeil – delegerer til ki-api (én kilde for KI-feilklassifisering). */
+function lagTilkoblingsBanner(error: Error | null | undefined): { melding: string; type: FeilMeldingType } | null {
+    if (!error) return null;
+    return getKIBannerForError(error);
 }
 
 export function ChatSection() {
@@ -222,7 +200,16 @@ export function ChatSection() {
     }, []);
 
     // KI tilkoblingstest (viser feilmelding hvis KI er utilgjengelig)
-    const { isError: erTilkoblingsFeil } = useKITestTilkobling(mounted);
+    const { isError: erTilkoblingsFeil, error: tilkoblingsFeil, refetch: refetchKiTest } = useKITestTilkobling(mounted);
+    const searchParams = useSearchParams();
+    const visKiFeilDetaljer = typeof window !== "undefined" && (process.env.NODE_ENV === "development" || searchParams.get("ki_debug") === "1");
+    const tilkoblingsBanner = lagTilkoblingsBanner(
+        tilkoblingsFeil instanceof Error ? tilkoblingsFeil : null,
+    );
+    /** Ved tilkoblingsfeil uten klassifisert banner (f.eks. ikke-Error), vis generisk melding */
+    const tilkoblingsBannerVist = erTilkoblingsFeil
+        ? (tilkoblingsBanner ?? { melding: "Kunne ikke koble til KI-assistenten. Prøv igjen senere.", type: "error" as const })
+        : null;
 
     // KI chat hook
     const { sendMelding: sendTilAPI } = useKIChat();
@@ -337,6 +324,24 @@ export function ChatSection() {
             innhold: m.innhold,
         }));
         return sameChat && harSammeMeldinger(currentMessages, expectedMessages);
+    };
+
+    /** Lagrer kun brukermelding(er) i backend ved feil/tomt svar, slik at meldingen ikke forsvinner ved reload (særlig viktig for eksisterende chat der vi ikke kaller saveChat tidlig). */
+    const persistUserMessageOnly = async (pending: NonNullable<typeof pendingChatRef.current>) => {
+        const resolvedChatId = pending.chatId ?? await pending.chatIdPromise;
+        if (resolvedChatId) {
+            oppdaterPendingChatId(pending.requestId, resolvedChatId);
+        }
+        const payload = [...pending.messagesBefore, pending.userMessage].map((m) => ({
+            rolle: m.rolle,
+            innhold: m.innhold,
+        }));
+        await saveChat(
+            payload,
+            resolvedChatId ?? undefined,
+            resolvedChatId ? undefined : pending.title,
+            { silent: true, retryCount: 1 },
+        );
     };
 
     /** Lagrer full samtale (bruker + assistent-svar) i backend; oppdaterer pending state og evt. aktivChatId. */
@@ -626,11 +631,40 @@ export function ChatSection() {
                 }
             };
 
+            const avsluttDokumentanalyseUtenSvar = () => {
+                if (pendingConversationState?.requestId === requestId) {
+                    pendingConversationState = null;
+                }
+                docAnalysisChatIdRef.current = null;
+                setRunningChatId(null);
+                if (isMountedRef.current) {
+                    settAnalysererDokument(false);
+                }
+            };
+
+            /** Lagrer kun brukermelding ved feil/tomt svar (én sted – brukes i onSuccess tom og onError). */
+            const persistDocumentUserMessageOnly = () => {
+                void (async () => {
+                    const id = docAnalysisChatIdRef.current ?? await docChatIdPromise;
+                    await saveChat(messagesBeforeForSave, id ?? undefined, id ? undefined : titleFromFirst, { silent: true, retryCount: 1 });
+                })();
+            };
+
             analyserDokument(filTilAnalyse, brukerMeldingInnhold || "Gi meg en oppsummering av dette dokumentet.", {
                 onSuccess: (data) => {
+                    const responseText = data.response.trim();
+                    if (!responseText) {
+                        toast.error("Dokumentanalyse feilet", {
+                            description: "Dokumentanalysen returnerte et tomt svar. Prøv igjen.",
+                        });
+                        persistDocumentUserMessageOnly();
+                        avsluttDokumentanalyseUtenSvar();
+                        return;
+                    }
+
                     const aiInnhold = data.dokumentInfo
-                        ? `${data.response}\n\n---\n_Dokument: ${data.dokumentInfo.sider} sider, ${data.dokumentInfo.tegn.toLocaleString("nb-NO")} tegn${data.dokumentInfo.truncated ? " (forkortet)" : ""}_`
-                        : data.response;
+                        ? `${responseText}\n\n---\n_Dokument: ${data.dokumentInfo.sider} sider, ${data.dokumentInfo.tegn.toLocaleString("nb-NO")} tegn${data.dokumentInfo.truncated ? " (forkortet)" : ""}_`
+                        : responseText;
                     const aiMelding: Melding = {
                         id: (Date.now() + 1).toString(),
                         rolle: "assistant",
@@ -650,21 +684,8 @@ export function ChatSection() {
                 onError: (error) => {
                     const feilTekst = lagFeilTekst(error, "dokument");
                     toast.error("Dokumentanalyse feilet", { description: feilTekst });
-                    const feilMelding: Melding = {
-                        id: (Date.now() + 1).toString(),
-                        rolle: "assistant",
-                        innhold: feilTekst,
-                        tidsstempel: new Date(),
-                    };
-                    const payload = [
-                        ...messagesBeforeForSave,
-                        { rolle: "assistant" as const, innhold: feilTekst },
-                    ];
-                    void persistDocumentResult(payload, serializeMelding(feilMelding));
-                    if (isMountedRef.current) {
-                        settMeldinger((tidligere) => [...tidligere, feilMelding]);
-                        settAnalysererDokument(false);
-                    }
+                    persistDocumentUserMessageOnly();
+                    avsluttDokumentanalyseUtenSvar();
                 },
             });
             return;
@@ -777,42 +798,53 @@ export function ChatSection() {
             }
         }
 
-        const handleChatResponse = (sisteMelding: Melding) => {
+        const handleChatResponse = (sisteMelding?: Melding) => {
             const pending = pendingChatRef.current;
             if (pending && pendingConversationState?.requestId === pending.requestId) {
-                pendingConversationState = {
-                    ...pendingConversationState,
-                    isResponsePending: false,
-                };
+                pendingConversationState = sisteMelding
+                    ? {
+                        ...pendingConversationState,
+                        isResponsePending: false,
+                    }
+                    : null;
             }
             setRunningChatId(null);
             pendingChatRef.current = null;
             const skalOppdatereSynlig = pending ? kanOppdatereSynligSamtale(pending) : false;
-            if (pending) void persistPendingConversation(pending, sisteMelding);
+            if (pending && sisteMelding) {
+                void persistPendingConversation(pending, sisteMelding);
+            } else if (pending?.chatId) {
+                /* Eksisterende chat: brukermelding ble ikke lagret tidlig – lagre nå ved feil/tomt svar. Ny chat har allerede POST i chatIdPromise, så unngå redundant PUT. */
+                void persistUserMessageOnly(pending);
+            }
             if (isMountedRef.current) {
-                if (skalOppdatereSynlig) settMeldinger((t) => [...t, sisteMelding]);
+                if (skalOppdatereSynlig && sisteMelding) settMeldinger((t) => [...t, sisteMelding]);
                 settSkriver(false);
             }
         };
 
         sendTilAPI(apiMeldinger, {
             onSuccess: (data) => {
+                const responseText = data.response.trim();
+                if (!responseText) {
+                    toast.error("KI-svar feilet", {
+                        description: "KI-assistenten returnerte et tomt svar. Prøv igjen.",
+                    });
+                    handleChatResponse();
+                    return;
+                }
+
                 handleChatResponse({
                     id: (Date.now() + 1).toString(),
                     rolle: "assistant",
-                    innhold: data.response,
+                    innhold: responseText,
                     tidsstempel: new Date(),
                 });
             },
             onError: (error) => {
                 const feilTekst = lagFeilTekst(error, "chat");
                 toast.error("KI-svar feilet", { description: feilTekst });
-                handleChatResponse({
-                    id: (Date.now() + 1).toString(),
-                    rolle: "assistant",
-                    innhold: feilTekst,
-                    tidsstempel: new Date(),
-                });
+                handleChatResponse();
             },
         });
     };
@@ -939,6 +971,9 @@ export function ChatSection() {
         })));
     }, [aktivChatId, chats, loadChatById, loading, skriver, analyserarDokument]);
 
+    const sisteAssistentsvar =
+        [...meldinger].reverse().find((melding) => melding.rolle === "assistant")?.innhold ?? "";
+
     return (
         <div className="h-full flex">
             {/* Main Chat Area */}
@@ -946,9 +981,34 @@ export function ChatSection() {
                 {/* Meldinger */}
                 <div className="flex-1 overflow-y-auto p-4 md:p-6">
                   <div className="max-w-235 mx-auto space-y-5">
-                    {/* Tilkoblingsfeil – bruk felles FeilMelding */}
-                    {erTilkoblingsFeil && (
-                        <FeilMelding melding="Kunne ikke koble til KI-assistenten. Prøv igjen senere." />
+                    {/* Tilkoblingsfeil – samme FeilMelding + Prøv igjen-UI som DashboardView/oversikt (konsekvent UX) */}
+                    {tilkoblingsBannerVist && (
+                        <div className="space-y-4">
+                            <FeilMelding
+                                melding={tilkoblingsBannerVist.melding}
+                                type={tilkoblingsBannerVist.type}
+                            />
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => refetchKiTest()}
+                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white text-sm font-medium transition-colors"
+                                >
+                                    <RefreshCw className="w-4 h-4" aria-hidden />
+                                    Prøv igjen
+                                </button>
+                                {visKiFeilDetaljer && tilkoblingsFeil && (
+                                    <details className="w-full max-w-235">
+                                        <summary className="cursor-pointer text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300">
+                                            Vis feildetaljer (debug)
+                                        </summary>
+                                        <pre className="mt-2 p-3 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs text-left overflow-x-auto break-all">
+                                            {tilkoblingsFeil instanceof Error ? tilkoblingsFeil.message : String(tilkoblingsFeil)}
+                                        </pre>
+                                    </details>
+                                )}
+                            </div>
+                        </div>
                     )}
 
                     {/* Placeholder før hydration - matcher server-rendering */}
@@ -1174,9 +1234,9 @@ export function ChatSection() {
                 </div>
 
                 {/* Smart suggestions - VIS KUN NÅR DET ER MELDINGER OG IKKE SKRIVER */}
-                {meldinger.length > 0 && !skriver && !analyserarDokument && (
+                {meldinger.length > 0 && !skriver && !analyserarDokument && sisteAssistentsvar && (
                     <SmartSuggestions
-                        lastAIMessage={meldinger[meldinger.length - 1]?.innhold || ""}
+                        lastAIMessage={sisteAssistentsvar}
                         onSelectSuggestion={(suggestion) => {
                             settTekstInput(suggestion);
                             tekstInputRef.current?.focus();

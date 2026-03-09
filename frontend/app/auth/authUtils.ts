@@ -7,6 +7,7 @@ export type AuthStatusSnapshot = {
   isError: boolean;
   isFetched: boolean;
   isLoading: boolean;
+  /** MeResponse ved innlogget, undefined før første svar eller når bruker ikke er autentisert. */
   data?: MeResponse;
   error?: unknown;
 };
@@ -40,7 +41,7 @@ export function useAuthRedirect(): void {
   const router = useRouter();
   const megQuery = useMeg();
   useEffect(() => {
-    if (skalRedirecteTilAuth({ ...megQuery, error: megQuery.error })) {
+    if (skalRedirecteTilAuth(megQuery)) {
       router.replace("/auth");
     }
   }, [megQuery.isError, megQuery.isFetched, megQuery.isLoading, megQuery.data?.user, megQuery.error, router]);

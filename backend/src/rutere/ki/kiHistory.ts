@@ -75,7 +75,7 @@ kiHistoryRouter.get("/chat/history", async (req, res) => {
       }),
     );
   } catch (error) {
-    return sendUnknownError(res, error, { kontekst: "GET chat-history" });
+    return sendUnknownError(res, error, { kontekst: "GET chat-history", melding: "Kunne ikke laste samtalehistorikk. Prøv igjen." });
   }
 });
 
@@ -109,7 +109,7 @@ kiHistoryRouter.post("/chat/history", async (req, res) => {
     if (error instanceof z.ZodError) {
       return sendZodError(res, error, "chat-history");
     }
-    return sendUnknownError(res, error, { kontekst: "POST chat-history" });
+    return sendUnknownError(res, error, { kontekst: "POST chat-history", melding: "Kunne ikke lagre samtalen. Prøv igjen." });
   }
 });
 
@@ -148,7 +148,7 @@ kiHistoryRouter.put("/chat/history/:id", async (req, res) => {
     if (error instanceof z.ZodError) {
       return sendZodError(res, error, "chat-history");
     }
-    return sendUnknownError(res, error, { kontekst: "PUT chat-history" });
+    return sendUnknownError(res, error, { kontekst: "PUT chat-history", melding: "Kunne ikke oppdatere samtalen. Prøv igjen." });
   }
 });
 
@@ -165,7 +165,7 @@ kiHistoryRouter.delete("/chat/history/:id", async (req, res) => {
     await ChatHistory.deleteOne({ _id: id, user: userId });
     return res.status(204).send();
   } catch (error) {
-    return sendUnknownError(res, error, { kontekst: "DELETE chat-history" });
+    return sendUnknownError(res, error, { kontekst: "DELETE chat-history", melding: "Kunne ikke slette samtalen. Prøv igjen." });
   }
 });
 
@@ -177,6 +177,6 @@ kiHistoryRouter.delete("/chat/history", async (req, res) => {
     await ChatHistory.deleteMany({ user: userId });
     return res.status(204).send();
   } catch (error) {
-    return sendUnknownError(res, error, { kontekst: "DELETE chat-history" });
+    return sendUnknownError(res, error, { kontekst: "DELETE chat-history", melding: "Kunne ikke slette samtalehistorikken. Prøv igjen." });
   }
 });

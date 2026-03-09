@@ -10,7 +10,7 @@ import { Providers } from "./providers";
 import { Header } from "./components/header";
 import { ThemeProvider } from "./components/theme-provider";
 import { Toaster } from "./components/Toaster";
-import { getUserServer } from "./auth/auth-server";
+import { getUserServerSafe } from "./auth/auth-server";
 import { validateFrontendEnv } from "./lib/validateEnv";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
@@ -28,7 +28,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const user = await getUserServer();
+  const user = await getUserServerSafe();
   // Layout komponenten returnerer HTML-strukturen for applikasjonen
   return (
     <html lang="nb" suppressHydrationWarning>

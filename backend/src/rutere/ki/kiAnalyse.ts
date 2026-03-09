@@ -435,7 +435,7 @@ router.use((err: Error, _req: Request, res: Response, next: NextFunction) => {
     logger.warn({ err }, "Multer/upload error");
     return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
         suksess: false,
-        melding: isFileTooLarge ? "Filen er for stor. Maks 15 MB." : err.message || "Feil ved filopplasting.",
+        melding: isFileTooLarge ? "Filen er for stor. Maks 15 MB." : "Feil ved filopplasting.",
         response: "",
     }));
 });

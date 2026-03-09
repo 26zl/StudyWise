@@ -152,48 +152,289 @@ function trimMessages(
 // Spesialiserte feilklasser - importert fra felles error-modul
 import {
   KIAuthError,
+  KIConfigError,
   KIRateLimitError,
   KIServiceError,
   KITimeoutError,
 } from "../lib/errors";
 
 // Re-eksporter for konsumenter
-export { KIAuthError, KIRateLimitError, KIServiceError, KITimeoutError };
+export {
+  KIAuthError,
+  KIConfigError,
+  KIRateLimitError,
+  KIServiceError,
+  KITimeoutError,
+};
+
+/** Intern kategori for KI-feil – én kilde for både Error-typen og brukervennlige tekster. */
+type KIErrorCategory =
+  | "auth"
+  | "config"
+  | "rate_limit"
+  | "timeout"
+  | "service"
+  | "unknown";
+
+const DISPLAY_MESSAGES: Record<
+  KIErrorCategory,
+  { chat: string; dokument: string; banner?: string }
+> = {
+  auth: {
+    chat: "Du må logge inn på nytt for å bruke KI-assistenten.",
+    dokument: "Du må logge inn på nytt for å bruke KI-assistenten.",
+    banner: "Du må logge inn på nytt for å bruke KI-assistenten.",
+  },
+  config: {
+    chat: "KI-tjenesten er ikke konfigurert riktig akkurat nå. Mangler ANTHROPIC_API_KEY på backend.",
+    dokument: "KI-tjenesten er ikke konfigurert riktig akkurat nå. Mangler ANTHROPIC_API_KEY på backend.",
+    banner: "KI-tjenesten er ikke konfigurert i dette miljøet ennå. Mangler ANTHROPIC_API_KEY på backend.",
+  },
+  rate_limit: {
+    chat: "For mange forespørsler. Vent noen sekunder og prøv igjen.",
+    dokument: "For mange forespørsler. Vent noen sekunder og prøv igjen.",
+    banner: "KI-tjenesten er midlertidig rate-begrenset. Vent litt og prøv igjen.",
+  },
+  timeout: {
+    chat: "Forespørselen tok for lang tid. Prøv å forenkle spørsmålet ditt.",
+    dokument: "Analysen tok for lang tid. Prøv med et mindre dokument.",
+  },
+  service: {
+    chat: "KI-tjenesten er midlertidig utilgjengelig. Prøv igjen om noen minutter.",
+    dokument: "Dokumentanalyse er midlertidig utilgjengelig. Prøv igjen om noen minutter.",
+    banner: "KI-tjenesten er overbelastet akkurat nå. Prøv igjen om litt.",
+  },
+  unknown: {
+    chat: "Noe gikk galt. Prøv igjen.",
+    dokument: "Kunne ikke analysere dokumentet. Prøv igjen.",
+  },
+};
+
+/** Sjekker om meldingen er backend sin kreditt/quota-feil – brukes for å beholde eksakt tekst i stedet for generisk «service». */
+function erKredittMelding(msg: string): boolean {
+  if (!msg || typeof msg !== "string") return false;
+  const lower = msg.toLowerCase();
+  return (
+    msg.includes("kreditt") ||
+    msg.includes("oppbrukt") ||
+    lower.includes("insufficient_quota")
+  );
+}
+
+/** Sjekker om meldingen ser ut som rå teknisk feil – da skal vi ikke bruke den ukritisk i banner. */
+function erTekniskFeilmelding(msg: string): boolean {
+  if (!msg || typeof msg !== "string") return true;
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes("internal server error") ||
+    lower.includes("failed to fetch") ||
+    lower.includes("networkerror") ||
+    lower.includes("load failed") ||
+    lower.includes("typeerror") ||
+    /\b500\b|\b502\b|\b503\b/.test(msg)
+  );
+}
+
+function classifyKIError(message: string, status?: number): KIErrorCategory {
+  const lower = message.trim().toLowerCase();
+  if (
+    status === 401 ||
+    lower.includes("logge inn på nytt") ||
+    lower.includes("ikke autentisert") ||
+    lower.includes("ingen jwt")
+  )
+    return "auth";
+  if (
+    lower.includes("anthropic_api_key") ||
+    lower.includes("ingen ai-leverandør tilgjengelig") ||
+    lower.includes("ikke konfigurert")
+  )
+    return "config";
+  if (
+    status === 429 ||
+    lower.includes("rate limit") ||
+    lower.includes("for mange forespørsler")
+  )
+    return "rate_limit";
+  if (
+    status === 504 ||
+    lower.includes("timeout") ||
+    lower.includes("tok for lang tid")
+  )
+    return "timeout";
+  if (
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    lower.includes("overbelastet") ||
+    lower.includes("utilgjengelig") ||
+    lower.includes("server")
+  )
+    return "service";
+  return "unknown";
+}
+
+function categoryFromErrorName(name: string): KIErrorCategory | undefined {
+  if (name === "KIAuthError") return "auth";
+  if (name === "KIConfigError") return "config";
+  if (name === "KIRateLimitError") return "rate_limit";
+  if (name === "KITimeoutError") return "timeout";
+  if (name === "KIServiceError") return "service";
+  return undefined;
+}
+
+function getDisplayMessageForCategory(
+  category: KIErrorCategory,
+  context: "chat" | "dokument"
+): string {
+  return DISPLAY_MESSAGES[category][context];
+}
+
+function lagKIError(melding: string, status?: number): Error {
+  const normalisert = melding.trim();
+  // Behold backend sin kredittmelding – ikke klassifiser 503 som generell «service» og overskriv
+  if (erKredittMelding(normalisert)) {
+    return new KIServiceError(normalisert);
+  }
+  const category = classifyKIError(normalisert, status);
+  const message =
+    category === "unknown"
+      ? normalisert || "Uventet feil fra KI-tjenesten."
+      : getDisplayMessageForCategory(category, "chat");
+
+  switch (category) {
+    case "auth":
+      return new KIAuthError(message);
+    case "config":
+      return new KIConfigError(message);
+    case "rate_limit":
+      return new KIRateLimitError(message);
+    case "timeout":
+      return new KITimeoutError(message);
+    case "service":
+      return new KIServiceError(message);
+    default:
+      return new Error(message);
+  }
+}
+
+/** Kontekst for brukervennlig feilmelding (chat vs dokumentanalyse). */
+export type KIErrorContext = "chat" | "dokument";
+
+/** Brukervennlig feilmelding for toast/banner – bruker samme klassifisering som lagKIError. */
+export function getKIErrorMessage(
+  error: Error,
+  context: KIErrorContext = "chat"
+): string {
+  const msg = error.message;
+  if (erKredittMelding(msg)) return msg;
+
+  const category = categoryFromErrorName(error.name);
+  if (category) return getDisplayMessageForCategory(category, context);
+  if (msg.includes("for stor") || msg.includes("413"))
+    return "Filen er for stor. Maksimal filstørrelse er 15 MB.";
+  if (msg.includes("filtype") || msg.includes("støttes ikke"))
+    return "Filtypen støttes ikke. Prøv PDF, Word, eller tekstfiler.";
+  if (
+    msg.includes("Internal Server Error") ||
+    msg.includes("500") ||
+    msg.includes("Server Error") ||
+    msg.includes("serveren")
+  )
+    return "Noe gikk galt på serveren. Prøv igjen om litt, eller forenkle spørsmålet ditt.";
+  return msg || getDisplayMessageForCategory("unknown", context);
+}
+
+/** Banner-innhold for tilkoblingsfeil – bruker samme DISPLAY_MESSAGES som getKIErrorMessage. */
+export function getKIBannerForError(error: Error): {
+  melding: string;
+  type: "error" | "warning";
+} | null {
+  const msg = error.message;
+  if (erKredittMelding(msg)) return { melding: msg, type: "warning" };
+
+  let category = categoryFromErrorName(error.name);
+  if (!category && msg.toLowerCase().includes("overbelastet")) {
+    category = "service";
+  }
+  if (category === "auth" || category === "config" || category === "rate_limit") {
+    const melding =
+      DISPLAY_MESSAGES[category].banner ??
+      getDisplayMessageForCategory(category, "chat");
+    return { melding, type: "warning" };
+  }
+  if (category === "service") {
+    // Bruk faktisk melding når den er brukervennlig (f.eks. fra backend), ikke «overbelastet» for alt
+    const melding =
+      msg && !erTekniskFeilmelding(msg)
+        ? msg
+        : (DISPLAY_MESSAGES.service.banner ??
+          getDisplayMessageForCategory("service", "chat"));
+    return { melding, type: "warning" };
+  }
+  return {
+    melding: getKIErrorMessage(error, "chat"),
+    type: "error",
+  };
+}
 
 // Felles feilhåndtering for KI API-responser
 async function håndterKIFeilRespons(res: Response): Promise<void> {
   if (res.status === 401) {
-    throw new KIAuthError(
-      "Du må logge inn på nytt for å bruke KI-assistenten.",
+    throw lagKIError(
+      await parseApiError(
+        res,
+        "Du må logge inn på nytt for å bruke KI-assistenten.",
+      ),
+      res.status,
     );
   }
   if (res.status === 413) {
     throw new Error(
-      "For mye data. Prøv med mindre innhold eller start en ny samtale.",
+      await parseApiError(
+        res,
+        "For mye data. Prøv med mindre innhold eller start en ny samtale.",
+      ),
     );
   }
   if (res.status === 429) {
-    throw new KIRateLimitError(
-      "For mange forespørsler. Vent litt og prøv igjen.",
+    throw lagKIError(
+      await parseApiError(
+        res,
+        "For mange forespørsler. Vent litt og prøv igjen.",
+      ),
+      res.status,
     );
   }
   if (res.status === 503 || res.status === 502) {
-    throw new KIServiceError(
-      "KI-tjenesten er midlertidig utilgjengelig. Prøv igjen om noen minutter.",
+    throw lagKIError(
+      await parseApiError(
+        res,
+        "KI-tjenesten er midlertidig utilgjengelig. Prøv igjen om noen minutter.",
+      ),
+      res.status,
     );
   }
   if (res.status === 504) {
-    throw new KITimeoutError(
-      "Forespørselen tok for lang tid. Prøv å forenkle spørsmålet.",
+    throw lagKIError(
+      await parseApiError(
+        res,
+        "Forespørselen tok for lang tid. Prøv å forenkle spørsmålet.",
+      ),
+      res.status,
     );
   }
   if (res.status >= 500) {
-    throw new KIServiceError(
-      "Noe gikk galt på serveren. Prøv igjen om litt, eller forenkle spørsmålet ditt.",
+    throw lagKIError(
+      await parseApiError(
+        res,
+        "Noe gikk galt på serveren. Prøv igjen om litt, eller forenkle spørsmålet ditt.",
+      ),
+      res.status,
     );
   }
   if (!res.ok) {
-    throw new Error(await parseApiError(res));
+    throw lagKIError(await parseApiError(res));
   }
 }
 
@@ -229,11 +470,18 @@ async function requestKI<T>(
   forsoktRefresh = false,
 ): Promise<T> {
   const protectedInit = withCsrfProtection(init);
-  const res = await fetch(`/api/ki${endpoint}`, {
-    credentials: "include",
-    cache: "no-store",
-    ...protectedInit,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`/api/ki${endpoint}`, {
+      credentials: "include",
+      cache: "no-store",
+      ...protectedInit,
+    });
+  } catch {
+    throw new KIServiceError(
+      "Kunne ikke koble til KI-tjenesten. Sjekk internettforbindelsen din.",
+    );
+  }
 
   if (res.status === 401 && !forsoktRefresh) {
     await fornySesjon();
@@ -275,19 +523,54 @@ function asError(error: unknown): Error {
   return error instanceof Error ? error : new Error("Uventet feil");
 }
 
+function assertSuccessfulKIChat(
+  data: z.infer<typeof KIChatResponseSchema>,
+): z.infer<typeof KIChatResponseSchema> {
+  if (!data.suksess) {
+    throw lagKIError(
+      data.melding || "Kunne ikke få svar fra KI-assistenten. Prøv igjen senere.",
+    );
+  }
+
+  if (!data.response.trim()) {
+    throw new KIServiceError(
+      "KI-assistenten returnerte et tomt svar. Prøv igjen.",
+    );
+  }
+
+  return data;
+}
+
+function assertSuccessfulKITestConnection(
+  data: z.infer<typeof KIChatResponseSchema>,
+): z.infer<typeof KIChatResponseSchema> {
+  if (!data.suksess) {
+    throw lagKIError(
+      data.melding || "Kunne ikke koble til KI-assistenten. Prøv igjen senere.",
+    );
+  }
+
+  return data;
+}
+
 // React query hooks
 
 /** Test tilkobling til KI-tjenesten (GET /test-connection). Brukes for å vise feilmelding i chat hvis KI er utilgjengelig. */
 export function useKITestTilkobling(enabled = true) {
   const query = useQuery({
     queryKey: ["ki", "test-connection"],
-    queryFn: () =>
-      requestKI("/test-connection", KIChatResponseSchema, {
-        method: "GET",
-      }),
+    queryFn: async () =>
+      assertSuccessfulKITestConnection(
+        await requestKI("/test-connection", KIChatResponseSchema, {
+          method: "GET",
+        }),
+      ),
     enabled,
     staleTime: 60 * 1000, // 1 minutt
     retry: false,
+    // Etter at konto var nede (f.eks. tom for kreditt) og er fylt opp: oppdater tilkoblingsstatus uten at bruker må refreshe
+    refetchOnWindowFocus: true,
+    refetchInterval: (query) => (query.state.status === "error" ? 60_000 : 0), // Ved feil: prøv på nytt hvert 60. sekund
   });
   return {
     isError: query.isError,
@@ -300,8 +583,10 @@ export function useKITestTilkobling(enabled = true) {
 // Chat mutation hook
 export function useKIChat() {
   const mutation = useMutation({
-    mutationFn: (request: KIChatRequest) =>
-      postKI("/chat", request, KIChatResponseSchema),
+    mutationFn: async (request: KIChatRequest) =>
+      assertSuccessfulKIChat(
+        await postKI("/chat", request, KIChatResponseSchema),
+      ),
   });
 
   return {
@@ -355,8 +640,13 @@ function assertSuccessfulDocumentAnalyse(
   data: DocumentAnalyseResponse,
 ): DocumentAnalyseResponse {
   if (!data.suksess) {
-    throw new Error(
+    throw lagKIError(
       data.melding || "Kunne ikke analysere dokumentet. Prøv igjen.",
+    );
+  }
+  if (!data.response.trim()) {
+    throw new KIServiceError(
+      "Dokumentanalysen returnerte et tomt svar. Prøv igjen.",
     );
   }
   return data;

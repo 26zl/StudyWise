@@ -47,7 +47,28 @@ export function handleAIError(
         return true;
     }
 
-    // Rate limit
+    // Tom for tokens/kreditt på Claude-konto (Anthropic) – sjekk FØRST slik at vi ikke viser «rate limit» når kontoen bare er tom
+    const lower = errorMessage.toLowerCase();
+    if (
+        errorMessage.includes("Credit balance") ||
+        errorMessage.includes("depleted") ||
+        errorMessage.includes("purchase") ||
+        errorMessage.includes("insufficient_quota") ||
+        errorMessage.includes("billing") ||
+        lower.includes("out of credits") ||
+        lower.includes("insufficient credits") ||
+        lower.includes("quota exceeded") ||
+        lower.includes("no credits")
+    ) {
+        logger.warn(`${kontekst}: kreditt/tokens oppbrukt på Claude-konto`);
+        res.status(503).json(parseErrorResponse(
+            schema,
+            "Kontokreditt for KI-tjenesten er oppbrukt. Fyll på kreditt i Anthropic (Claude)-kontoen eller prøv igjen senere.",
+        ));
+        return true;
+    }
+
+    // Rate limit (ekte 429 / for mange forespørsler)
     if (errorMessage.includes("rate limit") || errorMessage.includes("429") || errorMessage.includes("rate_limit")) {
         res.status(429).json(parseErrorResponse(schema, "For mange forespørsler. Vent litt og prøv igjen."));
         return true;
@@ -56,19 +77,6 @@ export function handleAIError(
     // Modell ikke funnet
     if (errorMessage.includes("model") && errorMessage.includes("not found")) {
         res.status(503).json(parseErrorResponse(schema, "Modellen er midlertidig utilgjengelig. Prøv igjen senere."));
-        return true;
-    }
-
-    // Kreditt-/faktureringsfeil
-    if (
-        errorMessage.includes("Credit balance") ||
-        errorMessage.includes("depleted") ||
-        errorMessage.includes("purchase") ||
-        errorMessage.includes("insufficient_quota") ||
-        errorMessage.includes("billing")
-    ) {
-        logger.warn(`${kontekst}: kreditt/fakturering oppbrukt`);
-        res.status(503).json(parseErrorResponse(schema, "KI-tjenesten er midlertidig utilgjengelig. Prøv igjen senere."));
         return true;
     }
 

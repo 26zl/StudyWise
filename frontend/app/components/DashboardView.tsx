@@ -15,7 +15,8 @@ import { SectionErrorBoundary } from "./ErrorBoundary";
 import { useCanvasUser } from "../canvas/canvas-api";
 import { Footer } from "./footer";
 import { useMeg } from "../auth/auth-api";
-import { useAuthRedirect } from "../auth/authUtils";
+import { useAuthRedirect, skalRedirecteTilAuth } from "../auth/authUtils";
+import { getBrukerdataFeilmelding } from "../lib/errorUtils";
 import { prefetchCanvasData } from "../canvas/canvas-api";
 import { useUIStore } from "../store/uiStore";
 import { useVarslerPopups, useVarslerStateSync } from "../hooks/useVarsler";
@@ -125,11 +126,20 @@ export function DashboardView() {
             </div>
         );
     }
-    // Feil uten brukerdata (f.eks. nettverksfeil): vis feilmelding og retry – useAuthRedirect håndterer auth-feil
+    // Skal redirecte til innlogging: vis spinner i stedet for feilmelding så bruker ikke ser rød boks i et splitt sekund
+    if (skalRedirecteTilAuth(megQuery)) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+                <LoadingSpinner />
+            </div>
+        );
+    }
+    // Feil uten brukerdata (f.eks. nettverksfeil, 429 rate limit): vis feilmelding og retry – useAuthRedirect håndterer auth-feil
     if (megQuery.isError && !megQuery.data?.user) {
+        const feilmelding = getBrukerdataFeilmelding(megQuery.error);
         return (
             <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 bg-slate-50 dark:bg-slate-950">
-                <FeilMelding melding="Kunne ikke laste brukerdata. Sjekk internettforbindelsen og prøv igjen." />
+                <FeilMelding melding={feilmelding} />
                 <button
                     type="button"
                     onClick={() => megQuery.refetch()}

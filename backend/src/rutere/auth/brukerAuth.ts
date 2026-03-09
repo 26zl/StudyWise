@@ -149,7 +149,7 @@ router.post("/register", rateLimitAuth, async (req, res) => {
         if (error instanceof ZodError) {
             return sendZodError(res, error, "Registrering");
         }
-        return sendUnknownError(res, error, { kontekst: "registrering" });
+        return sendUnknownError(res, error, { kontekst: "registrering", melding: "Kunne ikke fullføre registrering. Prøv igjen." });
     }
 });
 
@@ -214,7 +214,7 @@ router.post("/login", rateLimitAuth, async (req, res) => {
         if (error instanceof ZodError) {
             return sendZodError(res, error, "Innlogging");
         }
-        return sendUnknownError(res, error, { kontekst: "innlogging" });
+        return sendUnknownError(res, error, { kontekst: "innlogging", melding: "Kunne ikke logge inn. Prøv igjen." });
     }
 });
 
@@ -374,7 +374,7 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         if (error instanceof ZodError) {
             return sendZodError(res, error, "Token-lagring");
         }
-        return sendUnknownError(res, error, { kontekst: "token-lagring" });
+        return sendUnknownError(res, error, { kontekst: "token-lagring", melding: "Kunne ikke lagre Canvas-token. Prøv igjen." });
     }
 });
 
@@ -415,7 +415,7 @@ router.delete("/token", autentiserJwt, rateLimitToken, async (req, res) => {
             success: true,
         }));
     } catch (error) {
-        return sendUnknownError(res, error, { kontekst: "token-sletting" });
+        return sendUnknownError(res, error, { kontekst: "token-sletting", melding: "Kunne ikke slette Canvas-token. Prøv igjen." });
     }
 });
 
@@ -522,7 +522,7 @@ router.get("/me", autentiserJwt, rateLimitMe, async (req, res) => {
             }),
         }));
     } catch (error) {
-        return sendUnknownError(res, error, { kontekst: "henting av brukerprofil" });
+        return sendUnknownError(res, error, { kontekst: "henting av brukerprofil", melding: "Kunne ikke laste brukerdata. Prøv igjen." });
     }
 });
 
@@ -568,7 +568,7 @@ router.put("/preferences", autentiserJwt, async (req, res) => {
         if (error instanceof ZodError) {
             return sendZodError(res, error, "Preferanser");
         }
-        return sendUnknownError(res, error, { kontekst: "oppdatering av preferanser" });
+        return sendUnknownError(res, error, { kontekst: "oppdatering av preferanser", melding: "Kunne ikke lagre preferanser. Prøv igjen." });
     }
 });
 

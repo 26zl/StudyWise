@@ -278,6 +278,7 @@ export function useRegistrer() {
   });
 }
 // Hook for å hente info om innlogget bruker
+// initialData: kun MeResponse ved bekrevet innlogget – aldri null (unngår at SSR-feil caches som "gjest" i 5 min)
 export function useMeg(options?: { initialData?: MeResponse }) {
   return useQuery({
     queryKey: AUTH_ME_QUERY_KEY,
