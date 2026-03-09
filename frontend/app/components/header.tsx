@@ -16,10 +16,12 @@ import { useState, useEffect } from "react";
 // Props for Header-komponenten
 interface HeaderProps {
     user: MeResponse | null;
+    /** True når server så auth-cookies – da viser vi skeleton til /me er avklart, ikke «Logg inn» med én gang. */
+    hadCookies?: boolean;
 }
 
 // Header-komponent
-export function Header({ user }: HeaderProps) {
+export function Header({ user, hadCookies = false }: HeaderProps) {
     const pathname = usePathname();
     const { toggleVenstreMeny } = useUIStore();
     const harSidebar = ["/dashboard", "/oversikt", "/test-ai-breakdown"].includes(pathname);
@@ -28,7 +30,10 @@ export function Header({ user }: HeaderProps) {
     const [mobilMenyOpen, setMobilMenyOpen] = useState(false);
 
     const aktivBruker = megQuery.data?.user ?? user?.user;
-    /** I prod (treg server) viser vi «Logg inn» til vi har bruker – ikke skeleton, så headeren ikke blir tom/grå */
+    const authLaster = megQuery.isLoading && !aktivBruker;
+    /** Skeleton bare når server hadde cookies men vi venter fortsatt på /me – da er vi sannsynligvis innlogget. Gjester (hadCookies=false) ser «Logg inn» med én gang. */
+    const visSkeleton = authLaster && hadCookies;
+
     const handleLoggUt = useLoggUtWithRedirect();
     const { resolvedTheme, setTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
@@ -65,7 +70,9 @@ export function Header({ user }: HeaderProps) {
                 <Link href="/dashboard" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
                     Dashboard
                 </Link>
-                {aktivBruker ? (
+                {visSkeleton ? (
+                    <span className="w-16 h-4 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" aria-hidden />
+                ) : aktivBruker ? (
                     <button
                         onClick={handleLoggUt}
                         className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
@@ -128,7 +135,9 @@ export function Header({ user }: HeaderProps) {
                         >
                             Dashboard
                         </Link>
-                        {aktivBruker ? (
+                        {visSkeleton ? (
+                            <span className="w-16 h-4 rounded bg-slate-200 dark:bg-slate-700 animate-pulse inline-block" aria-hidden />
+                        ) : aktivBruker ? (
                             <button
                                 onClick={() => {
                                     handleMobilNavigation();

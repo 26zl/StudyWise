@@ -10,7 +10,7 @@ import { Providers } from "./providers";
 import { Header } from "./components/header";
 import { ThemeProvider } from "./components/theme-provider";
 import { Toaster } from "./components/Toaster";
-import { getUserServerSafe } from "./auth/auth-server";
+import { getLayoutAuth } from "./auth/auth-server";
 import { validateFrontendEnv } from "./lib/validateEnv";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
@@ -28,7 +28,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const user = await getUserServerSafe();
+  const { user, hadCookies } = await getLayoutAuth();
   // Layout komponenten returnerer HTML-strukturen for applikasjonen
   return (
     <html lang="nb" suppressHydrationWarning>
@@ -46,7 +46,7 @@ export default async function RootLayout({
           {/* Providers pakker inn alt innhold slik at funksjonalitet som data-fetching virker overalt */}
           <Providers>
             <div className="flex flex-col min-h-screen">
-              <Header user={user} />
+              <Header user={user} hadCookies={hadCookies} />
               {/*
                 {children} er selve innholdet fra page.tsx.
                 Når du bytter side, er det bare denne delen som byttes ut.

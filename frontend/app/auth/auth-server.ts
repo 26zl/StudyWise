@@ -182,3 +182,19 @@ export const getUserServerSafe = cache(async (): Promise<MeResponse | null> => {
     return null;
   }
 });
+
+/**
+ * For layout/header: returnerer bruker + om det fantes auth-cookies.
+ * hadCookies = true betyr «vi vet ikke ennå om bruker er innlogget» (server feilet eller venter).
+ * Header viser skeleton bare når hadCookies && !user og klient laster – da unngår vi både
+ * flash av «Logg inn» for innloggede og evig skeleton for gjester.
+ */
+export const getLayoutAuth = cache(async (): Promise<{ user: MeResponse | null; hadCookies: boolean }> => {
+  const cookieStore = await cookies();
+  const tokenCookie = cookieStore.get(AUTH_COOKIE_NAME);
+  const refreshCookie = cookieStore.get(AUTH_REFRESH_COOKIE_NAME);
+  const hadCookies = !!(tokenCookie?.value || refreshCookie?.value);
+
+  const user = await getUserServerSafe();
+  return { user, hadCookies };
+});
