@@ -5,7 +5,7 @@
  * Bruker Zod for validering av Canvas API-responser og logger viktige hendelser.
  * Eksporterer en Express-router som kan brukes i hovedapplikasjonen.
  */
-import { Router } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import crypto from "node:crypto";
 import { Readable } from "node:stream";
 import { apiError, sendError, sendUnknownError } from "../../utils/apiError.js";
@@ -58,6 +58,7 @@ import {
   type CalendarItem,
 } from "common/calendar";
 
+import { ZodError } from "zod";
 import {
   type CanvasApiError,
   type CanvasErrorCode,
@@ -73,32 +74,39 @@ interface CanvasHttpError extends Error {
   code?: CanvasErrorCode;
 }
 
-// Håndterer Canvas API-feil med strukturert respons via canvasErrors.
-function handleCanvasError(
-  res: import("express").Response,
-  error: unknown,
-  kontekst: string,
-): void {
-  logger.error({ err: error }, kontekst);
-
-  // Strukturert CanvasApiError fra createCanvasError
+/** Én felles oversetter: Canvas/Zod-feil → strukturert JSON-respons. Brukes av både handleCanvasError og router.use. */
+function sendCanvasErrorResponse(res: import("express").Response, error: unknown): void {
+  if (error instanceof ZodError) {
+    res.status(500).json({
+      feil: "Validering feilet",
+      melding: "Canvas returnerte uventet data-format",
+      kode: "validation_error" as CanvasErrorCode,
+      detaljer: error.message,
+    });
+    return;
+  }
   const err = error as CanvasApiError;
   if (err.name === "CanvasApiError" && err.code) {
     const status = err.httpStatus ?? getHttpStatusForCode(err.code);
     res.status(status).json(getErrorResponse(err.code));
     return;
   }
-
-  // Legacy: sjekk HTTP-status og klassifiser
-  const legacyErr = error as { status?: number };
-  if (legacyErr.status && typeof legacyErr.status === "number") {
-    const code = classifyHttpStatus(legacyErr.status);
-    const status = legacyErr.status;
-    res.status(status).json(getErrorResponse(code));
+  const legacyErr = error as { status?: number; details?: string };
+  if (legacyErr.status != null && typeof legacyErr.status === "number") {
+    const code = classifyHttpStatus(legacyErr.status, legacyErr.details);
+    res.status(legacyErr.status).json(getErrorResponse(code));
     return;
   }
+  sendUnknownError(res, error, { kontekst: "Canvas-router" });
+}
 
-  sendUnknownError(res, error, { kontekst });
+function handleCanvasError(
+  res: import("express").Response,
+  error: unknown,
+  kontekst: string,
+): void {
+  logger.error({ err: error }, kontekst);
+  sendCanvasErrorResponse(res, error);
 }
 
 /** Parser numerisk route-param; sender badRequest og returnerer null ved ugyldig verdi. */
@@ -488,11 +496,7 @@ router.get("/emner/:courseId", async (req, res) => {
     logger.info({ courseId: course.id }, "Hentet emnedetaljer");
     res.json(course);
   } catch (error) {
-    logger.error(
-      { err: error },
-      `Feil under henting av emne ${req.params.courseId}`,
-    );
-    throw error;
+    return handleCanvasError(res, error, `Feil under henting av emne ${req.params.courseId}`);
   }
 });
 
@@ -515,11 +519,7 @@ router.get("/emner/:courseId/oppgaver", async (req, res) => {
       meta,
     });
   } catch (error) {
-    logger.error(
-      { err: error },
-      `Feil under henting av oppgaver for emne ${req.params.courseId}`,
-    );
-    throw error;
+    return handleCanvasError(res, error, `Feil under henting av oppgaver for emne ${req.params.courseId}`);
   }
 });
 
@@ -542,11 +542,7 @@ router.get("/emner/:courseId/announcements", async (req, res) => {
       meta,
     });
   } catch (error) {
-    logger.error(
-      { err: error },
-      `Feil under henting av announcements for emne ${req.params.courseId}`,
-    );
-    throw error;
+    return handleCanvasError(res, error, `Feil under henting av announcements for emne ${req.params.courseId}`);
   }
 });
 
@@ -634,9 +630,9 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
         return res.json(buildCachedCalendarResponse(cached, cacheAge));
       }
     } catch {
-      // Cache også feilet - kast original feil
+      // Cache også feilet - send feil til klient
     }
-    throw error;
+    handleCanvasError(res, error, "Feil ved henting av kalender (ingen cached fallback)");
   };
   try {
     // Sjekk cache først (med mindre force-refresh er satt)
@@ -977,8 +973,7 @@ router.get("/planlegger", async (req, res) => {
       meta,
     });
   } catch (error) {
-    logger.error({ err: error }, "Feil under henting av planlegger");
-    throw error;
+    return handleCanvasError(res, error, "Feil under henting av planlegger");
   }
 });
 
@@ -1001,11 +996,7 @@ router.get("/emner/:courseId/modules", async (req, res) => {
       meta,
     });
   } catch (error) {
-    logger.error(
-      { err: error },
-      `Feil under henting av moduler for emne ${req.params.courseId}`,
-    );
-    throw error;
+    return handleCanvasError(res, error, `Feil under henting av moduler for emne ${req.params.courseId}`);
   }
 });
 
@@ -1030,11 +1021,7 @@ router.get("/emner/:courseId/modules/:moduleId/items", async (req, res) => {
       meta,
     });
   } catch (error) {
-    logger.error(
-      { err: error },
-      `Feil ved henting av modul items for modul ${req.params.moduleId}`,
-    );
-    throw error;
+    return handleCanvasError(res, error, `Feil ved henting av modul items for modul ${req.params.moduleId}`);
   }
 });
 
@@ -1114,11 +1101,7 @@ router.get(
         "Ingen tilgjengelig url for modul-elementet",
       );
     } catch (error) {
-      logger.error(
-        { err: error },
-        `Feil ved åpning av modul item ${req.params.itemId}`,
-      );
-      throw error;
+      return handleCanvasError(res, error, `Feil ved åpning av modul item ${req.params.itemId}`);
     }
   },
 );
@@ -1138,11 +1121,7 @@ router.get("/emner/:courseId/pages/:pageId", async (req, res) => {
     logger.info({ courseId: courseIdNum, pageUrl: page.url }, "Hentet wiki page");
     res.json(page);
   } catch (error) {
-    logger.error(
-      { err: error },
-      `Feil ved henting av page ${req.params.pageId}`,
-    );
-    throw error;
+    return handleCanvasError(res, error, `Feil ved henting av page ${req.params.pageId}`);
   }
 });
 
@@ -1158,11 +1137,7 @@ router.get("/emner/:courseId/pages", async (req, res) => {
     logger.info({ courseId: courseIdNum, count: pages.length }, "Hentet liste over sider");
     res.json({ pages, meta });
   } catch (error) {
-    logger.error(
-      { err: error },
-      `Feil ved henting av pages for kurs ${req.params.courseId}`,
-    );
-    throw error;
+    return handleCanvasError(res, error, `Feil ved henting av pages for kurs ${req.params.courseId}`);
   }
 });
 
@@ -1227,11 +1202,7 @@ router.get("/emner/:courseId/frontpage", async (req, res) => {
         return res.status(204).send();
       }
     }
-    logger.error(
-      { err: error },
-      `Feil ved henting av frontpage for kurs ${req.params.courseId}`,
-    );
-    throw error;
+    return handleCanvasError(res, error, `Feil ved henting av frontpage for kurs ${req.params.courseId}`);
   }
 });
 
@@ -1244,11 +1215,7 @@ router.get("/filer/:fileId", async (req, res) => {
     logger.info({ fileId: fileIdNum }, "Hentet fil metadata");
     res.json(file);
   } catch (error) {
-    logger.error(
-      { err: error },
-      `Feil ved henting av fil ${req.params.fileId}`,
-    );
-    throw error;
+    return handleCanvasError(res, error, `Feil ved henting av fil ${req.params.fileId}`);
   }
 });
 
@@ -1264,11 +1231,7 @@ router.get("/emner/:courseId/files", async (req, res) => {
     logger.info({ courseId: courseIdNum, count: files.length }, "Hentet filer for kurs");
     res.json({ files, meta });
   } catch (error) {
-    logger.error(
-      { err: error },
-      `Feil ved henting av filer for kurs ${req.params.courseId}`,
-    );
-    throw error;
+    return handleCanvasError(res, error, `Feil ved henting av filer for kurs ${req.params.courseId}`);
   }
 });
 
@@ -1318,8 +1281,7 @@ router.get("/filer/:fileId/download", async (req, res) => {
     });
     nodeStream.pipe(res);
   } catch (error) {
-    logger.error({ err: error }, `Feil ved filnedlasting ${req.params.fileId}`);
-    throw error;
+    return handleCanvasError(res, error, `Feil ved filnedlasting ${req.params.fileId}`);
   }
 });
 
@@ -1337,56 +1299,14 @@ router.get("/emner/:courseId/diskusjoner/:topicId", async (req, res) => {
     logger.info({ courseId: courseIdNum, topicId: topicIdNum }, "Hentet diskusjon");
     res.json(topic);
   } catch (error) {
-    logger.error(
-      { err: error },
-      `Feil ved henting av diskusjon ${req.params.topicId}`,
-    );
-    throw error;
+    return handleCanvasError(res, error, `Feil ved henting av diskusjon ${req.params.topicId}`);
   }
 });
 
-// Global error handler for dette routeret
-router.use((error: Error, _req: unknown, res: unknown, _next: unknown) => {
-  const response = res as {
-    status: (code: number) => { json: (data: unknown) => void };
-  };
-
-  // Zod validering feil
-  if (error.name === "ZodError") {
-    logger.error({ err: error }, "Canvas Zod validering feilet");
-    return response.status(500).json({
-      feil: "Validering feilet",
-      melding: "Canvas returnerte uventet data-format",
-      kode: "validation_error" as CanvasErrorCode,
-      detaljer: error?.message,
-    });
-  }
-
-  // Strukturert Canvas API-feil (fra canvasErrors.ts)
-  const canvasError = error as CanvasApiError | CanvasHttpError;
-  const httpStatus =
-    (canvasError as CanvasHttpError).status ??
-    (canvasError as CanvasApiError).httpStatus ??
-    500;
-  const errorCode: CanvasErrorCode =
-    (canvasError as CanvasApiError).code ||
-    classifyHttpStatus(httpStatus, canvasError.details || error.message);
-
-  // Logg strukturert feilinfo (uten sensitiv data)
-  logger.error(
-    {
-      errorCode,
-      httpStatus,
-      errorName: error.name,
-      // Ikke logg full details da den kan inneholde sensitiv data
-    },
-    `Canvas API feil: ${errorCode}`,
-  );
-
-  // Returner strukturert feilrespons UTEN interne detaljer (sikkerhet)
-  // Detaljer kan inneholde sensitiv info fra Canvas API-responser
-  const errorResponse = getErrorResponse(errorCode);
-  return response.status(httpStatus).json(errorResponse);
+// Global error handler for dette routeret (fire parametre = Express error middleware)
+router.use((error: Error, _req: Request, res: Response, _next: NextFunction) => {
+  logger.error({ err: error }, "Canvas-router: uavfanget feil");
+  sendCanvasErrorResponse(res, error);
 });
 
 export default router;

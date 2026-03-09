@@ -22,6 +22,8 @@ import { syncCanvasDataForUser, hasCanvasSyncData, userKey } from "./canvas-sync
 import { byggLettCanvasKontekst, byggMålrettetCanvasKontekst } from "../rutere/ki/kiCanvas.js";
 import type { TargetedQuery } from "../rutere/ki/ki.js";
 import { TWO_WEEKS_MS } from "common/dateUtils";
+import { isCanvasAssignmentSubmitted } from "common/canvas";
+import { stripHtml } from "../utils/htmlUtils.js";
 
 // ─── Typer ─────────────────────────────────────────────────
 
@@ -73,7 +75,7 @@ async function byggLettKontekstFraRedis(userId: string): Promise<string | null> 
         const oppgaver = JSON.parse(oppgaverRaw) as Array<{
           name: string;
           due_at?: string | null;
-          has_submitted_submissions?: boolean;
+          submission?: { workflow_state?: string | null; submitted_at?: string | null } | null;
         }>;
 
         for (const oppg of oppgaver) {
@@ -81,7 +83,7 @@ async function byggLettKontekstFraRedis(userId: string): Promise<string | null> 
           const frist = new Date(oppg.due_at);
           if (frist >= now && frist <= twoWeeksFromNow) {
             const dagerIgjen = Math.ceil((frist.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-            const status = oppg.has_submitted_submissions ? "✓ levert" : "⏳ ikke levert";
+            const status = isCanvasAssignmentSubmitted(oppg) ? "✓ levert" : "⏳ ikke levert";
             fristLinjer.push({
               dueAt: frist.getTime(),
               line: `- ${oppg.name}${emne.course_code ? ` (${emne.course_code})` : ""} — frist: ${frist.toLocaleDateString("nb-NO")} (${dagerIgjen}d) [${status}]`,
@@ -320,19 +322,19 @@ async function byggMålrettetKontekstFraRedis(
           due_at?: string | null;
           description?: string | null;
           points_possible?: number | null;
-          has_submitted_submissions?: boolean;
+          submission?: { workflow_state?: string | null; submitted_at?: string | null } | null;
         }>;
 
         kontekst += `OPPGAVER (${oppgaver.length}):\n`;
         for (const oppg of oppgaver) {
           const frist = oppg.due_at ? new Date(oppg.due_at).toLocaleDateString("nb-NO") : "ingen frist";
           const poeng = oppg.points_possible ? `${oppg.points_possible}p` : "";
-          const status = oppg.has_submitted_submissions ? "✓" : "⏳";
+          const status = isCanvasAssignmentSubmitted(oppg) ? "✓" : "⏳";
           kontekst += `- ${status} ${oppg.name} — frist: ${frist} ${poeng}\n`;
 
           // Inkluder kort beskrivelse (uten HTML)
           if (oppg.description) {
-            const desc = oppg.description.replace(/<[^>]*>/g, "").trim();
+            const desc = stripHtml(oppg.description).trim();
             if (desc.length > 0) {
               kontekst += `  Beskrivelse: ${desc.substring(0, 300)}${desc.length > 300 ? "..." : ""}\n`;
             }
@@ -359,7 +361,7 @@ async function byggMålrettetKontekstFraRedis(
             const dato = k.posted_at ? new Date(k.posted_at).toLocaleDateString("nb-NO") : "";
             kontekst += `- ${k.title} (${dato})\n`;
             if (k.message) {
-              const melding = k.message.replace(/<[^>]*>/g, "").trim();
+              const melding = stripHtml(k.message).trim();
               if (melding.length > 0) {
                 kontekst += `  ${melding.substring(0, 200)}${melding.length > 200 ? "..." : ""}\n`;
               }

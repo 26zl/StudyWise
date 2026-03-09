@@ -9,7 +9,8 @@ const options: swaggerJsdoc.Options = {
     info: {
       title: "StudyWise API",
       version: "1.0.0",
-      description: "STUDYWISE. En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas Instructure. Bachelor i IT 2026.",
+      description:
+        "STUDYWISE. En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas Instructure. Bachelor i IT 2026.",
       contact: {
         name: "StudyWise 2026 Gruppe 3",
         email: "gruppe3@studywise.invalid",
@@ -29,11 +30,6 @@ const options: swaggerJsdoc.Options = {
               type: "string",
               format: "date-time",
               example: "2026-01-24T12:00:00.000Z",
-            },
-            uptime: {
-              type: "number",
-              description: "Server uptime i sekunder",
-              example: 3600,
             },
           },
         },

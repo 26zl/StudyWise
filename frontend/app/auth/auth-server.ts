@@ -2,8 +2,10 @@
 * Henter brukeren server-side for å unngå layout shift
 * Brukes i app/page.tsx for å sjekke om brukeren er innlogget
 */
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { MeResponseSchema, type MeResponse, AUTH_COOKIE_NAME, AUTH_REFRESH_COOKIE_NAME } from "common/auth";
+import { withCsrfProtection } from "../lib/csrf";
 
 
 // Fallback-parser for kombinert Set-Cookie-header.
@@ -98,7 +100,7 @@ function buildCookieHeader(
  * Bruker retry-logikk for å håndtere at backend kanskje ikke er klar
  * Prøver også refresh hvis access token er utløpt
  */
-export async function getUserServer(): Promise<MeResponse | null> {
+export const getUserServer = cache(async (): Promise<MeResponse | null> => {
   const apiUrl = process.env.INTERNAL_API_URL || "http://localhost:4000";
   const cookieStore = await cookies();
 
@@ -132,12 +134,14 @@ export async function getUserServer(): Promise<MeResponse | null> {
     // Hvis 401/403 og vi har refresh token, prøv å fornye
     if ((res.status === 401 || res.status === 403) && refreshCookie?.value) {
       const refreshRes = await fetch(`${apiUrl}/api/user/refresh`, {
-        method: "POST",
-        headers: {
-          Cookie: cookieHeader,
-          "x-studywise-ssr-refresh": "1",
-        },
         cache: "no-store",
+        ...withCsrfProtection({
+          method: "POST",
+          headers: {
+            Cookie: cookieHeader,
+            "x-studywise-ssr-refresh": "1",
+          },
+        }),
       });
 
       if (refreshRes.ok) {
@@ -165,4 +169,4 @@ export async function getUserServer(): Promise<MeResponse | null> {
     // Client-side vil prøve igjen med retry-logikk
     return null;
   }
-}
+});

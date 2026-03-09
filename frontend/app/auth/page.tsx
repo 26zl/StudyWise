@@ -135,7 +135,10 @@ export default function AuthPage() {
         setError("password", { type: "server", message: feilTekst });
         return;
       }
-      if (errorMsg.includes("e-post") || errorMsg.includes("email")) {
+      // Kun feltfeil for e-post når det er format/validering (Zod "Ugyldig e-post"), ikke ved feil passord eller bruker finnes
+      const erEpostFormatFeil =
+        /Ugyldig e-post\b/.test(errorMsg) && !errorMsg.includes("e-postadresse eller passord");
+      if (erEpostFormatFeil) {
         feilTekst = "Skriv inn en gyldig e-postadresse (f.eks. navn@eksempel.no).";
         setError("email", { type: "server", message: feilTekst });
         return;

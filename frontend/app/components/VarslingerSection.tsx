@@ -51,6 +51,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
         hendelser,
         alleElementer,
         ulesteCount,
+        lestIds,
         markAllAsLest,
         isLoading,
         isError,
@@ -66,11 +67,11 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
         }
     }, [harCanvasToken, isHydrated, isError, alleElementer.length, markAllAsLest]);
 
-    const tabs: { id: VarslingTab; label: string; antall: number }[] = [
-        { id: "alle", label: "Alle", antall: alleElementer.length },
-        { id: "frister", label: "Frister", antall: frister.length },
-        { id: "kunngjøringer", label: "Kunngjøringer", antall: kunngjøringer.length },
-        { id: "hendelser", label: "Hendelser", antall: hendelser.length },
+    const tabs: { id: VarslingTab; label: string; antall: number; uleste: number }[] = [
+        { id: "alle", label: "Alle", antall: alleElementer.length, uleste: alleElementer.filter((e) => !lestIds.has(e.id)).length },
+        { id: "frister", label: "Frister", antall: frister.length, uleste: frister.filter((e) => !lestIds.has(e.id)).length },
+        { id: "kunngjøringer", label: "Kunngjøringer", antall: kunngjøringer.length, uleste: kunngjøringer.filter((e) => !lestIds.has(e.id)).length },
+        { id: "hendelser", label: "Hendelser", antall: hendelser.length, uleste: hendelser.filter((e) => !lestIds.has(e.id)).length },
     ];
 
     const aktiveListe =
@@ -82,12 +83,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
     if (!harCanvasToken) {
         return (
             <div className="p-6 sm:p-8">
-                <div className="flex items-center gap-3 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
-                    <AlertCircle className="w-5 h-5 text-yellow-500 shrink-0" />
-                    <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                        Du må lagre en Canvas API-token for å se varslinger.
-                    </p>
-                </div>
+                <FeilMelding melding="Du må lagre en Canvas API-token for å hente varslinger." />
             </div>
         );
     }
@@ -152,13 +148,13 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                             }`}
                         >
                             {tab.label}
-                            {ulesteCount > 0 && (
+                            {tab.uleste > 0 && (
                                 <span className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-xs font-semibold ${
                                     aktivTab === tab.id
                                         ? "bg-blue-600 dark:bg-blue-500 text-white"
                                         : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
                                 }`}>
-                                    {tab.antall}
+                                    {tab.uleste}
                                 </span>
                             )}
                         </button>

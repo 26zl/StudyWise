@@ -1,12 +1,33 @@
+/**
+ * Task-breakdown API (GET/POST/PUT/DELETE).
+ * Subtasks lagres som plaintext (ikke kryptert).
+ */
 import { Router } from "express";
 import { logger } from "../../utils/logger.js";
-import { apiError, sendZodError, sendUnknownError, requireUserId } from "../../utils/apiError.js";
-import { TaskBreakdown } from "../../database/models/TaskBreakdown.js";
+import {
+  apiError,
+  sendZodError,
+  sendUnknownError,
+  requireUserId,
+} from "../../utils/apiError.js";
+import {
+  TaskBreakdown,
+  type TaskBreakdownHydratedDocument,
+} from "../../database/models/TaskBreakdown.js";
 import { rateLimitKi } from "../../middleware/rate-limit.js";
-import { SubTaskSchema, TaskBreakdownResponseSchema } from "common/ki";
+import {
+  SubTaskSchema,
+  TaskBreakdownResponseSchema,
+  type SubTask,
+} from "common/ki";
 
 const router = Router();
 router.use(rateLimitKi);
+
+function readSubtasks(breakdown: TaskBreakdownHydratedDocument): SubTask[] {
+  if (!Array.isArray(breakdown.subtasks)) return [];
+  return SubTaskSchema.array().parse(breakdown.subtasks);
+}
 
 // GET /api/ki/task-breakdown/:assignmentId
 router.get("/:assignmentId", async (req, res) => {
@@ -22,10 +43,13 @@ router.get("/:assignmentId", async (req, res) => {
       return res.json(empty);
     }
 
-    const payload = TaskBreakdownResponseSchema.parse({ subtasks: breakdown.subtasks });
+    const subtasks = readSubtasks(breakdown);
+    const payload = TaskBreakdownResponseSchema.parse({
+      subtasks,
+    });
     return res.json(payload);
   } catch (error) {
-    sendUnknownError(res, error, { kontekst: "GET task-breakdown" });
+    return sendUnknownError(res, error, { kontekst: "GET task-breakdown" });
   }
 });
 
@@ -41,17 +65,24 @@ router.post("/:assignmentId", async (req, res) => {
       return sendZodError(res, parsed.error, "subtasks");
     }
 
-    const breakdown = await TaskBreakdown.findOneAndUpdate(
+    await TaskBreakdown.findOneAndUpdate(
       { userId, assignmentId },
-      { userId, assignmentId, subtasks: parsed.data, updatedAt: new Date() },
+      {
+        userId,
+        assignmentId,
+        subtasks: parsed.data,
+        updatedAt: new Date(),
+      },
       { upsert: true, returnDocument: "after" },
     );
 
     logger.info({ userId, assignmentId }, "Saved task breakdown");
-    const payload = TaskBreakdownResponseSchema.parse({ subtasks: breakdown!.subtasks });
+    const payload = TaskBreakdownResponseSchema.parse({
+      subtasks: parsed.data,
+    });
     return res.json(payload);
   } catch (error) {
-    sendUnknownError(res, error, { kontekst: "POST task-breakdown" });
+    return sendUnknownError(res, error, { kontekst: "POST task-breakdown" });
   }
 });
 
@@ -67,18 +98,23 @@ router.put("/:assignmentId/toggle/:taskId", async (req, res) => {
       return apiError.notFound(res, "Task breakdown");
     }
 
-    const task = breakdown.subtasks.find((t) => t.id === taskId);
+    const subtasks = readSubtasks(breakdown);
+    const task = subtasks.find((t) => t.id === taskId);
     if (!task) {
       return apiError.notFound(res, "Subtask");
     }
 
     task.completed = !task.completed;
+    breakdown.subtasks = subtasks;
+    breakdown.updatedAt = new Date();
     await breakdown.save();
 
-    const payload = TaskBreakdownResponseSchema.parse({ subtasks: breakdown.subtasks });
+    const payload = TaskBreakdownResponseSchema.parse({
+      subtasks,
+    });
     return res.json(payload);
   } catch (error) {
-    sendUnknownError(res, error, { kontekst: "PUT task-breakdown toggle" });
+    return sendUnknownError(res, error, { kontekst: "PUT task-breakdown toggle" });
   }
 });
 
@@ -95,7 +131,7 @@ router.delete("/:assignmentId", async (req, res) => {
     const payload = TaskBreakdownResponseSchema.parse({ subtasks: [] });
     return res.json(payload);
   } catch (error) {
-    sendUnknownError(res, error, { kontekst: "DELETE task-breakdown" });
+    return sendUnknownError(res, error, { kontekst: "DELETE task-breakdown" });
   }
 });
 

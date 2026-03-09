@@ -295,15 +295,8 @@ router.post("/chat", async (req, res) => {
     // Start med base system prompt
     let enhancedSystemPrompt = STUDYWISE_SYSTEM_PROMPT;
 
-    // Filtrer ut eventuelle Canvas context-meldinger fra frontend
-    // Backend henter alltid sin egen fullstendige Canvas-kontekst
-    const filteredMessages = messages.filter(
-      (m: { role: string; content: string }) =>
-        !(m.role === "system" && m.content.includes("Canvas data")),
-    );
-
     // ——— Intent-deteksjon: Trenger denne meldingen Canvas-data? ———
-    const intent = detectIntent(filteredMessages);
+    const intent = detectIntent(messages);
 
     if (intent !== "general_chat" && !req.canvasToken) {
       // Brukeren spør om Canvas men har ikke token
@@ -327,7 +320,7 @@ router.post("/chat", async (req, res) => {
       ensureCanvasSync(req.user.id, req.canvasToken);
 
       // Ekstraher eventuelle emne/modul-hint fra siste brukermelding
-      const lastUserMsg = filteredMessages.filter((m: { role: string }) => m.role === "user").at(-1)?.content ?? "";
+      const lastUserMsg = messages.filter((m: { role: string }) => m.role === "user").at(-1)?.content ?? "";
       const target = extractQueryTarget(lastUserMsg);
 
       logger.info(
@@ -372,15 +365,15 @@ router.post("/chat", async (req, res) => {
 
     // Trim samtalehistorikk til siste 5 meldinger for å holde token-bruken lav
     const MAX_HISTORY_MESSAGES = 5;
-    const trimmedMessages = filteredMessages.length > MAX_HISTORY_MESSAGES
-      ? filteredMessages.slice(-MAX_HISTORY_MESSAGES)
-      : filteredMessages;
+    const trimmedMessages = messages.length > MAX_HISTORY_MESSAGES
+      ? messages.slice(-MAX_HISTORY_MESSAGES)
+      : messages;
 
-    // Bygg meldingsarray — kun system prompt + brukerens meldinger
+    // System-prompt styres kun av backend (KIChatClientMessageSchema tillater ikke "system" fra klient — prompt-injection-sikring).
     const fullMessages = [
       { role: "system" as const, content: enhancedSystemPrompt },
       ...trimmedMessages.map((m: { role: string; content: string }) => ({
-        role: m.role as "user" | "assistant" | "system",
+        role: m.role as "user" | "assistant",
         content: m.content,
       })),
     ];

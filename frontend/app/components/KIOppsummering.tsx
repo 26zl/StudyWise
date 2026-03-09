@@ -62,10 +62,18 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
     const [requesting, setRequesting] = useState(false);
     const tekstRef = useRef(tekst);
     tekstRef.current = tekst;
+    const isMountedRef = useRef(true);
     const harTekst = tekst.trim().length > 0;
     const visLoading = isPending || requesting;
 
     const s = storrelser[storrelse];
+
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
 
     // Håndterer klikk på oppsummeringsknappen – stabil callback, umiddelbar loading-feedback
     const handleOppsummer = useCallback(() => {
@@ -79,11 +87,13 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
         oppsummer(currentTekst, {
             type: "begge",
             onSuccess: (data) => {
+                if (!isMountedRef.current) return;
                 setRequesting(false);
                 settResultat(data);
                 settÅpen(true);
             },
             onError: () => {
+                if (!isMountedRef.current) return;
                 setRequesting(false);
             },
         });
@@ -91,6 +101,7 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
 
     // Oppdaterer resultat og åpner oppsummering når data kommer inn (fallback for cache/race)
     useEffect(() => {
+        if (!isMountedRef.current) return;
         if (data?.suksess && !resultat) {
             setRequesting(false);
             settResultat(data);

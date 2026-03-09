@@ -136,6 +136,10 @@ export async function syncCanvasDataForUser(
 
   if (courses.length === 0) {
     logger.info({ userId }, "Ingen aktive emner funnet for Canvas sync");
+    // Overskriv Redis med tom liste og oppdater syncMeta slik at loadCanvasContext ikke serverer stale data
+    await setCache(userKey(userId, "emner"), "[]", SYNC_CACHE_TTL);
+    const emptyMeta: SyncMeta = { lastSyncAt: new Date().toISOString(), courseHashes: {} };
+    await setCache(syncMetaKey, JSON.stringify(emptyMeta), SYNC_CACHE_TTL);
     return { synced: true, courses: { total: 0, updated: 0, unchanged: 0, failed: 0 }, durationMs: Date.now() - startTime };
   }
 

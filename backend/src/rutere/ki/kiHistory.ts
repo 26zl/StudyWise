@@ -22,15 +22,6 @@ export const kiHistoryRouter = Router();
 const isValidObjectId = (id: string): boolean =>
   mongoose.Types.ObjectId.isValid(id);
 
-/** Hent tittel fra lagret chat (eksplisitt tittel eller første brukermelding). */
-function getChatTitleFromSave(parsed: { title?: string; messages: Array<{ rolle: string; innhold: string }> }, defaultTitle = "Samtale"): string {
-  if (parsed.title) return parsed.title;
-  const firstUser = parsed.messages.find((m) => m.rolle === "user");
-  return firstUser
-    ? firstUser.innhold.slice(0, 80) + (firstUser.innhold.length > 80 ? "..." : "")
-    : defaultTitle;
-}
-
 // GET /chat/history - hent historikk for innlogget bruker (paginert)
 kiHistoryRouter.get("/chat/history", async (req, res) => {
   try {
@@ -49,6 +40,7 @@ kiHistoryRouter.get("/chat/history", async (req, res) => {
         .lean(),
       ChatHistory.countDocuments({ user: userId }),
     ]);
+
     const chats = docs.flatMap((doc) => {
       try {
         // Dekrypter og valider med Zod for å sikre data-integritet
@@ -57,7 +49,7 @@ kiHistoryRouter.get("/chat/history", async (req, res) => {
         return [
           {
             id: doc._id.toString(),
-            title: doc.title,
+            title: doc.title ?? "Samtale",
             messages,
             timestamp: doc.createdAt,
           },
@@ -83,7 +75,7 @@ kiHistoryRouter.get("/chat/history", async (req, res) => {
       }),
     );
   } catch (error) {
-    sendUnknownError(res, error, { kontekst: "GET chat-history" });
+    return sendUnknownError(res, error, { kontekst: "GET chat-history" });
   }
 });
 
@@ -94,8 +86,11 @@ kiHistoryRouter.post("/chat/history", async (req, res) => {
     if (!userId) return;
 
     const parsed = ChatSaveSchema.parse(req.body);
-    const title = getChatTitleFromSave(parsed);
     const encryptedMessages = encrypt(JSON.stringify(parsed.messages));
+    const title =
+      (parsed.title != null && parsed.title !== ""
+        ? parsed.title.trim().slice(0, 120)
+        : "") || "Samtale";
     const doc = await ChatHistory.create({
       user: userId,
       title,
@@ -114,7 +109,7 @@ kiHistoryRouter.post("/chat/history", async (req, res) => {
     if (error instanceof z.ZodError) {
       return sendZodError(res, error, "chat-history");
     }
-    sendUnknownError(res, error, { kontekst: "POST chat-history" });
+    return sendUnknownError(res, error, { kontekst: "POST chat-history" });
   }
 });
 
@@ -129,14 +124,17 @@ kiHistoryRouter.put("/chat/history/:id", async (req, res) => {
       return apiError.badRequest(res, "Ugyldig samtale-ID");
     }
     const parsed = ChatSaveSchema.parse(req.body);
-    const title = getChatTitleFromSave(parsed);
     const encryptedMessages = encrypt(JSON.stringify(parsed.messages));
+    const update: { encryptedMessages: string; title?: string } = { encryptedMessages };
+    if (parsed.title != null && parsed.title !== "") {
+      update.title = parsed.title.trim().slice(0, 120) || "Samtale";
+    }
     const doc = await ChatHistory.findOneAndUpdate(
       { _id: id, user: userId },
-      { title, encryptedMessages },
+      update,
       { returnDocument: "after" },
     );
-    if (!doc) return apiError.notFound(res, "Samtale");
+    if (!doc) return apiError.notFound(res, "Samtalen");
 
     return res.json({
       chat: {
@@ -150,7 +148,7 @@ kiHistoryRouter.put("/chat/history/:id", async (req, res) => {
     if (error instanceof z.ZodError) {
       return sendZodError(res, error, "chat-history");
     }
-    sendUnknownError(res, error, { kontekst: "PUT chat-history" });
+    return sendUnknownError(res, error, { kontekst: "PUT chat-history" });
   }
 });
 
@@ -167,7 +165,7 @@ kiHistoryRouter.delete("/chat/history/:id", async (req, res) => {
     await ChatHistory.deleteOne({ _id: id, user: userId });
     return res.status(204).send();
   } catch (error) {
-    sendUnknownError(res, error, { kontekst: "DELETE chat-history" });
+    return sendUnknownError(res, error, { kontekst: "DELETE chat-history" });
   }
 });
 
@@ -179,6 +177,6 @@ kiHistoryRouter.delete("/chat/history", async (req, res) => {
     await ChatHistory.deleteMany({ user: userId });
     return res.status(204).send();
   } catch (error) {
-    sendUnknownError(res, error, { kontekst: "DELETE chat-history" });
+    return sendUnknownError(res, error, { kontekst: "DELETE chat-history" });
   }
 });

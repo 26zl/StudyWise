@@ -15,9 +15,16 @@ export const KIMessageSchema = z.object({
   timestamp: z.string().optional(),
 });
 
+// Klienten kan kun sende user/assistant. System-meldinger styres kun av backend (prompt-injection-sikring).
+export const KIChatClientMessageSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z.string(),
+  timestamp: z.string().optional(),
+});
+
 // Request-schema for KI chat API
 export const KIChatRequestSchema = z.object({
-  messages: z.array(KIMessageSchema),
+  messages: z.array(KIChatClientMessageSchema),
   model: z.string().optional(),
   temperature: z.number().min(0).max(2).optional(),
 });
@@ -129,6 +136,7 @@ export type KIOppsummeringResponse = z.infer<
   typeof KIOppsummeringResponseSchema
 >;
 export type KIMessage = z.infer<typeof KIMessageSchema>;
+export type KIChatClientMessage = z.infer<typeof KIChatClientMessageSchema>;
 export type KIChatRequest = z.infer<typeof KIChatRequestSchema>;
 export type KIChatResponse = z.infer<typeof KIChatResponseSchema>;
 export type KIModelsResponse = z.infer<typeof KIModelsResponseSchema>;

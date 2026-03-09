@@ -5,19 +5,30 @@
 
 import { z } from "zod";
 
-export const EmailSchema = z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Ugyldig e-post");
+/** E-post canonicalisert: trim + lowercase, så backend ikke trenger egen normalisering. */
+export const EmailSchema = z
+  .string()
+  .trim()
+  .transform((s) => s.toLowerCase())
+  .pipe(z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Ugyldig e-post"));
 
-// Request schema for lagring av Canvas token
+// Request schema for lagring av Canvas token (canonicalisert: trim; tom streng/whitespace avvises)
 export const CanvasTokenRequestSchema = z.object({
-  token: z.string().min(1, "Token kan ikke vaere tom"),
+  token: z.string().trim().min(1, "Token kan ikke være tom"),
 });
-// Response schema for lagring av Canvas token
-export const CanvasTokenResponseSchema = z.object({
-  melding: z.string().optional(),
-  success: z.boolean().optional(),
-  feil: z.string().optional(),
-  canvasKonflikt: z.boolean().optional(),
-});
+
+/** Respons ved lagring/sletting av Canvas-token. Må inneholde success, feil eller canvasKonflikt slik at {} ikke er gyldig. */
+export const CanvasTokenResponseSchema = z
+  .object({
+    melding: z.string().optional(),
+    success: z.literal(true).optional(),
+    feil: z.string().optional(),
+    canvasKonflikt: z.boolean().optional(),
+  })
+  .refine(
+    (d) => d.success === true || (d.feil != null && d.feil !== "") || d.canvasKonflikt === true,
+    { message: "Respons må inneholde success, feil eller canvasKonflikt" },
+  );
 
 // Canvas kontekst preferanser
 export const CanvasContextPreferencesSchema = z.object({
@@ -104,6 +115,10 @@ export const PreferencesResponseSchema = z.object({
 export const AUTH_COOKIE_NAME = "studywise_auth";
 export const AUTH_REFRESH_COOKIE_NAME = "studywise_auth_refresh";
 export const AUTH_CHANNEL_NAME = "studywise_auth_sync";
+
+// CSRF: frontend sender denne headeren på POST/PUT/PATCH/DELETE; backend krever den for å avvise forespørsler fra tredjepartsider.
+export const AUTH_CSRF_HEADER_NAME = "x-studywise-csrf";
+export const AUTH_CSRF_HEADER_VALUE = "1";
 
 // TypeScript typer eksportering
 export type CanvasContextPreferences = z.infer<typeof CanvasContextPreferencesSchema>;

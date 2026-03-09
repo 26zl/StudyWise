@@ -78,7 +78,18 @@ function validateEnvForBuild() {
             }
         }
     };
-    validateUrl("WEB_ORIGIN");
+    // WEB_ORIGIN kan være én URL eller kommaseparert liste (samme format som WEB_ORIGINS)
+    const webOrigin = process.env.WEB_ORIGIN;
+    if (webOrigin) {
+        const origins = webOrigin.split(",").map((s) => s.trim()).filter(Boolean);
+        for (const origin of origins) {
+            try {
+                new URL(origin);
+            } catch {
+                manglende.push(`WEB_ORIGIN (ugyldig URL i listen: ${origin})`);
+            }
+        }
+    }
     validateUrl("CANVAS_BASE_URL");
 
     // Valider CANVAS_BASE_URL peker på USN Canvas (usn.instructure.com)

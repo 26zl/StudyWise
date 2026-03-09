@@ -274,13 +274,8 @@ export const CanvasTodoItemSchema = z.object({
 });
 
 
-// Utvidet modul-item schema for å inkludere content details felter
-// Disse er ofte tilstede når man bruker include[]=content_details
+// Utvidet modul-item schema for å inkludere content details felter (base-felter kommer fra CanvasModuleItemSchema)
 export const CanvasModuleItemDetailSchema = CanvasModuleItemSchema.extend({
-  content_id: z.number().optional(),
-  page_url: z.string().optional(), // For Page types
-  url: z.string().optional(), // API url for innholdet
-  external_url: z.string().optional(), // For ExternalUrl types
   new_tab: z.boolean().optional(),
   completion_requirement: z.object({
     type: z.string(),
@@ -331,23 +326,6 @@ export type UpcomingEventsResponse = z.infer<typeof UpcomingEventsResponseSchema
 export type CalendarEventsResponse = z.infer<typeof CalendarEventsResponseSchema>;
 export type TodoResponse = z.infer<typeof TodoResponseSchema>;
 export type ModuleItemDetailsResponse = z.infer<typeof ModuleItemDetailsResponseSchema>;
-
-// Normalisert Canvas Calendar Event (kun felter vi bruker)
-export const NormalizedCanvasCalendarEventSchema = z.object({
-  id: z.string(),
-  source: z.literal("canvas_calendar"),
-  title: z.string(),
-  startAt: z.string(),
-  endAt: z.string().nullable(),
-  allDay: z.boolean(),
-  location: z.string().nullable(),
-  courseId: z.string().nullable(),
-  courseName: z.string().nullable(),
-  url: z.string().nullable(),
-  descriptionText: z.string().nullable(),
-}).loose();
-
-export type NormalizedCanvasCalendarEvent = z.infer<typeof NormalizedCanvasCalendarEventSchema>;
 
 // Schema for modul-item "open" respons
 export const ModuleItemOpenResponseSchema = z.union([

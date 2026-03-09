@@ -4,12 +4,10 @@
 
 import pino from "pino";
 
-// Sjekker om vi er i utviklingsmodus
 const isDev = process.env.NODE_ENV !== "production";
-
-// Eksporterer logger-instans
+// Påkrevd av validateEnv ved serverstart; ingen fallback (én sannhetskilde).
 export const logger = pino({
-    level: process.env.LOG_LEVEL || "info",
+    level: process.env.LOG_LEVEL!,
     redact: {
         paths: [
             "req.headers.authorization",

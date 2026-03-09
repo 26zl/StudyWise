@@ -12,16 +12,12 @@ import { logger } from "../utils/logger.js";
 import { apiError } from "../utils/apiError.js";
 import { isProd } from "../utils/env.js";
 import type { JwtBrukerPayload } from "../typer/express.js";
-import { AUTH_COOKIE_NAME, AUTH_REFRESH_COOKIE_NAME } from "common/auth";
 
-// Cookie-navn (bruker common constants som default, tillater env var override)
-export const JWT_COOKIE_NAVN = process.env.JWT_COOKIE_NAVN || AUTH_COOKIE_NAME;
-export const JWT_REFRESH_COOKIE_NAVN = process.env.JWT_REFRESH_COOKIE_NAVN || AUTH_REFRESH_COOKIE_NAME;
-
-// JWT utløpstider (konfigurerbare via miljøvariabler)
-// Formater: "30m", "1h", "14d" - brukes av jsonwebtoken
-export const JWT_TILGANG_UTLOPER = process.env.JWT_ACCESS_EXPIRES ?? "30m";
-export const JWT_REFRESH_UTLOPER = process.env.JWT_REFRESH_EXPIRES ?? "14d";
+// Påkrevd av validateEnv ved serverstart; ingen fallback (én sannhetskilde).
+export const JWT_COOKIE_NAVN = process.env.JWT_COOKIE_NAVN!;
+export const JWT_REFRESH_COOKIE_NAVN = process.env.JWT_REFRESH_COOKIE_NAVN!;
+export const JWT_TILGANG_UTLOPER = process.env.JWT_ACCESS_EXPIRES!;
+export const JWT_REFRESH_UTLOPER = process.env.JWT_REFRESH_EXPIRES!;
 
 // Parse utløpstid til millisekunder for cookie maxAge
 function parseUtlopTilMs(utlopStreng: string, defaultMs: number): number {

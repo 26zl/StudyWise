@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Moon, Sun, Key, User, Info, Trash2, MessageSquare, Bot, CheckCircle } from "lucide-react";
 import { CanvasTokenConflictError, useLagreCanvasToken, useSlettCanvasToken } from "../auth/auth-api";
@@ -16,7 +16,6 @@ import { useChatHistory } from "../hooks/useChatHistory";
 import { showToast } from "./Toaster";
 import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
 import { CanvasContextSelector } from "./CanvasContextSelector";
-import { useUIStore } from "../store/uiStore";
 
 // Typer for SettingsSection props
 interface SettingsSectionProps {
@@ -30,12 +29,6 @@ export function SettingsSection({
 }: SettingsSectionProps) {
     const { setTheme, resolvedTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
-    const setCanvasContext = useUIStore((state) => state.setCanvasContext);
-
-    // Memoized callbacks for å unngå uendelig loop i CanvasContextSelector
-    const handleContextChange = useCallback((ctx: string) => {
-        setCanvasContext(ctx, ctx.length > 0);
-    }, [setCanvasContext]);
 
     // Sett mounted til true etter første render
     useEffect(() => {
@@ -452,9 +445,7 @@ export function SettingsSection({
                             <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
                                 Velg hvilken Canvas-data AI-en skal ha tilgang til når du chatter.
                             </p>
-                            <CanvasContextSelector
-                                onContextChange={handleContextChange}
-                            />
+                            <CanvasContextSelector />
                         </section>
                     )}
 

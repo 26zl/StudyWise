@@ -18,6 +18,7 @@ import {
 } from "common/ki";
 import { fornySesjon } from "../auth/auth-api";
 import { parseApiError } from "../lib/errorUtils";
+import { withCsrfProtection } from "../lib/csrf";
 
 // Eksporter typer
 export type { KIChatResponse, KIMessage } from "common/ki";
@@ -111,7 +112,10 @@ function trimMessages(
   // Start med system-melding og reserver plass til siste melding
   const result: Array<{ role: string; content: string }> = [];
   let currentLength = 0;
-  const budgetBeforeLatest = Math.max(0, maxLength - latestMessage.content.length);
+  const budgetBeforeLatest = Math.max(
+    0,
+    maxLength - latestMessage.content.length,
+  );
 
   // Legg til system-melding først (hvis den finnes)
   if (systemMessage && budgetBeforeLatest > 0) {
@@ -194,7 +198,10 @@ async function håndterKIFeilRespons(res: Response): Promise<void> {
 }
 
 /** Parser KI-respons: SSE (siste data:-linje) eller vanlig JSON. */
-async function parseKIResponse<T>(res: Response, schema: ZodType<T>): Promise<T> {
+async function parseKIResponse<T>(
+  res: Response,
+  schema: ZodType<T>,
+): Promise<T> {
   const contentType = res.headers.get("Content-Type") || "";
   if (contentType.includes("text/event-stream")) {
     const text = await res.text();
@@ -214,16 +221,18 @@ async function parseKIResponse<T>(res: Response, schema: ZodType<T>): Promise<T>
   return schema.parse(data);
 }
 
+// Felles KI-klient: alle kall (inkl. POST/PUT/DELETE for chat, dokumentanalyse, etc.) får CSRF-header via withCsrfProtection.
 async function requestKI<T>(
   endpoint: string,
   schema: ZodType<T>,
   init: RequestInit = {},
   forsoktRefresh = false,
 ): Promise<T> {
+  const protectedInit = withCsrfProtection(init);
   const res = await fetch(`/api/ki${endpoint}`, {
     credentials: "include",
     cache: "no-store",
-    ...init,
+    ...protectedInit,
   });
 
   if (res.status === 401 && !forsoktRefresh) {
@@ -260,6 +269,10 @@ async function postKIFormData<T>(
     method: "POST",
     body: formData,
   });
+}
+
+function asError(error: unknown): Error {
+  return error instanceof Error ? error : new Error("Uventet feil");
 }
 
 // React query hooks
@@ -305,18 +318,27 @@ export function useKIChat() {
       const trimmedMessages = trimMessages(messages);
 
       const request: KIChatRequest = {
-        messages: trimmedMessages.map((m) => ({
-          role: m.role as "user" | "assistant" | "system",
-          content: m.content,
-        })),
+        messages: trimmedMessages
+          .filter(
+            (m): m is { role: "user" | "assistant"; content: string } =>
+              m.role === "user" || m.role === "assistant",
+          )
+          .map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
         model: options?.model,
         temperature: options?.temperature,
       };
 
-      mutation.mutate(request, {
-        onSuccess: options?.onSuccess,
-        onError: options?.onError,
-      });
+      void mutation
+        .mutateAsync(request)
+        .then((data) => {
+          options?.onSuccess?.(data);
+        })
+        .catch((error: unknown) => {
+          options?.onError?.(asError(error));
+        });
     },
     isLoading: mutation.isPending,
     error: mutation.error,
@@ -376,13 +398,14 @@ export function useKIDocumentAnalyse() {
         onError?: (error: Error) => void;
       },
     ) => {
-      mutation.mutate(
-        { fil, spørsmål, model: options?.model },
-        {
-          onSuccess: options?.onSuccess,
-          onError: options?.onError,
-        },
-      );
+      void mutation
+        .mutateAsync({ fil, spørsmål, model: options?.model })
+        .then((data) => {
+          options?.onSuccess?.(data);
+        })
+        .catch((error: unknown) => {
+          options?.onError?.(asError(error));
+        });
     },
     isLoading: mutation.isPending,
     error: mutation.error,

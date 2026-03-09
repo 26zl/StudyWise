@@ -8,11 +8,8 @@ import { useState, useRef, useEffect } from "react";
 import { Sparkles, Edit2, Check, X, Plus, Trash2, RefreshCw, ThumbsUp, ThumbsDown } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { toast } from "sonner";
-import { useKIChat } from "../ki/ki-api";
 import type { SubTask } from "common/ki";
-// Kun typen importeres her — komponenten håndterer ikke API-kall direkte.
-// Når ekte AI-integrasjon legges til, skal henting og validering (med TaskBreakdownResponseSchema)
-// ligge i en dedikert hook (se mønsteret i frontend/app/ki/ki-api.ts).
+// Komponenten bruker mock-data inntil ekte AI-integrasjon legges til (se ki-api.ts for task-breakdown-mønster).
 
 // UI-state utvider SubTask med godkjenningsstatus — strippes før onSave
 interface SubTaskUI extends SubTask {
@@ -48,8 +45,6 @@ export function AITaskBreakdown({
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, []);
-
-  const { sendMelding: _sendMelding } = useKIChat();
 
   // Generer deloppgaver med AI
   const generateSubtasks = async () => {

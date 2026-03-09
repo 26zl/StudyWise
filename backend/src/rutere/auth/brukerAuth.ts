@@ -120,11 +120,14 @@ const hentJwtSecrets = () => {
     return { tilgangSecret, refreshSecret };
 };
 
+// E-post kommer canonicalisert (trim + lowercase) fra common EmailSchema; ingen egen normalisering nødvendig.
+
 // POST /register
 // Registrerer en ny bruker med e-post og passord.
 router.post("/register", rateLimitAuth, async (req, res) => {
     try {
-        const { email, password, firstName, lastName } = RegisterRequestSchema.parse(req.body);
+        const parsed = RegisterRequestSchema.parse(req.body);
+        const { email, password, firstName, lastName } = parsed;
 
         const existingUser = await User.findOne({ email });
         if (existingUser) {

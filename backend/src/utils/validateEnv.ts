@@ -58,13 +58,15 @@ export const validateEnv = (): void => {
         }
     }
 
-    // Spesiell validering for ENCRYPTION_KEY format
+    // Spesiell validering for ENCRYPTION_KEY format og styrke
     const encryptionKey = process.env.ENCRYPTION_KEY;
     if (encryptionKey) {
         if (encryptionKey.length !== 64) {
             manglende.push("ENCRYPTION_KEY (må være 64 hex-tegn / 32 bytes)");
         } else if (!/^[a-fA-F0-9]+$/.test(encryptionKey)) {
             manglende.push("ENCRYPTION_KEY (må være gyldig hex-streng)");
+        } else if (/^[0f]+$/i.test(encryptionKey)) {
+            manglende.push("ENCRYPTION_KEY (for svak: ikke bruk placeholder; generer med crypto.randomBytes(32).toString('hex'))");
         }
     }
 
@@ -73,7 +75,7 @@ export const validateEnv = (): void => {
         manglende.push(`PORT (må være et tall, fikk: ${process.env.PORT})`);
     }
 
-    // Valider at minst én av WEB_ORIGIN eller WEB_ORIGINS er satt
+    // WEB_ORIGIN/WEB_ORIGINS brukes av CORS og CSRF-middleware (tillatte frontend-origins)
     if (!process.env.WEB_ORIGIN && !process.env.WEB_ORIGINS) {
         manglende.push("WEB_ORIGIN eller WEB_ORIGINS (minst én må være satt)");
     }
@@ -89,7 +91,18 @@ export const validateEnv = (): void => {
             }
         }
     };
-    validateUrl("WEB_ORIGIN");
+    // WEB_ORIGIN kan være én URL eller kommaseparert liste (samme format som WEB_ORIGINS)
+    const webOrigin = process.env.WEB_ORIGIN;
+    if (webOrigin) {
+        const origins = webOrigin.split(",").map((s) => s.trim()).filter(Boolean);
+        for (const origin of origins) {
+            try {
+                new URL(origin);
+            } catch {
+                manglende.push(`WEB_ORIGIN (ugyldig URL i listen: ${origin})`);
+            }
+        }
+    }
     validateUrl("CANVAS_BASE_URL");
 
     // Valider CANVAS_BASE_URL peker på USN Canvas (usn.instructure.com)
@@ -112,7 +125,7 @@ export const validateEnv = (): void => {
 
     validateUrl("REDIS_URL");
 
-    // Valider alle origins i WEB_ORIGINS (kommaseparert liste)
+    // Valider alle origins i WEB_ORIGINS (kommaseparert liste; brukes av CORS + CSRF)
     const webOrigins = process.env.WEB_ORIGINS;
     if (webOrigins) {
         const origins = webOrigins.split(",").map(s => s.trim()).filter(Boolean);

@@ -128,7 +128,7 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const { data, isLoading, isError, error } = useCanvasAnnouncements(harCanvasToken);
 
     if (!harCanvasToken) {
-        return <FeilMelding melding="Du må lagre en Canvas API-token før du kan hente kunngjøringer." />;
+        return <FeilMelding melding="Du må lagre en Canvas API-token for å hente kunngjøringer." />;
     }
 
     if (isLoading) {
@@ -218,7 +218,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const frontPageQuery = useCanvasFrontPage(valgtEmneId, harCanvasToken && (!metaReady || valgtMeta?.hasFrontPage === true));
 
     if (!harCanvasToken) {
-        return <FeilMelding melding="Du må lagre en Canvas API-token før du kan hente emner." />;
+        return <FeilMelding melding="Du må lagre en Canvas API-token for å hente emner." />;
     }
 
     if (isLoading) {
@@ -883,7 +883,7 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     }, [allAssignments, filter, sortering]);
 
     if (!harCanvasToken) {
-        return <FeilMelding melding="Du må lagre en Canvas API-token før du kan hente oppgaver." />;
+        return <FeilMelding melding="Du må lagre en Canvas API-token for å hente oppgaver." />;
     }
 
     if (assignmentsQuery.isLoading) {

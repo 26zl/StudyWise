@@ -124,22 +124,13 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
         // For dokumenter: parse som før (tekst-ekstraksjon)
         let docResult: Awaited<ReturnType<typeof parseDocument>> | null = null;
         let docContext = "";
-        let ocrFallbackText = "";
 
         if (brukerVision) {
-            // Kjør OCR i bakgrunnen som fallback hvis Vision ikke er tilgjengelig
+            // Kjør dokument-parse for bilder (docResult brukes evt. til oppsummering)
             try {
                 docResult = await parseDocument(filBuffer, filMimetype, req.file.originalname);
-                if (docResult.success) {
-                    ocrFallbackText = formatDocumentContext(
-                        docResult.text,
-                        docResult.pages,
-                        docResult.fileType,
-                        { redacted: docResult.redacted, truncated: docResult.truncated },
-                    );
-                }
             } catch {
-                logger.warn("OCR-fallback feilet for bilde, fortsetter med ren Vision");
+                logger.warn("Parse feilet for bilde, fortsetter med ren Vision");
             }
         } else {
             // Ikke et bilde eller Vision utilgjengelig: parse dokumentet som vanlig
@@ -234,7 +225,6 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
                     images: [imageAttachment],
                     max_tokens: 6000,
                     temperature: 0.5,
-                    fallbackText: ocrFallbackText || undefined,
                 }),
                 timeoutPromise,
             ]);
@@ -436,18 +426,18 @@ router.post("/analyze-pdf", upload.single('pdf'), async (req: Request, res: Resp
     }
 });
 
-// Multer / upload error handler
+// Multer / upload error handler – kun Multer-feil (f.eks. LIMIT_FILE_SIZE) håndteres her; andre feil sendes til global handler
 router.use((err: Error, _req: Request, res: Response, next: NextFunction) => {
-    if (err) {
-        const isFileTooLarge = "code" in err && (err as unknown as { code: string }).code === "LIMIT_FILE_SIZE";
-        logger.warn({ err }, "Multer/upload error");
-        return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
-            suksess: false,
-            melding: isFileTooLarge ? "Filen er for stor. Maks 15 MB." : err.message || "Feil ved filopplasting.",
-            response: "",
-        }));
+    if (!(err instanceof multer.MulterError)) {
+        return next(err);
     }
-    next();
+    const isFileTooLarge = err.code === "LIMIT_FILE_SIZE";
+    logger.warn({ err }, "Multer/upload error");
+    return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
+        suksess: false,
+        melding: isFileTooLarge ? "Filen er for stor. Maks 15 MB." : err.message || "Feil ved filopplasting.",
+        response: "",
+    }));
 });
 
 export const kiAnalyseRouter = router;

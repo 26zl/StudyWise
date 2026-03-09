@@ -8,14 +8,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, Moon, Sun, X } from "lucide-react";
 import { useUIStore } from "../store/uiStore";
-import { useMeg, useLoggUt } from "../auth/auth-api";
-import { useQueryClient } from "@tanstack/react-query";
-import { broadcastLogout } from "../hooks/use-auth-sync";
+import { useMeg, useLoggUtWithRedirect } from "../auth/auth-api";
 import { useTheme } from "next-themes";
 import { type MeResponse } from "common/auth";
 import { useState } from "react";
-import { toast } from "sonner";
-import { AppError } from "../lib/errors";
 
 // Props for Header-komponenten
 interface HeaderProps {
@@ -25,39 +21,15 @@ interface HeaderProps {
 // Header-komponent
 export function Header({ user }: HeaderProps) {
     const pathname = usePathname();
-    const { toggleVenstreMeny, reset: resetUIStore } = useUIStore();
+    const { toggleVenstreMeny } = useUIStore();
     const harSidebar = ["/dashboard", "/oversikt", "/test-ai-breakdown"].includes(pathname);
-    const queryClient = useQueryClient();
     const megQuery = useMeg({ initialData: user || undefined });
     const [mobilMenyOpen, setMobilMenyOpen] = useState(false);
 
-    // Bruker fra query ELLER server-side prop
     const aktivBruker = megQuery.data?.user || user?.user;
-
-    // Vis loading KUN når vi faktisk laster og ikke har noen brukerdata
-    // Unngå "flash of login" ved å vise skeleton under første lasting
     const authLaster = megQuery.isLoading && !aktivBruker;
-    const loggUt = useLoggUt();
+    const handleLoggUt = useLoggUtWithRedirect();
     const { theme, setTheme } = useTheme();
-    // Håndter logg ut - rydder opp all cache og state før redirect
-    const handleLoggUt = async () => {
-        try {
-            await loggUt.mutateAsync();
-        } catch (error) {
-            if (!AppError.isAppError(error) || !error.requiresReauth()) {
-                toast.error("Kunne ikke logge ut. Prøv igjen.");
-                return;
-            }
-        }
-        // Varsle andre faner om utlogging
-        broadcastLogout();
-        // Rydd opp all cached data
-        queryClient.clear();
-        // Nullstill UI-tilstand
-        resetUIStore();
-        // Hard redirect til hjemmesiden
-        window.location.href = "/";
-    };
 
     // Lukk mobil-meny når bruker navigerer
     const handleMobilNavigation = () => {

@@ -88,12 +88,6 @@ export const hentCanvasToken = (overstyrtToken?: string): string | null => {
     return overstyrtToken ?? null;
 };
 
-// Helper: parse courseId fra Canvas context code (f.eks. course_123)
-export const parseCourseIdFromContext = (contextCode?: string | null) => {
-    const match = contextCode?.match(/course_(\d+)/);
-    return match ? Number(match[1]) : null;
-};
-
 // Kalender vindu konfigurasjon (måneder)
 export const KALENDER_VINDU = {
     MÅNEDER_TILBAKE: 1,
@@ -122,14 +116,6 @@ export const beregnKalenderVindu = (options?: {
         startDate: startDate.toISOString().split("T")[0],
         endDate: endDate.toISOString().split("T")[0],
     };
-};
-
-// Helper: beregn utvidet vindu for forelesninger
-export const beregnForelesningerVindu = (): { startDate: string; endDate: string } => {
-    return beregnKalenderVindu({
-        månederTilbake: FORELESNINGER_VINDU.MÅNEDER_TILBAKE,
-        månederFrem: FORELESNINGER_VINDU.MÅNEDER_FREM,
-    });
 };
 
 // Helper: avgrens kalender-vindu (nå -1 mnd til +6 mnd)

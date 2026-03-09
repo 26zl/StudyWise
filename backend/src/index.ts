@@ -23,21 +23,20 @@ import mongoose from "mongoose";
 import { swaggerSpec } from "./swagger.js";
 import { connectToDatabase } from "./database/database.js";
 import { logger } from "./utils/logger.js";
-import redisClient, { isRedisReady } from "./cache/redis.js";
+import redisClient from "./cache/redis.js";
 import canvasRuter from "./rutere/canvas/canvas.js";
 import kiRuter from "./rutere/ki/ki.js";
 import brukerAuthRuter from "./rutere/auth/brukerAuth.js";
 import taskBreakdownRouter from "./rutere/ki/taskBreakdown.js";
 import { kiOppsummeringRouter } from "./rutere/ki/kiOppsummering.js";
 import { autentiserJwt, knyttCanvasToken } from "./middleware/auth.js";
+import { beskytteMotCsrf } from "./middleware/csrf.js";
 import { noCache } from "./middleware/no-cache.js";
 import { apiError, sendError } from "./utils/apiError.js";
 
 // Initialiserer Express app
 const app = express();
-const startTime = Date.now();
 import { isProd } from "./utils/env.js";
-
 
 // Global error handlers - fanger uventede feil
 process.on("unhandledRejection", (reason, promise) => {
@@ -63,7 +62,10 @@ if (isProd) {
       // Tillat health checks fra Render (ingen host header eller intern IP)
       if (req.path === "/health") return next();
       if (requestHost && requestHost !== tillattHost) {
-        logger.warn({ host, requestHost, path: req.path }, "Blokkert forespørsel fra ugyldig host");
+        logger.warn(
+          { host, requestHost, path: req.path },
+          "Blokkert forespørsel fra ugyldig host",
+        );
         return sendError(res, "auth_error", { feil: "Forbidden", status: 403 });
       }
       next();
@@ -78,9 +80,8 @@ app.use(
   helmet({
     contentSecurityPolicy: isProd ? undefined : false, // Default CSP i prod, deaktivert i dev
     crossOriginEmbedderPolicy: false,
-    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
     crossOriginResourcePolicy: { policy: "cross-origin" },
-  })
+  }),
 );
 
 // Body parsers
@@ -93,18 +94,19 @@ app.disable("x-powered-by");
 app.use(pinoHttp({ logger }));
 
 // Gzip komprimering — skip SSE responses (text/event-stream) to prevent buffering
-app.use(compression({
-  filter: (req, res) => {
-    if (res.getHeader("Content-Type") === "text/event-stream") {
-      return false;
-    }
-    return compression.filter(req, res);
-  },
-})); 
-
+app.use(
+  compression({
+    filter: (req, res) => {
+      if (res.getHeader("Content-Type") === "text/event-stream") {
+        return false;
+      }
+      return compression.filter(req, res);
+    },
+  }),
+);
 
 // JSON body parser med økt størrelse på 10mb
-app.use(express.json({ limit: "10mb" })); 
+app.use(express.json({ limit: "10mb" }));
 
 // Rate Limiting med 100 requests per minutt per IP
 const rateLimiter = new RateLimiterMemory({
@@ -112,8 +114,13 @@ const rateLimiter = new RateLimiterMemory({
   duration: 60, // per 60 sekunder
 });
 // Middleware for rate limiting
-const rateLimiterMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  rateLimiter.consume(req.ip as string)
+const rateLimiterMiddleware = (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+) => {
+  rateLimiter
+    .consume(req.ip as string)
     .then(() => {
       next();
     })
@@ -129,16 +136,18 @@ app.use(rateLimiterMiddleware);
 const allowedOrigins = new Set(
   (process.env.WEB_ORIGINS ?? process.env.WEB_ORIGIN ?? "")
     .split(",")
-    .map(s => s.trim())
-    .filter(Boolean)
+    .map((s) => s.trim())
+    .filter(Boolean),
 );
 
 // I produksjon: advar hvis noen origins ikke bruker HTTPS
 if (isProd) {
   for (const o of allowedOrigins) {
     if (!o.startsWith("https://")) {
-      logger.warn(`ADVARSEL: Origin uten HTTPS i produksjon: ${o}. ` +
-        "Dette er usikkert for credentials/cookies.");
+      logger.warn(
+        `ADVARSEL: Origin uten HTTPS i produksjon: ${o}. ` +
+          "Dette er usikkert for credentials/cookies.",
+      );
     }
   }
 }
@@ -152,14 +161,22 @@ app.use(
       return cb(new Error(`CORS blokkert for origin: ${origin}`));
     },
     credentials: true,
-  })
+  }),
 );
+
+// CSRF: krev x-studywise-csrf + gyldig origin/referer for POST/PUT/PATCH/DELETE (se middleware/csrf.ts).
+app.use(beskytteMotCsrf);
 
 // Krev JWT for alle endepunkter, bortsett fra innlogging/registrering/health/swagger
 // VIKTIG: Dette dekker ALLE ruter montert nedenfor — inkludert /api/ki, /api/canvas og /api/ki/task-breakdown.
 // req.user-sjekker inne i rute-filer (f.eks. kiHistory.ts, taskBreakdown.ts) er defensive
 // fallbacks, ikke sikkerhetshull. Globalt middleware her er den faktiske porten.
-const offentligSti = new Set(["/api/user/login", "/api/user/register", "/api/user/refresh", "/health"]);
+const offentligSti = new Set([
+  "/api/user/login",
+  "/api/user/register",
+  "/api/user/refresh",
+  "/health",
+]);
 app.use((req, res, next) => {
   if (offentligSti.has(req.path)) return next();
   // Tillat Swagger UI (kun i development)
@@ -172,7 +189,7 @@ app.use((req, res, next) => {
  * /health:
  *   get:
  *     summary: Health check endpoint
- *     description: Returnerer server helse-status, uptime, avhengigheter og timestamp
+ *     description: Returnerer minimal server helse-status og timestamp
  *     tags:
  *       - Health
  *     responses:
@@ -185,26 +202,17 @@ app.use((req, res, next) => {
  *       503:
  *         description: Server er oppe, men kritiske avhengigheter er nede
  */
+// Minimal health-respons (kun ok + timestamp) for Render/Cloudflare; unngår informasjonslekkasje.
 app.get("/health", (_req, res) => {
-  // Sjekk MongoDB-tilkobling
   // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
   const mongoStatus = mongoose.connection.readyState;
   const mongoOk = mongoStatus === 1;
 
-  // Sjekk Redis-tilkobling
-  const redisOk = isRedisReady();
-
-  // Alle kritiske tjenester må være oppe
-  const allOk = mongoOk; // Redis er valgfritt, men MongoDB er påkrevd
+  const allOk = mongoOk; // Redis valgfritt; MongoDB påkrevd
 
   const healthResponse = {
     ok: allOk,
     timestamp: new Date().toISOString(),
-    uptime: Math.floor((Date.now() - startTime) / 1000),
-    dependencies: {
-      mongodb: mongoOk ? "connected" : "disconnected",
-      redis: redisOk ? "connected" : "disconnected",
-    },
   };
 
   // Returner 503 hvis kritiske avhengigheter er nede
@@ -230,10 +238,17 @@ app.use("/api/ki/task-breakdown", noCache, taskBreakdownRouter);
 app.use("/api/user", brukerAuthRuter);
 
 // Feil håndtering globalt
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  logger.error({ err }, "Internal Server Error");
-  apiError.serverError(res);
-});
+app.use(
+  (
+    err: Error,
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction,
+  ) => {
+    logger.error({ err }, "Internal Server Error");
+    apiError.serverError(res);
+  },
+);
 
 // Start server og kobler til database med Mongoose
 const port = process.env.PORT!; // Allerede validert i validateEnv
@@ -243,38 +258,42 @@ connectToDatabase()
     const server = app.listen(Number(port), () => {
       logger.info(`Express API kjører på http://localhost:${port}`);
     });
-  // Graceful shutdown - håndterer SIGTERM/SIGINT for ryddig avslutning
-  const gracefulShutdown = async (signal: string) => {
-    logger.info({ signal }, "Mottok shutdown-signal, avslutter gracefully...");
-    // Stopp å ta imot nye requests
-    server.close(async () => {
-      logger.info("HTTP-server lukket");
-      try {
-        // Lukk database-tilkobling
-        await mongoose.connection.close();
-        logger.info("MongoDB-tilkobling lukket");
-        // Lukk Redis-tilkobling
-        if (redisClient.isOpen) {
-          await redisClient.quit();
-          logger.info("Redis-tilkobling lukket");
+    // Graceful shutdown - håndterer SIGTERM/SIGINT for ryddig avslutning
+    const gracefulShutdown = async (signal: string) => {
+      logger.info(
+        { signal },
+        "Mottok shutdown-signal, avslutter gracefully...",
+      );
+      // Stopp å ta imot nye requests
+      server.close(async () => {
+        logger.info("HTTP-server lukket");
+        try {
+          // Lukk database-tilkobling
+          await mongoose.connection.close();
+          logger.info("MongoDB-tilkobling lukket");
+          // Lukk Redis-tilkobling
+          if (redisClient.isOpen) {
+            await redisClient.quit();
+            logger.info("Redis-tilkobling lukket");
+          }
+          logger.info("Graceful shutdown fullført");
+          process.exit(0);
+        } catch (error) {
+          logger.error({ err: error }, "Feil under shutdown");
+          process.exit(1);
         }
-        logger.info("Graceful shutdown fullført");
-        process.exit(0);
-      } catch (error) {
-        logger.error({ err: error }, "Feil under shutdown");
+      });
+      // Force exit etter 10 sekunder hvis graceful shutdown tar for lang tid
+      setTimeout(() => {
+        logger.warn("Graceful shutdown tok for lang tid, tvinger avslutning");
         process.exit(1);
-      }
-    });
-    // Force exit etter 10 sekunder hvis graceful shutdown tar for lang tid
-    setTimeout(() => {
-      logger.warn("Graceful shutdown tok for lang tid, tvinger avslutning");
-      process.exit(1);
-    }, 10000);
-  };
-
-  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
-}).catch((err) => {
-  logger.fatal({ err }, "Database connection failed");
-  process.exit(1);
-});
+      }, 10000);
+    };
+    // Håndterer SIGTERM og SIGINT for graceful shutdown
+    process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+    process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  })
+  .catch((err) => {
+    logger.fatal({ err }, "Database connection failed");
+    process.exit(1);
+  });

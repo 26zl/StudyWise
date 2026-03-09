@@ -5,8 +5,8 @@ import { createClient } from "redis";
 import { logger } from "../utils/logger.js";
 
 import { isProd } from "../utils/env.js";
-// Hent Redis URL fra miljøvariabler
-const redisUrl = process.env.REDIS_URL;
+// Påkrevd av validateEnv ved serverstart; ingen fallback (én sannhetskilde).
+const redisUrl = process.env.REDIS_URL!;
 
 const client = createClient({
     url: redisUrl,

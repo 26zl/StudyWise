@@ -25,13 +25,13 @@ interface UIState {
     // Håndter valgt chat-id for å laste fra sidebar
     selectedChatId: string | null;
     setSelectedChatId: (id: string | null) => void;
+    currentChatId: string | null;
+    setCurrentChatId: (id: string | null) => void;
+    runningChatId: string | null;
+    setRunningChatId: (id: string | null) => void;
     // Signal for å starte ny chat
     newChatToken: number;
     requestNewChat: () => void;
-    // Canvas-kontekst for KI-chat (settes fra SettingsSection)
-    canvasContext: string;
-    hasCanvasContext: boolean;
-    setCanvasContext: (context: string, hasContext: boolean) => void;
     // Canvas-kontekst valg (hvilke datatyper som er valgt)
     canvasContextSelection: CanvasContextPreferences;
     setCanvasContextSelection: (selection: CanvasContextPreferences) => void;
@@ -65,11 +65,17 @@ export const useUIStore = create<UIState>()((set) => ({
     settVenstreMenyOpen: (isOpen) => set({ isVenstreMenyOpen: isOpen }),
     selectedChatId: null,
     setSelectedChatId: (id) => set({ selectedChatId: id }),
+    currentChatId: null,
+    setCurrentChatId: (id) => set({ currentChatId: id }),
+    runningChatId: null,
+    setRunningChatId: (id) => set({ runningChatId: id }),
     newChatToken: 0,
-    requestNewChat: () => set((state) => ({ newChatToken: state.newChatToken + 1 })),
-    canvasContext: "",
-    hasCanvasContext: false,
-    setCanvasContext: (context, hasContext) => set({ canvasContext: context, hasCanvasContext: hasContext }),
+    requestNewChat: () => set((state) => ({
+        newChatToken: state.newChatToken + 1,
+        selectedChatId: null,
+        currentChatId: null,
+        runningChatId: null,
+    })),
     canvasContextSelection: defaultSelection,
     setCanvasContextSelection: (selection) => set({ canvasContextSelection: selection }),
     canvasTokenInvalid: false,
@@ -100,9 +106,9 @@ export const useUIStore = create<UIState>()((set) => ({
         set({
             isVenstreMenyOpen: false,
             selectedChatId: null,
+            currentChatId: null,
+            runningChatId: null,
             newChatToken: 0,
-            canvasContext: "",
-            hasCanvasContext: false,
             canvasContextSelection: defaultSelection,
             canvasTokenInvalid: false,
             varslerLestIds: new Set(),

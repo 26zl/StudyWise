@@ -1,7 +1,8 @@
 /*
- * ChatSection - KI chat grensesnitt
- * Hovedområdet for samtaler med AI-assistenten
- */ 
+ * ChatSection – KI-chatgrensesnitt (meldinger, input, vedlegg, dokumentanalyse).
+ * Håndterer: vanlig chat, dokumentanalyse med vedlegg, lagring ved første melding,
+ * pending state ved navigering, gjenåpning av siste chat (sessionStorage), og eksport til MD.
+ */
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
@@ -19,7 +20,7 @@ import { FeilMelding } from "./FeilMelding";
 import { useUIStore } from "../store/uiStore";
 import { exportToMarkdown } from "../utils/exportChat";
 
-// Meldings-typer
+/** Én melding i chatten (bruker eller assistent), med id og evt. vedleggsnavn. */
 interface Melding {
     id: string;
     rolle: "user" | "assistant";
@@ -28,13 +29,85 @@ interface Melding {
     vedleggNavn?: string[];
 }
 
-// Forslag til spørsmål
+/** Forslag som vises når chatten er tom. */
 const forslag = [
     "Hva er de viktigste fristene mine denne uken?",
     "Forklar konseptet fra siste forelesning",
     "Hjelp meg planlegge studieøkten min",
     "Vis meg kunngjøringer fra mine emner",
 ];
+
+/** Serialisert melding (tidsstempel som ISO-streng) for lagring i modulstate. */
+type PendingMeldingSnapshot = {
+    id: string;
+    rolle: "user" | "assistant";
+    innhold: string;
+    tidsstempel: string;
+    vedleggNavn?: string[];
+};
+
+/** Pågående forespørsel som kan gjenopptas etter refresh/navigering (chat eller dokumentanalyse). */
+type PendingConversationState = {
+    requestId: string;
+    chatId: string | null;
+    title: string;
+    messagesBefore: PendingMeldingSnapshot[];
+    userMessage: PendingMeldingSnapshot;
+    assistantMessage?: PendingMeldingSnapshot;
+    mode: "chat" | "document";
+    status: "pending" | "failed";
+    isResponsePending: boolean;
+};
+
+/** Modul-nivå state for å overleve unmount (f.eks. ved refresh under pågående svar). */
+let pendingConversationState: PendingConversationState | null = null;
+
+function serializeMelding(melding: Melding): PendingMeldingSnapshot {
+    return {
+        id: melding.id,
+        rolle: melding.rolle,
+        innhold: melding.innhold,
+        tidsstempel: melding.tidsstempel.toISOString(),
+        vedleggNavn: melding.vedleggNavn,
+    };
+}
+
+function hydrateMelding(snapshot: PendingMeldingSnapshot): Melding {
+    return {
+        id: snapshot.id,
+        rolle: snapshot.rolle,
+        innhold: snapshot.innhold,
+        tidsstempel: new Date(snapshot.tidsstempel),
+        vedleggNavn: snapshot.vedleggNavn,
+    };
+}
+
+function createPendingRequestId() {
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/** Bygger payload (rolle + innhold) for saveChat fra pending state. */
+function buildPendingPayload(pending: PendingConversationState) {
+    return [
+        ...pending.messagesBefore,
+        pending.userMessage,
+        ...(pending.assistantMessage ? [pending.assistantMessage] : []),
+    ].map((melding) => ({
+        rolle: melding.rolle,
+        innhold: melding.innhold,
+    }));
+}
+
+/** Avleder skriver/analyserarDokument fra pending (brukes ved gjenopptak). */
+function getPendingUiState(pending?: PendingConversationState | null) {
+    if (!pending || pending.status !== "pending" || !pending.isResponsePending) {
+        return { skriver: false, analysererDokument: false };
+    }
+    return {
+        skriver: pending.mode === "chat",
+        analysererDokument: pending.mode === "document",
+    };
+}
 
 /** Parse vedlegg-info fra meldingsinnhold og returner ren tekst + filnavn */
 function parseVedlegg(innhold: string): { tekst: string; filer: string[] } {
@@ -75,7 +148,7 @@ function lagFeilTekst(error: Error, kontekst: "chat" | "dokument"): string {
     }
     // Generelle HTTP-feil
     if (msg.includes("for stor") || msg.includes("413")) {
-        return "Filen er for stor. Maksimal filstørrelse er 15MB.";
+        return "Filen er for stor. Maksimal filstørrelse er 15 MB.";
     }
     if (msg.includes("filtype") || msg.includes("støttes ikke")) {
         return "Filtypen støttes ikke. Prøv PDF, Word, eller tekstfiler.";
@@ -86,7 +159,6 @@ function lagFeilTekst(error: Error, kontekst: "chat" | "dokument"): string {
     return msg || (kontekst === "dokument" ? "Kunne ikke analysere dokumentet. Prøv igjen." : "Noe gikk galt. Prøv igjen.");
 }
 
-// Hovedkomponent
 export function ChatSection() {
     const [mounted, setMounted] = useState(false);
     const [meldinger, settMeldinger] = useState<Melding[]>([]);
@@ -95,27 +167,46 @@ export function ChatSection() {
     const [vedlegg, settVedlegg] = useState<File[]>([]);
     const [analyserarDokument, settAnalysererDokument] = useState(false);
     const [aktivChatId, setAktivChatId] = useState<string | null>(null);
+
     const meldingerSluttRef = useRef<HTMLDivElement>(null);
     const tekstInputRef = useRef<HTMLTextAreaElement>(null);
     const filInputRef = useRef<HTMLInputElement>(null);
     const meldingerRef = useRef<Melding[]>([]);
     const oppretterChatRef = useRef(false);
     const isMountedRef = useRef(true);
-    /** Kontekst for pågående KI-forespørsel – brukes i onSuccess/onError så vi kan lagre riktig chat selv om brukeren har forlatt */
+    const retriedPendingSaveRef = useRef<string | null>(null);
+
+    /** Pågående chat-forespørsel: brukes i onSuccess/onError for å lagre riktig chat (inkl. chatId fra promise) etter svar. */
     const pendingChatRef = useRef<{
+        requestId: string;
         chatId: string | null;
+        chatIdPromise: Promise<string | undefined>;
+        title: string;
         messagesBefore: Melding[];
         userMessage: Melding;
-        visibleMessageIds: string[];
     } | null>(null);
-    const { selectedChatId, setSelectedChatId, newChatToken, canvasContext, canvasContextSelection } = useUIStore();
+    /** Chat-id for pågående dokumentanalyse; brukes i onSuccess/onError for bakgrunnslagring uavhengig av mount. */
+    const docAnalysisChatIdRef = useRef<string | null>(null);
+    const {
+        selectedChatId,
+        setSelectedChatId,
+        setCurrentChatId,
+        setRunningChatId,
+        newChatToken,
+        canvasContextSelection,
+    } = useUIStore();
 
-    // Sjekk om brukeren har valgt minst ett Canvas-datasett (uavhengig av om data er lastet)
+    /** Brukes for å vurdere om bruker spør om Canvas uten å ha valgt noe i innstillinger. */
     const harValgtCanvasData = canvasContextSelection.announcements ||
         canvasContextSelection.courses ||
         canvasContextSelection.assignments ||
         canvasContextSelection.events;
     const sisteNySamtaleToken = useRef(newChatToken);
+
+    const settAktivSamtale = useCallback((chatId: string | null) => {
+        setAktivChatId(chatId);
+        setCurrentChatId(chatId);
+    }, [setCurrentChatId]);
 
     // Sett mounted etter første render for å unngå hydration mismatch
     useEffect(() => {
@@ -140,7 +231,7 @@ export function ChatSection() {
     const { analyserDokument } = useKIDocumentAnalyse();
 
     // Chat history hook (lagret i DB, kryptert i backend)
-    const { saveChat, loadChat: loadChatById, loading } = useChatHistory();
+    const { saveChat, loadChat: loadChatById, loading, chats } = useChatHistory();
 
     // Auto-scroll 
     const scrollTilBunn = () => {
@@ -164,8 +255,8 @@ export function ChatSection() {
         }
     }, [tekstInput]);
 
-    // Lagre samtale (ny eller eksisterende)
-    const lagreSamtale = async (oppdatert: Melding[]) => {
+    /** Lagrer nåværende meldingsliste til backend (PUT ved aktivChatId, ellers POST med valgfri title). */
+    const lagreSamtale = async (oppdatert: Melding[], title?: string) => {
         const payload = oppdatert.map((m) => ({
             rolle: m.rolle,
             innhold: m.innhold,
@@ -177,58 +268,174 @@ export function ChatSection() {
         if (oppretterChatRef.current) return;
         oppretterChatRef.current = true;
         try {
-            const nyId = await saveChat(payload);
-            if (nyId) setAktivChatId(nyId);
+            const titleFromFirst = title ?? oppdatert.find((m) => m.rolle === "user")?.innhold?.trim().slice(0, 50) ?? "Ny samtale";
+            const nyId = await saveChat(payload, undefined, titleFromFirst);
+            if (nyId) settAktivSamtale(nyId);
         } finally {
             oppretterChatRef.current = false;
         }
     };
 
+    const harSammeMeldinger = (
+        current: Array<{ rolle: "user" | "assistant"; innhold: string }>,
+        expected: Array<{ rolle: "user" | "assistant"; innhold: string }>,
+    ) => (
+        current.length === expected.length &&
+        current.every((melding, index) => (
+            melding.rolle === expected[index]?.rolle &&
+            melding.innhold === expected[index]?.innhold
+        ))
+    );
+
+    /** Oppdaterer pending state og sessionStorage med ny chat-id. Setter alltid runningChatId og currentChatId i store (så Sidebar viser pågående-markering også ved unmount); setter aktivChatId kun hvis komponenten er mountet. */
+    const oppdaterPendingChatId = useCallback((requestId: string, chatId: string | undefined) => {
+        if (!chatId) return;
+        if (pendingConversationState?.requestId === requestId) {
+            pendingConversationState = {
+                ...pendingConversationState,
+                chatId,
+            };
+            if (pendingConversationState.isResponsePending) {
+                setRunningChatId(chatId);
+                setCurrentChatId(chatId);
+            }
+        }
+        try {
+            sessionStorage?.setItem("studywise_last_chat_id", chatId);
+        } catch {
+            /* ignore */
+        }
+        if (isMountedRef.current) {
+            settAktivSamtale(chatId);
+        }
+    }, [setRunningChatId, setCurrentChatId, settAktivSamtale]);
+
+    /** Gjenoppretter meldinger og UI-state fra pending (brukes ved gjenopptak etter refresh). Bruker isResponsePending så vi ikke viser skriver/analyse-indikator når bare lagring gjenstår. */
+    const hydratePendingConversation = useCallback((pending: PendingConversationState) => {
+        const restoredMessages = [
+            ...pending.messagesBefore.map(hydrateMelding),
+            hydrateMelding(pending.userMessage),
+            ...(pending.assistantMessage ? [hydrateMelding(pending.assistantMessage)] : []),
+        ];
+        settMeldinger(restoredMessages);
+        meldingerRef.current = restoredMessages;
+        settAktivSamtale(pending.chatId);
+        const ui = getPendingUiState(pending);
+        settSkriver(ui.skriver);
+        settAnalysererDokument(ui.analysererDokument);
+    }, [settAktivSamtale]);
+
+    /** Sjekker om synlig samtale fortsatt tilsvarer denne forespørselen (samme chat + samme meldinger). */
     const kanOppdatereSynligSamtale = (pending: NonNullable<typeof pendingChatRef.current>) => {
-        const currentIds = meldingerRef.current.map((m) => m.id);
-        return (
-            currentIds.length === pending.visibleMessageIds.length &&
-            currentIds.every((id, index) => id === pending.visibleMessageIds[index])
-        );
+        const expectedMessages = [...pending.messagesBefore, pending.userMessage].map((m) => ({
+            rolle: m.rolle,
+            innhold: m.innhold,
+        }));
+        const sameChat = pending.chatId ? aktivChatId === pending.chatId : true;
+        const currentMessages = meldingerRef.current.map((m) => ({
+            rolle: m.rolle,
+            innhold: m.innhold,
+        }));
+        return sameChat && harSammeMeldinger(currentMessages, expectedMessages);
     };
 
+    /** Lagrer full samtale (bruker + assistent-svar) i backend; oppdaterer pending state og evt. aktivChatId. */
     const persistPendingConversation = async (
         pending: NonNullable<typeof pendingChatRef.current>,
         sisteMelding: Melding,
     ) => {
+        const resolvedChatId = pending.chatId ?? await pending.chatIdPromise;
+        if (resolvedChatId) {
+            oppdaterPendingChatId(pending.requestId, resolvedChatId);
+        }
+        if (pendingConversationState?.requestId === pending.requestId) {
+            pendingConversationState = {
+                ...pendingConversationState,
+                chatId: resolvedChatId ?? pendingConversationState.chatId,
+                assistantMessage: serializeMelding(sisteMelding),
+            };
+        }
         const payload = [...pending.messagesBefore, pending.userMessage, sisteMelding].map((m) => ({
             rolle: m.rolle,
             innhold: m.innhold,
         }));
-        const savedChatId = await saveChat(payload, pending.chatId ?? undefined);
+        const savedChatId = await saveChat(
+            payload,
+            resolvedChatId ?? undefined,
+            resolvedChatId ? undefined : pending.title,
+            { silent: true, retryCount: 1 },
+        );
+        if (savedChatId && pendingConversationState?.requestId === pending.requestId) {
+            pendingConversationState = null;
+        } else if (!savedChatId && pendingConversationState?.requestId === pending.requestId) {
+            pendingConversationState = {
+                ...pendingConversationState,
+                status: "failed",
+                chatId: resolvedChatId ?? pendingConversationState.chatId,
+            };
+        }
         if (
             savedChatId &&
             !pending.chatId &&
             isMountedRef.current &&
             kanOppdatereSynligSamtale(pending)
         ) {
-            setAktivChatId(savedChatId);
+            settAktivSamtale(savedChatId);
         }
     };
 
-    // Ny samtale
+    /** Prøver å lagre en tidligere feilet pending samtale på nytt (med høyere retryCount). */
+    const retryFailedPendingConversation = useCallback(async (pending: PendingConversationState) => {
+        if (pending.status !== "failed" || !pending.assistantMessage) return;
+
+        const savedChatId = await saveChat(
+            buildPendingPayload(pending),
+            pending.chatId ?? undefined,
+            pending.chatId ? undefined : pending.title,
+            { silent: true, retryCount: 2 },
+        );
+
+        if (!savedChatId || pendingConversationState?.requestId !== pending.requestId) {
+            return;
+        }
+
+        oppdaterPendingChatId(pending.requestId, savedChatId);
+        pendingConversationState = null;
+
+        if (isMountedRef.current && (!aktivChatId || aktivChatId === pending.chatId)) {
+            settAktivSamtale(savedChatId);
+        }
+    }, [aktivChatId, oppdaterPendingChatId, saveChat, settAktivSamtale]);
+
+    /** Nullstiller state for ny samtale; lagrer gjeldende meldinger først og tømmer sessionStorage. */
     const nySamtale = async () => {
         if (meldinger.length > 0) {
             void lagreSamtale(meldinger);
         }
+        pendingChatRef.current = null;
+        pendingConversationState = null;
+        docAnalysisChatIdRef.current = null;
+        setRunningChatId(null);
         settMeldinger([]);
-        setAktivChatId(null);
+        settAktivSamtale(null);
         settVedlegg([]);
+        settSkriver(false);
+        settAnalysererDokument(false);
+        try {
+            sessionStorage?.removeItem("studywise_last_chat_id");
+        } catch {
+            /* ignore */
+        }
     };
 
-    // Start ny samtale fra globale triggers (f.eks. sidebar)
+    /** Reagerer på "Ny samtale"-knapp i sidebar: nullstiller og starter ny samtale. */
     useEffect(() => {
         if (sisteNySamtaleToken.current === newChatToken) return;
         sisteNySamtaleToken.current = newChatToken;
         void nySamtale();
     }, [newChatToken]);
 
-    // Håndter filer (gjenbrukbar for filvalg, innliming og dra-og-slipp)
+    /** Validerer filstørrelse (max 15 MB), viser toast ved for mange, setter ett vedlegg. */
     const håndterFiler = useCallback((filer: File[]) => {
         if (filer.length === 0) return;
 
@@ -323,7 +530,7 @@ export function ChatSection() {
         settVedlegg((prev) => prev.filter((_, i) => i !== index));
     }, []);
 
-    // Send melding
+    /** Hovedfunksjon: validerer input, legger til brukermelding, og enten kjører dokumentanalyse eller sender til KI-chat. Oppretter chat ved behov og setter pending state. */
     const sendMelding = async () => {
         const harVedlegg = vedlegg.length > 0;
         if ((!tekstInput.trim() && !harVedlegg) || skriver || analyserarDokument) return;
@@ -349,31 +556,96 @@ export function ChatSection() {
         settMeldinger((tidligere) => [...tidligere, brukerMelding]);
         meldingerRef.current = [...meldinger, brukerMelding];
 
-        // Hvis det er vedlegg, bruk dokumentanalyse.
-        // UI-en tillater kun én fil om gangen for å matche backend-endepunktet.
+        /* Vedlegg: opprett chat om nødvendig, sett pending (document), kjør dokumentanalyse og lagre i onSuccess/onError. */
         if (harVedlegg) {
             settAnalysererDokument(true);
             const filTilAnalyse = vedlegg[0];
             settVedlegg([]);
+            const titleFromFirst = brukerMeldingInnhold.trim().slice(0, 50) || "Ny samtale";
+            const requestId = createPendingRequestId();
+            docAnalysisChatIdRef.current = aktivChatId;
+            const messagesBeforeForSave = [...meldinger, brukerMelding].map((m) => ({
+                rolle: m.rolle as "user" | "assistant",
+                innhold: m.innhold,
+            }));
+            pendingConversationState = {
+                requestId,
+                chatId: aktivChatId,
+                title: titleFromFirst,
+                messagesBefore: meldinger.map(serializeMelding),
+                userMessage: serializeMelding(brukerMelding),
+                mode: "document",
+                status: "pending",
+                isResponsePending: true,
+            };
+            setRunningChatId(aktivChatId);
+            const docChatIdPromise = aktivChatId
+                ? Promise.resolve(aktivChatId)
+                : saveChat(
+                    [{ rolle: "user" as const, innhold: brukerMeldingInnhold }],
+                    undefined,
+                    titleFromFirst,
+                    { silent: true, retryCount: 1 },
+                ).then((nyId) => {
+                    if (nyId) {
+                        docAnalysisChatIdRef.current = nyId;
+                    }
+                    oppdaterPendingChatId(requestId, nyId);
+                    return nyId;
+                });
+
+            const persistDocumentResult = async (
+                payload: Array<{ rolle: "user" | "assistant"; innhold: string }>,
+                assistantSnapshot: PendingMeldingSnapshot,
+            ) => {
+                const resolvedChatId = docAnalysisChatIdRef.current ?? await docChatIdPromise;
+                if (resolvedChatId) oppdaterPendingChatId(requestId, resolvedChatId);
+                if (pendingConversationState?.requestId === requestId) {
+                    pendingConversationState = {
+                        ...pendingConversationState,
+                        chatId: resolvedChatId ?? pendingConversationState.chatId,
+                        isResponsePending: false,
+                        assistantMessage: assistantSnapshot,
+                    };
+                }
+                setRunningChatId(null);
+                const savedChatId = await saveChat(
+                    payload,
+                    resolvedChatId ?? undefined,
+                    resolvedChatId ? undefined : titleFromFirst,
+                    { silent: true, retryCount: 1 },
+                );
+                if (savedChatId && pendingConversationState?.requestId === requestId) {
+                    pendingConversationState = null;
+                } else if (!savedChatId && pendingConversationState?.requestId === requestId) {
+                    pendingConversationState = {
+                        ...pendingConversationState,
+                        status: "failed",
+                        chatId: resolvedChatId ?? pendingConversationState.chatId,
+                    };
+                }
+            };
 
             analyserDokument(filTilAnalyse, brukerMeldingInnhold || "Gi meg en oppsummering av dette dokumentet.", {
                 onSuccess: (data) => {
+                    const aiInnhold = data.dokumentInfo
+                        ? `${data.response}\n\n---\n_Dokument: ${data.dokumentInfo.sider} sider, ${data.dokumentInfo.tegn.toLocaleString("nb-NO")} tegn${data.dokumentInfo.truncated ? " (forkortet)" : ""}_`
+                        : data.response;
                     const aiMelding: Melding = {
                         id: (Date.now() + 1).toString(),
                         rolle: "assistant",
-                        innhold: data.dokumentInfo 
-                            ? `${data.response}\n\n---\n_Dokument: ${data.dokumentInfo.sider} sider, ${data.dokumentInfo.tegn.toLocaleString("nb-NO")} tegn${data.dokumentInfo.truncated ? " (forkortet)" : ""}_`
-                            : data.response,
+                        innhold: aiInnhold,
                         tidsstempel: new Date(),
                     };
-                    settMeldinger((tidligere) => {
-                        const oppdatert = [...tidligere, aiMelding];
-                        lagreSamtale(oppdatert).catch(() => {
-                            toast.error("Kunne ikke lagre samtalen", { description: "Prøv igjen senere." });
-                        });
-                        return oppdatert;
-                    });
-                    settAnalysererDokument(false);
+                    const payload = [
+                        ...messagesBeforeForSave,
+                        { rolle: "assistant" as const, innhold: aiInnhold },
+                    ];
+                    void persistDocumentResult(payload, serializeMelding(aiMelding));
+                    if (isMountedRef.current) {
+                        settMeldinger((tidligere) => [...tidligere, aiMelding]);
+                        settAnalysererDokument(false);
+                    }
                 },
                 onError: (error) => {
                     const feilTekst = lagFeilTekst(error, "dokument");
@@ -384,43 +656,65 @@ export function ChatSection() {
                         innhold: feilTekst,
                         tidsstempel: new Date(),
                     };
-                    settMeldinger((tidligere) => {
-                        const oppdatert = [...tidligere, feilMelding];
-                        // Lagre samtale selv ved feil
-                        lagreSamtale(oppdatert).catch(() => {
-                            toast.error("Kunne ikke lagre samtalen", { description: "Prøv igjen senere." });
-                        });
-                        return oppdatert;
-                    });
-                    settAnalysererDokument(false);
+                    const payload = [
+                        ...messagesBeforeForSave,
+                        { rolle: "assistant" as const, innhold: feilTekst },
+                    ];
+                    void persistDocumentResult(payload, serializeMelding(feilMelding));
+                    if (isMountedRef.current) {
+                        settMeldinger((tidligere) => [...tidligere, feilMelding]);
+                        settAnalysererDokument(false);
+                    }
                 },
             });
             return;
         }
 
-        // Vanlig chat uten fil
+        /* Vanlig chat: sett pending (chat), opprett chat ved ny samtale, send til API og lagre ved svar i persistPendingConversation. */
         settSkriver(true);
 
-        // Lagre kontekst for denne forespørselen så vi kan lagre riktig chat selv om brukeren forlater siden
-        pendingChatRef.current = {
+        const titleFromFirst = brukerMeldingInnhold.trim().slice(0, 50) || "Ny samtale";
+        const requestId = createPendingRequestId();
+        pendingConversationState = {
+            requestId,
             chatId: aktivChatId,
+            title: titleFromFirst,
+            messagesBefore: meldinger.map(serializeMelding),
+            userMessage: serializeMelding(brukerMelding),
+            mode: "chat",
+            status: "pending",
+            isResponsePending: true,
+        };
+        setRunningChatId(aktivChatId);
+
+        const chatIdPromise = aktivChatId
+            ? Promise.resolve(aktivChatId)
+            : saveChat(
+                [{ rolle: "user" as const, innhold: brukerMeldingInnhold }],
+                undefined,
+                titleFromFirst,
+                { silent: true, retryCount: 1 },
+            ).then((nyId) => {
+                oppdaterPendingChatId(requestId, nyId);
+                return nyId;
+            });
+
+        // Sett pending én gang med endelig chatId, så persistPendingConversation alltid oppdaterer riktig chat
+        pendingChatRef.current = {
+            requestId,
+            chatId: aktivChatId,
+            chatIdPromise,
+            title: titleFromFirst,
             messagesBefore: [...meldinger],
             userMessage: brukerMelding,
-            visibleMessageIds: [...meldinger, brukerMelding].map((m) => m.id),
         };
 
-        // Forbered meldingshistorikk for API
+        // Kun user/assistant sendes til API (KIChatClientMessageSchema); system styres av backend (prompt-injection-sikring).
         const apiMeldinger = [
-            // Legg til Canvas context hvis det finnes
-            ...(canvasContext
-                ? [{ role: "system" as const, content: `Canvas data:\n${canvasContext}` }]
-                : []),
-            // Historikk
             ...meldinger.map((m) => ({
                 role: m.rolle === "user" ? ("user" as const) : ("assistant" as const),
                 content: m.innhold,
             })),
-            // Ny brukermelding
             { role: "user" as const, content: brukerMeldingInnhold },
         ];
 
@@ -460,9 +754,12 @@ export function ChatSection() {
                 };
                 settMeldinger((tidligere) => [...tidligere, systemMelding]);
                 settSkriver(false);
+                pendingChatRef.current = null;
+                pendingConversationState = null;
+                setRunningChatId(null);
                 return;
             }
-            
+
             // Hvis brukeren spør om noe spesifikt som ikke er valgt - STOPP
             if (manglerData.length > 0) {
                 const systemMelding: Melding = {
@@ -473,58 +770,54 @@ export function ChatSection() {
                 };
                 settMeldinger((tidligere) => [...tidligere, systemMelding]);
                 settSkriver(false);
+                pendingChatRef.current = null;
+                pendingConversationState = null;
+                setRunningChatId(null);
                 return;
             }
         }
 
-        // Send til ekte API (fullfører i bakgrunnen selv om brukeren forlater chatten)
+        const handleChatResponse = (sisteMelding: Melding) => {
+            const pending = pendingChatRef.current;
+            if (pending && pendingConversationState?.requestId === pending.requestId) {
+                pendingConversationState = {
+                    ...pendingConversationState,
+                    isResponsePending: false,
+                };
+            }
+            setRunningChatId(null);
+            pendingChatRef.current = null;
+            const skalOppdatereSynlig = pending ? kanOppdatereSynligSamtale(pending) : false;
+            if (pending) void persistPendingConversation(pending, sisteMelding);
+            if (isMountedRef.current) {
+                if (skalOppdatereSynlig) settMeldinger((t) => [...t, sisteMelding]);
+                settSkriver(false);
+            }
+        };
+
         sendTilAPI(apiMeldinger, {
             onSuccess: (data) => {
-                const aiMelding: Melding = {
+                handleChatResponse({
                     id: (Date.now() + 1).toString(),
                     rolle: "assistant",
                     innhold: data.response,
                     tidsstempel: new Date(),
-                };
-                const pending = pendingChatRef.current;
-                pendingChatRef.current = null;
-                const skalOppdatereSynlig = pending ? kanOppdatereSynligSamtale(pending) : false;
-                if (pending) {
-                    void persistPendingConversation(pending, aiMelding);
-                }
-                if (isMountedRef.current) {
-                    if (skalOppdatereSynlig) {
-                        settMeldinger((tidligere) => [...tidligere, aiMelding]);
-                    }
-                    settSkriver(false);
-                }
+                });
             },
             onError: (error) => {
                 const feilTekst = lagFeilTekst(error, "chat");
                 toast.error("KI-svar feilet", { description: feilTekst });
-                const feilMelding: Melding = {
+                handleChatResponse({
                     id: (Date.now() + 1).toString(),
                     rolle: "assistant",
                     innhold: feilTekst,
                     tidsstempel: new Date(),
-                };
-                const pending = pendingChatRef.current;
-                pendingChatRef.current = null;
-                const skalOppdatereSynlig = pending ? kanOppdatereSynligSamtale(pending) : false;
-                if (pending) {
-                    void persistPendingConversation(pending, feilMelding);
-                }
-                if (isMountedRef.current) {
-                    if (skalOppdatereSynlig) {
-                        settMeldinger((tidligere) => [...tidligere, feilMelding]);
-                    }
-                    settSkriver(false);
-                }
+                });
             },
         });
     };
 
-    // Håndter tastetrykk (Enter for å sende, Shift+Enter for ny linje)
+    /** Enter sender melding; Shift+Enter gir ny linje. */
     const handterTastetrykk = (e: React.KeyboardEvent) => {
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
@@ -532,27 +825,80 @@ export function ChatSection() {
         }
     };
 
-    // Håndter forslag-klikk
     const handterForslag = (forslagTekst: string) => {
         settTekstInput(forslagTekst);
         tekstInputRef.current?.focus();
     };
 
-    // Last chat valgt fra sidebar (sjekk isMountedRef for å unngå setState etter unmount)
-    // Nullstill selectedChatId kun når chat er lastet, slik at valget beholdes hvis chats ennå ikke er hentet
+    /** Gjenopptar pending samtale ved mount, eller åpner sist opprettede chat fra sessionStorage ved tilbakekomst. */
+    useEffect(() => {
+        if (!loading && meldinger.length === 0 && !selectedChatId && pendingConversationState) {
+            hydratePendingConversation(pendingConversationState);
+            return;
+        }
+        if (loading || chats.length === 0 || aktivChatId || selectedChatId || meldinger.length > 0) return;
+        try {
+            const lastId = sessionStorage?.getItem("studywise_last_chat_id");
+            if (lastId && chats.some((c) => c.id === lastId)) setSelectedChatId(lastId);
+            sessionStorage?.removeItem("studywise_last_chat_id");
+        } catch {
+            /* ignore */
+        }
+    }, [loading, chats, aktivChatId, selectedChatId, meldinger.length, setSelectedChatId, hydratePendingConversation]);
+
+    /** Ved mount: prøver én gang å lagre på nytt en pending som feilet (status === "failed"). */
+    useEffect(() => {
+        const pending = pendingConversationState;
+        if (!mounted || !pending || pending.status !== "failed" || !pending.assistantMessage) {
+            return;
+        }
+        if (retriedPendingSaveRef.current === pending.requestId) {
+            return;
+        }
+        retriedPendingSaveRef.current = pending.requestId;
+        void retryFailedPendingConversation(pending);
+    }, [mounted, retryFailedPendingConversation]);
+
+    /** Laster chat valgt fra sidebar inn i meldinger og setter aktivChatId; nullstiller selectedChatId etter lasting. */
     useEffect(() => {
         if (!selectedChatId) return;
         const chat = loadChatById(selectedChatId);
         if (chat && isMountedRef.current) {
-            settMeldinger(
-                chat.messages.map((m, i) => ({
+            const pending = pendingChatRef.current;
+            const globalPending = pendingConversationState;
+            const pendingForChat: PendingConversationState | null = globalPending?.chatId === chat.id
+                ? globalPending
+                : (pending?.chatId === chat.id
+                    ? {
+                        requestId: pending.requestId,
+                        chatId: chat.id,
+                        title: pending.title,
+                        messagesBefore: pending.messagesBefore.map(serializeMelding),
+                        userMessage: serializeMelding(pending.userMessage),
+                        mode: "chat" as const,
+                        status: "pending" as const,
+                        isResponsePending: true,
+                    }
+                    : null);
+            const messagesToShow = pendingForChat
+                ? [
+                    ...pendingForChat.messagesBefore.map(hydrateMelding),
+                    hydrateMelding(pendingForChat.userMessage),
+                    ...(pendingForChat.assistantMessage ? [hydrateMelding(pendingForChat.assistantMessage)] : []),
+                  ]
+                : chat.messages.map((m, i) => ({
                     id: `${Date.now()}-${i}`,
                     rolle: m.rolle,
                     innhold: m.innhold,
                     tidsstempel: new Date(),
-                }))
+                }));
+            settMeldinger(
+                messagesToShow,
             );
-            setAktivChatId(chat.id);
+            settAktivSamtale(chat.id);
+            const pendingUi = getPendingUiState(pendingForChat);
+            settSkriver(pendingUi.skriver);
+            settAnalysererDokument(pendingUi.analysererDokument);
             setSelectedChatId(null);
             return;
         }
@@ -560,7 +906,38 @@ export function ChatSection() {
         if (!loading) {
             setSelectedChatId(null);
         }
-    }, [selectedChatId, loadChatById, setSelectedChatId, loading]);
+    }, [selectedChatId, loadChatById, setSelectedChatId, loading, settAktivSamtale]);
+
+    /** Synkroniserer meldinger med cache når aktivChatId endres og det ikke er pågående forespørsel for den chatten. */
+    useEffect(() => {
+        if (!aktivChatId || loading) return;
+        const chat = loadChatById(aktivChatId);
+        if (!chat) return;
+        const pending = pendingChatRef.current;
+        if ((pending && pending.chatId === aktivChatId) || pendingConversationState?.chatId === aktivChatId) return;
+
+        if (skriver || analyserarDokument) {
+            settSkriver(false);
+            settAnalysererDokument(false);
+        }
+
+        const currentMessages = meldingerRef.current.map((m) => ({
+            rolle: m.rolle,
+            innhold: m.innhold,
+        }));
+        const savedMessages = chat.messages.map((m) => ({
+            rolle: m.rolle,
+            innhold: m.innhold,
+        }));
+        if (harSammeMeldinger(currentMessages, savedMessages)) return;
+
+        settMeldinger(chat.messages.map((m, i) => ({
+            id: `${Date.now()}-${i}`,
+            rolle: m.rolle,
+            innhold: m.innhold,
+            tidsstempel: new Date(),
+        })));
+    }, [aktivChatId, chats, loadChatById, loading, skriver, analyserarDokument]);
 
     return (
         <div className="h-full flex">
@@ -568,7 +945,7 @@ export function ChatSection() {
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Meldinger */}
                 <div className="flex-1 overflow-y-auto p-4 md:p-6">
-                  <div className="max-w-[940px] mx-auto space-y-5">
+                  <div className="max-w-235 mx-auto space-y-5">
                     {/* Tilkoblingsfeil – bruk felles FeilMelding */}
                     {erTilkoblingsFeil && (
                         <FeilMelding melding="Kunne ikke koble til KI-assistenten. Prøv igjen senere." />
@@ -810,7 +1187,7 @@ export function ChatSection() {
 
                 {/* Input */}
                 <div className="shrink-0 px-4 md:px-6 pb-4 pt-3">
-                  <div className="max-w-[940px] mx-auto">
+                  <div className="max-w-235 mx-auto">
                     {/* Vedleggsliste (kompakt stripe) */}
                     <AttachmentStrip vedlegg={vedlegg} onFjern={fjernVedlegg} />
                     
@@ -823,7 +1200,31 @@ export function ChatSection() {
                             onChange={handleFilValg}
                             className="hidden"
                         />
-                        
+
+                        {/* Eksporter samtale som Markdown */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (meldinger.length === 0) return;
+                                exportToMarkdown(
+                                    meldinger.map((m) => ({
+                                        rolle: m.rolle,
+                                        innhold: m.innhold,
+                                        tidsstempel: m.tidsstempel,
+                                    })),
+                                    undefined,
+                                    "studywise-samtale",
+                                );
+                                toast.success("Samtale lastet ned som Markdown");
+                            }}
+                            disabled={meldinger.length === 0 || skriver || analyserarDokument}
+                            className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                            title="Eksporter samtale (MD)"
+                            aria-label="Eksporter samtale som Markdown"
+                        >
+                            <FileText className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+                        </button>
+
                         {/* Filopplasting */}
                         <button
                             onClick={() => filInputRef.current?.click()}

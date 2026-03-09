@@ -1,6 +1,12 @@
-import mongoose from "mongoose";
+/**
+ * TaskBreakdown – lagrer AI-genererte deloppgaver per bruker/oppgave.
+ * Subtasks lagres som plaintext (ikke kryptert).
+ */
+import mongoose, { type HydratedDocument } from "mongoose";
+import type { SubTask } from "common/ki";
 
-const SubTaskSchema = new mongoose.Schema({
+const SubTaskSchema = new mongoose.Schema(
+  {
   id: {
     type: String,
     required: true,
@@ -28,9 +34,22 @@ const SubTaskSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
-});
+  },
+  { _id: false },
+);
 
-const TaskBreakdownSchema = new mongoose.Schema({
+export interface TaskBreakdownDocument {
+  _id: mongoose.Types.ObjectId;
+  userId: mongoose.Types.ObjectId;
+  assignmentId: string;
+  subtasks?: SubTask[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type TaskBreakdownHydratedDocument = HydratedDocument<TaskBreakdownDocument>;
+
+const TaskBreakdownSchema = new mongoose.Schema<TaskBreakdownDocument>({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
@@ -42,7 +61,10 @@ const TaskBreakdownSchema = new mongoose.Schema({
     required: true,
     index: true,
   },
-  subtasks: [SubTaskSchema],
+  subtasks: {
+    type: [SubTaskSchema],
+    required: false,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -55,4 +77,4 @@ const TaskBreakdownSchema = new mongoose.Schema({
 
 TaskBreakdownSchema.index({ userId: 1, assignmentId: 1 }, { unique: true });
 
-export const TaskBreakdown = mongoose.model("TaskBreakdown", TaskBreakdownSchema); 
+export const TaskBreakdown = mongoose.model<TaskBreakdownDocument>("TaskBreakdown", TaskBreakdownSchema);

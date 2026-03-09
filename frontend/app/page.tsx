@@ -2,17 +2,15 @@
  * Hjemmeside - Velkomstside for applikasjonen
  * Modernisert landingsside med features og value proposition.
  */
-import Link from "next/link";
 import { Footer } from "./components/footer";
-import { BookOpen, Bot, ArrowRight, LayoutDashboard } from "lucide-react";
+import { BookOpen, Bot, LayoutDashboard } from "lucide-react";
 import { getUserServer } from "./auth/auth-server";
+import { LandingHeroActions } from "./components/LandingHeroActions";
 
 export default async function Hjem() {
   // Vi må verifisere at brukeren faktisk finnes for å unngå "zombie"-sessions
   // der cookie finnes men brukeren er slettet fra backend.
   const userResponse = await getUserServer();
-  const erInnlogget = !!userResponse?.user;
-  const ctaWidth = "min-w-[200px]";
 
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors">
@@ -21,7 +19,7 @@ export default async function Hjem() {
       <main className="flex-1 flex flex-col">
         <section className="relative px-6 py-24 md:py-32 lg:py-40 overflow-hidden">
           {/* Bakgrunns-effekter */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[62.5rem] h-[31.25rem] bg-blue-400/20 dark:bg-blue-600/10 rounded-full blur-3xl -z-10" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-250 h-125 bg-blue-400/20 dark:bg-blue-600/10 rounded-full blur-3xl -z-10" />
 
           <div className="max-w-4xl mx-auto text-center space-y-8">
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight bg-linear-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent pb-4">
@@ -32,26 +30,7 @@ export default async function Hjem() {
               dine kommende oppgaver, og få hjelp av KI til å studere smartere – ikke hardere.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-              <Link
-                href="/dashboard"
-                className={`group inline-flex items-center justify-center gap-2 px-8 py-4 ${ctaWidth} bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-full font-medium transition-all hover:shadow-lg hover:shadow-blue-500/25`}
-              >
-                {erInnlogget ? "Fortsett til Dashboard" : "Gå til Dashboard"}
-                <ArrowRight
-                  size={18}
-                  className="group-hover:translate-x-1 transition-transform"
-                />
-              </Link>
-              {!erInnlogget && (
-                <Link
-                  href="/auth"
-                  className={`inline-flex items-center justify-center px-8 py-4 ${ctaWidth} bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full font-medium transition-colors`}
-                >
-                  Logg inn / Registrer
-                </Link>
-              )}
-            </div>
+            <LandingHeroActions initialUser={userResponse} />
           </div>
         </section>
 

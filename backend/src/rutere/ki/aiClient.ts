@@ -107,35 +107,20 @@ export async function chatCompletionWithVision(options: {
     images: ImageAttachment[];
     max_tokens: number;
     temperature: number;
-    /** OCR-tekst som fallback hvis Vision ikke er tilgjengelig */
-    fallbackText?: string;
 }): Promise<ChatCompletionResult> {
-    const { model, messages, images, max_tokens, temperature, fallbackText } = options;
+    const { model, messages, images, max_tokens, temperature } = options;
 
-    let result: ChatCompletionResult;
-
-    if (anthropicClient) {
-        result = await callAnthropicWithVision({
-            model,
-            messages,
-            images,
-            max_tokens,
-            temperature,
-        });
-    } else if (fallbackText) {
-        // Klient ikke tilgjengelig men har OCR-tekst
-        logger.info("Vision ikke tilgjengelig — bruker OCR-tekst fallback");
-        const textMessages = messages.map(m => {
-            if (m.role === "user" && m.content.includes("[BILDE_VEDLEGG]")) {
-                return { ...m, content: m.content.replace("[BILDE_VEDLEGG]", fallbackText) };
-            }
-            return m;
-        });
-        result = await callAnthropic({ model, messages: textMessages, max_tokens, temperature });
-    } else {
-        throw new Error("Vision er ikke tilgjengelig og ingen OCR-fallback ble gitt");
+    if (!anthropicClient) {
+        throw new Error("Vision er ikke tilgjengelig. Kall kun chatCompletionWithVision når isVisionAvailable(model) er sann.");
     }
 
+    let result = await callAnthropicWithVision({
+        model,
+        messages,
+        images,
+        max_tokens,
+        temperature,
+    });
     result.text = stripAnalyseTags(result.text);
     return result;
 }

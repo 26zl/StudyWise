@@ -13,7 +13,7 @@ import { Sidebar, type VisningType } from "../components/Sidebar";
 import { useCanvasCourses, useCanvasAllAssignments, useCanvasUser, type AssignmentMedEmne } from "../canvas/canvas-api";
 import { erInnlevert } from "../canvas/canvasUtils";
 import { useMeg } from "../auth/auth-api";
-import { skalRedirecteTilAuth } from "../auth/authUtils";
+import { useAuthRedirect } from "../auth/authUtils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formaterDatoFull, formaterDatoShort, dagerFraIdag, formaterDagerRelativtFrist } from "../lib/dato";
@@ -38,12 +38,7 @@ export default function OversiktPage() {
         [router]
     );
 
-    // Redirect til innlogging hvis ikke autentisert
-    useEffect(() => {
-        if (skalRedirecteTilAuth(megQuery)) {
-            router.replace("/auth");
-        }
-    }, [megQuery.isError, megQuery.isFetched, megQuery.isLoading, megQuery.data?.user, router]);
+    useAuthRedirect();
 
     const coursesQuery = useCanvasCourses(harCanvasToken);
     const assignmentsQuery = useCanvasAllAssignments({ enabled: harCanvasToken });
@@ -84,6 +79,25 @@ export default function OversiktPage() {
                 <Sidebar aktivVisning="chat" byttVisning={byttVisning} brukernavn={brukernavn} />
                 <main className="flex-1 min-h-0 overflow-y-auto flex items-center justify-center p-8">
                     <LoadingSpinner />
+                </main>
+            </div>
+        );
+    }
+
+    // Feil uten brukerdata: vis feilmelding og retry (useAuthRedirect håndterer auth-feil)
+    if (megQuery.isError && !megQuery.data?.user) {
+        return (
+            <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950">
+                <Sidebar aktivVisning="chat" byttVisning={byttVisning} />
+                <main className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center gap-4 p-6">
+                    <FeilMelding melding="Kunne ikke laste brukerdata. Sjekk internettforbindelsen og prøv igjen." />
+                    <button
+                        type="button"
+                        onClick={() => megQuery.refetch()}
+                        className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white text-sm font-medium transition-colors"
+                    >
+                        Prøv igjen
+                    </button>
                 </main>
             </div>
         );

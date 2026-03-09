@@ -3,6 +3,7 @@
  * Inkluderer innlogging, registrering, utlogging, henting av brukerinfo og lagring av Canvas token
  */
 
+import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CanvasTokenResponseSchema,
@@ -24,12 +25,18 @@ import {
   type VarslerState,
   type PreferencesResponse,
 } from "common/auth";
-import { SessionExpiredError } from "../lib/errors";
+import { SessionExpiredError, AppError } from "../lib/errors";
+import { withCsrfProtection } from "../lib/csrf";
+import { broadcastLogout } from "../hooks/use-auth-sync";
+import { useUIStore } from "../store/uiStore";
+import { toast } from "sonner";
 import type { ZodType } from "zod";
 
+// For å unngå flere samtidige refresh-forsøk ved utløpt sesjon, holder vi en global promise for pågående refresh. Alle kall som oppdager utløpt sesjon kan vente på denne promise i stedet for å starte sin egen refresh.
 let refreshPromise: Promise<RefreshResponse> | null = null;
 const AUTH_ME_QUERY_KEY = ["auth", "me"] as const;
 
+// Egendefinert error for Canvas token-konflikt, som backend kan indikere ved lagring av token. Frontend kan fange denne spesifikt for å vise en tilpasset melding.
 export class CanvasTokenConflictError extends Error {
   readonly canvasKonflikt = true;
   readonly name = "CanvasTokenConflictError";
@@ -39,6 +46,7 @@ export class CanvasTokenConflictError extends Error {
   }
 }
 
+// Hjelpefunksjon for å bygge Cookie-header basert på tilgjengelige cookies. Brukes i SSR for å sende cookies videre til backend ved autentiserte kall.
 function mergeCachedUserPreferences(
   current: MeResponse | undefined,
   updated: PreferencesResponse,
@@ -48,7 +56,8 @@ function mergeCachedUserPreferences(
     user: {
       ...current.user,
       canvasContextPreferences:
-        updated.canvasContextPreferences ?? current.user.canvasContextPreferences,
+        updated.canvasContextPreferences ??
+        current.user.canvasContextPreferences,
       varslerState: updated.varslerState ?? current.user.varslerState,
     },
   });
@@ -62,10 +71,13 @@ const hentJson = async (res: Response) => {
     return JSON.parse(text);
   } catch {
     // Ikke-JSON respons (f.eks. HTML feilside) — kast med kontekst
-    throw new Error(`Uventet respons fra server (${res.status}): ${text.slice(0, 100)}`);
+    throw new Error(
+      `Uventet respons fra server (${res.status}): ${text.slice(0, 100)}`,
+    );
   }
 };
 
+// Alle autentiserte kall (inkl. POST/PUT/DELETE) får CSRF-header via withCsrfProtection — påkrevd av backend.
 async function requestAuthedJson<T>(
   url: string,
   schema: ZodType<T>,
@@ -73,22 +85,17 @@ async function requestAuthedJson<T>(
   init: RequestInit = {},
   forsoktRefresh = false,
 ): Promise<T> {
+  const protectedInit = withCsrfProtection(init);
   const res = await fetch(url, {
     credentials: "include",
     cache: "no-store",
-    ...init,
+    ...protectedInit,
   });
   const json = await hentJson(res);
 
   if ((res.status === 401 || res.status === 403) && !forsoktRefresh) {
     await fornySesjon();
-    return requestAuthedJson(
-      url,
-      schema,
-      defaultErrorMessage,
-      init,
-      true,
-    );
+    return requestAuthedJson(url, schema, defaultErrorMessage, init, true);
   }
 
   if (!res.ok) {
@@ -101,10 +108,12 @@ async function requestAuthedJson<T>(
 // Innlogging
 async function loggInn(data: LoginRequest): Promise<LoginResponse> {
   const res = await fetch("/api/user/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify(data),
+    ...withCsrfProtection({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
   });
   const json = await hentJson(res);
   if (!res.ok) {
@@ -115,14 +124,18 @@ async function loggInn(data: LoginRequest): Promise<LoginResponse> {
 // Registrering av ny bruker
 async function registrer(data: RegisterRequest): Promise<RegisterResponse> {
   const res = await fetch("/api/user/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify(data),
+    ...withCsrfProtection({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
   });
   const json = await hentJson(res);
   if (!res.ok) {
-    throw new Error(json.melding || json.feil || "Kunne ikke registrere bruker");
+    throw new Error(
+      json.melding || json.feil || "Kunne ikke registrere bruker",
+    );
   }
   return RegisterResponseSchema.parse(json);
 }
@@ -153,19 +166,21 @@ async function hentMeg(): Promise<MeResponse> {
     });
     const jsonRetry = await hentJson(resRetry);
     if (!resRetry.ok) {
-      throw new Error(jsonRetry.melding || jsonRetry.feil || "Ikke autentisert");
+      throw new Error(
+        jsonRetry.melding || jsonRetry.feil || "Ikke autentisert",
+      );
     }
     return MeResponseSchema.parse(jsonRetry);
   }
   throw new Error(json.melding || json.feil || "Ikke autentisert");
 }
 // Utlogging
-async function loggUt(
-  forsoktRefresh = false,
-): Promise<LogoutResponse> {
+async function loggUt(forsoktRefresh = false): Promise<LogoutResponse> {
   const res = await fetch("/api/user/logout", {
-    method: "POST",
     credentials: "include",
+    ...withCsrfProtection({
+      method: "POST",
+    }),
   });
   const json = await hentJson(res);
   if ((res.status === 401 || res.status === 403) && !forsoktRefresh) {
@@ -191,8 +206,10 @@ export async function fornySesjon(): Promise<RefreshResponse> {
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
     const res = await fetch("/api/user/refresh", {
-      method: "POST",
       credentials: "include",
+      ...withCsrfProtection({
+        method: "POST",
+      }),
     });
     const json = await hentJson(res);
     if (!res.ok) {
@@ -212,17 +229,20 @@ interface SaveCanvasTokenInput {
   forceRelink?: boolean;
 }
 
+// Hjelpefunksjon for å bygge Cookie-header basert på tilgjengelige cookies
 async function lagreCanvasTokenRequest(
   { token, forceRelink = false }: SaveCanvasTokenInput,
   forsoktRefresh = false,
 ): Promise<CanvasTokenResponse> {
   const url = forceRelink ? "/api/user/token?force=true" : "/api/user/token";
   const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
     credentials: "include",
     cache: "no-store",
-    body: JSON.stringify({ token }),
+    ...withCsrfProtection({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    }),
   });
   const json = await hentJson(res);
   if ((res.status === 401 || res.status === 403) && !forsoktRefresh) {
@@ -232,7 +252,9 @@ async function lagreCanvasTokenRequest(
   if (!res.ok) {
     if (json.canvasKonflikt) {
       throw new CanvasTokenConflictError(
-        json.melding || json.feil || "Canvas-kontoen er allerede koblet til en annen bruker",
+        json.melding ||
+          json.feil ||
+          "Canvas-kontoen er allerede koblet til en annen bruker",
       );
     }
     throw new Error(json.melding || json.feil || "Kunne ikke lagre token");
@@ -281,6 +303,26 @@ export function useLoggUt() {
     mutationFn: () => loggUt(),
   });
 }
+
+/** Felles logout-flyt: kaller API, varsler andre faner, rydder cache og UI, redirect til /. */
+export function useLoggUtWithRedirect() {
+  const loggUt = useLoggUt();
+  const queryClient = useQueryClient();
+  return useCallback(async () => {
+    try {
+      await loggUt.mutateAsync();
+    } catch (error) {
+      if (!AppError.isAppError(error) || !error.requiresReauth()) {
+        toast.error("Kunne ikke logge ut. Prøv igjen.");
+        return;
+      }
+    }
+    broadcastLogout();
+    queryClient.clear();
+    useUIStore.getState().reset();
+    window.location.href = "/";
+  }, [loggUt, queryClient]);
+}
 // Hook for lagring av Canvas token
 export function useLagreCanvasToken() {
   return useMutation({
@@ -307,11 +349,13 @@ export function useSlettCanvasToken() {
   });
 }
 
+// Oppdater brukerpreferanser (Canvas-kontekst og varsler)
 type UserPreferencesUpdate = {
   canvasContextPreferences?: CanvasContextPreferences;
   varslerState?: VarslerState;
 };
 
+// Hjelpefunksjon for å oppdatere brukerpreferanser. Returnerer oppdatert preferanse-objekt.
 async function oppdaterBrukerPreferanser(
   preferences: UserPreferencesUpdate,
 ): Promise<PreferencesResponse> {
@@ -327,6 +371,7 @@ async function oppdaterBrukerPreferanser(
   );
 }
 
+// Generisk hook for oppdatering av brukerpreferanser. Tar en funksjon som mapper input til UserPreferencesUpdate, og håndterer cache-oppdatering av /me data ved suksess.
 function useOppdaterBrukerPreferanser<TValue>(
   toUpdate: (value: TValue) => UserPreferencesUpdate,
 ) {
@@ -349,6 +394,7 @@ export function useOppdaterPreferanser() {
   }));
 }
 
+// Hook for oppdatering av varslingspreferanser
 export function useOppdaterVarslerState() {
   return useOppdaterBrukerPreferanser((varslerState: VarslerState) => ({
     varslerState,

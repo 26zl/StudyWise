@@ -22,14 +22,10 @@ import {
     CalendarDays,
     Sparkles,
 } from "lucide-react";
-import { useLoggUt } from "../auth/auth-api";
-import { useQueryClient } from "@tanstack/react-query";
-import { broadcastLogout } from "../hooks/use-auth-sync";
+import { useLoggUtWithRedirect } from "../auth/auth-api";
 import { useChatHistory } from "../hooks/useChatHistory";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { toast } from "sonner";
-import { AppError } from "../lib/errors";
 
 // Typer for de ulike visningene i sidebar
 export type VisningType =
@@ -54,40 +50,18 @@ export function Sidebar({
     byttVisning,
     brukernavn,
 }: SidebarProps) {
-    const { isVenstreMenyOpen, lukkVenstreMeny, reset: resetUIStore } = useUIStore();
+    const { isVenstreMenyOpen, lukkVenstreMeny } = useUIStore();
     const [erCanvasUtvidet, settErCanvasUtvidet] = useState(true);
-    const loggUt = useLoggUt();
-    const queryClient = useQueryClient();
-    const { setSelectedChatId, requestNewChat } = useUIStore();
+    const handleLoggUt = useLoggUtWithRedirect();
+    const { setSelectedChatId, currentChatId, runningChatId, setCurrentChatId, requestNewChat } = useUIStore();
     const { chats } = useChatHistory();
     const pathname = usePathname();
 
-    // Håndter navigasjon og lukk meny på mobil
     const handleNavigasjon = (visning: VisningType) => {
         byttVisning(visning);
-        // Lukk sidebar på mobil etter navigasjon
         if (window.innerWidth < 768) {
             lukkVenstreMeny();
         }
-    };
-    // Håndter logg ut - rydder opp all cache og state før redirect
-    const handleLoggUt = async () => {
-        try {
-            await loggUt.mutateAsync();
-        } catch (error) {
-            if (!AppError.isAppError(error) || !error.requiresReauth()) {
-                toast.error("Kunne ikke logge ut. Prøv igjen.");
-                return;
-            }
-        }
-        // Varsle andre faner om utlogging
-        broadcastLogout();
-        // Rydd opp all cached data
-        queryClient.clear();
-        // Nullstill UI-tilstand
-        resetUIStore();
-        // Hard redirect til hjemmesiden
-        window.location.href = "/";
     };
     // KI Assistent er kun «aktiv» når vi faktisk er på dashboard
     const erChatAktiv = pathname === "/dashboard" && aktivVisning === "chat";
@@ -237,18 +211,47 @@ export function Sidebar({
                                 Ingen samtaler ennå
                             </div>
                         ) : (
-                            chats.slice(0, 5).map((chat) => (
-                                <button
-                                    key={chat.id}
-                                    onClick={() => {
-                                        setSelectedChatId(chat.id);
-                                        handleNavigasjon("chat");
-                                    }}
-                                    className="w-full flex items-center gap-3 px-5 py-3 rounded-xl text-left text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200 transition-colors"
-                                >
-                                    <MessageSquare size={16} className="shrink-0 opacity-50" />
-                                    <span className="truncate">{chat.title}</span>
-                                </button>
+                            chats.slice(0, 5).map((chat, index) => (
+                                (() => {
+                                    const erAktivSamtale = currentChatId === chat.id;
+                                    const erNyesteSamtale = index === 0;
+                                    const visPågåendeMarkering = erNyesteSamtale && erAktivSamtale && runningChatId === chat.id;
+                                    return (
+                                        <button
+                                            key={chat.id}
+                                            onClick={() => {
+                                                setSelectedChatId(chat.id);
+                                                setCurrentChatId(chat.id);
+                                                handleNavigasjon("chat");
+                                            }}
+                                            className={`
+                                                group w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left text-sm
+                                                transition-all duration-150
+                                                ${visPågåendeMarkering
+                                                    ? "border-sky-200/80 dark:border-sky-900/70 bg-sky-50/80 dark:bg-sky-950/25 text-slate-900 dark:text-slate-100"
+                                                    : "border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
+                                                }
+                                            `}
+                                            aria-current={visPågåendeMarkering ? "true" : undefined}
+                                        >
+                                            <span
+                                                className={`
+                                                    shrink-0 mt-0.5 h-2 w-2 rounded-full transition-all
+                                                    ${visPågåendeMarkering ? "opacity-100 scale-100" : "opacity-0 scale-75"}
+                                                    ${visPågåendeMarkering
+                                                        ? "bg-sky-500 dark:bg-sky-400"
+                                                        : "bg-slate-300 dark:bg-slate-600 group-hover:bg-slate-400 dark:group-hover:bg-slate-500"
+                                                    }
+                                                `}
+                                            />
+                                            <MessageSquare
+                                                size={16}
+                                                className={`shrink-0 transition-colors ${visPågåendeMarkering ? "text-sky-600 dark:text-sky-300" : "opacity-50"}`}
+                                            />
+                                            <span className="truncate">{chat.title}</span>
+                                        </button>
+                                    );
+                                })()
                             ))
                         )}
                     </div>

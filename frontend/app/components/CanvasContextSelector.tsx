@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Check } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
 import {
@@ -9,20 +9,12 @@ import {
   useCanvasTodo,
   useCanvasUpcomingEvents,
 } from "../canvas/canvas-api";
-import { formaterEmneStatus } from "../canvas/canvasUtils";
 import { useUIStore, type CanvasContextSelection } from "../store/uiStore";
-import { formaterDato, formaterKlokkeslett } from "../lib/dato";
-import { FRIST_VINDU_DAGER } from "../lib/varsler";
 import { useMeg, useOppdaterPreferanser } from "../auth/auth-api";
 import { showToast } from "./Toaster";
 import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
 
-// Props for CanvasContextSelector komponenten
-interface CanvasContextSelectorProps {
-  onContextChange: (context: string) => void;
-}
-
-export function CanvasContextSelector({ onContextChange }: CanvasContextSelectorProps) {
+export function CanvasContextSelector() {
   // Bruk global state for valg så de bevares mellom view-bytter
   const selected = useUIStore((state) => state.canvasContextSelection);
   const setSelected = useUIStore((state) => state.setCanvasContextSelection);
@@ -54,104 +46,6 @@ export function CanvasContextSelector({ onContextChange }: CanvasContextSelector
     loadingTodo ||
     loadingEvents ||
     oppdatererPreferanser;
-
-  // Memoize callback for å unngå uendelig loop
-  const byggContext = useCallback(() => {
-    const deler: string[] = [];
-
-    // Kunngjøringer med INNHOLD
-    if (selected.announcements && announcementsData?.announcements?.length) {
-      deler.push("KUNNGJØRINGER:");
-      announcementsData.announcements.slice(0, 10).forEach((a) => {
-        const dato = a.posted_at ? formaterDato(a.posted_at) : "";
-        const courseId = a.context_code ? Number(a.context_code.replace("course_", "")) : null;
-        const courseName = (courseId && coursesData?.courses?.find((c) => c.id === courseId)?.name) ?? "";
-        deler.push(`\n[${a.title}]${dato ? ` (${dato})` : ""}${courseName ? ` - Emne: ${courseName}` : ""}`);
-        // Inkluder innhold (stripet for HTML)
-        if (a.message) {
-          const stripped = a.message.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-          if (stripped.length > 0) {
-            deler.push(stripped.substring(0, 500) + (stripped.length > 500 ? "..." : ""));
-          }
-        }
-      });
-      deler.push("");
-    }
-
-    // Emner med detaljer
-    if (selected.courses && coursesData?.courses?.length) {
-      deler.push("DINE EMNER:");
-      coursesData.courses.forEach((c) => {
-        const status = formaterEmneStatus(c.workflow_state);
-        deler.push(`- ${c.name} (${c.course_code || "ukjent kode"}) [${status}]`);
-      });
-      deler.push("");
-    }
-
-    // Oppgaver/TODO med frister og detaljer
-    if (selected.assignments && todoData?.todos?.length) {
-      deler.push("KOMMENDE FRISTER OG OPPGAVER:");
-      todoData.todos.slice(0, 15).forEach((t) => {
-        const navn = t.assignment?.name || t.quiz?.title || t.type || "Ukjent";
-        const frist = t.assignment?.due_at || t.quiz?.due_at;
-        const poeng = t.assignment?.points_possible;
-        const courseName = t.context_name ?? "";
-        
-        let linje = `- ${navn}`;
-        if (courseName) linje += ` (${courseName})`;
-        if (frist) {
-          const fristDato = new Date(frist);
-          const dagerIgjen = Math.ceil((fristDato.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-          linje += ` - Frist: ${formaterDato(fristDato)}`;
-          if (dagerIgjen <= FRIST_VINDU_DAGER && dagerIgjen >= 0) {
-            linje += ` (${dagerIgjen} dager igjen!)`;
-          } else if (dagerIgjen < 0) {
-            linje += " (FORFALT)";
-          }
-        }
-        if (poeng) linje += ` [${poeng} poeng]`;
-        deler.push(linje);
-      });
-      deler.push("");
-    }
-
-    // Kommende hendelser
-    if (selected.events && eventsData?.events?.length) {
-      deler.push("KOMMENDE HENDELSER:");
-      eventsData.events.slice(0, 10).forEach((e) => {
-        const start = e.start_at ? new Date(e.start_at) : null;
-        const slutt = e.end_at ? new Date(e.end_at) : null;
-        const tittel = e.title || "Hendelse";
-        
-        let linje = `- ${tittel}`;
-        if (start) {
-          linje += ` - ${formaterDato(start)}`;
-          if (slutt && start.toDateString() === slutt.toDateString()) {
-            linje += ` kl ${formaterKlokkeslett(start)}`;
-            linje += `-${formaterKlokkeslett(slutt)}`;
-          }
-        }
-        if (e.location_name) linje += ` @ ${e.location_name}`;
-        deler.push(linje);
-      });
-      deler.push("");
-    }
-
-    // Legg til info om at full Canvas-kontekst hentes fra backend
-    if (deler.length > 0) {
-      deler.push("---");
-      deler.push("MERK: Full Canvas-data (moduler, sider, innhold) hentes automatisk fra backend.");
-      deler.push("Dette er kun overordnet info - detaljert innhold er tilgjengelig.");
-    }
-
-    return deler.join("\n").trim();
-  }, [selected, announcementsData, coursesData, todoData, eventsData]);
-
-  // Oppdater context når data eller valg endres
-  useEffect(() => {
-    const context = byggContext();
-    onContextChange(context);
-  }, [byggContext, onContextChange]);
 
   const toggleOption = async (key: keyof CanvasContextSelection) => {
     if (oppdatererPreferanser) return;

@@ -94,7 +94,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
     );
   }, [assignments, selectedDate]);
   if (!harCanvasToken) {
-    return <FeilMelding type="warning" melding="Du må lagre en Canvas API-token før du kan hente kalenderen." />;
+    return <FeilMelding melding="Du må lagre en Canvas API-token for å hente kalenderen." />;
   }
   if (canvasTokenInvalid) {
     return <FeilMelding melding="Canvas-tokenet ditt er ugyldig, utløpt eller slettet i Canvas. Gå til Innstillinger for å legge til et nytt token." />;

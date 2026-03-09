@@ -58,11 +58,6 @@ export function formaterKlokkeslett(d: Date | string | number): string {
   });
 }
 
-/** Standard dato (locale default), f.eks. "05.12.2025" */
-export function formaterDato(d: Date | string | number): string {
-  return tilDato(d).toLocaleDateString(LOCALE);
-}
-
 /** Dato og tid for eksport/visning: "5. desember 2025, 14:30" */
 export function formaterDatoOgTid(d: Date | string | number): string {
   const date = tilDato(d);

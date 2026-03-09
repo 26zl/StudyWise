@@ -6,16 +6,16 @@
 "use client";
 
 import { useEffect, Suspense, lazy, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { useQueryClient } from "@tanstack/react-query";
 import { LoadingSpinner } from "./LoadingSpinner";
+import { FeilMelding } from "./FeilMelding";
 import { Sidebar, type VisningType } from "./Sidebar";
 import { SectionErrorBoundary } from "./ErrorBoundary";
 import { useCanvasUser } from "../canvas/canvas-api";
 import { Footer } from "./footer";
 import { useMeg } from "../auth/auth-api";
-import { skalRedirecteTilAuth } from "../auth/authUtils";
+import { useAuthRedirect } from "../auth/authUtils";
 import { prefetchCanvasData } from "../canvas/canvas-api";
 import { useUIStore } from "../store/uiStore";
 import { useVarslerPopups, useVarslerStateSync } from "../hooks/useVarsler";
@@ -52,7 +52,6 @@ function SectionLoader({ text = "Laster..." }: { text?: string }) {
 
 // Hovedkomponent for dashboard-visningen
 export function DashboardView() {
-    const router = useRouter();
     const queryClient = useQueryClient();
 
     const [aktivVisning, setView] = useQueryState(
@@ -88,12 +87,7 @@ export function DashboardView() {
         }
     }, [megQuery.data?.user?.canvasContextPreferences, setCanvasContextSelection]);
 
-    // Redirect til innlogging hvis ikke autentisert
-    useEffect(() => {
-        if (skalRedirecteTilAuth(megQuery)) {
-            router.replace("/auth");
-        }
-    }, [megQuery.isError, megQuery.isFetched, megQuery.isLoading, megQuery.data?.user, router]);
+    useAuthRedirect();
     // Prefetch Canvas data hvis bruker har token
     useEffect(() => {
         if (harCanvasToken) {
@@ -123,15 +117,30 @@ export function DashboardView() {
         if (aktivVisning === "canvas-assignments") return "assignments";
         return "announcements";
     };
-    // Vis lasteskjerm mens brukerdata hentes eller hvis vi redirecter
-    if (megQuery.isLoading || (megQuery.isError && !brukerQueryAktiv)) {
+    // Laster: vis spinner
+    if (megQuery.isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
                 <LoadingSpinner />
             </div>
         );
     }
-    // Hovedrendering
+    // Feil uten brukerdata (f.eks. nettverksfeil): vis feilmelding og retry – useAuthRedirect håndterer auth-feil
+    if (megQuery.isError && !megQuery.data?.user) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 bg-slate-50 dark:bg-slate-950">
+                <FeilMelding melding="Kunne ikke laste brukerdata. Sjekk internettforbindelsen og prøv igjen." />
+                <button
+                    type="button"
+                    onClick={() => megQuery.refetch()}
+                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white text-sm font-medium transition-colors"
+                >
+                    Prøv igjen
+                </button>
+            </div>
+        );
+    }
+    // Hovedrendering (inkl. ved isError med cached data)
     return (
         <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden">
             {/* Sidebar */}

@@ -32,7 +32,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=4000
-      - MONGO_URI=mongodb://mongo:27017/bachelor-db
+      - MONGO_URI=mongodb://mongo:27017/studywise
       - REDIS_URL=redis://redis:6379
       - WEB_ORIGIN=http://localhost:3000
     depends_on:

@@ -204,6 +204,29 @@ export async function byggMålrettetCanvasKontekst(
       }
     }
 
+    // Hvis fortsatt ingen match: søk etter fileHint i modul-innhold (samsvar med Redis-pathen slik at kald start ikke bommer)
+    if (!matchedCourse && target.fileHint) {
+      const normHintSearch = target.fileHint.toLowerCase().replace(/\.pdf$/i, "").replace(/[_-]/g, " ").trim();
+      for (const course of allCourses) {
+        try {
+          const { data: mods } = await fetchModules(canvasToken, course.id);
+          const found = mods.some((m) =>
+            m.items?.some((item) => {
+              if (item.type !== "File") return false;
+              const normT = (item.title ?? "").toLowerCase().replace(/\.pdf$/i, "").replace(/[_-]/g, " ").trim();
+              return normT.includes(normHintSearch) || normHintSearch.includes(normT);
+            }),
+          );
+          if (found) {
+            matchedCourse = course;
+            break;
+          }
+        } catch {
+          // Emnet kan mangle modultilgang — hopp videre
+        }
+      }
+    }
+
     // Fallback: ingen match → returner lett kontekst (emner + frister)
     if (!matchedCourse) {
       logger.info(

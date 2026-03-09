@@ -52,10 +52,7 @@ export type {
 } from "common/canvas";
 
 // Importer delte feiltyper fra common
-import {
-  type CanvasErrorCode,
-  isRecoverableError as isRecoverableErrorCode,
-} from "common/canvasErrors";
+import { type CanvasErrorCode } from "common/canvasErrors";
 
 // Importer error-klasser fra felles error-modul
 import {
@@ -95,14 +92,6 @@ function isTokenError(error: unknown): boolean {
         msg.includes("mangler") ||
         msg.includes("utløpt"))
     );
-  }
-  return false;
-}
-
-// Sjekk om feil er gjenopprettbar (kan prøves igjen)
-export function isRecoverableError(error: unknown): boolean {
-  if (error instanceof CanvasApiError) {
-    return isRecoverableErrorCode(error.code);
   }
   return false;
 }
