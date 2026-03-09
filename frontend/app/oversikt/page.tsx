@@ -136,7 +136,7 @@ export default function OversiktPage() {
                         <div className="flex items-center gap-3">
                             <Link
                                 href="/dashboard"
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 text-white rounded-lg transition-colors"
                             >
                                 <MessageSquare size={18} />
                                 <span>KI Chat</span>
@@ -230,7 +230,7 @@ export default function OversiktPage() {
                                 </div>
                                 <Link
                                     href="/dashboard"
-                                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 text-white rounded-lg transition-colors text-sm"
                                 >
                                     Gå til innstillinger
                                 </Link>

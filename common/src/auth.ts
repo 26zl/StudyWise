@@ -77,7 +77,11 @@ export const LoginRequestSchema = z.object({
 // Register request schema
 export const RegisterRequestSchema = z.object({
   email: EmailSchema,
-  password: z.string().min(8),
+  password: z
+    .string()
+    .min(8, "Passord må være minst 8 tegn")
+    .regex(/[A-Z]/, "Passord må inneholde minst én stor bokstav")
+    .regex(/[0-9]/, "Passord må inneholde minst ett tall"),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
 });

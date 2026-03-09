@@ -42,7 +42,7 @@ export default function TestPage() {
               Database 2 - Eksamensoppgave
             </h2>
             <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-              <span>📅 Frist: 15. mars 2024</span>
+              <span>📅 Frist: 15. mars 2026</span>
               <span className="hidden sm:inline">•</span>
               <span>📊 50 poeng</span>
             </div>

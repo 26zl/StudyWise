@@ -84,9 +84,12 @@ export function dagerFraIdag(d: Date | string | number): number {
   return Math.round((other.getTime() - today.getTime()) / MS_PER_DAY);
 }
 
-/** Tekst for frist/hendelse: "I dag", "I morgen", "Om X dager", "X dager siden". */
+/** Tekst for frist/hendelse: "I dag", "I morgen", "Om X dager", "X dag/dager siden". */
 export function formaterDagerRelativtFrist(dager: number): string {
-  if (dager < 0) return `${Math.abs(dager)} dager siden`;
+  if (dager < 0) {
+    const n = Math.abs(dager);
+    return n === 1 ? "1 dag siden" : `${n} dager siden`;
+  }
   if (dager === 0) return "I dag";
   if (dager === 1) return "I morgen";
   return `Om ${dager} dager`;

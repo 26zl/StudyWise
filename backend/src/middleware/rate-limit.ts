@@ -113,7 +113,7 @@ export const rateLimitMe = isProd
     ? createRateLimiter({ points: 50, duration: 60, keyPrefix: "rlflx:me" })
     : createRateLimiter(devMeLimit);
 
-// Rate limiter for token refresh - strengere enn /me siden det utsteder nye tokens
+// Rate limiter for token refresh - strengere enn /me siden det utsteder nye tokens (Tilgangskontroll er produktbeslutning)
 export const rateLimitRefresh = isProd
     ? createRateLimiter({ points: 20, duration: 60, keyPrefix: "rlflx:refresh" })
     : createRateLimiter({ points: 100, duration: 60, keyPrefix: "rlflx:refresh:dev" }); 

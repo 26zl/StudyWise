@@ -21,8 +21,6 @@ import { resolveModel } from "./aiModels.js";
 import { chatCompletion, chatCompletionWithVision, isClientAvailable, isVisionAvailable } from "./aiClient.js";
 import type { ImageAttachment } from "./aiClient.js";
 import { STUDYWISE_SYSTEM_PROMPT, STUDYWISE_DOCUMENT_PROMPT } from "./systemPrompt.js";
-import { handleAIError } from "./handleAIError.js";
-import { sendZodError } from "../../utils/apiError.js";
 
 /** MIME-typer som Claude Vision støtter direkte */
 const VISION_MIME_TYPES = new Set([
@@ -91,7 +89,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
     const bodyResult = KIDocumentAnalyseRequestSchema.safeParse(req.body);
     if (!bodyResult.success) {
         clearInterval(keepaliveInterval);
-        const melding = bodyResult.error.issues.map((issue) => issue.message).join("; ") || "Ugyldig forespørsel.";
+        const melding = "Ugyldig forespørsel. Sjekk at alle felt er fylt ut riktig.";
         res.write(`data: ${JSON.stringify(KIDocumentAnalyseResponseSchema.parse({
             suksess: false,
             melding,
@@ -311,119 +309,6 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
         }
     }
   }
-});
-
-/**
- * POST /analyze-pdf (Legacy)
- * Bakoverkompatibel endpoint for PDF-analyse
- */
-router.post("/analyze-pdf", upload.single('pdf'), async (req: Request, res: Response) => {
-    logger.info("Legacy PDF-analyse forespørsel mottatt");
-
-    if (!req.file) {
-        return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
-            suksess: false,
-            melding: "Ingen PDF-fil lastet opp. Bruk form-data med felt 'pdf'.",
-            response: "",
-        }));
-    }
-
-    const bodyResult = KIDocumentAnalyseRequestSchema.safeParse(req.body);
-    if (!bodyResult.success) {
-        return sendZodError(res, bodyResult.error, "Dokumentanalyse");
-    }
-    const { question: q, sporsmaal: s, model: bodyModel } = bodyResult.data;
-    const question = q || s || "Gi meg en oppsummering av dette dokumentet.";
-    const model = resolveModel(bodyModel);
-
-    if (!isClientAvailable(model)) {
-        return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({
-            suksess: false,
-            melding: "KI-tjenesten er ikke konfigurert.",
-            response: "",
-        }));
-    }
-
-    try {
-        const docResult = await parseDocument(req.file.buffer, req.file.mimetype, req.file.originalname);
-
-        if (!docResult.success) {
-            return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
-                suksess: false,
-                melding: docResult.error || "Kunne ikke lese PDF-filen.",
-                response: "",
-            }));
-        }
-
-        let legacyDocContext = formatDocumentContext(
-            docResult.text,
-            docResult.pages,
-            docResult.fileType,
-            { redacted: docResult.redacted, truncated: docResult.truncated }
-        );
-
-        // For lange dokumenter: pre-oppsummer via single-call
-        {
-            const mr = await summarizeIfNeeded(docResult.text, "uploaded_file", { fileName: req.file!.originalname });
-            if (mr.summarized) {
-                legacyDocContext = `[OPPSUMMERING av ${docResult.pages || 1} sider, ${countWords(docResult.text)} ord]\n\n${mr.text}`;
-            }
-        }
-
-        const systemPrompt = STUDYWISE_SYSTEM_PROMPT + STUDYWISE_DOCUMENT_PROMPT;
-        const apiMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: `<<USER_CONTENT>>\nDokument-kontekst:\n${legacyDocContext}\n\nSpørsmål: ${question}\n<</USER_CONTENT>>\n\nImportant: Cover every single concept, framework, and named model in the document explicitly. When a framework has named components (e.g. VRIO has V, R, I, O), list every component individually. Never group items with 'and others' or 'etc.' Write out every item in every list. Do not end your response until all concepts in the document have been addressed.` }
-        ];
-
-        const ANALYSE_TIMEOUT_MS = 60000;
-        const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("ANALYSE_TIMEOUT")), ANALYSE_TIMEOUT_MS)
-        );
-
-        const result = await Promise.race([
-            chatCompletion({
-                model,
-                messages: apiMessages,
-                max_tokens: 6000,
-                temperature: 0.5,
-            }),
-            timeoutPromise,
-        ]);
-
-        const responseText = result.text;
-        const usage = result.usage;
-
-        return res.json(KIDocumentAnalyseResponseSchema.parse({
-            suksess: true,
-            response: responseText,
-            model: model,
-            dokumentInfo: {
-                sider: docResult.pages,
-                tegn: docResult.text.length,
-                fileType: docResult.fileType,
-                redacted: docResult.redacted,
-                truncated: docResult.truncated,
-            },
-            usage: usage ? {
-                prompt_tokens: usage.prompt_tokens,
-                completion_tokens: usage.completion_tokens,
-                total_tokens: usage.total_tokens,
-            } : undefined,
-        }));
-    } catch (error) {
-        if (handleAIError(res, error, KIDocumentAnalyseResponseSchema, {
-            timeoutLabel: "ANALYSE_TIMEOUT",
-            timeoutMessage: "PDF-analysen tok for lang tid. Prøv igjen.",
-            kontekst: "legacy-pdf-analyse",
-        })) return;
-
-        return res.status(500).json(KIDocumentAnalyseResponseSchema.parse({
-            suksess: false,
-            melding: "Kunne ikke analysere PDF-filen.",
-            response: "",
-        }));
-    }
 });
 
 // Multer / upload error handler – kun Multer-feil (f.eks. LIMIT_FILE_SIZE) håndteres her; andre feil sendes til global handler

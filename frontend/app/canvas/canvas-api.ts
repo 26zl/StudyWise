@@ -3,7 +3,7 @@
  * Håndterer kommunikasjon med backend API for Canvas data
  * Henter zod schemas fra common for validering av data
  */
-import { z, type ZodType } from "zod";
+import type { ZodType } from "zod";
 import { useQuery, type QueryClient } from "@tanstack/react-query";
 import { fornySesjon } from "../auth/auth-api";
 import { useUIStore } from "../store/uiStore";
@@ -23,7 +23,9 @@ import {
   ModuleItemDetailsResponseSchema,
   ModuleItemOpenResponseSchema,
   CoursesMetadataResponseSchema,
-  MetaSchema,
+  FilesResponseSchema,
+  PagesResponseSchema,
+  FrontPageResponseSchema,
   type CanvasAssignment,
   type CanvasCourse,
   type ModuleItemOpenResponse,
@@ -418,10 +420,6 @@ export function useCanvasAllAssignments(options?: { enabled?: boolean }) {
   return useQuery<AssignmentMedEmne[]>({
     queryKey: ["canvas", "all-assignments", courseIds],
     queryFn: async () => {
-      if (coursesQuery.isError) {
-        throw coursesQuery.error;
-      }
-
       const courses = coursesQuery.data?.courses;
       if (!courses) return [];
 
@@ -466,7 +464,7 @@ export function useCanvasAllAssignments(options?: { enabled?: boolean }) {
     },
     enabled:
       isEnabled &&
-      (coursesQuery.isSuccess || coursesQuery.isError),
+      coursesQuery.isSuccess,
     ...canvasQueryOptions,
   });
 }
@@ -544,10 +542,7 @@ export function useCanvasFiles(courseId: number | null, enabled = true) {
     queryFn: () =>
       fetchCanvas(
         `/emner/${courseId}/files`,
-        z.object({
-          files: z.array(CanvasFileSchema),
-          meta: MetaSchema.optional(),
-        }),
+        FilesResponseSchema,
       ),
     select: (res) => res.files,
     enabled: !!courseId && isEnabled,
@@ -563,10 +558,7 @@ export function useCanvasPages(courseId: number | null, enabled = true) {
     queryFn: () =>
       fetchCanvas(
         `/emner/${courseId}/pages`,
-        z.object({
-          pages: z.array(CanvasPageSchema),
-          meta: MetaSchema.optional(),
-        }),
+        PagesResponseSchema,
       ),
     select: (res) => res.pages,
     enabled: !!courseId && isEnabled,
@@ -582,7 +574,7 @@ export function useCanvasFrontPage(courseId: number | null, enabled = true) {
     queryFn: async () => {
       const result = await fetchCanvasNullable(
         `/emner/${courseId}/frontpage`,
-        z.object({ page: CanvasPageSchema, meta: MetaSchema.optional() }),
+        FrontPageResponseSchema,
       );
       return result?.page ?? null;
     },

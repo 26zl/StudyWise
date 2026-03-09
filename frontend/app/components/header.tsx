@@ -11,7 +11,7 @@ import { useUIStore } from "../store/uiStore";
 import { useMeg, useLoggUtWithRedirect } from "../auth/auth-api";
 import { useTheme } from "next-themes";
 import { type MeResponse } from "common/auth";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 // Props for Header-komponenten
 interface HeaderProps {
@@ -31,7 +31,9 @@ export function Header({ user }: HeaderProps) {
     /** Ikke vis lasteskeleton når vi har server-data (user) – unngår blink ved refresh */
     const authLaster = megQuery.isLoading && !aktivBruker && megQuery.data === undefined;
     const handleLoggUt = useLoggUtWithRedirect();
-    const { theme, setTheme } = useTheme();
+    const { resolvedTheme, setTheme } = useTheme();
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => setMounted(true), []);
 
     // Lukk mobil-meny når bruker navigerer
     const handleMobilNavigation = () => {
@@ -45,7 +47,7 @@ export function Header({ user }: HeaderProps) {
                 {harSidebar && (
                     <button
                         onClick={toggleVenstreMeny}
-                        className="md:hidden p-1 -ml-1 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                        className="md:flex hidden p-1 -ml-1 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
                         aria-label="Toggle sidebar"
                     >
                         <Menu size={24} />
@@ -79,13 +81,18 @@ export function Header({ user }: HeaderProps) {
                     </Link>
                 )}
                 <button
-                    onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                    onClick={() => setTheme(mounted && resolvedTheme === "dark" ? "light" : "dark")}
                     className="p-1 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                     aria-label="Bytt tema"
                 >
-                    {/* suppressHydrationWarning brukes fordi nettleser-utvidelser (som Dark Reader) kan endre attributter og skape Hydration Error */}
-                    <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" suppressHydrationWarning />
-                    <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" suppressHydrationWarning />
+                    {mounted ? (
+                        <>
+                            <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" suppressHydrationWarning />
+                            <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" suppressHydrationWarning />
+                        </>
+                    ) : (
+                        <span className="h-5 w-5 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" aria-hidden />
+                    )}
                 </button>
             </nav>
 
@@ -102,6 +109,14 @@ export function Header({ user }: HeaderProps) {
             {mobilMenyOpen && (
                 <nav className="md:hidden absolute top-14 left-0 right-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-lg z-40">
                     <div className="flex flex-col p-4 gap-4 text-sm text-slate-600 dark:text-slate-400">
+                        {harSidebar && (
+                            <button
+                                onClick={() => { toggleVenstreMeny(); setMobilMenyOpen(false); }}
+                                className="text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-2"
+                            >
+                                Åpne sidebar
+                            </button>
+                        )}
                         <Link
                             href="/"
                             onClick={handleMobilNavigation}
@@ -138,13 +153,13 @@ export function Header({ user }: HeaderProps) {
                             </Link>
                         )}
                         <button
-                            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                            onClick={() => setTheme(mounted && resolvedTheme === "dark" ? "light" : "dark")}
                             className="flex items-center gap-2 text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-2"
                             aria-label="Bytt tema"
                         >
                             <Sun className="h-5 w-5 dark:hidden" />
                             <Moon className="h-5 w-5 hidden dark:block" />
-                            <span>{theme === "dark" ? "Lyst tema" : "Mørkt tema"}</span>
+                            <span>{mounted && resolvedTheme === "dark" ? "Lyst tema" : "Mørkt tema"}</span>
                         </button>
                     </div>
                 </nav>

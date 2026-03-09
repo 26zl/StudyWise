@@ -259,8 +259,9 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
                 }));
             }
         }
-        // Sjekk hash først (raskt og sikkert for SAMME bruker)
-        if (bruker.canvasTokenHash && bruker.canvasTokenHash === nyTokenHash) {
+        // Sjekk hash først (timing-safe for SAMME bruker)
+        if (bruker.canvasTokenHash && bruker.canvasTokenHash.length === nyTokenHash.length &&
+            crypto.timingSafeEqual(Buffer.from(bruker.canvasTokenHash, "hex"), Buffer.from(nyTokenHash, "hex"))) {
             await invalidateCanvasCachesForUser(userId.toString(), bruker.canvasApiToken);
             logger.info({ userId }, "Canvas token identisk (hash match)");
             return res.json(CanvasTokenResponseSchema.parse({

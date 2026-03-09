@@ -8,7 +8,7 @@ import { Footer } from "../components/footer";
 export default function KontaktPage() {
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
-            <div className="flex-1 max-w-3xl mx-auto px-4 py-12 w-full">
+            <div className="flex-1 w-full max-w-3xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 <Link
                     href="/"
                     className="inline-flex items-center text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white mb-8"
@@ -66,7 +66,7 @@ export default function KontaktPage() {
                             </h3>
                             <p className="text-sm text-slate-600 dark:text-slate-400">
                                 Har du funnet en feil? Rapporter den slik at vi kan fikse den.
-                                Inkluder gjerne skjermbilder og steg for a reprodusere feilen.
+                                Inkluder gjerne skjermbilder og steg for å reprodusere feilen.
                             </p>
                         </div>
                     </div>
@@ -89,12 +89,12 @@ export default function KontaktPage() {
 
                 <section className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800">
                     <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-4">
-                        Ofte stilte sporsmal
+                        Ofte stilte spørsmål
                     </h2>
                     <div className="space-y-4">
                         <div>
                             <h3 className="font-medium text-slate-900 dark:text-white mb-1">
-                                Hvordan far jeg Canvas API-token?
+                                Hvordan får jeg Canvas API-token?
                             </h3>
                             <p className="text-sm text-slate-600 dark:text-slate-400">
                                 Logg inn på Canvas, gå til Innstillinger → Godkjente integrasjoner,

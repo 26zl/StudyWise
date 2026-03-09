@@ -12,7 +12,6 @@ import {
     Clock,
     Megaphone,
     CalendarDays,
-    AlertCircle,
     MapPin,
     CheckCircle2,
     CheckCheck,
@@ -121,18 +120,14 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
             )}
 
             {hasPartialError && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
-                    <div className="flex items-center gap-3">
-                        <AlertCircle className="h-5 w-5 shrink-0 text-amber-500" />
-                        <p className="text-sm text-amber-800 dark:text-amber-200">
-                            {lagBrukervennligFeilmelding(
-                                error instanceof Error ? error : null,
-                                { canvas: true },
-                                "Noen varsler kunne ikke lastes. Resten vises under.",
-                            )}
-                        </p>
-                    </div>
-                </div>
+                <FeilMelding
+                    type="warning"
+                    melding={lagBrukervennligFeilmelding(
+                        error instanceof Error ? error : null,
+                        { canvas: true },
+                        "Noen varsler kunne ikke lastes. Resten vises under.",
+                    )}
+                />
             )}
 
             {!isError && (

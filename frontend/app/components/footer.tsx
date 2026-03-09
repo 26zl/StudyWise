@@ -40,7 +40,7 @@ export function Footer() {
                     </Link>
                 </div>
                 <p className="text-xs text-slate-400 dark:text-slate-500 text-center leading-tight">
-                    © 2025 StudyWise - USN Bachelorprosjekt. Alle rettigheter reservert.
+                    © 2026 StudyWise - USN Bachelorprosjekt. Alle rettigheter reservert.
                 </p>
             </div>
         </footer>

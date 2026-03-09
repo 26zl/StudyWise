@@ -315,6 +315,25 @@ export const ModuleItemDetailsResponseSchema = z.object({
   items: z.array(CanvasModuleItemDetailSchema),
   meta: MetaSchema.optional(),
 });
+
+// Svar-schema for filer i et kurs
+export const FilesResponseSchema = z.object({
+  files: z.array(CanvasFileSchema),
+  meta: MetaSchema.optional(),
+});
+
+// Svar-schema for sider i et kurs
+export const PagesResponseSchema = z.object({
+  pages: z.array(CanvasPageSchema),
+  meta: MetaSchema.optional(),
+});
+
+// Svar-schema for frontpage i et kurs
+export const FrontPageResponseSchema = z.object({
+  page: CanvasPageSchema,
+  meta: MetaSchema.optional(),
+});
+
 // Typer eksportering
 export type CanvasPage = z.infer<typeof CanvasPageSchema>;
 export type CanvasFile = z.infer<typeof CanvasFileSchema>;

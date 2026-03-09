@@ -56,7 +56,10 @@ When adding a new schema to common, add a subpath export in `common/package.json
 ## 2. Commands
 
 ```bash
-pnpm dev                    # Start frontend (3000) + backend (4000) + docs
+pnpm dev                    # Start frontend (3000) + backend (4000) + docs (5173)
+pnpm dev:frontend           # Start only frontend
+pnpm dev:backend            # Start only backend
+pnpm dev:docs               # Start only docs
 pnpm typecheck              # Type-check all packages
 pnpm lint                   # Lint all packages
 pnpm lint:md                # Lint markdown files
@@ -74,6 +77,16 @@ pnpm kill:dev               # Kill all Node processes (Windows)
 pnpm clean:all              # Delete all build artifacts and node_modules
 pnpm clean:install          # Full reinstall (clean + install + update + build)
 ```
+
+### Dev Server URLs
+
+| Service      | URL                                   |
+|--------------|---------------------------------------|
+| Frontend     | <http://localhost:3000>               |
+| Backend API  | <http://localhost:4000>               |
+| Swagger UI   | <http://localhost:4000/api-docs>      |
+| Health Check | <http://localhost:4000/health>        |
+| Docs         | <http://localhost:5173>               |
 
 **Build order**: `common` must be built before frontend/backend. `pnpm build` handles this automatically.
 
@@ -277,7 +290,20 @@ onSave(subtasks.map(({ approved: _approved, ...task }) => task));
 
 ---
 
-## 5. Git & Workflow
+## 5. Adding New Functionality
+
+Follow this pattern: **Common → Backend → Frontend**
+
+1. **Common**: Define Zod schema in `common/src/<feature>.ts`, add subpath export in `common/package.json` `"exports"`, run `pnpm build:common`
+2. **Backend**: Create route file in `backend/src/rutere/<feature>/`, register router in `backend/src/index.ts`
+3. **Frontend**: Create data-fetching hook with `@tanstack/react-query` in `frontend/app/<feature>/<feature>-api.ts`
+4. **Component**: Use the hook in a component under `frontend/app/components/`
+
+No changes to `next.config.js` needed — all `/api/*` routes automatically proxy to backend.
+
+---
+
+## 6. Git & CI/CD
 
 1. **Stay updated**: Run `git pull origin main` often
 2. **Quality check**: Run `pnpm typecheck`, `pnpm lint`, and `pnpm build` regularly
@@ -289,9 +315,19 @@ pnpm install
 pnpm build  # Builds common package first!
 ```
 
+### CI Pipeline (`.github/workflows/ci.yml`)
+
+Runs on push and PRs to `main` with three parallel jobs:
+
+- **quality**: typecheck, lint, lint:md, verify build
+- **secret-scan**: TruffleHog scans for leaked secrets
+- **dependency-scan**: `pnpm audit --audit-level=high`
+
+Deploy (`deploy.yml`) triggers automatically when all CI jobs pass on push to `main`.
+
 ---
 
-## 6. Security and Privacy (Zero Tolerance)
+## 7. Security and Privacy (Zero Tolerance)
 
 ### No Hardcoding of Secrets
 
@@ -305,9 +341,16 @@ pnpm build  # Builds common package first!
 - **Data Flow**: Send only necessary data to frontend
 - **AI**: Never send PII to external AI services without anonymization
 
+### Documented security/audit decisions
+
+- **M2 (refresh bypass rate-limit)**: Product decision required on who should have access; rate limit on `/refresh` is in place.
+- **M6 (BroadcastChannel validation)**: BroadcastChannel is same-origin only per browser spec — risk is minimal; extra validation not required.
+- **H3 (multer MIME-type)**: Magic-byte validation happens in `parseDocument()`. Multer `fileFilter` cannot inspect buffer in memory storage mode.
+- **H5 (ErrorBoundary for lazy chunks)**: `SectionErrorBoundary` already wraps all lazy-loaded sections in `DashboardView`.
+
 ---
 
-## 7. Troubleshooting
+## 8. Troubleshooting
 
 - **"Can't resolve 'common'"** → `pnpm build:common` or `pnpm build`
 - **Port in use** → `pnpm kill:dev`

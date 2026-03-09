@@ -15,7 +15,7 @@ import type { SubTask } from "common/ki";
 interface SubTaskUI extends SubTask {
   approved?: boolean; // Godkjent av bruker?
 }
-// Props for AITaskBreakdown-komponenten
+// Props for AITaskBreakdown-komponenten (assignmentTitle/Description/dueDate forbeholdt for fremtidig AI-kontekst)
 interface AITaskBreakdownProps {
   assignmentTitle: string;
   assignmentDescription?: string;
@@ -47,7 +47,7 @@ export function AITaskBreakdown({
   }, []);
 
   // Generer deloppgaver med AI
-  const generateSubtasks = async () => {
+  const generateSubtasks = () => {
     setIsGenerating(true);
 
     // MOCK DATA - Erstatt med ekte Claude AI-kall
@@ -194,9 +194,9 @@ export function AITaskBreakdown({
   };
 
   const priorityColors = {
-    low: "text-slate-600 bg-slate-100 dark:bg-slate-800",
-    medium: "text-yellow-700 bg-yellow-100 dark:bg-yellow-900/30",
-    high: "text-red-700 bg-red-100 dark:bg-red-900/30",
+    low: "text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800",
+    medium: "text-yellow-700 dark:text-yellow-300 bg-yellow-100 dark:bg-yellow-900/30",
+    high: "text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/30",
   };
 
   const priorityLabels = {
@@ -224,7 +224,7 @@ export function AITaskBreakdown({
               </>
             ) : (
               <>
-                <Sparkles className="w-5 h-5 text-blue-600 group-hover:text-blue-700" />
+                <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300" />
                 <span className="text-sm font-medium text-blue-700 dark:text-blue-300 group-hover:text-blue-800 dark:group-hover:text-blue-200">
                   Få KI til å foreslå deloppgaver
                 </span>
@@ -279,7 +279,7 @@ export function AITaskBreakdown({
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-purple-600" />
+              <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
                 KI-foreslåtte deloppgaver
               </h3>
@@ -330,7 +330,7 @@ export function AITaskBreakdown({
                       onChange={(e) =>
                         setEditForm((prev) => ({ ...prev, title: e.target.value }))
                       }
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm font-medium"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm font-medium"
                       placeholder="Tittel på deloppgave"
                     />
 
@@ -339,7 +339,7 @@ export function AITaskBreakdown({
                       onChange={(e) =>
                         setEditForm((prev) => ({ ...prev, description: e.target.value }))
                       }
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm resize-none"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm resize-none"
                       rows={2}
                       placeholder="Beskrivelse av hva som må gjøres"
                     />
@@ -351,7 +351,7 @@ export function AITaskBreakdown({
                         onChange={(e) =>
                           setEditForm((prev) => ({ ...prev, estimatedTime: e.target.value }))
                         }
-                        className="w-24 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm"
+                        className="w-24 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm"
                         placeholder="2t"
                       />
 
@@ -363,7 +363,7 @@ export function AITaskBreakdown({
                             priority: e.target.value as "low" | "medium" | "high",
                           }))
                         }
-                        className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm"
+                        className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm"
                       >
                         <option value="low">Lav prioritet</option>
                         <option value="medium">Middels prioritet</option>
@@ -525,7 +525,7 @@ export function AITaskBreakdown({
             </h4>
             <button
               onClick={() => setShowEditor(true)}
-              className="text-xs text-blue-600 hover:text-blue-700"
+              className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
             >
               Vis detaljer →
             </button>

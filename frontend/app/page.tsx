@@ -15,7 +15,7 @@ export default async function Hjem() {
 
       {/* Hero Section */}
       <main className="flex-1 flex flex-col">
-        <section className="relative px-6 py-24 md:py-32 lg:py-40 overflow-hidden">
+        <section className="relative px-4 sm:px-6 lg:px-8 py-24 md:py-32 lg:py-40 overflow-hidden">
           {/* Bakgrunns-effekter */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-250 h-125 bg-blue-400/20 dark:bg-blue-600/10 rounded-full blur-3xl -z-10" />
 
@@ -33,11 +33,11 @@ export default async function Hjem() {
         </section>
 
         {/* Features Grid */}
-        <section className="px-6 py-16 bg-slate-50/50 dark:bg-slate-800/20 border-t border-slate-100 dark:border-slate-800">
+        <section className="px-4 sm:px-6 lg:px-8 py-16 bg-slate-50/50 dark:bg-slate-800/20 border-t border-slate-100 dark:border-slate-800">
           <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
 
             {/* Feature 1: Canvas */}
-            <div className="p-8 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+            <div className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
               <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center mb-6">
                 <BookOpen size={24} />
               </div>
@@ -49,7 +49,7 @@ export default async function Hjem() {
             </div>
 
             {/* Feature 2: Dashboard */}
-            <div className="p-8 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+            <div className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
               <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl flex items-center justify-center mb-6">
                 <LayoutDashboard size={24} />
               </div>
@@ -61,7 +61,7 @@ export default async function Hjem() {
             </div>
 
             {/* Feature 3: KI Assistent */}
-            <div className="p-8 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+            <div className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
               <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center mb-6">
                 <Bot size={24} />
               </div>

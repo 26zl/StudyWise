@@ -5,7 +5,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { type VarslerState, VARSLER_MAX_IDS } from "common/auth";
-import { toast } from "../components/Toaster";
+import { toast } from "sonner";
 import {
     useCanvasAllAssignments,
     useCanvasAnnouncements,

@@ -33,9 +33,6 @@ export interface CanvasResponse<T> {
         itemsCount: number;
     };
 }
-// Re-eksporter error types for bakoverkompatibilitet
-export type { CanvasApiError, CanvasErrorCode } from "./canvasErrors.js";
-export { createCanvasError, classifyHttpStatus, getErrorResponse, getHttpStatusForCode, requiresReauth, isRecoverableError } from "./canvasErrors.js";
 
 // Legacy feiltype for bakoverkompatibilitet (deprecated - bruk CanvasApiError)
 interface CanvasHttpError extends Error {
@@ -83,10 +80,6 @@ export const hentCanvasKonfig = () => ({
     baseUrl: process.env.CANVAS_BASE_URL,
 });
 
-// Hent Canvas token (overstyrt eller fra miljøvariabel)
-export const hentCanvasToken = (overstyrtToken?: string): string | null => {
-    return overstyrtToken ?? null;
-};
 
 // Kalender vindu konfigurasjon (måneder)
 export const KALENDER_VINDU = {
@@ -202,7 +195,7 @@ export async function hentCanvasData<T>(
     options: CanvasFetchOptions = {}
 ): Promise<CanvasResponse<T>> {
     const { baseUrl } = hentCanvasKonfig();
-    const canvasToken = hentCanvasToken(options.token);
+    const canvasToken = options.token ?? null;
     if (!canvasToken) throw new Error("Canvas-token mangler for innlogget bruker");
     if (!baseUrl) throw new Error("CANVAS_BASE_URL er ikke konfigurert");
     const cleanToken = canvasToken.replace(/^Bearer\s+/i, "").trim();
@@ -214,7 +207,7 @@ export async function hentCanvasData<T>(
     }
 
     // Bygg cache key for deduplication (samme logikk som i impl)
-    const tokenAvtrykk = crypto.createHash("sha256").update(cleanToken).digest("hex").slice(0, 12);
+    const tokenAvtrykk = crypto.createHash("sha256").update(cleanToken).digest("hex").slice(0, 32);
     const sortedParams: string[] = [];
     if (options.queryParams) {
         Object.keys(options.queryParams).sort().forEach((key) => {
@@ -292,7 +285,7 @@ async function hentCanvasDataImpl<T>(
         });
     }
     // Generer unik cache key per token (unngå lekkasje mellom brukere)
-    const tokenAvtrykk = crypto.createHash("sha256").update(cleanToken).digest("hex").slice(0, 12);
+    const tokenAvtrykk = crypto.createHash("sha256").update(cleanToken).digest("hex").slice(0, 32);
     const cacheNokkel = `canvas:${tokenAvtrykk}:${endpoint}?${cacheNokkelParams.join("&")}`;
     // Sjekk cache (KUN hvis ikke sensitiv)
     if (!erSensitiv) {

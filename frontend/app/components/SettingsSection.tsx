@@ -263,7 +263,7 @@ export function SettingsSection({
                                     }`}
                                 role="switch"
                                 aria-checked={isDarkMode}
-                                aria-label={isDarkMode ? "Deaktiver mork modus" : "Aktiver mork modus"}
+                                aria-label={isDarkMode ? "Deaktiver mørk modus" : "Aktiver mørk modus"}
                             >
                                 <span
                                     className={`block w-6 h-6 rounded-full bg-white shadow-sm transition-transform duration-200 ${isDarkMode ? "translate-x-6" : "translate-x-0"
@@ -285,7 +285,7 @@ export function SettingsSection({
                         </div>
 
                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                            Koble til din Canvas-konto for a hente emner, kunngjøringer,
+                            Koble til din Canvas-konto for å hente emner, kunngjøringer,
                             frister og forelesninger.
                         </p>
 

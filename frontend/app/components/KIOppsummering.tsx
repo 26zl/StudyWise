@@ -130,13 +130,13 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
         if (storrelse === "sm") {
             return <Chevron className="w-3.5 h-3.5" />;
         }
-        return <Chevron size={storrelse === "md" ? 14 : 14} />;
+        return <Chevron size={14} />;
     };
 
     // Sjekk-ikon-rendering basert på størrelse
     const renderSjekkIkon = () => {
         if (storrelse === "sm") {
-            return <CheckCircle2 className="w-3 h-3 text-purple-500 mt-0.5 shrink-0" />;
+            return <CheckCircle2 className="w-3 h-3 text-purple-500 dark:text-purple-400 mt-0.5 shrink-0" />;
         }
         return <CheckCircle2 size={14} className="text-purple-500 dark:text-purple-400 mt-0.5 shrink-0" />;
     };

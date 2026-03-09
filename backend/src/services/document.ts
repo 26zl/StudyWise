@@ -870,94 +870,103 @@ export async function parseDocument(
     mimeType: string,
     filename?: string
 ): Promise<DocumentParseResult> {
-    const safeName = safeBasename(filename);
-    // Sjekk filstørrelse først
-    if (buffer.length > MAX_FILE_SIZE_BYTES) {
-        const sizeMB = (buffer.length / (1024 * 1024)).toFixed(1);
-        const maxMB = (MAX_FILE_SIZE_BYTES / (1024 * 1024)).toFixed(0);
-        logger.warn({ fileSize: buffer.length, maxSize: MAX_FILE_SIZE_BYTES }, "File too large for parsing");
-        return {
-            success: false,
-            text: "",
-            pages: 0,
-            fileType: "unknown",
-            redacted: false,
-            truncated: false,
-            error: `Filen er for stor (${sizeMB}MB). Maksimal filstørrelse er ${maxMB}MB.`,
-        };
+  const safeName = safeBasename(filename);
+  // Sjekk filstørrelse først
+  if (buffer.length > MAX_FILE_SIZE_BYTES) {
+    const sizeMB = (buffer.length / (1024 * 1024)).toFixed(1);
+    const maxMB = (MAX_FILE_SIZE_BYTES / (1024 * 1024)).toFixed(0);
+    logger.warn(
+      { fileSize: buffer.length, maxSize: MAX_FILE_SIZE_BYTES },
+      "File too large for parsing",
+    );
+    return {
+      success: false,
+      text: "",
+      pages: 0,
+      fileType: "unknown",
+      redacted: false,
+      truncated: false,
+      error: `Filen er for stor (${sizeMB}MB). Maksimal filstørrelse er ${maxMB}MB.`,
+    };
+  }
+
+  // Valider at filinnhold matcher deklarert MIME (mot MIME-spoofing; multer fileFilter kan ikke sjekke buffer i memory storage)
+  const magicError = validateFileMagicBytes(buffer, mimeType);
+  if (magicError) {
+    logger.warn(
+      { mimeType, filename: safeName || undefined },
+      "File magic bytes mismatch",
+    );
+    return {
+      success: false,
+      text: "",
+      pages: 0,
+      fileType: "unknown",
+      redacted: false,
+      truncated: false,
+      error: magicError,
+    };
+  }
+
+  // Sjekk at MIME-type er støttet
+  let fileType = SUPPORTED_DOCUMENT_TYPES[mimeType];
+
+  // Fallback til filendelse hvis MIME-type ikke er støttet (bruk safe basename)
+  if (!fileType && safeName) {
+    const ext = safeName.toLowerCase().match(/\.[^.]+$/)?.[0];
+    if (ext && EXTENSION_TO_MIME[ext]) {
+      const detectedMime = EXTENSION_TO_MIME[ext];
+      fileType = SUPPORTED_DOCUMENT_TYPES[detectedMime];
+      logger.info(
+        { detectedMime, fileType },
+        "Detected file type from extension",
+      );
     }
+  }
 
-    // Valider at filinnhold matcher deklarert MIME (mot MIME-spoofing / farlige filtyper)
-    const magicError = validateFileMagicBytes(buffer, mimeType);
-    if (magicError) {
-        logger.warn({ mimeType, filename: safeName || undefined }, "File magic bytes mismatch");
-        return {
-            success: false,
-            text: "",
-            pages: 0,
-            fileType: "unknown",
-            redacted: false,
-            truncated: false,
-            error: magicError,
-        };
-    }
+  if (!fileType) {
+    return {
+      success: false,
+      text: "",
+      pages: 0,
+      fileType: "unknown",
+      redacted: false,
+      truncated: false,
+      error: `Filtypen "${mimeType}" er ikke støttet. Støttede typer: PDF, Word (docx/doc), TXT, Markdown, CSV, og bilder (PNG, JPG, WEBP).`,
+    };
+  }
 
-    // Sjekk at MIME-type er støttet
-    let fileType = SUPPORTED_DOCUMENT_TYPES[mimeType];
+  logger.info({ mimeType, fileType }, "Parsing document");
 
-    // Fallback til filendelse hvis MIME-type ikke er støttet (bruk safe basename)
-    if (!fileType && safeName) {
-        const ext = safeName.toLowerCase().match(/\.[^.]+$/)?.[0];
-        if (ext && EXTENSION_TO_MIME[ext]) {
-            const detectedMime = EXTENSION_TO_MIME[ext];
-            fileType = SUPPORTED_DOCUMENT_TYPES[detectedMime];
-            logger.info({ detectedMime, fileType }, "Detected file type from extension");
-        }
-    }
+  // Velg riktig parser basert på filtype
+  switch (fileType) {
+    case "pdf":
+      return parsePdfDocument(buffer);
 
-    if (!fileType) {
-        return {
-            success: false,
-            text: "",
-            pages: 0,
-            fileType: "unknown",
-            redacted: false,
-            truncated: false,
-            error: `Filtypen "${mimeType}" er ikke støttet. Støttede typer: PDF, Word (docx/doc), TXT, Markdown, CSV, og bilder (PNG, JPG, WEBP).`,
-        };
-    }
+    case "docx":
+    case "doc":
+      return parseWordDocument(buffer);
 
-    logger.info({ mimeType, fileType }, "Parsing document");
+    case "txt":
+    case "md":
+    case "csv":
+    case "rtf":
+      return parseTextDocument(buffer, fileType);
 
-    // Velg riktig parser basert på filtype
-    switch (fileType) {
-        case "pdf":
-            return parsePdfDocument(buffer);
+    case "image":
+      return parseImageDocument(buffer);
 
-        case "docx":
-        case "doc":
-            return parseWordDocument(buffer);
-
-        case "txt":
-        case "md":
-        case "csv":
-        case "rtf":
-            return parseTextDocument(buffer, fileType);
-
-        case "image":
-            return parseImageDocument(buffer);
-
-        default:
-            return {
-                success: false,
-                text: "",
-                pages: 0,
-                fileType,
-                redacted: false,
-                truncated: false,
-                error: `Parser for filtype "${fileType}" er ikke implementert.`,
-            };
-    }
+    default:
+      return {
+        success: false,
+        text: "",
+        pages: 0,
+        fileType,
+        redacted: false,
+        truncated: false,
+        error: `Parser for filtype "${fileType}" er ikke implementert.`,
+      };
+  }
 }
 
 /**

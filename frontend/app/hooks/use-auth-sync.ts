@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AUTH_CHANNEL_NAME } from "common/auth";
 import { useUIStore } from "../store/uiStore";
 
-// Konstantverdier for BroadcastChannel
+// Konstantverdier for BroadcastChannel (same-origin per spec )
 const LOGOUT_MESSAGE = "logout";
 const LOGIN_MESSAGE = "login";
 

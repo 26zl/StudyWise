@@ -415,7 +415,9 @@ export function ChatSection() {
     /** Nullstiller state for ny samtale; lagrer gjeldende meldinger først og tømmer sessionStorage. */
     const nySamtale = async () => {
         if (meldinger.length > 0) {
-            void lagreSamtale(meldinger);
+            void lagreSamtale(meldinger).catch(() => {
+                // Feil ved lagring av samtale før ny chat - ikke kritisk nok til å blokkere
+            });
         }
         pendingChatRef.current = null;
         pendingConversationState = null;
@@ -645,8 +647,12 @@ export function ChatSection() {
             /** Lagrer kun brukermelding ved feil/tomt svar (én sted – brukes i onSuccess tom og onError). */
             const persistDocumentUserMessageOnly = () => {
                 void (async () => {
-                    const id = docAnalysisChatIdRef.current ?? await docChatIdPromise;
-                    await saveChat(messagesBeforeForSave, id ?? undefined, id ? undefined : titleFromFirst, { silent: true, retryCount: 1 });
+                    try {
+                        const id = docAnalysisChatIdRef.current ?? await docChatIdPromise;
+                        await saveChat(messagesBeforeForSave, id ?? undefined, id ? undefined : titleFromFirst, { silent: true, retryCount: 1 });
+                    } catch {
+                        // Feil ved lagring av dokument-brukermelding - ikke kritisk
+                    }
                 })();
             };
 

@@ -69,7 +69,7 @@ export function WeeklyPlanSuggestions({ assignments, onAddToCalendar }: WeeklyPl
     }, []);
 
     // Generer ukeplan med KI (MOCK - erstatt med ekte API)
-    const generateWeeklyPlan = async () => {
+    const generateWeeklyPlan = () => {
         setIsGenerating(true);
         setError(null);
 

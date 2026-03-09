@@ -56,7 +56,7 @@ export default function SikkerhetPage() {
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
-            <div className="flex-1 max-w-3xl mx-auto px-4 py-12 w-full">
+            <div className="flex-1 w-full max-w-3xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 <Link
                     href="/"
                     className="inline-flex items-center text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white mb-8"

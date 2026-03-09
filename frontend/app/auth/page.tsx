@@ -158,7 +158,7 @@ export default function AuthPage() {
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors">
       <div className="flex-1 flex items-center justify-center p-4">
-        <main className="flex flex-col gap-6 p-8 max-w-md w-full bg-white dark:bg-slate-900 rounded-lg shadow-lg border border-slate-200 dark:border-slate-800">
+        <main className="flex flex-col gap-6 p-4 sm:p-8 max-w-md w-full bg-white dark:bg-slate-900 rounded-lg shadow-lg border border-slate-200 dark:border-slate-800">
           {/* Sidetittel og beskrivelse */}
           <div className="text-center space-y-2">
             <h1 className="text-3xl font-bold text-black dark:text-white">
