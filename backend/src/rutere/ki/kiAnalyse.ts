@@ -22,6 +22,17 @@ import { chatCompletion, chatCompletionWithVision, isClientAvailable, isVisionAv
 import type { ImageAttachment } from "./aiClient.js";
 import { STUDYWISE_SYSTEM_PROMPT, STUDYWISE_DOCUMENT_PROMPT } from "./systemPrompt.js";
 
+/** Send SSE-feilrespons og avslutt strømmen */
+function sendSSEFeil(res: Response, melding: string, keepaliveInterval: ReturnType<typeof setInterval>): void {
+    clearInterval(keepaliveInterval);
+    res.write(`data: ${JSON.stringify(KIDocumentAnalyseResponseSchema.parse({
+        suksess: false,
+        melding,
+        response: "",
+    }))}\n\n`);
+    res.end();
+}
+
 /** MIME-typer som Claude Vision støtter direkte */
 const VISION_MIME_TYPES = new Set([
     "image/png",
@@ -68,7 +79,11 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
 
   // Keepalive to prevent proxy (Next.js rewrite) from timing out during AI processing
   const keepaliveInterval = setInterval(() => {
-      if (!res.writableEnded) res.write(": keepalive\n\n");
+      try {
+        if (!res.writableEnded) res.write(": keepalive\n\n");
+      } catch {
+        clearInterval(keepaliveInterval);
+      }
   }, 10000);
 
   try {
@@ -76,26 +91,13 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
     logger.info("Mottok dokumentanalyse-forespørsel");
 
     if (!req.file) {
-        clearInterval(keepaliveInterval);
-        res.write(`data: ${JSON.stringify(KIDocumentAnalyseResponseSchema.parse({
-            suksess: false,
-            melding: "Ingen fil mottatt.",
-            response: "",
-        }))}\n\n`);
-        res.end();
+        sendSSEFeil(res, "Ingen fil mottatt.", keepaliveInterval);
         return;
     }
 
     const bodyResult = KIDocumentAnalyseRequestSchema.safeParse(req.body);
     if (!bodyResult.success) {
-        clearInterval(keepaliveInterval);
-        const melding = "Ugyldig forespørsel. Sjekk at alle felt er fylt ut riktig.";
-        res.write(`data: ${JSON.stringify(KIDocumentAnalyseResponseSchema.parse({
-            suksess: false,
-            melding,
-            response: "",
-        }))}\n\n`);
-        res.end();
+        sendSSEFeil(res, "Ugyldig forespørsel. Sjekk at alle felt er fylt ut riktig.", keepaliveInterval);
         return;
     }
     const { question: q, sporsmaal: s, model: bodyModel } = bodyResult.data;
@@ -104,13 +106,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
 
     if (!isClientAvailable(model)) {
         logger.error("AI-klient ikke tilgjengelig for modell: %s", model);
-        clearInterval(keepaliveInterval);
-        res.write(`data: ${JSON.stringify(KIDocumentAnalyseResponseSchema.parse({
-            suksess: false,
-            melding: "KI-tjenesten er ikke konfigurert. Kontakt administrator.",
-            response: "",
-        }))}\n\n`);
-        res.end();
+        sendSSEFeil(res, "KI-tjenesten er ikke konfigurert. Kontakt administrator.", keepaliveInterval);
         return;
     }
 
@@ -136,35 +132,17 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
                 docResult = await parseDocument(filBuffer, filMimetype, req.file.originalname);
             } catch (parseError) {
                 logger.error({ err: parseError }, "File parsing failed");
-                clearInterval(keepaliveInterval);
-                res.write(`data: ${JSON.stringify(KIDocumentAnalyseResponseSchema.parse({
-                    suksess: false,
-                    melding: "Kunne ikke lese filen. Prøv et annet format.",
-                    response: "",
-                }))}\n\n`);
-                res.end();
+                sendSSEFeil(res, "Kunne ikke lese filen. Prøv et annet format.", keepaliveInterval);
                 return;
             }
 
             if (!docResult.success) {
-                clearInterval(keepaliveInterval);
-                res.write(`data: ${JSON.stringify(KIDocumentAnalyseResponseSchema.parse({
-                    suksess: false,
-                    melding: docResult.error || "Kunne ikke lese dokumentet.",
-                    response: "",
-                }))}\n\n`);
-                res.end();
+                sendSSEFeil(res, docResult.error || "Kunne ikke lese dokumentet.", keepaliveInterval);
                 return;
             }
 
             if (!docResult.text || docResult.text.trim().length === 0) {
-                clearInterval(keepaliveInterval);
-                res.write(`data: ${JSON.stringify(KIDocumentAnalyseResponseSchema.parse({
-                    suksess: false,
-                    melding: "Filen inneholder ingen lesbar tekst.",
-                    response: "",
-                }))}\n\n`);
-                res.end();
+                sendSSEFeil(res, "Filen inneholder ingen lesbar tekst.", keepaliveInterval);
                 return;
             }
 
@@ -237,7 +215,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
                 model,
                 fileType: docResult?.fileType,
                 pages: docResult?.pages,
-                textLength: docResult?.text.length,
+                textLength: docResult?.text?.length,
                 filename: req.file.originalname,
             }, "Sender dokumentanalyse til AI-tjenesten");
 
@@ -265,7 +243,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
             suksess: true,
             response: responseText,
             model: model,
-            dokumentInfo: docResult ? {
+            dokumentInfo: docResult?.text ? {
                 sider: docResult.pages,
                 tegn: docResult.text.length,
                 fileType: docResult.fileType,

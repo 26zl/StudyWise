@@ -68,12 +68,15 @@ const DEFAULT_VARSLER_STATE: {
     toastVistIds: [],
 };
 
+/** Samme mønster som frontend (useVarsler, uiStore): dedupliser deretter slice(-VARSLER_MAX_IDS) slik at lagret state er konsistent. */
 function getSanitizedVarslerState(
     varslerState?: { lestIds?: readonly string[]; toastVistIds?: readonly string[] } | null,
 ) {
+    const lest = varslerState?.lestIds ?? [];
+    const toast = varslerState?.toastVistIds ?? [];
     return VarslerStateSchema.parse({
-        lestIds: (varslerState?.lestIds ?? []).slice(-VARSLER_MAX_IDS),
-        toastVistIds: (varslerState?.toastVistIds ?? []).slice(-VARSLER_MAX_IDS),
+        lestIds: Array.from(new Set(lest)).slice(-VARSLER_MAX_IDS),
+        toastVistIds: Array.from(new Set(toast)).slice(-VARSLER_MAX_IDS),
     });
 }
 
@@ -347,20 +350,22 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
             });
         }
 
-        await invalidateCanvasCachesForUser(userId.toString(), bruker.canvasApiToken);
+        // Krypter token
+        const kryptertToken = encrypt(cleanToken);
+        // Lagre til database (både kryptert og hash)
+        const gammeltKryptertToken = bruker.canvasApiToken;
+        bruker.canvasApiToken = kryptertToken;
+        bruker.canvasTokenHash = nyTokenHash;
+        await bruker.save();
+        logger.info({ userId }, "Canvas token lagret for bruker");
+
+        // Invalider cache ETTER lagring — slik at nytt token allerede er persistert
+        await invalidateCanvasCachesForUser(userId.toString(), gammeltKryptertToken);
 
         usersToInvalidate.delete(userId.toString());
         await Promise.allSettled(
             [...usersToInvalidate].map((targetUserId) => invalidateCanvasCachesForUser(targetUserId))
         );
-
-        // Krypter token
-        const kryptertToken = encrypt(cleanToken);
-        // Lagre til database (både kryptert og hash)
-        bruker.canvasApiToken = kryptertToken;
-        bruker.canvasTokenHash = nyTokenHash;
-        await bruker.save();
-        logger.info({ userId }, "Canvas token lagret for bruker");
 
         // Varm opp cache med nytt token i bakgrunnen
         warmCanvasCache(cleanToken).catch((err) => {

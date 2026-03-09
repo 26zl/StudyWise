@@ -13,7 +13,7 @@ export type AuthStatusSnapshot = {
 };
 
 /** Sjekker om feilen er auth-relatert (401/403), ikke nettverks-/oppstartsfeil. */
-export function isAuthError(error: unknown): boolean {
+function isAuthError(error: unknown): boolean {
   if (error == null) return false;
   const msg = error instanceof Error ? error.message : String(error);
   return (

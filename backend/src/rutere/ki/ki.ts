@@ -407,7 +407,12 @@ router.post("/chat", async (req, res) => {
     sseStarted = true;
 
     keepaliveInterval = setInterval(() => {
-      if (!res.writableEnded) res.write(": keepalive\n\n");
+      try {
+        if (!res.writableEnded) res.write(": keepalive\n\n");
+      } catch {
+        clearInterval(keepaliveInterval);
+        keepaliveInterval = undefined;
+      }
     }, 10000);
 
     const timeoutPromise = new Promise<never>((_, reject) =>

@@ -13,20 +13,12 @@ import { useMeg } from "../auth/auth-api";
 interface LandingHeroActionsProps {
   /** Brukerdata fra server (f.eks. fra forsidens fetch av /me) – brukes som initialData for rask første render */
   initialUser: MeResponse | null;
-  /** True når server så at det ikke var noen auth-cookies – da vet vi at det er gjest og viser «Logg inn» med én gang */
-  noCookies?: boolean;
 }
 
-export function LandingHeroActions({ initialUser, noCookies }: LandingHeroActionsProps) {
+export function LandingHeroActions({ initialUser }: LandingHeroActionsProps) {
   // Kun bruk server-data som initialData når vi har bekrevet innlogget bruker – aldri null (unngår at transient SSR-feil caches som gjest)
   const megQuery = useMeg({ initialData: initialUser?.user ? initialUser : undefined });
   const erInnlogget = Boolean(megQuery.data?.user ?? initialUser?.user);
-  /** Avklart når vi har hentet, er innlogget, har server-data, eller server bekrevet gjest (noCookies) – unngår at «Logg inn» forsvinner et øyeblikk ved refresh */
-  const authAvklart =
-    megQuery.isFetched ||
-    erInnlogget ||
-    megQuery.data !== undefined ||
-    (noCookies === true && !initialUser?.user);
   const ctaWidth = "min-w-[200px]";
 
   return (
@@ -42,8 +34,8 @@ export function LandingHeroActions({ initialUser, noCookies }: LandingHeroAction
           className="group-hover:translate-x-1 transition-transform"
         />
       </Link>
-      {/* Sekundær CTA: kun for gjester – lenker til innlogging/registrering */}
-      {authAvklart && !erInnlogget && (
+      {/* Sekundær CTA: vis for alle som ikke vises som innlogget – i prod (treg server) vises knappen med én gang, ikke før auth er «avklart» */}
+      {!erInnlogget && (
         <Link
           href="/auth"
           className={`inline-flex items-center justify-center px-8 py-4 ${ctaWidth} bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full font-medium transition-colors`}

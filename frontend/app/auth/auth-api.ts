@@ -94,7 +94,11 @@ async function requestAuthedJson<T>(
   const json = await hentJson(res);
 
   if ((res.status === 401 || res.status === 403) && !forsoktRefresh) {
-    await fornySesjon();
+    try {
+      await fornySesjon();
+    } catch {
+      throw new Error(json.melding || json.feil || "Ikke autentisert");
+    }
     return requestAuthedJson(url, schema, defaultErrorMessage, init, true);
   }
 

@@ -4,11 +4,11 @@
  */
 import { Footer } from "./components/footer";
 import { BookOpen, Bot, LayoutDashboard } from "lucide-react";
-import { getLandingAuthState } from "./auth/auth-server";
+import { getUserServerSafe } from "./auth/auth-server";
 import { LandingHeroActions } from "./components/LandingHeroActions";
 
 export default async function Hjem() {
-  const { user: userResponse, noCookies } = await getLandingAuthState();
+  const userResponse = await getUserServerSafe();
 
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors">
@@ -28,7 +28,7 @@ export default async function Hjem() {
               dine kommende oppgaver, og få hjelp av KI til å studere smartere – ikke hardere.
             </p>
 
-            <LandingHeroActions initialUser={userResponse} noCookies={noCookies} />
+            <LandingHeroActions initialUser={userResponse} />
           </div>
         </section>
 

@@ -172,7 +172,6 @@ export type CanvasAnnouncement = z.infer<typeof CanvasAnnouncementSchema>;
 export type CanvasModule = z.infer<typeof CanvasModuleSchema>;
 export type CanvasModuleItem = z.infer<typeof CanvasModuleItemSchema>;
 export type CanvasPlannerItem = z.infer<typeof CanvasPlannerItemSchema>;
-export type Meta = z.infer<typeof MetaSchema>;
 export type CoursesResponse = z.infer<typeof CoursesResponseSchema>;
 export type AnnouncementsResponse = z.infer<typeof AnnouncementsResponseSchema>;
 export type ModulesResponse = z.infer<typeof ModulesResponseSchema>;

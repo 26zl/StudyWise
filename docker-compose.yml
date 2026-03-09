@@ -30,7 +30,7 @@ services:
     env_file:
       - backend/.env
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - PORT=4000
       - MONGO_URI=mongodb://mongo:27017/studywise
       - REDIS_URL=redis://redis:6379
@@ -47,7 +47,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
+      # development slik at auth-cookies (secure/sameSite) fungerer over http://localhost
+      - NODE_ENV=development
       - INTERNAL_API_URL=http://backend:4000
       - HOSTNAME=0.0.0.0
     depends_on:

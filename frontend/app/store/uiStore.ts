@@ -9,6 +9,7 @@ import { type CanvasContextPreferences, type VarslerState, VARSLER_MAX_IDS } fro
  * og /api/user/preferences.
  */
 
+/** Dedupliser deretter slice(-VARSLER_MAX_IDS) – samme mønster som backend og useVarsler. */
 function trimVarslerIds(ids: Iterable<string>): Set<string> {
     return new Set(Array.from(new Set(ids)).slice(-VARSLER_MAX_IDS));
 }

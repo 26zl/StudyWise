@@ -28,8 +28,7 @@ export function Header({ user }: HeaderProps) {
     const [mobilMenyOpen, setMobilMenyOpen] = useState(false);
 
     const aktivBruker = megQuery.data?.user ?? user?.user;
-    /** Ikke vis lasteskeleton når vi har server-data (user) – unngår blink ved refresh */
-    const authLaster = megQuery.isLoading && !aktivBruker && megQuery.data === undefined;
+    /** I prod (treg server) viser vi «Logg inn» til vi har bruker – ikke skeleton, så headeren ikke blir tom/grå */
     const handleLoggUt = useLoggUtWithRedirect();
     const { resolvedTheme, setTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
@@ -66,9 +65,7 @@ export function Header({ user }: HeaderProps) {
                 <Link href="/dashboard" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
                     Dashboard
                 </Link>
-                {authLaster ? (
-                    <span className="w-16 h-4 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" aria-hidden />
-                ) : aktivBruker ? (
+                {aktivBruker ? (
                     <button
                         onClick={handleLoggUt}
                         className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
@@ -131,9 +128,7 @@ export function Header({ user }: HeaderProps) {
                         >
                             Dashboard
                         </Link>
-                        {authLaster ? (
-                            <span className="w-16 h-4 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" aria-hidden />
-                        ) : aktivBruker ? (
+                        {aktivBruker ? (
                             <button
                                 onClick={() => {
                                     handleMobilNavigation();

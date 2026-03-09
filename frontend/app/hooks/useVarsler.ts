@@ -25,6 +25,7 @@ import {
 import { useUIStore } from "../store/uiStore";
 import { useOppdaterVarslerState } from "../auth/auth-api";
 
+/** Dedupliser deretter slice(-VARSLER_MAX_IDS) – samme mønster som backend getSanitizedVarslerState. */
 function normalizeVarslerState(state?: VarslerState | null): VarslerState {
     return {
         lestIds: Array.from(new Set(state?.lestIds ?? [])).slice(-VARSLER_MAX_IDS),

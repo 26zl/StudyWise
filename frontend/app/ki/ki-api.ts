@@ -483,8 +483,12 @@ async function requestKI<T>(
     );
   }
 
-  if (res.status === 401 && !forsoktRefresh) {
-    await fornySesjon();
+  if ((res.status === 401 || res.status === 403) && !forsoktRefresh) {
+    try {
+      await fornySesjon();
+    } catch {
+      throw new KIAuthError("Du må logge inn på nytt for å bruke KI-assistenten.");
+    }
     return requestKI(endpoint, schema, init, true);
   }
 

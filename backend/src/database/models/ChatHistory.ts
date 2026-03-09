@@ -1,10 +1,5 @@
 import { Schema, model, Types } from "mongoose";
 
-export interface ChatMessage {
-  rolle: "user" | "assistant";
-  innhold: string;
-}
-
 export interface ChatHistoryDocument {
   _id: Types.ObjectId;
   user: Types.ObjectId;

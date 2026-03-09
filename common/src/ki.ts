@@ -140,6 +140,7 @@ export type KIChatClientMessage = z.infer<typeof KIChatClientMessageSchema>;
 export type KIChatRequest = z.infer<typeof KIChatRequestSchema>;
 export type KIChatResponse = z.infer<typeof KIChatResponseSchema>;
 export type KIModelsResponse = z.infer<typeof KIModelsResponseSchema>;
+export type KIDocumentAnalyseRequest = z.infer<typeof KIDocumentAnalyseRequestSchema>;
 export type KIDocumentAnalyseResponse = z.infer<
   typeof KIDocumentAnalyseResponseSchema
 >;

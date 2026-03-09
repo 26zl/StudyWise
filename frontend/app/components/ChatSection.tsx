@@ -697,7 +697,60 @@ export function ChatSection() {
             return;
         }
 
-        /* Vanlig chat: sett pending (chat), opprett chat ved ny samtale, send til API og lagre ved svar i persistPendingConversation. */
+        /* Vanlig chat: valider Canvas-kontekst FØR noe lagres, deretter opprett chat og send til API. */
+
+        // Detektér hvilken type Canvas-data brukeren spør om
+        const spørOmKunngjøringer = /kunngjør|announcement|beskjed|melding fra foreleser/i.test(brukerMeldingInnhold);
+        const spørOmEmner = /emne|course|fag|kurs(?!gjøring)/i.test(brukerMeldingInnhold);
+        const spørOmOppgaver = /oppgave|assignment|innlevering|frist|deadline|todo|gjøremål/i.test(brukerMeldingInnhold);
+        const spørOmHendelser = /hendelse|event|kalender|møte|forelesning/i.test(brukerMeldingInnhold);
+        const spørOmCanvas = spørOmKunngjøringer || spørOmEmner || spørOmOppgaver || spørOmHendelser ||
+            /canvas|data|mine|hva har jeg/i.test(brukerMeldingInnhold);
+
+        // Sjekk om bruker spør om noe som ikke er valgt i innstillinger — STOPP FØR vi oppretter chat
+        if (spørOmCanvas) {
+            const manglerData: string[] = [];
+
+            // Sjekk mot brukerens valg (canvasContextSelection), ikke kontekst-strengen
+            if (spørOmKunngjøringer && !canvasContextSelection.announcements) {
+                manglerData.push("Kunngjøringer");
+            }
+            if (spørOmEmner && !canvasContextSelection.courses) {
+                manglerData.push("Emner");
+            }
+            if (spørOmOppgaver && !canvasContextSelection.assignments) {
+                manglerData.push("Oppgaver");
+            }
+            if (spørOmHendelser && !canvasContextSelection.events) {
+                manglerData.push("Hendelser");
+            }
+
+            // Hvis brukeren ikke har valgt noen Canvas-data i innstillinger
+            if (!harValgtCanvasData) {
+                const systemMelding: Melding = {
+                    id: (Date.now() + 1).toString(),
+                    rolle: "assistant",
+                    innhold: "Du har ikke valgt noen Canvas-data. Gå til Innstillinger → AI Canvas-kontekst og velg minst ett datasett for at jeg skal kunne hjelpe deg med Canvas-relaterte spørsmål.",
+                    tidsstempel: new Date(),
+                };
+                settMeldinger((tidligere) => [...tidligere, systemMelding]);
+                return;
+            }
+
+            // Hvis brukeren spør om noe spesifikt som ikke er valgt - STOPP
+            if (manglerData.length > 0) {
+                const systemMelding: Melding = {
+                    id: (Date.now() + 1).toString(),
+                    rolle: "assistant",
+                    innhold: `Jeg har ikke tilgang til ${manglerData.join(" eller ").toLowerCase()} fordi dette ikke er aktivert.\n\nGå til Innstillinger → AI Canvas-kontekst og aktiver «${manglerData.join("» og «")}», og prøv igjen.`,
+                    tidsstempel: new Date(),
+                };
+                settMeldinger((tidligere) => [...tidligere, systemMelding]);
+                return;
+            }
+        }
+
+        // Canvas-validering passert — nå kan vi sette pending state og opprette chat
         settSkriver(true);
 
         const titleFromFirst = brukerMeldingInnhold.trim().slice(0, 50) || "Ny samtale";
@@ -744,65 +797,6 @@ export function ChatSection() {
             })),
             { role: "user" as const, content: brukerMeldingInnhold },
         ];
-
-        // Detektér hvilken type Canvas-data brukeren spør om
-        const spørOmKunngjøringer = /kunngjør|announcement|beskjed|melding fra foreleser/i.test(brukerMeldingInnhold);
-        const spørOmEmner = /emne|course|fag|kurs(?!gjøring)/i.test(brukerMeldingInnhold);
-        const spørOmOppgaver = /oppgave|assignment|innlevering|frist|deadline|todo|gjøremål/i.test(brukerMeldingInnhold);
-        const spørOmHendelser = /hendelse|event|kalender|møte|forelesning/i.test(brukerMeldingInnhold);
-        const spørOmCanvas = spørOmKunngjøringer || spørOmEmner || spørOmOppgaver || spørOmHendelser || 
-            /canvas|data|mine|hva har jeg/i.test(brukerMeldingInnhold);
-
-        // Sjekk om bruker spør om noe som ikke er valgt i innstillinger
-        if (spørOmCanvas) {
-            const manglerData: string[] = [];
-
-            // Sjekk mot brukerens valg (canvasContextSelection), ikke kontekst-strengen
-            if (spørOmKunngjøringer && !canvasContextSelection.announcements) {
-                manglerData.push("Kunngjøringer");
-            }
-            if (spørOmEmner && !canvasContextSelection.courses) {
-                manglerData.push("Emner");
-            }
-            if (spørOmOppgaver && !canvasContextSelection.assignments) {
-                manglerData.push("Oppgaver");
-            }
-            if (spørOmHendelser && !canvasContextSelection.events) {
-                manglerData.push("Hendelser");
-            }
-
-            // Hvis brukeren ikke har valgt noen Canvas-data i innstillinger
-            if (!harValgtCanvasData) {
-                const systemMelding: Melding = {
-                    id: (Date.now() + 1).toString(),
-                    rolle: "assistant",
-                    innhold: "Du har ikke valgt noen Canvas-data. Gå til Innstillinger → AI Canvas-kontekst og velg minst ett datasett for at jeg skal kunne hjelpe deg med Canvas-relaterte spørsmål.",
-                    tidsstempel: new Date(),
-                };
-                settMeldinger((tidligere) => [...tidligere, systemMelding]);
-                settSkriver(false);
-                pendingChatRef.current = null;
-                pendingConversationState = null;
-                setRunningChatId(null);
-                return;
-            }
-
-            // Hvis brukeren spør om noe spesifikt som ikke er valgt - STOPP
-            if (manglerData.length > 0) {
-                const systemMelding: Melding = {
-                    id: (Date.now() + 1).toString(),
-                    rolle: "assistant",
-                    innhold: `Jeg har ikke tilgang til ${manglerData.join(" eller ").toLowerCase()} fordi dette ikke er aktivert.\n\nGå til Innstillinger → AI Canvas-kontekst og aktiver «${manglerData.join("» og «")}», og prøv igjen.`,
-                    tidsstempel: new Date(),
-                };
-                settMeldinger((tidligere) => [...tidligere, systemMelding]);
-                settSkriver(false);
-                pendingChatRef.current = null;
-                pendingConversationState = null;
-                setRunningChatId(null);
-                return;
-            }
-        }
 
         const handleChatResponse = (sisteMelding?: Melding) => {
             const pending = pendingChatRef.current;

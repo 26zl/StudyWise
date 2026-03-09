@@ -182,18 +182,3 @@ export const getUserServerSafe = cache(async (): Promise<MeResponse | null> => {
     return null;
   }
 });
-
-/**
- * For landingssiden: returnerer bruker + om server vet at det er gjest (ingen cookies).
- * Når noCookies === true og user === null, kan UI vise "Logg inn / Registrer" med én gang uten å vente på klient-fetch.
- */
-export const getLandingAuthState = cache(
-  async (): Promise<{ user: MeResponse | null; noCookies: boolean }> => {
-    try {
-      const user = await getUserServer();
-      return { user, noCookies: user === null };
-    } catch {
-      return { user: null, noCookies: false };
-    }
-  },
-);
