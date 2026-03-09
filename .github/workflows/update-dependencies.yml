@@ -65,5 +65,5 @@ jobs:
           body: |
             Ukentlig oppdatering av dependencies med `pnpm -r update` (innenfor semver).
             Workflowen har allerede kjørt `pnpm typecheck`, `pnpm lint` og `pnpm build` før PR-en ble opprettet.
-          labels: "dependencies"
+            (Ingen label slik at PR-en ikke auto-legges til kanban/project.)
           commit-message: "chore(deps): pnpm update"
