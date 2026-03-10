@@ -1,7 +1,3 @@
-# Deploy backend (Render) og frontend (Vercel) når CI er grønn på main.
-# Vercel: bruker Deploy Hook (curl) — ingen Vercel CLI eller team-medlemskap nødvendig (koster penger).
-# Render: bruker deploy hook. VERCEL_DEPLOY_HOOK og RENDER_DEPLOY_HOOK ligger i GitHub Secrets.
-
 name: Deploy
 
 on:
@@ -22,26 +18,67 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy (Vercel + Render)
+    name: Deploy to Vercel and Render
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 25
+    # Only deploy when all CI jobs pass (inkl. actionlint) and the trigger was a push (not a PR)
     if: >
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push'
 
     steps:
-      - name: Trigger Vercel deploy
-        run: |
-          echo "Triggering Vercel deployment via Deploy Hook…"
-          status=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}")
-          echo "Vercel deploy hook response: $status"
-          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
-            echo "Vercel deploy hook returned $status"
-            exit 1
-          fi
-          echo "Vercel deploy hook triggered successfully"
+      - name: Checkout verified commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
-      - name: Trigger Render deploy
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build common
+        run: pnpm --filter common build
+
+      - name: Set git author for Vercel
+        run: |
+          git config user.email "${{ secrets.VERCEL_GIT_EMAIL }}"
+          git config user.name "StudyWise CI"
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel configuration
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Build with Vercel
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy frontend to Vercel
+        id: deploy
+        run: |
+          url=$(vercel deploy --prebuilt --prod --force --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy backend to Render
         run: |
           status=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.RENDER_DEPLOY_HOOK }}")
           echo "Render response: $status"
@@ -56,6 +93,7 @@ jobs:
         with:
           script: |
             const sha = context.payload.workflow_run.head_sha;
+
             async function retry(fn, retries = 3, delay = 5000) {
               for (let i = 0; i < retries; i++) {
                 try { return await fn(); }
@@ -66,6 +104,7 @@ jobs:
                 }
               }
             }
+
             const deployment = await retry(() => github.rest.repos.createDeployment({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -74,6 +113,7 @@ jobs:
               auto_merge: false,
               required_contexts: [],
             }));
+
             await retry(() => github.rest.repos.createDeploymentStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,

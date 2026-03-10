@@ -658,8 +658,6 @@ export async function ensureCanvasSync(
 ): Promise<void> {
   if (!isRedisReady()) return;
 
-  // Fallback til CANVAS_BASE_URL for brukere uten canvasBaseUrl i DB
-  baseUrl = baseUrl ?? process.env.CANVAS_BASE_URL;
   if (!baseUrl) {
     logger.warn({ userId }, "ensureCanvasSync: canvasBaseUrl mangler — hopper over sync");
     return;
