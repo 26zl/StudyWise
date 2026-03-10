@@ -1,6 +1,43 @@
 @config "../tailwind.config.ts";
 @import "tailwindcss";
 
+/* Highlight.js syntax themes (light/dark) */
+@import "highlight.js/styles/github.css";
+@import "highlight.js/styles/github-dark.css" (prefers-color-scheme: dark);
+
+/* Overstyr highlight.js bakgrunn — CodeBlock styrer egen bakgrunn */
+.hljs {
+    background: transparent !important;
+    color: #1f2937;
+}
+
+/* Light mode: mørkere farger for bedre lesbarhet */
+.hljs-keyword { color: #a626a4; }
+.hljs-string { color: #50a14f; }
+.hljs-title { color: #4078f2; }
+.hljs-built_in { color: #c18401; }
+.hljs-comment { color: #6a737d; }
+.hljs-number { color: #986801; }
+.hljs-literal { color: #0184bb; }
+.hljs-type { color: #c18401; }
+.hljs-params { color: #383a42; }
+.hljs-attr { color: #986801; }
+
+/* Dark mode: bruk github-dark uansett system-preferanse når .dark er aktiv */
+.dark .hljs {
+    color: #e6edf3;
+}
+.dark .hljs-keyword { color: #ff7b72; }
+.dark .hljs-string { color: #a5d6ff; }
+.dark .hljs-title { color: #d2a8ff; }
+.dark .hljs-built_in { color: #ffa657; }
+.dark .hljs-comment { color: #8b949e; }
+.dark .hljs-number { color: #79c0ff; }
+.dark .hljs-literal { color: #79c0ff; }
+.dark .hljs-type { color: #ffa657; }
+.dark .hljs-params { color: #e6edf3; }
+.dark .hljs-attr { color: #79c0ff; }
+
 :root {
     --background: #ffffff;
     --foreground: #0f172a;

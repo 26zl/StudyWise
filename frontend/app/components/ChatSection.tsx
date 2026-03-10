@@ -11,9 +11,10 @@ import { Send, Bot, Download, Copy, Share2, RefreshCw, ThumbsUp, ThumbsDown, Mor
 import { LoadingSpinner } from "./LoadingSpinner";
 import { toast } from "sonner";
 import { AttachmentStrip } from "./AttachmentStrip";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
+import { CodeBlock } from "./CodeBlock";
 import { SmartSuggestions } from "./SmartSuggestions";
 import { useKIChat, useKIDocumentAnalyse, useKITestTilkobling, SUPPORTED_FILE_TYPES, getKIErrorMessage, getKIBannerForError, type KIErrorContext } from "../ki/ki-api";
 import { useChatHistory } from "../hooks/useChatHistory";
@@ -136,6 +137,12 @@ function lagTilkoblingsBanner(error: Error | null | undefined): { melding: strin
     if (!error) return null;
     return getKIBannerForError(error);
 }
+
+/** ReactMarkdown-komponenter med CodeBlock for syntax-highlighting. */
+const markdownKomponenter: Components = {
+    code: CodeBlock,
+    pre: ({ children }) => <>{children}</>,
+};
 
 export function ChatSection() {
     const [mounted, setMounted] = useState(false);
@@ -1077,10 +1084,11 @@ export function ChatSection() {
                                     }
                                 >
                                     {melding.rolle === "assistant" ? (
-                                        <div className="prose prose-base dark:prose-invert prose-p:my-2 prose-p:leading-relaxed prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-pre:my-3 prose-code:text-blue-600 dark:prose-code:text-blue-400 prose-code:bg-slate-200 dark:prose-code:bg-slate-700 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none max-w-none">
+                                        <div className="prose prose-base dark:prose-invert prose-p:my-2 prose-p:leading-relaxed prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-pre:my-0 prose-code:before:content-none prose-code:after:content-none max-w-none">
                                             <ReactMarkdown 
                                                 remarkPlugins={[remarkGfm]}
                                                 rehypePlugins={[rehypeSanitize]}
+                                                components={markdownKomponenter}
                                             >
                                                 {melding.innhold}
                                             </ReactMarkdown>
