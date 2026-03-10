@@ -3,7 +3,7 @@
  * Håndterer registrering, innlogging, tokenlagring, tokenfornyelse,
  * og henting av brukerdata ved hjelp av JWT (JSON Web Tokens).
  */
-import { Router } from "express";
+import { Router, type Response } from "express";
 import crypto from "crypto";
 import { User } from "../../database/models/User.js";
 import { CanvasUser } from "../../database/models/CanvasUser.js";
@@ -45,8 +45,10 @@ import {
 } from "../../middleware/auth.js";
 import { rateLimitToken, rateLimitAuth, rateLimitMe, rateLimitRefresh } from "../../middleware/rate-limit.js";
 import { noCache } from "../../middleware/no-cache.js";
+import type { CanvasApiError } from "../canvas/canvasErrors.js";
 
 const router = Router();
+const SHA256_HEX_REGEX = /^[a-f0-9]{64}$/i;
 
 const DEFAULT_CANVAS_CONTEXT_PREFERENCES: {
     announcements: boolean;
@@ -88,13 +90,88 @@ const hashToken = (token: string) => {
     return crypto.createHash("sha256").update(token).digest("hex");
 };
 
+function isValidSha256Hex(value: string | null | undefined): value is string {
+    return typeof value === "string" && SHA256_HEX_REGEX.test(value);
+}
+
+function timingSafeHexEqual(storedHash: string | null | undefined, candidateHash: string): boolean {
+    if (!isValidSha256Hex(storedHash) || !isValidSha256Hex(candidateHash)) {
+        return false;
+    }
+
+    return crypto.timingSafeEqual(
+        Buffer.from(storedHash, "hex"),
+        Buffer.from(candidateHash, "hex"),
+    );
+}
+
+function handleCanvasVerificationError(res: Response, error: unknown) {
+    const canvasError = error as Partial<CanvasApiError>;
+
+    if (canvasError?.name === "CanvasApiError" && canvasError.code) {
+        switch (canvasError.code) {
+            case "token_invalid":
+                return apiError.badRequest(
+                    res,
+                    "Ugyldig Canvas-token",
+                    "Canvas-tokenet ble avvist av den valgte institusjonen. Sjekk at tokenet er riktig og at du har valgt korrekt Canvas-instans.",
+                );
+            case "permission_denied":
+                return apiError.badRequest(
+                    res,
+                    "Canvas-konto kunne ikke verifiseres",
+                    "Canvas-tokenet og institusjonen stemmer ikke overens, eller tokenet mangler nødvendig tilgang. Sjekk at URL og token hører sammen.",
+                );
+            case "timeout":
+                return apiError.timeout(
+                    res,
+                    "Canvas-instansen brukte for lang tid på å svare. Sjekk at institusjonen er riktig og prøv igjen.",
+                );
+            case "network_error":
+            case "server_error":
+            case "unknown":
+                return sendError(res, "service_unavailable", {
+                    melding: "Kunne ikke kontakte den valgte Canvas-instansen. Sjekk at institusjonen/URL-en er riktig, eller prøv \"Annen Instructure-instans\" hvis skolen bruker en annen Canvas-adresse.",
+                });
+            default:
+                break;
+        }
+    }
+
+    if (error instanceof Error) {
+        const lowerMessage = error.message.toLowerCase();
+        if (
+            lowerMessage.includes("fetch") ||
+            lowerMessage.includes("network") ||
+            lowerMessage.includes("enotfound") ||
+            lowerMessage.includes("getaddrinfo")
+        ) {
+            return sendError(res, "service_unavailable", {
+                melding: "Kunne ikke kontakte den valgte Canvas-instansen. Sjekk at institusjonen/URL-en er riktig, eller prøv \"Annen Instructure-instans\" hvis skolen bruker en annen Canvas-adresse.",
+            });
+        }
+        if (lowerMessage.includes("timeout")) {
+            return apiError.timeout(
+                res,
+                "Canvas-instansen brukte for lang tid på å svare. Sjekk at institusjonen er riktig og prøv igjen.",
+            );
+        }
+    }
+
+    return apiError.badRequest(
+        res,
+        "Canvas-konto kunne ikke verifiseres",
+        "Sjekk at du har valgt riktig Canvas-institusjon og at tokenet fortsatt er gyldig.",
+    );
+}
+
 /** Invalider Redis Canvas-cache for et (kryptert) token. Brukes ved token-sletting eller -bytte. */
 async function invalidateCanvasCacheForToken(encryptedToken: string | undefined): Promise<void> {
     if (!encryptedToken) return;
     try {
         const gammeltToken = decrypt(encryptedToken);
         const prefix = crypto.createHash("sha256").update(gammeltToken).digest("hex").slice(0, 12);
-        await invalidateCacheByPattern(`canvas:${prefix}:*`).catch(() => {});
+        await invalidateCacheByPattern(`canvas:*:${prefix}:*`).catch(() => {});
     } catch {
         // Ignorer dekrypteringsfeil – tokenet kan være korrupt
     }
@@ -161,7 +238,7 @@ router.post("/register", rateLimitAuth, async (req, res) => {
 router.post("/login", rateLimitAuth, async (req, res) => {
     try {
         const { email, password } = LoginRequestSchema.parse(req.body);
-        const user = await User.findOne({ email }).select("+canvasApiToken");
+        const user = await User.findOne({ email }).select("+canvasApiToken +canvasBaseUrl");
         if (!user) {
             // Logg mislykket forsøk for audit trail (uten å avsløre om brukeren finnes)
             logger.warn({ email: "[REDACTED]", reason: "user_not_found" }, "Mislykket innloggingsforsøk");
@@ -193,12 +270,14 @@ router.post("/login", rateLimitAuth, async (req, res) => {
         settRefreshCookie(res, refreshToken);
 
         // Varm opp cache i bakgrunnen hvis bruker har Canvas-token (ikke blokker respons)
-        if (harCanvasToken && user.canvasApiToken) {
+        if (harCanvasToken && user.canvasApiToken && user.canvasBaseUrl) {
             const decryptedToken = decrypt(user.canvasApiToken);
-            warmCanvasCache(decryptedToken).catch((err) => {
+            warmCanvasCache(decryptedToken, user.canvasBaseUrl).catch((err) => {
                 // Logg feil men ikke blokker - cache warming er ikke kritisk
                 logger.warn({ err, userId: user._id }, "Cache warming feilet ved innlogging (ikke kritisk)");
             });
+        } else if (harCanvasToken) {
+            logger.error({ userId: user._id }, "Bruker har Canvas-token uten canvasBaseUrl");
         }
 
         return res.json(LoginResponseSchema.parse({
@@ -209,6 +288,7 @@ router.post("/login", rateLimitAuth, async (req, res) => {
                 firstName: user.firstName,
                 lastName: user.lastName,
                 hasCanvasToken: harCanvasToken,
+                canvasBaseUrl: user.canvasBaseUrl ?? null,
                 canvasContextPreferences: user.canvasContextPreferences || DEFAULT_CANVAS_CONTEXT_PREFERENCES,
                 varslerState: getSanitizedVarslerState(user.varslerState),
             })
@@ -227,7 +307,8 @@ router.post("/login", rateLimitAuth, async (req, res) => {
 //   - force=true: Tving re-kobling av Canvas-konto fra annen bruker
 router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
     try {
-        const { token } = CanvasTokenRequestSchema.parse(req.body);
+        const parsed = CanvasTokenRequestSchema.parse(req.body);
+        const { token, canvasBaseUrl } = parsed;
         const userId = req.user?.id;
         const forceRelink = req.query.force === "true";
         const usersToInvalidate = new Set<string>();
@@ -240,16 +321,19 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         if (!userId) {
             return apiError.unauthorized(res);
         }
+        if (!canvasBaseUrl) {
+            return apiError.badRequest(res, "Canvas-institusjon mangler");
+        }
         const bruker = await User.findById(userId).select("+canvasApiToken +canvasTokenHash");
         if (!bruker) {
             fjernAuthCookies(res);
             return apiError.unauthorized(res, "Bruker eksisterer ikke lenger.");
         }
         const nyTokenHash = hashToken(cleanToken);
-        // Sjekk om tokenet er i bruk av en ANNEN bruker
+        // Sjekk om tokenet er i bruk av en ANNEN bruker (samme token-hash = samme Canvas-konto)
         const eksisterendeTokenBruker = await User.findOne({
             canvasTokenHash: nyTokenHash,
-            _id: { $ne: userId } // Ikke den samme brukeren
+            _id: { $ne: userId },
         });
         if (eksisterendeTokenBruker) {
             logger.warn({ userId, existingUserId: eksisterendeTokenBruker._id }, "Forsøk på å bruke eksisterende Canvas token");
@@ -263,8 +347,8 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
             }
         }
         // Sjekk hash først (timing-safe for SAMME bruker)
-        if (bruker.canvasTokenHash && bruker.canvasTokenHash.length === nyTokenHash.length &&
-            crypto.timingSafeEqual(Buffer.from(bruker.canvasTokenHash, "hex"), Buffer.from(nyTokenHash, "hex"))) {
+        if (bruker.canvasBaseUrl === canvasBaseUrl &&
+            timingSafeHexEqual(bruker.canvasTokenHash, nyTokenHash)) {
             await invalidateCanvasCachesForUser(userId.toString(), bruker.canvasApiToken);
             logger.info({ userId }, "Canvas token identisk (hash match)");
             return res.json(CanvasTokenResponseSchema.parse({
@@ -272,36 +356,36 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
                 success: true,
             }));
         }
-
         // Verifiser Canvas-konto eierskap FØR lagring
-        // Dette forhindrer at en bruker får tilgang til en annens Canvas-data
-        // ved å bruke et annet token for samme Canvas-konto
         let canvasUserId: number | null = null;
         try {
-            const { data: canvasProfile } = await fetchUserProfile(cleanToken);
+            const { data: canvasProfile } = await fetchUserProfile(cleanToken, canvasBaseUrl);
             canvasUserId = canvasProfile.id;
 
             // Sjekk om denne Canvas-kontoen allerede er koblet til en ANNEN StudyWise-bruker
-            const eksisterendeKobling = await CanvasUser.findOne({ canvasId: canvasUserId });
+            const eksisterendeKobling = await CanvasUser.findOne({
+                canvasId: canvasUserId,
+                canvasBaseUrl: canvasBaseUrl,
+            });
 
             if (eksisterendeKobling && eksisterendeKobling.localUser.toString() !== userId.toString()) {
                 if (forceRelink) {
                     // Bruker har bedt om å gjenvinne kontoen - fjern gammel kobling
-                    logger.info({ userId, oldUserId: eksisterendeKobling.localUser, canvasId: canvasUserId },
+                    logger.info({ userId, oldUserId: eksisterendeKobling.localUser, canvasId: canvasUserId, canvasBaseUrl: canvasBaseUrl },
                         "Canvas-konto re-kobles til ny bruker (force relink)");
                     usersToInvalidate.add(eksisterendeKobling.localUser.toString());
 
-                    // Slett gammel Canvas-token fra den andre brukeren
                     await User.findByIdAndUpdate(eksisterendeKobling.localUser, {
-                        $unset: { canvasApiToken: 1, canvasTokenHash: 1, canvasUser: 1 }
+                        $unset: { canvasApiToken: 1, canvasTokenHash: 1, canvasUser: 1, canvasBaseUrl: 1 }
                     });
 
                     // Oppdater CanvasUser til å peke på ny bruker
                     eksisterendeKobling.localUser = bruker._id;
+                    eksisterendeKobling.canvasBaseUrl = canvasBaseUrl;
                     await eksisterendeKobling.save();
                 } else {
                     // Avvis uten force-flagg - dette er en sikkerhetsrisiko
-                    logger.warn({ userId, existingUserId: eksisterendeKobling.localUser, canvasId: canvasUserId },
+                    logger.warn({ userId, existingUserId: eksisterendeKobling.localUser, canvasId: canvasUserId, canvasBaseUrl: canvasBaseUrl },
                         "Canvas-konto tilhører allerede en annen bruker - avvist");
                     return res.status(409).json(CanvasTokenResponseSchema.parse({
                         feil: "Canvas-konto konflikt",
@@ -312,50 +396,21 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
                 }
             }
         } catch (canvasError) {
-            // Canvas API feil - tokenet er sannsynligvis ugyldig
             logger.warn({ err: canvasError, userId }, "Kunne ikke verifisere Canvas-token");
-            return apiError.badRequest(res, "Ugyldig Canvas-token. Sjekk at tokenet er korrekt og ikke utløpt.");
+            return handleCanvasVerificationError(res, canvasError);
         }
-        // Fallback: Sjekk dekryptert token (for gamle brukere uten hash)
-        // Bruker timing-safe sammenligning via hash for å unngå timing-angrep
-        if (bruker.canvasApiToken && !bruker.canvasTokenHash) {
-            try {
-                const eksisterendeToken = decrypt(bruker.canvasApiToken);
-                // Hash begge tokens for timing-safe sammenligning (lik lengde)
-                const eksisterendeHash = hashToken(eksisterendeToken);
-                const eksisterendeHashBuffer = Buffer.from(eksisterendeHash, "hex");
-                const nyHashBuffer = Buffer.from(nyTokenHash, "hex");
-
-                if (crypto.timingSafeEqual(eksisterendeHashBuffer, nyHashBuffer)) {
-                    // Oppdater hash for fremtidige sjekker
-                    bruker.canvasTokenHash = nyTokenHash;
-                    await bruker.save();
-                    await invalidateCanvasCachesForUser(userId.toString(), bruker.canvasApiToken);
-
-                    logger.info({ userId }, "Canvas token identisk (dekryptert match, migrert til hash)");
-                    return res.json(CanvasTokenResponseSchema.parse({
-                        melding: "Token er allerede lagret",
-                        success: true,
-                    }));
-                }
-            } catch (error) {
-                logger.error({ err: error, userId }, "Feil ved dekryptering av eksisterende Canvas token");
-            }
-        }
-
         if (forceRelink && eksisterendeTokenBruker) {
             usersToInvalidate.add(eksisterendeTokenBruker._id.toString());
             await User.findByIdAndUpdate(eksisterendeTokenBruker._id, {
-                $unset: { canvasApiToken: 1, canvasTokenHash: 1, canvasUser: 1 }
+                $unset: { canvasApiToken: 1, canvasTokenHash: 1, canvasUser: 1, canvasBaseUrl: 1 }
             });
         }
 
-        // Krypter token
         const kryptertToken = encrypt(cleanToken);
-        // Lagre til database (både kryptert og hash)
         const gammeltKryptertToken = bruker.canvasApiToken;
         bruker.canvasApiToken = kryptertToken;
         bruker.canvasTokenHash = nyTokenHash;
+        bruker.canvasBaseUrl = canvasBaseUrl;
         await bruker.save();
         logger.info({ userId }, "Canvas token lagret for bruker");
 
@@ -367,8 +422,7 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
             [...usersToInvalidate].map((targetUserId) => invalidateCanvasCachesForUser(targetUserId))
         );
 
-        // Varm opp cache med nytt token i bakgrunnen
-        warmCanvasCache(cleanToken).catch((err) => {
+        warmCanvasCache(cleanToken, canvasBaseUrl).catch((err) => {
             logger.warn({ err, userId }, "Cache warming feilet etter token-lagring (ikke kritisk)");
         });
 
@@ -403,17 +457,14 @@ router.delete("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         }
         await invalidateCanvasCachesForUser(userId.toString(), bruker.canvasApiToken);
         // Slett koblingene i databasen fullstendig
-        if (bruker.canvasUser) {
-            // Slett hele CanvasUser-dokumentet
-            await CanvasUser.findByIdAndDelete(bruker.canvasUser);
-            logger.info({ userId, canvasUser: bruker.canvasUser }, "Slettet CanvasUser-dokument fra database");
-        }
+        const slettetCanvasUsers = await CanvasUser.deleteMany({ localUser: bruker._id });
+        logger.info({ userId, deletedCount: slettetCanvasUsers.deletedCount }, "Slettet CanvasUser-dokumenter fra database");
 
-        // Slett Canvas token og kobling fra bruker
-        bruker.canvasApiToken = undefined;
-        bruker.canvasTokenHash = undefined;
-        bruker.canvasUser = undefined; // Nullstill kobling til CanvasUser
-        await bruker.save();
+        // $unset fjerner Canvas-feltene atomisk — unngår setter-krasj på canvasBaseUrl (normalizeCanvasBaseUrl)
+        await User.updateOne(
+            { _id: bruker._id },
+            { $unset: { canvasApiToken: 1, canvasTokenHash: 1, canvasUser: 1, canvasBaseUrl: 1 } },
+        );
 
         logger.info({ userId }, "Canvas token slettet og bruker frakoblet fullstendig");
         return res.json(CanvasTokenResponseSchema.parse({
@@ -464,9 +515,11 @@ router.post("/refresh", rateLimitRefresh, async (req, res) => {
             return apiError.unauthorized(res, "Refresh-token er utløpt. Logg inn på nytt.");
         }
         const refreshHash = hashToken(refreshToken);
-        const hashBuffer = Buffer.from(refreshHash, "hex");
-        const storedHashBuffer = Buffer.from(bruker.refreshTokenHash, "hex");
-        if (!crypto.timingSafeEqual(hashBuffer, storedHashBuffer)) {
+        if (!isValidSha256Hex(bruker.refreshTokenHash)) {
+            logger.warn({ userId }, "Ugyldig format på lagret refreshTokenHash");
+            return apiError.unauthorized(res, "Ugyldig refresh-token.");
+        }
+        if (!timingSafeHexEqual(bruker.refreshTokenHash, refreshHash)) {
             return apiError.unauthorized(res, "Ugyldig refresh-token.");
         }
         const nyttTilgangsToken = jwt.sign(
@@ -508,12 +561,13 @@ router.get("/me", autentiserJwt, rateLimitMe, async (req, res) => {
         }
         const bruker = await User.findById(userId).select("+canvasApiToken");
         if (!bruker) {
-            // Bruker slettet fra database men har gyldig token (zombie session)
             fjernAuthCookies(res);
             return apiError.unauthorized(res, "Bruker eksisterer ikke lenger.");
         }
         const harCanvasToken = !!bruker.canvasApiToken;
-        // Hent preferanser eller bruk default
+        if (harCanvasToken && !bruker.canvasBaseUrl) {
+            logger.warn({ userId: bruker._id }, "Bruker har Canvas-token uten canvasBaseUrl (gammel konto – må velge institusjon ved neste token-oppdatering)");
+        }
         const preferences = bruker.canvasContextPreferences || DEFAULT_CANVAS_CONTEXT_PREFERENCES;
         const varslerState = getSanitizedVarslerState(bruker.varslerState || DEFAULT_VARSLER_STATE);
         return res.json(MeResponseSchema.parse({
@@ -523,6 +577,7 @@ router.get("/me", autentiserJwt, rateLimitMe, async (req, res) => {
                 firstName: bruker.firstName,
                 lastName: bruker.lastName,
                 hasCanvasToken: harCanvasToken,
+                canvasBaseUrl: bruker.canvasBaseUrl ?? null,
                 canvasContextPreferences: preferences,
                 varslerState,
             }),

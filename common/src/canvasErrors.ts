@@ -21,15 +21,26 @@ export const CanvasErrorCodeSchema = z.enum([
 
 export type CanvasErrorCode = z.infer<typeof CanvasErrorCodeSchema>;
 
+export const CanvasValidationIssueSchema = z.object({
+  felt: z.string(),
+  feil: z.string(),
+});
+
+export const CanvasErrorDetailsSchema = z
+  .union([z.string(), z.array(CanvasValidationIssueSchema)])
+  .optional();
+
 // API feilrespons med strukturert feilkode
 export const CanvasErrorResponseSchema = z.object({
   feil: z.string(),
   melding: z.string(),
   kode: CanvasErrorCodeSchema,
-  detaljer: z.string().optional(),
+  detaljer: CanvasErrorDetailsSchema,
 });
 
 export type CanvasErrorResponse = z.infer<typeof CanvasErrorResponseSchema>;
+export type CanvasValidationIssue = z.infer<typeof CanvasValidationIssueSchema>;
+export type CanvasErrorDetails = z.infer<typeof CanvasErrorDetailsSchema>;
 
 // Hjelpefunksjoner for feilklassifisering
 
@@ -149,6 +160,8 @@ export function getHttpStatusForCode(code: CanvasErrorCode): number {
       return 429;
     case "timeout":
       return 504;
+    case "network_error":
+      return 502;
     case "server_error":
       return 502;
     case "validation_error":

@@ -1,4 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { normalizeCanvasBaseUrl } from "common/auth";
+
+const SHA256_HEX_REGEX = /^[a-f0-9]{64}$/i;
 
 // Type for Canvas-kontekst preferanser
 export interface ICanvasContextPreferences {
@@ -19,6 +22,7 @@ export interface IUser extends Document {
     firstName?: string;
     lastName?: string;
     canvasApiToken?: string; // Kryptert token
+    canvasBaseUrl?: string; // Canvas-instans for brukerens institusjon (multi-tenant, f.eks. https://ntnu.instructure.com)
     canvasTokenHash?: string; // Hash av token for rask sammenligning
     canvasUser?: mongoose.Types.ObjectId;
     refreshTokenHash?: string;
@@ -55,11 +59,16 @@ const UserSchema: Schema = new Schema(
             type: String, // Lagres kryptert. Dette er nøkkelen til å hente data for denne brukeren.
             select: false, // Hentes ikke som standard (sikkerhet). Må eksplisitt bes om med .select('+canvasApiToken').
         },
+        canvasBaseUrl: {
+            type: String,
+            trim: true,
+            default: undefined,
+            set: normalizeCanvasBaseUrl,
+        },
         canvasTokenHash: {
             type: String,
             select: false,
-            unique: true, // Kan kun tilhøre én bruker
-            sparse: true, // Tillater flere brukere UTEN token (null/undefined)
+            match: SHA256_HEX_REGEX,
         },
         canvasUser: {
             type: Schema.Types.ObjectId,
@@ -69,6 +78,7 @@ const UserSchema: Schema = new Schema(
         refreshTokenHash: {
             type: String,
             select: false,
+            match: SHA256_HEX_REGEX,
         },
         refreshTokenExpiresAt: {
             type: Date,
@@ -103,7 +113,15 @@ const UserSchema: Schema = new Schema(
     }
 );
 
-// Merk: email og canvasTokenHash har allerede indekser via unique: true
-// Ikke legg til manuelle indekser for disse - det skaper duplikater
+// Merk: email har allerede indeks via unique: true.
+// Canvas-token må være tenant-aware, så vi bruker sammensatt indeks.
+UserSchema.index(
+    { canvasBaseUrl: 1, canvasTokenHash: 1 },
+    {
+        unique: true,
+        sparse: true,
+        name: "canvas_base_url_canvas_token_hash_unique",
+    }
+);
 
 export const User = mongoose.model<IUser>('User', UserSchema);

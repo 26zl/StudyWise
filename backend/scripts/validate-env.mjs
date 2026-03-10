@@ -19,7 +19,6 @@ import "dotenv/config";
 const requiredEnvVars = [
     "PORT",
     "MONGO_URI",
-    "CANVAS_BASE_URL",
     "JWT_ACCESS_SECRET",
     "JWT_REFRESH_SECRET",
     "JWT_COOKIE_NAVN",
@@ -90,26 +89,6 @@ function validateEnvForBuild() {
             }
         }
     }
-    validateUrl("CANVAS_BASE_URL");
-
-    // Valider CANVAS_BASE_URL peker på USN Canvas (usn.instructure.com)
-    const canvasBaseUrl = process.env.CANVAS_BASE_URL;
-    if (canvasBaseUrl) {
-        try {
-            const parsed = new URL(canvasBaseUrl);
-            const host = parsed.hostname.toLowerCase();
-            if (host !== "usn.instructure.com") {
-                console.error("\n[KRITISK FEIL] CANVAS_BASE_URL må peke på USN Canvas (usn.instructure.com)\n");
-                manglende.push(`CANVAS_BASE_URL (forventet hostname usn.instructure.com, fikk: ${host})`);
-            }
-            if (parsed.protocol !== "https:") {
-                manglende.push("CANVAS_BASE_URL (må bruke https)");
-            }
-        } catch {
-            // URL ugyldig – allerede fanget av validateUrl over
-        }
-    }
-
     validateUrl("REDIS_URL");
 
     // Valider alle origins i WEB_ORIGINS (kommaseparert liste)

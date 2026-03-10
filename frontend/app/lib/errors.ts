@@ -207,18 +207,6 @@ export class CanvasApiError extends AppError {
 }
 
 /**
- * Generisk autentiseringsfeil
- */
-export class AuthError extends AppError {
-  readonly code = "auth_error" as const;
-  readonly name = "AuthError";
-
-  constructor(message = "Autentisering feilet") {
-    super(message, { httpStatus: 401 });
-  }
-}
-
-/**
  * Sesjon utløpt - bruker må logge inn på nytt
  */
 export class SessionExpiredError extends AppError {

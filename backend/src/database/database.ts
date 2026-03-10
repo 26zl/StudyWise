@@ -5,6 +5,10 @@
 
 import mongoose from "mongoose";
 import { logger } from "../utils/logger.js";
+import { CanvasUser } from "./models/CanvasUser.js";
+import { ChatHistory } from "./models/ChatHistory.js";
+import { TaskBreakdown } from "./models/TaskBreakdown.js";
+import { User } from "./models/User.js";
 
 import { isProd } from "../utils/env.js";
 
@@ -24,7 +28,18 @@ const clientOptions: mongoose.ConnectOptions = {
     // Retry-konfigurasjon
     retryWrites: true,
     retryReads: true,
+    autoIndex: false,
 };
+
+async function ensureDatabaseIndexes() {
+    await Promise.all([
+        User.createIndexes(),
+        CanvasUser.createIndexes(),
+        ChatHistory.createIndexes(),
+        TaskBreakdown.createIndexes(),
+    ]);
+    logger.info("MongoDB-indekser verifisert");
+}
 
 // Funksjon for å koble til databasen
 export const connectToDatabase = async () => {
@@ -34,6 +49,7 @@ export const connectToDatabase = async () => {
     }
     try {
         await mongoose.connect(mongoURI, clientOptions);
+        await ensureDatabaseIndexes();
         logger.info({
             maxPoolSize: clientOptions.maxPoolSize,
             minPoolSize: clientOptions.minPoolSize,

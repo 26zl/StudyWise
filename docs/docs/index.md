@@ -12,7 +12,7 @@ hero:
 
 features:
   - title: Canvas LMS-integrasjon
-    details: Henter emner, oppgaver, frister, moduler og ressurser direkte fra Canvas Instructure (USN). Alt samlet i ett dashboard.
+    details: Henter emner, oppgaver, frister, moduler og ressurser direkte fra Canvas ved ditt lærested. Alt samlet i ett dashboard.
   - title: KI-studieassistent
     details: Still spørsmål om pensum, last opp PDF-er og bilder for analyse, og få smarte oppfølgingsforslag basert på kontekst.
   - title: Kalender og frister
@@ -51,4 +51,3 @@ StudyWise er et pågående bachelorprosjekt og er i konstant endring. Funksjonal
 | **Abdinasir** | [Abdinasir909](https://github.com/Abdinasir909) | Fullstack / KI-integrasjon og tjenester / UI/UX |
 | **Anwar** | [Hersino](https://github.com/Hersino) | Fullstack / KI-integrasjon og tjenester / UI/UX |
 | **Ylli Ujkani** | [yujk7](https://github.com/yujk7) | Dokumentasjon / Bidrar med kode |
-

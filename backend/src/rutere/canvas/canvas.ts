@@ -8,15 +8,15 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import crypto from "node:crypto";
 import { Readable } from "node:stream";
-import { apiError, sendError, sendUnknownError } from "../../utils/apiError.js";
+import { apiError, sendUnknownError } from "../../utils/apiError.js";
 import {
   krevCanvasToken,
-  hentCanvasKonfig,
   validateCanvasRedirectUrl,
   isSafePathSegment,
   erInnenforKalenderVindu,
   beregnKalenderVindu,
   CACHE_TTL,
+  getCanvasTenantCachePrefix,
 } from "./canvasUtils.js";
 import {
   rateLimitCanvas,
@@ -140,10 +140,15 @@ router.get("/whoami", async (req, res) => {
     if (!req.user?.id) {
       return apiError.unauthorized(res);
     }
-    const { data: canvasUser } = await fetchUserProfile(req.canvasToken);
+    const resolvedCanvasBaseUrl = req.canvasBaseUrl;
+    if (!resolvedCanvasBaseUrl) {
+      return apiError.badRequest(res, "Canvas-institusjon mangler");
+    }
+    const { data: canvasUser } = await fetchUserProfile(req.canvasToken, resolvedCanvasBaseUrl);
     // Er denne Canvas-brukeren allerede koblet til en ANNEN lokal bruker?
     const eksisterendeKobling = await CanvasUser.findOne({
       canvasId: canvasUser.id,
+      canvasBaseUrl: resolvedCanvasBaseUrl,
     });
     // Sikre toString() på begge sider + null-check
     if (
@@ -168,9 +173,10 @@ router.get("/whoami", async (req, res) => {
     // Lagre eller oppdater bruker i vår egen database (kun canvas data, ikke lokal bruker fra vårt eget auth system)
     // OBS: Dette er ren datasynkronisering. Det bekrefter at Canvas-tokenet virker, men logger ikke brukeren inn i VÅRT system.
     const oppdatertCanvasBruker = await CanvasUser.findOneAndUpdate(
-      { canvasId: canvasUser.id }, // Finn basert på canvasId
+      { canvasId: canvasUser.id, canvasBaseUrl: resolvedCanvasBaseUrl }, // Finn basert på canvasId + tenant
       {
         canvasId: canvasUser.id,
+        canvasBaseUrl: resolvedCanvasBaseUrl,
         name: canvasUser.name,
         sortableName: canvasUser.sortable_name,
         shortName: canvasUser.short_name,
@@ -228,7 +234,7 @@ router.get("/whoami", async (req, res) => {
 // Henter kommende hendelser for brukeren
 router.get("/users/self/upcoming_events", async (req, res) => {
   try {
-    const { data: events, meta } = await fetchUpcomingEvents(req.canvasToken);
+    const { data: events, meta } = await fetchUpcomingEvents(req.canvasToken, req.canvasBaseUrl);
     logger.info({ count: events.length }, "Hentet kommende hendelser");
     res.json({
       events,
@@ -248,8 +254,8 @@ router.get("/calendar_events", rateLimitCanvasTung, async (req, res) => {
   try {
     const { start_date, end_date, type } = req.query;
     // Hent brukerens kurs for å bygge context_codes
-    const { data: courses } = await fetchCourses(req.canvasToken);
-    const { data: userProfile } = await fetchUserProfile(req.canvasToken);
+    const { data: courses } = await fetchCourses(req.canvasToken, req.canvasBaseUrl);
+    const { data: userProfile } = await fetchUserProfile(req.canvasToken, req.canvasBaseUrl);
     // Bygg context_codes (bruker + alle kurs)
     const contextCodes = buildContextCodes(userProfile.id, courses);
     // Standard datointervall (bruker samme vindu som kalender-endepunktet)
@@ -260,6 +266,7 @@ router.get("/calendar_events", rateLimitCanvasTung, async (req, res) => {
       eventType = type;
     }
     const { data: events, meta } = await fetchCalendarEvents(req.canvasToken, {
+      baseUrl: req.canvasBaseUrl,
       contextCodes,
       startDate:
         typeof start_date === "string" ? start_date : defaultRange.startDate,
@@ -290,6 +297,7 @@ router.get("/forelesninger", rateLimitCanvasTung, async (req, res) => {
       {
         startDate: typeof start_date === "string" ? start_date : undefined,
         endDate: typeof end_date === "string" ? end_date : undefined,
+        baseUrl: req.canvasBaseUrl,
       },
     );
     res.json({
@@ -304,7 +312,7 @@ router.get("/forelesninger", rateLimitCanvasTung, async (req, res) => {
 // Henter todo liste for brukeren
 router.get("/users/self/todo", async (req, res) => {
   try {
-    const { data: todos, meta } = await fetchTodo(req.canvasToken);
+    const { data: todos, meta } = await fetchTodo(req.canvasToken, req.canvasBaseUrl);
     logger.info({ count: todos.length }, "Hentet todo liste");
     res.json({
       todos,
@@ -319,7 +327,7 @@ router.get("/users/self/todo", async (req, res) => {
 // Henter alle aktive emner for brukeren
 router.get("/emner", async (req, res) => {
   try {
-    const { data: courses, meta } = await fetchCourses(req.canvasToken);
+    const { data: courses, meta } = await fetchCourses(req.canvasToken, req.canvasBaseUrl);
     logger.info({ count: courses.length }, "Hentet aktive emner");
     res.json({
       courses,
@@ -338,7 +346,8 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
   const tokenAvtrykk = token
     ? crypto.createHash("sha256").update(token).digest("hex").slice(0, 12)
     : "ukjent";
-  const cacheKey = `canvas:${tokenAvtrykk}:emner-metadata`;
+  const tenantPrefix = req.canvasBaseUrl ? getCanvasTenantCachePrefix(req.canvasBaseUrl) : "default";
+  const cacheKey = `canvas:${tenantPrefix}:${tokenAvtrykk}:emner-metadata`;
 
   try {
     // Sjekk om force refresh er satt
@@ -356,7 +365,7 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
     }
 
     // Hent alle emner
-    const { data: courses } = await fetchCourses(req.canvasToken);
+    const { data: courses } = await fetchCourses(req.canvasToken, req.canvasBaseUrl);
 
     // Avbryt tidlig hvis klienten har koblet fra
     if (req.socket.destroyed) return;
@@ -392,11 +401,11 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
           filesResult,
           pagesResult,
         ] = await Promise.allSettled([
-          fetchCourse(req.canvasToken, courseId),
-          fetchFrontPage(req.canvasToken, courseId),
-          fetchModules(req.canvasToken, courseId),
-          fetchFiles(req.canvasToken, courseId),
-          fetchPages(req.canvasToken, courseId),
+          fetchCourse(req.canvasToken, courseId, req.canvasBaseUrl),
+          fetchFrontPage(req.canvasToken, courseId, req.canvasBaseUrl),
+          fetchModules(req.canvasToken, courseId, req.canvasBaseUrl),
+          fetchFiles(req.canvasToken, courseId, req.canvasBaseUrl),
+          fetchPages(req.canvasToken, courseId, req.canvasBaseUrl),
         ]);
 
         // Sjekk kursdetaljer for syllabus
@@ -492,7 +501,7 @@ router.get("/emner/:courseId", async (req, res) => {
   try {
     const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId", "courseId må være et tall");
     if (courseIdNum === null) return;
-    const { data: course } = await fetchCourse(req.canvasToken, courseIdNum);
+    const { data: course } = await fetchCourse(req.canvasToken, courseIdNum, req.canvasBaseUrl);
     logger.info({ courseId: course.id }, "Hentet emnedetaljer");
     res.json(course);
   } catch (error) {
@@ -509,6 +518,7 @@ router.get("/emner/:courseId/oppgaver", async (req, res) => {
     const { data: assignments, meta } = await fetchAssignments(
       req.canvasToken,
       courseIdNum,
+      { baseUrl: req.canvasBaseUrl },
     );
     logger.info(
       { courseId: courseIdNum, count: assignments.length },
@@ -532,6 +542,7 @@ router.get("/emner/:courseId/announcements", async (req, res) => {
     const { data: announcements, meta } = await fetchCourseAnnouncements(
       req.canvasToken,
       courseIdNum,
+      req.canvasBaseUrl,
     );
     logger.info(
       { courseId: courseIdNum, count: announcements.length },
@@ -553,6 +564,7 @@ router.get("/announcements", rateLimitCanvasTung, async (req, res) => {
   try {
     const { data: announcements, meta } = await fetchAllAnnouncements(
       req.canvasToken,
+      req.canvasBaseUrl,
     );
     logger.info({ count: announcements.length }, "Hentet alle announcements");
     res.json({
@@ -576,7 +588,8 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
   const tokenAvtrykk = token
     ? crypto.createHash("sha256").update(token).digest("hex").slice(0, 12)
     : "ukjent";
-  const cacheKey = `canvas:${tokenAvtrykk}:kalender-v3`; // Ny versjon med Planner API
+  const tenantPrefix = req.canvasBaseUrl ? getCanvasTenantCachePrefix(req.canvasBaseUrl) : "default";
+  const cacheKey = `canvas:${tenantPrefix}:${tokenAvtrykk}:kalender-v3`; // Ny versjon med Planner API
   const cacheTimestampKey = `${cacheKey}:timestamp`;
   // Parse query params
   const forceRefresh = req.query.refresh === "true";
@@ -665,9 +678,9 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
     try {
       [coursesResult, userProfileResult, enrollmentsResult] = await Promise.all(
         [
-          fetchCourses(req.canvasToken),
-          fetchUserProfile(req.canvasToken),
-          fetchUserEnrollments(req.canvasToken),
+          fetchCourses(req.canvasToken, req.canvasBaseUrl),
+          fetchUserProfile(req.canvasToken, req.canvasBaseUrl),
+          fetchUserEnrollments(req.canvasToken, req.canvasBaseUrl),
         ],
       );
     } catch (error) {
@@ -703,11 +716,13 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
         start_date: startDate,
         end_date: endDate,
         maxPages: 5,
+        baseUrl: req.canvasBaseUrl,
       }),
       fetchCalendarEvents(req.canvasToken, {
         contextCodes,
         startDate,
         endDate,
+        baseUrl: req.canvasBaseUrl,
       }),
     ]);
     // Hent data fra resolved promises eller tomme lister ved feil
@@ -960,6 +975,7 @@ router.get("/planlegger", async (req, res) => {
     const { data: items, meta } = await fetchPlannerItems(req.canvasToken, {
       start_date: typeof start_date === "string" ? start_date : undefined,
       end_date: typeof end_date === "string" ? end_date : undefined,
+      baseUrl: req.canvasBaseUrl,
     });
     logger.info(
       {
@@ -986,6 +1002,7 @@ router.get("/emner/:courseId/modules", async (req, res) => {
     const { data: modules, meta } = await fetchModules(
       req.canvasToken,
       courseIdNum,
+      req.canvasBaseUrl,
     );
     logger.info(
       { courseId: courseIdNum, moduleCount: modules.length },
@@ -1011,6 +1028,7 @@ router.get("/emner/:courseId/modules/:moduleId/items", async (req, res) => {
       req.canvasToken,
       courseIdNum,
       moduleIdNum,
+      req.canvasBaseUrl,
     );
     logger.info(
       { courseId: courseIdNum, moduleId: moduleIdNum, itemCount: items.length },
@@ -1044,21 +1062,18 @@ router.get(
         courseIdNum,
         moduleIdNum,
         itemIdNum,
+        req.canvasBaseUrl,
       );
-      // Sikkerhetsjekk for URL
-      const canvasBaseUrl = hentCanvasKonfig().baseUrl;
+      const canvasBaseUrl = req.canvasBaseUrl;
       if (!canvasBaseUrl) {
-        return sendError(res, "server_error", {
-          melding: "Canvas baseUrl ikke konfigurert",
-        });
+        return apiError.badRequest(res, "Canvas-institusjon mangler");
       }
       const canvasOrigin = new URL(canvasBaseUrl).origin;
-      // Route basert på type
       if (item.type === "File" && item.content_id) {
-        // Hent fil-metadata for å få en signert, offentlig download URL
         const { data: file } = await fetchFileMetadata(
           req.canvasToken,
           item.content_id,
+          req.canvasBaseUrl,
         );
 
         const safeUrl = validateCanvasRedirectUrl(
@@ -1117,6 +1132,7 @@ router.get("/emner/:courseId/pages/:pageId", async (req, res) => {
       req.canvasToken,
       courseIdNum,
       pageId,
+      req.canvasBaseUrl,
     );
     logger.info({ courseId: courseIdNum, pageUrl: page.url }, "Hentet wiki page");
     res.json(page);
@@ -1133,6 +1149,7 @@ router.get("/emner/:courseId/pages", async (req, res) => {
     const { data: pages, meta } = await fetchPages(
       req.canvasToken,
       courseIdNum,
+      req.canvasBaseUrl,
     );
     logger.info({ courseId: courseIdNum, count: pages.length }, "Hentet liste over sider");
     res.json({ pages, meta });
@@ -1151,6 +1168,7 @@ router.get("/emner/:courseId/frontpage", async (req, res) => {
     const { data: page, meta } = await fetchFrontPage(
       req.canvasToken,
       courseIdNum,
+      req.canvasBaseUrl,
     );
     logger.info({ courseId: courseIdNum, pageUrl: page.url }, "Hentet frontpage");
     res.json({ page, meta });
@@ -1171,6 +1189,7 @@ router.get("/emner/:courseId/frontpage", async (req, res) => {
         const { data: course } = await fetchCourse(
           req.canvasToken,
           fallbackId,
+          req.canvasBaseUrl,
         );
         if (course.syllabus_body && course.syllabus_body.trim().length > 0) {
           logger.info(
@@ -1211,7 +1230,7 @@ router.get("/filer/:fileId", async (req, res) => {
   try {
     const fileIdNum = parseNumericParam(res, req.params.fileId, "fileId");
     if (fileIdNum === null) return;
-    const { data: file } = await fetchFileMetadata(req.canvasToken, fileIdNum);
+    const { data: file } = await fetchFileMetadata(req.canvasToken, fileIdNum, req.canvasBaseUrl);
     logger.info({ fileId: fileIdNum }, "Hentet fil metadata");
     res.json(file);
   } catch (error) {
@@ -1227,6 +1246,7 @@ router.get("/emner/:courseId/files", async (req, res) => {
     const { data: files, meta } = await fetchFiles(
       req.canvasToken,
       courseIdNum,
+      req.canvasBaseUrl,
     );
     logger.info({ courseId: courseIdNum, count: files.length }, "Hentet filer for kurs");
     res.json({ files, meta });
@@ -1240,14 +1260,11 @@ router.get("/filer/:fileId/download", async (req, res) => {
   try {
     const fileIdNum = parseNumericParam(res, req.params.fileId, "fileId");
     if (fileIdNum === null) return;
-    const canvasBaseUrl = hentCanvasKonfig().baseUrl;
+    const canvasBaseUrl = req.canvasBaseUrl;
     if (!canvasBaseUrl)
-      return sendError(res, "server_error", {
-        melding: "Canvas baseUrl ikke konfigurert",
-      });
+      return apiError.badRequest(res, "Canvas-institusjon mangler");
     const canvasOrigin = new URL(canvasBaseUrl).origin;
-    // Hent metadata for signert fil-url
-    const { data: file } = await fetchFileMetadata(req.canvasToken, fileIdNum);
+    const { data: file } = await fetchFileMetadata(req.canvasToken, fileIdNum, req.canvasBaseUrl);
     const safeUrl = validateCanvasRedirectUrl(
       file.url,
       canvasOrigin,
@@ -1295,6 +1312,7 @@ router.get("/emner/:courseId/diskusjoner/:topicId", async (req, res) => {
       req.canvasToken,
       courseIdNum,
       topicIdNum,
+      req.canvasBaseUrl,
     );
     logger.info({ courseId: courseIdNum, topicId: topicIdNum }, "Hentet diskusjon");
     res.json(topic);

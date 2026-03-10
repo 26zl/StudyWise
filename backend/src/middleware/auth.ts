@@ -12,6 +12,7 @@ import { logger } from "../utils/logger.js";
 import { apiError } from "../utils/apiError.js";
 import { isProd } from "../utils/env.js";
 import type { JwtBrukerPayload } from "../typer/express.js";
+import { normalizeCanvasBaseUrl } from "common/auth";
 
 // Påkrevd av validateEnv ved serverstart; ingen fallback (én sannhetskilde).
 export const JWT_COOKIE_NAVN = process.env.JWT_COOKIE_NAVN!;
@@ -155,6 +156,9 @@ export const knyttCanvasToken = async (req: Request, res: Response, next: NextFu
             const decryptedToken = decrypt(user.canvasApiToken);
             req.canvasToken = decryptedToken;
         }
+        req.canvasBaseUrl = user.canvasBaseUrl
+            ? normalizeCanvasBaseUrl(user.canvasBaseUrl)
+            : undefined;
     } catch (error) {
         logger.error({ err: error, userId: req.user.id }, "Feil ved henting av Canvas token for bruker");
         return next(error);

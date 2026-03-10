@@ -4,6 +4,11 @@
  */
 
 import { z } from "zod";
+import { CANVAS_INSTITUSJONER_NORGE } from "./canvasInstitutions.js";
+
+export function normalizeCanvasBaseUrl(url: string): string {
+  return url.trim().replace(/\/$/, "").toLowerCase();
+}
 
 /** E-post canonicalisert: trim + lowercase, så backend ikke trenger egen normalisering. */
 export const EmailSchema = z
@@ -12,9 +17,47 @@ export const EmailSchema = z
   .transform((s) => s.toLowerCase())
   .pipe(z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Ugyldig e-post"));
 
+/** Gyldig Canvas base URL for StudyWise sin Canvas-integrasjon. */
+const CANVAS_INSTRUCTURE_HOST_REGEX = /^([a-z0-9-]+\.)?instructure\.com$/i;
+const CANVAS_BASE_URL_REGEX = /^https:\/\/([^/?#]+)\/?$/i;
+
+function extractCanvasHostname(url: string): string | null {
+  const match = url.match(CANVAS_BASE_URL_REGEX);
+  return match?.[1]?.toLowerCase() ?? null;
+}
+
+const KJENTE_CANVAS_HOSTS = new Set(
+  CANVAS_INSTITUSJONER_NORGE.map((inst) => extractCanvasHostname(inst.url)).filter(
+    (hostname): hostname is string => hostname !== null,
+  ),
+);
+
+function isAllowedCanvasBaseUrl(url: string): boolean {
+  const hostname = extractCanvasHostname(url);
+  if (!hostname) {
+    return false;
+  }
+
+  return (
+    CANVAS_INSTRUCTURE_HOST_REGEX.test(hostname) ||
+    KJENTE_CANVAS_HOSTS.has(hostname)
+  );
+}
+
+export const CanvasBaseUrlSchema = z
+  .string()
+  .trim()
+  .check(z.url({ message: "Ugyldig Canvas-URL" }))
+  .refine((url) => isAllowedCanvasBaseUrl(url.replace(/\s/g, "")), {
+    message: "Må være en kjent Canvas-instans (f.eks. https://mitt.uib.no eller https://usn.instructure.com)",
+  })
+  .transform(normalizeCanvasBaseUrl);
+
 // Request schema for lagring av Canvas token (canonicalisert: trim; tom streng/whitespace avvises)
 export const CanvasTokenRequestSchema = z.object({
   token: z.string().trim().min(1, "Token kan ikke være tom"),
+  /** Påkrevd: hvilken Canvas-instans tokenet gjelder (multi-tenant). */
+  canvasBaseUrl: CanvasBaseUrlSchema,
 });
 
 /** Respons ved lagring/sletting av Canvas-token. Må inneholde success, feil eller canvasKonflikt slik at {} ikke er gyldig. */
@@ -65,6 +108,8 @@ export const AuthBrukerSchema = z.object({
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   hasCanvasToken: z.boolean(),
+  /** Canvas base URL for brukerens institusjon (multi-tenant). */
+  canvasBaseUrl: CanvasBaseUrlSchema.optional().nullable(),
   canvasContextPreferences: CanvasContextPreferencesSchema.optional(),
   varslerState: VarslerStateSchema.optional(),
 });

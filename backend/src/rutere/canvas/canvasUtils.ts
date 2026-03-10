@@ -6,6 +6,7 @@ import validator from "validator";
 import { Request, Response as ExpressResponse, NextFunction } from "express";
 import { getCache, setCache } from "../../cache/redis.js";
 import { logger } from "../../utils/logger.js";
+import { apiError } from "../../utils/apiError.js";
 import {
   createCanvasError,
   classifyHttpStatus,
@@ -13,6 +14,7 @@ import {
   getErrorResponse,
   type CanvasErrorCode,
 } from "./canvasErrors.js";
+import { normalizeCanvasBaseUrl } from "common/auth";
 
 // Typer og Interfaces
 // Canvas fetch funksjon med paginering og timeout
@@ -21,6 +23,8 @@ export interface CanvasFetchOptions {
     timeout?: number;
     maxPages?: number;
     token?: string;
+    /** Canvas base URL for brukerens institusjon (multi-tenant). */
+    baseUrl?: string;
     cacheTtl?: number; // Custom cache TTL i sekunder
     maxRetries?: number; // Maks antall retry ved rate limit
 }
@@ -75,10 +79,9 @@ export const MAX_PAGES = {
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Hjelpefunksjoner
-// Henter Canvas konfig fra miljøvariabler
-export const hentCanvasKonfig = () => ({
-    baseUrl: process.env.CANVAS_BASE_URL,
-});
+export function getCanvasTenantCachePrefix(baseUrl: string): string {
+    return crypto.createHash("sha256").update(normalizeCanvasBaseUrl(baseUrl)).digest("hex").slice(0, 12);
+}
 
 
 // Kalender vindu konfigurasjon (måneder)
@@ -149,6 +152,13 @@ export function krevCanvasToken(req: Request, res: ExpressResponse, next: NextFu
         if (!req.canvasToken) {
             return res.status(403).json(getErrorResponse("token_missing"));
         }
+        if (!req.canvasBaseUrl) {
+            return apiError.badRequest(
+                res,
+                "Canvas-institusjon mangler",
+                "Velg institusjon og lagre Canvas-tokenet pa nytt.",
+            );
+        }
         next();
     } catch (error) {
         logger.error({ err: error }, "Feil ved validering av Canvas-token");
@@ -194,10 +204,12 @@ export async function hentCanvasData<T>(
     endpoint: string,
     options: CanvasFetchOptions = {}
 ): Promise<CanvasResponse<T>> {
-    const { baseUrl } = hentCanvasKonfig();
+    const baseUrl = options.baseUrl
+        ? normalizeCanvasBaseUrl(options.baseUrl)
+        : undefined;
     const canvasToken = options.token ?? null;
     if (!canvasToken) throw new Error("Canvas-token mangler for innlogget bruker");
-    if (!baseUrl) throw new Error("CANVAS_BASE_URL er ikke konfigurert");
+    if (!baseUrl) throw new Error("Canvas base URL mangler for innlogget bruker");
     const cleanToken = canvasToken.replace(/^Bearer\s+/i, "").trim();
     const erSensitiv = SENSITIVE_ENDPOINTS.some(p => endpoint.includes(p));
 
@@ -220,7 +232,8 @@ export async function hentCanvasData<T>(
             }
         });
     }
-    const dedupKey = `canvas:${tokenAvtrykk}:${endpoint}?${sortedParams.join("&")}`;
+    const tenantPrefix = getCanvasTenantCachePrefix(baseUrl);
+    const dedupKey = `canvas:${tenantPrefix}:${tokenAvtrykk}:${endpoint}?${sortedParams.join("&")}`;
 
     // Sjekk om det allerede er en in-flight request for denne nøkkelen
     const existing = inflightRequests.get(dedupKey);
@@ -286,7 +299,8 @@ async function hentCanvasDataImpl<T>(
     }
     // Generer unik cache key per token (unngå lekkasje mellom brukere)
     const tokenAvtrykk = crypto.createHash("sha256").update(cleanToken).digest("hex").slice(0, 32);
-    const cacheNokkel = `canvas:${tokenAvtrykk}:${endpoint}?${cacheNokkelParams.join("&")}`;
+    const tenantPrefix = getCanvasTenantCachePrefix(baseUrl);
+    const cacheNokkel = `canvas:${tenantPrefix}:${tokenAvtrykk}:${endpoint}?${cacheNokkelParams.join("&")}`;
     // Sjekk cache (KUN hvis ikke sensitiv)
     if (!erSensitiv) {
         try {
@@ -415,16 +429,32 @@ async function hentCanvasDataImpl<T>(
                 break;
             } catch (error) {
                 if (error instanceof Error && error.name === "AbortError") {
-                    throw new Error(`Canvas API timeout etter ${timeout}ms`);
+                    throw createCanvasError("timeout", getErrorMessage("timeout"), {
+                        httpStatus: 504,
+                        endpoint,
+                        details: `Canvas API timeout etter ${timeout}ms`,
+                    });
                 }
-                throw error;
+                if (error instanceof Error && error.name === "CanvasApiError") {
+                    throw error;
+                }
+                if (error instanceof Error) {
+                    throw createCanvasError("network_error", getErrorMessage("network_error"), {
+                        endpoint,
+                        details: error.message,
+                    });
+                }
+                throw createCanvasError("unknown", getErrorMessage("unknown"), { endpoint });
             } finally {
                 // Sikrer at timeout alltid blir ryddet opp
                 clearTimeout(timeoutId);
             }
         }
         if (!response) {
-            throw new Error("Uventet feil: ingen respons fra Canvas API");
+            throw createCanvasError("unknown", getErrorMessage("unknown"), {
+                endpoint,
+                details: "Uventet feil: ingen respons fra Canvas API",
+            });
         }
         const data = await response.json();
         pagesFetched++;

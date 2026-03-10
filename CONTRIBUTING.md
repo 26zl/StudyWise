@@ -19,7 +19,7 @@ Guide for utvikling i StudyWise prosjektet.
 ### Dataflyt
 
 ```text
-1. Canvas LMS (USN sin læringsplattform)
+1. Canvas LMS (institusjonens læringsplattform, f.eks. universiteter og høgskoler)
    ↓
 2. Backend henter data fra Canvas API
    ↓

@@ -5,7 +5,7 @@
 
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { toast } from "sonner";
+import { showToast, toast } from "../components/Toaster";
 import {
   ChatHistoryResponseSchema,
   ChatMessage,
@@ -14,6 +14,7 @@ import {
 } from "common/chat";
 import { fornySesjon } from "../auth/auth-api";
 import { withCsrfProtection } from "../lib/csrf";
+import { extractApiErrorMessage } from "../lib/errorUtils";
 
 /** Representasjon av en lagret samtale (id, tittel, meldinger, tidsstempel). */
 export interface SavedChat {
@@ -63,7 +64,7 @@ async function fetchJson<T>(
     return fetchJson(input, init, true);
   }
   if (!res.ok) {
-    const err = new Error((data && (data.melding || data.feil)) || "Uventet feil") as ApiError;
+    const err = new Error(extractApiErrorMessage(data, "Uventet feil")) as ApiError;
     err.status = res.status;
     err.body = data;
     throw err;
@@ -159,9 +160,7 @@ export function useChatHistory() {
           continue;
         }
         if (!options?.silent) {
-          toast.error("Kunne ikke lagre samtalen", {
-            description: "Prøv igjen senere.",
-          });
+          showToast.error("Kunne ikke lagre samtalen", "Prøv igjen senere.");
         }
         return undefined;
       }
@@ -181,10 +180,10 @@ export function useChatHistory() {
       queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) =>
         (prev ?? []).filter((c) => c.id !== id)
       );
-      toast.success("Samtale slettet");
+      showToast.success("Samtale slettet");
     } catch (error) {
       if (erIkkeAutentisert(error)) return;
-      toast.error("Kunne ikke slette samtalen");
+      showToast.error("Kunne ikke slette samtalen");
       throw error;
     }
   };
@@ -202,10 +201,10 @@ export function useChatHistory() {
               method: "DELETE",
             });
             queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, []);
-            toast.success("Samtalehistorikk slettet");
+            showToast.success("Samtalehistorikk slettet");
           } catch (error) {
             if (erIkkeAutentisert(error)) return;
-            toast.error("Kunne ikke slette historikken");
+            showToast.error("Kunne ikke slette historikken");
             throw error;
           }
         },

@@ -15,6 +15,7 @@ export function Toaster() {
       richColors
       closeButton
       duration={4000}
+      swipeDirections={[]}
       toastOptions={{
         classNames: {
           toast: "group toast",

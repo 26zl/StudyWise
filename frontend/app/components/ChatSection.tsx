@@ -9,7 +9,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Send, Bot, Download, Copy, Share2, RefreshCw, ThumbsUp, ThumbsDown, MoreHorizontal, Plus, Image, FileText, User } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
-import { toast } from "sonner";
+import { showToast } from "./Toaster";
 import { AttachmentStrip } from "./AttachmentStrip";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -471,9 +471,7 @@ export function ChatSection() {
         if (godkjente.length === 0) return;
 
         if (vedlegg.length > 0 || godkjente.length > 1) {
-            toast.info("Kun ett vedlegg om gangen", {
-                description: "Jeg bruker bare det første vedlegget.",
-            });
+            showToast.info("Kun ett vedlegg om gangen", "Jeg bruker bare det første vedlegget.");
         }
 
         settVedlegg([godkjente[0]]);
@@ -667,9 +665,7 @@ export function ChatSection() {
                 onSuccess: (data) => {
                     const responseText = data.response.trim();
                     if (!responseText) {
-                        toast.error("Dokumentanalyse feilet", {
-                            description: "Dokumentanalysen returnerte et tomt svar. Prøv igjen.",
-                        });
+                        showToast.error("Dokumentanalyse feilet", "Dokumentanalysen returnerte et tomt svar. Prøv igjen.");
                         persistDocumentUserMessageOnly();
                         avsluttDokumentanalyseUtenSvar();
                         return;
@@ -696,7 +692,7 @@ export function ChatSection() {
                 },
                 onError: (error) => {
                     const feilTekst = lagFeilTekst(error, "dokument");
-                    toast.error("Dokumentanalyse feilet", { description: feilTekst });
+                    showToast.error("Dokumentanalyse feilet", feilTekst);
                     persistDocumentUserMessageOnly();
                     avsluttDokumentanalyseUtenSvar();
                 },
@@ -834,9 +830,7 @@ export function ChatSection() {
             onSuccess: (data) => {
                 const responseText = data.response.trim();
                 if (!responseText) {
-                    toast.error("KI-svar feilet", {
-                        description: "KI-assistenten returnerte et tomt svar. Prøv igjen.",
-                    });
+                    showToast.error("KI-svar feilet", "KI-assistenten returnerte et tomt svar. Prøv igjen.");
                     handleChatResponse();
                     return;
                 }
@@ -850,7 +844,7 @@ export function ChatSection() {
             },
             onError: (error) => {
                 const feilTekst = lagFeilTekst(error, "chat");
-                toast.error("KI-svar feilet", { description: feilTekst });
+                showToast.error("KI-svar feilet", feilTekst);
                 handleChatResponse();
             },
         });
@@ -1127,7 +1121,7 @@ export function ChatSection() {
                                         <div className="flex items-center gap-0.5">
                                             <button
                                                 type="button"
-                                                onClick={() => toast.info("Del-funksjon kommer snart")}
+                                                onClick={() => showToast.info("Del-funksjon kommer snart")}
                                                 className={actionBtnClass}
                                                 title="Del"
                                             >
@@ -1145,7 +1139,7 @@ export function ChatSection() {
                                                         "AI-svar",
                                                         "studywise-svar",
                                                     );
-                                                    toast.success("Svar lastet ned");
+                                                    showToast.success("Svar lastet ned");
                                                 }}
                                                 className={actionBtnClass}
                                                 title="Last ned svar"
@@ -1157,9 +1151,9 @@ export function ChatSection() {
                                                 onClick={async () => {
                                                     try {
                                                         await navigator.clipboard.writeText(melding.innhold);
-                                                        toast.success("Kopiert til utklippstavle");
+                                                        showToast.success("Kopiert til utklippstavle");
                                                     } catch {
-                                                        toast.error("Kunne ikke kopiere");
+                                                        showToast.error("Kunne ikke kopiere");
                                                     }
                                                 }}
                                                 className={actionBtnClass}
@@ -1169,7 +1163,7 @@ export function ChatSection() {
                                             </button>
                                             <button
                                                 type="button"
-                                                onClick={() => toast.info("Regenerer-funksjon kommer snart")}
+                                                onClick={() => showToast.info("Regenerer-funksjon kommer snart")}
                                                 className={actionBtnClass}
                                                 title="Regenerer svar"
                                             >
@@ -1179,7 +1173,7 @@ export function ChatSection() {
                                         <div className="flex items-center gap-0.5">
                                             <button
                                                 type="button"
-                                                onClick={() => toast.success("Positiv tilbakemelding registrert")}
+                                                onClick={() => showToast.success("Positiv tilbakemelding registrert")}
                                                 className={actionBtnClass}
                                                 title="Bra svar"
                                             >
@@ -1187,7 +1181,7 @@ export function ChatSection() {
                                             </button>
                                             <button
                                                 type="button"
-                                                onClick={() => toast.success("Negativ tilbakemelding registrert")}
+                                                onClick={() => showToast.success("Negativ tilbakemelding registrert")}
                                                 className={actionBtnClass}
                                                 title="Dårlig svar"
                                             >
@@ -1195,7 +1189,7 @@ export function ChatSection() {
                                             </button>
                                             <button
                                                 type="button"
-                                                onClick={() => toast.info("Flere valg kommer snart")}
+                                                onClick={() => showToast.info("Flere valg kommer snart")}
                                                 className={actionBtnClass}
                                                 title="Flere valg"
                                             >
@@ -1283,7 +1277,7 @@ export function ChatSection() {
                                     undefined,
                                     "studywise-samtale",
                                 );
-                                toast.success("Samtale lastet ned som Markdown");
+                                showToast.success("Samtale lastet ned som Markdown");
                             }}
                             disabled={meldinger.length === 0 || skriver || analyserarDokument}
                             className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"

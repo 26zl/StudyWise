@@ -1,7 +1,9 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { normalizeCanvasBaseUrl } from "common/auth";
 
 export interface ICanvasUser extends Document {
     canvasId: number;
+    canvasBaseUrl: string;
     name: string;
     sortableName?: string;
     shortName?: string;
@@ -24,7 +26,12 @@ const CanvasUserSchema: Schema = new Schema(
         canvasId: {
             type: Number,
             required: true,
-            unique: true,
+        },
+        canvasBaseUrl: {
+            type: String,
+            required: true,
+            trim: true,
+            set: normalizeCanvasBaseUrl,
         },
         name: {
             type: String,
@@ -76,6 +83,11 @@ const CanvasUserSchema: Schema = new Schema(
     {
         timestamps: true,
     }
+);
+
+CanvasUserSchema.index(
+    { canvasBaseUrl: 1, canvasId: 1 },
+    { unique: true, name: "canvas_base_url_canvas_id_unique" },
 );
 
 export const CanvasUser = mongoose.model<ICanvasUser>('CanvasUser', CanvasUserSchema);

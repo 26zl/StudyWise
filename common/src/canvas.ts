@@ -152,12 +152,6 @@ export const ModulesResponseSchema = z.object({
   meta: MetaSchema.optional(),
 });
 
-// Svar-schema for planleggingsobjekter
-export const PlannerItemsResponseSchema = z.object({
-  items: z.array(CanvasPlannerItemSchema),
-  meta: MetaSchema.optional(),
-});
-
 // Svar-schema for oppgaver
 export const AssignmentsResponseSchema = z.object({
   assignments: z.array(CanvasAssignmentSchema),
@@ -175,7 +169,6 @@ export type CanvasPlannerItem = z.infer<typeof CanvasPlannerItemSchema>;
 export type CoursesResponse = z.infer<typeof CoursesResponseSchema>;
 export type AnnouncementsResponse = z.infer<typeof AnnouncementsResponseSchema>;
 export type ModulesResponse = z.infer<typeof ModulesResponseSchema>;
-export type PlannerItemsResponse = z.infer<typeof PlannerItemsResponseSchema>;
 export type AssignmentsResponse = z.infer<typeof AssignmentsResponseSchema>;
 
 // Schema for Canvas Page (Wiki Page)
@@ -297,11 +290,6 @@ export const UpcomingEventsResponseSchema = z.object({
   meta: MetaSchema.optional(),
 });
 
-// Svar-schema for calendar_events API
-export const CalendarEventsResponseSchema = z.object({
-  events: z.array(CanvasCalendarEventSchema),
-  meta: MetaSchema.optional(),
-});
 
 // Svar-schema for todo liste
 export const TodoResponseSchema = z.object({
@@ -341,7 +329,6 @@ export type CanvasCalendarEvent = z.infer<typeof CanvasCalendarEventSchema>;
 export type CanvasTodoItem = z.infer<typeof CanvasTodoItemSchema>;
 export type CanvasModuleItemDetail = z.infer<typeof CanvasModuleItemDetailSchema>;
 export type UpcomingEventsResponse = z.infer<typeof UpcomingEventsResponseSchema>;
-export type CalendarEventsResponse = z.infer<typeof CalendarEventsResponseSchema>;
 export type TodoResponse = z.infer<typeof TodoResponseSchema>;
 export type ModuleItemDetailsResponse = z.infer<typeof ModuleItemDetailsResponseSchema>;
 

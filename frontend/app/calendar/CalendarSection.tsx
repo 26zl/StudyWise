@@ -12,7 +12,7 @@ import { nb } from "date-fns/locale";
 import { Clock, MapPin, ChevronLeft, ChevronRight, CalendarDays, Filter } from "lucide-react";
 import { CalendarGrid } from "./CalendarGrid";
 import { FeilMelding } from "../components/FeilMelding";
-import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
+import { lagBrukervennligFeilmelding, CANVAS_TOKEN_UGYLDIG_MELDING } from "../lib/errorUtils";
 import { useCombinedCalendarData } from "./calendar-api";
 import { useUIStore } from "../store/uiStore";
 import { KIOppsummering } from "../components/KIOppsummering";
@@ -97,7 +97,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
     return <FeilMelding melding="Du må lagre en Canvas API-token for å hente kalenderen." />;
   }
   if (canvasTokenInvalid) {
-    return <FeilMelding melding="Canvas-tokenet ditt er ugyldig, utløpt eller slettet i Canvas. Gå til Innstillinger for å legge til et nytt token." />;
+    return <FeilMelding type="warning" melding={CANVAS_TOKEN_UGYLDIG_MELDING} />;
   }
   if (isLoading) {
     return (

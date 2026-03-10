@@ -30,7 +30,7 @@ Produksjonsnettside - <https://www.studwize.page>
 
 - Node.js 20+ installert
 - pnpm installert (`npm install -g pnpm`)
-- Canvas LMS-konto (f.eks. USN Canvas)
+- Canvas LMS-konto fra ditt lærested i Norge som bruker Canvas
 
 > **Viktig:** Hold din lokale versjon oppdatert! Kjør `git pull origin main` jevnlig.
 

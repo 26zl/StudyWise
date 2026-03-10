@@ -103,6 +103,7 @@ export function userKey(userId: string, ...parts: string[]): string {
 export async function syncCanvasDataForUser(
   userId: string,
   canvasToken: string,
+  baseUrl?: string,
 ): Promise<SyncResult> {
   const startTime = Date.now();
 
@@ -133,7 +134,7 @@ export async function syncCanvasDataForUser(
   // Hent aktive emner
   let courses;
   try {
-    const result = await fetchCoursesForKI(canvasToken);
+    const result = await fetchCoursesForKI(canvasToken, baseUrl);
     courses = result.data;
   } catch (error) {
     logger.error({ err: error, userId }, "Kunne ikke hente emner for Canvas sync");
@@ -177,9 +178,9 @@ export async function syncCanvasDataForUser(
         try {
           // Hent data parallelt for dette emnet
           const [modulesResult, assignmentsResult, announcementsResult] = await Promise.allSettled([
-            fetchModules(canvasToken, course.id),
-            fetchAssignments(canvasToken, course.id),
-            fetchCourseAnnouncements(canvasToken, course.id),
+            fetchModules(canvasToken, course.id, baseUrl),
+            fetchAssignments(canvasToken, course.id, { baseUrl }),
+            fetchCourseAnnouncements(canvasToken, course.id, baseUrl),
           ]);
 
           const moduler = modulesResult.status === "fulfilled" ? modulesResult.value.data : [];
@@ -271,7 +272,7 @@ export async function syncCanvasDataForUser(
                 const fileKey = userKey(userId, "file", String(contentId), "content");
 
                 // Hent filmetadata for endringsindikatoren (updated_at)
-                const { data: fileData } = await fetchFileMetadata(canvasToken, contentId);
+                const { data: fileData } = await fetchFileMetadata(canvasToken, contentId, baseUrl);
                 const metaHash = sha256(`${fileData.id}:${fileData.updated_at}:${fileData.size}`);
 
                 // Sjekk om vi allerede har innhold med samme hash
@@ -305,7 +306,7 @@ export async function syncCanvasDataForUser(
                   url: fileData.url,
                   size: fileData.size,
                   mime_type: fileData.mime_type,
-                });
+                }, baseUrl);
 
                 if (pdfResult) {
                   await setCache(

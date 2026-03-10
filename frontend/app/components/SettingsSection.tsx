@@ -16,16 +16,93 @@ import { useChatHistory } from "../hooks/useChatHistory";
 import { showToast } from "./Toaster";
 import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
 import { CanvasContextSelector } from "./CanvasContextSelector";
+import { CANVAS_INSTITUSJONER_NORGE } from "common/canvasInstitutions";
+import { CanvasBaseUrlSchema } from "common/auth";
 
 // Typer for SettingsSection props
 interface SettingsSectionProps {
     harCanvasToken?: boolean;
     lokalBrukerEpost?: string;
+    /** Nåværende Canvas base URL for brukerens institusjon (fra /me). */
+    canvasBaseUrl?: string | null;
+}
+
+function getAvatarInitialer(value: string | null | undefined): string {
+    const cleaned = value?.trim();
+    if (!cleaned) return "SW";
+
+    const parts = cleaned
+        .split(/[\s@._-]+/)
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .slice(0, 2);
+
+    if (parts.length === 0) {
+        return cleaned.slice(0, 2).toUpperCase();
+    }
+
+    return parts
+        .map((part) => part.charAt(0).toUpperCase())
+        .join("")
+        .slice(0, 2);
+}
+
+function getSafeAvatarUrl(url: string | undefined): string | null {
+    if (!url || !url.startsWith("https://")) {
+        return null;
+    }
+    try {
+        const hostname = new URL(url).hostname.toLowerCase();
+        const allowed =
+            hostname === "instructure-uploads.s3.amazonaws.com" ||
+            hostname.endsWith(".instructure.com") ||
+            hostname === "instructure.com";
+        return allowed ? url : null;
+    } catch {
+        return null;
+    }
+}
+
+function ProfileAvatar({
+    imageUrl,
+    label,
+    alt,
+    tone,
+}: {
+    imageUrl?: string | null;
+    label?: string | null;
+    alt: string;
+    tone: "blue" | "green";
+}) {
+    const toneClasses = tone === "blue"
+        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200"
+        : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-200";
+
+    if (imageUrl) {
+        return (
+            <img
+                src={imageUrl}
+                alt={alt}
+                className="w-12 h-12 rounded-full object-cover bg-slate-200 dark:bg-slate-700"
+            />
+        );
+    }
+
+    return (
+        <div
+            role="img"
+            aria-label={alt}
+            className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold ${toneClasses}`}
+        >
+            {getAvatarInitialer(label)}
+        </div>
+    );
 }
 // Settings seksjon komponent
 export function SettingsSection({
     harCanvasToken,
     lokalBrukerEpost,
+    canvasBaseUrl: brukerCanvasBaseUrl,
 }: SettingsSectionProps) {
     const { setTheme, resolvedTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
@@ -59,6 +136,9 @@ export function SettingsSection({
 
     const [cooldown, setCooldown] = useState(false);
     const cooldownTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Multi-tenant: velg institusjon ved lagring av token
+    const [valgtInstitusjonUrl, setValgtInstitusjonUrl] = useState<string>("");
+    const [annenCanvasUrl, setAnnenCanvasUrl] = useState("");
     const { clearAll: clearChatHistory, chats, loading: chatsLoading } = useChatHistory();
 
     useEffect(() => {
@@ -66,6 +146,15 @@ export function SettingsSection({
             if (cooldownTimeoutRef.current) clearTimeout(cooldownTimeoutRef.current);
         };
     }, []);
+
+    useEffect(() => {
+        if (!brukerCanvasBaseUrl) return;
+        const kjentInstitusjon = CANVAS_INSTITUSJONER_NORGE.find(
+            (inst) => inst.url === brukerCanvasBaseUrl,
+        );
+        setValgtInstitusjonUrl(kjentInstitusjon ? kjentInstitusjon.url : "other");
+        setAnnenCanvasUrl(kjentInstitusjon ? "" : brukerCanvasBaseUrl);
+    }, [brukerCanvasBaseUrl]);
 
     // Hent Canvas-brukerdata for profil-visning
     const canvasUserQuery = useCanvasUser(harCanvasToken);
@@ -76,31 +165,32 @@ export function SettingsSection({
         ? format(new Date(canvasUser.created_at), "d. MMMM yyyy", { locale: nb })
         : null;
 
-    // Avatar URL: kun https og host må være på allowlist (Canvas CDN / Instructure) for å unngå XSS og tracking
-    const getSafeAvatarUrl = (url: string | undefined, fallbackSeed: string, bgColor: string): string => {
-        if (!url || !url.startsWith("https://")) {
-            return `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(fallbackSeed)}&backgroundColor=${bgColor}`;
-        }
-        try {
-            const hostname = new URL(url).hostname.toLowerCase();
-            const allowed =
-                hostname === "instructure-uploads.s3.amazonaws.com" ||
-                hostname.endsWith(".instructure.com") ||
-                hostname === "instructure.com";
-            if (!allowed) return `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(fallbackSeed)}&backgroundColor=${bgColor}`;
-            return url;
-        } catch {
-            return `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(fallbackSeed)}&backgroundColor=${bgColor}`;
-        }
-    };
-
     // Håndter lagring av Canvas token
     const handleLagreToken = async (forceRelink = false) => {
         if (cooldown) return;
         const trimmetToken = (forceRelink ? canvasKonflikt?.token : canvasToken)?.trim();
         if (!trimmetToken) return;
+        const valgtCanvasBaseUrl = valgtInstitusjonUrl === "other"
+            ? annenCanvasUrl.trim()
+            : valgtInstitusjonUrl;
+        if (!valgtCanvasBaseUrl) {
+            showToast.error("Velg institusjon", "Velg en Canvas-institusjon før du lagrer tokenet.");
+            return;
+        }
+        const parsedCanvasBaseUrl = CanvasBaseUrlSchema.safeParse(valgtCanvasBaseUrl);
+        if (!parsedCanvasBaseUrl.success) {
+            showToast.error(
+                "Ugyldig Canvas-URL",
+                parsedCanvasBaseUrl.error.issues[0]?.message || "Skriv inn en gyldig Canvas-instans.",
+            );
+            return;
+        }
         try {
-            await mutateAsync({ token: trimmetToken, forceRelink });
+            await mutateAsync({
+                token: trimmetToken,
+                forceRelink,
+                canvasBaseUrl: parsedCanvasBaseUrl.data,
+            });
             setCanvasToken("");
             setCanvasKonflikt(null);
             // Nullstill token-feilstatus slik at Canvas-queries aktiveres igjen
@@ -146,6 +236,10 @@ export function SettingsSection({
         }
     };
 
+    const manglerCanvasUrl =
+        !valgtInstitusjonUrl ||
+        (valgtInstitusjonUrl === "other" && !annenCanvasUrl.trim());
+
     return (
         <div className="h-full flex flex-col">
             {/* Header */}
@@ -172,10 +266,10 @@ export function SettingsSection({
                         <div className="space-y-4">
                             {/* Lokal StudyWise-konto */}
                             <div className="flex items-center gap-4">
-                                <img
-                                    src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(lokalBrukerEpost || "user")}&backgroundColor=3b82f6`}
-                                    alt="Profilbilde"
-                                    className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30"
+                                <ProfileAvatar
+                                    label={lokalBrukerEpost}
+                                    alt="Profilbilde for StudyWise-konto"
+                                    tone="blue"
                                 />
                                 <div>
                                     <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
@@ -205,10 +299,11 @@ export function SettingsSection({
                                     </div>
                                 ) : harCanvasToken && canvasUser ? (
                                     <div className="flex items-center gap-4">
-                                        <img
-                                            src={getSafeAvatarUrl(canvasUser.avatar_url, canvasUser.name || "canvas", "22c55e")}
-                                            alt={canvasUser.name || "Profilbilde"}
-                                            className="w-12 h-12 rounded-full object-cover bg-slate-200 dark:bg-slate-700"
+                                        <ProfileAvatar
+                                            imageUrl={getSafeAvatarUrl(canvasUser.avatar_url)}
+                                            label={canvasUser.name}
+                                            alt={canvasUser.name || "Profilbilde for Canvas-konto"}
+                                            tone="green"
                                         />
                                         <div>
                                             <p className="font-medium text-slate-900 dark:text-white">
@@ -259,7 +354,7 @@ export function SettingsSection({
                             </div>
                             <button
                                 onClick={toggleTheme}
-                                className={`shrink-0 w-14 h-8 rounded-full p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isDarkMode ? "bg-blue-600" : "bg-slate-200 dark:bg-slate-600"
+                                className={`shrink-0 w-14 h-8 rounded-full p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900 focus:ring-blue-500 ${isDarkMode ? "bg-blue-600" : "bg-slate-200 dark:bg-slate-600"
                                     }`}
                                 role="switch"
                                 aria-checked={isDarkMode}
@@ -286,8 +381,14 @@ export function SettingsSection({
 
                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
                             Koble til din Canvas-konto for å hente emner, kunngjøringer,
-                            frister og forelesninger.
+                            frister og forelesninger. Velg institusjon under før du lagrer tokenet. Listen dekker kjente norske Canvas-instanser, og du kan angi en annen Instructure-URL ved behov.
                         </p>
+
+                        {brukerCanvasBaseUrl && (
+                            <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                                Din institusjon: <span className="font-medium text-slate-800 dark:text-slate-200">{brukerCanvasBaseUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}</span>
+                            </p>
+                        )}
 
                         {harCanvasToken && (
                             <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
@@ -315,7 +416,7 @@ export function SettingsSection({
                                                 <button
                                                     onClick={handleSlettToken}
                                                     disabled={isSlettingToken}
-                                                    className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded transition-colors disabled:opacity-50"
+                                                    className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
                                                     {isSlettingToken ? "Sletter..." : "Ja, slett Canvas API Token"}
                                                 </button>
@@ -333,6 +434,45 @@ export function SettingsSection({
                         )}
 
                         <fieldset className="space-y-3">
+                            <div>
+                                <label htmlFor="canvas-institusjon" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    Institusjon (Canvas)
+                                </label>
+                                <select
+                                    id="canvas-institusjon"
+                                    value={valgtInstitusjonUrl}
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        setValgtInstitusjonUrl(v);
+                                        setCanvasKonflikt(null);
+                                        if (v !== "other") setAnnenCanvasUrl("");
+                                    }}
+                                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="">Velg institusjon</option>
+                                    {CANVAS_INSTITUSJONER_NORGE.map((inst) => (
+                                        <option key={inst.url} value={inst.url}>{inst.navn}</option>
+                                    ))}
+                                    <option value="other">Annen Instructure-instans</option>
+                                </select>
+                                {valgtInstitusjonUrl === "other" ? (
+                                    <input
+                                        type="url"
+                                        value={annenCanvasUrl}
+                                        onChange={(e) => {
+                                            setAnnenCanvasUrl(e.target.value);
+                                            setCanvasKonflikt(null);
+                                        }}
+                                        placeholder="https://din-skole.instructure.com"
+                                        className="mt-2 w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                ) : null}
+                                {manglerCanvasUrl && (
+                                    <p className="mt-1.5 text-sm text-amber-600 dark:text-amber-400">
+                                        Velg institusjon (eller angi URL) før du lagrer tokenet.
+                                    </p>
+                                )}
+                            </div>
                             {canvasKonflikt && (
                                 <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
                                     <p className="text-sm text-amber-800 dark:text-amber-200">
@@ -374,7 +514,7 @@ export function SettingsSection({
 
                             <button
                                 onClick={() => void handleLagreToken()}
-                                disabled={!canvasToken.trim() || isPending || cooldown}
+                                disabled={!canvasToken.trim() || isPending || cooldown || manglerCanvasUrl}
                                 className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
                                 {isPending ? "Lagrer..." : "Lagre token"}

@@ -10,7 +10,7 @@ import { logger } from "./logger.js";
 // Standard feilresponse-format
 export interface ApiErrorResponse {
     feil: string;
-    melding?: string;
+    melding: string;
     kode?: string;
     detaljer?: unknown;
 }
@@ -64,14 +64,15 @@ export function sendError(
     }
 ): void {
     const status = options?.status ?? ERROR_CODE_STATUS[kode];
+    const fallbackMelding =
+        typeof options?.detaljer === "string" && options.detaljer.trim().length > 0
+            ? options.detaljer
+            : options?.feil ?? ERROR_MESSAGES[kode];
     const response: ApiErrorResponse = {
         feil: options?.feil ?? ERROR_MESSAGES[kode],
+        melding: options?.melding ?? fallbackMelding,
         kode,
     };
-
-    if (options?.melding) {
-        response.melding = options.melding;
-    }
     if (options?.detaljer !== undefined) {
         response.detaljer = options.detaljer;
     }
@@ -87,9 +88,11 @@ export function sendZodError(res: Response, error: ZodError, kontekst?: string):
         felt: issue.path.join("."),
         feil: issue.message,
     }));
+    const førsteFeil = issues[0]?.feil;
 
     sendError(res, "validation_error", {
         feil: kontekst ? `Valideringsfeil: ${kontekst}` : "Valideringsfeil i forespørsel",
+        melding: førsteFeil,
         detaljer: issues,
     });
 }

@@ -15,6 +15,8 @@ declare global {
     interface Request {
       user?: JwtBrukerPayload;
       canvasToken?: string;
+      /** Canvas base URL for brukerens institusjon (multi-tenant). Sett av auth-middleware. */
+      canvasBaseUrl?: string;
     }
   }
 }

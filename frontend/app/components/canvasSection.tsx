@@ -37,7 +37,7 @@ import { showToast } from "./Toaster";
 import { erInnlevert as erInnlevertOppgave } from "../canvas/canvasUtils";
 import { createCanvasHtmlParser, parseCanvasHtml, sikkerFilNedlastingUrl } from "../canvas/canvasHtml";
 import { CanvasPageVisning } from "./CanvasPageVisning";
-import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
+import { lagBrukervennligFeilmelding, CANVAS_TOKEN_UGYLDIG_MELDING } from "../lib/errorUtils";
 import { formaterDatoLong, formaterDatoMedTid, dagerFraIdag, formaterDagerRelativtFrist } from "../lib/dato";
 
 // Typer for Canvas visninger
@@ -801,10 +801,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
 function TokenUgyldigAdvarsel() {
     return (
         <div className="mx-4 md:mx-6 mt-4">
-            <FeilMelding
-                type="warning"
-                melding="Canvas API-tokenet ditt er ugyldig, utløpt eller slettet i Canvas. Gå til Innstillinger for å legge til et nytt token."
-            />
+            <FeilMelding type="warning" melding={CANVAS_TOKEN_UGYLDIG_MELDING} />
         </div>
     );
 }
@@ -834,14 +831,22 @@ export function CanvasSection({ startVisning = "announcements", harCanvasToken =
                 </h2>
             </div>
 
-            {/* Advarsel ved ugyldig token */}
+            {/* Advarsel ved ugyldig token – vis kun én melding, ikke også seksjonsspesifikk "må lagre token" */}
             {canvasTokenInvalid && <TokenUgyldigAdvarsel />}
 
-            {/* Innhold */}
+            {/* Innhold: når token er ugyldig vises bare advarselen over, ikke dobbel feilmelding */}
             <div className="flex-1 overflow-y-auto p-4 md:p-6">
-                {visning === "announcements" && <KunngjoringVisning harCanvasToken={harCanvasToken} />}
-                {visning === "courses" && <EmneVisning harCanvasToken={harCanvasToken} />}
-                {visning === "assignments" && <OppgaverVisning harCanvasToken={harCanvasToken} />}
+                {canvasTokenInvalid ? (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                        Gå til Innstillinger for å legge til et nytt token.
+                    </p>
+                ) : (
+                    <>
+                        {visning === "announcements" && <KunngjoringVisning harCanvasToken={harCanvasToken} />}
+                        {visning === "courses" && <EmneVisning harCanvasToken={harCanvasToken} />}
+                        {visning === "assignments" && <OppgaverVisning harCanvasToken={harCanvasToken} />}
+                    </>
+                )}
             </div>
         </div>
     );

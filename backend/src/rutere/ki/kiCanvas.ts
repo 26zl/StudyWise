@@ -49,12 +49,12 @@ function dagensDatoStreng(includeWeek = false): string {
  * Brukes for enkel Canvas-relaterte spørsmål ("hvilke fag har jeg", "neste frist").
  * Mål: ~2 000 tokens i stedet for ~50 000.
  */
-export async function byggLettCanvasKontekst(canvasToken: string): Promise<string> {
+export async function byggLettCanvasKontekst(canvasToken: string, baseUrl?: string): Promise<string> {
   try {
     const [emnerResult, todoResult, eventsResult] = await Promise.allSettled([
-      fetchCoursesForKI(canvasToken),
-      fetchTodo(canvasToken),
-      fetchUpcomingEvents(canvasToken),
+      fetchCoursesForKI(canvasToken, baseUrl),
+      fetchTodo(canvasToken, baseUrl),
+      fetchUpcomingEvents(canvasToken, baseUrl),
     ]);
 
     const emner = emnerResult.status === "fulfilled" ? emnerResult.value.data : [];
@@ -86,7 +86,7 @@ export async function byggLettCanvasKontekst(canvasToken: string): Promise<strin
       emner.slice(0, 20).map((course: CanvasCourse) =>
         limit(async () => {
           try {
-            const res = await fetchAssignments(canvasToken, course.id, { bucket: "future" });
+            const res = await fetchAssignments(canvasToken, course.id, { bucket: "future", baseUrl });
             return {
               courseId: course.id,
               courseName: course.name,
@@ -171,10 +171,10 @@ export async function byggLettCanvasKontekst(canvasToken: string): Promise<strin
 export async function byggMålrettetCanvasKontekst(
   canvasToken: string,
   target: { courseHint: string | null; moduleHint: string | null; fileHint: string | null },
+  baseUrl?: string,
 ): Promise<string> {
   try {
-    // 1. Hent alle emner
-    const { data: allCourses } = await fetchCoursesForKI(canvasToken);
+    const { data: allCourses } = await fetchCoursesForKI(canvasToken, baseUrl);
 
     // 2. Finn matchende emne
     let matchedCourse: CanvasCourse | undefined;
@@ -190,7 +190,7 @@ export async function byggMålrettetCanvasKontekst(
     if (!matchedCourse && target.moduleHint) {
       for (const course of allCourses) {
         try {
-          const { data: mods } = await fetchModules(canvasToken, course.id);
+          const { data: mods } = await fetchModules(canvasToken, course.id, baseUrl);
           const found = mods.some((m) =>
             m.name.toLowerCase().includes(target.moduleHint!.toLowerCase()),
           );
@@ -199,17 +199,16 @@ export async function byggMålrettetCanvasKontekst(
             break;
           }
         } catch {
-          // Emnet kan mangle modultilgang — hopp videre
+          //
         }
       }
     }
 
-    // Hvis fortsatt ingen match: søk etter fileHint i modul-innhold (samsvar med Redis-pathen slik at kald start ikke bommer)
     if (!matchedCourse && target.fileHint) {
       const normHintSearch = target.fileHint.toLowerCase().replace(/\.pdf$/i, "").replace(/[_-]/g, " ").trim();
       for (const course of allCourses) {
         try {
-          const { data: mods } = await fetchModules(canvasToken, course.id);
+          const { data: mods } = await fetchModules(canvasToken, course.id, baseUrl);
           const found = mods.some((m) =>
             m.items?.some((item) => {
               if (item.type !== "File") return false;
@@ -233,11 +232,10 @@ export async function byggMålrettetCanvasKontekst(
         { target },
         "Målrettet kontekst: Fant ikke matchende emne — faller tilbake til lett kontekst",
       );
-      return await byggLettCanvasKontekst(canvasToken);
+      return await byggLettCanvasKontekst(canvasToken, baseUrl);
     }
 
-    // 3. Hent moduler kun for dette emnet
-    const { data: modules } = await fetchModules(canvasToken, matchedCourse.id);
+    const { data: modules } = await fetchModules(canvasToken, matchedCourse.id, baseUrl);
 
     // 4. Finn matchende modul (hvis moduleHint finnes)
     let targetModules = modules;
@@ -258,7 +256,7 @@ export async function byggMålrettetCanvasKontekst(
 
     // Oppgaver for dette emnet (kommende)
     try {
-      const { data: assignments } = await fetchAssignments(canvasToken, matchedCourse.id, { bucket: "future" });
+      const { data: assignments } = await fetchAssignments(canvasToken, matchedCourse.id, { bucket: "future", baseUrl });
       if (assignments.length > 0) {
         deler.push("\nOPPGAVER:");
         for (const a of assignments.slice(0, 10)) {
@@ -293,7 +291,7 @@ export async function byggMålrettetCanvasKontekst(
         } else if (item.type === "Page" && item.page_url) {
           // Hent sideinnhold
           try {
-            const { data: pageData } = await fetchPage(canvasToken, matchedCourse.id, item.page_url);
+            const { data: pageData } = await fetchPage(canvasToken, matchedCourse.id, item.page_url, baseUrl);
             if (pageData.body) {
               const content = stripHtml(pageData.body).substring(0, MAX_PAGE_CONTENT_LENGTH);
               deler.push(`\n  [Side: ${item.title}]`);
@@ -309,13 +307,13 @@ export async function byggMålrettetCanvasKontekst(
         } else if (item.type === "File" && item.content_id && pdfCount < MAX_PDFS_IN_TARGET) {
           // Hent fil-metadata og eventuelt PDF-innhold
           try {
-            const { data: fileMeta } = await fetchFileMetadata(canvasToken, item.content_id);
+            const { data: fileMeta } = await fetchFileMetadata(canvasToken, item.content_id, baseUrl);
             const isPdf =
               fileMeta.mime_type === "application/pdf" ||
               (fileMeta.filename || "").toLowerCase().endsWith(".pdf");
 
             if (isPdf && fileMeta.size <= MAX_PDF_FILE_SIZE) {
-              const pdfResult = await fetchPdfContent(canvasToken, fileMeta);
+              const pdfResult = await fetchPdfContent(canvasToken, fileMeta, baseUrl);
               if (pdfResult) {
                 pdfCount++;
 

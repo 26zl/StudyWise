@@ -18,12 +18,13 @@ import {
 } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { FeilMelding } from "./FeilMelding";
-import { toast } from "sonner";
+import { showToast } from "./Toaster";
 import { useVarsler, type VarslingTab } from "../hooks/useVarsler";
 import { formaterTid, type FristStatus } from "../lib/varsler";
 import type { FristElement, KunngjoringElement, HendelseElement, VarslingElement } from "../lib/varsler";
 import { KIOppsummering } from "./KIOppsummering";
-import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
+import { lagBrukervennligFeilmelding, CANVAS_TOKEN_UGYLDIG_MELDING } from "../lib/errorUtils";
+import { useUIStore } from "../store/uiStore";
 
 interface VarslingerSectionProps {
     harCanvasToken?: boolean;
@@ -43,6 +44,7 @@ function fristBadgeFarge(status: FristStatus) {
 // VarslingerSection - hovedkomponent for varslinger-siden, med faner og kortvisning. Deler data og lest/ulest-status med popup via useVarsler og uiStore.
 export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionProps) {
     const [aktivTab, settAktivTab] = useState<VarslingTab>("alle");
+    const canvasTokenInvalid = useUIStore((state) => state.canvasTokenInvalid);
 
     const {
         frister,
@@ -86,6 +88,13 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
             </div>
         );
     }
+    if (canvasTokenInvalid) {
+        return (
+            <div className="p-6 sm:p-8">
+                <FeilMelding type="warning" melding={CANVAS_TOKEN_UGYLDIG_MELDING} />
+            </div>
+        );
+    }
 
     return (
         <div className="p-4 sm:p-6 lg:p-8 space-y-6">
@@ -102,7 +111,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                         type="button"
                         onClick={() => {
                             markAllAsLest();
-                            if (ulesteCount > 0) toast.success("Alle varsler markert som lest");
+                            if (ulesteCount > 0) showToast.success("Alle varsler markert som lest");
                         }}
                         disabled={ulesteCount === 0}
                         className={`

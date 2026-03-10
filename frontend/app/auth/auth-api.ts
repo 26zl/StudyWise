@@ -25,12 +25,17 @@ import {
   type VarslerState,
   type PreferencesResponse,
 } from "common/auth";
-import { SessionExpiredError, AppError } from "../lib/errors";
+import { CanvasErrorCodeSchema } from "common/canvasErrors";
+import { SessionExpiredError, AppError, CanvasApiError } from "../lib/errors";
 import { withCsrfProtection } from "../lib/csrf";
 import { broadcastLogout } from "../hooks/use-auth-sync";
 import { useUIStore } from "../store/uiStore";
-import { toast } from "sonner";
+import { showToast } from "../components/Toaster";
 import type { ZodType } from "zod";
+import {
+  extractApiErrorMessage,
+  extractApiErrorPayload,
+} from "../lib/errorUtils";
 
 // For å unngå flere samtidige refresh-forsøk ved utløpt sesjon, holder vi en global promise for pågående refresh. Alle kall som oppdager utløpt sesjon kan vente på denne promise i stedet for å starte sin egen refresh.
 let refreshPromise: Promise<RefreshResponse> | null = null;
@@ -77,6 +82,30 @@ const hentJson = async (res: Response) => {
   }
 };
 
+function lagApiFeil(json: unknown, fallback: string): Error {
+  return new Error(extractApiErrorMessage(json, fallback));
+}
+
+function lagCanvasTokenFeil(
+  json: unknown,
+  status: number,
+  fallback: string,
+): Error {
+  const payload = extractApiErrorPayload(json);
+  const melding = extractApiErrorMessage(json, fallback);
+
+  if (payload?.canvasKonflikt) {
+    return new CanvasTokenConflictError(melding);
+  }
+
+  const kode = CanvasErrorCodeSchema.safeParse(payload?.kode);
+  if (kode.success) {
+    return new CanvasApiError(kode.data, melding, status);
+  }
+
+  return new Error(melding);
+}
+
 // Alle autentiserte kall (inkl. POST/PUT/DELETE) får CSRF-header via withCsrfProtection — påkrevd av backend.
 async function requestAuthedJson<T>(
   url: string,
@@ -97,13 +126,15 @@ async function requestAuthedJson<T>(
     try {
       await fornySesjon();
     } catch {
-      throw new Error(json.melding || json.feil || "Ikke autentisert");
+      throw new SessionExpiredError(
+        extractApiErrorMessage(json, "Ikke autentisert"),
+      );
     }
     return requestAuthedJson(url, schema, defaultErrorMessage, init, true);
   }
 
   if (!res.ok) {
-    throw new Error(json.melding || json.feil || defaultErrorMessage);
+    throw lagApiFeil(json, defaultErrorMessage);
   }
 
   return schema.parse(json);
@@ -121,7 +152,7 @@ async function loggInn(data: LoginRequest): Promise<LoginResponse> {
   });
   const json = await hentJson(res);
   if (!res.ok) {
-    throw new Error(json.melding || json.feil || "Innlogging feilet");
+    throw lagApiFeil(json, "Innlogging feilet");
   }
   return LoginResponseSchema.parse(json);
 }
@@ -137,9 +168,7 @@ async function registrer(data: RegisterRequest): Promise<RegisterResponse> {
   });
   const json = await hentJson(res);
   if (!res.ok) {
-    throw new Error(
-      json.melding || json.feil || "Kunne ikke registrere bruker",
-    );
+    throw lagApiFeil(json, "Kunne ikke registrere bruker");
   }
   return RegisterResponseSchema.parse(json);
 }
@@ -160,7 +189,7 @@ async function hentMeg(): Promise<MeResponse> {
       await fornySesjon();
     } catch {
       // Refresh feilet - brukeren er ikke logget inn
-      throw new Error("Ikke autentisert");
+      throw new SessionExpiredError("Ikke autentisert");
     }
     // Refresh OK - prøv /me igjen
     const resRetry = await fetch("/api/user/me", {
@@ -170,13 +199,16 @@ async function hentMeg(): Promise<MeResponse> {
     });
     const jsonRetry = await hentJson(resRetry);
     if (!resRetry.ok) {
-      throw new Error(
-        jsonRetry.melding || jsonRetry.feil || "Ikke autentisert",
-      );
+      if (resRetry.status === 401 || resRetry.status === 403) {
+        throw new SessionExpiredError(
+          extractApiErrorMessage(jsonRetry, "Ikke autentisert"),
+        );
+      }
+      throw lagApiFeil(jsonRetry, "Kunne ikke hente brukerdata");
     }
     return MeResponseSchema.parse(jsonRetry);
   }
-  throw new Error(json.melding || json.feil || "Ikke autentisert");
+  throw lagApiFeil(json, "Kunne ikke hente brukerdata");
 }
 // Utlogging
 async function loggUt(forsoktRefresh = false): Promise<LogoutResponse> {
@@ -197,11 +229,11 @@ async function loggUt(forsoktRefresh = false): Promise<LogoutResponse> {
   }
   if (res.status === 401 || res.status === 403) {
     throw new SessionExpiredError(
-      json.melding || json.feil || "Sesjonen er allerede utløpt.",
+      extractApiErrorMessage(json, "Sesjonen er allerede utløpt."),
     );
   }
   if (!res.ok) {
-    throw new Error(json.melding || json.feil || "Kunne ikke logge ut");
+    throw lagApiFeil(json, "Kunne ikke logge ut");
   }
   return LogoutResponseSchema.parse(json);
 }
@@ -217,7 +249,9 @@ export async function fornySesjon(): Promise<RefreshResponse> {
     });
     const json = await hentJson(res);
     if (!res.ok) {
-      throw new Error(json.melding || json.feil || "Kunne ikke fornye sesjon");
+      throw new SessionExpiredError(
+        extractApiErrorMessage(json, "Kunne ikke fornye sesjon"),
+      );
     }
     return RefreshResponseSchema.parse(json);
   })();
@@ -227,15 +261,16 @@ export async function fornySesjon(): Promise<RefreshResponse> {
     refreshPromise = null;
   }
 }
-// Lagre Canvas token for innlogget bruker
+// Lagre Canvas token for innlogget bruker (multi-tenant: eksplisitt Canvas-instans-URL)
 interface SaveCanvasTokenInput {
   token: string;
   forceRelink?: boolean;
+  /** Canvas base URL for brukerens institusjon (f.eks. https://ntnu.instructure.com). */
+  canvasBaseUrl: string;
 }
 
-// Hjelpefunksjon for å bygge Cookie-header basert på tilgjengelige cookies
 async function lagreCanvasTokenRequest(
-  { token, forceRelink = false }: SaveCanvasTokenInput,
+  { token, forceRelink = false, canvasBaseUrl }: SaveCanvasTokenInput,
   forsoktRefresh = false,
 ): Promise<CanvasTokenResponse> {
   const url = forceRelink ? "/api/user/token?force=true" : "/api/user/token";
@@ -245,23 +280,16 @@ async function lagreCanvasTokenRequest(
     ...withCsrfProtection({
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
+      body: JSON.stringify({ token, canvasBaseUrl }),
     }),
   });
   const json = await hentJson(res);
   if ((res.status === 401 || res.status === 403) && !forsoktRefresh) {
     await fornySesjon();
-    return lagreCanvasTokenRequest({ token, forceRelink }, true);
+    return lagreCanvasTokenRequest({ token, forceRelink, canvasBaseUrl }, true);
   }
   if (!res.ok) {
-    if (json.canvasKonflikt) {
-      throw new CanvasTokenConflictError(
-        json.melding ||
-          json.feil ||
-          "Canvas-kontoen er allerede koblet til en annen bruker",
-      );
-    }
-    throw new Error(json.melding || json.feil || "Kunne ikke lagre token");
+    throw lagCanvasTokenFeil(json, res.status, "Kunne ikke lagre token");
   }
   return CanvasTokenResponseSchema.parse(json);
 }
@@ -289,6 +317,9 @@ export function useMeg(options?: { initialData?: MeResponse }) {
     queryFn: hentMeg,
     retry: (failureCount, error) => {
       // Ikke prøv igjen ved ugyldig auth (401/403)
+      if (AppError.isAppError(error) && error.requiresReauth()) {
+        return false;
+      }
       const message = error instanceof Error ? error.message : String(error);
       if (message.includes("401") || message.includes("403") || message.includes("Ikke autentisert")) {
         return false;
@@ -318,7 +349,7 @@ export function useLoggUtWithRedirect() {
       await loggUt.mutateAsync();
     } catch (error) {
       if (!AppError.isAppError(error) || !error.requiresReauth()) {
-        toast.error("Kunne ikke logge ut. Prøv igjen.");
+        showToast.error("Kunne ikke logge ut", "Prøv igjen.");
         return;
       }
     }

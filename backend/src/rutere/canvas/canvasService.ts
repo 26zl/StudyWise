@@ -46,29 +46,60 @@ const requireToken = (token?: string | null) => {
   return token;
 };
 
-// Hent brukerprofil
-export async function fetchUserProfile(canvasToken?: string | null) {
-  const token = requireToken(canvasToken);
-  const response = await hentCanvasData<unknown>("/api/v1/users/self/profile", {
+async function fetchUserProfileFromEndpoint(
+  endpoint: "/api/v1/users/self/profile" | "/api/v1/users/self",
+  token: string,
+  baseUrl?: string,
+) {
+  const response = await hentCanvasData<unknown>(endpoint, {
     token,
+    baseUrl,
     cacheTtl: CACHE_TTL.USER_PROFILE,
   });
+
   return {
     data: CanvasUserSchema.parse(response.data),
     meta: response.meta,
   };
 }
 
+// Hent brukerprofil
+export async function fetchUserProfile(canvasToken?: string | null, baseUrl?: string) {
+  const token = requireToken(canvasToken);
+  try {
+    return await fetchUserProfileFromEndpoint("/api/v1/users/self/profile", token, baseUrl);
+  } catch (error) {
+    const canvasError = error as { name?: string; code?: string };
+    const shouldFallback =
+      canvasError?.name === "CanvasApiError" &&
+      (canvasError.code === "token_invalid" ||
+        canvasError.code === "permission_denied" ||
+        canvasError.code === "resource_not_found");
+
+    if (!shouldFallback) {
+      throw error;
+    }
+
+    logger.warn(
+      { baseUrl, endpoint: "/api/v1/users/self/profile", code: canvasError.code },
+      "Canvas-profil-endepunkt feilet, prøver /api/v1/users/self som fallback",
+    );
+
+    return fetchUserProfileFromEndpoint("/api/v1/users/self", token, baseUrl);
+  }
+}
+
 // Hent aktive kurs for brukeren
 // Henter kun aktive kurs brukeren er meldt opp i
 // enrollment_state=active filtrerer ut fullførte/avsluttede emner
 // Inkluderer også enrollments for å få section_id (trengs for calendar_events)
-export async function fetchCourses(canvasToken?: string | null): Promise<
+export async function fetchCourses(canvasToken?: string | null, baseUrl?: string): Promise<
   CanvasResponseWithMeta<CanvasCourse[]>
 > {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown[]>("/api/v1/courses", {
     token,
+    baseUrl,
     queryParams: {
       per_page: PAGE_SIZE.DEFAULT,
       enrollment_state: "active", // Kun kurs med aktiv påmelding
@@ -92,11 +123,11 @@ export async function fetchCourses(canvasToken?: string | null): Promise<
 // Faller tilbake til kun aktive kurs dersom henting av fullførte feiler
 export type CanvasCourseForKI = CanvasCourse & { __completed?: boolean };
 
-export async function fetchCoursesForKI(canvasToken?: string | null): Promise<
+export async function fetchCoursesForKI(canvasToken?: string | null, baseUrl?: string): Promise<
   CanvasResponseWithMeta<CanvasCourseForKI[]>
 > {
   // Hent aktive kurs først (dette er baseline og skal aldri feile)
-  const activeResult = await fetchCourses(canvasToken);
+  const activeResult = await fetchCourses(canvasToken, baseUrl);
   const activeCourses: CanvasCourseForKI[] = activeResult.data.map(
     (c) => ({ ...c, __completed: false }),
   );
@@ -106,6 +137,7 @@ export async function fetchCoursesForKI(canvasToken?: string | null): Promise<
     const token = requireToken(canvasToken);
     const completedRes = await hentCanvasData<unknown[]>("/api/v1/courses", {
       token,
+      baseUrl,
       queryParams: {
         per_page: PAGE_SIZE.DEFAULT,
         enrollment_state: "completed",
@@ -135,10 +167,11 @@ export async function fetchCoursesForKI(canvasToken?: string | null): Promise<
 }
 
 // Hent spesifikt kurs (med syllabus for fallback-visning)
-export async function fetchCourse(canvasToken: string | null | undefined, courseId: number) {
+export async function fetchCourse(canvasToken: string | null | undefined, courseId: number, baseUrl?: string) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown>(`/api/v1/courses/${courseId}`, {
     token,
+    baseUrl,
     queryParams: { "include[]": "syllabus_body" },
     cacheTtl: CACHE_TTL.COURSES,
   });
@@ -155,9 +188,9 @@ export async function fetchCourse(canvasToken: string | null | undefined, course
 // - "past": Oppgaver med frist i fortiden
 // - "undated": Oppgaver uten frist
 export async function fetchAssignments(
-  canvasToken: string | null | undefined, 
+  canvasToken: string | null | undefined,
   courseId: number,
-  options?: { bucket?: "past" | "overdue" | "undated" | "ungraded" | "unsubmitted" | "upcoming" | "future" }
+  options?: { bucket?: "past" | "overdue" | "undated" | "ungraded" | "unsubmitted" | "upcoming" | "future"; baseUrl?: string }
 ) {
   const token = requireToken(canvasToken);
   const queryParams: Record<string, string | number | boolean> = {
@@ -169,11 +202,12 @@ export async function fetchAssignments(
   if (options?.bucket) {
     queryParams.bucket = options.bucket;
   }
-  
+
   const response = await hentCanvasData<unknown[]>(
     `/api/v1/courses/${courseId}/assignments`,
     {
       token,
+      baseUrl: options?.baseUrl,
       queryParams,
       cacheTtl: CACHE_TTL.ASSIGNMENTS,
     }
@@ -185,12 +219,13 @@ export async function fetchAssignments(
 }
 
 // Hent kunngjøringer for et kurs
-export async function fetchCourseAnnouncements(canvasToken: string | null | undefined, courseId: number) {
+export async function fetchCourseAnnouncements(canvasToken: string | null | undefined, courseId: number, baseUrl?: string) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown[]>(
     `/api/v1/courses/${courseId}/discussion_topics`,
     {
       token,
+      baseUrl,
       queryParams: { only_announcements: true, per_page: PAGE_SIZE.ANNOUNCEMENTS },
       cacheTtl: CACHE_TTL.ANNOUNCEMENTS,
     }
@@ -202,9 +237,9 @@ export async function fetchCourseAnnouncements(canvasToken: string | null | unde
 }
 
 // Hent alle kunngjøringer for brukeren på tvers av kurs
-export async function fetchAllAnnouncements(canvasToken?: string | null) {
+export async function fetchAllAnnouncements(canvasToken?: string | null, baseUrl?: string) {
   const token = requireToken(canvasToken);
-  const coursesRes = await fetchCourses(token);
+  const coursesRes = await fetchCourses(token, baseUrl);
   const courses = coursesRes.data;
   if (courses.length === 0) {
     return { data: [], meta: { pagesFetched: 0, itemsCount: 0 } };
@@ -212,6 +247,7 @@ export async function fetchAllAnnouncements(canvasToken?: string | null) {
   const contextCodes = courses.map((course: CanvasCourse) => `course_${course.id}`);
   const response = await hentCanvasData<unknown[]>("/api/v1/announcements", {
     token,
+    baseUrl,
     queryParams: { context_codes: contextCodes, active_only: true, per_page: PAGE_SIZE.ANNOUNCEMENTS },
     cacheTtl: CACHE_TTL.ANNOUNCEMENTS,
   });
@@ -222,10 +258,11 @@ export async function fetchAllAnnouncements(canvasToken?: string | null) {
 }
 
 // Hent todo-liste for brukeren
-export async function fetchTodo(canvasToken?: string | null) {
+export async function fetchTodo(canvasToken?: string | null, baseUrl?: string) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown[]>("/api/v1/users/self/todo", {
     token,
+    baseUrl,
     cacheTtl: CACHE_TTL.TODO,
   });
   return {
@@ -235,10 +272,11 @@ export async function fetchTodo(canvasToken?: string | null) {
 }
 
 // Hent kommende kalenderhendelser for brukeren
-export async function fetchUpcomingEvents(canvasToken?: string | null) {
+export async function fetchUpcomingEvents(canvasToken?: string | null, baseUrl?: string) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown[]>("/api/v1/users/self/upcoming_events", {
     token,
+    baseUrl,
     cacheTtl: CACHE_TTL.EVENTS,
   });
   // Valider hvert element og dropp de som mangler gyldig id (Canvas returnerer noen ganger tomme/NaN)
@@ -273,6 +311,7 @@ export async function fetchPlannerItems(
     start_date?: string;
     end_date?: string;
     maxPages?: number;
+    baseUrl?: string;
   }
 ) {
   const token = requireToken(canvasToken);
@@ -281,6 +320,7 @@ export async function fetchPlannerItems(
   if (query.end_date) queryParams.end_date = query.end_date;
   const response = await hentCanvasData<unknown[]>("/api/v1/planner/items", {
     token,
+    baseUrl: query.baseUrl,
     queryParams,
     cacheTtl: CACHE_TTL.ASSIGNMENTS, // 10 min cache
     maxPages: query.maxPages ?? MAX_PAGES.DEFAULT, // Konfigurerbar paginering
@@ -312,25 +352,24 @@ export async function fetchCalendarEvents(
     startDate?: string;
     endDate?: string;
     type?: "event" | "assignment";
-    maxPages?: number; // Konfigurerbar paginering (default 10 for calendar_events)
+    maxPages?: number;
+    baseUrl?: string;
   }
 ) {
   const token = requireToken(canvasToken);
-  // Bygg query params - Canvas API forventer context_codes[] som array
   const queryParams: Record<string, string | number | boolean | string[]> = {
     per_page: PAGE_SIZE.DEFAULT,
   };
-  // Legg til context_codes som array
   if (options.contextCodes.length > 0) {
     queryParams["context_codes[]"] = options.contextCodes;
   }
   if (options.startDate) queryParams.start_date = options.startDate;
   if (options.endDate) queryParams.end_date = options.endDate;
   if (options.type) queryParams.type = options.type;
-  // Bruk høyere maxPages for calendar_events (mange events over lang periode)
   const maxPages = options.maxPages ?? MAX_PAGES.CALENDAR;
   const response = await hentCanvasData<unknown[]>("/api/v1/calendar_events", {
     token,
+    baseUrl: options.baseUrl,
     queryParams,
     cacheTtl: CACHE_TTL.EVENTS,
     maxPages,
@@ -369,13 +408,13 @@ export interface EnrollmentData {
  * Brukes for å bygge course_section context codes for calendar_events
  * og for å mappe section_id -> course_id for TimeEdit-hendelser
  */
-export async function fetchUserEnrollments(canvasToken?: string | null) {
+export async function fetchUserEnrollments(canvasToken?: string | null, baseUrl?: string) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown[]>("/api/v1/users/self/enrollments", {
     token,
+    baseUrl,
     queryParams: {
       per_page: PAGE_SIZE.DEFAULT,
-      // Inkluder alle enrollment-states for å fange alle sections
       state: ["active", "invited", "current_and_future"],
     },
     cacheTtl: CACHE_TTL.COURSES,
@@ -434,13 +473,13 @@ export function buildContextCodes(
   return codes;
 }
 // Hent moduler for et kurs
-// Inkluderer items med content_details for å få content_id for filer
-export async function fetchModules(canvasToken: string | null | undefined, courseId: number) {
+export async function fetchModules(canvasToken: string | null | undefined, courseId: number, baseUrl?: string) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown[]>(
     `/api/v1/courses/${courseId}/modules`,
     {
       token,
+      baseUrl,
       queryParams: {
         include: ["items", "content_details"],
         per_page: PAGE_SIZE.MODULES
@@ -458,13 +497,15 @@ export async function fetchModules(canvasToken: string | null | undefined, cours
 export async function fetchModuleItems(
   canvasToken: string | null | undefined,
   courseId: number,
-  moduleId: number
+  moduleId: number,
+  baseUrl?: string
 ) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown[]>(
     `/api/v1/courses/${courseId}/modules/${moduleId}/items`,
     {
       token,
+      baseUrl,
       queryParams: { "include[]": "content_details", per_page: PAGE_SIZE.DEFAULT },
       cacheTtl: CACHE_TTL.MODULES,
     }
@@ -480,13 +521,15 @@ export async function fetchModuleItem(
   canvasToken: string | null | undefined,
   courseId: number,
   moduleId: number,
-  itemId: number
+  itemId: number,
+  baseUrl?: string
 ) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown>(
     `/api/v1/courses/${courseId}/modules/${moduleId}/items/${itemId}`,
     {
       token,
+      baseUrl,
       queryParams: { "include[]": "content_details" },
       cacheTtl: CACHE_TTL.MODULES,
     }
@@ -498,10 +541,11 @@ export async function fetchModuleItem(
 }
 
 // Hent metadata for en fil
-export async function fetchFileMetadata(canvasToken: string | null | undefined, fileId: number) {
+export async function fetchFileMetadata(canvasToken: string | null | undefined, fileId: number, baseUrl?: string) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown>(`/api/v1/files/${fileId}`, {
     token,
+    baseUrl,
     cacheTtl: CACHE_TTL.FILES,
   });
   return {
@@ -514,13 +558,15 @@ export async function fetchFileMetadata(canvasToken: string | null | undefined, 
 export async function fetchPage(
   canvasToken: string | null | undefined,
   courseId: number,
-  pageId: string
+  pageId: string,
+  baseUrl?: string
 ) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown>(
     `/api/v1/courses/${courseId}/pages/${pageId}`,
     {
       token,
+      baseUrl,
       cacheTtl: CACHE_TTL.PAGES,
     }
   );
@@ -534,13 +580,15 @@ export async function fetchPage(
 export async function fetchDiscussionTopic(
   canvasToken: string | null | undefined,
   courseId: number,
-  topicId: number
+  topicId: number,
+  baseUrl?: string
 ) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown>(
     `/api/v1/courses/${courseId}/discussion_topics/${topicId}`,
     {
       token,
+      baseUrl,
       cacheTtl: CACHE_TTL.DISCUSSIONS,
     }
   );
@@ -551,12 +599,13 @@ export async function fetchDiscussionTopic(
 }
 
 // Hent alle filer i et kurs (øverste nivå)
-export async function fetchFiles(canvasToken: string | null | undefined, courseId: number) {
+export async function fetchFiles(canvasToken: string | null | undefined, courseId: number, baseUrl?: string) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown[]>(
     `/api/v1/courses/${courseId}/files`,
     {
       token,
+      baseUrl,
       queryParams: { per_page: PAGE_SIZE.DEFAULT },
       cacheTtl: CACHE_TTL.FILES,
     }
@@ -568,12 +617,13 @@ export async function fetchFiles(canvasToken: string | null | undefined, courseI
 }
 
 // Hent alle sider (wiki pages) i et kurs
-export async function fetchPages(canvasToken: string | null | undefined, courseId: number) {
+export async function fetchPages(canvasToken: string | null | undefined, courseId: number, baseUrl?: string) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown[]>(
     `/api/v1/courses/${courseId}/pages`,
     {
       token,
+      baseUrl,
       queryParams: { per_page: PAGE_SIZE.DEFAULT },
       cacheTtl: CACHE_TTL.PAGES,
     }
@@ -585,12 +635,13 @@ export async function fetchPages(canvasToken: string | null | undefined, courseI
 }
 
 // Hent kursets frontpage (landing page)
-export async function fetchFrontPage(canvasToken: string | null | undefined, courseId: number) {
+export async function fetchFrontPage(canvasToken: string | null | undefined, courseId: number, baseUrl?: string) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown>(
     `/api/v1/courses/${courseId}/front_page`,
     {
       token,
+      baseUrl,
       cacheTtl: CACHE_TTL.PAGES,
     }
   );
@@ -608,6 +659,7 @@ export async function fetchFrontPage(canvasToken: string | null | undefined, cou
 export async function fetchPdfContent(
   canvasToken: string | null | undefined,
   file: { id: number; filename: string; url: string; size: number; mime_type?: string },
+  baseUrl?: string,
 ): Promise<{ content: string; truncated: boolean } | null> {
   // Sjekk at filen er en PDF
   const isPdf = file.mime_type === "application/pdf" || file.filename.toLowerCase().endsWith(".pdf");
@@ -620,9 +672,8 @@ export async function fetchPdfContent(
   }
 
   try {
-    // Hent fersk metadata for signert URL (den i file.url kan ha utløpt)
     const token = requireToken(canvasToken);
-    const { data: freshFile } = await fetchFileMetadata(token, file.id);
+    const { data: freshFile } = await fetchFileMetadata(token, file.id, baseUrl);
     const downloadUrl = freshFile.url;
 
     if (!downloadUrl) {
@@ -675,17 +726,13 @@ export async function fetchPdfContent(
  * Kjøres asynkront etter login for å forbedre UX.
  * Feil ignoreres - dette er kun optimalisering.
  */
-export async function warmCanvasCache(canvasToken: string): Promise<void> {
+export async function warmCanvasCache(canvasToken: string, baseUrl?: string): Promise<void> {
   try {
     logger.info("Starter cache warming for Canvas-data");
-
-    // Hent de viktigste dataene parallelt
-    // Per-kurs-cacher (frontpage, modules, files) varmes av /emner/metadata-prefetch
-    // fra frontend, så vi unngår duplikate Canvas API-kall her
     await Promise.allSettled([
-      fetchCourses(canvasToken),
-      fetchAllAnnouncements(canvasToken),
-      fetchTodo(canvasToken),
+      fetchCourses(canvasToken, baseUrl),
+      fetchAllAnnouncements(canvasToken, baseUrl),
+      fetchTodo(canvasToken, baseUrl),
     ]);
 
     logger.info("Cache warming fullført");
@@ -789,13 +836,13 @@ export interface ForelesningerMeta {
 //  Hent og normaliser Canvas-forelesninger
 export async function fetchCanvasLectures(
   canvasToken: string | null | undefined,
-  options: { startDate?: string; endDate?: string } = {}
+  options: { startDate?: string; endDate?: string; baseUrl?: string } = {}
 ): Promise<{ data: NormalizedCalendarEvent[]; meta: ForelesningerMeta }> {
   const token = requireToken(canvasToken);
-  // Hent aktive emner og enrollments parallelt
+  const baseUrl = options.baseUrl;
   const [coursesResult, enrollmentsResult] = await Promise.all([
-    fetchCourses(token),
-    fetchUserEnrollments(token),
+    fetchCourses(token, baseUrl),
+    fetchUserEnrollments(token, baseUrl),
   ]);
   const courses = coursesResult.data;
   const enrollments = enrollmentsResult.data;
@@ -824,6 +871,7 @@ export async function fetchCanvasLectures(
     endDate,
     type: "event",
     maxPages: MAX_PAGES.LECTURES,
+    baseUrl,
   });
   // Filtrer hidden events (parent-events med children)
   const visibleEvents = rawEvents.filter((event) => {

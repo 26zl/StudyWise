@@ -201,6 +201,7 @@ export function DashboardView() {
                                 <SettingsSection
                                     harCanvasToken={harCanvasToken}
                                     lokalBrukerEpost={megQuery.data?.user?.email}
+                                    canvasBaseUrl={megQuery.data?.user?.canvasBaseUrl ?? undefined}
                                 />
                             </Suspense>
                         </SectionErrorBoundary>

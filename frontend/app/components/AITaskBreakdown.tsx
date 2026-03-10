@@ -7,7 +7,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Sparkles, Edit2, Check, X, Plus, Trash2, RefreshCw, ThumbsUp, ThumbsDown } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
-import { toast } from "sonner";
+import { showToast } from "./Toaster";
 import type { SubTask } from "common/ki";
 // Komponenten bruker mock-data inntil ekte AI-integrasjon legges til (se ki-api.ts for task-breakdown-mønster).
 
@@ -182,7 +182,7 @@ export function AITaskBreakdown({
   const handleSave = () => {
     const allApproved = subtasks.every((task) => task.approved);
     if (!allApproved) {
-      toast.error("Du må godkjenne eller redigere alle forslagene før lagring!");
+      showToast.error("Du må godkjenne eller redigere alle forslagene før lagring!");
       return;
     }
 

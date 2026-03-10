@@ -115,7 +115,7 @@ docker compose up --build   # Kjør full stack lokalt (MongoDB, Redis, backend, 
 ### Dataflyt
 
 ```text
-1. Canvas LMS (USNs læringsplattform)
+1. Canvas LMS (institusjonens læringsplattform, f.eks. universiteter og høgskoler i Norge)
    ↓
 2. Backend henter data fra Canvas API
    ↓

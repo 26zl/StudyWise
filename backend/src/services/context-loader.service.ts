@@ -505,6 +505,7 @@ export async function loadCanvasContext(
   intent: IntentType,
   target?: TargetedQuery,
   message?: string,
+  baseUrl?: string,
 ): Promise<ContextResult> {
   // general_chat trenger ingen kontekst
   if (intent === "general_chat") {
@@ -534,12 +535,11 @@ export async function loadCanvasContext(
 
     // Fallback: direkte Canvas API via kiCanvas
     logger.info({ userId, intent, source: "api" }, "Redis mangler data — bruker API-fallback (lett)");
-    const apiKontekst = await byggLettCanvasKontekst(canvasToken);
+    const apiKontekst = await byggLettCanvasKontekst(canvasToken, baseUrl);
     const hasData = apiKontekst.includes("CANVAS-DATA");
 
-    // Trigger bakgrunns-sync for neste gang
     if (redisAvailable) {
-      syncCanvasDataForUser(userId, canvasToken).catch((err) => {
+      syncCanvasDataForUser(userId, canvasToken, baseUrl).catch((err) => {
         logger.warn({ err, userId }, "Bakgrunns-sync feilet etter API-fallback");
       });
     }
@@ -581,15 +581,14 @@ export async function loadCanvasContext(
       { userId, intent, target, source: "api" },
       "Redis mangler data — bruker API-fallback (målrettet)",
     );
-    const apiKontekst = await byggMålrettetCanvasKontekst(canvasToken, target);
+    const apiKontekst = await byggMålrettetCanvasKontekst(canvasToken, target, baseUrl);
     const hasData =
       apiKontekst.includes("CANVAS-DATA") ||
       apiKontekst.includes("MODULER") ||
       apiKontekst.includes("OPPGAVER");
 
-    // Trigger bakgrunns-sync
     if (redisAvailable) {
-      syncCanvasDataForUser(userId, canvasToken).catch((err) => {
+      syncCanvasDataForUser(userId, canvasToken, baseUrl).catch((err) => {
         logger.warn({ err, userId }, "Bakgrunns-sync feilet etter API-fallback");
       });
     }
@@ -610,11 +609,11 @@ export async function loadCanvasContext(
   }
 
   // Fallback
-  const apiKontekst = await byggLettCanvasKontekst(canvasToken);
+  const apiKontekst = await byggLettCanvasKontekst(canvasToken, baseUrl);
   const hasData = apiKontekst.includes("CANVAS-DATA");
 
   if (redisAvailable) {
-    syncCanvasDataForUser(userId, canvasToken).catch((err) => {
+    syncCanvasDataForUser(userId, canvasToken, baseUrl).catch((err) => {
       logger.warn({ err, userId }, "Bakgrunns-sync feilet etter API-fallback");
     });
   }
@@ -631,12 +630,11 @@ export async function loadCanvasContext(
 export async function ensureCanvasSync(
   userId: string,
   canvasToken: string,
+  baseUrl?: string,
 ): Promise<void> {
   if (!isRedisReady()) return;
 
-  // Trigger sync i bakgrunnen — syncCanvasDataForUser har egen rate limiting
-  // (MIN_SYNC_INTERVAL_S = 300s) som forhindrer for hyppige kall
-  syncCanvasDataForUser(userId, canvasToken).catch((err) => {
+  syncCanvasDataForUser(userId, canvasToken, baseUrl).catch((err) => {
     logger.warn({ err, userId }, "Canvas sync feilet");
   });
 }

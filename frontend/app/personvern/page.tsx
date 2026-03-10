@@ -72,7 +72,7 @@ export default function PersonvernPage() {
                         </p>
                         <ul className="space-y-3 text-slate-600 dark:text-slate-400">
                             <li><strong>AI-tjenester (Anthropic):</strong> Innhold du skriver og kontekst (f.eks. oppgavetekst) sendes til AI for å generere svar. Vi unngår å sende personidentifiserbar informasjon (navn, e-post) til AI; Canvas-innhold anonymiseres der det er mulig.</li>
-                            <li><strong>Canvas LMS (USN):</strong> Vi bruker kun ditt API-token for å hente data på dine vegne. Tokenet lagres kryptert hos oss og sendes ikke til andre tredjeparter.</li>
+                            <li><strong>Canvas LMS:</strong> Vi bruker kun ditt API-token for å hente data på dine vegne mot din institusjons Canvas. Tokenet lagres kryptert hos oss og sendes ikke til andre tredjeparter.</li>
                         </ul>
                     </section>
 

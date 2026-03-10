@@ -191,27 +191,31 @@ async function håndterFeilRespons<T>(
   if (res.status === 429) {
     const errorText = await res.text();
     let errorMessage = "For mange forespørsler";
+    let errorCode: CanvasErrorCode = "rate_limited";
     try {
       const error = JSON.parse(errorText);
       errorMessage = error.melding || error.feil || errorMessage;
+      errorCode = error.kode || errorCode;
     } catch {
       // Ignorer JSON-parse feil
     }
-    throw new CanvasApiError("rate_limited", errorMessage, 429);
+    throw new CanvasApiError(errorCode, errorMessage, 429);
   }
 
   // Håndter 5xx - server error (504 er timeout, resten er server_error)
   if (res.status >= 500) {
     const errorText = await res.text();
     let errorMessage = "Serverfeil";
+    let errorCode: CanvasErrorCode =
+      res.status === 504 ? "timeout" : "server_error";
     try {
       const error = JSON.parse(errorText);
       errorMessage = error.melding || error.feil || errorMessage;
+      errorCode = error.kode || errorCode;
     } catch {
       // Ignorer JSON-parse feil
     }
-    const code = res.status === 504 ? "timeout" : "server_error";
-    throw new CanvasApiError(code, errorMessage, res.status);
+    throw new CanvasApiError(errorCode, errorMessage, res.status);
   }
 
   // Generell feil for andre ikke-OK statuser
