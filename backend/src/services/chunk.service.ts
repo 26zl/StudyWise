@@ -1,7 +1,7 @@
 /**
  * Chunk Service
  *
- * Deler PDF-tekst i overlappende chunks for effektiv kontekst-lasting.
+ * Deler fil-tekst i overlappende chunks for effektiv kontekst-lasting.
  * Chunks lagres i Redis under canvas:user:{userId}:emne:{courseId}:chunks
  * og brukes av context-loader for å bygge relevant kontekst til KI-chatten.
  *
@@ -293,7 +293,9 @@ export function buildChunkContext(
     fileChunks.sort((a, b) => a.index - b.index);
 
     const source = fileChunks[0].source;
-    const header = `\n--- PDF-INNHOLD: ${source.fileName} (${source.courseName}, ${source.moduleTitle}) ---\n`;
+    const ext = source.fileName.split(".").pop()?.toLowerCase() ?? "";
+    const label = ext === "pdf" ? "PDF-INNHOLD" : "FIL-INNHOLD";
+    const header = `\n--- ${label}: ${source.fileName} (${source.courseName}, ${source.moduleTitle}) ---\n`;
 
     if (used + header.length >= budget) break;
     kontekst += header;
@@ -314,7 +316,7 @@ export function buildChunkContext(
       used += entry.length;
     }
 
-    kontekst += "--- SLUTT PDF-INNHOLD ---\n";
+    kontekst += `--- SLUTT ${label} ---\n`;
     used += 26; // lengde av slutt-tag
 
     if (used >= budget) break;

@@ -32,6 +32,7 @@ import Tesseract from "tesseract.js";
 import sharp from "sharp";
 import { logger } from "../utils/logger.js";
 import { DocumentParseResult } from "common/document";
+import { extractTextFromFile, getCodeLanguage } from "./fileExtractor.js";
 
 // Konfigurasjon
 const OCR_TIMEOUT_MS = 60000; // 60 sekunder timeout for OCR
@@ -43,10 +44,39 @@ export const SUPPORTED_DOCUMENT_TYPES: Record<string, string> = {
     "application/pdf": "pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
     "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
     "text/plain": "txt",
     "text/markdown": "md",
     "text/csv": "csv",
     "application/rtf": "rtf",
+    // Kodefiler
+    "text/x-java-source": "code",
+    "text/javascript": "code",
+    "application/javascript": "code",
+    "text/typescript": "code",
+    "text/x-python": "code",
+    "text/html": "code",
+    "text/css": "code",
+    "text/x-scss": "code",
+    "text/x-sql": "code",
+    "text/x-c": "code",
+    "text/x-c++src": "code",
+    "text/x-csharp": "code",
+    "text/x-go": "code",
+    "text/x-rust": "code",
+    "text/x-php": "code",
+    "text/x-ruby": "code",
+    "text/x-swift": "code",
+    "text/x-kotlin": "code",
+    "text/xml": "code",
+    "application/xml": "code",
+    "application/json": "code",
+    "text/yaml": "code",
+    "text/x-shellscript": "code",
+    "application/x-powershell": "code",
+    "text/x-r": "code",
+    "text/x-dart": "code",
     // Bildestøtte for OCR
     "image/png": "image",
     "image/jpeg": "image",
@@ -111,8 +141,14 @@ export function validateFileMagicBytes(buffer: Buffer, declaredMimeType: string)
         return `Kunne ikke bekrefte filtype fra innhold (ingen kjent signatur). Forventet ${declaredMimeType}.`;
     }
 
-    const allowedForDocx = ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword"];
-    if (fromMagic === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" && allowedForDocx.includes(declaredNorm)) return null;
+    // Alle Office Open XML-formater (docx, pptx, xlsx) deler PK ZIP-signatur
+    const allowedForZip = [
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/msword",
+    ];
+    if (fromMagic === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" && allowedForZip.includes(declaredNorm)) return null;
     if (fromMagic === "application/msword" && declaredNorm === "application/msword") return null;
 
     if (fromMagic !== declaredNorm) {
@@ -126,10 +162,43 @@ export const EXTENSION_TO_MIME: Record<string, string> = {
     ".pdf": "application/pdf",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".doc": "application/msword",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ".txt": "text/plain",
     ".md": "text/markdown",
     ".csv": "text/csv",
     ".rtf": "application/rtf",
+    // Kodefiler
+    ".java": "text/x-java-source",
+    ".js": "text/javascript",
+    ".ts": "text/typescript",
+    ".jsx": "text/javascript",
+    ".tsx": "text/typescript",
+    ".py": "text/x-python",
+    ".html": "text/html",
+    ".css": "text/css",
+    ".scss": "text/x-scss",
+    ".sql": "text/x-sql",
+    ".cpp": "text/x-c++src",
+    ".c": "text/x-c",
+    ".h": "text/x-c",
+    ".cs": "text/x-csharp",
+    ".go": "text/x-go",
+    ".rs": "text/x-rust",
+    ".php": "text/x-php",
+    ".rb": "text/x-ruby",
+    ".swift": "text/x-swift",
+    ".kt": "text/x-kotlin",
+    ".xml": "text/xml",
+    ".json": "application/json",
+    ".yaml": "text/yaml",
+    ".yml": "text/yaml",
+    ".sh": "text/x-shellscript",
+    ".bash": "text/x-shellscript",
+    ".ps1": "application/x-powershell",
+    ".r": "text/x-r",
+    ".m": "text/x-c",
+    ".dart": "text/x-dart",
     // Bildestøtte
     ".png": "image/png",
     ".jpg": "image/jpeg",
@@ -932,7 +1001,7 @@ export async function parseDocument(
       fileType: "unknown",
       redacted: false,
       truncated: false,
-      error: `Filtypen "${mimeType}" er ikke støttet. Støttede typer: PDF, Word (docx/doc), TXT, Markdown, CSV, og bilder (PNG, JPG, WEBP).`,
+      error: "Filtypen støttes ikke. Last opp PDF, kode- eller Office-filer.",
     };
   }
 
@@ -946,6 +1015,34 @@ export async function parseDocument(
     case "docx":
     case "doc":
       return parseWordDocument(buffer);
+
+    case "pptx":
+    case "xlsx":
+    case "code": {
+      const result = await extractTextFromFile(buffer, safeName || `file.${fileType}`);
+      if (!result) {
+        return {
+          success: false,
+          text: "",
+          pages: 0,
+          fileType,
+          redacted: false,
+          truncated: false,
+          error: "Kunne ikke lese innholdet i filen.",
+        };
+      }
+      const lang = getCodeLanguage(safeName || "");
+      const { cleanText, redacted } = sanitizeText(result.content);
+      const estimatedPages = Math.ceil(cleanText.length / 3000);
+      return {
+        success: true,
+        text: cleanText,
+        pages: estimatedPages,
+        fileType: lang ? `code:${result.fileExtension}` : fileType,
+        redacted,
+        truncated: result.truncated,
+      };
+    }
 
     case "txt":
     case "md":
@@ -964,7 +1061,7 @@ export async function parseDocument(
         fileType,
         redacted: false,
         truncated: false,
-        error: `Parser for filtype "${fileType}" er ikke implementert.`,
+        error: "Filtypen støttes ikke. Last opp PDF, kode- eller Office-filer.",
       };
   }
 }
@@ -982,18 +1079,50 @@ export function formatDocumentContext(
         pdf: "PDF-dokument",
         docx: "Word-dokument",
         doc: "Word-dokument",
+        pptx: "PowerPoint-presentasjon",
+        xlsx: "Excel-regneark",
         txt: "Tekstfil",
         md: "Markdown-fil",
         csv: "CSV-fil",
         rtf: "RTF-fil",
+        code: "Kodefil",
         image: "Bilde (OCR)",
     };
 
-    const typeName = fileTypeNames[fileType] || "Dokument";
     const infoLines: string[] = [];
     if (opts?.redacted) infoLines.push("[Personopplysninger er maskert]");
     if (opts?.truncated) infoLines.push("[Dokumentet er forkortet for analyse]");
     const info = infoLines.length ? `\n${infoLines.join(" ")}` : "";
+
+    // Kodefiler med språk-info (code:.ext) → fenced code block
+    if (fileType.startsWith("code:")) {
+        const ext = fileType.slice(5);
+        const langNames: Record<string, string> = {
+            ".java": "Java", ".js": "JavaScript", ".ts": "TypeScript",
+            ".jsx": "JSX", ".tsx": "TSX", ".py": "Python",
+            ".html": "HTML", ".css": "CSS", ".scss": "SCSS",
+            ".sql": "SQL", ".cpp": "C++", ".c": "C", ".h": "C/C++ Header",
+            ".cs": "C#", ".go": "Go", ".rs": "Rust", ".php": "PHP",
+            ".rb": "Ruby", ".swift": "Swift", ".kt": "Kotlin",
+            ".xml": "XML", ".json": "JSON", ".yaml": "YAML", ".yml": "YAML",
+            ".sh": "Shell", ".bash": "Bash", ".ps1": "PowerShell",
+            ".r": "R", ".m": "MATLAB/Obj-C", ".dart": "Dart",
+        };
+        const langName = langNames[ext] ?? "Kode";
+        return `
+${langName.toUpperCase()}-FIL LASTET OPP AV STUDENT:
+
+\`\`\`${ext.slice(1)}
+${text}
+\`\`\`
+
+--- SLUTT PÅ FIL ---
+
+Bruk denne kodefilen til å svare på studentens spørsmål.${info}
+`.trim();
+    }
+
+    const typeName = fileTypeNames[fileType] || "Dokument";
 
     return `
 ${typeName.toUpperCase()} LASTET OPP AV STUDENT (${pages} sider):

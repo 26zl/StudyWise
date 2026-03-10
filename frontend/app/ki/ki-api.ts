@@ -28,9 +28,18 @@ export const SUPPORTED_FILE_TYPES = [
   ".pdf",
   ".docx",
   ".doc",
+  ".pptx",
+  ".xlsx",
   ".txt",
   ".md",
   ".csv",
+  // Kodefiler
+  ".java", ".js", ".ts", ".jsx", ".tsx",
+  ".py", ".html", ".css", ".scss", ".sql",
+  ".cpp", ".c", ".h", ".cs", ".go", ".rs",
+  ".php", ".rb", ".swift", ".kt",
+  ".xml", ".json", ".yaml", ".yml",
+  ".sh", ".bash", ".ps1", ".r", ".m", ".dart",
   // Bilder for OCR
   ".png",
   ".jpg",

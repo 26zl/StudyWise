@@ -61,7 +61,7 @@ const upload = multer({
         if (SUPPORTED_MIME_TYPES.includes(file.mimetype)) {
             cb(null, true);
         } else {
-            cb(new Error(`Filtypen er ikke støttet. Støttede typer: PDF, Word (docx/doc), TXT, Markdown, CSV, og bilder (PNG, JPG, WEBP).`));
+            cb(new Error("Filtypen støttes ikke. Last opp PDF, kode- eller Office-filer."));
         }
     }
 });

@@ -30,8 +30,10 @@ import {
   fetchAssignments,
   fetchCourseAnnouncements,
   fetchPdfContent,
+  fetchFileContent,
   fetchFileMetadata,
 } from "../rutere/canvas/canvasService.js";
+import { isSupportedFileType, extractTextFromFile } from "./fileExtractor.js";
 import {
   createChunksFromContent,
   storeChunksForCourse,
@@ -50,8 +52,8 @@ const SYNC_CONCURRENCY = 3;
 /** Minimum intervall mellom synkroniseringer per bruker (sekunder) */
 const MIN_SYNC_INTERVAL_S = 300; // 5 minutter
 
-/** Maks antall PDF-filer å ekstrahere per synkronisering */
-const MAX_PDFS_PER_SYNC = 20;
+/** Maks antall filer å ekstrahere per synkronisering */
+const MAX_FILES_PER_SYNC = 20;
 
 // ─── Typer ─────────────────────────────────────────────────
 
@@ -294,20 +296,19 @@ async function _doSync(
             );
           }
 
-          // ── PDF-ekstraksjon for File-type module items ──
-          // Kjører uavhengig av om kursdata endret seg — PDF har egen hash-sjekk
-          let pdfCount = 0;
+          // ── Filekstraksjon for File-type module items ──
+          // Kjører uavhengig av om kursdata endret seg — filer har egen hash-sjekk
+          let fileCount = 0;
           const courseChunks: ContentChunk[] = [];
           let chunksCreated = false;
 
           for (const mod of moduler) {
-            if (pdfCount >= MAX_PDFS_PER_SYNC) break;
+            if (fileCount >= MAX_FILES_PER_SYNC) break;
             if (!mod.items || mod.items.length === 0) continue;
 
             for (const item of mod.items) {
-              if (pdfCount >= MAX_PDFS_PER_SYNC) break;
+              if (fileCount >= MAX_FILES_PER_SYNC) break;
               if (item.type !== "File") continue;
-              if (!item.title.toLowerCase().endsWith(".pdf")) continue;
               const contentId = item.content_id;
               if (!contentId) continue;
 
@@ -316,6 +317,9 @@ async function _doSync(
 
                 // Hent filmetadata for endringsindikatoren (updated_at)
                 const { data: fileData } = await fetchFileMetadata(canvasToken, contentId, baseUrl);
+
+                // Sjekk filtype med faktisk filnavn (ikke item.title som kan mangle endelse)
+                if (!isSupportedFileType(fileData.filename)) continue;
                 const metaHash = sha256(`${fileData.id}:${fileData.updated_at}:${fileData.size}`);
 
                 // Sjekk om vi allerede har innhold med samme hash
@@ -331,7 +335,7 @@ async function _doSync(
                           courseId,
                           courseName: course.name,
                           moduleTitle: mod.name,
-                          fileName: item.title,
+                          fileName: fileData.filename,
                           fileId: contentId,
                         }));
                       }
@@ -342,45 +346,71 @@ async function _doSync(
                   }
                 }
 
-                // Last ned og pars PDF
-                const pdfResult = await fetchPdfContent(canvasToken, {
-                  id: fileData.id,
-                  filename: fileData.filename,
-                  url: fileData.url,
-                  size: fileData.size,
-                  mime_type: fileData.mime_type,
-                }, baseUrl);
+                const isPdf = fileData.mime_type === "application/pdf" || fileData.filename.toLowerCase().endsWith(".pdf");
 
-                if (pdfResult) {
+                let content: string | null = null;
+                let truncated = false;
+
+                if (isPdf) {
+                  // Behold eksisterende PDF-pipeline
+                  const pdfResult = await fetchPdfContent(canvasToken, {
+                    id: fileData.id,
+                    filename: fileData.filename,
+                    url: fileData.url,
+                    size: fileData.size,
+                    mime_type: fileData.mime_type,
+                  }, baseUrl);
+                  if (pdfResult) {
+                    content = pdfResult.content;
+                    truncated = pdfResult.truncated;
+                  }
+                } else {
+                  // Ny pipeline: last ned rå buffer og ekstraher tekst
+                  const buf = await fetchFileContent(canvasToken, {
+                    id: fileData.id,
+                    filename: fileData.filename,
+                    url: fileData.url,
+                    size: fileData.size,
+                  }, baseUrl);
+                  if (buf) {
+                    const result = await extractTextFromFile(buf, fileData.filename);
+                    if (result && result.content.trim().length > 0) {
+                      content = result.content;
+                      truncated = result.truncated;
+                    }
+                  }
+                }
+
+                if (content) {
                   await setCache(
                     fileKey,
                     JSON.stringify({
-                      content: pdfResult.content,
+                      content,
                       hash: metaHash,
                       filename: fileData.filename,
                       displayName: fileData.display_name,
-                      truncated: pdfResult.truncated,
+                      truncated,
                     }),
                     SYNC_CACHE_TTL,
                   );
-                  pdfCount++;
+                  fileCount++;
                   chunksCreated = true;
-                  courseChunks.push(...createChunksFromContent(pdfResult.content, {
+                  courseChunks.push(...createChunksFromContent(content, {
                     courseId,
                     courseName: course.name,
                     moduleTitle: mod.name,
-                    fileName: item.title,
+                    fileName: fileData.filename,
                     fileId: contentId,
                   }));
                   logger.info(
                     { userId, fileId: contentId, filename: fileData.filename },
-                    "PDF-innhold lagret i Redis under sync",
+                    "Filinnhold lagret i Redis under sync",
                   );
                 }
               } catch (error) {
                 logger.warn(
                   { err: error, userId, contentId, title: item.title },
-                  "Feil ved PDF-ekstraksjon under sync",
+                  "Feil ved filekstraksjon under sync",
                 );
               }
             }

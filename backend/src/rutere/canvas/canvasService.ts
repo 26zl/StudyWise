@@ -33,6 +33,8 @@ import pdfParse from "pdf-parse";
 const MAX_PDF_CONTENT_LENGTH = 12000;
 /** Maks filstørrelse vi laster ned for PDF-ekstraksjon (5 MB) */
 export const MAX_PDF_FILE_SIZE = 5 * 1024 * 1024;
+/** Maks filstørrelse for generell fil-nedlasting (10 MB) */
+export const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 // Generisk type for Canvas API-respons med valgfri metadata
 type CanvasResponseWithMeta<T> = {
@@ -649,6 +651,53 @@ export async function fetchFrontPage(canvasToken: string | null | undefined, cou
     data: CanvasPageSchema.parse(response.data),
     meta: response.meta,
   };
+}
+
+/**
+ * Laster ned en fil fra Canvas og returnerer rå Buffer.
+ * Returnerer null dersom filen er for stor eller nedlasting feiler.
+ */
+export async function fetchFileContent(
+  canvasToken: string | null | undefined,
+  file: { id: number; filename: string; url: string; size: number },
+  baseUrl?: string,
+): Promise<Buffer | null> {
+  if (file.size > MAX_FILE_SIZE) {
+    logger.info({ fileId: file.id, filename: file.filename, size: file.size }, "Fil for stor for KI-kontekst");
+    return null;
+  }
+
+  try {
+    const token = requireToken(canvasToken);
+    const { data: freshFile } = await fetchFileMetadata(token, file.id, baseUrl);
+    const downloadUrl = freshFile.url;
+
+    if (!downloadUrl) {
+      logger.warn({ fileId: file.id, filename: file.filename }, "Ingen download-URL for fil");
+      return null;
+    }
+
+    const response = await fetch(downloadUrl, {
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!response.ok) {
+      logger.warn(
+        { fileId: file.id, filename: file.filename, status: response.status },
+        "Kunne ikke laste ned fil fra Canvas",
+      );
+      return null;
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (error) {
+    logger.warn(
+      { err: error, fileId: file.id, filename: file.filename },
+      "Feil ved nedlasting av fil fra Canvas",
+    );
+    return null;
+  }
 }
 
 /**

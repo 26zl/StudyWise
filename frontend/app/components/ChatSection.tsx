@@ -1292,7 +1292,7 @@ export function ChatSection() {
                             onClick={() => filInputRef.current?.click()}
                             disabled={skriver || analyserarDokument}
                             className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-                            title="Last opp dokument (PDF, Word, TXT)"
+                            title="Last opp dokument (PDF, Word, PowerPoint, Excel, kodefiler, bilder)"
                             aria-label="Last opp dokument"
                         >
                             <Plus className="w-5 h-5 text-slate-400 dark:text-slate-500" />

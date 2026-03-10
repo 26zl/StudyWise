@@ -133,7 +133,8 @@ export const setCache = async (key: string, value: string, ttlSeconds: number = 
 // - Hakeparenteser ([]) for array-params som include[]
 // Blokkerer farlige tegn som kan brukes til injection (newlines, null bytes, etc.)
 // NB: Tillater IKKE wildcard (*) — bruk invalidateCacheByPattern() for glob-matching
-const VALID_CACHE_KEY_PATTERN = /^[a-zA-Z0-9:_/?.&=[\]-]+$/;
+// Inkluderer norske tegn (æøåÆØÅ) for nøkler som "kunngjøringer"
+const VALID_CACHE_KEY_PATTERN = /^[a-zA-Z0-9æøåÆØÅ:_/?.&=[\]-]+$/;
 /**
  * Validerer at en cache-nøkkel er trygg å bruke.
  * Tillater URL-lignende nøkler mens den blokkerer potensielt farlige tegn.
@@ -147,7 +148,7 @@ export const invalidateCacheByPattern = async (pattern: string): Promise<number>
     if (!client.isOpen) return 0;
     // Valider at pattern er trygt (forhindrer injection i SCAN)
     // Bruker VALID_CACHE_KEY_PATTERN + wildcard (*) for konsistens
-    const safePatternRegex = /^[a-zA-Z0-9:_/?.&=[\]*-]+$/;
+    const safePatternRegex = /^[a-zA-Z0-9æøåÆØÅ:_/?.&=[\]*-]+$/;
     if (!safePatternRegex.test(pattern) || pattern.includes("..")) {
         logger.warn({ pattern }, "Ugyldig cache-mønster avvist");
         return 0;
