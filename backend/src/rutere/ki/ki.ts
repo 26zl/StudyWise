@@ -423,8 +423,11 @@ router.post("/chat", async (req, res) => {
     let hasCanvasData = false;
 
     if (intent !== "general_chat" && req.canvasToken && req.user?.id) {
+      // Fallback til CANVAS_BASE_URL for brukere uten canvasBaseUrl i DB
+      const baseUrl = req.canvasBaseUrl ?? process.env.CANVAS_BASE_URL;
+
       // Sikre at bakgrunns-sync er igangsatt for neste gang
-      ensureCanvasSync(req.user.id, req.canvasToken, req.canvasBaseUrl);
+      ensureCanvasSync(req.user.id, req.canvasToken, baseUrl);
 
       // Ekstraher eventuelle emne/modul-hint fra siste brukermelding
       const lastUserMsg = messages.filter((m: { role: string }) => m.role === "user").at(-1)?.content ?? "";
@@ -476,7 +479,7 @@ router.post("/chat", async (req, res) => {
 
       if (!usedSessionCache) {
         contextResult = await Promise.race([
-          loadCanvasContext(req.user.id, req.canvasToken, intent, target, lastUserMsg, req.canvasBaseUrl),
+          loadCanvasContext(req.user.id, req.canvasToken, intent, target, lastUserMsg, baseUrl),
           new Promise<ContextResult>((resolve) =>
             setTimeout(
               () => resolve({ kontekst: "[CANVAS STATUS: Henting tok for lang tid. Prøv igjen.]", hasCanvasData: false, source: "none" }),

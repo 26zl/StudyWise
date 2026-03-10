@@ -18,7 +18,7 @@
 
 import { logger } from "../utils/logger.js";
 import { getCache, isRedisReady } from "../cache/redis.js";
-import { syncCanvasDataForUser, hasCanvasSyncData, userKey } from "./canvas-sync.service.js";
+import { syncCanvasDataForUser, hasCanvasSyncData, userKey, isSyncing, waitForSync } from "./canvas-sync.service.js";
 import { byggLettCanvasKontekst, byggMålrettetCanvasKontekst } from "../rutere/ki/kiCanvas.js";
 import type { TargetedQuery } from "../rutere/ki/ki.js";
 import { TWO_WEEKS_MS } from "common/dateUtils";
@@ -442,11 +442,28 @@ async function byggKontekstFraChunks(
     }
 
     if (allChunks.length === 0) {
-      logger.info(
-        { userId, coursesChecked: coursesToSearch.length, courseHint: target?.courseHint },
-        "Ingen chunks funnet i Redis for noen kurs",
-      );
-      return null;
+      // Hvis en sync pågår, vent på den og prøv igjen én gang
+      if (isSyncing(userId)) {
+        logger.info(
+          { userId, coursesChecked: coursesToSearch.length },
+          "Ingen chunks funnet — venter på pågående sync",
+        );
+        await waitForSync(userId, 15_000);
+
+        // Prøv å laste chunks på nytt etter sync
+        for (const emne of coursesToSearch) {
+          const courseChunks = await getChunksForCourse(userId, String(emne.id));
+          allChunks.push(...courseChunks);
+        }
+      }
+
+      if (allChunks.length === 0) {
+        logger.info(
+          { userId, coursesChecked: coursesToSearch.length, courseHint: target?.courseHint },
+          "Ingen chunks funnet i Redis for noen kurs",
+        );
+        return null;
+      }
     }
 
     // Søk i chunk-tekst med brukerens melding (keyword-basert TF-scoring)
@@ -513,6 +530,9 @@ export async function loadCanvasContext(
   message?: string,
   baseUrl?: string,
 ): Promise<ContextResult> {
+  // Fallback til CANVAS_BASE_URL for brukere uten canvasBaseUrl i DB
+  baseUrl = baseUrl ?? process.env.CANVAS_BASE_URL;
+
   // general_chat trenger ingen kontekst
   if (intent === "general_chat") {
     return { kontekst: "", hasCanvasData: false, source: "none" };
@@ -639,6 +659,13 @@ export async function ensureCanvasSync(
   baseUrl?: string,
 ): Promise<void> {
   if (!isRedisReady()) return;
+
+  // Fallback til CANVAS_BASE_URL for brukere uten canvasBaseUrl i DB
+  baseUrl = baseUrl ?? process.env.CANVAS_BASE_URL;
+  if (!baseUrl) {
+    logger.warn({ userId }, "ensureCanvasSync: canvasBaseUrl mangler — hopper over sync");
+    return;
+  }
 
   syncCanvasDataForUser(userId, canvasToken, baseUrl).catch((err) => {
     logger.warn({ err, userId }, "Canvas sync feilet");

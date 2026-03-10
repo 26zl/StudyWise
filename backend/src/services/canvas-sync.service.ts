@@ -71,6 +71,25 @@ export interface SyncResult {
   durationMs: number;
 }
 
+// ─── Sync-tracking ─────────────────────────────────────────
+
+/** Holder styr på pågående synkroniseringer per bruker */
+const activeSyncs = new Map<string, Promise<SyncResult>>();
+
+/** Sjekker om en bruker har en pågående synkronisering */
+export function isSyncing(userId: string): boolean {
+  return activeSyncs.has(userId);
+}
+
+/** Venter på at en pågående sync fullføres (med timeout). Returnerer null hvis ingen sync pågår. */
+export async function waitForSync(userId: string, timeoutMs: number): Promise<SyncResult | null> {
+  const pending = activeSyncs.get(userId);
+  if (!pending) return null;
+
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs));
+  return Promise.race([pending, timeout]);
+}
+
 // ─── Hjelpefunksjoner ──────────────────────────────────────
 
 /** Genererer SHA-256 hash av en streng */
@@ -105,7 +124,32 @@ export async function syncCanvasDataForUser(
   canvasToken: string,
   baseUrl?: string,
 ): Promise<SyncResult> {
+  // Hvis det allerede pågår en sync for denne brukeren, vent på den
+  const existing = activeSyncs.get(userId);
+  if (existing) return existing;
+
+  const promise = _doSync(userId, canvasToken, baseUrl);
+  activeSyncs.set(userId, promise);
+  try {
+    return await promise;
+  } finally {
+    activeSyncs.delete(userId);
+  }
+}
+
+async function _doSync(
+  userId: string,
+  canvasToken: string,
+  baseUrl?: string,
+): Promise<SyncResult> {
   const startTime = Date.now();
+
+  // Fallback til CANVAS_BASE_URL for brukere uten canvasBaseUrl i DB
+  baseUrl = baseUrl ?? process.env.CANVAS_BASE_URL;
+  if (!baseUrl) {
+    logger.warn({ userId }, "canvas-sync: baseUrl mangler — avbryter sync");
+    return { synced: false, courses: { total: 0, updated: 0, unchanged: 0, failed: 0 }, durationMs: 0 };
+  }
 
   if (!isRedisReady()) {
     logger.warn({ userId }, "Canvas sync avbrutt — Redis ikke tilgjengelig");
