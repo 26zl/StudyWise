@@ -3,6 +3,7 @@
  * - Datadog APM (Application Performance Monitoring) sporer ytelse og feil i applikasjonen.
  * dd-trace instrumenterer automatisk Express, Mongoose, Redis, og HTTP-kall.
  * MÅ lastes før Express/Mongoose/Redis (index.ts importerer denne først).
+ * Ingen top-level await her — init() må fullføre synkront før andre moduler lastes.
  */
 
 import tracer from "dd-trace";
@@ -22,9 +23,22 @@ if (ddApiKey) {
         appsec: isProd,           // Application security monitoring kun i prod
         // Automatisk instrumentering av: Express, Mongoose, Redis, HTTP/HTTPS
     });
-    const { logger } = await import("./utils/logger.js");
-    logger.info("Datadog APM initialisert");
+    // Logg asynkront så vi ikke blokkerer; init er allerede ferdig
+    setImmediate(() => {
+        import("./utils/logger.js").then(({ logger }) => {
+            logger.info(
+                {
+                    site: process.env.DD_SITE ?? "datadoghq.com",
+                    service: process.env.DD_SERVICE ?? "studywise-backend",
+                },
+                "Datadog APM initialisert",
+            );
+        });
+    });
 } else if (isProd) {
-    const { logger } = await import("./utils/logger.js");
-    logger.warn("DD_API_KEY ikke satt — Datadog APM er deaktivert i produksjon");
+    setImmediate(() => {
+        import("./utils/logger.js").then(({ logger }) => {
+            logger.warn("DD_API_KEY ikke satt — Datadog APM er deaktivert i produksjon");
+        });
+    });
 }
