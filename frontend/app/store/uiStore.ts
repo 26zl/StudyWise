@@ -60,7 +60,7 @@ const defaultSelection: CanvasContextPreferences = {
 
 // Oppretter storen som en hook (useUIStore) som kan brukes i alle komponenter
 export const useUIStore = create<UIState>()((set) => ({
-    isVenstreMenyOpen: false,
+    isVenstreMenyOpen: true, // Default: venstremeny synlig; på desktop kan bruker lukke/åpne med knappen
     toggleVenstreMeny: () => set((state) => ({ isVenstreMenyOpen: !state.isVenstreMenyOpen })),
     lukkVenstreMeny: () => set({ isVenstreMenyOpen: false }),
     settVenstreMenyOpen: (isOpen) => set({ isVenstreMenyOpen: isOpen }),
@@ -105,7 +105,7 @@ export const useUIStore = create<UIState>()((set) => ({
     },
     reset: () => {
         set({
-            isVenstreMenyOpen: false,
+            isVenstreMenyOpen: true,
             selectedChatId: null,
             currentChatId: null,
             runningChatId: null,

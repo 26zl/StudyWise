@@ -16,7 +16,6 @@ import {
     ChevronDown,
     ChevronRight,
     Plus,
-    X,
     LayoutDashboard,
     LogOut,
     CalendarDays,
@@ -118,36 +117,18 @@ export function Sidebar({
                     bg-white dark:bg-slate-900
                     border-r border-slate-200 dark:border-slate-800
                     flex flex-col
-                    transition-transform duration-200 ease-out
-                    ${isVenstreMenyOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+                    transition-[transform,width] duration-200 ease-out
+                    ${isVenstreMenyOpen ? "translate-x-0" : "-translate-x-full md:w-0 md:min-w-0 md:overflow-hidden"}
                 `}
             >
-
-
-                {/* Lukk-knapp for mobil */}
-                <div className="md:hidden flex items-center justify-between px-4 h-14 border-b border-slate-200 dark:border-slate-800">
-                    <span className="font-semibold text-slate-900 dark:text-white">
-                        Meny
-                    </span>
-                    <button
-                        onClick={lukkVenstreMeny}
-                        className="p-2 -mr-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        aria-label="Lukk meny"
-                    >
-                        <X size={20} />
-                    </button>
-                </div>
-
-                {/* Navigasjon */}
+                {/* Navigasjon — på mobil lukkes menyen via X i header, ikke egen rad */}
                 <nav className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-3">
                     {/* Hovednavigasjon */}
                     <div className="mb-4">
                         <Link
                             href="/oversikt"
                             onClick={() => {
-                                if (window.innerWidth < 768) {
-                                    lukkVenstreMeny();
-                                }
+                                if (window.innerWidth < 768) lukkVenstreMeny();
                             }}
                             className={`
                                 w-full flex items-center gap-3 px-5 py-3.5 rounded-xl text-left text-sm
