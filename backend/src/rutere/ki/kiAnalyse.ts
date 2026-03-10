@@ -41,11 +41,14 @@ const VISION_MIME_TYPES = new Set([
     "image/webp",
 ]);
 
+/** Normaliser MIME-type: image/jpg → image/jpeg (ikke-standard → standard) */
+function normaliserMime(mimetype: string): string {
+    return mimetype === "image/jpg" ? "image/jpeg" : mimetype;
+}
+
 /** Sjekk om filens MIME-type kan sendes direkte til Claude Vision */
 function erVisionBilde(mimetype: string): boolean {
-    // Normaliser image/jpg → image/jpeg
-    const normalized = mimetype === "image/jpg" ? "image/jpeg" : mimetype;
-    return VISION_MIME_TYPES.has(normalized);
+    return VISION_MIME_TYPES.has(normaliserMime(mimetype));
 }
 
 // Definerer express router
@@ -79,8 +82,12 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
 
   // Keepalive to prevent proxy (Next.js rewrite) from timing out during AI processing
   const keepaliveInterval = setInterval(() => {
+      if (res.writableEnded) {
+        clearInterval(keepaliveInterval);
+        return;
+      }
       try {
-        if (!res.writableEnded) res.write(": keepalive\n\n");
+        res.write(": keepalive\n\n");
       } catch {
         clearInterval(keepaliveInterval);
       }
@@ -175,7 +182,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
 
         if (brukerVision) {
             // --- Claude Vision: send bildet direkte ---
-            const normalizedMime = filMimetype === "image/jpg" ? "image/jpeg" : filMimetype;
+            const normalizedMime = normaliserMime(filMimetype);
             const imageAttachment: ImageAttachment = {
                 data: filBuffer.toString("base64"),
                 mediaType: normalizedMime as ImageAttachment["mediaType"],

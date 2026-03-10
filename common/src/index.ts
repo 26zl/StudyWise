@@ -12,3 +12,4 @@ export * from "./chat.js";
 export * from "./calendar-ui.js";
 export * from "./document.js";
 export * from "./dateUtils.js";
+export * from "./canvasInstitutions.js";

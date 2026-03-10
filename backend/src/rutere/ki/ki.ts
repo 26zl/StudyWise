@@ -91,6 +91,14 @@ const SKRIVEFEIL_MAP: Record<string, string> = {
   "bacheloropp": "bacheloroppgave",
 };
 
+// Pre-kompilerte regex-patterns for skrivefeil (unngår re-kompilering per kall)
+const SKRIVEFEIL_PATTERNS = Object.entries(SKRIVEFEIL_MAP).map(([feil, riktig]) => ({
+  feil,
+  riktig,
+  // eslint-disable-next-line security/detect-non-literal-regexp -- entries er fra hardkodet SKRIVEFEIL_MAP, ikke brukerinput
+  pattern: new RegExp(`(?<![a-zæøå])${feil}(?![a-zæøå])`, "g"),
+}));
+
 /**
  * Normaliserer vanlige skrivefeil i en melding.
  * Bruker ordgrense-sjekk (lookahead/lookbehind) for å unngå at
@@ -99,10 +107,8 @@ const SKRIVEFEIL_MAP: Record<string, string> = {
  */
 function normaliserSkrivefeil(text: string): string {
   let result = text.toLowerCase();
-  for (const [feil, riktig] of Object.entries(SKRIVEFEIL_MAP)) {
+  for (const { feil, riktig, pattern } of SKRIVEFEIL_PATTERNS) {
     if (result.includes(feil)) {
-      // eslint-disable-next-line security/detect-non-literal-regexp -- feil er fra hardkodet SKRIVEFEIL_MAP, ikke brukerinput
-      const pattern = new RegExp(`(?<![a-zæøå])${feil}(?![a-zæøå])`, "g");
       result = result.replace(pattern, riktig);
     }
   }
@@ -555,8 +561,13 @@ router.post("/chat", async (req, res) => {
     sseStarted = true;
 
     keepaliveInterval = setInterval(() => {
+      if (res.writableEnded) {
+        clearInterval(keepaliveInterval);
+        keepaliveInterval = undefined;
+        return;
+      }
       try {
-        if (!res.writableEnded) res.write(": keepalive\n\n");
+        res.write(": keepalive\n\n");
       } catch {
         clearInterval(keepaliveInterval);
         keepaliveInterval = undefined;

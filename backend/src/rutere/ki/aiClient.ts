@@ -249,7 +249,7 @@ async function callAnthropic(options: {
     }
 
     // Bør aldri nås, men for TypeScript
-    throw lastError;
+    throw lastError ?? new Error("Anthropic: alle forsøk feilet uten fanget feil");
 }
 
 /**

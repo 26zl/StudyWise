@@ -29,19 +29,20 @@ export const KIChatRequestSchema = z.object({
   temperature: z.number().min(0).max(2).optional(),
 });
 
+// Felles token-bruk schema (delt mellom chat og dokumentanalyse)
+const UsageSchema = z.object({
+  prompt_tokens: z.number(),
+  completion_tokens: z.number(),
+  total_tokens: z.number(),
+});
+
 // Svar-schema for KI chat API
 export const KIChatResponseSchema = z.object({
   suksess: z.boolean(),
   melding: z.string().optional(),
   response: z.string(),
   model: z.string().optional(),
-  usage: z
-    .object({
-      prompt_tokens: z.number(),
-      completion_tokens: z.number(),
-      total_tokens: z.number(),
-    })
-    .optional(),
+  usage: UsageSchema.optional(),
 });
 
 // Modell-liste (for KI modellvalg i frontend)
@@ -89,13 +90,7 @@ export const KIDocumentAnalyseResponseSchema = z.object({
       truncated: z.boolean(),
     })
     .optional(),
-  usage: z
-    .object({
-      prompt_tokens: z.number(),
-      completion_tokens: z.number(),
-      total_tokens: z.number(),
-    })
-    .optional(),
+  usage: UsageSchema.optional(),
 });
 
 // Subtask schema for task breakdown API.
@@ -122,7 +117,7 @@ export const KIOppsummeringRequestSchema = z.object({
   type: z.enum(["tldr", "handlinger", "begge"]).optional().default("begge"),
 });
 
-// Saniteringsregler for HTML-innhold i Canvas-data
+// Respons-schema for KI oppsummering
 export const KIOppsummeringResponseSchema = z.object({
   suksess: z.boolean(),
   oppsummering: z.string().optional(),
@@ -136,7 +131,6 @@ export type KIOppsummeringResponse = z.infer<
   typeof KIOppsummeringResponseSchema
 >;
 export type KIMessage = z.infer<typeof KIMessageSchema>;
-export type KIChatClientMessage = z.infer<typeof KIChatClientMessageSchema>;
 export type KIChatRequest = z.infer<typeof KIChatRequestSchema>;
 export type KIChatResponse = z.infer<typeof KIChatResponseSchema>;
 export type KIModelsResponse = z.infer<typeof KIModelsResponseSchema>;

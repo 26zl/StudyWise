@@ -57,7 +57,7 @@ export const sikkerHref = (u?: string | null): string => {
     try {
         const url = new URL(u, "https://placeholder.com");
         if (url.protocol === "http:" || url.protocol === "https:") {
-            return u; // Returner original URL (med original casing)
+            return url.href; // Returner normalisert URL (forhindrer casing-basert omgåelse)
         }
     } catch {
         // Ugyldig URL
@@ -90,10 +90,10 @@ export const createCanvasHtmlParser = (renderImage?: (el: Element) => ReactNode)
             if (domNode.tagName === "a") {
                 const href = domNode.attribs?.href;
                 // html-react-parser ChildNode typings mangler data-felt; begrens til tekstnoder
-                const firstChild = domNode.children?.[0];
+                const firstChild = domNode.children?.[0] as { data?: unknown } | undefined;
                 const text =
-                    typeof (firstChild as { data?: unknown } | undefined)?.data === "string"
-                        ? (firstChild as { data: string }).data
+                    firstChild && typeof firstChild.data === "string"
+                        ? firstChild.data
                         : "";
                 return (
                     <a

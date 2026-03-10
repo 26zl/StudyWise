@@ -212,9 +212,6 @@ export default function OversiktPage() {
                                 courseName: a.course_name,
                                 pointsPossible: a.points_possible || undefined,
                             }))}
-                            onAddToCalendar={() => {
-                                // TODO: Implementer kalenderfunksjon
-                            }}
                         />
                     ) : (
                         <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-8">

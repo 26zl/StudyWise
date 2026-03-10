@@ -26,7 +26,11 @@ export function CodeBlock({ className, children }: CodeBlockProps) {
   // Highlight koden etter mount
   useEffect(() => {
     if (erBlokk && codeRef.current) {
-      hljs.highlightElement(codeRef.current);
+      try {
+        hljs.highlightElement(codeRef.current);
+      } catch {
+        // Ugyldig språk eller kode — vis uten highlighting
+      }
     }
   }, [erBlokk, children]);
 
@@ -84,10 +88,10 @@ export function CodeBlock({ className, children }: CodeBlockProps) {
 
       {/* Kodeinnhold */}
       <div className="overflow-x-auto bg-white dark:bg-slate-900">
-        <pre className="!m-0 !p-4 !bg-transparent">
+        <pre className="m-0! p-4! bg-transparent!">
           <code
             ref={codeRef}
-            className={`language-${sprak} !bg-transparent text-sm leading-relaxed`}
+            className={`language-${sprak} bg-transparent! text-sm leading-relaxed`}
           >
             {kodeTekst}
           </code>

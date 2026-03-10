@@ -24,8 +24,8 @@ export const CalendarItemSchema = z.object({
   location: z.string().nullable().optional(), // Rom/lokasjon
 });
 
-// Paginerings-metadata
-export const PaginationMetaSchema = z.object({
+// Paginerings-metadata (brukes internt i CalendarItemsResponseSchema)
+const PaginationMetaSchema = z.object({
   page: z.number(),
   limit: z.number(),
   totalItems: z.number(),

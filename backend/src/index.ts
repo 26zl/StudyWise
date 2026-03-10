@@ -131,7 +131,7 @@ const rateLimiterMiddleware = (
       next();
     })
     .catch(() => {
-      apiError.rateLimited(res, "Vennligst prøv igjen senere.");
+      return apiError.rateLimited(res, "Vennligst prøv igjen senere.");
     });
 };
 // Setter i gang rate limiter middleware

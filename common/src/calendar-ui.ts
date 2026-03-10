@@ -2,8 +2,7 @@
  * Delte typer og fargemappinger for kalenderkomponentene
  */
 
-import type { z } from "zod";
-import { CalendarSourceSchema } from "./calendar.js";
+import type { CalendarSource } from "./calendar.js";
 
 // Farger for ulike emner/kurs - utvidet palett for unik farge per emne
 export type CourseColor =
@@ -28,9 +27,6 @@ export type CourseColor =
 // Filter-typer for kalendervisning
 export type CalendarFilterType = "all" | "assignments" | "timetable";
 
-/** Kilde for kalender-elementer — felles med calendar.ts for å unngå drift. */
-export type CalendarSourceType = z.infer<typeof CalendarSourceSchema>;
-
 // Innlevering/oppgave/hendelse
 export interface Assignment {
   id: string;
@@ -44,7 +40,7 @@ export interface Assignment {
   endDate?: Date; // Sluttid (for forelesninger/hendelser)
   completed: boolean;
   description?: string;
-  source?: CalendarSourceType;
+  source?: CalendarSource;
   url?: string | null;
   // Hendelse-spesifikke felter
   location?: string; // Rom/lokasjon

@@ -68,10 +68,16 @@ async function byggLettKontekstFraRedis(userId: string): Promise<string | null> 
       kontekst += `- ${formatCourseLabel(emne.name, emne.course_code)}\n`;
     }
 
-    // Hent oppgaver for alle emner og filtrer til kommende frister
+    // Hent oppgaver for alle emner parallelt og filtrer til kommende frister
     const fristLinjer: Array<{ dueAt: number; line: string }> = [];
-    for (const emne of emner) {
-      const oppgaverRaw = await getCache(userKey(userId, "emne", String(emne.id), "oppgaver"));
+    const oppgaverResults = await Promise.all(
+      emner.map(async (emne) => ({
+        emne,
+        raw: await getCache(userKey(userId, "emne", String(emne.id), "oppgaver")),
+      })),
+    );
+
+    for (const { emne, raw: oppgaverRaw } of oppgaverResults) {
       if (!oppgaverRaw) continue;
 
       try {

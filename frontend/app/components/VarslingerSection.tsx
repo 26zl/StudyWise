@@ -63,20 +63,21 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
 
     // Når bruker åpner varslinger-siden, markér alle som lest (synk med popup)
     useEffect(() => {
-        if (harCanvasToken && isHydrated && !isError && alleElementer.length > 0) {
+        if (harCanvasToken && isHydrated && !isError && (alleElementer?.length ?? 0) > 0) {
             markAllAsLest();
         }
     }, [harCanvasToken, isHydrated, isError, alleElementer.length, markAllAsLest]);
 
+    const safeAlle = alleElementer ?? [];
     const tabs: { id: VarslingTab; label: string; antall: number; uleste: number }[] = [
-        { id: "alle", label: "Alle", antall: alleElementer.length, uleste: alleElementer.filter((e) => !lestIds.has(e.id)).length },
+        { id: "alle", label: "Alle", antall: safeAlle.length, uleste: safeAlle.filter((e) => !lestIds.has(e.id)).length },
         { id: "frister", label: "Frister", antall: frister.length, uleste: frister.filter((e) => !lestIds.has(e.id)).length },
         { id: "kunngjøringer", label: "Kunngjøringer", antall: kunngjøringer.length, uleste: kunngjøringer.filter((e) => !lestIds.has(e.id)).length },
         { id: "hendelser", label: "Hendelser", antall: hendelser.length, uleste: hendelser.filter((e) => !lestIds.has(e.id)).length },
     ];
 
     const aktiveListe =
-        aktivTab === "alle" ? alleElementer
+        aktivTab === "alle" ? safeAlle
             : aktivTab === "frister" ? frister
             : aktivTab === "kunngjøringer" ? kunngjøringer
             : hendelser;

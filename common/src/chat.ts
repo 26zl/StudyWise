@@ -17,26 +17,22 @@ export const ChatSaveSchema = z.object({
   title: z.string().max(120).optional().nullable(),
 });
 
+// Felles schema for en enkelt chat-samtale (delt mellom save og historikk)
+const ChatEntrySchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  messages: z.array(ChatMessageSchema),
+  timestamp: z.coerce.date(),
+});
+
 // Schema for respons ved POST/PUT chat (én samtale)
 export const ChatSaveResponseSchema = z.object({
-  chat: z.object({
-    id: z.string(),
-    title: z.string(),
-    messages: z.array(ChatMessageSchema),
-    timestamp: z.coerce.date(),
-  }),
+  chat: ChatEntrySchema,
 });
 
 // Schema for chat-historikk API-respons
 export const ChatHistoryResponseSchema = z.object({
-  chats: z.array(
-    z.object({
-      id: z.string(),
-      title: z.string(),
-      messages: z.array(ChatMessageSchema),
-      timestamp: z.coerce.date(),
-    }),
-  ),
+  chats: z.array(ChatEntrySchema),
   meta: z
     .object({
       page: z.number(),
