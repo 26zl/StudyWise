@@ -111,7 +111,7 @@ Docker brukes **kun for lokal utvikling** — ikke i produksjon.
 
 ### Deployment
 
-- **Backend**: Render (Native Runtime, ikke Docker)
+- **Backend**: Heroku (Eco dyno + Datadog buildpack)
 - **Frontend**: Vercel
 - **Security/CDN**: Cloudflare (DDoS, SSL/TLS, caching)
 

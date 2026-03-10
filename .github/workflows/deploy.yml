@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy to Vercel and Render
+    name: Deploy frontend to Vercel
     runs-on: ubuntu-latest
     timeout-minutes: 25
     # Only deploy when all CI jobs pass (inkl. actionlint) and the trigger was a push (not a PR)
@@ -78,14 +78,7 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      - name: Deploy backend to Render
-        run: |
-          status=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.RENDER_DEPLOY_HOOK }}")
-          echo "Render response: $status"
-          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
-            echo "Render deploy hook returned $status"
-            exit 1
-          fi
+      # Backend deployes automatisk via Heroku Automatic Deploys fra main
 
       - name: Update GitHub deployment status
         continue-on-error: true
