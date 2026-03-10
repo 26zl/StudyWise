@@ -5,9 +5,22 @@
 import pino from "pino";
 
 const isDev = process.env.NODE_ENV !== "production";
+const ddEnabled = !!process.env.DD_API_KEY;
+
 // Påkrevd av validateEnv ved serverstart; ingen fallback (én sannhetskilde).
 export const logger = pino({
     level: process.env.LOG_LEVEL!,
+    // dd-trace injiserer dd.trace_id, dd.span_id automatisk via logInjection: true
+    // mixin legger til service/env for Datadog log-korrelasjon
+    ...(ddEnabled && {
+        mixin: () => ({
+            dd: {
+                service: process.env.DD_SERVICE ?? "studywise-backend",
+                env: process.env.DD_ENV ?? process.env.NODE_ENV ?? "development",
+                version: process.env.DD_VERSION ?? "0.0.0",
+            },
+        }),
+    }),
     redact: {
         paths: [
             "req.headers.authorization",

@@ -15,6 +15,7 @@ import {
   type CanvasErrorCode,
 } from "./canvasErrors.js";
 import { normalizeCanvasBaseUrl } from "common/auth";
+import { canvasCircuit } from "../../utils/circuitBreaker.js";
 
 // Typer og Interfaces
 // Canvas fetch funksjon med paginering og timeout
@@ -215,7 +216,7 @@ export async function hentCanvasData<T>(
 
     // Sensitive endepunkter skal ikke dedupliseres
     if (erSensitiv) {
-        return hentCanvasDataImpl<T>(endpoint, options, cleanToken, baseUrl);
+        return canvasCircuit.execute(() => hentCanvasDataImpl<T>(endpoint, options, cleanToken, baseUrl));
     }
 
     // Bygg cache key for deduplication (samme logikk som i impl)
@@ -241,8 +242,8 @@ export async function hentCanvasData<T>(
         return existing as Promise<CanvasResponse<T>>;
     }
 
-    // Opprett og registrer ny request
-    const promise = hentCanvasDataImpl<T>(endpoint, options, cleanToken, baseUrl)
+    // Opprett og registrer ny request (wrappet i circuit breaker)
+    const promise = canvasCircuit.execute(() => hentCanvasDataImpl<T>(endpoint, options, cleanToken, baseUrl))
         .finally(() => {
             inflightRequests.delete(dedupKey);
         });

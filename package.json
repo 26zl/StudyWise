@@ -57,8 +57,13 @@
       "minimatch": ">=10.2.1"
     },
     "onlyBuiltDependencies": [
+      "@datadog/native-appsec",
+      "@datadog/native-iast-taint-tracking",
+      "@datadog/native-metrics",
+      "@datadog/pprof",
       "@scarf/scarf",
       "bcrypt",
+      "dd-trace",
       "esbuild",
       "sharp",
       "tesseract.js",

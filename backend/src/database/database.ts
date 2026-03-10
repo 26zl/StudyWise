@@ -11,6 +11,7 @@ import { TaskBreakdown } from "./models/TaskBreakdown.js";
 import { User } from "./models/User.js";
 
 import { isProd } from "../utils/env.js";
+import { runMigrations } from "./migrations.js";
 
 // MongoDB klient opsjoner med connection pooling
 const clientOptions: mongoose.ConnectOptions = {
@@ -49,6 +50,7 @@ export const connectToDatabase = async () => {
     }
     try {
         await mongoose.connect(mongoURI, clientOptions);
+        await runMigrations();
         await ensureDatabaseIndexes();
         logger.info({
             maxPoolSize: clientOptions.maxPoolSize,

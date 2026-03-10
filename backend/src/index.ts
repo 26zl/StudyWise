@@ -12,6 +12,9 @@ import "dotenv/config";
 import { validateEnv } from "./utils/validateEnv.js";
 validateEnv();
 
+// Datadog APM — MÅ importeres før Express/Mongoose/Redis for korrekt instrumentering
+import "./datadog.js";
+
 import express from "express";
 import cors from "cors";
 import { RateLimiterMemory } from "rate-limiter-flexible";
@@ -23,7 +26,8 @@ import mongoose from "mongoose";
 import { swaggerSpec } from "./swagger.js";
 import { connectToDatabase } from "./database/database.js";
 import { logger } from "./utils/logger.js";
-import redisClient from "./cache/redis.js";
+import redisClient, { stopRedisReconnect, isRedisReady } from "./cache/redis.js";
+import { isClientAvailable } from "./rutere/ki/aiClient.js";
 import canvasRuter from "./rutere/canvas/canvas.js";
 import kiRuter from "./rutere/ki/ki.js";
 import brukerAuthRuter from "./rutere/auth/brukerAuth.js";
@@ -34,6 +38,7 @@ import { autentiserJwt, knyttCanvasToken } from "./middleware/auth.js";
 import { beskytteMotCsrf } from "./middleware/csrf.js";
 import { noCache } from "./middleware/no-cache.js";
 import { apiError, sendError } from "./utils/apiError.js";
+import { requestTimeout } from "./middleware/request-timeout.js";
 
 // Initialiserer Express app
 const app = express();
@@ -131,6 +136,9 @@ const rateLimiterMiddleware = (
 };
 // Setter i gang rate limiter middleware
 app.use(rateLimiterMiddleware);
+
+// Request timeout — forhindrer at trege eksterne API-kall tømmer server-ressurser
+app.use(requestTimeout);
 
 // CORS mot frontend - støtter flere origins via WEB_ORIGINS (kommaseparert)
 // Faller tilbake til WEB_ORIGIN for bakoverkompatibilitet
@@ -230,20 +238,30 @@ app.use((req, res, next) => {
  *       503:
  *         description: Server er oppe, men kritiske avhengigheter er nede
  */
-// Minimal health-respons (kun ok + timestamp) for Render/Cloudflare; unngår informasjonslekkasje.
+// Health check med status for alle avhengigheter.
+// Kun MongoDB er kritisk (gir 503). Redis og Anthropic er degradert (gir 200 med warnings).
 app.get("/health", (_req, res) => {
   // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
-  const mongoStatus = mongoose.connection.readyState;
-  const mongoOk = mongoStatus === 1;
+  const mongoOk = mongoose.connection.readyState === 1;
+  const redisOk = isRedisReady();
+  const anthropicOk = isClientAvailable("");
 
-  const allOk = mongoOk; // Redis valgfritt; MongoDB påkrevd
+  // MongoDB er kritisk — uten den fungerer ingenting
+  const allOk = mongoOk;
 
-  const healthResponse = {
+  const healthResponse: Record<string, unknown> = {
     ok: allOk,
     timestamp: new Date().toISOString(),
   };
 
-  // Returner 503 hvis kritiske avhengigheter er nede
+  // Legg til degradert-status hvis noe er nede (men ikke kritisk)
+  const degraded: string[] = [];
+  if (!redisOk) degraded.push("redis");
+  if (!anthropicOk) degraded.push("anthropic");
+  if (degraded.length > 0) {
+    healthResponse.degraded = degraded;
+  }
+
   if (!allOk) {
     return res.status(503).json(healthResponse);
   }
@@ -304,7 +322,8 @@ connectToDatabase()
           // Lukk database-tilkobling
           await mongoose.connection.close();
           logger.info("MongoDB-tilkobling lukket");
-          // Lukk Redis-tilkobling
+          // Stopp Redis reconnect-forsøk og lukk tilkobling
+          stopRedisReconnect();
           if (redisClient.isOpen) {
             await redisClient.quit();
             logger.info("Redis-tilkobling lukket");

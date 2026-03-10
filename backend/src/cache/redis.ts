@@ -8,34 +8,57 @@ import { isProd } from "../utils/env.js";
 // Påkrevd av validateEnv ved serverstart; ingen fallback (én sannhetskilde).
 const redisUrl = process.env.REDIS_URL!;
 
+const RECONNECT_DELAY_MS = 3000;
+const MAX_RECONNECT_DELAY_MS = 30000;
+let reconnectAttempts = 0;
+let isShuttingDown = false;
+
 const client = createClient({
     url: redisUrl,
+    socket: {
+        reconnectStrategy: (retries: number) => {
+            if (isShuttingDown) return false; // Ikke reconnect under shutdown
+            // Exponential backoff: 3s, 6s, 12s, ... maks 30s
+            const delay = Math.min(RECONNECT_DELAY_MS * Math.pow(2, retries), MAX_RECONNECT_DELAY_MS);
+            logger.warn({ retries, delayMs: delay }, "Redis reconnect planlagt");
+            return delay;
+        },
+    },
 });
+
 client.on("error", (err) => {
-    logger.error({ err }, "Redis Client Error");
-    if (isProd) {
-        logger.warn("Redis er nede i produksjon - rate limiting fungerer kun per instans");
+    // Unngå log-spam ved gjentatte feil — logg kun hvert 10. forsøk
+    reconnectAttempts++;
+    if (reconnectAttempts === 1 || reconnectAttempts % 10 === 0) {
+        logger.error({ err, reconnectAttempts }, "Redis Client Error");
+        if (isProd) {
+            logger.warn("Redis er nede i produksjon - rate limiting fungerer kun per instans");
+        }
     }
 });
 client.on("connect", () => {
     logger.info("Redis tilkoblet");
 });
 client.on("ready", () => {
+    reconnectAttempts = 0; // Nullstill ved vellykket tilkobling
     logger.info("Redis klar til bruk");
 });
 client.on("end", () => {
     logger.info("Redis tilkobling lukket");
 });
 
+/** Markerer at vi er i shutdown — stopper reconnect-forsøk */
+export const stopRedisReconnect = () => { isShuttingDown = true; };
+
 // Kobler til redis (hvis URL er konfigurert)
 if (redisUrl) {
     client.connect().catch((err) => {
-        logger.error({ err }, "Redis tilkobling feilet");
+        logger.error({ err }, "Redis tilkobling feilet (reconnect vil prøve automatisk)");
         if (isProd) {
             logger.warn(
                 "ADVARSEL: Redis er ikke tilgjengelig i produksjon. " +
-                "Rate limiting vil kun fungere per server-instans, " +
-                "noe som kan tillate brute-force angrep på tvers av instanser."
+                "Rate limiting vil kun fungere per server-instans. " +
+                "Automatisk reconnect er aktivert."
             );
         }
     });

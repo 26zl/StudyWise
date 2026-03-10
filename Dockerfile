@@ -1,7 +1,7 @@
 # StudyWise Dockerfile
 # Multi-stage build for frontend og backend
 
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 
 RUN npm install -g pnpm@10.28.2
 
@@ -27,7 +27,7 @@ RUN pnpm --filter common build && \
     pnpm --filter frontend build
 
 # --- Backend production ---
-FROM node:20-alpine AS backend
+FROM node:22-alpine AS backend
 
 RUN npm install -g pnpm@10.28.2
 
@@ -47,12 +47,14 @@ RUN chown -R node:node /app
 USER node
 
 ENV NODE_ENV=production
+# Datadog-labels for autodiscovery (settes via DD_* env vars i Render)
+LABEL com.datadoghq.ad.logs='[{"source":"nodejs","service":"studywise-backend"}]'
 EXPOSE 4000
 
 CMD ["node", "backend/dist/index.js"]
 
 # --- Frontend production ---
-FROM node:20-alpine AS frontend
+FROM node:22-alpine AS frontend
 
 WORKDIR /app
 

@@ -5,6 +5,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { logger } from "../../utils/logger.js";
+import { anthropicCircuit } from "../../utils/circuitBreaker.js";
 
 // --- Klient-initialisering (én gang ved oppstart) ---
 
@@ -67,7 +68,9 @@ export async function chatCompletion(options: {
 }): Promise<ChatCompletionResult> {
     const { model, messages, max_tokens, temperature } = options;
 
-    const result = await callAnthropic({ model, messages, max_tokens, temperature });
+    const result = await anthropicCircuit.execute(() =>
+        callAnthropic({ model, messages, max_tokens, temperature }),
+    );
 
     // Strip <analyse>/<svar>-tagger slik at brukeren kun ser det rene svaret
     result.text = stripAnalyseTags(result.text);
@@ -114,13 +117,13 @@ export async function chatCompletionWithVision(options: {
         throw new Error("Vision er ikke tilgjengelig. Kall kun chatCompletionWithVision når isVisionAvailable(model) er sann.");
     }
 
-    let result = await callAnthropicWithVision({
+    let result = await anthropicCircuit.execute(() => callAnthropicWithVision({
         model,
         messages,
         images,
         max_tokens,
         temperature,
-    });
+    }));
     result.text = stripAnalyseTags(result.text);
     return result;
 }
