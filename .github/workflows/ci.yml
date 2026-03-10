@@ -14,10 +14,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # 1. Workflow-lint (rask, ingen avhengigheter)
+  # 1. Workflow-lint – må være grønn før andre jobber kjører (needs: [actionlint] under)
   actionlint:
     name: Workflow lint (Actionlint)
     runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     steps:
       - name: Checkout code
@@ -32,7 +33,7 @@ jobs:
         run: ${{ steps.get_actionlint.outputs.executable }} -color
         shell: bash
 
-  # 2. Kodekvalitet og build (hovedport for å merge)
+  # 2. Kodekvalitet og build (kjører kun når actionlint er grønn)
   quality:
     name: Code Quality
     runs-on: ubuntu-latest

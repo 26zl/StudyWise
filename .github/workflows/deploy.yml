@@ -20,8 +20,8 @@ jobs:
   deploy:
     name: Deploy to Vercel and Render
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    # Only deploy when all CI jobs pass and the trigger was a push (not a PR)
+    timeout-minutes: 25
+    # Only deploy when all CI jobs pass (inkl. actionlint) and the trigger was a push (not a PR)
     if: >
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push'
@@ -48,8 +48,6 @@ jobs:
 
       - name: Build common
         run: pnpm --filter common build
-        env:
-          NEXT_PUBLIC_API_URL: "https://api.studwize.page"
 
       - name: Set git author for Vercel
         run: |
@@ -60,26 +58,23 @@ jobs:
         run: npm install -g vercel@latest
 
       - name: Pull Vercel configuration
-        run: vercel pull --yes --environment=production
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Build with Vercel
-        run: vercel build --prod
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Deploy frontend to Vercel
         id: deploy
         run: |
-          url="$(vercel deploy --prebuilt --prod --force)"
+          url=$(vercel deploy --prebuilt --prod --force --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$url" >> "$GITHUB_OUTPUT"
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
