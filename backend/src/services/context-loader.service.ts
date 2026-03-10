@@ -530,8 +530,6 @@ export async function loadCanvasContext(
   message?: string,
   baseUrl?: string,
 ): Promise<ContextResult> {
-  // Fallback til CANVAS_BASE_URL for brukere uten canvasBaseUrl i DB
-  baseUrl = baseUrl ?? process.env.CANVAS_BASE_URL;
 
   // general_chat trenger ingen kontekst
   if (intent === "general_chat") {

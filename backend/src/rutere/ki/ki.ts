@@ -423,8 +423,8 @@ router.post("/chat", async (req, res) => {
     let hasCanvasData = false;
 
     if (intent !== "general_chat" && req.canvasToken && req.user?.id) {
-      // Fallback til CANVAS_BASE_URL for brukere uten canvasBaseUrl i DB
-      const baseUrl = req.canvasBaseUrl ?? process.env.CANVAS_BASE_URL;
+    
+      const baseUrl = req.canvasBaseUrl;
 
       // Sikre at bakgrunns-sync er igangsatt for neste gang
       ensureCanvasSync(req.user.id, req.canvasToken, baseUrl);

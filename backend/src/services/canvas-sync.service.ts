@@ -144,8 +144,7 @@ async function _doSync(
 ): Promise<SyncResult> {
   const startTime = Date.now();
 
-  // Fallback til CANVAS_BASE_URL for brukere uten canvasBaseUrl i DB
-  baseUrl = baseUrl ?? process.env.CANVAS_BASE_URL;
+
   if (!baseUrl) {
     logger.warn({ userId }, "canvas-sync: baseUrl mangler — avbryter sync");
     return { synced: false, courses: { total: 0, updated: 0, unchanged: 0, failed: 0 }, durationMs: 0 };
