@@ -33,7 +33,8 @@
     "update:docs": "pnpm --filter docs update",
     "outdated": "pnpm -r outdated",
     "clean:all": "node scripts/clean.mjs",
-    "clean:install": "node scripts/clean.mjs && pnpm install && pnpm -r update && pnpm build"
+    "clean:install": "node scripts/clean.mjs && pnpm install && pnpm -r update && pnpm build",
+    "heroku-postbuild": "pnpm --filter common build && pnpm --filter backend build"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
