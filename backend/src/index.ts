@@ -28,6 +28,7 @@ import { connectToDatabase } from "./database/database.js";
 import { logger } from "./utils/logger.js";
 import redisClient, { stopRedisReconnect, isRedisReady } from "./cache/redis.js";
 import { isClientAvailable } from "./rutere/ki/aiClient.js";
+import arbeidsplanRuter from "./rutere/arbeidsplan/index.js";  
 import canvasRuter from "./rutere/canvas/canvas.js";
 import kiRuter from "./rutere/ki/ki.js";
 import brukerAuthRuter from "./rutere/auth/brukerAuth.js";
@@ -88,15 +89,17 @@ app.use(
     crossOriginEmbedderPolicy: false,
     crossOriginResourcePolicy: { policy: "cross-origin" },
   }),
-);
+); 
 
 // Body parsers
 app.use(express.urlencoded({ extended: true }));
 
 // Deaktiverer "X-Powered-By" header for sikkerhet
-app.disable("x-powered-by");
+app.disable("x-powered-by"); 
 
-// Logger middleware
+app.use("/api/arbeidsplan", arbeidsplanRuter);  
+  
+// Logger middleware  
 app.use(pinoHttp({ logger }));
 
 // Gzip komprimering — skip SSE responses (text/event-stream) to prevent buffering
@@ -123,7 +126,7 @@ const rateLimiter = new RateLimiterMemory({
 const rateLimiterMiddleware = (
   req: express.Request,
   res: express.Response,
-  next: express.NextFunction,
+  next: express.NextFunction, 
 ) => {
   rateLimiter
     .consume(req.ip as string)
@@ -146,7 +149,7 @@ const allowedOrigins = new Set(
   (process.env.WEB_ORIGINS ?? process.env.WEB_ORIGIN ?? "")
     .split(",")
     .map((s) => s.trim())
-    .filter(Boolean),
+    .filter(Boolean), 
 );
 
 // I produksjon: advar hvis noen origins ikke bruker HTTPS
