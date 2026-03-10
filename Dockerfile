@@ -1,5 +1,5 @@
-# StudyWise Dockerfile
-# Multi-stage build for frontend og backend
+# StudyWise Dockerfile — kun for lokal utvikling via docker compose
+# Brukes IKKE i produksjon (frontend deployes til Vercel, backend til Render)
 
 FROM node:22-alpine AS base
 
@@ -46,9 +46,6 @@ COPY --from=base /app/backend/dist backend/dist
 RUN chown -R node:node /app
 USER node
 
-ENV NODE_ENV=production
-# Datadog-labels for autodiscovery (settes via DD_* env vars i Render)
-LABEL com.datadoghq.ad.logs='[{"source":"nodejs","service":"studywise-backend"}]'
 EXPOSE 4000
 
 CMD ["node", "backend/dist/index.js"]
@@ -65,7 +62,6 @@ COPY --from=base /app/frontend/public frontend/public
 RUN chown -R node:node /app
 USER node
 
-ENV NODE_ENV=production
 EXPOSE 3000
 
 CMD ["node", "frontend/server.js"]

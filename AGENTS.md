@@ -1,5 +1,7 @@
 # AI Agent Guidelines & Project Master Reference
 
+Dette dokumentet gir retningslinjer for AI-agenter (f.eks. Claude, Cursor) som jobber med koden i dette repoet.
+
 **VIKTIG FOR AI-AGENTER:** Les dette dokumentet NØYE før du gjør endringer. Dette er "loven" for prosjektet.
 
 StudyWise – AI-drevet studieveileder med Canvas LMS-integrasjon. pnpm-monorepo med pakkene `frontend`, `backend`, `common` og `docs`.
@@ -11,7 +13,7 @@ StudyWise – AI-drevet studieveileder med Canvas LMS-integrasjon. pnpm-monorepo
 ### Frontend
 
 - **Core**: Next.js 16, React 19, TypeScript 5.9
-- **Styling**: Tailwind CSS v4 (med `@tailwindcss/postcss`)
+- **Styling**: Tailwind CSS v4 (med `@tailwindcss/postcss`) — bruk `m-0!`-syntaks for important, IKKE `!m-0`
 - **State/Data**: `@tanstack/react-query` v5 for server-state, `zustand` for client-state, **nuqs** for URL-synkronisert state (f.eks. dashboard `?view=`)
 - **Forms**: `react-hook-form` + `@hookform/resolvers` + `zod`
 - **Routing**: Next.js App Router (Server Components default)
@@ -29,6 +31,8 @@ StudyWise – AI-drevet studieveileder med Canvas LMS-integrasjon. pnpm-monorepo
 - **Cache**: `redis`-klient mot Redis Cloud
 - **AI**: `@anthropic-ai/sdk` for Claude
 - **Feilhåndtering**: Standardisert via `backend/src/utils/apiError.ts`
+- **APM**: Datadog (`dd-trace`) — initialiseres når `DD_API_KEY` er satt (`backend/src/datadog.ts`)
+- **Resiliens**: Circuit breakers for Canvas og Anthropic API (`backend/src/utils/circuitBreaker.ts`), request timeout-middleware (`backend/src/middleware/request-timeout.ts`)
 
 ### Common
 
@@ -96,15 +100,17 @@ pnpm --filter backend test   # Kjør backend-tester (vitest)
 pnpm --filter frontend test  # Kjør frontend-tester (vitest + @testing-library/react)
 ```
 
-### Docker
+### Docker (kun lokal utvikling)
 
 ```bash
 docker compose up --build   # Kjør full stack lokalt (MongoDB, Redis, backend, frontend)
 ```
 
+Docker brukes **kun for lokal utvikling** — ikke i produksjon.
+
 ### Deploy
 
-- **Backend**: Render (Docker)
+- **Backend**: Render (Native Runtime, ikke Docker)
 - **Frontend**: Vercel
 - **Sikkerhet/CDN**: Cloudflare (DDoS, SSL/TLS, caching)
 
@@ -166,11 +172,13 @@ Hver fil håndterer ett KI-område:
 
 Delt infrastruktur (gjenbruk disse, ikke dupliser):
 
-- `aiClient.ts` – AI-klient for Claude (import `chatCompletion`, `isClientAvailable`)
+- `aiClient.ts` – AI-klient for Claude (import `chatCompletion`, `isClientAvailable`), wrappet i circuit breaker
 - `handleAIError.ts` – Sentral AI-feilhåndterer for timeout/rate-limit/billing/503 (import `handleAIError`)
 - `aiModels.ts` – Modellkonfigurasjon, `DEFAULT_MODEL`
 - `kiConstants.ts` – `KI_CACHE_TTL`, `KI_OPPSUMMERING_CACHE_TTL`, `KI_TIMEOUT_MS`
 - `systemPrompt.ts` – Én kilde for `STUDYWISE_SYSTEM_PROMPT`
+
+SSE-endepunkter må sjekke `res.writableEnded` før de skriver keepalive-pings.
 
 ### Dokumentbehandling
 
@@ -190,7 +198,7 @@ Backend tar imot filopplasting via `multer` og prosesserer med:
 - **Pino-logger** – aldri console.log i backend
 - **Zod-validering** – på alle pakkegrenser
 - **Relative URLer** – frontend bruker `/api/...`, Next.js rewriter til backend
-- **Konfigurasjon**: AI-agenter skal IKKE endre eller overskrive konfigurasjonsfiler (tsconfig, eslint, next.config osv.) uten å spørre brukeren først
+- **Konfigurasjon**: Ikke endre tsconfig/eslint/next.config uten å spørre
 - **Norsk naming** – ruter, komponenter og variabler på norsk; filnavn på engelsk
 - **Rate limiting** – bruk eksisterende `rateLimitKi`-middleware for KI-endepunkter; for andre sensitive endepunkter: `rate-limiter-flexible` (se `backend/src/middleware/rate-limit.ts`)
 - **Sikkerhetslint** – `pnpm lint` inkluderer `eslint-plugin-security` (SAST) i frontend og backend. Kjøres i CI.
@@ -284,6 +292,7 @@ onSave(subtasks.map(({ approved: _approved, ...task }) => task));
 - Definer schema i `backend/src/database/models/`
 - Bruk Zod i `common` for å validere data før det treffer databasen
 - Bruk Mongoose-modeller som tiltenkt (`.find()`, `.create()`, osv.)
+- **Migrations**: `backend/src/database/migrations.ts` — kjøres automatisk ved oppstart. Legg nye migrasjoner til i `migrations`-arrayet
 
 ---
 
@@ -314,18 +323,21 @@ pnpm build   # Bygger common først!
 
 ### CI (`.github/workflows/ci.yml`)
 
-Kjøres ved push og PR mot `main` med tre parallelle jobber:
+Kjøres ved push og PR mot `main`. **Actionlint må være grønn før de andre jobbene kjører** (`needs: [actionlint]`):
 
-- **quality**: typecheck, lint, lint:md, verify build
-- **secret-scan**: TruffleHog skanner etter lekkede hemmeligheter
-- **dependency-scan**: `pnpm audit --audit-level=high`
+- **actionlint** – workflow-lint (rask, ingen avhengigheter). Må passere først.
+- **quality** – typecheck, lint, lint:md, verify build
+- **dependency-scan** – `pnpm audit --audit-level=high`
+- **secret-scan** – TruffleHog skanner etter lekkede hemmeligheter
 
-Deploy (`deploy.yml`) utløses automatisk når alle CI-jobber er grønne ved push til `main`.
+Alle jobber har timeout. Deploy (`deploy.yml`) utløses automatisk når hele CI er grønn ved push til `main`.
 
 ### Andre workflows
 
+- **deploy.yml** – trigger når CI er ferdig på `main` (push): trigger Render deploy-hook; frontend deployes via Vercel sin GitHub-integrasjon
 - **deploy.docs.yml** – ved push til `docs/**`: bygger VitePress og deployer til GitHub Pages
-- **dependabot.yml** – ukentlige oppdateringer (mandager) for github-actions, rot, frontend, backend, common, docs
+- **owasp-dependency-check.yml** – ukentlig (mandager) + workflow_dispatch
+- **update-dependencies.yml** – ukentlig (mandager) + workflow_dispatch, oppretter PR med `pnpm -r update`
 
 ---
 

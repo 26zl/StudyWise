@@ -10,7 +10,7 @@ STUDYWISE - En KI-basert studieassistent for høyere utdanning med integrasjon m
 
 Produksjonsnettside - <https://www.studwize.page>
 
-> **Deploy:** Backend kjører hos Render, frontend hos Vercel. Cloudflare brukes for DDoS-beskyttelse, SSL/TLS og ytelse. Dockerfile og docker-compose.yml i root kan brukes for lokal kjøring av hele stacken.
+> **Deploy:** Backend hos Render (Native Runtime), frontend hos Vercel. Cloudflare brukes for DDoS-beskyttelse, SSL/TLS og ytelse. Docker er kun for lokal utvikling — `docker compose up --build` kjører hele stacken lokalt.
 
 **Utvikling?** Les [CONTRIBUTING.md](./CONTRIBUTING.md) for detaljert guide om hvordan du skal kode og utvikle dette prosjektet.
 
@@ -84,7 +84,7 @@ pnpm run clean:install    # Full reinstall (clean + install + update + build)
 pnpm kill:dev             # Stopp alle Node prosesser (Windows)
 pnpm run update           # Oppdater alle pakker
 
-# Docker (kjør hele prosjektet lokalt)
+# Docker (kun lokal utvikling)
 docker compose up --build # Starter MongoDB, Redis, backend og frontend
 ```
 

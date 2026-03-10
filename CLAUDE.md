@@ -15,7 +15,7 @@ StudyWise - AI-powered study assistant with Canvas LMS integration. pnpm monorep
 ### Frontend
 
 - **Core**: Next.js 16, React 19, TypeScript 5.9
-- **Styling**: Tailwind CSS v4 (with `@tailwindcss/postcss`)
+- **Styling**: Tailwind CSS v4 (with `@tailwindcss/postcss`) — use `m-0!` syntax for important, NOT `!m-0`
 - **State/Data**: `@tanstack/react-query` v5 for server-state, `zustand` for client-state, **nuqs** for URL-synced state (e.g. dashboard `?view=`)
 - **Forms**: `react-hook-form` + `@hookform/resolvers` + `zod`
 - **Routing**: Next.js App Router (Server Components default)
@@ -32,6 +32,8 @@ StudyWise - AI-powered study assistant with Canvas LMS integration. pnpm monorep
 - **Cache**: `redis` client with Redis Cloud
 - **AI**: `@anthropic-ai/sdk` for Claude
 - **Error handling**: Standardized via `backend/src/utils/apiError.ts`
+- **APM**: Datadog (`dd-trace`) — initializes conditionally when `DD_API_KEY` is set (`backend/src/datadog.ts`)
+- **Resilience**: Circuit breakers for Canvas and Anthropic APIs (`backend/src/utils/circuitBreaker.ts`), request timeout middleware (`backend/src/middleware/request-timeout.ts`)
 
 ### Common
 
@@ -99,15 +101,17 @@ pnpm --filter backend test   # Run backend tests (vitest)
 pnpm --filter frontend test  # Run frontend tests (vitest + @testing-library/react)
 ```
 
-### Docker
+### Docker (kun lokal utvikling)
 
 ```bash
 docker compose up --build   # Run full stack locally (MongoDB, Redis, backend, frontend)
 ```
 
+Docker brukes **kun for lokal utvikling** — ikke i produksjon.
+
 ### Deployment
 
-- **Backend**: Render (Docker)
+- **Backend**: Render (Native Runtime, ikke Docker)
 - **Frontend**: Vercel
 - **Security/CDN**: Cloudflare (DDoS, SSL/TLS, caching)
 
@@ -169,11 +173,13 @@ Each file handles a distinct AI feature:
 
 Shared infrastructure (reuse these, don't duplicate):
 
-- `aiClient.ts` - AI client for Claude (import `chatCompletion`, `isClientAvailable`)
+- `aiClient.ts` - AI client for Claude (import `chatCompletion`, `isClientAvailable`), wrapped in circuit breaker
 - `handleAIError.ts` - Centralized AI error handler for timeout/rate-limit/billing/503 (import `handleAIError`)
 - `aiModels.ts` - Model config, `DEFAULT_MODEL`
 - `kiConstants.ts` - `KI_CACHE_TTL`, `KI_OPPSUMMERING_CACHE_TTL`, `KI_TIMEOUT_MS`
 - `systemPrompt.ts` - Single source for `STUDYWISE_SYSTEM_PROMPT`
+
+SSE endpoints must check `res.writableEnded` before writing keepalive pings.
 
 ### Document Processing
 
@@ -287,6 +293,7 @@ onSave(subtasks.map(({ approved: _approved, ...task }) => task));
 - Define schemas in `backend/src/database/models/`
 - Use Zod in `common` to validate data before it hits the database
 - Use Mongoose models as intended (`.find()`, `.create()`, etc.)
+- **Migrations**: `backend/src/database/migrations.ts` — runs automatically at startup. Add new migrations to the `migrations` array
 
 ---
 
@@ -317,13 +324,14 @@ pnpm build  # Builds common package first!
 
 ### CI Pipeline (`.github/workflows/ci.yml`)
 
-Runs on push and PRs to `main` with three parallel jobs:
+Runs on push and PRs to `main`. **Actionlint must be green before other jobs run** (`needs: [actionlint]`):
 
-- **quality**: typecheck, lint, lint:md, verify build
-- **secret-scan**: TruffleHog scans for leaked secrets
-- **dependency-scan**: `pnpm audit --audit-level=high`
+- **actionlint** – workflow lint (fast, no deps). Must pass first.
+- **quality** – typecheck, lint, lint:md, verify build
+- **dependency-scan** – `pnpm audit --audit-level=high`
+- **secret-scan** – TruffleHog scans for leaked secrets
 
-Deploy (`deploy.yml`) triggers automatically when all CI jobs pass on push to `main`.
+All jobs have timeouts. Deploy (`deploy.yml`) triggers automatically when CI succeeds on push to `main`.
 
 ---
 
