@@ -26,7 +26,6 @@ import { LoadingSpinner } from "../components/LoadingSpinner";
 export default function OversiktPage() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<"mine-oppgaver" | "ki-forslag">("mine-oppgaver");
-    const [refreshKey, setRefreshKey] = useState(0);
     
     const megQuery = useMeg();
     const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
@@ -79,7 +78,6 @@ export default function OversiktPage() {
 
     const handlePlanCreated = () => {
         setActiveTab("mine-oppgaver");
-        setRefreshKey(prev => prev + 1);
     };
 
     // Vis lasteskjerm mens brukerdata hentes
@@ -222,7 +220,7 @@ export default function OversiktPage() {
                         {/* Tab Content */}
                         <div>
                             {activeTab === "mine-oppgaver" && (
-                                <MinArbeidsplan key={refreshKey} />
+                                <MinArbeidsplan />
                             )}
                             
                             {activeTab === "ki-forslag" && (
@@ -403,10 +401,9 @@ interface QuickActionCardProps {
     icon: React.ComponentType<{ size?: number; className?: string }>;
     href: string;
     color: "blue" | "green" | "purple";
-    onClick?: () => void;
 }
 
-function QuickActionCard({ title, description, icon: Icon, href, color, onClick }: QuickActionCardProps) {
+function QuickActionCard({ title, description, icon: Icon, href, color }: QuickActionCardProps) {
     const colorClasses = {
         blue: "bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/20",
         green: "bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900/20",
@@ -422,7 +419,6 @@ function QuickActionCard({ title, description, icon: Icon, href, color, onClick 
     return (
         <Link
             href={href}
-            onClick={onClick}
             className={`block p-6 rounded-lg border transition-colors ${colorClasses[color]}`}
         >
             <Icon size={24} className={`mb-3 ${iconColorClasses[color]}`} />

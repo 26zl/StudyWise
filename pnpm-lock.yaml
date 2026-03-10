@@ -61,8 +61,8 @@ importers:
         specifier: ^2.8.6
         version: 2.8.6
       dd-trace:
-        specifier: ^5.88.0
-        version: 5.88.0
+        specifier: ^5.89.0
+        version: 5.89.0
       dotenv:
         specifier: ^17.3.1
         version: 17.3.1
@@ -79,8 +79,8 @@ importers:
         specifier: ^1.11.0
         version: 1.11.0
       mongoose:
-        specifier: ^9.2.4
-        version: 9.2.4
+        specifier: ^9.3.0
+        version: 9.3.0
       multer:
         specifier: ^2.1.1
         version: 2.1.1
@@ -587,8 +587,8 @@ packages:
     resolution: {integrity: sha512-QxULHAm7cNu72w97JUNCBFODFaXpbDg+dP8b/oWFAZ2MTRppA3U00Y2L1HqaS4J6yBqxwa/Y3nMBaxVKbB/NsA==}
     engines: {node: '>=20.19.0'}
 
-  '@datadog/flagging-core@0.3.3':
-    resolution: {integrity: sha512-LnkTXMVxaCDGCOF2I+CCACndpbi4E8CP8NIsb1IbMmmATzkQHmYiL1ntFcS4mt5kNGAWXNrKquM02jhoiVc+dA==}
+  '@datadog/flagging-core@1.1.0':
+    resolution: {integrity: sha512-m2BSEmdSd4P5c/l+4C2L32vnnhwr0bF3qnM2Uz0NhWbUxX4SjpUHbb7GPq8bjr0rfZJZefQ7zQjN/cjE+bb7pg==}
 
   '@datadog/libdatadog@0.8.1':
     resolution: {integrity: sha512-WeWPw24cVRmEWfRRw3+h4k7f8mf9vbWEq6MYg1eOd+FycG7q4LaV8/uKROWoKFoD6ScoNvZXxOjKHW3AdYgM+A==}
@@ -604,8 +604,8 @@ packages:
     resolution: {integrity: sha512-MU1gHrolwryrU4X9g+fylA1KPH3S46oqJPEtVyrO+3Kh29z80fegmtyrU22bNt8LigPUK/EdPCnSbMe88QbnxQ==}
     engines: {node: '>=16'}
 
-  '@datadog/openfeature-node-server@0.3.3':
-    resolution: {integrity: sha512-G3OdRxv3ZwFx+gTwot33nNcTmE8P7ObTLjviXv6zVMD4NB6R/yvCjJVe/Wh0WSTt/ZBjGYN2+SuZAPpf7gsR5g==}
+  '@datadog/openfeature-node-server@1.1.0':
+    resolution: {integrity: sha512-Qy5sz6vGq3KekoRLw9zko7LsDd97MPjJSnYl7jUq7bMST5p0aFFh/MnILn9/B1UC7RZJ6Kj5F2U0hxqmAWz2dw==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       '@openfeature/server-sdk': '>=1.15.0 <2.0.0'
@@ -2468,8 +2468,8 @@ packages:
     resolution: {integrity: sha512-9iSbB8XZ7aIrhUtWI5ulEOJ+IyUN+axquodHK+bZO4r7HfY/xwmo6I4fYYf+aiDom+WMcN/wnzCz+pKvHDDCug==}
     engines: {node: '>=12.17'}
 
-  dd-trace@5.88.0:
-    resolution: {integrity: sha512-TD7X9XdQayktsxno31Ls09VagFn2fALz2+6FmEniVbZOOY5H7Pf+6ts19W5vaHVw92eE18dUt96msZ/T4Wu/Ug==}
+  dd-trace@5.89.0:
+    resolution: {integrity: sha512-hJo0B8F61fx8npRK3SmR0cp9jfWd8WJjdgjJB/o1fI4yhoQ7NeMrTbVpVYvN9hMjeeSl94m7/aF9iNsrjqFPRg==}
     engines: {node: '>=18 <26'}
 
   debug@2.6.9:
@@ -2975,8 +2975,9 @@ packages:
     resolution: {integrity: sha512-TR3KfrTZTYLPB6jUjfx6MF9WcWrHL9su5TObK4ZkYgBdWKPOFoSoQIdEuTuR82pmtxH2spWG9h6etwfr1pLBqQ==}
     engines: {node: '>=6'}
 
-  import-in-the-middle@2.0.6:
-    resolution: {integrity: sha512-3vZV3jX0XRFW3EJDTwzWoZa+RH1b8eTTx6YOCjglrLyPuepwoBti1k3L2dKwdCUrnVEfc5CuRuGstaC/uQJJaw==}
+  import-in-the-middle@3.0.0:
+    resolution: {integrity: sha512-OnGy+eYT7wVejH2XWgLRgbmzujhhVIATQH0ztIeRilwHBjTeG3pD+XnH3PKX0r9gJ0BuJmJ68q/oh9qgXnNDQg==}
+    engines: {node: '>=18'}
 
   import-meta-resolve@4.2.0:
     resolution: {integrity: sha512-Iqv2fzaTQN28s/FwZAoFq0ZSs/7hMAHJVX+w8PZl3cY19Pxk6jFFalxQoIfW2826i/fDLXv8IiEZRIT0lDuWcg==}
@@ -3542,8 +3543,8 @@ packages:
     resolution: {integrity: sha512-h0AZ9A7IDVwwHyMxmdMXKy+9oNlF0zFoahHiX3vQ8e3KFcSP3VmsmfvtRSuLPxmyv2vjIDxqty8smTgie/SNRQ==}
     engines: {node: '>=20.19.0'}
 
-  mongodb@7.0.0:
-    resolution: {integrity: sha512-vG/A5cQrvGGvZm2mTnCSz1LUcbOPl83hfB6bxULKQ8oFZauyox/2xbZOoGNl+64m8VBrETkdGCDBdOsCr3F3jg==}
+  mongodb@7.1.0:
+    resolution: {integrity: sha512-kMfnKunbolQYwCIyrkxNJFB4Ypy91pYqua5NargS/f8ODNSJxT03ZU3n1JqL4mCzbSih8tvmMEMLpKTT7x5gCg==}
     engines: {node: '>=20.19.0'}
     peerDependencies:
       '@aws-sdk/credential-providers': ^3.806.0
@@ -3569,8 +3570,8 @@ packages:
       socks:
         optional: true
 
-  mongoose@9.2.4:
-    resolution: {integrity: sha512-XNh+jiztVMddDFDCv8TWxVxi/rGx+0FfsK3Ftj6hcYzEmhTcos2uC144OJRmUFPHSu3hJr6Pgip++Ab2+Da35Q==}
+  mongoose@9.3.0:
+    resolution: {integrity: sha512-Tv2p3DLBkftoGFp+VM/19k0t0RYPAAYjGIbCVGlV6Tf5Dnq6TICfYyeKeYvwQ06nK9sRDvymP3B+tjGHnUlaxw==}
     engines: {node: '>=20.19.0'}
 
   mpath@0.9.0:
@@ -3870,8 +3871,8 @@ packages:
   pprof-format@2.2.1:
     resolution: {integrity: sha512-p4tVN7iK19ccDqQv8heyobzUmbHyds4N2FI6aBMcXz6y99MglTWDxIyhFkNaLeEXs6IFUEzT0zya0icbSLLY0g==}
 
-  preact@10.28.4:
-    resolution: {integrity: sha512-uKFfOHWuSNpRFVTnljsCluEFq57OKT+0QdOiQo8XWnQ/pSvg7OpX5eNOejELXJMWy+BwM2nobz0FkvzmnpCNsQ==}
+  preact@10.29.0:
+    resolution: {integrity: sha512-wSAGyk2bYR1c7t3SZ3jHcM6xy0lcBcDel6lODcs9ME6Th++Dx2KU+6D3HD8wMMKGA8Wpw7OMd3/4RGzYRpzwRg==}
 
   prelude-ls@1.2.1:
     resolution: {integrity: sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g==}
@@ -5204,7 +5205,7 @@ snapshots:
 
   '@csstools/css-tokenizer@4.0.0': {}
 
-  '@datadog/flagging-core@0.3.3':
+  '@datadog/flagging-core@1.1.0':
     dependencies:
       spark-md5: 3.0.2
     optional: true
@@ -5228,9 +5229,9 @@ snapshots:
       node-gyp-build: 3.9.0
     optional: true
 
-  '@datadog/openfeature-node-server@0.3.3':
+  '@datadog/openfeature-node-server@1.1.0':
     dependencies:
-      '@datadog/flagging-core': 0.3.3
+      '@datadog/flagging-core': 1.1.0
     optional: true
 
   '@datadog/pprof@5.13.4':
@@ -5255,7 +5256,7 @@ snapshots:
   '@docsearch/js@3.8.2(@algolia/client-search@5.49.2)(search-insights@2.17.3)':
     dependencies:
       '@docsearch/react': 3.8.2(@algolia/client-search@5.49.2)(search-insights@2.17.3)
-      preact: 10.28.4
+      preact: 10.29.0
     transitivePeerDependencies:
       - '@algolia/client-search'
       - '@types/react'
@@ -6854,16 +6855,16 @@ snapshots:
 
   dc-polyfill@0.1.10: {}
 
-  dd-trace@5.88.0:
+  dd-trace@5.89.0:
     dependencies:
       dc-polyfill: 0.1.10
-      import-in-the-middle: 2.0.6
+      import-in-the-middle: 3.0.0
     optionalDependencies:
       '@datadog/libdatadog': 0.8.1
       '@datadog/native-appsec': 11.0.1
       '@datadog/native-iast-taint-tracking': 4.1.0
       '@datadog/native-metrics': 3.1.1
-      '@datadog/openfeature-node-server': 0.3.3
+      '@datadog/openfeature-node-server': 1.1.0
       '@datadog/pprof': 5.13.4
       '@datadog/wasm-js-rewriter': 5.0.1
       '@opentelemetry/api': 1.9.0
@@ -7442,7 +7443,7 @@ snapshots:
       parent-module: 1.0.1
       resolve-from: 4.0.0
 
-  import-in-the-middle@2.0.6:
+  import-in-the-middle@3.0.0:
     dependencies:
       acorn: 8.16.0
       acorn-import-attributes: 1.9.5(acorn@8.16.0)
@@ -8210,16 +8211,16 @@ snapshots:
       '@types/whatwg-url': 13.0.0
       whatwg-url: 14.2.0
 
-  mongodb@7.0.0:
+  mongodb@7.1.0:
     dependencies:
       '@mongodb-js/saslprep': 1.4.6
       bson: 7.2.0
       mongodb-connection-string-url: 7.0.1
 
-  mongoose@9.2.4:
+  mongoose@9.3.0:
     dependencies:
       kareem: 3.2.0
-      mongodb: 7.0.0
+      mongodb: 7.1.0
       mpath: 0.9.0
       mquery: 6.0.0
       ms: 2.1.3
@@ -8542,7 +8543,7 @@ snapshots:
   pprof-format@2.2.1:
     optional: true
 
-  preact@10.28.4: {}
+  preact@10.29.0: {}
 
   prelude-ls@1.2.1: {}
 

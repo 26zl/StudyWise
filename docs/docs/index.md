@@ -40,7 +40,7 @@ StudyWise er et pågående bachelorprosjekt og er i konstant endring. Funksjonal
 | **KI** | Anthropic Claude API |
 | **Cache** | Redis Cloud |
 | **Monorepo** | pnpm workspaces med `frontend`, `backend`, `common` |
-| **CI/CD** | GitHub Actions, Docker, Render (backend), Vercel (frontend), Cloudflare |
+| **CI/CD** | GitHub Actions, Docker, Heroku (backend), Vercel (frontend), Cloudflare |
 | **Dokumentasjon** | VitePress (denne siden) |
 
 ## Teamet

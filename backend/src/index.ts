@@ -59,14 +59,14 @@ process.on("uncaughtException", (error) => {
 // Trust proxy for korrekt IP-håndtering bak proxyer (f.eks. ved bruk av Heroku, Vercel, eller Nginx)
 app.set("trust proxy", 1);
 
-// Host header validering i produksjon - blokkerer direkte tilgang via render subdomain
+// Host header validering i produksjon - blokkerer direkte tilgang via herokuapp subdomain
 if (isProd) {
   const tillattHost = process.env.API_HOST?.trim().toLowerCase(); // f.eks. "api.studwize.page"
   if (tillattHost) {
     app.use((req, res, next) => {
       const host = req.get("host");
       const requestHost = host?.split(":")[0]?.trim().toLowerCase();
-      // Tillat health checks fra Render (ingen host header eller intern IP)
+      // Tillat health checks fra Heroku (ingen host header eller intern IP)
       if (req.path === "/health") return next();
       if (requestHost && requestHost !== tillattHost) {
         logger.warn(
@@ -97,9 +97,7 @@ app.use(express.urlencoded({ extended: true }));
 // Deaktiverer "X-Powered-By" header for sikkerhet
 app.disable("x-powered-by"); 
 
-app.use("/api/arbeidsplan", arbeidsplanRuter);  
-  
-// Logger middleware  
+// Logger middleware
 app.use(pinoHttp({ logger }));
 
 // Gzip komprimering — skip SSE responses (text/event-stream) to prevent buffering
@@ -285,6 +283,7 @@ app.use("/api/ki", noCache, knyttCanvasToken, kiRuter);
 app.use("/api/ki", noCache, knyttCanvasToken, kiOppsummeringRouter);
 app.use("/api/ki/task-breakdown", noCache, taskBreakdownRouter);
 app.use("/api/user", brukerAuthRuter);
+app.use("/api/arbeidsplan", noCache, arbeidsplanRuter);
 
 // Debug-ruter (kun development, krever auth)
 if (!isProd) {

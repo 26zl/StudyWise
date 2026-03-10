@@ -5,6 +5,22 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
+import { withCsrfProtection } from "../lib/csrf";
+
+// Delte konstanter for arbeidsplan-komponenter
+export const PRIORITY_COLORS = {
+  high: "bg-red-100 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300",
+  medium: "bg-yellow-100 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-300",
+  low: "bg-green-100 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-300",
+} as const;
+
+export const DAYS_ORDER = ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag", "Søndag"];
+
+export const PRIORITY_LABELS: Record<string, string> = {
+  high: "Høy",
+  medium: "Medium",
+  low: "Lav",
+};
 
 // Typer
 export interface StudyBlock {
@@ -42,7 +58,7 @@ export interface ProgressStats {
 // Response schemas
 const ArbeidsplanResponseSchema = z.object({
   suksess: z.boolean(),
-  data: z.any().nullable(),
+  data: z.unknown().nullable(),
   melding: z.string().optional(),
 });
 
@@ -69,7 +85,7 @@ async function fetchArbeidsplan(url: string): Promise<Arbeidsplan | null> {
 
   const json = await res.json();
   const validated = ArbeidsplanResponseSchema.parse(json);
-  return validated.data;
+  return validated.data as Arbeidsplan | null;
 }
 
 async function createArbeidsplan(data: {
@@ -79,12 +95,12 @@ async function createArbeidsplan(data: {
   blocks: StudyBlock[];
   totalHours: number;
 }): Promise<Arbeidsplan> {
-  const res = await fetch("/api/arbeidsplan", {
+  const res = await fetch("/api/arbeidsplan", withCsrfProtection({
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
     body: JSON.stringify(data),
-  });
+  }));
 
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`);
@@ -92,7 +108,7 @@ async function createArbeidsplan(data: {
 
   const json = await res.json();
   const validated = ArbeidsplanResponseSchema.parse(json);
-  return validated.data;
+  return validated.data as Arbeidsplan;
 }
 
 async function updateBlock(
@@ -100,12 +116,12 @@ async function updateBlock(
   blockIndex: number,
   completed: boolean
 ): Promise<Arbeidsplan> {
-  const res = await fetch(`/api/arbeidsplan/${planId}/block`, {
+  const res = await fetch(`/api/arbeidsplan/${planId}/block`, withCsrfProtection({
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
     body: JSON.stringify({ blockIndex, completed }),
-  });
+  }));
 
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`);
@@ -113,14 +129,14 @@ async function updateBlock(
 
   const json = await res.json();
   const validated = ArbeidsplanResponseSchema.parse(json);
-  return validated.data;
+  return validated.data as Arbeidsplan;
 }
 
 async function deleteArbeidsplan(planId: string): Promise<void> {
-  const res = await fetch(`/api/arbeidsplan/${planId}`, {
+  const res = await fetch(`/api/arbeidsplan/${planId}`, withCsrfProtection({
     method: "DELETE",
     credentials: "include",
-  });
+  }));
 
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`);
@@ -174,9 +190,7 @@ export function useCreateArbeidsplan() {
   return useMutation({
     mutationFn: createArbeidsplan,
     onSuccess: (data) => {
-      // Invalider cache
       queryClient.invalidateQueries({ queryKey: ["arbeidsplan"] });
-      // Sett ny data direkte
       queryClient.setQueryData(["arbeidsplan", "current"], data);
       queryClient.setQueryData(
         ["arbeidsplan", data.year, data.weekNumber],
@@ -203,7 +217,6 @@ export function useToggleBlockCompletion() {
       completed: boolean;
     }) => updateBlock(planId, blockIndex, completed),
     onSuccess: () => {
-      // Invalider alle arbeidsplan queries
       queryClient.invalidateQueries({ queryKey: ["arbeidsplan"] });
     },
   });
@@ -233,4 +246,4 @@ export function useProgressStats() {
     staleTime: 1000 * 30, // 30 sekunder
     refetchInterval: 1000 * 60, // Refresh hvert minutt
   });
-} 
+}

@@ -17,25 +17,19 @@ import {
   Sparkles,
   CheckCircle2
 } from "lucide-react";
-import { 
-  useCurrentArbeidsplan, 
-  useToggleBlockCompletion, 
+import {
+  useCurrentArbeidsplan,
+  useToggleBlockCompletion,
   useDeleteArbeidsplan,
   useProgressStats,
-  type StudyBlock 
+  type StudyBlock
 } from "../arbeidsplan/arbeidsplan-api";
+import { PRIORITY_COLORS, DAYS_ORDER, PRIORITY_LABELS } from "../arbeidsplan/arbeidsplan-api";
 import { LoadingSpinner } from "./LoadingSpinner";
-
-const PRIORITY_COLORS = {
-  high: "bg-red-100 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300",
-  medium: "bg-yellow-100 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-300",
-  low: "bg-green-100 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-300",
-};
-
-const DAYS_ORDER = ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag", "Søndag"];
 
 export function MinArbeidsplan() {
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
+  const [bekreftSlett, setBekreftSlett] = useState(false);
   const { data: plan, isLoading, isError } = useCurrentArbeidsplan();
   const { data: stats } = useProgressStats();
   const toggleMutation = useToggleBlockCompletion();
@@ -53,10 +47,12 @@ export function MinArbeidsplan() {
 
   const handleDeletePlan = () => {
     if (!plan?._id) return;
-    
-    if (confirm("Er du sikker på at du vil slette hele arbeidsplanen for denne uken?")) {
-      deleteMutation.mutate(plan._id);
+    if (!bekreftSlett) {
+      setBekreftSlett(true);
+      return;
     }
+    deleteMutation.mutate(plan._id);
+    setBekreftSlett(false);
   };
 
   if (isLoading) {
@@ -121,7 +117,7 @@ export function MinArbeidsplan() {
   return (
     <div className="space-y-4">
       {/* Header med progress */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 p-6">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-linear-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
             <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">
@@ -133,11 +129,16 @@ export function MinArbeidsplan() {
           </div>
           <button
             onClick={handleDeletePlan}
+            onBlur={() => setBekreftSlett(false)}
             disabled={deleteMutation.isPending}
-            className="p-2 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50"
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+              bekreftSlett
+                ? "bg-red-600 text-white hover:bg-red-700"
+                : "text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30"
+            }`}
             title="Slett arbeidsplan"
           >
-            <Trash2 className="w-5 h-5" />
+            {bekreftSlett ? "Bekreft sletting" : <Trash2 className="w-5 h-5" />}
           </button>
         </div>
 
@@ -158,7 +159,7 @@ export function MinArbeidsplan() {
             
             <div className="relative h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
               <div
-                className="absolute inset-y-0 left-0 bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-500 rounded-full"
+                className="absolute inset-y-0 left-0 bg-linear-to-r from-purple-500 to-blue-500 transition-all duration-500 rounded-full"
                 style={{ width: `${stats.percentage}%` }}
               />
             </div>
@@ -258,7 +259,7 @@ export function MinArbeidsplan() {
                             </div>
                             
                             <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${PRIORITY_COLORS[block.priority]}`}>
-                              {block.priority === "high" ? "Høy" : block.priority === "medium" ? "Medium" : "Lav"}
+                              {PRIORITY_LABELS[block.priority]}
                             </span>
                           </div>
 

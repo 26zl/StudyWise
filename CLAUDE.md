@@ -107,13 +107,14 @@ pnpm --filter frontend test  # Run frontend tests (vitest + @testing-library/rea
 docker compose up --build   # Run full stack locally (MongoDB, Redis, backend, frontend)
 ```
 
-Docker brukes **kun for lokal utvikling** — ikke i produksjon.
+Docker brukes **kun for lokal utvikling** — ikke i produksjon. Note: `INTERNAL_API_URL=http://backend:4000` is set in `docker-compose.yml` for container-to-container routing.
 
 ### Deployment
 
-- **Backend**: Heroku (Eco dyno + Datadog buildpack)
-- **Frontend**: Vercel
+- **Backend**: Heroku (Eco dyno + Datadog buildpack) — auto-deploys from `main` via Heroku Automatic Deploys
+- **Frontend**: Vercel — deployed via `deploy.yml` after CI passes
 - **Security/CDN**: Cloudflare (DDoS, SSL/TLS, caching)
+- **Docs**: GitHub Pages — deployed via `deploy.docs.yml` on changes to `docs/`
 
 ---
 
@@ -133,7 +134,7 @@ Docker brukes **kun for lokal utvikling** — ikke i produksjon.
 5. Frontend validates and displays data to user
 ```
 
-Frontend never calls external APIs directly. All `/api/*` requests proxy through Next.js to backend (configured in `next.config.js`).
+Frontend never calls external APIs directly. All `/api/*` and `/health` requests proxy through Next.js to backend (configured in `next.config.js` using `INTERNAL_API_URL` env var, defaults to `http://localhost:4000`).
 
 ### Dashboard (SPA Container)
 
@@ -179,7 +180,7 @@ Shared infrastructure (reuse these, don't duplicate):
 - `kiConstants.ts` - `KI_CACHE_TTL`, `KI_OPPSUMMERING_CACHE_TTL`, `KI_TIMEOUT_MS`
 - `systemPrompt.ts` - Single source for `STUDYWISE_SYSTEM_PROMPT`
 
-SSE endpoints must check `res.writableEnded` before writing keepalive pings.
+SSE endpoints must check `res.writableEnded` before writing keepalive pings. SSE responses skip gzip compression (`text/event-stream` filter in `backend/src/index.ts`).
 
 ### Document Processing
 
@@ -206,6 +207,9 @@ The backend accepts file uploads via `multer` and processes them with:
 - **Toast notifications** - Frontend must use `sonner` for user-facing notifications. Never use `alert()` or `confirm()`
 - **`req.user` typing** - Globally typed via `backend/src/typer/express.d.ts`. Never cast with `as any`
 - **Middleware ordering** - In `backend/src/index.ts`, mount all route handlers AFTER body parsers, CORS, and auth middleware. Mounting before means `req.body` and `req.user` will be `undefined`
+- **Host validation** - In production, `API_HOST` env var controls which hostname is allowed (e.g. `api.studwize.page`). Direct access via `herokuapp.com` returns 403. `/health` is exempt.
+- **CORS pre-check** - Origin validation happens before `cors()` middleware to prevent generic 500 errors from invalid origins
+- **Trust proxy** - Set to `1` in Express for correct IP handling behind Cloudflare/Heroku proxies
 
 ### Styling Rules (Tailwind)
 
@@ -332,6 +336,12 @@ Runs on push and PRs to `main`. **Actionlint must be green before other jobs run
 - **secret-scan** – TruffleHog scans for leaked secrets
 
 All jobs have timeouts. Deploy (`deploy.yml`) triggers automatically when CI succeeds on push to `main`.
+
+### Other Workflows
+
+- **deploy.docs.yml** — deploys VitePress docs to GitHub Pages on changes to `docs/`
+- **owasp-dependency-check.yml** — weekly OWASP dependency scan (Mondays) + manual trigger
+- **update-dependencies.yml** — weekly automated dependency update PRs
 
 ---
 

@@ -4,9 +4,10 @@
  */
 
 import { Router, Request, Response } from "express";
-import { z, ZodError } from "zod";
-import { Arbeidsplan } from "../../database/models/arbeidsplan.js";
-import { autentiserJwt } from "../../middleware/auth.js";
+import { Arbeidsplan, type IStudyBlock } from "../../database/models/arbeidsplan.js";
+import { requireUserId, sendZodError, sendUnknownError, apiError } from "../../utils/apiError.js";
+import { getWeekNumber } from "common/dateUtils";
+import { z } from "zod";
 
 const router = Router();
 
@@ -36,27 +37,21 @@ const UpdateBlockSchema = z.object({
   completed: z.boolean(),
 });
 
-// Alle ruter krever autentisering
-router.use(autentiserJwt);
-
 /**
  * POST /api/arbeidsplan
  * Opprett eller erstatt arbeidsplan for en uke
  */
 router.post("/", async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ 
-        suksess: false, 
-        feil: "Ikke autentisert" 
-      });
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
+    const parsed = CreateArbeidsplanSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return sendZodError(res, parsed.error, "arbeidsplan opprettelse");
     }
+    const data = parsed.data;
 
-    // Valider input
-    const data = CreateArbeidsplanSchema.parse(req.body);
-
-    // Sjekk om plan for denne uken allerede eksisterer
     const existing = await Arbeidsplan.findOne({
       userId,
       year: data.year,
@@ -65,13 +60,11 @@ router.post("/", async (req: Request, res: Response) => {
 
     let plan;
     if (existing) {
-      // Oppdater eksisterende plan
       existing.week = data.week;
-      existing.blocks = data.blocks as any;
+      existing.blocks = data.blocks as IStudyBlock[];
       existing.totalHours = data.totalHours;
       plan = await existing.save();
     } else {
-      // Opprett ny plan
       plan = await Arbeidsplan.create({
         userId,
         ...data,
@@ -84,18 +77,7 @@ router.post("/", async (req: Request, res: Response) => {
       melding: existing ? "Arbeidsplan oppdatert" : "Arbeidsplan opprettet",
     });
   } catch (error) {
-    console.error("Feil ved oppretting av arbeidsplan:", error);
-    if (error instanceof ZodError) {
-      return res.status(400).json({
-        suksess: false,
-        feil: "Ugyldig data",
-        detaljer: error.errors,
-      });
-    }
-    res.status(500).json({
-      suksess: false,
-      feil: "Kunne ikke opprette arbeidsplan",
-    });
+    sendUnknownError(res, error, { kontekst: "arbeidsplan opprettelse" });
   }
 });
 
@@ -105,15 +87,9 @@ router.post("/", async (req: Request, res: Response) => {
  */
 router.get("/current", async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ 
-        suksess: false, 
-        feil: "Ikke autentisert" 
-      });
-    }
+    const userId = requireUserId(req, res);
+    if (!userId) return;
 
-    // Beregn gjeldende uke
     const now = new Date();
     const year = now.getFullYear();
     const weekNumber = getWeekNumber(now);
@@ -129,178 +105,19 @@ router.get("/current", async (req: Request, res: Response) => {
       data: plan,
     });
   } catch (error) {
-    console.error("Feil ved henting av arbeidsplan:", error);
-    res.status(500).json({
-      suksess: false,
-      feil: "Kunne ikke hente arbeidsplan",
-    });
-  }
-});
-
-/**
- * GET /api/arbeidsplan/:year/:weekNumber
- * Hent arbeidsplan for spesifikk uke
- */
-router.get("/:year/:weekNumber", async (req: Request, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ 
-        suksess: false, 
-        feil: "Ikke autentisert" 
-      });
-    }
-
-    const year = parseInt(req.params.year, 10);
-    const weekNumber = parseInt(req.params.weekNumber, 10);
-
-    if (isNaN(year) || isNaN(weekNumber)) {
-      return res.status(400).json({
-        suksess: false,
-        feil: "Ugyldig år eller ukenummer",
-      });
-    }
-
-    const plan = await Arbeidsplan.findOne({
-      userId,
-      year,
-      weekNumber,
-    });
-
-    res.json({
-      suksess: true,
-      data: plan,
-    });
-  } catch (error) {
-    console.error("Feil ved henting av arbeidsplan:", error);
-    res.status(500).json({
-      suksess: false,
-      feil: "Kunne ikke hente arbeidsplan",
-    });
-  }
-});
-
-/**
- * PATCH /api/arbeidsplan/:id/block
- * Oppdater en enkelt studieblokk (f.eks. marker som fullført)
- */
-router.patch("/:id/block", async (req: Request, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ 
-        suksess: false, 
-        feil: "Ikke autentisert" 
-      });
-    }
-
-    const planId = req.params.id;
-    const { blockIndex, completed } = UpdateBlockSchema.parse(req.body);
-
-    const plan = await Arbeidsplan.findOne({
-      _id: planId,
-      userId,
-    });
-
-    if (!plan) {
-      return res.status(404).json({
-        suksess: false,
-        feil: "Arbeidsplan ikke funnet",
-      });
-    }
-
-    if (blockIndex >= plan.blocks.length) {
-      return res.status(400).json({
-        suksess: false,
-        feil: "Ugyldig blokk-index",
-      });
-    }
-
-    // Oppdater blokken
-    plan.blocks[blockIndex].completed = completed;
-    if (completed) {
-      plan.blocks[blockIndex].completedAt = new Date();
-    } else {
-      plan.blocks[blockIndex].completedAt = undefined;
-    }
-
-    await plan.save();
-
-    res.json({
-      suksess: true,
-      data: plan,
-      melding: "Studieblokk oppdatert",
-    });
-  } catch (error) {
-    console.error("Feil ved oppdatering av studieblokk:", error);
-    if (error instanceof ZodError) {
-      return res.status(400).json({
-        suksess: false,
-        feil: "Ugyldig data",
-        detaljer: error.errors,
-      });
-    }
-    res.status(500).json({
-      suksess: false,
-      feil: "Kunne ikke oppdatere studieblokk",
-    });
-  }
-});
-
-/**
- * DELETE /api/arbeidsplan/:id
- * Slett en arbeidsplan
- */
-router.delete("/:id", async (req: Request, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ 
-        suksess: false, 
-        feil: "Ikke autentisert" 
-      });
-    }
-
-    const planId = req.params.id;
-
-    const result = await Arbeidsplan.deleteOne({
-      _id: planId,
-      userId,
-    });
-
-    if (result.deletedCount === 0) {
-      return res.status(404).json({
-        suksess: false,
-        feil: "Arbeidsplan ikke funnet",
-      });
-    }
-
-    res.json({
-      suksess: true,
-      melding: "Arbeidsplan slettet",
-    });
-  } catch (error) {
-    console.error("Feil ved sletting av arbeidsplan:", error);
-    res.status(500).json({
-      suksess: false,
-      feil: "Kunne ikke slette arbeidsplan",
-    });
+    sendUnknownError(res, error, { kontekst: "arbeidsplan henting" });
   }
 });
 
 /**
  * GET /api/arbeidsplan/stats/progress
  * Hent fremdriftsstatistikk for gjeldende uke
+ * VIKTIG: Må stå FØR /:year/:weekNumber for å unngå route conflict
  */
 router.get("/stats/progress", async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ 
-        suksess: false, 
-        feil: "Ikke autentisert" 
-      });
-    }
+    const userId = requireUserId(req, res);
+    if (!userId) return;
 
     const now = new Date();
     const year = now.getFullYear();
@@ -326,13 +143,12 @@ router.get("/stats/progress", async (req: Request, res: Response) => {
     }
 
     const totalBlocks = plan.blocks.length;
-    const completedBlocks = plan.blocks.filter((b: any) => b.completed).length;
-    const percentage = totalBlocks > 0 
-      ? Math.round((completedBlocks / totalBlocks) * 100) 
+    const completedBlocks = plan.blocks.filter((b) => b.completed).length;
+    const percentage = totalBlocks > 0
+      ? Math.round((completedBlocks / totalBlocks) * 100)
       : 0;
 
-    // Beregn timer (veldig forenklet estimat)
-    const hoursPerBlock = plan.totalHours / totalBlocks;
+    const hoursPerBlock = totalBlocks > 0 ? plan.totalHours / totalBlocks : 0;
     const completedHours = Math.round(completedBlocks * hoursPerBlock * 10) / 10;
 
     res.json({
@@ -346,21 +162,109 @@ router.get("/stats/progress", async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error("Feil ved henting av fremdrift:", error);
-    res.status(500).json({
-      suksess: false,
-      feil: "Kunne ikke hente fremdrift",
-    });
+    sendUnknownError(res, error, { kontekst: "arbeidsplan fremdrift" });
   }
 });
 
-// Hjelpefunksjon for å beregne ukenummer
-function getWeekNumber(date: Date): number {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-}
+/**
+ * GET /api/arbeidsplan/:year/:weekNumber
+ * Hent arbeidsplan for spesifikk uke
+ */
+router.get("/:year/:weekNumber", async (req: Request, res: Response) => {
+  try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
 
-export default router;  
+    const year = parseInt(String(req.params.year), 10);
+    const weekNumber = parseInt(String(req.params.weekNumber), 10);
+
+    if (isNaN(year) || isNaN(weekNumber)) {
+      return apiError.badRequest(res, "Ugyldig år eller ukenummer");
+    }
+
+    const plan = await Arbeidsplan.findOne({
+      userId,
+      year,
+      weekNumber,
+    });
+
+    res.json({
+      suksess: true,
+      data: plan,
+    });
+  } catch (error) {
+    sendUnknownError(res, error, { kontekst: "arbeidsplan henting" });
+  }
+});
+
+/**
+ * PATCH /api/arbeidsplan/:id/block
+ * Oppdater en enkelt studieblokk (f.eks. marker som fullført)
+ */
+router.patch("/:id/block", async (req: Request, res: Response) => {
+  try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
+    const parsed = UpdateBlockSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return sendZodError(res, parsed.error, "studieblokk oppdatering");
+    }
+    const { blockIndex, completed } = parsed.data;
+
+    const plan = await Arbeidsplan.findOne({
+      _id: req.params.id,
+      userId,
+    });
+
+    if (!plan) {
+      return apiError.notFound(res, "Arbeidsplan");
+    }
+
+    if (blockIndex >= plan.blocks.length) {
+      return apiError.badRequest(res, "Ugyldig blokk-index");
+    }
+
+    plan.blocks[blockIndex].completed = completed;
+    plan.blocks[blockIndex].completedAt = completed ? new Date() : undefined;
+
+    await plan.save();
+
+    res.json({
+      suksess: true,
+      data: plan,
+      melding: "Studieblokk oppdatert",
+    });
+  } catch (error) {
+    sendUnknownError(res, error, { kontekst: "studieblokk oppdatering" });
+  }
+});
+
+/**
+ * DELETE /api/arbeidsplan/:id
+ * Slett en arbeidsplan
+ */
+router.delete("/:id", async (req: Request, res: Response) => {
+  try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
+    const result = await Arbeidsplan.deleteOne({
+      _id: req.params.id,
+      userId,
+    });
+
+    if (result.deletedCount === 0) {
+      return apiError.notFound(res, "Arbeidsplan");
+    }
+
+    res.json({
+      suksess: true,
+      melding: "Arbeidsplan slettet",
+    });
+  } catch (error) {
+    sendUnknownError(res, error, { kontekst: "arbeidsplan sletting" });
+  }
+});
+
+export default router;

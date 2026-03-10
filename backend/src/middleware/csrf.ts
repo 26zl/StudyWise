@@ -3,8 +3,8 @@
  * Krever at POST/PUT/PATCH/DELETE har:
  * - Header x-studywise-csrf: 1 (satt av frontend; hindrer tredjepartsider uten tilgang til JS)
  * - Origin eller Referer som matcher WEB_ORIGINS (hindrer forespørsler fra andre domener).
- * GET/OPTIONS påvirkes ikke (f.eks. /health for Render).
- * Server-til-server-kall (f.eks. Vercel SSR → Render) sender headeren men har ofte ikke Origin;
+ * GET/OPTIONS påvirkes ikke (f.eks. /health for Heroku).
+ * Server-til-server-kall (f.eks. Vercel SSR → Heroku) sender headeren men har ofte ikke Origin;
  * vi avviser kun når origin/referer finnes og er ugyldig.
  */
 import type { NextFunction, Request, Response } from "express";

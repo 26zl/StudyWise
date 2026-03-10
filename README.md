@@ -10,7 +10,7 @@ STUDYWISE - En KI-basert studieassistent for høyere utdanning med integrasjon m
 
 Produksjonsnettside - <https://www.studwize.page>
 
-> **Deploy:** Backend hos Render (Native Runtime), frontend hos Vercel. Cloudflare brukes for DDoS-beskyttelse, SSL/TLS og ytelse. Docker er kun for lokal utvikling — `docker compose up --build` kjører hele stacken lokalt.
+> **Deploy:** Backend hos Heroku (Eco dyno), frontend hos Vercel. Cloudflare brukes for DDoS-beskyttelse, SSL/TLS og ytelse. Docker er kun for lokal utvikling — `docker compose up --build` kjører hele stacken lokalt.
 
 **Utvikling?** Les [CONTRIBUTING.md](./CONTRIBUTING.md) for detaljert guide om hvordan du skal kode og utvikle dette prosjektet.
 

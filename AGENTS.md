@@ -110,7 +110,7 @@ Docker brukes **kun for lokal utvikling** — ikke i produksjon.
 
 ### Deploy
 
-- **Backend**: Render (Native Runtime, ikke Docker)
+- **Backend**: Heroku (Eco dyno + Datadog buildpack)
 - **Frontend**: Vercel
 - **Sikkerhet/CDN**: Cloudflare (DDoS, SSL/TLS, caching)
 
@@ -334,7 +334,7 @@ Alle jobber har timeout. Deploy (`deploy.yml`) utløses automatisk når hele CI 
 
 ### Andre workflows
 
-- **deploy.yml** – trigger når CI er ferdig på `main` (push): trigger Render deploy-hook; frontend deployes via Vercel sin GitHub-integrasjon
+- **deploy.yml** – trigger når CI er ferdig på `main` (push): frontend deployes via Vercel CLI; backend deployes automatisk via Heroku Automatic Deploys
 - **deploy.docs.yml** – ved push til `docs/**`: bygger VitePress og deployer til GitHub Pages
 - **owasp-dependency-check.yml** – ukentlig (mandager) + workflow_dispatch
 - **update-dependencies.yml** – ukentlig (mandager) + workflow_dispatch, oppretter PR med `pnpm -r update`

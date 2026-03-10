@@ -13,13 +13,13 @@ import {
   AlertCircle, 
   ChevronDown, 
   ChevronUp,
-  Plus,
   CheckCircle,
   Loader2
 } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { getWeekNumber } from "common/dateUtils";
 import { useCreateArbeidsplan, type StudyBlock } from "../arbeidsplan/arbeidsplan-api";
+import { PRIORITY_COLORS, DAYS_ORDER, PRIORITY_LABELS } from "../arbeidsplan/arbeidsplan-api";
 
 // Typer
 interface Assignment {
@@ -42,14 +42,6 @@ interface WeeklyPlanSuggestionsProps {
   assignments: Assignment[];
   onPlanCreated?: () => void;
 }
-
-const PRIORITY_COLORS = {
-  high: "bg-red-100 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300",
-  medium: "bg-yellow-100 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-300",
-  low: "bg-green-100 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-300",
-};
-
-const DAYS_ORDER = ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag", "Søndag"];
 
 export function WeeklyPlanSuggestions({ assignments, onPlanCreated }: WeeklyPlanSuggestionsProps) {
   const [plan, setPlan] = useState<WeeklyPlan | null>(null);
@@ -121,7 +113,7 @@ export function WeeklyPlanSuggestions({ assignments, onPlanCreated }: WeeklyPlan
           "Planlegg buffer-tid for uforutsette ting",
         ],
       });
-    } catch (err) {
+    } catch {
       setError("Kunne ikke generere ukeplan. Prøv igjen.");
     } finally {
       setIsGenerating(false);
@@ -171,7 +163,7 @@ export function WeeklyPlanSuggestions({ assignments, onPlanCreated }: WeeklyPlan
       // Reset
       setPlan(null);
       setSelectedBlocks(new Set());
-    } catch (error) {
+    } catch {
       setError("Kunne ikke lagre arbeidsplan. Prøv igjen.");
     }
   };
@@ -269,7 +261,7 @@ export function WeeklyPlanSuggestions({ assignments, onPlanCreated }: WeeklyPlan
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 p-6">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-linear-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-2 mb-2">
@@ -407,7 +399,7 @@ export function WeeklyPlanSuggestions({ assignments, onPlanCreated }: WeeklyPlan
                               </p>
                             </div>
                             <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${PRIORITY_COLORS[block.priority]}`}>
-                              {block.priority === "high" ? "Høy" : block.priority === "medium" ? "Medium" : "Lav"}
+                              {PRIORITY_LABELS[block.priority]}
                             </span>
                           </div>
 

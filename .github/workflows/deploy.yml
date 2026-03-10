@@ -102,7 +102,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               ref: sha,
-              environment: 'Production',
+              environment: 'studywise-frontend',
               auto_merge: false,
               required_contexts: [],
             }));
