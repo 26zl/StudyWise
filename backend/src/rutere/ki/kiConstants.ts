@@ -11,3 +11,6 @@ export const KI_OPPSUMMERING_CACHE_TTL = 3600; // 1 time
 
 /** Timeout for AI/Canvas API-kall (ms) */
 export const KI_TIMEOUT_MS = 60_000; // 60 sekunder
+
+/** TTL for session-level chunk caching (sekunder) — gjenbruk kontekst for oppfølgingsspørsmål */
+export const SESSION_CONTEXT_TTL = 600; // 10 minutter

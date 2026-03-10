@@ -24,6 +24,13 @@ import type { TargetedQuery } from "../rutere/ki/ki.js";
 import { TWO_WEEKS_MS } from "common/dateUtils";
 import { isCanvasAssignmentSubmitted } from "common/canvas";
 import { stripHtml } from "../utils/htmlUtils.js";
+import { formatCourseLabel } from "./semantic-search.service.js";
+import {
+  getChunksForCourse,
+  searchChunks,
+  buildChunkContext,
+  type ContentChunk,
+} from "./chunk.service.js";
 
 // ─── Typer ─────────────────────────────────────────────────
 
@@ -33,10 +40,6 @@ export interface ContextResult {
   kontekst: string;
   hasCanvasData: boolean;
   source: "redis" | "api" | "none";
-}
-
-function formatCourseLabel(name: string, courseCode?: string): string {
-  return courseCode ? `${name} (${courseCode})` : name;
 }
 
 /**
@@ -381,6 +384,101 @@ async function byggMålrettetKontekstFraRedis(
   }
 }
 
+/**
+ * Bygger kontekst fra chunks via keyword-søk i chunk-tekst.
+ * Når courseHint er satt, søkes kun i matchende kurs (raskere og mer presist).
+ * Ellers søkes i alle kurs.
+ */
+async function byggKontekstFraChunks(
+  userId: string,
+  message: string,
+  target?: TargetedQuery,
+): Promise<string | null> {
+  try {
+    const emnerRaw = await getCache(userKey(userId, "emner"));
+    if (!emnerRaw) return null;
+
+    const emner = JSON.parse(emnerRaw) as Array<{
+      id: number;
+      name: string;
+      course_code?: string;
+    }>;
+
+    // Bestem hvilke kurs vi skal laste chunks fra
+    let coursesToSearch = emner;
+    if (target?.courseHint) {
+      const hint = target.courseHint.toLowerCase();
+      const matched = emner.filter(
+        (e) =>
+          e.name.toLowerCase().includes(hint) ||
+          (e.course_code ?? "").toLowerCase().includes(hint),
+      );
+      if (matched.length > 0) {
+        coursesToSearch = matched;
+        logger.info(
+          { userId, courseHint: hint, matchedCourses: matched.map((c) => c.name) },
+          "Chunk-søk begrenset til matchende kurs",
+        );
+      }
+    }
+
+    // Last chunks fra utvalgte kurs
+    const allChunks: ContentChunk[] = [];
+    for (const emne of coursesToSearch) {
+      const courseChunks = await getChunksForCourse(userId, String(emne.id));
+      if (courseChunks.length > 0) {
+        logger.info(
+          { userId, courseId: emne.id, courseName: emne.name, chunkCount: courseChunks.length },
+          "Chunks lastet fra kurs",
+        );
+      }
+      allChunks.push(...courseChunks);
+    }
+
+    if (allChunks.length === 0) {
+      logger.info(
+        { userId, coursesChecked: coursesToSearch.length, courseHint: target?.courseHint },
+        "Ingen chunks funnet i Redis for noen kurs",
+      );
+      return null;
+    }
+
+    // Søk i chunk-tekst med brukerens melding (keyword-basert TF-scoring)
+    const scored = searchChunks(allChunks, message, {
+      moduleHint: target?.moduleHint,
+      fileHint: target?.fileHint,
+    });
+
+    if (scored.length === 0) {
+      logger.info(
+        { userId, chunksSearched: allChunks.length, message: message.substring(0, 80) },
+        "Chunk-søk ga 0 treff på tekstinnhold",
+      );
+      return null;
+    }
+
+    const chunkKontekst = buildChunkContext(scored);
+    if (chunkKontekst.length === 0) return null;
+
+    logger.info(
+      {
+        userId,
+        chunksSearched: allChunks.length,
+        chunksMatched: scored.length,
+        topScore: scored[0].score.toFixed(2),
+        topFile: scored[0].source.fileName,
+        contextLength: chunkKontekst.length,
+      },
+      "Chunk-basert kontekst bygget fra tekstinnhold",
+    );
+
+    return "[CANVAS-DATA START]\n" + chunkKontekst + "\n[CANVAS-DATA SLUTT]";
+  } catch (error) {
+    logger.warn({ err: error }, "Feil ved bygging av chunk-kontekst");
+    return null;
+  }
+}
+
 // ─── Hovedfunksjoner ───────────────────────────────────────
 
 /**
@@ -390,16 +488,23 @@ async function byggMålrettetKontekstFraRedis(
  * 1. Prøv Redis først (rask, ingen API-kall)
  * 2. Hvis Redis mangler data → trigger bakgrunns-sync + bruk API-fallback
  *
+ * For canvas_full med melding brukes en 4-trinns strategi:
+ *   1. Chunk-søk (keyword-basert, returnerer relevant innhold)
+ *   2. Målrettet Redis (tittel-matching, inkluderer PDF-innhold)
+ *   3. API-fallback
+ *
  * @param userId - Brukerens lokale ID
  * @param canvasToken - Dekryptert Canvas API-token
  * @param intent - Detektert intent-nivå
  * @param target - Eventuelt spesifikt mål (emne/modul) for canvas_full
+ * @param message - Siste brukermelding (for chunk-søk)
  */
 export async function loadCanvasContext(
   userId: string,
   canvasToken: string,
   intent: IntentType,
   target?: TargetedQuery,
+  message?: string,
 ): Promise<ContextResult> {
   // general_chat trenger ingen kontekst
   if (intent === "general_chat") {
@@ -445,6 +550,19 @@ export async function loadCanvasContext(
   // ── canvas_full ──
   const hasSpecificTarget = !!(target?.courseHint || target?.moduleHint || target?.fileHint);
 
+  // Trinn 1: Chunk-basert søk (hvis vi har brukermelding)
+  if (hasSyncData && message) {
+    const chunkKontekst = await byggKontekstFraChunks(userId, message, target);
+    if (chunkKontekst) {
+      logger.info(
+        { userId, intent, source: "redis", contextLength: chunkKontekst.length },
+        "Canvas-kontekst lastet fra chunk-søk",
+      );
+      return { kontekst: chunkKontekst, hasCanvasData: true, source: "redis" };
+    }
+  }
+
+  // Trinn 2: Målrettet Redis (tittel-matching)
   if (hasSpecificTarget && target) {
     // Prøv Redis først for målrettet kontekst
     if (hasSyncData) {

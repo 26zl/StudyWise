@@ -29,6 +29,7 @@ import kiRuter from "./rutere/ki/ki.js";
 import brukerAuthRuter from "./rutere/auth/brukerAuth.js";
 import taskBreakdownRouter from "./rutere/ki/taskBreakdown.js";
 import { kiOppsummeringRouter } from "./rutere/ki/kiOppsummering.js";
+import debugRouter from "./rutere/debug/canvasDiagnostic.js";
 import { autentiserJwt, knyttCanvasToken } from "./middleware/auth.js";
 import { beskytteMotCsrf } from "./middleware/csrf.js";
 import { noCache } from "./middleware/no-cache.js";
@@ -263,6 +264,11 @@ app.use("/api/ki", noCache, knyttCanvasToken, kiRuter);
 app.use("/api/ki", noCache, knyttCanvasToken, kiOppsummeringRouter);
 app.use("/api/ki/task-breakdown", noCache, taskBreakdownRouter);
 app.use("/api/user", brukerAuthRuter);
+
+// Debug-ruter (kun development, krever auth)
+if (!isProd) {
+  app.use("/api/debug", noCache, knyttCanvasToken, debugRouter);
+}
 
 // Feil håndtering globalt
 app.use(

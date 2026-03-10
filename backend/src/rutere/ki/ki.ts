@@ -20,35 +20,113 @@ import { SUPPORTED_MODELS, DEFAULT_MODEL, resolveModel } from "./aiModels.js";
 import { STUDYWISE_SYSTEM_PROMPT } from "./systemPrompt.js";
 import { chatCompletion, isClientAvailable, getMissingClientError } from "./aiClient.js";
 import { handleAIError } from "./handleAIError.js";
-import { loadCanvasContext, ensureCanvasSync, type IntentType } from "../../services/context-loader.service.js";
+import { loadCanvasContext, ensureCanvasSync, type IntentType, type ContextResult } from "../../services/context-loader.service.js";
 
 /** Nøkkelord som krever full kontekst (moduler, PDFer, sideinnhold) */
 const CANVAS_FULL_KEYWORDS = [
-  "oppsummer", "forklar", "hva handler", "hva er", "beskriv",
-  "gi meg", "lag en", "pdf", "fil", "last ned", "leksjon",
+  // Handlingsverb (inkl. konjugasjoner)
+  "oppsummer", "oppsummere", "oppsummering",
+  "forklar", "forklare", "forklaring",
+  "beskriv", "beskrive", "beskrivelse",
+  "hva handler", "hva er", "hva betyr", "hva menes",
+  "fortell om", "gi meg", "lag en",
+  // Innholdstyper
+  "pdf", "fil", "last ned", "leksjon",
   "modul", "kompendium", "forelesning", "pensum", "kapittel",
   "slide", "dokument", "kunngjøring", "sideinnhold",
+  // Faglige spørsmål — indikerer at brukeren spør om innhold, ikke struktur
+  "hvordan fungerer", "hvordan virker", "hva skjer med",
+  "definer", "definisjon", "konsept", "teori",
+  "forskjell mellom", "forskjellen",
+];
+
+/**
+ * Fagbegreper som indikerer et innholds-/tematisk spørsmål.
+ * Når brukeren bruker et slikt begrep, er det ALLTID canvas_full.
+ */
+const TOPIC_KEYWORDS = [
+  // Algoritmer og datastrukturer
+  "avl", "tree", "binary", "heap", "graf", "graph", "stack", "queue",
+  "linked list", "hashtabell", "hash", "sortering", "søk", "rekursjon",
+  "kompleksitet", "big-o", "big o", "traversering", "dfs", "bfs",
+  "dijkstra", "dynamic programming", "dynamisk programmering",
+  // Generelle CS-begreper
+  "design pattern", "objektorientert", "arv", "polymorfisme",
+  "interface", "abstraksjon", "innkapsling", "tråd", "mutex",
+  "sql", "normalisering", "relasjon", "kryptering", "protokoll",
 ];
 
 /** Nøkkelord som kun trenger lett kontekst (emner + frister) */
 const CANVAS_LIGHT_KEYWORDS = [
-  "emne", "fag", "kurs", "kode", "emnekode",
-  "oppgave", "innlevering", "eksamen", "frist", "deadline", "oblig",
-  "karakter", "canvas", "undervisning", "studieplan",
+  // Frister og innleveringer
+  "frist", "deadline", "oblig",
+  "innlevering", "eksamen",
+  "karakter",
+  // Strukturelle spørsmål
+  "emne", "emnekode", "kurs",
+  "oppgave", "canvas",
+  // Tidsspørsmål
   "hva har jeg", "neste frist", "denne uken", "denne uka",
-  "hva skjer", "kommende", "kalender", "timeplan", "når",
+  "hva skjer", "kommende", "kalender", "timeplan", "når er",
 ];
+
+/** Vanlige skrivefeil/forkortelser og deres normaliserte form */
+const SKRIVEFEIL_MAP: Record<string, string> = {
+  "algoritme": "algoritmer",
+  "algortimer": "algoritmer",
+  "algoritmner": "algoritmer",
+  "datastrkuturer": "datastrukturer",
+  "datstrukturer": "datastrukturer",
+  "datastruk": "datastrukturer",
+  "sikkerhe": "sikkerhet",
+  "nettvek": "nettverk",
+  "matmatikk": "matematikk",
+  "statistik": "statistikk",
+  "progammering": "programmering",
+  "programering": "programmering",
+  "masinlæring": "maskinlæring",
+  "operativssytem": "operativsystem",
+  "operativsytem": "operativsystem",
+  "bachelro": "bacheloroppgave",
+  "bacheloropp": "bacheloroppgave",
+};
+
+/**
+ * Normaliserer vanlige skrivefeil i en melding.
+ * Bruker ordgrense-sjekk (lookahead/lookbehind) for å unngå at
+ * prefiks-match korrumperer riktig-stavede ord.
+ * F.eks. "sikkerhe" → "sikkerhet" MÅ IKKE trigge inne i "sikkerhet".
+ */
+function normaliserSkrivefeil(text: string): string {
+  let result = text.toLowerCase();
+  for (const [feil, riktig] of Object.entries(SKRIVEFEIL_MAP)) {
+    if (result.includes(feil)) {
+      // eslint-disable-next-line security/detect-non-literal-regexp -- feil er fra hardkodet SKRIVEFEIL_MAP, ikke brukerinput
+      const pattern = new RegExp(`(?<![a-zæøå])${feil}(?![a-zæøå])`, "g");
+      result = result.replace(pattern, riktig);
+    }
+  }
+  return result;
+}
 
 function detectIntent(messages: Array<{ role: string; content: string }>): IntentType {
   // Sjekk de siste bruker-meldingene (maks 3) for nøkkelord
   const recentUserMessages = messages
     .filter((m) => m.role === "user")
     .slice(-3)
-    .map((m) => m.content.toLowerCase());
+    .map((m) => normaliserSkrivefeil(m.content));
 
+  // Prioritet 1: Eksplisitte innholds-nøkkelord → canvas_full
   for (const msg of recentUserMessages) {
     if (CANVAS_FULL_KEYWORDS.some((kw) => msg.includes(kw))) return "canvas_full";
   }
+
+  // Prioritet 2: Fagbegreper/emneord → canvas_full (brukeren spør om innhold)
+  for (const msg of recentUserMessages) {
+    if (TOPIC_KEYWORDS.some((kw) => msg.includes(kw))) return "canvas_full";
+  }
+
+  // Prioritet 3: Strukturelle Canvas-spørsmål (frister, oppgaver) → canvas_light
   for (const msg of recentUserMessages) {
     if (CANVAS_LIGHT_KEYWORDS.some((kw) => msg.includes(kw))) return "canvas_light";
   }
@@ -65,7 +143,7 @@ export interface TargetedQuery {
 }
 
 function extractQueryTarget(message: string): TargetedQuery {
-  const lower = message.toLowerCase();
+  const lower = normaliserSkrivefeil(message);
 
   // Ekstraher modul/leksjon-nummer eller -navn
   const moduleMatch = lower.match(
@@ -84,10 +162,33 @@ function extractQueryTarget(message: string): TargetedQuery {
     "embedded", "elektronikk", "fysikk", "diskret",
   ];
 
+  // Sammensatte ord: "algoritmer og datastrukturer" → matcher "algoritmer"
+  const compoundKeywords: Record<string, string> = {
+    "algoritmer og datastrukturer": "algoritmer",
+    "algoritmer og data strukturer": "algoritmer",
+    "data structures": "datastrukturer",
+    "it-sikkerhet": "sikkerhet",
+    "it sikkerhet": "sikkerhet",
+    "machine learning": "maskinlæring",
+    "diskret matematikk": "diskret",
+  };
+
   // Fjern filnavn-mønstre fra søketeksten for å unngå falske positive
-  // (f.eks. "BinarySearchTree.java" matcher "java" selv om bruker mener Algoritmer-emnet)
   const cleanedForCourse = lower.replace(/[\w.-]+\.\w{1,5}\b/g, "");
-  const courseHint = courseKeywords.find((kw) => cleanedForCourse.includes(kw)) ?? null;
+
+  // Sjekk sammensatte nøkkelord først (mer spesifikke)
+  let courseHint: string | null = null;
+  for (const [compound, mapped] of Object.entries(compoundKeywords)) {
+    if (cleanedForCourse.includes(compound)) {
+      courseHint = mapped;
+      break;
+    }
+  }
+
+  // Fallback til enkle nøkkelord
+  if (!courseHint) {
+    courseHint = courseKeywords.find((kw) => cleanedForCourse.includes(kw)) ?? null;
+  }
 
   // Ekstraher filnavn-hints (f.eks. "kapittel3.pdf", "2_Analyse_av_tema.pdf")
   // Filnavn med mellomrom fanges ved å lete etter anførselstegn eller kjente mønstre
@@ -115,7 +216,7 @@ router.use(kiHistoryRouter);
 // Dokumentanalyse ruter
 router.use(kiAnalyseRouter);
 
-import { KI_CACHE_TTL, KI_TIMEOUT_MS } from "./kiConstants.js";
+import { KI_CACHE_TTL, KI_TIMEOUT_MS, SESSION_CONTEXT_TTL } from "./kiConstants.js";
 
 // Cache-konfigurasjon
 const CACHE_KEY = "ki:test-connection";
@@ -323,20 +424,66 @@ router.post("/chat", async (req, res) => {
       const lastUserMsg = messages.filter((m: { role: string }) => m.role === "user").at(-1)?.content ?? "";
       const target = extractQueryTarget(lastUserMsg);
 
+      // CourseHint carryover: hvis ingen courseHint i siste melding, sjekk de 4 siste
+      if (!target.courseHint) {
+        const recentUserMsgs = messages
+          .filter((m: { role: string }) => m.role === "user")
+          .slice(-4);
+        for (let i = recentUserMsgs.length - 2; i >= 0; i--) {
+          const prevTarget = extractQueryTarget(recentUserMsgs[i].content);
+          if (prevTarget.courseHint) {
+            target.courseHint = prevTarget.courseHint;
+            logger.info(
+              { courseHint: target.courseHint, fromPreviousMsg: true },
+              "CourseHint arvet fra tidligere melding",
+            );
+            break;
+          }
+        }
+      }
+
       logger.info(
         { intent, target, messagePreview: lastUserMsg.substring(0, 100) },
         "KI chat: intent og target ekstrahert",
       );
 
-      const contextResult = await Promise.race([
-        loadCanvasContext(req.user.id, req.canvasToken, intent, target),
-        new Promise<{ kontekst: string; hasCanvasData: boolean; source: "none" }>((resolve) =>
-          setTimeout(
-            () => resolve({ kontekst: "[CANVAS STATUS: Henting tok for lang tid. Prøv igjen.]", hasCanvasData: false, source: "none" }),
-            KI_TIMEOUT_MS,
+      // Session-level chunk caching: gjenbruk kontekst for oppfølgingsspørsmål om samme kurs
+      const sessionCacheKey = (intent === "canvas_full" && target.courseHint)
+        ? `ki:session:${req.user.id}:${target.courseHint}`
+        : null;
+      const cachedSessionCtx = sessionCacheKey ? await getCache(sessionCacheKey) : null;
+      let contextResult: ContextResult = { kontekst: "", hasCanvasData: false, source: "none" };
+      let usedSessionCache = false;
+
+      if (cachedSessionCtx) {
+        try {
+          contextResult = JSON.parse(cachedSessionCtx) as ContextResult;
+          usedSessionCache = true;
+          logger.info(
+            { sessionCacheKey, contextLength: contextResult.kontekst.length },
+            "Bruker cached session-kontekst for kurs",
+          );
+        } catch {
+          logger.warn({ sessionCacheKey }, "Ugyldig JSON i session-cache — henter på nytt");
+        }
+      }
+
+      if (!usedSessionCache) {
+        contextResult = await Promise.race([
+          loadCanvasContext(req.user.id, req.canvasToken, intent, target, lastUserMsg),
+          new Promise<ContextResult>((resolve) =>
+            setTimeout(
+              () => resolve({ kontekst: "[CANVAS STATUS: Henting tok for lang tid. Prøv igjen.]", hasCanvasData: false, source: "none" }),
+              KI_TIMEOUT_MS,
+            ),
           ),
-        ),
-      ]);
+        ]);
+
+        // Cache for oppfølgingsspørsmål i samme sesjon (kun når vi fikk faktisk data)
+        if (sessionCacheKey && contextResult.hasCanvasData) {
+          await setCache(sessionCacheKey, JSON.stringify(contextResult), SESSION_CONTEXT_TTL);
+        }
+      }
 
       canvasKontekst = contextResult.kontekst;
       hasCanvasData = contextResult.hasCanvasData;
@@ -348,6 +495,7 @@ router.post("/chat", async (req, res) => {
           contextLength: canvasKontekst.length,
           hasCanvasData,
           harCanvasToken: true,
+          sessionCached: usedSessionCache,
         },
         "Canvas-kontekst lastet via context-loader",
       );

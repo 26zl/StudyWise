@@ -32,6 +32,12 @@ import {
   fetchPdfContent,
   fetchFileMetadata,
 } from "../rutere/canvas/canvasService.js";
+import {
+  createChunksFromContent,
+  storeChunksForCourse,
+  renewChunksTTL,
+  type ContentChunk,
+} from "./chunk.service.js";
 
 // ─── Konstanter ────────────────────────────────────────────
 
@@ -247,6 +253,9 @@ export async function syncCanvasDataForUser(
           // ── PDF-ekstraksjon for File-type module items ──
           // Kjører uavhengig av om kursdata endret seg — PDF har egen hash-sjekk
           let pdfCount = 0;
+          const courseChunks: ContentChunk[] = [];
+          let chunksCreated = false;
+
           for (const mod of moduler) {
             if (pdfCount >= MAX_PDFS_PER_SYNC) break;
             if (!mod.items || mod.items.length === 0) continue;
@@ -271,8 +280,17 @@ export async function syncCanvasDataForUser(
                   try {
                     const existing = JSON.parse(existingRaw);
                     if (existing.hash === metaHash) {
-                      // Fil uendret — forny TTL
+                      // Fil uendret — forny TTL og lag chunks fra cachet innhold
                       await setCache(fileKey, existingRaw, SYNC_CACHE_TTL);
+                      if (existing.content) {
+                        courseChunks.push(...createChunksFromContent(existing.content, {
+                          courseId,
+                          courseName: course.name,
+                          moduleTitle: mod.name,
+                          fileName: item.title,
+                          fileId: contentId,
+                        }));
+                      }
                       continue;
                     }
                   } catch {
@@ -302,6 +320,14 @@ export async function syncCanvasDataForUser(
                     SYNC_CACHE_TTL,
                   );
                   pdfCount++;
+                  chunksCreated = true;
+                  courseChunks.push(...createChunksFromContent(pdfResult.content, {
+                    courseId,
+                    courseName: course.name,
+                    moduleTitle: mod.name,
+                    fileName: item.title,
+                    fileId: contentId,
+                  }));
                   logger.info(
                     { userId, fileId: contentId, filename: fileData.filename },
                     "PDF-innhold lagret i Redis under sync",
@@ -314,6 +340,14 @@ export async function syncCanvasDataForUser(
                 );
               }
             }
+          }
+
+          // Lagre chunks for kurset (nye + uendrede PDFer)
+          if (courseChunks.length > 0) {
+            await storeChunksForCourse(userId, courseId, courseChunks);
+          } else if (!chunksCreated) {
+            // Forny TTL på eksisterende chunks selv om ingen PDFer ble prosessert
+            await renewChunksTTL(userId, courseId);
           }
         } catch (error) {
           failed++;
