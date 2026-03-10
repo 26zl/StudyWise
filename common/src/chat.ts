@@ -8,13 +8,19 @@ import { KI_MAX_MESSAGE_LENGTH_BACKEND } from "./ki.js";
 // Maks antall chat-samtaler som skal vises i historikken
 export const ChatMessageSchema = z.object({
   rolle: z.enum(["user", "assistant"]),
-  innhold: z.string().min(1).max(KI_MAX_MESSAGE_LENGTH_BACKEND),
+  innhold: z
+    .string()
+    .min(1, "Meldingen kan ikke være tom")
+    .max(KI_MAX_MESSAGE_LENGTH_BACKEND, `Meldingen kan være maks ${KI_MAX_MESSAGE_LENGTH_BACKEND} tegn`),
 });
 
 // Schema for lagring av chat-samtale. title valgfri; brukes for visning (f.eks. avkortet første spørsmål).
 export const ChatSaveSchema = z.object({
-  messages: z.array(ChatMessageSchema).min(1).max(200),
-  title: z.string().max(120).optional().nullable(),
+  messages: z
+    .array(ChatMessageSchema)
+    .min(1, "Samtalen må inneholde minst én melding")
+    .max(200, "Maks 200 meldinger per samtale"),
+  title: z.string().max(120, "Tittel må være maks 120 tegn").optional().nullable(),
 });
 
 // Felles schema for en enkelt chat-samtale (delt mellom save og historikk)

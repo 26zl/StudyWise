@@ -85,8 +85,8 @@ export const CanvasContextPreferencesSchema = z.object({
 export const VARSLER_MAX_IDS = 500;
 
 export const VarslerStateSchema = z.object({
-  lestIds: z.array(z.string()).max(VARSLER_MAX_IDS),
-  toastVistIds: z.array(z.string()).max(VARSLER_MAX_IDS),
+  lestIds: z.array(z.string()).max(VARSLER_MAX_IDS, `Maks ${VARSLER_MAX_IDS} varsel-IDs`),
+  toastVistIds: z.array(z.string()).max(VARSLER_MAX_IDS, `Maks ${VARSLER_MAX_IDS} varsel-IDs`),
 });
 
 export const PreferencesUpdateSchema = z
@@ -117,7 +117,7 @@ export const AuthBrukerSchema = z.object({
 // Login/register/me/logout
 export const LoginRequestSchema = z.object({
   email: EmailSchema,
-  password: z.string().min(1),
+  password: z.string().min(1, "Passord kan ikke være tomt"),
 });
 // Register request schema
 export const RegisterRequestSchema = z.object({

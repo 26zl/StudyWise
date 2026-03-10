@@ -99,8 +99,8 @@ export const KIDocumentAnalyseResponseSchema = z.object({
 // I frontend-komponenter importeres kun typen (SubTask), ikke skjemaet.
 export const SubTaskSchema = z.object({
   id: z.string(),
-  title: z.string().max(200),
-  description: z.string().max(1000),
+  title: z.string().max(200, "Tittel må være maks 200 tegn"),
+  description: z.string().max(1000, "Beskrivelse må være maks 1000 tegn"),
   estimatedTime: z.string(),
   priority: z.enum(["low", "medium", "high"]),
   completed: z.boolean(),
@@ -113,7 +113,10 @@ export const TaskBreakdownResponseSchema = z.object({
 
 // KI Oppsummering (kunngjøringer)
 export const KIOppsummeringRequestSchema = z.object({
-  tekst: z.string().min(1).max(50000),
+  tekst: z
+    .string()
+    .min(1, "Tekst kan ikke være tom")
+    .max(50000, "Tekst kan være maks 50 000 tegn"),
   type: z.enum(["tldr", "handlinger", "begge"]).optional().default("begge"),
 });
 
