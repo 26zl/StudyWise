@@ -71,7 +71,6 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
   };
   const handleMonthChange = (month: number) => setCurrentDate((prev) => setMonth(prev, month));
   const handleYearChange = (year: number) => setCurrentDate((prev) => setYear(prev, year));
-  const handleDateClick = (date: Date) => setSelectedDate(date);
   const handleToggleComplete = (id: string) => {
     setCompletedIds((prev) => {
       const next = new Set(prev);
@@ -256,7 +255,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
         <CalendarGrid
           currentDate={currentDate}
           assignments={assignments}
-          onDateClick={handleDateClick}
+          onDateClick={setSelectedDate}
           selectedDate={selectedDate}
         />
 

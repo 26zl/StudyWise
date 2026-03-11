@@ -1243,7 +1243,6 @@ export function ChatSection() {
                             settTekstInput(suggestion);
                             tekstInputRef.current?.focus();
                         }}
-                        disabled={skriver || analyserarDokument}
                     />
                 )}
 

@@ -285,7 +285,7 @@ export function AITaskBreakdown({
         <div className="space-y-4">
           {/* PROGRESS CARD */}
           {stats.approved > 0 && (
-            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 p-6">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-linear-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
@@ -298,7 +298,7 @@ export function AITaskBreakdown({
                     {stats.completed} av {stats.approved} deloppgaver fullført
                   </p>
                 </div>
-                {stats.completed === stats.approved && stats.approved > 0 && (
+                {stats.completed === stats.approved && (
                   <CheckCircle2 className="w-8 h-8 text-green-500" />
                 )}
               </div>
@@ -307,7 +307,7 @@ export function AITaskBreakdown({
               <div className="space-y-2 mb-4">
                 <div className="relative h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                   <div
-                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-500 rounded-full"
+                    className="absolute inset-y-0 left-0 bg-linear-to-r from-purple-500 to-blue-500 transition-all duration-500 rounded-full"
                     style={{ width: `${stats.percentageCompleted}%` }}
                   />
                 </div>
@@ -597,7 +597,7 @@ export function AITaskBreakdown({
       <AddToWorkplanModal
         isOpen={showWorkplanModal}
         onClose={() => setShowWorkplanModal(false)}
-        subtasks={subtasks.filter(t => t.approved).map(({ approved, ...rest }) => rest)}
+        subtasks={subtasks.filter(t => t.approved).map(({ approved: _approved, ...rest }) => rest)}
         assignmentTitle={_assignmentTitle}
       />
     </div>

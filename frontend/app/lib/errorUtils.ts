@@ -381,6 +381,6 @@ export async function parseApiError(
     const error = JSON.parse(errorText);
     return extractApiErrorMessage(error, fallback);
   } catch {
-    return errorText || fallback;
+    return errorText;
   }
 }

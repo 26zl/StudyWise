@@ -60,15 +60,15 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
         error,
         isHydrated,
     } = useVarsler(harCanvasToken);
+    const safeAlle = alleElementer ?? [];
 
     // Når bruker åpner varslinger-siden, markér alle som lest (synk med popup)
     useEffect(() => {
-        if (harCanvasToken && isHydrated && !isError && (alleElementer?.length ?? 0) > 0) {
+        if (harCanvasToken && isHydrated && !isError && safeAlle.length > 0) {
             markAllAsLest();
         }
-    }, [harCanvasToken, isHydrated, isError, alleElementer.length, markAllAsLest]);
+    }, [harCanvasToken, isHydrated, isError, safeAlle.length, markAllAsLest]);
 
-    const safeAlle = alleElementer ?? [];
     const tabs: { id: VarslingTab; label: string; antall: number; uleste: number }[] = [
         { id: "alle", label: "Alle", antall: safeAlle.length, uleste: safeAlle.filter((e) => !lestIds.has(e.id)).length },
         { id: "frister", label: "Frister", antall: frister.length, uleste: frister.filter((e) => !lestIds.has(e.id)).length },
@@ -106,7 +106,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                 </h1>
             </div>
 
-            {!isError && alleElementer.length > 0 && (
+            {!isError && safeAlle.length > 0 && (
                 <div>
                     <button
                         type="button"
