@@ -1,6 +1,9 @@
 /*
- * WeeklyPlanSuggestions - OPPDATERT MED GODKJENN-FUNKSJONALITET
- * Nå med mulighet til å godkjenne og lagre KI-forslag som faktiske arbeidsoppgaver
+ * WeeklyPlanSuggestions - KOMPLETT MED AI OG GODKJENN-FUNKSJONALITET
+ * - EKTE Claude AI generering
+ * - Checkbox selection av studieblokker
+ * - Lagring til arbeidsplan
+ * - Success feedback
  */
 "use client";
 
@@ -17,7 +20,9 @@ import {
   Loader2
 } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
+import { showToast } from "./Toaster";
 import { getWeekNumber } from "common/dateUtils";
+import { useKIChat } from "../ki/ki-api";
 import { useCreateArbeidsplan, type StudyBlock } from "../arbeidsplan/arbeidsplan-api";
 import { PRIORITY_COLORS, DAYS_ORDER, PRIORITY_LABELS } from "../arbeidsplan/arbeidsplan-api";
 
@@ -49,75 +54,149 @@ export function WeeklyPlanSuggestions({ assignments, onPlanCreated }: WeeklyPlan
   const [error, setError] = useState<string | null>(null);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
   const [selectedBlocks, setSelectedBlocks] = useState<Set<number>>(new Set());
-  const abortController = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
   
+  const { sendMelding } = useKIChat();
   const createMutation = useCreateArbeidsplan();
 
-  // Generate plan (MOCK - replace with real AI later)
-  const generatePlan = async () => {
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Generer ukeplan med EKTE Claude AI
+  const generatePlan = () => {
     setIsGenerating(true);
     setError(null);
     setPlan(null);
     setSelectedBlocks(new Set());
 
-    abortController.current = new AbortController();
+    // Sorter oppgaver etter frist
+    const sortedAssignments = [...assignments]
+      .filter(a => a.dueAt)
+      .sort((a, b) => new Date(a.dueAt!).getTime() - new Date(b.dueAt!).getTime());
 
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      if (abortController.current?.signal.aborted) return;
-
-      const now = new Date();
-      const weekNum = getWeekNumber(now);
-      const year = now.getFullYear();
-
-      const blocks: StudyBlock[] = [];
-      const assignmentsWithDates = assignments.filter((a) => a.dueAt);
-
-      assignmentsWithDates.forEach((assignment) => {
-        if (!assignment.dueAt) return;
-
-        const dueDate = new Date(assignment.dueAt);
-        const today = new Date();
-        const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-        if (daysUntilDue < 0 || daysUntilDue > 14) return;
-
-        const priority: "high" | "medium" | "low" = 
-          daysUntilDue <= 3 ? "high" : daysUntilDue <= 7 ? "medium" : "low";
-
-        const dayIndex = Math.max(0, Math.min(4, Math.floor(daysUntilDue / 3)));
-        const day = DAYS_ORDER[dayIndex];
-        const hour = 8 + (blocks.filter((b) => b.day === day).length * 2);
-        const timeSlot = `${hour.toString().padStart(2, "0")}:00-${(hour + 2).toString().padStart(2, "0")}:00`;
-
-        blocks.push({
-          day,
-          timeSlot,
-          task: assignment.name,
-          duration: priority === "high" ? "2 timer" : "1.5 timer",
-          priority,
-          courseName: assignment.courseName || "Emne",
-          assignmentId: assignment.id,
-          completed: false,
-        });
-      });
-
-      setPlan({
-        week: `Uke ${weekNum}, ${year}`,
-        totalHours: blocks.length * 1.75,
-        blocks,
-        tips: [
-          "Start med høyprioriteringsoppgaver først på dagen",
-          "Ta korte pauser hver time",
-          "Planlegg buffer-tid for uforutsette ting",
-        ],
-      });
-    } catch {
-      setError("Kunne ikke generere ukeplan. Prøv igjen.");
-    } finally {
-      setIsGenerating(false);
+    if (sortedAssignments.length === 0) {
+      if (isMountedRef.current) {
+        setError("Ingen oppgaver med frister funnet. Legg til oppgaver i Canvas først.");
+        setIsGenerating(false);
+      }
+      return;
     }
+
+    // Bygg prompt med alle oppgaver
+    const assignmentList = sortedAssignments.slice(0, 10).map(a => {
+      const daysUntil = Math.ceil((new Date(a.dueAt!).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      return `- ${a.name} (${a.courseName || "Ukjent emne"}) - Frist: om ${daysUntil} dager${a.pointsPossible ? `, ${a.pointsPossible} poeng` : ''}`;
+    }).join('\n');
+
+    const prompt = `Du er en ekspert studierådgiver. Analyser følgende oppgaver og lag en optimal ukeplan for studenten.
+
+OPPGAVER:
+${assignmentList}
+
+DAGENS DATO: ${new Date().toLocaleDateString("nb-NO")}
+UKENUMMER: ${getWeekNumber(new Date())}
+
+INSTRUKSJONER:
+1. Fordel oppgavene smart over uken (Mandag til Søndag)
+2. Prioriter oppgaver med nærmeste frister først
+3. Bruk realistiske tidslots (08:00-10:00, 10:00-12:00, 13:00-15:00, 15:00-17:00, 17:00-19:00, 19:00-21:00)
+4. Variert duration basert på oppgavens størrelse: "1 timer", "1.5 timer", "2 timer", "2.5 timer", "3 timer"
+5. Sett priority: "high" (frist ≤3 dager), "medium" (4-7 dager), "low" (>7 dager)
+6. Gi 3-5 personlige studietips basert på studentens situasjon
+7. Ikke overlap oppgaver - kun én oppgave per tidslot
+8. Fordel belastningen jevnt - unngå for mange oppgaver samme dag
+9. Bruk norske dagnavn: Mandag, Tirsdag, Onsdag, Torsdag, Fredag, Lørdag, Søndag
+
+Svar KUN med et JSON-objekt i dette formatet (ingen ekstra tekst):
+{
+  "blocks": [
+    {
+      "day": "Mandag",
+      "timeSlot": "08:00-10:00",
+      "task": "Oppgavenavn",
+      "duration": "2 timer",
+      "priority": "high",
+      "courseName": "Emnekode",
+      "completed": false
+    }
+  ],
+  "tips": [
+    "Tips 1",
+    "Tips 2",
+    "Tips 3"
+  ]
+}`;
+
+    sendMelding(
+      [{ role: "user", content: prompt }],
+      {
+        temperature: 0.7,
+        onSuccess: (data) => {
+          try {
+            // Parse Claude's response
+            let jsonText = data.response;
+            
+            // Fjern markdown code blocks hvis de finnes
+            jsonText = jsonText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+            
+            const parsed = JSON.parse(jsonText);
+            
+            if (!parsed.blocks || !Array.isArray(parsed.blocks)) {
+              throw new Error("Invalid response format");
+            }
+
+            // Valider og normaliser blocks
+            const blocks: StudyBlock[] = parsed.blocks.map((block: any) => ({
+              day: block.day || "Mandag",
+              timeSlot: block.timeSlot || "08:00-10:00",
+              task: block.task || "Ukjent oppgave",
+              duration: block.duration || "1.5 timer",
+              priority: (block.priority as "high" | "medium" | "low") || "medium",
+              courseName: block.courseName || "Ukjent emne",
+              completed: false,
+            }));
+
+            const tips = parsed.tips || [
+              "Start med høyprioritet oppgaver tidlig på dagen",
+              "Ta pauser hver time for å bevare konsentrasjonen",
+              "Bruk Pomodoro-teknikk for effektiv studietid",
+            ];
+
+            // Beregn totale timer
+            const totalHours = blocks.reduce((sum, block) => {
+              const match = block.duration.match(/(\d+\.?\d*)/);
+              const hours = match ? parseFloat(match[1]) : 1.5;
+              return sum + hours;
+            }, 0);
+
+            if (!isMountedRef.current) return;
+            
+            const now = new Date();
+            setPlan({
+              week: `Uke ${getWeekNumber(now)}, ${now.getFullYear()}`,
+              totalHours,
+              blocks,
+              tips,
+            });
+            setIsGenerating(false);
+            showToast.success(`Claude genererte en ukeplan med ${blocks.length} studieøkter!`);
+          } catch (error) {
+            console.error("Failed to parse AI response:", error);
+            setIsGenerating(false);
+            setError("Kunne ikke tolke AI-responsen. Prøv igjen.");
+          }
+        },
+        onError: (error) => {
+          console.error("AI generation failed:", error);
+          setIsGenerating(false);
+          setError("KI-generering feilet. Sjekk at du har oppgaver med frister i Canvas.");
+        },
+      }
+    );
   };
 
   const toggleBlockSelection = (index: number) => {
@@ -148,32 +227,35 @@ export function WeeklyPlanSuggestions({ assignments, onPlanCreated }: WeeklyPlan
 
     const selectedBlocksArray = plan.blocks.filter((_, i) => selectedBlocks.has(i));
 
+    // Beregn totale timer for valgte blokker
+    const totalHours = selectedBlocksArray.reduce((sum, block) => {
+      const match = block.duration.match(/(\d+\.?\d*)/);
+      const hours = match ? parseFloat(match[1]) : 1.5;
+      return sum + hours;
+    }, 0);
+
     try {
       await createMutation.mutateAsync({
         week: plan.week,
         weekNumber,
         year,
         blocks: selectedBlocksArray,
-        totalHours: selectedBlocksArray.length * 1.75,
+        totalHours,
       });
 
-      // Success!
+      showToast.success("Arbeidsplan lagret!");
       onPlanCreated?.();
       
       // Reset
       setPlan(null);
       setSelectedBlocks(new Set());
-    } catch {
-      setError("Kunne ikke lagre arbeidsplan. Prøv igjen.");
+    } catch (err) {
+      console.error("Failed to save plan:", err);
+      showToast.error("Kunne ikke lagre arbeidsplan. Prøv igjen.");
     }
   };
 
-  useEffect(() => {
-    return () => {
-      abortController.current?.abort();
-    };
-  }, []);
-
+  // Initial state - no plan generated
   if (!plan && !isGenerating && !error) {
     return (
       <div className="rounded-xl border-2 border-dashed border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-950/20 p-8">
@@ -186,7 +268,7 @@ export function WeeklyPlanSuggestions({ assignments, onPlanCreated }: WeeklyPlan
               KI Ukeplangenerator
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 max-w-md mx-auto">
-              La KI analysere dine Canvas-oppgaver og lage en optimal studieukeplan.
+              La Claude AI analysere dine Canvas-oppgaver og lage en optimal studieukeplan.
               Du kan deretter velge hvilke studieblokker du vil legge til i din arbeidsplan.
             </p>
             <button
@@ -195,19 +277,20 @@ export function WeeklyPlanSuggestions({ assignments, onPlanCreated }: WeeklyPlan
               className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed inline-flex items-center gap-2"
             >
               <Sparkles className="w-5 h-5" />
-              Generer ukeplan
+              Generer ukeplan med AI
             </button>
             {assignments.length === 0 && (
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
                 Ingen oppgaver funnet. Legg til oppgaver i Canvas først.
               </p>
-            )}
+            )} 
           </div>
         </div>
       </div>
     ); 
   }
 
+  // Loading state
   if (isGenerating) {
     return (
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-12">
@@ -215,10 +298,10 @@ export function WeeklyPlanSuggestions({ assignments, onPlanCreated }: WeeklyPlan
           <LoadingSpinner className="w-12 h-12" />  
           <div>
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-              Genererer ukeplan...
+              Claude AI genererer ukeplan...
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              KI analyserer dine oppgaver og frister
+              Analyserer oppgaver, frister og kompleksitet
             </p>
           </div>
         </div>
@@ -226,6 +309,7 @@ export function WeeklyPlanSuggestions({ assignments, onPlanCreated }: WeeklyPlan
     );
   }
 
+  // Error state
   if (error) {
     return (
       <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-6">
@@ -245,6 +329,7 @@ export function WeeklyPlanSuggestions({ assignments, onPlanCreated }: WeeklyPlan
 
   if (!plan) return null;
 
+  // Group blocks by day
   const blocksByDay = plan.blocks.reduce((acc, block, index) => {
     if (!acc[block.day]) acc[block.day] = [];
     acc[block.day].push({ ...block, index });
@@ -261,7 +346,7 @@ export function WeeklyPlanSuggestions({ assignments, onPlanCreated }: WeeklyPlan
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-linear-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 p-6">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-2 mb-2">
@@ -271,7 +356,7 @@ export function WeeklyPlanSuggestions({ assignments, onPlanCreated }: WeeklyPlan
               </h2>
             </div>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              {plan.week} • {plan.totalHours} timer totalt
+              {plan.week} • {plan.totalHours.toFixed(1)} timer totalt
             </p>
           </div>
           <button
@@ -320,20 +405,11 @@ export function WeeklyPlanSuggestions({ assignments, onPlanCreated }: WeeklyPlan
             ) : (
               <>
                 <CheckCircle className="w-4 h-4" />
-                Legg til i min plan
+                Legg til i min plan ({selectedBlocks.size})
               </>
             )}
           </button>
         </div>
-
-        {createMutation.isSuccess && (
-          <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-            <p className="text-sm text-green-700 dark:text-green-300 flex items-center gap-2">
-              <CheckCircle className="w-4 h-4" />
-              Arbeidsplan lagret! Se den under "Min arbeidsplan".
-            </p>
-          </div>
-        )}
       </div>
 
       {/* Study blocks by day */}
@@ -357,7 +433,7 @@ export function WeeklyPlanSuggestions({ assignments, onPlanCreated }: WeeklyPlan
                     {day}
                   </span>
                   <span className="text-sm text-slate-500 dark:text-slate-400">
-                    {dayBlocks.length} oppgaver
+                    {dayBlocks.length} {dayBlocks.length === 1 ? 'oppgave' : 'oppgaver'}
                   </span>
                 </div>
                 {isExpanded ? (
@@ -421,19 +497,27 @@ export function WeeklyPlanSuggestions({ assignments, onPlanCreated }: WeeklyPlan
         })}
       </div>
 
-      {/* Tips */}
+      {/* Tips from Claude AI */}
       {plan.tips && plan.tips.length > 0 && (
         <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 p-4">
-          <h4 className="font-semibold text-sm text-blue-900 dark:text-blue-300 mb-2">
-            💡 Tips fra KI
-          </h4>
-          <ul className="space-y-1 text-sm text-blue-700 dark:text-blue-300">
-            {plan.tips.map((tip, i) => (
-              <li key={i}>• {tip}</li>
-            ))}
-          </ul>
+          <div className="flex items-start gap-2">
+            <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-semibold text-sm text-blue-900 dark:text-blue-300 mb-2">
+                Studietips fra Claude AI
+              </h4>
+              <ul className="space-y-1 text-sm text-blue-700 dark:text-blue-300">
+                {plan.tips.map((tip, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <Check className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{tip}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
-}   
+} 
