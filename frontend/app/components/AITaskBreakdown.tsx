@@ -1,28 +1,52 @@
 /*
- * AITaskBreakdown - KI-foreslåtte deloppgaver med godkjenne/avvise kontroll
- * Genererer smart nedbrytning av Canvas-oppgaver med AI
+ * AITaskBreakdown - MED PROGRESS TRACKING
+ * KI-foreslåtte deloppgaver med godkjenne/avvise kontroll og visuell fremdrift
  */
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Sparkles, Edit2, Check, X, Plus, Trash2, RefreshCw, ThumbsUp, ThumbsDown } from "lucide-react";
+import { 
+  Sparkles, 
+  Edit2, 
+  Check, 
+  X, 
+  Plus, 
+  Trash2, 
+  RefreshCw, 
+  ThumbsUp, 
+  ThumbsDown,
+  TrendingUp,
+  Clock,
+  CheckCircle2
+} from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { showToast } from "./Toaster";
 import type { SubTask } from "common/ki";
-// Komponenten bruker mock-data inntil ekte AI-integrasjon legges til (se ki-api.ts for task-breakdown-mønster).
 
-// UI-state utvider SubTask med godkjenningsstatus — strippes før onSave
+// UI-state utvider SubTask med godkjenningsstatus
 interface SubTaskUI extends SubTask {
-  approved?: boolean; // Godkjent av bruker?
+  approved?: boolean;
 }
-// Props for AITaskBreakdown-komponenten (assignmentTitle/Description/dueDate forbeholdt for fremtidig AI-kontekst)
+
 interface AITaskBreakdownProps {
   assignmentTitle: string;
   assignmentDescription?: string;
   dueDate?: Date;
   onSave?: (subtasks: SubTask[]) => void;
 }
-// Hovedkomponent for AI-generert deloppgaveoversikt med godkjenningskontroll
+
+// Progress stats
+interface ProgressStats {
+  total: number;
+  approved: number;
+  completed: number;
+  remaining: number;
+  percentageApproved: number;
+  percentageCompleted: number;
+  totalEstimatedHours: number;
+  completedHours: number;
+}
+
 export function AITaskBreakdown({
   assignmentTitle: _assignmentTitle,
   assignmentDescription: _assignmentDescription,
@@ -46,11 +70,44 @@ export function AITaskBreakdown({
     };
   }, []);
 
+  // Beregn progress stats
+  const calculateProgress = (): ProgressStats => {
+    const total = subtasks.length;
+    const approved = subtasks.filter(t => t.approved).length;
+    const completed = subtasks.filter(t => t.completed).length;
+    const remaining = approved - completed;
+    const percentageApproved = total > 0 ? Math.round((approved / total) * 100) : 0;
+    const percentageCompleted = approved > 0 ? Math.round((completed / approved) * 100) : 0;
+    
+    // Parse estimated time (f.eks. "2t" -> 2, "1.5t" -> 1.5)
+    const parseTime = (time: string): number => {
+      const match = time.match(/(\d+\.?\d*)/);
+      return match ? parseFloat(match[1]) : 0;
+    };
+    
+    const totalEstimatedHours = subtasks.reduce((sum, t) => sum + parseTime(t.estimatedTime), 0);
+    const completedHours = subtasks
+      .filter(t => t.completed)
+      .reduce((sum, t) => sum + parseTime(t.estimatedTime), 0);
+    
+    return {
+      total,
+      approved,
+      completed,
+      remaining,
+      percentageApproved,
+      percentageCompleted,
+      totalEstimatedHours,
+      completedHours,
+    };
+  };
+
+  const stats = calculateProgress();
+
   // Generer deloppgaver med AI
   const generateSubtasks = () => {
     setIsGenerating(true);
 
-    // MOCK DATA - Erstatt med ekte Claude AI-kall
     timeoutRef.current = setTimeout(() => {
       if (!isMountedRef.current) return;
       const mockSubtasks: SubTaskUI[] = [
@@ -61,7 +118,7 @@ export function AITaskBreakdown({
           estimatedTime: "2t",
           priority: "high",
           completed: false,
-          approved: false, 
+          approved: false,
         },
         {
           id: `task-${Date.now()}-2`,
@@ -88,115 +145,110 @@ export function AITaskBreakdown({
           estimatedTime: "4t",
           priority: "high",
           completed: false,
-          approved: false, 
+          approved: false,
+        },
+        {
+          id: `task-${Date.now()}-5`,
+          title: "Konklusjon og sammendrag",
+          description: "Oppsummer funn og reflekter over læring",
+          estimatedTime: "1t",
+          priority: "medium",
+          completed: false,
+          approved: false,
         },
       ];
 
       setSubtasks(mockSubtasks);
       setShowEditor(true);
-      setShowApprovalPrompt(true); // Vis godkjenne/avvise prompt
+      setShowApprovalPrompt(true);
       setIsGenerating(false);
     }, 2000);
   };
 
-  // Godkjenn alle forslag
-  const approveAll = () => {
-    setSubtasks((prev) => prev.map((task) => ({ ...task, approved: true })));
-    setShowApprovalPrompt(false);
+  const approveTask = (id: string) => {
+    setSubtasks(subtasks.map(t => t.id === id ? { ...t, approved: true } : t));
   };
 
-  // Avvis alle forslag og start på nytt
+  const rejectTask = (id: string) => {
+    setSubtasks(subtasks.filter(t => t.id !== id));
+  };
+
+  const approveAll = () => {
+    setSubtasks(subtasks.map(t => ({ ...t, approved: true })));
+    setShowApprovalPrompt(false);
+    showToast("Alle deloppgaver godkjent!", "success");
+  };
+
   const rejectAll = () => {
     setSubtasks([]);
     setShowEditor(false);
     setShowApprovalPrompt(false);
+    showToast("Alle deloppgaver avvist", "info");
   };
 
-  // Godkjenn enkelt oppgave
-  const approveTask = (id: string) => {
-    setSubtasks((prev) =>
-      prev.map((task) => (task.id === id ? { ...task, approved: true } : task))
-    );
+  const toggleComplete = (id: string) => {
+    setSubtasks(subtasks.map(t => 
+      t.id === id ? { ...t, completed: !t.completed } : t
+    ));
   };
 
-  // Avvis enkelt oppgave
-  const rejectTask = (id: string) => {
-    setSubtasks((prev) => prev.filter((task) => task.id !== id));
-  };
-
-  // Start redigering av en deloppgave
-  const startEditing = (task: SubTask) => {
+  const startEdit = (task: SubTaskUI) => {
     setEditingId(task.id);
-    setEditForm(task);
+    setEditForm({ 
+      title: task.title, 
+      description: task.description, 
+      estimatedTime: task.estimatedTime, 
+      priority: task.priority 
+    });
   };
 
-  // Lagre redigering
   const saveEdit = () => {
     if (!editingId) return;
-
-    setSubtasks((prev) =>
-      prev.map((task) =>
-        task.id === editingId ? { ...task, ...editForm, approved: true } : task
-      )
-    );
+    setSubtasks(subtasks.map(t =>
+      t.id === editingId
+        ? { ...t, ...editForm }
+        : t
+    ));
     setEditingId(null);
     setEditForm({});
   };
 
-  // Avbryt redigering
   const cancelEdit = () => {
     setEditingId(null);
     setEditForm({});
   };
 
-  // Slett deloppgave
-  const deleteTask = (id: string) => {
-    setSubtasks((prev) => prev.filter((task) => task.id !== id));
-  };
-
-  // Legg til ny deloppgave
   const addNewTask = () => {
     const newTask: SubTaskUI = {
       id: `task-${Date.now()}`,
       title: "Ny deloppgave",
-      description: "Beskriv hva som må gjøres",
+      description: "",
       estimatedTime: "1t",
       priority: "medium",
       completed: false,
-      approved: false,
+      approved: true,
     };
-    setSubtasks((prev) => [...prev, newTask]);
-    startEditing(newTask);
+    setSubtasks([...subtasks, newTask]);
+    startEdit(newTask);
   };
 
-  // Toggle completed
-  const toggleCompleted = (id: string) => {
-    setSubtasks((prev) =>
-      prev.map((task) =>
-        task.id === id ? { ...task, completed: !task.completed } : task
-      )
-    );
+  const deleteTask = (id: string) => {
+    setSubtasks(subtasks.filter(t => t.id !== id));
   };
 
-  // Lagre til parent
   const handleSave = () => {
-    const allApproved = subtasks.every((task) => task.approved);
-    if (!allApproved) {
-      showToast.error("Du må godkjenne eller redigere alle forslagene før lagring!");
-      return;
-    }
-
-    if (onSave) {
-      // Strip UI-only felt (approved) før grensen mot parent/API
-      onSave(subtasks.map(({ approved: _approved, ...task }) => task));
-    }
-    setShowEditor(false);
+    const approvedTasks: SubTask[] = subtasks
+      .filter(t => t.approved)
+      .map(({ approved, ...rest }) => rest);
+    
+    onSave?.(approvedTasks);
+    showToast("Deloppgaver lagret!", "success");
   };
 
   const priorityColors = {
-    low: "text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800",
-    medium: "text-yellow-700 dark:text-yellow-300 bg-yellow-100 dark:bg-yellow-900/30",
-    high: "text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/30",
+    low: "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700",
+    medium: "bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700",
+    high: "bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700",
   };
 
   const priorityLabels = {
@@ -237,7 +289,71 @@ export function AITaskBreakdown({
       {/* Editor */}
       {showEditor && (
         <div className="space-y-4">
-          {/* NY: Godkjenne/Avvise Banner */}
+          {/* PROGRESS CARD - NY! */}
+          {stats.approved > 0 && (
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 p-6">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <TrendingUp className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                      Fremdrift
+                    </h3>
+                  </div>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    {stats.completed} av {stats.approved} deloppgaver fullført
+                  </p>
+                </div>
+                {stats.completed === stats.approved && stats.approved > 0 && (
+                  <CheckCircle2 className="w-8 h-8 text-green-500" />
+                )}
+              </div>
+
+              {/* Progress Bar */}
+              <div className="space-y-2 mb-4">
+                <div className="relative h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                  <div
+                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-500 rounded-full"
+                    style={{ width: `${stats.percentageCompleted}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
+                  <span>{stats.percentageCompleted}% fullført</span>
+                  <span>{stats.completedHours.toFixed(1)} / {stats.totalEstimatedHours.toFixed(1)} timer</span>
+                </div>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center p-3 rounded-lg bg-white/50 dark:bg-slate-900/30">
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                    {stats.approved}
+                  </div>
+                  <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                    Godkjent
+                  </div>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-white/50 dark:bg-slate-900/30">
+                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                    {stats.completed}
+                  </div>
+                  <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                    Fullført
+                  </div>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-white/50 dark:bg-slate-900/30">
+                  <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                    {stats.remaining}
+                  </div>
+                  <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                    Gjenstår
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Godkjenne/Avvise Banner */}
           {showApprovalPrompt && (
             <div className="p-4 rounded-lg bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800">
               <div className="flex items-start gap-3">
@@ -284,7 +400,7 @@ export function AITaskBreakdown({
                 KI-foreslåtte deloppgaver
               </h3>
               <span className="text-sm text-slate-500 dark:text-slate-400">
-                ({subtasks.filter(t => t.approved).length}/{subtasks.length} godkjent)
+                ({stats.approved}/{stats.total} godkjent)
               </span>
             </div>
 
@@ -300,26 +416,36 @@ export function AITaskBreakdown({
 
               <button
                 onClick={addNewTask}
-                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                title="Legg til ny deloppgave"
+                className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
               >
-                <Plus className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                <Plus className="w-4 h-4" />
+                Ny oppgave
               </button>
+
+              {stats.approved > 0 && (
+                <button
+                  onClick={handleSave}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  <Check className="w-4 h-4" />
+                  Lagre ({stats.approved})
+                </button>
+              )}
             </div>
           </div>
 
           {/* Subtasks List */}
           <div className="space-y-3">
-            {subtasks.map((task, index) => (
+            {subtasks.map((task) => (
               <div
                 key={task.id}
-                className={`p-4 rounded-lg border transition-all ${
-                  task.approved
-                    ? "border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20"
-                    : task.completed
-                    ? "border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20"
-                    : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
-                }`}
+                className={`rounded-lg border ${
+                  task.completed
+                    ? "border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20"
+                    : task.approved
+                    ? "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50"
+                    : "border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-950/20"
+                } p-4 transition-all`}
               >
                 {editingId === task.id ? (
                   // Edit Mode
@@ -327,228 +453,147 @@ export function AITaskBreakdown({
                     <input
                       type="text"
                       value={editForm.title || ""}
-                      onChange={(e) =>
-                        setEditForm((prev) => ({ ...prev, title: e.target.value }))
-                      }
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm font-medium"
-                      placeholder="Tittel på deloppgave"
+                      onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                      placeholder="Tittel"
                     />
-
                     <textarea
                       value={editForm.description || ""}
-                      onChange={(e) =>
-                        setEditForm((prev) => ({ ...prev, description: e.target.value }))
-                      }
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm resize-none"
-                      rows={2}
-                      placeholder="Beskrivelse av hva som må gjøres"
+                      onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white resize-none"
+                      rows={3}
+                      placeholder="Beskrivelse"
                     />
-
                     <div className="flex gap-3">
                       <input
                         type="text"
                         value={editForm.estimatedTime || ""}
-                        onChange={(e) =>
-                          setEditForm((prev) => ({ ...prev, estimatedTime: e.target.value }))
-                        }
-                        className="w-24 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm"
+                        onChange={(e) => setEditForm({ ...editForm, estimatedTime: e.target.value })}
+                        className="w-24 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                         placeholder="2t"
                       />
-
                       <select
                         value={editForm.priority || "medium"}
-                        onChange={(e) =>
-                          setEditForm((prev) => ({
-                            ...prev,
-                            priority: e.target.value as "low" | "medium" | "high",
-                          }))
-                        }
-                        className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm"
+                        onChange={(e) => setEditForm({ ...editForm, priority: e.target.value as "low" | "medium" | "high" })}
+                        className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                       >
                         <option value="low">Lav prioritet</option>
                         <option value="medium">Middels prioritet</option>
                         <option value="high">Høy prioritet</option>
                       </select>
                     </div>
-
                     <div className="flex gap-2">
                       <button
                         onClick={saveEdit}
-                        className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                        className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
                       >
                         <Check className="w-4 h-4" />
-                        Lagre og godkjenn
+                        Lagre
                       </button>
                       <button
                         onClick={cancelEdit}
-                        className="px-3 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium transition-colors"
+                        className="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium transition-colors"
                       >
-                        <X className="w-4 h-4" />
+                        Avbryt
                       </button>
                     </div>
                   </div>
                 ) : (
                   // View Mode
-                  <div className="space-y-2">
-                    <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-3">
+                    {/* Checkbox */}
+                    {task.approved && (
                       <button
-                        onClick={() => toggleCompleted(task.id)}
-                        className={`shrink-0 w-5 h-5 rounded border-2 mt-0.5 transition-colors ${
-                          task.completed || task.approved
-                            ? "border-green-500 bg-green-500"
+                        onClick={() => toggleComplete(task.id)}
+                        className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                          task.completed
+                            ? "bg-green-500 border-green-500"
                             : "border-slate-300 dark:border-slate-600 hover:border-green-500"
                         }`}
                       >
-                        {(task.completed || task.approved) && <Check className="w-3 h-3 text-white" />}
+                        {task.completed && (
+                          <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+                        )}
                       </button>
+                    )}
 
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <h4
-                            className={`text-sm font-semibold ${
-                              task.completed
-                                ? "line-through text-slate-500"
-                                : task.approved
-                                ? "text-green-700 dark:text-green-400"
-                                : "text-slate-900 dark:text-white"
-                            }`}
-                          >
-                            {index + 1}. {task.title}
-                            {task.approved && (
-                              <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-                                Godkjent
-                              </span>
-                            )}
-                          </h4>
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <h4 className={`font-medium text-slate-900 dark:text-white ${
+                          task.completed ? "line-through opacity-60" : ""
+                        }`}>
+                          {task.title}
+                        </h4>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`px-2 py-1 rounded text-xs font-medium border ${priorityColors[task.priority]}`}>
+                            {priorityLabels[task.priority]}
+                          </span>
+                          <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                            <Clock className="w-3.5 h-3.5" />
+                            {task.estimatedTime}
+                          </span>
+                        </div>
+                      </div>
 
-                          <div className="flex items-center gap-1 shrink-0">
-                            {!task.approved && !task.completed && (
-                              <>
-                                <button
-                                  onClick={() => approveTask(task.id)}
-                                  className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
-                                  title="Godkjenn"
-                                >
-                                  <ThumbsUp className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
-                                </button>
-                                <button
-                                  onClick={() => rejectTask(task.id)}
-                                  className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                                  title="Avvis"
-                                >
-                                  <ThumbsDown className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
-                                </button>
-                              </>
-                            )}
+                      {task.description && (
+                        <p className={`text-sm text-slate-600 dark:text-slate-400 mb-3 ${
+                          task.completed ? "opacity-60" : ""
+                        }`}>
+                          {task.description}
+                        </p>
+                      )}
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2">
+                        {!task.approved ? (
+                          <>
                             <button
-                              onClick={() => startEditing(task)}
-                              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                              onClick={() => approveTask(task.id)}
+                              className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-medium transition-colors"
+                            >
+                              <ThumbsUp className="w-3.5 h-3.5" />
+                              Godkjenn
+                            </button>
+                            <button
+                              onClick={() => rejectTask(task.id)}
+                              className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-medium transition-colors"
+                            >
+                              <ThumbsDown className="w-3.5 h-3.5" />
+                              Avvis
+                            </button>
+                            <button
+                              onClick={() => startEdit(task)}
+                              className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                               title="Rediger"
                             >
-                              <Edit2 className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
+                              <Edit2 className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => startEdit(task)}
+                              className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                              title="Rediger"
+                            >
+                              <Edit2 className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                             </button>
                             <button
                               onClick={() => deleteTask(task.id)}
-                              className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                              className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
                               title="Slett"
                             >
-                              <Trash2 className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                              <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
                             </button>
-                          </div>
-                        </div>
-
-                        <p
-                          className={`text-sm mb-2 ${
-                            task.completed
-                              ? "line-through text-slate-400"
-                              : "text-slate-600 dark:text-slate-300"
-                          }`}
-                        >
-                          {task.description}
-                        </p>
-
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-500 dark:text-slate-400">
-                            ⏱️ {task.estimatedTime}
-                          </span>
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded-full ${
-                              priorityColors[task.priority]
-                            }`}
-                          >
-                            {priorityLabels[task.priority]}
-                          </span>
-                        </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
                 )}
               </div>
             ))}
-          </div>
-
-          {/* Info Banner */}
-          <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
-            <p className="text-xs text-blue-700 dark:text-blue-300">
-              💡 <strong>Tips:</strong> Godkjenn forslagene du liker, avvis de du ikke trenger, eller rediger dem slik at de passer din måte å jobbe på.
-            </p>
-          </div>
-
-          {/* Save Button */}
-          <div className="flex gap-3 pt-2">
-            <button
-              onClick={handleSave}
-              className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-            >
-              Lagre deloppgaver
-            </button>
-            <button
-              onClick={() => {
-                setShowEditor(false);
-                setSubtasks([]);
-                setShowApprovalPrompt(false);
-              }}
-              className="px-4 py-3 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors"
-            >
-              Avbryt
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Progress Summary */}
-      {!showEditor && subtasks.length > 0 && (
-        <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
-              Fremgang
-            </h4>
-            <button
-              onClick={() => setShowEditor(true)}
-              className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
-            >
-              Vis detaljer →
-            </button>
-          </div>
-
-          <div className="space-y-2">
-            <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-linear-to-r from-blue-500 to-purple-600 transition-all duration-500"
-                style={{
-                  width: `${(subtasks.filter((t) => t.completed).length / subtasks.length) * 100}%`,
-                }}
-              />
-            </div>
-
-            <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
-              <span>
-                {subtasks.filter((t) => t.completed).length} av {subtasks.length} fullført
-              </span>
-              <span>
-                {Math.round((subtasks.filter((t) => t.completed).length / subtasks.length) * 100)}%
-              </span>
-            </div>
           </div>
         </div>
       )}
