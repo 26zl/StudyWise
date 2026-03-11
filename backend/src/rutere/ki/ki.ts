@@ -21,6 +21,7 @@ import { STUDYWISE_SYSTEM_PROMPT } from "./systemPrompt.js";
 import { chatCompletion, isClientAvailable, getMissingClientError } from "./aiClient.js";
 import { handleAIError } from "./handleAIError.js";
 import { loadCanvasContext, ensureCanvasSync, type IntentType, type ContextResult } from "../../services/context-loader.service.js";
+import { isSyncing, waitForSync } from "../../services/canvas-sync.service.js";
 
 /** Nøkkelord som krever full kontekst (moduler, PDFer, sideinnhold) */
 const CANVAS_FULL_KEYWORDS = [
@@ -224,6 +225,9 @@ router.use(kiAnalyseRouter);
 
 import { KI_CACHE_TTL, KI_TIMEOUT_MS, SESSION_CONTEXT_TTL } from "./kiConstants.js";
 
+/** Maks ventetid for Canvas sync før chat fortsetter uansett */
+const SYNC_WAIT_MAX_MS = 20_000;
+
 // Cache-konfigurasjon
 const CACHE_KEY = "ki:test-connection";
 
@@ -426,8 +430,38 @@ router.post("/chat", async (req, res) => {
     
       const baseUrl = req.canvasBaseUrl;
 
-      // Sikre at bakgrunns-sync er igangsatt for neste gang
+      // Sikre at bakgrunns-sync er igangsatt
       ensureCanvasSync(req.user.id, req.canvasToken, baseUrl);
+
+      // Vent på pågående sync slik at chunks er ferdig lagret i Redis
+      if (isSyncing(req.user.id)) {
+        logger.info({ userId: req.user.id }, "Venter på Canvas sync før KI-kontekst (in-memory)");
+        const syncResult = await waitForSync(req.user.id, SYNC_WAIT_MAX_MS);
+        if (!syncResult) {
+          logger.warn({ userId: req.user.id }, "Canvas sync timeout — fortsetter uten å vente");
+        }
+      } else {
+        // In-memory check var negativ (f.eks. rate-limited sync returnerte umiddelbart),
+        // men en tidligere sync kan fortsatt kjøre — sjekk Redis-flagget
+        const syncStatus = await getCache(`canvas:user:${req.user.id}:sync:status`);
+        if (syncStatus === "running") {
+          logger.info({ userId: req.user.id }, "Venter på Canvas sync før KI-kontekst (Redis-flagg)");
+          const POLL_INTERVAL = 500;
+          const maxPolls = Math.ceil(SYNC_WAIT_MAX_MS / POLL_INTERVAL);
+          let waited = false;
+          for (let i = 0; i < maxPolls; i++) {
+            await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+            const status = await getCache(`canvas:user:${req.user.id}:sync:status`);
+            if (status !== "running") {
+              waited = true;
+              break;
+            }
+          }
+          if (!waited) {
+            logger.warn({ userId: req.user.id }, "Canvas sync Redis-flagg timeout — fortsetter uten å vente");
+          }
+        }
+      }
 
       // Ekstraher eventuelle emne/modul-hint fra siste brukermelding
       const lastUserMsg = messages.filter((m: { role: string }) => m.role === "user").at(-1)?.content ?? "";
