@@ -1,7 +1,7 @@
 /*
  * API Ruter for Arbeidsplan
  * CRUD operasjoner for å lagre, hente, oppdatere og slette arbeidsplaner
- */
+ */    
 
 import { Router, Request, Response } from "express";
 import { Arbeidsplan, type IStudyBlock } from "../../database/models/arbeidsplan.js";
@@ -30,7 +30,7 @@ const CreateArbeidsplanSchema = z.object({
   year: z.number().int().min(2020).max(2100),
   blocks: z.array(StudyBlockSchema),
   totalHours: z.number(),
-});
+}); 
 
 const UpdateBlockSchema = z.object({
   blockIndex: z.number().int().min(0),
@@ -56,7 +56,7 @@ router.post("/", async (req: Request, res: Response) => {
       userId,
       year: data.year,
       weekNumber: data.weekNumber,
-    });
+    }); 
 
     let plan;
     if (existing) {
