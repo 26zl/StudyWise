@@ -1,6 +1,8 @@
 /*
- * AITaskBreakdown - MED PROGRESS TRACKING
- * KI-foreslåtte deloppgaver med godkjenne/avvise kontroll og visuell fremdrift
+ * AITaskBreakdown - KOMPLETT VERSJON
+ * - Progress tracking med stats
+ * - Arbeidsplan-integrasjon
+ * - Godkjenn/avvis funksjonalitet
  */
 "use client";
 
@@ -17,10 +19,12 @@ import {
   ThumbsDown,
   TrendingUp,
   Clock,
-  CheckCircle2
+  CheckCircle2,
+  Calendar as CalendarIcon
 } from "lucide-react";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { showToast } from "./Toaster";
+import { AddToWorkplanModal } from "./AddToWorkplanModal";
 import type { SubTask } from "common/ki";
 
 // UI-state utvider SubTask med godkjenningsstatus
@@ -59,6 +63,7 @@ export function AITaskBreakdown({
   const [editForm, setEditForm] = useState<Partial<SubTask>>({});
   const [showEditor, setShowEditor] = useState(false);
   const [showApprovalPrompt, setShowApprovalPrompt] = useState(false);
+  const [showWorkplanModal, setShowWorkplanModal] = useState(false);
   const isMountedRef = useRef(true);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -176,14 +181,14 @@ export function AITaskBreakdown({
   const approveAll = () => {
     setSubtasks(subtasks.map(t => ({ ...t, approved: true })));
     setShowApprovalPrompt(false);
-    showToast("Alle deloppgaver godkjent!", "success");
+    showToast.success("Alle deloppgaver godkjent!");
   };
 
   const rejectAll = () => {
     setSubtasks([]);
     setShowEditor(false);
     setShowApprovalPrompt(false);
-    showToast("Alle deloppgaver avvist", "info");
+    showToast.info("Alle deloppgaver avvist");
   };
 
   const toggleComplete = (id: string) => {
@@ -242,7 +247,7 @@ export function AITaskBreakdown({
       .map(({ approved, ...rest }) => rest);
     
     onSave?.(approvedTasks);
-    showToast("Deloppgaver lagret!", "success");
+    showToast.success("Deloppgaver lagret!");
   };
 
   const priorityColors = {
@@ -289,7 +294,7 @@ export function AITaskBreakdown({
       {/* Editor */}
       {showEditor && (
         <div className="space-y-4">
-          {/* PROGRESS CARD - NY! */}
+          {/* PROGRESS CARD */}
           {stats.approved > 0 && (
             <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 p-6">
               <div className="flex items-start justify-between mb-4">
@@ -422,13 +427,14 @@ export function AITaskBreakdown({
                 Ny oppgave
               </button>
 
+              {/* ARBEIDSPLAN KNAPP - NY! */}
               {stats.approved > 0 && (
                 <button
-                  onClick={handleSave}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  onClick={() => setShowWorkplanModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors"
                 >
-                  <Check className="w-4 h-4" />
-                  Lagre ({stats.approved})
+                  <CalendarIcon className="w-4 h-4" />
+                  Legg til i arbeidsplan ({stats.approved})
                 </button>
               )}
             </div>
@@ -597,6 +603,16 @@ export function AITaskBreakdown({
           </div>
         </div>
       )}
+
+      {/* ARBEIDSPLAN MODAL - NY! */}
+      <AddToWorkplanModal
+        isOpen={showWorkplanModal}
+        onClose={() => setShowWorkplanModal(false)}
+        subtasks={subtasks.filter(t => t.approved).map(({ approved, ...rest }) => rest)}
+        assignmentTitle={_assignmentTitle}
+      />
     </div>
   );
 } 
+
+

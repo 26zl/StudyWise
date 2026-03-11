@@ -1,0 +1,369 @@
+/*
+ * AddToWorkplanModal - Modal for å legge til AI-genererte deloppgaver i arbeidsplan
+ * Lar brukeren velge uke og dager, og fordele oppgaver automatisk
+ */
+"use client";
+
+import { useState } from "react";
+import { X, Calendar, Clock, CheckCircle2, Sparkles } from "lucide-react";
+import type { SubTask } from "common/ki";
+import { useCreateArbeidsplan, type StudyBlock } from "../arbeidsplan/arbeidsplan-api";
+import { showToast } from "./Toaster";
+
+interface AddToWorkplanModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  subtasks: SubTask[];
+  assignmentTitle: string;
+}
+
+const DAYS = ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag", "Søndag"];
+
+const TIME_SLOTS = [
+  "08:00-10:00",
+  "10:00-12:00",
+  "12:00-14:00",
+  "14:00-16:00",
+  "16:00-18:00",
+  "18:00-20:00",
+  "20:00-22:00",
+];
+
+export function AddToWorkplanModal({
+  isOpen,
+  onClose,
+  subtasks,
+  assignmentTitle,
+}: AddToWorkplanModalProps) {
+  const [selectedWeek, setSelectedWeek] = useState<"current" | "next">("current");
+  const [selectedDays, setSelectedDays] = useState<string[]>(["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag"]);
+  const [startTime, setStartTime] = useState("09:00-11:00");
+  
+  const { mutate: createPlan, isPending } = useCreateArbeidsplan();
+
+  if (!isOpen) return null;
+
+  // Beregn uke-tekst
+  const getCurrentWeekNumber = () => {
+    const now = new Date();
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const days = Math.floor((now.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
+    return Math.ceil((days + startOfYear.getDay() + 1) / 7);
+  };
+
+  const weekNumber = getCurrentWeekNumber() + (selectedWeek === "next" ? 1 : 0);
+  const year = new Date().getFullYear();
+  const weekText = `Uke ${weekNumber}, ${year}`;
+
+  const toggleDay = (day: string) => {
+    setSelectedDays(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+    );
+  };
+
+  const selectWeekdays = () => {
+    setSelectedDays(["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag"]);
+  };
+
+  const selectWeekend = () => {
+    setSelectedDays(["Lørdag", "Søndag"]);
+  };
+
+  const selectAll = () => {
+    setSelectedDays([...DAYS]);
+  };
+
+  const clearAll = () => {
+    setSelectedDays([]);
+  };
+
+  // Konverter SubTask til StudyBlock og fordel over valgte dager
+  const handleAdd = () => {
+    if (selectedDays.length === 0) {
+      showToast.error("Velg minst én dag");
+      return;
+    }
+
+    // Fordel oppgaver jevnt over valgte dager
+    const blocks: StudyBlock[] = subtasks.map((task, index) => {
+      const dayIndex = index % selectedDays.length;
+      const day = selectedDays[dayIndex];
+
+      return {
+        day,
+        timeSlot: startTime,
+        task: task.title,
+        duration: task.estimatedTime,
+        priority: task.priority as "high" | "medium" | "low",
+        courseName: assignmentTitle,
+        assignmentId: undefined,
+        completed: false,
+      };
+    });
+
+    // Beregn totalHours fra estimatedTime (f.eks. "2t" -> 2, "1.5t" -> 1.5)
+    const totalHours = subtasks.reduce((sum, task) => {
+      const match = task.estimatedTime.match(/(\d+\.?\d*)/);
+      const hours = match ? parseFloat(match[1]) : 0;
+      return sum + hours;
+    }, 0);
+
+    // Opprett arbeidsplan
+    createPlan(
+      {
+        week: weekText,
+        weekNumber,
+        year,
+        blocks,
+        totalHours,
+      },
+      {
+        onSuccess: () => {
+          showToast.success(
+            `${subtasks.length} oppgaver lagt til i ${weekText}!`,
+            "Gå til Oversikt for å se din arbeidsplan"
+          );
+          onClose();
+        },
+        onError: (error: unknown) => {
+          console.error("Feil ved opprettelse av arbeidsplan:", error);
+          showToast.error(
+            "Kunne ikke legge til i arbeidsplan",
+            "Prøv igjen eller kontakt support hvis feilen vedvarer"
+          );
+        },
+      }
+    );
+  };
+
+  // Beregn fordeling
+  const tasksPerDay = selectedDays.reduce((acc, day) => {
+    const count = subtasks.filter((_, i) => selectedDays[i % selectedDays.length] === day).length;
+    acc[day] = count;
+    return acc;
+  }, {} as Record<string, number>);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+              <Calendar className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                Legg til i arbeidsplan
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {subtasks.length} deloppgaver fra {assignmentTitle}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <X className="w-5 h-5 text-slate-500 dark:text-slate-400" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+          {/* Velg uke */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-900 dark:text-white mb-3">
+              Velg uke
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setSelectedWeek("current")}
+                className={`p-4 rounded-lg border-2 transition-all ${
+                  selectedWeek === "current"
+                    ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
+                    : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-slate-900 dark:text-white">
+                    Denne uken
+                  </span>
+                  {selectedWeek === "current" && (
+                    <CheckCircle2 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  )}
+                </div>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  Uke {weekNumber}, {year}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setSelectedWeek("next")}
+                className={`p-4 rounded-lg border-2 transition-all ${
+                  selectedWeek === "next"
+                    ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
+                    : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-slate-900 dark:text-white">
+                    Neste uke
+                  </span>
+                  {selectedWeek === "next" && (
+                    <CheckCircle2 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  )}
+                </div>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  Uke {weekNumber + 1}, {year}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Velg starttid */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-900 dark:text-white mb-3">
+              Standard starttid
+            </label>
+            <select
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            >
+              {TIME_SLOTS.map((slot) => (
+                <option key={slot} value={slot}>
+                  {slot}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Velg dager */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-semibold text-slate-900 dark:text-white">
+                Velg dager å fordele over
+              </label>
+              <div className="flex gap-2">
+                <button
+                  onClick={selectWeekdays}
+                  className="text-xs px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Ukedager
+                </button>
+                <button
+                  onClick={selectWeekend}
+                  className="text-xs px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Helg
+                </button>
+                <button
+                  onClick={selectAll}
+                  className="text-xs px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Alle
+                </button>
+                <button
+                  onClick={clearAll}
+                  className="text-xs px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Ingen
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {DAYS.map((day) => {
+                const count = tasksPerDay[day] || 0;
+                const isSelected = selectedDays.includes(day);
+
+                return (
+                  <button
+                    key={day}
+                    onClick={() => toggleDay(day)}
+                    className={`p-3 rounded-lg border-2 transition-all ${
+                      isSelected
+                        ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
+                        : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-slate-900 dark:text-white">
+                        {day.slice(0, 3)}
+                      </span>
+                      {isSelected && count > 0 && (
+                        <span className="text-xs font-bold text-purple-600 dark:text-purple-400">
+                          {count}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Preview */}
+          {selectedDays.length > 0 && (
+            <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+              <div className="flex items-start gap-3">
+                <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                    Automatisk fordeling
+                  </h4>
+                  <p className="text-xs text-blue-700 dark:text-blue-300 mb-2">
+                    Dine {subtasks.length} deloppgaver vil bli fordelt jevnt over {selectedDays.length} valgte dager.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedDays.map((day) => {
+                      const count = tasksPerDay[day] || 0;
+                      if (count === 0) return null;
+                      return (
+                        <div
+                          key={day}
+                          className="px-2 py-1 rounded bg-white dark:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300"
+                        >
+                          {day}: {count} oppg.
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+          <button
+            onClick={onClose}
+            disabled={isPending}
+            className="px-4 py-2 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+          >
+            Avbryt
+          </button>
+          <button
+            onClick={handleAdd}
+            disabled={isPending || selectedDays.length === 0}
+            className="flex items-center gap-2 px-6 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
+          >
+            {isPending ? (
+              <>
+                <Clock className="w-4 h-4 animate-spin" />
+                Legger til...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-4 h-4" />
+                Legg til i {weekText}
+              </>
+            )}
+          </button> 
+        </div>
+      </div>
+    </div>
+  );
+} 
