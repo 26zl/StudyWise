@@ -6,36 +6,10 @@
 import { Router, Request, Response } from "express";
 import { Arbeidsplan, type IStudyBlock } from "../../database/models/arbeidsplan.js";
 import { requireUserId, sendZodError, sendUnknownError, apiError } from "../../utils/apiError.js";
-import { getWeekNumber } from "common/dateUtils";
-import { z } from "zod";
+import { getWeekNumber, parseTimerStreng } from "common/dateUtils";
+import { CreateArbeidsplanSchema, UpdateBlockSchema } from "common/arbeidsplan";
 
 const router = Router();
-
-// Zod schemas for validering
-const StudyBlockSchema = z.object({
-  day: z.string(),
-  timeSlot: z.string(),
-  task: z.string(),
-  duration: z.string(),
-  priority: z.enum(["high", "medium", "low"]),
-  courseName: z.string(),
-  assignmentId: z.string().optional(),
-  completed: z.boolean().default(false),
-  completedAt: z.string().optional(),
-});
-
-const CreateArbeidsplanSchema = z.object({
-  week: z.string(),
-  weekNumber: z.number().int().min(1).max(53),
-  year: z.number().int().min(2020).max(2100),
-  blocks: z.array(StudyBlockSchema),
-  totalHours: z.number(),
-}); 
-
-const UpdateBlockSchema = z.object({
-  blockIndex: z.number().int().min(0),
-  completed: z.boolean(),
-});
 
 /**
  * POST /api/arbeidsplan
@@ -148,8 +122,11 @@ router.get("/stats/progress", async (req: Request, res: Response) => {
       ? Math.round((completedBlocks / totalBlocks) * 100)
       : 0;
 
-    const hoursPerBlock = totalBlocks > 0 ? plan.totalHours / totalBlocks : 0;
-    const completedHours = Math.round(completedBlocks * hoursPerBlock * 10) / 10;
+    const completedHours = Math.round(
+      plan.blocks
+        .filter((b) => b.completed)
+        .reduce((sum, b) => sum + parseTimerStreng(b.duration), 0) * 10
+    ) / 10;
 
     res.json({
       suksess: true,

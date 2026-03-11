@@ -4,17 +4,10 @@
  */
 
 import mongoose, { Schema, Document } from "mongoose";
+import type { StudyBlock } from "common/arbeidsplan";
 
-// Interface for StudyBlock (enkelt studiepass)
-export interface IStudyBlock {
-  day: string; // "Mandag", "Tirsdag", etc.
-  timeSlot: string; // "08:00-10:00"
-  task: string; // Oppgavetittel
-  duration: string; // "2 timer"
-  priority: "high" | "medium" | "low";
-  courseName: string;
-  assignmentId?: string; // Kobling til Canvas assignment (valgfri)
-  completed: boolean;
+// Mongoose-variant med Date i stedet for string for completedAt
+export interface IStudyBlock extends Omit<StudyBlock, "completedAt"> {
   completedAt?: Date;
 }
 

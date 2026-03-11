@@ -13,3 +13,9 @@ export function getWeekNumber(date: Date): number {
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
     return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
+
+/** Parse tidsstreng til antall timer (f.eks. "2t" → 2, "1.5t" → 1.5, "30min" → 0.5) */
+export function parseTimerStreng(tid: string): number {
+    const match = tid.match(/(\d+\.?\d*)/);
+    return match ? parseFloat(match[1]) : 0;
+}

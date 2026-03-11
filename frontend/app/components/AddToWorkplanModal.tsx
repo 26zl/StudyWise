@@ -7,6 +7,8 @@
 import { useState } from "react";
 import { X, Calendar, Clock, CheckCircle2, Sparkles } from "lucide-react";
 import type { SubTask } from "common/ki";
+import { getWeekNumber, parseTimerStreng } from "common/dateUtils";
+import { UKEDAGER } from "common/arbeidsplan";
 import { useCreateArbeidsplan, type StudyBlock } from "../arbeidsplan/arbeidsplan-api";
 import { showToast } from "./Toaster";
 
@@ -16,8 +18,6 @@ interface AddToWorkplanModalProps {
   subtasks: SubTask[];
   assignmentTitle: string;
 }
-
-const DAYS = ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag", "Søndag"];
 
 const TIME_SLOTS = [
   "08:00-10:00",
@@ -37,22 +37,17 @@ export function AddToWorkplanModal({
 }: AddToWorkplanModalProps) {
   const [selectedWeek, setSelectedWeek] = useState<"current" | "next">("current");
   const [selectedDays, setSelectedDays] = useState<string[]>(["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag"]);
-  const [startTime, setStartTime] = useState("09:00-11:00");
+  const [startTime, setStartTime] = useState("08:00-10:00");
   
   const { mutate: createPlan, isPending } = useCreateArbeidsplan();
 
   if (!isOpen) return null;
 
-  // Beregn uke-tekst
-  const getCurrentWeekNumber = () => {
-    const now = new Date();
-    const startOfYear = new Date(now.getFullYear(), 0, 1);
-    const days = Math.floor((now.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
-    return Math.ceil((days + startOfYear.getDay() + 1) / 7);
-  };
-
-  const weekNumber = getCurrentWeekNumber() + (selectedWeek === "next" ? 1 : 0);
-  const year = new Date().getFullYear();
+  // Beregn uke-tekst med ISO 8601-korrekt ukenummer
+  const now = new Date();
+  const baseWeekNumber = getWeekNumber(now);
+  const year = now.getFullYear();
+  const weekNumber = baseWeekNumber + (selectedWeek === "next" ? 1 : 0);
   const weekText = `Uke ${weekNumber}, ${year}`;
 
   const toggleDay = (day: string) => {
@@ -70,7 +65,7 @@ export function AddToWorkplanModal({
   };
 
   const selectAll = () => {
-    setSelectedDays([...DAYS]);
+    setSelectedDays([...UKEDAGER]);
   };
 
   const clearAll = () => {
@@ -101,12 +96,7 @@ export function AddToWorkplanModal({
       };
     });
 
-    // Beregn totalHours fra estimatedTime (f.eks. "2t" -> 2, "1.5t" -> 1.5)
-    const totalHours = subtasks.reduce((sum, task) => {
-      const match = task.estimatedTime.match(/(\d+\.?\d*)/);
-      const hours = match ? parseFloat(match[1]) : 0;
-      return sum + hours;
-    }, 0);
+    const totalHours = subtasks.reduce((sum, task) => sum + parseTimerStreng(task.estimatedTime), 0);
 
     // Opprett arbeidsplan
     createPlan(
@@ -125,8 +115,7 @@ export function AddToWorkplanModal({
           );
           onClose();
         },
-        onError: (error: unknown) => {
-          console.error("Feil ved opprettelse av arbeidsplan:", error);
+        onError: () => {
           showToast.error(
             "Kunne ikke legge til i arbeidsplan",
             "Prøv igjen eller kontakt support hvis feilen vedvarer"
@@ -194,7 +183,7 @@ export function AddToWorkplanModal({
                   )}
                 </div>
                 <span className="text-xs text-slate-500 dark:text-slate-400">
-                  Uke {weekNumber}, {year}
+                  Uke {baseWeekNumber}, {year}
                 </span>
               </button>
 
@@ -215,7 +204,7 @@ export function AddToWorkplanModal({
                   )}
                 </div>
                 <span className="text-xs text-slate-500 dark:text-slate-400">
-                  Uke {weekNumber + 1}, {year}
+                  Uke {baseWeekNumber + 1}, {year}
                 </span>
               </button>
             </div>
@@ -274,7 +263,7 @@ export function AddToWorkplanModal({
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {DAYS.map((day) => {
+              {UKEDAGER.map((day) => {
                 const count = tasksPerDay[day] || 0;
                 const isSelected = selectedDays.includes(day);
 

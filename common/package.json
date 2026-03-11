@@ -44,6 +44,10 @@
     "./dateUtils": {
       "types": "./dist/dateUtils.d.ts",
       "import": "./dist/dateUtils.js"
+    },
+    "./arbeidsplan": {
+      "types": "./dist/arbeidsplan.d.ts",
+      "import": "./dist/arbeidsplan.js"
     }
   },
   "scripts": {

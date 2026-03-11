@@ -6,15 +6,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { withCsrfProtection } from "../lib/csrf";
+import type { StudyBlock } from "common/arbeidsplan";
+import { UKEDAGER } from "common/arbeidsplan";
+export const DAYS_ORDER: string[] = [...UKEDAGER];
+export type { StudyBlock } from "common/arbeidsplan";
 
-// Delte konstanter for arbeidsplan-komponenter
+// Delte Tailwind-klasser for arbeidsplan-komponenter
 export const PRIORITY_COLORS = {
   high: "bg-red-100 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300",
   medium: "bg-yellow-100 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-300",
   low: "bg-green-100 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-300",
 } as const;
-
-export const DAYS_ORDER = ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag", "Søndag"];
 
 export const PRIORITY_LABELS: Record<string, string> = {
   high: "Høy",
@@ -22,19 +24,7 @@ export const PRIORITY_LABELS: Record<string, string> = {
   low: "Lav",
 };
 
-// Typer
-export interface StudyBlock {
-  day: string;
-  timeSlot: string;
-  task: string;
-  duration: string;
-  priority: "high" | "medium" | "low";
-  courseName: string;
-  assignmentId?: string;
-  completed: boolean;
-  completedAt?: string;
-}
-
+// Frontend-spesifikk type med _id og timestamps fra MongoDB
 export interface Arbeidsplan {
   _id: string;
   userId: string;

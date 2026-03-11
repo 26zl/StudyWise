@@ -21,10 +21,12 @@ import {
   CheckCircle2,
   Calendar as CalendarIcon
 } from "lucide-react";
+import { parseTimerStreng } from "common/dateUtils";
+import type { SubTask } from "common/ki";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { showToast } from "./Toaster";
 import { AddToWorkplanModal } from "./AddToWorkplanModal";
-import type { SubTask } from "common/ki";
+import { PRIORITY_COLORS, PRIORITY_LABELS } from "../arbeidsplan/arbeidsplan-api";
 
 // UI-state utvider SubTask med godkjenningsstatus
 interface SubTaskUI extends SubTask {
@@ -51,9 +53,10 @@ interface ProgressStats {
 }
 
 export function AITaskBreakdown({
-  assignmentTitle: _assignmentTitle,
+  assignmentTitle,
   assignmentDescription: _assignmentDescription,
-  dueDate: _dueDate, 
+  dueDate: _dueDate,
+  onSave,
 }: AITaskBreakdownProps) {
   const [subtasks, setSubtasks] = useState<SubTaskUI[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -82,16 +85,10 @@ export function AITaskBreakdown({
     const percentageApproved = total > 0 ? Math.round((approved / total) * 100) : 0;
     const percentageCompleted = approved > 0 ? Math.round((completed / approved) * 100) : 0;
     
-    // Parse estimated time (f.eks. "2t" -> 2, "1.5t" -> 1.5)
-    const parseTime = (time: string): number => {
-      const match = time.match(/(\d+\.?\d*)/);
-      return match ? parseFloat(match[1]) : 0;
-    };
-    
-    const totalEstimatedHours = subtasks.reduce((sum, t) => sum + parseTime(t.estimatedTime), 0);
+    const totalEstimatedHours = subtasks.reduce((sum, t) => sum + parseTimerStreng(t.estimatedTime), 0);
     const completedHours = subtasks
       .filter(t => t.completed)
-      .reduce((sum, t) => sum + parseTime(t.estimatedTime), 0);
+      .reduce((sum, t) => sum + parseTimerStreng(t.estimatedTime), 0);
     
     return {
       total,
@@ -177,9 +174,11 @@ export function AITaskBreakdown({
   };
 
   const approveAll = () => {
-    setSubtasks(subtasks.map(t => ({ ...t, approved: true })));
+    const approved = subtasks.map(t => ({ ...t, approved: true }));
+    setSubtasks(approved);
     setShowApprovalPrompt(false);
     showToast.success("Alle deloppgaver godkjent!");
+    onSave?.(approved.map(({ approved: _a, ...rest }) => rest));
   };
 
   const rejectAll = () => {
@@ -239,17 +238,6 @@ export function AITaskBreakdown({
     setSubtasks(subtasks.filter(t => t.id !== id));
   };
 
-  const priorityColors = {
-    low: "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700",
-    medium: "bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700",
-    high: "bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700",
-  };
-
-  const priorityLabels = {
-    low: "Lav",
-    medium: "Middels",
-    high: "Høy",
-  };
 
   return (
     <div className="space-y-4">
@@ -521,8 +509,8 @@ export function AITaskBreakdown({
                           {task.title}
                         </h4>
                         <div className="flex items-center gap-2 shrink-0">
-                          <span className={`px-2 py-1 rounded text-xs font-medium border ${priorityColors[task.priority]}`}>
-                            {priorityLabels[task.priority]}
+                          <span className={`px-2 py-1 rounded text-xs font-medium border ${PRIORITY_COLORS[task.priority]}`}>
+                            {PRIORITY_LABELS[task.priority]}
                           </span>
                           <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                             <Clock className="w-3.5 h-3.5" />
@@ -598,7 +586,7 @@ export function AITaskBreakdown({
         isOpen={showWorkplanModal}
         onClose={() => setShowWorkplanModal(false)}
         subtasks={subtasks.filter(t => t.approved).map(({ approved: _approved, ...rest }) => rest)}
-        assignmentTitle={_assignmentTitle}
+        assignmentTitle={assignmentTitle}
       />
     </div>
   );

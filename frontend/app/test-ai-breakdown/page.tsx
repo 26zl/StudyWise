@@ -148,7 +148,7 @@ export default function TestPage() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-xl bg-linear-to-br from-purple-500 to-blue-500 flex items-center justify-center">
                     <Sparkles className="w-6 h-6 text-white" />
                   </div>
                   <div>
@@ -292,7 +292,7 @@ export default function TestPage() {
             </div>
 
             {/* Footer */}
-            <div className="mt-12 p-6 rounded-xl bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 border border-purple-200 dark:border-purple-800">
+            <div className="mt-12 p-6 rounded-xl bg-linear-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 border border-purple-200 dark:border-purple-800">
               <div className="flex items-start gap-4">
                 <Sparkles className="w-6 h-6 text-purple-600 dark:text-purple-400 shrink-0 mt-1" />
                 <div>
