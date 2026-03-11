@@ -52,6 +52,9 @@ const SYNC_CONCURRENCY = 3;
 /** Minimum intervall mellom synkroniseringer per bruker (sekunder) */
 const MIN_SYNC_INTERVAL_S = 300; // 5 minutter
 
+/** TTL for sync-status flagg i Redis */
+const SYNC_STATUS_TTL = 300;
+
 /** Maks antall filer å ekstrahere per synkronisering */
 const MAX_FILES_PER_SYNC = 20;
 
@@ -104,6 +107,11 @@ export function userKey(userId: string, ...parts: string[]): string {
   return `canvas:user:${userId}:${parts.join(":")}`;
 }
 
+/** Redis-nøkkel for sync-status ("running" | "done") */
+function syncStatusKey(userId: string): string {
+  return userKey(userId, "sync", "status");
+}
+
 // ─── Hovedfunksjon ─────────────────────────────────────────
 
 /**
@@ -132,10 +140,19 @@ export async function syncCanvasDataForUser(
 
   const promise = _doSync(userId, canvasToken, baseUrl);
   activeSyncs.set(userId, promise);
+
+  // Sett Redis sync-status til "running" slik at andre prosesser kan polle
+  if (isRedisReady()) {
+    await setCache(syncStatusKey(userId), "running", SYNC_STATUS_TTL).catch(() => {});
+  }
+
   try {
     return await promise;
   } finally {
     activeSyncs.delete(userId);
+    if (isRedisReady()) {
+      await setCache(syncStatusKey(userId), "done", SYNC_STATUS_TTL).catch(() => {});
+    }
   }
 }
 
