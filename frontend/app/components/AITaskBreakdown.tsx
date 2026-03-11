@@ -1,8 +1,9 @@
 /*
- * AITaskBreakdown - KOMPLETT VERSJON
+ * AITaskBreakdown - MED EKTE CLAUDE AI
  * - Progress tracking med stats
  * - Arbeidsplan-integrasjon
  * - Godkjenn/avvis funksjonalitet
+ * - EKTE AI-generering (ingen mock!)
  */
 "use client";
 
@@ -26,6 +27,7 @@ import type { SubTask } from "common/ki";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { showToast } from "./Toaster";
 import { AddToWorkplanModal } from "./AddToWorkplanModal";
+import { useKIChat } from "../ki/ki-api";
 import { PRIORITY_COLORS, PRIORITY_LABELS } from "../arbeidsplan/arbeidsplan-api";
 
 // UI-state utvider SubTask med godkjenningsstatus
@@ -54,8 +56,8 @@ interface ProgressStats {
 
 export function AITaskBreakdown({
   assignmentTitle,
-  assignmentDescription: _assignmentDescription,
-  dueDate: _dueDate,
+  assignmentDescription,
+  dueDate,
   onSave,
 }: AITaskBreakdownProps) {
   const [subtasks, setSubtasks] = useState<SubTaskUI[]>([]);
@@ -66,13 +68,12 @@ export function AITaskBreakdown({
   const [showApprovalPrompt, setShowApprovalPrompt] = useState(false);
   const [showWorkplanModal, setShowWorkplanModal] = useState(false);
   const isMountedRef = useRef(true);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { sendMelding } = useKIChat();
 
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, []);
 
@@ -104,65 +105,85 @@ export function AITaskBreakdown({
 
   const stats = calculateProgress();
 
-  // Generer deloppgaver med AI
+  // Generer deloppgaver med EKTE AI
   const generateSubtasks = () => {
     setIsGenerating(true);
 
-    timeoutRef.current = setTimeout(() => {
-      if (!isMountedRef.current) return;
-      const mockSubtasks: SubTaskUI[] = [
-        {
-          id: `task-${Date.now()}-1`,
-          title: "Research og kildeinnsamling",
-          description: "Finn 5-7 relevante fagartikler og noter nøkkelpunkter fra pensum",
-          estimatedTime: "2t",
-          priority: "high",
-          completed: false,
-          approved: false,
-        },
-        {
-          id: `task-${Date.now()}-2`,
-          title: "Lage disposisjon",
-          description: "Strukturer oppgaven i logiske seksjoner basert på pensum og krav",
-          estimatedTime: "1t",
-          priority: "high",
-          completed: false,
-          approved: false,
-        },
-        {
-          id: `task-${Date.now()}-3`,
-          title: "Skriv introduksjon",
-          description: "Presenter problemstilling og gi oversikt over oppgavens struktur",
-          estimatedTime: "1.5t",
-          priority: "medium",
-          completed: false,
-          approved: false,
-        },
-        {
-          id: `task-${Date.now()}-4`,
-          title: "Hovedtekst - Implementasjon",
-          description: "Skriv hovedinnhold med teori, kode og analyse",
-          estimatedTime: "4t",
-          priority: "high",
-          completed: false,
-          approved: false,
-        },
-        {
-          id: `task-${Date.now()}-5`,
-          title: "Konklusjon og sammendrag",
-          description: "Oppsummer funn og reflekter over læring",
-          estimatedTime: "1t",
-          priority: "medium",
-          completed: false,
-          approved: false,
-        },
-      ];
+    const prompt = `Du er en ekspert studieveileder. Analyser følgende oppgave og bryt den ned i 4-6 konkrete deloppgaver.
 
-      setSubtasks(mockSubtasks);
-      setShowEditor(true);
-      setShowApprovalPrompt(true);
-      setIsGenerating(false);
-    }, 2000);
+OPPGAVE:
+Tittel: ${assignmentTitle}
+Beskrivelse: ${assignmentDescription || "Ingen beskrivelse"}
+Frist: ${dueDate ? dueDate.toLocaleDateString("nb-NO") : "Ikke spesifisert"}
+
+INSTRUKSJONER:
+- Lag 4-6 deloppgaver som er logisk ordnet (f.eks. research først, implementering midten, testing/dokumentasjon sist)
+- Hver deloppgave skal ha:
+  * En kort, klar tittel (maks 50 tegn)
+  * En beskrivende tekst (2-3 setninger)
+  * Estimert tid i timer (f.eks. "2t", "1.5t", "3t")
+  * Prioritet: "high", "medium", eller "low"
+- Vær realistisk med tidsestimat
+- Tilpass til studentnivå (bachelor/master)
+
+Svar KUN med et JSON-array i dette formatet (ingen ekstra tekst):
+[
+  {
+    "title": "Tittel her",
+    "description": "Beskrivelse her",
+    "estimatedTime": "2t",
+    "priority": "high"
+  }
+]`;
+
+    sendMelding(
+      [{ role: "user", content: prompt }],
+      {
+        temperature: 0.7,
+        onSuccess: (data) => {
+          try {
+            // Parse Claude's response
+            let jsonText = data.response;
+            
+            // Fjern markdown code blocks hvis de finnes
+            jsonText = jsonText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+            
+            const parsedTasks = JSON.parse(jsonText);
+            
+            if (!Array.isArray(parsedTasks)) {
+              throw new Error("Response is not an array");
+            }
+
+            // Konverter til SubTaskUI format
+            const aiSubtasks: SubTaskUI[] = parsedTasks.map((task, index) => ({
+              id: `task-${Date.now()}-${index}`,
+              title: task.title || "Untitled Task",
+              description: task.description || "",
+              estimatedTime: task.estimatedTime || "1t",
+              priority: (task.priority as "low" | "medium" | "high") || "medium",
+              completed: false,
+              approved: false,
+            }));
+
+            if (!isMountedRef.current) return;
+            setSubtasks(aiSubtasks);
+            setShowEditor(true);
+            setShowApprovalPrompt(true);
+            setIsGenerating(false);
+            showToast.success(`Claude genererte ${aiSubtasks.length} deloppgaver!`);
+          } catch (error) {
+            console.error("Failed to parse AI response:", error);
+            setIsGenerating(false);
+            showToast.error("Kunne ikke tolke AI-responsen. Prøv igjen.");
+          }
+        },
+        onError: (error) => {
+          console.error("AI generation failed:", error);
+          setIsGenerating(false);
+          showToast.error("KI-generering feilet. Prøv igjen.");
+        },
+      }
+    );
   };
 
   const approveTask = (id: string) => {
@@ -238,7 +259,6 @@ export function AITaskBreakdown({
     setSubtasks(subtasks.filter(t => t.id !== id));
   };
 
-
   return (
     <div className="space-y-4">
       {/* Generate Button */}
@@ -253,7 +273,7 @@ export function AITaskBreakdown({
               <>
                 <LoadingSpinner className="w-5 h-5" />
                 <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                  Genererer deloppgaver...
+                  Genererer deloppgaver med AI...
                 </span>
               </>
             ) : (
@@ -342,7 +362,7 @@ export function AITaskBreakdown({
                 <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400 mt-0.5 shrink-0" />
                 <div className="flex-1">
                   <h4 className="text-sm font-semibold text-purple-900 dark:text-purple-100 mb-1">
-                    AI har generert {subtasks.length} deloppgaver for deg
+                    Claude AI har generert {subtasks.length} deloppgaver for deg
                   </h4>
                   <p className="text-xs text-purple-700 dark:text-purple-300 mb-3">
                     Gå gjennom forslagene og godkjenn, avvis, eller rediger dem etter din arbeidsstil.
@@ -404,7 +424,7 @@ export function AITaskBreakdown({
                 Ny oppgave
               </button>
 
-              {/* ARBEIDSPLAN KNAPP - NY! */}
+              {/* ARBEIDSPLAN KNAPP */}
               {stats.approved > 0 && (
                 <button
                   onClick={() => setShowWorkplanModal(true)}
@@ -581,7 +601,7 @@ export function AITaskBreakdown({
         </div>
       )}
 
-      {/* ARBEIDSPLAN MODAL - NY! */}
+      {/* ARBEIDSPLAN MODAL */}
       <AddToWorkplanModal
         isOpen={showWorkplanModal}
         onClose={() => setShowWorkplanModal(false)}
