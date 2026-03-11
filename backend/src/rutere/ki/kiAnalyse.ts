@@ -25,15 +25,11 @@ import { STUDYWISE_SYSTEM_PROMPT, STUDYWISE_DOCUMENT_PROMPT } from "./systemProm
 /** Send SSE-feilrespons og avslutt strømmen */
 function sendSSEFeil(res: Response, melding: string, keepaliveInterval: ReturnType<typeof setInterval>): void {
     clearInterval(keepaliveInterval);
-    res.contentType("application/json").write(
-      `data: ${JSON.stringify(
-        KIDocumentAnalyseResponseSchema.parse({
-          suksess: false,
-          melding,
-          response: "",
-        }),
-      )}\n\n`,
-    );
+    res.write(`data: ${JSON.stringify(KIDocumentAnalyseResponseSchema.parse({
+        suksess: false,
+        melding,
+        response: "",
+    }))}\n\n`);
     res.end();
 }
 
@@ -148,7 +144,8 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
             }
 
             if (!docResult.success) {
-                sendSSEFeil(res, docResult.error || "Kunne ikke lese dokumentet.", keepaliveInterval);
+                logger.warn({ parseError: docResult.error }, "Dokument-parsing feilet");
+                sendSSEFeil(res, "Kunne ikke lese dokumentet. Prøv et annet format.", keepaliveInterval);
                 return;
             }
 
