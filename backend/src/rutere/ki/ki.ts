@@ -16,6 +16,7 @@ import {
 } from "common/ki";
 import { kiHistoryRouter } from "./kiHistory.js";
 import { kiAnalyseRouter } from "./kiAnalyse.js";
+import { kiShareRouter } from "./kiShare.js";
 import { SUPPORTED_MODELS, DEFAULT_MODEL, resolveModel } from "./aiModels.js";
 import { STUDYWISE_SYSTEM_PROMPT } from "./systemPrompt.js";
 import { chatCompletion, isClientAvailable, getMissingClientError } from "./aiClient.js";
@@ -220,6 +221,8 @@ const router = Router();
 router.use(rateLimitKi);
 // Chat historikk ruter
 router.use(kiHistoryRouter);
+// Deling av chat
+router.use(kiShareRouter);
 // Dokumentanalyse ruter
 router.use(kiAnalyseRouter);
 

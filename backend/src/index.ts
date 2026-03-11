@@ -35,6 +35,7 @@ import brukerAuthRuter from "./rutere/auth/brukerAuth.js";
 import taskBreakdownRouter from "./rutere/ki/taskBreakdown.js";
 import { kiOppsummeringRouter } from "./rutere/ki/kiOppsummering.js";
 import debugRouter from "./rutere/debug/canvasDiagnostic.js";
+import { sharedChatRouter } from "./rutere/ki/kiShare.js";
 import { autentiserJwt, knyttCanvasToken } from "./middleware/auth.js";
 import { beskytteMotCsrf } from "./middleware/csrf.js";
 import { noCache } from "./middleware/no-cache.js";
@@ -224,8 +225,13 @@ const offentligSti = new Set([
   "/api/user/refresh",
   "/health",
 ]);
+
+// Offentlig delt-samtale-rute (før auth-middleware, men etter CORS/CSRF)
+app.use("/api", sharedChatRouter);
 app.use((req, res, next) => {
   if (offentligSti.has(req.path)) return next();
+  // Tillat delte samtaler (offentlig lesbar)
+  if (req.path.startsWith("/api/shared/") && req.method === "GET") return next();
   // Tillat Swagger UI (kun i development)
   if (!isProd && req.path.startsWith("/api-docs")) return next();
   return autentiserJwt(req, res, next);

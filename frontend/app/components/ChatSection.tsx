@@ -21,6 +21,7 @@ import { useChatHistory } from "../hooks/useChatHistory";
 import { FeilMelding, type FeilMeldingType } from "./FeilMelding";
 import { useUIStore } from "../store/uiStore";
 import { exportToMarkdown } from "../utils/exportChat";
+import { withCsrfProtection } from "../lib/csrf";
 
 /** Én melding i chatten (bruker eller assistent), med id og evt. vedleggsnavn. */
 interface Melding {
@@ -1121,7 +1122,25 @@ export function ChatSection() {
                                         <div className="flex items-center gap-0.5">
                                             <button
                                                 type="button"
-                                                onClick={() => showToast.info("Del-funksjon kommer snart")}
+                                                onClick={async () => {
+                                                    if (!aktivChatId) {
+                                                        showToast.info("Lagre samtalen først for å dele den.");
+                                                        return;
+                                                    }
+                                                    try {
+                                                        const res = await fetch(`/api/ki/chat/${aktivChatId}/share`, {
+                                                            credentials: "include",
+                                                            ...withCsrfProtection({ method: "POST" }),
+                                                        });
+                                                        if (!res.ok) throw new Error();
+                                                        const data = await res.json();
+                                                        const fullUrl = `${window.location.origin}${data.shareUrl}`;
+                                                        await navigator.clipboard.writeText(fullUrl);
+                                                        showToast.success("Delingslenke kopiert!");
+                                                    } catch {
+                                                        showToast.error("Kunne ikke dele samtalen");
+                                                    }
+                                                }}
                                                 className={actionBtnClass}
                                                 title="Del"
                                             >

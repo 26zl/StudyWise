@@ -48,8 +48,24 @@ export const ChatHistoryResponseSchema = z.object({
     })
     .optional(),
 });
+
+// Schema for delt chat-respons (offentlig, kun lesbar)
+export const SharedChatResponseSchema = z.object({
+  title: z.string(),
+  messages: z.array(ChatMessageSchema),
+  sharedAt: z.coerce.date(),
+  createdAt: z.coerce.date(),
+});
+
+// Schema for share-respons (returneres ved deling)
+export const ChatShareResponseSchema = z.object({
+  shareToken: z.string(),
+  shareUrl: z.string(),
+});
 // Type-definisjoner for chat-meldinger og historikk
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type ChatSavePayload = z.infer<typeof ChatSaveSchema>;
 export type ChatSaveResponse = z.infer<typeof ChatSaveResponseSchema>;
 export type ChatHistoryResponse = z.infer<typeof ChatHistoryResponseSchema>;
+export type SharedChatResponse = z.infer<typeof SharedChatResponseSchema>;
+export type ChatShareResponse = z.infer<typeof ChatShareResponseSchema>;
