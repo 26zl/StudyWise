@@ -11,7 +11,6 @@ import {
   Sparkles, 
   Edit2, 
   Check, 
-  X, 
   Plus, 
   Trash2, 
   RefreshCw, 
@@ -54,8 +53,7 @@ interface ProgressStats {
 export function AITaskBreakdown({
   assignmentTitle: _assignmentTitle,
   assignmentDescription: _assignmentDescription,
-  dueDate: _dueDate,
-  onSave,
+  dueDate: _dueDate, 
 }: AITaskBreakdownProps) {
   const [subtasks, setSubtasks] = useState<SubTaskUI[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -239,15 +237,6 @@ export function AITaskBreakdown({
 
   const deleteTask = (id: string) => {
     setSubtasks(subtasks.filter(t => t.id !== id));
-  };
-
-  const handleSave = () => {
-    const approvedTasks: SubTask[] = subtasks
-      .filter(t => t.approved)
-      .map(({ approved, ...rest }) => rest);
-    
-    onSave?.(approvedTasks);
-    showToast.success("Deloppgaver lagret!");
   };
 
   const priorityColors = {
@@ -614,5 +603,3 @@ export function AITaskBreakdown({
     </div>
   );
 } 
-
-
