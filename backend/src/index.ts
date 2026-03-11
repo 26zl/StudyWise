@@ -81,11 +81,21 @@ if (isProd) {
 }
 
 // Sikkerhets-headere via Helmet
-// I produksjon: Full CSP aktivert (Swagger er deaktivert)
+// I produksjon: Streng CSP for API-responses(Swagger deaktivert)
 // I development: CSP deaktivert for Swagger UI
 app.use(
   helmet({
-    contentSecurityPolicy: isProd ? undefined : false, // Default CSP i prod, deaktivert i dev
+    contentSecurityPolicy: isProd
+      ? {
+          directives: {
+            defaultSrc: ["'none'"],
+            frameAncestors: ["'none'"],
+            baseUri: ["'none'"],
+            formAction: ["'none'"],
+            upgradeInsecureRequests: [],
+          },
+        }
+      : false,
     crossOriginEmbedderPolicy: false,
     crossOriginResourcePolicy: { policy: "cross-origin" },
   }),
