@@ -685,7 +685,7 @@ router.post("/chat", async (req, res) => {
     if (res.writableEnded) return;
 
     // If SSE headers were already sent, send error via SSE
-    if (sseStarted && !res.writableEnded) {
+    if (sseStarted) {
       const errorMessage = error instanceof Error && error.message === "CHAT_TIMEOUT"
         ? "Chat-forespørselen tok for lang tid. Prøv igjen eller forenkle spørsmålet."
         : "Kunne ikke få svar fra KI-assistenten. Prøv igjen senere.";
