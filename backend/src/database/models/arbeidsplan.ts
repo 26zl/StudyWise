@@ -62,4 +62,5 @@ const ArbeidsplanSchema = new Schema(
 // Compound index for å finne brukerens plan for en spesifikk uke
 ArbeidsplanSchema.index({ userId: 1, year: 1, weekNumber: 1 }, { unique: true });
 
-export const Arbeidsplan = mongoose.model<IArbeidsplan>("Arbeidsplan", ArbeidsplanSchema);  
+// Collection-navn "arbeidsplan" (entall) — unngår engelsk flertall "arbeidsplans"
+export const Arbeidsplan = mongoose.model<IArbeidsplan>("Arbeidsplan", ArbeidsplanSchema, "arbeidsplan");  

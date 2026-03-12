@@ -21,8 +21,6 @@ const clientOptions: mongoose.ConnectOptions = {
         strict: true,
         deprecationErrors: true,
     },
-    // Tving SCRAM-SHA-256 (MongoDB 4.0+) — unngår MD5/SHA-1 i SCRAM-SHA-1 som flagges av sikkerhetsscannere
-    authMechanism: "SCRAM-SHA-256",
     // Connection pooling - optimalisert for ytelse
     maxPoolSize: isProd ? 50 : 10,        // Maks samtidige tilkoblinger
     minPoolSize: isProd ? 5 : 2,          // Minimum tilkoblinger (holdes åpne)

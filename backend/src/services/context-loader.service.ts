@@ -38,6 +38,7 @@ import {
   hasStoredContentForUser,
   isEmbeddingAvailable,
   vectorSearch,
+  type VectorSearchResult,
 } from "./embedding.service.js";
 
 // ─── Typer ─────────────────────────────────────────────────
@@ -502,15 +503,18 @@ async function byggKontekstFraChunks(
       return null;
     }
 
+    const CHUNK_QUERY_LIMIT = 1000;
     let allChunks = await getStoredChunksForCourses(userId, {
       courseIds: courseIds.length > 0 ? courseIds : undefined,
       moduleHint: target?.moduleHint,
       fileHint: target?.fileHint,
+      limit: CHUNK_QUERY_LIMIT,
     });
 
     if (allChunks.length === 0 && (target?.moduleHint || target?.fileHint)) {
       allChunks = await getStoredChunksForCourses(userId, {
         courseIds: courseIds.length > 0 ? courseIds : undefined,
+        limit: CHUNK_QUERY_LIMIT,
       });
     }
 
@@ -523,6 +527,7 @@ async function byggKontekstFraChunks(
         await waitForSync(userId, 6_000);
         allChunks = await getStoredChunksForCourses(userId, {
           courseIds: courseIds.length > 0 ? courseIds : undefined,
+          limit: CHUNK_QUERY_LIMIT,
         });
       }
 
@@ -591,18 +596,7 @@ async function byggKontekstFraChunks(
 }
 
 function filtrerVectorResultater(
-  results: Array<{
-    text: string;
-    score: number;
-    source: {
-      courseId: string;
-      courseName: string;
-      moduleTitle: string;
-      fileName: string;
-      fileId: number;
-    };
-    chunkIndex: number;
-  }>,
+  results: VectorSearchResult[],
   target?: TargetedQuery,
 ) {
   let filtered = results;
@@ -650,10 +644,17 @@ async function byggKontekstFraVectorSearch(
       return null;
     }
 
-    const results = await vectorSearch(userId, message, {
+    const { results, degraded } = await vectorSearch(userId, message, {
       limit: 8,
       courseIds: courseIds.length > 0 ? courseIds : undefined,
     });
+
+    // Degradert modus: Pinecone feilet — returner null slik at kalleren faller tilbake til keyword-søk
+    if (degraded) {
+      logger.info({ userId }, "Vector search degradert — faller tilbake til keyword-søk");
+      return null;
+    }
+
     const filteredResults = filtrerVectorResultater(results, target);
 
     if (filteredResults.length === 0) {

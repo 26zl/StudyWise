@@ -10,19 +10,32 @@ STUDYWISE - En KI-basert studieassistent for høyere utdanning med integrasjon m
 
 Produksjonsnettside - <https://www.studwize.page>
 
-> **Deploy:** Backend hos Heroku (Eco dyno), frontend hos Vercel. Cloudflare brukes for DDoS-beskyttelse, SSL/TLS og ytelse. Docker er kun for lokal utvikling — `docker compose up --build` kjører hele stacken lokalt.
+> **Deploy:** Backend på Heroku, frontend på Vercel, CDN og sikkerhet (Cloudflare), dokumentasjon på GitHub Pages.
 
 **Utvikling?** Les [CONTRIBUTING.md](./CONTRIBUTING.md) for detaljert guide om hvordan du skal kode og utvikle dette prosjektet.
 
-## Teknologi stack
+## Teknologi stack (Monorepo)
 
-- **Frontend**: Next.js 16 + TypeScript + Tailwind CSS v4 + React Query + Zustand + Zod + React Hook Form + nuqs (URL-synkronisert state for dashboard)
-- **Backend**: Express 5 + TypeScript + Redis + Pino + Helmet + Zod + Anthropic Claude
-- **Database**: MongoDB (Atlas/Lokal) + Redis (Cloud/Lokal) + Pinecone (vektorsøk og integrated embedding for kursinnhold)
-- **Common**: Delte Zod schemas og feiltyper (frontend + backend)
-- **Docs**: VitePress-dokumentasjon (endringslogg føres ikke lenger; se git-historikk for endringer)
-- **Pakkehåndtering**: pnpm workspace (monorepo)
-- **Autentisering**: JWT (access + refresh tokens)
+### Frontend
+
+- **Ramme**: Next.js 16, React 19, TypeScript 5.9, App Router
+- **Styling**: Tailwind CSS v4 (`@tailwindcss/postcss`), next-themes (dark mode)
+- **State**: TanStack React Query v5 (server), Zustand (klient), nuqs (URL-synkronisert state, f.eks. dashboard `?view=`)
+- **Skjemaer**: react-hook-form, @hookform/resolvers, Zod
+- **UI**: Lucide React, Sonner (toast), Vercel Speed Insights
+- **Observability**: Datadog RUM for brukeropplevelse, sesjonsinnspilling og feilsporing i frontend
+
+### Backend
+
+- **Ramme**: Express 5, Node.js 20+, TypeScript (tsx i dev, node i prod)
+- **Database**: MongoDB via Mongoose v9 for persistering og indekser
+- **Cache**: Redis for Canvas API-cache, sync-struktur, KI-sesjon og rate limiting. PDF/fil-innhold lagres kun i MongoDB.
+- **Vektorsøk**: Pinecone (serverless, integrated embedding); chunk-tekst i MongoDB som sannhetskilde
+- **KI**: Anthropic Claude, circuit breakers, request timeout
+- **API**: Swagger UI + swagger-jsdoc, compression, Helmet, CORS
+- **Logging**: Pino + pino-http (redakterer PII)
+- **Filer**: Multer; tekst fra PDF/Word (unpdf, mammoth), OCR (tesseract.js, sharp)
+- **Observability**: Datadog APM (dd-trace) for tracing, runtime metrics og log-korrelasjon
 
 ## Kom i gang
 
@@ -85,7 +98,7 @@ pnpm kill:dev             # Stopp alle Node prosesser (Windows)
 pnpm run update           # Oppdater alle pakker
 
 # Docker (kun lokal utvikling)
-docker compose up --build # Starter MongoDB, Redis, backend og frontend
+docker compose up --build # Starter MongoDB, Redis, backend og frontend (alle med security_opt: no-new-privileges)
 ```
 
 ## Utviklingsservere

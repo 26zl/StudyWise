@@ -25,6 +25,7 @@ import { STUDYWISE_SYSTEM_PROMPT, STUDYWISE_DOCUMENT_PROMPT } from "./systemProm
 /** Send SSE-feilrespons og avslutt strømmen */
 function sendSSEFeil(res: Response, melding: string, keepaliveInterval: ReturnType<typeof setInterval>): void {
     clearInterval(keepaliveInterval);
+    if (res.writableEnded) return;
     res.write(`data: ${JSON.stringify(KIDocumentAnalyseResponseSchema.parse({
         suksess: false,
         melding,

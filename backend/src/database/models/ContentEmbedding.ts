@@ -4,6 +4,9 @@
  * Brukes til:
  * - keyword-basert søk og rekonstruksjon av filkontekst
  * - id-referanse for semantisk søk (vektorer lagres i Pinecone, ikke her)
+ *
+ * Merk: Modellnavnet beholdes som "ContentEmbedding" for bakoverkompatibilitet
+ * med eksisterende MongoDB-collection. Vektorer lagres kun i Pinecone.
  */
 
 import mongoose, { Schema, type Document } from "mongoose";
@@ -19,8 +22,6 @@ export interface IContentEmbedding extends Document {
   chunkIndex: number;
   /** Selve tekstinnholdet i chunken */
   text: string;
-  /** Ubrukt etter overgang til Pinecone; beholdt for ev. migrering */
-  embedding?: number[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,7 +37,6 @@ const ContentEmbeddingSchema = new Schema<IContentEmbedding>(
     fileHash: { type: String, required: true },
     chunkIndex: { type: Number, required: true },
     text: { type: String, required: true },
-    embedding: { type: [Number], required: false },
   },
   { timestamps: true },
 );

@@ -331,6 +331,9 @@ export type CanvasModuleItemDetail = z.infer<typeof CanvasModuleItemDetailSchema
 export type UpcomingEventsResponse = z.infer<typeof UpcomingEventsResponseSchema>;
 export type TodoResponse = z.infer<typeof TodoResponseSchema>;
 export type ModuleItemDetailsResponse = z.infer<typeof ModuleItemDetailsResponseSchema>;
+export type FilesResponse = z.infer<typeof FilesResponseSchema>;
+export type PagesResponse = z.infer<typeof PagesResponseSchema>;
+export type FrontPageResponse = z.infer<typeof FrontPageResponseSchema>;
 
 // Schema for modul-item "open" respons
 export const ModuleItemOpenResponseSchema = z.union([

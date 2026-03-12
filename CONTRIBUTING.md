@@ -383,7 +383,7 @@ Hele prosjektet kan kjøres lokalt via Docker:
 docker compose up --build
 ```
 
-Forutsetning: `backend/.env` må finnes med Anthropic API-nøkkel (påkrevd), JWT-secrets og ENCRYPTION_KEY. For vektorsøk i KI: `PINECONE_API_KEY` og `PINECONE_INDEX_NAME`. MongoDB og Redis startes automatisk av Docker. I Redis Cloud anbefales eviction policy `allkeys-lru` for å unngå «nesten full»-varsler.
+Forutsetning: `backend/.env` må finnes med Anthropic API-nøkkel (påkrevd), JWT-secrets og ENCRYPTION_KEY. For vektorsøk i KI: `PINECONE_API_KEY` og `PINECONE_INDEX_NAME`. MongoDB og Redis startes automatisk av Docker. Ved MongoDB Atlas «bad auth»: sjekk brukernavn/passord og Database Access. I Redis Cloud anbefales eviction policy `allkeys-lru` for å unngå «nesten full»-varsler.
 
 ### Hjelp
 

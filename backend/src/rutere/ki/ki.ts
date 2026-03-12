@@ -673,13 +673,16 @@ router.post("/chat", async (req, res) => {
           }
         : undefined,
     });
-    res.write(`data: ${JSON.stringify(payload)}\n\n`);
-    res.end();
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify(payload)}\n\n`);
+      res.end();
+    }
     return;
   } catch (error) {
     if (keepaliveInterval) clearInterval(keepaliveInterval);
 
-    if (res.headersSent) return;
+    // Respons allerede avsluttet — ingenting mer å gjøre
+    if (res.writableEnded) return;
 
     // If SSE headers were already sent, send error via SSE
     if (sseStarted && !res.writableEnded) {

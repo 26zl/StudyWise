@@ -133,3 +133,16 @@ export const anthropicCircuit = new CircuitBreaker("Anthropic API", {
         return true;
     },
 });
+
+/** Pinecone API — åpner etter 4 feil, reset etter 45s */
+export const pineconeCircuit = new CircuitBreaker("Pinecone API", {
+    failureThreshold: 4,
+    resetTimeoutMs: 45_000,
+    isFailure: (error) => {
+        const status = (error as { status?: number }).status
+            ?? (error as { httpStatus?: number }).httpStatus;
+        // 400 (bad request), 401/403 (auth) — teller ikke
+        if (status && status >= 400 && status < 500) return false;
+        return true; // 5xx, timeout, network error
+    },
+});

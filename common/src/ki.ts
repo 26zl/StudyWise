@@ -60,7 +60,7 @@ export const KIModelsResponseSchema = z.object({
 });
 
 // Request-body for dokumentanalyse (question/sporsmaal, model) – multer sender ofte string eller string[]
-const documentAnalyseBodySchema = z.object({
+export const KIDocumentAnalyseRequestSchema = z.object({
   question: z
     .union([z.string(), z.array(z.string())])
     .optional()
@@ -74,7 +74,6 @@ const documentAnalyseBodySchema = z.object({
     .optional()
     .transform((v) => (Array.isArray(v) ? v[0] : v)),
 });
-export const KIDocumentAnalyseRequestSchema = documentAnalyseBodySchema;
 
 // Dokumentanalyse respons (støtter PDF, Word, TXT, etc.)
 export const KIDocumentAnalyseResponseSchema = z.object({
@@ -223,6 +222,9 @@ export type WeeklyPlanGenerateRequest = z.infer<
 >;
 export type WeeklyPlanSuggestionBlock = z.infer<
   typeof WeeklyPlanSuggestionBlockSchema
+>;
+export type WeeklyPlanSuggestionDraft = z.infer<
+  typeof WeeklyPlanSuggestionDraftSchema
 >;
 export type WeeklyPlanSuggestionResponse = z.infer<
   typeof WeeklyPlanSuggestionResponseSchema

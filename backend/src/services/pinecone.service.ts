@@ -6,6 +6,7 @@
 
 import { Pinecone } from "@pinecone-database/pinecone";
 import { logger } from "../utils/logger.js";
+import { pineconeCircuit } from "../utils/circuitBreaker.js";
 
 const PINECONE_API_KEY = process.env.PINECONE_API_KEY?.trim();
 const PINECONE_INDEX_NAME = process.env.PINECONE_INDEX_NAME?.trim() || "studywise";
@@ -31,15 +32,20 @@ const pc =
     : null;
 
 let indexHost: string | null = null;
+let indexHostFetchedAt = 0;
+/** TTL for cached index host (10 min) — oppdateres ved DNS/host-endringer */
+const INDEX_HOST_TTL_MS = 10 * 60 * 1000;
 
 const DEFAULT_NAMESPACE = "__default__";
 
 async function getIndexHost(): Promise<string> {
   if (!pc) throw new Error("Pinecone er ikke konfigurert");
-  if (indexHost) return indexHost;
+  const now = Date.now();
+  if (indexHost && now - indexHostFetchedAt < INDEX_HOST_TTL_MS) return indexHost;
   const desc = await pc.describeIndex(PINECONE_INDEX_NAME);
   indexHost = desc.host ?? null;
   if (!indexHost) throw new Error("Pinecone index mangler host");
+  indexHostFetchedAt = now;
   return indexHost;
 }
 
@@ -76,37 +82,39 @@ export async function pineconeUpsert(
   }>,
 ): Promise<void> {
   if (!isPineconeConfigured() || records.length === 0) return;
-  const host = await getIndexHost();
-  const url = `https://${host}/records/namespaces/${DEFAULT_NAMESPACE}/upsert`;
-  for (let i = 0; i < records.length; i += PINECONE_UPSERT_BATCH_SIZE) {
-    const batch = records.slice(i, i + PINECONE_UPSERT_BATCH_SIZE);
-    const ndjson = batch
-      .map(
-        (r) =>
-          JSON.stringify({
-            _id: r.id,
-            [TEXT_FIELD]: r.text,
-            userId: r.metadata.userId,
-            courseId: r.metadata.courseId,
-            fileId: r.metadata.fileId,
-          }),
-      )
-      .join("\n");
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Api-Key": PINECONE_API_KEY!,
-        "Content-Type": "application/x-ndjson",
-        "X-Pinecone-Api-Version": "2025-04",
-      },
-      body: ndjson,
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      logger.warn({ status: res.status, body }, "Pinecone upsert (integrated) feilet");
-      throw new Error(`Pinecone upsert feilet: ${res.status} ${body}`);
+  await pineconeCircuit.execute(async () => {
+    const host = await getIndexHost();
+    const url = `https://${host}/records/namespaces/${DEFAULT_NAMESPACE}/upsert`;
+    for (let i = 0; i < records.length; i += PINECONE_UPSERT_BATCH_SIZE) {
+      const batch = records.slice(i, i + PINECONE_UPSERT_BATCH_SIZE);
+      const ndjson = batch
+        .map(
+          (r) =>
+            JSON.stringify({
+              _id: r.id,
+              [TEXT_FIELD]: r.text,
+              userId: r.metadata.userId,
+              courseId: r.metadata.courseId,
+              fileId: r.metadata.fileId,
+            }),
+        )
+        .join("\n");
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Api-Key": PINECONE_API_KEY!,
+          "Content-Type": "application/x-ndjson",
+          "X-Pinecone-Api-Version": "2025-04",
+        },
+        body: ndjson,
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        logger.warn({ status: res.status, body }, "Pinecone upsert (integrated) feilet");
+        throw new Error(`Pinecone upsert feilet: ${res.status} ${body}`);
+      }
     }
-  }
+  });
 }
 
 /**
@@ -121,7 +129,7 @@ export async function pineconeQuery(
   if (!isPineconeConfigured()) return [];
   const trimmed = queryText?.trim();
   if (!trimmed) return [];
-  try {
+  return pineconeCircuit.execute(async () => {
     const host = await getIndexHost();
     const url = `https://${host}/records/namespaces/${DEFAULT_NAMESPACE}/search`;
     const filterObj: Record<string, unknown> = {
@@ -149,7 +157,7 @@ export async function pineconeQuery(
     if (!res.ok) {
       const body = await res.text();
       logger.warn({ status: res.status, body }, "Pinecone search (integrated) feilet");
-      return [];
+      throw new Error(`Pinecone search feilet: ${res.status} ${body}`);
     }
     const data = (await res.json()) as {
       result?: { hits?: Array<{ id?: string; _id?: string; score?: number; _score?: number }> };
@@ -159,13 +167,13 @@ export async function pineconeQuery(
       id: h.id ?? h._id ?? "",
       score: h.score ?? h._score,
     }));
-  } catch (error) {
-    logger.warn({ err: error }, "Pinecone search feilet");
-    return [];
-  }
+  });
 }
 
-/** Slett vektorer etter metadata-filter via REST (2025-04 støtter filter på /vectors/delete). */
+/** Slett vektorer etter metadata-filter via REST (2025-04 støtter filter på /vectors/delete).
+ * Kaster feil ved svikt — GDPR-kritisk: kalleren MÅ håndtere feil for å unngå at vektorer
+ * forblir i Pinecone mens MongoDB-data slettes.
+ */
 export async function pineconeDeleteByFilter(
   filter: Partial<PineconeChunkMetadata>,
 ): Promise<void> {
@@ -178,7 +186,7 @@ export async function pineconeDeleteByFilter(
     logger.warn("pineconeDeleteByFilter kalt uten filter — hopper over");
     return;
   }
-  try {
+  await pineconeCircuit.execute(async () => {
     const host = await getIndexHost();
     const url = `https://${host}/vectors/delete`;
     const res = await fetch(url, {
@@ -195,12 +203,11 @@ export async function pineconeDeleteByFilter(
     });
     if (!res.ok) {
       const body = await res.text();
-      logger.warn(
+      logger.error(
         { status: res.status, body, filter: filterObj },
-        "Pinecone deleteByFilter feilet",
+        "Pinecone deleteByFilter feilet — GDPR-kritisk",
       );
+      throw new Error(`Pinecone deleteByFilter feilet: ${res.status} ${body}`);
     }
-  } catch (error) {
-    logger.warn({ err: error }, "Pinecone deleteByFilter feilet");
-  }
+  });
 }

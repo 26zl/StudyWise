@@ -21,8 +21,8 @@ if (ddApiKey) {
             version: process.env.DD_VERSION ?? "0.0.0",
             logInjection: true,
             runtimeMetrics: true,
-            profiling: isProd,
-            appsec: isProd,
+            // profiling og appsec styres via DD_PROFILING_ENABLED / DD_APPSEC_ENABLED env-variabler
+            // (validert i validateEnv.ts for produksjon) — ikke hardkodet her for å unngå konflikt
         });
         setImmediate(() => {
             import("./utils/logger.js").then(({ logger }) => {

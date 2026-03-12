@@ -35,7 +35,6 @@ export interface Migration {
 // ============================================================
 // Registrer migrasjoner her (legg til nye nederst i arrayet)
 // ============================================================
-// Vector search bruker nå Pinecone; Atlas Vector Search-indeks er fjernet.
 const migrations: Migration[] = [];
 
 /**

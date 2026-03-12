@@ -32,7 +32,7 @@ StudyWise – AI-drevet studieveileder med Canvas LMS-integrasjon. pnpm-monorepo
 - **Vektorsøk**: Pinecone (serverless-indeks med **integrated embedding**). Embeddings genereres av Pinecone; chunk-tekst lagres i MongoDB (`ContentEmbedding`) som sannhetskilde og sendes til Pinecone for indeksering.
 - **AI**: `@anthropic-ai/sdk` for Claude
 - **Feilhåndtering**: Standardisert via `backend/src/utils/apiError.ts`
-- **APM**: Datadog (`dd-trace`) — initialiseres når `DD_API_KEY` er satt (`backend/src/datadog.ts`)
+- **APM**: Datadog (`dd-trace`) — initialiseres når `DD_API_KEY` er satt (`backend/src/datadog.ts`); init er wrappet i try/catch slik at serveren kjører videre ved feil. Frontend: valgfri RUM via `DatadogRum`-komponenten når `NEXT_PUBLIC_DD_RUM_APPLICATION_ID` og `NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN` er satt.
 - **Resiliens**: Circuit breakers for Canvas og Anthropic API (`backend/src/utils/circuitBreaker.ts`), request timeout-middleware (`backend/src/middleware/request-timeout.ts`)
 
 ### Common
@@ -107,7 +107,7 @@ pnpm --filter frontend test  # Kjør frontend-tester (vitest + @testing-library/
 docker compose up --build   # Kjør full stack lokalt (MongoDB, Redis, backend, frontend)
 ```
 
-Docker brukes **kun for lokal utvikling** — ikke i produksjon.
+Docker brukes **kun for lokal utvikling** — ikke i produksjon. Alle tjenester bruker `security_opt: no-new-privileges:true`.
 
 ### Deploy
 
@@ -148,6 +148,7 @@ Lokasjon: `frontend/app/dashboard/page.tsx` (side) og `frontend/app/components/D
 - **CanvasUser**: Cache av Canvas-profilinfo, koblet til User via `localUser`
 - **ChatHistory**: Kryptert chat-historikk per bruker (AES-256-GCM)
 - **TaskBreakdown**: KI-genererte oppgavedelinger med redigerbare deloppgaver
+- **Arbeidsplan**: Ukeplaner (studieblokker); collection-navn er `arbeidsplan` (ikke `arbeidsplans`)
 - **ContentEmbedding**: Chunk-tekst og metadata per bruker/kurs/fil (MongoDB). Sannhetskilde for innhold; vektorindeks ligger i Pinecone (integrated embedding). Ingen vektorindeks i Atlas.
 
 ### Viktige konfigurasjonsfiler
@@ -333,15 +334,15 @@ Kjøres ved push og PR mot `main`. **Actionlint må være grønn før de andre j
 - **actionlint** – workflow-lint (rask, ingen avhengigheter). Må passere først.
 - **quality** – typecheck, lint, lint:md, verify build
 - **dependency-scan** – `pnpm audit --audit-level=high`
-- **secret-scan** – TruffleHog skanner etter lekkede hemmeligheter
+- **secret-scan** – TruffleHog (`trufflesecurity/trufflehog@v3.93.8`) skanner etter lekkede hemmeligheter
 
-Alle jobber har timeout. Deploy (`deploy.yml`) utløses automatisk når hele CI er grønn ved push til `main`.
+Alle jobber har `permissions: contents: read` og `actions: read` (på workflow-nivå eller per jobb). Timeout på alle jobber. Deploy (`deploy.yml`) utløses automatisk når hele CI er grønn ved push til `main`.
 
 ### Andre workflows
 
 - **deploy.yml** – trigger når CI er ferdig på `main` (push): frontend deployes via Vercel CLI; backend deployes automatisk via Heroku Automatic Deploys
 - **deploy.docs.yml** – ved push til `docs/**`: bygger VitePress og deployer til GitHub Pages
-- **owasp-dependency-check.yml** – ukentlig (mandager) + workflow_dispatch
+- **owasp-dependency-check.yml** – ukentlig (mandager) + workflow_dispatch; bruker `dependency-check/Dependency-Check_Action@1.1.0` med input `others` (ikke `args`)
 - **update-dependencies.yml** – ukentlig (mandager) + workflow_dispatch, oppretter PR med `pnpm -r update`
 
 ---
@@ -381,6 +382,7 @@ Alle jobber har timeout. Deploy (`deploy.yml`) utløses automatisk når hele CI 
 - **Port i bruk** → `pnpm kill:dev`
 - **Typefeil etter clean** → `pnpm build`
 - **"MongoNetworkError"** → Sjekk `MONGO_URI` i `.env` og IP whitelist i MongoDB Atlas
+- **"bad auth : authentication failed"** (Atlas) → Sjekk brukernavn/passord og Database Access-rettigheter.
 - **TypeScript-feil etter endringer i `common/`** → Kjør `pnpm build:common`, deretter `pnpm typecheck`
 - **Redis «nesten full» / høyt minne** → Redis cacher Canvas API + sync-struktur (per bruker/emne). Sett **maxmemory-policy** til `allkeys-lru` (eller `volatile-lru`) i Redis Cloud slik at Redis evicter eldre nøkler. Sync-cache TTL er 30 min for å begrense vekst.
 

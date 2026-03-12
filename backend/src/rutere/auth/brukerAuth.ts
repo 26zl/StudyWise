@@ -188,6 +188,30 @@ async function invalidateStoredCanvasDataForUser(userId: string, encryptedToken?
     await Promise.allSettled(invalidations);
 }
 
+/**
+ * Henter autentisert bruker fra DB med valgfrie select-felter.
+ * Returnerer bruker, eller sender 401 og returnerer null.
+ */
+async function hentAutentisertBruker(
+    userId: string | undefined,
+    res: Response,
+    selectFields?: string,
+) {
+    if (!userId) {
+        apiError.unauthorized(res);
+        return null;
+    }
+    const query = User.findById(userId);
+    if (selectFields) query.select(selectFields);
+    const bruker = await query;
+    if (!bruker) {
+        fjernAuthCookies(res);
+        apiError.unauthorized(res, "Bruker eksisterer ikke lenger.");
+        return null;
+    }
+    return bruker;
+}
+
 // Hent JWT secrets fra miljøvariabler (validert ved oppstart i validateEnv.ts)
 const hentJwtSecrets = () => {
     const tilgangSecret = process.env.JWT_ACCESS_SECRET;
@@ -327,11 +351,8 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         if (!canvasBaseUrl) {
             return apiError.badRequest(res, "Canvas-institusjon mangler");
         }
-        const bruker = await User.findById(userId).select("+canvasApiToken +canvasTokenHash");
-        if (!bruker) {
-            fjernAuthCookies(res);
-            return apiError.unauthorized(res, "Bruker eksisterer ikke lenger.");
-        }
+        const bruker = await hentAutentisertBruker(userId, res, "+canvasApiToken +canvasTokenHash");
+        if (!bruker) return;
         const nyTokenHash = hashToken(cleanToken);
         // Sjekk om tokenet er i bruk av en ANNEN bruker (samme token-hash = samme Canvas-konto)
         const eksisterendeTokenBruker = await User.findOne({
@@ -449,20 +470,14 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
 // Fjerner Canvas API token fra brukerens konto
 router.delete("/token", autentiserJwt, rateLimitToken, async (req, res) => {
     try {
-        const userId = req.user?.id;
-        if (!userId) {
-            return apiError.unauthorized(res, "Ikke autentisert");
-        }
-        const bruker = await User.findById(userId).select("+canvasApiToken +canvasTokenHash");
-        if (!bruker) {
-            fjernAuthCookies(res);
-            return apiError.unauthorized(res, "Bruker eksisterer ikke lenger.");
-        }
+        const bruker = await hentAutentisertBruker(req.user?.id, res, "+canvasApiToken +canvasTokenHash");
+        if (!bruker) return;
+        const userId = bruker._id.toString();
         // Sjekk om bruker har et Canvas token
         if (!bruker.canvasApiToken) {
             return apiError.badRequest(res, "Ingen Canvas-token å slette");
         }
-        await invalidateStoredCanvasDataForUser(userId.toString(), bruker.canvasApiToken);
+        await invalidateStoredCanvasDataForUser(userId, bruker.canvasApiToken);
         // Slett koblingene i databasen fullstendig
         const slettetCanvasUsers = await CanvasUser.deleteMany({ localUser: bruker._id });
         logger.info({ userId, deletedCount: slettetCanvasUsers.deletedCount }, "Slettet CanvasUser-dokumenter fra database");
@@ -563,14 +578,8 @@ router.post("/refresh", rateLimitRefresh, async (req, res) => {
 router.get("/me", autentiserJwt, rateLimitMe, async (req, res) => {
     try {
         const userId = req.user?.id;
-        if (!userId) {
-            return apiError.unauthorized(res);
-        }
-        const bruker = await User.findById(userId).select("+canvasApiToken");
-        if (!bruker) {
-            fjernAuthCookies(res);
-            return apiError.unauthorized(res, "Bruker eksisterer ikke lenger.");
-        }
+        const bruker = await hentAutentisertBruker(userId, res, "+canvasApiToken");
+        if (!bruker) return;
         const harCanvasToken = !!bruker.canvasApiToken;
         if (harCanvasToken && !bruker.canvasBaseUrl) {
             logger.warn({ userId: bruker._id }, "Bruker har Canvas-token uten canvasBaseUrl (gammel konto – må velge institusjon ved neste token-oppdatering)");

@@ -15,6 +15,9 @@ export function DatadogRum() {
         const clientToken = process.env.NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN;
         if (!applicationId || !clientToken) return;
 
+        // Guard mot dobbel init (React Strict Mode kjører useEffect to ganger i dev)
+        if (datadogRum.getInitConfiguration()) return;
+
         try {
             datadogRum.init({
                 applicationId,
@@ -29,6 +32,10 @@ export function DatadogRum() {
                 trackUserInteractions: true,
                 trackResources: true,
                 trackLongTasks: true,
+                // Distribuert tracing: kobler frontend RUM-traces til backend APM-traces
+                allowedTracingUrls: [
+                    { match: /\/api\//, propagatorTypes: ["tracecontext"] },
+                ],
                 plugins: [reactPlugin({ router: false })],
             });
         } catch (err) {
@@ -37,4 +44,21 @@ export function DatadogRum() {
     }, []);
 
     return null;
+}
+
+/**
+ * Setter bruker-ID i Datadog RUM for å koble sesjoner til brukere.
+ * Kall denne etter innlogging (f.eks. i auth-provider eller dashboard).
+ */
+export function setDatadogUser(userId: string) {
+    if (!datadogRum.getInitConfiguration()) return;
+    datadogRum.setUser({ id: userId });
+}
+
+/**
+ * Fjerner bruker-ID fra Datadog RUM ved utlogging.
+ */
+export function clearDatadogUser() {
+    if (!datadogRum.getInitConfiguration()) return;
+    datadogRum.clearUser();
 }

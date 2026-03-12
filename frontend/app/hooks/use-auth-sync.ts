@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AUTH_CHANNEL_NAME } from "common/auth";
+import { clearDatadogUser } from "../components/DatadogRum";
 import { useUIStore } from "../store/uiStore";
 
 // Konstantverdier for BroadcastChannel (same-origin per spec )
@@ -44,7 +45,7 @@ export function useAuthSync() {
     useEffect(() => {
         if (typeof window === "undefined" || !("BroadcastChannel" in window)) return;
 
-        let channel: BroadcastChannel;
+        let channel: BroadcastChannel | null = null;
         try {
             channel = new BroadcastChannel(AUTH_CHANNEL_NAME);
         } catch {
@@ -53,6 +54,7 @@ export function useAuthSync() {
         channel.onmessage = (event) => {
             if (event.data === LOGOUT_MESSAGE) {
                 // En annen fane har logget ut - rydd opp og redirect
+                clearDatadogUser();
                 queryClient.clear();
                 useUIStore.getState().reset();
                 window.location.href = "/";
@@ -63,7 +65,7 @@ export function useAuthSync() {
             }
         };
         return () => {
-            channel.close();
+            channel?.close();
         };
     }, [queryClient]);
 }

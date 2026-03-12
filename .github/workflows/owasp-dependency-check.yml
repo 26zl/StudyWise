@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   owasp-dependency-check:
@@ -33,14 +34,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # dependency-check/Dependency-Check_Action: bruk @1.1.0 (v5 finnes ikke); input heter 'others' ikke 'args'
       - name: OWASP Dependency-Check
-        uses: dependency-check/Dependency-Check_Action@v5
+        uses: dependency-check/Dependency-Check_Action@1.1.0
         with:
           project: "StudyWise"
           path: "."
           format: "HTML"
-          args: >
-            --enableRetired
+          others: "--enableRetired"
 
       - name: Upload OWASP Dependency-Check report
         uses: actions/upload-artifact@v4

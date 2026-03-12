@@ -162,7 +162,15 @@ export async function upsertStoredFileContent(options: {
   if (chunks.length === 0) return 0;
 
   const startTime = Date.now();
-  await pineconeDeleteByFilter({ userId, courseId, fileId });
+  // Slett eksisterende Pinecone-vektorer — ikke-kritisk ved upsert (nye vektorer erstatter)
+  try {
+    await pineconeDeleteByFilter({ userId, courseId, fileId });
+  } catch (error) {
+    logger.warn(
+      { err: error, userId, courseId, fileId },
+      "Pinecone delete før upsert feilet — fortsetter med overskrivning",
+    );
+  }
   await ContentEmbedding.deleteMany({ userId, courseId, fileId });
 
   const documents = chunks.map((chunk) => ({
@@ -178,19 +186,35 @@ export async function upsertStoredFileContent(options: {
   }));
   const inserted = await ContentEmbedding.insertMany(documents, { ordered: true });
 
-  try {
-    await pineconeUpsert(
-      inserted.map((doc, i) => ({
-        id: doc._id.toString(),
-        text: chunks[i].text,
-        metadata: { userId, courseId, fileId },
-      })),
-    );
-  } catch (error) {
-    logger.warn(
-      { err: error, userId, courseId, fileId },
-      "Pinecone upsert (integrated) feilet — chunks lagret i MongoDB uten vektorer",
-    );
+  // Retry med enkel backoff for Pinecone upsert (MongoDB er allerede lagret)
+  const MAX_UPSERT_RETRIES = 2;
+  let upsertSuccess = false;
+  for (let attempt = 0; attempt <= MAX_UPSERT_RETRIES; attempt++) {
+    try {
+      await pineconeUpsert(
+        inserted.map((doc, i) => ({
+          id: doc._id.toString(),
+          text: chunks[i].text,
+          metadata: { userId, courseId, fileId },
+        })),
+      );
+      upsertSuccess = true;
+      break;
+    } catch (error) {
+      if (attempt < MAX_UPSERT_RETRIES) {
+        const delayMs = 1000 * (attempt + 1);
+        logger.warn(
+          { err: error, userId, courseId, fileId, attempt: attempt + 1, maxRetries: MAX_UPSERT_RETRIES },
+          `Pinecone upsert feilet — prøver igjen om ${delayMs}ms`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      } else {
+        logger.warn(
+          { err: error, userId, courseId, fileId },
+          "Pinecone upsert feilet etter alle forsøk — chunks lagret i MongoDB uten vektorer",
+        );
+      }
+    }
   }
 
   logger.info(
@@ -200,9 +224,12 @@ export async function upsertStoredFileContent(options: {
       fileId,
       fileName,
       chunkCount: chunks.length,
+      pineconeSync: upsertSuccess,
       elapsedMs: Date.now() - startTime,
     },
-    "Filchunks lagret i MongoDB og Pinecone",
+    upsertSuccess
+      ? "Filchunks lagret i MongoDB og Pinecone"
+      : "Filchunks lagret i MongoDB (Pinecone upsert feilet)",
   );
 
   return chunks.length;
@@ -309,6 +336,25 @@ export async function getStoredChunksForCourses(
   }));
 }
 
+export interface VectorSearchResult {
+  text: string;
+  score: number;
+  source: {
+    courseId: string;
+    courseName: string;
+    moduleTitle: string;
+    fileName: string;
+    fileId: number;
+  };
+  chunkIndex: number;
+}
+
+export interface VectorSearchResponse {
+  results: VectorSearchResult[];
+  /** true hvis Pinecone-søk feilet — kalleren bør falle tilbake til keyword-søk */
+  degraded: boolean;
+}
+
 export async function vectorSearch(
   userId: string,
   query: string,
@@ -316,41 +362,28 @@ export async function vectorSearch(
     limit?: number;
     courseIds?: string[];
   },
-): Promise<
-  Array<{
-    text: string;
-    score: number;
-    source: {
-      courseId: string;
-      courseName: string;
-      moduleTitle: string;
-      fileName: string;
-      fileId: number;
-    };
-    chunkIndex: number;
-  }>
-> {
-  if (!isPineconeConfigured()) return [];
+): Promise<VectorSearchResponse> {
+  if (!isPineconeConfigured()) return { results: [], degraded: false };
   const trimmedQuery = query?.trim();
-  if (!trimmedQuery) return [];
+  if (!trimmedQuery) return { results: [], degraded: false };
   try {
     const limit = options?.limit ?? 8;
     const matches = await pineconeQuery(trimmedQuery, limit, {
       userId,
       courseIds: options?.courseIds,
     });
-    if (matches.length === 0) return [];
+    if (matches.length === 0) return { results: [], degraded: false };
     const ids = matches.map((m) => m.id).filter(Boolean);
     const objectIds = ids
       .filter((id) => mongoose.Types.ObjectId.isValid(id))
       .map((id) => new mongoose.Types.ObjectId(id));
-    if (objectIds.length === 0) return [];
+    if (objectIds.length === 0) return { results: [], degraded: false };
     const docs = await ContentEmbedding.find(
       { _id: { $in: objectIds } },
       { text: 1, courseId: 1, courseName: 1, moduleTitle: 1, fileName: 1, fileId: 1, chunkIndex: 1 },
     ).lean();
     const byId = new Map(docs.map((d) => [d._id.toString(), d]));
-    return matches
+    const results = matches
       .map((m) => {
         const doc = byId.get(m.id);
         if (!doc) return null;
@@ -368,9 +401,10 @@ export async function vectorSearch(
         };
       })
       .filter((r): r is NonNullable<typeof r> => r !== null);
+    return { results, degraded: false };
   } catch (error) {
-    logger.warn({ err: error, userId }, "Pinecone vectorSearch feilet");
-    return [];
+    logger.warn({ err: error, userId }, "Pinecone vectorSearch feilet — degradert modus");
+    return { results: [], degraded: true };
   }
 }
 
@@ -388,7 +422,14 @@ export async function deleteMissingFilesForCourse(
     ]);
     const toRemove = agg[0]?.fileIds ?? [];
     for (const fileId of toRemove) {
-      await pineconeDeleteByFilter({ userId, courseId, fileId });
+      try {
+        await pineconeDeleteByFilter({ userId, courseId, fileId });
+      } catch (error) {
+        logger.warn(
+          { err: error, userId, courseId, fileId },
+          "Pinecone delete feilet for fil — hopper over MongoDB-sletting for denne filen",
+        );
+      }
     }
     const result = await ContentEmbedding.deleteMany({
       userId,
@@ -397,6 +438,7 @@ export async function deleteMissingFilesForCourse(
     });
     return result.deletedCount;
   }
+  // GDPR: Pinecone først — feiler dette, slettes ikke MongoDB heller
   await pineconeDeleteByFilter({ userId, courseId });
   const result = await ContentEmbedding.deleteMany({ userId, courseId });
   return result.deletedCount;
@@ -406,12 +448,14 @@ export async function deleteStoredCourseContent(
   userId: string,
   courseId: string,
 ): Promise<number> {
+  // GDPR: Slett Pinecone først — hvis det feiler, beholdes MongoDB som konsistent
   await pineconeDeleteByFilter({ userId, courseId });
   const result = await ContentEmbedding.deleteMany({ userId, courseId });
   return result.deletedCount;
 }
 
 export async function deleteStoredUserContent(userId: string): Promise<number> {
+  // GDPR: Slett Pinecone først — hvis det feiler, beholdes MongoDB som konsistent
   await pineconeDeleteByFilter({ userId });
   const result = await ContentEmbedding.deleteMany({ userId });
   return result.deletedCount;

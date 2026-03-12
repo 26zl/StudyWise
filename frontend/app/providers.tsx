@@ -6,14 +6,41 @@
 // Dette er nødvendig for biblioteker som bruker React Context (som React Query).
 "use client";
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState } from "react";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect, useRef } from "react";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useAuthSync } from "./hooks/use-auth-sync";
+import { setDatadogUser, clearDatadogUser } from "./components/DatadogRum";
+import type { MeResponse } from "common/auth";
 
 // Komponent for å lytte etter utlogging i andre faner
 function AuthSyncListener() {
   useAuthSync(); // Aktiver lytter for utlogging i andre faner
+  return null;
+}
+
+// Synkroniserer Datadog RUM bruker-ID med auth-status
+function DatadogUserSync() {
+  const queryClient = useQueryClient();
+  const prevUserIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = queryClient.getQueryCache().subscribe(() => {
+      const meData = queryClient.getQueryData<MeResponse>(["auth", "me"]);
+      const userId = meData?.user?.id ?? null;
+
+      if (userId !== prevUserIdRef.current) {
+        prevUserIdRef.current = userId;
+        if (userId) {
+          setDatadogUser(userId);
+        } else {
+          clearDatadogUser();
+        }
+      }
+    });
+    return unsubscribe;
+  }, [queryClient]);
+
   return null;
 }
 
@@ -41,6 +68,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <NuqsAdapter>
         <AuthSyncListener />
+        <DatadogUserSync />
         {children}
       </NuqsAdapter>
     </QueryClientProvider>

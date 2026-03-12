@@ -83,7 +83,7 @@ export async function fetchAllCalendarItems(
     return firstPage;
   }
 
-  const remainingPages = await Promise.all(
+  const remainingResults = await Promise.allSettled(
     Array.from({ length: totalPages - 1 }, (_, index) =>
       fetchCalendarPage({
         ...options,
@@ -95,7 +95,9 @@ export async function fetchAllCalendarItems(
 
   const items = [
     ...firstPage.items,
-    ...remainingPages.flatMap((page) => page.items),
+    ...remainingResults
+      .filter((r): r is PromiseFulfilledResult<CalendarItemsResponse> => r.status === "fulfilled")
+      .flatMap((r) => r.value.items),
   ];
 
   if (!firstPage.meta) {

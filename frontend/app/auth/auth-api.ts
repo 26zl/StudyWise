@@ -29,6 +29,7 @@ import { CanvasErrorCodeSchema } from "common/canvasErrors";
 import { SessionExpiredError, AppError, CanvasApiError } from "../lib/errors";
 import { withCsrfProtection } from "../lib/csrf";
 import { broadcastLogout } from "../hooks/use-auth-sync";
+import { clearDatadogUser } from "../components/DatadogRum";
 import { useUIStore } from "../store/uiStore";
 import { showToast } from "../components/Toaster";
 import type { ZodType } from "zod";
@@ -354,6 +355,7 @@ export function useLoggUtWithRedirect() {
       }
     }
     broadcastLogout();
+    clearDatadogUser();
     queryClient.clear();
     useUIStore.getState().reset();
     window.location.href = "/";

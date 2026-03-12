@@ -2,7 +2,6 @@
 * Ulike hjelpefunksjoner og typer for Canvas API
 */
 import crypto from "crypto";
-import validator from "validator";
 import { Request, Response as ExpressResponse, NextFunction } from "express";
 import { getCache, setCache } from "../../cache/redis.js";
 import { logger } from "../../utils/logger.js";
@@ -504,19 +503,10 @@ export function validateCanvasRedirectUrl(urlStr: string, allowedOrigin: string,
     try {
         const allowedUrl = new URL(allowedOrigin);
         const allowedHost = allowedUrl.hostname;
-        // Bruk validator.isURL med strict whitelist
-        const isValid = validator.isURL(urlStr, {
-            protocols: ["https", "http"],
-            require_protocol: true,
-            host_whitelist: [allowedHost],
-            validate_length: true
-        });
-        if (!isValid) return null;
-        // Ekstra sjekk for path prefix hvis nødvendig (validator sjekker ikke path content - kun host)
-        if (pathPrefix) {
-            const url = new URL(urlStr);
-            if (!url.pathname.startsWith(pathPrefix)) return null;
-        }
+        const parsed = new URL(urlStr);
+        if (parsed.hostname !== allowedHost) return null;
+        if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+        if (pathPrefix && !parsed.pathname.startsWith(pathPrefix)) return null;
         return urlStr;
     } catch {
         return null;

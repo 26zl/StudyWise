@@ -177,6 +177,8 @@ export const deleteCacheKeys = async (keys: string[]): Promise<number> => {
 // NB: Tillater IKKE wildcard (*) — bruk invalidateCacheByPattern() for glob-matching
 // Inkluderer norske tegn (æøåÆØÅ) for nøkler som "kunngjøringer"
 const VALID_CACHE_KEY_PATTERN = /^[a-zA-Z0-9æøåÆØÅ:_/?.&=[\]-]+$/;
+/** Samme som VALID_CACHE_KEY_PATTERN, men tillater wildcard (*) for SCAN-basert invalidering */
+const VALID_CACHE_PATTERN_WITH_WILDCARD = /^[a-zA-Z0-9æøåÆØÅ:_/?.&=[\]*-]+$/;
 /**
  * Validerer at en cache-nøkkel er trygg å bruke.
  * Tillater URL-lignende nøkler mens den blokkerer potensielt farlige tegn.
@@ -189,9 +191,7 @@ const VALID_CACHE_KEY_PATTERN = /^[a-zA-Z0-9æøåÆØÅ:_/?.&=[\]-]+$/;
 export const invalidateCacheByPattern = async (pattern: string): Promise<number> => {
     if (!client.isOpen) return 0;
     // Valider at pattern er trygt (forhindrer injection i SCAN)
-    // Bruker VALID_CACHE_KEY_PATTERN + wildcard (*) for konsistens
-    const safePatternRegex = /^[a-zA-Z0-9æøåÆØÅ:_/?.&=[\]*-]+$/;
-    if (!safePatternRegex.test(pattern) || pattern.includes("..")) {
+    if (!VALID_CACHE_PATTERN_WITH_WILDCARD.test(pattern) || pattern.includes("..")) {
         logger.warn({ pattern }, "Ugyldig cache-mønster avvist");
         return 0;
     }

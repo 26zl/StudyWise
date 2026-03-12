@@ -41,7 +41,8 @@ StudyWise er et pågående bachelorprosjekt og er i konstant endring. Funksjonal
 | **Cache** | Redis Cloud (Canvas API, sync-struktur, KI-sesjon; anbefalt eviction `allkeys-lru`) |
 | **Vektorsøk** | Pinecone (integrated embedding); chunk-tekst i MongoDB som sannhetskilde |
 | **Monorepo** | pnpm workspaces med `frontend`, `backend`, `common` |
-| **CI/CD** | GitHub Actions, Docker, Heroku (backend), Vercel (frontend), Cloudflare |
+| **CI/CD** | GitHub Actions (actions: read på workflows), Docker (security_opt), Heroku (backend), Vercel (frontend), Cloudflare |
+| **Observability** | Datadog APM (backend), valgfri RUM (frontend ved NEXT_PUBLIC_DD_RUM_*) |
 | **Dokumentasjon** | VitePress (denne siden) |
 
 ## Teamet

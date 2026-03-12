@@ -160,9 +160,14 @@ export async function syncCanvasDataForUser(
   const promise = _doSync(userId, canvasToken, baseUrl, signal);
   activeSyncs.set(userId, promise);
 
-  // Sett Redis sync-status til "running" slik at andre prosesser kan polle
+  // Sett Redis sync-status til "running" med timestamp slik at andre prosesser kan polle
+  // og oppdage stale status (eldre enn SYNC_STATUS_TTL sekunder)
   if (isRedisReady()) {
-    await setCache(syncStatusKey(userId), "running", SYNC_STATUS_TTL).catch(() => {});
+    await setCache(
+      syncStatusKey(userId),
+      JSON.stringify({ status: "running", startedAt: Date.now() }),
+      SYNC_STATUS_TTL,
+    ).catch((err) => logger.warn({ err, userId }, "Kunne ikke sette sync-status til 'running' i Redis"));
   }
 
   try {
@@ -170,7 +175,11 @@ export async function syncCanvasDataForUser(
   } finally {
     activeSyncs.delete(userId);
     if (isRedisReady()) {
-      await setCache(syncStatusKey(userId), "done", SYNC_STATUS_TTL).catch(() => {});
+      await setCache(
+        syncStatusKey(userId),
+        JSON.stringify({ status: "done", completedAt: Date.now() }),
+        SYNC_STATUS_TTL,
+      ).catch((err) => logger.warn({ err, userId }, "Kunne ikke sette sync-status til 'done' i Redis"));
     }
   }
 }
@@ -257,6 +266,22 @@ async function _doSync(
   let updated = 0;
   let unchanged = 0;
   let failed = 0;
+
+  // Forny sync-status TTL periodisk under lang-kjørende syncs
+  // slik at andre prosesser ikke antar at sync er stale
+  const syncStatusRefreshInterval = setInterval(() => {
+    if (signal?.aborted) {
+      clearInterval(syncStatusRefreshInterval);
+      return;
+    }
+    if (isRedisReady()) {
+      setCache(
+        syncStatusKey(userId),
+        JSON.stringify({ status: "running", startedAt: Date.now() }),
+        SYNC_STATUS_TTL,
+      ).catch((err) => logger.warn({ err, userId }, "Kunne ikke fornye sync-status TTL"));
+    }
+  }, Math.floor(SYNC_STATUS_TTL * 1000 * 0.5)); // Forny ved halveis TTL
 
   // Synkroniser hvert emne med begrenset concurrency
   const limit = pLimit(SYNC_CONCURRENCY);
@@ -512,6 +537,8 @@ async function _doSync(
       }),
     ),
   );
+
+  clearInterval(syncStatusRefreshInterval);
 
   if (signal?.aborted) {
     logger.info({ userId }, "Canvas sync avbrutt (forespørsel ferdig)");
