@@ -27,12 +27,10 @@ import {
   type CanvasCourse,
 } from "common/canvas";
 import { logger } from "../../utils/logger.js";
-import pdfParse from "pdf-parse";
+import { parseDocument } from "../../services/document.js";
 
-/** Maks antall tegn filinnhold per PDF i KI-kontekst */
-const MAX_PDF_CONTENT_LENGTH = 12000;
-/** Maks filstørrelse vi laster ned for PDF-ekstraksjon (5 MB) */
-export const MAX_PDF_FILE_SIZE = 5 * 1024 * 1024;
+/** Maks filstørrelse vi laster ned for PDF-ekstraksjon i Canvas-sync (10 MB) */
+export const MAX_PDF_FILE_SIZE = 10 * 1024 * 1024;
 /** Maks filstørrelse for generell fil-nedlasting (10 MB) */
 export const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
@@ -710,8 +708,9 @@ export async function fetchFileContent(
 }
 
 /**
- * Laster ned en PDF-fil fra Canvas og ekstraherer tekst med pdf-parse.
- * Returnerer ekstrahert tekst, begrenset til MAX_PDF_CONTENT_LENGTH tegn.
+ * Laster ned en PDF-fil fra Canvas og ekstraherer tekst med samme parser som
+ * brukes for dokumentopplasting. Dette gir OCR-fallback for skannede PDF-er og
+ * beholder mer innhold for chunking og indeksering.
  * Returnerer null dersom filen ikke er PDF, er for stor, eller parsing feiler.
  */
 export async function fetchPdfContent(
@@ -753,23 +752,32 @@ export async function fetchPdfContent(
 
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const parsed = await pdfParse(buffer);
-    const fullText = parsed.text?.trim() || "";
+    const parsed = await parseDocument(
+      buffer,
+      "application/pdf",
+      freshFile.filename ?? file.filename,
+    );
 
-    if (fullText.length === 0) {
-      logger.info({ fileId: file.id, filename: file.filename }, "PDF inneholdt ingen lesbar tekst");
+    if (!parsed.success || parsed.text.trim().length === 0) {
+      logger.info(
+        { fileId: file.id, filename: file.filename, error: parsed.error },
+        "PDF inneholdt ingen lesbar tekst",
+      );
       return null;
     }
 
-    const truncated = fullText.length > MAX_PDF_CONTENT_LENGTH;
-    const content = truncated ? fullText.substring(0, MAX_PDF_CONTENT_LENGTH) : fullText;
-
     logger.info(
-      { fileId: file.id, filename: file.filename, pages: parsed.numpages, textLength: fullText.length, truncated },
+      {
+        fileId: file.id,
+        filename: file.filename,
+        pages: parsed.pages,
+        textLength: parsed.text.length,
+        truncated: parsed.truncated,
+      },
       "PDF-tekst ekstrahert for KI-kontekst",
     );
 
-    return { content, truncated };
+    return { content: parsed.text, truncated: parsed.truncated };
   } catch (error) {
     logger.warn(
       { err: error, fileId: file.id, filename: file.filename },

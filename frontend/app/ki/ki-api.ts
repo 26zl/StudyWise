@@ -579,6 +579,108 @@ function assertSuccessfulKITestConnection(
   return data;
 }
 
+/**
+ * Streaming KI-chat som leser SSE-strøm fra backend incrementalt med getReader().
+ * Returnerer fullstendig validert KIChatResponseSchema-respons.
+ */
+export async function streamKIChat(
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+  options: {
+    model?: string;
+    temperature?: number;
+    signal?: AbortSignal;
+  } = {},
+): Promise<z.infer<typeof KIChatResponseSchema>> {
+  const trimmedMessages = trimMessages(messages).filter(
+    (m): m is { role: "user" | "assistant"; content: string } =>
+      m.role === "user" || m.role === "assistant",
+  );
+
+  const request: KIChatRequest = {
+    messages: trimmedMessages,
+    model: options.model,
+    temperature: options.temperature,
+  };
+
+  const protectedInit = withCsrfProtection({
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+    signal: options.signal,
+  });
+
+  let res: Response;
+  try {
+    res = await fetch("/api/ki/chat", {
+      credentials: "include",
+      cache: "no-store",
+      ...protectedInit,
+    });
+  } catch {
+    throw new KIServiceError(
+      "Kunne ikke koble til KI-tjenesten. Sjekk internettforbindelsen din.",
+    );
+  }
+
+  if (res.status === 401) {
+    try {
+      await fornySesjon();
+    } catch {
+      throw new KIAuthError(
+        "Du må logge inn på nytt for å bruke KI-assistenten.",
+      );
+    }
+    return streamKIChat(messages, { ...options, signal: options.signal });
+  }
+
+  await håndterKIFeilRespons(res);
+
+  if (!res.body) {
+    throw new KIServiceError("Ingen svarstrøm fra serveren.");
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let lastDataLine: string | null = null;
+
+  try {
+    // Les HTTP body incrementalt chunk for chunk
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      // Prosesser alle komplette SSE-linjer i nåværende buffer
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        if (line.startsWith("data: ") && line !== "data: [DONE]") {
+          lastDataLine = line.slice(6);
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  // Tøm eventuelle gjenværende bytes fra TextDecoder
+  buffer += decoder.decode();
+  if (buffer.startsWith("data: ") && buffer !== "data: [DONE]") {
+    lastDataLine = buffer.slice(6);
+  }
+
+  if (!lastDataLine) {
+    throw new KIServiceError("Ingen respons mottatt fra KI-tjenesten.");
+  }
+
+  return assertSuccessfulKIChat(
+    KIChatResponseSchema.parse(JSON.parse(lastDataLine)),
+  );
+}
+
 // React query hooks
 
 /** Test tilkobling til KI-tjenesten (GET /test-connection). Brukes for å vise feilmelding i chat hvis KI er utilgjengelig. */

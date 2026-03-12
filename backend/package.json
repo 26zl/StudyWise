@@ -11,10 +11,12 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.58",
     "@anthropic-ai/sdk": "^0.78.0",
     "@napi-rs/canvas": "^0.1.96",
     "@pinecone-database/pinecone": "^7.1.0",
     "adm-zip": "^0.5.16",
+    "ai": "^6.0.116",
     "bcrypt": "^6.0.0",
     "common": "workspace:*",
     "compression": "^1.8.1",

@@ -7,8 +7,10 @@
  */
 
 import mongoose from "mongoose";
+import crypto from "crypto";
 import { logger } from "../utils/logger.js";
 import { ContentEmbedding } from "../database/models/ContentEmbedding.js";
+import { countTokens } from "../utils/tokenCounter.js";
 import type { ContentChunk } from "./chunk.service.js";
 import {
   isPineconeConfigured,
@@ -136,12 +138,21 @@ export async function getStoredFileStatusForCourse(
 }
 
 /**
- * Lagrer alle chunks for én fil i MongoDB og vektorer i Pinecone. Eksisterende chunks for filen erstattes.
+ * Lagrer chunks for én fil i MongoDB med content-hash-basert deduplisering,
+ * og synkroniserer vektorer til Pinecone.
+ *
+ * Per chunk:
+ * - Finnes chunk med samme fileId+chunkIndex og uendret contentHash → skip
+ * - Finnes chunk med endret contentHash → oppdater eksisterende dokument
+ * - Finnes ikke → insert nytt dokument
+ *
+ * Overskytende chunks (fra forrige versjon med flere chunks) slettes.
  */
 export async function upsertStoredFileContent(options: {
   userId: string;
   courseId: string;
   courseName: string;
+  moduleId: number;
   moduleTitle: string;
   fileName: string;
   fileId: number;
@@ -152,6 +163,7 @@ export async function upsertStoredFileContent(options: {
     userId,
     courseId,
     courseName,
+    moduleId,
     moduleTitle,
     fileName,
     fileId,
@@ -162,57 +174,149 @@ export async function upsertStoredFileContent(options: {
   if (chunks.length === 0) return 0;
 
   const startTime = Date.now();
-  // Slett eksisterende Pinecone-vektorer — ikke-kritisk ved upsert (nye vektorer erstatter)
-  try {
-    await pineconeDeleteByFilter({ userId, courseId, fileId });
-  } catch (error) {
-    logger.warn(
-      { err: error, userId, courseId, fileId },
-      "Pinecone delete før upsert feilet — fortsetter med overskrivning",
+
+  // Hent eksisterende chunks for denne filen
+  const existing = await ContentEmbedding.find(
+    { userId, courseId, fileId },
+    { _id: 1, chunkIndex: 1, contentHash: 1 },
+  ).lean();
+  const existingByIndex = new Map(existing.map((doc) => [doc.chunkIndex, doc]));
+
+  // Kategoriser chunks: skip, update, insert
+  const toInsert: Array<{
+    userId: string;
+    courseId: string;
+    courseName: string;
+    moduleId: number;
+    moduleTitle: string;
+    fileName: string;
+    fileId: number;
+    fileHash: string;
+    chunkIndex: number;
+    text: string;
+    tokenCount: number;
+    contentHash: string;
+  }> = [];
+  const toUpdate: Array<{ _id: mongoose.Types.ObjectId; text: string; tokenCount: number; contentHash: string }> = [];
+  const pineconeRecords: Array<{ id: string; text: string; metadata: { userId: string; courseId: string; moduleId: number; fileId: number; chunkIndex: number } }> = [];
+
+  for (const chunk of chunks) {
+    const hash = crypto.createHash("sha256").update(chunk.text, "utf8").digest("hex");
+    const tokens = countTokens(chunk.text);
+    const prev = existingByIndex.get(chunk.index);
+
+    if (prev) {
+      // eslint-disable-next-line security/detect-possible-timing-attacks -- innholdshash, ikke sikkerhetskritisk
+      if (prev.contentHash === hash) {
+        // Uendret — skip MongoDB-skriving, men sikre at Pinecone har vektoren
+        pineconeRecords.push({
+          id: prev._id.toString(),
+          text: chunk.text,
+          metadata: { userId, courseId, moduleId, fileId, chunkIndex: chunk.index },
+        });
+        continue;
+      }
+      // Endret — oppdater
+      toUpdate.push({ _id: prev._id, text: chunk.text, tokenCount: tokens, contentHash: hash });
+      pineconeRecords.push({
+        id: prev._id.toString(),
+        text: chunk.text,
+        metadata: { userId, courseId, moduleId, fileId, chunkIndex: chunk.index },
+      });
+    } else {
+      // Ny chunk
+      toInsert.push({
+        userId,
+        courseId,
+        courseName,
+        moduleId,
+        moduleTitle,
+        fileName,
+        fileId,
+        fileHash,
+        chunkIndex: chunk.index,
+        text: chunk.text,
+        tokenCount: tokens,
+        contentHash: hash,
+      });
+    }
+  }
+
+  // Slett overskytende chunks (f.eks. filen ble kortere)
+  const newMaxIndex = chunks.length - 1;
+  const staleIds = existing
+    .filter((doc) => doc.chunkIndex > newMaxIndex)
+    .map((doc) => doc._id);
+
+  if (staleIds.length > 0) {
+    await ContentEmbedding.deleteMany({ _id: { $in: staleIds } });
+  }
+
+  // Utfør MongoDB-operasjoner
+  if (toUpdate.length > 0) {
+    await Promise.all(
+      toUpdate.map((u) =>
+        ContentEmbedding.updateOne(
+          { _id: u._id },
+          { $set: { text: u.text, tokenCount: u.tokenCount, contentHash: u.contentHash, fileHash, courseName, moduleId, moduleTitle, fileName } },
+        ),
+      ),
     );
   }
-  await ContentEmbedding.deleteMany({ userId, courseId, fileId });
 
-  const documents = chunks.map((chunk) => ({
-    userId,
-    courseId,
-    courseName,
-    moduleTitle,
-    fileName,
-    fileId,
-    fileHash,
-    chunkIndex: chunk.index,
-    text: chunk.text,
-  }));
-  const inserted = await ContentEmbedding.insertMany(documents, { ordered: true });
+  if (toInsert.length > 0) {
+    const inserted = await ContentEmbedding.insertMany(toInsert, { ordered: true });
+    for (let i = 0; i < inserted.length; i++) {
+      pineconeRecords.push({
+        id: inserted[i]._id.toString(),
+        text: toInsert[i].text,
+        metadata: { userId, courseId, moduleId, fileId, chunkIndex: toInsert[i].chunkIndex },
+      });
+    }
+  }
+
+  // Synk metadata for eksisterende/skip-poster også, slik at fileHash og modulinfo
+  // reflekterer siste Canvas-versjon selv når chunk-tekst er uendret.
+  await ContentEmbedding.updateMany(
+    { userId, courseId, fileId },
+    { $set: { fileHash, courseName, moduleId, moduleTitle, fileName } },
+  );
+
+  // Slett stale vektorer fra Pinecone
+  if (staleIds.length > 0) {
+    try {
+      await pineconeDeleteByFilter({ userId, courseId, fileId });
+    } catch (error) {
+      logger.warn(
+        { err: error, userId, courseId, fileId },
+        "Pinecone delete av stale vektorer feilet",
+      );
+    }
+  }
 
   // Retry med enkel backoff for Pinecone upsert (MongoDB er allerede lagret)
   const MAX_UPSERT_RETRIES = 2;
   let upsertSuccess = false;
-  for (let attempt = 0; attempt <= MAX_UPSERT_RETRIES; attempt++) {
-    try {
-      await pineconeUpsert(
-        inserted.map((doc, i) => ({
-          id: doc._id.toString(),
-          text: chunks[i].text,
-          metadata: { userId, courseId, fileId },
-        })),
-      );
-      upsertSuccess = true;
-      break;
-    } catch (error) {
-      if (attempt < MAX_UPSERT_RETRIES) {
-        const delayMs = 1000 * (attempt + 1);
-        logger.warn(
-          { err: error, userId, courseId, fileId, attempt: attempt + 1, maxRetries: MAX_UPSERT_RETRIES },
-          `Pinecone upsert feilet — prøver igjen om ${delayMs}ms`,
-        );
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-      } else {
-        logger.warn(
-          { err: error, userId, courseId, fileId },
-          "Pinecone upsert feilet etter alle forsøk — chunks lagret i MongoDB uten vektorer",
-        );
+  if (pineconeRecords.length > 0) {
+    for (let attempt = 0; attempt <= MAX_UPSERT_RETRIES; attempt++) {
+      try {
+        await pineconeUpsert(pineconeRecords);
+        upsertSuccess = true;
+        break;
+      } catch (error) {
+        if (attempt < MAX_UPSERT_RETRIES) {
+          const delayMs = 1000 * (attempt + 1);
+          logger.warn(
+            { err: error, userId, courseId, fileId, attempt: attempt + 1, maxRetries: MAX_UPSERT_RETRIES },
+            `Pinecone upsert feilet — prøver igjen om ${delayMs}ms`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        } else {
+          logger.warn(
+            { err: error, userId, courseId, fileId },
+            "Pinecone upsert feilet etter alle forsøk — chunks lagret i MongoDB uten vektorer",
+          );
+        }
       }
     }
   }
@@ -224,6 +328,10 @@ export async function upsertStoredFileContent(options: {
       fileId,
       fileName,
       chunkCount: chunks.length,
+      inserted: toInsert.length,
+      updated: toUpdate.length,
+      skipped: chunks.length - toInsert.length - toUpdate.length,
+      staleRemoved: staleIds.length,
       pineconeSync: upsertSuccess,
       elapsedMs: Date.now() - startTime,
     },

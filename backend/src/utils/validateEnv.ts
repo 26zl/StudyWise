@@ -248,6 +248,14 @@ export const validateEnv = (): void => {
     // Logg integrasjonsstatus
     logger.info("Pinecone vector store og embeddings er konfigurert");
 
+    // Valgfri: Cohere Rerank (degraderer gracefully uten nøkkel)
+    const cohereKey = process.env.COHERE_API_KEY;
+    if (cohereKey && cohereKey.trim()) {
+      logger.info("Cohere Rerank er konfigurert (rerank-v3.5)");
+    } else {
+      logger.warn("COHERE_API_KEY er ikke satt — hybrid søk bruker RRF-fusjon uten reranking");
+    }
+
     // Avslutt hvis påkrevde variabler mangler
     if (manglende.length > 0) {
         const liste = manglende.join(", ");

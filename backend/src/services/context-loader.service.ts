@@ -36,10 +36,8 @@ import {
   getStoredChunksForCourses,
   getStoredChunksForFile,
   hasStoredContentForUser,
-  isEmbeddingAvailable,
-  vectorSearch,
-  type VectorSearchResult,
 } from "./embedding.service.js";
+import { hybridSearch, type HybridSearchResult } from "./hybrid-retrieval.service.js";
 
 // ─── Typer ─────────────────────────────────────────────────
 
@@ -498,10 +496,12 @@ async function byggKontekstFraChunks(
   try {
     const relevantCourses = await finnRelevanteEmner(userId, target);
     const courseIds = relevantCourses.map((course) => String(course.id));
-    if (target && (target.courseHint || target.moduleHint || target.fileHint) && courseIds.length === 0) {
-      logger.info({ userId, target }, "Chunk-søk fant ingen relevante kurs");
+    // Blokkér kun når courseHint er eksplisitt satt men ingen kurs matchet
+    if (target?.courseHint && courseIds.length === 0) {
+      logger.info({ userId, target }, "Chunk-søk: courseHint satt men ingen kurs matchet");
       return null;
     }
+    const coursesPinned = courseIds.length > 0;
 
     const CHUNK_QUERY_LIMIT = 1000;
     let allChunks = await getStoredChunksForCourses(userId, {
@@ -545,7 +545,8 @@ async function byggKontekstFraChunks(
       fileHint: target?.fileHint,
     });
 
-    if (target?.moduleHint) {
+    // Modul-filter kun når vi er avgrenset til spesifikke kurs
+    if (coursesPinned && target?.moduleHint) {
       const moduleMatches = scored.filter((chunk) =>
         chunk.source.moduleTitle.toLowerCase().includes(target.moduleHint!.toLowerCase()),
       );
@@ -595,19 +596,20 @@ async function byggKontekstFraChunks(
   }
 }
 
-function filtrerVectorResultater(
-  results: VectorSearchResult[],
+function filtrerHybridResultater(
+  results: HybridSearchResult[],
   target?: TargetedQuery,
-) {
+  coursesPinned?: boolean,
+): HybridSearchResult[] {
   let filtered = results;
 
-  if (target?.moduleHint) {
+  // Modul-filter kun når vi allerede er avgrenset til spesifikke kurs —
+  // ellers lar vi retrieval-scoren bestemme relevans
+  if (coursesPinned && target?.moduleHint) {
     const moduleMatches = filtered.filter((result) =>
       result.source.moduleTitle.toLowerCase().includes(target.moduleHint!.toLowerCase()),
     );
-    if (moduleMatches.length === 0) {
-      return [];
-    }
+    if (moduleMatches.length === 0) return [];
     filtered = moduleMatches;
   }
 
@@ -615,9 +617,7 @@ function filtrerVectorResultater(
     const fileMatches = filtered.filter((result) =>
       titleMatchesFileHint(result.source.fileName, target.fileHint!),
     );
-    if (fileMatches.length === 0) {
-      return [];
-    }
+    if (fileMatches.length === 0) return [];
     filtered = fileMatches;
   }
 
@@ -625,42 +625,44 @@ function filtrerVectorResultater(
 }
 
 /**
- * Bygger kontekst via Pinecone vector search (semantisk embedding-søk).
- * Bruker Pinecone Inference-embeddings for å finne de mest relevante chunks.
- * Fallback: returnerer null hvis Pinecone ikke er tilgjengelig.
+ * Bygger kontekst via hybrid søk: Pinecone + BM25 → RRF → Cohere Rerank.
+ * Erstatter separat vector- og keyword-søk med én samlet pipeline.
  */
-async function byggKontekstFraVectorSearch(
+async function byggKontekstFraHybridSearch(
   userId: string,
   message: string,
   target?: TargetedQuery,
 ): Promise<string | null> {
-  if (!isEmbeddingAvailable()) return null;
-
   try {
     const relevantCourses = await finnRelevanteEmner(userId, target);
     const courseIds = relevantCourses.map((course) => String(course.id));
-    if (target && (target.courseHint || target.moduleHint || target.fileHint) && courseIds.length === 0) {
-      logger.info({ userId, target }, "Vector-søk fant ingen relevante kurs");
+    // Blokkér kun når courseHint er eksplisitt satt men ingen kurs matchet.
+    // Når courseHint er null, søker vi på tvers av alle kurs —
+    // retrieval-scoren bestemmer relevans.
+    if (target?.courseHint && courseIds.length === 0) {
+      logger.info({ userId, target }, "Hybrid søk: courseHint satt men ingen kurs matchet");
       return null;
     }
 
-    const { results, degraded } = await vectorSearch(userId, message, {
-      limit: 8,
-      courseIds: courseIds.length > 0 ? courseIds : undefined,
+    const coursesPinned = courseIds.length > 0;
+
+    const { results, degraded, sources } = await hybridSearch(userId, message, {
+      courseIds: coursesPinned ? courseIds : undefined,
     });
 
-    // Degradert modus: Pinecone feilet — returner null slik at kalleren faller tilbake til keyword-søk
-    if (degraded) {
-      logger.info({ userId }, "Vector search degradert — faller tilbake til keyword-søk");
+    if (degraded || results.length === 0) {
+      logger.info(
+        { userId, degraded, messagePreview: message.substring(0, 80) },
+        "Hybrid søk ga ingen resultater",
+      );
       return null;
     }
 
-    const filteredResults = filtrerVectorResultater(results, target);
-
+    const filteredResults = filtrerHybridResultater(results, target, coursesPinned);
     if (filteredResults.length === 0) {
       logger.info(
         { userId, messagePreview: message.substring(0, 80) },
-        "Vector search ga 0 treff",
+        "Hybrid søk: alle resultater filtrert bort av target-hints",
       );
       return null;
     }
@@ -681,13 +683,14 @@ async function byggKontekstFraVectorSearch(
         topScore: filteredResults[0].score.toFixed(3),
         topFile: filteredResults[0].source.fileName,
         contextLength: kontekst.length,
+        sources,
       },
-      "Vector search kontekst bygget",
+      "Hybrid søk kontekst bygget",
     );
 
     return "[CANVAS-DATA START]\n" + kontekst + "\n[CANVAS-DATA SLUTT]";
   } catch (error) {
-    logger.warn({ err: error }, "Feil ved vector search — faller tilbake til keyword-søk");
+    logger.warn({ err: error }, "Feil ved hybrid søk — faller tilbake til keyword-søk");
     return null;
   }
 }
@@ -768,19 +771,19 @@ export async function loadCanvasContext(
   // ── canvas_full ──
   const hasSpecificTarget = !!(target?.courseHint || target?.moduleHint || target?.fileHint);
 
-  // Trinn 0: Vector search (semantisk embedding-søk, best kvalitet)
+  // Trinn 0: Hybrid søk (Pinecone + BM25 → RRF → Cohere Rerank)
   if (hasStoredAIContent && message) {
-    const vectorKontekst = await byggKontekstFraVectorSearch(userId, message, target);
-    if (vectorKontekst) {
+    const hybridKontekst = await byggKontekstFraHybridSearch(userId, message, target);
+    if (hybridKontekst) {
       logger.info(
-        { userId, intent, source: "vector", contextLength: vectorKontekst.length },
-        "Canvas-kontekst lastet fra vector search",
+        { userId, intent, source: "vector", contextLength: hybridKontekst.length },
+        "Canvas-kontekst lastet fra hybrid søk",
       );
-      return { kontekst: vectorKontekst, hasCanvasData: true, source: "vector" };
+      return { kontekst: hybridKontekst, hasCanvasData: true, source: "vector" };
     }
   }
 
-  // Trinn 1: Chunk-basert søk (keyword fallback når vector search ikke ga treff)
+  // Trinn 1: Chunk-basert søk (keyword fallback når hybrid søk ikke ga treff)
   if (hasStoredAIContent && message) {
     const chunkKontekst = await byggKontekstFraChunks(userId, message, target);
     if (chunkKontekst) {

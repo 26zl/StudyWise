@@ -16,7 +16,7 @@ import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
 import { CodeBlock } from "./CodeBlock";
 import { SmartSuggestions } from "./SmartSuggestions";
-import { useKIChat, useKIDocumentAnalyse, useKITestTilkobling, SUPPORTED_FILE_TYPES, getKIErrorMessage, getKIBannerForError, type KIErrorContext } from "../ki/ki-api";
+import { streamKIChat, useKIDocumentAnalyse, useKITestTilkobling, SUPPORTED_FILE_TYPES, getKIErrorMessage, getKIBannerForError, type KIErrorContext } from "../ki/ki-api";
 import { useChatHistory } from "../hooks/useChatHistory";
 import { FeilMelding, type FeilMeldingType } from "./FeilMelding";
 import { useUIStore } from "../store/uiStore";
@@ -153,7 +153,9 @@ export function ChatSection() {
     const [vedlegg, settVedlegg] = useState<File[]>([]);
     const [analyserarDokument, settAnalysererDokument] = useState(false);
     const [aktivChatId, setAktivChatId] = useState<string | null>(null);
+    const [animerendeMeldingId, settAnimerendeMeldingId] = useState<string | null>(null);
 
+    const meldingsContainerRef = useRef<HTMLDivElement>(null);
     const meldingerSluttRef = useRef<HTMLDivElement>(null);
     const tekstInputRef = useRef<HTMLTextAreaElement>(null);
     const filInputRef = useRef<HTMLInputElement>(null);
@@ -161,6 +163,9 @@ export function ChatSection() {
     const oppretterChatRef = useRef(false);
     const isMountedRef = useRef(true);
     const retriedPendingSaveRef = useRef<string | null>(null);
+    const brukerErVedBunnRef = useRef(true);
+    /** Ref for animasjonsintervall — ryddes opp ved unmount eller ny melding. */
+    const animationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     /** Pågående chat-forespørsel: brukes i onSuccess/onError for å lagre riktig chat (inkl. chatId fra promise) etter svar. */
     const pendingChatRef = useRef<{
@@ -207,6 +212,16 @@ export function ChatSection() {
         };
     }, []);
 
+    // Rydd opp animasjonsintervall ved unmount for å unngå state-oppdateringer etter unmount
+    useEffect(() => {
+        return () => {
+            if (animationIntervalRef.current) {
+                clearInterval(animationIntervalRef.current);
+                animationIntervalRef.current = null;
+            }
+        };
+    }, []);
+
     // KI tilkoblingstest (viser feilmelding hvis KI er utilgjengelig)
     const { isError: erTilkoblingsFeil, error: tilkoblingsFeil, refetch: refetchKiTest } = useKITestTilkobling(mounted);
     const searchParams = useSearchParams();
@@ -219,24 +234,33 @@ export function ChatSection() {
         ? (tilkoblingsBanner ?? { melding: "Kunne ikke koble til KI-assistenten. Prøv igjen senere.", type: "error" as const })
         : null;
 
-    // KI chat hook
-    const { sendMelding: sendTilAPI } = useKIChat();
-
     // Dokumentanalyse hook
     const { analyserDokument } = useKIDocumentAnalyse();
 
     // Chat history hook (lagret i DB, kryptert i backend)
     const { saveChat, loadChat: loadChatById, loading, chats } = useChatHistory();
 
-    // Auto-scroll 
-    const scrollTilBunn = () => {
-        meldingerSluttRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
-    
-    // Scroll til bunn når meldinger oppdateres eller skriver-status endres
+    // Auto-scroll kun når brukeren allerede er nær bunnen.
+    const erNaerBunn = useCallback(() => {
+        const el = meldingsContainerRef.current;
+        if (!el) return true;
+        const avstandTilBunn = el.scrollHeight - el.scrollTop - el.clientHeight;
+        return avstandTilBunn < 96;
+    }, []);
+
+    const oppdaterBrukerScrollPosisjon = useCallback(() => {
+        brukerErVedBunnRef.current = erNaerBunn();
+    }, [erNaerBunn]);
+
+    const scrollTilBunn = useCallback((behavior: ScrollBehavior = "auto") => {
+        meldingerSluttRef.current?.scrollIntoView({ behavior });
+    }, []);
+
+    // Scroll til bunn når innhold vokser, men bare hvis brukeren ikke har scrollet seg bort.
     useEffect(() => {
-        scrollTilBunn();
-    }, [meldinger, skriver]);
+        if (!brukerErVedBunnRef.current) return;
+        scrollTilBunn(skriver || analyserarDokument || animerendeMeldingId ? "auto" : "smooth");
+    }, [meldinger, skriver, analyserarDokument, animerendeMeldingId, scrollTilBunn]);
 
     useEffect(() => {
         meldingerRef.current = meldinger;
@@ -543,6 +567,36 @@ export function ChatSection() {
         settVedlegg((prev) => prev.filter((_, i) => i !== index));
     }, []);
 
+    /**
+     * Animerer assistent-svar ord-for-ord ved å progressivt oppdatere meldingen med gitt ID.
+     */
+    const animerTekst = useCallback(
+        (id: string, fullText: string, onDone: () => void) => {
+            if (animationIntervalRef.current) {
+                clearInterval(animationIntervalRef.current);
+            }
+            settAnimerendeMeldingId(id);
+            const tokens = fullText.split(/(\s+)/);
+            let index = 0;
+            const steg = Math.max(1, Math.ceil(tokens.length / 180));
+            animationIntervalRef.current = setInterval(() => {
+                index = Math.min(index + steg, tokens.length);
+                settMeldinger((prev) =>
+                    prev.map((m) =>
+                        m.id === id ? { ...m, innhold: tokens.slice(0, index).join("") } : m,
+                    ),
+                );
+                if (index >= tokens.length) {
+                    clearInterval(animationIntervalRef.current!);
+                    animationIntervalRef.current = null;
+                    settAnimerendeMeldingId(null);
+                    onDone();
+                }
+            }, 16);
+        },
+        [],
+    );
+
     /** Hovedfunksjon: validerer input, legger til brukermelding, og enten kjører dokumentanalyse eller sender til KI-chat. Oppretter chat ved behov og setter pending state. */
     const sendMelding = async () => {
         const harVedlegg = vedlegg.length > 0;
@@ -802,7 +856,11 @@ export function ChatSection() {
             { role: "user" as const, content: brukerMeldingInnhold },
         ];
 
-        const handleChatResponse = (sisteMelding?: Melding) => {
+        /** Oppdaterer pending state og lagrer i DB. Se opts for å styre state/skriver-sideeffekter. */
+        const handleChatResponse = (
+            sisteMelding?: Melding,
+            opts: { skipMeldingerUpdate?: boolean; skipSkriver?: boolean } = {},
+        ): boolean => {
             const pending = pendingChatRef.current;
             if (pending && pendingConversationState?.requestId === pending.requestId) {
                 pendingConversationState = sisteMelding
@@ -822,33 +880,69 @@ export function ChatSection() {
                 void persistUserMessageOnly(pending);
             }
             if (isMountedRef.current) {
-                if (skalOppdatereSynlig && sisteMelding) settMeldinger((t) => [...t, sisteMelding]);
-                settSkriver(false);
+                if (!opts.skipMeldingerUpdate && skalOppdatereSynlig && sisteMelding) {
+                    settMeldinger((t) => [...t, sisteMelding]);
+                }
+                if (!opts.skipSkriver) settSkriver(false);
             }
+            return skalOppdatereSynlig;
         };
 
-        sendTilAPI(apiMeldinger, {
-            onSuccess: (data) => {
+        // Assistent-boble legges først til når vi faktisk starter animasjonen.
+        const assistantId = (Date.now() + 1).toString();
+        brukerErVedBunnRef.current = true;
+
+        void streamKIChat(apiMeldinger)
+            .then((data) => {
                 const responseText = data.response.trim();
                 if (!responseText) {
                     showToast.error("KI-svar feilet", "KI-assistenten returnerte et tomt svar. Prøv igjen.");
+                    settAnimerendeMeldingId(null);
                     handleChatResponse();
                     return;
                 }
 
-                handleChatResponse({
-                    id: (Date.now() + 1).toString(),
+                const sisteMelding: Melding = {
+                    id: assistantId,
                     rolle: "assistant",
                     innhold: responseText,
                     tidsstempel: new Date(),
+                };
+
+                // Lagre i DB umiddelbart; state-oppdatering og skriver-deaktivering skjer etter animasjon
+                const skalOppdatereSynlig = handleChatResponse(sisteMelding, {
+                    skipMeldingerUpdate: true,
+                    skipSkriver: true,
                 });
-            },
-            onError: (error) => {
-                const feilTekst = lagFeilTekst(error, "chat");
+
+                if (isMountedRef.current && skalOppdatereSynlig) {
+                    settMeldinger((t) => [
+                        ...t,
+                        { id: assistantId, rolle: "assistant" as const, innhold: "", tidsstempel: new Date() },
+                    ]);
+                    animerTekst(assistantId, responseText, () => {
+                        if (isMountedRef.current) {
+                            // Sikrer at full tekst er satt selv om intervallet ble ryddet tidlig
+                            settMeldinger((prev) =>
+                                prev.map((m) => (m.id === assistantId ? sisteMelding : m)),
+                            );
+                            settSkriver(false);
+                        }
+                    });
+                } else {
+                    settAnimerendeMeldingId(null);
+                    settSkriver(false);
+                }
+            })
+            .catch((error: unknown) => {
+                settAnimerendeMeldingId(null);
+                const feilTekst = lagFeilTekst(
+                    error instanceof Error ? error : new Error("Uventet feil"),
+                    "chat",
+                );
                 showToast.error("KI-svar feilet", feilTekst);
                 handleChatResponse();
-            },
-        });
+            });
     };
 
     /** Enter sender melding; Shift+Enter gir ny linje. */
@@ -949,11 +1043,8 @@ export function ChatSection() {
         if (!chat) return;
         const pending = pendingChatRef.current;
         if ((pending && pending.chatId === aktivChatId) || pendingConversationState?.chatId === aktivChatId) return;
-
-        if (skriver || analyserarDokument) {
-            settSkriver(false);
-            settAnalysererDokument(false);
-        }
+        // Ikke overskriv meldingsinnhold mens pågående AI-svar animeres ord-for-ord.
+        if (animerendeMeldingId) return;
 
         const currentMessages = meldingerRef.current.map((m) => ({
             rolle: m.rolle,
@@ -971,7 +1062,7 @@ export function ChatSection() {
             innhold: m.innhold,
             tidsstempel: new Date(),
         })));
-    }, [aktivChatId, chats, loadChatById, loading, skriver, analyserarDokument]);
+    }, [aktivChatId, chats, loadChatById, loading, animerendeMeldingId]);
 
     const sisteAssistentsvar =
         [...meldinger].reverse().find((melding) => melding.rolle === "assistant")?.innhold ?? "";
@@ -981,7 +1072,11 @@ export function ChatSection() {
             {/* Main Chat Area */}
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Meldinger */}
-                <div className="flex-1 overflow-y-auto p-4 md:p-6">
+                <div
+                    ref={meldingsContainerRef}
+                    onScroll={oppdaterBrukerScrollPosisjon}
+                    className="flex-1 overflow-y-auto p-4 md:p-6"
+                >
                   <div className="max-w-235 mx-auto space-y-5">
                     {/* Tilkoblingsfeil – samme FeilMelding + Prøv igjen-UI som DashboardView/oversikt (konsekvent UX) */}
                     {tilkoblingsBannerVist && (
@@ -1117,7 +1212,7 @@ export function ChatSection() {
                                 </div>
 
                                 {/* Handlingsknapper under AI-svar */}
-                                {melding.rolle === "assistant" && (
+                                {melding.rolle === "assistant" && animerendeMeldingId !== melding.id && !skriver && (
                                     <div className="flex items-center justify-between mt-1.5 px-0.5">
                                         <div className="flex items-center gap-0.5">
                                             <button
@@ -1228,7 +1323,7 @@ export function ChatSection() {
                     ))}
 
                     {/* Skriver indikator */}
-                    {(skriver || analyserarDokument) && (
+                    {((skriver && !animerendeMeldingId) || analyserarDokument) && (
                         <div className="flex items-start gap-3 justify-start">
                             <div className="shrink-0 w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center mt-1">
                                 <Bot className="w-5 h-5 text-purple-600 dark:text-purple-400" />

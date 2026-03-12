@@ -23,7 +23,9 @@ export const EMBEDDING_DIMENSIONS = 1024;
 export interface PineconeChunkMetadata extends Record<string, string | number> {
   userId: string;
   courseId: string;
+  moduleId: number;
   fileId: number;
+  chunkIndex: number;
 }
 
 const pc =
@@ -95,7 +97,9 @@ export async function pineconeUpsert(
               [TEXT_FIELD]: r.text,
               userId: r.metadata.userId,
               courseId: r.metadata.courseId,
+              moduleId: r.metadata.moduleId,
               fileId: r.metadata.fileId,
+              chunkIndex: r.metadata.chunkIndex,
             }),
         )
         .join("\n");

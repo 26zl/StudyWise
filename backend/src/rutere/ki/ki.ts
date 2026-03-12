@@ -142,6 +142,23 @@ function detectIntent(messages: Array<{ role: string; content: string }>): Inten
   return "general_chat";
 }
 
+function isLikelyFollowUpQuestion(message: string): boolean {
+  const lower = normaliserSkrivefeil(message).trim();
+  if (!lower) return false;
+
+  const followUpPrefixes = [
+    "hva med",
+    "og hva med",
+    "kan du også",
+    "kan du ta med",
+    "samme med",
+    "hva så med",
+    "og",
+  ];
+
+  return followUpPrefixes.some((prefix) => lower.startsWith(prefix));
+}
+
 // ————————————————————————————————————————————————————————
 // Målrettet kontekst-ekstraksjon: identifiser hvilke(t) emne/modul brukeren spør om
 // ————————————————————————————————————————————————————————
@@ -151,6 +168,12 @@ export interface TargetedQuery {
   fileHint: string | null;
 }
 
+/** Generiske norske ord som ikke identifiserer en spesifikk modul — settes til null */
+const GENERIC_MODULE_WORDS = new Set([
+  "leksjonen", "leksjon", "forelesningen", "forelesning", "materialet",
+  "kurset", "faget", "emnet", "pensum",
+]);
+
 function extractQueryTarget(message: string): TargetedQuery {
   const lower = normaliserSkrivefeil(message);
 
@@ -158,7 +181,9 @@ function extractQueryTarget(message: string): TargetedQuery {
   const moduleMatch = lower.match(
     /(?:modul|leksjon|lesson|module|uke|week)\s*(\d+|[a-zæøå]+)/i,
   );
-  const moduleHint = moduleMatch ? moduleMatch[0] : null;
+  const rawModuleHint = moduleMatch ? moduleMatch[0] : null;
+  // Filtrer bort generiske ord (f.eks. "leksjonen") som ikke identifiserer en bestemt modul
+  const moduleHint = rawModuleHint && !GENERIC_MODULE_WORDS.has(rawModuleHint) ? rawModuleHint : null;
 
   // Vanlige emnefragmenter som kan dukke opp i Canvas-emnenavn
   const courseKeywords = [
@@ -501,8 +526,18 @@ router.post("/chat", async (req, res) => {
       );
 
       // Session-level chunk caching: gjenbruk kontekst for oppfølgingsspørsmål om samme kurs
-      const sessionCacheKey = (intent === "canvas_full" && target.courseHint)
-        ? `ki:session:${req.user.id}:${target.courseHint}`
+      const followUpWithoutCourseHint =
+        intent === "canvas_full" &&
+        !target.courseHint &&
+        isLikelyFollowUpQuestion(lastUserMsg);
+      const lastCourseSessionKey =
+        intent === "canvas_full" ? `ki:session:${req.user.id}:last-course` : null;
+      const sessionCacheKey = intent === "canvas_full"
+        ? target.courseHint
+          ? `ki:session:${req.user.id}:${target.courseHint}`
+          : followUpWithoutCourseHint
+            ? lastCourseSessionKey
+            : null
         : null;
       const cachedSessionCtx = sessionCacheKey ? await getCache(sessionCacheKey) : null;
       let contextResult: ContextResult = { kontekst: "", hasCanvasData: false, source: "none" };
@@ -541,8 +576,19 @@ router.post("/chat", async (req, res) => {
         ]);
 
         // Cache for oppfølgingsspørsmål i samme sesjon (kun når vi fikk faktisk data)
+        const hasRichCanvasContent =
+          contextResult.hasCanvasData &&
+          (contextResult.kontekst.includes("--- PDF-INNHOLD:") ||
+            contextResult.kontekst.includes("--- FIL-INNHOLD:") ||
+            !!target.courseHint ||
+            !!target.moduleHint ||
+            !!target.fileHint);
+
         if (sessionCacheKey && contextResult.hasCanvasData) {
           await setCache(sessionCacheKey, JSON.stringify(contextResult), SESSION_CONTEXT_TTL);
+        }
+        if (lastCourseSessionKey && hasRichCanvasContent) {
+          await setCache(lastCourseSessionKey, JSON.stringify(contextResult), SESSION_CONTEXT_TTL);
         }
       }
 

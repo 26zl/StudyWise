@@ -15,6 +15,7 @@ export interface IContentEmbedding extends Document {
   userId: string;
   courseId: string;
   courseName: string;
+  moduleId: number;
   moduleTitle: string;
   fileName: string;
   fileId: number;
@@ -22,6 +23,10 @@ export interface IContentEmbedding extends Document {
   chunkIndex: number;
   /** Selve tekstinnholdet i chunken */
   text: string;
+  /** Omtrentlig token-antall for chunken */
+  tokenCount: number;
+  /** SHA-256-hash av chunk-teksten (for deduplisering/endringsdeteksjon) */
+  contentHash: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,12 +36,15 @@ const ContentEmbeddingSchema = new Schema<IContentEmbedding>(
     userId: { type: String, required: true, index: true },
     courseId: { type: String, required: true },
     courseName: { type: String, required: true },
+    moduleId: { type: Number, required: true },
     moduleTitle: { type: String, required: true },
     fileName: { type: String, required: true },
     fileId: { type: Number, required: true },
     fileHash: { type: String, required: true },
     chunkIndex: { type: Number, required: true },
     text: { type: String, required: true },
+    tokenCount: { type: Number, required: true },
+    contentHash: { type: String, required: true },
   },
   { timestamps: true },
 );

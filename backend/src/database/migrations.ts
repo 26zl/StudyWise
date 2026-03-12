@@ -13,6 +13,7 @@
  */
 
 import mongoose from "mongoose";
+import crypto from "crypto";
 import { logger } from "../utils/logger.js";
 
 // Schema for å spore hvilke migrasjoner som er kjørt
@@ -35,7 +36,52 @@ export interface Migration {
 // ============================================================
 // Registrer migrasjoner her (legg til nye nederst i arrayet)
 // ============================================================
-const migrations: Migration[] = [];
+const migrations: Migration[] = [
+  {
+    id: "2026-03-12-content-embedding-add-moduleId-tokenCount-contentHash",
+    description: "Legg til moduleId, tokenCount og contentHash på eksisterende ContentEmbedding-dokumenter",
+    up: async () => {
+      const col = mongoose.connection.collection("contentembeddings");
+      const count = await col.countDocuments({ contentHash: { $exists: false } });
+      if (count === 0) return;
+
+      logger.info({ count }, "Migrerer ContentEmbedding-dokumenter (legger til nye felt)");
+
+      const cursor = col.find({ contentHash: { $exists: false } });
+      let updated = 0;
+      const BATCH_SIZE = 500;
+      type BulkOp = { updateOne: { filter: object; update: object } };
+      let batch: BulkOp[] = [];
+
+      for await (const doc of cursor) {
+        const text = (doc.text as string) ?? "";
+        const contentHash = crypto.createHash("sha256").update(text, "utf8").digest("hex");
+        // Grovt token-estimat uten å laste tiktoken under migrering
+        const tokenCount = Math.ceil(text.length / 4);
+
+        batch.push({
+          updateOne: {
+            filter: { _id: doc._id },
+            update: { $set: { contentHash, tokenCount, moduleId: doc.moduleId ?? 0 } },
+          },
+        });
+
+        if (batch.length >= BATCH_SIZE) {
+          await col.bulkWrite(batch, { ordered: false });
+          updated += batch.length;
+          batch = [];
+        }
+      }
+
+      if (batch.length > 0) {
+        await col.bulkWrite(batch, { ordered: false });
+        updated += batch.length;
+      }
+
+      logger.info({ updated }, "ContentEmbedding-migrering fullført");
+    },
+  },
+];
 
 /**
  * Kjør alle ventende migrasjoner.
