@@ -39,7 +39,8 @@ if (ddApiKey) {
     const sampleRate = parseSampleRate(process.env.DD_TRACE_SAMPLE_RATE);
     const gitRepoUrl = process.env.DD_GIT_REPOSITORY_URL?.trim();
 
-    tracer.init({
+    try {
+      tracer.init({
         service,
         env,
         version,
@@ -48,9 +49,17 @@ if (ddApiKey) {
         profiling,
         appsec,
         sampleRate,
-        tags: gitRepoUrl ? { "git.repository_url": gitRepoUrl } : undefined,
-        // DD_SITE leses av dd-trace fra process.env
-    });
+      });
+    } catch (err) {
+      setImmediate(() => {
+        import("./utils/logger.js").then(({ logger }) => {
+          logger.error(
+            { err },
+            "Datadog tracer.init() feilet — APM kan være deaktivert",
+          );
+        });
+      });
+    }
 
     setImmediate(() => {
         import("./utils/logger.js").then(({ logger }) => {
