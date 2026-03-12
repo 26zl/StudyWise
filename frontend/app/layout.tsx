@@ -30,7 +30,19 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const { user, hadCookies } = await getLayoutAuth();
-  // Layout komponenten returnerer HTML-strukturen for applikasjonen
+
+  // RUM-config fra server (runtime) — slik at Vercel env uten NEXT_PUBLIC_ fungerer uten ny build
+  const rumApplicationId = process.env.DD_RUM_APPLICATION_ID ?? process.env.NEXT_PUBLIC_DD_RUM_APPLICATION_ID;
+  const rumClientToken = process.env.DD_RUM_CLIENT_TOKEN ?? process.env.NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN;
+  const rumConfig =
+    rumApplicationId && rumClientToken
+      ? {
+          applicationId: rumApplicationId,
+          clientToken: rumClientToken,
+          site: process.env.DD_RUM_SITE ?? process.env.NEXT_PUBLIC_DD_SITE ?? "us5.datadoghq.com",
+        }
+      : null;
+
   return (
     <html lang="nb" suppressHydrationWarning>
       {/*
@@ -38,6 +50,13 @@ export default async function RootLayout({
         Den definerer <body> og globale verktøy (Providers).
       */}
       <body className="antialiased min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950" suppressHydrationWarning>
+        {rumConfig && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `window.__DD_RUM_CONFIG__=${JSON.stringify(rumConfig)};`,
+            }}
+          />
+        )}
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

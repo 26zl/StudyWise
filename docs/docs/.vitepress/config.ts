@@ -7,16 +7,14 @@ export default defineConfig({
   base: '/StudyWise/',
   themeConfig: {
     nav: [
-      { text: 'Hjem', link: '/' },
-      { text: 'Endringslogg', link: '/changelog' }
+      { text: 'Hjem', link: '/' }
     ],
 
     sidebar: [
       {
         text: 'Oversikt',
         items: [
-          { text: 'Introduksjon', link: '/' },
-          { text: 'Endringslogg', link: '/changelog' }
+          { text: 'Introduksjon', link: '/' }
         ]
       }
     ],

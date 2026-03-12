@@ -5,10 +5,6 @@ hero:
   name: "StudyWise"
   text: "KI-basert studieassistent"
   tagline: Smidigere studiedag med Canvas-integrasjon og kunstig intelligens
-  actions:
-    - theme: brand
-      text: Endringslogg
-      link: /changelog
 
 features:
   - title: Canvas LMS-integrasjon
