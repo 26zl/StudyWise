@@ -9,13 +9,56 @@ import {
   sendUnknownError,
   requireUserId,
 } from "../../utils/apiError.js";
-import { ChatMessageSchema } from "common/chat";
+import {
+  ChatMessageSchema,
+  ChatShareResponseSchema,
+  SharedChatResponseSchema,
+} from "common/chat";
 import { z } from "zod";
 
 export const kiShareRouter = Router();
 
+const SHARE_TTL_DAYS = 30;
+const REDACTED_USER_MESSAGE = "[Brukermelding skjult av personvernhensyn]";
+const SHARED_CHAT_TITLE = "Delt StudyWise-samtale";
+
 const isValidObjectId = (id: string): boolean =>
   mongoose.Types.ObjectId.isValid(id);
+
+function buildShareExpiry(now = new Date()): Date {
+  return new Date(now.getTime() + SHARE_TTL_DAYS * 24 * 60 * 60 * 1000);
+}
+
+function sanitizeSharedText(text: string): string {
+  return text
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[e-post skjult]")
+    // eslint-disable-next-line security/detect-unsafe-regex -- hardkodet JWT-mønster med faste segmentgrenser
+    .replace(/\b(?:Bearer\s+)?eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[token skjult]")
+    .replace(/\bsk-[A-Za-z0-9-]+\b/gi, "[api-nokkel skjult]")
+    // eslint-disable-next-line security/detect-unsafe-regex -- hardkodet telefonmønster med faste gruppegrenser
+    .replace(/\b(?:\+\d{1,3}[\s-]?)?\d{2}(?:[\s-]?\d{2}){3,5}\b/g, "[telefon skjult]")
+    .replace(/https?:\/\/\S+/gi, "[lenke skjult]");
+}
+
+function sanitizeSharedMessages(messages: z.infer<typeof ChatMessageSchema>[]) {
+  return messages.map((message) => ({
+    ...message,
+    innhold:
+      message.rolle === "user"
+        ? REDACTED_USER_MESSAGE
+        : sanitizeSharedText(message.innhold),
+  }));
+}
+
+async function clearExpiredShare(chatId: mongoose.Types.ObjectId): Promise<void> {
+  await ChatHistory.updateOne(
+    { _id: chatId },
+    {
+      $set: { isShared: false },
+      $unset: { shareToken: 1, sharedAt: 1, shareExpiresAt: 1 },
+    },
+  );
+}
 
 // POST /chat/:chatId/share — aktiver deling og generer shareToken
 kiShareRouter.post("/chat/:chatId/share", async (req, res) => {
@@ -31,26 +74,41 @@ kiShareRouter.post("/chat/:chatId/share", async (req, res) => {
     const doc = await ChatHistory.findOne({ _id: chatId, user: userId });
     if (!doc) return apiError.notFound(res, "Samtalen");
 
+    const now = new Date();
+
     // Gjenbruk eksisterende token hvis allerede delt
-    if (doc.isShared && doc.shareToken) {
-      return res.json({
-        shareToken: doc.shareToken,
-        shareUrl: `/delt/${doc.shareToken}`,
-      });
+    if (
+      doc.isShared &&
+      doc.shareToken &&
+      doc.shareExpiresAt &&
+      doc.shareExpiresAt.getTime() > now.getTime()
+    ) {
+      return res.json(
+        ChatShareResponseSchema.parse({
+          shareToken: doc.shareToken,
+          shareUrl: `/delt/${doc.shareToken}`,
+          expiresAt: doc.shareExpiresAt,
+        }),
+      );
     }
 
     const shareToken = randomUUID();
+    const shareExpiresAt = buildShareExpiry(now);
     doc.shareToken = shareToken;
-    doc.sharedAt = new Date();
+    doc.sharedAt = now;
+    doc.shareExpiresAt = shareExpiresAt;
     doc.isShared = true;
     await doc.save();
 
-    logger.info({ userId, chatId }, "Samtale delt");
+    logger.info({ userId, chatId, shareExpiresAt }, "Samtale delt");
 
-    return res.json({
-      shareToken,
-      shareUrl: `/delt/${shareToken}`,
-    });
+    return res.json(
+      ChatShareResponseSchema.parse({
+        shareToken,
+        shareUrl: `/delt/${shareToken}`,
+        expiresAt: shareExpiresAt,
+      }),
+    );
   } catch (error) {
     return sendUnknownError(res, error, {
       kontekst: "POST chat share",
@@ -72,7 +130,10 @@ kiShareRouter.delete("/chat/:chatId/share", async (req, res) => {
 
     const doc = await ChatHistory.findOneAndUpdate(
       { _id: chatId, user: userId },
-      { $set: { isShared: false }, $unset: { shareToken: 1, sharedAt: 1 } },
+      {
+        $set: { isShared: false },
+        $unset: { shareToken: 1, sharedAt: 1, shareExpiresAt: 1 },
+      },
       { returnDocument: "after" },
     );
     if (!doc) return apiError.notFound(res, "Samtalen");
@@ -104,26 +165,34 @@ sharedChatRouter.get("/shared/:shareToken", async (req, res) => {
     const doc = await ChatHistory.findOne({
       shareToken,
       isShared: true,
-    }).lean();
+    });
 
     if (!doc) return apiError.notFound(res, "Den delte samtalen");
+
+    if (!doc.shareExpiresAt || doc.shareExpiresAt.getTime() <= Date.now()) {
+      await clearExpiredShare(doc._id);
+      return apiError.notFound(res, "Den delte samtalen");
+    }
 
     // Dekrypter meldinger — fjern personlig kontekst
     let messages: z.infer<typeof ChatMessageSchema>[];
     try {
       const decrypted = JSON.parse(decrypt(doc.encryptedMessages));
-      messages = z.array(ChatMessageSchema).parse(decrypted);
+      const parsedMessages = z.array(ChatMessageSchema).parse(decrypted);
+      messages = sanitizeSharedMessages(parsedMessages);
     } catch {
       logger.warn({ shareToken }, "Kunne ikke dekryptere delt samtale");
       return apiError.serverError(res);
     }
 
-    return res.json({
-      title: doc.title,
+    return res.json(SharedChatResponseSchema.parse({
+      title: SHARED_CHAT_TITLE,
       messages,
       sharedAt: doc.sharedAt,
       createdAt: doc.createdAt,
-    });
+      expiresAt: doc.shareExpiresAt,
+      redacted: true,
+    }));
   } catch (error) {
     return sendUnknownError(res, error, {
       kontekst: "GET shared chat",

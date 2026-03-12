@@ -27,15 +27,16 @@ import type { SubTask } from "common/ki";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { showToast } from "./Toaster";
 import { AddToWorkplanModal } from "./AddToWorkplanModal";
-import { useKIChat } from "../ki/ki-api";
+import {
+  useDeleteTaskBreakdown,
+  useGenerateTaskBreakdown,
+  useSaveTaskBreakdown,
+  useTaskBreakdown,
+} from "../ki/ki-api";
 import { PRIORITY_COLORS, PRIORITY_LABELS } from "../arbeidsplan/arbeidsplan-api";
 
-// UI-state utvider SubTask med godkjenningsstatus
-interface SubTaskUI extends SubTask {
-  approved?: boolean;
-}
-
 interface AITaskBreakdownProps {
+  assignmentId: string;
   assignmentTitle: string;
   assignmentDescription?: string;
   dueDate?: Date;
@@ -55,12 +56,13 @@ interface ProgressStats {
 }
 
 export function AITaskBreakdown({
+  assignmentId,
   assignmentTitle,
   assignmentDescription,
   dueDate,
   onSave,
 }: AITaskBreakdownProps) {
-  const [subtasks, setSubtasks] = useState<SubTaskUI[]>([]);
+  const [subtasks, setSubtasks] = useState<SubTask[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<SubTask>>({});
@@ -68,7 +70,12 @@ export function AITaskBreakdown({
   const [showApprovalPrompt, setShowApprovalPrompt] = useState(false);
   const [showWorkplanModal, setShowWorkplanModal] = useState(false);
   const isMountedRef = useRef(true);
-  const { sendMelding } = useKIChat();
+  const hydratedAssignmentRef = useRef<string | null>(null);
+
+  const taskBreakdownQuery = useTaskBreakdown(assignmentId);
+  const generateTaskBreakdown = useGenerateTaskBreakdown();
+  const saveTaskBreakdown = useSaveTaskBreakdown();
+  const deleteTaskBreakdown = useDeleteTaskBreakdown();
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -77,10 +84,58 @@ export function AITaskBreakdown({
     };
   }, []);
 
+  useEffect(() => {
+    hydratedAssignmentRef.current = null;
+    setSubtasks([]);
+    setEditingId(null);
+    setEditForm({});
+    setShowEditor(false);
+    setShowApprovalPrompt(false);
+  }, [assignmentId]);
+
+  useEffect(() => {
+    if (hydratedAssignmentRef.current === assignmentId) return;
+    if (taskBreakdownQuery.isLoading || !taskBreakdownQuery.data) return;
+
+    const persistedSubtasks = taskBreakdownQuery.data.subtasks;
+    hydratedAssignmentRef.current = assignmentId;
+
+    if (!isMountedRef.current) return;
+
+    setSubtasks(persistedSubtasks);
+    setShowEditor(persistedSubtasks.length > 0);
+    setShowApprovalPrompt(persistedSubtasks.some((task) => !task.approved));
+  }, [assignmentId, taskBreakdownQuery.data, taskBreakdownQuery.isLoading]);
+
+  const persistSubtasks = async (
+    nextSubtasks: SubTask[],
+    options?: { notify?: boolean },
+  ) => {
+    try {
+      if (nextSubtasks.length === 0) {
+        await deleteTaskBreakdown.mutateAsync({ assignmentId });
+        if (options?.notify) {
+          onSave?.([]);
+        }
+        return;
+      }
+
+      const saved = await saveTaskBreakdown.mutateAsync({
+        assignmentId,
+        subtasks: nextSubtasks,
+      });
+      if (options?.notify) {
+        onSave?.(saved.subtasks);
+      }
+    } catch {
+      showToast.error("Kunne ikke lagre deloppgavene. Prøv igjen.");
+    }
+  };
+
   // Beregn progress stats
   const calculateProgress = (): ProgressStats => {
     const total = subtasks.length;
-    const approved = subtasks.filter(t => t.approved).length;
+    const approved = subtasks.filter((t) => t.approved).length;
     const completed = subtasks.filter(t => t.completed).length;
     const remaining = approved - completed;
     const percentageApproved = total > 0 ? Math.round((approved / total) * 100) : 0;
@@ -104,102 +159,71 @@ export function AITaskBreakdown({
   };
 
   const stats = calculateProgress();
+  const isBusy = isGenerating || taskBreakdownQuery.isLoading;
 
   // Generer deloppgaver med EKTE AI
   const generateSubtasks = () => {
     setIsGenerating(true);
-
-    const prompt = `Du er en ekspert studieveileder. Analyser følgende oppgave og bryt den ned i 4-6 konkrete deloppgaver.
-
-OPPGAVE:
-Tittel: ${assignmentTitle}
-Beskrivelse: ${assignmentDescription || "Ingen beskrivelse"}
-Frist: ${dueDate ? dueDate.toLocaleDateString("nb-NO") : "Ikke spesifisert"}
-
-INSTRUKSJONER:
-- Lag 4-6 deloppgaver som er logisk ordnet (f.eks. research først, implementering midten, testing/dokumentasjon sist)
-- Hver deloppgave skal ha:
-  * En kort, klar tittel (maks 50 tegn)
-  * En beskrivende tekst (2-3 setninger)
-  * Estimert tid i timer (f.eks. "2t", "1.5t", "3t")
-  * Prioritet: "high", "medium", eller "low"
-- Vær realistisk med tidsestimat
-- Tilpass til studentnivå (bachelor/master)
-
-Svar KUN med et JSON-array i dette formatet (ingen ekstra tekst):
-[
-  {
-    "title": "Tittel her",
-    "description": "Beskrivelse her",
-    "estimatedTime": "2t",
-    "priority": "high"
-  }
-]`;
-
-    sendMelding(
-      [{ role: "user", content: prompt }],
+    generateTaskBreakdown.mutate(
       {
-        temperature: 0.7,
-        onSuccess: (data) => {
+        assignmentId,
+        request: {
+          assignmentTitle,
+          assignmentDescription: assignmentDescription ?? "",
+          dueDate,
+        },
+      },
+      {
+        onSuccess: async (data) => {
+          if (!isMountedRef.current) return;
+          setSubtasks(data.subtasks);
+          setShowEditor(true);
+          setShowApprovalPrompt(true);
+          setIsGenerating(false);
+
           try {
-            // Parse Claude's response
-            let jsonText = data.response;
-            
-            // Fjern markdown code blocks hvis de finnes
-            jsonText = jsonText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-            
-            const parsedTasks = JSON.parse(jsonText);
-            
-            if (!Array.isArray(parsedTasks)) {
-              throw new Error("Response is not an array");
-            }
-
-            // Konverter til SubTaskUI format
-            const aiSubtasks: SubTaskUI[] = parsedTasks.map((task, index) => ({
-              id: `task-${Date.now()}-${index}`,
-              title: task.title || "Untitled Task",
-              description: task.description || "",
-              estimatedTime: task.estimatedTime || "1t",
-              priority: (task.priority as "low" | "medium" | "high") || "medium",
-              completed: false,
-              approved: false,
-            }));
-
-            if (!isMountedRef.current) return;
-            setSubtasks(aiSubtasks);
-            setShowEditor(true);
-            setShowApprovalPrompt(true);
-            setIsGenerating(false);
-            showToast.success(`Claude genererte ${aiSubtasks.length} deloppgaver!`);
-          } catch (error) {
-            console.error("Failed to parse AI response:", error);
-            setIsGenerating(false);
-            showToast.error("Kunne ikke tolke AI-responsen. Prøv igjen.");
+            await persistSubtasks(data.subtasks);
+          } catch {
+            // persistSubtasks håndterer toast selv
           }
+
+          showToast.success(`Claude genererte ${data.subtasks.length} deloppgaver!`);
         },
         onError: (error) => {
-          console.error("AI generation failed:", error);
           setIsGenerating(false);
-          showToast.error("KI-generering feilet. Prøv igjen.");
+          showToast.error(
+            error instanceof Error
+              ? error.message
+              : "KI-generering feilet. Prøv igjen.",
+          );
         },
-      }
+      },
     );
   };
 
   const approveTask = (id: string) => {
-    setSubtasks(subtasks.map(t => t.id === id ? { ...t, approved: true } : t));
+    const nextSubtasks = subtasks.map((task) =>
+      task.id === id ? { ...task, approved: true } : task,
+    );
+    setSubtasks(nextSubtasks);
+    setShowApprovalPrompt(nextSubtasks.some((task) => !task.approved));
+    void persistSubtasks(nextSubtasks);
   };
 
   const rejectTask = (id: string) => {
-    setSubtasks(subtasks.filter(t => t.id !== id));
+    const nextSubtasks = subtasks.filter((task) => task.id !== id);
+    setSubtasks(nextSubtasks);
+    setShowApprovalPrompt(nextSubtasks.some((task) => !task.approved));
+    setShowEditor(nextSubtasks.length > 0);
+    void persistSubtasks(nextSubtasks);
   };
 
   const approveAll = () => {
-    const approved = subtasks.map(t => ({ ...t, approved: true }));
+    const approved = subtasks.map((task) => ({ ...task, approved: true }));
     setSubtasks(approved);
     setShowApprovalPrompt(false);
     showToast.success("Alle deloppgaver godkjent!");
-    onSave?.(approved.map(({ approved: _a, ...rest }) => rest));
+    void persistSubtasks(approved, { notify: true });
   };
 
   const rejectAll = () => {
@@ -207,15 +231,18 @@ Svar KUN med et JSON-array i dette formatet (ingen ekstra tekst):
     setShowEditor(false);
     setShowApprovalPrompt(false);
     showToast.info("Alle deloppgaver avvist");
+    void persistSubtasks([], { notify: true });
   };
 
   const toggleComplete = (id: string) => {
-    setSubtasks(subtasks.map(t => 
-      t.id === id ? { ...t, completed: !t.completed } : t
-    ));
+    const nextSubtasks = subtasks.map((task) =>
+      task.id === id ? { ...task, completed: !task.completed } : task,
+    );
+    setSubtasks(nextSubtasks);
+    void persistSubtasks(nextSubtasks);
   };
 
-  const startEdit = (task: SubTaskUI) => {
+  const startEdit = (task: SubTask) => {
     setEditingId(task.id);
     setEditForm({ 
       title: task.title, 
@@ -227,13 +254,15 @@ Svar KUN med et JSON-array i dette formatet (ingen ekstra tekst):
 
   const saveEdit = () => {
     if (!editingId) return;
-    setSubtasks(subtasks.map(t =>
-      t.id === editingId
-        ? { ...t, ...editForm }
-        : t
-    ));
+    const nextSubtasks = subtasks.map((task) =>
+      task.id === editingId
+        ? { ...task, ...editForm }
+        : task,
+    );
+    setSubtasks(nextSubtasks);
     setEditingId(null);
     setEditForm({});
+    void persistSubtasks(nextSubtasks);
   };
 
   const cancelEdit = () => {
@@ -242,7 +271,7 @@ Svar KUN med et JSON-array i dette formatet (ingen ekstra tekst):
   };
 
   const addNewTask = () => {
-    const newTask: SubTaskUI = {
+    const newTask: SubTask = {
       id: `task-${Date.now()}`,
       title: "Ny deloppgave",
       description: "",
@@ -256,7 +285,10 @@ Svar KUN med et JSON-array i dette formatet (ingen ekstra tekst):
   };
 
   const deleteTask = (id: string) => {
-    setSubtasks(subtasks.filter(t => t.id !== id));
+    const nextSubtasks = subtasks.filter((task) => task.id !== id);
+    setSubtasks(nextSubtasks);
+    setShowEditor(nextSubtasks.length > 0);
+    void persistSubtasks(nextSubtasks);
   };
 
   return (
@@ -265,15 +297,17 @@ Svar KUN med et JSON-array i dette formatet (ingen ekstra tekst):
       {!showEditor && (
         <button
           onClick={generateSubtasks}
-          disabled={isGenerating}
+          disabled={isBusy}
           className="w-full px-4 py-3 rounded-lg border-2 border-dashed border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed group"
         >
           <div className="flex items-center justify-center gap-3">
-            {isGenerating ? (
+            {isBusy ? (
               <>
                 <LoadingSpinner className="w-5 h-5" />
                 <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                  Genererer deloppgaver med AI...
+                  {taskBreakdownQuery.isLoading
+                    ? "Laster lagrede deloppgaver..."
+                    : "Genererer deloppgaver med AI..."}
                 </span>
               </>
             ) : (
@@ -409,7 +443,7 @@ Svar KUN med et JSON-array i dette formatet (ingen ekstra tekst):
             <div className="flex items-center gap-2">
               <button
                 onClick={generateSubtasks}
-                disabled={isGenerating}
+                disabled={isBusy}
                 className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 title="Regenerer deloppgaver"
               >
@@ -605,7 +639,7 @@ Svar KUN med et JSON-array i dette formatet (ingen ekstra tekst):
       <AddToWorkplanModal
         isOpen={showWorkplanModal}
         onClose={() => setShowWorkplanModal(false)}
-        subtasks={subtasks.filter(t => t.approved).map(({ approved: _approved, ...rest }) => rest)}
+        subtasks={subtasks.filter((task) => task.approved)}
         assignmentTitle={assignmentTitle}
       />
     </div>

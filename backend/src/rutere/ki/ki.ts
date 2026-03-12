@@ -23,6 +23,7 @@ import { chatCompletion, isClientAvailable, getMissingClientError } from "./aiCl
 import { handleAIError } from "./handleAIError.js";
 import { loadCanvasContext, ensureCanvasSync, type IntentType, type ContextResult } from "../../services/context-loader.service.js";
 import { isSyncing, waitForSync } from "../../services/canvas-sync.service.js";
+import { trimToTokenLimit, countTokens } from "../../utils/tokenCounter.js";
 
 /** Nøkkelord som krever full kontekst (moduler, PDFer, sideinnhold) */
 const CANVAS_FULL_KEYWORDS = [
@@ -229,7 +230,8 @@ router.use(kiAnalyseRouter);
 import { KI_CACHE_TTL, KI_TIMEOUT_MS, SESSION_CONTEXT_TTL } from "./kiConstants.js";
 
 /** Maks ventetid for Canvas sync før chat fortsetter uansett */
-const SYNC_WAIT_MAX_MS = 20_000;
+/** Maks ventetid på Canvas-sync før vi fortsetter med API/vector — kortere = raskere første svar, sync fortsetter i bakgrunn */
+const SYNC_WAIT_MAX_MS = 8_000;
 
 // Cache-konfigurasjon
 const CACHE_KEY = "ki:test-connection";
@@ -405,6 +407,11 @@ router.post("/chat", async (req, res) => {
   let keepaliveInterval: ReturnType<typeof setInterval> | undefined;
   let sseStarted = false;
 
+  const abortController = new AbortController();
+  const abortOnResponseEnd = () => abortController.abort();
+  res.once("finish", abortOnResponseEnd);
+  res.once("close", abortOnResponseEnd);
+
   try {
     // Start med base system prompt
     let enhancedSystemPrompt = STUDYWISE_SYSTEM_PROMPT;
@@ -436,7 +443,7 @@ router.post("/chat", async (req, res) => {
       // Sikre at bakgrunns-sync er igangsatt
       ensureCanvasSync(req.user.id, req.canvasToken, baseUrl);
 
-      // Vent på pågående sync slik at chunks er ferdig lagret i Redis
+      // Vent på pågående sync slik at lagret KI-innhold er oppdatert
       if (isSyncing(req.user.id)) {
         logger.info({ userId: req.user.id }, "Venter på Canvas sync før KI-kontekst (in-memory)");
         const syncResult = await waitForSync(req.user.id, SYNC_WAIT_MAX_MS);
@@ -516,7 +523,15 @@ router.post("/chat", async (req, res) => {
 
       if (!usedSessionCache) {
         contextResult = await Promise.race([
-          loadCanvasContext(req.user.id, req.canvasToken, intent, target, lastUserMsg, baseUrl),
+          loadCanvasContext(
+            req.user.id,
+            req.canvasToken,
+            intent,
+            target,
+            lastUserMsg,
+            baseUrl,
+            abortController.signal,
+          ),
           new Promise<ContextResult>((resolve) =>
             setTimeout(
               () => resolve({ kontekst: "[CANVAS STATUS: Henting tok for lang tid. Prøv igjen.]", hasCanvasData: false, source: "none" }),
@@ -557,11 +572,17 @@ router.post("/chat", async (req, res) => {
       enhancedSystemPrompt += "\n\n" + canvasKontekst;
     }
 
-    // Trim samtalehistorikk til siste 5 meldinger for å holde token-bruken lav
-    const MAX_HISTORY_MESSAGES = 5;
-    const trimmedMessages = messages.length > MAX_HISTORY_MESSAGES
-      ? messages.slice(-MAX_HISTORY_MESSAGES)
-      : messages;
+    // Dynamisk timeout og max_tokens basert på intent
+    const maxTokens = intent === "canvas_full" ? 4096 : 2048;
+    const TIMEOUT_MS = intent === "canvas_full" ? 120000 : intent === "canvas_light" ? 60000 : 30000;
+
+    // Token-basert trimming av samtalehistorikk.
+    // Reserverer plass til system-prompt + AI-respons, bruker resten til historikk.
+    // Claude Sonnet har 200k kontekst, men vi begrenser for kostnads- og latens-kontroll.
+    const systemPromptTokens = countTokens(enhancedSystemPrompt);
+    const MAX_CONTEXT_TOKENS = intent === "canvas_full" ? 16000 : 8000;
+    const historyBudget = Math.max(MAX_CONTEXT_TOKENS - systemPromptTokens - maxTokens, 1000);
+    const trimmedMessages = trimToTokenLimit(messages, historyBudget);
 
     // System-prompt styres kun av backend (KIChatClientMessageSchema tillater ikke "system" fra klient — prompt-injection-sikring).
     const fullMessages = [
@@ -571,10 +592,6 @@ router.post("/chat", async (req, res) => {
         content: m.content,
       })),
     ];
-
-    // Dynamisk timeout og max_tokens basert på intent
-    const maxTokens = intent === "canvas_full" ? 4096 : 2048;
-    const TIMEOUT_MS = intent === "canvas_full" ? 120000 : intent === "canvas_light" ? 60000 : 30000;
 
     logger.info(
       {
@@ -590,6 +607,7 @@ router.post("/chat", async (req, res) => {
     );
 
     // --- SSE streaming setup (prevents Brotli/proxy buffering timeout) ---
+    if (res.headersSent) return;
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
@@ -661,6 +679,8 @@ router.post("/chat", async (req, res) => {
   } catch (error) {
     if (keepaliveInterval) clearInterval(keepaliveInterval);
 
+    if (res.headersSent) return;
+
     // If SSE headers were already sent, send error via SSE
     if (sseStarted && !res.writableEnded) {
       const errorMessage = error instanceof Error && error.message === "CHAT_TIMEOUT"
@@ -689,6 +709,7 @@ router.post("/chat", async (req, res) => {
     )
       return;
 
+    if (res.headersSent) return;
     return res.status(500).json(
       KIChatResponseSchema.parse({
         suksess: false,

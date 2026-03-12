@@ -40,7 +40,7 @@ export const CanvasCourseSchema = z.object({
 });
 
 // Valgfri submission fra Canvas (når include[]=submission brukes)
-export const CanvasAssignmentSubmissionSchema = z
+const CanvasAssignmentSubmissionSchema = z
   .object({
     workflow_state: z.string().optional(), // "submitted" | "graded" | "pending_review" | "unsubmitted"
     submitted_at: z.string().nullable().optional(),
@@ -129,7 +129,7 @@ export const CanvasPlannerItemSchema = z.object({
 });
 
 // Meta-informasjon for paginerte svar
-export const MetaSchema = z.object({
+const MetaSchema = z.object({
   pagesFetched: z.number(),
   itemsCount: z.number(),
 });

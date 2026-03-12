@@ -83,6 +83,32 @@ export const sikkerFilNedlastingUrl = (contentId: number | string | undefined): 
     return `/api/canvas/filer/${encodeURIComponent(idString)}/download`;
 };
 
+/** Mønster for Canvas fil-URL i HTML (f.eks. kunngjøringer, sider): /files/123/download eller /courses/1/files/123/preview */
+const CANVAS_FILE_PATH_REGEX = /\/files\/(\d+)(?:\/download|\/preview)?/i;
+
+/**
+ * Hvis src ser ut som en Canvas fil-URL (path med /files/NUMBER/), returnerer proxy-URL
+ * slik at bildet lastes via backend med brukerens token. Fungerer for både instructure.com
+ * og egendefinerte Canvas-domener (f.eks. canvas.ntnu.no).
+ */
+export const canvasBildeProxyUrl = (src: string | undefined): string | undefined => {
+    if (!src || typeof src !== "string") return undefined;
+    const trimmed = src.trim();
+    if (!trimmed) return undefined;
+    try {
+        const url = new URL(trimmed);
+        if (url.protocol !== "http:" && url.protocol !== "https:") return trimmed;
+        const pathMatch = url.pathname.match(CANVAS_FILE_PATH_REGEX);
+        if (pathMatch) {
+            const fileId = pathMatch[1];
+            return sikkerFilNedlastingUrl(fileId) ?? trimmed;
+        }
+    } catch {
+        // Ugyldig URL
+    }
+    return trimmed;
+};
+
 // Lager parser-opsjoner. Kan utvides med custom bilde-rendering fra konsument
 export const createCanvasHtmlParser = (renderImage?: (el: Element) => ReactNode): HTMLReactParserOptions => {
     const replace: HTMLReactParserOptions["replace"] = (domNode) => {
@@ -107,11 +133,26 @@ export const createCanvasHtmlParser = (renderImage?: (el: Element) => ReactNode)
                     </a>
                 ) as unknown as Element;
             }
-            if (renderImage && domNode.tagName === "img") {
-                const rendered = renderImage(domNode);
-                if (rendered) {
-                    return rendered as unknown as Element;
+            if (domNode.tagName === "img") {
+                const rawSrc = domNode.attribs?.src;
+                const proxiedSrc = canvasBildeProxyUrl(rawSrc) ?? rawSrc;
+                const attribs = { ...domNode.attribs, src: proxiedSrc };
+                if (renderImage) {
+                    const cloned = { ...domNode, attribs } as unknown as Element;
+                    const rendered = renderImage(cloned);
+                    if (rendered) return rendered as unknown as Element;
                 }
+                return (
+                    <img
+                        src={proxiedSrc ?? ""}
+                        alt={domNode.attribs?.alt ?? ""}
+                        title={domNode.attribs?.title}
+                        width={domNode.attribs?.width}
+                        height={domNode.attribs?.height}
+                        className={domNode.attribs?.class}
+                        loading="lazy"
+                    />
+                ) as unknown as Element;
             }
         }
         return null;

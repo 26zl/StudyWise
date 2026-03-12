@@ -109,7 +109,7 @@ export function DashboardView() {
     const brukernavn =
         userQuery.data?.name?.split(" ")[0] ||
         megQuery.data?.user?.firstName ||
-        megQuery.data?.user?.email?.split("@")[0];
+        megQuery.data?.user?.email?.split("@")?.[0];
 
     // Hjelpefunksjon for å bestemme hvilken Canvas-visning som skal vises
     const hentCanvasVisning = () => {

@@ -28,7 +28,8 @@ StudyWise – AI-drevet studieveileder med Canvas LMS-integrasjon. pnpm-monorepo
 - **Validering**: `zod` (gjenbruker schema fra `common`)
 - **API-dokumentasjon**: `swagger-ui-express` + `swagger-jsdoc`
 - **Logging**: `pino` + `pino-http`. Bruk ALLTID `logger.info/error`, ALDRI `console.log`
-- **Cache**: `redis`-klient mot Redis Cloud
+- **Cache**: `redis`-klient mot Redis Cloud (Canvas API-cache, sync-struktur, KI-sesjon, rate limiting). **PDF/fil-innhold lagres aldri i Redis** — kun i MongoDB (ContentEmbedding); Redis brukes kun for struktur og session. Alle nøkler har TTL; sett **maxmemory-policy** til `allkeys-lru` for å unngå «nesten full»-varsler.
+- **Vektorsøk**: Pinecone (serverless-indeks med **integrated embedding**). Embeddings genereres av Pinecone; chunk-tekst lagres i MongoDB (`ContentEmbedding`) som sannhetskilde og sendes til Pinecone for indeksering.
 - **AI**: `@anthropic-ai/sdk` for Claude
 - **Feilhåndtering**: Standardisert via `backend/src/utils/apiError.ts`
 - **APM**: Datadog (`dd-trace`) — initialiseres når `DD_API_KEY` er satt (`backend/src/datadog.ts`)
@@ -147,6 +148,7 @@ Lokasjon: `frontend/app/dashboard/page.tsx` (side) og `frontend/app/components/D
 - **CanvasUser**: Cache av Canvas-profilinfo, koblet til User via `localUser`
 - **ChatHistory**: Kryptert chat-historikk per bruker (AES-256-GCM)
 - **TaskBreakdown**: KI-genererte oppgavedelinger med redigerbare deloppgaver
+- **ContentEmbedding**: Chunk-tekst og metadata per bruker/kurs/fil (MongoDB). Sannhetskilde for innhold; vektorindeks ligger i Pinecone (integrated embedding). Ingen vektorindeks i Atlas.
 
 ### Viktige konfigurasjonsfiler
 
@@ -154,7 +156,8 @@ Lokasjon: `frontend/app/dashboard/page.tsx` (side) og `frontend/app/components/D
 - **System prompt**: `backend/src/rutere/ki/systemPrompt.ts`
 - **KI timeout/cache**: `backend/src/rutere/ki/kiConstants.ts`
 - **Canvas-paginering**: `PAGE_SIZE`, `MAX_PAGES` i `canvasUtils.ts`
-- **Cache TTL**: `CACHE_TTL` i `canvasUtils.ts`
+- **Cache TTL**: `CACHE_TTL` i `canvasUtils.ts`; sync-struktur i Redis: `SYNC_CACHE_TTL` (30 min) i `canvas-sync.service.ts`; KI-sesjonskontekst: `SESSION_CONTEXT_TTL` i `kiConstants.ts`
+- **Pinecone**: `backend/src/services/pinecone.service.ts` (upsert, query, deleteByFilter); env: `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`
 - **JWT utløp**: Konfigurerbart via `JWT_ACCESS_EXPIRES`, `JWT_REFRESH_EXPIRES` env
 - **Cookie-navn**: `common/src/auth.ts`
 - **Meldingsgrenser**: `common/src/ki.ts`
@@ -179,6 +182,8 @@ Delt infrastruktur (gjenbruk disse, ikke dupliser):
 - `systemPrompt.ts` – Én kilde for `STUDYWISE_SYSTEM_PROMPT`
 
 SSE-endepunkter må sjekke `res.writableEnded` før de skriver keepalive-pings.
+
+**KI-kontekstlasting**: Ved lasting av Canvas-kontekst for chat opprettes en `AbortController` og dens `signal` sendes til `loadCanvasContext` → `syncCanvasDataForUser`. Ved `res.once('finish')` / `res.once('close')` aborteres kontrolleren slik at bakgrunnssynk stoppes når responsen er ferdig.
 
 ### Dokumentbehandling
 
@@ -377,6 +382,7 @@ Alle jobber har timeout. Deploy (`deploy.yml`) utløses automatisk når hele CI 
 - **Typefeil etter clean** → `pnpm build`
 - **"MongoNetworkError"** → Sjekk `MONGO_URI` i `.env` og IP whitelist i MongoDB Atlas
 - **TypeScript-feil etter endringer i `common/`** → Kjør `pnpm build:common`, deretter `pnpm typecheck`
+- **Redis «nesten full» / høyt minne** → Redis cacher Canvas API + sync-struktur (per bruker/emne). Sett **maxmemory-policy** til `allkeys-lru` (eller `volatile-lru`) i Redis Cloud slik at Redis evicter eldre nøkler. Sync-cache TTL er 30 min for å begrense vekst.
 
 ---
 

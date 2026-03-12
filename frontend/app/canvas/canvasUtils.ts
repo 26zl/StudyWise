@@ -10,10 +10,3 @@ import type { AssignmentMedEmne } from "./canvas-api";
 export function erInnlevert(oppgave: AssignmentMedEmne): boolean {
     return isCanvasAssignmentSubmitted(oppgave);
 }
-
-/** Formater emne workflow_state til lesbar status (f.eks. "available" → "aktiv") */
-export function formaterEmneStatus(workflowState?: string | null): string {
-    if (!workflowState) return "ukjent";
-    if (workflowState === "available") return "aktiv";
-    return workflowState;
-}

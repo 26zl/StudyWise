@@ -13,10 +13,11 @@ import { logger } from "../utils/logger.js";
 const DEFAULT_TIMEOUT_MS = 30_000;  // 30 sekunder for vanlige requests
 const UPLOAD_TIMEOUT_MS = 120_000;  // 2 minutter for filopplasting
 
-// Endepunkter som har lengre timeout (filopplasting, dokumentanalyse)
+// Endepunkter som har lengre timeout (filopplasting, dokumentanalyse, KI-chat som laster Canvas-kontekst)
 const LONG_TIMEOUT_PREFIXES = [
     "/api/ki/analyse",
     "/api/ki/oppsummering",
+    "/api/ki/chat",
 ];
 
 export function requestTimeout(req: Request, res: Response, next: NextFunction) {

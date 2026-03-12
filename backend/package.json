@@ -13,6 +13,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "@napi-rs/canvas": "^0.1.96",
+    "@pinecone-database/pinecone": "^7.1.0",
     "adm-zip": "^0.5.16",
     "bcrypt": "^6.0.0",
     "common": "workspace:*",
@@ -22,6 +23,7 @@
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "helmet": "^8.1.0",
+    "js-tiktoken": "^1.0.21",
     "jsonwebtoken": "^9.0.3",
     "mammoth": "^1.11.0",
     "mongoose": "^9.3.0",

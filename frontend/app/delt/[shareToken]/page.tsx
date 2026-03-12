@@ -22,6 +22,8 @@ interface SharedChatData {
     messages: ChatMessage[];
     sharedAt: Date;
     createdAt: Date;
+    expiresAt: Date;
+    redacted: boolean;
 }
 
 export default function DeltSamtaleSide() {
@@ -46,11 +48,7 @@ export default function DeltSamtaleSide() {
                 }
                 const json = await res.json();
                 const parsed = SharedChatResponseSchema.parse(json);
-                setData({
-                    ...parsed,
-                    sharedAt: new Date(parsed.sharedAt),
-                    createdAt: new Date(parsed.createdAt),
-                });
+                setData(parsed);
             } catch {
                 setFeil("Noe gikk galt ved henting av samtalen.");
             } finally {
@@ -91,12 +89,17 @@ export default function DeltSamtaleSide() {
                         {data.title}
                     </h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Delt {formaterDatoLong(data.sharedAt)} · Opprettet {formaterDatoLong(data.createdAt)}
+                        Delt {formaterDatoLong(data.sharedAt)} · Opprettet {formaterDatoLong(data.createdAt)} · Utløper {formaterDatoLong(data.expiresAt)}
                     </p>
                     <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-purple-100 dark:bg-purple-900/40 px-3 py-1 text-xs font-medium text-purple-700 dark:text-purple-300">
                         <Bot className="w-3.5 h-3.5" />
                         StudyWise KI-samtale
                     </div>
+                    {data.redacted && (
+                        <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
+                            Brukermeldinger og sensitive detaljer er skjult i den delte visningen.
+                        </p>
+                    )}
                 </div>
 
                 {/* Meldinger */}

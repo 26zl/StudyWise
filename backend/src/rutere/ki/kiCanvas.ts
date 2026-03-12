@@ -372,6 +372,6 @@ export async function byggMålrettetCanvasKontekst(
     return kontekst;
   } catch (error) {
     logger.error({ err: error, target }, "Feil ved bygging av målrettet Canvas-kontekst");
-    return await byggLettCanvasKontekst(canvasToken);
+    return await byggLettCanvasKontekst(canvasToken, baseUrl);
   }
 }

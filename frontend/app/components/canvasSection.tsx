@@ -99,11 +99,11 @@ const TilpassetBilde = ({
     );
 };
 
-// HTML parser for Canvas innhold
+// HTML parser for Canvas innhold (img src blir omskrevet til proxy i canvasHtml)
 const htmlParser = createCanvasHtmlParser((domNode) => (
     <TilpassetBilde
-        src={domNode.attribs.src}
-        alt={domNode.attribs.alt || "Canvas bilde"}
+        src={domNode.attribs?.src ?? ""}
+        alt={domNode.attribs?.alt || "Canvas bilde"}
         {...domNode.attribs}
     />
 ));

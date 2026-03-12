@@ -247,7 +247,7 @@ export default function OversiktPage() {
                                             assignments={ikkeInnleverteAssignments.map((a) => ({
                                                 id: a.id.toString(),
                                                 name: a.name,
-                                                dueAt: a.due_at || undefined,
+                                                dueAt: a.due_at ? new Date(a.due_at) : undefined,
                                                 courseName: a.course_name,
                                                 pointsPossible: a.points_possible || undefined,
                                             }))}
@@ -295,7 +295,7 @@ export default function OversiktPage() {
                                     title="AI Task Breakdown"
                                     description="Bryt ned oppgaver i mindre deler"
                                     icon={Sparkles}
-                                    href="/test-ai-breakdown"
+                                    href="/ai-breakdown"
                                     color="purple"
                                 />
                                 <QuickActionCard

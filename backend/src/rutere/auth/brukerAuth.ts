@@ -13,7 +13,10 @@ import { ZodError } from "zod";
 import { apiError, sendError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
 import { warmCanvasCache, fetchUserProfile } from "../canvas/canvasService.js";
 import { invalidateCacheByPattern } from "../../cache/redis.js";
-import { invalidateUserCanvasCache } from "../../services/canvas-sync.service.js";
+import {
+    clearUserCanvasRuntimeState,
+    invalidateUserCanvasCache,
+} from "../../services/canvas-sync.service.js";
 import {
     CanvasTokenRequestSchema,
     CanvasTokenResponseSchema,
@@ -177,7 +180,7 @@ async function invalidateCanvasCacheForToken(encryptedToken: string | undefined)
     }
 }
 
-async function invalidateCanvasCachesForUser(userId: string, encryptedToken?: string): Promise<void> {
+async function invalidateStoredCanvasDataForUser(userId: string, encryptedToken?: string): Promise<void> {
     const invalidations: Array<Promise<unknown>> = [invalidateUserCanvasCache(userId)];
     if (encryptedToken) {
         invalidations.push(invalidateCanvasCacheForToken(encryptedToken));
@@ -349,7 +352,7 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         // Sjekk hash først (timing-safe for SAMME bruker)
         if (bruker.canvasBaseUrl === canvasBaseUrl &&
             timingSafeHexEqual(bruker.canvasTokenHash, nyTokenHash)) {
-            await invalidateCanvasCachesForUser(userId.toString(), bruker.canvasApiToken);
+            await invalidateStoredCanvasDataForUser(userId.toString(), bruker.canvasApiToken);
             logger.info({ userId }, "Canvas token identisk (hash match)");
             return res.json(CanvasTokenResponseSchema.parse({
                 melding: "Token er allerede lagret",
@@ -383,6 +386,10 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
                     eksisterendeKobling.localUser = bruker._id;
                     eksisterendeKobling.canvasBaseUrl = canvasBaseUrl;
                     await eksisterendeKobling.save();
+                    // Sett canvasUser-ref på ny bruker slik at data er konsistent (ellers mangler den til første /whoami)
+                    await User.findByIdAndUpdate(bruker._id, {
+                        canvasUser: eksisterendeKobling._id,
+                    });
                 } else {
                     // Avvis uten force-flagg - dette er en sikkerhetsrisiko
                     logger.warn({ userId, existingUserId: eksisterendeKobling.localUser, canvasId: canvasUserId, canvasBaseUrl: canvasBaseUrl },
@@ -415,11 +422,11 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         logger.info({ userId }, "Canvas token lagret for bruker");
 
         // Invalider cache ETTER lagring — slik at nytt token allerede er persistert
-        await invalidateCanvasCachesForUser(userId.toString(), gammeltKryptertToken);
+        await invalidateStoredCanvasDataForUser(userId.toString(), gammeltKryptertToken);
 
         usersToInvalidate.delete(userId.toString());
         await Promise.allSettled(
-            [...usersToInvalidate].map((targetUserId) => invalidateCanvasCachesForUser(targetUserId))
+            [...usersToInvalidate].map((targetUserId) => invalidateStoredCanvasDataForUser(targetUserId))
         );
 
         warmCanvasCache(cleanToken, canvasBaseUrl).catch((err) => {
@@ -455,7 +462,7 @@ router.delete("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         if (!bruker.canvasApiToken) {
             return apiError.badRequest(res, "Ingen Canvas-token å slette");
         }
-        await invalidateCanvasCachesForUser(userId.toString(), bruker.canvasApiToken);
+        await invalidateStoredCanvasDataForUser(userId.toString(), bruker.canvasApiToken);
         // Slett koblingene i databasen fullstendig
         const slettetCanvasUsers = await CanvasUser.deleteMany({ localUser: bruker._id });
         logger.info({ userId, deletedCount: slettetCanvasUsers.deletedCount }, "Slettet CanvasUser-dokumenter fra database");
@@ -641,12 +648,7 @@ router.post("/logout", autentiserJwt, async (req, res) => {
         const userId = req.user?.id;
         if (userId) {
             // Invalider Canvas-cache ved logout (sikkerhet - data skal ikke være tilgjengelig etter logout)
-            const bruker = await User.findById(userId).select("+canvasApiToken");
-            if (bruker?.canvasApiToken) {
-                await invalidateCanvasCachesForUser(userId.toString(), bruker.canvasApiToken);
-            } else {
-                await invalidateCanvasCachesForUser(userId.toString());
-            }
+            await clearUserCanvasRuntimeState(userId.toString());
 
             // Fjern kun refresh token fra database (invaliderer sesjonen)
             // Canvas-token beholdes - den er kryptert og knyttet til brukerkontoen

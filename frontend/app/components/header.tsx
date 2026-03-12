@@ -24,7 +24,7 @@ interface HeaderProps {
 export function Header({ user, hadCookies = false }: HeaderProps) {
     const pathname = usePathname();
     const { toggleVenstreMeny, isVenstreMenyOpen } = useUIStore();
-    const harSidebar = ["/dashboard", "/oversikt", "/test-ai-breakdown"].includes(pathname);
+    const harSidebar = ["/dashboard", "/oversikt", "/ai-breakdown"].includes(pathname);
     // Kun bruk server-data som initialData når vi har bekrevet innlogget bruker – aldri null (unngår at transient SSR-feil caches som gjest)
     const megQuery = useMeg({ initialData: user?.user ? user : undefined });
     const [mobilMenyOpen, setMobilMenyOpen] = useState(false);

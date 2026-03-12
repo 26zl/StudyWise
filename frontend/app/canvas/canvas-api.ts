@@ -143,19 +143,27 @@ async function håndterFeilRespons<T>(
     );
   }
 
-  // Håndter 403 - skille mellom "token mangler" (vår backend) og "permission denied" (Canvas)
-  if (res.status === 403) {
+  // Hjelpefunksjon: parse feilrespons-body til melding + kode
+  const parseErrorBody = async (
+    defaultMessage: string,
+    defaultCode: CanvasErrorCode,
+  ): Promise<{ errorMessage: string; errorCode: CanvasErrorCode }> => {
     const errorText = await res.text();
-    let errorMessage = "Ingen tilgang";
-    let errorCode: CanvasErrorCode = "permission_denied";
+    let errorMessage = defaultMessage;
+    let errorCode = defaultCode;
     try {
       const error = JSON.parse(errorText);
       errorMessage = error.melding || error.feil || errorMessage;
       errorCode = error.kode || errorCode;
     } catch {
-      // Ignorer JSON-parse feil
+      if (errorText) errorMessage = errorText;
     }
+    return { errorMessage, errorCode };
+  };
 
+  // Håndter 403 - skille mellom "token mangler" (vår backend) og "permission denied" (Canvas)
+  if (res.status === 403) {
+    const { errorMessage, errorCode } = await parseErrorBody("Ingen tilgang", "permission_denied");
     if (
       errorCode === "token_missing" ||
       errorMessage.toLowerCase().includes("token mangler")
@@ -168,68 +176,30 @@ async function håndterFeilRespons<T>(
 
   // Håndter 404 - ressurs deaktivert eller ikke funnet
   if (res.status === 404) {
-    const errorText = await res.text();
-    let errorMessage = "Ressursen ble ikke funnet";
-    let errorCode: CanvasErrorCode = "resource_not_found";
-    try {
-      const error = JSON.parse(errorText);
-      errorMessage = error.melding || error.feil || errorMessage;
-      errorCode = error.kode || errorCode;
-      if (errorMessage.toLowerCase().includes("deaktivert")) {
-        errorCode = "resource_disabled";
-      }
-    } catch {
-      // Ignorer JSON-parse feil
-    }
+    const { errorMessage, errorCode } = await parseErrorBody("Ressursen ble ikke funnet", "resource_not_found");
+    const resolvedCode = errorMessage.toLowerCase().includes("deaktivert") ? "resource_disabled" : errorCode;
     throw new CanvasResourceError(
-      errorCode as "resource_disabled" | "resource_not_found",
+      resolvedCode as "resource_disabled" | "resource_not_found",
       errorMessage,
     );
   }
 
   // Håndter 429 - rate limited
   if (res.status === 429) {
-    const errorText = await res.text();
-    let errorMessage = "For mange forespørsler";
-    let errorCode: CanvasErrorCode = "rate_limited";
-    try {
-      const error = JSON.parse(errorText);
-      errorMessage = error.melding || error.feil || errorMessage;
-      errorCode = error.kode || errorCode;
-    } catch {
-      // Ignorer JSON-parse feil
-    }
+    const { errorMessage, errorCode } = await parseErrorBody("For mange forespørsler", "rate_limited");
     throw new CanvasApiError(errorCode, errorMessage, 429);
   }
 
   // Håndter 5xx - server error (504 er timeout, resten er server_error)
   if (res.status >= 500) {
-    const errorText = await res.text();
-    let errorMessage = "Serverfeil";
-    let errorCode: CanvasErrorCode =
-      res.status === 504 ? "timeout" : "server_error";
-    try {
-      const error = JSON.parse(errorText);
-      errorMessage = error.melding || error.feil || errorMessage;
-      errorCode = error.kode || errorCode;
-    } catch {
-      // Ignorer JSON-parse feil
-    }
+    const defaultCode: CanvasErrorCode = res.status === 504 ? "timeout" : "server_error";
+    const { errorMessage, errorCode } = await parseErrorBody("Serverfeil", defaultCode);
     throw new CanvasApiError(errorCode, errorMessage, res.status);
   }
 
   // Generell feil for andre ikke-OK statuser
   if (!res.ok) {
-    const errorText = await res.text();
-    let errorMessage = "API feil";
-    let errorCode: CanvasErrorCode = "unknown";
-    try {
-      const error = JSON.parse(errorText);
-      errorMessage = error.melding || error.feil || errorMessage;
-      errorCode = error.kode || errorCode;
-    } catch {
-      errorMessage = errorText || errorMessage;
-    }
+    const { errorMessage, errorCode } = await parseErrorBody("API feil", "unknown");
     throw new CanvasApiError(errorCode, errorMessage, res.status);
   }
 }

@@ -6,15 +6,22 @@
 
 import type { ZodType } from "zod";
 import { z } from "zod";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   KIChatResponseSchema,
   KIDocumentAnalyseResponseSchema,
   KIOppsummeringResponseSchema,
   KI_MAX_MESSAGE_LENGTH_FRONTEND,
+  TaskBreakdownGenerateRequestSchema,
+  TaskBreakdownResponseSchema,
+  WeeklyPlanGenerateRequestSchema,
+  WeeklyPlanSuggestionResponseSchema,
   type KIChatRequest,
   type KIDocumentAnalyseResponse,
   type KIOppsummeringResponse,
+  type SubTask,
+  type TaskBreakdownGenerateRequest,
+  type WeeklyPlanGenerateRequest,
 } from "common/ki";
 import { fornySesjon } from "../auth/auth-api";
 import { parseApiError } from "../lib/errorUtils";
@@ -532,6 +539,12 @@ async function postKIFormData<T>(
   });
 }
 
+async function deleteKI<T>(endpoint: string, schema: ZodType<T>): Promise<T> {
+  return requestKI(endpoint, schema, {
+    method: "DELETE",
+  });
+}
+
 function asError(error: unknown): Error {
   return error instanceof Error ? error : new Error("Uventet feil");
 }
@@ -644,6 +657,102 @@ export function useKIChat() {
     reset: mutation.reset,
     mutation,
   };
+}
+
+const TASK_BREAKDOWN_QUERY_KEY = ["ki", "task-breakdown"] as const;
+
+export function useTaskBreakdown(assignmentId?: string) {
+  return useQuery({
+    queryKey: [...TASK_BREAKDOWN_QUERY_KEY, assignmentId],
+    queryFn: async () => {
+      if (!assignmentId) {
+        return TaskBreakdownResponseSchema.parse({ subtasks: [] });
+      }
+      return requestKI(
+        `/task-breakdown/${encodeURIComponent(assignmentId)}`,
+        TaskBreakdownResponseSchema,
+        { method: "GET" },
+      );
+    },
+    enabled: Boolean(assignmentId),
+    staleTime: 1000 * 60,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useGenerateTaskBreakdown() {
+  return useMutation({
+    mutationFn: async ({
+      assignmentId,
+      request,
+    }: {
+      assignmentId: string;
+      request: TaskBreakdownGenerateRequest;
+    }) => {
+      const parsedRequest = TaskBreakdownGenerateRequestSchema.parse(request);
+      return postKI(
+        `/task-breakdown/${encodeURIComponent(assignmentId)}/generate`,
+        parsedRequest,
+        TaskBreakdownResponseSchema,
+      );
+    },
+  });
+}
+
+export function useGenerateWeeklyPlan() {
+  return useMutation({
+    mutationFn: async (request: WeeklyPlanGenerateRequest) => {
+      const parsedRequest = WeeklyPlanGenerateRequestSchema.parse(request);
+      return postKI(
+        "/weekly-plan/generate",
+        parsedRequest,
+        WeeklyPlanSuggestionResponseSchema,
+      );
+    },
+  });
+}
+
+export function useSaveTaskBreakdown() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      assignmentId,
+      subtasks,
+    }: {
+      assignmentId: string;
+      subtasks: SubTask[];
+    }) =>
+      postKI(
+        `/task-breakdown/${encodeURIComponent(assignmentId)}`,
+        { subtasks },
+        TaskBreakdownResponseSchema,
+      ),
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData(
+        [...TASK_BREAKDOWN_QUERY_KEY, variables.assignmentId],
+        data,
+      );
+    },
+  });
+}
+
+export function useDeleteTaskBreakdown() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ assignmentId }: { assignmentId: string }) =>
+      deleteKI(
+        `/task-breakdown/${encodeURIComponent(assignmentId)}`,
+        TaskBreakdownResponseSchema,
+      ),
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData(
+        [...TASK_BREAKDOWN_QUERY_KEY, variables.assignmentId],
+        data,
+      );
+    },
+  });
 }
 
 // Schema for dokumentanalyse respons

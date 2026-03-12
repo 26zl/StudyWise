@@ -18,9 +18,9 @@ Produksjonsnettside - <https://www.studwize.page>
 
 - **Frontend**: Next.js 16 + TypeScript + Tailwind CSS v4 + React Query + Zustand + Zod + React Hook Form + nuqs (URL-synkronisert state for dashboard)
 - **Backend**: Express 5 + TypeScript + Redis + Pino + Helmet + Zod + Anthropic Claude
-- **Database**: MongoDB (Atlas/Lokal) + Redis (Cloud/Lokal)
+- **Database**: MongoDB (Atlas/Lokal) + Redis (Cloud/Lokal) + Pinecone (vektorsøk og integrated embedding for kursinnhold)
 - **Common**: Delte Zod schemas og feiltyper (frontend + backend)
-- **Docs**: VitePress dokumentasjon
+- **Docs**: VitePress-dokumentasjon (endringslogg føres ikke lenger; se git-historikk for endringer)
 - **Pakkehåndtering**: pnpm workspace (monorepo)
 - **Autentisering**: JWT (access + refresh tokens)
 

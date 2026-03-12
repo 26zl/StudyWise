@@ -89,7 +89,7 @@ export function AddToWorkplanModal({
         timeSlot: startTime,
         task: task.title,
         duration: task.estimatedTime,
-        priority: task.priority as "high" | "medium" | "low",
+        priority: task.priority,
         courseName: assignmentTitle,
         assignmentId: undefined,
         completed: false,

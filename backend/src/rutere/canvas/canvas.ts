@@ -324,11 +324,15 @@ router.get("/users/self/todo", async (req, res) => {
 });
 
 // GET /emner - Hent aktive emner
-// Henter alle aktive emner for brukeren
+// Henter alle aktive emner for brukeren. Starter også Canvas-sync i bakgrunn (for raskere KI-kontekst ved første spørsmål).
 router.get("/emner", async (req, res) => {
   try {
     const { data: courses, meta } = await fetchCourses(req.canvasToken, req.canvasBaseUrl);
     logger.info({ count: courses.length }, "Hentet aktive emner");
+    if (req.user?.id && req.canvasToken && req.canvasBaseUrl) {
+      const { ensureCanvasSync } = await import("../../services/context-loader.service.js");
+      ensureCanvasSync(req.user.id, req.canvasToken, req.canvasBaseUrl).catch(() => {});
+    }
     res.json({
       courses,
       meta,

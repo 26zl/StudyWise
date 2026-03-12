@@ -299,6 +299,10 @@ export async function fetchUpcomingEvents(canvasToken?: string | null, baseUrl?:
     }
   });
 
+  if (invalid.length > 0) {
+    logger.warn({ invalidCount: invalid.length }, "Ignorerte ugyldige upcoming_events");
+  }
+
   return {
     data: valid,
     meta: response.meta,
@@ -338,6 +342,11 @@ export async function fetchPlannerItems(
       invalid.push(idx);
     }
   });
+
+  if (invalid.length > 0) {
+    logger.warn({ invalidCount: invalid.length }, "Ignorerte ugyldige planner items");
+  }
+
   return {
     data: valid,
     meta: response.meta,

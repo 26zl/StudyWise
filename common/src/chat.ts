@@ -55,12 +55,15 @@ export const SharedChatResponseSchema = z.object({
   messages: z.array(ChatMessageSchema),
   sharedAt: z.coerce.date(),
   createdAt: z.coerce.date(),
+  expiresAt: z.coerce.date(),
+  redacted: z.boolean().default(false),
 });
 
 // Schema for share-respons (returneres ved deling)
 export const ChatShareResponseSchema = z.object({
   shareToken: z.string(),
   shareUrl: z.string(),
+  expiresAt: z.coerce.date(),
 });
 // Type-definisjoner for chat-meldinger og historikk
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;

@@ -30,6 +30,8 @@ Guide for utvikling i StudyWise prosjektet.
 5. Frontend validerer og viser data til bruker
 ```
 
+**Cache og vektorsøk:** Redis cacher Canvas API-svar og sync-struktur (per bruker/emne, TTL 30 min for sync). Pinecone brukes til vektorsøk på kursinnhold (integrated embedding); chunk-tekst lagres i MongoDB (`ContentEmbedding`) som sannhetskilde.
+
 ### Autentisering og Brukerdata
 
 Det er kritisk å forstå skillet mellom "Lokal Bruker" og "Canvas Bruker".
@@ -205,7 +207,8 @@ const users = await User.find({ active: true });
 - AI-modeller: `backend/src/rutere/ki/aiModels.ts`
 - System prompt: `backend/src/rutere/ki/systemPrompt.ts`
 - Canvas paginering: `PAGE_SIZE` og `MAX_PAGES` i `canvasUtils.ts`
-- Cache TTL: `CACHE_TTL` i `canvasUtils.ts`
+- Cache TTL: `CACHE_TTL` i `canvasUtils.ts`; sync i Redis: `SYNC_CACHE_TTL` (30 min) i `canvas-sync.service.ts`
+- Vektorsøk: `backend/src/services/pinecone.service.ts`; miljøvariabler: `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`
 
 ---
 
@@ -380,7 +383,7 @@ Hele prosjektet kan kjøres lokalt via Docker:
 docker compose up --build
 ```
 
-Forutsetning: `backend/.env` må finnes med Anthropic API-nøkkel (påkrevd), JWT-secrets og ENCRYPTION_KEY. MongoDB og Redis startes automatisk av Docker.
+Forutsetning: `backend/.env` må finnes med Anthropic API-nøkkel (påkrevd), JWT-secrets og ENCRYPTION_KEY. For vektorsøk i KI: `PINECONE_API_KEY` og `PINECONE_INDEX_NAME`. MongoDB og Redis startes automatisk av Docker. I Redis Cloud anbefales eviction policy `allkeys-lru` for å unngå «nesten full»-varsler.
 
 ### Hjelp
 

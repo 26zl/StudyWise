@@ -34,6 +34,10 @@ const SubTaskSchema = new mongoose.Schema(
     type: Boolean,
     default: false,
   },
+  approved: {
+    type: Boolean,
+    default: true,
+  },
   },
   { _id: false },
 );

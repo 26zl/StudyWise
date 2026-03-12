@@ -30,6 +30,8 @@ const requiredEnvVars = [
     "NODE_ENV",
     "LOG_LEVEL",
     "ANTHROPIC_API_KEY",
+    "PINECONE_API_KEY",
+    "PINECONE_INDEX_NAME",
 ];
 
 /**
@@ -46,13 +48,15 @@ function validateEnvForBuild() {
         }
     }
 
-    // Spesiell validering for ENCRYPTION_KEY format
+    // Spesiell validering for ENCRYPTION_KEY format og styrke
     const encryptionKey = process.env.ENCRYPTION_KEY;
     if (encryptionKey) {
         if (encryptionKey.length !== 64) {
             manglende.push("ENCRYPTION_KEY (må være 64 hex-tegn / 32 bytes)");
         } else if (!/^[a-fA-F0-9]+$/.test(encryptionKey)) {
             manglende.push("ENCRYPTION_KEY (må være gyldig hex-streng)");
+        } else if (/^[0f]+$/i.test(encryptionKey)) {
+            manglende.push("ENCRYPTION_KEY (for svak: ikke bruk placeholder; generer med crypto.randomBytes(32).toString('hex'))");
         }
     }
 
@@ -180,6 +184,38 @@ function validateEnvForBuild() {
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
     if (anthropicKey && !anthropicKey.startsWith("sk-ant-")) {
         manglende.push("ANTHROPIC_API_KEY (må starte med 'sk-ant-')");
+    }
+
+    // Valider Datadog-variabler kun i produksjon (settes i hosting-plattformen)
+    if (nodeEnv === "production") {
+        const ddRequired = [
+            "DD_API_KEY",
+            "DD_SITE",
+            "DD_ENV",
+            "DD_APPSEC_ENABLED",
+            "DD_APPSEC_SCA_ENABLED",
+            "DD_IAST_ENABLED",
+            "DD_LOGS_INJECTION",
+            "DD_PROFILING_ENABLED",
+            "DD_TRACE_SAMPLE_RATE",
+            "DD_GIT_REPOSITORY_URL",
+        ];
+        for (const key of ddRequired) {
+            if (!process.env[key]?.trim()) {
+                manglende.push(`${key} (påkrevd i produksjon for Datadog APM)`);
+            }
+        }
+        const ddSite = process.env.DD_SITE;
+        if (ddSite && ddSite !== "us5.datadoghq.com") {
+            manglende.push(`DD_SITE (må være 'us5.datadoghq.com', fikk: ${ddSite})`);
+        }
+        const sampleRate = process.env.DD_TRACE_SAMPLE_RATE;
+        if (sampleRate) {
+            const rate = Number(sampleRate);
+            if (isNaN(rate) || rate < 0 || rate > 1) {
+                manglende.push(`DD_TRACE_SAMPLE_RATE (må være mellom 0 og 1, fikk: ${sampleRate})`);
+            }
+        }
     }
 
     // Avslutt hvis påkrevde variabler mangler

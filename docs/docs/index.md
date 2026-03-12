@@ -38,7 +38,8 @@ StudyWise er et pågående bachelorprosjekt og er i konstant endring. Funksjonal
 | **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS v4 |
 | **Backend** | Express 5, Node.js 20+, TypeScript, Mongoose/MongoDB |
 | **KI** | Anthropic Claude API |
-| **Cache** | Redis Cloud |
+| **Cache** | Redis Cloud (Canvas API, sync-struktur, KI-sesjon; anbefalt eviction `allkeys-lru`) |
+| **Vektorsøk** | Pinecone (integrated embedding); chunk-tekst i MongoDB som sannhetskilde |
 | **Monorepo** | pnpm workspaces med `frontend`, `backend`, `common` |
 | **CI/CD** | GitHub Actions, Docker, Heroku (backend), Vercel (frontend), Cloudflare |
 | **Dokumentasjon** | VitePress (denne siden) |

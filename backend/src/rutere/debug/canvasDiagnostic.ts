@@ -2,7 +2,7 @@
  * Canvas Diagnostic Route (dev-only)
  *
  * GET /api/debug/canvas-content?q=<søkeord>
- * Viser chunk-data, søkeresultater og PDF-tilgjengelighet for en bruker.
+ * Viser lagrede chunks i MongoDB, søkeresultater og filtilgjengelighet for en bruker.
  * Kun tilgjengelig i utvikling (ikke prod).
  */
 
@@ -10,7 +10,8 @@ import { Router, type Request, type Response } from "express";
 import { logger } from "../../utils/logger.js";
 import { getCache, isRedisReady } from "../../cache/redis.js";
 import { userKey } from "../../services/canvas-sync.service.js";
-import { getChunksForCourse, searchChunks } from "../../services/chunk.service.js";
+import { searchChunks } from "../../services/chunk.service.js";
+import { getStoredChunksForCourse } from "../../services/embedding.service.js";
 import { extractSearchTerms } from "../../services/semantic-search.service.js";
 import { isProd } from "../../utils/env.js";
 
@@ -46,7 +47,7 @@ router.get("/canvas-content", async (req: Request, res: Response) => {
 
     for (const emne of emner) {
       const courseId = String(emne.id);
-      const chunks = await getChunksForCourse(userId, courseId);
+      const chunks = await getStoredChunksForCourse(userId, courseId);
       totalChunks += chunks.length;
       allChunks.push(...chunks);
 

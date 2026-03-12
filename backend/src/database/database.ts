@@ -7,6 +7,7 @@ import mongoose from "mongoose";
 import { logger } from "../utils/logger.js";
 import { CanvasUser } from "./models/CanvasUser.js";
 import { ChatHistory } from "./models/ChatHistory.js";
+import { ContentEmbedding } from "./models/ContentEmbedding.js";
 import { TaskBreakdown } from "./models/TaskBreakdown.js";
 import { User } from "./models/User.js";
 
@@ -37,6 +38,7 @@ async function ensureDatabaseIndexes() {
         User.createIndexes(),
         CanvasUser.createIndexes(),
         ChatHistory.createIndexes(),
+        ContentEmbedding.createIndexes(),
         TaskBreakdown.createIndexes(),
     ]);
     logger.info("MongoDB-indekser verifisert");

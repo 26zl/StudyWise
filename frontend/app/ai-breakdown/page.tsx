@@ -9,7 +9,7 @@ import { Sidebar, type VisningType } from "../components/Sidebar";
 import { useMeg } from "../auth/auth-api";
 import { useCanvasUser } from "../canvas/canvas-api";
 
-// Mock oppgaver for testing
+// Eksempeloppgaver for AI task breakdown
 const mockAssignments = [
   {
     id: "1",
@@ -63,7 +63,6 @@ const mockAssignments = [
   },
 ];
 
-// Denne siden er for testing av AITaskBreakdown-komponenten med flere eksempler
 export default function TestPage() {
   const router = useRouter();
   const [expandedAssignments, setExpandedAssignments] = useState<Set<string>>(
@@ -76,7 +75,7 @@ export default function TestPage() {
   const brukernavn =
     userQuery.data?.name?.split(" ")[0] ||
     megQuery.data?.user?.firstName ||
-    megQuery.data?.user?.email?.split("@")[0];
+    megQuery.data?.user?.email?.split("@")?.[0];
   
   const byttVisning = useCallback(
     (visning: VisningType) => {
@@ -156,7 +155,7 @@ export default function TestPage() {
                       AI Task Breakdown
                     </h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                      Test og demo av KI-nedbrytning av oppgaver
+                      Bryt ned oppgaver i konkrete deloppgaver med lagret fremdrift
                     </p>
                   </div>
                 </div>
@@ -277,6 +276,7 @@ export default function TestPage() {
                         </div>
 
                         <AITaskBreakdown
+                          assignmentId={assignment.id}
                           assignmentTitle={assignment.title}
                           assignmentDescription={assignment.description}
                           dueDate={assignment.dueDate}

@@ -7,6 +7,7 @@ export interface ChatHistoryDocument {
   encryptedMessages: string;
   shareToken?: string;
   sharedAt?: Date;
+  shareExpiresAt?: Date;
   isShared: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -19,6 +20,7 @@ const ChatHistorySchema = new Schema<ChatHistoryDocument>(
     encryptedMessages: { type: String, required: true },
     shareToken: { type: String, default: undefined },
     sharedAt: { type: Date, default: undefined },
+    shareExpiresAt: { type: Date, default: undefined },
     isShared: { type: Boolean, default: false },
   },
   { timestamps: true }

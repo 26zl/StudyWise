@@ -33,6 +33,7 @@ import canvasRuter from "./rutere/canvas/canvas.js";
 import kiRuter from "./rutere/ki/ki.js";
 import brukerAuthRuter from "./rutere/auth/brukerAuth.js";
 import taskBreakdownRouter from "./rutere/ki/taskBreakdown.js";
+import weeklyPlanRouter from "./rutere/ki/weeklyPlan.js";
 import { kiOppsummeringRouter } from "./rutere/ki/kiOppsummering.js";
 import debugRouter from "./rutere/debug/canvasDiagnostic.js";
 import { sharedChatRouter } from "./rutere/ki/kiShare.js";
@@ -138,7 +139,7 @@ const rateLimiterMiddleware = (
   next: express.NextFunction, 
 ) => {
   rateLimiter
-    .consume(req.ip as string)
+    .consume(req.ip ?? req.socket?.remoteAddress ?? "unknown")
     .then(() => {
       next();
     })
@@ -298,6 +299,7 @@ app.use("/api/canvas", noCache, knyttCanvasToken, canvasRuter);
 app.use("/api/ki", noCache, knyttCanvasToken, kiRuter);
 app.use("/api/ki", noCache, knyttCanvasToken, kiOppsummeringRouter);
 app.use("/api/ki/task-breakdown", noCache, taskBreakdownRouter);
+app.use("/api/ki/weekly-plan", noCache, weeklyPlanRouter);
 app.use("/api/user", brukerAuthRuter);
 app.use("/api/arbeidsplan", noCache, arbeidsplanRuter);
 

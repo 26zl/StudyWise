@@ -45,6 +45,9 @@ importers:
       '@napi-rs/canvas':
         specifier: ^0.1.96
         version: 0.1.96
+      '@pinecone-database/pinecone':
+        specifier: ^7.1.0
+        version: 7.1.0
       adm-zip:
         specifier: ^0.5.16
         version: 0.5.16
@@ -72,6 +75,9 @@ importers:
       helmet:
         specifier: ^8.1.0
         version: 8.1.0
+      js-tiktoken:
+        specifier: ^1.0.21
+        version: 1.0.21
       jsonwebtoken:
         specifier: ^9.0.3
         version: 9.0.3
@@ -1379,6 +1385,10 @@ packages:
 
   '@paralleldrive/cuid2@2.3.1':
     resolution: {integrity: sha512-XO7cAxhnTZl0Yggq6jOgjiOHhbgcO4NqFqwSmQpjK3b6TEE6Uj/jfSk6wzYyemh3+I0sHirKSetjQwn5cZktFw==}
+
+  '@pinecone-database/pinecone@7.1.0':
+    resolution: {integrity: sha512-w6HoBCriv4NKOVFjdj4/KuJ6df7RZpQEsZ61VctRzoauTXQpe8wpccsS94AawxAxMOu7hOTXVlcQ5QLHYKjrDA==}
+    engines: {node: '>=20.0.0'}
 
   '@pinojs/redact@0.4.0':
     resolution: {integrity: sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg==}
@@ -3083,6 +3093,9 @@ packages:
   joycon@3.1.1:
     resolution: {integrity: sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw==}
     engines: {node: '>=10'}
+
+  js-tiktoken@1.0.21:
+    resolution: {integrity: sha512-biOj/6M5qdgx5TKjDnFT1ymSpM5tbd3ylwDtrQvFQSu0Z7bBYko2dF+W/aUkXUPuk6IVpRxk/3Q2sHOzGlS36g==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -5788,6 +5801,8 @@ snapshots:
     dependencies:
       '@noble/hashes': 1.8.0
 
+  '@pinecone-database/pinecone@7.1.0': {}
+
   '@pinojs/redact@0.4.0': {}
 
   '@redis/bloom@5.11.0(@redis/client@5.11.0)':
@@ -7530,6 +7545,10 @@ snapshots:
       '@standard-schema/spec': 1.1.0
 
   joycon@3.1.1: {}
+
+  js-tiktoken@1.0.21:
+    dependencies:
+      base64-js: 1.5.1
 
   js-tokens@4.0.0: {}
 

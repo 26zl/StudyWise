@@ -3,6 +3,7 @@
  */
 
 import { z } from "zod";
+import { StudyBlockSchema, UKEDAGER } from "./arbeidsplan.js";
 
 // Meldingslengde-grenser
 export const KI_MAX_MESSAGE_LENGTH_BACKEND = 50000; // Backend hard limit
@@ -94,9 +95,8 @@ export const KIDocumentAnalyseResponseSchema = z.object({
 });
 
 // Subtask schema for task breakdown API.
-// SubTaskSchema og TaskBreakdownResponseSchema brukes av backend for validering (taskBreakdown.ts)
-// og skal brukes av en dedikert frontend-hook for å validere API-svar når AI-integrasjonen er ferdig.
-// I frontend-komponenter importeres kun typen (SubTask), ikke skjemaet.
+// SubTaskSchema og TaskBreakdownResponseSchema brukes av både backend og frontend-hooker
+// for å holde generering, lagring og visning i sync.
 export const SubTaskSchema = z.object({
   id: z.string(),
   title: z.string().max(200, "Tittel må være maks 200 tegn"),
@@ -104,11 +104,82 @@ export const SubTaskSchema = z.object({
   estimatedTime: z.string(),
   priority: z.enum(["low", "medium", "high"]),
   completed: z.boolean(),
+  approved: z.boolean().optional().default(true),
 });
 
 // Task breakdown response schema for KI task breakdown API
 export const TaskBreakdownResponseSchema = z.object({
   subtasks: z.array(SubTaskSchema),
+});
+
+export const TaskBreakdownGenerateRequestSchema = z.object({
+  assignmentTitle: z
+    .string()
+    .min(1, "Oppgavetittel kan ikke være tom")
+    .max(200, "Oppgavetittel må være maks 200 tegn"),
+  assignmentDescription: z
+    .string()
+    .max(5000, "Oppgavebeskrivelse må være maks 5000 tegn")
+    .optional()
+    .default(""),
+  dueDate: z.coerce.date().optional(),
+});
+
+export const WeeklyPlanAssignmentSchema = z.object({
+  id: z.string().min(1, "Oppgave-ID mangler"),
+  name: z
+    .string()
+    .min(1, "Oppgavenavn kan ikke være tomt")
+    .max(200, "Oppgavenavn må være maks 200 tegn"),
+  dueAt: z.coerce.date().optional(),
+  courseName: z.string().max(200, "Emnenavn må være maks 200 tegn").optional(),
+  description: z
+    .string()
+    .max(5000, "Oppgavebeskrivelse må være maks 5000 tegn")
+    .optional(),
+  pointsPossible: z.number().min(0).max(1000).optional(),
+});
+
+export const WeeklyPlanGenerateRequestSchema = z.object({
+  assignments: z
+    .array(WeeklyPlanAssignmentSchema)
+    .min(1, "Minst én oppgave må sendes inn")
+    .max(20, "Maks 20 oppgaver kan brukes til ukeplan"),
+});
+
+export const WeeklyPlanSuggestionBlockSchema = StudyBlockSchema.pick({
+  day: true,
+  timeSlot: true,
+  task: true,
+  duration: true,
+  priority: true,
+  courseName: true,
+  assignmentId: true,
+  completed: true,
+}).extend({
+  day: z.enum(UKEDAGER).catch("Mandag"),
+  timeSlot: z.string().min(1).max(50).catch("08:00-10:00"),
+  task: z.string().min(1).max(200).catch("Ukjent oppgave"),
+  duration: z.string().min(1).max(50).catch("1.5 timer"),
+  priority: z.enum(["high", "medium", "low"]).catch("medium"),
+  courseName: z.string().min(1).max(200).catch("Ukjent emne"),
+  assignmentId: z.string().min(1).max(200).optional(),
+  completed: z.boolean().catch(false),
+});
+
+export const WeeklyPlanSuggestionDraftSchema = z.object({
+  blocks: z
+    .array(WeeklyPlanSuggestionBlockSchema)
+    .min(1, "Responsen må inneholde minst én studieblokk"),
+  tips: z.array(z.string().min(1)).min(1).max(5).optional(),
+});
+
+export const WeeklyPlanSuggestionResponseSchema = WeeklyPlanSuggestionDraftSchema.extend({
+  week: z.string(),
+  weekNumber: z.number().int().min(1).max(53),
+  year: z.number().int().min(2020).max(2100),
+  totalHours: z.number().min(0),
+  tips: z.array(z.string().min(1)).min(1).max(5),
 });
 
 // KI Oppsummering (kunngjøringer)
@@ -143,3 +214,16 @@ export type KIDocumentAnalyseResponse = z.infer<
 >;
 export type SubTask = z.infer<typeof SubTaskSchema>;
 export type TaskBreakdownResponse = z.infer<typeof TaskBreakdownResponseSchema>;
+export type TaskBreakdownGenerateRequest = z.infer<
+  typeof TaskBreakdownGenerateRequestSchema
+>;
+export type WeeklyPlanAssignment = z.infer<typeof WeeklyPlanAssignmentSchema>;
+export type WeeklyPlanGenerateRequest = z.infer<
+  typeof WeeklyPlanGenerateRequestSchema
+>;
+export type WeeklyPlanSuggestionBlock = z.infer<
+  typeof WeeklyPlanSuggestionBlockSchema
+>;
+export type WeeklyPlanSuggestionResponse = z.infer<
+  typeof WeeklyPlanSuggestionResponseSchema
+>;

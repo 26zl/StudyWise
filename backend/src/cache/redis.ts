@@ -1,6 +1,9 @@
 /*
-* Cache for redis primært brukt for Canvas API og rate limiting
-*/
+ * Cache for Redis: Canvas API-svar, sync-struktur (canvas-sync), KI-sesjon, rate limiting.
+ * Alle nøkler har TTL — ved full Redis avhenger oppførsel av maxmemory-policy:
+ * - noeviction: SET feiler, vi logger og fortsetter uten cache (app fungerer).
+ * - allkeys-lru / volatile-lru: Redis evicter eldre nøkler; anbefalt for å unngå "nesten full"-varsler.
+ */
 import { createClient } from "redis";
 import { logger } from "../utils/logger.js";
 
@@ -120,7 +123,46 @@ export const setCache = async (key: string, value: string, ttlSeconds: number = 
         });
         logger.debug({ key, ttlSeconds, valueSize }, "Redis cache SET");
     } catch (error) {
-        logger.error({ err: error, key }, "Redis setCache feilet");
+        const msg = error instanceof Error ? error.message : String(error);
+        const likelyFull = /OOM|maxmemory|command not allowed when used memory/i.test(msg);
+        if (likelyFull) {
+            logger.warn(
+                { key: key.slice(0, 80) },
+                "Redis setCache avvist (sannsynligvis full). Sett maxmemory-policy til allkeys-lru eller øk minne.",
+            );
+        } else {
+            logger.error({ err: error, key }, "Redis setCache feilet");
+        }
+    }
+};
+
+// Sletter spesifikke cache-nøkler (brukes til opprydding av legacy-nøkler)
+export const deleteCacheKeys = async (keys: string[]): Promise<number> => {
+    if (!client.isOpen || keys.length === 0) {
+        return 0;
+    }
+
+    const validKeys = keys.filter((key) => {
+        if (!isValidCacheKey(key)) {
+            logger.warn({ key: key.slice(0, 50) }, "Redis deleteCacheKeys: ugyldig nøkkel avvist");
+            return false;
+        }
+        return true;
+    });
+
+    if (validKeys.length === 0) {
+        return 0;
+    }
+
+    try {
+        const deletedCount = await client.del(validKeys);
+        if (deletedCount > 0) {
+            logger.debug({ deletedCount }, "Redis cache-nøkler slettet");
+        }
+        return deletedCount;
+    } catch (error) {
+        logger.warn({ err: error, keyCount: validKeys.length }, "Redis deleteCacheKeys feilet");
+        return 0;
     }
 };
 
@@ -156,14 +198,9 @@ export const invalidateCacheByPattern = async (pattern: string): Promise<number>
     try {
         // Bruk SCAN for ikke-blokkerende iterasjon (i stedet for KEYS som blokkerer)
         const keysToDelete: string[] = [];
-        // scanIterator returnerer batches av keys per iterasjon
+        // scanIterator gir en batch av keys (string[]) per iterasjon i node-redis 5.x
         for await (const keys of client.scanIterator({ MATCH: pattern, COUNT: 100 })) {
-            // Hver iterasjon gir en batch av keys (array)
-            if (Array.isArray(keys)) {
-                keysToDelete.push(...keys);
-            } else {
-                keysToDelete.push(keys);
-            }
+            keysToDelete.push(...keys);
         }
         if (keysToDelete.length === 0) {
             return 0;

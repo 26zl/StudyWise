@@ -1,9 +1,9 @@
 /**
  * Canvas Sync Service
  *
- * Synkroniserer Canvas-data (emner, moduler, oppgaver, kunngjøringer) til Redis
- * for rask oppslag under KI-chat. Hver bruker kan trigge synkronisering via
- * sin Canvas API-token.
+ * Synkroniserer Canvas-data til en hybridmodell:
+ * - Redis: lett strukturdata, sync-status og kortlivede nøkler
+ * - MongoDB: tungt filinnhold som chunks + embeddings for KI-søk
  *
  * Redis-nøkkelstruktur:
  *   canvas:user:{userId}:emner                    — liste over aktive emner (JSON)
@@ -11,19 +11,25 @@
  *   canvas:user:{userId}:emne:{courseId}:moduler    — moduler med items (JSON)
  *   canvas:user:{userId}:emne:{courseId}:oppgaver   — oppgaver (JSON)
  *   canvas:user:{userId}:emne:{courseId}:kunngjøringer — kunngjøringer (JSON)
- *   canvas:user:{userId}:file:{fileId}:content        — PDF-innhold (JSON)
  *   canvas:user:{userId}:syncMeta                   — siste sync tidspunkt + hash
  *
  * Invalideringslogikk:
- *   - SHA-256 hash av innhold — kun oppdater Redis hvis data faktisk endret seg
- *   - TTL 3600s (1 time) på alle nøkler
+ *   - SHA-256 hash av kursdata — oppdater Redis kun ved faktiske endringer
+ *   - SHA-256 hash av filer — unngå unødvendig re-ekstraksjon/embedding
+ *   - TTL 3600s (1 time) kun på Redis-data
  *   - Manuell invalidering via invalidateUserCanvasCache()
  */
 
 import crypto from "crypto";
 import pLimit from "p-limit";
 import { logger } from "../utils/logger.js";
-import { getCache, setCache, isRedisReady, invalidateCacheByPattern } from "../cache/redis.js";
+import {
+  deleteCacheKeys,
+  getCache,
+  setCache,
+  isRedisReady,
+  invalidateCacheByPattern,
+} from "../cache/redis.js";
 import {
   fetchCoursesForKI,
   fetchModules,
@@ -36,15 +42,23 @@ import {
 import { isSupportedFileType, extractTextFromFile } from "./fileExtractor.js";
 import {
   createChunksFromContent,
-  storeChunksForCourse,
-  renewChunksTTL,
   type ContentChunk,
 } from "./chunk.service.js";
+import {
+  deleteMissingFilesForCourse,
+  deleteStoredCourseContent,
+  deleteStoredUserContent,
+  getStoredChunksForFile,
+  getStoredFileStatusForCourse,
+  isEmbeddingAvailable,
+  updateStoredFileMetadata,
+  upsertStoredFileContent,
+} from "./embedding.service.js";
 
 // ─── Konstanter ────────────────────────────────────────────
 
-/** TTL for synkroniserte Canvas-data i Redis (1 time) */
-const SYNC_CACHE_TTL = 3600;
+/** TTL for synkroniserte Canvas-data i Redis (30 min) — reduserer Redis-bruk ved mange brukere/emner */
+const SYNC_CACHE_TTL = 1800;
 
 /** Maks samtidige Canvas API-kall under synkronisering */
 const SYNC_CONCURRENCY = 3;
@@ -129,16 +143,21 @@ function syncStatusKey(userId: string): string {
  * @param canvasToken - Dekryptert Canvas API-token
  * @returns SyncResult med statistikk
  */
+/**
+ * Avbrytbar sync: når signal aborteres (f.eks. når chat-respons er ferdig),
+ * stopper sync raskt i stedet for å fortsette i bakgrunnen.
+ */
 export async function syncCanvasDataForUser(
   userId: string,
   canvasToken: string,
   baseUrl?: string,
+  signal?: AbortSignal,
 ): Promise<SyncResult> {
   // Hvis det allerede pågår en sync for denne brukeren, vent på den
   const existing = activeSyncs.get(userId);
   if (existing) return existing;
 
-  const promise = _doSync(userId, canvasToken, baseUrl);
+  const promise = _doSync(userId, canvasToken, baseUrl, signal);
   activeSyncs.set(userId, promise);
 
   // Sett Redis sync-status til "running" slik at andre prosesser kan polle
@@ -160,9 +179,13 @@ async function _doSync(
   userId: string,
   canvasToken: string,
   baseUrl?: string,
+  signal?: AbortSignal,
 ): Promise<SyncResult> {
   const startTime = Date.now();
 
+  if (signal?.aborted) {
+    return { synced: false, courses: { total: 0, updated: 0, unchanged: 0, failed: 0 }, durationMs: Date.now() - startTime };
+  }
 
   if (!baseUrl) {
     logger.warn({ userId }, "canvas-sync: baseUrl mangler — avbryter sync");
@@ -205,6 +228,11 @@ async function _doSync(
 
   if (courses.length === 0) {
     logger.info({ userId }, "Ingen aktive emner funnet for Canvas sync");
+    await Promise.allSettled([
+      invalidateCacheByPattern(`canvas:user:${userId}:emne:*`),
+      deleteStoredUserContent(userId),
+      invalidateUserKISessionCache(userId),
+    ]);
     // Overskriv Redis med tom liste og oppdater syncMeta slik at loadCanvasContext ikke serverer stale data
     await setCache(userKey(userId, "emner"), "[]", SYNC_CACHE_TTL);
     const emptyMeta: SyncMeta = { lastSyncAt: new Date().toISOString(), courseHashes: {} };
@@ -236,6 +264,7 @@ async function _doSync(
   await Promise.allSettled(
     courses.map((course) =>
       limit(async () => {
+        if (signal?.aborted) return;
         const courseId = String(course.id);
         try {
           // Hent data parallelt for dette emnet
@@ -314,62 +343,79 @@ async function _doSync(
           }
 
           // ── Filekstraksjon for File-type module items ──
-          // Kjører uavhengig av om kursdata endret seg — filer har egen hash-sjekk
+          // Tungt filinnhold lagres i MongoDB, ikke Redis.
           let fileCount = 0;
-          const courseChunks: ContentChunk[] = [];
-          let chunksCreated = false;
+          let reachedFileLimit = false;
+          const keepFileIds = new Set<number>();
+          const storedFileStatus = await getStoredFileStatusForCourse(userId, courseId);
 
           for (const mod of moduler) {
-            if (fileCount >= MAX_FILES_PER_SYNC) break;
+            if (signal?.aborted) break;
+            if (fileCount >= MAX_FILES_PER_SYNC) {
+              reachedFileLimit = true;
+              break;
+            }
             if (!mod.items || mod.items.length === 0) continue;
 
             for (const item of mod.items) {
-              if (fileCount >= MAX_FILES_PER_SYNC) break;
+              if (signal?.aborted) break;
+              if (fileCount >= MAX_FILES_PER_SYNC) {
+                reachedFileLimit = true;
+                break;
+              }
               if (item.type !== "File") continue;
+
               const contentId = item.content_id;
               if (!contentId) continue;
 
               try {
-                const fileKey = userKey(userId, "file", String(contentId), "content");
-
-                // Hent filmetadata for endringsindikatoren (updated_at)
+                const legacyFileKey = userKey(userId, "file", String(contentId), "content");
                 const { data: fileData } = await fetchFileMetadata(canvasToken, contentId, baseUrl);
 
-                // Sjekk filtype med faktisk filnavn (ikke item.title som kan mangle endelse)
-                if (!isSupportedFileType(fileData.filename)) continue;
-                const metaHash = sha256(`${fileData.id}:${fileData.updated_at}:${fileData.size}`);
-
-                // Sjekk om vi allerede har innhold med samme hash
-                const existingRaw = await getCache(fileKey);
-                if (existingRaw) {
-                  try {
-                    const existing = JSON.parse(existingRaw);
-                    if (existing.hash === metaHash) {
-                      // Fil uendret — forny TTL og lag chunks fra cachet innhold
-                      await setCache(fileKey, existingRaw, SYNC_CACHE_TTL);
-                      if (existing.content) {
-                        courseChunks.push(...createChunksFromContent(existing.content, {
-                          courseId,
-                          courseName: course.name,
-                          moduleTitle: mod.name,
-                          fileName: fileData.filename,
-                          fileId: contentId,
-                        }));
-                      }
-                      continue;
-                    }
-                  } catch {
-                    // Ugyldig JSON — hent på nytt
-                  }
+                if (!isSupportedFileType(fileData.filename)) {
+                  continue;
                 }
 
-                const isPdf = fileData.mime_type === "application/pdf" || fileData.filename.toLowerCase().endsWith(".pdf");
+                keepFileIds.add(contentId);
+                const metaHash = sha256(`${fileData.id}:${fileData.updated_at}:${fileData.size}`);
+                const existingStatus = storedFileStatus.get(contentId);
+
+                if (existingStatus?.fileHash === metaHash) {
+                  if (!existingStatus.hasEmbedding && isEmbeddingAvailable()) {
+                    const storedChunks = await getStoredChunksForFile(userId, courseId, contentId);
+                    if (storedChunks.length > 0) {
+                      await upsertStoredFileContent({
+                        userId,
+                        courseId,
+                        courseName: course.name,
+                        moduleTitle: mod.name,
+                        fileName: fileData.filename,
+                        fileId: contentId,
+                        fileHash: metaHash,
+                        chunks: storedChunks,
+                      });
+                      await deleteCacheKeys([legacyFileKey]);
+                      continue;
+                    }
+                  }
+
+                  await updateStoredFileMetadata(userId, courseId, contentId, {
+                    courseName: course.name,
+                    moduleTitle: mod.name,
+                    fileName: fileData.filename,
+                    fileHash: metaHash,
+                  });
+                  await deleteCacheKeys([legacyFileKey]);
+                  continue;
+                }
+
+                const isPdf =
+                  fileData.mime_type === "application/pdf" ||
+                  fileData.filename.toLowerCase().endsWith(".pdf");
 
                 let content: string | null = null;
-                let truncated = false;
 
                 if (isPdf) {
-                  // Behold eksisterende PDF-pipeline
                   const pdfResult = await fetchPdfContent(canvasToken, {
                     id: fileData.id,
                     filename: fileData.filename,
@@ -379,10 +425,8 @@ async function _doSync(
                   }, baseUrl);
                   if (pdfResult) {
                     content = pdfResult.content;
-                    truncated = pdfResult.truncated;
                   }
                 } else {
-                  // Ny pipeline: last ned rå buffer og ekstraher tekst
                   const buf = await fetchFileContent(canvasToken, {
                     id: fileData.id,
                     filename: fileData.filename,
@@ -393,37 +437,42 @@ async function _doSync(
                     const result = await extractTextFromFile(buf, fileData.filename);
                     if (result && result.content.trim().length > 0) {
                       content = result.content;
-                      truncated = result.truncated;
                     }
                   }
                 }
 
-                if (content) {
-                  await setCache(
-                    fileKey,
-                    JSON.stringify({
-                      content,
-                      hash: metaHash,
-                      filename: fileData.filename,
-                      displayName: fileData.display_name,
-                      truncated,
-                    }),
-                    SYNC_CACHE_TTL,
-                  );
-                  fileCount++;
-                  chunksCreated = true;
-                  courseChunks.push(...createChunksFromContent(content, {
-                    courseId,
-                    courseName: course.name,
-                    moduleTitle: mod.name,
-                    fileName: fileData.filename,
-                    fileId: contentId,
-                  }));
+                if (!content || content.trim().length === 0) {
                   logger.info(
-                    { userId, fileId: contentId, filename: fileData.filename },
-                    "Filinnhold lagret i Redis under sync",
+                    { userId, courseId, fileId: contentId, filename: fileData.filename },
+                    "Fil ga ikke ekstraherbart innhold — beholder eventuell tidligere lagring",
                   );
+                  continue;
                 }
+
+                const chunks: ContentChunk[] = createChunksFromContent(content, {
+                  courseId,
+                  courseName: course.name,
+                  moduleTitle: mod.name,
+                  fileName: fileData.filename,
+                  fileId: contentId,
+                });
+
+                if (chunks.length === 0) {
+                  continue;
+                }
+
+                await upsertStoredFileContent({
+                  userId,
+                  courseId,
+                  courseName: course.name,
+                  moduleTitle: mod.name,
+                  fileName: fileData.filename,
+                  fileId: contentId,
+                  fileHash: metaHash,
+                  chunks,
+                });
+                await deleteCacheKeys([legacyFileKey]);
+                fileCount++;
               } catch (error) {
                 logger.warn(
                   { err: error, userId, contentId, title: item.title },
@@ -433,13 +482,26 @@ async function _doSync(
             }
           }
 
-          // Lagre chunks for kurset (nye + uendrede PDFer)
-          if (courseChunks.length > 0) {
-            await storeChunksForCourse(userId, courseId, courseChunks);
-          } else if (!chunksCreated) {
-            // Forny TTL på eksisterende chunks selv om ingen PDFer ble prosessert
-            await renewChunksTTL(userId, courseId);
+          if (!reachedFileLimit) {
+            const removedCount = await deleteMissingFilesForCourse(
+              userId,
+              courseId,
+              [...keepFileIds],
+            );
+            if (removedCount > 0) {
+              logger.info(
+                { userId, courseId, removedCount },
+                "Slettet lagrede filer som ikke lenger finnes i kurset",
+              );
+            }
+          } else {
+            logger.info(
+              { userId, courseId, maxFilesPerSync: MAX_FILES_PER_SYNC },
+              "Hopper over sletting av manglende filer fordi filgrensen ble nådd",
+            );
           }
+
+          await deleteCacheKeys([userKey(userId, "emne", courseId, "chunks")]);
         } catch (error) {
           failed++;
           logger.warn(
@@ -451,12 +513,40 @@ async function _doSync(
     ),
   );
 
+  if (signal?.aborted) {
+    logger.info({ userId }, "Canvas sync avbrutt (forespørsel ferdig)");
+    return {
+      synced: false,
+      courses: { total: courses.length, updated, unchanged, failed },
+      durationMs: Date.now() - startTime,
+    };
+  }
+
+  const removedCourseIds = Object.keys(previousMeta.courseHashes).filter(
+    (courseId) => !(courseId in newHashes),
+  );
+  if (removedCourseIds.length > 0) {
+    await Promise.allSettled(
+      removedCourseIds.map(async (removedCourseId) => {
+        await Promise.allSettled([
+          invalidateCacheByPattern(userKey(userId, "emne", removedCourseId, "*")),
+          deleteStoredCourseContent(userId, removedCourseId),
+        ]);
+      }),
+    );
+    logger.info(
+      { userId, removedCourseIds },
+      "Fjernet lagret data for kurs som ikke lenger er aktive",
+    );
+  }
+
   // Lagre sync-metadata
   const syncMeta: SyncMeta = {
     lastSyncAt: new Date().toISOString(),
     courseHashes: newHashes,
   };
   await setCache(syncMetaKey, JSON.stringify(syncMeta), SYNC_CACHE_TTL);
+  await invalidateUserKISessionCache(userId);
 
   const durationMs = Date.now() - startTime;
   logger.info(
@@ -473,18 +563,48 @@ async function _doSync(
 
 // ─── Cache-invalidering ────────────────────────────────────
 
+export async function invalidateUserKISessionCache(userId: string): Promise<void> {
+  try {
+    await invalidateCacheByPattern(`ki:session:${userId}:*`);
+  } catch (error) {
+    logger.warn({ err: error, userId }, "Feil ved invalidering av KI session-cache");
+  }
+}
+
+export async function clearUserCanvasRuntimeState(userId: string): Promise<void> {
+  try {
+    const tasks: Array<Promise<unknown>> = [invalidateUserKISessionCache(userId)];
+
+    if (isRedisReady()) {
+      tasks.push(invalidateCacheByPattern(userKey(userId, "sync", "status")));
+    }
+
+    await Promise.allSettled(tasks);
+    logger.info({ userId }, "Canvas-runtime state ryddet for bruker");
+  } catch (error) {
+    logger.warn({ err: error, userId }, "Feil ved rydding av Canvas-runtime state");
+  }
+}
+
 /**
- * Invaliderer all cachet Canvas-data for en bruker.
- * Brukes når brukeren oppdaterer sitt Canvas-token eller logger ut.
+ * Invaliderer all cachet Canvas-data og lagret KI-innhold for en bruker.
+ * Brukes når brukeren oppdaterer eller sletter sitt Canvas-token.
  */
 export async function invalidateUserCanvasCache(userId: string): Promise<void> {
-  if (!isRedisReady()) return;
-
   try {
-    await invalidateCacheByPattern(`canvas:user:${userId}:*`);
-    logger.info({ userId }, "Canvas cache invalidert for bruker");
+    const tasks: Array<Promise<unknown>> = [
+      deleteStoredUserContent(userId),
+      invalidateUserKISessionCache(userId),
+    ];
+
+    if (isRedisReady()) {
+      tasks.push(invalidateCacheByPattern(`canvas:user:${userId}:*`));
+    }
+
+    await Promise.allSettled(tasks);
+    logger.info({ userId }, "Canvas- og KI-data invalidert for bruker");
   } catch (error) {
-    logger.warn({ err: error, userId }, "Feil ved invalidering av Canvas cache");
+    logger.warn({ err: error, userId }, "Feil ved invalidering av Canvas-/KI-data");
   }
 }
 

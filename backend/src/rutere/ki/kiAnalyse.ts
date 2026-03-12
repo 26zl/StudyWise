@@ -271,8 +271,10 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
             } : undefined,
         });
         clearInterval(keepaliveInterval);
-        res.write(`data: ${JSON.stringify(payload)}\n\n`);
-        res.end();
+        if (!res.writableEnded) {
+            res.write(`data: ${JSON.stringify(payload)}\n\n`);
+            res.end();
+        }
         return;
 
   } catch (error) {

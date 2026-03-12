@@ -28,7 +28,7 @@ if (ddApiKey) {
         import("./utils/logger.js").then(({ logger }) => {
             logger.info(
                 {
-                    site: process.env.DD_SITE ?? "datadoghq.com",
+                    site: process.env.DD_SITE ?? "us5.datadoghq.com",
                     service: process.env.DD_SERVICE ?? "studywise-backend",
                 },
                 "Datadog APM initialisert",

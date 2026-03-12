@@ -6,47 +6,47 @@
   "type": "module",
   "exports": {
     "./canvas": {
-      "types": "./dist/canvas.d.ts",
+      "types": "./src/canvas.ts",
       "import": "./dist/canvas.js"
     },
     "./canvasErrors": {
-      "types": "./dist/canvasErrors.d.ts",
+      "types": "./src/canvasErrors.ts",
       "import": "./dist/canvasErrors.js"
     },
     "./canvasInstitutions": {
-      "types": "./dist/canvasInstitutions.d.ts",
+      "types": "./src/canvasInstitutions.ts",
       "import": "./dist/canvasInstitutions.js"
     },
     "./ki": {
-      "types": "./dist/ki.d.ts",
+      "types": "./src/ki.ts",
       "import": "./dist/ki.js"
     },
     "./auth": {
-      "types": "./dist/auth.d.ts",
+      "types": "./src/auth.ts",
       "import": "./dist/auth.js"
     },
     "./calendar": {
-      "types": "./dist/calendar.d.ts",
+      "types": "./src/calendar.ts",
       "import": "./dist/calendar.js"
     },
     "./chat": {
-      "types": "./dist/chat.d.ts",
+      "types": "./src/chat.ts",
       "import": "./dist/chat.js"
     },
     "./document": {
-      "types": "./dist/document.d.ts",
+      "types": "./src/document.ts",
       "import": "./dist/document.js"
     },
     "./calendar-ui": {
-      "types": "./dist/calendar-ui.d.ts",
+      "types": "./src/calendar-ui.ts",
       "import": "./dist/calendar-ui.js"
     },
     "./dateUtils": {
-      "types": "./dist/dateUtils.d.ts",
+      "types": "./src/dateUtils.ts",
       "import": "./dist/dateUtils.js"
     },
     "./arbeidsplan": {
-      "types": "./dist/arbeidsplan.d.ts",
+      "types": "./src/arbeidsplan.ts",
       "import": "./dist/arbeidsplan.js"
     }
   },

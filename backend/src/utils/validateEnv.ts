@@ -23,9 +23,11 @@ interface EnvConfig {
     NODE_ENV: string;
     LOG_LEVEL: string;
     ANTHROPIC_API_KEY: string;
+    PINECONE_API_KEY: string;
+    PINECONE_INDEX_NAME: string;
 }
 
-// Alle miljøvariabler er påkrevde (WEB_ORIGIN/WEB_ORIGINS sjekkes separat)
+// Alle miljøvariabler er påkrevde (WEB_ORIGIN/WEB_ORIGINS sjekkes separat, DD_* settes av Datadog i prod)
 const requiredEnvVars: (keyof EnvConfig)[] = [
     "PORT",
     "MONGO_URI",
@@ -40,6 +42,8 @@ const requiredEnvVars: (keyof EnvConfig)[] = [
     "NODE_ENV",
     "LOG_LEVEL",
     "ANTHROPIC_API_KEY",
+    "PINECONE_API_KEY",
+    "PINECONE_INDEX_NAME",
 ];
 
 /**
@@ -196,6 +200,53 @@ export const validateEnv = (): void => {
     } else if (!gyldigeNivaer.includes(logLevel)) {
         manglende.push(`LOG_LEVEL (må være en av: ${gyldigeNivaer.join(", ")}, fikk: ${logLevel})`);
     }
+
+    // Valider Pinecone (påkrevd for vektor-søk og embeddings)
+    const pineconeKey = process.env.PINECONE_API_KEY;
+    if (!pineconeKey || !pineconeKey.trim()) {
+        manglende.push("PINECONE_API_KEY (påkrevd for Pinecone vector store)");
+    }
+    const pineconeIndex = process.env.PINECONE_INDEX_NAME;
+    if (!pineconeIndex || !pineconeIndex.trim()) {
+        manglende.push("PINECONE_INDEX_NAME (påkrevd, f.eks. 'studywise')");
+    }
+
+    // Valider Datadog-variabler kun i produksjon (settes i hosting-plattformen)
+    if (nodeEnv === "production") {
+        const ddRequired = [
+            "DD_API_KEY",
+            "DD_SITE",
+            "DD_ENV",
+            "DD_APPSEC_ENABLED",
+            "DD_APPSEC_SCA_ENABLED",
+            "DD_IAST_ENABLED",
+            "DD_LOGS_INJECTION",
+            "DD_PROFILING_ENABLED",
+            "DD_TRACE_SAMPLE_RATE",
+            "DD_GIT_REPOSITORY_URL",
+        ] as const;
+        for (const key of ddRequired) {
+            if (!process.env[key]?.trim()) {
+                manglende.push(`${key} (påkrevd i produksjon for Datadog APM)`);
+            }
+        }
+        // DD_SITE må peke til riktig Datadog-region (us5)
+        const ddSite = process.env.DD_SITE;
+        if (ddSite && ddSite !== "us5.datadoghq.com") {
+            manglende.push(`DD_SITE (må være 'us5.datadoghq.com', fikk: ${ddSite})`);
+        }
+        // DD_TRACE_SAMPLE_RATE må være et tall mellom 0 og 1
+        const sampleRate = process.env.DD_TRACE_SAMPLE_RATE;
+        if (sampleRate) {
+            const rate = Number(sampleRate);
+            if (isNaN(rate) || rate < 0 || rate > 1) {
+                manglende.push(`DD_TRACE_SAMPLE_RATE (må være mellom 0 og 1, fikk: ${sampleRate})`);
+            }
+        }
+    }
+
+    // Logg integrasjonsstatus
+    logger.info("Pinecone vector store og embeddings er konfigurert");
 
     // Avslutt hvis påkrevde variabler mangler
     if (manglende.length > 0) {

@@ -29,28 +29,14 @@ export interface Migration {
     /** Kort beskrivelse av hva migrasjonen gjør */
     description: string;
     /** Funksjonen som utfører endringen */
-    up: () => Promise<void>;
+    up: () => Promise<void | { applied: boolean; reason?: string; skipFutureRuns?: boolean }>;
 }
 
 // ============================================================
 // Registrer migrasjoner her (legg til nye nederst i arrayet)
 // ============================================================
-const migrations: Migration[] = [
-    // Eksempel — fjern eller erstatt med ekte migrasjoner:
-    //
-    // {
-    //     id: "2026-03-10-add-user-language",
-    //     description: "Legg til preferredLanguage-felt på alle brukere",
-    //     up: async () => {
-    //         const db = mongoose.connection.db;
-    //         if (!db) throw new Error("Database ikke tilkoblet");
-    //         await db.collection("users").updateMany(
-    //             { preferredLanguage: { $exists: false } },
-    //             { $set: { preferredLanguage: "nb" } },
-    //         );
-    //     },
-    // },
-];
+// Vector search bruker nå Pinecone; Atlas Vector Search-indeks er fjernet.
+const migrations: Migration[] = [];
 
 /**
  * Kjør alle ventende migrasjoner.
@@ -74,7 +60,22 @@ export async function runMigrations(): Promise<void> {
     for (const migration of pending) {
         try {
             logger.info({ id: migration.id }, `Migrasjon: ${migration.description}`);
-            await migration.up();
+            const result = await migration.up();
+            if (result && result.applied === false) {
+                if (result.skipFutureRuns) {
+                    await MigrationRecord.create({ migrationId: migration.id });
+                    logger.info(
+                        { id: migration.id, reason: result.reason },
+                        "Migrasjon registrert (hoppet over i dette miljøet — ikke prøv igjen)",
+                    );
+                } else {
+                    logger.info(
+                        { id: migration.id, reason: result.reason },
+                        "Migrasjon hoppet over — vil prøves igjen senere",
+                    );
+                }
+                continue;
+            }
             await MigrationRecord.create({ migrationId: migration.id });
             logger.info({ id: migration.id }, "Migrasjon fullført");
         } catch (error) {
