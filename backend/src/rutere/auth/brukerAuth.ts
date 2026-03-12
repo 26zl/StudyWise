@@ -256,12 +256,12 @@ router.post("/login", rateLimitAuth, async (req, res) => {
         // JWT secrets er validert ved oppstart i validateEnv.ts
         const { tilgangSecret, refreshSecret } = hentJwtSecrets();
         const tilgangsToken = jwt.sign(
-            { id: user._id, email: user.email, tokenType: "access" },
+            { id: user._id, tokenType: "access" },
             tilgangSecret,
             { expiresIn: JWT_TILGANG_UTLOPER as jwt.SignOptions["expiresIn"] }
         );
         const refreshToken = jwt.sign(
-            { id: user._id, email: user.email, tokenType: "refresh" },
+            { id: user._id, tokenType: "refresh" },
             refreshSecret,
             { expiresIn: JWT_REFRESH_UTLOPER as jwt.SignOptions["expiresIn"] }
         );
@@ -530,7 +530,7 @@ router.post("/refresh", rateLimitRefresh, async (req, res) => {
             return apiError.unauthorized(res, "Ugyldig refresh-token.");
         }
         const nyttTilgangsToken = jwt.sign(
-            { id: bruker._id, email: bruker.email, tokenType: "access" },
+            { id: bruker._id, tokenType: "access" },
             tilgangSecret,
             { expiresIn: JWT_TILGANG_UTLOPER as jwt.SignOptions["expiresIn"] }
         );
@@ -539,7 +539,7 @@ router.post("/refresh", rateLimitRefresh, async (req, res) => {
         // slik at browser-cookiene ikke desynkroniseres; kun ny access-cookie sendes.
         if (!erSsrRefresh) {
             const nyttRefreshToken = jwt.sign(
-                { id: bruker._id, email: bruker.email, tokenType: "refresh" },
+                { id: bruker._id, tokenType: "refresh" },
                 refreshSecret,
                 { expiresIn: JWT_REFRESH_UTLOPER as jwt.SignOptions["expiresIn"] }
             );

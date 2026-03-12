@@ -9,6 +9,8 @@ services:
   mongo:
     image: mongo:7
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "27017:27017"
     volumes:
@@ -17,6 +19,8 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "6379:6379"
 
@@ -25,6 +29,8 @@ services:
       context: .
       target: backend
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "4000:4000"
     env_file:
@@ -44,6 +50,8 @@ services:
       context: .
       target: frontend
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "3000:3000"
     environment:

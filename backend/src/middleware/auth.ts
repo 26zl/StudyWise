@@ -67,7 +67,7 @@ export const hentCookieVerdi = (req: Request, cookieNavn: string): string | null
 
 // Type guard for å sjekke om payload er av typen JwtBrukerPayload
 const erGyldigBrukerPayload = (payload: string | JwtPayload): payload is JwtBrukerPayload => {
-    return typeof payload === "object" && payload !== null && "id" in payload && "email" in payload;
+    return typeof payload === "object" && payload !== null && "id" in payload;
 };
 
 // Sett cookies for tilgangs- og refresh-tokens
@@ -136,7 +136,7 @@ export const autentiserJwt = (req: Request, res: Response, next: NextFunction) =
             return apiError.unauthorized(res, "Ugyldig token-type");
         }
 
-        req.user = { id: payload.id, email: payload.email };
+        req.user = { id: payload.id };
         next();
     });
 };

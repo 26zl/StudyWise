@@ -3,10 +3,9 @@
 */
 import { JwtPayload } from "jsonwebtoken";
 
-// JWT payload for autentiserte brukere
+// JWT payload for autentiserte brukere (kun id + tokenType; email hentes fra DB ved behov)
 export interface JwtBrukerPayload extends JwtPayload {
   id: string;
-  email: string;
   tokenType?: "access" | "refresh";
 }
 // Utvid Express Request for å inkludere brukerinfo og Canvas token
