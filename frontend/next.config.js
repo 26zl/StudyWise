@@ -28,7 +28,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https://*.instructure.com https://instructure-uploads.s3.amazonaws.com",
               "font-src 'self'",
-              "connect-src 'self' https://vitals.vercel-analytics.com",
+              "connect-src 'self' https://vitals.vercel-analytics.com https://*.browser-intake-us5-datadoghq.com",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",
