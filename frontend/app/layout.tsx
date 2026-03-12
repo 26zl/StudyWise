@@ -13,6 +13,7 @@ import { Toaster } from "./components/Toaster";
 import { getLayoutAuth } from "./auth/auth-server";
 import { validateFrontendEnv } from "./lib/validateEnv";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { DatadogRum } from "./components/DatadogRum";
 
 // Valider miljøvariabler ved oppstart (server-side)
 validateFrontendEnv();
@@ -57,6 +58,7 @@ export default async function RootLayout({
             </div>
             <Toaster />
             <SpeedInsights />
+            <DatadogRum />
           </Providers>
         </ThemeProvider>
       </body>
