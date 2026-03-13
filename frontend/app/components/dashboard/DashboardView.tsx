@@ -9,11 +9,9 @@ import { useEffect, Suspense, lazy, useCallback } from "react";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { useQueryClient } from "@tanstack/react-query";
 import { LoadingSpinner } from "@/app/components/ui/LoadingSpinner";
-import { FeilMelding } from "@/app/components/ui/FeilMelding";
-import { Sidebar, type VisningType } from "@/app/components/dashboard/Sidebar";
+import { type VisningType } from "@/app/components/dashboard/Sidebar";
 import { SectionErrorBoundary } from "@/app/components/ui/ErrorBoundary";
 import { useCanvasUser } from "@/app/canvas/canvas-api";
-import { Footer } from "@/app/components/layout/footer";
 import { useMeg } from "@/app/auth/auth-api";
 import { useAuthRedirect, skalRedirecteTilAuth } from "@/app/auth/authUtils";
 import { getBrukerdataFeilmelding } from "@/app/lib/errorUtils";
@@ -21,6 +19,11 @@ import { prefetchCanvasData } from "@/app/canvas/canvas-api";
 import { useUIStore } from "@/app/store/uiStore";
 import { useVarslerPopups, useVarslerStateSync } from "@/app/hooks/useVarsler";
 import { useChatHistoryPrefetch } from "@/app/hooks/useChatHistory";
+import {
+  SidebarAppErrorState,
+  SidebarAppLoadingState,
+  SidebarAppShell,
+} from "@/app/components/layout/SidebarAppShell";
 
 const GYLDIGE_VISNINGER = [
   "chat",
@@ -121,94 +124,87 @@ export function DashboardView() {
     // Laster: vis spinner
     if (megQuery.isLoading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
-                <LoadingSpinner />
-            </div>
+            <SidebarAppLoadingState
+                aktivVisning={aktivVisning}
+                byttVisning={settAktivVisning}
+                brukernavn={brukernavn}
+                label="Laster dashboard..."
+            />
         );
     }
     // Skal redirecte til innlogging: vis spinner i stedet for feilmelding så bruker ikke ser rød boks i et splitt sekund
     if (skalRedirecteTilAuth(megQuery)) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
-                <LoadingSpinner />
-            </div>
+            <SidebarAppLoadingState
+                aktivVisning={aktivVisning}
+                byttVisning={settAktivVisning}
+                label="Sender deg til innlogging..."
+            />
         );
     }
     // Feil uten brukerdata (f.eks. nettverksfeil, 429 rate limit): vis feilmelding og retry – useAuthRedirect håndterer auth-feil
     if (megQuery.isError && !megQuery.data?.user) {
         const feilmelding = getBrukerdataFeilmelding(megQuery.error);
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 bg-slate-50 dark:bg-slate-950">
-                <FeilMelding melding={feilmelding} />
-                <button
-                    type="button"
-                    onClick={() => megQuery.refetch()}
-                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white text-sm font-medium transition-colors"
-                >
-                    Prøv igjen
-                </button>
-            </div>
+            <SidebarAppErrorState
+                aktivVisning={aktivVisning}
+                byttVisning={settAktivVisning}
+                message={feilmelding}
+                onRetry={() => {
+                    void megQuery.refetch();
+                }}
+            />
         );
     }
     // Hovedrendering (inkl. ved isError med cached data)
     return (
-        <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden">
-            {/* Sidebar */}
-            <Sidebar
-                aktivVisning={aktivVisning}
-                byttVisning={settAktivVisning}
-                brukernavn={brukernavn}
-            />
+        <SidebarAppShell
+            aktivVisning={aktivVisning}
+            byttVisning={settAktivVisning}
+            brukernavn={brukernavn}
+        >
+            {aktivVisning === "chat" && (
+                <SectionErrorBoundary sectionName="KI-chat">
+                    <Suspense fallback={<SectionLoader text="Laster KI-chat..." />}>
+                        <ChatSection />
+                    </Suspense>
+                </SectionErrorBoundary>
+            )}
+            {aktivVisning === "calendar" && (
+                <SectionErrorBoundary sectionName="kalender">
+                    <Suspense fallback={<SectionLoader text="Laster kalender..." />}>
+                        <CalendarSection harCanvasToken={harCanvasToken} />
+                    </Suspense>
+                </SectionErrorBoundary>
+            )}
+            {(aktivVisning === "canvas-announcements" ||
+                aktivVisning === "canvas-courses" ||
+                aktivVisning === "canvas-assignments") && (
+                <SectionErrorBoundary sectionName="Canvas">
+                    <Suspense fallback={<SectionLoader text="Laster Canvas..." />}>
+                        <CanvasSection startVisning={hentCanvasVisning()} harCanvasToken={harCanvasToken} />
+                    </Suspense>
+                </SectionErrorBoundary>
+            )}
 
-            {/* Hovedinnhold */}
-            <main className="flex-1 flex flex-col min-h-0 pt-0 md:pt-0 relative">
-                {/* Innholds basert på aktiv visning */}
-                <div className="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-slate-900">
-                    {aktivVisning === "chat" && (
-                        <SectionErrorBoundary sectionName="KI-chat">
-                            <Suspense fallback={<SectionLoader text="Laster KI-chat..." />}>
-                                <ChatSection />
-                            </Suspense>
-                        </SectionErrorBoundary>
-                    )}
-                    {aktivVisning === "calendar" && (
-                        <SectionErrorBoundary sectionName="kalender">
-                            <Suspense fallback={<SectionLoader text="Laster kalender..." />}>
-                                <CalendarSection harCanvasToken={harCanvasToken} />
-                            </Suspense>
-                        </SectionErrorBoundary>
-                    )}
-                    {(aktivVisning === "canvas-announcements" ||
-                        aktivVisning === "canvas-courses" ||
-                        aktivVisning === "canvas-assignments") && (
-                        <SectionErrorBoundary sectionName="Canvas">
-                            <Suspense fallback={<SectionLoader text="Laster Canvas..." />}>
-                                <CanvasSection startVisning={hentCanvasVisning()} harCanvasToken={harCanvasToken} />
-                            </Suspense>
-                        </SectionErrorBoundary>
-                    )}
-
-                    {aktivVisning === "varslinger" && (
-                        <SectionErrorBoundary sectionName="varslinger">
-                            <Suspense fallback={<SectionLoader text="Laster varslinger..." />}>
-                                <VarslingerSection harCanvasToken={harCanvasToken} />
-                            </Suspense>
-                        </SectionErrorBoundary>
-                    )}
-                    {aktivVisning === "settings" && (
-                        <SectionErrorBoundary sectionName="innstillinger">
-                            <Suspense fallback={<SectionLoader text="Laster innstillinger..." />}>
-                                <SettingsSection
-                                    harCanvasToken={harCanvasToken}
-                                    lokalBrukerEpost={megQuery.data?.user?.email}
-                                    canvasBaseUrl={megQuery.data?.user?.canvasBaseUrl ?? undefined}
-                                />
-                            </Suspense>
-                        </SectionErrorBoundary>
-                    )}
-                </div>
-                <Footer />
-            </main>
-        </div>
+            {aktivVisning === "varslinger" && (
+                <SectionErrorBoundary sectionName="varslinger">
+                    <Suspense fallback={<SectionLoader text="Laster varslinger..." />}>
+                        <VarslingerSection harCanvasToken={harCanvasToken} />
+                    </Suspense>
+                </SectionErrorBoundary>
+            )}
+            {aktivVisning === "settings" && (
+                <SectionErrorBoundary sectionName="innstillinger">
+                    <Suspense fallback={<SectionLoader text="Laster innstillinger..." />}>
+                        <SettingsSection
+                            harCanvasToken={harCanvasToken}
+                            lokalBrukerEpost={megQuery.data?.user?.email}
+                            canvasBaseUrl={megQuery.data?.user?.canvasBaseUrl ?? undefined}
+                        />
+                    </Suspense>
+                </SectionErrorBoundary>
+            )}
+        </SidebarAppShell>
     );
 }

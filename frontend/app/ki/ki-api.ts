@@ -715,59 +715,6 @@ export function useKITestTilkobling(enabled = true) {
   };
 }
 
-// Chat mutation hook
-export function useKIChat() {
-  const mutation = useMutation({
-    mutationFn: async (request: KIChatRequest) =>
-      assertSuccessfulKIChat(
-        await postKI("/chat", request, KIChatResponseSchema),
-      ),
-  });
-
-  return {
-    sendMelding: (
-      messages: Array<{ role: string; content: string }>,
-      options?: {
-        model?: string;
-        temperature?: number;
-        onSuccess?: (data: z.infer<typeof KIChatResponseSchema>) => void;
-        onError?: (error: Error) => void;
-      },
-    ) => {
-      // Trim meldinger for å unngå 413 Payload Too Large
-      const trimmedMessages = trimMessages(messages);
-
-      const request: KIChatRequest = {
-        messages: trimmedMessages
-          .filter(
-            (m): m is { role: "user" | "assistant"; content: string } =>
-              m.role === "user" || m.role === "assistant",
-          )
-          .map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-        model: options?.model,
-        temperature: options?.temperature,
-      };
-
-      void mutation
-        .mutateAsync(request)
-        .then((data) => {
-          options?.onSuccess?.(data);
-        })
-        .catch((error: unknown) => {
-          options?.onError?.(asError(error));
-        });
-    },
-    isLoading: mutation.isPending,
-    error: mutation.error,
-    data: mutation.data,
-    reset: mutation.reset,
-    mutation,
-  };
-}
-
 const TASK_BREAKDOWN_QUERY_KEY = ["ki", "task-breakdown"] as const;
 
 export function useTaskBreakdown(assignmentId?: string) {

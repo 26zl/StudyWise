@@ -30,6 +30,3 @@ export function requireRole(...allowedRoles: UserRole[]) {
     next();
   };
 }
-
-/** Alias for requireRole når semantikken er «én av disse rollene». */
-export const requireAnyRole = requireRole;

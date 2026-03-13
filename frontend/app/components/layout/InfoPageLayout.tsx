@@ -1,0 +1,104 @@
+/**
+ * InfoPageLayout – felles layout for informasjonssider (Om oss, Personvern, Sikkerhet, Vilkår, Kontakt).
+ * Gir tittel, valgfri beskrivelse, tilbake-lenke og hjelpekomponenter InfoSection/InfoCard.
+ */
+import type { ReactNode } from "react";
+import Link from "next/link";
+import { Footer } from "@/app/components/layout/footer";
+import { cn } from "@/app/lib/utils";
+
+type InfoPageLayoutProps = {
+  title: string;
+  description?: string;
+  updatedAt?: string;
+  backHref?: string;
+  backLabel?: string;
+  className?: string;
+  contentClassName?: string;
+  children: ReactNode;
+};
+
+type InfoSectionProps = {
+  title?: string;
+  className?: string;
+  contentClassName?: string;
+  children: ReactNode;
+};
+
+type InfoCardProps = {
+  className?: string;
+  children: ReactNode;
+};
+
+export function InfoPageLayout({
+  title,
+  description,
+  updatedAt,
+  backHref = "/",
+  backLabel = "← Tilbake til forsiden",
+  className,
+  contentClassName,
+  children,
+}: InfoPageLayoutProps) {
+  return (
+    <div className={cn("min-h-full flex flex-col bg-slate-50 dark:bg-slate-950", className)}>
+      <div className="mx-auto flex-1 w-full max-w-3xl px-4 py-12 sm:px-6 lg:max-w-5xl lg:px-8 xl:max-w-6xl">
+        <Link
+          href={backHref}
+          className="mb-8 inline-flex items-center text-sm text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+        >
+          {backLabel}
+        </Link>
+
+        <header className="mb-8">
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{title}</h1>
+          {description ? (
+            <p className="mt-2 text-slate-600 dark:text-slate-400">{description}</p>
+          ) : null}
+          {updatedAt ? (
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              Sist oppdatert: {updatedAt}
+            </p>
+          ) : null}
+        </header>
+
+        <div className={cn("space-y-6", contentClassName)}>{children}</div>
+      </div>
+      <Footer />
+    </div>
+  );
+}
+
+export function InfoSection({
+  title,
+  className,
+  contentClassName,
+  children,
+}: InfoSectionProps) {
+  return (
+    <section
+      className={cn(
+        "rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900",
+        className,
+      )}
+    >
+      {title ? (
+        <h2 className="mb-4 text-xl font-semibold text-slate-900 dark:text-white">{title}</h2>
+      ) : null}
+      <div className={cn("text-slate-600 dark:text-slate-400", contentClassName)}>{children}</div>
+    </section>
+  );
+}
+
+export function InfoCard({ className, children }: InfoCardProps) {
+  return (
+    <div
+      className={cn(
+        "rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}

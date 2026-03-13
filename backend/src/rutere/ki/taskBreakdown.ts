@@ -25,6 +25,7 @@ import {
 } from "common/ki";
 import { DEFAULT_MODEL } from "./aiModels.js";
 import { chatCompletion, isClientAvailable } from "./aiClient.js";
+import { handleAIJsonRouteError } from "./handleAIError.js";
 import { STUDYWISE_SYSTEM_PROMPT } from "./systemPrompt.js";
 
 const router = Router();
@@ -144,35 +145,16 @@ Svar KUN med et JSON-array og ingen ekstra tekst.`;
 
     return res.json(TaskBreakdownResponseSchema.parse({ subtasks }));
   } catch (error) {
-    const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-
-    if (message.includes("rate limit") || message.includes("429") || message.includes("rate_limit")) {
-      return apiError.rateLimited(res, "For mange forespørsler. Vent litt og prøv igjen.");
-    }
-
-    if (message.includes("timeout")) {
-      return apiError.timeout(res, "Genereringen tok for lang tid. Prøv igjen.");
-    }
-
     if (
-      message.includes("credit balance") ||
-      message.includes("depleted") ||
-      message.includes("insufficient_quota") ||
-      message.includes("billing") ||
-      message.includes("overloaded") ||
-      message.includes("529")
+      handleAIJsonRouteError(res, error, {
+        kontekst: "task-breakdown",
+        timeoutMessage: "Genereringen tok for lang tid. Prøv igjen.",
+        invalidResponseMessage: "KI-responsen kunne ikke tolkes som deloppgaver",
+        invalidResponseTest: (candidate) =>
+          candidate instanceof Error && candidate.message === "AI_RESPONSE_NOT_JSON_ARRAY",
+      })
     ) {
-      return apiError.serviceUnavailable(res, "KI-tjenesten");
-    }
-
-    if (
-      error instanceof z.ZodError ||
-      (error instanceof Error && error.message === "AI_RESPONSE_NOT_JSON_ARRAY")
-    ) {
-      return apiError.badRequest(
-        res,
-        "KI-responsen kunne ikke tolkes som deloppgaver",
-      );
+      return;
     }
 
     return sendUnknownError(res, error, {

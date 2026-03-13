@@ -7,7 +7,7 @@ import { Router, Request, Response } from "express";
 import mongoose from "mongoose";
 import { Arbeidsplan, type IArbeidsplan, type IStudyBlock } from "../../database/models/arbeidsplan.js";
 import { requireUserId, sendZodError, sendUnknownError, apiError } from "../../utils/apiError.js";
-import { getWeekNumber, parseTimerStreng } from "common/dateUtils";
+import { getIsoWeekInfo, parseTimerStreng } from "common/dateUtils";
 import { CreateArbeidsplanSchema, UpdateBlockSchema } from "common/arbeidsplan";
 
 const router = Router();
@@ -95,13 +95,11 @@ router.get("/current", async (req: Request, res: Response) => {
     const userId = requireUserId(req, res);
     if (!userId) return;
 
-    const now = new Date();
-    const year = now.getFullYear();
-    const weekNumber = getWeekNumber(now);
+    const { weekNumber, weekYear } = getIsoWeekInfo(new Date());
 
     const plan = await Arbeidsplan.findOne({
       userId,
-      year,
+      year: weekYear,
       weekNumber,
     });
 
@@ -117,20 +115,17 @@ router.get("/current", async (req: Request, res: Response) => {
 /**
  * GET /api/arbeidsplan/stats/progress
  * Hent fremdriftsstatistikk for gjeldende uke
- * VIKTIG: Må stå FØR /:year/:weekNumber for å unngå route conflict
  */
 router.get("/stats/progress", async (req: Request, res: Response) => {
   try {
     const userId = requireUserId(req, res);
     if (!userId) return;
 
-    const now = new Date();
-    const year = now.getFullYear();
-    const weekNumber = getWeekNumber(now);
+    const { weekNumber, weekYear } = getIsoWeekInfo(new Date());
 
     const plan = await Arbeidsplan.findOne({
       userId,
-      year,
+      year: weekYear,
       weekNumber,
     });
 
@@ -171,37 +166,6 @@ router.get("/stats/progress", async (req: Request, res: Response) => {
     });
   } catch (error) {
     sendUnknownError(res, error, { kontekst: "arbeidsplan fremdrift" });
-  }
-});
-
-/**
- * GET /api/arbeidsplan/:year/:weekNumber
- * Hent arbeidsplan for spesifikk uke
- */
-router.get("/:year/:weekNumber", async (req: Request, res: Response) => {
-  try {
-    const userId = requireUserId(req, res);
-    if (!userId) return;
-
-    const year = parseInt(String(req.params.year), 10);
-    const weekNumber = parseInt(String(req.params.weekNumber), 10);
-
-    if (isNaN(year) || isNaN(weekNumber)) {
-      return apiError.badRequest(res, "Ugyldig år eller ukenummer");
-    }
-
-    const plan = await Arbeidsplan.findOne({
-      userId,
-      year,
-      weekNumber,
-    });
-
-    return res.json({
-      suksess: true,
-      data: serializeArbeidsplan(plan),
-    });
-  } catch (error) {
-    sendUnknownError(res, error, { kontekst: "arbeidsplan henting" });
   }
 });
 

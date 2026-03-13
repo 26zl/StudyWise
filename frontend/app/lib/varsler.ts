@@ -23,6 +23,15 @@ export function klassifiserFrist(timerIgjen: number): FristStatus {
     return "kommende";
 }
 
+export function erInnenforFristVindu(
+    dato: string | Date | null | undefined,
+    nå = Date.now(),
+): boolean {
+    if (!dato) return false;
+    const timer = (new Date(dato).getTime() - nå) / (1000 * 60 * 60);
+    return timer > 0 && timer <= FRIST_VINDU_TIMER;
+}
+
 /** Formater timer igjen til lesbar norsk tekst */
 export function formaterTid(timer: number): string {
     if (timer < 1) return "under 1 time";
@@ -72,10 +81,8 @@ export function buildFrister(oppgaver: AssignmentMedEmne[]): FristElement[] {
     const nå = Date.now();
     return oppgaver
         .filter((o) => {
-            if (!o.due_at) return false;
             if (erInnlevert(o)) return false;
-            const timer = (new Date(o.due_at).getTime() - nå) / (1000 * 60 * 60);
-            return timer > 0 && timer <= FRIST_VINDU_TIMER;
+            return erInnenforFristVindu(o.due_at, nå);
         })
         .map((o) => {
             const timerIgjen = (new Date(o.due_at!).getTime() - nå) / (1000 * 60 * 60);

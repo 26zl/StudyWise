@@ -1,3 +1,7 @@
+/**
+ * Layout for (main)-gruppen: Header, Toaster, CookieBanner, TelemetryConsent, Datadog RUM.
+ * Wrapper alle innloggede sider (dashboard, oversikt, profil, osv.) med felles shell.
+ */
 import { Providers } from "../providers";
 import { Header } from "@/app/components/layout/header";
 import { Toaster } from "@/app/components/ui/Toaster";

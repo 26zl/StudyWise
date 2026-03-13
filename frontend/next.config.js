@@ -19,6 +19,90 @@ function getApiUrl() {
   throw new Error("INTERNAL_API_URL må være satt i produksjon");
 }
 
+function normalizeOrigin(value) {
+  if (!value || typeof value !== "string") {
+    return null;
+  }
+
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+function getClerkFrontendApiOrigin() {
+  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.trim();
+  if (!publishableKey) {
+    return null;
+  }
+
+  const match = publishableKey.match(/^pk_(?:test|live)_(.+)$/);
+  if (!match) {
+    return null;
+  }
+
+  const encodedFrontendApi = match[1]?.split("$")[0];
+  if (!encodedFrontendApi) {
+    return null;
+  }
+
+  try {
+    const decoded = Buffer.from(encodedFrontendApi, "base64url").toString("utf8").trim();
+    if (!decoded) {
+      return null;
+    }
+
+    return normalizeOrigin(decoded.startsWith("http") ? decoded : `https://${decoded}`);
+  } catch {
+    return null;
+  }
+}
+
+function buildCspValue() {
+  const clerkFrontendApiOrigin = getClerkFrontendApiOrigin();
+  const scriptSrc = [
+    "'self'",
+    "'unsafe-inline'",
+    "'unsafe-eval'",
+    "https://*.clerk.accounts.dev",
+    "https://challenges.cloudflare.com",
+    "https://va.vercel-scripts.com",
+  ];
+  const connectSrc = [
+    "'self'",
+    "https://vitals.vercel-analytics.com",
+    "https://*.browser-intake-us5-datadoghq.com",
+    "https://*.clerk.accounts.dev",
+  ];
+  const frameSrc = [
+    "'self'",
+    "https://challenges.cloudflare.com",
+    "https://*.clerk.accounts.dev",
+  ];
+
+  if (clerkFrontendApiOrigin) {
+    scriptSrc.push(clerkFrontendApiOrigin);
+    connectSrc.push(clerkFrontendApiOrigin);
+    frameSrc.push(clerkFrontendApiOrigin);
+  }
+
+  return [
+    "default-src 'self'",
+    `script-src ${[...new Set(scriptSrc)].join(" ")}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https://*.instructure.com https://instructure-uploads.s3.amazonaws.com https://img.clerk.com",
+    "font-src 'self'",
+    `connect-src ${[...new Set(connectSrc)].join(" ")}`,
+    `frame-src ${[...new Set(frameSrc)].join(" ")}`,
+    "worker-src 'self' blob:",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "upgrade-insecure-requests",
+  ].join("; ");
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["common"],
@@ -35,20 +119,7 @@ const nextConfig = {
         headers: [
           {
             key: "Content-Security-Policy",
-            value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://challenges.cloudflare.com",
-              "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: blob: https://*.instructure.com https://instructure-uploads.s3.amazonaws.com https://img.clerk.com",
-              "font-src 'self'",
-              "connect-src 'self' https://vitals.vercel-analytics.com https://*.browser-intake-us5-datadoghq.com https://*.clerk.accounts.dev",
-              "frame-src 'self' https://challenges.cloudflare.com https://*.clerk.accounts.dev",
-              "worker-src 'self' blob:",
-              "frame-ancestors 'none'",
-              "base-uri 'self'",
-              "form-action 'self'",
-              "upgrade-insecure-requests",
-            ].join("; "),
+            value: buildCspValue(),
           },
           {
             key: "X-Content-Type-Options",

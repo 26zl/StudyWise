@@ -19,9 +19,7 @@ import {
   SharedChatResponseSchema,
 } from "common/chat";
 import { createRateLimiter } from "../../middleware/rate-limit.js";
-/** Validerer at en streng er en gyldig MongoDB ObjectId (24 hex-tegn) */
-const isValidObjectId = (id: string): boolean =>
-  typeof id === "string" && /^[a-fA-F0-9]{24}$/.test(id);
+import { isValidMongoObjectId } from "../../utils/mongoId.js";
 
 export const kiShareRouter = Router();
 export const sharedChatRouter = Router();
@@ -197,7 +195,7 @@ kiShareRouter.post("/chat/:chatId/share", async (req, res) => {
     if (!userId) return;
 
     const { chatId } = req.params;
-    if (!isValidObjectId(chatId)) {
+    if (!isValidMongoObjectId(chatId)) {
       return apiError.badRequest(res, "Ugyldig samtale-ID");
     }
 
@@ -294,7 +292,7 @@ kiShareRouter.delete("/chat/:chatId/share", async (req, res) => {
     if (!userId) return;
 
     const { chatId } = req.params;
-    if (!isValidObjectId(chatId)) {
+    if (!isValidMongoObjectId(chatId)) {
       return apiError.badRequest(res, "Ugyldig samtale-ID");
     }
 

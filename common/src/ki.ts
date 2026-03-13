@@ -144,14 +144,14 @@ export const WeeklyPlanGenerateRequestSchema = z.object({
 });
 
 export const WeeklyPlanSuggestionBlockSchema = z.object({
-  day: z.enum(UKEDAGER).catch("Mandag"),
-  timeSlot: z.string().min(1).max(50).catch("08:00-10:00"),
-  task: z.string().min(1).max(200).catch("Ukjent oppgave"),
-  duration: z.string().min(1).max(50).catch("1.5 timer"),
-  priority: z.enum(["high", "medium", "low"]).catch("medium"),
-  courseName: z.string().min(1).max(200).catch("Ukjent emne"),
+  day: z.enum(UKEDAGER),
+  timeSlot: z.string().min(1).max(50),
+  task: z.string().min(1).max(200),
+  duration: z.string().min(1).max(50),
+  priority: z.enum(["high", "medium", "low"]),
+  courseName: z.string().min(1).max(200),
   assignmentId: z.string().min(1).max(200).optional(),
-  completed: z.boolean().catch(false),
+  completed: z.boolean(),
 });
 
 export const WeeklyPlanSuggestionDraftSchema = z.object({

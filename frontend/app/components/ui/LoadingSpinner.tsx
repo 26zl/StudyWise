@@ -1,3 +1,7 @@
+/**
+ * LoadingSpinner – felles laste-ikon (Loader2) med standard størrelse og farge.
+ * className brukes for å overstyre størrelse/farge; animate-spin beholdes alltid.
+ */
 "use client";
 
 import { Loader2 } from "lucide-react";
@@ -6,7 +10,7 @@ const DEFAULT_CLASS =
   "w-8 h-8 text-blue-600 dark:text-blue-400 animate-spin";
 
 interface LoadingSpinnerProps {
-  /** Override size and/or color; merged with default so animate-spin is always applied */
+  /** Overstyr størrelse og/eller farge; slås sammen med default, animate-spin beholdes */
   className?: string;
 }
 

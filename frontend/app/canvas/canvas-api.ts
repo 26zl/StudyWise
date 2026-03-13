@@ -16,11 +16,8 @@ import {
   ModulesResponseSchema,
   AssignmentsResponseSchema,
   CanvasPageSchema,
-  CanvasFileSchema,
-  CanvasDiscussionTopicSchema,
   UpcomingEventsResponseSchema,
   TodoResponseSchema,
-  ModuleItemDetailsResponseSchema,
   ModuleItemOpenResponseSchema,
   CoursesMetadataResponseSchema,
   FilesResponseSchema,
@@ -299,18 +296,6 @@ export function useCanvasModules(courseId: number | null, enabled = true) {
   });
 }
 
-// Hent oppgaver for et spesifikt emne
-export function useCanvasAssignments(courseId: number | null, enabled = true) {
-  const isEnabled = useCanvasEnabled(enabled);
-  return useQuery({
-    queryKey: ["canvas", "assignments", courseId],
-    queryFn: () =>
-      fetchCanvas(`/emner/${courseId}/oppgaver`, AssignmentsResponseSchema),
-    enabled: !!courseId && isEnabled,
-    ...canvasQueryOptions,
-  });
-}
-
 // Hent kommende hendelser
 export function useCanvasUpcomingEvents(enabled = true) {
   const isEnabled = useCanvasEnabled(enabled);
@@ -399,25 +384,6 @@ export function useCanvasAllAssignments(options?: { enabled?: boolean }) {
   });
 }
 
-// Hent detaljerte modul-items
-export function useCanvasModuleItemDetails(
-  courseId: number,
-  moduleId: number,
-  enabled = true,
-) {
-  const isEnabled = useCanvasEnabled(enabled);
-  return useQuery({
-    queryKey: ["canvas", "module_items_detailed", courseId, moduleId],
-    queryFn: () =>
-      fetchCanvas(
-        `/emner/${courseId}/modules/${moduleId}/items`,
-        ModuleItemDetailsResponseSchema,
-      ),
-    enabled: !!courseId && !!moduleId && isEnabled,
-    ...canvasQueryOptions,
-  });
-}
-
 // Hent wiki page
 export function useCanvasPage(
   courseId: number,
@@ -430,36 +396,6 @@ export function useCanvasPage(
     queryFn: () =>
       fetchCanvas(`/emner/${courseId}/pages/${pageId}`, CanvasPageSchema),
     enabled: !!courseId && !!pageId && isEnabled,
-    ...canvasQueryOptions,
-  });
-}
-
-// Hent fil
-export function useCanvasFile(fileId: number, enabled = true) {
-  const isEnabled = useCanvasEnabled(enabled);
-  return useQuery({
-    queryKey: ["canvas", "file", fileId],
-    queryFn: () => fetchCanvas(`/filer/${fileId}`, CanvasFileSchema),
-    enabled: !!fileId && isEnabled,
-    ...canvasQueryOptions,
-  });
-}
-
-// Hent diskusjon
-export function useCanvasDiscussion(
-  courseId: number,
-  topicId: number,
-  enabled = true,
-) {
-  const isEnabled = useCanvasEnabled(enabled);
-  return useQuery({
-    queryKey: ["canvas", "discussion", courseId, topicId],
-    queryFn: () =>
-      fetchCanvas(
-        `/emner/${courseId}/diskusjoner/${topicId}`,
-        CanvasDiscussionTopicSchema,
-      ),
-    enabled: !!courseId && !!topicId && isEnabled,
     ...canvasQueryOptions,
   });
 }

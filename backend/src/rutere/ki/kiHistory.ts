@@ -15,9 +15,7 @@ import {
   ChatSaveResponseSchema,
   ChatHistoryResponseSchema,
 } from "common/chat";
-/** Validerer at en streng er en gyldig MongoDB ObjectId (24 hex-tegn) */
-const isValidObjectId = (id: string): boolean =>
-  typeof id === "string" && /^[a-fA-F0-9]{24}$/.test(id);
+import { isValidMongoObjectId } from "../../utils/mongoId.js";
 
 export const kiHistoryRouter = Router();
 
@@ -121,7 +119,7 @@ kiHistoryRouter.put("/chat/history/:id", async (req, res) => {
     if (!userId) return;
     const { id } = req.params;
     // Valider ObjectId for å unngå CastError
-    if (!isValidObjectId(id)) {
+    if (!isValidMongoObjectId(id)) {
       return apiError.badRequest(res, "Ugyldig samtale-ID");
     }
     const parsed = ChatSaveSchema.parse(req.body);
@@ -162,7 +160,7 @@ kiHistoryRouter.delete("/chat/history/:id", async (req, res) => {
     if (!userId) return;
     const { id } = req.params;
     // Valider ObjectId for å unngå CastError
-    if (!isValidObjectId(id)) {
+    if (!isValidMongoObjectId(id)) {
       return apiError.badRequest(res, "Ugyldig samtale-ID");
     }
     await ChatHistory.deleteOne({ _id: id, user: userId });

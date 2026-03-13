@@ -4,9 +4,10 @@
  */
 
 import type { Response } from "express";
-import type { ZodType } from "zod";
+import { ZodError, type ZodType } from "zod";
 import { logger } from "../../utils/logger.js";
 import { CircuitBreakerError } from "../../utils/circuitBreaker.js";
+import { apiError } from "../../utils/apiError.js";
 
 /**
  * Parser feilrespons med riktig skjema.
@@ -117,6 +118,74 @@ export function handleAIError(
     // Anthropic overloaded
     if (errorMessage.includes("overloaded") || errorMessage.includes("529")) {
         res.status(503).json(parseErrorResponse(schema, "KI-tjenesten er overbelastet. Prøv igjen om litt."));
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Håndterer vanlige AI-feil for JSON-ruter som bruker apiError/sendUnknownError
+ * i stedet for skjema-baserte feilresponser.
+ */
+export function handleAIJsonRouteError(
+    res: Response,
+    error: unknown,
+    options: {
+        kontekst?: string;
+        timeoutMessage?: string;
+        invalidResponseMessage?: string;
+        invalidResponseTest?: (error: unknown) => boolean;
+    } = {},
+): boolean {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const lower = errorMessage.toLowerCase();
+    const kontekst = options.kontekst ?? "AI";
+
+    logger.error({ err: error }, `${kontekst} feil`);
+
+    if (error instanceof CircuitBreakerError) {
+        apiError.serviceUnavailable(res, "KI-tjenesten");
+        return true;
+    }
+
+    if (lower.includes("rate limit") || lower.includes("429") || lower.includes("rate_limit")) {
+        apiError.rateLimited(res, "For mange forespørsler. Vent litt og prøv igjen.");
+        return true;
+    }
+
+    if (lower.includes("timeout")) {
+        apiError.timeout(
+            res,
+            options.timeoutMessage ?? "Genereringen tok for lang tid. Prøv igjen.",
+        );
+        return true;
+    }
+
+    if (
+        lower.includes("credit balance") ||
+        lower.includes("depleted") ||
+        lower.includes("insufficient_quota") ||
+        lower.includes("billing") ||
+        lower.includes("overloaded") ||
+        lower.includes("529") ||
+        lower.includes("out of credits") ||
+        lower.includes("insufficient credits") ||
+        lower.includes("quota exceeded") ||
+        lower.includes("no credits")
+    ) {
+        apiError.serviceUnavailable(res, "KI-tjenesten");
+        return true;
+    }
+
+    if (
+        error instanceof ZodError ||
+        options.invalidResponseTest?.(error)
+    ) {
+        apiError.badRequest(
+            res,
+            options.invalidResponseMessage ?? "KI-responsen kunne ikke tolkes",
+        );
         return true;
     }
 

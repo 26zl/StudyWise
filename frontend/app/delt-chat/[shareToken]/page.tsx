@@ -1,3 +1,7 @@
+/**
+ * Side for delt chat – henter og viser en delt samtale via shareToken fra URL.
+ * Krever ikke innlogging; brukes når noen deler en KI-samtale med delingslenke.
+ */
 "use client";
 
 import { useEffect, useState } from "react";

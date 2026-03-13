@@ -1,3 +1,7 @@
+/**
+ * CanvasContextSelector – velger hvilke Canvas-data (nyheter, emner, oppgaver, hendelser) som skal inngå i KI-kontekst.
+ * Synkroniserer valg med backend (preferanser) og viser antall per kategori.
+ */
 "use client";
 
 import { useEffect, useRef } from "react";

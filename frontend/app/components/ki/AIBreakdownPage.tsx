@@ -1,3 +1,7 @@
+/**
+ * AIBreakdownPage – side for KI-oppgavedeling: velg en Canvas-oppgave og generer deloppgaver med KI.
+ * Viser liste over aktive oppgaver, detaljer og AITaskBreakdown for valgt oppgave.
+ */
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -15,7 +19,12 @@ import {
 import { AITaskBreakdown } from "@/app/components/ki/AITaskBreakdown";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingSpinner } from "@/app/components/ui/LoadingSpinner";
-import { Sidebar, type VisningType } from "@/app/components/dashboard/Sidebar";
+import { type VisningType } from "@/app/components/dashboard/Sidebar";
+import {
+  SidebarAppErrorState,
+  SidebarAppLoadingState,
+  SidebarAppShell,
+} from "@/app/components/layout/SidebarAppShell";
 import { StatCard } from "@/app/components/ui/StatCard";
 import { useMeg } from "@/app/auth/auth-api";
 import { skalRedirecteTilAuth, useAuthRedirect } from "@/app/auth/authUtils";
@@ -30,6 +39,8 @@ import {
   getBrukerdataFeilmelding,
   lagBrukervennligFeilmelding,
 } from "@/app/lib/errorUtils";
+
+const SIDEBAR_VISNING: VisningType = "chat";
 
 function sorterOppgaver(oppgaver: AssignmentMedEmne[]): AssignmentMedEmne[] {
   return [...oppgaver].sort((a, b) => {
@@ -97,50 +108,46 @@ export function AIBreakdownPage() {
 
   if (megQuery.isLoading) {
     return (
-      <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950">
-        <Sidebar aktivVisning="chat" byttVisning={byttVisning} brukernavn={brukernavn} />
-        <main className="flex-1 min-h-0 overflow-y-auto flex items-center justify-center p-8">
-          <LoadingSpinner />
-        </main>
-      </div>
+      <SidebarAppLoadingState
+        aktivVisning={SIDEBAR_VISNING}
+        byttVisning={byttVisning}
+        brukernavn={brukernavn}
+        label="Laster oppgaver..."
+      />
     );
   }
 
   if (skalRedirecteTilAuth(megQuery)) {
     return (
-      <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950">
-        <Sidebar aktivVisning="chat" byttVisning={byttVisning} />
-        <main className="flex-1 min-h-0 overflow-y-auto flex items-center justify-center p-8">
-          <LoadingSpinner />
-        </main>
-      </div>
+      <SidebarAppLoadingState
+        aktivVisning={SIDEBAR_VISNING}
+        byttVisning={byttVisning}
+        label="Sender deg til innlogging..."
+      />
     );
   }
 
   if (megQuery.isError && !megQuery.data?.user) {
     const feilmelding = getBrukerdataFeilmelding(megQuery.error);
     return (
-      <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950">
-        <Sidebar aktivVisning="chat" byttVisning={byttVisning} />
-        <main className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center gap-4 p-6">
-          <FeilMelding melding={feilmelding} />
-          <button
-            type="button"
-            onClick={() => megQuery.refetch()}
-            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white text-sm font-medium transition-colors"
-          >
-            Prøv igjen
-          </button>
-        </main>
-      </div>
+      <SidebarAppErrorState
+        aktivVisning={SIDEBAR_VISNING}
+        byttVisning={byttVisning}
+        message={feilmelding}
+        onRetry={() => {
+          void megQuery.refetch();
+        }}
+      />
     );
   }
 
   return (
-    <div className="h-full flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950 min-h-screen">
-      <Sidebar aktivVisning="chat" byttVisning={byttVisning} brukernavn={brukernavn} />
-      <main className="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-slate-900">
-        <div className="min-h-full bg-slate-50 dark:bg-slate-950">
+    <SidebarAppShell
+      aktivVisning={SIDEBAR_VISNING}
+      byttVisning={byttVisning}
+      brukernavn={brukernavn}
+    >
+      <div className="min-h-full bg-slate-50 dark:bg-slate-950">
           <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -356,8 +363,7 @@ export function AIBreakdownPage() {
               </div>
             )}
           </div>
-        </div>
-      </main>
-    </div>
+      </div>
+    </SidebarAppShell>
   );
 }

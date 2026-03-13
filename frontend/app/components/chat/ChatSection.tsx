@@ -489,7 +489,7 @@ export function ChatSection() {
     const nySamtale = async () => {
         if (meldinger.length > 0) {
             void lagreSamtale(meldinger).catch(() => {
-                // Feil ved lagring av samtale før ny chat - ikke kritisk nok til å blokkere
+                showToast.error("Kunne ikke lagre samtale før ny chat ble opprettet. Du kan fortsette med ny chat.");
             });
         }
         stoppAktivAnimasjon();

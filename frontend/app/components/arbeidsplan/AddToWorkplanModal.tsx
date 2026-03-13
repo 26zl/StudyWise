@@ -7,7 +7,7 @@
 import { useState } from "react";
 import { X, Calendar, Clock, CheckCircle2, Sparkles } from "lucide-react";
 import type { SubTask } from "common/ki";
-import { getWeekNumber, parseTimerStreng } from "common/dateUtils";
+import { getIsoWeekInfo, parseTimerStreng } from "common/dateUtils";
 import { UKEDAGER } from "common/arbeidsplan";
 import { useCreateArbeidsplan, type StudyBlock } from "@/app/arbeidsplan/arbeidsplan-api";
 import { showToast } from "@/app/components/ui/Toaster";
@@ -36,7 +36,7 @@ export function AddToWorkplanModal({
   assignmentTitle,
 }: AddToWorkplanModalProps) {
   const [selectedWeek, setSelectedWeek] = useState<"current" | "next">("current");
-  const [selectedDays, setSelectedDays] = useState<string[]>(["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag"]);
+  const [selectedDays, setSelectedDays] = useState<StudyBlock["day"][]>(["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag"]);
   const [startTime, setStartTime] = useState("08:00-10:00");
   
   const { mutate: createPlan, isPending } = useCreateArbeidsplan();
@@ -45,12 +45,18 @@ export function AddToWorkplanModal({
 
   // Beregn uke-tekst med ISO 8601-korrekt ukenummer
   const now = new Date();
-  const baseWeekNumber = getWeekNumber(now);
-  const year = now.getFullYear();
-  const weekNumber = baseWeekNumber + (selectedWeek === "next" ? 1 : 0);
-  const weekText = `Uke ${weekNumber}, ${year}`;
+  const selectedDate = new Date(now);
+  if (selectedWeek === "next") {
+    selectedDate.setDate(selectedDate.getDate() + 7);
+  }
+  const { weekNumber, weekYear } = getIsoWeekInfo(selectedDate);
+  const { weekNumber: currentWeekNumber, weekYear: currentWeekYear } = getIsoWeekInfo(now);
+  const nextWeekDate = new Date(now);
+  nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+  const { weekNumber: nextWeekNumber, weekYear: nextWeekYear } = getIsoWeekInfo(nextWeekDate);
+  const weekText = `Uke ${weekNumber}, ${weekYear}`;
 
-  const toggleDay = (day: string) => {
+  const toggleDay = (day: StudyBlock["day"]) => {
     setSelectedDays(prev =>
       prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
     );
@@ -103,7 +109,7 @@ export function AddToWorkplanModal({
       {
         week: weekText,
         weekNumber,
-        year,
+        year: weekYear,
         blocks,
         totalHours,
       },
@@ -130,7 +136,7 @@ export function AddToWorkplanModal({
     const count = subtasks.filter((_, i) => selectedDays[i % selectedDays.length] === day).length;
     acc[day] = count;
     return acc;
-  }, {} as Record<string, number>);
+  }, {} as Partial<Record<StudyBlock["day"], number>>);
 
   return (
     <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
@@ -183,7 +189,7 @@ export function AddToWorkplanModal({
                   )}
                 </div>
                 <span className="text-xs text-slate-500 dark:text-slate-400">
-                  Uke {baseWeekNumber}, {year}
+                  Uke {currentWeekNumber}, {currentWeekYear}
                 </span>
               </button>
 
@@ -204,7 +210,7 @@ export function AddToWorkplanModal({
                   )}
                 </div>
                 <span className="text-xs text-slate-500 dark:text-slate-400">
-                  Uke {baseWeekNumber + 1}, {year}
+                  Uke {nextWeekNumber}, {nextWeekYear}
                 </span>
               </button>
             </div>

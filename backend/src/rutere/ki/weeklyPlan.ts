@@ -8,7 +8,7 @@ import {
   type WeeklyPlanAssignment,
   type WeeklyPlanSuggestionBlock,
 } from "common/ki";
-import { getWeekNumber, parseTimerStreng } from "common/dateUtils";
+import { getIsoWeekInfo, parseTimerStreng } from "common/dateUtils";
 import { rateLimitKi } from "../../middleware/rate-limit.js";
 import {
   apiError,
@@ -19,6 +19,7 @@ import {
 import { logger } from "../../utils/logger.js";
 import { DEFAULT_MODEL } from "./aiModels.js";
 import { chatCompletion, isClientAvailable } from "./aiClient.js";
+import { handleAIJsonRouteError } from "./handleAIError.js";
 import { STUDYWISE_SYSTEM_PROMPT } from "./systemPrompt.js";
 
 const router = Router();
@@ -142,9 +143,7 @@ function parseGeneratedWeeklyPlan(
     JSON.parse(extractJsonObject(responseText)),
   );
 
-  const now = new Date();
-  const weekNumber = getWeekNumber(now);
-  const year = now.getFullYear();
+  const { weekNumber, weekYear } = getIsoWeekInfo(new Date());
   const blocks = normaliserBlokker(parsedDraft.blocks, oppgaver);
   const tips =
     parsedDraft.tips?.map((tip) => tip.trim()).filter(Boolean).slice(0, 5) ??
@@ -156,9 +155,9 @@ function parseGeneratedWeeklyPlan(
   }, 0);
 
   return WeeklyPlanSuggestionResponseSchema.parse({
-    week: `Uke ${weekNumber}, ${year}`,
+    week: `Uke ${weekNumber}, ${weekYear}`,
     weekNumber,
-    year,
+    year: weekYear,
     totalHours,
     blocks,
     tips: tips.length > 0 ? tips : [...DEFAULT_TIPS],
@@ -266,45 +265,18 @@ router.post("/generate", async (req, res) => {
 
     return res.json(payload);
   } catch (error) {
-    const melding =
-      error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-
     if (
-      melding.includes("rate limit") ||
-      melding.includes("429") ||
-      melding.includes("rate_limit")
+      handleAIJsonRouteError(res, error, {
+        kontekst: "weekly-plan",
+        timeoutMessage: "Genereringen tok for lang tid. Prøv igjen.",
+        invalidResponseMessage: "KI-responsen kunne ikke tolkes som en ukeplan",
+        invalidResponseTest: (candidate) =>
+          candidate instanceof Error &&
+          (candidate.message === "AI_RESPONSE_NOT_JSON_OBJECT" ||
+            candidate.message === "AI_RESPONSE_EMPTY_BLOCKS"),
+      })
     ) {
-      return apiError.rateLimited(
-        res,
-        "For mange forespørsler. Vent litt og prøv igjen.",
-      );
-    }
-
-    if (melding.includes("timeout")) {
-      return apiError.timeout(res, "Genereringen tok for lang tid. Prøv igjen.");
-    }
-
-    if (
-      melding.includes("credit balance") ||
-      melding.includes("depleted") ||
-      melding.includes("insufficient_quota") ||
-      melding.includes("billing") ||
-      melding.includes("overloaded") ||
-      melding.includes("529")
-    ) {
-      return apiError.serviceUnavailable(res, "KI-tjenesten");
-    }
-
-    if (
-      error instanceof z.ZodError ||
-      (error instanceof Error &&
-        (error.message === "AI_RESPONSE_NOT_JSON_OBJECT" ||
-          error.message === "AI_RESPONSE_EMPTY_BLOCKS"))
-    ) {
-      return apiError.badRequest(
-        res,
-        "KI-responsen kunne ikke tolkes som en ukeplan",
-      );
+      return;
     }
 
     return sendUnknownError(res, error, {

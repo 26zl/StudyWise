@@ -166,17 +166,6 @@ export function useCurrentArbeidsplan() {
 }
 
 /**
- * Hent arbeidsplan for spesifikk uke
- */
-export function useArbeidsplan(year: number, weekNumber: number) {
-  return useQuery({
-    queryKey: ["arbeidsplan", year, weekNumber],
-    queryFn: () => fetchArbeidsplan(`/api/arbeidsplan/${year}/${weekNumber}`),
-    staleTime: 1000 * 60 * 5,
-  });
-}
-
-/**
  * Opprett eller oppdater arbeidsplan
  */
 export function useCreateArbeidsplan() {
@@ -187,10 +176,6 @@ export function useCreateArbeidsplan() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["arbeidsplan"] });
       queryClient.setQueryData(["arbeidsplan", "current"], data);
-      queryClient.setQueryData(
-        ["arbeidsplan", data.year, data.weekNumber],
-        data
-      );
     },
   });
 }

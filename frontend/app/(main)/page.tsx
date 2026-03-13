@@ -11,7 +11,7 @@ export default async function Hjem() {
   const userResponse = await getUserServerSafe();
 
   return (
-    <div className="min-h-screen flex flex-col bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors">
+    <div className="min-h-full flex flex-col bg-white text-slate-900 transition-colors dark:bg-slate-900 dark:text-slate-100">
 
       {/* Hero Section */}
       <main className="flex-1 flex flex-col">

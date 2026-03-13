@@ -4,9 +4,12 @@
 
 import { z } from "zod";
 
+/** Ukedager i rekkefølge */
+export const UKEDAGER = ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag", "Søndag"] as const;
+
 /** Zod-skjema for en enkelt studieblokk */
 export const StudyBlockSchema = z.object({
-  day: z.string(),
+  day: z.enum(UKEDAGER),
   timeSlot: z.string(),
   task: z.string(),
   duration: z.string(),
@@ -31,9 +34,6 @@ export const UpdateBlockSchema = z.object({
   blockIndex: z.number().int().min(0),
   completed: z.boolean(),
 });
-
-/** Ukedager i rekkefølge */
-export const UKEDAGER = ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag", "Søndag"] as const;
 
 // Type exports
 export type StudyBlock = z.infer<typeof StudyBlockSchema>;

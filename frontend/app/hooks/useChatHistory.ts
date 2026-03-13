@@ -41,7 +41,12 @@ async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> 
   if (res.status === 204) {
     return undefined as T;
   }
-  const data = await res.json().catch(() => ({}));
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch (e) {
+    throw new Error("Ugyldig JSON i svar fra server", { cause: e });
+  }
   if (res.status === 401) {
     const err = new SessionExpiredError(extractApiErrorMessage(data, "Ikke autentisert")) as ApiError;
     err.status = res.status;
