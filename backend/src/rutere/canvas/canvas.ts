@@ -1275,8 +1275,15 @@ router.get("/filer/:fileId/download", async (req, res) => {
       "/files/",
     );
     if (!safeUrl) return apiError.badRequest(res, "Ugyldig fil-url host");
+    const canvasToken = req.canvasToken?.replace(/^Bearer\s+/i, "").trim();
     // Last ned fra Canvas og stream til klient
-    const canvasRes = await fetch(safeUrl);
+    const canvasRes = await fetch(safeUrl, {
+      headers: canvasToken
+        ? {
+            Authorization: `Bearer ${canvasToken}`,
+          }
+        : undefined,
+    });
     if (!canvasRes.ok || !canvasRes.body) {
       return res
         .status(canvasRes.status)

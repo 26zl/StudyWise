@@ -9,7 +9,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { nbNO } from "@clerk/localizations";
-import { ThemeProvider } from "./components/theme-provider";
+import { ThemeProvider } from "@/app/components/ui/theme-provider";
 import { validateFrontendEnv } from "./lib/validateEnv";
 
 // Valider miljøvariabler ved oppstart (server-side)

@@ -23,7 +23,7 @@ import { CanvasErrorCodeSchema } from "common/canvasErrors";
 import { AppError, CanvasApiError } from "../lib/errors";
 import { fetchApi } from "../lib/apiClient";
 import { broadcastLogout, clearClientAuthState } from "../hooks/use-auth-sync";
-import { showToast } from "../components/Toaster";
+import { showToast } from "@/app/components/ui/Toaster";
 import type { ZodType } from "zod";
 import {
   createApiError,

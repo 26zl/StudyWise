@@ -385,7 +385,8 @@ export function useCanvasAllAssignments(options?: { enabled?: boolean }) {
         }
       }
 
-      if (criticalErrors.length > 0) {
+      // Kast kun hvis vi ikke har noe data i det hele tatt
+      if (criticalErrors.length > 0 && allAssignments.length === 0) {
         throw criticalErrors[0];
       }
 

@@ -9,7 +9,7 @@ const ddEnabled = !!process.env.DD_API_KEY;
 
 // Påkrevd av validateEnv ved serverstart; ingen fallback (én sannhetskilde).
 export const logger = pino({
-    level: process.env.LOG_LEVEL!,
+    level: process.env.LOG_LEVEL || "info",
     // dd-trace injiserer dd.trace_id, dd.span_id automatisk via logInjection: true
     // mixin legger til service/env for Datadog log-korrelasjon
     ...(ddEnabled && {

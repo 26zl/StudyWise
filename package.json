@@ -64,6 +64,7 @@
       "@datadog/native-metrics",
       "@datadog/pprof",
       "@scarf/scarf",
+      "bcrypt",
       "dd-trace",
       "esbuild",
       "sharp",

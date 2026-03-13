@@ -6,9 +6,9 @@ import { AlertCircle, Bot, User } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
-import { CodeBlock } from "../../components/CodeBlock";
-import { LoadingSpinner } from "../../components/LoadingSpinner";
-import { Footer } from "../../components/footer";
+import { CodeBlock } from "@/app/components/ui/CodeBlock";
+import { LoadingSpinner } from "@/app/components/ui/LoadingSpinner";
+import { Footer } from "@/app/components/layout/footer";
 import {
     SharedChatResponseSchema,
     type SharedChatResponse,

@@ -106,7 +106,13 @@ export async function waitForSync(userId: string, timeoutMs: number): Promise<Sy
   if (!pending) return null;
 
   const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs));
-  return Promise.race([pending, timeout]);
+  return Promise.race([
+    pending.catch((err) => {
+      logger.warn({ err, userId }, "Canvas sync feilet mens en forespørsel ventet - fortsetter uten sync-resultat");
+      return null;
+    }),
+    timeout,
+  ]);
 }
 
 // ─── Hjelpefunksjoner ──────────────────────────────────────

@@ -37,10 +37,13 @@ const DOMPURIFY_CONFIG: DOMPurifyConfig = {
  */
 export const sikkerHref = (u?: string | null): string => {
     if (!u || typeof u !== "string") return "#";
-    
+
+    const trimmedOriginal = u.trim();
+    if (!trimmedOriginal) return "#";
+
     // Trim og normaliser
-    const trimmed = u.trim().toLowerCase();
-    
+    const trimmed = trimmedOriginal.toLowerCase();
+
     // Blokker farlige protokoller eksplisitt
     const farligeProtokoll = [
         "javascript:",
@@ -48,14 +51,24 @@ export const sikkerHref = (u?: string | null): string => {
         "vbscript:",
         "file:",
     ];
-    
+
     if (farligeProtokoll.some(p => trimmed.startsWith(p))) {
         return "#";
     }
-    
-    // Kun tillat http:// og https://
+
+    // Blokker protokoll-relative URL-er (//evil.example.com)
+    if (trimmed.startsWith("//")) {
+        return "#";
+    }
+
+    // Relative app/proxy-URL-er er trygge å beholde som relative paths.
+    if (trimmedOriginal.startsWith("/")) {
+        return trimmedOriginal;
+    }
+
+    // Kun tillat absolutte http:// og https://
     try {
-        const url = new URL(u, "https://placeholder.com");
+        const url = new URL(trimmedOriginal);
         if (url.protocol === "http:" || url.protocol === "https:") {
             return url.href; // Returner normalisert URL (forhindrer casing-basert omgåelse)
         }
@@ -83,8 +96,16 @@ export const sikkerFilNedlastingUrl = (contentId: number | string | undefined): 
     return `/api/canvas/filer/${encodeURIComponent(idString)}/download`;
 };
 
-/** Mønster for Canvas fil-URL i HTML (f.eks. kunngjøringer, sider): /files/123/download eller /courses/1/files/123/preview */
-const CANVAS_FILE_PATH_REGEX = /\/files\/(\d+)(?:\/download|\/preview)?/i;
+const extractCanvasFileId = (value: string): string | undefined => {
+    const pathOnly = value.split("#", 1)[0]?.split("?", 1)[0] ?? value;
+    const segments = pathOnly.split("/").filter(Boolean);
+    const filesIndex = segments.findIndex((segment) => segment.toLowerCase() === "files");
+    const maybeId = filesIndex >= 0 ? segments[filesIndex + 1] : undefined;
+    if (!maybeId || !/^\d+$/.test(maybeId)) {
+        return undefined;
+    }
+    return maybeId;
+};
 
 /**
  * Hvis src ser ut som en Canvas fil-URL (path med /files/NUMBER/), returnerer proxy-URL
@@ -95,12 +116,28 @@ export const canvasBildeProxyUrl = (src: string | undefined): string | undefined
     if (!src || typeof src !== "string") return undefined;
     const trimmed = src.trim();
     if (!trimmed) return undefined;
+
+    const lower = trimmed.toLowerCase();
+    if (
+        lower.startsWith("javascript:") ||
+        lower.startsWith("data:") ||
+        lower.startsWith("vbscript:") ||
+        lower.startsWith("file:")
+    ) {
+        return undefined;
+    }
+
+    const directFileId = extractCanvasFileId(trimmed);
+    if (directFileId) {
+        const fileId = directFileId;
+        return sikkerFilNedlastingUrl(fileId);
+    }
+
     try {
         const url = new URL(trimmed);
         if (url.protocol !== "http:" && url.protocol !== "https:") return trimmed;
-        const pathMatch = url.pathname.match(CANVAS_FILE_PATH_REGEX);
-        if (pathMatch) {
-            const fileId = pathMatch[1];
+        const fileId = extractCanvasFileId(`${url.pathname}${url.search}${url.hash}`);
+        if (fileId) {
             return sikkerFilNedlastingUrl(fileId) ?? trimmed;
         }
     } catch {
@@ -115,6 +152,7 @@ export const createCanvasHtmlParser = (renderImage?: (el: Element) => ReactNode)
         if (domNode instanceof Element) {
             if (domNode.tagName === "a") {
                 const href = domNode.attribs?.href;
+                const proxiedHref = canvasBildeProxyUrl(href);
                 // html-react-parser ChildNode typings mangler data-felt; begrens til tekstnoder
                 const firstChild = domNode.children?.[0] as { data?: unknown } | undefined;
                 const text =
@@ -123,7 +161,7 @@ export const createCanvasHtmlParser = (renderImage?: (el: Element) => ReactNode)
                         : "";
                 return (
                     <a
-                        href={sikkerHref(href)}
+                        href={proxiedHref ?? sikkerHref(href)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
@@ -135,7 +173,7 @@ export const createCanvasHtmlParser = (renderImage?: (el: Element) => ReactNode)
             }
             if (domNode.tagName === "img") {
                 const rawSrc = domNode.attribs?.src;
-                const proxiedSrc = canvasBildeProxyUrl(rawSrc) ?? rawSrc;
+                const proxiedSrc = canvasBildeProxyUrl(rawSrc);
                 const attribs = { ...domNode.attribs, src: proxiedSrc };
                 if (renderImage) {
                     const cloned = { ...domNode, attribs } as unknown as Element;

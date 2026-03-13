@@ -24,6 +24,7 @@ import { handleAIError } from "./handleAIError.js";
 import { loadCanvasContext, ensureCanvasSync, type IntentType, type ContextResult } from "../../services/context-loader.service.js";
 import { isSyncing, waitForSync } from "../../services/canvas-sync.service.js";
 import { trimToTokenLimit, countTokens } from "../../utils/tokenCounter.js";
+import { knyttCanvasTokenValgfritt } from "../../middleware/auth.js";
 
 /** Nøkkelord som krever full kontekst (moduler, PDFer, sideinnhold) */
 const CANVAS_FULL_KEYWORDS = [
@@ -252,14 +253,11 @@ router.use(kiShareRouter);
 // Dokumentanalyse ruter
 router.use(kiAnalyseRouter);
 
-import { KI_CACHE_TTL, KI_TIMEOUT_MS, SESSION_CONTEXT_TTL } from "./kiConstants.js";
+import { KI_TIMEOUT_MS, SESSION_CONTEXT_TTL } from "./kiConstants.js";
 
 /** Maks ventetid for Canvas sync før chat fortsetter uansett */
 /** Maks ventetid på Canvas-sync før vi fortsetter med API/vector — kortere = raskere første svar, sync fortsetter i bakgrunn */
 const SYNC_WAIT_MAX_MS = 8_000;
-
-// Cache-konfigurasjon
-const CACHE_KEY = "ki:test-connection";
 
 // Endepunkt for å liste støttede modeller
 router.get("/models", (_req, res) => {
@@ -278,13 +276,6 @@ router.get("/models", (_req, res) => {
 // Endepunkt for å teste tilkobling til AI-tjenesten
 router.get("/test-connection", async (_req, res) => {
   logger.info("Testing AI connection...");
-
-  // Sjekk cache først
-  const cached = await getCache(CACHE_KEY);
-  if (cached) {
-    logger.info("Returnerer cachet KI test-resultat");
-    return res.json(KIChatResponseSchema.parse(JSON.parse(cached)));
-  }
 
   const model = DEFAULT_MODEL;
 
@@ -317,8 +308,6 @@ router.get("/test-connection", async (_req, res) => {
       response: result.text,
       model: model,
     });
-    // Cache resultatet
-    await setCache(CACHE_KEY, JSON.stringify(response), KI_CACHE_TTL);
     return res.json(response);
   } catch (error) {
     if (
@@ -340,7 +329,7 @@ router.get("/test-connection", async (_req, res) => {
 });
 
 // Hovedendepunkt for chat
-router.post("/chat", async (req, res) => {
+router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
   logger.info("Mottok chat-forespørsel");
 
   // Sjekk autentisering

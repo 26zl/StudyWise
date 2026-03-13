@@ -21,6 +21,23 @@ const hentBearerToken = (req: Request): string | null => {
   return token;
 };
 
+const hentClerkProxyToken = (req: Request): string | null => {
+  const header = req.headers["x-clerk-auth-token"];
+  if (typeof header === "string") {
+    const token = header.trim();
+    return token || null;
+  }
+  if (Array.isArray(header)) {
+    const token = header.find((value) => typeof value === "string" && value.trim());
+    return token?.trim() || null;
+  }
+  return null;
+};
+
+const hentAuthToken = (req: Request): string | null => {
+  return hentBearerToken(req) ?? hentClerkProxyToken(req);
+};
+
 const DEFAULT_ROLE: UserRole = "student";
 
 export interface CanvasTilkobling {
@@ -55,9 +72,9 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return;
   }
 
-  const token = hentBearerToken(req);
+  const token = hentAuthToken(req);
   if (!token) {
-    apiError.unauthorized(res, "Mangler Authorization: Bearer token");
+    apiError.unauthorized(res, "Mangler autentiseringstoken");
     return;
   }
 
@@ -125,5 +142,32 @@ export const knyttCanvasToken = async (req: Request, res: Response, next: NextFu
         logger.error({ err: error, userId: req.user.id }, "Feil ved henting av Canvas token for bruker");
         return next(error);
     }
+    next();
+};
+
+// Valgfri variant for ruter som kan bruke Canvas-kontekst, men skal fungere uten token.
+export const knyttCanvasTokenValgfritt = async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user?.id) {
+        return apiError.unauthorized(res);
+    }
+
+    req.canvasToken = undefined;
+    req.canvasBaseUrl = undefined;
+
+    try {
+        const canvasTilkobling = await hentCanvasTilkoblingForBruker(req.user.id);
+        if (!canvasTilkobling) {
+            return apiError.unauthorized(res, "Ugyldig bruker");
+        }
+
+        req.canvasToken = canvasTilkobling.canvasToken;
+        req.canvasBaseUrl = canvasTilkobling.canvasBaseUrl;
+    } catch (error) {
+        logger.warn(
+            { err: error, userId: req.user.id },
+            "Kunne ikke hente Canvas token for valgfri KI-kontekst - fortsetter uten Canvas-data",
+        );
+    }
+
     next();
 };

@@ -12,7 +12,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useAuth } from "@clerk/nextjs";
 import { useAuthSync } from "./hooks/use-auth-sync";
 import { setClerkGetToken } from "./lib/clerkTokenForApi";
-import { setDatadogUser, clearDatadogUser } from "./components/DatadogRum";
+import { setDatadogUser, clearDatadogUser } from "@/app/components/layout/DatadogRum";
 import { AUTH_ME_QUERY_KEY } from "./auth/auth-api";
 import type { MeResponse } from "common/auth";
 

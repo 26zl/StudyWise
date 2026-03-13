@@ -48,7 +48,7 @@ export const CanvasBaseUrlSchema = z
   .string()
   .trim()
   .check(z.url({ message: "Ugyldig Canvas-URL" }))
-  .refine((url) => isAllowedCanvasBaseUrl(url.replace(/\s/g, "")), {
+  .refine((url) => isAllowedCanvasBaseUrl(url), {
     message: "Må være en kjent Canvas-instans (f.eks. https://mitt.uib.no eller https://usn.instructure.com)",
   })
   .transform(normalizeCanvasBaseUrl);

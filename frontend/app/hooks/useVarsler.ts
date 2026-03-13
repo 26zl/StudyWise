@@ -5,7 +5,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { type VarslerState, normalizeVarslerState } from "common/auth";
-import { toast } from "../components/Toaster";
+import { toast } from "@/app/components/ui/Toaster";
 import {
     useCanvasAllAssignments,
     useCanvasAnnouncements,

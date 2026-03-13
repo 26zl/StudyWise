@@ -6,6 +6,7 @@
 import type { Response } from "express";
 import type { ZodType } from "zod";
 import { logger } from "../../utils/logger.js";
+import { CircuitBreakerError } from "../../utils/circuitBreaker.js";
 
 /**
  * Parser feilrespons med riktig skjema.
@@ -37,6 +38,13 @@ export function handleAIError(
 ): boolean {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const kontekst = options?.kontekst ?? "AI";
+    const errorStatus =
+        typeof error === "object" &&
+        error !== null &&
+        "status" in error &&
+        typeof (error as { status?: unknown }).status === "number"
+            ? (error as { status: number }).status
+            : undefined;
 
     logger.error({ err: error }, `${kontekst} feil`);
 
@@ -44,6 +52,12 @@ export function handleAIError(
     if (options?.timeoutLabel && errorMessage === options.timeoutLabel) {
         const melding = options.timeoutMessage ?? "Forespørselen tok for lang tid. Prøv igjen.";
         res.status(504).json(parseErrorResponse(schema, melding));
+        return true;
+    }
+
+    // Circuit breaker er allerede brukerrettet og bør vises som 503, ikke falle gjennom til generisk 500.
+    if (error instanceof CircuitBreakerError) {
+        res.status(503).json(parseErrorResponse(schema, errorMessage));
         return true;
     }
 
@@ -64,6 +78,26 @@ export function handleAIError(
         res.status(503).json(parseErrorResponse(
             schema,
             "Kontokreditt for KI-tjenesten er oppbrukt. Fyll på kreditt i Anthropic (Claude)-kontoen eller prøv igjen senere.",
+        ));
+        return true;
+    }
+
+    // Ugyldig / manglende tilgang mot Anthropic-kontoen er driftskonfigurasjon, ikke en brukerfeil.
+    if (
+        errorStatus === 401 ||
+        errorStatus === 403 ||
+        lower.includes("authentication_error") ||
+        lower.includes("invalid x-api-key") ||
+        lower.includes("invalid api key") ||
+        lower.includes("api key") && lower.includes("invalid") ||
+        lower.includes("unauthorized") ||
+        lower.includes("permission denied") ||
+        lower.includes("forbidden")
+    ) {
+        logger.error({ err: error }, `${kontekst}: Anthropic auth/config-feil`);
+        res.status(503).json(parseErrorResponse(
+            schema,
+            "KI-tjenesten er ikke konfigurert riktig akkurat nå. Kontakt administrator.",
         ));
         return true;
     }

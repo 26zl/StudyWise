@@ -46,6 +46,10 @@ const requireToken = (token?: string | null) => {
   return token;
 };
 
+const buildCanvasAuthHeaders = (token: string) => ({
+  Authorization: `Bearer ${token.replace(/^Bearer\s+/i, "").trim()}`,
+});
+
 async function fetchUserProfileFromEndpoint(
   endpoint: "/api/v1/users/self/profile" | "/api/v1/users/self",
   token: string,
@@ -685,6 +689,7 @@ export async function fetchFileContent(
     }
 
     const response = await fetch(downloadUrl, {
+      headers: buildCanvasAuthHeaders(token),
       signal: AbortSignal.timeout(15000),
     });
 
@@ -739,6 +744,7 @@ export async function fetchPdfContent(
     }
 
     const response = await fetch(downloadUrl, {
+      headers: buildCanvasAuthHeaders(token),
       signal: AbortSignal.timeout(15000),
     });
 

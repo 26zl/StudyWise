@@ -5,7 +5,7 @@
 
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { showToast, toast } from "../components/Toaster";
+import { showToast, toast } from "@/app/components/ui/Toaster";
 import {
   ChatHistoryResponseSchema,
   ChatMessage,
@@ -113,7 +113,7 @@ export function useChatHistory() {
    * Oppdaterer React Query-cache og returnerer chat-id. Ved ny chat kan title sendes (f.eks. første 50 tegn av første spørsmål).
    * Støtter retry ved 5xx og silent modus (uten toast).
    */
-  const saveChat = async (
+  const saveChat = useCallback(async (
     messages: ChatMessage[],
     chatId?: string,
     title?: string,
@@ -158,7 +158,7 @@ export function useChatHistory() {
       }
     }
     return undefined;
-  };
+  }, [queryClient]);
 
   /** Returnerer én lagret samtale fra cache etter id, eller undefined. */
   const loadChat = useCallback((id: string) => chats.find((c) => c.id === id), [chats]);

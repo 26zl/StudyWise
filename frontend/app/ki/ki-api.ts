@@ -251,7 +251,7 @@ function erTekniskFeilmelding(msg: string): boolean {
   );
 }
 
-/** Klassifiserer KI-feil: sjekker error.name først, deretter HTTP-status, deretter meldingsinnhold. */
+/** Klassifiserer KI-feil: sjekker error.name først, deretter meldingsinnhold, og bruker HTTP-status som fallback. */
 function classifyKIError(
   message: string,
   status?: number,
@@ -264,13 +264,7 @@ function classifyKIError(
   if (errorName === "KITimeoutError") return "timeout";
   if (errorName === "KIServiceError") return "service";
 
-  // 2. Sjekk HTTP-status
-  if (status === 401) return "auth";
-  if (status === 429) return "rate_limit";
-  if (status === 504) return "timeout";
-  if (status === 500 || status === 502 || status === 503) return "service";
-
-  // 3. Sjekk meldingsinnhold
+  // 2. Sjekk meldingsinnhold før generiske 5xx-statuskoder, så vi ikke mister mer spesifikke årsaker.
   const lower = message.trim().toLowerCase();
   if (
     lower.includes("logge inn på nytt") ||
@@ -294,6 +288,13 @@ function classifyKIError(
     lower.includes("server")
   )
     return "service";
+
+  // 3. Sjekk HTTP-status som fallback når meldingen ikke er spesifikk nok.
+  if (status === 401) return "auth";
+  if (status === 429) return "rate_limit";
+  if (status === 504) return "timeout";
+  if (status === 500 || status === 502 || status === 503) return "service";
+
   return "unknown";
 }
 
@@ -311,6 +312,15 @@ function lagKIError(melding: string, status?: number): Error {
     return new KIServiceError(normalisert);
   }
   const category = classifyKIError(normalisert, status, undefined);
+  if (
+    (category === "service" || category === "config") &&
+    normalisert &&
+    !erTekniskFeilmelding(normalisert)
+  ) {
+    return category === "config"
+      ? new KIConfigError(normalisert)
+      : new KIServiceError(normalisert);
+  }
   const message =
     category === "unknown"
       ? normalisert || "Uventet feil fra KI-tjenesten."
@@ -344,6 +354,13 @@ export function getKIErrorMessage(
   if (erKredittMelding(msg)) return msg;
 
   const category = classifyKIError(msg, undefined, error.name);
+  if (
+    (category === "service" || category === "config") &&
+    msg &&
+    !erTekniskFeilmelding(msg)
+  ) {
+    return msg;
+  }
   if (category !== "unknown") return getDisplayMessageForCategory(category, context);
   if (msg.includes("for stor") || msg.includes("413"))
     return "Filen er for stor. Maksimal filstørrelse er 15 MB.";
@@ -619,6 +636,11 @@ export async function streamKIChat(
   }
 
   await håndterKIFeilRespons(res);
+
+  const contentType = res.headers.get("Content-Type") || "";
+  if (!contentType.includes("text/event-stream")) {
+    return assertSuccessfulKIChat(await parseKIResponse(res, KIChatResponseSchema));
+  }
 
   if (!res.body) {
     throw new KIServiceError("Ingen svarstrøm fra serveren.");
