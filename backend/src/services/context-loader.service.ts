@@ -754,9 +754,15 @@ async function byggKontekstFraChunks(
         chunk.source.moduleTitle.toLowerCase().includes(target.moduleHint!.toLowerCase()),
       );
       if (moduleMatches.length === 0) {
-        return null;
+        // Fallback: moduleHint matchet ingenting i chunk-metadata — bruk alle resultater
+        logger.warn(
+          { userId, moduleHint: target.moduleHint, chunksBeforeFilter: scored.length, action: "fallback til ufiltrerte chunks" },
+          "Chunk-søk: moduleHint matchet ingen chunks — bruker alle som fallback",
+        );
+        // scored beholdes uendret
+      } else {
+        scored = moduleMatches;
       }
-      scored = moduleMatches;
     }
 
     if (target?.fileHint) {
@@ -812,7 +818,20 @@ function filtrerHybridResultater(
     const moduleMatches = filtered.filter((result) =>
       result.source.moduleTitle.toLowerCase().includes(target.moduleHint!.toLowerCase()),
     );
-    if (moduleMatches.length === 0) return [];
+    if (moduleMatches.length === 0) {
+      // Fallback: moduleHint matchet ingenting — bruk alle reranked resultater
+      // slik at Claude ikke mottar tom kontekst pga. et for strengt modul-filter.
+      logger.warn(
+        {
+          moduleHint: target.moduleHint,
+          courseHint: target.courseHint,
+          chunksBeforeFilter: results.length,
+          action: "fallback til ufiltrerte chunks",
+        },
+        "Hybrid søk: alle resultater filtrert bort av moduleHint — bruker ufiltrerte chunks som fallback",
+      );
+      return filtered; // returner alle i stedet for []
+    }
     filtered = moduleMatches;
   }
 
@@ -941,6 +960,37 @@ export async function loadCanvasContext(
   if (intent === "general_chat") {
     return { kontekst: "", hasCanvasData: false, source: "none" };
   }
+
+  // Sett generiske moduleHints til null tidlig i pipelinen slik at alle nedstrøms filtre
+  // ikke blokkerer resultater pga. ord som "leksjonene", "forelesningene" osv.
+  // courseHint beholdes alltid — det er alltid spesifikt nok til å identifisere et kurs.
+  const GENERIC_MODULE_HINTS = new Set([
+    "leksjonene", "leksjon", "leksjonen",
+    "forelesningene", "forelesning", "forelesningen", "forelesningane",
+    "modulene", "modul", "modulen",
+    "innhold", "pensum", "faget", "kurset", "emnet", "emner", "fagene",
+    "alt", "alle", "materialet", "stoffet", "leksjonane",
+  ]);
+
+  const sanitizedTarget: TargetedQuery | undefined = target
+    ? {
+        ...target,
+        moduleHint:
+          target.moduleHint && GENERIC_MODULE_HINTS.has(target.moduleHint.toLowerCase())
+            ? null
+            : target.moduleHint,
+      }
+    : undefined;
+
+  if (target?.moduleHint && sanitizedTarget?.moduleHint === null) {
+    logger.info(
+      { userId, originalModuleHint: target.moduleHint },
+      "loadCanvasContext: generisk moduleHint ignorert — bruker bredere søk",
+    );
+  }
+
+  // Bruk sanitert target for alle videre oppslag
+  target = sanitizedTarget;
 
   const redisAvailable = isRedisReady();
   const hasRedisSyncData = redisAvailable && (await hasCanvasSyncData(userId));

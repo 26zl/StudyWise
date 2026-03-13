@@ -4,6 +4,7 @@
 */
 
 import { Router } from "express";
+import { createHash } from "crypto";
 import { logger } from "../../utils/logger.js";
 import { apiError } from "../../utils/apiError.js";
 import { getCache, setCache } from "../../cache/redis.js";
@@ -180,10 +181,21 @@ export interface TargetedQuery {
   fileHint: string | null;
 }
 
-/** Generiske norske ord som ikke identifiserer en spesifikk modul — settes til null */
+/** Generiske norske ord som ikke identifiserer en spesifikk modul — settes til null
+ *
+ * Test: "leksjonene" → moduleHint: null (generisk flertall)
+ * Test: "forelesningene" → moduleHint: null (generisk flertall)
+ * Test: "Leksjon 3"  → moduleHint: "leksjon 3" (spesifikt)
+ * Test: "uke 5"      → moduleHint: "uke 5" (spesifikt)
+ */
 const GENERIC_MODULE_WORDS = new Set([
+  // Entall
   "leksjonen", "leksjon", "forelesningen", "forelesning", "materialet",
-  "kurset", "faget", "emnet", "pensum",
+  "kurset", "faget", "emnet", "pensum", "modulen", "modul",
+  "innhold", "alt", "alle", "stoffet",
+  // Flertall — disse er de vanligste falske treffene
+  "leksjonene", "forelesningene", "modulene", "emner", "fagene",
+  "forelesningane", "leksjonane",
 ]);
 
 function extractQueryTarget(message: string): TargetedQuery {
@@ -560,7 +572,12 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
         "KI chat: intent og target ekstrahert",
       );
 
-      // Session-level chunk caching: gjenbruk kontekst for oppfølgingsspørsmål om samme kurs
+      // Session-level chunk caching: gjenbruk kontekst kun for eksakt samme spørsmål om samme kurs.
+      // queryHash sørger for at oppfølgingsspørsmål om nytt tema ikke gjenbruker gammel kontekst.
+      const queryHash = createHash("md5")
+        .update(lastUserMsg.toLowerCase().trim())
+        .digest("hex")
+        .slice(0, 8);
       const followUpWithoutCourseHint =
         intent === "canvas_full" &&
         !target.courseHint &&
@@ -569,7 +586,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
         intent === "canvas_full" ? `ki:session:${req.user.id}:last-course` : null;
       const sessionCacheKey = intent === "canvas_full"
         ? target.courseHint
-          ? `ki:session:${req.user.id}:${target.courseHint}`
+          ? `ki:session:${req.user.id}:${target.courseHint}:${queryHash}`
           : followUpWithoutCourseHint
             ? lastCourseSessionKey
             : null
