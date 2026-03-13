@@ -16,7 +16,6 @@ import {
   clearUserCanvasRuntimeState,
   invalidateUserCanvasCache,
   triggerInitialSync,
-  hasCanvasStructureInMongo,
 } from "../../services/canvas-sync.service.js";
 import {
   CanvasTokenRequestSchema,
@@ -217,8 +216,10 @@ router.post("/token", rateLimitToken, async (req, res) => {
         // Sjekk hash først (timing-safe for SAMME bruker)
         if (bruker.canvasBaseUrl === canvasBaseUrl &&
             timingSafeHexEqual(bruker.canvasTokenHash, nyTokenHash)) {
-            await invalidateStoredCanvasDataForUser(userId.toString(), bruker.canvasApiToken);
-            logger.info({ userId }, "Canvas token identisk (hash match)");
+            // Token er uendret — Canvas-data er fortsatt gyldig, ikke invalider
+            // Varm cache i bakgrunnen i tilfelle Redis har utløpt
+            warmCanvasCache(cleanToken, canvasBaseUrl).catch(() => {});
+            logger.info({ userId }, "Canvas token identisk (hash match) — ingen invalidering");
             return res.json(CanvasTokenResponseSchema.parse({
                 melding: "Token er allerede lagret",
                 success: true,
@@ -294,9 +295,6 @@ router.post("/token", rateLimitToken, async (req, res) => {
           req,
         });
 
-        // Sjekk om dette er første oppsett FØR invalidering (som sletter MongoDB-data)
-        const isFirstTimeSetup = !gammeltKryptertToken || !(await hasCanvasStructureInMongo(userId.toString()));
-
         // Invalider cache ETTER lagring — slik at nytt token allerede er persistert
         await invalidateStoredCanvasDataForUser(userId.toString(), gammeltKryptertToken);
 
@@ -309,10 +307,9 @@ router.post("/token", rateLimitToken, async (req, res) => {
             logger.warn({ err, userId }, "Cache warming feilet etter token-lagring (ikke kritisk)");
         });
 
-        // Kjør full bakgrunns-sync ved første oppsett (eller re-kobling) for å fylle MongoDB permanent
-        if (isFirstTimeSetup) {
-          triggerInitialSync(userId.toString(), cleanToken, canvasBaseUrl);
-        }
+        // Kjør full bakgrunns-sync for å (re-)fylle MongoDB permanent.
+        // Kjøres alltid: invalidering over sletter CanvasStructure, og vi vil ha fersk data uansett.
+        triggerInitialSync(userId.toString(), cleanToken, canvasBaseUrl);
 
         return res.json(CanvasTokenResponseSchema.parse({
             melding: "Token lagret og kryptert",

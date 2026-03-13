@@ -8,6 +8,7 @@ import { logger } from "../utils/logger.js";
 import { AuditLog } from "./models/AuditLog.js";
 import { Arbeidsplan } from "./models/arbeidsplan.js";
 import { CanvasUser } from "./models/CanvasUser.js";
+import { CanvasStructureModel } from "./models/CanvasStructure.js";
 import { ChatHistory } from "./models/ChatHistory.js";
 import { ContentEmbedding } from "./models/ContentEmbedding.js";
 import { TaskBreakdown } from "./models/TaskBreakdown.js";
@@ -41,6 +42,7 @@ async function ensureDatabaseIndexes() {
         AuditLog.createIndexes(),
         Arbeidsplan.createIndexes(),
         CanvasUser.createIndexes(),
+        CanvasStructureModel.createIndexes(),
         ChatHistory.createIndexes(),
         ContentEmbedding.createIndexes(),
         TaskBreakdown.createIndexes(),

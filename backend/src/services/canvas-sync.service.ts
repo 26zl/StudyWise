@@ -364,9 +364,8 @@ async function _doSync(
           const previousHash = previousMeta.courseHashes[courseId];
           // eslint-disable-next-line security/detect-possible-timing-attacks
           if (previousHash === hash) {
-            // Data uendret — hopp over skriving, bare oppdater TTL
+            // Data uendret — hopp over Redis-skriving, bare oppdater TTL
             unchanged++;
-            // Forny TTL på eksisterende nøkler
             const keys = ["meta", "moduler", "oppgaver", "kunngjøringer"];
             await Promise.allSettled(
               keys.map(async (k) => {
@@ -376,6 +375,28 @@ async function _doSync(
                 }
               }),
             );
+
+            // Backfill til MongoDB hvis dokumentet ikke finnes ennå
+            // (eksisterende brukere som aldri fikk initial upsert)
+            await CanvasStructureModel.findOneAndUpdate(
+              { userId, courseId },
+              {
+                $setOnInsert: {
+                  userId,
+                  courseId,
+                  courseName: course.name,
+                  course_code: course.course_code ?? "",
+                  moduler: courseData.moduler,
+                  oppgaver: courseData.oppgaver,
+                  kunngjøringer: courseData.kunngjøringer,
+                  syncedAt: new Date(),
+                  dataHash: hash,
+                },
+              },
+              { upsert: true },
+            ).catch((err) => {
+              logger.warn({ err, userId, courseId }, "Kunne ikke backfille Canvas-struktur til MongoDB");
+            });
           } else {
             // Data endret — skriv til Redis
             await Promise.all([
@@ -734,14 +755,6 @@ export async function hasCanvasSyncData(userId: string): Promise<boolean> {
   if (!isRedisReady()) return false;
   const meta = await getCache(userKey(userId, "syncMeta"));
   return meta !== null;
-}
-
-/**
- * Sjekker om en bruker har permanent Canvas-struktur i MongoDB.
- */
-export async function hasCanvasStructureInMongo(userId: string): Promise<boolean> {
-  const doc = await CanvasStructureModel.exists({ userId });
-  return doc !== null;
 }
 
 /** Maks filer per sync under initial sync (konfigurerbar via env) */

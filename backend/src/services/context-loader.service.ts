@@ -303,6 +303,7 @@ async function byggLettKontekstFraMongo(userId: string): Promise<string | null> 
 
 /**
  * Bygger målrettet kontekst fra MongoDB CanvasStructure for et spesifikt emne/modul.
+ * Matcher på courseHint, moduleHint og fileHint — speiler logikken i Redis-versjonen.
  */
 async function byggMålrettetKontekstFraMongo(
   userId: string,
@@ -312,14 +313,32 @@ async function byggMålrettetKontekstFraMongo(
     const structures = await CanvasStructureModel.find({ userId }).lean<ICanvasStructure[]>();
     if (!structures || structures.length === 0) return null;
 
-    // Finn matchende kurs
+    // Finn matchende kurs — søk i courseHint, moduleHint, fileHint (samme rekkefølge som finnRelevanteEmner)
     let matchedStructure: (typeof structures)[number] | undefined;
+
     if (target.courseHint) {
       const hint = target.courseHint.toLowerCase();
       matchedStructure = structures.find(
         (s) =>
           s.courseName.toLowerCase().includes(hint) ||
           s.course_code.toLowerCase().includes(hint),
+      );
+    }
+
+    if (!matchedStructure && target.moduleHint) {
+      const hint = target.moduleHint.toLowerCase();
+      matchedStructure = structures.find((s) =>
+        s.moduler.some((mod) => mod.name.toLowerCase().includes(hint)),
+      );
+    }
+
+    if (!matchedStructure && target.fileHint) {
+      matchedStructure = structures.find((s) =>
+        s.moduler.some((mod) =>
+          mod.items?.some((item) =>
+            item.type === "File" && titleMatchesFileHint(item.title, target.fileHint!),
+          ),
+        ),
       );
     }
 
@@ -330,56 +349,109 @@ async function byggMålrettetKontekstFraMongo(
     if (!matchedStructure) return null;
 
     let kontekst = "[CANVAS-DATA START]\n";
-    kontekst += `EMNE: ${formatCourseLabel(matchedStructure.courseName, matchedStructure.course_code)}\n`;
+    kontekst += `EMNE: ${formatCourseLabel(matchedStructure.courseName, matchedStructure.course_code)}\n\n`;
+
+    let hadModuleFileContent = false;
 
     // Moduler
     if (matchedStructure.moduler.length > 0) {
-      kontekst += `\nMODULER (${matchedStructure.moduler.length}):\n`;
+      kontekst += `MODULER (${matchedStructure.moduler.length}):\n`;
       for (const mod of matchedStructure.moduler) {
-        kontekst += `- ${mod.name}`;
-        if (mod.items?.length) {
-          kontekst += ` (${mod.items.length} items)`;
+        kontekst += `\n### ${mod.name}\n`;
+
+        // Filtrer til spesifikk modul hvis moduleHint finnes
+        if (target.moduleHint) {
+          const hint = target.moduleHint.toLowerCase();
+          if (!mod.name.toLowerCase().includes(hint)) {
+            kontekst += "(Ikke relevant for søket)\n";
+            continue;
+          }
         }
-        kontekst += "\n";
-        if (mod.items) {
+
+        if (mod.items && mod.items.length > 0) {
+          const maxFilerMedInnhold = target.moduleHint ? 5 : 1;
+          let filerMedInnhold = 0;
           for (const item of mod.items) {
-            kontekst += `  • ${item.title} [${item.type}]\n`;
+            kontekst += `- [${item.type}] ${item.title}\n`;
+
+            // Inkluder filinnhold fra chunks (MongoDB ContentEmbedding) for matchende filer
+            const skalInkludereFil =
+              item.type === "File" &&
+              item.content_id != null &&
+              (target.fileHint
+                ? titleMatchesFileHint(item.title, target.fileHint)
+                : target.moduleHint && filerMedInnhold < maxFilerMedInnhold);
+
+            if (skalInkludereFil && item.content_id != null) {
+              try {
+                const fileChunks = await getStoredChunksForFile(
+                  userId,
+                  matchedStructure.courseId,
+                  item.content_id,
+                );
+                if (fileChunks.length > 0) {
+                  const fileKontekst = buildChunkContextFromEntries(fileChunks);
+                  if (fileKontekst) {
+                    filerMedInnhold++;
+                    if (target.moduleHint) hadModuleFileContent = true;
+                    kontekst += "\n" + fileKontekst + "\n";
+                  }
+                }
+              } catch {
+                // Lagret filinnhold mangler eller er ugyldig — ignorer
+              }
+            }
+          }
+        }
+      }
+      kontekst += "\n";
+    }
+
+    // Oppgaver
+    if (matchedStructure.oppgaver.length > 0) {
+      kontekst += `OPPGAVER (${matchedStructure.oppgaver.length}):\n`;
+      for (const oppg of matchedStructure.oppgaver) {
+        const frist = oppg.due_at ? new Date(oppg.due_at).toLocaleDateString("nb-NO") : "ingen frist";
+        const poeng = oppg.points_possible ? `${oppg.points_possible}p` : "";
+        const status = isCanvasAssignmentSubmitted(oppg) ? "✓" : "⏳";
+        kontekst += `- ${status} ${oppg.name} — frist: ${frist} ${poeng}\n`;
+
+        if (oppg.description) {
+          const desc = stripHtml(oppg.description).trim();
+          if (desc.length > 0) {
+            kontekst += `  Beskrivelse: ${desc.substring(0, 300)}${desc.length > 300 ? "..." : ""}\n`;
+          }
+        }
+      }
+      kontekst += "\n";
+    }
+
+    // Kunngjøringer
+    if (matchedStructure.kunngjøringer.length > 0) {
+      kontekst += `KUNNGJØRINGER (${Math.min(matchedStructure.kunngjøringer.length, 5)} nyeste):\n`;
+      for (const k of matchedStructure.kunngjøringer.slice(0, 5)) {
+        const dato = k.posted_at ? new Date(k.posted_at).toLocaleDateString("nb-NO") : "";
+        kontekst += `- ${k.title} (${dato})\n`;
+        if (k.message) {
+          const melding = stripHtml(k.message).trim();
+          if (melding.length > 0) {
+            kontekst += `  ${melding.substring(0, 200)}${melding.length > 200 ? "..." : ""}\n`;
           }
         }
       }
     }
 
-    // Oppgaver
-    if (matchedStructure.oppgaver.length > 0) {
-      kontekst += `\nOPPGAVER (${matchedStructure.oppgaver.length}):\n`;
-      for (const oppg of matchedStructure.oppgaver) {
-        kontekst += `- ${oppg.name}`;
-        if (oppg.due_at) {
-          const frist = new Date(oppg.due_at);
-          const status = isCanvasAssignmentSubmitted(oppg) ? "✓ levert" : "⏳ ikke levert";
-          kontekst += ` — frist: ${frist.toLocaleDateString("nb-NO")} [${status}]`;
-        }
-        kontekst += "\n";
-      }
-    }
-
-    // Kunngjøringer
-    if (matchedStructure.kunngjøringer.length > 0) {
-      kontekst += `\nKUNNGJØRINGER (${matchedStructure.kunngjøringer.length}):\n`;
-      for (const k of matchedStructure.kunngjøringer) {
-        kontekst += `- ${k.title}`;
-        if (k.posted_at) {
-          kontekst += ` (${new Date(k.posted_at).toLocaleDateString("nb-NO")})`;
-        }
-        if (k.message) {
-          const stripped = stripHtml(k.message).slice(0, 200);
-          kontekst += `\n  ${stripped}`;
-        }
-        kontekst += "\n";
-      }
-    }
-
     kontekst += "[CANVAS-DATA SLUTT]";
+
+    // Ved modulspørsmål uten filinnhold: fall tilbake til API som henter PDF live
+    if (target.moduleHint && !hadModuleFileContent) {
+      logger.info(
+        { userId, target },
+        "Målrettet MongoDB: ingen filinnhold for modul — fallback til API",
+      );
+      return null;
+    }
+
     return kontekst;
   } catch (error) {
     logger.warn({ err: error, userId }, "Feil ved bygging av målrettet kontekst fra MongoDB");
