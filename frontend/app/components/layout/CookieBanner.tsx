@@ -68,6 +68,7 @@ export function CookieBanner() {
           Vi bruker nødvendige cookies og driftsmonitorering for innlogging, sikkerhet og feilsporing. Hvis du godtar det, aktiverer vi også valgfrie ytelsesmålinger.{" "}
           <Link
             href="/personvern"
+            prefetch={false}
             className="underline text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
           >
             Les mer i personvernerklæringen

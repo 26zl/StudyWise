@@ -79,7 +79,7 @@ export default function VilkarPage() {
       <InfoSection title="9. Kontakt">
         <p>
           Spørsmål om vilkårene kan rettes til oss via{" "}
-          <Link href="/kontakt" className="text-blue-500 hover:underline">
+          <Link href="/kontakt" prefetch={false} className="text-blue-500 hover:underline">
             kontaktskjemaet
           </Link>
           .

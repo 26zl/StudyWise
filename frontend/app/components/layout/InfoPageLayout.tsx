@@ -45,6 +45,7 @@ export function InfoPageLayout({
       <div className="mx-auto flex-1 w-full max-w-3xl px-4 py-12 sm:px-6 lg:max-w-5xl lg:px-8 xl:max-w-6xl">
         <Link
           href={backHref}
+          prefetch={false}
           className="mb-8 inline-flex items-center text-sm text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
         >
           {backLabel}

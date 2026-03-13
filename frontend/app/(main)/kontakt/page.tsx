@@ -84,7 +84,7 @@ export default function KontaktPage() {
             </h3>
             <p className="text-sm">
               Ja, alle sensitive data krypteres. Les mer på vår{" "}
-              <Link href="/sikkerhet" className="text-blue-500 hover:underline">
+              <Link href="/sikkerhet" prefetch={false} className="text-blue-500 hover:underline">
                 sikkerhetsside
               </Link>
               .

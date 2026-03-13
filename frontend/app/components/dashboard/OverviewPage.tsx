@@ -169,6 +169,7 @@ export function OversiktPage() {
               <div className="flex items-center gap-3">
                 <Link
                   href="/dashboard"
+                  prefetch={false}
                   className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
                 >
                   <MessageSquare size={18} />
@@ -292,6 +293,7 @@ export function OversiktPage() {
                       </div>
                       <Link
                         href="/dashboard?view=settings"
+                        prefetch={false}
                         className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
                       >
                         Gå til innstillinger
@@ -407,6 +409,7 @@ function QuickActionCard({
   return (
     <Link
       href={href}
+      prefetch={false}
       className={`block rounded-lg border p-6 transition-colors ${colorClasses[color]}`}
     >
       <Icon size={24} className={`mb-3 ${iconColorClasses[color]}`} />

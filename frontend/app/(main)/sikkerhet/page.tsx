@@ -136,7 +136,7 @@ export default function SikkerhetPage() {
         </ul>
         <p className="mt-4 text-sm">
           Mer om behandling av personopplysninger finner du i vår{" "}
-          <Link href="/personvern" className="text-blue-500 hover:underline">
+          <Link href="/personvern" prefetch={false} className="text-blue-500 hover:underline">
             personvernerklæring
           </Link>
           .
@@ -149,7 +149,7 @@ export default function SikkerhetPage() {
         </h2>
         <p className="text-sm text-amber-700 dark:text-amber-300">
           Har du oppdaget en sikkerhetssvakhet? Kontakt oss umiddelbart via{" "}
-          <Link href="/kontakt" className="underline hover:no-underline">
+          <Link href="/kontakt" prefetch={false} className="underline hover:no-underline">
             kontaktskjemaet
           </Link>
           . Vi tar alle rapporter på alvor og vil respondere raskt.
