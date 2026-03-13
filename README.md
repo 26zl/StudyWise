@@ -31,7 +31,8 @@ Produksjonsnettside - <https://www.studwize.page>
 - **Database**: MongoDB via Mongoose v9 for persistering og indekser
 - **Cache**: Redis for Canvas API-cache, sync-struktur, KI-sesjon og rate limiting. PDF/fil-innhold lagres kun i MongoDB.
 - **Vektorsøk**: Pinecone (serverless, integrated embedding); chunk-tekst i MongoDB som sannhetskilde
-- **KI**: Anthropic Claude, circuit breakers, request timeout
+- **Auth**: Clerk (autentisering og brukersynk)
+- **KI**: Anthropic Claude, Cohere reranking, circuit breakers, request timeout
 - **API**: Swagger UI + swagger-jsdoc, compression, Helmet, CORS
 - **Logging**: Pino + pino-http (redakterer PII)
 - **Filer**: Multer; tekst fra PDF/Word (unpdf, mammoth), OCR (tesseract.js, sharp)

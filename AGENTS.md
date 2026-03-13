@@ -30,7 +30,7 @@ StudyWise – AI-drevet studieveileder med Canvas LMS-integrasjon. pnpm-monorepo
 - **Logging**: `pino` + `pino-http`. Bruk ALLTID `logger.info/error`, ALDRI `console.log`
 - **Cache**: `redis`-klient mot Redis Cloud (Canvas API-cache, sync-struktur, KI-sesjon, rate limiting). **PDF/fil-innhold lagres aldri i Redis** — kun i MongoDB (ContentEmbedding); Redis brukes kun for struktur og session. Alle nøkler har TTL; sett **maxmemory-policy** til `allkeys-lru` for å unngå «nesten full»-varsler.
 - **Vektorsøk**: Pinecone (serverless-indeks med **integrated embedding**). Embeddings genereres av Pinecone; chunk-tekst lagres i MongoDB (`ContentEmbedding`) som sannhetskilde og sendes til Pinecone for indeksering.
-- **AI**: `@anthropic-ai/sdk` for Claude
+- **AI**: `@anthropic-ai/sdk` for Claude, `cohere-ai` for hybrid søk-reranking (rerank-v3.5)
 - **Feilhåndtering**: Standardisert via `backend/src/utils/apiError.ts`
 - **APM**: Datadog (`dd-trace`) — kreves i produksjon via `validateEnv()` og initialiseres i `backend/src/datadog.ts`; init er wrappet i try/catch slik at serveren fortsatt kan håndtere feil hvis tracer-oppsettet selv svikter. Frontend: RUM kjøres via `DatadogRum` når `DD_RUM_APPLICATION_ID`/`DD_RUM_CLIENT_TOKEN` eller `NEXT_PUBLIC_DD_RUM_APPLICATION_ID`/`NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN` er satt.
 - **Resiliens**: Circuit breakers for Canvas og Anthropic API (`backend/src/utils/circuitBreaker.ts`), request timeout-middleware (`backend/src/middleware/request-timeout.ts`)
@@ -133,7 +133,21 @@ Docker brukes **kun for lokal utvikling** — ikke i produksjon. Alle tjenester 
 5. Frontend validerer og viser data til brukeren
 ```
 
-Frontend kaller aldri eksterne APIer direkte. Alle forespørsler til `/api/*` proxyes via Next.js til backend (konfigurert i `next.config.js`).
+Frontend kaller aldri eksterne APIer direkte. Alle forespørsler til `/api/*` og `/health` proxyes via Next.js til backend (konfigurert i `next.config.js` via `INTERNAL_API_URL`; dev fallback til `http://localhost:4000`).
+
+### Auth-middleware-kjede
+
+Forespørsler autentiseres gjennom middleware i `backend/src/middleware/`:
+
+1. **`requireAuth`** (`auth.ts`) — Verifiserer Clerk Bearer-token (fra `Authorization`-header eller `x-clerk-auth-token` proxy-header), finner/oppretter MongoDB `User` via `clerkId`, setter `req.user` og `req.actorRole`
+2. **`knyttCanvasToken`** (`auth.ts`) — Knytter dekryptert Canvas API-token og base URL til `req.canvasToken` / `req.canvasBaseUrl`. Bruk `knyttCanvasTokenValgfritt` for ruter som fungerer med eller uten Canvas
+3. **`requireRole`** (`require-role.ts`) — RBAC-guard; sjekker `req.actorRole` mot tillatte roller
+
+Typisk rute-oppsett: `router.use(requireAuth)`, deretter `knyttCanvasToken` per rute der Canvas-tilgang trengs.
+
+### Audit-logging
+
+`backend/src/utils/auditLog.ts` — `audit()` skriver strukturerte hendelser til MongoDB (`AuditLog`-modell) med aktør, handling, kategori, utfall og request-metadata. Brukes for auth-feil, admin-handlinger og kontosletting. Importer `AUDIT_ACTIONS` for forhåndsdefinerte handlingskonstanter.
 
 ### Dashboard (SPA-container)
 
@@ -206,6 +220,9 @@ Backend tar imot filopplasting via `multer` og prosesserer med:
 - **Relative URLer** – frontend bruker `/api/...`, Next.js rewriter til backend
 - **Konfigurasjon**: Ikke endre tsconfig/eslint/next.config uten å spørre
 - **Norsk naming** – ruter, komponenter og variabler på norsk; filnavn på engelsk
+- **Host-validering** – I produksjon styrer `API_HOST` env-variabel hvilket hostname som er tillatt (f.eks. `api.studwize.page`). Direkte tilgang via `herokuapp.com` returnerer 403. `/health` er unntatt.
+- **CORS pre-check** – Origin-validering skjer før `cors()`-middleware for å unngå generiske 500-feil fra ugyldige origins
+- **Trust proxy** – Satt til `1` i Express for korrekt IP-håndtering bak Cloudflare/Heroku-proxyer
 - **Rate limiting** – bruk eksisterende `rateLimitKi`-middleware for KI-endepunkter; for andre sensitive endepunkter: `rate-limiter-flexible` (se `backend/src/middleware/rate-limit.ts`)
 - **Sikkerhetslint** – `pnpm lint` inkluderer `eslint-plugin-security` (SAST) i frontend og backend. Kjøres i CI.
 - **Toast** – frontend skal bruke `sonner` for varsler. Aldri `alert()` eller `confirm()`
@@ -284,6 +301,8 @@ onSave(subtasks.map(({ approved: _approved, ...task }) => task));
 - `backend/src/utils/htmlUtils.ts` — `stripHtml(html, { removeStyles?: boolean })`
 - `backend/src/utils/logger.ts` — Pino-logger singleton (redakterer PII automatisk)
 - `backend/src/utils/apiError.ts` — Standard feilrespons + `requireUserId()`
+- `backend/src/utils/auditLog.ts` — `audit()` + `AUDIT_ACTIONS` for strukturerte audit-hendelser
+- `backend/src/utils/kryptering.ts` — `encrypt()` / `decrypt()` for AES-256-GCM (Canvas-tokens, chat-historikk)
 
 **Frontend**:
 
@@ -326,6 +345,8 @@ Du trenger ikke endre `next.config.js` – alle `/api/*` proxyes til backend.
 pnpm install
 pnpm build   # Bygger common først!
 ```
+
+**Miljøvariabler**: Kopier `backend/.env.example` → `backend/.env` og fyll ut. Påkrevd: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`. Valgfritt: `PINECONE_*`, `COHERE_API_KEY`, `DD_*` (Datadog).
 
 ### CI (`.github/workflows/ci.yml`)
 

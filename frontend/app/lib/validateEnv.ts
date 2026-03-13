@@ -18,8 +18,11 @@ interface ValidateFrontendEnvOptions {
 /**
  * Validerer frontend miljøvariabler.
  * Ved feil kastes en feil med tydelig liste over manglende/ugyldige variabler.
+ * I CI hoppes valideringen over slik at build kan kjøre uten hemmelige nøkler.
  */
 export function validateFrontendEnv(options: ValidateFrontendEnvOptions = {}): void {
+    if (process.env.CI === "true") return;
+
     const requireInternalApiUrl =
         options.requireInternalApiUrl === true || process.env.NODE_ENV === "production";
     const requiredFrontendEnvVars = requireInternalApiUrl

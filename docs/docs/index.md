@@ -14,7 +14,7 @@ features:
   - title: Kalender og frister
     details: Kombinert kalendervisning med Canvas-frister og oppgaver, filtrert per semester og emne.
   - title: Sikkerhet og personvern
-    details: Ende-til-ende-kryptering av chat-historikk (AES-256-GCM), JWT-autentisering, rate-limiting og GDPR-bevisst dataflyt.
+    details: Ende-til-ende-kryptering av chat-historikk (AES-256-GCM), Clerk-autentisering, rate-limiting og GDPR-bevisst dataflyt.
 ---
 
 # Om prosjektet

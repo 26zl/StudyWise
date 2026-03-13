@@ -163,6 +163,7 @@ Common inneholder data-definisjoner og valideringsregler som deles mellom backen
 - `document.ts` - Dokumentanalyse schemas
 - `calendar.ts` - Kalender schemas
 - `calendar-ui.ts` - Kalender UI schemas
+- `dateUtils.ts` - Dato-hjelpefunksjoner (`getWeekNumber()`)
 
 ### Docs-pakken
 
@@ -256,7 +257,11 @@ Du trenger IKKE endre `next.config.js` for nye endpoints - alt under `/api/*` se
 Bruk standardisert feilhåndtering fra `backend/src/utils/apiError.ts`:
 
 ```typescript
-import { apiError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
+import { apiError, sendZodError, sendUnknownError, requireUserId } from "../../utils/apiError.js";
+
+// Auth-guard (returnerer userId eller sender 401 og returnerer null)
+const userId = requireUserId(req, res);
+if (!userId) return;
 
 // Autentiseringsfeil
 apiError.unauthorized(res, "Du må logge inn");
