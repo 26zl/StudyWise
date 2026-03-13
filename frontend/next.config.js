@@ -5,6 +5,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 let rewritesLogged = false;
+const CLERK_CUSTOM_ORIGINS = [
+  "https://clerk.studwize.page",
+  "https://accounts.studwize.page",
+];
 
 function getApiUrl() {
   const configuredApiUrl = process.env.INTERNAL_API_URL?.trim();
@@ -86,6 +90,12 @@ function buildCspValue() {
     "https://challenges.cloudflare.com",
     "https://*.clerk.accounts.dev",
   ];
+
+  for (const origin of CLERK_CUSTOM_ORIGINS) {
+    scriptSrc.push(origin);
+    connectSrc.push(origin);
+    frameSrc.push(origin);
+  }
 
   if (clerkFrontendApiOrigin) {
     scriptSrc.push(clerkFrontendApiOrigin);

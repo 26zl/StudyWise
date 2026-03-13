@@ -10,7 +10,7 @@ import type { UserRole } from "common/auth";
 import type { IUser } from "../../database/models/User.js";
 import { getConfiguredWebOrigins } from "../../utils/webOrigins.js";
 
-const DEFAULT_ROLE: UserRole = "student";
+const DEFAULT_ROLE: UserRole = "user";
 const CLERK_PROFILE_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
 type ClerkProfile = {

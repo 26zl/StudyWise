@@ -30,7 +30,7 @@ export interface IUser extends Document {
     clerkProfileSyncedAt?: Date;
     /** Soft-delete tombstone for å hindre re-oppretting via Clerk etter kontosletting. */
     deletedAt?: Date;
-    /** RBAC-rolle. Standard student. */
+    /** RBAC-rolle. Standard user. */
     role: UserRole;
     firstName?: string;
     lastName?: string;
@@ -69,7 +69,7 @@ const UserSchema: Schema = new Schema(
         role: {
             type: String,
             enum: APP_ROLES,
-            default: "student",
+            default: "user",
         },
         firstName: {
             type: String,

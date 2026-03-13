@@ -13,7 +13,7 @@ export function requireRole(...allowedRoles: UserRole[]) {
       apiError.unauthorized(res, "Påkrevd innlogging");
       return;
     }
-    const role = req.actorRole ?? "student";
+    const role = req.actorRole ?? "user";
     if (!set.has(role)) {
       await audit({
         actorUserId: req.user.id,

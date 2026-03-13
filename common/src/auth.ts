@@ -81,8 +81,8 @@ export const CanvasContextPreferencesSchema = z.object({
   events: z.boolean(),
 });
 
-/** RBAC: kun student og admin. */
-export const APP_ROLES = ["student", "admin"] as const;
+/** RBAC: kun vanlig bruker og admin. */
+export const APP_ROLES = ["user", "admin"] as const;
 export type UserRole = (typeof APP_ROLES)[number];
 export const RoleSchema = z.enum(APP_ROLES);
 
@@ -153,7 +153,7 @@ export const AuthBrukerSchema = z.object({
   canvasBaseUrl: CanvasBaseUrlSchema.optional().nullable(),
   canvasContextPreferences: CanvasContextPreferencesSchema.optional(),
   varslerState: VarslerStateSchema.optional(),
-  /** RBAC-rolle (student, admin). */
+  /** RBAC-rolle (user, admin). */
   role: RoleSchema.optional(),
 });
 

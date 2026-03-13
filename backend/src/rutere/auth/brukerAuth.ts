@@ -388,7 +388,7 @@ router.get("/me", rateLimitMe, async (req, res) => {
                 canvasBaseUrl: bruker.canvasBaseUrl ?? null,
                 canvasContextPreferences: preferences,
                 varslerState,
-                role: bruker.role ?? "student",
+                role: bruker.role ?? "user",
             }),
         }));
     } catch (error) {

@@ -83,26 +83,26 @@ const migrations: Migration[] = [
   },
   {
     id: "2026-03-12-add-user-role-and-clerk",
-    description: "Sett role til 'student' for brukere uten role (RBAC + Clerk)",
+    description: "Sett role til 'user' for brukere uten role (RBAC + Clerk)",
     up: async () => {
       const { User } = await import("./models/User.js");
       const result = await User.updateMany(
         { $or: [{ role: { $exists: false } }, { role: null }] },
-        { $set: { role: "student" } },
+        { $set: { role: "user" } },
       );
       logger.info({ modifiedCount: result.modifiedCount }, "Migrasjon: brukere oppdatert med role");
     },
   },
   {
     id: "2026-03-12-remove-support-role",
-    description: "Fjern support-rollen: sett brukere med role 'support' til 'student'",
+    description: "Fjern support-rollen: sett brukere med role 'support' til 'user'",
     up: async () => {
       const { User } = await import("./models/User.js");
       const result = await User.updateMany(
         { role: "support" },
-        { $set: { role: "student" } },
+        { $set: { role: "user" } },
       );
-      logger.info({ modifiedCount: result.modifiedCount }, "Migrasjon: support-brukere satt til student");
+      logger.info({ modifiedCount: result.modifiedCount }, "Migrasjon: support-brukere satt til user");
     },
   },
   {
@@ -188,6 +188,18 @@ const migrations: Migration[] = [
       if (!hasRequestId) return;
       await col.dropIndex("requestId_1");
       logger.info("Migrasjon: requestId_1 droppet på auditlogs (erstattes av sparse ved createIndexes)");
+    },
+  },
+  {
+    id: "2026-03-13-rename-student-role-to-user",
+    description: "Bytt RBAC-rolle fra 'student' til 'user' for eksisterende brukere",
+    up: async () => {
+      const { User } = await import("./models/User.js");
+      const result = await User.updateMany(
+        { role: "student" },
+        { $set: { role: "user" } },
+      );
+      logger.info({ modifiedCount: result.modifiedCount }, "Migrasjon: student-brukere satt til user");
     },
   },
 ];

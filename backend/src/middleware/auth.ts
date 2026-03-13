@@ -38,7 +38,7 @@ const hentAuthToken = (req: Request): string | null => {
   return hentBearerToken(req) ?? hentClerkProxyToken(req);
 };
 
-const DEFAULT_ROLE: UserRole = "student";
+const DEFAULT_ROLE: UserRole = "user";
 
 export interface CanvasTilkobling {
   canvasToken?: string;
