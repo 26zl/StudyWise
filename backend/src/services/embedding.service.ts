@@ -529,9 +529,11 @@ export async function deleteMissingFilesForCourse(
       { $project: { _id: 0, fileIds: 1 } },
     ]);
     const toRemove = agg[0]?.fileIds ?? [];
+    const removableFileIds: number[] = [];
     for (const fileId of toRemove) {
       try {
         await pineconeDeleteByFilter({ userId, courseId, fileId });
+        removableFileIds.push(fileId);
       } catch (error) {
         logger.warn(
           { err: error, userId, courseId, fileId },
@@ -539,10 +541,13 @@ export async function deleteMissingFilesForCourse(
         );
       }
     }
+    if (removableFileIds.length === 0) {
+      return 0;
+    }
     const result = await ContentEmbedding.deleteMany({
       userId,
       courseId,
-      fileId: { $nin: keepFileIds },
+      fileId: { $in: removableFileIds },
     });
     return result.deletedCount;
   }

@@ -81,6 +81,115 @@ const migrations: Migration[] = [
       logger.info({ updated }, "ContentEmbedding-migrering fullført");
     },
   },
+  {
+    id: "2026-03-12-add-user-role-and-clerk",
+    description: "Sett role til 'student' for brukere uten role (RBAC + Clerk)",
+    up: async () => {
+      const { User } = await import("./models/User.js");
+      const result = await User.updateMany(
+        { $or: [{ role: { $exists: false } }, { role: null }] },
+        { $set: { role: "student" } },
+      );
+      logger.info({ modifiedCount: result.modifiedCount }, "Migrasjon: brukere oppdatert med role");
+    },
+  },
+  {
+    id: "2026-03-12-remove-support-role",
+    description: "Fjern support-rollen: sett brukere med role 'support' til 'student'",
+    up: async () => {
+      const { User } = await import("./models/User.js");
+      const result = await User.updateMany(
+        { role: "support" },
+        { $set: { role: "student" } },
+      );
+      logger.info({ modifiedCount: result.modifiedCount }, "Migrasjon: support-brukere satt til student");
+    },
+  },
+  {
+    id: "2026-03-12-remove-legacy-refresh-token-fields",
+    description: "Fjern gamle refresh-token-felt etter overgang til Clerk-only auth",
+    up: async () => {
+      const col = mongoose.connection.collection("users");
+      const result = await col.updateMany(
+        {
+          $or: [
+            { refreshTokenHash: { $exists: true } },
+            { refreshTokenExpiresAt: { $exists: true } },
+          ],
+        },
+        {
+          $unset: {
+            refreshTokenHash: 1,
+            refreshTokenExpiresAt: 1,
+          },
+        },
+      );
+      logger.info(
+        { modifiedCount: result.modifiedCount },
+        "Migrasjon: legacy refresh-token-felt fjernet",
+      );
+    },
+  },
+  {
+    id: "2026-03-13-remove-legacy-password-hashes",
+    description: "Fjern gamle passwordHash-felt etter overgang til Clerk-only auth",
+    up: async () => {
+      const col = mongoose.connection.collection("users");
+      const result = await col.updateMany(
+        { passwordHash: { $exists: true } },
+        {
+          $unset: {
+            passwordHash: 1,
+          },
+        },
+      );
+      logger.info(
+        { modifiedCount: result.modifiedCount },
+        "Migrasjon: legacy passwordHash-felt fjernet",
+      );
+    },
+  },
+  {
+    id: "2026-03-13-revoke-legacy-chat-share-links",
+    description: "Trekk tilbake gamle chat-delingslenker og rydd legacy share-felt",
+    up: async () => {
+      const { ChatHistory } = await import("./models/ChatHistory.js");
+      const result = await ChatHistory.updateMany(
+        {
+          $or: [
+            { shareToken: { $exists: true } },
+            { isShared: true, sharedSnapshot: { $exists: false } },
+          ],
+        },
+        {
+          $set: { isShared: false },
+          $unset: {
+            shareToken: 1,
+            shareTokenHash: 1,
+            sharedAt: 1,
+            shareExpiresAt: 1,
+            sharedSnapshot: 1,
+          },
+        },
+      );
+      logger.info(
+        { modifiedCount: result.modifiedCount },
+        "Migrasjon: legacy chat-delinger trukket tilbake",
+      );
+    },
+  },
+  {
+    id: "2026-03-13-auditlog-drop-requestid-index",
+    description: "Dropp gammel requestId_1-indeks på AuditLog for å erstatte med sparse variant",
+    up: async () => {
+      const col = mongoose.connection.collection("auditlogs");
+      const indexes = await col.indexes();
+      const hasRequestId = indexes.some((idx) => idx.name === "requestId_1");
+      if (!hasRequestId) return;
+      await col.dropIndex("requestId_1");
+      logger.info("Migrasjon: requestId_1 droppet på auditlogs (erstattes av sparse ved createIndexes)");
+    },
+  },
 ];
 
 /**

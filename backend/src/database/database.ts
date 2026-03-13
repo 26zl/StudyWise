@@ -5,6 +5,8 @@
 
 import mongoose from "mongoose";
 import { logger } from "../utils/logger.js";
+import { AuditLog } from "./models/AuditLog.js";
+import { Arbeidsplan } from "./models/arbeidsplan.js";
 import { CanvasUser } from "./models/CanvasUser.js";
 import { ChatHistory } from "./models/ChatHistory.js";
 import { ContentEmbedding } from "./models/ContentEmbedding.js";
@@ -36,6 +38,8 @@ const clientOptions: mongoose.ConnectOptions = {
 async function ensureDatabaseIndexes() {
     await Promise.all([
         User.createIndexes(),
+        AuditLog.createIndexes(),
+        Arbeidsplan.createIndexes(),
         CanvasUser.createIndexes(),
         ChatHistory.createIndexes(),
         ContentEmbedding.createIndexes(),

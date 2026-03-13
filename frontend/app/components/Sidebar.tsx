@@ -192,11 +192,12 @@ export function Sidebar({
                                 Ingen samtaler ennå
                             </div>
                         ) : (
-                            chats.slice(0, 5).map((chat, index) => (
+                            chats.slice(0, 5).map((chat) => (
                                 (() => {
                                     const erAktivSamtale = currentChatId === chat.id;
-                                    const erNyesteSamtale = index === 0;
-                                    const visPågåendeMarkering = erNyesteSamtale && erAktivSamtale && runningChatId === chat.id;
+                                    const erPåChatSide = pathname === "/dashboard" && aktivVisning === "chat";
+                                    // Marker aktivt: på chat-siden vises valgt samtale, på andre sider kun hvis KI jobber i bakgrunnen
+                                    const visPågåendeMarkering = erAktivSamtale && (erPåChatSide || runningChatId === chat.id);
                                     return (
                                         <button
                                             key={chat.id}

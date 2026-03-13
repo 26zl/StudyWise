@@ -11,17 +11,20 @@ import { Send, Bot, Download, Copy, Share2, RefreshCw, ThumbsUp, ThumbsDown, Mor
 import { LoadingSpinner } from "./LoadingSpinner";
 import { showToast } from "./Toaster";
 import { AttachmentStrip } from "./AttachmentStrip";
+import { ChatShareModal } from "./ChatShareModal";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
 import { CodeBlock } from "./CodeBlock";
 import { SmartSuggestions } from "./SmartSuggestions";
+import { ChatShareResponseSchema } from "common/chat";
 import { streamKIChat, useKIDocumentAnalyse, useKITestTilkobling, SUPPORTED_FILE_TYPES, getKIErrorMessage, getKIBannerForError, type KIErrorContext } from "../ki/ki-api";
 import { useChatHistory } from "../hooks/useChatHistory";
 import { FeilMelding, type FeilMeldingType } from "./FeilMelding";
 import { useUIStore } from "../store/uiStore";
 import { exportToMarkdown } from "../utils/exportChat";
-import { withCsrfProtection } from "../lib/csrf";
+import { fetchApi } from "../lib/apiClient";
+import { parseApiError } from "../lib/errorUtils";
 
 /** Én melding i chatten (bruker eller assistent), med id og evt. vedleggsnavn. */
 interface Melding {
@@ -89,6 +92,7 @@ function createPendingRequestId() {
     return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+
 /** Bygger payload (rolle + innhold) for saveChat fra pending state. */
 function buildPendingPayload(pending: PendingConversationState) {
     return [
@@ -154,6 +158,8 @@ export function ChatSection() {
     const [analyserarDokument, settAnalysererDokument] = useState(false);
     const [aktivChatId, setAktivChatId] = useState<string | null>(null);
     const [animerendeMeldingId, settAnimerendeMeldingId] = useState<string | null>(null);
+    const [viserShareModal, setViserShareModal] = useState(false);
+    const [oppretterDeling, setOppretterDeling] = useState(false);
 
     const meldingsContainerRef = useRef<HTMLDivElement>(null);
     const meldingerSluttRef = useRef<HTMLDivElement>(null);
@@ -239,6 +245,7 @@ export function ChatSection() {
 
     // Chat history hook (lagret i DB, kryptert i backend)
     const { saveChat, loadChat: loadChatById, loading, chats } = useChatHistory();
+    const aktivChat = aktivChatId ? chats.find((chat) => chat.id === aktivChatId) : undefined;
 
     // Auto-scroll kun når brukeren allerede er nær bunnen.
     const erNaerBunn = useCallback(() => {
@@ -1066,9 +1073,84 @@ export function ChatSection() {
 
     const sisteAssistentsvar =
         [...meldinger].reverse().find((melding) => melding.rolle === "assistant")?.innhold ?? "";
+    const delingsTittel =
+        aktivChat?.title?.trim() ||
+        meldinger.find((melding) => melding.rolle === "user")?.innhold?.trim().slice(0, 50) ||
+        "Samtale";
+
+    const opprettDelingslenke = useCallback(async () => {
+        if (oppretterDeling) return;
+        setOppretterDeling(true);
+        try {
+            let chatId = aktivChatId;
+
+            if (!chatId && meldingerRef.current.length > 0) {
+                const titleFromFirst =
+                    meldingerRef.current.find((melding) => melding.rolle === "user")?.innhold?.trim().slice(0, 50) ||
+                    "Ny samtale";
+                const savedChatId = await saveChat(
+                    meldingerRef.current.map((melding) => ({
+                        rolle: melding.rolle,
+                        innhold: melding.innhold,
+                    })),
+                    undefined,
+                    titleFromFirst,
+                    { silent: true, retryCount: 1 },
+                );
+
+                if (savedChatId) {
+                    chatId = savedChatId;
+                    settAktivSamtale(savedChatId);
+                }
+            }
+
+            if (!chatId) {
+                showToast.info("Lagre samtalen først for å dele den.");
+                return;
+            }
+
+            const res = await fetchApi(`/api/ki/chat/${chatId}/share`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ shareMode: "full_chat" }),
+            });
+
+            if (!res.ok) {
+                throw new Error(await parseApiError(res, "Kunne ikke dele chatten."));
+            }
+
+            const data = ChatShareResponseSchema.parse(await res.json());
+            const fullUrl = `${window.location.origin}${data.shareUrl}`;
+            await navigator.clipboard.writeText(fullUrl);
+            showToast.success(
+                "Delingslenke kopiert",
+                "Lenken viser hele samtalen slik den ser ut na. Alle med lenken kan lese bruker- og KI-meldinger.",
+            );
+            setViserShareModal(false);
+        } catch (error) {
+            const meldingTekst = error instanceof Error
+                ? error.message
+                : "Kunne ikke dele chatten";
+            showToast.error(meldingTekst);
+        } finally {
+            setOppretterDeling(false);
+        }
+    }, [aktivChatId, oppretterDeling, saveChat, settAktivSamtale]);
 
     return (
         <div className="h-full flex">
+            <ChatShareModal
+                isOpen={viserShareModal}
+                onClose={() => {
+                    if (!oppretterDeling) {
+                        setViserShareModal(false);
+                    }
+                }}
+                onConfirm={opprettDelingslenke}
+                isPending={oppretterDeling}
+                chatTitle={delingsTittel}
+                messageCount={meldinger.length}
+            />
             {/* Main Chat Area */}
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Meldinger */}
@@ -1217,27 +1299,9 @@ export function ChatSection() {
                                         <div className="flex items-center gap-0.5">
                                             <button
                                                 type="button"
-                                                onClick={async () => {
-                                                    if (!aktivChatId) {
-                                                        showToast.info("Lagre samtalen først for å dele den.");
-                                                        return;
-                                                    }
-                                                    try {
-                                                        const res = await fetch(`/api/ki/chat/${aktivChatId}/share`, {
-                                                            credentials: "include",
-                                                            ...withCsrfProtection({ method: "POST" }),
-                                                        });
-                                                        if (!res.ok) throw new Error();
-                                                        const data = await res.json();
-                                                        const fullUrl = `${window.location.origin}${data.shareUrl}`;
-                                                        await navigator.clipboard.writeText(fullUrl);
-                                                        showToast.success("Delingslenke kopiert!");
-                                                    } catch {
-                                                        showToast.error("Kunne ikke dele samtalen");
-                                                    }
-                                                }}
+                                                onClick={() => setViserShareModal(true)}
                                                 className={actionBtnClass}
-                                                title="Del"
+                                                title="Del hele chatten"
                                             >
                                                 <Share2 className="w-4 h-4" />
                                             </button>

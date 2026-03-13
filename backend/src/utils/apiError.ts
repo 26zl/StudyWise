@@ -19,6 +19,7 @@ export interface ApiErrorResponse {
 export type ApiErrorCode =
     | "validation_error"
     | "auth_error"
+    | "forbidden"
     | "not_found"
     | "conflict"
     | "rate_limited"
@@ -30,6 +31,7 @@ export type ApiErrorCode =
 const ERROR_CODE_STATUS: Record<ApiErrorCode, number> = {
     validation_error: 400,
     auth_error: 401,
+    forbidden: 403,
     not_found: 404,
     conflict: 409,
     rate_limited: 429,
@@ -42,6 +44,7 @@ const ERROR_CODE_STATUS: Record<ApiErrorCode, number> = {
 const ERROR_MESSAGES: Record<ApiErrorCode, string> = {
     validation_error: "Ugyldig forespørsel",
     auth_error: "Ikke autentisert",
+    forbidden: "Manglende tilgang",
     not_found: "Ressurs ikke funnet",
     conflict: "Konflikt med eksisterende data",
     rate_limited: "For mange forespørsler",
@@ -126,6 +129,10 @@ export const apiError = {
     // Autentisering
     unauthorized: (res: Response, melding?: string) =>
         sendError(res, "auth_error", { melding }),
+
+    // Autorisering (rolle/tilgang)
+    forbidden: (res: Response, melding?: string) =>
+        sendError(res, "forbidden", { melding: melding ?? "Manglende tilgang" }),
 
     // Validering
     badRequest: (res: Response, feil: string, detaljer?: unknown) =>

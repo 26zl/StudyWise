@@ -7,11 +7,24 @@
 "use client";
 
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { useAuth } from "@clerk/nextjs";
 import { useAuthSync } from "./hooks/use-auth-sync";
+import { setClerkGetToken } from "./lib/clerkTokenForApi";
 import { setDatadogUser, clearDatadogUser } from "./components/DatadogRum";
+import { AUTH_ME_QUERY_KEY } from "./auth/auth-api";
 import type { MeResponse } from "common/auth";
+
+// Gir backend API tilgang til Clerk session token (for brukere som logger inn med Clerk)
+function ClerkTokenSync() {
+  const { getToken } = useAuth();
+  useEffect(() => {
+    setClerkGetToken(() => getToken());
+    return () => setClerkGetToken(null);
+  }, [getToken]);
+  return null;
+}
 
 // Komponent for å lytte etter utlogging i andre faner
 function AuthSyncListener() {
@@ -22,24 +35,42 @@ function AuthSyncListener() {
 // Synkroniserer Datadog RUM bruker-ID med auth-status
 function DatadogUserSync() {
   const queryClient = useQueryClient();
-  const prevUserIdRef = useRef<string | null>(null);
+  const { isLoaded, userId: clerkUserId } = useAuth();
+
+  const syncDatadogUser = useCallback(() => {
+    if (!isLoaded) return;
+
+    if (!clerkUserId) {
+      try { clearDatadogUser(); } catch { /* Datadog RUM ikke kritisk */ }
+      return;
+    }
+
+    const meData = queryClient.getQueryData<MeResponse>(AUTH_ME_QUERY_KEY);
+    const datadogUser =
+      meData?.user?.id != null
+        ? { id: clerkUserId, studywiseUserId: meData.user.id }
+        : { id: clerkUserId };
+
+    try {
+      setDatadogUser(datadogUser);
+    } catch {
+      // Datadog RUM er ikke kritisk – la appen fortsette
+    }
+  }, [clerkUserId, isLoaded, queryClient]);
 
   useEffect(() => {
-    const unsubscribe = queryClient.getQueryCache().subscribe(() => {
-      const meData = queryClient.getQueryData<MeResponse>(["auth", "me"]);
-      const userId = meData?.user?.id ?? null;
+    syncDatadogUser();
+  }, [syncDatadogUser]);
 
-      if (userId !== prevUserIdRef.current) {
-        prevUserIdRef.current = userId;
-        if (userId) {
-          setDatadogUser(userId);
-        } else {
-          clearDatadogUser();
-        }
+  useEffect(() => {
+    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+      // Kun oppdater Datadog-bruker når auth-data endres, ikke ved alle cache-events
+      if (event?.query?.queryKey?.[0] === AUTH_ME_QUERY_KEY[0]) {
+        syncDatadogUser();
       }
     });
     return unsubscribe;
-  }, [queryClient]);
+  }, [queryClient, syncDatadogUser]);
 
   return null;
 }
@@ -67,6 +98,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <NuqsAdapter>
+        <ClerkTokenSync />
         <AuthSyncListener />
         <DatadogUserSync />
         {children}

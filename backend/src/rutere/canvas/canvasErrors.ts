@@ -3,13 +3,10 @@
  * Bruker delte typer fra common/canvasErrors
  */
 
-// Re-eksporter alt fra common for enkel import
+// Re-eksporter brukte symboler fra common
 export {
-  CanvasErrorCodeSchema,
-  CanvasErrorResponseSchema,
   type CanvasErrorCode,
   type CanvasErrorResponse,
-  requiresReauth,
   isRecoverableError,
   classifyHttpStatus,
   getErrorMessage,

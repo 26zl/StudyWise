@@ -187,7 +187,7 @@ export function AITaskBreakdown({
             // persistSubtasks håndterer toast selv
           }
 
-          showToast.success(`Claude genererte ${data.subtasks.length} deloppgaver!`);
+          showToast.success(`KI-assistenten genererte ${data.subtasks.length} deloppgaver!`);
         },
         onError: (error) => {
           setIsGenerating(false);
@@ -396,12 +396,12 @@ export function AITaskBreakdown({
                 <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400 mt-0.5 shrink-0" />
                 <div className="flex-1">
                   <h4 className="text-sm font-semibold text-purple-900 dark:text-purple-100 mb-1">
-                    Claude AI har generert {subtasks.length} deloppgaver for deg
+                    KI-assistenten har generert {subtasks.length} deloppgaver for deg
                   </h4>
                   <p className="text-xs text-purple-700 dark:text-purple-300 mb-3">
                     Gå gjennom forslagene og godkjenn, avvis, eller rediger dem etter din arbeidsstil.
                   </p>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       onClick={approveAll}
                       className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
@@ -429,18 +429,18 @@ export function AITaskBreakdown({
           )}
 
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Sparkles className="w-5 h-5 shrink-0 text-purple-600 dark:text-purple-400" />
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white truncate">
                 KI-foreslåtte deloppgaver
               </h3>
-              <span className="text-sm text-slate-500 dark:text-slate-400">
-                ({stats.approved}/{stats.total} godkjent)
+              <span className="text-sm text-slate-500 dark:text-slate-400 shrink-0">
+                ({stats.approved}/{stats.total})
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={generateSubtasks}
                 disabled={isBusy}
@@ -455,17 +455,19 @@ export function AITaskBreakdown({
                 className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
               >
                 <Plus className="w-4 h-4" />
-                Ny oppgave
+                <span className="hidden xs:inline">Ny oppgave</span>
+                <span className="xs:hidden">Ny</span>
               </button>
 
               {/* ARBEIDSPLAN KNAPP */}
               {stats.approved > 0 && (
                 <button
                   onClick={() => setShowWorkplanModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors"
                 >
                   <CalendarIcon className="w-4 h-4" />
-                  Legg til i arbeidsplan ({stats.approved})
+                  <span className="hidden sm:inline">Legg til i arbeidsplan ({stats.approved})</span>
+                  <span className="sm:hidden">Arbeidsplan ({stats.approved})</span>
                 </button>
               )}
             </div>
@@ -542,7 +544,7 @@ export function AITaskBreakdown({
                     {task.approved && (
                       <button
                         onClick={() => toggleComplete(task.id)}
-                        className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                        className={`mt-0.5 w-5 h-5 shrink-0 rounded border-2 flex items-center justify-center transition-all ${
                           task.completed
                             ? "bg-green-500 border-green-500"
                             : "border-slate-300 dark:border-slate-600 hover:border-green-500"
@@ -556,8 +558,8 @@ export function AITaskBreakdown({
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-3 mb-2">
-                        <h4 className={`font-medium text-slate-900 dark:text-white ${
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 sm:gap-3 mb-2">
+                        <h4 className={`font-medium text-slate-900 dark:text-white break-words ${
                           task.completed ? "line-through opacity-60" : ""
                         }`}>
                           {task.title}

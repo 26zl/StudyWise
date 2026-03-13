@@ -619,22 +619,43 @@ export async function clearUserCanvasRuntimeState(userId: string): Promise<void>
  * Invaliderer all cachet Canvas-data og lagret KI-innhold for en bruker.
  * Brukes når brukeren oppdaterer eller sletter sitt Canvas-token.
  */
-export async function invalidateUserCanvasCache(userId: string): Promise<void> {
-  try {
-    const tasks: Array<Promise<unknown>> = [
-      deleteStoredUserContent(userId),
-      invalidateUserKISessionCache(userId),
-    ];
+export async function invalidateUserCanvasCache(
+  userId: string,
+  options: { strictContentDeletion?: boolean } = {},
+): Promise<{ contentEmbeddingDeleted: number }> {
+  const { strictContentDeletion = false } = options;
+  const tasks = {
+    contentDeletion: deleteStoredUserContent(userId),
+    sessionInvalidation: invalidateUserKISessionCache(userId),
+    redisInvalidation: isRedisReady()
+      ? invalidateCacheByPattern(`canvas:user:${userId}:*`)
+      : Promise.resolve(),
+  };
 
-    if (isRedisReady()) {
-      tasks.push(invalidateCacheByPattern(`canvas:user:${userId}:*`));
+  const [contentResult, sessionResult, redisResult] = await Promise.allSettled([
+    tasks.contentDeletion,
+    tasks.sessionInvalidation,
+    tasks.redisInvalidation,
+  ]);
+
+  if (contentResult.status === "rejected") {
+    logger.warn({ err: contentResult.reason, userId }, "Feil ved sletting av lagret Canvas-/KI-innhold");
+    if (strictContentDeletion) {
+      throw contentResult.reason;
     }
-
-    await Promise.allSettled(tasks);
-    logger.info({ userId }, "Canvas- og KI-data invalidert for bruker");
-  } catch (error) {
-    logger.warn({ err: error, userId }, "Feil ved invalidering av Canvas-/KI-data");
   }
+
+  if (sessionResult.status === "rejected") {
+    logger.warn({ err: sessionResult.reason, userId }, "Feil ved invalidering av KI-sesjonscache");
+  }
+
+  if (redisResult.status === "rejected") {
+    logger.warn({ err: redisResult.reason, userId }, "Feil ved invalidering av Canvas-cache i Redis");
+  }
+
+  const contentEmbeddingDeleted = contentResult.status === "fulfilled" ? contentResult.value : 0;
+  logger.info({ userId, contentEmbeddingDeleted }, "Canvas- og KI-data invalidert for bruker");
+  return { contentEmbeddingDeleted };
 }
 
 /**

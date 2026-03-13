@@ -223,7 +223,7 @@ async function callAnthropic(options: {
                 messages: sdkMessages,
                 maxOutputTokens: max_tokens,
                 temperature: Math.min(Math.max(temperature, 0), 1),
-                onFinish: ({ usage }) => {
+                onFinish: ({ usage }: { usage: { cachedInputTokens?: number; inputTokens?: number; outputTokens?: number } }) => {
                     // cachedInputTokens er innebygd i LanguageModelUsage (ai@6)
                     if (usage.cachedInputTokens) {
                         logger.info(

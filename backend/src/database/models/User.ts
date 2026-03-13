@@ -1,5 +1,11 @@
 import mongoose, { Schema, Document } from 'mongoose';
-import { normalizeCanvasBaseUrl } from "common/auth";
+import {
+    normalizeCanvasBaseUrl,
+    type UserRole,
+    APP_ROLES,
+    createDefaultCanvasContextPreferences,
+    createDefaultVarslerState,
+} from "common/auth";
 
 const SHA256_HEX_REGEX = /^[a-f0-9]{64}$/i;
 
@@ -18,15 +24,20 @@ export interface IVarslerState {
 
 export interface IUser extends Document {
     email: string;
-    passwordHash: string;
+    /** Clerk user id (f.eks. user_xxx) for brukere som logger inn via Clerk. */
+    clerkId?: string;
+    /** Sist lokal profil ble synkronisert fra Clerk. */
+    clerkProfileSyncedAt?: Date;
+    /** Soft-delete tombstone for å hindre re-oppretting via Clerk etter kontosletting. */
+    deletedAt?: Date;
+    /** RBAC-rolle. Standard student. */
+    role: UserRole;
     firstName?: string;
     lastName?: string;
     canvasApiToken?: string; // Kryptert token
     canvasBaseUrl?: string; // Canvas-instans for brukerens institusjon (multi-tenant, f.eks. https://ntnu.instructure.com)
     canvasTokenHash?: string; // Hash av token for rask sammenligning
     canvasUser?: mongoose.Types.ObjectId;
-    refreshTokenHash?: string;
-    refreshTokenExpiresAt?: Date;
     // Brukerpreferanser for AI Canvas-kontekst
     canvasContextPreferences?: ICanvasContextPreferences;
     varslerState?: IVarslerState;
@@ -43,9 +54,22 @@ const UserSchema: Schema = new Schema(
             trim: true,
             lowercase: true,
         },
-        passwordHash: {
+        clerkId: {
             type: String,
-            required: true,
+            trim: true,
+        },
+        clerkProfileSyncedAt: {
+            type: Date,
+            default: undefined,
+        },
+        deletedAt: {
+            type: Date,
+            default: undefined,
+        },
+        role: {
+            type: String,
+            enum: APP_ROLES,
+            default: "student",
         },
         firstName: {
             type: String,
@@ -75,14 +99,6 @@ const UserSchema: Schema = new Schema(
             ref: 'CanvasUser',
             required: false,
         },
-        refreshTokenHash: {
-            type: String,
-            select: false,
-            match: SHA256_HEX_REGEX,
-        },
-        refreshTokenExpiresAt: {
-            type: Date,
-        },
         canvasContextPreferences: {
             type: {
                 announcements: { type: Boolean, default: true },
@@ -90,28 +106,23 @@ const UserSchema: Schema = new Schema(
                 assignments: { type: Boolean, default: true },
                 events: { type: Boolean, default: true },
             },
-            default: {
-                announcements: true,
-                courses: true,
-                assignments: true,
-                events: true,
-            },
+            default: createDefaultCanvasContextPreferences,
         },
         varslerState: {
             type: {
                 lestIds: { type: [String], default: [] },
                 toastVistIds: { type: [String], default: [] },
             },
-            default: {
-                lestIds: [],
-                toastVistIds: [],
-            },
+            default: createDefaultVarslerState,
         },
     },
     {
         timestamps: true,
     }
 );
+
+// Clerk-brukere slås opp på clerkId
+UserSchema.index({ clerkId: 1 }, { unique: true, sparse: true, name: "clerk_id_unique" });
 
 // Merk: email har allerede indeks via unique: true.
 // Canvas-token må være tenant-aware, så vi bruker sammensatt indeks.

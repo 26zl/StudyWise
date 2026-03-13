@@ -5,8 +5,8 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
-import { withCsrfProtection } from "../lib/csrf";
-import type { StudyBlock } from "common/arbeidsplan";
+import { fetchApi } from "../lib/apiClient";
+import { StudyBlockSchema, type StudyBlock } from "common/arbeidsplan";
 import { UKEDAGER } from "common/arbeidsplan";
 export const DAYS_ORDER: string[] = [...UKEDAGER];
 export type { StudyBlock } from "common/arbeidsplan";
@@ -45,10 +45,22 @@ export interface ProgressStats {
   completedHours: number;
 }
 
+const ArbeidsplanSchema = z.object({
+  _id: z.string(),
+  userId: z.string(),
+  week: z.string(),
+  weekNumber: z.number(),
+  year: z.number(),
+  blocks: z.array(StudyBlockSchema),
+  totalHours: z.number(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
 // Response schemas
 const ArbeidsplanResponseSchema = z.object({
   suksess: z.boolean(),
-  data: z.unknown().nullable(),
+  data: ArbeidsplanSchema.nullable(),
   melding: z.string().optional(),
 });
 
@@ -65,9 +77,7 @@ const ProgressResponseSchema = z.object({
 
 // API funksjoner
 async function fetchArbeidsplan(url: string): Promise<Arbeidsplan | null> {
-  const res = await fetch(url, {
-    credentials: "include",
-  });
+  const res = await fetchApi(url, { method: "GET" });
 
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`);
@@ -85,12 +95,11 @@ async function createArbeidsplan(data: {
   blocks: StudyBlock[];
   totalHours: number;
 }): Promise<Arbeidsplan> {
-  const res = await fetch("/api/arbeidsplan", withCsrfProtection({
+  const res = await fetchApi("/api/arbeidsplan", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
     body: JSON.stringify(data),
-  }));
+  });
 
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`);
@@ -106,12 +115,11 @@ async function updateBlock(
   blockIndex: number,
   completed: boolean
 ): Promise<Arbeidsplan> {
-  const res = await fetch(`/api/arbeidsplan/${planId}/block`, withCsrfProtection({
+  const res = await fetchApi(`/api/arbeidsplan/${planId}/block`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
     body: JSON.stringify({ blockIndex, completed }),
-  }));
+  });
 
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`);
@@ -123,10 +131,9 @@ async function updateBlock(
 }
 
 async function deleteArbeidsplan(planId: string): Promise<void> {
-  const res = await fetch(`/api/arbeidsplan/${planId}`, withCsrfProtection({
+  const res = await fetchApi(`/api/arbeidsplan/${planId}`, {
     method: "DELETE",
-    credentials: "include",
-  }));
+  });
 
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`);
@@ -134,9 +141,7 @@ async function deleteArbeidsplan(planId: string): Promise<void> {
 }
 
 async function fetchProgress(): Promise<ProgressStats> {
-  const res = await fetch("/api/arbeidsplan/stats/progress", {
-    credentials: "include",
-  });
+  const res = await fetchApi("/api/arbeidsplan/stats/progress", { method: "GET" });
 
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`);

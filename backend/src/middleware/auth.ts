@@ -1,145 +1,112 @@
-/*
-* Middleware for autentisering og autorisering ved bruk av JWT (JSON Web Tokens).
-* Inkluderer funksjoner for å hente tokens fra cookies eller Authorization headers,
-* verifisere tokens, og knytte bruker- og Canvas API-token til request-objektet.
-*/
+/**
+ * Clerk-only auth middleware.
+ * Verifies Bearer token with Clerk, syncs user to MongoDB, sets req.user and req.actorRole.
+ */
 
 import { Request, Response, NextFunction } from "express";
-import jwt, { JwtPayload } from "jsonwebtoken";
 import { User } from "../database/models/User.js";
 import { decrypt } from "../utils/kryptering.js";
 import { logger } from "../utils/logger.js";
 import { apiError } from "../utils/apiError.js";
-import { isProd } from "../utils/env.js";
-import type { JwtBrukerPayload } from "../typer/express.js";
 import { normalizeCanvasBaseUrl } from "common/auth";
+import type { UserRole } from "common/auth";
+import { getClerkUserIdFromToken, findOrCreateUserByClerkId } from "../rutere/auth/clerkAuth.js";
+import { audit, AUDIT_ACTIONS } from "../utils/auditLog.js";
 
-// Påkrevd av validateEnv ved serverstart; ingen fallback (én sannhetskilde).
-export const JWT_COOKIE_NAVN = process.env.JWT_COOKIE_NAVN!;
-export const JWT_REFRESH_COOKIE_NAVN = process.env.JWT_REFRESH_COOKIE_NAVN!;
-export const JWT_TILGANG_UTLOPER = process.env.JWT_ACCESS_EXPIRES!;
-export const JWT_REFRESH_UTLOPER = process.env.JWT_REFRESH_EXPIRES!;
+const hentBearerToken = (req: Request): string | null => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return null;
+  const [type, token] = authHeader.split(" ");
+  if (type !== "Bearer" || !token) return null;
+  return token;
+};
 
-// Parse utløpstid til millisekunder for cookie maxAge
-function parseUtlopTilMs(utlopStreng: string, defaultMs: number): number {
-    const match = utlopStreng.match(/^(\d+)([smhd])$/);
-    if (!match) return defaultMs;
-    const verdi = parseInt(match[1], 10);
-    const enhet = match[2];
-    switch (enhet) {
-        case "s": return verdi * 1000;
-        case "m": return verdi * 60 * 1000;
-        case "h": return verdi * 60 * 60 * 1000;
-        case "d": return verdi * 24 * 60 * 60 * 1000;
-        default: return defaultMs;
-    }
+const DEFAULT_ROLE: UserRole = "student";
+
+export interface CanvasTilkobling {
+  canvasToken?: string;
+  canvasBaseUrl?: string;
 }
 
-// Millisekunder for cookie maxAge (beregnet fra utløpsstrenger)
-export const JWT_TILGANG_MS = parseUtlopTilMs(JWT_TILGANG_UTLOPER, 30 * 60 * 1000);
-export const JWT_REFRESH_MS = parseUtlopTilMs(JWT_REFRESH_UTLOPER, 14 * 24 * 60 * 60 * 1000);
-
-// Hent token fra Authorization header
-const hentBearerToken = (req: Request): string | null => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return null;
-    const [type, token] = authHeader.split(" ");
-    if (type !== "Bearer" || !token) return null;
-    return token;
-};
-
-// Hent cookie-verdi fra request
-export const hentCookieVerdi = (req: Request, cookieNavn: string): string | null => {
-    const cookieHeader = req.headers.cookie;
-    if (!cookieHeader) return null;
-    const cookies = cookieHeader.split(";").map((cookie) => cookie.trim());
-    for (const cookie of cookies) {
-        if (!cookie.startsWith(`${cookieNavn}=`)) continue;
-        const value = cookie.slice(cookieNavn.length + 1);
-        try {
-            return decodeURIComponent(value);
-        } catch {
-            return value;
-        }
-    }
+export async function hentCanvasTilkoblingForBruker(
+  userId: string,
+): Promise<CanvasTilkobling | null> {
+  const user = await User.findById(userId).select("+canvasApiToken");
+  if (!user) {
     return null;
-};
+  }
 
-// Type guard for å sjekke om payload er av typen JwtBrukerPayload
-const erGyldigBrukerPayload = (payload: string | JwtPayload): payload is JwtBrukerPayload => {
-    return typeof payload === "object" && payload !== null && "id" in payload;
-};
+  return {
+    canvasToken: user.canvasApiToken ? decrypt(user.canvasApiToken) : undefined,
+    canvasBaseUrl: user.canvasBaseUrl
+      ? normalizeCanvasBaseUrl(user.canvasBaseUrl)
+      : undefined,
+  };
+}
 
-// Sett cookies for tilgangs- og refresh-tokens
-export const settTilgangsCookie = (res: Response, token: string) => {
-    res.cookie(JWT_COOKIE_NAVN, token, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? "none" : "lax",
-        maxAge: JWT_TILGANG_MS,
-        path: "/",
-    });
-};
+/**
+ * Clerk-only auth: requires Authorization: Bearer <clerk_session_token>.
+ * Verifies token, finds or creates user by clerkId, sets req.user and req.actorRole.
+ * On failure: audits token_verification_failure and returns 401.
+ */
+export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (req.method === "OPTIONS") {
+    next();
+    return;
+  }
 
-// Setter refresh-token cookie
-export const settRefreshCookie = (res: Response, token: string) => {
-    res.cookie(JWT_REFRESH_COOKIE_NAVN, token, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? "none" : "lax",
-        maxAge: JWT_REFRESH_MS,
-        path: "/",
-    });
-};
+  const token = hentBearerToken(req);
+  if (!token) {
+    apiError.unauthorized(res, "Mangler Authorization: Bearer token");
+    return;
+  }
 
-// Fjern autentiseringscookies
-export const fjernAuthCookies = (res: Response) => {
-    res.clearCookie(JWT_COOKIE_NAVN, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? "none" : "lax",
-        path: "/",
-    });
-    res.clearCookie(JWT_REFRESH_COOKIE_NAVN, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? "none" : "lax",
-        path: "/",
-    });
-};
-
-// Middleware for å autentisere JWT og knytte brukerinfo til request
-export const autentiserJwt = (req: Request, res: Response, next: NextFunction) => {
-    if (req.method === "OPTIONS") {
-        return next();
-    }
-    const token = hentBearerToken(req) ?? hentCookieVerdi(req, JWT_COOKIE_NAVN);
-
-    if (!token) {
-        return apiError.unauthorized(res, "Ingen JWT token gitt");
+  try {
+    const clerkUserId = await getClerkUserIdFromToken(token);
+    if (!clerkUserId) {
+      await audit({
+        actorUserId: "anonymous",
+        action: AUDIT_ACTIONS.TOKEN_VERIFICATION_FAILURE,
+        category: "auth",
+        outcome: "failure",
+        metadata: { reason: "invalid_or_expired" },
+        req,
+      });
+      apiError.unauthorized(res, "Ugyldig eller utløpt token");
+      return;
     }
 
-    if (!process.env.JWT_ACCESS_SECRET) {
-        logger.error("JWT_ACCESS_SECRET er ikke definert i miljøvariabler");
-        return apiError.serverError(res);
+    const user = await findOrCreateUserByClerkId(clerkUserId);
+    if (!user) {
+      await audit({
+        actorUserId: clerkUserId,
+        action: AUDIT_ACTIONS.TOKEN_VERIFICATION_FAILURE,
+        category: "auth",
+        outcome: "failure",
+        metadata: { reason: "user_sync_failed" },
+        req,
+      });
+      apiError.unauthorized(res, "Kunne ikke verifisere bruker");
+      return;
     }
-    // Verifiser JWT-token
-    jwt.verify(token, process.env.JWT_ACCESS_SECRET, { algorithms: ["HS256"] }, (err, payload) => {
-        if (err || !payload || typeof payload === "string") {
-            return apiError.unauthorized(res, "Ugyldig eller utløpt token");
-        }
-        if (!erGyldigBrukerPayload(payload)) {
-            return apiError.unauthorized(res, "Ugyldig token-payload");
-        }
-        // Token-type KREVES for å forhindre misbruk av refresh-tokens som access-tokens
-        if (!payload.tokenType || payload.tokenType !== "access") {
-            return apiError.unauthorized(res, "Ugyldig token-type");
-        }
 
-        req.user = { id: payload.id };
-        next();
+    const role = (user.role ?? DEFAULT_ROLE) as UserRole;
+    req.user = { id: user._id.toString() };
+    (req as Request & { actorRole: UserRole }).actorRole = role;
+    next();
+  } catch (err) {
+    logger.warn({ err, requestId: (req as Request & { id?: string }).id }, "requireAuth error");
+    await audit({
+      actorUserId: "anonymous",
+      action: AUDIT_ACTIONS.TOKEN_VERIFICATION_FAILURE,
+      category: "auth",
+      outcome: "failure",
+      metadata: { reason: "exception" },
+      req,
     });
-};
+    apiError.unauthorized(res, "Autentisering feilet");
+  }
+}
 
 // Middleware for å knytte Canvas API-token til request
 export const knyttCanvasToken = async (req: Request, res: Response, next: NextFunction) => {
@@ -147,18 +114,13 @@ export const knyttCanvasToken = async (req: Request, res: Response, next: NextFu
         return apiError.unauthorized(res);
     }
     try {
-        const user = await User.findById(req.user.id).select("+canvasApiToken");
-        if (!user) {
+        const canvasTilkobling = await hentCanvasTilkoblingForBruker(req.user.id);
+        if (!canvasTilkobling) {
             return apiError.unauthorized(res, "Ugyldig bruker");
         }
 
-        if (user?.canvasApiToken) {
-            const decryptedToken = decrypt(user.canvasApiToken);
-            req.canvasToken = decryptedToken;
-        }
-        req.canvasBaseUrl = user.canvasBaseUrl
-            ? normalizeCanvasBaseUrl(user.canvasBaseUrl)
-            : undefined;
+        req.canvasToken = canvasTilkobling.canvasToken;
+        req.canvasBaseUrl = canvasTilkobling.canvasBaseUrl;
     } catch (error) {
         logger.error({ err: error, userId: req.user.id }, "Feil ved henting av Canvas token for bruker");
         return next(error);

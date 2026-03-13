@@ -14,27 +14,17 @@ import {
 } from "common/auth";
 import { sendError } from "../utils/apiError.js";
 import { isProd } from "../utils/env.js";
+import { getConfiguredWebOriginSet, normalizeWebOrigin } from "../utils/webOrigins.js";
 
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-// Hent tillatte origins fra miljøvariabler (WEB_ORIGINS), som er en kommaseparert liste over gyldige frontend-origins.
 function getAllowedOrigins(): Set<string> {
-  return new Set(
-    (process.env.WEB_ORIGINS ?? process.env.WEB_ORIGIN ?? "")
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean),
-  );
+  return getConfiguredWebOriginSet();
 }
 
 // Hjelpefunksjon for å ekstrahere origin fra Referer-headeren, hvis Origin-headeren mangler (f.eks. i noen SSR-scenarier).
 function getOriginFromReferer(referer: string | undefined): string | null {
-  if (!referer) return null;
-  try {
-    return new URL(referer).origin;
-  } catch {
-    return null;
-  }
+  return normalizeWebOrigin(referer);
 }
 
 // Send 403 Forbidden med en melding om CSRF-feil.
@@ -56,16 +46,18 @@ export function beskytteMotCsrf(
     return next();
   }
 
-  const origin = req.get("origin");
-  const refererOrigin = getOriginFromReferer(req.get("referer"));
+  const rawOrigin = req.get("origin");
+  const rawReferer = req.get("referer");
+  const origin = normalizeWebOrigin(rawOrigin);
+  const refererOrigin = getOriginFromReferer(rawReferer);
 
   // I dev: tillat same-origin (f.eks. Swagger UI på /api-docs som kaller samme server)
   if (!isProd) {
     const host = req.get("host");
-    if (host) {
-      const backendOrigin = `${req.protocol}://${host}`.toLowerCase();
-      const o = (origin || refererOrigin || "").toLowerCase();
-      if (o === backendOrigin) return next();
+    const backendOrigin = host ? normalizeWebOrigin(`${req.protocol}://${host}`) : null;
+    if (backendOrigin) {
+      const requestOrigin = origin ?? refererOrigin;
+      if (requestOrigin === backendOrigin) return next();
     }
   }
 
@@ -73,6 +65,14 @@ export function beskytteMotCsrf(
   const csrfHeader = req.get(AUTH_CSRF_HEADER_NAME);
   if (csrfHeader !== AUTH_CSRF_HEADER_VALUE) {
     return rejectCsrf(res, "Mangler gyldig CSRF-beskyttelse.");
+  }
+
+  if (rawOrigin && !origin) {
+    return rejectCsrf(res, "Ugyldig origin for foresporselen.");
+  }
+
+  if (!rawOrigin && rawReferer && !refererOrigin) {
+    return rejectCsrf(res, "Ugyldig referer for foresporselen.");
   }
 
   // Ekstra sjekk: origin/referer må komme fra tillatte frontend-origins (WEB_ORIGINS).

@@ -91,7 +91,7 @@ export function WeeklyPlanSuggestions({
           if (!isMountedRef.current) return;
           setPlan(data);
           showToast.success(
-            `Claude genererte en ukeplan med ${data.blocks.length} studieøkter!`,
+            `KI-assistenten genererte en ukeplan med ${data.blocks.length} studieøkter!`,
           );
         },
         onError: (mutationError) => {
@@ -162,7 +162,7 @@ export function WeeklyPlanSuggestions({
               KI Ukeplangenerator
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 max-w-md mx-auto">
-              La Claude AI analysere dine Canvas-oppgaver og lage en optimal studieukeplan.
+              La KI-assistenten analysere dine Canvas-oppgaver og lage en optimal studieukeplan.
               Du kan deretter velge hvilke studieblokker du vil legge til i din arbeidsplan.
             </p>
             <button
@@ -191,7 +191,7 @@ export function WeeklyPlanSuggestions({
           <LoadingSpinner className="w-12 h-12" />
           <div>
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-              Claude AI genererer ukeplan...
+              KI-assistenten genererer ukeplan...
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               Analyserer oppgaver, frister og kompleksitet
@@ -396,7 +396,7 @@ export function WeeklyPlanSuggestions({
             <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
             <div>
               <h4 className="font-semibold text-sm text-blue-900 dark:text-blue-300 mb-2">
-                Studietips fra Claude AI
+                Studietips fra KI-assistenten
               </h4>
               <ul className="space-y-1 text-sm text-blue-700 dark:text-blue-300">
                 {plan.tips.map((tip, index) => (

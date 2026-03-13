@@ -23,9 +23,9 @@ import {
   type TaskBreakdownGenerateRequest,
   type WeeklyPlanGenerateRequest,
 } from "common/ki";
-import { fornySesjon } from "../auth/auth-api";
 import { parseApiError } from "../lib/errorUtils";
-import { withCsrfProtection } from "../lib/csrf";
+import { fetchApi } from "../lib/apiClient";
+import { ForbiddenError } from "../lib/errors";
 
 // Eksporter typer
 export type { KIChatResponse, KIMessage } from "common/ki";
@@ -251,10 +251,28 @@ function erTekniskFeilmelding(msg: string): boolean {
   );
 }
 
-function classifyKIError(message: string, status?: number): KIErrorCategory {
+/** Klassifiserer KI-feil: sjekker error.name først, deretter HTTP-status, deretter meldingsinnhold. */
+function classifyKIError(
+  message: string,
+  status?: number,
+  errorName?: string,
+): KIErrorCategory {
+  // 1. Sjekk error.name (spesialiserte feilklasser)
+  if (errorName === "KIAuthError") return "auth";
+  if (errorName === "KIConfigError") return "config";
+  if (errorName === "KIRateLimitError") return "rate_limit";
+  if (errorName === "KITimeoutError") return "timeout";
+  if (errorName === "KIServiceError") return "service";
+
+  // 2. Sjekk HTTP-status
+  if (status === 401) return "auth";
+  if (status === 429) return "rate_limit";
+  if (status === 504) return "timeout";
+  if (status === 500 || status === 502 || status === 503) return "service";
+
+  // 3. Sjekk meldingsinnhold
   const lower = message.trim().toLowerCase();
   if (
-    status === 401 ||
     lower.includes("logge inn på nytt") ||
     lower.includes("ikke autentisert") ||
     lower.includes("ingen jwt")
@@ -266,37 +284,17 @@ function classifyKIError(message: string, status?: number): KIErrorCategory {
     lower.includes("ikke konfigurert")
   )
     return "config";
-  if (
-    status === 429 ||
-    lower.includes("rate limit") ||
-    lower.includes("for mange forespørsler")
-  )
+  if (lower.includes("rate limit") || lower.includes("for mange forespørsler"))
     return "rate_limit";
-  if (
-    status === 504 ||
-    lower.includes("timeout") ||
-    lower.includes("tok for lang tid")
-  )
+  if (lower.includes("timeout") || lower.includes("tok for lang tid"))
     return "timeout";
   if (
-    status === 500 ||
-    status === 502 ||
-    status === 503 ||
     lower.includes("overbelastet") ||
     lower.includes("utilgjengelig") ||
     lower.includes("server")
   )
     return "service";
   return "unknown";
-}
-
-function categoryFromErrorName(name: string): KIErrorCategory | undefined {
-  if (name === "KIAuthError") return "auth";
-  if (name === "KIConfigError") return "config";
-  if (name === "KIRateLimitError") return "rate_limit";
-  if (name === "KITimeoutError") return "timeout";
-  if (name === "KIServiceError") return "service";
-  return undefined;
 }
 
 function getDisplayMessageForCategory(
@@ -312,7 +310,7 @@ function lagKIError(melding: string, status?: number): Error {
   if (erKredittMelding(normalisert)) {
     return new KIServiceError(normalisert);
   }
-  const category = classifyKIError(normalisert, status);
+  const category = classifyKIError(normalisert, status, undefined);
   const message =
     category === "unknown"
       ? normalisert || "Uventet feil fra KI-tjenesten."
@@ -345,8 +343,8 @@ export function getKIErrorMessage(
   const msg = error.message;
   if (erKredittMelding(msg)) return msg;
 
-  const category = categoryFromErrorName(error.name);
-  if (category) return getDisplayMessageForCategory(category, context);
+  const category = classifyKIError(msg, undefined, error.name);
+  if (category !== "unknown") return getDisplayMessageForCategory(category, context);
   if (msg.includes("for stor") || msg.includes("413"))
     return "Filen er for stor. Maksimal filstørrelse er 15 MB.";
   if (msg.includes("filtype") || msg.includes("støttes ikke"))
@@ -369,10 +367,7 @@ export function getKIBannerForError(error: Error): {
   const msg = error.message;
   if (erKredittMelding(msg)) return { melding: msg, type: "warning" };
 
-  let category = categoryFromErrorName(error.name);
-  if (!category && msg.toLowerCase().includes("overbelastet")) {
-    category = "service";
-  }
+  const category = classifyKIError(msg, undefined, error.name);
   if (category === "auth" || category === "config" || category === "rate_limit") {
     const melding =
       DISPLAY_MESSAGES[category].banner ??
@@ -478,34 +473,28 @@ async function parseKIResponse<T>(
   return schema.parse(data);
 }
 
-// Felles KI-klient: alle kall (inkl. POST/PUT/DELETE for chat, dokumentanalyse, etc.) får CSRF-header via withCsrfProtection.
+// Felles KI-klient: alle kall går via fetchApi slik at auth-header og CSRF holdes konsistent.
 async function requestKI<T>(
   endpoint: string,
   schema: ZodType<T>,
   init: RequestInit = {},
-  forsoktRefresh = false,
 ): Promise<T> {
-  const protectedInit = withCsrfProtection(init);
   let res: Response;
   try {
-    res = await fetch(`/api/ki${endpoint}`, {
-      credentials: "include",
-      cache: "no-store",
-      ...protectedInit,
-    });
+    res = await fetchApi(`/api/ki${endpoint}`, init);
   } catch {
     throw new KIServiceError(
       "Kunne ikke koble til KI-tjenesten. Sjekk internettforbindelsen din.",
     );
   }
 
-  if ((res.status === 401 || res.status === 403) && !forsoktRefresh) {
-    try {
-      await fornySesjon();
-    } catch {
+  if (res.status === 401 || res.status === 403) {
+    if (res.status === 401) {
       throw new KIAuthError("Du må logge inn på nytt for å bruke KI-assistenten.");
     }
-    return requestKI(endpoint, schema, init, true);
+    throw new ForbiddenError(
+      await parseApiError(res, "Du har ikke tilgang til KI-assistenten."),
+    );
   }
 
   await håndterKIFeilRespons(res);
@@ -602,20 +591,16 @@ export async function streamKIChat(
     temperature: options.temperature,
   };
 
-  const protectedInit = withCsrfProtection({
+  const requestInit: RequestInit = {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
     signal: options.signal,
-  });
+  };
 
   let res: Response;
   try {
-    res = await fetch("/api/ki/chat", {
-      credentials: "include",
-      cache: "no-store",
-      ...protectedInit,
-    });
+    res = await fetchApi("/api/ki/chat", requestInit);
   } catch {
     throw new KIServiceError(
       "Kunne ikke koble til KI-tjenesten. Sjekk internettforbindelsen din.",
@@ -623,14 +608,14 @@ export async function streamKIChat(
   }
 
   if (res.status === 401) {
-    try {
-      await fornySesjon();
-    } catch {
-      throw new KIAuthError(
-        "Du må logge inn på nytt for å bruke KI-assistenten.",
-      );
-    }
-    return streamKIChat(messages, { ...options, signal: options.signal });
+    throw new KIAuthError(
+      "Du må logge inn på nytt for å bruke KI-assistenten.",
+    );
+  }
+  if (res.status === 403) {
+    throw new ForbiddenError(
+      await parseApiError(res, "Du har ikke tilgang til KI-assistenten."),
+    );
   }
 
   await håndterKIFeilRespons(res);

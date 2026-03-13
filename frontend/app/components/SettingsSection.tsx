@@ -6,13 +6,16 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Moon, Sun, Key, User, Info, Trash2, MessageSquare, Bot, CheckCircle } from "lucide-react";
-import { CanvasTokenConflictError, useLagreCanvasToken, useSlettCanvasToken } from "../auth/auth-api";
+import Link from "next/link";
+import { Moon, Sun, Key, User, Info, Trash2, MessageSquare, Bot, CheckCircle, Shield, ExternalLink } from "lucide-react";
+import { useClerk } from "@clerk/nextjs";
+import { AUTH_ME_QUERY_KEY, CanvasTokenConflictError, useLagreCanvasToken, useSlettCanvasToken, useSlettKonto } from "../auth/auth-api";
 import { resetCanvasTokenStatus, useCanvasUser } from "../canvas/canvas-api";
 import { useTheme } from "next-themes";
 import { format } from "date-fns";
 import { nb } from "date-fns/locale";
 import { useChatHistory } from "../hooks/useChatHistory";
+import { broadcastLogout, clearClientAuthState } from "../hooks/use-auth-sync";
 import { showToast } from "./Toaster";
 import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
 import { CanvasContextSelector } from "./CanvasContextSelector";
@@ -104,6 +107,7 @@ export function SettingsSection({
     lokalBrukerEpost,
     canvasBaseUrl: brukerCanvasBaseUrl,
 }: SettingsSectionProps) {
+    const clerk = useClerk();
     const { setTheme, resolvedTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
 
@@ -131,8 +135,14 @@ export function SettingsSection({
         mutateAsync: slettToken,
         isPending: isSlettingToken,
     } = useSlettCanvasToken();
+    const {
+        mutateAsync: slettKonto,
+        isPending: isSlettingKonto,
+    } = useSlettKonto();
 
     const [visSlettBekreftelse, setVisSlettBekreftelse] = useState(false);
+    const [visKontoSletting, setVisKontoSletting] = useState(false);
+    const [kontoSlettBekreftelse, setKontoSlettBekreftelse] = useState("");
 
     const [cooldown, setCooldown] = useState(false);
     const cooldownTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -196,7 +206,7 @@ export function SettingsSection({
             // Nullstill token-feilstatus slik at Canvas-queries aktiveres igjen
             resetCanvasTokenStatus();
             // Invalidér queries for å hente data på nytt
-            queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+            queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY });
             queryClient.invalidateQueries({ queryKey: ["canvas"] });
             showToast.success("Canvas-token lagret", "Canvas-data blir tilgjengelig om kort tid.");
             // Sett cooldown for å hindre spamming (clear ved unmount)
@@ -227,12 +237,49 @@ export function SettingsSection({
             setVisSlettBekreftelse(false);
             setCanvasKonflikt(null);
             // Invalidér queries for å oppdatere UI
-            queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+            queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY });
             queryClient.invalidateQueries({ queryKey: ["canvas"] });
             showToast.success("Canvas-token slettet", "Canvas-tilkoblingen er fjernet.");
         } catch (err) {
             const feilmelding = lagBrukervennligFeilmelding(err instanceof Error ? err : null, { canvas: true });
             showToast.error("Kunne ikke slette token", feilmelding);
+        }
+    };
+
+    const handleSlettKonto = async () => {
+        const fullforLokalUtlogging = () => {
+            broadcastLogout();
+            clearClientAuthState(queryClient);
+            window.location.assign("/");
+        };
+
+        try {
+            const result = await slettKonto();
+
+            if (result.providerAccountDeleted) {
+                showToast.success("Konto slettet", "StudyWise-kontoen og tilknyttet data er slettet.");
+            } else {
+                showToast.warning(
+                    "StudyWise-konto slettet",
+                    "Dataene er slettet, men innloggingskontoen kunne ikke fjernes automatisk. Vi logger deg ut nå.",
+                );
+            }
+
+            // Alltid signOut fra Clerk slik at lokal sesjon fjernes og vi unngår 401-flyt på neste side lasting
+            try {
+                await clerk.signOut();
+            } catch {
+                showToast.error(
+                    "Manuell utlogging kreves",
+                    "StudyWise-dataene er slettet, men vi klarte ikke å avslutte innloggingssesjonen automatisk.",
+                );
+                return;
+            }
+
+            fullforLokalUtlogging();
+        } catch (err) {
+            const feilmelding = lagBrukervennligFeilmelding(err instanceof Error ? err : null, {}, "Prøv igjen.");
+            showToast.error("Kunne ikke slette konto", feilmelding);
         }
     };
 
@@ -328,6 +375,87 @@ export function SettingsSection({
                                 )}
                             </div>
                         </div>
+                    </section>
+
+                    {/* Konto og sikkerhet (Clerk: profil, 2FA, Google/Microsoft/Apple) */}
+                    <section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
+                                <Shield size={20} className="text-slate-600 dark:text-slate-300" />
+                            </div>
+                            <h3 className="font-semibold text-slate-900 dark:text-white">
+                                Konto og sikkerhet
+                            </h3>
+                        </div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                            Endre e-post, passord, aktiver to-faktor (2FA) og administrer tilkoblede innloggingsmetoder (Google, Microsoft, Apple). Dette håndteres av innloggingsleverandøren vår (Clerk).
+                        </p>
+                        <Link
+                            href="/profil"
+                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors"
+                        >
+                            Rediger profil og sikkerhet
+                            <ExternalLink size={14} />
+                        </Link>
+                    </section>
+
+                    <section className="p-6 md:p-8 rounded-xl border border-red-200 dark:border-red-900 bg-red-50/60 dark:bg-red-950/20">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/40">
+                                <Trash2 size={20} className="text-red-600 dark:text-red-300" />
+                            </div>
+                            <h3 className="font-semibold text-slate-900 dark:text-white">
+                                Slett konto
+                            </h3>
+                        </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                            Dette sletter StudyWise-kontoen din, Canvas-koblinger, preferanser, arbeidsplaner og samtalehistorikk. Handlingen kan ikke angres.
+                        </p>
+
+                        {!visKontoSletting ? (
+                            <button
+                                type="button"
+                                onClick={() => setVisKontoSletting(true)}
+                                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700"
+                            >
+                                <Trash2 size={16} />
+                                Start kontosletting
+                            </button>
+                        ) : (
+                            <div className="space-y-3 rounded-lg border border-red-200 dark:border-red-900 bg-white/80 dark:bg-slate-900/40 p-4">
+                                <p className="text-sm text-slate-700 dark:text-slate-300">
+                                    Skriv <span className="font-semibold">SLETT</span> for å bekrefte.
+                                </p>
+                                <input
+                                    type="text"
+                                    value={kontoSlettBekreftelse}
+                                    onChange={(e) => setKontoSlettBekreftelse(e.target.value)}
+                                    placeholder="SLETT"
+                                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
+                                />
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleSlettKonto()}
+                                        disabled={kontoSlettBekreftelse.trim().toUpperCase() !== "SLETT" || isSlettingKonto}
+                                        className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        {isSlettingKonto ? "Sletter konto..." : "Slett konto permanent"}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setVisKontoSletting(false);
+                                            setKontoSlettBekreftelse("");
+                                        }}
+                                        disabled={isSlettingKonto}
+                                        className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                                    >
+                                        Avbryt
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </section>
 
                     {/* Utseende */}

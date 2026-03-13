@@ -121,7 +121,7 @@ Backend har integrert Swagger UI: <http://localhost:4000/api-docs>
 
 - `GET /health` - Server health check
 - `GET /api/canvas/*` - Canvas LMS integrasjon (emner, oppgaver, moduler, kunngjøringer, kalender)
-- `/api/user/*` - Autentisering (login, register, refresh, logout)
+- `/api/user/*` - StudyWise-brukerdata (profil, preferanser, Canvas-token, logout, kontosletting). Innlogging og registrering håndteres av Clerk.
 - `/api/ki/*` - KI-assistenten (chat, dokumentanalyse, oppsummering, task breakdown)
 
 ### Canvas API

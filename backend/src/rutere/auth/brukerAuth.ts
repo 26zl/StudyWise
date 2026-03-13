@@ -1,9 +1,8 @@
 /*
- * Bruker Autentisering & Lokal Bruker Logikk
- * Håndterer registrering, innlogging, tokenlagring, tokenfornyelse,
- * og henting av brukerdata ved hjelp av JWT (JSON Web Tokens).
+ * Bruker-API: Clerk-only auth. Ruter er beskyttet av global requireAuth.
+ * GET /me, PUT /preferences, POST/DELETE /token, POST /logout.
  */
-import { Router, type Response } from "express";
+import { Router, type Request, type Response } from "express";
 import crypto from "crypto";
 import { User } from "../../database/models/User.js";
 import { CanvasUser } from "../../database/models/CanvasUser.js";
@@ -14,76 +13,36 @@ import { apiError, sendError, sendZodError, sendUnknownError } from "../../utils
 import { warmCanvasCache, fetchUserProfile } from "../canvas/canvasService.js";
 import { invalidateCacheByPattern } from "../../cache/redis.js";
 import {
-    clearUserCanvasRuntimeState,
-    invalidateUserCanvasCache,
+  clearUserCanvasRuntimeState,
+  invalidateUserCanvasCache,
 } from "../../services/canvas-sync.service.js";
 import {
-    CanvasTokenRequestSchema,
-    CanvasTokenResponseSchema,
-    CanvasContextPreferencesSchema,
-    PreferencesUpdateSchema,
-    AuthBrukerSchema,
-    LoginRequestSchema,
-    LoginResponseSchema,
-    RegisterRequestSchema,
-    RegisterResponseSchema,
-    MeResponseSchema,
-    LogoutResponseSchema,
-    RefreshResponseSchema,
-    VarslerStateSchema,
-    VARSLER_MAX_IDS,
+  CanvasTokenRequestSchema,
+  CanvasTokenResponseSchema,
+  CanvasContextPreferencesSchema,
+  PreferencesUpdateSchema,
+  PreferencesResponseSchema,
+  AccountDeletionResponseSchema,
+  AuthBrukerSchema,
+  MeResponseSchema,
+  LogoutResponseSchema,
+  createDefaultCanvasContextPreferences,
+  createDefaultVarslerState,
+  normalizeVarslerState,
 } from "common/auth";
-import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
-import {
-    autentiserJwt,
-    settTilgangsCookie,
-    settRefreshCookie,
-    fjernAuthCookies,
-    hentCookieVerdi,
-    JWT_REFRESH_COOKIE_NAVN,
-    JWT_TILGANG_UTLOPER,
-    JWT_REFRESH_UTLOPER,
-    JWT_REFRESH_MS,
-} from "../../middleware/auth.js";
-import { rateLimitToken, rateLimitAuth, rateLimitMe, rateLimitRefresh } from "../../middleware/rate-limit.js";
+import { rateLimitToken, rateLimitMe, rateLimitAccountDeletion } from "../../middleware/rate-limit.js";
 import { noCache } from "../../middleware/no-cache.js";
+import {
+  audit,
+  AUDIT_ACTIONS,
+  anonymizeAuditTrailForDeletedUser,
+  getDeletedAuditActorId,
+} from "../../utils/auditLog.js";
+import { deleteAccountData } from "./kontoSlett.js";
 import type { CanvasApiError } from "../canvas/canvasErrors.js";
 
 const router = Router();
 const SHA256_HEX_REGEX = /^[a-f0-9]{64}$/i;
-
-const DEFAULT_CANVAS_CONTEXT_PREFERENCES: {
-    announcements: boolean;
-    courses: boolean;
-    assignments: boolean;
-    events: boolean;
-} = {
-    announcements: true,
-    courses: true,
-    assignments: true,
-    events: true,
-};
-
-const DEFAULT_VARSLER_STATE: {
-    lestIds: string[];
-    toastVistIds: string[];
-} = {
-    lestIds: [],
-    toastVistIds: [],
-};
-
-/** Samme mønster som frontend (useVarsler, uiStore): dedupliser deretter slice(-VARSLER_MAX_IDS) slik at lagret state er konsistent. */
-function getSanitizedVarslerState(
-    varslerState?: { lestIds?: readonly string[]; toastVistIds?: readonly string[] } | null,
-) {
-    const lest = varslerState?.lestIds ?? [];
-    const toast = varslerState?.toastVistIds ?? [];
-    return VarslerStateSchema.parse({
-        lestIds: Array.from(new Set(lest)).slice(-VARSLER_MAX_IDS),
-        toastVistIds: Array.from(new Set(toast)).slice(-VARSLER_MAX_IDS),
-    });
-}
 
 // Ikke cache auth-responser i browser eller mellomlagring
 router.use(noCache);
@@ -189,150 +148,32 @@ async function invalidateStoredCanvasDataForUser(userId: string, encryptedToken?
 }
 
 /**
- * Henter autentisert bruker fra DB med valgfrie select-felter.
- * Returnerer bruker, eller sender 401 og returnerer null.
+ * Henter autentisert bruker fra DB. Returnerer bruker eller sender 401 og null.
  */
 async function hentAutentisertBruker(
-    userId: string | undefined,
-    res: Response,
-    selectFields?: string,
+  userId: string | undefined,
+  res: Response,
+  selectFields?: string,
 ) {
-    if (!userId) {
-        apiError.unauthorized(res);
-        return null;
-    }
-    const query = User.findById(userId);
-    if (selectFields) query.select(selectFields);
-    const bruker = await query;
-    if (!bruker) {
-        fjernAuthCookies(res);
-        apiError.unauthorized(res, "Bruker eksisterer ikke lenger.");
-        return null;
-    }
-    return bruker;
+  if (!userId) {
+    apiError.unauthorized(res);
+    return null;
+  }
+  const query = User.findById(userId);
+  if (selectFields) query.select(selectFields);
+  const bruker = await query;
+  if (!bruker) {
+    apiError.unauthorized(res, "Bruker eksisterer ikke lenger.");
+    return null;
+  }
+  return bruker;
 }
 
-// Hent JWT secrets fra miljøvariabler (validert ved oppstart i validateEnv.ts)
-const hentJwtSecrets = () => {
-    const tilgangSecret = process.env.JWT_ACCESS_SECRET;
-    const refreshSecret = process.env.JWT_REFRESH_SECRET;
-
-    if (!tilgangSecret) {
-        throw new Error("JWT_ACCESS_SECRET mangler");
-    }
-    if (!refreshSecret) {
-        throw new Error("JWT_REFRESH_SECRET mangler - bruk en separat hemmelighet for refresh tokens");
-    }
-
-    return { tilgangSecret, refreshSecret };
-};
-
-// E-post kommer canonicalisert (trim + lowercase) fra common EmailSchema; ingen egen normalisering nødvendig.
-
-// POST /register
-// Registrerer en ny bruker med e-post og passord.
-router.post("/register", rateLimitAuth, async (req, res) => {
-    try {
-        const parsed = RegisterRequestSchema.parse(req.body);
-        const { email, password, firstName, lastName } = parsed;
-
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
-            return apiError.conflict(res, "En bruker med denne e-postadressen eksisterer allerede.");
-        }
-        const passwordHash = await bcrypt.hash(password, 10);
-        const user = await User.create({
-            email,
-            passwordHash,
-            firstName,
-            lastName,
-        });
-        logger.info({ userId: user._id }, "Ny bruker registrert");
-        return res.status(201).json(RegisterResponseSchema.parse({
-            melding: "Bruker opprettet",
-            userId: user._id.toString(),
-        }));
-    } catch (error) {
-        if (error instanceof ZodError) {
-            return sendZodError(res, error, "Registrering");
-        }
-        return sendUnknownError(res, error, { kontekst: "registrering", melding: "Kunne ikke fullføre registrering. Prøv igjen." });
-    }
-});
-
-// POST /login
-// Logger inn en bruker og utsteder JWT tokens.
-router.post("/login", rateLimitAuth, async (req, res) => {
-    try {
-        const { email, password } = LoginRequestSchema.parse(req.body);
-        const user = await User.findOne({ email }).select("+canvasApiToken +canvasBaseUrl");
-        if (!user) {
-            // Logg mislykket forsøk for audit trail (uten å avsløre om brukeren finnes)
-            logger.warn({ email: "[REDACTED]", reason: "user_not_found" }, "Mislykket innloggingsforsøk");
-            return apiError.unauthorized(res, "Ugyldig e-postadresse eller passord.");
-        }
-        const match = await bcrypt.compare(password, user.passwordHash);
-        if (!match) {
-            // Logg mislykket forsøk for audit trail (bruker finnes, feil passord)
-            logger.warn({ userId: user._id, reason: "invalid_password" }, "Mislykket innloggingsforsøk");
-            return apiError.unauthorized(res, "Ugyldig e-postadresse eller passord.");
-        }
-        // JWT secrets er validert ved oppstart i validateEnv.ts
-        const { tilgangSecret, refreshSecret } = hentJwtSecrets();
-        const tilgangsToken = jwt.sign(
-            { id: user._id, tokenType: "access" },
-            tilgangSecret,
-            { expiresIn: JWT_TILGANG_UTLOPER as jwt.SignOptions["expiresIn"] }
-        );
-        const refreshToken = jwt.sign(
-            { id: user._id, tokenType: "refresh" },
-            refreshSecret,
-            { expiresIn: JWT_REFRESH_UTLOPER as jwt.SignOptions["expiresIn"] }
-        );
-        const harCanvasToken = !!user.canvasApiToken;
-        user.refreshTokenHash = hashToken(refreshToken);
-        user.refreshTokenExpiresAt = new Date(Date.now() + JWT_REFRESH_MS);
-        await user.save();
-        settTilgangsCookie(res, tilgangsToken);
-        settRefreshCookie(res, refreshToken);
-
-        // Varm opp cache i bakgrunnen hvis bruker har Canvas-token (ikke blokker respons)
-        if (harCanvasToken && user.canvasApiToken && user.canvasBaseUrl) {
-            const decryptedToken = decrypt(user.canvasApiToken);
-            warmCanvasCache(decryptedToken, user.canvasBaseUrl).catch((err) => {
-                // Logg feil men ikke blokker - cache warming er ikke kritisk
-                logger.warn({ err, userId: user._id }, "Cache warming feilet ved innlogging (ikke kritisk)");
-            });
-        } else if (harCanvasToken) {
-            logger.error({ userId: user._id }, "Bruker har Canvas-token uten canvasBaseUrl");
-        }
-
-        return res.json(LoginResponseSchema.parse({
-            melding: "Innlogging vellykket",
-            user: AuthBrukerSchema.parse({
-                id: user._id.toString(),
-                email: user.email,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                hasCanvasToken: harCanvasToken,
-                canvasBaseUrl: user.canvasBaseUrl ?? null,
-                canvasContextPreferences: user.canvasContextPreferences || DEFAULT_CANVAS_CONTEXT_PREFERENCES,
-                varslerState: getSanitizedVarslerState(user.varslerState),
-            })
-        }));
-    } catch (error) {
-        if (error instanceof ZodError) {
-            return sendZodError(res, error, "Innlogging");
-        }
-        return sendUnknownError(res, error, { kontekst: "innlogging", melding: "Kunne ikke logge inn. Prøv igjen." });
-    }
-});
-
-// POST /token (Beskyttet rute)
+// POST /token (Beskyttet av global requireAuth)
 // Lagre brukerens personlige Canvas API Token sikkert.
 // Query params:
 //   - force=true: Tving re-kobling av Canvas-konto fra annen bruker
-router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
+router.post("/token", rateLimitToken, async (req, res) => {
     try {
         const parsed = CanvasTokenRequestSchema.parse(req.body);
         const { token, canvasBaseUrl } = parsed;
@@ -356,6 +197,7 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         const nyTokenHash = hashToken(cleanToken);
         // Sjekk om tokenet er i bruk av en ANNEN bruker (samme token-hash = samme Canvas-konto)
         const eksisterendeTokenBruker = await User.findOne({
+            canvasBaseUrl,
             canvasTokenHash: nyTokenHash,
             _id: { $ne: userId },
         });
@@ -441,6 +283,14 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         bruker.canvasBaseUrl = canvasBaseUrl;
         await bruker.save();
         logger.info({ userId }, "Canvas token lagret for bruker");
+        await audit({
+          actorUserId: userId,
+          action: gammeltKryptertToken ? AUDIT_ACTIONS.CANVAS_TOKEN_UPDATED : AUDIT_ACTIONS.CANVAS_TOKEN_CREATED,
+          category: "integration",
+          outcome: "success",
+          role: req.actorRole,
+          req,
+        });
 
         // Invalider cache ETTER lagring — slik at nytt token allerede er persistert
         await invalidateStoredCanvasDataForUser(userId.toString(), gammeltKryptertToken);
@@ -467,8 +317,7 @@ router.post("/token", autentiserJwt, rateLimitToken, async (req, res) => {
 });
 
 // DELETE /token (slett Canvas token)
-// Fjerner Canvas API token fra brukerens konto
-router.delete("/token", autentiserJwt, rateLimitToken, async (req, res) => {
+router.delete("/token", rateLimitToken, async (req, res) => {
     try {
         const bruker = await hentAutentisertBruker(req.user?.id, res, "+canvasApiToken +canvasTokenHash");
         if (!bruker) return;
@@ -489,6 +338,14 @@ router.delete("/token", autentiserJwt, rateLimitToken, async (req, res) => {
         );
 
         logger.info({ userId }, "Canvas token slettet og bruker frakoblet fullstendig");
+        await audit({
+          actorUserId: userId,
+          action: AUDIT_ACTIONS.CANVAS_TOKEN_DELETED,
+          category: "integration",
+          outcome: "success",
+          role: req.actorRole,
+          req,
+        });
         return res.json(CanvasTokenResponseSchema.parse({
             melding: "Canvas-koblingen er slettet. Du må koble til på nytt for å hente data.",
             success: true,
@@ -498,84 +355,9 @@ router.delete("/token", autentiserJwt, rateLimitToken, async (req, res) => {
     }
 });
 
-// POST /refresh (forny tilgangstoken)
-// Fornyer tilgangstoken ved hjelp av et gyldig refresh-token.
-router.post("/refresh", rateLimitRefresh, async (req, res) => {
-    try {
-        const refreshToken = hentCookieVerdi(req, JWT_REFRESH_COOKIE_NAVN);
-        const erSsrRefresh = req.headers["x-studywise-ssr-refresh"] === "1";
-        if (!refreshToken) {
-            return apiError.unauthorized(res, "Ingen refresh-token funnet.");
-        }
-        const { tilgangSecret, refreshSecret } = hentJwtSecrets();
-
-        // Verifiser JWT separat for å skille token-feil fra DB-feil
-        let payload: jwt.JwtPayload;
-        try {
-            const decoded = jwt.verify(refreshToken, refreshSecret, { algorithms: ["HS256"] });
-            if (typeof decoded === "string" || !decoded || typeof decoded !== "object") {
-                return apiError.unauthorized(res, "Ugyldig refresh-token.");
-            }
-            payload = decoded;
-        } catch {
-            return apiError.unauthorized(res, "Ugyldig eller utløpt refresh-token.");
-        }
-
-        const tokenType = (payload as { tokenType?: string }).tokenType;
-        if (tokenType !== "refresh") {
-            return apiError.unauthorized(res, "Ugyldig token-type.");
-        }
-        const userId = (payload as { id?: string }).id;
-        if (!userId) {
-            return apiError.unauthorized(res, "Ugyldig refresh-token.");
-        }
-        const bruker = await User.findById(userId).select("+refreshTokenHash");
-        if (!bruker || !bruker.refreshTokenHash) {
-            return apiError.unauthorized(res, "Ugyldig refresh-token.");
-        }
-        if (bruker.refreshTokenExpiresAt && bruker.refreshTokenExpiresAt.getTime() < Date.now()) {
-            return apiError.unauthorized(res, "Refresh-token er utløpt. Logg inn på nytt.");
-        }
-        const refreshHash = hashToken(refreshToken);
-        if (!isValidSha256Hex(bruker.refreshTokenHash)) {
-            logger.warn({ userId }, "Ugyldig format på lagret refreshTokenHash");
-            return apiError.unauthorized(res, "Ugyldig refresh-token.");
-        }
-        if (!timingSafeHexEqual(bruker.refreshTokenHash, refreshHash)) {
-            return apiError.unauthorized(res, "Ugyldig refresh-token.");
-        }
-        const nyttTilgangsToken = jwt.sign(
-            { id: bruker._id, tokenType: "access" },
-            tilgangSecret,
-            { expiresIn: JWT_TILGANG_UTLOPER as jwt.SignOptions["expiresIn"] }
-        );
-
-        // Ved SSR-refresh (x-studywise-ssr-refresh: 1) roterer vi ikke refresh-token,
-        // slik at browser-cookiene ikke desynkroniseres; kun ny access-cookie sendes.
-        if (!erSsrRefresh) {
-            const nyttRefreshToken = jwt.sign(
-                { id: bruker._id, tokenType: "refresh" },
-                refreshSecret,
-                { expiresIn: JWT_REFRESH_UTLOPER as jwt.SignOptions["expiresIn"] }
-            );
-            bruker.refreshTokenHash = hashToken(nyttRefreshToken);
-            bruker.refreshTokenExpiresAt = new Date(Date.now() + JWT_REFRESH_MS);
-            await bruker.save();
-            settRefreshCookie(res, nyttRefreshToken);
-        }
-
-        settTilgangsCookie(res, nyttTilgangsToken);
-        return res.json(RefreshResponseSchema.parse({ melding: "Tilgang oppdatert" }));
-    } catch (error) {
-        // DB-feil (findById, save) — dette er server-error, ikke auth-feil
-        logger.error({ err: error }, "Serverfeil ved token refresh");
-        return sendError(res, "server_error", { melding: "Serverfeil ved fornyelse av sesjon. Prøv igjen." });
-    }
-});
-
-// GET /me (Beskyttet rute)
+// GET /me (Beskyttet av global requireAuth)
 // Hent informasjon om den autentiserte brukeren.
-router.get("/me", autentiserJwt, rateLimitMe, async (req, res) => {
+router.get("/me", rateLimitMe, async (req, res) => {
     try {
         const userId = req.user?.id;
         const bruker = await hentAutentisertBruker(userId, res, "+canvasApiToken");
@@ -584,8 +366,8 @@ router.get("/me", autentiserJwt, rateLimitMe, async (req, res) => {
         if (harCanvasToken && !bruker.canvasBaseUrl) {
             logger.warn({ userId: bruker._id }, "Bruker har Canvas-token uten canvasBaseUrl (gammel konto – må velge institusjon ved neste token-oppdatering)");
         }
-        const preferences = bruker.canvasContextPreferences || DEFAULT_CANVAS_CONTEXT_PREFERENCES;
-        const varslerState = getSanitizedVarslerState(bruker.varslerState || DEFAULT_VARSLER_STATE);
+        const preferences = bruker.canvasContextPreferences || createDefaultCanvasContextPreferences();
+        const varslerState = normalizeVarslerState(bruker.varslerState || createDefaultVarslerState());
         return res.json(MeResponseSchema.parse({
             user: AuthBrukerSchema.parse({
                 id: bruker._id.toString(),
@@ -596,6 +378,7 @@ router.get("/me", autentiserJwt, rateLimitMe, async (req, res) => {
                 canvasBaseUrl: bruker.canvasBaseUrl ?? null,
                 canvasContextPreferences: preferences,
                 varslerState,
+                role: bruker.role ?? "student",
             }),
         }));
     } catch (error) {
@@ -603,9 +386,8 @@ router.get("/me", autentiserJwt, rateLimitMe, async (req, res) => {
     }
 });
 
-// PUT /preferences (Beskyttet rute)
-// Oppdaterer brukerens preferanser (Canvas-kontekst)
-router.put("/preferences", autentiserJwt, async (req, res) => {
+// PUT /preferences
+router.put("/preferences", async (req, res) => {
     try {
         const userId = req.user?.id;
         if (!userId) {
@@ -614,14 +396,14 @@ router.put("/preferences", autentiserJwt, async (req, res) => {
 
         const { canvasContextPreferences, varslerState } = PreferencesUpdateSchema.parse(req.body);
         const updateFields: {
-            canvasContextPreferences?: typeof DEFAULT_CANVAS_CONTEXT_PREFERENCES;
-            varslerState?: ReturnType<typeof getSanitizedVarslerState>;
+            canvasContextPreferences?: ReturnType<typeof createDefaultCanvasContextPreferences>;
+            varslerState?: ReturnType<typeof normalizeVarslerState>;
         } = {};
         if (canvasContextPreferences !== undefined) {
             updateFields.canvasContextPreferences = CanvasContextPreferencesSchema.parse(canvasContextPreferences);
         }
         if (varslerState !== undefined) {
-            updateFields.varslerState = getSanitizedVarslerState(varslerState);
+            updateFields.varslerState = normalizeVarslerState(varslerState);
         }
 
         const oppdatertBruker = await User.findByIdAndUpdate(
@@ -635,12 +417,25 @@ router.put("/preferences", autentiserJwt, async (req, res) => {
         }
 
         logger.info({ userId }, "Brukerpreferanser oppdatert");
-
-        return res.json({
-            melding: "Preferanser oppdatert",
-            canvasContextPreferences: oppdatertBruker.canvasContextPreferences || DEFAULT_CANVAS_CONTEXT_PREFERENCES,
-            varslerState: getSanitizedVarslerState(oppdatertBruker.varslerState || DEFAULT_VARSLER_STATE),
+        await audit({
+          actorUserId: userId,
+          action: AUDIT_ACTIONS.PREFERENCES_UPDATED,
+          category: "profile",
+          outcome: "success",
+          role: req.actorRole,
+          req,
         });
+
+        return res.json(
+          PreferencesResponseSchema.parse({
+            melding: "Preferanser oppdatert",
+            canvasContextPreferences:
+                oppdatertBruker.canvasContextPreferences || createDefaultCanvasContextPreferences(),
+            varslerState: normalizeVarslerState(
+                oppdatertBruker.varslerState || createDefaultVarslerState(),
+            ),
+          }),
+        );
     } catch (error) {
         if (error instanceof ZodError) {
             return sendZodError(res, error, "Preferanser");
@@ -649,30 +444,82 @@ router.put("/preferences", autentiserJwt, async (req, res) => {
     }
 });
 
-// POST /logout (Beskyttet rute)
-// Logger ut den autentiserte brukeren og fjerner alle tokens fra NETTLESER.
-// Canvas-token forblir i database (kryptert) - den er knyttet til brukerkontoen.
-router.post("/logout", autentiserJwt, async (req, res) => {
-    try {
-        const userId = req.user?.id;
-        if (userId) {
-            // Invalider Canvas-cache ved logout (sikkerhet - data skal ikke være tilgjengelig etter logout)
-            await clearUserCanvasRuntimeState(userId.toString());
-
-            // Fjern kun refresh token fra database (invaliderer sesjonen)
-            // Canvas-token beholdes - den er kryptert og knyttet til brukerkontoen
-            await User.findByIdAndUpdate(userId, {
-                refreshTokenHash: undefined,
-                refreshTokenExpiresAt: undefined,
-            });
-        }
-    } catch (error) {
-        // Logg feil, men ALLTID fjern cookies slik at brukeren kan logge ut
-        logger.error({ err: error }, "Feil under logout-opprydding");
+// POST /logout (Clerk session cleared on frontend; backend clears Canvas runtime cache)
+router.post("/logout", async (req, res) => {
+  const userId = req.user?.id;
+  try {
+    if (userId) {
+      await clearUserCanvasRuntimeState(userId);
     }
-    // Fjern JWT-cookies fra nettleseren — kjøres uansett
-    fjernAuthCookies(res);
-    return res.json(LogoutResponseSchema.parse({ melding: "Logget ut" }));
+  } catch (error) {
+    logger.error({ err: error }, "Feil under logout-opprydding");
+  }
+  if (userId) {
+    await audit({
+      actorUserId: userId,
+      action: AUDIT_ACTIONS.SIGN_OUT,
+      category: "auth",
+      outcome: "success",
+      role: req.actorRole,
+      req,
+    });
+  }
+  return res.json(LogoutResponseSchema.parse({ melding: "Logget ut" }));
+});
+
+// DELETE /account — slett egen konto og all tilknyttet data (GDPR). Krever auth.
+router.delete("/account", rateLimitAccountDeletion, async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    return apiError.unauthorized(res);
+  }
+  try {
+    const deletionResult = await deleteAccountData(userId);
+    const deletedAuditActorId = getDeletedAuditActorId(userId);
+    await audit({
+      actorUserId: deletedAuditActorId,
+      action: AUDIT_ACTIONS.ACCOUNT_DELETED,
+      category: "privacy",
+      outcome: "success",
+      role: req.actorRole,
+      metadata: {
+        deleted: deletionResult.deleted,
+        providerAccountDeleted: deletionResult.providerAccountDeleted,
+      },
+      req,
+    });
+    try {
+      await anonymizeAuditTrailForDeletedUser(userId);
+    } catch (auditError) {
+      logger.warn(
+        { err: auditError, userId },
+        "Klarte ikke å anonymisere revisjonsspor etter kontosletting",
+      );
+    }
+    return res.json(AccountDeletionResponseSchema.parse({
+      melding: deletionResult.providerAccountDeleted
+        ? "Konto og tilknyttet data er slettet"
+        : "StudyWise-kontoen er slettet, men innloggingskontoen kunne ikke fjernes automatisk.",
+      deleted: deletionResult.deleted,
+      providerAccountDeleted: deletionResult.providerAccountDeleted,
+    }));
+  } catch (err) {
+    await audit({
+      actorUserId: userId,
+      action: AUDIT_ACTIONS.ACCOUNT_DELETED,
+      category: "privacy",
+      outcome: "failure",
+      role: req.actorRole,
+      metadata: { error: err instanceof Error ? err.message : String(err) },
+      req,
+    });
+    const requestId = (req as Request & { id?: string }).id;
+    logger.error({ err, requestId, path: req.path }, "Account deletion failed");
+    return sendUnknownError(res, err, {
+      kontekst: "sletting av konto",
+      melding: "Kunne ikke slette kontoen. Prøv igjen eller kontakt support.",
+    });
+  }
 });
 
 export default router;

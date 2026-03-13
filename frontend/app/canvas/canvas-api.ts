@@ -5,8 +5,8 @@
  */
 import type { ZodType } from "zod";
 import { useQuery, type QueryClient } from "@tanstack/react-query";
-import { fornySesjon } from "../auth/auth-api";
 import { useUIStore } from "../store/uiStore";
+import { fetchApi } from "../lib/apiClient";
 
 // Importer Zod schemas fra common
 import {
@@ -65,16 +65,6 @@ import {
   CanvasApiError,
 } from "../lib/errors";
 
-// Re-eksporter for konsumenter
-export {
-  CanvasTokenMissingError,
-  CanvasTokenInvalidError,
-  CanvasPermissionError,
-  CanvasResourceError,
-  CanvasApiError,
-  type CanvasErrorCode,
-} from "../lib/errors";
-
 // Sjekk om en feil er en token-feil som krever re-autentisering
 function isTokenError(error: unknown): boolean {
   if (error instanceof CanvasTokenMissingError) return true;
@@ -125,21 +115,13 @@ export function resetCanvasTokenStatus() {
 
 // Felles feilhåndtering for Canvas API-responser
 // Håndterer 401, 403, 404, 429, 5xx og generelle feil
-async function håndterFeilRespons<T>(
+async function håndterFeilRespons(
   res: Response,
-  forsoktRefresh: boolean,
-  rekursivFn: () => Promise<T>,
 ): Promise<void> {
-  // Håndter 401 (ikke autentisert / ugyldig token)
   if (res.status === 401) {
-    if (!forsoktRefresh) {
-      await fornySesjon();
-      // Kaster resultatet som en "suksess-avbrudd" — fanges av kalleren
-      throw { __retry: true, result: await rekursivFn() };
-    }
     markTokenInvalid();
     throw new CanvasTokenInvalidError(
-      "Canvas-token er ugyldig eller utløpt. Oppdater tokenet i innstillinger.",
+      "Ikke autentisert eller token utløpt. Logg inn på nytt.",
     );
   }
 
@@ -208,7 +190,6 @@ async function håndterFeilRespons<T>(
 export async function fetchCanvas<T>(
   endpoint: string,
   schema: ZodType<T>,
-  forsoktRefresh = false,
 ): Promise<T> {
   if (useUIStore.getState().canvasTokenInvalid) {
     throw new CanvasTokenInvalidError(
@@ -216,21 +197,9 @@ export async function fetchCanvas<T>(
     );
   }
 
-  const res = await fetch(`/api/canvas${endpoint}`, {
-    credentials: "include",
-    cache: "no-store",
-  });
+  const res = await fetchApi(`/api/canvas${endpoint}`);
 
-  try {
-    await håndterFeilRespons(res, forsoktRefresh, () =>
-      fetchCanvas(endpoint, schema, true),
-    );
-  } catch (e) {
-    if (e && typeof e === "object" && "__retry" in e) {
-      return (e as unknown as { result: T }).result;
-    }
-    throw e;
-  }
+  await håndterFeilRespons(res);
 
   const data = await res.json();
   return schema.parse(data);
@@ -240,7 +209,6 @@ export async function fetchCanvas<T>(
 async function fetchCanvasNullable<T>(
   endpoint: string,
   schema: ZodType<T>,
-  forsoktRefresh = false,
 ): Promise<T | null> {
   if (useUIStore.getState().canvasTokenInvalid) {
     throw new CanvasTokenInvalidError(
@@ -248,23 +216,10 @@ async function fetchCanvasNullable<T>(
     );
   }
 
-  const res = await fetch(`/api/canvas${endpoint}`, {
-    credentials: "include",
-    cache: "no-store",
-  });
+  const res = await fetchApi(`/api/canvas${endpoint}`);
 
-  try {
-    await håndterFeilRespons(res, forsoktRefresh, () =>
-      fetchCanvasNullable(endpoint, schema, true),
-    );
-  } catch (e) {
-    if (e && typeof e === "object" && "__retry" in e) {
-      return (e as unknown as { result: T | null }).result;
-    }
-    throw e;
-  }
+  await håndterFeilRespons(res);
 
-  // 204 No Content - returner null (ikke en feil)
   if (res.status === 204) {
     return null;
   }

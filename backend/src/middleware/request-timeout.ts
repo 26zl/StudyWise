@@ -12,6 +12,7 @@ import { logger } from "../utils/logger.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;  // 30 sekunder for vanlige requests
 const UPLOAD_TIMEOUT_MS = 120_000;  // 2 minutter for filopplasting
+const KI_CHAT_TIMEOUT_MS = 180_000; // 3 minutter for KI-chat (kontekstlasting + oppsummering kan ta lang tid)
 
 // Endepunkter som har lengre timeout (filopplasting, dokumentanalyse, KI-chat som laster Canvas-kontekst)
 const LONG_TIMEOUT_PREFIXES = [
@@ -20,15 +21,25 @@ const LONG_TIMEOUT_PREFIXES = [
     "/api/ki/chat",
 ];
 
+function getRequestPath(req: Request): string {
+    return (req.originalUrl ?? req.url ?? req.path ?? "").split("?")[0] ?? "";
+}
+
 export function requestTimeout(req: Request, res: Response, next: NextFunction) {
-    // SSE-streams håndterer sin egen timeout — ikke begrens dem her
-    // Sjekkes via Accept-header siden Content-Type ennå ikke er satt
-    if (req.headers.accept === "text/event-stream") {
+    const pathname = getRequestPath(req);
+
+    // SSE-endepunkter håndterer sin egen socket-timeout — ikke begrens dem her
+    // POST /api/ki/chat og /api/ki/analyze-document bruker SSE-streaming
+    const isSseEndpoint =
+        (req.method === "POST" && pathname === "/api/ki/chat") ||
+        (req.method === "POST" && pathname === "/api/ki/analyze-document");
+    if (isSseEndpoint) {
         return next();
     }
 
-    const isLongRequest = LONG_TIMEOUT_PREFIXES.some(p => req.path.startsWith(p));
-    const timeoutMs = isLongRequest ? UPLOAD_TIMEOUT_MS : DEFAULT_TIMEOUT_MS;
+    const isKiChat = pathname.startsWith("/api/ki/chat");
+    const isLongRequest = isKiChat || LONG_TIMEOUT_PREFIXES.some(p => pathname.startsWith(p));
+    const timeoutMs = isKiChat ? KI_CHAT_TIMEOUT_MS : isLongRequest ? UPLOAD_TIMEOUT_MS : DEFAULT_TIMEOUT_MS;
 
     const timer = setTimeout(() => {
         if (!res.headersSent) {

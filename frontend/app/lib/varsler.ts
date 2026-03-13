@@ -87,7 +87,7 @@ export function buildFrister(oppgaver: AssignmentMedEmne[]): FristElement[] {
                 dato: new Date(o.due_at!),
                 timerIgjen,
                 status: klassifiserFrist(timerIgjen),
-                erInnlevert: erInnlevert(o),
+                erInnlevert: false, // Alltid false — innleverte oppgaver er allerede filtrert bort over
             };
         })
         .sort((a, b) => a.timerIgjen - b.timerIgjen);

@@ -1,11 +1,19 @@
 # StudyWise Dockerfile — kun for lokal utvikling via docker compose
-# Brukes IKKE i produksjon (frontend deployes til Vercel, backend til Render)
+# Brukes IKKE i produksjon (frontend deployes til Vercel, backend til Heroku)
 
 FROM node:22-alpine AS base
 
 RUN npm install -g pnpm@10.28.2
 
 WORKDIR /app
+
+ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+ARG CLERK_SECRET_KEY
+ARG INTERNAL_API_URL=http://backend:4000
+
+ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+ENV CLERK_SECRET_KEY=$CLERK_SECRET_KEY
+ENV INTERNAL_API_URL=$INTERNAL_API_URL
 
 # Kopier package-filer for caching
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./

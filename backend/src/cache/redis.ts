@@ -53,27 +53,16 @@ client.on("end", () => {
 /** Markerer at vi er i shutdown — stopper reconnect-forsøk */
 export const stopRedisReconnect = () => { isShuttingDown = true; };
 
-// Kobler til redis (hvis URL er konfigurert)
-if (redisUrl) {
-    client.connect().catch((err) => {
-        logger.error({ err }, "Redis tilkobling feilet (reconnect vil prøve automatisk)");
-        if (isProd) {
-            logger.warn(
-                "ADVARSEL: Redis er ikke tilgjengelig i produksjon. " +
-                "Rate limiting vil kun fungere per server-instans. " +
-                "Automatisk reconnect er aktivert."
-            );
-        }
-    });
-} else {
-    logger.warn("REDIS_URL ikke konfigurert - bruker minne-basert rate limiting");
+client.connect().catch((err) => {
+    logger.error({ err }, "Redis tilkobling feilet (reconnect vil prøve automatisk)");
     if (isProd) {
         logger.warn(
-            "ADVARSEL: Minne-basert rate limiting i produksjon er ikke anbefalt " +
-            "for distribuerte systemer."
+            "ADVARSEL: Redis er ikke tilgjengelig i produksjon. " +
+            "Rate limiting vil kun fungere per server-instans. " +
+            "Automatisk reconnect er aktivert."
         );
     }
-}
+});
 
 /** Sjekker om Redis er tilkoblet og klar */
 export const isRedisReady = (): boolean => client.isOpen && client.isReady;

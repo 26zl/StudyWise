@@ -3,7 +3,7 @@
   "description": "STUDYWISE. En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas Instructure. Bachelor i IT 2026.",
   "private": true,
   "scripts": {
-    "dev": "concurrently -k --raw \"pnpm dev:backend\" \"pnpm dev:frontend\" \"pnpm dev:docs\"",
+    "dev": "concurrently -k \"pnpm dev:backend\" \"wait-on http://localhost:4000/health && pnpm dev:frontend\" \"pnpm dev:docs\"",
     "dev:frontend": "pnpm --filter frontend dev",
     "dev:backend": "pnpm --filter backend dev",
     "dev:docs": "pnpm --filter docs dev",
@@ -58,12 +58,12 @@
       "minimatch": ">=10.2.1"
     },
     "onlyBuiltDependencies": [
+      "@clerk/shared",
       "@datadog/native-appsec",
       "@datadog/native-iast-taint-tracking",
       "@datadog/native-metrics",
       "@datadog/pprof",
       "@scarf/scarf",
-      "bcrypt",
       "dd-trace",
       "esbuild",
       "sharp",

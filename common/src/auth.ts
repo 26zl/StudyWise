@@ -81,6 +81,11 @@ export const CanvasContextPreferencesSchema = z.object({
   events: z.boolean(),
 });
 
+/** RBAC: kun student og admin. */
+export const APP_ROLES = ["student", "admin"] as const;
+export type UserRole = (typeof APP_ROLES)[number];
+export const RoleSchema = z.enum(APP_ROLES);
+
 /** Maks antall varsel-IDs per liste (lestIds / toastVistIds) – brukes i schema, frontend og backend. */
 export const VARSLER_MAX_IDS = 500;
 
@@ -88,6 +93,42 @@ export const VarslerStateSchema = z.object({
   lestIds: z.array(z.string()).max(VARSLER_MAX_IDS, `Maks ${VARSLER_MAX_IDS} varsel-IDs`),
   toastVistIds: z.array(z.string()).max(VARSLER_MAX_IDS, `Maks ${VARSLER_MAX_IDS} varsel-IDs`),
 });
+
+export type CanvasContextPreferences = z.infer<typeof CanvasContextPreferencesSchema>;
+export type VarslerState = z.infer<typeof VarslerStateSchema>;
+
+export const DEFAULT_CANVAS_CONTEXT_PREFERENCES: CanvasContextPreferences = {
+  announcements: true,
+  courses: true,
+  assignments: true,
+  events: true,
+};
+
+export function createDefaultCanvasContextPreferences(): CanvasContextPreferences {
+  return { ...DEFAULT_CANVAS_CONTEXT_PREFERENCES };
+}
+
+export function createDefaultVarslerState(): VarslerState {
+  return {
+    lestIds: [],
+    toastVistIds: [],
+  };
+}
+
+export function normalizeVarslerState(
+  varslerState?: {
+    lestIds?: readonly string[];
+    toastVistIds?: readonly string[];
+  } | null,
+): VarslerState {
+  const lest = varslerState?.lestIds ?? [];
+  const toast = varslerState?.toastVistIds ?? [];
+
+  return VarslerStateSchema.parse({
+    lestIds: Array.from(new Set(lest)).slice(-VARSLER_MAX_IDS),
+    toastVistIds: Array.from(new Set(toast)).slice(-VARSLER_MAX_IDS),
+  });
+}
 
 export const PreferencesUpdateSchema = z
   .object({
@@ -112,44 +153,15 @@ export const AuthBrukerSchema = z.object({
   canvasBaseUrl: CanvasBaseUrlSchema.optional().nullable(),
   canvasContextPreferences: CanvasContextPreferencesSchema.optional(),
   varslerState: VarslerStateSchema.optional(),
+  /** RBAC-rolle (student, admin). */
+  role: RoleSchema.optional(),
 });
 
-// Login/register/me/logout
-export const LoginRequestSchema = z.object({
-  email: EmailSchema,
-  password: z.string().min(1, "Passord kan ikke være tomt"),
-});
-// Register request schema
-export const RegisterRequestSchema = z.object({
-  email: EmailSchema,
-  password: z
-    .string()
-    .min(8, "Passord må være minst 8 tegn")
-    .regex(/[A-Z]/, "Passord må inneholde minst én stor bokstav")
-    .regex(/[0-9]/, "Passord må inneholde minst ett tall"),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-});
-// Login response schema
-export const LoginResponseSchema = z.object({
-  melding: z.string(),
-  user: AuthBrukerSchema,
-});
-// Register response schema
-export const RegisterResponseSchema = z.object({
-  melding: z.string(),
-  userId: z.string(),
-});
-// Me response schema
+// Me / logout / preferences (Clerk-only; ingen lokale login/register/refresh-endepunkter)
 export const MeResponseSchema = z.object({
   user: AuthBrukerSchema,
 });
-// Logout response schema
 export const LogoutResponseSchema = z.object({
-  melding: z.string(),
-});
-// Refresh response schema
-export const RefreshResponseSchema = z.object({
   melding: z.string(),
 });
 
@@ -160,9 +172,22 @@ export const PreferencesResponseSchema = z.object({
   varslerState: VarslerStateSchema.optional(),
 });
 
-// Cookie-navn konstanter (delt mellom frontend og backend)
-export const AUTH_COOKIE_NAME = "studywise_auth";
-export const AUTH_REFRESH_COOKIE_NAME = "studywise_auth_refresh";
+export const AccountDeletionDeletedSchema = z.object({
+  user: z.boolean(),
+  chatHistory: z.number(),
+  taskBreakdown: z.number(),
+  contentEmbedding: z.number(),
+  canvasUser: z.number(),
+  arbeidsplan: z.number(),
+});
+
+export const AccountDeletionResponseSchema = z.object({
+  melding: z.string(),
+  deleted: AccountDeletionDeletedSchema,
+  providerAccountDeleted: z.boolean(),
+});
+
+/** BroadcastChannel for auth-sync på tvers av faner (Clerk session). */
 export const AUTH_CHANNEL_NAME = "studywise_auth_sync";
 
 // CSRF: frontend sender denne headeren på POST/PUT/PATCH/DELETE; backend krever den for å avvise forespørsler fra tredjepartsider.
@@ -170,17 +195,11 @@ export const AUTH_CSRF_HEADER_NAME = "x-studywise-csrf";
 export const AUTH_CSRF_HEADER_VALUE = "1";
 
 // TypeScript typer eksportering
-export type CanvasContextPreferences = z.infer<typeof CanvasContextPreferencesSchema>;
-export type VarslerState = z.infer<typeof VarslerStateSchema>;
 export type CanvasTokenRequest = z.infer<typeof CanvasTokenRequestSchema>;
 export type CanvasTokenResponse = z.infer<typeof CanvasTokenResponseSchema>;
 export type PreferencesUpdate = z.infer<typeof PreferencesUpdateSchema>;
 export type AuthBruker = z.infer<typeof AuthBrukerSchema>;
-export type LoginRequest = z.infer<typeof LoginRequestSchema>;
-export type RegisterRequest = z.infer<typeof RegisterRequestSchema>;
-export type LoginResponse = z.infer<typeof LoginResponseSchema>;
-export type RegisterResponse = z.infer<typeof RegisterResponseSchema>;
 export type MeResponse = z.infer<typeof MeResponseSchema>;
 export type LogoutResponse = z.infer<typeof LogoutResponseSchema>;
-export type RefreshResponse = z.infer<typeof RefreshResponseSchema>;
 export type PreferencesResponse = z.infer<typeof PreferencesResponseSchema>;
+export type AccountDeletionResponse = z.infer<typeof AccountDeletionResponseSchema>;

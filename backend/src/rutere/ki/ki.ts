@@ -457,12 +457,35 @@ router.post("/chat", async (req, res) => {
       );
     }
 
+    // SSE-headere og keepalive tidlig slik at proxy/klient ikke lukker under lang kontekstlasting (f.eks. PDF-oppsummering)
+    if (!res.headersSent) {
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+      res.removeHeader("Content-Encoding");
+      res.flushHeaders();
+      sseStarted = true;
+      keepaliveInterval = setInterval(() => {
+        if (res.writableEnded) {
+          clearInterval(keepaliveInterval);
+          keepaliveInterval = undefined;
+          return;
+        }
+        try {
+          res.write(": keepalive\n\n");
+        } catch {
+          clearInterval(keepaliveInterval);
+          keepaliveInterval = undefined;
+        }
+      }, 10_000);
+    }
+
     // ——— Laste Canvas-kontekst via context-loader (Redis → API fallback) ———
     let canvasKontekst = "";
     let hasCanvasData = false;
 
     if (intent !== "general_chat" && req.canvasToken && req.user?.id) {
-    
       const baseUrl = req.canvasBaseUrl;
 
       // Sikre at bakgrunns-sync er igangsatt
@@ -652,31 +675,8 @@ router.post("/chat", async (req, res) => {
       "Sender til AI-tjenesten",
     );
 
-    // --- SSE streaming setup (prevents Brotli/proxy buffering timeout) ---
-    if (res.headersSent) return;
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-    res.setHeader("X-Accel-Buffering", "no");
-    res.removeHeader("Content-Encoding");
-    req.socket.setTimeout(TIMEOUT_MS + 10000);
-    res.flushHeaders();
-
-    sseStarted = true;
-
-    keepaliveInterval = setInterval(() => {
-      if (res.writableEnded) {
-        clearInterval(keepaliveInterval);
-        keepaliveInterval = undefined;
-        return;
-      }
-      try {
-        res.write(": keepalive\n\n");
-      } catch {
-        clearInterval(keepaliveInterval);
-        keepaliveInterval = undefined;
-      }
-    }, 10000);
+    // Socket timeout for lang AI-svar (SSE-headere og keepalive er allerede satt tidlig)
+    if (!res.writableEnded) req.socket.setTimeout(TIMEOUT_MS + 10000);
 
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("CHAT_TIMEOUT")), TIMEOUT_MS),

@@ -29,8 +29,8 @@ export interface CanvasFetchOptions {
     maxRetries?: number; // Maks antall retry ved rate limit
 }
 
-// Standardisert responsformat
-export interface CanvasResponse<T> {
+// Standardisert responsformat (brukes internt)
+interface CanvasResponse<T> {
     data: T;
     meta?: {
         pagesFetched: number;

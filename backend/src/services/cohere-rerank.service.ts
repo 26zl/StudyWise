@@ -161,7 +161,7 @@ export async function cohereRerank(
 
 /** Fallback: returnerer topp-N sortert etter originalScore */
 function passthrough(documents: RerankDocument[], topN: number): RerankResult[] {
-  return documents
+  return [...documents]
     .sort((a, b) => b.originalScore - a.originalScore)
     .slice(0, topN)
     .map((d) => ({

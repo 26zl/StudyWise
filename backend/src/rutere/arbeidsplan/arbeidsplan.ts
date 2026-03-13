@@ -4,12 +4,43 @@
  */    
 
 import { Router, Request, Response } from "express";
-import { Arbeidsplan, type IStudyBlock } from "../../database/models/arbeidsplan.js";
+import mongoose from "mongoose";
+import { Arbeidsplan, type IArbeidsplan, type IStudyBlock } from "../../database/models/arbeidsplan.js";
 import { requireUserId, sendZodError, sendUnknownError, apiError } from "../../utils/apiError.js";
 import { getWeekNumber, parseTimerStreng } from "common/dateUtils";
 import { CreateArbeidsplanSchema, UpdateBlockSchema } from "common/arbeidsplan";
 
 const router = Router();
+
+function serializeStudyBlock(block: IStudyBlock) {
+  return {
+    day: block.day,
+    timeSlot: block.timeSlot,
+    task: block.task,
+    duration: block.duration,
+    priority: block.priority,
+    courseName: block.courseName,
+    assignmentId: block.assignmentId,
+    completed: block.completed,
+    completedAt: block.completedAt?.toISOString(),
+  };
+}
+
+function serializeArbeidsplan(plan: IArbeidsplan | null) {
+  if (!plan) return null;
+
+  return {
+    _id: String(plan._id),
+    userId: plan.userId,
+    week: plan.week,
+    weekNumber: plan.weekNumber,
+    year: plan.year,
+    blocks: plan.blocks.map((block) => serializeStudyBlock(block)),
+    totalHours: plan.totalHours,
+    createdAt: plan.createdAt.toISOString(),
+    updatedAt: plan.updatedAt.toISOString(),
+  };
+}
 
 /**
  * POST /api/arbeidsplan
@@ -45,9 +76,9 @@ router.post("/", async (req: Request, res: Response) => {
       });
     }
 
-    res.json({
+    return res.json({
       suksess: true,
-      data: plan,
+      data: serializeArbeidsplan(plan),
       melding: existing ? "Arbeidsplan oppdatert" : "Arbeidsplan opprettet",
     });
   } catch (error) {
@@ -74,9 +105,9 @@ router.get("/current", async (req: Request, res: Response) => {
       weekNumber,
     });
 
-    res.json({
+    return res.json({
       suksess: true,
-      data: plan,
+      data: serializeArbeidsplan(plan),
     });
   } catch (error) {
     sendUnknownError(res, error, { kontekst: "arbeidsplan henting" });
@@ -128,7 +159,7 @@ router.get("/stats/progress", async (req: Request, res: Response) => {
         .reduce((sum, b) => sum + parseTimerStreng(b.duration), 0) * 10
     ) / 10;
 
-    res.json({
+    return res.json({
       suksess: true,
       data: {
         totalBlocks,
@@ -165,9 +196,9 @@ router.get("/:year/:weekNumber", async (req: Request, res: Response) => {
       weekNumber,
     });
 
-    res.json({
+    return res.json({
       suksess: true,
-      data: plan,
+      data: serializeArbeidsplan(plan),
     });
   } catch (error) {
     sendUnknownError(res, error, { kontekst: "arbeidsplan henting" });
@@ -188,9 +219,13 @@ router.patch("/:id/block", async (req: Request, res: Response) => {
       return sendZodError(res, parsed.error, "studieblokk oppdatering");
     }
     const { blockIndex, completed } = parsed.data;
+    const planId = String(req.params.id);
+    if (!mongoose.Types.ObjectId.isValid(planId)) {
+      return apiError.badRequest(res, "Ugyldig arbeidsplan-ID");
+    }
 
     const plan = await Arbeidsplan.findOne({
-      _id: req.params.id,
+      _id: planId,
       userId,
     });
 
@@ -207,9 +242,9 @@ router.patch("/:id/block", async (req: Request, res: Response) => {
 
     await plan.save();
 
-    res.json({
+    return res.json({
       suksess: true,
-      data: plan,
+      data: serializeArbeidsplan(plan),
       melding: "Studieblokk oppdatert",
     });
   } catch (error) {
@@ -225,9 +260,13 @@ router.delete("/:id", async (req: Request, res: Response) => {
   try {
     const userId = requireUserId(req, res);
     if (!userId) return;
+    const planId = String(req.params.id);
+    if (!mongoose.Types.ObjectId.isValid(planId)) {
+      return apiError.badRequest(res, "Ugyldig arbeidsplan-ID");
+    }
 
     const result = await Arbeidsplan.deleteOne({
-      _id: req.params.id,
+      _id: planId,
       userId,
     });
 
@@ -235,7 +274,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
       return apiError.notFound(res, "Arbeidsplan");
     }
 
-    res.json({
+    return res.json({
       suksess: true,
       melding: "Arbeidsplan slettet",
     });

@@ -55,13 +55,18 @@ export function DatadogRum() {
     return null;
 }
 
+type DatadogUser = {
+    id: string;
+    studywiseUserId?: string;
+};
+
 /**
  * Setter bruker-ID i Datadog RUM for å koble sesjoner til brukere.
  * Kall denne etter innlogging (f.eks. i auth-provider eller dashboard).
  */
-export function setDatadogUser(userId: string) {
+export function setDatadogUser(user: DatadogUser) {
     if (!datadogRum.getInitConfiguration()) return;
-    datadogRum.setUser({ id: userId });
+    datadogRum.setUser(user);
 }
 
 /**

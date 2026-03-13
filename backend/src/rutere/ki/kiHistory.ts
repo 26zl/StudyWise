@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { z } from "zod";
-import mongoose from "mongoose";
 import { ChatHistory } from "../../database/models/ChatHistory.js";
 import { encrypt, decrypt } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
@@ -13,14 +12,14 @@ import {
 import {
   ChatMessageSchema,
   ChatSaveSchema,
+  ChatSaveResponseSchema,
   ChatHistoryResponseSchema,
 } from "common/chat";
+/** Validerer at en streng er en gyldig MongoDB ObjectId (24 hex-tegn) */
+const isValidObjectId = (id: string): boolean =>
+  typeof id === "string" && /^[a-fA-F0-9]{24}$/.test(id);
 
 export const kiHistoryRouter = Router();
-
-// Hjelpefunksjon for å validere MongoDB ObjectId
-const isValidObjectId = (id: string): boolean =>
-  mongoose.Types.ObjectId.isValid(id);
 
 // GET /chat/history - hent historikk for innlogget bruker (paginert)
 kiHistoryRouter.get("/chat/history", async (req, res) => {
@@ -97,14 +96,16 @@ kiHistoryRouter.post("/chat/history", async (req, res) => {
       encryptedMessages,
     });
 
-    return res.status(201).json({
-      chat: {
-        id: doc._id.toString(),
-        title: doc.title,
-        messages: parsed.messages,
-        timestamp: doc.createdAt,
-      },
-    });
+    return res.status(201).json(
+      ChatSaveResponseSchema.parse({
+        chat: {
+          id: doc._id.toString(),
+          title: doc.title,
+          messages: parsed.messages,
+          timestamp: doc.createdAt,
+        },
+      }),
+    );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return sendZodError(res, error, "chat-history");
@@ -136,14 +137,16 @@ kiHistoryRouter.put("/chat/history/:id", async (req, res) => {
     );
     if (!doc) return apiError.notFound(res, "Samtalen");
 
-    return res.json({
-      chat: {
-        id: doc._id.toString(),
-        title: doc.title,
-        messages: parsed.messages,
-        timestamp: doc.createdAt,
-      },
-    });
+    return res.json(
+      ChatSaveResponseSchema.parse({
+        chat: {
+          id: doc._id.toString(),
+          title: doc.title,
+          messages: parsed.messages,
+          timestamp: doc.createdAt,
+        },
+      }),
+    );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return sendZodError(res, error, "chat-history");

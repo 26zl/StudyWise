@@ -2,8 +2,9 @@
 # Bruk: docker compose up --build
 #
 # Forutsetninger:
-#   - Kopier backend/.env.example til backend/.env og fyll inn verdier
-#   - MongoDB og Redis kjører via denne compose-filen (ikke nødvendig lokalt)
+#   - backend/.env må finnes (kopier fra backend/.env.example, fyll inn alle påkrevde variabler)
+#   - .env i prosjektrot med Clerk og INTERNAL_API_URL (kopier fra .env.docker.example)
+#   - MongoDB og Redis startes av compose; backend/frontend bruker dem i nettverket
 
 services:
   mongo:
@@ -40,7 +41,7 @@ services:
       - PORT=4000
       - MONGO_URI=mongodb://mongo:27017/studywise
       - REDIS_URL=redis://redis:6379
-      - WEB_ORIGIN=http://localhost:3000
+      - WEB_ORIGINS=http://localhost:3000
     depends_on:
       - mongo
       - redis
@@ -49,6 +50,10 @@ services:
     build:
       context: .
       target: frontend
+      args:
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+        INTERNAL_API_URL: ${INTERNAL_API_URL:-http://backend:4000}
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -57,7 +62,9 @@ services:
     environment:
       # development slik at auth-cookies (secure/sameSite) fungerer over http://localhost
       - NODE_ENV=development
-      - INTERNAL_API_URL=http://backend:4000
+      - INTERNAL_API_URL=${INTERNAL_API_URL:-http://backend:4000}
+      - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
       - HOSTNAME=0.0.0.0
     depends_on:
       - backend

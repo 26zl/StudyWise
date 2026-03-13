@@ -14,6 +14,7 @@ type RateLimitOptions = {
     points: number;
     duration: number;
     keyPrefix?: string;
+    keyGenerator?: (req: Request) => string;
 };
 // Hent klientens IP-adresse
 const getClientIp = (req: Request) => {
@@ -36,7 +37,12 @@ const isRateLimiterResult = (value: unknown): value is RateLimiterRes =>
         "msBeforeNext" in value &&
         "remainingPoints" in value);
 // Oppretter rate limiter middleware
-export const createRateLimiter = ({ points, duration, keyPrefix = "rlflx" }: RateLimitOptions) => {
+export const createRateLimiter = ({
+    points,
+    duration,
+    keyPrefix = "rlflx",
+    keyGenerator = getClientIp,
+}: RateLimitOptions) => {
     const memoryLimiter = new RateLimiterMemory({
         points,
         duration,
@@ -53,7 +59,7 @@ export const createRateLimiter = ({ points, duration, keyPrefix = "rlflx" }: Rat
     });
     // Returnerer middleware-funksjon
     return async (req: Request, res: Response, next: NextFunction) => {
-        const key = getClientIp(req);
+        const key = keyGenerator(req);
         const limiter = isRedisReady() ? redisLimiter : memoryLimiter;
         try {
             const rateRes = await limiter.consume(key);
@@ -76,7 +82,6 @@ import { isProd } from "../utils/env.js";
 
 // Sjenerøse grenser i utvikling for god utvikleropplevelse
 const devKiLimit = { points: 300, duration: 60, keyPrefix: "rlflx:ki:dev" };
-const devAuthLimit = { points: 150, duration: 60 * 15, keyPrefix: "rlflx:auth:dev" };
 const devCanvasLimit = { points: 200, duration: 60, keyPrefix: "rlflx:canvas:dev" };
 const devCanvasTungLimit = { points: 100, duration: 60, keyPrefix: "rlflx:canvas:tung:dev" };
 const devTokenLimit = { points: 75, duration: 60, keyPrefix: "rlflx:token:dev" };
@@ -87,11 +92,6 @@ const devMeLimit = { points: 200, duration: 60, keyPrefix: "rlflx:me:dev" };
 export const rateLimitKi = isProd
     ? createRateLimiter({ points: 50, duration: 300, keyPrefix: "rlflx:ki" })
     : createRateLimiter(devKiLimit);
-
-// Rate limiter for autentisering (login/register) - balansert beskyttelse
-export const rateLimitAuth = isProd
-    ? createRateLimiter({ points: 10, duration: 60 * 15, keyPrefix: "rlflx:auth" })
-    : createRateLimiter(devAuthLimit);
 
 // Rate limiter for Canvas-endepunkter (balansert for normal bruk)
 export const rateLimitCanvas = isProd
@@ -108,12 +108,15 @@ export const rateLimitToken = isProd
     ? createRateLimiter({ points: 10, duration: 60, keyPrefix: "rlflx:token" })
     : createRateLimiter(devTokenLimit);
 
-// Rate limiter for brukerinfo-endepunkt (tillater hyppige refreshes)
+// Rate limiter for brukerinfo-endepunkt (tillater hyppige SSR-/klientkall til /me)
 export const rateLimitMe = isProd
     ? createRateLimiter({ points: 50, duration: 60, keyPrefix: "rlflx:me" })
     : createRateLimiter(devMeLimit);
 
-// Rate limiter for token refresh - strengere enn /me siden det utsteder nye tokens (Tilgangskontroll er produktbeslutning)
-export const rateLimitRefresh = isProd
-    ? createRateLimiter({ points: 20, duration: 60, keyPrefix: "rlflx:refresh" })
-    : createRateLimiter({ points: 100, duration: 60, keyPrefix: "rlflx:refresh:dev" }); 
+// Account deletion: maks 2 forsøk per time per bruker (sensitiv operasjon)
+export const rateLimitAccountDeletion = createRateLimiter({
+  points: 2,
+  duration: 3600,
+  keyPrefix: "rlflx:account-delete",
+  keyGenerator: (req) => req.user?.id ?? getClientIp(req),
+});

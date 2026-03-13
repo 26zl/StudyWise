@@ -3,7 +3,7 @@
  */
 
 import { z } from "zod";
-import { StudyBlockSchema, UKEDAGER } from "./arbeidsplan.js";
+import { UKEDAGER } from "./arbeidsplan.js";
 
 // Meldingslengde-grenser
 export const KI_MAX_MESSAGE_LENGTH_BACKEND = 50000; // Backend hard limit
@@ -59,20 +59,17 @@ export const KIModelsResponseSchema = z.object({
   defaultModel: z.string(),
 });
 
+/** Multer sender ofte formdata-felter som string eller string[] — normaliser til første string */
+const multerStringField = z
+  .union([z.string(), z.array(z.string())])
+  .optional()
+  .transform((v) => (Array.isArray(v) ? v[0] : v));
+
 // Request-body for dokumentanalyse (question/sporsmaal, model) – multer sender ofte string eller string[]
 export const KIDocumentAnalyseRequestSchema = z.object({
-  question: z
-    .union([z.string(), z.array(z.string())])
-    .optional()
-    .transform((v) => (Array.isArray(v) ? v[0] : v)),
-  sporsmaal: z
-    .union([z.string(), z.array(z.string())])
-    .optional()
-    .transform((v) => (Array.isArray(v) ? v[0] : v)),
-  model: z
-    .union([z.string(), z.array(z.string())])
-    .optional()
-    .transform((v) => (Array.isArray(v) ? v[0] : v)),
+  question: multerStringField,
+  sporsmaal: multerStringField,
+  model: multerStringField,
 });
 
 // Dokumentanalyse respons (støtter PDF, Word, TXT, etc.)
@@ -146,16 +143,7 @@ export const WeeklyPlanGenerateRequestSchema = z.object({
     .max(20, "Maks 20 oppgaver kan brukes til ukeplan"),
 });
 
-export const WeeklyPlanSuggestionBlockSchema = StudyBlockSchema.pick({
-  day: true,
-  timeSlot: true,
-  task: true,
-  duration: true,
-  priority: true,
-  courseName: true,
-  assignmentId: true,
-  completed: true,
-}).extend({
+export const WeeklyPlanSuggestionBlockSchema = z.object({
   day: z.enum(UKEDAGER).catch("Mandag"),
   timeSlot: z.string().min(1).max(50).catch("08:00-10:00"),
   task: z.string().min(1).max(200).catch("Ukjent oppgave"),

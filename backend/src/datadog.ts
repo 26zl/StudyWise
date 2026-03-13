@@ -22,7 +22,7 @@ if (ddApiKey) {
             logInjection: true,
             runtimeMetrics: true,
             // profiling og appsec styres via DD_PROFILING_ENABLED / DD_APPSEC_ENABLED env-variabler
-            // (validert i validateEnv.ts for produksjon) — ikke hardkodet her for å unngå konflikt
+            // (validateEnv.ts krever disse i produksjon) — ikke hardkodet her for å unngå konflikt
         });
         setImmediate(() => {
             import("./utils/logger.js").then(({ logger }) => {
@@ -42,7 +42,7 @@ if (ddApiKey) {
 } else if (isProd) {
     setImmediate(() => {
         import("./utils/logger.js").then(({ logger }) => {
-            logger.warn("DD_API_KEY ikke satt — Datadog APM er deaktivert i produksjon");
+            logger.warn("DD_API_KEY ikke satt — Datadog APM er deaktivert (dette skal normalt stoppes av validateEnv i produksjon)");
         });
     });
 }

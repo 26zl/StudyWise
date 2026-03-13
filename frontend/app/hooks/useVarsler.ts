@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useMemo, useRef } from "react";
-import { type VarslerState, VARSLER_MAX_IDS } from "common/auth";
+import { type VarslerState, normalizeVarslerState } from "common/auth";
 import { toast } from "../components/Toaster";
 import {
     useCanvasAllAssignments,
@@ -24,14 +24,6 @@ import {
 } from "../lib/varsler";
 import { useUIStore } from "../store/uiStore";
 import { useOppdaterVarslerState } from "../auth/auth-api";
-
-/** Dedupliser deretter slice(-VARSLER_MAX_IDS) – samme mønster som backend getSanitizedVarslerState. */
-function normalizeVarslerState(state?: VarslerState | null): VarslerState {
-    return {
-        lestIds: Array.from(new Set(state?.lestIds ?? [])).slice(-VARSLER_MAX_IDS),
-        toastVistIds: Array.from(new Set(state?.toastVistIds ?? [])).slice(-VARSLER_MAX_IDS),
-    };
-}
 
 function createVarslerStateSignature(state: VarslerState): string {
     const lestSignature = [...state.lestIds].sort().join("|");

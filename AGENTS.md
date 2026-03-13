@@ -32,7 +32,7 @@ StudyWise – AI-drevet studieveileder med Canvas LMS-integrasjon. pnpm-monorepo
 - **Vektorsøk**: Pinecone (serverless-indeks med **integrated embedding**). Embeddings genereres av Pinecone; chunk-tekst lagres i MongoDB (`ContentEmbedding`) som sannhetskilde og sendes til Pinecone for indeksering.
 - **AI**: `@anthropic-ai/sdk` for Claude
 - **Feilhåndtering**: Standardisert via `backend/src/utils/apiError.ts`
-- **APM**: Datadog (`dd-trace`) — initialiseres når `DD_API_KEY` er satt (`backend/src/datadog.ts`); init er wrappet i try/catch slik at serveren kjører videre ved feil. Frontend: valgfri RUM via `DatadogRum`-komponenten når `NEXT_PUBLIC_DD_RUM_APPLICATION_ID` og `NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN` er satt.
+- **APM**: Datadog (`dd-trace`) — kreves i produksjon via `validateEnv()` og initialiseres i `backend/src/datadog.ts`; init er wrappet i try/catch slik at serveren fortsatt kan håndtere feil hvis tracer-oppsettet selv svikter. Frontend: RUM kjøres via `DatadogRum` når `DD_RUM_APPLICATION_ID`/`DD_RUM_CLIENT_TOKEN` eller `NEXT_PUBLIC_DD_RUM_APPLICATION_ID`/`NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN` er satt.
 - **Resiliens**: Circuit breakers for Canvas og Anthropic API (`backend/src/utils/circuitBreaker.ts`), request timeout-middleware (`backend/src/middleware/request-timeout.ts`)
 
 ### Common
@@ -47,7 +47,7 @@ import { ChatMessageSchema } from "common/chat";           // Chat-historikk-typ
 import { CalendarItemSchema } from "common/calendar";      // Kalender API-typer
 import { Assignment, COURSE_COLOR_CLASSES } from "common/calendar-ui"; // Kalender UI-typer
 import { DocumentParseResultSchema } from "common/document";   // Dokumentbehandling
-import { AUTH_COOKIE_NAME, AUTH_REFRESH_COOKIE_NAME } from "common/auth"; // Auth-konstanter
+import { AUTH_CHANNEL_NAME } from "common/auth"; // Auth-konstanter (f.eks. BroadcastChannel sync)
 import { getWeekNumber } from "common/dateUtils";          // Dato-hjelpefunksjoner
 ```
 
@@ -144,7 +144,7 @@ Lokasjon: `frontend/app/dashboard/page.tsx` (side) og `frontend/app/components/D
 
 ### Database-modeller
 
-- **User**: Lokal auth (epost, passord, kryptert canvasApiToken)
+- **User**: Lokal StudyWise-bruker som speiler Clerk-identitet og lagrer appdata (unik epost, `clerkId`, rolle, kryptert `canvasApiToken`, preferanser)
 - **CanvasUser**: Cache av Canvas-profilinfo, koblet til User via `localUser`
 - **ChatHistory**: Kryptert chat-historikk per bruker (AES-256-GCM)
 - **TaskBreakdown**: KI-genererte oppgavedelinger med redigerbare deloppgaver
@@ -159,7 +159,7 @@ Lokasjon: `frontend/app/dashboard/page.tsx` (side) og `frontend/app/components/D
 - **Canvas-paginering**: `PAGE_SIZE`, `MAX_PAGES` i `canvasUtils.ts`
 - **Cache TTL**: `CACHE_TTL` i `canvasUtils.ts`; sync-struktur i Redis: `SYNC_CACHE_TTL` (30 min) i `canvas-sync.service.ts`; KI-sesjonskontekst: `SESSION_CONTEXT_TTL` i `kiConstants.ts`
 - **Pinecone**: `backend/src/services/pinecone.service.ts` (upsert, query, deleteByFilter); env: `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`
-- **JWT utløp**: Konfigurerbart via `JWT_ACCESS_EXPIRES`, `JWT_REFRESH_EXPIRES` env
+- **Tillatte frontend-origins**: `WEB_ORIGINS` (kommaseparert liste) brukes av CORS, CSRF og Clerk `authorizedParties`
 - **Cookie-navn**: `common/src/auth.ts`
 - **Meldingsgrenser**: `common/src/ki.ts`
 
@@ -369,7 +369,6 @@ Alle jobber har `permissions: contents: read` og `actions: read` (på workflow-n
 
 ### Dokumenterte sikkerhets-/revisjonsbeslutninger
 
-- **M2 (refresh bypass rate-limit)**: Krever produktbeslutning om hvem som skal ha tilgang til refresh; rate limit på `/refresh` er på plass.
 - **M6 (BroadcastChannel-validering)**: BroadcastChannel er begrenset til same-origin per nettleser-spesifikasjon — risikoen er minimal, ekstra validering ikke påkrevd.
 - **H3 (multer MIME-type)**: Magic byte-validering skjer i `parseDocument()`. Multer `fileFilter` kan ikke sjekke buffer i memory storage mode.
 - **H5 (ErrorBoundary for lazy chunks)**: `SectionErrorBoundary` wrapper allerede alle lazy-loadede seksjoner i `DashboardView`.

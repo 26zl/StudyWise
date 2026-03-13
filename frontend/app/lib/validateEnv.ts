@@ -1,24 +1,43 @@
 /*
  * Miljøvariabel-validering for frontend
  *
- * Frontend bruker relative paths (/api/...) som Next.js rewriter til backend.
- * Server-side kode bruker INTERNAL_API_URL (settes i Docker/Cloud Run).
- * Lokal utvikling trenger ingen env-variabler - default er localhost:4000.
+ * Clerk-nøkler er alltid påkrevd.
+ * INTERNAL_API_URL er påkrevd for build/produksjon, men kan falle tilbake til
+ * localhost i next dev via next.config.js.
  */
 
-/** Påkrevde frontend env-variabler (tom ved lokal dev; legg til ved behov for prod). */
-const requiredFrontendEnvVars: string[] = [];
+const ALWAYS_REQUIRED_FRONTEND_ENV_VARS = [
+  "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+  "CLERK_SECRET_KEY",
+] as const;
+
+interface ValidateFrontendEnvOptions {
+  requireInternalApiUrl?: boolean;
+}
 
 /**
  * Validerer frontend miljøvariabler.
  * Ved feil kastes en feil med tydelig liste over manglende/ugyldige variabler.
  */
-export function validateFrontendEnv(): void {
+export function validateFrontendEnv(options: ValidateFrontendEnvOptions = {}): void {
+    const requireInternalApiUrl =
+        options.requireInternalApiUrl === true || process.env.NODE_ENV === "production";
+    const requiredFrontendEnvVars = requireInternalApiUrl
+        ? [...ALWAYS_REQUIRED_FRONTEND_ENV_VARS, "INTERNAL_API_URL"] as const
+        : ALWAYS_REQUIRED_FRONTEND_ENV_VARS;
     const manglende: string[] = [];
     for (const key of requiredFrontendEnvVars) {
         const value = typeof process.env[key] !== "undefined" ? process.env[key] : "";
         if (!value || String(value).trim() === "") {
             manglende.push(key);
+        }
+    }
+    const internalApiUrl = process.env.INTERNAL_API_URL?.trim();
+    if (internalApiUrl) {
+        try {
+            new URL(internalApiUrl);
+        } catch {
+            manglende.push(`INTERNAL_API_URL (må være en gyldig URL, fikk: ${internalApiUrl})`);
         }
     }
     if (manglende.length > 0) {

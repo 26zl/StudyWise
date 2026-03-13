@@ -9,6 +9,7 @@
 */
 
 import "dotenv/config";
+import crypto from "crypto";
 import { validateEnv } from "./utils/validateEnv.js";
 validateEnv();
 
@@ -28,6 +29,8 @@ import { connectToDatabase } from "./database/database.js";
 import { logger } from "./utils/logger.js";
 import redisClient, { stopRedisReconnect, isRedisReady } from "./cache/redis.js";
 import { isClientAvailable } from "./rutere/ki/aiClient.js";
+import { isClerkHealthy } from "./rutere/auth/clerkAuth.js";
+import { ensurePineconeIndex } from "./services/pinecone.service.js";
 import arbeidsplanRuter from "./rutere/arbeidsplan/arbeidsplan.js";    
 import canvasRuter from "./rutere/canvas/canvas.js";  
 import kiRuter from "./rutere/ki/ki.js";
@@ -36,12 +39,20 @@ import taskBreakdownRouter from "./rutere/ki/taskBreakdown.js";
 import weeklyPlanRouter from "./rutere/ki/weeklyPlan.js";
 import { kiOppsummeringRouter } from "./rutere/ki/kiOppsummering.js";
 import debugRouter from "./rutere/debug/canvasDiagnostic.js";
-import { sharedChatRouter } from "./rutere/ki/kiShare.js";
-import { autentiserJwt, knyttCanvasToken } from "./middleware/auth.js";
+import {
+  cleanupExpiredSharedChats,
+  SHARE_CLEANUP_INTERVAL_MS,
+  sharedChatRouter,
+} from "./rutere/ki/kiShare.js";
+import { requestIdMiddleware } from "./middleware/request-id.js";
+import { requireAuth, knyttCanvasToken } from "./middleware/auth.js";
+import { requireRole } from "./middleware/require-role.js";
+import adminAuditRouter from "./rutere/roller/admin/adminAudit.js";
 import { beskytteMotCsrf } from "./middleware/csrf.js";
 import { noCache } from "./middleware/no-cache.js";
 import { apiError, sendError } from "./utils/apiError.js";
 import { requestTimeout } from "./middleware/request-timeout.js";
+import { getConfiguredWebOriginSet, normalizeWebOrigin } from "./utils/webOrigins.js";
 
 // Initialiserer Express app
 const app = express();
@@ -75,7 +86,7 @@ if (isProd) {
           { host, requestHost, path: req.path },
           "Blokkert forespørsel fra ugyldig host",
         );
-        return sendError(res, "auth_error", { feil: "Forbidden", status: 403 });
+        return sendError(res, "forbidden", { feil: "Forbidden" });
       }
       next();
     });
@@ -109,8 +120,16 @@ app.use(express.urlencoded({ extended: true }));
 // Deaktiverer "X-Powered-By" header for sikkerhet
 app.disable("x-powered-by"); 
 
-// Logger middleware
-app.use(pinoHttp({ logger }));
+// Request ID for correlation (logs + audit)
+app.use(requestIdMiddleware);
+
+// Logger middleware (uses req.id from requestIdMiddleware for correlation)
+app.use(
+  pinoHttp({
+    logger,
+    genReqId: (req) => (req as express.Request & { id?: string }).id ?? crypto.randomUUID(),
+  }),
+);
 
 // Gzip komprimering — skip SSE responses (text/event-stream) to prevent buffering
 app.use(
@@ -127,7 +146,7 @@ app.use(
 // JSON body parser med økt størrelse på 10mb
 app.use(express.json({ limit: "10mb" }));
 
-// Rate limiting: 300 req/min per IP – unngår 429 ved mange refreshes (SSR + client kaller /me ofte)
+// Rate limiting: 300 req/min per IP – tåler hyppige SSR-/klientkall til /me uten å åpne for misbruk
 const rateLimiter = new RateLimiterMemory({
   points: 300,
   duration: 60,
@@ -153,14 +172,8 @@ app.use(rateLimiterMiddleware);
 // Request timeout — forhindrer at trege eksterne API-kall tømmer server-ressurser
 app.use(requestTimeout);
 
-// CORS mot frontend - støtter flere origins via WEB_ORIGINS (kommaseparert)
-// Faller tilbake til WEB_ORIGIN for bakoverkompatibilitet
-const allowedOrigins = new Set(
-  (process.env.WEB_ORIGINS ?? process.env.WEB_ORIGIN ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean), 
-);
+// CORS mot frontend - WEB_ORIGINS er én sannhetskilde for tillatte origins.
+const allowedOrigins = getConfiguredWebOriginSet();
 
 // I produksjon: advar hvis noen origins ikke bruker HTTPS
 if (isProd) {
@@ -178,15 +191,16 @@ if (isProd) {
 // Ellers kaster cors() en feil som ender som generisk 500 i global error-handler.
 app.use((req, res, next) => {
   const origin = req.get("origin");
+  const normalizedOrigin = normalizeWebOrigin(origin);
   const host = req.get("host");
   const backendOrigin = host
-    ? `${req.protocol}://${host}`.toLowerCase()
+    ? normalizeWebOrigin(`${req.protocol}://${host}`)
     : null;
 
   if (
     !origin ||
-    allowedOrigins.has(origin) ||
-    (backendOrigin !== null && origin.toLowerCase() === backendOrigin)
+    (normalizedOrigin !== null && allowedOrigins.has(normalizedOrigin)) ||
+    (backendOrigin !== null && normalizedOrigin === backendOrigin)
   ) {
     return next();
   }
@@ -207,7 +221,8 @@ app.use(
     origin: (origin, cb) => {
       // Forespørsler uten origin (curl, same-origin, health checks) tillates
       if (!origin) return cb(null, true);
-      return cb(null, allowedOrigins.has(origin));
+      const normalizedOrigin = normalizeWebOrigin(origin);
+      return cb(null, normalizedOrigin !== null && allowedOrigins.has(normalizedOrigin));
     },
     credentials: true,
   }),
@@ -216,26 +231,15 @@ app.use(
 // CSRF: krev x-studywise-csrf + gyldig origin/referer for POST/PUT/PATCH/DELETE (se middleware/csrf.ts).
 app.use(beskytteMotCsrf);
 
-// Krev JWT for alle endepunkter, bortsett fra innlogging/registrering/health/swagger
-// VIKTIG: Dette dekker ALLE ruter montert nedenfor — inkludert /api/ki, /api/canvas og /api/ki/task-breakdown.
-// req.user-sjekker inne i rute-filer (f.eks. kiHistory.ts, taskBreakdown.ts) er defensive
-// fallbacks, ikke sikkerhetshull. Globalt middleware her er den faktiske porten.
-const offentligSti = new Set([
-  "/api/user/login",
-  "/api/user/register",
-  "/api/user/refresh",
-  "/health",
-]);
+// Clerk-only auth: protected routes require Authorization: Bearer <clerk_session_token>
+const offentligSti = new Set(["/health"]);
 
-// Offentlig delt-samtale-rute (før auth-middleware, men etter CORS/CSRF)
-app.use("/api", sharedChatRouter);
+app.use("/api", noCache, sharedChatRouter);
 app.use((req, res, next) => {
   if (offentligSti.has(req.path)) return next();
-  // Tillat delte samtaler (offentlig lesbar)
   if (req.path.startsWith("/api/shared/") && req.method === "GET") return next();
-  // Tillat Swagger UI (kun i development)
   if (!isProd && req.path.startsWith("/api-docs")) return next();
-  return autentiserJwt(req, res, next);
+  return requireAuth(req, res, next);
 });
 
 /**
@@ -257,12 +261,18 @@ app.use((req, res, next) => {
  *         description: Server er oppe, men kritiske avhengigheter er nede
  */
 // Health check med status for alle avhengigheter.
-// Kun MongoDB er kritisk (gir 503). Redis og Anthropic er degradert (gir 200 med warnings).
-app.get("/health", (_req, res) => {
+// Kun MongoDB er kritisk (gir 503). Øvrige (Redis, Anthropic, Clerk, Pinecone) er degradert ved feil (gir 200 med degraded).
+// Canvas er per-bruker og inkluderes ikke i server-health.
+app.get("/health", async (_req, res) => {
   // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
   const mongoOk = mongoose.connection.readyState === 1;
   const redisOk = isRedisReady();
   const anthropicOk = isClientAvailable("");
+
+  const [clerkOk, pineconeOk] = await Promise.all([
+    isClerkHealthy(),
+    ensurePineconeIndex(),
+  ]);
 
   // MongoDB er kritisk — uten den fungerer ingenting
   const allOk = mongoOk;
@@ -272,10 +282,11 @@ app.get("/health", (_req, res) => {
     timestamp: new Date().toISOString(),
   };
 
-  // Legg til degradert-status hvis noe er nede (men ikke kritisk)
   const degraded: string[] = [];
   if (!redisOk) degraded.push("redis");
   if (!anthropicOk) degraded.push("anthropic");
+  if (!clerkOk) degraded.push("clerk");
+  if (!pineconeOk) degraded.push("pinecone");
   if (degraded.length > 0) {
     healthResponse.degraded = degraded;
   }
@@ -296,12 +307,15 @@ if (!isProd) {
 // Ulike API ruter defineres her
 // noCache hindrer at sensitive data caches i nettleseren etter utlogging
 app.use("/api/canvas", noCache, knyttCanvasToken, canvasRuter);
-app.use("/api/ki", noCache, knyttCanvasToken, kiRuter);
-app.use("/api/ki", noCache, knyttCanvasToken, kiOppsummeringRouter);
+app.use("/api/ki", noCache, kiRuter);
+app.use("/api/ki", noCache, kiOppsummeringRouter);
 app.use("/api/ki/task-breakdown", noCache, taskBreakdownRouter);
 app.use("/api/ki/weekly-plan", noCache, weeklyPlanRouter);
 app.use("/api/user", brukerAuthRuter);
 app.use("/api/arbeidsplan", noCache, arbeidsplanRuter);
+
+// Admin: krever requireAuth (allerede kjørt) + requireRole("admin")
+app.use("/api/admin", requireRole("admin"), adminAuditRouter);
 
 // Debug-ruter (kun development, krever auth)
 if (!isProd) {
@@ -325,9 +339,42 @@ app.use(
 const port = process.env.PORT!; // Allerede validert i validateEnv
 
 connectToDatabase()
-  .then(() => {
+  .then(async () => {
+    // Oppstart-status for tjenester (MongoDB allerede logget i connectToDatabase)
+    if (isRedisReady()) {
+      logger.info("Redis tilgjengelig");
+    } else {
+      logger.warn("Redis ikke tilkoblet ved oppstart (reconnect pågår)");
+    }
+    try {
+      if (await isClerkHealthy()) {
+        logger.info("Clerk tilgjengelig");
+      } else {
+        logger.warn("Clerk ikke tilgjengelig ved oppstart");
+      }
+    } catch (err) {
+      logger.warn({ err }, "Clerk-sjekk feilet ved oppstart");
+    }
+    try {
+      await ensurePineconeIndex();
+      logger.info("Pinecone tilgjengelig");
+    } catch (err) {
+      logger.warn({ err }, "Pinecone ikke tilgjengelig ved oppstart");
+    }
+
+    void cleanupExpiredSharedChats({ reason: "scheduled_cleanup" }).catch((error) => {
+      logger.warn({ err: error }, "Initial cleanup av utløpte delinger feilet");
+    });
+
+    const shareCleanupInterval = setInterval(() => {
+      void cleanupExpiredSharedChats({ reason: "scheduled_cleanup" }).catch((error) => {
+        logger.warn({ err: error }, "Periodisk cleanup av utløpte delinger feilet");
+      });
+    }, SHARE_CLEANUP_INTERVAL_MS);
+    shareCleanupInterval.unref?.();
+
     const server = app.listen(Number(port), () => {
-      logger.info(`Express API kjører på http://localhost:${port}`);
+      logger.info({ port: Number(port) }, "Express API startet");
     });
     // Graceful shutdown - håndterer SIGTERM/SIGINT for ryddig avslutning
     const gracefulShutdown = async (signal: string) => {
@@ -339,6 +386,7 @@ connectToDatabase()
       server.close(async () => {
         logger.info("HTTP-server lukket");
         try {
+          clearInterval(shareCleanupInterval);
           // Lukk database-tilkobling
           await mongoose.connection.close();
           logger.info("MongoDB-tilkobling lukket");

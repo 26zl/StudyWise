@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Check, Copy } from "lucide-react";
 import hljs from "highlight.js";
 
@@ -12,27 +12,15 @@ interface CodeBlockProps {
 /**
  * Kodeblokk med syntax-highlighting (highlight.js) og kopier-knapp.
  * Brukes som `components.code` i ReactMarkdown.
- * Kun fenced code blocks (```lang) rendres som blokk — inline `code` beholdes som <code>.
+ * Bruker hljs.highlight() + dangerouslySetInnerHTML slik at fargene overlever React re-render.
  */
 export function CodeBlock({ className, children }: CodeBlockProps) {
   const [kopiert, setKopiert] = useState(false);
-  const codeRef = useRef<HTMLElement>(null);
 
   // Detekter språk fra markdown className ("language-java" → "java")
   const match = className?.match(/language-(\w+)/);
   const sprak = match?.[1];
   const erBlokk = !!sprak;
-
-  // Highlight koden etter mount
-  useEffect(() => {
-    if (erBlokk && codeRef.current) {
-      try {
-        hljs.highlightElement(codeRef.current);
-      } catch {
-        // Ugyldig språk eller kode — vis uten highlighting
-      }
-    }
-  }, [erBlokk, children]);
 
   // Inline code — render som vanlig <code>
   if (!erBlokk) {
@@ -45,10 +33,26 @@ export function CodeBlock({ className, children }: CodeBlockProps) {
 
   const kodeTekst = String(children).replace(/\n$/, "");
 
+  // Highlight til HTML én gang per innhold — overlever re-render fordi React eier HTML-en
+  const highlightedHtml = useMemo(() => {
+    try {
+      const result = sprak
+        ? hljs.highlight(kodeTekst, { language: sprak, ignoreIllegals: true })
+        : hljs.highlightAuto(kodeTekst);
+      return result.value;
+    } catch {
+      return escapeHtml(kodeTekst);
+    }
+  }, [kodeTekst, sprak]);
+
   async function kopierKode() {
-    await navigator.clipboard.writeText(kodeTekst);
-    setKopiert(true);
-    setTimeout(() => setKopiert(false), 2000);
+    try {
+      await navigator.clipboard.writeText(kodeTekst);
+      setKopiert(true);
+      setTimeout(() => setKopiert(false), 2000);
+    } catch {
+      // Clipboard API utilgjengelig (f.eks. http, iframe, manglende permissions)
+    }
   }
 
   const sprakLabel = sprak?.toUpperCase() ?? "";
@@ -86,15 +90,13 @@ export function CodeBlock({ className, children }: CodeBlockProps) {
         </button>
       </div>
 
-      {/* Kodeinnhold */}
+      {/* Kodeinnhold — hljs-klassen sikrer at globals.css .hljs / .hljs-keyword etc. gjelder */}
       <div className="overflow-x-auto bg-white dark:bg-slate-900">
         <pre className="m-0! p-4! bg-transparent!">
           <code
-            ref={codeRef}
-            className={`language-${sprak} bg-transparent! text-sm leading-relaxed`}
-          >
-            {kodeTekst}
-          </code>
+            className={`hljs language-${sprak ?? "plaintext"} bg-transparent! text-sm leading-relaxed block`}
+            dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+          />
         </pre>
       </div>
 
@@ -106,4 +108,13 @@ export function CodeBlock({ className, children }: CodeBlockProps) {
       </div>
     </div>
   );
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }

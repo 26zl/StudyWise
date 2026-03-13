@@ -1,20 +1,24 @@
 /*
-* Utvider Express Request-objektet med bruker- og canvasToken-egenskaper
-*/
-import { JwtPayload } from "jsonwebtoken";
+ * Utvider Express Request med bruker, rolle, request-id og Canvas-token.
+ * Clerk-only: req.user.id er MongoDB User._id; req.actorRole er fra User.role.
+ */
+import type { UserRole } from "common/auth";
 
-// JWT payload for autentiserte brukere (kun id + tokenType; email hentes fra DB ved behov)
-export interface JwtBrukerPayload extends JwtPayload {
+export interface AuthUser {
   id: string;
-  tokenType?: "access" | "refresh";
 }
-// Utvid Express Request for å inkludere brukerinfo og Canvas token
+
 declare global {
   namespace Express {
     interface Request {
-      user?: JwtBrukerPayload;
+      /** Request ID for korrelasjon (satt av request-id middleware). */
+      id?: string;
+      /** Autentisert bruker (MongoDB User._id). */
+      user?: AuthUser;
+      /** Rolle for autentisert bruker (satt av requireAuth). */
+      actorRole?: UserRole;
       canvasToken?: string;
-      /** Canvas base URL for brukerens institusjon (multi-tenant). Sett av auth-middleware. */
+      /** Canvas base URL for brukerens institusjon (multi-tenant). */
       canvasBaseUrl?: string;
     }
   }

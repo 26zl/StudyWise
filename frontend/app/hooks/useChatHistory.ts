@@ -12,9 +12,9 @@ import {
   ChatSavePayload,
   ChatSaveResponseSchema,
 } from "common/chat";
-import { fornySesjon } from "../auth/auth-api";
-import { withCsrfProtection } from "../lib/csrf";
+import { fetchApi } from "../lib/apiClient";
 import { extractApiErrorMessage } from "../lib/errorUtils";
+import { ForbiddenError, SessionExpiredError } from "../lib/errors";
 
 /** Representasjon av en lagret samtale (id, tittel, meldinger, tidsstempel). */
 export interface SavedChat {
@@ -35,33 +35,24 @@ type SaveChatOptions = {
   retryCount?: number;
 };
 
-/** Felles fetch med CSRF-header, credentials og automatisk sesjon-fornyelse ved 401/403. */
-async function fetchJson<T>(
-  input: RequestInfo,
-  init?: RequestInit,
-  forsoktRefresh = false
-): Promise<T> {
-  const protectedInit = withCsrfProtection(init);
-  const res = await fetch(input, {
-    credentials: "include",
-    cache: "no-store",
-    ...protectedInit,
-  });
-  // 204 No Content – ingen body, unngå JSON-parse
+/** Felles fetch via fetchApi, med konsistent Clerk-auth og CSRF der det trengs. */
+async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
+  const res = await fetchApi(input, init);
   if (res.status === 204) {
     return undefined as T;
   }
   const data = await res.json().catch(() => ({}));
-  if ((res.status === 401 || res.status === 403) && !forsoktRefresh) {
-    try {
-      await fornySesjon();
-    } catch {
-      const err = new Error("Ikke autentisert") as ApiError;
-      err.status = res.status;
-      err.body = data;
-      throw err;
-    }
-    return fetchJson(input, init, true);
+  if (res.status === 401) {
+    const err = new SessionExpiredError(extractApiErrorMessage(data, "Ikke autentisert")) as ApiError;
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  if (res.status === 403) {
+    const err = new ForbiddenError(extractApiErrorMessage(data, "Du har ikke tilgang til denne ressursen.")) as ApiError;
+    err.status = res.status;
+    err.body = data;
+    throw err;
   }
   if (!res.ok) {
     const err = new Error(extractApiErrorMessage(data, "Uventet feil")) as ApiError;
@@ -73,9 +64,10 @@ async function fetchJson<T>(
 }
 
 function erIkkeAutentisert(error: unknown) {
+  if (error instanceof SessionExpiredError) return true;
   if (!(error instanceof Error)) return false;
   const status = (error as ApiError).status;
-  if (status === 401 || status === 403) return true;
+  if (status === 401) return true;
   return /ikke autentisert/i.test(error.message) || /jwt/i.test(error.message) || /token/i.test(error.message);
 }
 
@@ -184,7 +176,6 @@ export function useChatHistory() {
     } catch (error) {
       if (erIkkeAutentisert(error)) return;
       showToast.error("Kunne ikke slette samtalen");
-      throw error;
     }
   };
 
@@ -205,7 +196,6 @@ export function useChatHistory() {
           } catch (error) {
             if (erIkkeAutentisert(error)) return;
             showToast.error("Kunne ikke slette historikken");
-            throw error;
           }
         },
       },

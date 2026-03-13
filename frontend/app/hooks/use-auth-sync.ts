@@ -1,12 +1,18 @@
-import { useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { useAuth } from "@clerk/nextjs";
+import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { AUTH_CHANNEL_NAME } from "common/auth";
 import { clearDatadogUser } from "../components/DatadogRum";
 import { useUIStore } from "../store/uiStore";
 
 // Konstantverdier for BroadcastChannel (same-origin per spec )
 const LOGOUT_MESSAGE = "logout";
-const LOGIN_MESSAGE = "login";
+
+export function clearClientAuthState(queryClient: QueryClient): void {
+    clearDatadogUser();
+    queryClient.clear();
+    useUIStore.getState().reset();
+}
 
 /**
  * Varsle andre faner om utlogging.
@@ -23,25 +29,13 @@ export function broadcastLogout() {
 }
 
 /**
- * Varsle andre faner om innlogging.
- */
-export function broadcastLogin() {
-    if (typeof window === "undefined" || !("BroadcastChannel" in window)) return;
-    try {
-        const channel = new BroadcastChannel(AUTH_CHANNEL_NAME);
-        channel.postMessage(LOGIN_MESSAGE);
-        channel.close();
-    } catch {
-        // BroadcastChannel ikke støttet eller feil - ignorer
-    }
-}
-
-/**
  * Hook for å lytte etter utlogginger i andre faner.
  * Brukes i providers.tsx for å reagere på logout fra andre faner.
  */
 export function useAuthSync() {
     const queryClient = useQueryClient();
+    const { isLoaded, isSignedIn } = useAuth();
+    const previousSignedInRef = useRef<boolean | null>(null);
     useEffect(() => {
         if (typeof window === "undefined" || !("BroadcastChannel" in window)) return;
 
@@ -54,18 +48,29 @@ export function useAuthSync() {
         channel.onmessage = (event) => {
             if (event.data === LOGOUT_MESSAGE) {
                 // En annen fane har logget ut - rydd opp og redirect
-                clearDatadogUser();
-                queryClient.clear();
-                useUIStore.getState().reset();
-                window.location.href = "/";
-            } else if (event.data === LOGIN_MESSAGE) {
-                // En annen fane har logget inn - oppdater queries og redirect til dashboard
-                queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
-                window.location.href = "/dashboard";
+                clearClientAuthState(queryClient);
+                window.location.assign("/");
             }
         };
         return () => {
             channel?.close();
         };
     }, [queryClient]);
+
+    useEffect(() => {
+        if (!isLoaded) return;
+
+        if (previousSignedInRef.current === null) {
+            previousSignedInRef.current = isSignedIn;
+            return;
+        }
+
+        if (previousSignedInRef.current && !isSignedIn) {
+            broadcastLogout();
+            clearClientAuthState(queryClient);
+            window.location.assign("/");
+        }
+
+        previousSignedInRef.current = isSignedIn;
+    }, [isLoaded, isSignedIn, queryClient]);
 }

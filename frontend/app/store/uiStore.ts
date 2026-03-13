@@ -1,5 +1,10 @@
 import { create } from "zustand";
-import { type CanvasContextPreferences, type VarslerState, VARSLER_MAX_IDS } from "common/auth";
+import {
+    type CanvasContextPreferences,
+    type VarslerState,
+    createDefaultCanvasContextPreferences,
+    normalizeVarslerState,
+} from "common/auth";
 
 /**
  * UI Store - Global tilstand for brukergrensesnitt
@@ -9,9 +14,8 @@ import { type CanvasContextPreferences, type VarslerState, VARSLER_MAX_IDS } fro
  * og /api/user/preferences.
  */
 
-/** Dedupliser deretter slice(-VARSLER_MAX_IDS) – samme mønster som backend og useVarsler. */
-function trimVarslerIds(ids: Iterable<string>): Set<string> {
-    return new Set(Array.from(new Set(ids)).slice(-VARSLER_MAX_IDS));
+function toVarslerIdSet(ids: readonly string[]): Set<string> {
+    return new Set(ids);
 }
 
 /** Alias for common/auth – brukes i UI-store og komponenter. */
@@ -52,10 +56,7 @@ interface UIState {
 
 // Default preferanser (samme form som common/auth CanvasContextPreferences)
 const defaultSelection: CanvasContextPreferences = {
-    announcements: true,
-    courses: true,
-    assignments: true,
-    events: true,
+    ...createDefaultCanvasContextPreferences(),
 };
 
 // Oppretter storen som en hook (useUIStore) som kan brukes i alle komponenter
@@ -84,23 +85,32 @@ export const useUIStore = create<UIState>()((set) => ({
     varslerLestIds: new Set(),
     varslerToastVistIds: new Set(),
     varslerStateHydrated: false,
-    setVarslerState: (state) => set({
-        varslerLestIds: trimVarslerIds(state?.lestIds ?? []),
-        varslerToastVistIds: trimVarslerIds(state?.toastVistIds ?? []),
-        varslerStateHydrated: true,
-    }),
+    setVarslerState: (state) => {
+        const normalized = normalizeVarslerState(state);
+        set({
+            varslerLestIds: toVarslerIdSet(normalized.lestIds),
+            varslerToastVistIds: toVarslerIdSet(normalized.toastVistIds),
+            varslerStateHydrated: true,
+        });
+    },
     markAllVarslerAsLest: (ids) => {
         if (ids.length === 0) return;
         set((s) => {
-            const next = trimVarslerIds([...s.varslerLestIds, ...ids]);
-            return { varslerLestIds: next };
+            const normalized = normalizeVarslerState({
+                lestIds: [...s.varslerLestIds, ...ids],
+                toastVistIds: [...s.varslerToastVistIds],
+            });
+            return { varslerLestIds: toVarslerIdSet(normalized.lestIds) };
         });
     },
     addVarslerToastVist: (ids) => {
         if (ids.length === 0) return;
         set((s) => {
-            const next = trimVarslerIds([...s.varslerToastVistIds, ...ids]);
-            return { varslerToastVistIds: next };
+            const normalized = normalizeVarslerState({
+                lestIds: [...s.varslerLestIds],
+                toastVistIds: [...s.varslerToastVistIds, ...ids],
+            });
+            return { varslerToastVistIds: toVarslerIdSet(normalized.toastVistIds) };
         });
     },
     reset: () => {
@@ -110,7 +120,7 @@ export const useUIStore = create<UIState>()((set) => ({
             currentChatId: null,
             runningChatId: null,
             newChatToken: 0,
-            canvasContextSelection: defaultSelection,
+            canvasContextSelection: createDefaultCanvasContextPreferences(),
             canvasTokenInvalid: false,
             varslerLestIds: new Set(),
             varslerToastVistIds: new Set(),

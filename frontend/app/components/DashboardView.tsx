@@ -88,7 +88,7 @@ export function DashboardView() {
         }
     }, [megQuery.data?.user?.canvasContextPreferences, setCanvasContextSelection]);
 
-    useAuthRedirect();
+    useAuthRedirect(megQuery);
     // Prefetch Canvas data hvis bruker har token
     useEffect(() => {
         if (harCanvasToken) {

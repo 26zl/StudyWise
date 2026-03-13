@@ -39,16 +39,36 @@
 .dark .hljs-attr { color: #79c0ff; }
 
 :root {
+    color-scheme: light;
     --background: #ffffff;
     --foreground: #0f172a;
     --muted: #64748b;
+    /* Clerk – høy kontrast i lys modus */
+    --clerk-color-primary: #2563eb;
+    --clerk-color-foreground: #0f172a;
+    --clerk-color-muted-foreground: #475569;
+    --clerk-color-background: #ffffff;
+    --clerk-color-muted: #f1f5f9;
+    --clerk-color-border: #e2e8f0;
+    --clerk-color-input: #f8fafc;
+    --clerk-color-input-foreground: #0f172a;
 }
 
 /* Mørk modus farger */
 .dark {
+    color-scheme: dark;
     --background: #020617;
     --foreground: #f1f5f9;
     --muted: #94a3b8;
+    /* Clerk – høy kontrast i mørk modus (tydelig sekundærtekst og handlingslenker) */
+    --clerk-color-primary: #60a5fa;
+    --clerk-color-foreground: #f1f5f9;
+    --clerk-color-muted-foreground: #cbd5e1;
+    --clerk-color-background: #0f172a;
+    --clerk-color-muted: #1e293b;
+    --clerk-color-border: #334155;
+    --clerk-color-input: #1e293b;
+    --clerk-color-input-foreground: #f1f5f9;
 }
 
 /* Automatisk mørk modus basert på systeminnstillinger hos bruker */
@@ -57,6 +77,14 @@
         --background: #020617;
         --foreground: #f1f5f9;
         --muted: #94a3b8;
+        --clerk-color-primary: #60a5fa;
+        --clerk-color-foreground: #f1f5f9;
+        --clerk-color-muted-foreground: #cbd5e1;
+        --clerk-color-background: #0f172a;
+        --clerk-color-muted: #1e293b;
+        --clerk-color-border: #334155;
+        --clerk-color-input: #1e293b;
+        --clerk-color-input-foreground: #f1f5f9;
     }
 }
 

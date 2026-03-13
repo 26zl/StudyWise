@@ -23,6 +23,12 @@ export const ChatSaveSchema = z.object({
   title: z.string().max(120, "Tittel må være maks 120 tegn").optional().nullable(),
 });
 
+export const ChatShareCreateSchema = z.object({
+  shareMode: z.enum(["full_chat"]).default("full_chat"),
+});
+
+const ChatShareTypeSchema = z.enum(["full_chat"]);
+
 // Felles schema for en enkelt chat-samtale (delt mellom save og historikk)
 const ChatEntrySchema = z.object({
   id: z.string(),
@@ -52,11 +58,10 @@ export const ChatHistoryResponseSchema = z.object({
 // Schema for delt chat-respons (offentlig, kun lesbar)
 export const SharedChatResponseSchema = z.object({
   title: z.string(),
-  messages: z.array(ChatMessageSchema),
+  messages: z.array(ChatMessageSchema).min(1),
   sharedAt: z.coerce.date(),
-  createdAt: z.coerce.date(),
   expiresAt: z.coerce.date(),
-  redacted: z.boolean().default(false),
+  shareType: ChatShareTypeSchema.default("full_chat"),
 });
 
 // Schema for share-respons (returneres ved deling)
@@ -64,10 +69,12 @@ export const ChatShareResponseSchema = z.object({
   shareToken: z.string(),
   shareUrl: z.string(),
   expiresAt: z.coerce.date(),
+  shareType: ChatShareTypeSchema.default("full_chat"),
 });
 // Type-definisjoner for chat-meldinger og historikk
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type ChatSavePayload = z.infer<typeof ChatSaveSchema>;
+export type ChatShareCreatePayload = z.infer<typeof ChatShareCreateSchema>;
 export type ChatSaveResponse = z.infer<typeof ChatSaveResponseSchema>;
 export type ChatHistoryResponse = z.infer<typeof ChatHistoryResponseSchema>;
 export type SharedChatResponse = z.infer<typeof SharedChatResponseSchema>;

@@ -38,9 +38,9 @@ Det er kritisk å forstå skillet mellom "Lokal Bruker" og "Canvas Bruker".
 
 ### Lokal Bruker (User)
 
-- Innlogging, passord, epost, og hemmeligheter
-- Her lagres Canvas API Token (kryptert)
-- Denne modellen representerer en person som kan logge inn
+- Speiler identiteten fra Clerk (`clerkId`, epost, navn, rolle)
+- Her lagres appspesifikke data som Canvas API-token (kryptert) og preferanser
+- Denne modellen representerer StudyWise-brukeren etter at Clerk-sesjonen er verifisert
 
 ### Canvas Bruker (CanvasUser)
 
@@ -49,7 +49,7 @@ Det er kritisk å forstå skillet mellom "Lokal Bruker" og "Canvas Bruker".
 
 ### Flyten
 
-1. Bruker logger inn (JWT Auth med `User` data)
+1. Bruker logger inn (Clerk; `User` synkroniseres til MongoDB)
 2. Backend bruker `User.canvasApiToken` for å snakke med Canvas API
 3. Resultatet fra `/whoami` lagres/oppdateres i `CanvasUser`
 4. `CanvasUser.localUser` settes til `User._id` for å binde dem sammen
@@ -383,7 +383,7 @@ Hele prosjektet kan kjøres lokalt via Docker:
 docker compose up --build
 ```
 
-Forutsetning: `backend/.env` må finnes med Anthropic API-nøkkel (påkrevd), JWT-secrets og ENCRYPTION_KEY. For vektorsøk i KI: `PINECONE_API_KEY` og `PINECONE_INDEX_NAME`. MongoDB og Redis startes automatisk av Docker. Ved MongoDB Atlas «bad auth»: sjekk brukernavn/passord og Database Access. I Redis Cloud anbefales eviction policy `allkeys-lru` for å unngå «nesten full»-varsler.
+Forutsetning: `backend/.env` må finnes med Anthropic API-nøkkel (påkrevd), CLERK_SECRET_KEY og ENCRYPTION_KEY. Se `backend/.env.example`. For vektorsøk i KI: `PINECONE_API_KEY` og `PINECONE_INDEX_NAME`. MongoDB og Redis startes automatisk av Docker. Ved MongoDB Atlas «bad auth»: sjekk brukernavn/passord og Database Access. I Redis Cloud anbefales eviction policy `allkeys-lru` for å unngå «nesten full»-varsler.
 
 ### Hjelp
 

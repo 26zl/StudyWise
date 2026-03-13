@@ -213,8 +213,9 @@ export function buildChunkContextFromEntries(
       used += entry.length;
     }
 
-    kontekst += `--- SLUTT ${label} ---\n`;
-    used += 26;
+    const footer = `--- SLUTT ${label} ---\n`;
+    kontekst += footer;
+    used += footer.length;
 
     if (used >= budget) break;
   }

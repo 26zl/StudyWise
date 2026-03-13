@@ -17,7 +17,7 @@ export type KIErrorCode =
   | "ki_timeout";
 
 // Auth-spesifikke feilkoder
-export type AuthErrorCode = "auth_error" | "auth_expired";
+export type AuthErrorCode = "auth_error" | "auth_expired" | "forbidden";
 
 // Alle feilkoder kombinert
 export type AppErrorCode = CanvasErrorCode | KIErrorCode | AuthErrorCode;
@@ -75,6 +75,18 @@ export abstract class AppError extends Error {
    */
   isRateLimited(): boolean {
     return this.code === "ki_rate_limit" || this.code === "rate_limited";
+  }
+}
+
+/**
+ * Tilgang nektet - brukeren er innlogget, men mangler tilgang til handlingen
+ */
+export class ForbiddenError extends AppError {
+  readonly code = "forbidden" as const;
+  readonly name = "ForbiddenError";
+
+  constructor(message = "Du har ikke tilgang til denne ressursen.") {
+    super(message, { httpStatus: 403 });
   }
 }
 

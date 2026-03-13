@@ -8,6 +8,7 @@ import {
   type CanvasValidationIssue,
   getErrorMessage as getCanvasErrorMessage,
 } from "common/canvasErrors";
+import { ForbiddenError, SessionExpiredError } from "./errors";
 
 /** Melding ved ugyldig/utløpt Canvas API-token – brukes i CanvasSection, CalendarSection og VarslingerSection */
 export const CANVAS_TOKEN_UGYLDIG_MELDING =
@@ -211,8 +212,8 @@ export function lagBrukervennligFeilmelding(
         return "Ressursen ble ikke funnet i Canvas.";
       case "validation": {
         const msg = typeof error === "string" ? error : error?.message;
-        if (msg && msg.length < 200) {
-          return msg;
+        if (msg) {
+          return msg.length <= 300 ? msg : `${msg.slice(0, 297)}…`;
         }
         return "Sjekk at Canvas-institusjon og URL er riktig, og prøv igjen.";
       }
@@ -245,8 +246,10 @@ export function lagBrukervennligFeilmelding(
         if (/sesjon|logg inn på nytt|ikke autentisert/i.test(msg)) {
           return "Sesjonen har utløpt. Logg inn på nytt.";
         }
-        return "Feil e-post eller passord. Sjekk at du har skrevet riktig og prøv igjen.";
+        return "Kunne ikke verifisere innlogging. Prøv igjen.";
       }
+      case "forbidden":
+        return "Du har ikke tilgang til denne handlingen.";
       case "not_found":
         return "Ingen bruker med denne e-postadressen. Opprett en konto under «Registrer» først.";
       case "conflict":
@@ -364,6 +367,42 @@ export function extractApiErrorPayload(payload: unknown): ApiErrorPayload | null
     return null;
   }
   return payload;
+}
+
+export async function parseApiJson(res: Response): Promise<unknown> {
+  const text = await res.text();
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Uventet respons fra server (${res.status}): ${text.slice(0, 100)}`);
+  }
+}
+
+export function createApiError(
+  payload: unknown,
+  fallback = "API feil",
+): Error {
+  return new Error(extractApiErrorMessage(payload, fallback));
+}
+
+export function createAuthStatusError(
+  status: number,
+  payload: unknown,
+  fallback = "Ikke autentisert",
+): Error {
+  const melding = extractApiErrorMessage(payload, fallback);
+
+  if (status === 401) {
+    return new SessionExpiredError(melding);
+  }
+
+  if (status === 403) {
+    return new ForbiddenError(melding);
+  }
+
+  return new Error(melding);
 }
 
 /**

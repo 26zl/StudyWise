@@ -1,0 +1,35 @@
+/*
+ * Dedikert Clerk innloggingsside.
+ * Farger matcher resten av appen (slate, blue).
+ */
+"use client";
+
+import { SignIn } from "@clerk/nextjs";
+
+const clerkAppearance = {
+  variables: {
+    colorPrimary: "#2563eb",
+    colorBackground: "var(--clerk-color-background)",
+    colorForeground: "var(--clerk-color-foreground)",
+    colorMutedForeground: "var(--clerk-color-muted-foreground)",
+    colorInput: "var(--clerk-color-input)",
+    colorInputForeground: "var(--clerk-color-input-foreground)",
+    colorBorder: "var(--clerk-color-border)",
+    colorMuted: "var(--clerk-color-muted)",
+    borderRadius: "0.75rem",
+  },
+  elements: {
+    rootBox: "w-full max-w-md mx-auto",
+    card: "bg-white dark:bg-slate-800/95 border border-slate-200 dark:border-slate-700 shadow-lg",
+  },
+};
+
+export default function SignInPage() {
+  return (
+    <SignIn
+      appearance={clerkAppearance}
+      signUpUrl="/auth/sign-up"
+      forceRedirectUrl="/dashboard"
+    />
+  );
+}
