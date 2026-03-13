@@ -30,11 +30,11 @@ export function getFrontendClerkPublishableKey(): string | null {
 /**
  * Validerer frontend miljøvariabler.
  * Ved feil kastes en feil med tydelig liste over manglende/ugyldige variabler.
- * I CI hoppes valideringen kun over utenfor produksjon, slik at prod-deploys feiler tidlig
- * hvis Clerk-/API-nokler mangler.
+ * I GitHub Actions hoppes valideringen over slik at repository-builden kan kjøre
+ * uten prod-hemmeligheter. Vercel/runtime bruker fortsatt vanlig validering.
  */
 export function validateFrontendEnv(options: ValidateFrontendEnvOptions = {}): void {
-  if (process.env.CI === "true" && process.env.NODE_ENV !== "production") {
+  if (process.env.GITHUB_ACTIONS === "true") {
     return;
   }
 
