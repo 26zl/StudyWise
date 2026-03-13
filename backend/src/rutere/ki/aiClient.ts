@@ -81,11 +81,12 @@ export async function chatCompletion(options: {
     messages: ChatMessage[];
     max_tokens: number;
     temperature: number;
+    signal?: AbortSignal;
 }): Promise<ChatCompletionResult> {
-    const { model, messages, max_tokens, temperature } = options;
+    const { model, messages, max_tokens, temperature, signal } = options;
 
     const result = await anthropicCircuit.execute(() =>
-        callAnthropic({ model, messages, max_tokens, temperature }),
+        callAnthropic({ model, messages, max_tokens, temperature, signal }),
     );
 
     // Strip <analyse>/<svar>-tagger slik at brukeren kun ser det rene svaret
@@ -160,12 +161,13 @@ async function callAnthropic(options: {
     messages: ChatMessage[];
     max_tokens: number;
     temperature: number;
+    signal?: AbortSignal;
 }): Promise<ChatCompletionResult> {
     if (!anthropicSdkProvider) {
         throw new Error("Anthropic AI SDK-klient ikke initialisert (mangler ANTHROPIC_API_KEY)");
     }
 
-    const { model, messages, max_tokens, temperature } = options;
+    const { model, messages, max_tokens, temperature, signal } = options;
 
     // Skill ut system-meldinger fra samtalehistorikk
     const systemMessages = messages.filter(m => m.role === "system");
@@ -223,6 +225,7 @@ async function callAnthropic(options: {
                 messages: sdkMessages,
                 maxOutputTokens: max_tokens,
                 temperature: Math.min(Math.max(temperature, 0), 1),
+                abortSignal: signal,
                 onFinish: ({ usage }: { usage: { cachedInputTokens?: number; inputTokens?: number; outputTokens?: number } }) => {
                     // cachedInputTokens er innebygd i LanguageModelUsage (ai@6)
                     if (usage.cachedInputTokens) {

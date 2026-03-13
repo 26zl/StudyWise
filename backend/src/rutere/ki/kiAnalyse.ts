@@ -78,7 +78,9 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
   res.setHeader("Connection", "keep-alive");
   res.setHeader("X-Accel-Buffering", "no");
   res.removeHeader("Content-Encoding");
-  req.socket.setTimeout(120000);
+  if (!req.socket.destroyed) {
+    try { req.socket.setTimeout(120000); } catch { /* socket allerede lukket */ }
+  }
   res.flushHeaders();
 
   // Keepalive to prevent proxy (Next.js rewrite) from timing out during AI processing

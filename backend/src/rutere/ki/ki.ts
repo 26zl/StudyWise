@@ -266,7 +266,6 @@ router.use(kiAnalyseRouter);
 
 import { KI_TIMEOUT_MS, SESSION_CONTEXT_TTL } from "./kiConstants.js";
 
-/** Maks ventetid for Canvas sync før chat fortsetter uansett */
 /** Maks ventetid på Canvas-sync før vi fortsetter med API/vector — kortere = raskere første svar, sync fortsetter i bakgrunn */
 const SYNC_WAIT_MAX_MS = 8_000;
 
@@ -623,7 +622,10 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
         if (sessionCacheKey && contextResult.hasCanvasData) {
           await setCache(sessionCacheKey, JSON.stringify(contextResult), SESSION_CONTEXT_TTL);
         }
-        if (lastCourseSessionKey && hasRichCanvasContent) {
+        // lastCourseSessionKey og sessionCacheKey kan peke på samme nøkkel når followUpWithoutCourseHint=true.
+        // Skriv kun til lastCourseSessionKey separat når de er forskjellige, og kun ved rikt innhold —
+        // unngår at svakt innhold fra follow-up forgifter last-course-cachen.
+        if (lastCourseSessionKey && hasRichCanvasContent && lastCourseSessionKey !== sessionCacheKey) {
           await setCache(lastCourseSessionKey, JSON.stringify(contextResult), SESSION_CONTEXT_TTL);
         }
       }
@@ -706,7 +708,8 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
         model,
         messages: fullMessages,
         max_tokens: maxTokens,
-        temperature: Math.min(Math.max(temperature, 0), 2),
+        temperature: Math.min(Math.max(temperature, 0), 1),
+        signal: abortController.signal,
       }),
       timeoutPromise,
     ]);
