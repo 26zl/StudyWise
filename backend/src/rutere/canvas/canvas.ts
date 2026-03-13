@@ -374,9 +374,10 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
     // Avbryt tidlig hvis klienten har koblet fra
     if (req.socket.destroyed) return;
 
-    // Begrens parallelle kall for å unngå rate limiting
+    // Begrens parallelle kall: maks 3 emner × 5 interne kall = 15 samtidige Canvas API-kall.
+    // Tidligere var dette 5, noe som ga 25 samtidige kall.
     const pLimit = (await import("p-limit")).default;
-    const limit = pLimit(5);
+    const limit = pLimit(3);
 
     // Hent all metadata for hvert kurs parallelt (én fase i stedet for to)
     const metadataPromises = courses.map((course) =>

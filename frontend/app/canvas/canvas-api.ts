@@ -324,6 +324,28 @@ export interface AssignmentMedEmne extends CanvasAssignment {
   course_name: string;
 }
 
+// Enkel inline concurrency-begrenser — unngår å installere p-limit i frontend.
+// Kjøres kun ved behov (ikke på modul-nivå).
+function createConcurrencyLimit(concurrency: number) {
+  let active = 0;
+  const queue: Array<() => void> = [];
+  return function limit<T>(fn: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const run = () => {
+        active++;
+        fn()
+          .then(resolve, reject)
+          .finally(() => {
+            active--;
+            if (queue.length > 0) queue.shift()!();
+          });
+      };
+      if (active < concurrency) run();
+      else queue.push(run);
+    });
+  };
+}
+
 // Hent ALLE oppgaver på tvers av emner
 export function useCanvasAllAssignments(options?: { enabled?: boolean }) {
   const isEnabled = useCanvasEnabled(options?.enabled ?? true);
@@ -337,23 +359,26 @@ export function useCanvasAllAssignments(options?: { enabled?: boolean }) {
       const courses = coursesQuery.data?.courses;
       if (!courses) return [];
 
-      // Hent oppgaver for alle emner parallelt.
-      // Ignorer kun forventede per-emne tilgangsfeil; ikke skjul systemiske parse/API-feil som tom liste.
+      // Hent oppgaver for alle emner med begrenset concurrency (maks 4 samtidige kall)
+      // for å unngå å hammere backend med N samtidige kall ved mange emner.
+      const limit = createConcurrencyLimit(4);
       const assignmentResults = await Promise.allSettled(
-        courses.map(async (course: CanvasCourse) => {
-          const response = await fetchCanvas(
-            `/emner/${course.id}/oppgaver`,
-            AssignmentsResponseSchema,
-          );
+        courses.map((course: CanvasCourse) =>
+          limit(async () => {
+            const response = await fetchCanvas(
+              `/emner/${course.id}/oppgaver`,
+              AssignmentsResponseSchema,
+            );
 
-          return response.assignments.map(
-            (assignment): AssignmentMedEmne => ({
-              ...assignment,
-              course_name: course.name,
-              course_id: course.id,
-            }),
-          );
-        }),
+            return response.assignments.map(
+              (assignment): AssignmentMedEmne => ({
+                ...assignment,
+                course_name: course.name,
+                course_id: course.id,
+              }),
+            );
+          }),
+        ),
       );
 
       const allAssignments: AssignmentMedEmne[] = [];

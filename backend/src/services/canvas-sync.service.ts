@@ -455,6 +455,41 @@ async function _doSync(
           const keepFileIds = new Set<number>();
           const storedFileStatus = await getStoredFileStatusForCourse(userId, courseId);
 
+          // Samle alle File-items på tvers av moduler for å batch-hente metadata parallelt.
+          // Sekvensielle metadata-kall per fil var den primære årsaken til mange /api/v1/files/:id-kall.
+          type FileItem = {
+            mod: (typeof moduler)[number];
+            item: NonNullable<(typeof moduler)[number]["items"]>[number];
+            contentId: number;
+          };
+          const allFileItems: FileItem[] = [];
+          for (const mod of moduler) {
+            if (!mod.items) continue;
+            for (const item of mod.items) {
+              if (item.type !== "File" || !item.content_id) continue;
+              allFileItems.push({ mod, item, contentId: item.content_id });
+            }
+          }
+
+          // Pre-hent all filmetadata parallelt (maks 5 samtidige kall) — én runde i stedet for N sekvensielle
+          const FILE_META_CONCURRENCY = 5;
+          const fileMetaLimit = pLimit(FILE_META_CONCURRENCY);
+          type CanvasFileData = Awaited<ReturnType<typeof fetchFileMetadata>>["data"];
+          const fileMetadataMap = new Map<number, CanvasFileData>();
+
+          await Promise.allSettled(
+            allFileItems.map(({ contentId }) =>
+              fileMetaLimit(async () => {
+                try {
+                  const { data } = await fetchFileMetadata(canvasToken, contentId, baseUrl);
+                  fileMetadataMap.set(contentId, data);
+                } catch (err) {
+                  logger.warn({ err, userId, contentId }, "Kunne ikke pre-hente filmetadata");
+                }
+              }),
+            ),
+          );
+
           for (const mod of moduler) {
             if (signal?.aborted) break;
             if (fileCount >= maxFilesPerSync) {
@@ -474,9 +509,11 @@ async function _doSync(
               const contentId = item.content_id;
               if (!contentId) continue;
 
+              const fileData = fileMetadataMap.get(contentId);
+              if (!fileData) continue; // metadata-henting feilet — skip denne filen
+
               try {
                 const legacyFileKey = userKey(userId, "file", String(contentId), "content");
-                const { data: fileData } = await fetchFileMetadata(canvasToken, contentId, baseUrl);
 
                 if (!isSupportedFileType(fileData.filename)) {
                   continue;
