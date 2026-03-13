@@ -49,7 +49,7 @@ export interface HybridSearchResult {
 
 export interface HybridSearchResponse {
   results: HybridSearchResult[];
-  /** true hvis begge søkesystemer feilet */
+  /** true hvis minst ett søkesystem feilet (delvis eller full degradering) */
   degraded: boolean;
   /** Hvilke kilder som bidro til resultatet */
   sources: {
@@ -235,7 +235,7 @@ export async function hybridSearch(
 
   return {
     results: finalResults,
-    degraded: false,
+    degraded: vectorResponse.degraded,
     sources: {
       vector: hasVector,
       bm25: hasBm25,

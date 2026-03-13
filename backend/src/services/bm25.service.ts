@@ -54,6 +54,8 @@ export interface BM25SearchResponse {
 interface DocCandidate {
   _id: string;
   text: string;
+  /** Forhåndsberegnet lowercase av text — unngår gjentatte toLowerCase-kall */
+  textLower: string;
   courseId: string;
   courseName: string;
   moduleTitle: string;
@@ -78,7 +80,7 @@ function beregnBM25Scorer(docs: DocCandidate[], termer: string[]): Map<string, n
   for (const term of termer) {
     let df = 0;
     for (const doc of docs) {
-      if (doc.text.toLowerCase().includes(term)) {
+      if (doc.textLower.includes(term)) {
         df++;
       }
     }
@@ -90,7 +92,7 @@ function beregnBM25Scorer(docs: DocCandidate[], termer: string[]): Map<string, n
   // Score per dokument
   const scorer = new Map<string, number>();
   for (const doc of docs) {
-    const docLower = doc.text.toLowerCase();
+    const docLower = doc.textLower;
     const dl = doc.tokenCount || doc.text.length / 4;
     let score = 0;
 
@@ -154,7 +156,7 @@ export async function bm25Search(
       filter.courseId = { $in: options.courseIds };
     }
 
-    // Hent kandidat-chunks fra MongoDB
+    // Hent kandidat-chunks fra MongoDB (sortert for deterministisk utvalg)
     const docs = await ContentEmbedding.find(filter, {
       _id: 1,
       text: 1,
@@ -166,6 +168,7 @@ export async function bm25Search(
       chunkIndex: 1,
       tokenCount: 1,
     })
+      .sort({ _id: 1 })
       .limit(MAX_CANDIDATE_CHUNKS)
       .lean();
 
@@ -174,6 +177,7 @@ export async function bm25Search(
     const candidates: DocCandidate[] = docs.map((d) => ({
       _id: d._id.toString(),
       text: d.text,
+      textLower: d.text.toLowerCase(),
       courseId: d.courseId,
       courseName: d.courseName,
       moduleTitle: d.moduleTitle,

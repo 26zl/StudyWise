@@ -6,6 +6,7 @@
  */
 
 import { extractSearchTerms, scoreText } from "./semantic-search.service.js";
+import { logger } from "../utils/logger.js";
 
 export interface ContentChunk {
   /** Unik ID for chunken (courseId:fileId:chunkIndex) */
@@ -76,8 +77,11 @@ export function chunkText(
       chunks.push(chunk);
     }
 
-    const advance = end - start - overlap;
-    start += Math.max(advance, 1);
+    // Beregn effektiv overlap: for svært små chunks (mindre enn overlap),
+    // reduseres overlap proporsjonalt slik at vi ikke lager mange nesten-identiske chunks.
+    const actualLen = end - start;
+    const effectiveOverlap = Math.min(overlap, Math.floor(actualLen / 2));
+    start += Math.max(actualLen - effectiveOverlap, 1);
   }
 
   return chunks;
@@ -128,7 +132,10 @@ export function searchChunks(
   opts?: { moduleHint?: string | null; fileHint?: string | null },
 ): ScoredChunk[] {
   const terms = extractSearchTerms(message);
-  if (terms.length === 0) return [];
+  if (terms.length === 0) {
+    logger.debug({ messagePreview: message.substring(0, 80) }, "searchChunks: ingen søketermer ekstrahert fra melding");
+    return [];
+  }
 
   const scored: ScoredChunk[] = [];
 

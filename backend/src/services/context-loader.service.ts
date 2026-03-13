@@ -2,14 +2,16 @@
  * Context Loader Service
  *
  * Laster Canvas-kontekst for KI-chatten. Bruker en hybridmodell:
- * - MongoDB for lagret KI-innhold (chunks/embeddings) — PDF-innhold lagres KUN her, aldri i Redis
+ * - MongoDB ContentEmbedding for lagret KI-innhold (chunks/embeddings) — PDF-innhold lagres KUN her
  * - Redis for lett Canvas-struktur og sync-status (metadata: emnelister, modulnavn, oppgaver; ingen fil-body)
- * - direkte Canvas API som siste fallback
+ * - MongoDB CanvasStructure som permanent fallback når Redis TTL utløper
+ * - direkte Canvas API som siste fallback (kun ved aller første innlogging)
  *
  * Flyt:
  *   1. Prøv lagret KI-innhold i MongoDB for semantisk/keyword-basert søk
  *   2. Bruk Redis for lett strukturkontekst og metadata når det finnes
- *   3. Hvis lokal lagring mangler → trigger bakgrunns-sync og bruk kiCanvas-fallback
+ *   3. Hvis Redis mangler → bruk MongoDB CanvasStructure (permanent, ~10-30ms)
+ *   4. Hvis lokal lagring mangler → trigger bakgrunns-sync og bruk kiCanvas-fallback
  *
  * Opprettholder kompatibilitet med eksisterende intent-nivåer:
  *   - general_chat:   ingen kontekst
@@ -38,6 +40,7 @@ import {
   hasStoredContentForUser,
 } from "./embedding.service.js";
 import { hybridSearch, type HybridSearchResult } from "./hybrid-retrieval.service.js";
+import { CanvasStructureModel, type ICanvasStructure } from "../database/models/CanvasStructure.js";
 
 // ─── Typer ─────────────────────────────────────────────────
 
@@ -55,6 +58,59 @@ interface SyncedCourse {
   course_code?: string;
   moduleTitles: string[];
   fileNames: string[];
+}
+
+/** Felles datastruktur for lett kontekst-bygging (brukes av både Redis- og MongoDB-kilde) */
+interface LettKontekstEmne {
+  name: string;
+  course_code?: string;
+  oppgaver: Array<{
+    name: string;
+    due_at?: string | null;
+    submission?: { workflow_state?: string | null; submitted_at?: string | null } | null;
+  }>;
+}
+
+/**
+ * Felles formatter for lett kontekst — brukes av både Redis og MongoDB-fallback.
+ * Eliminerer duplikat kontekst-byggingslogikk.
+ */
+function formaterLettKontekst(emner: LettKontekstEmne[]): string {
+  const now = new Date();
+  const twoWeeksFromNow = new Date(now.getTime() + TWO_WEEKS_MS);
+
+  let kontekst = "[CANVAS-DATA START]\n";
+  kontekst += `EMNER (${emner.length} aktive):\n`;
+  for (const emne of emner) {
+    kontekst += `- ${formatCourseLabel(emne.name, emne.course_code)}\n`;
+  }
+
+  const fristLinjer: Array<{ dueAt: number; line: string }> = [];
+  for (const emne of emner) {
+    for (const oppg of emne.oppgaver) {
+      if (!oppg.due_at) continue;
+      const frist = new Date(oppg.due_at);
+      if (frist >= now && frist <= twoWeeksFromNow) {
+        const dagerIgjen = Math.ceil((frist.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        const status = isCanvasAssignmentSubmitted(oppg) ? "✓ levert" : "⏳ ikke levert";
+        fristLinjer.push({
+          dueAt: frist.getTime(),
+          line: `- ${oppg.name}${emne.course_code ? ` (${emne.course_code})` : ""} — frist: ${frist.toLocaleDateString("nb-NO")} (${dagerIgjen}d) [${status}]`,
+        });
+      }
+    }
+  }
+
+  if (fristLinjer.length > 0) {
+    fristLinjer.sort((a, b) => a.dueAt - b.dueAt);
+    kontekst += `\nKOMMANDE FRISTER (neste 14 dager):\n`;
+    kontekst += fristLinjer.map((item) => item.line).join("\n") + "\n";
+  } else {
+    kontekst += "\nINGEN FRISTER de neste 14 dagene.\n";
+  }
+
+  kontekst += "[CANVAS-DATA SLUTT]";
+  return kontekst;
 }
 
 function normaliserFilnavnHint(value: string): string {
@@ -222,6 +278,115 @@ async function finnRelevanteEmner(
   return [];
 }
 
+// ─── MongoDB fallback-hjelpere ───────────────────────────────
+
+/**
+ * Bygger lett kontekst fra MongoDB CanvasStructure (permanent fallback når Redis TTL utløper).
+ */
+async function byggLettKontekstFraMongo(userId: string): Promise<string | null> {
+  try {
+    const structures = await CanvasStructureModel.find({ userId }).lean<ICanvasStructure[]>();
+    if (!structures || structures.length === 0) return null;
+
+    const emner: LettKontekstEmne[] = structures.map((s) => ({
+      name: s.courseName,
+      course_code: s.course_code,
+      oppgaver: s.oppgaver,
+    }));
+
+    return formaterLettKontekst(emner);
+  } catch (error) {
+    logger.warn({ err: error, userId }, "Feil ved bygging av lett kontekst fra MongoDB");
+    return null;
+  }
+}
+
+/**
+ * Bygger målrettet kontekst fra MongoDB CanvasStructure for et spesifikt emne/modul.
+ */
+async function byggMålrettetKontekstFraMongo(
+  userId: string,
+  target: TargetedQuery,
+): Promise<string | null> {
+  try {
+    const structures = await CanvasStructureModel.find({ userId }).lean<ICanvasStructure[]>();
+    if (!structures || structures.length === 0) return null;
+
+    // Finn matchende kurs
+    let matchedStructure: (typeof structures)[number] | undefined;
+    if (target.courseHint) {
+      const hint = target.courseHint.toLowerCase();
+      matchedStructure = structures.find(
+        (s) =>
+          s.courseName.toLowerCase().includes(hint) ||
+          s.course_code.toLowerCase().includes(hint),
+      );
+    }
+
+    if (!matchedStructure && structures.length === 1) {
+      matchedStructure = structures[0];
+    }
+
+    if (!matchedStructure) return null;
+
+    let kontekst = "[CANVAS-DATA START]\n";
+    kontekst += `EMNE: ${formatCourseLabel(matchedStructure.courseName, matchedStructure.course_code)}\n`;
+
+    // Moduler
+    if (matchedStructure.moduler.length > 0) {
+      kontekst += `\nMODULER (${matchedStructure.moduler.length}):\n`;
+      for (const mod of matchedStructure.moduler) {
+        kontekst += `- ${mod.name}`;
+        if (mod.items?.length) {
+          kontekst += ` (${mod.items.length} items)`;
+        }
+        kontekst += "\n";
+        if (mod.items) {
+          for (const item of mod.items) {
+            kontekst += `  • ${item.title} [${item.type}]\n`;
+          }
+        }
+      }
+    }
+
+    // Oppgaver
+    if (matchedStructure.oppgaver.length > 0) {
+      kontekst += `\nOPPGAVER (${matchedStructure.oppgaver.length}):\n`;
+      for (const oppg of matchedStructure.oppgaver) {
+        kontekst += `- ${oppg.name}`;
+        if (oppg.due_at) {
+          const frist = new Date(oppg.due_at);
+          const status = isCanvasAssignmentSubmitted(oppg) ? "✓ levert" : "⏳ ikke levert";
+          kontekst += ` — frist: ${frist.toLocaleDateString("nb-NO")} [${status}]`;
+        }
+        kontekst += "\n";
+      }
+    }
+
+    // Kunngjøringer
+    if (matchedStructure.kunngjøringer.length > 0) {
+      kontekst += `\nKUNNGJØRINGER (${matchedStructure.kunngjøringer.length}):\n`;
+      for (const k of matchedStructure.kunngjøringer) {
+        kontekst += `- ${k.title}`;
+        if (k.posted_at) {
+          kontekst += ` (${new Date(k.posted_at).toLocaleDateString("nb-NO")})`;
+        }
+        if (k.message) {
+          const stripped = stripHtml(k.message).slice(0, 200);
+          kontekst += `\n  ${stripped}`;
+        }
+        kontekst += "\n";
+      }
+    }
+
+    kontekst += "[CANVAS-DATA SLUTT]";
+    return kontekst;
+  } catch (error) {
+    logger.warn({ err: error, userId }, "Feil ved bygging av målrettet kontekst fra MongoDB");
+    return null;
+  }
+}
+
 /**
  * Bygger lett kontekst fra Redis-data.
  * Inkluderer: emneliste + oppgaver med frister (neste 14 dager).
@@ -239,17 +404,7 @@ async function byggLettKontekstFraRedis(userId: string): Promise<string | null> 
 
     if (emner.length === 0) return null;
 
-    const now = new Date();
-    const twoWeeksFromNow = new Date(now.getTime() + TWO_WEEKS_MS);
-
-    let kontekst = "[CANVAS-DATA START]\n";
-    kontekst += `EMNER (${emner.length} aktive):\n`;
-    for (const emne of emner) {
-      kontekst += `- ${formatCourseLabel(emne.name, emne.course_code)}\n`;
-    }
-
-    // Hent oppgaver for alle emner parallelt og filtrer til kommende frister
-    const fristLinjer: Array<{ dueAt: number; line: string }> = [];
+    // Hent oppgaver for alle emner parallelt
     const oppgaverResults = await Promise.all(
       emner.map(async (emne) => ({
         emne,
@@ -257,43 +412,19 @@ async function byggLettKontekstFraRedis(userId: string): Promise<string | null> 
       })),
     );
 
-    for (const { emne, raw: oppgaverRaw } of oppgaverResults) {
-      if (!oppgaverRaw) continue;
-
-      try {
-        const oppgaver = JSON.parse(oppgaverRaw) as Array<{
-          name: string;
-          due_at?: string | null;
-          submission?: { workflow_state?: string | null; submitted_at?: string | null } | null;
-        }>;
-
-        for (const oppg of oppgaver) {
-          if (!oppg.due_at) continue;
-          const frist = new Date(oppg.due_at);
-          if (frist >= now && frist <= twoWeeksFromNow) {
-            const dagerIgjen = Math.ceil((frist.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-            const status = isCanvasAssignmentSubmitted(oppg) ? "✓ levert" : "⏳ ikke levert";
-            fristLinjer.push({
-              dueAt: frist.getTime(),
-              line: `- ${oppg.name}${emne.course_code ? ` (${emne.course_code})` : ""} — frist: ${frist.toLocaleDateString("nb-NO")} (${dagerIgjen}d) [${status}]`,
-            });
-          }
+    const lettEmner: LettKontekstEmne[] = oppgaverResults.map(({ emne, raw }) => {
+      let oppgaver: LettKontekstEmne["oppgaver"] = [];
+      if (raw) {
+        try {
+          oppgaver = JSON.parse(raw);
+        } catch {
+          // Ugyldig JSON — hopp over
         }
-      } catch {
-        // Ugyldig JSON — hopp over
       }
-    }
+      return { name: emne.name, course_code: emne.course_code, oppgaver };
+    });
 
-    if (fristLinjer.length > 0) {
-      fristLinjer.sort((a, b) => a.dueAt - b.dueAt);
-      kontekst += `\nKOMMANDE FRISTER (neste 14 dager):\n`;
-      kontekst += fristLinjer.map((item) => item.line).join("\n") + "\n";
-    } else {
-      kontekst += "\nINGEN FRISTER de neste 14 dagene.\n";
-    }
-
-    kontekst += "[CANVAS-DATA SLUTT]";
-    return kontekst;
+    return formaterLettKontekst(lettEmner);
   } catch (error) {
     logger.warn({ err: error }, "Feil ved bygging av lett kontekst fra Redis");
     return null;
@@ -650,12 +781,19 @@ async function byggKontekstFraHybridSearch(
       courseIds: coursesPinned ? courseIds : undefined,
     });
 
-    if (degraded || results.length === 0) {
+    if (results.length === 0) {
       logger.info(
         { userId, degraded, messagePreview: message.substring(0, 80) },
         "Hybrid søk ga ingen resultater",
       );
       return null;
+    }
+
+    if (degraded) {
+      logger.warn(
+        { userId, sources, messagePreview: message.substring(0, 80) },
+        "Hybrid søk: delvis degradert — bruker tilgjengelige resultater",
+      );
     }
 
     const filteredResults = filtrerHybridResultater(results, target, coursesPinned);
@@ -754,8 +892,24 @@ export async function loadCanvasContext(
       }
     }
 
-    // Fallback: direkte Canvas API via kiCanvas
-    logger.info({ userId, intent, source: "api" }, "Redis mangler data — bruker API-fallback (lett)");
+    // MongoDB fallback (permanent lagring, ~10-30ms)
+    const mongoKontekst = await byggLettKontekstFraMongo(userId);
+    if (mongoKontekst) {
+      logger.info(
+        { userId, intent, source: "redis", contextLength: mongoKontekst.length },
+        "Canvas-kontekst lastet fra MongoDB (lett fallback)",
+      );
+      // Trigger bakgrunns-sync for å oppdatere Redis
+      if (redisAvailable) {
+        syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
+          logger.warn({ err, userId }, "Bakgrunns-sync feilet etter MongoDB-fallback");
+        });
+      }
+      return { kontekst: mongoKontekst, hasCanvasData: true, source: "redis" };
+    }
+
+    // Siste fallback: direkte Canvas API via kiCanvas
+    logger.info({ userId, intent, source: "api" }, "Redis+MongoDB mangler data — bruker API-fallback (lett)");
     const apiKontekst = await byggLettCanvasKontekst(canvasToken, baseUrl);
     const hasData = apiKontekst.includes("CANVAS-DATA");
 
@@ -809,10 +963,25 @@ export async function loadCanvasContext(
       }
     }
 
-    // Fallback: direkte Canvas API via kiCanvas
+    // MongoDB fallback for målrettet kontekst
+    const mongoKontekst = await byggMålrettetKontekstFraMongo(userId, target);
+    if (mongoKontekst) {
+      logger.info(
+        { userId, intent, target, source: "redis", contextLength: mongoKontekst.length },
+        "Målrettet Canvas-kontekst lastet fra MongoDB (fallback)",
+      );
+      if (redisAvailable) {
+        syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
+          logger.warn({ err, userId }, "Bakgrunns-sync feilet etter MongoDB-fallback");
+        });
+      }
+      return { kontekst: mongoKontekst, hasCanvasData: true, source: "redis" };
+    }
+
+    // Siste fallback: direkte Canvas API via kiCanvas
     logger.info(
       { userId, intent, target, source: "api" },
-      "Redis mangler data — bruker API-fallback (målrettet)",
+      "Redis+MongoDB mangler data — bruker API-fallback (målrettet)",
     );
     const apiKontekst = await byggMålrettetCanvasKontekst(canvasToken, target, baseUrl);
     const hasData =
@@ -841,7 +1010,22 @@ export async function loadCanvasContext(
     }
   }
 
-  // Fallback
+  // MongoDB fallback
+  const mongoFallback = await byggLettKontekstFraMongo(userId);
+  if (mongoFallback) {
+    logger.info(
+      { userId, intent, source: "redis", contextLength: mongoFallback.length },
+      "canvas_full uten mål — lett kontekst fra MongoDB (fallback)",
+    );
+    if (redisAvailable) {
+      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
+        logger.warn({ err, userId }, "Bakgrunns-sync feilet etter MongoDB-fallback");
+      });
+    }
+    return { kontekst: mongoFallback, hasCanvasData: true, source: "redis" };
+  }
+
+  // Siste fallback: Canvas API
   const apiKontekst = await byggLettCanvasKontekst(canvasToken, baseUrl);
   const hasData = apiKontekst.includes("CANVAS-DATA");
 

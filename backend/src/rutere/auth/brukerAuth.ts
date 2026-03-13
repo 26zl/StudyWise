@@ -15,6 +15,8 @@ import { invalidateCacheByPattern } from "../../cache/redis.js";
 import {
   clearUserCanvasRuntimeState,
   invalidateUserCanvasCache,
+  triggerInitialSync,
+  hasCanvasStructureInMongo,
 } from "../../services/canvas-sync.service.js";
 import {
   CanvasTokenRequestSchema,
@@ -292,6 +294,9 @@ router.post("/token", rateLimitToken, async (req, res) => {
           req,
         });
 
+        // Sjekk om dette er første oppsett FØR invalidering (som sletter MongoDB-data)
+        const isFirstTimeSetup = !gammeltKryptertToken || !(await hasCanvasStructureInMongo(userId.toString()));
+
         // Invalider cache ETTER lagring — slik at nytt token allerede er persistert
         await invalidateStoredCanvasDataForUser(userId.toString(), gammeltKryptertToken);
 
@@ -303,6 +308,11 @@ router.post("/token", rateLimitToken, async (req, res) => {
         warmCanvasCache(cleanToken, canvasBaseUrl).catch((err) => {
             logger.warn({ err, userId }, "Cache warming feilet etter token-lagring (ikke kritisk)");
         });
+
+        // Kjør full bakgrunns-sync ved første oppsett (eller re-kobling) for å fylle MongoDB permanent
+        if (isFirstTimeSetup) {
+          triggerInitialSync(userId.toString(), cleanToken, canvasBaseUrl);
+        }
 
         return res.json(CanvasTokenResponseSchema.parse({
             melding: "Token lagret og kryptert",

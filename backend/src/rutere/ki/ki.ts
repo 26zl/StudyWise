@@ -26,6 +26,17 @@ import { isSyncing, waitForSync } from "../../services/canvas-sync.service.js";
 import { trimToTokenLimit, countTokens } from "../../utils/tokenCounter.js";
 import { knyttCanvasTokenValgfritt } from "../../middleware/auth.js";
 
+/** Parser JSON sync-status fra Redis. Returnerer statusfeltet, eller null ved ugyldig verdi. */
+function parseSyncStatus(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return typeof parsed.status === "string" ? parsed.status : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Nøkkelord som krever full kontekst (moduler, PDFer, sideinnhold) */
 const CANVAS_FULL_KEYWORDS = [
   // Handlingsverb (inkl. konjugasjoner)
@@ -477,37 +488,50 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     if (intent !== "general_chat" && req.canvasToken && req.user?.id) {
       const baseUrl = req.canvasBaseUrl;
 
-      // Sikre at bakgrunns-sync er igangsatt
-      ensureCanvasSync(req.user.id, req.canvasToken, baseUrl);
+      // Sync-venting er best-effort — feil her skal IKKE stoppe KI-flyten
+      try {
+        // Sikre at bakgrunns-sync er igangsatt
+        ensureCanvasSync(req.user.id, req.canvasToken, baseUrl).catch((err) => {
+          logger.warn({ err, userId: req.user!.id }, "ensureCanvasSync feilet — fortsetter uten sync");
+        });
 
-      // Vent på pågående sync slik at lagret KI-innhold er oppdatert
-      if (isSyncing(req.user.id)) {
-        logger.info({ userId: req.user.id }, "Venter på Canvas sync før KI-kontekst (in-memory)");
-        const syncResult = await waitForSync(req.user.id, SYNC_WAIT_MAX_MS);
-        if (!syncResult) {
-          logger.warn({ userId: req.user.id }, "Canvas sync timeout — fortsetter uten å vente");
-        }
-      } else {
-        // In-memory check var negativ (f.eks. rate-limited sync returnerte umiddelbart),
-        // men en tidligere sync kan fortsatt kjøre — sjekk Redis-flagget
-        const syncStatus = await getCache(`canvas:user:${req.user.id}:sync:status`);
-        if (syncStatus === "running") {
-          logger.info({ userId: req.user.id }, "Venter på Canvas sync før KI-kontekst (Redis-flagg)");
-          const POLL_INTERVAL = 500;
-          const maxPolls = Math.ceil(SYNC_WAIT_MAX_MS / POLL_INTERVAL);
-          let waited = false;
-          for (let i = 0; i < maxPolls; i++) {
-            await new Promise((r) => setTimeout(r, POLL_INTERVAL));
-            const status = await getCache(`canvas:user:${req.user.id}:sync:status`);
-            if (status !== "running") {
-              waited = true;
-              break;
+        // Vent på pågående sync slik at lagret KI-innhold er oppdatert.
+        // Sjekk in-memory først (raskest), deretter Redis (cross-process).
+        if (isSyncing(req.user.id)) {
+          logger.info({ userId: req.user.id }, "Venter på Canvas sync før KI-kontekst (in-memory)");
+          await waitForSync(req.user.id, SYNC_WAIT_MAX_MS);
+        } else {
+          const syncStatusRaw = await getCache(`canvas:user:${req.user.id}:sync:status`);
+          const parsedStatus = parseSyncStatus(syncStatusRaw);
+          if (parsedStatus === "running") {
+            // Dobbelt-sjekk: ensureCanvasSync kan ha startet synkronisering
+            // mellom isSyncing()-kallet og nå — prøv in-memory igjen
+            if (isSyncing(req.user.id)) {
+              logger.info({ userId: req.user.id }, "Venter på Canvas sync før KI-kontekst (in-memory, re-check)");
+              await waitForSync(req.user.id, SYNC_WAIT_MAX_MS);
+            } else {
+              logger.info({ userId: req.user.id }, "Venter på Canvas sync før KI-kontekst (Redis-flagg)");
+              const POLL_INTERVAL = 500;
+              const maxPolls = Math.ceil(SYNC_WAIT_MAX_MS / POLL_INTERVAL);
+              for (let i = 0; i < maxPolls; i++) {
+                await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+                // Sjekk in-memory først — synkroniseringen kan ha blitt plukket opp lokalt
+                if (isSyncing(req.user.id)) {
+                  const remainingMs = Math.max(SYNC_WAIT_MAX_MS - (i + 1) * POLL_INTERVAL, 0);
+                  await waitForSync(req.user.id, remainingMs);
+                  break;
+                }
+                const statusRaw = await getCache(`canvas:user:${req.user.id}:sync:status`);
+                if (parseSyncStatus(statusRaw) !== "running") break;
+              }
             }
           }
-          if (!waited) {
-            logger.warn({ userId: req.user.id }, "Canvas sync Redis-flagg timeout — fortsetter uten å vente");
-          }
         }
+      } catch (syncErr) {
+        logger.warn(
+          { err: syncErr, userId: req.user.id },
+          "Sync-venting feilet — fortsetter KI-flyt uten å vente på sync",
+        );
       }
 
       // Ekstraher eventuelle emne/modul-hint fra siste brukermelding
@@ -665,7 +689,13 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     );
 
     // Socket timeout for lang AI-svar (SSE-headere og keepalive er allerede satt tidlig)
-    if (!res.writableEnded) req.socket.setTimeout(TIMEOUT_MS + 10000);
+    if (!res.writableEnded && !req.socket.destroyed) {
+      try {
+        req.socket.setTimeout(TIMEOUT_MS + 10000);
+      } catch {
+        // Socket allerede lukket — ignorer
+      }
+    }
 
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("CHAT_TIMEOUT")), TIMEOUT_MS),

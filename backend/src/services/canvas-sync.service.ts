@@ -2,8 +2,9 @@
  * Canvas Sync Service
  *
  * Synkroniserer Canvas-data til en hybridmodell:
- * - Redis: lett strukturdata, sync-status og kortlivede nøkler
- * - MongoDB: tungt filinnhold som chunks + embeddings for KI-søk
+ * - Redis: lett strukturdata, sync-status (TTL 2 timer — rask cache)
+ * - MongoDB CanvasStructure: permanent kursstruktur (fallback når Redis TTL utløper)
+ * - MongoDB ContentEmbedding: tungt filinnhold som chunks + embeddings for KI-søk
  *
  * Redis-nøkkelstruktur:
  *   canvas:user:{userId}:emner                    — liste over aktive emner (JSON)
@@ -14,9 +15,9 @@
  *   canvas:user:{userId}:syncMeta                   — siste sync tidspunkt + hash
  *
  * Invalideringslogikk:
- *   - SHA-256 hash av kursdata — oppdater Redis kun ved faktiske endringer
+ *   - SHA-256 hash av kursdata — oppdater Redis/MongoDB kun ved faktiske endringer
  *   - SHA-256 hash av filer — unngå unødvendig re-ekstraksjon/embedding
- *   - TTL 3600s (1 time) kun på Redis-data
+ *   - TTL 7200s (2 timer) på Redis-data; MongoDB har ingen TTL (permanent)
  *   - Manuell invalidering via invalidateUserCanvasCache()
  */
 
@@ -54,11 +55,12 @@ import {
   updateStoredFileMetadata,
   upsertStoredFileContent,
 } from "./embedding.service.js";
+import { CanvasStructureModel } from "../database/models/CanvasStructure.js";
 
 // ─── Konstanter ────────────────────────────────────────────
 
-/** TTL for synkroniserte Canvas-data i Redis (30 min) — reduserer Redis-bruk ved mange brukere/emner */
-const SYNC_CACHE_TTL = 1800;
+/** TTL for synkroniserte Canvas-data i Redis (2 timer) — MongoDB er nå permanent fallback */
+const SYNC_CACHE_TTL = 7200;
 
 /** Maks samtidige Canvas API-kall under synkronisering */
 const SYNC_CONCURRENCY = 3;
@@ -88,6 +90,12 @@ export interface SyncResult {
     failed: number;
   };
   durationMs: number;
+}
+
+/** Ekstra valg for _doSync */
+interface SyncOptions {
+  bypassRateLimit?: boolean;
+  maxFiles?: number;
 }
 
 // ─── Sync-tracking ─────────────────────────────────────────
@@ -158,12 +166,13 @@ export async function syncCanvasDataForUser(
   canvasToken: string,
   baseUrl?: string,
   signal?: AbortSignal,
+  options?: SyncOptions,
 ): Promise<SyncResult> {
   // Hvis det allerede pågår en sync for denne brukeren, vent på den
   const existing = activeSyncs.get(userId);
   if (existing) return existing;
 
-  const promise = _doSync(userId, canvasToken, baseUrl, signal);
+  const promise = _doSync(userId, canvasToken, baseUrl, signal, options);
   activeSyncs.set(userId, promise);
 
   // Sett Redis sync-status til "running" med timestamp slik at andre prosesser kan polle
@@ -195,8 +204,10 @@ async function _doSync(
   canvasToken: string,
   baseUrl?: string,
   signal?: AbortSignal,
+  options?: SyncOptions,
 ): Promise<SyncResult> {
   const startTime = Date.now();
+  const maxFilesPerSync = options?.maxFiles ?? MAX_FILES_PER_SYNC;
 
   if (signal?.aborted) {
     return { synced: false, courses: { total: 0, updated: 0, unchanged: 0, failed: 0 }, durationMs: Date.now() - startTime };
@@ -212,10 +223,10 @@ async function _doSync(
     return { synced: false, courses: { total: 0, updated: 0, unchanged: 0, failed: 0 }, durationMs: 0 };
   }
 
-  // Rate limiting: Sjekk om brukeren nylig har synkronisert
+  // Rate limiting: Sjekk om brukeren nylig har synkronisert (kan bypasses for initial sync)
   const syncMetaKey = userKey(userId, "syncMeta");
   const existingMeta = await getCache(syncMetaKey);
-  if (existingMeta) {
+  if (!options?.bypassRateLimit && existingMeta) {
     try {
       const meta: SyncMeta = JSON.parse(existingMeta);
       const secondsSinceLast = (Date.now() - new Date(meta.lastSyncAt).getTime()) / 1000;
@@ -243,12 +254,15 @@ async function _doSync(
 
   if (courses.length === 0) {
     logger.info({ userId }, "Ingen aktive emner funnet for Canvas sync");
+    // Vent på invalidering og sletting FØR vi skriver ny cache-state,
+    // slik at en sen invalidering ikke overskriver de nye verdiene.
     await Promise.allSettled([
       invalidateCacheByPattern(`canvas:user:${userId}:emne:*`),
       deleteStoredUserContent(userId),
       invalidateUserKISessionCache(userId),
+      CanvasStructureModel.deleteMany({ userId }),
     ]);
-    // Overskriv Redis med tom liste og oppdater syncMeta slik at loadCanvasContext ikke serverer stale data
+    // Nå er det trygt å skrive tom liste og syncMeta
     await setCache(userKey(userId, "emner"), "[]", SYNC_CACHE_TTL);
     const emptyMeta: SyncMeta = { lastSyncAt: new Date().toISOString(), courseHashes: {} };
     await setCache(syncMetaKey, JSON.stringify(emptyMeta), SYNC_CACHE_TTL);
@@ -305,9 +319,30 @@ async function _doSync(
             fetchCourseAnnouncements(canvasToken, course.id, baseUrl),
           ]);
 
-          const moduler = modulesResult.status === "fulfilled" ? modulesResult.value.data : [];
-          const oppgaver = assignmentsResult.status === "fulfilled" ? assignmentsResult.value.data : [];
-          const kunngjøringer = announcementsResult.status === "fulfilled" ? announcementsResult.value.data : [];
+          // Sjekk hvilke hentinger som feilet — unngå å overskrive gyldig data med tomme lister
+          const modulesFailed = modulesResult.status === "rejected";
+          const assignmentsFailed = assignmentsResult.status === "rejected";
+          const announcementsFailed = announcementsResult.status === "rejected";
+          const anyFetchFailed = modulesFailed || assignmentsFailed || announcementsFailed;
+
+          if (anyFetchFailed) {
+            logger.warn(
+              {
+                userId, courseId, courseName: course.name,
+                modulesFailed, assignmentsFailed, announcementsFailed,
+              },
+              "Delvis Canvas-henting feilet — beholder eksisterende data for dette kurset",
+            );
+            // Behold forrige hash slik at kurset ikke behandles som "fjernet"
+            const prevHash = previousMeta.courseHashes[courseId];
+            if (prevHash) newHashes[courseId] = prevHash;
+            failed++;
+            return;
+          }
+
+          const moduler = modulesResult.value.data;
+          const oppgaver = assignmentsResult.value.data;
+          const kunngjøringer = announcementsResult.value.data;
 
           // Bygg data-objekt for hashing
           const courseData = {
@@ -371,6 +406,25 @@ async function _doSync(
               { userId, courseId, courseName: course.name },
               "Canvas emne-data oppdatert i Redis",
             );
+
+            // Permanent lagring i MongoDB (fallback når Redis TTL utløper)
+            await CanvasStructureModel.findOneAndUpdate(
+              { userId, courseId },
+              {
+                userId,
+                courseId,
+                courseName: course.name,
+                course_code: course.course_code ?? "",
+                moduler: courseData.moduler,
+                oppgaver: courseData.oppgaver,
+                kunngjøringer: courseData.kunngjøringer,
+                syncedAt: new Date(),
+                dataHash: hash,
+              },
+              { upsert: true },
+            ).catch((err) => {
+              logger.warn({ err, userId, courseId }, "Kunne ikke lagre Canvas-struktur til MongoDB");
+            });
           }
 
           // ── Filekstraksjon for File-type module items ──
@@ -382,7 +436,7 @@ async function _doSync(
 
           for (const mod of moduler) {
             if (signal?.aborted) break;
-            if (fileCount >= MAX_FILES_PER_SYNC) {
+            if (fileCount >= maxFilesPerSync) {
               reachedFileLimit = true;
               break;
             }
@@ -390,7 +444,7 @@ async function _doSync(
 
             for (const item of mod.items) {
               if (signal?.aborted) break;
-              if (fileCount >= MAX_FILES_PER_SYNC) {
+              if (fileCount >= maxFilesPerSync) {
                 reachedFileLimit = true;
                 break;
               }
@@ -529,13 +583,16 @@ async function _doSync(
             }
           } else {
             logger.info(
-              { userId, courseId, maxFilesPerSync: MAX_FILES_PER_SYNC },
+              { userId, courseId, maxFilesPerSync },
               "Hopper over sletting av manglende filer fordi filgrensen ble nådd",
             );
           }
 
           await deleteCacheKeys([userKey(userId, "emne", courseId, "chunks")]);
         } catch (error) {
+          // Behold forrige hash slik at kurset ikke behandles som "fjernet"
+          const prevHash = previousMeta.courseHashes[courseId];
+          if (prevHash) newHashes[courseId] = prevHash;
           failed++;
           logger.warn(
             { err: error, userId, courseId, courseName: course.name },
@@ -566,6 +623,7 @@ async function _doSync(
         await Promise.allSettled([
           invalidateCacheByPattern(userKey(userId, "emne", removedCourseId, "*")),
           deleteStoredCourseContent(userId, removedCourseId),
+          CanvasStructureModel.deleteOne({ userId, courseId: removedCourseId }),
         ]);
       }),
     );
@@ -632,14 +690,19 @@ export async function invalidateUserCanvasCache(
   const { strictContentDeletion = false } = options;
   const tasks = {
     contentDeletion: deleteStoredUserContent(userId),
+    structureDeletion: CanvasStructureModel.deleteMany({ userId }).catch((err) => {
+      logger.warn({ err, userId }, "Feil ved sletting av CanvasStructure for bruker");
+      return { deletedCount: 0 };
+    }),
     sessionInvalidation: invalidateUserKISessionCache(userId),
     redisInvalidation: isRedisReady()
       ? invalidateCacheByPattern(`canvas:user:${userId}:*`)
       : Promise.resolve(),
   };
 
-  const [contentResult, sessionResult, redisResult] = await Promise.allSettled([
+  const [contentResult, , sessionResult, redisResult] = await Promise.allSettled([
     tasks.contentDeletion,
+    tasks.structureDeletion,
     tasks.sessionInvalidation,
     tasks.redisInvalidation,
   ]);
@@ -671,4 +734,33 @@ export async function hasCanvasSyncData(userId: string): Promise<boolean> {
   if (!isRedisReady()) return false;
   const meta = await getCache(userKey(userId, "syncMeta"));
   return meta !== null;
+}
+
+/**
+ * Sjekker om en bruker har permanent Canvas-struktur i MongoDB.
+ */
+export async function hasCanvasStructureInMongo(userId: string): Promise<boolean> {
+  const doc = await CanvasStructureModel.exists({ userId });
+  return doc !== null;
+}
+
+/** Maks filer per sync under initial sync (konfigurerbar via env) */
+const INITIAL_SYNC_MAX_FILES = parseInt(process.env.INITIAL_SYNC_MAX_FILES ?? "50", 10);
+
+/**
+ * Kjører en full Canvas-sync i bakgrunnen uten rate-limit.
+ * Brukes ved første token-lagring for å fylle MongoDB permanent.
+ * Fire-and-forget — kaller skal IKKE awaite.
+ */
+export function triggerInitialSync(
+  userId: string,
+  canvasToken: string,
+  baseUrl: string,
+): void {
+  syncCanvasDataForUser(userId, canvasToken, baseUrl, undefined, {
+    bypassRateLimit: true,
+    maxFiles: INITIAL_SYNC_MAX_FILES,
+  }).catch((err) => {
+    logger.error({ err, userId }, "Initial Canvas sync feilet");
+  });
 }
