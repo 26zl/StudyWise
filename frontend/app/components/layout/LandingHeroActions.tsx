@@ -31,6 +31,7 @@ export function LandingHeroActions({ initialUser }: LandingHeroActionsProps) {
       {/* Primær CTA: innlogget → dashboard, ikke innlogget → auth (logg inn først) */}
       <Link
         href={erInnlogget ? "/dashboard" : "/auth/sign-in"}
+        prefetch={false}
         className={`group inline-flex items-center justify-center gap-2 px-8 py-4 ${ctaWidth} bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-full font-medium transition-all hover:shadow-lg hover:shadow-blue-500/25`}
       >
         {erInnlogget ? "Fortsett til Dashboard" : "Gå til Dashboard"}
@@ -43,6 +44,7 @@ export function LandingHeroActions({ initialUser }: LandingHeroActionsProps) {
       {!erInnlogget && (
         <Link
           href="/auth/sign-in"
+          prefetch={false}
           className={`inline-flex items-center justify-center px-8 py-4 ${ctaWidth} bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full font-medium transition-colors`}
         >
           Logg inn / Registrer

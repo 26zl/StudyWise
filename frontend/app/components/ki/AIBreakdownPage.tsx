@@ -229,6 +229,7 @@ export function AIBreakdownPage() {
                   </div>
                   <Link
                     href="/dashboard?view=settings"
+                    prefetch={false}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 text-white rounded-lg transition-colors text-sm"
                   >
                     Gå til innstillinger

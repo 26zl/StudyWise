@@ -49,7 +49,7 @@ function NavigationLink({
     : "inline-flex items-center gap-1.5 hover:text-blue-600 dark:hover:text-blue-400 transition-colors";
 
   return (
-    <Link href={href} onClick={onClick} className={className}>
+    <Link href={href} prefetch={false} onClick={onClick} className={className}>
       {Icon ? <Icon className={mobile ? "h-5 w-5" : "h-4 w-4"} /> : null}
       <span>{label}</span>
     </Link>
@@ -167,7 +167,7 @@ export function Header() {
           </button>
         )}
         <div className="font-semibold text-lg text-slate-900 dark:text-white">
-          <Link href="/">StudyWise</Link>
+          <Link href="/" prefetch={false}>StudyWise</Link>
         </div>
       </div>
 

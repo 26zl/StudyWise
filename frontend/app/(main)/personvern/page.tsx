@@ -175,7 +175,7 @@ export default function PersonvernPage() {
           </li>
           <li>
             Data lagres på sikre servere med tilgangskontroll. Se også vår{" "}
-            <Link href="/sikkerhet" className="text-blue-500 hover:underline">
+            <Link href="/sikkerhet" prefetch={false} className="text-blue-500 hover:underline">
               sikkerhetsside
             </Link>
             .
@@ -189,7 +189,7 @@ export default function PersonvernPage() {
         <p>
           Har du spørsmål om personvern eller vil utøve rettighetene dine? Kontakt
           oss via{" "}
-          <Link href="/kontakt" className="text-blue-500 hover:underline">
+          <Link href="/kontakt" prefetch={false} className="text-blue-500 hover:underline">
             kontaktskjemaet
           </Link>
           .

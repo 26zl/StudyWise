@@ -127,6 +127,7 @@ export function Sidebar({
                     <div className="mb-4">
                         <Link
                             href="/oversikt"
+                            prefetch={false}
                             onClick={() => {
                                 if (window.innerWidth < 768) lukkVenstreMeny();
                             }}
@@ -166,6 +167,7 @@ export function Sidebar({
                         {/* Oppgavedeling med KI */}
                         <Link
                             href="/ai-breakdown"
+                            prefetch={false}
                             onClick={() => {
                                 if (window.innerWidth < 768) {
                                     lukkVenstreMeny();

@@ -16,6 +16,7 @@ export default function ProfilPage() {
         <div className="mx-auto w-full max-w-4xl min-w-0">
           <Link
             href="/dashboard"
+            prefetch={false}
             className="inline-flex min-h-11 min-w-11 items-center rounded-lg py-2 text-sm text-slate-700 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:text-slate-300 dark:hover:text-white"
           >
             ← Tilbake til dashboard

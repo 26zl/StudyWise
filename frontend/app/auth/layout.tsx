@@ -14,6 +14,7 @@ export default function AuthLayout({
       <div className="flex-1 flex flex-col items-center justify-center py-8 px-4">
         <Link
           href="/"
+          prefetch={false}
           className="absolute top-4 left-4 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
         >
           ← Tilbake til forsiden
