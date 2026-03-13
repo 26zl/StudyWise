@@ -2,7 +2,7 @@
  * Auth API: Clerk-only. Hooks for /me, logout, Canvas token, preferences.
  */
 
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { useClerk } from "@clerk/nextjs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -300,6 +300,46 @@ export function useOppdaterVarslerState() {
   return useOppdaterBrukerPreferanser((varslerState: VarslerState) => ({
     varslerState,
   }));
+}
+
+/** Debounce-intervall før preferanseoppdatering sendes til backend (ms). */
+const PREFERENCES_DEBOUNCE_MS = 500;
+
+/**
+ * Debounced oppdatering av Canvas-kontekst preferanser.
+ * Samler flere endringer og sender én PUT etter PREFERENCES_DEBOUNCE_MS uten nye endringer.
+ */
+export function useDebouncedPreferanseOppdater() {
+  const queryClient = useQueryClient();
+  const { mutateAsync, isPending } = useOppdaterPreferanser();
+  const pendingRef = useRef<CanvasContextPreferences | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flush = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    const p = pendingRef.current;
+    pendingRef.current = null;
+    if (p) {
+      mutateAsync(p).catch(() => {
+        queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY });
+        showToast.error("Kunne ikke oppdatere AI-kontekst", "Prøv igjen.");
+      });
+    }
+  }, [mutateAsync, queryClient]);
+
+  const mutate = useCallback(
+    (value: CanvasContextPreferences) => {
+      pendingRef.current = value;
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(flush, PREFERENCES_DEBOUNCE_MS);
+    },
+    [flush],
+  );
+
+  return { mutate, isPending, flush };
 }
 
 async function slettKonto(): Promise<AccountDeletionResponse> {

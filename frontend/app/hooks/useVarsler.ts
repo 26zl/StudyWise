@@ -96,10 +96,11 @@ export function useVarslerStateSync(authReady: boolean, serverState?: VarslerSta
         if (localSignature === lastSyncedSignatureRef.current) return;
         if (persistererVarslerState) return;
 
+        // Debounce første persist (500 ms) for å unngå mange PUT ved rask bruk; retry bruker backoff
         const retryDelayMs =
             varslerPersistFailureCount > 0
                 ? Math.min(5000, 1000 * 2 ** (varslerPersistFailureCount - 1))
-                : 300;
+                : 500;
 
         const timeoutId = window.setTimeout(() => {
             persistVarslerState(normalizedLocalState, {
@@ -127,10 +128,13 @@ export function useVarslerStateSync(authReady: boolean, serverState?: VarslerSta
 
 // Hoved-hook for å hente og organisere varsler-data, samt håndtere lest/ulest-status.
 export function useVarsler(harCanvasToken: boolean): UseVarslerResult {
-    const assignmentsQuery = useCanvasAllAssignments({ enabled: harCanvasToken });
     const announcementsQuery = useCanvasAnnouncements(harCanvasToken);
     const eventsQuery = useCanvasUpcomingEvents(harCanvasToken);
     const coursesQuery = useCanvasCourses(harCanvasToken);
+    const assignmentsQuery = useCanvasAllAssignments({
+        enabled: harCanvasToken,
+        courses: coursesQuery.data?.courses,
+    });
 
     const lestIds = useUIStore((s) => s.varslerLestIds);
     const markAllAsLestStore = useUIStore((s) => s.markAllVarslerAsLest);

@@ -10,15 +10,23 @@ import type { UserRole } from "common/auth";
 import type { IUser } from "../../database/models/User.js";
 import { getConfiguredWebOrigins } from "../../utils/webOrigins.js";
 
+/** Standard rolle for nye brukere. */
 const DEFAULT_ROLE: UserRole = "user";
+
+/** Minste intervall (ms) mellom profiloppdateringer fra Clerk for samme bruker (5 min). */
 const CLERK_PROFILE_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
+/** Holder styr på brukere som allerede har en synk i gang, for å unngå duplikat-kø. */
+const existingUserProfileSyncs = new Set<string>();
+
+/** Profilfelter hentet fra Clerk som synkroniseres til lokal User. */
 type ClerkProfile = {
   email: string;
   firstName?: string;
   lastName?: string;
 };
 
+// Clerk backend client brukes for å hente brukerinfo og sjekke helse, ikke for auth-verifisering – det gjøres med verifyToken() direkte i getClerkUserIdFromToken() for å unngå overhead ved å opprette klient i auth-flow.
 function getClerkBackendClient() {
   const secretKey = process.env.CLERK_SECRET_KEY;
   if (!secretKey) {
@@ -43,6 +51,7 @@ export async function isClerkHealthy(): Promise<boolean> {
   }
 }
 
+/** Sjekker om feilen er MongoDB duplicate key (E11000). */
 function isDuplicateKeyError(error: unknown): boolean {
   return (
     typeof error === "object" &&
@@ -52,6 +61,7 @@ function isDuplicateKeyError(error: unknown): boolean {
   );
 }
 
+/** Normaliserer e-post til lowercase og trim; returnerer null ved tom/manglende. */
 function normalizeEmail(email: string | undefined): string | null {
   if (!email) {
     return null;
@@ -61,7 +71,10 @@ function normalizeEmail(email: string | undefined): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
-async function getClerkProfile(clerkUserId: string): Promise<ClerkProfile | null> {
+/** Henter e-post og navn fra Clerk Backend API for en bruker. Returnerer null ved feil eller manglende primær e-post. */
+async function getClerkProfile(
+  clerkUserId: string,
+): Promise<ClerkProfile | null> {
   const clerk = getClerkBackendClient();
   if (!clerk) {
     return null;
@@ -72,10 +85,15 @@ async function getClerkProfile(clerkUserId: string): Promise<ClerkProfile | null
     return null;
   }
 
-  const primaryEmail = clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId);
+  const primaryEmail = clerkUser.emailAddresses.find(
+    (e) => e.id === clerkUser.primaryEmailAddressId,
+  );
   const email = normalizeEmail(primaryEmail?.emailAddress);
   if (!email) {
-    logger.warn({ clerkUserId }, "Clerk-bruker mangler primær e-postadresse og kan ikke synkroniseres");
+    logger.warn(
+      { clerkUserId },
+      "Clerk-bruker mangler primær e-postadresse og kan ikke synkroniseres",
+    );
     return null;
   }
 
@@ -86,6 +104,7 @@ async function getClerkProfile(clerkUserId: string): Promise<ClerkProfile | null
   };
 }
 
+/** Avgjør om eksisterende bruker bør få profil oppdatert fra Clerk (aldri synket eller for gammel synk). */
 function shouldSyncExistingUserProfile(user: IUser): boolean {
   if (!user.clerkId) {
     return false;
@@ -95,10 +114,18 @@ function shouldSyncExistingUserProfile(user: IUser): boolean {
     return true;
   }
 
-  return Date.now() - user.clerkProfileSyncedAt.getTime() >= CLERK_PROFILE_SYNC_INTERVAL_MS;
+  return (
+    Date.now() - user.clerkProfileSyncedAt.getTime() >=
+    CLERK_PROFILE_SYNC_INTERVAL_MS
+  );
 }
 
-function buildClerkProfileUpdate(profile: ClerkProfile, syncedAt: Date, includeEmail = true) {
+/** Bygger MongoDB $set/$unset-objekt for å oppdatere User med Clerk-profil; includeEmail=false brukes ved e-postkonflikt. */
+function buildClerkProfileUpdate(
+  profile: ClerkProfile,
+  syncedAt: Date,
+  includeEmail = true,
+) {
   const setFields: Record<string, unknown> = {
     clerkProfileSyncedAt: syncedAt,
   };
@@ -126,6 +153,10 @@ function buildClerkProfileUpdate(profile: ClerkProfile, syncedAt: Date, includeE
   };
 }
 
+/**
+ * Oppdaterer eksisterende User med Clerk-profil. Ved e-postkonflikt (annen bruker har samme e-post) oppdateres ikke e-post.
+ * Ved duplicate key (race) returneres siste lagrede bruker.
+ */
 async function syncExistingUserWithClerkProfile(
   existing: IUser,
   clerkUserId: string,
@@ -133,7 +164,8 @@ async function syncExistingUserWithClerkProfile(
 ): Promise<IUser> {
   const syncedAt = new Date();
   const emailChanged = existing.email !== profile.email;
-  const firstNameChanged = (existing.firstName ?? undefined) !== profile.firstName;
+  const firstNameChanged =
+    (existing.firstName ?? undefined) !== profile.firstName;
   const lastNameChanged = (existing.lastName ?? undefined) !== profile.lastName;
 
   if (!emailChanged && !firstNameChanged && !lastNameChanged) {
@@ -209,14 +241,52 @@ async function syncExistingUserWithClerkProfile(
 }
 
 /**
- * Henter eller oppretter StudyWise-bruker for en Clerk user id.
- * Eksisterende brukere får lokal profil oppdatert fra Clerk med jevne mellomrom.
+ * Køer asynkron profiloppdatering for eksisterende bruker. Hvis synk allerede pågår for denne brukeren, hoppes den over.
  */
-export async function findOrCreateUserByClerkId(clerkUserId: string): Promise<IUser | null> {
+function queueExistingUserProfileSync(
+  existing: IUser,
+  clerkUserId: string,
+): void {
+  const syncKey = existing._id.toString();
+  if (existingUserProfileSyncs.has(syncKey)) {
+    return;
+  }
+
+  existingUserProfileSyncs.add(syncKey);
+
+  void (async () => {
+    try {
+      const profile = await getClerkProfile(clerkUserId);
+      if (!profile) {
+        return;
+      }
+
+      await syncExistingUserWithClerkProfile(existing, clerkUserId, profile);
+    } catch (err) {
+      logger.warn(
+        { err, clerkUserId, userId: existing._id },
+        "Kunne ikke synkronisere eksisterende Clerk-profil",
+      );
+    } finally {
+      existingUserProfileSyncs.delete(syncKey);
+    }
+  })();
+}
+
+/**
+ * Henter eller oppretter StudyWise-bruker for en Clerk user id.
+ * Eksisterende brukere får lokal profil oppdatert fra Clerk med jevne mellomrom i bakgrunnen.
+ */
+export async function findOrCreateUserByClerkId(
+  clerkUserId: string,
+): Promise<IUser | null> {
   const existing = await User.findOne({ clerkId: clerkUserId });
   if (existing) {
     if (existing.deletedAt) {
-      logger.warn({ clerkUserId, userId: existing._id }, "Avviser innlogging for slettet StudyWise-bruker");
+      logger.warn(
+        { clerkUserId, userId: existing._id },
+        "Avviser innlogging for slettet StudyWise-bruker",
+      );
       return null;
     }
 
@@ -224,16 +294,8 @@ export async function findOrCreateUserByClerkId(clerkUserId: string): Promise<IU
       return existing;
     }
 
-    try {
-      const profile = await getClerkProfile(clerkUserId);
-      if (!profile) {
-        return existing;
-      }
-      return await syncExistingUserWithClerkProfile(existing, clerkUserId, profile);
-    } catch (err) {
-      logger.warn({ err, clerkUserId, userId: existing._id }, "Kunne ikke synkronisere eksisterende Clerk-profil");
-      return existing;
-    }
+    queueExistingUserProfileSync(existing, clerkUserId);
+    return existing;
   }
 
   try {
@@ -255,7 +317,12 @@ export async function findOrCreateUserByClerkId(clerkUserId: string): Promise<IU
 
       if (existingByEmail.clerkId && existingByEmail.clerkId !== clerkUserId) {
         logger.warn(
-          { clerkUserId, userId: existingByEmail._id, email, existingClerkId: existingByEmail.clerkId },
+          {
+            clerkUserId,
+            userId: existingByEmail._id,
+            email,
+            existingClerkId: existingByEmail.clerkId,
+          },
           "Kunne ikke linke Clerk-bruker fordi e-post allerede er knyttet til annen Clerk-konto",
         );
         return null;
@@ -264,7 +331,11 @@ export async function findOrCreateUserByClerkId(clerkUserId: string): Promise<IU
       const linkedUser = await User.findOneAndUpdate(
         {
           _id: existingByEmail._id,
-          $or: [{ clerkId: { $exists: false } }, { clerkId: null }, { clerkId: clerkUserId }],
+          $or: [
+            { clerkId: { $exists: false } },
+            { clerkId: null },
+            { clerkId: clerkUserId },
+          ],
         },
         {
           $set: {
@@ -286,7 +357,10 @@ export async function findOrCreateUserByClerkId(clerkUserId: string): Promise<IU
       }
 
       if (linkedUser) {
-        logger.info({ userId: linkedUser._id, clerkUserId, email }, "Eksisterende bruker linket til Clerk");
+        logger.info(
+          { userId: linkedUser._id, clerkUserId, email },
+          "Eksisterende bruker linket til Clerk",
+        );
         return linkedUser;
       }
     }
@@ -300,7 +374,10 @@ export async function findOrCreateUserByClerkId(clerkUserId: string): Promise<IU
         firstName,
         lastName,
       });
-      logger.info({ userId: user._id, clerkId: clerkUserId }, "Clerk-bruker opprettet i MongoDB");
+      logger.info(
+        { userId: user._id, clerkId: clerkUserId },
+        "Clerk-bruker opprettet i MongoDB",
+      );
       await audit({
         actorUserId: user._id.toString(),
         action: AUDIT_ACTIONS.USER_CREATED,
@@ -329,25 +406,39 @@ export async function findOrCreateUserByClerkId(clerkUserId: string): Promise<IU
 
       if (concurrentUser?.clerkId && concurrentUser.clerkId !== clerkUserId) {
         logger.warn(
-          { clerkUserId, userId: concurrentUser._id, email, existingClerkId: concurrentUser.clerkId },
+          {
+            clerkUserId,
+            userId: concurrentUser._id,
+            email,
+            existingClerkId: concurrentUser.clerkId,
+          },
           "Duplicate-key recovery fant bruker knyttet til annen Clerk-konto; avviser",
         );
         return null;
       }
 
       if (concurrentUser) {
-        logger.info({ userId: concurrentUser._id, clerkUserId, email }, "Gjenbruker bruker etter duplicate-key race");
+        logger.info(
+          { userId: concurrentUser._id, clerkUserId, email },
+          "Gjenbruker bruker etter duplicate-key race",
+        );
         return concurrentUser;
       }
 
       throw error;
     }
   } catch (err) {
-    logger.error({ err, clerkUserId }, "Kunne ikke synce Clerk-bruker til MongoDB");
+    logger.error(
+      { err, clerkUserId },
+      "Kunne ikke synce Clerk-bruker til MongoDB",
+    );
     return null;
   }
 }
 
+/**
+ * Sletter bruker i Clerk. Returnerer true ved suksess eller hvis bruker allerede er borte (404).
+ */
 export async function deleteClerkUserById(clerkUserId: string): Promise<boolean> {
   const clerk = getClerkBackendClient();
   if (!clerk) {

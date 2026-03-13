@@ -347,16 +347,20 @@ function createConcurrencyLimit(concurrency: number) {
 }
 
 // Hent ALLE oppgaver på tvers av emner
-export function useCanvasAllAssignments(options?: { enabled?: boolean }) {
+export function useCanvasAllAssignments(options?: {
+  enabled?: boolean;
+  courses?: CanvasCourse[];
+}) {
   const isEnabled = useCanvasEnabled(options?.enabled ?? true);
-  const coursesQuery = useCanvasCourses(isEnabled);
-
-  const courseIds = coursesQuery.data?.courses?.map((c) => c.id) ?? [];
+  const providedCourses = options?.courses;
+  const coursesQuery = useCanvasCourses(isEnabled && !providedCourses);
+  const courses = providedCourses ?? coursesQuery.data?.courses;
+  const courseIds = courses?.map((c) => c.id) ?? [];
+  const hasResolvedCourses = providedCourses !== undefined || coursesQuery.isSuccess;
 
   return useQuery<AssignmentMedEmne[]>({
     queryKey: ["canvas", "all-assignments", courseIds],
     queryFn: async () => {
-      const courses = coursesQuery.data?.courses;
       if (!courses) return [];
 
       // Hent oppgaver for alle emner med begrenset concurrency (maks 4 samtidige kall)
@@ -402,9 +406,7 @@ export function useCanvasAllAssignments(options?: { enabled?: boolean }) {
 
       return allAssignments;
     },
-    enabled:
-      isEnabled &&
-      coursesQuery.isSuccess,
+    enabled: isEnabled && hasResolvedCourses,
     ...canvasQueryOptions,
   });
 }

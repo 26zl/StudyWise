@@ -14,21 +14,19 @@ import {
   useCanvasUpcomingEvents,
 } from "@/app/canvas/canvas-api";
 import { useUIStore, type CanvasContextSelection } from "@/app/store/uiStore";
-import { useMeg, useOppdaterPreferanser } from "@/app/auth/auth-api";
-import { showToast } from "@/app/components/ui/Toaster";
-import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
+import { useMeg, useDebouncedPreferanseOppdater } from "@/app/auth/auth-api";
 
 export function CanvasContextSelector() {
   // Bruk global state for valg så de bevares mellom view-bytter
   const selected = useUIStore((state) => state.canvasContextSelection);
   const setSelected = useUIStore((state) => state.setCanvasContextSelection);
   
-  // Hent brukerdata og sync preferanser fra backend
+  // Hent brukerdata og sync preferanser fra backend (debounced for å unngå mange PUT ved rask bruk)
   const { data: megData } = useMeg();
   const {
-    mutateAsync: oppdaterBackend,
+    mutate: oppdaterBackendDebounced,
     isPending: oppdatererPreferanser,
-  } = useOppdaterPreferanser();
+  } = useDebouncedPreferanseOppdater();
   const initializedRef = useRef(false);
   
   // Synkroniser fra backend ved første load
@@ -51,26 +49,12 @@ export function CanvasContextSelector() {
     loadingEvents ||
     oppdatererPreferanser;
 
-  const toggleOption = async (key: keyof CanvasContextSelection) => {
+  const toggleOption = (key: keyof CanvasContextSelection) => {
     if (oppdatererPreferanser) return;
 
-    const previousSelection = selected;
     const newSelection = { ...selected, [key]: !selected[key] };
     setSelected(newSelection);
-
-    try {
-      await oppdaterBackend(newSelection);
-    } catch (error) {
-      setSelected(previousSelection);
-      showToast.error(
-        "Kunne ikke oppdatere AI-kontekst",
-        lagBrukervennligFeilmelding(
-          error instanceof Error ? error : null,
-          { canvas: true },
-          "Prøv igjen.",
-        ),
-      );
-    }
+    oppdaterBackendDebounced(newSelection);
   };
 
   // Hjelpetekst når alt er av
@@ -127,7 +111,7 @@ export function CanvasContextSelector() {
           <button
             key={option.key}
             type="button"
-            onClick={() => void toggleOption(option.key)}
+            onClick={() => toggleOption(option.key)}
             disabled={oppdatererPreferanser}
             className={`flex flex-col items-start gap-1.5 p-3 rounded-lg border transition-colors ${
               selected[option.key]

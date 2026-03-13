@@ -20,8 +20,7 @@ interface EnvConfig {
   ANTHROPIC_API_KEY: string;
   PINECONE_API_KEY: string;
   PINECONE_INDEX_NAME: string;
-  // COHERE_API_KEY er valgfri: rerank-laget har graceful passthrough (cohere-rerank.service.ts)
-  COHERE_API_KEY?: string;
+  COHERE_API_KEY: string;
 }
 
 const requiredEnvVars: (keyof EnvConfig)[] = [
@@ -36,6 +35,7 @@ const requiredEnvVars: (keyof EnvConfig)[] = [
   "ANTHROPIC_API_KEY",
   "PINECONE_API_KEY",
   "PINECONE_INDEX_NAME",
+  "COHERE_API_KEY",
 ];
 
 /**
@@ -181,6 +181,12 @@ export const validateEnv = (): void => {
   const pineconeIndex = process.env.PINECONE_INDEX_NAME;
   if (!pineconeIndex || !pineconeIndex.trim()) {
     manglende.push("PINECONE_INDEX_NAME (påkrevd, f.eks. 'studywise')");
+  }
+
+  // Valider Cohere (påkrevd for hybrid søk-reranking)
+  const cohereKey = process.env.COHERE_API_KEY;
+  if (!cohereKey || !cohereKey.trim()) {
+    manglende.push("COHERE_API_KEY (påkrevd for Cohere rerank)");
   }
 
   // Valider Datadog-variabler kun i produksjon (påkrevd for monitorering i dette miljøet)

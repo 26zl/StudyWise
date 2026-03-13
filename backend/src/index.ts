@@ -28,9 +28,6 @@ import { swaggerSpec } from "./swagger.js";
 import { connectToDatabase } from "./database/database.js";
 import { logger } from "./utils/logger.js";
 import redisClient, { stopRedisReconnect, isRedisReady } from "./cache/redis.js";
-import { isClientAvailable } from "./rutere/ki/aiClient.js";
-import { isClerkHealthy } from "./rutere/auth/clerkAuth.js";
-import { ensurePineconeIndex } from "./services/pinecone.service.js";
 import arbeidsplanRuter from "./rutere/arbeidsplan/arbeidsplan.js";    
 import canvasRuter from "./rutere/canvas/canvas.js";  
 import kiRuter from "./rutere/ki/ki.js";
@@ -53,6 +50,15 @@ import { noCache } from "./middleware/no-cache.js";
 import { apiError, sendError } from "./utils/apiError.js";
 import { requestTimeout } from "./middleware/request-timeout.js";
 import { getConfiguredWebOriginSet, normalizeWebOrigin } from "./utils/webOrigins.js";
+import {
+  getDependenciesHealth,
+  getLivenessHealth,
+  getReadinessHealth,
+  refreshExternalDependencyHealth,
+  startExternalDependencyHealthPolling,
+} from "./utils/health.js";
+import { isClientAvailable } from "./rutere/ki/aiClient.js";
+import { isCohereConfigured } from "./services/cohere-rerank.service.js";
 
 // Initialiserer Express app
 const app = express();
@@ -76,11 +82,12 @@ app.set("trust proxy", 1);
 if (isProd) {
   const tillattHost = process.env.API_HOST?.trim().toLowerCase(); // f.eks. "api.studwize.page"
   if (tillattHost) {
+    const publicHealthPaths = new Set(["/health", "/ready", "/health/dependencies"]);
     app.use((req, res, next) => {
       const host = req.get("host");
       const requestHost = host?.split(":")[0]?.trim().toLowerCase();
       // Tillat health checks fra Heroku (ingen host header eller intern IP)
-      if (req.path === "/health") return next();
+      if (publicHealthPaths.has(req.path)) return next();
       if (requestHost && requestHost !== tillattHost) {
         logger.warn(
           { host, requestHost, path: req.path },
@@ -232,7 +239,7 @@ app.use(
 app.use(beskytteMotCsrf);
 
 // Clerk-only auth: protected routes require Authorization: Bearer <clerk_session_token>
-const offentligSti = new Set(["/health"]);
+const offentligSti = new Set(["/health", "/ready", "/health/dependencies"]);
 
 app.use("/api", noCache, sharedChatRouter);
 app.use((req, res, next) => {
@@ -242,60 +249,24 @@ app.use((req, res, next) => {
   return requireAuth(req, res, next);
 });
 
-/**
- * @openapi
- * /health:
- *   get:
- *     summary: Health check endpoint
- *     description: Returnerer minimal server helse-status og timestamp
- *     tags:
- *       - Health
- *     responses:
- *       200:
- *         description: Server er oppe og kjører
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/HealthCheck'
- *       503:
- *         description: Server er oppe, men kritiske avhengigheter er nede
- */
-// Health check med status for alle avhengigheter.
-// Kun MongoDB er kritisk (gir 503). Øvrige (Redis, Anthropic, Clerk, Pinecone) er degradert ved feil (gir 200 med degraded).
-// Canvas er per-bruker og inkluderes ikke i server-health.
-app.get("/health", async (_req, res) => {
-  // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
-  const mongoOk = mongoose.connection.readyState === 1;
-  const redisOk = isRedisReady();
-  const anthropicOk = isClientAvailable("");
+// /health = liveness. Skal være lett, rask og ikke slå eksternt opp.
+app.get("/health", (_req, res) => {
+  return res.json(getLivenessHealth());
+});
 
-  const [clerkOk, pineconeOk] = await Promise.all([
-    isClerkHealthy(),
-    ensurePineconeIndex(),
-  ]);
-
-  // MongoDB er kritisk — uten den fungerer ingenting
-  const allOk = mongoOk;
-
-  const healthResponse: Record<string, unknown> = {
-    ok: allOk,
-    timestamp: new Date().toISOString(),
-  };
-
-  const degraded: string[] = [];
-  if (!redisOk) degraded.push("redis");
-  if (!anthropicOk) degraded.push("anthropic");
-  if (!clerkOk) degraded.push("clerk");
-  if (!pineconeOk) degraded.push("pinecone");
-  if (degraded.length > 0) {
-    healthResponse.degraded = degraded;
+// /ready = readiness. Mongo er kritisk for å kunne ta trafikk.
+app.get("/ready", (_req, res) => {
+  const readiness = getReadinessHealth();
+  if (!readiness.ok) {
+    return res.status(503).json(readiness);
   }
 
-  if (!allOk) {
-    return res.status(503).json(healthResponse);
-  }
+  return res.json(readiness);
+});
 
-  return res.json(healthResponse);
+// /health/dependencies = status for eksterne og ikke-kritiske avhengigheter.
+app.get("/health/dependencies", (_req, res) => {
+  return res.json(getDependenciesHealth());
 });
 
 // API dokumentasjon (Swagger UI) - kun i development
@@ -346,21 +317,28 @@ connectToDatabase()
     } else {
       logger.warn("Redis ikke tilkoblet ved oppstart (reconnect pågår)");
     }
-    try {
-      if (await isClerkHealthy()) {
-        logger.info("Clerk tilgjengelig");
-      } else {
-        logger.warn("Clerk ikke tilgjengelig ved oppstart");
-      }
-    } catch (err) {
-      logger.warn({ err }, "Clerk-sjekk feilet ved oppstart");
+    const dependencyHealth = await refreshExternalDependencyHealth();
+    if (dependencyHealth.clerk) {
+      logger.info("Clerk tilgjengelig");
+    } else {
+      logger.warn("Clerk ikke tilgjengelig ved oppstart");
     }
-    try {
-      await ensurePineconeIndex();
+    if (dependencyHealth.pinecone) {
       logger.info("Pinecone tilgjengelig");
-    } catch (err) {
-      logger.warn({ err }, "Pinecone ikke tilgjengelig ved oppstart");
+    } else {
+      logger.warn("Pinecone ikke tilgjengelig ved oppstart");
     }
+    if (isClientAvailable("")) {
+      logger.info("Anthropic (Claude) tilgjengelig");
+    } else {
+      logger.warn("Anthropic ikke tilgjengelig ved oppstart");
+    }
+    if (isCohereConfigured()) {
+      logger.info("Cohere tilgjengelig");
+    } else {
+      logger.warn("Cohere ikke tilgjengelig ved oppstart");
+    }
+    const dependencyHealthInterval = startExternalDependencyHealthPolling();
 
     void cleanupExpiredSharedChats({ reason: "scheduled_cleanup" }).catch((error) => {
       logger.warn({ err: error }, "Initial cleanup av utløpte delinger feilet");
@@ -386,6 +364,7 @@ connectToDatabase()
       server.close(async () => {
         logger.info("HTTP-server lukket");
         try {
+          clearInterval(dependencyHealthInterval);
           clearInterval(shareCleanupInterval);
           // Lukk database-tilkobling
           await mongoose.connection.close();

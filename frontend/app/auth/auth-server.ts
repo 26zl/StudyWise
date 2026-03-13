@@ -6,8 +6,8 @@ import { auth } from "@clerk/nextjs/server";
 import { MeResponseSchema, type MeResponse } from "common/auth";
 
 const API_BASE =
-  process.env.NEXT_PUBLIC_APP_URL ??
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  process.env.INTERNAL_API_URL?.trim() ||
+  (process.env.NODE_ENV !== "production" ? "http://localhost:4000" : null);
 
 /**
  * Henter /me fra backend i server context. Returnerer null hvis bruker ikke er innlogget
@@ -17,6 +17,7 @@ const API_BASE =
 export async function getUserServerSafe(): Promise<MeResponse | null> {
   const { userId, getToken } = await auth();
   if (!userId) return null;
+  if (!API_BASE) return null;
   const token = await getToken();
   if (!token) return null;
   try {

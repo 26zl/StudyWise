@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -82,13 +82,10 @@ export function OversiktPage() {
   useAuthRedirect(megQuery);
 
   const coursesQuery = useCanvasCourses(harCanvasToken);
-  const assignmentsQuery = useCanvasAllAssignments({ enabled: harCanvasToken });
-
-  useEffect(() => {
-    if (!harCanvasToken) return;
-    void coursesQuery.refetch();
-    void assignmentsQuery.refetch();
-  }, [harCanvasToken]);
+  const assignmentsQuery = useCanvasAllAssignments({
+    enabled: harCanvasToken,
+    courses: coursesQuery.data?.courses,
+  });
 
   const allAssignments: AssignmentMedEmne[] = assignmentsQuery.isError
     ? []
