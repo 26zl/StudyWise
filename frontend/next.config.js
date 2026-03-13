@@ -44,13 +44,17 @@ function getClerkFrontendApiOrigin() {
     return null;
   }
 
-  const encodedFrontendApi = match[1]?.split("$")[0];
+  const encodedFrontendApi = match[1];
   if (!encodedFrontendApi) {
     return null;
   }
 
   try {
-    const decoded = Buffer.from(encodedFrontendApi, "base64url").toString("utf8").trim();
+    const decoded = Buffer.from(encodedFrontendApi, "base64url")
+      .toString("utf8")
+      .trim()
+      .split("$")[0]
+      ?.trim();
     if (!decoded) {
       return null;
     }
