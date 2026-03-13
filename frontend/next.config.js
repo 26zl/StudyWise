@@ -32,7 +32,9 @@ function normalizeOrigin(value) {
 }
 
 function getClerkFrontendApiOrigin() {
-  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.trim();
+  const publishableKey =
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.trim() ||
+    process.env.CLERK_PUBLISHABLE_KEY?.trim();
   if (!publishableKey) {
     return null;
   }

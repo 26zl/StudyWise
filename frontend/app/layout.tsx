@@ -10,10 +10,11 @@ import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { nbNO } from "@clerk/localizations";
 import { ThemeProvider } from "@/app/components/ui/theme-provider";
-import { validateFrontendEnv } from "./lib/validateEnv";
+import { getFrontendClerkPublishableKey, validateFrontendEnv } from "./lib/validateEnv";
 
 // Valider miljøvariabler ved oppstart (server-side)
 validateFrontendEnv();
+const clerkPublishableKey = getFrontendClerkPublishableKey();
 
 // Metadata for applikasjonen
 export const metadata: Metadata = {
@@ -34,6 +35,7 @@ export default function RootLayout({
       */}
       <body className="antialiased min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950" suppressHydrationWarning>
         <ClerkProvider
+          publishableKey={clerkPublishableKey ?? undefined}
           localization={nbNO}
           signInUrl="/auth/sign-in"
           signUpUrl="/auth/sign-up"

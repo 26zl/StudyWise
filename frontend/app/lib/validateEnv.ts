@@ -6,47 +6,75 @@
  * localhost i next dev via next.config.js.
  */
 
-const ALWAYS_REQUIRED_FRONTEND_ENV_VARS = [
-  "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
-  "CLERK_SECRET_KEY",
-] as const;
+const ALWAYS_REQUIRED_FRONTEND_ENV_VARS = ["CLERK_SECRET_KEY"] as const;
 
 interface ValidateFrontendEnvOptions {
   requireInternalApiUrl?: boolean;
 }
 
+// Hent Clerk publishable key, med fallback mellom NEXT_PUBLIC_ og CLERK_-prefikser
+export function getFrontendClerkPublishableKey(): string | null {
+  const nextPublicKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.trim();
+  if (nextPublicKey) {
+    return nextPublicKey;
+  }
+
+  const serverPublishableKey = process.env.CLERK_PUBLISHABLE_KEY?.trim();
+  if (serverPublishableKey) {
+    return serverPublishableKey;
+  }
+
+  return null;
+}
+
 /**
  * Validerer frontend miljøvariabler.
  * Ved feil kastes en feil med tydelig liste over manglende/ugyldige variabler.
- * I CI hoppes valideringen over slik at build kan kjøre uten hemmelige nøkler.
+ * I CI hoppes valideringen kun over utenfor produksjon, slik at prod-deploys feiler tidlig
+ * hvis Clerk-/API-nokler mangler.
  */
 export function validateFrontendEnv(options: ValidateFrontendEnvOptions = {}): void {
-    if (process.env.CI === "true") return;
+  if (process.env.CI === "true" && process.env.NODE_ENV !== "production") {
+    return;
+  }
 
-    const requireInternalApiUrl =
-        options.requireInternalApiUrl === true || process.env.NODE_ENV === "production";
-    const requiredFrontendEnvVars = requireInternalApiUrl
-        ? [...ALWAYS_REQUIRED_FRONTEND_ENV_VARS, "INTERNAL_API_URL"] as const
-        : ALWAYS_REQUIRED_FRONTEND_ENV_VARS;
-    const manglende: string[] = [];
-    for (const key of requiredFrontendEnvVars) {
-        const value = typeof process.env[key] !== "undefined" ? process.env[key] : "";
-        if (!value || String(value).trim() === "") {
-            manglende.push(key);
-        }
+  const requireInternalApiUrl =
+    options.requireInternalApiUrl === true ||
+    process.env.NODE_ENV === "production";
+  const requiredFrontendEnvVars = requireInternalApiUrl
+    ? ([...ALWAYS_REQUIRED_FRONTEND_ENV_VARS, "INTERNAL_API_URL"] as const)
+    : ALWAYS_REQUIRED_FRONTEND_ENV_VARS;
+  const manglende: string[] = [];
+
+  if (!getFrontendClerkPublishableKey()) {
+    manglende.push(
+      "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY (eller CLERK_PUBLISHABLE_KEY)",
+    );
+  }
+
+  for (const key of requiredFrontendEnvVars) {
+    const value =
+      typeof process.env[key] !== "undefined" ? process.env[key] : "";
+    if (!value || String(value).trim() === "") {
+      manglende.push(key);
     }
-    const internalApiUrl = process.env.INTERNAL_API_URL?.trim();
-    if (internalApiUrl) {
-        try {
-            new URL(internalApiUrl);
-        } catch {
-            manglende.push(`INTERNAL_API_URL (må være en gyldig URL, fikk: ${internalApiUrl})`);
-        }
+  }
+
+  const internalApiUrl = process.env.INTERNAL_API_URL?.trim();
+  if (internalApiUrl) {
+    try {
+      new URL(internalApiUrl);
+    } catch {
+      manglende.push(
+        `INTERNAL_API_URL (må være en gyldig URL, fikk: ${internalApiUrl})`,
+      );
     }
-    if (manglende.length > 0) {
-        const liste = manglende.join(", ");
-        throw new Error(
-            `Påkrevde frontend-miljøvariabler mangler - appen kan ikke starte. Mangler: ${liste}`
-        );
-    }
+  }
+
+  if (manglende.length > 0) {
+    const liste = manglende.join(", ");
+    throw new Error(
+      `Påkrevde frontend-miljøvariabler mangler - appen kan ikke starte. Mangler: ${liste}`,
+    );
+  }
 }

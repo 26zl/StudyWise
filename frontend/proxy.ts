@@ -5,7 +5,14 @@
  */
 import { clerkMiddleware } from "@clerk/nextjs/server";
 
-export default clerkMiddleware();
+const clerkPublishableKey =
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.trim() ||
+  process.env.CLERK_PUBLISHABLE_KEY?.trim() ||
+  undefined;
+
+export default clerkMiddleware({
+  publishableKey: clerkPublishableKey,
+});
 
 export const config = {
   matcher: [
