@@ -16,7 +16,7 @@ import {
     Download,
     BookOpen,
 } from "lucide-react";
-import { LoadingSpinner } from "@/app/components/ui/LoadingSpinner";
+import { LoadingView } from "@/app/components/ui/Loading";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import {
     useCanvasAnnouncements,
@@ -133,15 +133,7 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     }
 
     if (isLoading) {
-        return (
-            <div className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                    <div key={i} className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
-                        <LasteSkjelett />
-                    </div>
-                ))}
-            </div>
-        );
+        return <LoadingView text="Laster kunngjøringer..." fullPage={false} />;
     }
 
     if (isError) {
@@ -317,10 +309,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                 {valgtEmneVisning === "frontpage" && (
                     <div className="space-y-3">
                         {frontPageQuery.isLoading && (
-                            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                                <LoadingSpinner className="w-4 h-4" />
-                                Laster forside...
-                            </div>
+                            <LoadingView text="Laster forside..." fullPage={false} />
                         )}
                         {frontPageQuery.isError && (
                             <FeilMelding melding={lagBrukervennligFeilmelding(frontPageQuery.error instanceof Error ? frontPageQuery.error : null, { canvas: true }, "Kunne ikke laste forside. Prøv igjen.")} />
@@ -348,10 +337,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                 {valgtEmneVisning === "modules" && (
                     <>
                         {modulerQuery.isLoading && (
-                    <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                        <LoadingSpinner className="w-4 h-4" />
-                        Laster moduler...
-                    </div>
+                    <LoadingView text="Laster moduler..." fullPage={false} />
                 )}
 
                         {modulerQuery.isError && (
@@ -534,10 +520,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                 {modulerQuery.data && modulerQuery.data.modules.length === 0 && (
                     <div className="space-y-4">
                         {frontPageQuery.isLoading && (
-                            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                                <LoadingSpinner className="w-4 h-4" />
-                                Laster forside...
-                            </div>
+                            <LoadingView text="Laster forside..." fullPage={false} />
                         )}
 
                         {frontPageQuery.data && (
@@ -608,10 +591,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                 {valgtEmneVisning === "pages" && (
                     <div className="space-y-3">
                         {siderQuery.isLoading && (
-                            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                                <LoadingSpinner className="w-4 h-4" />
-                                Laster sider...
-                            </div>
+                            <LoadingView text="Laster sider..." fullPage={false} />
                         )}
                         {siderQuery.isError && (
                             <FeilMelding melding="Dette emnet har ingen sider eller du mangler tilgang (403/unauthorized)." />
@@ -647,10 +627,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                 {valgtEmneVisning === "files" && (
                     <div className="space-y-3">
                         {filerQuery.isLoading && (
-                            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                                <LoadingSpinner className="w-4 h-4" />
-                                Laster filer...
-                            </div>
+                            <LoadingView text="Laster filer..." fullPage={false} />
                         )}
                         {filerQuery.isError && (
                             <FeilMelding melding="Dette emnet har ingen filer eller du mangler tilgang (403/unauthorized)." />
@@ -894,11 +871,8 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
 
     if (assignmentsQuery.isLoading) {
         return (
-            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-8 text-center">
-                <div className="animate-pulse space-y-3">
-                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mx-auto" />
-                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2 mx-auto" />
-                </div>
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-8">
+                <LoadingView text="Laster oppgaver..." fullPage={false} />
             </div>
         );
     }

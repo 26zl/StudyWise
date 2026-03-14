@@ -9,7 +9,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  AlertCircle,
   Calendar,
   Check,
   CheckCircle,
@@ -24,7 +23,8 @@ import type {
   WeeklyPlanAssignment,
   WeeklyPlanSuggestionResponse,
 } from "common/ki";
-import { LoadingSpinner } from "@/app/components/ui/LoadingSpinner";
+import { FeilMelding } from "@/app/components/ui/FeilMelding";
+import { LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
 import {
   DAYS_ORDER,
@@ -187,31 +187,22 @@ export function WeeklyPlanSuggestions({
   if (generateWeeklyPlan.isPending) {
     return (
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-12">
-        <div className="text-center space-y-4">
-          <LoadingSpinner className="w-12 h-12" />
-          <div>
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-              KI-assistenten genererer ukeplan...
-            </h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Analyserer oppgaver, frister og kompleksitet
-            </p>
-          </div>
-        </div>
+        <LoadingView
+          text="KI-assistenten genererer ukeplan... Analyserer oppgaver, frister og kompleksitet."
+          fullPage={false}
+        />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
-          <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
-        </div>
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6 space-y-4">
+        <FeilMelding melding={error} />
         <button
+          type="button"
           onClick={generatePlan}
-          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
         >
           Prøv igjen
         </button>

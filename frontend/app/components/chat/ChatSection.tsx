@@ -8,7 +8,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Send, Bot, Download, Copy, Share2, RefreshCw, ThumbsUp, ThumbsDown, MoreHorizontal, Plus, Image, FileText, User } from "lucide-react";
-import { LoadingSpinner } from "@/app/components/ui/LoadingSpinner";
+import { LoadingSpinner, LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
 import { AttachmentStrip } from "@/app/components/chat/AttachmentStrip";
 import { ChatShareModal } from "@/app/components/chat/ChatShareModal";
@@ -1244,16 +1244,15 @@ export function ChatSection() {
 
                     {/* Placeholder før hydration - matcher server-rendering */}
                     {!mounted && (
-                        <div className="flex justify-center items-center py-12">
-                            <LoadingSpinner />
+                        <div className="py-12">
+                            <LoadingView text="Laster..." fullPage={false} />
                         </div>
                     )}
 
                     {/* Loading state - vis kun etter mount for å unngå hydration mismatch */}
                     {mounted && loading && (
-                        <div className="flex justify-center items-center py-12">
-                            <LoadingSpinner />
-                            <p className="ml-3 text-sm text-slate-500 dark:text-slate-400">Laster samtalehistorikk...</p>
+                        <div className="py-12">
+                            <LoadingView text="Laster samtalehistorikk..." fullPage={false} />
                         </div>
                     )}
 

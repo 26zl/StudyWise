@@ -8,7 +8,7 @@
 import { useEffect, Suspense, lazy, useCallback } from "react";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { useQueryClient } from "@tanstack/react-query";
-import { LoadingSpinner } from "@/app/components/ui/LoadingSpinner";
+import { LoadingView } from "@/app/components/ui/Loading";
 import { type VisningType } from "@/app/components/dashboard/Sidebar";
 import { SectionErrorBoundary } from "@/app/components/ui/ErrorBoundary";
 import { useCanvasUser } from "@/app/canvas/canvas-api";
@@ -42,16 +42,8 @@ const SettingsSection = lazy(() => import("@/app/components/dashboard/SettingsSe
 const CalendarSection = lazy(() => import("@/app/calendar/CalendarSection").then(m => ({ default: m.CalendarSection })));
 const VarslingerSection = lazy(() => import("@/app/components/dashboard/VarslingerSection").then(m => ({ default: m.VarslingerSection })));
 
-// Loading fallback komponent
 function SectionLoader({ text = "Laster..." }: { text?: string }) {
-  return (
-    <div className="flex-1 flex items-center justify-center p-8">
-      <div className="flex flex-col items-center gap-3">
-        <LoadingSpinner />
-        <span className="text-sm text-slate-500 dark:text-slate-400">{text}</span>
-      </div>
-    </div>
-  );
+  return <LoadingView text={text} fullPage={false} />;
 }
 
 // Hovedkomponent for dashboard-visningen
@@ -92,21 +84,21 @@ export function DashboardView() {
     }, [megQuery.data?.user?.canvasContextPreferences, setCanvasContextSelection]);
 
     useAuthRedirect(megQuery);
-    // Prefetch Canvas data hvis bruker har token
-    useEffect(() => {
-        if (harCanvasToken) {
-            prefetchCanvasData(queryClient);
-        }
-    }, [harCanvasToken, queryClient]);
-
-    // Prefetch samtalehistorikk — useChatHistory i ChatSection bruker samme query key
-    // Prefetch her slik at data er klar når bruker åpner chatten
+    // Forsinket prefetch av Canvas og chat — unngår at alle kall fyres samtidig ved mount (treg backend/cold start i prod).
     const { prefetchChatHistory } = useChatHistoryPrefetch();
     useEffect(() => {
-        if (megQuery.isSuccess) {
+        if (!megQuery.isSuccess) return;
+        const t1 = setTimeout(() => {
+            if (harCanvasToken) prefetchCanvasData(queryClient);
+        }, 400);
+        const t2 = setTimeout(() => {
             prefetchChatHistory(queryClient);
-        }
-    }, [megQuery.isSuccess, queryClient, prefetchChatHistory]);
+        }, 800);
+        return () => {
+            clearTimeout(t1);
+            clearTimeout(t2);
+        };
+    }, [megQuery.isSuccess, harCanvasToken, queryClient, prefetchChatHistory]);
 
     // Hent fornavn fra Canvas brukerdata
     const brukernavn =
@@ -121,15 +113,16 @@ export function DashboardView() {
         if (aktivVisning === "canvas-assignments") return "assignments";
         return "announcements";
     };
-    // Laster: vis spinner
+    // Laster: vis sidebar med en gang, kun innholdsområdet venter – raskere opplevd respons
     if (megQuery.isLoading) {
         return (
-            <SidebarAppLoadingState
+            <SidebarAppShell
                 aktivVisning={aktivVisning}
                 byttVisning={settAktivVisning}
-                brukernavn={brukernavn}
-                label="Laster dashboard..."
-            />
+                brukernavn="..."
+            >
+                <SectionLoader text="Laster dashboard..." />
+            </SidebarAppShell>
         );
     }
     // Skal redirecte til innlogging: vis spinner i stedet for feilmelding så bruker ikke ser rød boks i et splitt sekund

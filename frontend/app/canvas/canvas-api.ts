@@ -476,7 +476,7 @@ export function useCanvasFrontPage(courseId: number | null, enabled = true) {
   });
 }
 
-// Prefetch funksjon for app-start - laster data i bakgrunnen
+// Prefetch for dashboard – kalles fra DashboardView ved mount; laster Canvas-data i bakgrunnen.
 export function prefetchCanvasData(queryClient: QueryClient) {
   // Prefetch kunngjøringer og emner parallelt
   queryClient.prefetchQuery({

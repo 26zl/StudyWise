@@ -1,5 +1,5 @@
-/*
- * Felles zod schemaer for KI API
+/**
+ * KI – felles Zod-schemas og typer for KI API (chat, dokumentanalyse, oppgavedeling, oppsummering).
  */
 
 import { z } from "zod";

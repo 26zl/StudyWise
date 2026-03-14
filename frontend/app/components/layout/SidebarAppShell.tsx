@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { Sidebar, type VisningType } from "@/app/components/dashboard/Sidebar";
 import { Footer } from "@/app/components/layout/footer";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
-import { LoadingSpinner } from "@/app/components/ui/LoadingSpinner";
+import { LoadingView } from "@/app/components/ui/Loading";
 import { cn } from "@/app/lib/utils";
 
 type SidebarAppShellProps = {
@@ -106,8 +106,7 @@ export function SidebarAppLoadingState({
       brukernavn={brukernavn}
       footer={footer}
     >
-      <LoadingSpinner />
-      {label ? <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p> : null}
+      <LoadingView text={label ?? "Laster..."} fullPage={false} />
     </SidebarAppState>
   );
 }

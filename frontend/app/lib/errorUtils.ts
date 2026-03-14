@@ -14,6 +14,10 @@ import { ForbiddenError, SessionExpiredError } from "./errors";
 export const CANVAS_TOKEN_UGYLDIG_MELDING =
   "Canvas API-tokenet ditt er ugyldig, utløpt eller slettet i Canvas. Gå til Innstillinger for å legge til et nytt token.";
 
+/** Melding når Canvas-token ikke er knyttet – brukes på sider som trenger Canvas (oversikt, oppgavedeling, varsler, kalender, emner). */
+export const CANVAS_TOKEN_MANGLER_MELDING =
+  "Du må knytte en Canvas API-token for å bruke denne funksjonen. Gå til Innstillinger for å legge til token.";
+
 // Interface for strukturerte Canvas-feil med feilkode
 interface StructuredCanvasError extends Error {
   code?: CanvasErrorCode;

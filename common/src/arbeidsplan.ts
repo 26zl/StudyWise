@@ -1,5 +1,5 @@
-/*
- * Felles Zod-skjemaer og typer for Arbeidsplan (Work Plan)
+/**
+ * Arbeidsplan – felles Zod-skjemaer og typer for ukeplan/studieblokker.
  */
 
 import { z } from "zod";

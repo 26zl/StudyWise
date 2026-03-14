@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { parseTimerStreng } from "common/dateUtils";
 import type { SubTask } from "common/ki";
-import { LoadingSpinner } from "@/app/components/ui/LoadingSpinner";
+import { LoadingSpinner } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
 import { AddToWorkplanModal } from "@/app/components/arbeidsplan/AddToWorkplanModal";
 import {

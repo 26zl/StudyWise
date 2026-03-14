@@ -16,7 +16,7 @@ import {
     CheckCircle2,
     CheckCheck,
 } from "lucide-react";
-import { LoadingSpinner } from "@/app/components/ui/LoadingSpinner";
+import { LoadingView } from "@/app/components/ui/Loading";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useVarsler, type VarslingTab } from "@/app/hooks/useVarsler";
@@ -168,9 +168,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
             )}
 
             {isLoading ? (
-                <div className="flex items-center justify-center py-12">
-                    <LoadingSpinner />
-                </div>
+                <LoadingView text="Laster varsler..." fullPage={false} />
             ) : isError ? (
                 <FeilMelding
                     melding={lagBrukervennligFeilmelding(

@@ -58,8 +58,8 @@ Når du legger til et nytt skjema i common, legg til en subpath-eksport i `commo
 ## 2. Kommandoer
 
 ```bash
-pnpm dev                    # Start frontend (3000) + backend (4000) + docs (5173)
-pnpm dev:frontend           # Kun frontend
+pnpm dev                    # Bygger common (predev), starter backend; frontend og docs starter etter backend /health (wait-on) – unngår ECONNREFUSED
+pnpm dev:frontend           # Kun frontend (backend kan være nede)
 pnpm dev:backend            # Kun backend
 pnpm dev:docs               # Kun docs
 pnpm typecheck              # Typecheck alle pakker
@@ -90,7 +90,7 @@ pnpm clean:install          # Full reinstall (clean + install + update + build)
 | Health Check | <http://localhost:4000/health>        |
 | Docs         | <http://localhost:5173>               |
 
-**Bygge-rekkefølge**: `common` må bygges før frontend/backend. `pnpm build` håndterer dette automatisk.
+**Bygge-rekkefølge**: `common` må bygges før frontend/backend. `pnpm build` håndterer dette automatisk. Ved `pnpm dev` kjører `predev` først (bygger common); frontend og docs venter på at backend svarer på `/health` før de startes.
 
 ### Tester
 
@@ -111,7 +111,7 @@ Docker brukes **kun for lokal utvikling** — ikke i produksjon. Alle tjenester 
 
 ### Deploy
 
-- **Backend**: Heroku (Eco dyno + Datadog buildpack)
+- **Backend**: Heroku (Eco eller Basic dyno + Datadog buildpack)
 - **Frontend**: Vercel
 - **Sikkerhet/CDN**: Cloudflare (DDoS, SSL/TLS, caching)
 
@@ -311,6 +311,7 @@ onSave(subtasks.map(({ approved: _approved, ...task }) => task));
 - `frontend/app/canvas/canvasUtils.ts` — Canvas-data (`erInnlevert()`, `formaterEmneStatus()`); importer herfra
 - `frontend/app/lib/errorUtils.ts` — `parseApiError()`, `lagBrukervennligFeilmelding()`
 - `frontend/app/lib/errors.ts` — `AppError`-klassehierarki for typet feilhåndtering
+- `frontend/app/components/ui/Loading.tsx` — felles last-UI: `LoadingSpinner` og `LoadingView` (én fil; bruk for alle lastetilstander). `FeilMelding` for feilvisning.
 
 ### Database
 

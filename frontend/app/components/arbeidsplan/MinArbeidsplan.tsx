@@ -10,7 +10,6 @@ import {
   Check, 
   Clock, 
   Trash2, 
-  AlertCircle,
   TrendingUp,
   ChevronDown,
   ChevronUp,
@@ -25,12 +24,13 @@ import {
   type StudyBlock
 } from "@/app/arbeidsplan/arbeidsplan-api";
 import { PRIORITY_COLORS, DAYS_ORDER, PRIORITY_LABELS } from "@/app/arbeidsplan/arbeidsplan-api";
-import { LoadingSpinner } from "@/app/components/ui/LoadingSpinner";
+import { FeilMelding } from "@/app/components/ui/FeilMelding";
+import { LoadingView } from "@/app/components/ui/Loading";
 
 export function MinArbeidsplan() {
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
   const [bekreftSlett, setBekreftSlett] = useState(false);
-  const { data: plan, isLoading, isError } = useCurrentArbeidsplan();
+  const { data: plan, isLoading, isError, refetch } = useCurrentArbeidsplan();
   const { data: stats } = useProgressStats();
   const toggleMutation = useToggleBlockCompletion();
   const deleteMutation = useDeleteArbeidsplan();
@@ -58,23 +58,22 @@ export function MinArbeidsplan() {
   if (isLoading) {
     return (
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-8">
-        <div className="flex items-center justify-center gap-3">
-          <LoadingSpinner />
-          <span className="text-slate-500 dark:text-slate-400">Laster arbeidsplan...</span>
-        </div>
+        <LoadingView text="Laster arbeidsplan..." fullPage={false} />
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-6">
-        <div className="flex items-center gap-3">
-          <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
-          <p className="text-sm text-red-700 dark:text-red-300">
-            Kunne ikke laste arbeidsplan. Prøv igjen senere.
-          </p>
-        </div>
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6 space-y-4">
+        <FeilMelding melding="Kunne ikke laste arbeidsplan. Prøv igjen senere." />
+        <button
+          type="button"
+          onClick={() => void refetch()}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+        >
+          Prøv igjen
+        </button>
       </div>
     );
   }

@@ -1,6 +1,5 @@
-/*
- * Auth.ts
- * zod schemas for auth API
+/**
+ * Auth – Zod-schemas og typer for auth API (Clerk, /me, preferanser, varsler).
  */
 
 import { z } from "zod";

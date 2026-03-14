@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { AITaskBreakdown } from "@/app/components/ki/AITaskBreakdown";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
-import { LoadingSpinner } from "@/app/components/ui/LoadingSpinner";
+import { LoadingView } from "@/app/components/ui/Loading";
 import { type VisningType } from "@/app/components/dashboard/Sidebar";
 import {
   SidebarAppErrorState,
@@ -216,31 +216,21 @@ export function AIBreakdownPage() {
             </div>
 
             {!harCanvasToken && (
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-8">
-                <div className="flex flex-col items-center justify-center text-center space-y-3">
-                  <AlertCircle className="w-12 h-12 text-slate-400 dark:text-slate-500" />
-                  <div>
-                    <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-1">
-                      Koble til Canvas først
-                    </h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xl">
-                      Oppgavedeling med KI bruker de faktiske oppgavene dine fra Canvas. Legg til Canvas-token i innstillinger før du genererer deloppgaver.
-                    </p>
-                  </div>
-                  <Link
-                    href="/dashboard?view=settings"
-                    prefetch={false}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 text-white rounded-lg transition-colors text-sm"
-                  >
-                    Gå til innstillinger
-                  </Link>
-                </div>
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 space-y-3">
+                <FeilMelding melding="Du må knytte en Canvas API-token for å hente oppgaver og bruke oppgavedeling med KI. Gå til Innstillinger for å legge til token." />
+                <Link
+                  href="/dashboard?view=settings"
+                  prefetch={false}
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                >
+                  Gå til innstillinger
+                </Link>
               </div>
             )}
 
             {harCanvasToken && assignmentsQuery.isLoading && (
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-10 flex items-center justify-center">
-                <LoadingSpinner />
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-10">
+                <LoadingView text="Laster oppgaver..." fullPage={false} />
               </div>
             )}
 

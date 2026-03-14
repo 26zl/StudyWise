@@ -2,8 +2,8 @@
  * Content Store / Embedding Service
  *
  * Lagrer filchunks i MongoDB (tekst + metadata). Vektorer lagres i Pinecone
- * og genereres via Pinecone Inference (multilingual-e5-large). Semantisk søk
- * bruker Pinecone; keyword-søk og katalog bruker kun MongoDB.
+ * og genereres via Pinecone integrated embedding (feltet "text" sendes; Pinecone embedder).
+ * Semantisk søk bruker Pinecone; keyword-søk og katalog bruker kun MongoDB.
  */
 
 import mongoose from "mongoose";

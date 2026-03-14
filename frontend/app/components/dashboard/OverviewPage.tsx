@@ -25,6 +25,7 @@ import {
   SidebarAppShell,
 } from "@/app/components/layout/SidebarAppShell";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
+import { LoadingView } from "@/app/components/ui/Loading";
 import { StatCard } from "@/app/components/ui/StatCard";
 import { useMeg } from "@/app/auth/auth-api";
 import { skalRedirecteTilAuth, useAuthRedirect } from "@/app/auth/authUtils";
@@ -42,6 +43,7 @@ import {
   formaterDagerRelativtFrist,
 } from "@/app/lib/dato";
 import {
+  CANVAS_TOKEN_MANGLER_MELDING,
   getBrukerdataFeilmelding,
   lagBrukervennligFeilmelding,
 } from "@/app/lib/errorUtils";
@@ -178,6 +180,19 @@ export function OversiktPage() {
         </div>
 
         <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+          {!harCanvasToken && (
+            <div className="space-y-3">
+              <FeilMelding melding={CANVAS_TOKEN_MANGLER_MELDING} />
+              <Link
+                href="/dashboard?view=settings"
+                prefetch={false}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+              >
+                Gå til innstillinger
+              </Link>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <StatCard
               icon={BookOpen}
@@ -206,9 +221,12 @@ export function OversiktPage() {
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-800/50">
-            <div className="flex gap-1">
+            <div className="flex gap-1" role="tablist" aria-label="Oversikt: Min arbeidsplan eller KI Ukeplangenerator">
               <button
                 type="button"
+                role="tab"
+                aria-selected={activeTab === "mine-oppgaver"}
+                aria-label="Min arbeidsplan"
                 onClick={() => setActiveTab("mine-oppgaver")}
                 className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
                   activeTab === "mine-oppgaver"
@@ -217,12 +235,15 @@ export function OversiktPage() {
                 }`}
               >
                 <div className="flex items-center justify-center gap-2">
-                  <TrendingUp className="h-4 w-4" />
+                  <TrendingUp className="h-4 w-4" aria-hidden />
                   Min arbeidsplan
                 </div>
               </button>
               <button
                 type="button"
+                role="tab"
+                aria-selected={activeTab === "ki-forslag"}
+                aria-label="KI Ukeplangenerator"
                 onClick={() => setActiveTab("ki-forslag")}
                 className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
                   activeTab === "ki-forslag"
@@ -231,7 +252,7 @@ export function OversiktPage() {
                 }`}
               >
                 <div className="flex items-center justify-center gap-2">
-                  <Sparkles className="h-4 w-4" />
+                  <Sparkles className="h-4 w-4" aria-hidden />
                   KI Ukeplangenerator
                 </div>
               </button>
@@ -243,12 +264,20 @@ export function OversiktPage() {
 
             {activeTab === "ki-forslag" ? (
               <div className="space-y-2">
-                {assignmentsQuery.isLoading ? (
-                  <div className="rounded-lg border border-slate-200 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-900">
-                    <div className="space-y-3 animate-pulse">
-                      <div className="mx-auto h-4 w-3/4 rounded bg-slate-200 dark:bg-slate-700" />
-                      <div className="mx-auto h-4 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
-                    </div>
+                {!harCanvasToken ? (
+                  <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50 space-y-3">
+                    <FeilMelding melding="Du må knytte en Canvas API-token for å hente oppgaver og generere ukeplan med KI. Gå til Innstillinger for å legge til token." />
+                    <Link
+                      href="/dashboard?view=settings"
+                      prefetch={false}
+                      className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                    >
+                      Gå til innstillinger
+                    </Link>
+                  </div>
+                ) : assignmentsQuery.isLoading ? (
+                  <div className="rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900 p-8">
+                    <LoadingView text="Laster oppgaver..." fullPage={false} />
                   </div>
                 ) : assignmentsQuery.isError ? (
                   <div className="rounded-lg border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">

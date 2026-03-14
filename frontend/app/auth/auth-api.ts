@@ -4,7 +4,7 @@
 
 import { useCallback, useRef } from "react";
 import { useClerk } from "@clerk/nextjs";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import {
   CanvasTokenResponseSchema,
   MeResponseSchema,
@@ -123,6 +123,14 @@ async function hentMeg(): Promise<MeResponse> {
     throw createAuthStatusError(res.status, json, "Ikke autentisert");
   }
   throw createApiError(json, "Kunne ikke hente brukerdata");
+}
+
+/** Prefetch /me for raskere dashboard – kalles fra app-shell når bruker er innlogget. */
+export function prefetchMe(queryClient: QueryClient): void {
+  void queryClient.prefetchQuery({
+    queryKey: AUTH_ME_QUERY_KEY,
+    queryFn: hentMeg,
+  });
 }
 // Utlogging rydder backend-state; Clerk-session avsluttes i useLoggUtWithRedirect.
 async function loggUt(): Promise<LogoutResponse> {

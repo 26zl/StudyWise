@@ -1,6 +1,5 @@
-/*
- *
- * Type definisjoner og schemaer for dokument parsing resultater
+/**
+ * document – Zod-schema og typer for dokumentparsing (PDF, Word, OCR).
  */
 
 import { z } from "zod";

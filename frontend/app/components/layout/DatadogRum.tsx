@@ -36,6 +36,7 @@ function flushPendingDatadogUser() {
 declare global {
     interface Window {
         __DD_RUM_CONFIG__?: { applicationId: string; clientToken: string; site: string };
+        __DD_RUM_INIT_DONE__?: boolean;
     }
 }
 
@@ -48,12 +49,18 @@ export function DatadogRum() {
         const site = fromWindow?.site ?? process.env.NEXT_PUBLIC_DD_SITE ?? "us5.datadoghq.com";
         if (!applicationId || !clientToken) return;
 
-        // Guard mot dobbel init (React Strict Mode kjører useEffect to ganger i dev)
+        // Én init per window – unngår "SDK is loaded more than once" (Strict Mode / dobbel mount / Turbopack)
+        if (typeof window !== "undefined" && window.__DD_RUM_INIT_DONE__) {
+            flushPendingDatadogUser();
+            return;
+        }
         if (datadogRum.getInitConfiguration()) {
+            if (typeof window !== "undefined") window.__DD_RUM_INIT_DONE__ = true;
             flushPendingDatadogUser();
             return;
         }
 
+        if (typeof window !== "undefined") window.__DD_RUM_INIT_DONE__ = true;
         try {
             datadogRum.init({
                 applicationId,

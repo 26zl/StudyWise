@@ -19,7 +19,7 @@ StudyWise - AI-powered study assistant with Canvas LMS integration. pnpm monorep
 - **State/Data**: `@tanstack/react-query` v5 for server-state, `zustand` for client-state, **nuqs** for URL-synced state (e.g. dashboard `?view=`)
 - **Forms**: `react-hook-form` + `@hookform/resolvers` + `zod`
 - **Routing**: Next.js App Router (Server Components default)
-- **Error handling**: Shared error classes in `frontend/app/lib/errors.ts`
+- **Error handling**: Shared error classes in `frontend/app/lib/errors.ts`. Use `FeilMelding` for error UI and `LoadingView`/`LoadingSpinner` from `frontend/app/components/ui/Loading.tsx` for loading states (single file; no separate LoadingSpinner.tsx).
 
 ### Backend
 
@@ -59,8 +59,8 @@ When adding a new schema to common, add a subpath export in `common/package.json
 ## 2. Commands
 
 ```bash
-pnpm dev                    # Start frontend (3000) + backend (4000) + docs (5173)
-pnpm dev:frontend           # Start only frontend
+pnpm dev                    # Build common, then start backend; frontend and docs start after backend /health (avoids ECONNREFUSED)
+pnpm dev:frontend           # Start only frontend (backend may not be up yet)
 pnpm dev:backend            # Start only backend
 pnpm dev:docs               # Start only docs
 pnpm typecheck              # Type-check all packages
@@ -91,7 +91,7 @@ pnpm clean:install          # Full reinstall (clean + install + update + build)
 | Health Check | <http://localhost:4000/health>        |
 | Docs         | <http://localhost:5173>               |
 
-**Build order**: `common` must be built before frontend/backend. `pnpm build` handles this automatically.
+**Build order**: `common` must be built before frontend/backend. `pnpm build` handles this automatically. Running `pnpm dev` runs `predev` first, which builds `common` so shared code is ready before the dev servers start. Next.js (Turbopack) and the backend (tsx) still compile on demand in dev for fast startup and HMR; only the shared `common` package is built in advance.
 
 ### Tests
 
@@ -112,7 +112,7 @@ Docker brukes **kun for lokal utvikling** — ikke i produksjon. All services us
 
 ### Deployment
 
-- **Backend**: Heroku (Eco dyno + Datadog buildpack) — auto-deploys from `main` via Heroku Automatic Deploys
+- **Backend**: Heroku (Eco or Basic dyno + Datadog buildpack) — auto-deploys from `main` via Heroku Automatic Deploys
 - **Frontend**: Vercel — deployed via `deploy.yml` after CI passes
 - **Security/CDN**: Cloudflare (DDoS, SSL/TLS, caching)
 - **Docs**: GitHub Pages — deployed via `deploy.docs.yml` on changes to `docs/`
@@ -313,6 +313,7 @@ onSave(subtasks.map(({ approved: _approved, ...task }) => task));
 - `frontend/app/canvas/canvasUtils.ts` — Canvas data utils (`erInnlevert()`, `formaterEmneStatus()`); other files should import from here
 - `frontend/app/lib/errorUtils.ts` — `parseApiError()`, `lagBrukervennligFeilmelding()`
 - `frontend/app/lib/errors.ts` — `AppError` class hierarchy for typed error handling
+- `frontend/app/components/ui/Loading.tsx` — shared loading UI: `LoadingSpinner` and `LoadingView` (single file; use for all loading states). `FeilMelding` for errors.
 
 ### Database Rules
 

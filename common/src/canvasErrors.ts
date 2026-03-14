@@ -1,6 +1,5 @@
-/*
- * Canvas API Error Types - Delte feiltyper for frontend og backend
- * Strukturert feilhåndtering for Canvas API-kall
+/**
+ * canvasErrors – delte feiltyper og hjelpere for Canvas API-feilhåndtering (frontend og backend).
  */
 import { z } from "zod";
 

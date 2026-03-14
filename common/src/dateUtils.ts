@@ -1,5 +1,5 @@
-/*
- * Delte dato-hjelpefunksjoner for frontend og backend
+/**
+ * dateUtils – delte dato-hjelpefunksjoner for frontend og backend (uke, ukenummer, tidsintervall).
  */
 
 /** Millisekunder for 14 dager (brukes f.eks. for «neste 14 dager»-vinduer). */

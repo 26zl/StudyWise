@@ -1,7 +1,7 @@
-/*
-* Statecard for visning av nøkkeltall i DashboardView. Tar inn ikon, label, verdi og farge som props.
-*
-*/
+/**
+ * StatCard – visning av nøkkeltall (f.eks. på oversikt).
+ * Tar imot ikon, label, verdi og farge som props.
+ */
 
 
 import type { ComponentType } from "react";

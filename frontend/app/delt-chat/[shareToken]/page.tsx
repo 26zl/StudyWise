@@ -6,12 +6,13 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { AlertCircle, Bot, User } from "lucide-react";
+import { Bot, User } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
 import { CodeBlock } from "@/app/components/ui/CodeBlock";
-import { LoadingSpinner } from "@/app/components/ui/LoadingSpinner";
+import { FeilMelding } from "@/app/components/ui/FeilMelding";
+import { LoadingView } from "@/app/components/ui/Loading";
 import { Footer } from "@/app/components/layout/footer";
 import {
     SharedChatResponseSchema,
@@ -29,13 +30,29 @@ export default function DeltSamtaleSide() {
     const [data, setData] = useState<SharedChatResponse | null>(null);
     const [laster, setLaster] = useState(true);
     const [feil, setFeil] = useState<string | null>(null);
+    const [retryKey, setRetryKey] = useState(0);
+
+    const token = typeof params?.shareToken === "string" ? params.shareToken : null;
 
     useEffect(() => {
-        const hentDeltSamtale = async () => {
+        if (!token) {
+            setLaster(false);
+            setFeil("Mangler delingslenke.");
+            return;
+        }
+        const ac = new AbortController();
+        let cancelled = false;
+        setLaster(true);
+        setFeil(null);
+        setData(null);
+        (async () => {
             try {
-                const res = await fetch(`/api/shared/${params.shareToken}`, {
+                const res = await fetch(`/api/shared/${token}`, {
                     cache: "no-store",
-                });
+                    signal: ac.signal,
+                    credentials: "omit",
+                  });
+                if (cancelled) return;
                 if (!res.ok) {
                     if (res.status === 404) {
                         setFeil("Denne samtalen finnes ikke eller er ikke lenger delt.");
@@ -46,34 +63,41 @@ export default function DeltSamtaleSide() {
                 }
                 const json = await res.json();
                 const parsed = SharedChatResponseSchema.parse(json);
+                if (cancelled) return;
                 setData(parsed);
-            } catch {
-                setFeil("Noe gikk galt ved henting av samtalen.");
+            } catch (err) {
+                if (cancelled || (err instanceof Error && err.name === "AbortError")) return;
+                const isParse = err instanceof Error && (("ZodError" in err) || err.message.includes("parse"));
+                setFeil(isParse ? "Ugyldig data fra server. Prøv igjen senere." : "Noe gikk galt ved henting av samtalen.");
             } finally {
-                setLaster(false);
+                if (!cancelled) setLaster(false);
             }
+        })();
+        return () => {
+            cancelled = true;
+            ac.abort();
         };
-        hentDeltSamtale();
-    }, [params.shareToken]);
+    }, [token, retryKey]);
 
     if (laster) {
-        return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-                <LoadingSpinner />
-            </div>
-        );
+        return <LoadingView text="Laster delt samtale..." fullPage />;
     }
 
     if (feil || !data) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
-                <div className="flex items-center gap-3 mb-4 text-amber-600 dark:text-amber-400">
-                    <AlertCircle className="w-8 h-8" />
-                    <h1 className="text-xl font-semibold">Samtale ikke funnet</h1>
+            <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 gap-4">
+                <div className="w-full max-w-md">
+                    <FeilMelding melding={feil ?? "Den delte samtalen finnes ikke."} />
                 </div>
-                <p className="text-slate-600 dark:text-slate-400 text-center max-w-md">
-                    {feil ?? "Den delte samtalen finnes ikke."}
-                </p>
+                {feil && (
+                    <button
+                        type="button"
+                        onClick={() => setRetryKey((k) => k + 1)}
+                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                    >
+                        Prøv igjen
+                    </button>
+                )}
             </div>
         );
     }

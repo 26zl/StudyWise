@@ -13,7 +13,7 @@ import { useAuth } from "@clerk/nextjs";
 import { useAuthSync } from "./hooks/use-auth-sync";
 import { setClerkGetToken } from "./lib/clerkTokenForApi";
 import { setDatadogUser, clearDatadogUser } from "@/app/components/layout/DatadogRum";
-import { AUTH_ME_QUERY_KEY } from "./auth/auth-api";
+import { AUTH_ME_QUERY_KEY, prefetchMe } from "./auth/auth-api";
 import type { MeResponse } from "common/auth";
 
 // Gir backend API tilgang til Clerk session token (for brukere som logger inn med Clerk)
@@ -29,6 +29,16 @@ function ClerkTokenSync() {
 // Komponent for å lytte etter utlogging i andre faner
 function AuthSyncListener() {
   useAuthSync(); // Aktiver lytter for utlogging i andre faner
+  return null;
+}
+
+// Prefetch /me ved oppstart når bruker er innlogget – dashboard får da data fra cache
+function PrefetchMeOnMount() {
+  const queryClient = useQueryClient();
+  const { isLoaded, userId } = useAuth();
+  useEffect(() => {
+    if (isLoaded && userId) prefetchMe(queryClient);
+  }, [isLoaded, userId, queryClient]);
   return null;
 }
 
@@ -100,6 +110,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <NuqsAdapter>
         <ClerkTokenSync />
         <AuthSyncListener />
+        <PrefetchMeOnMount />
         <DatadogUserSync />
         {children}
       </NuqsAdapter>

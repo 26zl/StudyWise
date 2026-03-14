@@ -1,12 +1,10 @@
 /*
-* Backend entry point for Express serveren.
-* Fungerer på samme måte som app.js i backend i tidligere prosjekter.
-* Setter opp middleware, andre ulike funksjoner, ruter og starter serveren.
-*
-* NB! Serveren kobler til MongoDB ved oppstart (se nederst i filen).
-* Mongoose holder denne tilkoblingen åpen globalt, så du trenger IKKE koble til
-* databasen på nytt i rute-filene dine. Bare importer modellene og bruk dem direkte.
-*/
+ * Backend entry point – Express-server.
+ * Setter opp middleware, ruter og starter serveren.
+ *
+ * NB! Serveren kobler til MongoDB ved oppstart (se nederst i filen).
+ * Mongoose holder tilkoblingen åpen globalt; importer modellene og bruk dem direkte i ruter.
+ */
 
 import "dotenv/config";
 import crypto from "crypto";

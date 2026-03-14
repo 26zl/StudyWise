@@ -1,5 +1,5 @@
-/*
- * Zod schemas for Canvas API (1:1 with Canvas field names)
+/**
+ * Canvas – Zod-schemas for Canvas API (1:1 med Canvas feltnavn). Deles av frontend og backend.
  */
 
 import { z } from "zod";

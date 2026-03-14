@@ -12,13 +12,12 @@ import { useAuth } from "@clerk/nextjs";
 import { useMeg } from "@/app/auth/auth-api";
 
 interface LandingHeroActionsProps {
-  /** Brukerdata fra server (f.eks. fra forsidens fetch av /me) – brukes som initialData for rask første render */
-  initialUser: MeResponse | null;
+  /** Brukerdata fra server – brukes som initialData for rask første render. Valgfri; ved navigering til forsiden brukes React Query-cache (useMeg). */
+  initialUser?: MeResponse | null;
 }
 
-export function LandingHeroActions({ initialUser }: LandingHeroActionsProps) {
+export function LandingHeroActions({ initialUser = null }: LandingHeroActionsProps) {
   const { isLoaded, isSignedIn } = useAuth();
-  // Kun bruk server-data som initialData når vi har bekrevet innlogget bruker – aldri null (unngår at transient SSR-feil caches som gjest)
   const megQuery = useMeg({
     initialData: initialUser?.user ? initialUser : undefined,
     enabled: isLoaded && isSignedIn,

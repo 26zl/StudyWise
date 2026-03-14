@@ -8,6 +8,8 @@ import type { JSX } from "react";
 import { useCanvasPage } from "@/app/canvas/canvas-api";
 import { ArrowLeft, Calendar } from "lucide-react";
 import { createCanvasHtmlParser, parseCanvasHtml } from "@/app/canvas/canvasHtml";
+import { FeilMelding } from "@/app/components/ui/FeilMelding";
+import { LoadingView } from "@/app/components/ui/Loading";
 import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { format } from "date-fns";
 import { nb } from "date-fns/locale";
@@ -29,17 +31,11 @@ export function CanvasPageVisning({ courseId, pageId, onBack }: CanvasPageVisnin
 
     if (isLoading) {
         return (
-            <div className="p-8 space-y-6 animate-pulse">
-                <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
-                <div className="space-y-3">
-                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-full" />
-                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-full" />
-                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-5/6" />
-                </div>
+            <div className="p-8">
+                <LoadingView text="Laster siden..." fullPage={false} />
             </div>
         );
     }
-    // Håndter feil ved lasting av side
     if (isError) {
         const feilMelding = lagBrukervennligFeilmelding(
             error instanceof Error ? error : null,
@@ -47,11 +43,12 @@ export function CanvasPageVisning({ courseId, pageId, onBack }: CanvasPageVisnin
             "Kunne ikke laste siden. Prøv igjen."
         );
         return (
-            <div className="p-8 text-center space-y-4">
-                <p className="text-red-600 dark:text-red-400">{feilMelding}</p>
+            <div className="p-8 space-y-4">
+                <FeilMelding melding={feilMelding} />
                 <button
+                    type="button"
                     onClick={onBack}
-                    className="mt-4 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-sm transition-colors"
+                    className="rounded-lg px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm transition-colors"
                 >
                     Gå tilbake
                 </button>

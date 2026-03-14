@@ -45,7 +45,7 @@ function NavigationLink({
   onClick?: () => void;
 }) {
   const className = mobile
-    ? "inline-flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-2"
+    ? "inline-flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-3 min-h-[44px] touch-manipulation"
     : "inline-flex items-center gap-1.5 hover:text-blue-600 dark:hover:text-blue-400 transition-colors";
 
   return (
@@ -64,7 +64,7 @@ function AuthActionButton({
   mobile?: boolean;
 }) {
   const className = mobile
-    ? "text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-2"
+    ? "text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-3 min-h-[44px] touch-manipulation w-full"
     : "hover:text-blue-600 dark:hover:text-blue-400 transition-colors";
   const button = (
     <button type="button" className={className}>
@@ -101,8 +101,9 @@ function ThemeToggleButton({
   if (mobile) {
     return (
       <button
+        type="button"
         onClick={onToggle}
-        className="flex items-center gap-2 text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-2"
+        className="flex items-center gap-2 text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-3 min-h-[44px] w-full touch-manipulation"
         aria-label="Bytt tema"
       >
         <Sun className="h-5 w-5 dark:hidden" />
@@ -114,8 +115,9 @@ function ThemeToggleButton({
 
   return (
     <button
+      type="button"
       onClick={onToggle}
-      className="p-1 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+      className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors touch-manipulation"
       aria-label="Bytt tema"
     >
       {mounted ? (
@@ -159,15 +161,16 @@ export function Header() {
       <div className="flex items-center gap-3">
         {harSidebar && (
           <button
+            type="button"
             onClick={toggleVenstreMeny}
-            className="p-1 -ml-1 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+            className="min-w-[44px] min-h-[44px] -ml-1 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg touch-manipulation"
             aria-label={isVenstreMenyOpen ? "Lukk venstremeny" : "Åpne venstremeny"}
           >
             {isVenstreMenyOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         )}
-        <div className="font-semibold text-lg text-slate-900 dark:text-white">
-          <Link href="/" prefetch={false}>StudyWise</Link>
+        <div className="font-semibold text-lg text-slate-900 dark:text-white min-h-[44px] flex items-center">
+          <Link href="/" prefetch={false} className="py-2">StudyWise</Link>
         </div>
       </div>
 
@@ -201,15 +204,16 @@ export function Header() {
       </nav>
 
       <button
+        type="button"
         onClick={() => setMobilMenyOpen(!mobilMenyOpen)}
-        className="md:hidden p-1 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+        className="md:hidden min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg touch-manipulation"
         aria-label={mobilMenyOpen ? "Lukk meny" : "Meny"}
       >
         {mobilMenyOpen ? <X size={24} /> : <MoreVertical size={24} />}
       </button>
       {mobilMenyOpen && (
         <nav className="md:hidden absolute top-14 left-0 right-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-lg z-40">
-          <div className="flex flex-col p-4 gap-4 text-sm text-slate-600 dark:text-slate-400">
+          <div className="flex flex-col p-4 gap-2 text-sm text-slate-600 dark:text-slate-400">
             {FELLES_NAVIGASJON.map((item) => (
               <NavigationLink
                 key={item.href}
@@ -230,7 +234,7 @@ export function Header() {
               <button
                 type="button"
                 onClick={handleMobilLogout}
-                className="inline-flex items-center gap-2 text-left hover:text-red-600 dark:hover:text-red-400 transition-colors py-2"
+                className="inline-flex items-center gap-2 text-left hover:text-red-600 dark:hover:text-red-400 transition-colors py-3 min-h-[44px] w-full touch-manipulation"
               >
                 <LogOut className="h-5 w-5" />
                 <span>Logg ut</span>

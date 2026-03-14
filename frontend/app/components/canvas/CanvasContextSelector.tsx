@@ -6,7 +6,7 @@
 
 import { useEffect, useRef } from "react";
 import { Check } from "lucide-react";
-import { LoadingSpinner } from "@/app/components/ui/LoadingSpinner";
+import { LoadingSpinner } from "@/app/components/ui/Loading";
 import {
   useCanvasAnnouncements,
   useCanvasCourses,
