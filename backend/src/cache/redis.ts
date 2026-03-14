@@ -69,22 +69,24 @@ export const isRedisReady = (): boolean => client.isOpen && client.isReady;
 
 /** Validerer cache-nøkkel for å unngå cache injection og farlige tegn (eksporteres for tester) */
 export const isValidCacheKey = (key: string): boolean => {
-    return typeof key === "string" &&
-        key.length > 0 &&
-        key.length < 512 &&
-        VALID_CACHE_KEY_PATTERN.test(key) &&
-        !key.includes("..");
+    if (typeof key !== "string") return false;
+    const k = key.trim();
+    return k.length > 0 &&
+        k.length < 512 &&
+        VALID_CACHE_KEY_PATTERN.test(k) &&
+        !k.includes("..");
 };
 // Henter cache-verdi for gitt nøkkel, eller null hvis ikke tilgjengelig eller ved feil
 export const getCache = async (key: string): Promise<string | null> => {
     if (!client.isOpen)
         return null;
-    if (!isValidCacheKey(key)) {
-        logger.warn({ key: key.slice(0, 50) }, "Redis getCache: ugyldig nøkkel avvist");
+    const keyToUse = typeof key === "string" ? key.trim() : key;
+    if (!isValidCacheKey(keyToUse)) {
+        logger.warn({ key: keyToUse.slice(0, 50) }, "Redis getCache: ugyldig nøkkel avvist");
         return null;
     }
     try {
-        return await client.get(key);
+        return await client.get(keyToUse);
     } catch (error) {
         logger.warn({ err: error }, "Redis error");
         return null;
@@ -97,8 +99,9 @@ export const setCache = async (key: string, value: string, ttlSeconds: number = 
         logger.warn({ key }, "Redis setCache: klient ikke åpen");
         return;
     }
-    if (!isValidCacheKey(key)) {
-        logger.warn({ key: key.slice(0, 50) }, "Redis setCache: ugyldig nøkkel avvist");
+    const keyToUse = typeof key === "string" ? key.trim() : key;
+    if (!isValidCacheKey(keyToUse)) {
+        logger.warn({ key: keyToUse.slice(0, 50) }, "Redis setCache: ugyldig nøkkel avvist");
         return;
     }
     try {
@@ -107,7 +110,7 @@ export const setCache = async (key: string, value: string, ttlSeconds: number = 
         if (valueSize > 1024 * 1024) {
             logger.warn({ key, valueSize }, "Redis setCache: stor verdi (> 1MB)");
         }
-        await client.set(key, value, {
+        await client.set(keyToUse, value, {
             EX: ttlSeconds,
         });
         logger.debug({ key, ttlSeconds, valueSize }, "Redis cache SET");

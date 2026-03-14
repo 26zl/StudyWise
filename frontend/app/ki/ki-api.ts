@@ -518,6 +518,9 @@ async function requestKI<T>(
   return parseKIResponse(res, schema);
 }
 
+// Timeout for langvarige KI-kall (ukeplangenerator kan ta 1–2 min)
+const KI_LONG_REQUEST_TIMEOUT_MS = 120_000;
+
 // API funksjoner
 // POST funksjon for chat (støtter SSE-streaming fra backend)
 async function postKI<T>(
@@ -525,11 +528,13 @@ async function postKI<T>(
   body: unknown,
   schema: ZodType<T>,
   method: "POST" | "PUT" | "DELETE" = "POST",
+  extraInit?: RequestInit,
 ): Promise<T> {
   return requestKI(endpoint, schema, {
     method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    ...extraInit,
   });
 }
 
@@ -759,11 +764,22 @@ export function useGenerateWeeklyPlan() {
   return useMutation({
     mutationFn: async (request: WeeklyPlanGenerateRequest) => {
       const parsedRequest = WeeklyPlanGenerateRequestSchema.parse(request);
-      return postKI(
-        "/weekly-plan/generate",
-        parsedRequest,
-        WeeklyPlanSuggestionResponseSchema,
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        KI_LONG_REQUEST_TIMEOUT_MS,
       );
+      try {
+        return await postKI(
+          "/weekly-plan/generate",
+          parsedRequest,
+          WeeklyPlanSuggestionResponseSchema,
+          "POST",
+          { signal: controller.signal },
+        );
+      } finally {
+        clearTimeout(timeoutId);
+      }
     },
   });
 }
