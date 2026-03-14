@@ -18,7 +18,7 @@ import rehypeSanitize from "rehype-sanitize";
 import { CodeBlock } from "@/app/components/ui/CodeBlock";
 import { SmartSuggestions } from "@/app/components/chat/SmartSuggestions";
 import { ChatShareResponseSchema } from "common/chat";
-import { streamKIChat, useKIDocumentAnalyse, useKITestTilkobling, SUPPORTED_FILE_TYPES, getKIErrorMessage, getKIBannerForError, type KIErrorContext } from "@/app/ki/ki-api";
+import { streamKIChat, useKIDocumentAnalyse, SUPPORTED_FILE_TYPES, getKIErrorMessage, getKIBannerForError, type KIErrorContext } from "@/app/ki/ki-api";
 import { useChatHistory } from "@/app/hooks/useChatHistory";
 import { FeilMelding, type FeilMeldingType } from "@/app/components/ui/FeilMelding";
 import { useUIStore } from "@/app/store/uiStore";
@@ -160,6 +160,8 @@ export function ChatSection() {
     const [animerendeMeldingId, settAnimerendeMeldingId] = useState<string | null>(null);
     const [viserShareModal, setViserShareModal] = useState(false);
     const [oppretterDeling, setOppretterDeling] = useState(false);
+    /** KI-feil fra reelt kall (chat/dokumentanalyse) – vises som banner; erstatter tidligere test-connection. */
+    const [kiError, settKiError] = useState<Error | null>(null);
 
     const meldingsContainerRef = useRef<HTMLDivElement>(null);
     const meldingerSluttRef = useRef<HTMLDivElement>(null);
@@ -228,15 +230,11 @@ export function ChatSection() {
         };
     }, []);
 
-    // KI tilkoblingstest (viser feilmelding hvis KI er utilgjengelig)
-    const { isError: erTilkoblingsFeil, error: tilkoblingsFeil, refetch: refetchKiTest } = useKITestTilkobling(mounted);
+    // KI-feilbanner basert på reelle feil (chat/dokumentanalyse) – ingen eget test-connection-kall
     const searchParams = useSearchParams();
     const visKiFeilDetaljer = typeof window !== "undefined" && (process.env.NODE_ENV === "development" || searchParams.get("ki_debug") === "1");
-    const tilkoblingsBanner = lagTilkoblingsBanner(
-        tilkoblingsFeil instanceof Error ? tilkoblingsFeil : null,
-    );
-    /** Ved tilkoblingsfeil uten klassifisert banner (f.eks. ikke-Error), vis generisk melding */
-    const tilkoblingsBannerVist = erTilkoblingsFeil
+    const tilkoblingsBanner = lagTilkoblingsBanner(kiError);
+    const tilkoblingsBannerVist = kiError
         ? (tilkoblingsBanner ?? { melding: "Kunne ikke koble til KI-assistenten. Prøv igjen senere.", type: "error" as const })
         : null;
 
@@ -786,8 +784,8 @@ export function ChatSection() {
                     }
                 },
                 onError: (error) => {
-                    const feilTekst = lagFeilTekst(error, "dokument");
-                    showToast.error("Dokumentanalyse feilet", feilTekst);
+                    settKiError(error instanceof Error ? error : new Error(String(error)));
+                    showToast.error("Dokumentanalyse feilet", lagFeilTekst(error instanceof Error ? error : new Error(String(error)), "dokument"));
                     persistDocumentUserMessageOnly();
                     avsluttDokumentanalyseUtenSvar();
                 },
@@ -976,11 +974,9 @@ export function ChatSection() {
             })
             .catch((error: unknown) => {
                 settAnimerendeMeldingId(null);
-                const feilTekst = lagFeilTekst(
-                    error instanceof Error ? error : new Error("Uventet feil"),
-                    "chat",
-                );
-                showToast.error("KI-svar feilet", feilTekst);
+                const err = error instanceof Error ? error : new Error("Uventet feil");
+                settKiError(err);
+                showToast.error("KI-svar feilet", lagFeilTekst(err, "chat"));
                 handleChatResponse();
             });
     };
@@ -1222,19 +1218,19 @@ export function ChatSection() {
                             <div className="flex flex-wrap items-center gap-2">
                                 <button
                                     type="button"
-                                    onClick={() => refetchKiTest()}
+                                    onClick={() => settKiError(null)}
                                     className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white text-sm font-medium transition-colors"
                                 >
                                     <RefreshCw className="w-4 h-4" aria-hidden />
                                     Prøv igjen
                                 </button>
-                                {visKiFeilDetaljer && tilkoblingsFeil && (
+                                {visKiFeilDetaljer && kiError && (
                                     <details className="w-full max-w-235">
                                         <summary className="cursor-pointer text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300">
                                             Vis feildetaljer (debug)
                                         </summary>
                                         <pre className="mt-2 p-3 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs text-left overflow-x-auto break-all">
-                                            {tilkoblingsFeil instanceof Error ? tilkoblingsFeil.message : String(tilkoblingsFeil)}
+                                            {kiError.message}
                                         </pre>
                                     </details>
                                 )}

@@ -578,18 +578,6 @@ function assertSuccessfulKIChat(
   return data;
 }
 
-function assertSuccessfulKITestConnection(
-  data: z.infer<typeof KIChatResponseSchema>,
-): z.infer<typeof KIChatResponseSchema> {
-  if (!data.suksess) {
-    throw lagKIError(
-      data.melding || "Kunne ikke koble til KI-assistenten. Prøv igjen senere.",
-    );
-  }
-
-  return data;
-}
-
 /**
  * Streaming KI-chat som leser SSE-strøm fra backend incrementalt med getReader().
  * Returnerer fullstendig validert KIChatResponseSchema-respons.
@@ -694,31 +682,6 @@ export async function streamKIChat(
 }
 
 // React query hooks
-
-/** Test tilkobling til KI-tjenesten (GET /test-connection). Brukes for å vise feilmelding i chat hvis KI er utilgjengelig. */
-export function useKITestTilkobling(enabled = true) {
-  const query = useQuery({
-    queryKey: ["ki", "test-connection"],
-    queryFn: async () =>
-      assertSuccessfulKITestConnection(
-        await requestKI("/test-connection", KIChatResponseSchema, {
-          method: "GET",
-        }),
-      ),
-    enabled,
-    staleTime: 60 * 1000, // 1 minutt
-    retry: false,
-    // Etter at konto var nede (f.eks. tom for kreditt) og er fylt opp: oppdater tilkoblingsstatus uten at bruker må refreshe
-    refetchOnWindowFocus: true,
-    refetchInterval: (query) => (query.state.status === "error" ? 60_000 : 0), // Ved feil: prøv på nytt hvert 60. sekund
-  });
-  return {
-    isError: query.isError,
-    error: query.error,
-    isLoading: query.isLoading,
-    refetch: query.refetch,
-  };
-}
 
 const TASK_BREAKDOWN_QUERY_KEY = ["ki", "task-breakdown"] as const;
 

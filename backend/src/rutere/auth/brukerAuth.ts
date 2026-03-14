@@ -4,7 +4,7 @@
  */
 import { Router, type Request, type Response } from "express";
 import crypto from "crypto";
-import { User } from "../../database/models/User.js";
+import { User, type IUser } from "../../database/models/User.js";
 import { CanvasUser } from "../../database/models/CanvasUser.js";
 import { decrypt, encrypt } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
@@ -363,11 +363,12 @@ router.delete("/token", rateLimitToken, async (req, res) => {
 });
 
 // GET /me (Beskyttet av global requireAuth)
-// Hent informasjon om den autentiserte brukeren.
+// Hent informasjon om den autentiserte brukeren. Gjenbruker req.authenticatedUser fra requireAuth for å unngå dobbel MongoDB-henting.
 router.get("/me", rateLimitMe, async (req, res) => {
     try {
         const userId = req.user?.id;
-        const bruker = await hentAutentisertBruker(userId, res, "+canvasApiToken");
+        const authenticatedUser = (req as Request & { authenticatedUser?: IUser }).authenticatedUser;
+        const bruker = authenticatedUser ?? await hentAutentisertBruker(userId, res, "+canvasApiToken");
         if (!bruker) return;
         const harCanvasToken = !!bruker.canvasApiToken;
         if (harCanvasToken && !bruker.canvasBaseUrl) {

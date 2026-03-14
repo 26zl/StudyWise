@@ -295,60 +295,8 @@ router.get("/models", (_req, res) => {
   );
 });
 
-// Endepunkt for å teste tilkobling til AI-tjenesten
-router.get("/test-connection", async (_req, res) => {
-  logger.info("Testing AI connection...");
-
-  const model = DEFAULT_MODEL;
-
-  if (!isClientAvailable(model)) {
-    logger.error(getMissingClientError(model));
-    return res.status(500).json(
-      KIChatResponseSchema.parse({
-        suksess: false,
-        melding: getMissingClientError(model),
-        response: "",
-      }),
-    );
-  }
-
-  try {
-    const result = await chatCompletion({
-      model,
-      messages: [
-        { role: "system", content: STUDYWISE_SYSTEM_PROMPT },
-        { role: "user", content: "Hei! Hvem er du?" },
-      ],
-      max_tokens: 150,
-      temperature: 0.7,
-    });
-
-    logger.info("Vellykket svar fra AI-tjenesten");
-    const response = KIChatResponseSchema.parse({
-      suksess: true,
-      melding: "Vellykket kobling til AI-tjenesten!",
-      response: result.text,
-      model: model,
-    });
-    return res.json(response);
-  } catch (error) {
-    if (
-      handleAIError(res, error, KIChatResponseSchema, {
-        kontekst: "test-connection",
-      })
-    )
-      return;
-
-    return res.status(500).json(
-      KIChatResponseSchema.parse({
-        suksess: false,
-        melding:
-          "Feil under kommunikasjon med KI-tjenesten. Prøv igjen senere.",
-        response: "",
-      }),
-    );
-  }
-});
+// GET /test-connection fjernet: KI-tilgjengelighet vises nå ved reelle feil (chat/dokumentanalyse).
+// Unngår dedikert round-trip og 3–4 s latency; bruker får samme feilbanner når et kall feiler.
 
 // Hovedendepunkt for chat
 router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
@@ -574,7 +522,8 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
 
       // Session-level chunk caching: gjenbruk kontekst kun for eksakt samme spørsmål om samme kurs.
       // queryHash sørger for at oppfølgingsspørsmål om nytt tema ikke gjenbruker gammel kontekst.
-      const queryHash = createHash("md5")
+      // SHA-256 brukes (ikke MD5) for å tilfredsstille sikkerhetslinter; dette er kun cache-nøkkel, ikke passord.
+      const queryHash = createHash("sha256")
         .update(lastUserMsg.toLowerCase().trim())
         .digest("hex")
         .slice(0, 8);

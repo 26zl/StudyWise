@@ -10,6 +10,7 @@ import { logger } from "../utils/logger.js";
 import { apiError } from "../utils/apiError.js";
 import { normalizeCanvasBaseUrl } from "common/auth";
 import type { UserRole } from "common/auth";
+import type { IUser } from "../database/models/User.js";
 import { getClerkUserIdFromToken, findOrCreateUserByClerkId } from "../rutere/auth/clerkAuth.js";
 import { audit, AUDIT_ACTIONS } from "../utils/auditLog.js";
 
@@ -110,6 +111,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     const role = (user.role ?? DEFAULT_ROLE) as UserRole;
     req.user = { id: user._id.toString() };
     (req as Request & { actorRole: UserRole }).actorRole = role;
+    (req as Request & { authenticatedUser?: IUser }).authenticatedUser = user;
     next();
   } catch (err) {
     logger.warn({ err, requestId: (req as Request & { id?: string }).id }, "requireAuth error");

@@ -112,24 +112,48 @@ async function requestAuthedJson<T>(
   return schema.parse(json);
 }
 
-// Hent info om innlogget bruker (Clerk token i Authorization header)
-async function hentMeg(): Promise<MeResponse> {
-  const res = await fetchApi("/api/user/me", { method: "GET" });
-  const json = await parseApiJson(res);
-  if (res.ok) {
-    return MeResponseSchema.parse(json);
+// Timeout for /me i prod (kald backend) – unngår at dashboard henger ubegrenset
+const ME_REQUEST_TIMEOUT_MS = 25_000;
+
+// Hent info om innlogget bruker (Clerk token i Authorization header).
+// Signal fra React Query brukes; 25s timeout unngår evig venting ved kald backend i prod.
+async function hentMeg(signal?: AbortSignal): Promise<MeResponse> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), ME_REQUEST_TIMEOUT_MS);
+  if (signal) {
+    signal.addEventListener("abort", () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    }, { once: true });
   }
-  if (res.status === 401 || res.status === 403) {
-    throw createAuthStatusError(res.status, json, "Ikke autentisert");
+  try {
+    const res = await fetchApi("/api/user/me", { method: "GET", signal: controller.signal });
+    const json = await parseApiJson(res);
+    clearTimeout(timeoutId);
+    if (res.ok) {
+      return MeResponseSchema.parse(json);
+    }
+    if (res.status === 401 || res.status === 403) {
+      throw createAuthStatusError(res.status, json, "Ikke autentisert");
+    }
+    throw createApiError(json, "Kunne ikke hente brukerdata");
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === "AbortError") {
+      throw createApiError(
+        { melding: "Forespørselen tok for lang tid. Backend kan være kald – prøv igjen." },
+        "Kunne ikke hente brukerdata",
+      );
+    }
+    throw err;
   }
-  throw createApiError(json, "Kunne ikke hente brukerdata");
 }
 
 /** Prefetch /me for raskere dashboard – kalles fra app-shell når bruker er innlogget. */
 export function prefetchMe(queryClient: QueryClient): void {
   void queryClient.prefetchQuery({
     queryKey: AUTH_ME_QUERY_KEY,
-    queryFn: hentMeg,
+    queryFn: ({ signal }) => hentMeg(signal),
   });
 }
 // Utlogging rydder backend-state; Clerk-session avsluttes i useLoggUtWithRedirect.
@@ -175,7 +199,7 @@ async function lagreCanvasToken(input: SaveCanvasTokenInput): Promise<CanvasToke
 export function useMeg(options?: { initialData?: MeResponse; enabled?: boolean }) {
   return useQuery({
     queryKey: AUTH_ME_QUERY_KEY,
-    queryFn: hentMeg,
+    queryFn: ({ signal }) => hentMeg(signal),
     enabled: options?.enabled,
     retry: (failureCount, error) => {
       const isAuthError = erReauthFeil(error);
@@ -322,6 +346,7 @@ export function useDebouncedPreferanseOppdater() {
   const { mutateAsync, isPending } = useOppdaterPreferanser();
   const pendingRef = useRef<CanvasContextPreferences | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushRef = useRef<() => void>(() => {});
 
   const flush = useCallback(() => {
     if (timerRef.current) {
@@ -338,13 +363,18 @@ export function useDebouncedPreferanseOppdater() {
     }
   }, [mutateAsync, queryClient]);
 
+  flushRef.current = flush;
+
   const mutate = useCallback(
     (value: CanvasContextPreferences) => {
       pendingRef.current = value;
       if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(flush, PREFERENCES_DEBOUNCE_MS);
+      // Kaller via ref slik at ingen brukerdata flyter inn i setTimeout-callback (Snyk code-injection).
+      timerRef.current = setTimeout(() => {
+        flushRef.current();
+      }, PREFERENCES_DEBOUNCE_MS);
     },
-    [flush],
+    [],
   );
 
   return { mutate, isPending, flush };

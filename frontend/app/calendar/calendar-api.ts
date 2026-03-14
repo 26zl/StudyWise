@@ -260,8 +260,8 @@ export function useCalendarData(enabled = true) {
       };
     },
     enabled: isEnabled,
-    staleTime: 30 * 1000, // 30 sekunder før data anses som stale
-    refetchOnWindowFocus: true, // Oppdater når vinduet får fokus
+    staleTime: 60 * 1000, // 60 sekunder før data anses som stale
+    refetchOnWindowFocus: false, // Unngå tunge refetches ved hvert fokus
     gcTime: 5 * 60 * 1000, // Garbage collect etter 5 min inaktivitet
   });
 

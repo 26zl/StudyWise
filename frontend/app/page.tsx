@@ -17,14 +17,17 @@ export default function HomePage() {
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight bg-linear-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent pb-4">
               Din intelligente studieassistent
             </h1>
-            <p className="text-lg md:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">
+            <p className="text-lg md:text-xl text-slate-700 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed">
               StudyWise samler alt du trenger på ett sted. Få full oversikt over Canvas,
               dine kommende oppgaver, og få hjelp av KI til å studere smartere – ikke hardere.
             </p>
             <LandingHeroActions />
           </div>
         </section>
-        <section className="px-4 sm:px-6 lg:px-8 py-16 bg-slate-50/50 dark:bg-slate-800/20 border-t border-slate-100 dark:border-slate-800">
+        <section className="px-4 sm:px-6 lg:px-8 py-16 bg-slate-50/50 dark:bg-slate-800/20 border-t border-slate-100 dark:border-slate-800" aria-labelledby="funksjoner-heading">
+          <h2 id="funksjoner-heading" className="sr-only">
+            Funksjoner
+          </h2>
           <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
               <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center mb-6">

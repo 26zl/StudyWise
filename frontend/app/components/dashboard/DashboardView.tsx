@@ -84,16 +84,15 @@ export function DashboardView() {
     }, [megQuery.data?.user?.canvasContextPreferences, setCanvasContextSelection]);
 
     useAuthRedirect(megQuery);
-    // Forsinket prefetch av Canvas og chat — unngår at alle kall fyres samtidig ved mount (treg backend/cold start i prod).
+    // Forsinket og utspredt prefetch — unngår at backend får 6+ samtidige kall ved cold start (Heroku/Vercel).
     const { prefetchChatHistory } = useChatHistoryPrefetch();
     useEffect(() => {
-        if (!megQuery.isSuccess) return;
-        const t1 = setTimeout(() => {
-            if (harCanvasToken) prefetchCanvasData(queryClient);
-        }, 400);
-        const t2 = setTimeout(() => {
-            prefetchChatHistory(queryClient);
-        }, 800);
+        if (!megQuery.isSuccess || !harCanvasToken) {
+            if (megQuery.isSuccess) prefetchChatHistory(queryClient);
+            return;
+        }
+        const t1 = setTimeout(() => prefetchCanvasData(queryClient), 600);
+        const t2 = setTimeout(() => prefetchChatHistory(queryClient), 1200);
         return () => {
             clearTimeout(t1);
             clearTimeout(t2);
@@ -113,18 +112,6 @@ export function DashboardView() {
         if (aktivVisning === "canvas-assignments") return "assignments";
         return "announcements";
     };
-    // Laster: vis sidebar med en gang, kun innholdsområdet venter – raskere opplevd respons
-    if (megQuery.isLoading) {
-        return (
-            <SidebarAppShell
-                aktivVisning={aktivVisning}
-                byttVisning={settAktivVisning}
-                brukernavn="..."
-            >
-                <SectionLoader text="Laster dashboard..." />
-            </SidebarAppShell>
-        );
-    }
     // Skal redirecte til innlogging: vis spinner i stedet for feilmelding så bruker ikke ser rød boks i et splitt sekund
     if (skalRedirecteTilAuth(megQuery)) {
         return (
@@ -149,13 +136,18 @@ export function DashboardView() {
             />
         );
     }
-    // Hovedrendering (inkl. ved isError med cached data)
+    // Én shell: sidebar + faner vises alltid; innhold = loader mens /me laster, deretter seksjoner (redirect/feil håndteres over)
+    const visInnhold = !megQuery.isLoading;
     return (
         <SidebarAppShell
             aktivVisning={aktivVisning}
             byttVisning={settAktivVisning}
-            brukernavn={brukernavn}
+            brukernavn={megQuery.isLoading ? "..." : brukernavn}
         >
+            {!visInnhold ? (
+                <SectionLoader text={megQuery.isLoading ? "Laster brukerdata..." : "Laster..."} />
+            ) : (
+            <>
             {aktivVisning === "chat" && (
                 <SectionErrorBoundary sectionName="KI-chat">
                     <Suspense fallback={<SectionLoader text="Laster KI-chat..." />}>
@@ -197,6 +189,8 @@ export function DashboardView() {
                         />
                     </Suspense>
                 </SectionErrorBoundary>
+            )}
+            </>
             )}
         </SidebarAppShell>
     );

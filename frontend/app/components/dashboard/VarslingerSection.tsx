@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import { nb } from "date-fns/locale";
 import {
@@ -61,13 +61,20 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
         isHydrated,
     } = useVarsler(harCanvasToken);
     const safeAlle = alleElementer ?? [];
+    const harMarkertAlleLestRef = useRef(false);
 
-    // Når bruker åpner varslinger-siden, markér alle som lest (synk med popup)
+    // Når bruker åpner varslinger-siden og det finnes data, markér alle som lest én gang (synk med popup; unngår gjentatte PUT ved refetch)
     useEffect(() => {
-        if (harCanvasToken && isHydrated && !isError && safeAlle.length > 0) {
-            markAllAsLest();
-        }
+        if (!harCanvasToken || !isHydrated || isError || safeAlle.length === 0) return;
+        if (harMarkertAlleLestRef.current) return;
+        harMarkertAlleLestRef.current = true;
+        markAllAsLest();
     }, [harCanvasToken, isHydrated, isError, safeAlle.length, markAllAsLest]);
+
+    // Nullstill ved unmount slik at neste gang bruker åpner fanen kjøres markering på nytt
+    useEffect(() => () => {
+        harMarkertAlleLestRef.current = false;
+    }, []);
 
     const tabs: { id: VarslingTab; label: string; antall: number; uleste: number }[] = [
         { id: "alle", label: "Alle", antall: safeAlle.length, uleste: safeAlle.filter((e) => !lestIds.has(e.id)).length },

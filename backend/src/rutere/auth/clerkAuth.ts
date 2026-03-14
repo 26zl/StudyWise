@@ -280,7 +280,8 @@ function queueExistingUserProfileSync(
 export async function findOrCreateUserByClerkId(
   clerkUserId: string,
 ): Promise<IUser | null> {
-  const existing = await User.findOne({ clerkId: clerkUserId });
+  // +canvasApiToken slik at GET /me kan gjenbruke bruker uten ekstra DB-kall
+  const existing = await User.findOne({ clerkId: clerkUserId }).select("+canvasApiToken");
   if (existing) {
     if (existing.deletedAt) {
       logger.warn(
