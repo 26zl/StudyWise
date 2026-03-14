@@ -280,6 +280,109 @@ async function finnRelevanteEmner(
 
 // ─── MongoDB fallback-hjelpere ───────────────────────────────
 
+/** Nøkkelord som indikerer at brukeren spør om kunngjøringer.
+ * Bruker regex for å fange vanlige skrivefeil (f.eks. "kungjøring" uten 'n'). */
+const ANNOUNCEMENT_PATTERN = /ku+n{1,2}gj[øo]ring|beskjed|announcement|nyhet|varsel/i;
+
+function isAnnouncementQuery(message: string): boolean {
+  return ANNOUNCEMENT_PATTERN.test(message);
+}
+
+interface AnnouncementEntry {
+  title: string;
+  message?: string | null;
+  posted_at?: string | null;
+  courseName: string;
+}
+
+/**
+ * Henter kunngjøringer for en bruker fra Redis og/eller MongoDB.
+ * Returnerer sortert liste (nyeste først) med kursnavn inkludert.
+ */
+async function hentKunngjøringerForBruker(userId: string): Promise<AnnouncementEntry[]> {
+  const announcements: AnnouncementEntry[] = [];
+
+  // Prøv Redis først
+  const redisAvailable = isRedisReady();
+  if (redisAvailable) {
+    const emnerRaw = await getCache(userKey(userId, "emner"));
+    if (emnerRaw) {
+      try {
+        const emner = JSON.parse(emnerRaw) as Array<{ id: number; name: string }>;
+        const results = await Promise.all(
+          emner.map(async (emne) => ({
+            courseName: emne.name,
+            raw: await getCache(userKey(userId, "emne", String(emne.id), "kunngjøringer")),
+          })),
+        );
+        for (const { courseName, raw } of results) {
+          if (!raw) continue;
+          try {
+            const parsed = JSON.parse(raw) as Array<{
+              title: string;
+              message?: string | null;
+              posted_at?: string | null;
+            }>;
+            for (const k of parsed) {
+              announcements.push({ ...k, courseName });
+            }
+          } catch { /* ugyldig JSON — hopp over */ }
+        }
+      } catch { /* ugyldig emner-JSON */ }
+    }
+  }
+
+  // MongoDB fallback hvis Redis ga ingenting
+  if (announcements.length === 0) {
+    try {
+      const structures = await CanvasStructureModel.find({ userId }).lean<ICanvasStructure[]>();
+      for (const s of structures) {
+        for (const k of s.kunngjøringer ?? []) {
+          announcements.push({
+            title: k.title,
+            message: k.message,
+            posted_at: k.posted_at,
+            courseName: s.courseName,
+          });
+        }
+      }
+    } catch (error) {
+      logger.warn({ err: error, userId }, "Feil ved henting av kunngjøringer fra MongoDB");
+    }
+  }
+
+  // Sorter nyeste først
+  return announcements.sort((a, b) => {
+    const dateA = a.posted_at ? new Date(a.posted_at).getTime() : 0;
+    const dateB = b.posted_at ? new Date(b.posted_at).getTime() : 0;
+    return dateB - dateA;
+  });
+}
+
+/**
+ * Formaterer kunngjøringer til en kontekstblokk for Claude.
+ * Maks 20 kunngjøringer, med tittel, dato, kurs og meldingsinnhold.
+ */
+function formaterKunngjøringerKontekst(announcements: AnnouncementEntry[]): string {
+  const maxAnnouncements = 20;
+  const recent = announcements.slice(0, maxAnnouncements);
+
+  let blokk = `\n\nKUNNGJØRINGER (${recent.length} av ${announcements.length} totalt, nyeste først):\n`;
+  for (const k of recent) {
+    const dato = k.posted_at ? new Date(k.posted_at).toLocaleDateString("nb-NO") : "ukjent dato";
+    blokk += `\n[Kunngjøring – ${k.courseName}]\n`;
+    blokk += `Tittel: ${k.title}\n`;
+    blokk += `Dato: ${dato}\n`;
+    if (k.message) {
+      const melding = stripHtml(k.message).trim();
+      if (melding.length > 0) {
+        blokk += `${melding.substring(0, 500)}${melding.length > 500 ? "..." : ""}\n`;
+      }
+    }
+  }
+  return blokk;
+}
+
 /**
  * Bygger lett kontekst fra MongoDB CanvasStructure (permanent fallback når Redis TTL utløper).
  */
@@ -1047,16 +1150,46 @@ export async function loadCanvasContext(
   // ── canvas_full ──
   const hasSpecificTarget = !!(target?.courseHint || target?.moduleHint || target?.fileHint);
 
+  // Kunngjøring-deteksjon: Kunngjøringer er strukturert data som ikke er indeksert i
+  // Pinecone/BM25, så hybrid-søk finner dem aldri. Når brukeren spør om kunngjøringer,
+  // hent dem direkte fra Redis/MongoDB og injiser i konteksten.
+  const wantsAnnouncements = message ? isAnnouncementQuery(message) : false;
+  let announcementBlock = "";
+
+  if (wantsAnnouncements) {
+    const announcements = await hentKunngjøringerForBruker(userId);
+    if (announcements.length > 0) {
+      announcementBlock = formaterKunngjøringerKontekst(announcements);
+      const courseNames = [...new Set(announcements.map((a) => a.courseName))];
+      logger.info(
+        { userId, count: announcements.length, courses: courseNames, contextAddedLength: announcementBlock.length },
+        "Kunngjøringer injisert i Canvas-kontekst",
+      );
+    } else {
+      logger.info({ userId }, "Bruker spurte om kunngjøringer, men ingen ble funnet");
+    }
+  }
+
   // Trinn 0: Hybrid søk (Pinecone + BM25 → RRF → Cohere Rerank)
   if (hasStoredAIContent && message) {
     const hybridKontekst = await byggKontekstFraHybridSearch(userId, message, target);
     if (hybridKontekst) {
+      const kontekstMedKunngjøringer = announcementBlock
+        ? hybridKontekst.replace("[CANVAS-DATA SLUTT]", announcementBlock + "\n[CANVAS-DATA SLUTT]")
+        : hybridKontekst;
       logger.info(
-        { userId, intent, source: "vector", contextLength: hybridKontekst.length },
+        { userId, intent, source: "vector", contextLength: kontekstMedKunngjøringer.length },
         "Canvas-kontekst lastet fra hybrid søk",
       );
-      return { kontekst: hybridKontekst, hasCanvasData: true, source: "vector" };
+      return { kontekst: kontekstMedKunngjøringer, hasCanvasData: true, source: "vector" };
     }
+  }
+
+  // Hvis brukeren spør om kunngjøringer og vi har data, returner det direkte —
+  // hybrid-søk finner aldri kunngjøringer (ikke indeksert), så vi trenger ikke vente på chunk-søk.
+  if (wantsAnnouncements && announcementBlock) {
+    const kontekst = "[CANVAS-DATA START]\n" + announcementBlock + "\n[CANVAS-DATA SLUTT]";
+    return { kontekst, hasCanvasData: true, source: "redis" };
   }
 
   // Trinn 1: Chunk-basert søk (keyword fallback når hybrid søk ikke ga treff)
