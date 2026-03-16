@@ -80,7 +80,9 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
 
   try {
+    const t0 = Date.now();
     const clerkUserId = await getClerkUserIdFromToken(token);
+    const tClerk = Date.now();
     if (!clerkUserId) {
       await audit({
         actorUserId: "anonymous",
@@ -95,6 +97,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     }
 
     const user = await findOrCreateUserByClerkId(clerkUserId);
+    const tDb = Date.now();
     if (!user) {
       await audit({
         actorUserId: clerkUserId,
@@ -107,6 +110,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       apiError.unauthorized(res, "Kunne ikke verifisere bruker");
       return;
     }
+
+    logger.info(
+      { clerkMs: tClerk - t0, dbMs: tDb - tClerk, totalAuthMs: tDb - t0, url: req.originalUrl },
+      "auth-timing",
+    );
 
     const role = (user.role ?? DEFAULT_ROLE) as UserRole;
     req.user = { id: user._id.toString() };
