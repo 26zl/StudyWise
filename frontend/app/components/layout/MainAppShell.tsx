@@ -1,15 +1,18 @@
 /*
  * Felles app-shell: Providers (React Query, nuqs), Header, Toaster, CookieBanner, DatadogRum.
  * Brukes fra root layout slik at alle sider får samme chrome.
+ * DatadogRum og TelemetryConsent lazy-loades for å redusere initial bundle.
  */
 "use client";
 
+import { lazy, Suspense } from "react";
 import { Providers } from "@/app/providers";
 import { Header } from "@/app/components/layout/header";
 import { Toaster } from "@/app/components/ui/Toaster";
 import { CookieBanner } from "@/app/components/layout/CookieBanner";
-import { TelemetryConsent } from "@/app/components/layout/TelemetryConsent";
-import { DatadogRum } from "@/app/components/layout/DatadogRum";
+
+const DatadogRum = lazy(() => import("@/app/components/layout/DatadogRum").then(m => ({ default: m.DatadogRum })));
+const TelemetryConsent = lazy(() => import("@/app/components/layout/TelemetryConsent").then(m => ({ default: m.TelemetryConsent })));
 
 export function MainAppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -21,8 +24,10 @@ export function MainAppShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
       <Toaster />
-      <DatadogRum />
-      <TelemetryConsent />
+      <Suspense fallback={null}>
+        <DatadogRum />
+        <TelemetryConsent />
+      </Suspense>
       <CookieBanner />
     </Providers>
   );

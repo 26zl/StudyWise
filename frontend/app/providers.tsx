@@ -32,12 +32,21 @@ function AuthSyncListener() {
   return null;
 }
 
-// Prefetch /me ved oppstart når bruker er innlogget – dashboard får da data fra cache
+// Prefetch /me når bruker er innlogget – utsatt med requestIdleCallback for å ikke blokkere initial render
 function PrefetchMeOnMount() {
   const queryClient = useQueryClient();
   const { isLoaded, userId } = useAuth();
   useEffect(() => {
-    if (isLoaded && userId) prefetchMe(queryClient);
+    if (!isLoaded || !userId) return;
+    const schedule = typeof requestIdleCallback === "function"
+      ? requestIdleCallback
+      : (cb: () => void) => setTimeout(cb, 50);
+    const id = schedule(() => prefetchMe(queryClient));
+    return () => {
+      if (typeof cancelIdleCallback === "function" && typeof id === "number") {
+        cancelIdleCallback(id);
+      }
+    };
   }, [isLoaded, userId, queryClient]);
   return null;
 }
@@ -74,8 +83,11 @@ function DatadogUserSync() {
 
   useEffect(() => {
     const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
-      // Kun oppdater Datadog-bruker når auth-data endres, ikke ved alle cache-events
-      if (event?.query?.queryKey?.[0] === AUTH_ME_QUERY_KEY[0]) {
+      if (
+        event?.type === "updated" &&
+        event.query.queryKey[0] === AUTH_ME_QUERY_KEY[0] &&
+        event.query.queryKey[1] === AUTH_ME_QUERY_KEY[1]
+      ) {
         syncDatadogUser();
       }
     });

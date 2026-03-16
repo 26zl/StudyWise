@@ -7,7 +7,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import { Menu, Moon, Sun, X, MoreVertical, LogOut, UserCircle2 } from "lucide-react";
-import { Show, SignInButton, SignUpButton } from "@clerk/nextjs";
+import { SignInButton, SignUpButton, useAuth } from "@clerk/nextjs";
 import { useUIStore } from "@/app/store/uiStore";
 import { useTheme } from "next-themes";
 import { useState, useEffect } from "react";
@@ -45,7 +45,7 @@ function NavigationLink({
   onClick?: () => void;
 }) {
   const className = mobile
-    ? "inline-flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-3 min-h-[44px] touch-manipulation"
+    ? "inline-flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-3 min-h-11 touch-manipulation"
     : "inline-flex items-center gap-1.5 hover:text-blue-600 dark:hover:text-blue-400 transition-colors";
 
   return (
@@ -64,7 +64,7 @@ function AuthActionButton({
   mobile?: boolean;
 }) {
   const className = mobile
-    ? "text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-3 min-h-[44px] touch-manipulation w-full"
+    ? "text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-3 min-h-11 touch-manipulation w-full"
     : "hover:text-blue-600 dark:hover:text-blue-400 transition-colors";
   const button = (
     <button type="button" className={className}>
@@ -103,7 +103,7 @@ function ThemeToggleButton({
       <button
         type="button"
         onClick={onToggle}
-        className="flex items-center gap-2 text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-3 min-h-[44px] w-full touch-manipulation"
+        className="flex items-center gap-2 text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-3 min-h-11 w-full touch-manipulation"
         aria-label="Bytt tema"
       >
         <Sun className="h-5 w-5 dark:hidden" />
@@ -117,7 +117,7 @@ function ThemeToggleButton({
     <button
       type="button"
       onClick={onToggle}
-      className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors touch-manipulation"
+      className="min-w-11 min-h-11 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors touch-manipulation"
       aria-label="Bytt tema"
     >
       {mounted ? (
@@ -141,6 +141,7 @@ export function Header() {
   const [mounted, setMounted] = useState(false);
   const isDarkMode = mounted && resolvedTheme === "dark";
   const handleLoggUt = useLoggUtWithRedirect();
+  const { isLoaded: authLoaded, isSignedIn } = useAuth();
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
@@ -163,13 +164,13 @@ export function Header() {
           <button
             type="button"
             onClick={toggleVenstreMeny}
-            className="min-w-[44px] min-h-[44px] -ml-1 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg touch-manipulation"
+            className="min-w-11 min-h-11 -ml-1 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg touch-manipulation"
             aria-label={isVenstreMenyOpen ? "Lukk venstremeny" : "Åpne venstremeny"}
           >
             {isVenstreMenyOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         )}
-        <div className="font-semibold text-lg text-slate-900 dark:text-white min-h-[44px] flex items-center">
+        <div className="font-semibold text-lg text-slate-900 dark:text-white min-h-11 flex items-center">
           <Link href="/" prefetch={false} className="py-2">StudyWise</Link>
         </div>
       </div>
@@ -178,24 +179,25 @@ export function Header() {
         {FELLES_NAVIGASJON.map((item) => (
           <NavigationLink key={item.href} {...item} />
         ))}
-        <Show when="signed-in">
-          {INNLOGGET_NAVIGASJON.map((item) => (
-            <NavigationLink key={item.href} {...item} />
-          ))}
-          <button
-            type="button"
-            onClick={handleLoggUt}
-            className="inline-flex items-center gap-1.5 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-          >
-            <LogOut className="h-4 w-4" />
-            <span>Logg ut</span>
-          </button>
-        </Show>
-        <Show when="signed-out">
-          {AUTH_ACTIONS.map((action) => (
+        {authLoaded && isSignedIn ? (
+          <>
+            {INNLOGGET_NAVIGASJON.map((item) => (
+              <NavigationLink key={item.href} {...item} />
+            ))}
+            <button
+              type="button"
+              onClick={handleLoggUt}
+              className="inline-flex items-center gap-1.5 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Logg ut</span>
+            </button>
+          </>
+        ) : (
+          AUTH_ACTIONS.map((action) => (
             <AuthActionButton key={action.kind} action={action} />
-          ))}
-        </Show>
+          ))
+        )}
         <ThemeToggleButton
           mounted={mounted}
           isDarkMode={isDarkMode}
@@ -206,7 +208,7 @@ export function Header() {
       <button
         type="button"
         onClick={() => setMobilMenyOpen(!mobilMenyOpen)}
-        className="md:hidden min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg touch-manipulation"
+        className="md:hidden min-w-11 min-h-11 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg touch-manipulation"
         aria-label={mobilMenyOpen ? "Lukk meny" : "Meny"}
       >
         {mobilMenyOpen ? <X size={24} /> : <MoreVertical size={24} />}
@@ -222,29 +224,30 @@ export function Header() {
                 onClick={handleMobilNavigation}
               />
             ))}
-            <Show when="signed-in">
-              {INNLOGGET_NAVIGASJON.map((item) => (
-                <NavigationLink
-                  key={item.href}
-                  {...item}
-                  mobile
-                  onClick={handleMobilNavigation}
-                />
-              ))}
-              <button
-                type="button"
-                onClick={handleMobilLogout}
-                className="inline-flex items-center gap-2 text-left hover:text-red-600 dark:hover:text-red-400 transition-colors py-3 min-h-[44px] w-full touch-manipulation"
-              >
-                <LogOut className="h-5 w-5" />
-                <span>Logg ut</span>
-              </button>
-            </Show>
-            <Show when="signed-out">
-              {AUTH_ACTIONS.map((action) => (
+            {authLoaded && isSignedIn ? (
+              <>
+                {INNLOGGET_NAVIGASJON.map((item) => (
+                  <NavigationLink
+                    key={item.href}
+                    {...item}
+                    mobile
+                    onClick={handleMobilNavigation}
+                  />
+                ))}
+                <button
+                  type="button"
+                  onClick={handleMobilLogout}
+                  className="inline-flex items-center gap-2 text-left hover:text-red-600 dark:hover:text-red-400 transition-colors py-3 min-h-11 w-full touch-manipulation"
+                >
+                  <LogOut className="h-5 w-5" />
+                  <span>Logg ut</span>
+                </button>
+              </>
+            ) : (
+              AUTH_ACTIONS.map((action) => (
                 <AuthActionButton key={action.kind} action={action} mobile />
-              ))}
-            </Show>
+              ))
+            )}
             <ThemeToggleButton
               mobile
               mounted={mounted}
