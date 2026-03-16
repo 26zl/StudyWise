@@ -481,12 +481,12 @@ const TOKEN_CACHE_MAX = 500;
 const tokenCache = new Map<string, { sub: string; exp: number }>();
 
 function pruneTokenCache(): void {
-  if (tokenCache.size <= TOKEN_CACHE_MAX) return;
+  // Fjern utløpte entries først
   const now = Date.now();
   for (const [key, entry] of tokenCache) {
     if (entry.exp <= now) tokenCache.delete(key);
   }
-  // Hvis fortsatt for stor, fjern eldste
+  // Håndhev maks-grense: fjern eldste entries til vi er innenfor grensen
   if (tokenCache.size > TOKEN_CACHE_MAX) {
     const keysToDelete = tokenCache.size - TOKEN_CACHE_MAX;
     let deleted = 0;

@@ -112,8 +112,8 @@ async function requestAuthedJson<T>(
   return schema.parse(json);
 }
 
-// Timeout for /me i prod (kald backend) – unngår at dashboard henger ubegrenset
-const ME_REQUEST_TIMEOUT_MS = 25_000;
+// Timeout for /me – Professional dyno sover ikke, 10s er nok
+const ME_REQUEST_TIMEOUT_MS = 10_000;
 
 // Hent info om innlogget bruker (Clerk token i Authorization header).
 // Signal fra React Query brukes; 25s timeout unngår evig venting ved kald backend i prod.
@@ -207,13 +207,13 @@ export function useMeg(options?: { initialData?: MeResponse; enabled?: boolean }
       if (isAuthError) {
         return failureCount < 1;
       }
-      // Prøv opptil 5 ganger ved nettverksfeil (ECONNREFUSED ved oppstart)
-      return failureCount < 5;
+      // Maks 2 retries ved nettverksfeil — unngår lang ventetid
+      return failureCount < 2;
     },
     retryDelay: (attemptIndex, error) => {
       const isAuthError = erReauthFeil(error);
       if (isAuthError && attemptIndex === 0) return 200;
-      return Math.min(1000 * 2 ** attemptIndex, 8000);
+      return Math.min(1000 * 2 ** attemptIndex, 4000);
     },
     staleTime: 1000 * 60 * 5, // Cache i 5 minutter - unngår unødvendige requests
     refetchOnWindowFocus: false, // Ikke refetch ved window focus

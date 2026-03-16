@@ -58,14 +58,17 @@ function isValidSha256Hex(value: string | null | undefined): value is string {
 }
 
 function timingSafeHexEqual(storedHash: string | null | undefined, candidateHash: string): boolean {
-    // Bruk konstant-tid sammenligning selv for ugyldige inputs for å unngå timing-lekkasje
-    const a = isValidSha256Hex(storedHash) ? storedHash : "0".repeat(64);
-    const b = isValidSha256Hex(candidateHash) ? candidateHash : "1".repeat(64);
+    // Sjekk gyldighet først, men gjør alltid timing-safe sammenligning for å unngå lekkasje
+    const aValid = isValidSha256Hex(storedHash);
+    const bValid = isValidSha256Hex(candidateHash);
+    const a = aValid ? storedHash : "0".repeat(64);
+    const b = bValid ? candidateHash : "1".repeat(64);
 
-    return crypto.timingSafeEqual(
+    const equal = crypto.timingSafeEqual(
         Buffer.from(a, "hex"),
         Buffer.from(b, "hex"),
-    ) && isValidSha256Hex(storedHash) && isValidSha256Hex(candidateHash);
+    );
+    return equal && aValid && bValid;
 }
 
 function handleCanvasVerificationError(res: Response, error: unknown) {

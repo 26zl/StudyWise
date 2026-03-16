@@ -331,7 +331,7 @@ sharedChatRouter.get("/shared/:shareToken", PUBLIC_SHARE_RATE_LIMIT, async (req,
     const shareToken = Array.isArray(req.params.shareToken)
       ? req.params.shareToken[0]
       : req.params.shareToken;
-    const tokenPattern = /^[A-Za-z0-9_-]{32,128}$/;
+    const tokenPattern = /^[A-Za-z0-9_-]{40,45}$/;
     if (!shareToken || !tokenPattern.test(shareToken)) {
       await auditInvalidShareAccess(req, "invalid_format");
       return notFoundSharedChat(res);

@@ -86,19 +86,14 @@ export function DashboardView() {
     }, [megQuery.data?.user?.canvasContextPreferences, setCanvasContextSelection]);
 
     useAuthRedirect(megQuery);
-    // Forsinket og utspredt prefetch — unngår at backend får 6+ samtidige kall ved cold start (Heroku/Vercel).
+    // Prefetch Canvas og chat parallelt så snart /me er ferdig
     const { prefetchChatHistory } = useChatHistoryPrefetch();
     useEffect(() => {
-        if (!megQuery.isSuccess || !harCanvasToken) {
-            if (megQuery.isSuccess) prefetchChatHistory(queryClient);
-            return;
+        if (!megQuery.isSuccess) return;
+        prefetchChatHistory(queryClient);
+        if (harCanvasToken) {
+            prefetchCanvasData(queryClient);
         }
-        const t1 = setTimeout(() => prefetchCanvasData(queryClient), 600);
-        const t2 = setTimeout(() => prefetchChatHistory(queryClient), 1200);
-        return () => {
-            clearTimeout(t1);
-            clearTimeout(t2);
-        };
     }, [megQuery.isSuccess, harCanvasToken, queryClient, prefetchChatHistory]);
 
     // Hent fornavn fra Canvas brukerdata

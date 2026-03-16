@@ -61,8 +61,19 @@ export const decrypt = (encryptedText: string): string => {
 
     const [ivHex, authTagHex, encryptedHex] = parts;
 
+    if (!/^[0-9a-f]+$/i.test(ivHex) || !/^[0-9a-f]+$/i.test(authTagHex) || !/^[0-9a-f]*$/i.test(encryptedHex)) {
+        throw new Error('Ugyldig hex i kryptert data.');
+    }
+
     const iv = Buffer.from(ivHex, 'hex');
     const authTag = Buffer.from(authTagHex, 'hex');
+
+    if (iv.length !== IV_LENGTH) {
+        throw new Error(`Ugyldig IV-lengde: forventet ${IV_LENGTH}, fikk ${iv.length}.`);
+    }
+    if (authTag.length !== 16) {
+        throw new Error(`Ugyldig authTag-lengde: forventet 16, fikk ${authTag.length}.`);
+    }
 
     const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
     decipher.setAuthTag(authTag);

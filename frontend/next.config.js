@@ -74,7 +74,8 @@ function buildCspValue() {
   const scriptSrc = [
     "'self'",
     "'unsafe-inline'",
-    "'unsafe-eval'",
+    // unsafe-eval kun i dev (Turbopack source maps) — aldri i prod
+    ...(process.env.NODE_ENV !== "production" ? ["'unsafe-eval'"] : []),
     "https://*.clerk.accounts.dev",
     "https://*.clerk.com",
     "https://challenges.cloudflare.com",

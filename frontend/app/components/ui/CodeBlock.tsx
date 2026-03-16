@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { Check, Copy } from "lucide-react";
 import hljs from "highlight.js";
+import DOMPurify from "isomorphic-dompurify";
 
 interface CodeBlockProps {
   className?: string;
@@ -33,13 +34,13 @@ export function CodeBlock({ className, children }: CodeBlockProps) {
 
   const kodeTekst = String(children).replace(/\n$/, "");
 
-  // Highlight til HTML én gang per innhold — overlever re-render fordi React eier HTML-en
+  // Highlight til HTML én gang per innhold — sanitert med DOMPurify for å hindre XSS
   const highlightedHtml = useMemo(() => {
     try {
       const result = sprak
         ? hljs.highlight(kodeTekst, { language: sprak, ignoreIllegals: true })
         : hljs.highlightAuto(kodeTekst);
-      return result.value;
+      return DOMPurify.sanitize(result.value, { ALLOWED_TAGS: ["span"], ALLOWED_ATTR: ["class"] });
     } catch {
       return escapeHtml(kodeTekst);
     }

@@ -7,7 +7,6 @@ import { withCsrfProtection } from "./csrf";
 
 type ApiRequestOptions = {
   auth?: boolean;
-  csrf?: boolean;
   credentials?: RequestCredentials;
   cache?: RequestCache;
 };
@@ -33,12 +32,11 @@ export async function buildApiRequestInit(
 ): Promise<RequestInit> {
   const {
     auth = true,
-    csrf = true,
     credentials = "include",
     cache = "no-store",
   } = options;
 
-  const protectedInit = csrf ? withCsrfProtection(init) : init;
+  const protectedInit = withCsrfProtection(init);
   const authHeaders = auth ? await getClerkAuthHeaders() : undefined;
 
   return {

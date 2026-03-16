@@ -32,21 +32,13 @@ function AuthSyncListener() {
   return null;
 }
 
-// Prefetch /me når bruker er innlogget – utsatt med requestIdleCallback for å ikke blokkere initial render
+// Prefetch /me umiddelbart når bruker er innlogget — unngår forsinkelse fra requestIdleCallback
 function PrefetchMeOnMount() {
   const queryClient = useQueryClient();
   const { isLoaded, userId } = useAuth();
   useEffect(() => {
     if (!isLoaded || !userId) return;
-    const schedule = typeof requestIdleCallback === "function"
-      ? requestIdleCallback
-      : (cb: () => void) => setTimeout(cb, 50);
-    const id = schedule(() => prefetchMe(queryClient));
-    return () => {
-      if (typeof cancelIdleCallback === "function" && typeof id === "number") {
-        cancelIdleCallback(id);
-      }
-    };
+    prefetchMe(queryClient);
   }, [isLoaded, userId, queryClient]);
   return null;
 }
@@ -107,8 +99,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
           queries: {
             staleTime: 60 * 1000,       // Data er "fersk" i 1 minutt
             gcTime: 5 * 60 * 1000,      // Hold i minnet i 5 minutter (cache > stale for bedre UX)
-            retry: 3,                    // Prøv på nytt 3 ganger ved feil (håndterer oppstarts-timing)
-            retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000), // Exponential backoff: 1s, 2s, 4s...
+            retry: 2,                    // Maks 2 retries — raskere feilmelding til bruker
+            retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 4000), // Exponential backoff: 1s, 2s, 4s
             refetchOnWindowFocus: false, // Unngå unødvendige refetches
           },
         },
