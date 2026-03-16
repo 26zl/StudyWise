@@ -22,7 +22,7 @@ const DOMPURIFY_CONFIG: DOMPurifyConfig = {
     ],
     ALLOWED_ATTR: [
         "href", "src", "alt", "title", "class", "id",
-        "width", "height", "style",
+        "width", "height",
         "target", "rel",
         "colspan", "rowspan", "scope",
     ],
