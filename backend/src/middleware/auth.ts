@@ -111,7 +111,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       return;
     }
 
-    logger.info(
+    logger.debug(
       { clerkMs: tClerk - t0, dbMs: tDb - tClerk, totalAuthMs: tDb - t0, url: req.originalUrl },
       "auth-timing",
     );

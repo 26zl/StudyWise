@@ -430,7 +430,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       res.flushHeaders();
       sseStarted = true;
       keepaliveInterval = setInterval(() => {
-        if (res.writableEnded) {
+        if (res.writableEnded || res.destroyed) {
           clearInterval(keepaliveInterval);
           keepaliveInterval = undefined;
           return;

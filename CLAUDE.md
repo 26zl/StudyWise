@@ -41,15 +41,17 @@ StudyWise - AI-powered study assistant with Canvas LMS integration. pnpm monorep
 Zod schemas and TypeScript interfaces shared between frontend and backend. **Subpath imports** (use these, not `common/src/...`):
 
 ```typescript
-import { CanvasCourseSchema } from "common/canvas";       // Canvas API types
-import { classifyHttpStatus } from "common/canvasErrors";  // Error codes & helpers
-import { SubTaskSchema } from "common/ki";                 // KI/AI feature types
-import { ChatMessageSchema } from "common/chat";           // Chat history types
+import { CanvasCourseSchema } from "common/canvas";             // Canvas API types
+import { classifyHttpStatus } from "common/canvasErrors";       // Error codes & helpers
+import { CANVAS_INSTITUTIONS } from "common/canvasInstitutions"; // Canvas institution list
+import { SubTaskSchema } from "common/ki";                      // KI/AI feature types
+import { ChatMessageSchema } from "common/chat";                // Chat history types
 import { CalendarItemSchema } from "common/calendar";           // Calendar API types
 import { Assignment, COURSE_COLOR_CLASSES } from "common/calendar-ui"; // Calendar UI types
-import { DocumentParseResultSchema } from "common/document";   // Document processing types
-import { AUTH_CHANNEL_NAME } from "common/auth"; // Auth constants (e.g. BroadcastChannel sync)
-import { getWeekNumber } from "common/dateUtils";          // Date utilities
+import { DocumentParseResultSchema } from "common/document";    // Document processing types
+import { AUTH_CHANNEL_NAME } from "common/auth";                // Auth constants (e.g. BroadcastChannel sync)
+import { getWeekNumber } from "common/dateUtils";               // Date utilities
+import { UKEDAGER } from "common/arbeidsplan";                  // Work plan constants
 ```
 
 When adding a new schema to common, add a subpath export in `common/package.json` `"exports"` map.
@@ -75,6 +77,13 @@ pnpm build:backend          # Build common + backend
 
 pnpm --filter frontend add <pkg>   # Add package to frontend
 pnpm --filter backend add <pkg>    # Add package to backend
+
+# Per-package quality checks
+pnpm typecheck:frontend     # Type-check only frontend
+pnpm typecheck:backend      # Type-check only backend
+pnpm typecheck:common       # Type-check only common
+pnpm lint:frontend          # Lint only frontend
+pnpm lint:backend           # Lint only backend
 
 pnpm kill:dev               # Kill all Node processes (Windows)
 pnpm clean:all              # Delete all build artifacts and node_modules
@@ -185,7 +194,7 @@ Each file handles a distinct AI feature:
 
 - `ki.ts` - General chat endpoint
 - `kiCanvas.ts` - Canvas-context AI queries
-- `kiAnalyse.ts` - Assignment analysis (uses `analyzeDocumentCore()` shared by both endpoints)
+- `kiAnalyse.ts` - Document analysis (PDF, Word, images via Vision)
 - `kiOppsummering.ts` - Text summarization
 - `kiHistory.ts` - Chat history management
 - `taskBreakdown.ts` - Task breakdown generation
@@ -227,7 +236,7 @@ The backend accepts file uploads via `multer` and processes them with:
 - **Toast notifications** - Frontend must use `sonner` for user-facing notifications. Never use `alert()` or `confirm()`
 - **`req.user` typing** - Globally typed via `backend/src/typer/express.d.ts`. Never cast with `as any`
 - **Middleware ordering** - In `backend/src/index.ts`, mount all route handlers AFTER body parsers, CORS, and auth middleware. Mounting before means `req.body` and `req.user` will be `undefined`
-- **Host validation** - In production, `API_HOST` env var controls which hostname is allowed (e.g. `api.studwize.page`). Direct access via `herokuapp.com` returns 403. `/health` is exempt.
+- **Host validation** - In production, `API_HOST` env var controls which hostname is allowed (e.g. `api.studwize.page`). Direct access via `herokuapp.com` returns 403. `/health` is exempt. `INTERNAL_HOSTS` (comma-separated) allows additional hostnames for internal traffic (e.g. Vercel → Heroku direct).
 - **CORS pre-check** - Origin validation happens before `cors()` middleware to prevent generic 500 errors from invalid origins
 - **Trust proxy** - Set to `1` in Express for correct IP handling behind Cloudflare/Heroku proxies
 
@@ -349,7 +358,7 @@ pnpm install
 pnpm build  # Builds common package first!
 ```
 
-**Environment**: Copy `backend/.env.example` → `backend/.env` and fill in required values. Required: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`. Optional: `PINECONE_*`, `COHERE_API_KEY`, `DD_*` (Datadog).
+**Environment**: Copy `backend/.env.example` → `backend/.env` and fill in required values. Required: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`. Optional: `PINECONE_*`, `COHERE_API_KEY`, `DD_*` (Datadog). Production: `API_HOST`, `WEB_ORIGINS`, `INTERNAL_HOSTS` (comma-separated hostnames for internal traffic, e.g. Vercel → Heroku direct).
 
 ### CI Pipeline (`.github/workflows/ci.yml`)
 

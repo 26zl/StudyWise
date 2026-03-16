@@ -461,20 +461,58 @@ export async function deleteClerkUserById(clerkUserId: string): Promise<boolean>
 
 /**
  * Henter tillatte frontend-origins for Clerk token (authorizedParties).
- * Reduserer risiko for subdomain cookie-lekkasje.
+ * Caches ved første kall — WEB_ORIGINS endres ikke under kjøretid.
  */
+let cachedAuthorizedParties: string[] | undefined | null = null;
 function getAuthorizedParties(): string[] | undefined {
+  if (cachedAuthorizedParties !== null) return cachedAuthorizedParties;
   const list = getConfiguredWebOrigins();
-  return list.length > 0 ? list : undefined;
+  cachedAuthorizedParties = list.length > 0 ? list : undefined;
+  return cachedAuthorizedParties;
+}
+
+/**
+ * In-memory cache for verifiserte Clerk-tokens.
+ * Kort TTL (30s) — samme token brukes gjentatte ganger av browseren i rask rekkefølge.
+ * Maks 500 entries for å begrense minnebruk.
+ */
+const TOKEN_CACHE_TTL_MS = 30_000;
+const TOKEN_CACHE_MAX = 500;
+const tokenCache = new Map<string, { sub: string; exp: number }>();
+
+function pruneTokenCache(): void {
+  if (tokenCache.size <= TOKEN_CACHE_MAX) return;
+  const now = Date.now();
+  for (const [key, entry] of tokenCache) {
+    if (entry.exp <= now) tokenCache.delete(key);
+  }
+  // Hvis fortsatt for stor, fjern eldste
+  if (tokenCache.size > TOKEN_CACHE_MAX) {
+    const keysToDelete = tokenCache.size - TOKEN_CACHE_MAX;
+    let deleted = 0;
+    for (const key of tokenCache.keys()) {
+      if (deleted >= keysToDelete) break;
+      tokenCache.delete(key);
+      deleted++;
+    }
+  }
 }
 
 /**
  * Verifiserer Clerk session-token og returnerer Clerk user id (sub) ved suksess.
  * Bruker authorizedParties når WEB_ORIGINS er satt.
+ * Cacher resultatet i minnet i 30 sekunder for å unngå gjentatte JWKS-kall.
  */
 export async function getClerkUserIdFromToken(bearerToken: string): Promise<string | null> {
   const secretKey = process.env.CLERK_SECRET_KEY;
   if (!secretKey) return null;
+
+  // Sjekk cache først
+  const cached = tokenCache.get(bearerToken);
+  if (cached) {
+    if (cached.exp > Date.now()) return cached.sub;
+    tokenCache.delete(bearerToken);
+  }
 
   try {
     const authorizedParties = getAuthorizedParties();
@@ -483,7 +521,13 @@ export async function getClerkUserIdFromToken(bearerToken: string): Promise<stri
       ...(authorizedParties && authorizedParties.length > 0 ? { authorizedParties } : {}),
     });
     const sub = payload?.sub;
-    return typeof sub === "string" ? sub : null;
+    if (typeof sub !== "string") return null;
+
+    // Cache verifisert token
+    tokenCache.set(bearerToken, { sub, exp: Date.now() + TOKEN_CACHE_TTL_MS });
+    pruneTokenCache();
+
+    return sub;
   } catch {
     return null;
   }

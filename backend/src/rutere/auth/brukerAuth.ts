@@ -58,14 +58,14 @@ function isValidSha256Hex(value: string | null | undefined): value is string {
 }
 
 function timingSafeHexEqual(storedHash: string | null | undefined, candidateHash: string): boolean {
-    if (!isValidSha256Hex(storedHash) || !isValidSha256Hex(candidateHash)) {
-        return false;
-    }
+    // Bruk konstant-tid sammenligning selv for ugyldige inputs for å unngå timing-lekkasje
+    const a = isValidSha256Hex(storedHash) ? storedHash : "0".repeat(64);
+    const b = isValidSha256Hex(candidateHash) ? candidateHash : "1".repeat(64);
 
     return crypto.timingSafeEqual(
-        Buffer.from(storedHash, "hex"),
-        Buffer.from(candidateHash, "hex"),
-    );
+        Buffer.from(a, "hex"),
+        Buffer.from(b, "hex"),
+    ) && isValidSha256Hex(storedHash) && isValidSha256Hex(candidateHash);
 }
 
 function handleCanvasVerificationError(res: Response, error: unknown) {
@@ -274,9 +274,12 @@ router.post("/token", rateLimitToken, async (req, res) => {
         }
         if (forceRelink && eksisterendeTokenBruker) {
             usersToInvalidate.add(eksisterendeTokenBruker._id.toString());
-            await User.findByIdAndUpdate(eksisterendeTokenBruker._id, {
+            const oppdatert = await User.findByIdAndUpdate(eksisterendeTokenBruker._id, {
                 $unset: { canvasApiToken: 1, canvasTokenHash: 1, canvasUser: 1, canvasBaseUrl: 1 }
             });
+            if (!oppdatert) {
+                logger.warn({ userId, targetUserId: eksisterendeTokenBruker._id }, "forceRelink: bruker ble slettet mellom sjekk og oppdatering");
+            }
         }
 
         const kryptertToken = encrypt(cleanToken);

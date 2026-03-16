@@ -1,6 +1,7 @@
 /**
  * WEB_ORIGINS (kommaseparert) brukes av CORS, CSRF og Clerk authorizedParties.
  * Én kilde for tillatte frontend-origins.
+ * Resultatet caches ved første kall — WEB_ORIGINS endres ikke under kjøretid.
  */
 export function normalizeWebOrigin(value: string | null | undefined): string | null {
   if (!value) {
@@ -23,10 +24,14 @@ export function normalizeWebOrigin(value: string | null | undefined): string | n
   }
 }
 
+let cachedResult: { origins: string[]; invalidEntries: string[] } | null = null;
+
 function parseConfiguredWebOrigins(): {
   origins: string[];
   invalidEntries: string[];
 } {
+  if (cachedResult) return cachedResult;
+
   const origins: string[] = [];
   const invalidEntries: string[] = [];
 
@@ -45,10 +50,11 @@ function parseConfiguredWebOrigins(): {
     invalidEntries.push(trimmed);
   }
 
-  return {
+  cachedResult = {
     origins: [...new Set(origins)],
     invalidEntries,
   };
+  return cachedResult;
 }
 
 export function getConfiguredWebOrigins(): string[] {
@@ -59,6 +65,10 @@ export function getInvalidConfiguredWebOrigins(): string[] {
   return parseConfiguredWebOrigins().invalidEntries;
 }
 
+let cachedOriginSet: Set<string> | null = null;
+
 export function getConfiguredWebOriginSet(): Set<string> {
-  return new Set(getConfiguredWebOrigins());
+  if (cachedOriginSet) return cachedOriginSet;
+  cachedOriginSet = new Set(getConfiguredWebOrigins());
+  return cachedOriginSet;
 }

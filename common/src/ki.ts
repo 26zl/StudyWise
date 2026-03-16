@@ -94,10 +94,10 @@ export const KIDocumentAnalyseResponseSchema = z.object({
 // SubTaskSchema og TaskBreakdownResponseSchema brukes av både backend og frontend-hooker
 // for å holde generering, lagring og visning i sync.
 export const SubTaskSchema = z.object({
-  id: z.string(),
-  title: z.string().max(200, "Tittel må være maks 200 tegn"),
-  description: z.string().max(1000, "Beskrivelse må være maks 1000 tegn"),
-  estimatedTime: z.string(),
+  id: z.string().min(1),
+  title: z.string().min(1, "Tittel kan ikke være tom").max(200, "Tittel må være maks 200 tegn"),
+  description: z.string().max(1000, "Beskrivelse må være maks 1000 tegn").default(""),
+  estimatedTime: z.string().min(1, "Tidsestimat kan ikke være tomt"),
   priority: z.enum(["low", "medium", "high"]),
   completed: z.boolean(),
   approved: z.boolean().optional().default(true),

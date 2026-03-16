@@ -77,16 +77,23 @@ process.on("uncaughtException", (error) => {
 app.set("trust proxy", 1);
 
 // Host header validering i produksjon - blokkerer direkte tilgang via herokuapp subdomain
+// Tillater intern trafikk fra Vercel via INTERNAL_HOSTS (f.eks. Heroku-domenet direkte)
 if (isProd) {
   const tillattHost = process.env.API_HOST?.trim().toLowerCase(); // f.eks. "api.studwize.page"
   if (tillattHost) {
+    const internalHosts = new Set(
+      (process.env.INTERNAL_HOSTS ?? "")
+        .split(",")
+        .map((h) => h.trim().toLowerCase())
+        .filter(Boolean),
+    );
     const publicHealthPaths = new Set(["/health", "/ready", "/health/dependencies"]);
     app.use((req, res, next) => {
       const host = req.get("host");
       const requestHost = host?.split(":")[0]?.trim().toLowerCase();
       // Tillat health checks fra Heroku (ingen host header eller intern IP)
       if (publicHealthPaths.has(req.path)) return next();
-      if (requestHost && requestHost !== tillattHost) {
+      if (requestHost && requestHost !== tillattHost && !internalHosts.has(requestHost ?? "")) {
         logger.warn(
           { host, requestHost, path: req.path },
           "Blokkert forespørsel fra ugyldig host",

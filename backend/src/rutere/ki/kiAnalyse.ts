@@ -85,7 +85,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
 
   // Keepalive to prevent proxy (Next.js rewrite) from timing out during AI processing
   const keepaliveInterval = setInterval(() => {
-      if (res.writableEnded) {
+      if (res.writableEnded || res.destroyed) {
         clearInterval(keepaliveInterval);
         return;
       }
