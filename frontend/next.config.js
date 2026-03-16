@@ -76,6 +76,7 @@ function buildCspValue() {
     "'unsafe-inline'",
     "'unsafe-eval'",
     "https://*.clerk.accounts.dev",
+    "https://*.clerk.com",
     "https://challenges.cloudflare.com",
     "https://va.vercel-scripts.com",
   ];
@@ -84,11 +85,13 @@ function buildCspValue() {
     "https://vitals.vercel-analytics.com",
     "https://*.browser-intake-us5-datadoghq.com",
     "https://*.clerk.accounts.dev",
+    "https://*.clerk.com",
   ];
   const frameSrc = [
     "'self'",
     "https://challenges.cloudflare.com",
     "https://*.clerk.accounts.dev",
+    "https://*.clerk.com",
   ];
 
   for (const origin of CLERK_CUSTOM_ORIGINS) {
@@ -108,7 +111,7 @@ function buildCspValue() {
     `script-src ${[...new Set(scriptSrc)].join(" ")}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https://*.instructure.com https://instructure-uploads.s3.amazonaws.com https://img.clerk.com",
-    "font-src 'self'",
+    "font-src 'self' https://*.clerk.com",
     `connect-src ${[...new Set(connectSrc)].join(" ")}`,
     `frame-src ${[...new Set(frameSrc)].join(" ")}`,
     "worker-src 'self' blob:",
@@ -155,7 +158,7 @@ const nextConfig = {
           },
           {
             key: "Cross-Origin-Opener-Policy",
-            value: "same-origin",
+            value: "same-origin-allow-popups",
           },
         ],
       },
