@@ -110,14 +110,14 @@ function buildCspValue() {
     "default-src 'self'",
     `script-src ${[...new Set(scriptSrc)].join(" ")}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://*.instructure.com https://instructure-uploads.s3.amazonaws.com https://img.clerk.com",
+    "img-src 'self' data: blob: https://*.instructure.com https://instructure-uploads.s3.amazonaws.com https://img.clerk.com https://*.clerk.com https://*.clerk.accounts.dev",
     "font-src 'self' https://*.clerk.com",
     `connect-src ${[...new Set(connectSrc)].join(" ")}`,
     `frame-src ${[...new Set(frameSrc)].join(" ")}`,
     "worker-src 'self' blob:",
     "frame-ancestors 'none'",
     "base-uri 'self'",
-    "form-action 'self'",
+    `form-action 'self' https://*.clerk.com https://*.clerk.accounts.dev ${CLERK_CUSTOM_ORIGINS.join(" ")}${clerkFrontendApiOrigin ? ` ${clerkFrontendApiOrigin}` : ""}`,
     "upgrade-insecure-requests",
   ].join("; ");
 }
