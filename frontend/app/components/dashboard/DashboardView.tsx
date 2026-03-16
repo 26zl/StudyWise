@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { type VisningType } from "@/app/components/dashboard/Sidebar";
 import { SectionErrorBoundary } from "@/app/components/ui/ErrorBoundary";
+import { useAuth } from "@clerk/nextjs";
 import { useCanvasUser } from "@/app/canvas/canvas-api";
 import { useMeg } from "@/app/auth/auth-api";
 import { useAuthRedirect, skalRedirecteTilAuth } from "@/app/auth/authUtils";
@@ -61,8 +62,9 @@ export function DashboardView() {
         [setView],
     );
 
-    // Hent brukerdata og Canvas-token status
-    const megQuery = useMeg();
+    // Hent brukerdata og Canvas-token status – vent til Clerk er klar for å unngå 401 race
+    const { isLoaded: clerkLoaded } = useAuth();
+    const megQuery = useMeg({ enabled: clerkLoaded });
     const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
     const brukerQueryAktiv = megQuery.isSuccess && harCanvasToken;
     const userQuery = useCanvasUser(brukerQueryAktiv);

@@ -27,6 +27,7 @@ import {
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { StatCard } from "@/app/components/ui/StatCard";
+import { useAuth } from "@clerk/nextjs";
 import { useMeg } from "@/app/auth/auth-api";
 import { skalRedirecteTilAuth, useAuthRedirect } from "@/app/auth/authUtils";
 import {
@@ -65,7 +66,8 @@ export function OversiktPage() {
     "mine-oppgaver",
   );
 
-  const megQuery = useMeg();
+  const { isLoaded: clerkLoaded } = useAuth();
+  const megQuery = useMeg({ enabled: clerkLoaded });
   const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
   const userQuery = useCanvasUser(megQuery.isSuccess && harCanvasToken);
 

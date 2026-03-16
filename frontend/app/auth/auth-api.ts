@@ -212,7 +212,7 @@ export function useMeg(options?: { initialData?: MeResponse; enabled?: boolean }
     },
     retryDelay: (attemptIndex, error) => {
       const isAuthError = erReauthFeil(error);
-      if (isAuthError && attemptIndex === 0) return 800;
+      if (isAuthError && attemptIndex === 0) return 200;
       return Math.min(1000 * 2 ** attemptIndex, 8000);
     },
     staleTime: 1000 * 60 * 5, // Cache i 5 minutter - unngår unødvendige requests

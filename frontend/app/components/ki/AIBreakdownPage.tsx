@@ -26,6 +26,7 @@ import {
   SidebarAppShell,
 } from "@/app/components/layout/SidebarAppShell";
 import { StatCard } from "@/app/components/ui/StatCard";
+import { useAuth } from "@clerk/nextjs";
 import { useMeg } from "@/app/auth/auth-api";
 import { skalRedirecteTilAuth, useAuthRedirect } from "@/app/auth/authUtils";
 import {
@@ -57,7 +58,8 @@ export function AIBreakdownPage() {
   const router = useRouter();
   const [expandedAssignmentIds, setExpandedAssignmentIds] = useState<Set<string>>(new Set());
 
-  const megQuery = useMeg();
+  const { isLoaded: clerkLoaded } = useAuth();
+  const megQuery = useMeg({ enabled: clerkLoaded });
   const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
   const userQuery = useCanvasUser(megQuery.isSuccess && harCanvasToken);
   const assignmentsQuery = useCanvasAllAssignments({ enabled: harCanvasToken });
