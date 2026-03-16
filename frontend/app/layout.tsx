@@ -42,12 +42,17 @@ export default function RootLayout({
 
   return (
     <html lang="nb" suppressHydrationWarning>
+      <head>
+        <link rel="preconnect" href="https://clerk.studwize.page" />
+        <link rel="dns-prefetch" href="https://clerk.studwize.page" />
+      </head>
       <body className="antialiased min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950" suppressHydrationWarning>
         <ClerkProvider
           publishableKey={clerkPublishableKey ?? undefined}
           localization={nbNO}
           signInUrl="/auth/sign-in"
           signUpUrl="/auth/sign-up"
+          dynamic
         >
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
             {rumConfig && (
