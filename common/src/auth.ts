@@ -145,6 +145,7 @@ export const PreferencesUpdateSchema = z
 export const AuthBrukerSchema = z.object({
   id: z.string(),
   email: EmailSchema,
+  username: z.string().optional(),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   hasCanvasToken: z.boolean(),

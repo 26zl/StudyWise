@@ -386,6 +386,7 @@ router.get("/me", rateLimitMe, async (req, res) => {
             user: AuthBrukerSchema.parse({
                 id: bruker._id.toString(),
                 email: bruker.email,
+                username: bruker.username,
                 firstName: bruker.firstName,
                 lastName: bruker.lastName,
                 hasCanvasToken: harCanvasToken,

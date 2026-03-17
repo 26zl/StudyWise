@@ -32,6 +32,8 @@ export interface IUser extends Document {
     deletedAt?: Date;
     /** RBAC-rolle. Standard user. */
     role: UserRole;
+    /** Clerk-brukernavn (påkrevd ved registrering). */
+    username?: string;
     firstName?: string;
     lastName?: string;
     canvasApiToken?: string; // Kryptert token
@@ -70,6 +72,10 @@ const UserSchema: Schema = new Schema(
             type: String,
             enum: APP_ROLES,
             default: "user",
+        },
+        username: {
+            type: String,
+            trim: true,
         },
         firstName: {
             type: String,

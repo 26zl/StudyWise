@@ -76,6 +76,7 @@ export async function deleteAccountData(userId: string): Promise<AccountDeletion
         canvasBaseUrl: 1,
         canvasTokenHash: 1,
         canvasUser: 1,
+        username: 1,
         firstName: 1,
         lastName: 1,
         canvasContextPreferences: 1,

@@ -22,6 +22,7 @@ const existingUserProfileSyncs = new Set<string>();
 /** Profilfelter hentet fra Clerk som synkroniseres til lokal User. */
 type ClerkProfile = {
   email: string;
+  username?: string;
   firstName?: string;
   lastName?: string;
 };
@@ -99,6 +100,7 @@ async function getClerkProfile(
 
   return {
     email,
+    username: clerkUser.username ?? undefined,
     firstName: clerkUser.firstName ?? undefined,
     lastName: clerkUser.lastName ?? undefined,
   };
@@ -135,6 +137,12 @@ function buildClerkProfileUpdate(
     setFields.email = profile.email;
   }
 
+  if (profile.username) {
+    setFields.username = profile.username;
+  } else {
+    unsetFields.username = 1;
+  }
+
   if (profile.firstName) {
     setFields.firstName = profile.firstName;
   } else {
@@ -164,11 +172,12 @@ async function syncExistingUserWithClerkProfile(
 ): Promise<IUser> {
   const syncedAt = new Date();
   const emailChanged = existing.email !== profile.email;
+  const usernameChanged = (existing.username ?? undefined) !== profile.username;
   const firstNameChanged =
     (existing.firstName ?? undefined) !== profile.firstName;
   const lastNameChanged = (existing.lastName ?? undefined) !== profile.lastName;
 
-  if (!emailChanged && !firstNameChanged && !lastNameChanged) {
+  if (!emailChanged && !usernameChanged && !firstNameChanged && !lastNameChanged) {
     const updated = await User.findByIdAndUpdate(
       existing._id,
       { $set: { clerkProfileSyncedAt: syncedAt } },
@@ -217,6 +226,7 @@ async function syncExistingUserWithClerkProfile(
           userId: updated._id,
           clerkUserId,
           emailChanged,
+          usernameChanged,
           firstNameChanged,
           lastNameChanged,
         },
