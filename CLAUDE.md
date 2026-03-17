@@ -121,7 +121,7 @@ Docker brukes **kun for lokal utvikling** — ikke i produksjon. All services us
 
 ### Deployment
 
-- **Backend**: Heroku (Eco or Basic dyno + Datadog buildpack) — auto-deploys from `main` via Heroku Automatic Deploys
+- **Backend**: Heroku (Professional dyno + Datadog buildpack) — auto-deploys from `main` via Heroku Automatic Deploys
 - **Frontend**: Vercel — deployed via `deploy.yml` after CI passes
 - **Security/CDN**: Cloudflare (DDoS, SSL/TLS, caching)
 - **Docs**: GitHub Pages — deployed via `deploy.docs.yml` on changes to `docs/`
@@ -182,7 +182,7 @@ Location: `frontend/app/dashboard/page.tsx` (page) and `frontend/app/components/
 - **System prompt**: `backend/src/rutere/ki/systemPrompt.ts`
 - **KI timeouts/cache**: `backend/src/rutere/ki/kiConstants.ts`
 - **Canvas pagination**: `PAGE_SIZE`, `MAX_PAGES` in `canvasUtils.ts`
-- **Cache TTL**: `CACHE_TTL` in `canvasUtils.ts`; sync structure in Redis: `SYNC_CACHE_TTL` (30 min) in `canvas-sync.service.ts`; KI session context: `SESSION_CONTEXT_TTL` in `kiConstants.ts`
+- **Cache TTL**: `CACHE_TTL` in `canvasUtils.ts`; sync structure in Redis: `SYNC_CACHE_TTL` (2 hours) in `canvas-sync.service.ts`; KI session context: `SESSION_CONTEXT_TTL` in `kiConstants.ts`
 - **Pinecone**: `backend/src/services/pinecone.service.ts` (upsert, query, deleteByFilter); env: `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`
 - **Allowed frontend origins**: `WEB_ORIGINS` (comma-separated) is used by CORS, CSRF, and Clerk `authorizedParties`
 - **Cookie names**: `common/src/auth.ts`
@@ -358,7 +358,7 @@ pnpm install
 pnpm build  # Builds common package first!
 ```
 
-**Environment**: Copy `backend/.env.example` → `backend/.env` and fill in required values. Required: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`. Optional: `PINECONE_*`, `COHERE_API_KEY`, `DD_*` (Datadog). Production: `API_HOST`, `WEB_ORIGINS`, `INTERNAL_HOSTS` (comma-separated hostnames for internal traffic, e.g. Vercel → Heroku direct).
+**Environment**: Copy `backend/.env.example` → `backend/.env` and fill in required values. Required: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`. Optional: `PINECONE_*`, `DD_*` (Datadog). Production: `API_HOST`, `WEB_ORIGINS`, `INTERNAL_HOSTS` (comma-separated hostnames for internal traffic, e.g. Vercel → Heroku direct).
 
 ### CI Pipeline (`.github/workflows/ci.yml`)
 

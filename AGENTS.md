@@ -111,7 +111,7 @@ Docker brukes **kun for lokal utvikling** — ikke i produksjon. Alle tjenester 
 
 ### Deploy
 
-- **Backend**: Heroku (Eco eller Basic dyno + Datadog buildpack)
+- **Backend**: Heroku (Professional dyno + Datadog buildpack)
 - **Frontend**: Vercel
 - **Sikkerhet/CDN**: Cloudflare (DDoS, SSL/TLS, caching)
 

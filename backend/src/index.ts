@@ -93,7 +93,7 @@ if (isProd) {
       const requestHost = host?.split(":")[0]?.trim().toLowerCase();
       // Tillat health checks fra Heroku (ingen host header eller intern IP)
       if (publicHealthPaths.has(req.path)) return next();
-      if (requestHost && requestHost !== tillattHost && !internalHosts.has(requestHost ?? "")) {
+      if (requestHost && requestHost !== tillattHost && !internalHosts.has(requestHost)) {
         logger.warn(
           { host, requestHost, path: req.path },
           "Blokkert forespørsel fra ugyldig host",

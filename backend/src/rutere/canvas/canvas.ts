@@ -17,6 +17,7 @@ import {
   beregnKalenderVindu,
   CACHE_TTL,
   getCanvasTenantCachePrefix,
+  type CanvasHttpError,
 } from "./canvasUtils.js";
 import {
   rateLimitCanvas,
@@ -67,12 +68,6 @@ import {
   classifyHttpStatus,
 } from "./canvasErrors.js";
 
-// Legacy feiltype for bakoverkompatibilitet (brukes i catch-blokker som sjekker .status)
-interface CanvasHttpError extends Error {
-  status?: number;
-  details?: string;
-  code?: CanvasErrorCode;
-}
 
 /** Én felles oversetter: Canvas/Zod-feil → strukturert JSON-respons. Brukes av både handleCanvasError og router.use. */
 function sendCanvasErrorResponse(res: import("express").Response, error: unknown): void {

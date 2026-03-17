@@ -39,7 +39,7 @@ interface CanvasResponse<T> {
 }
 
 // Legacy feiltype for bakoverkompatibilitet (deprecated - bruk CanvasApiError)
-interface CanvasHttpError extends Error {
+export interface CanvasHttpError extends Error {
     status?: number;
     details?: string;
     retryAfter?: number;
