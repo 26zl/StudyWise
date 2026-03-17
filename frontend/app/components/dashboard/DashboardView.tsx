@@ -34,6 +34,7 @@ const GYLDIGE_VISNINGER = [
   "canvas-assignments",
   "varslinger",
   "settings",
+  "quiz",
 ] as const satisfies readonly VisningType[];
 
 // Lazy load tunge komponenter for raskere initial page load
@@ -42,6 +43,7 @@ const CanvasSection = lazy(() => import("@/app/components/canvas/canvasSection")
 const SettingsSection = lazy(() => import("@/app/components/dashboard/SettingsSection").then(m => ({ default: m.SettingsSection })));
 const CalendarSection = lazy(() => import("@/app/calendar/CalendarSection").then(m => ({ default: m.CalendarSection })));
 const VarslingerSection = lazy(() => import("@/app/components/dashboard/VarslingerSection").then(m => ({ default: m.VarslingerSection })));
+const QuizView = lazy(() => import("@/app/components/ki/QuizView").then(m => ({ default: m.QuizView })));
 
 function SectionLoader({ text = "Laster..." }: { text?: string }) {
   return <LoadingView text={text} fullPage={false} />;
@@ -184,6 +186,13 @@ export function DashboardView() {
                             lokalBrukerEpost={megQuery.data?.user?.email}
                             canvasBaseUrl={megQuery.data?.user?.canvasBaseUrl ?? undefined}
                         />
+                    </Suspense>
+                </SectionErrorBoundary>
+            )}
+            {aktivVisning === "quiz" && (
+                <SectionErrorBoundary sectionName="quiz">
+                    <Suspense fallback={<SectionLoader text="Laster quiz..." />}>
+                        <QuizView />
                     </Suspense>
                 </SectionErrorBoundary>
             )}

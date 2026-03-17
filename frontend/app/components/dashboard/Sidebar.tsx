@@ -36,7 +36,8 @@ export type VisningType =
     | "canvas-courses"
     | "canvas-assignments"
     | "varslinger"
-    | "settings";
+    | "settings"
+    | "quiz";
 
 // Props for Sidebar-komponenten
 interface SidebarProps {
@@ -190,26 +191,7 @@ export function Sidebar({
                         </Link>
 
                         {/* Quiz med KI */}
-                        <Link
-                            href="/quiz"
-                            prefetch={false}
-                            onClick={() => {
-                                if (window.innerWidth < 768) {
-                                    lukkVenstreMeny();
-                                }
-                            }}
-                            className={`
-                                w-full flex items-center gap-3 px-5 py-3.5 rounded-xl text-left text-sm
-                                transition-colors duration-150
-                                ${pathname === "/quiz"
-                                    ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
-                                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
-                                }
-                            `}
-                        >
-                            <Brain size={18} className="shrink-0" />
-                            <span className="truncate">Quiz</span>
-                        </Link>
+                        <NavElement view="quiz" icon={Brain} label="Quiz" />
                         
                         <p className="px-5 pt-6 pb-3 text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                             Samtalehistorikk
