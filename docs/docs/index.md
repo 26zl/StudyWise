@@ -24,28 +24,41 @@ features:
 Prosjektet kombinerer datainnhenting fra Canvas LMS med KI-drevet analyse og interaksjon, alt tilgjengelig gjennom et moderne og responsivt dashboard. Studenter kan blant annet få oversikt over emner og frister, stille spørsmål til en KI-assistent, og analysere dokumenter - uten å måtte veksle mellom flere verktøy.
 
 ::: warning Prosjektet er under aktiv utvikling
-StudyWise er et pågående bachelorprosjekt og er i konstant endring. Funksjonalitet, design og tekniske løsninger kan endres underveis. Ta forbehold om at det som beskrives her kan avvike fra nåværende tilstand.
+StudyWise er et pågående bachelorprosjekt (2026). Funksjonalitet, design og tekniske løsninger kan endres. Dokumentasjonen holdes så oppdatert som mulig; ved avvik sjekk kildekoden.
 :::
 
 ## Teknologi
 
-| Lag | Teknologi |
+Komplett oversikt over teknologier og tjenester som brukes i StudyWise:
+
+| Område | Teknologi |
 | --- | --------- |
-| **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS v4 |
+| **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS v4, TanStack Query, Zustand, nuqs, react-hook-form, Zod, Lucide React, Sonner, next-themes, Vercel Speed Insights |
 | **Backend** | Express 5, Node.js 20+, TypeScript, Mongoose/MongoDB |
-| **KI** | Anthropic Claude API |
-| **Cache** | Redis Cloud (Canvas API, sync-struktur, KI-sesjon; anbefalt eviction `allkeys-lru`) |
-| **Vektorsøk** | Pinecone (integrated embedding); chunk-tekst i MongoDB som sannhetskilde |
-| **Monorepo** | pnpm workspaces med `frontend`, `backend`, `common` |
-| **CI/CD** | GitHub Actions (actions: read på workflows), Docker (security_opt), Heroku (backend), Vercel (frontend), Cloudflare |
-| **Observability** | Datadog APM (backend), valgfri RUM (frontend ved NEXT_PUBLIC_DD_RUM_*) |
-| **Dokumentasjon** | VitePress (denne siden) |
+| **Auth** | Clerk (innlogging og brukersynk) |
+| **KI** | Anthropic Claude API, Cohere rerank (rerank-v3.5) for hybrid søk |
+| **Cache** | Redis Cloud (Canvas API, sync-struktur 2t TTL, KI-sesjon, rate limiting; anbefalt eviction `allkeys-lru`) |
+| **Vektorsøk** | **Pinecone** (serverless, integrated embedding); chunk-tekst i MongoDB som sannhetskilde |
+| **Filer/dokumenter** | Multer, unpdf (PDF), mammoth (Word), tesseract.js + sharp (OCR) |
+| **API** | Swagger UI + swagger-jsdoc, Helmet, CORS, compression, rate-limiter-flexible |
+| **Logging** | Pino + pino-http |
+| **Monorepo** | pnpm workspaces med `frontend`, `backend`, `common`, `docs` |
+| **CI/CD** | GitHub Actions (actionlint → quality → dependency-scan → secret-scan), Heroku (backend), Vercel (frontend), Cloudflare, GitHub Pages (docs) |
+| **Observability** | Datadog APM (påkrevd i prod), RUM i frontend ved `NEXT_PUBLIC_DD_RUM_*` |
+| **Dokumentasjon** | VitePress; bygges og publiseres til GitHub Pages ved endringer i `docs/` |
+
+## Nåværende funksjonalitet
+
+- **Canvas**: Emner, oppgaver, frister, moduler, kunngjøringer, kalender, filer og ressurser (hentes via backend, cache i Redis).
+- **KI**: Generell chat, Canvas-kontekst-chat, dokumentanalyse (PDF/Word/bilder), oppsummering, task breakdown; chat-historikk kryptert i MongoDB.
+- **Bruker**: Clerk-innlogging, profil, preferanser, kryptert Canvas-token, kontosletting; audit logging for sensitive handlinger.
+- **Deploy**: Produksjon på [studwize.page](https://www.studwize.page); backend (Heroku), frontend (Vercel), dokumentasjon (GitHub Pages fra denne mappen).
 
 ## Teamet
 
 | Medlem | GitHub | Rolle |
 | ------ | ------ | ----- |
-| **Laurent Zogaj** | [26zl](https://github.com/26zl) | Prosjektleder / Fullstack / Canvas-integrasjon / Arkitekt |
+| **Laurent Zogaj** | [26zl](https://github.com/26zl) | Prosjektleder / Fullstack / Canvas-integrasjon / Arkitekt / UI/UX / CI/CD |
 | **Abdinasir** | [Abdinasir909](https://github.com/Abdinasir909) | Fullstack / KI-integrasjon og tjenester / UI/UX |
 | **Anwar** | [Hersino](https://github.com/Hersino) | Fullstack / KI-integrasjon og tjenester / UI/UX |
-| **Ylli Ujkani** | [yujk7](https://github.com/yujk7) | Dokumentasjon / Bidrar med kode |
+| **Ylli Ujkani** | [yujk7](https://github.com/yujk7) | Dokumentasjon / Oversettelse |

@@ -30,7 +30,7 @@ Guide for utvikling i StudyWise prosjektet.
 5. Frontend validerer og viser data til bruker
 ```
 
-**Cache og vektorsøk:** Redis cacher Canvas API-svar og sync-struktur (per bruker/emne, TTL 30 min for sync). Pinecone brukes til vektorsøk på kursinnhold (integrated embedding); chunk-tekst lagres i MongoDB (`ContentEmbedding`) som sannhetskilde.
+**Cache og vektorsøk:** Redis cacher Canvas API-svar og sync-struktur (per bruker/emne; sync TTL 2 timer i `canvas-sync.service.ts`). Pinecone brukes til vektorsøk på kursinnhold (integrated embedding); chunk-tekst lagres i MongoDB (`ContentEmbedding`) som sannhetskilde.
 
 ### Autentisering og Brukerdata
 
@@ -208,7 +208,7 @@ const users = await User.find({ active: true });
 - AI-modeller: `backend/src/rutere/ki/aiModels.ts`
 - System prompt: `backend/src/rutere/ki/systemPrompt.ts`
 - Canvas paginering: `PAGE_SIZE` og `MAX_PAGES` i `canvasUtils.ts`
-- Cache TTL: `CACHE_TTL` i `canvasUtils.ts`; sync i Redis: `SYNC_CACHE_TTL` (30 min) i `canvas-sync.service.ts`
+- Cache TTL: `CACHE_TTL` i `canvasUtils.ts`; sync i Redis: `SYNC_CACHE_TTL` (2 timer) i `canvas-sync.service.ts`
 - Vektorsøk: `backend/src/services/pinecone.service.ts`; miljøvariabler: `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`
 
 ---
@@ -333,7 +333,7 @@ pnpm kill:dev
 ### Før du committer
 
 ```bash
-pnpm typecheck && pnpm lint && pnpm build
+pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build
 ```
 
 ### Git workflow
@@ -366,11 +366,7 @@ git push origin feature/min-funksjon
 logger.info({ data }, "Debug info");
 ```
 
-**Frontend:**
-
-```typescript
-console.log("Data:", data);
-```
+**Frontend:** Bruk `console.log` kun i utvikling; unngå i produksjonskode der det kan lekke sensitiv info.
 
 ### TypeScript errors
 
@@ -388,7 +384,7 @@ Hele prosjektet kan kjøres lokalt via Docker:
 docker compose up --build
 ```
 
-Forutsetning: `backend/.env` må finnes med Anthropic API-nøkkel (påkrevd), CLERK_SECRET_KEY og ENCRYPTION_KEY. Se `backend/.env.example`. For vektorsøk i KI: `PINECONE_API_KEY` og `PINECONE_INDEX_NAME`. MongoDB og Redis startes automatisk av Docker. Ved MongoDB Atlas «bad auth»: sjekk brukernavn/passord og Database Access. I Redis Cloud anbefales eviction policy `allkeys-lru` for å unngå «nesten full»-varsler.
+Forutsetning: `backend/.env` må finnes med påkrevde nøkler (ANTHROPIC_API_KEY, COHERE_API_KEY, CLERK_SECRET_KEY, ENCRYPTION_KEY, MONGO_URI, REDIS_URL, PINECONE_API_KEY, PINECONE_INDEX_NAME). Se `backend/.env.example`. MongoDB og Redis startes automatisk av Docker. Ved MongoDB Atlas «bad auth»: sjekk brukernavn/passord og Database Access. I Redis Cloud anbefales eviction policy `allkeys-lru` for å unngå «nesten full»-varsler.
 
 ### Hjelp
 

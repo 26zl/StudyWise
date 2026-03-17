@@ -358,7 +358,7 @@ pnpm install
 pnpm build  # Builds common package first!
 ```
 
-**Environment**: Copy `backend/.env.example` → `backend/.env` and fill in required values. Required: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`. Optional: `PINECONE_*`, `DD_*` (Datadog). Production: `API_HOST`, `WEB_ORIGINS`, `INTERNAL_HOSTS` (comma-separated hostnames for internal traffic, e.g. Vercel → Heroku direct).
+**Environment**: Copy `backend/.env.example` → `backend/.env` and fill in required values. Required: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`. Datadog: `DD_*` (APM in production). Production: `API_HOST`, `WEB_ORIGINS`, `INTERNAL_HOSTS` (comma-separated hostnames for internal traffic, e.g. Vercel → Heroku direct).
 
 ### CI Pipeline (`.github/workflows/ci.yml`)
 
@@ -408,7 +408,7 @@ All jobs have `permissions: contents: read` and `actions: read` (workflow-level 
 - **Type errors after clean** → `pnpm build`
 - **"MongoNetworkError"** → Check `MONGO_URI` in `.env` and IP whitelist in MongoDB Atlas
 - **"bad auth : authentication failed"** (Atlas) → Verify username/password and Database Access permissions.
-- **Redis "almost full" / high memory** → Redis caches Canvas API + sync structure (per user/course). Set **maxmemory-policy** to `allkeys-lru` (or `volatile-lru`) so Redis evicts old keys instead of rejecting writes. Optionally increase Redis memory in Redis Cloud. Sync cache TTL is 30 min to limit growth.
+- **Redis "almost full" / high memory** → Redis caches Canvas API + sync structure (per user/course). Set **maxmemory-policy** to `allkeys-lru` (or `volatile-lru`) so Redis evicts old keys instead of rejecting writes. Increase Redis memory in Redis Cloud if needed. Sync cache TTL is 30 min to limit growth.
 
 ---
 

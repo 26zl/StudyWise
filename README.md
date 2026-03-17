@@ -10,7 +10,7 @@ STUDYWISE - En KI-basert studieassistent for høyere utdanning med integrasjon m
 
 Produksjonsnettside - <https://www.studwize.page>
 
-> **Deploy:** Backend på Heroku, frontend på Vercel, CDN og sikkerhet (Cloudflare), dokumentasjon på GitHub Pages.
+> **Deploy:** Backend på Heroku (auto-deploy fra `main`), frontend på Vercel via CI, CDN og sikkerhet (Cloudflare), dokumentasjon på GitHub Pages (`docs/`).
 
 **Utvikling?** Les [CONTRIBUTING.md](./CONTRIBUTING.md) for detaljert guide om hvordan du skal kode og utvikle dette prosjektet.
 
@@ -30,13 +30,15 @@ Produksjonsnettside - <https://www.studwize.page>
 - **Ramme**: Express 5, Node.js 20+, TypeScript (tsx i dev, node i prod)
 - **Database**: MongoDB via Mongoose v9 for persistering og indekser
 - **Cache**: Redis for Canvas API-cache, sync-struktur, KI-sesjon og rate limiting. PDF/fil-innhold lagres kun i MongoDB.
-- **Vektorsøk**: Pinecone (serverless, integrated embedding); chunk-tekst i MongoDB som sannhetskilde
+- **Vektorsøk og embedding**: **Pinecone** (serverless, integrated embedding); chunk-tekst i MongoDB som sannhetskilde
 - **Auth**: Clerk (autentisering og brukersynk)
-- **KI**: Anthropic Claude, Cohere reranking, circuit breakers, request timeout
+- **KI**: Anthropic Claude, **Cohere** rerank (rerank-v3.5) for hybrid søk, circuit breakers, request timeout
 - **API**: Swagger UI + swagger-jsdoc, compression, Helmet, CORS
 - **Logging**: Pino + pino-http (redakterer PII)
 - **Filer**: Multer; tekst fra PDF/Word (unpdf, mammoth), OCR (tesseract.js, sharp)
 - **Observability**: Datadog APM (dd-trace) for tracing, runtime metrics og log-korrelasjon
+
+Alle viktige tjenester som må konfigureres: MongoDB, Redis, **Pinecone**, Clerk, Anthropic (Claude), **Cohere**. Datadog (`DD_*`) for APM i produksjon.
 
 ## Kom i gang
 
@@ -65,7 +67,7 @@ Produksjonsnettside - <https://www.studwize.page>
 
 3. **Konfigurer miljøvariabler**:
 
-   Opprett `backend/.env` (se `backend/.env.example`).
+   Kopier `backend/.env.example` til `backend/.env` og fyll ut (bl.a. `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`). For APM i prod: `DD_*` (Datadog).
 
 4. **Bygg prosjektet**:
 

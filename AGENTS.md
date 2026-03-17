@@ -171,7 +171,7 @@ Lokasjon: `frontend/app/dashboard/page.tsx` (side) og `frontend/app/components/D
 - **System prompt**: `backend/src/rutere/ki/systemPrompt.ts`
 - **KI timeout/cache**: `backend/src/rutere/ki/kiConstants.ts`
 - **Canvas-paginering**: `PAGE_SIZE`, `MAX_PAGES` i `canvasUtils.ts`
-- **Cache TTL**: `CACHE_TTL` i `canvasUtils.ts`; sync-struktur i Redis: `SYNC_CACHE_TTL` (30 min) i `canvas-sync.service.ts`; KI-sesjonskontekst: `SESSION_CONTEXT_TTL` i `kiConstants.ts`
+- **Cache TTL**: `CACHE_TTL` i `canvasUtils.ts`; sync-struktur i Redis: `SYNC_CACHE_TTL` (2 timer) i `canvas-sync.service.ts`; KI-sesjonskontekst: `SESSION_CONTEXT_TTL` i `kiConstants.ts`
 - **Pinecone**: `backend/src/services/pinecone.service.ts` (upsert, query, deleteByFilter); env: `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`
 - **Tillatte frontend-origins**: `WEB_ORIGINS` (kommaseparert liste) brukes av CORS, CSRF og Clerk `authorizedParties`
 - **Cookie-navn**: `common/src/auth.ts`
@@ -347,7 +347,7 @@ pnpm install
 pnpm build   # Bygger common først!
 ```
 
-**Miljøvariabler**: Kopier `backend/.env.example` → `backend/.env` og fyll ut. Påkrevd: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`. Valgfritt: `PINECONE_*`, `COHERE_API_KEY`, `DD_*` (Datadog).
+**Miljøvariabler**: Kopier `backend/.env.example` → `backend/.env` og fyll ut. Påkrevd: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`. Datadog: `DD_*` (APM i produksjon).
 
 ### CI (`.github/workflows/ci.yml`)
 
