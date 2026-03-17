@@ -8,14 +8,14 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { 
-  Sparkles, 
-  Edit2, 
-  Check, 
-  Plus, 
-  Trash2, 
-  RefreshCw, 
-  ThumbsUp, 
+import {
+  Sparkles,
+  Edit2,
+  Check,
+  Plus,
+  Trash2,
+  RefreshCw,
+  ThumbsUp,
   ThumbsDown,
   TrendingUp,
   Clock,
@@ -29,11 +29,11 @@ import { showToast } from "@/app/components/ui/Toaster";
 import { AddToWorkplanModal } from "@/app/components/arbeidsplan/AddToWorkplanModal";
 import {
   useDeleteTaskBreakdown,
-  useGenerateTaskBreakdown,
   useSaveTaskBreakdown,
   useTaskBreakdown,
 } from "@/app/ki/ki-api";
 import { PRIORITY_COLORS, PRIORITY_LABELS } from "@/app/arbeidsplan/arbeidsplan-api";
+import { useKIStore } from "@/app/store/kiStore";
 
 interface AITaskBreakdownProps {
   assignmentId: string;
@@ -63,29 +63,27 @@ export function AITaskBreakdown({
   onSave,
 }: AITaskBreakdownProps) {
   const [subtasks, setSubtasks] = useState<SubTask[]>([]);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<SubTask>>({});
   const [showEditor, setShowEditor] = useState(false);
   const [showApprovalPrompt, setShowApprovalPrompt] = useState(false);
   const [showWorkplanModal, setShowWorkplanModal] = useState(false);
-  const isMountedRef = useRef(true);
   const hydratedAssignmentRef = useRef<string | null>(null);
+  const hydratedFromStoreRef = useRef(false);
 
   const taskBreakdownQuery = useTaskBreakdown(assignmentId);
-  const generateTaskBreakdown = useGenerateTaskBreakdown();
   const saveTaskBreakdown = useSaveTaskBreakdown();
   const deleteTaskBreakdown = useDeleteTaskBreakdown();
 
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
+  // Bakgrunnsgenerering via zustand-store (overlever navigering)
+  const bgJob = useKIStore((s) => s.taskBreakdownJobs[assignmentId]);
+  const startTaskBreakdown = useKIStore((s) => s.startTaskBreakdown);
+  const clearTaskBreakdown = useKIStore((s) => s.clearTaskBreakdown);
+  const isGenerating = bgJob?.status === "pending";
 
   useEffect(() => {
     hydratedAssignmentRef.current = null;
+    hydratedFromStoreRef.current = false;
     setSubtasks([]);
     setEditingId(null);
     setEditForm({});
@@ -93,6 +91,7 @@ export function AITaskBreakdown({
     setShowApprovalPrompt(false);
   }, [assignmentId]);
 
+  // Hydrér fra lagrede data (database)
   useEffect(() => {
     if (hydratedAssignmentRef.current === assignmentId) return;
     if (taskBreakdownQuery.isLoading || !taskBreakdownQuery.data) return;
@@ -100,12 +99,28 @@ export function AITaskBreakdown({
     const persistedSubtasks = taskBreakdownQuery.data.subtasks;
     hydratedAssignmentRef.current = assignmentId;
 
-    if (!isMountedRef.current) return;
-
     setSubtasks(persistedSubtasks);
     setShowEditor(persistedSubtasks.length > 0);
     setShowApprovalPrompt(persistedSubtasks.some((task) => !task.approved));
   }, [assignmentId, taskBreakdownQuery.data, taskBreakdownQuery.isLoading]);
+
+  // Hydrér fra bakgrunnsjobb (zustand store) — f.eks. etter navigering tilbake
+  useEffect(() => {
+    if (!bgJob || hydratedFromStoreRef.current) return;
+
+    if (bgJob.status === "success" && bgJob.result) {
+      hydratedFromStoreRef.current = true;
+      setSubtasks(bgJob.result.subtasks);
+      setShowEditor(true);
+      setShowApprovalPrompt(bgJob.result.subtasks.some((t) => !t.approved));
+      showToast.success(`KI-assistenten genererte ${bgJob.result.subtasks.length} deloppgaver!`);
+      clearTaskBreakdown(assignmentId);
+    } else if (bgJob.status === "error") {
+      hydratedFromStoreRef.current = true;
+      showToast.error(bgJob.error ?? "KI-generering feilet. Prøv igjen.");
+      clearTaskBreakdown(assignmentId);
+    }
+  }, [bgJob, assignmentId, clearTaskBreakdown]);
 
   const persistSubtasks = async (
     nextSubtasks: SubTask[],
@@ -161,44 +176,14 @@ export function AITaskBreakdown({
   const stats = calculateProgress();
   const isBusy = isGenerating || taskBreakdownQuery.isLoading;
 
-  // Generer deloppgaver med EKTE AI
+  // Generer deloppgaver med KI (kjører i bakgrunnen via zustand store)
   const generateSubtasks = () => {
-    setIsGenerating(true);
-    generateTaskBreakdown.mutate(
-      {
-        assignmentId,
-        request: {
-          assignmentTitle,
-          assignmentDescription: assignmentDescription ?? "",
-          dueDate,
-        },
-      },
-      {
-        onSuccess: async (data) => {
-          if (!isMountedRef.current) return;
-          setSubtasks(data.subtasks);
-          setShowEditor(true);
-          setShowApprovalPrompt(true);
-          setIsGenerating(false);
-
-          try {
-            await persistSubtasks(data.subtasks);
-          } catch {
-            // persistSubtasks håndterer toast selv
-          }
-
-          showToast.success(`KI-assistenten genererte ${data.subtasks.length} deloppgaver!`);
-        },
-        onError: (error) => {
-          setIsGenerating(false);
-          showToast.error(
-            error instanceof Error
-              ? error.message
-              : "KI-generering feilet. Prøv igjen.",
-          );
-        },
-      },
-    );
+    hydratedFromStoreRef.current = false;
+    startTaskBreakdown(assignmentId, {
+      assignmentTitle,
+      assignmentDescription: assignmentDescription ?? "",
+      dueDate,
+    });
   };
 
   const approveTask = (id: string) => {

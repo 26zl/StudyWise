@@ -704,47 +704,47 @@ export function useTaskBreakdown(assignmentId?: string) {
   });
 }
 
-export function useGenerateTaskBreakdown() {
-  return useMutation({
-    mutationFn: async ({
-      assignmentId,
-      request,
-    }: {
-      assignmentId: string;
-      request: TaskBreakdownGenerateRequest;
-    }) => {
-      const parsedRequest = TaskBreakdownGenerateRequestSchema.parse(request);
-      return postKI(
-        `/task-breakdown/${encodeURIComponent(assignmentId)}/generate`,
-        parsedRequest,
-        TaskBreakdownResponseSchema,
-      );
-    },
-  });
+/** Rå API-funksjon for oppgavedeling — kan brukes utenfor React-komponent livssyklus. */
+export async function generateTaskBreakdownApi(
+  assignmentId: string,
+  request: TaskBreakdownGenerateRequest,
+) {
+  const parsedRequest = TaskBreakdownGenerateRequestSchema.parse(request);
+  return postKI(
+    `/task-breakdown/${encodeURIComponent(assignmentId)}/generate`,
+    parsedRequest,
+    TaskBreakdownResponseSchema,
+  );
 }
 
-export function useGenerateWeeklyPlan() {
-  return useMutation({
-    mutationFn: async (request: WeeklyPlanGenerateRequest) => {
-      const parsedRequest = WeeklyPlanGenerateRequestSchema.parse(request);
-      const controller = new AbortController();
-      const timeoutId = setTimeout(
-        () => controller.abort(),
-        KI_LONG_REQUEST_TIMEOUT_MS,
-      );
-      try {
-        return await postKI(
-          "/weekly-plan/generate",
-          parsedRequest,
-          WeeklyPlanSuggestionResponseSchema,
-          "POST",
-          { signal: controller.signal },
-        );
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    },
-  });
+/** Rå API-funksjon for lagring av oppgavedeling — kan brukes utenfor React-komponent livssyklus. */
+export async function saveTaskBreakdownApi(
+  assignmentId: string,
+  subtasks: SubTask[],
+) {
+  return postKI(
+    `/task-breakdown/${encodeURIComponent(assignmentId)}`,
+    { subtasks },
+    TaskBreakdownResponseSchema,
+  );
+}
+
+/** Rå API-funksjon for ukeplangenerering — kan brukes utenfor React-komponent livssyklus. */
+export async function generateWeeklyPlanApi(request: WeeklyPlanGenerateRequest) {
+  const parsedRequest = WeeklyPlanGenerateRequestSchema.parse(request);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), KI_LONG_REQUEST_TIMEOUT_MS);
+  try {
+    return await postKI(
+      "/weekly-plan/generate",
+      parsedRequest,
+      WeeklyPlanSuggestionResponseSchema,
+      "POST",
+      { signal: controller.signal },
+    );
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export function useSaveTaskBreakdown() {
@@ -865,34 +865,11 @@ export function useKIDocumentAnalyse() {
 // Oppsummering av kunngjøringer
 export type { KIOppsummeringResponse };
 
-export function useKIOppsummering() {
-  const mutation = useMutation({
-    mutationFn: (request: {
-      tekst: string;
-      type?: "tldr" | "handlinger" | "begge";
-    }) => postKI("/oppsummering", request, KIOppsummeringResponseSchema),
-  });
-
-  return {
-    oppsummer: (
-      tekst: string,
-      options?: {
-        type?: "tldr" | "handlinger" | "begge";
-        onSuccess?: (data: KIOppsummeringResponse) => void;
-        onError?: (error: Error) => void;
-      },
-    ) => {
-      mutation.mutate(
-        { tekst, type: options?.type ?? "begge" },
-        {
-          onSuccess: options?.onSuccess,
-          onError: options?.onError,
-        },
-      );
-    },
-    isPending: mutation.isPending,
-    data: mutation.data,
-    error: mutation.error,
-    reset: mutation.reset,
-  };
+/** Rå API-funksjon for oppsummering — kan brukes utenfor React-komponent livssyklus. */
+export async function generateOppsummeringApi(
+  tekst: string,
+  type: "tldr" | "handlinger" | "begge" = "begge",
+) {
+  return postKI("/oppsummering", { tekst, type }, KIOppsummeringResponseSchema);
 }
+

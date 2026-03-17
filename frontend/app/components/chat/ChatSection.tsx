@@ -22,6 +22,7 @@ import { streamKIChat, useKIDocumentAnalyse, SUPPORTED_FILE_TYPES, getKIErrorMes
 import { useChatHistory } from "@/app/hooks/useChatHistory";
 import { FeilMelding, type FeilMeldingType } from "@/app/components/ui/FeilMelding";
 import { useUIStore } from "@/app/store/uiStore";
+import { useKIStore } from "@/app/store/kiStore";
 import { exportToMarkdown } from "@/app/utils/exportChat";
 import { fetchApi } from "@/app/lib/apiClient";
 import { parseApiError } from "@/app/lib/errorUtils";
@@ -190,10 +191,10 @@ export function ChatSection() {
         selectedChatId,
         setSelectedChatId,
         setCurrentChatId,
-        setRunningChatId,
         newChatToken,
         canvasContextSelection,
     } = useUIStore();
+    const { setRunningChatId } = useKIStore();
 
     /** Brukes for å vurdere om bruker spør om Canvas uten å ha valgt noe i innstillinger. */
     const harValgtCanvasData = canvasContextSelection.announcements ||

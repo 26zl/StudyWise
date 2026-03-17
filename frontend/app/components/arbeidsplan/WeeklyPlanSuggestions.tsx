@@ -33,7 +33,7 @@ import {
   useCreateArbeidsplan,
   type StudyBlock,
 } from "@/app/arbeidsplan/arbeidsplan-api";
-import { useGenerateWeeklyPlan } from "@/app/ki/ki-api";
+import { useKIStore } from "@/app/store/kiStore";
 
 interface WeeklyPlanSuggestionsProps {
   assignments: WeeklyPlanAssignment[];
@@ -55,55 +55,47 @@ export function WeeklyPlanSuggestions({
   const [error, setError] = useState<string | null>(null);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
   const [selectedBlocks, setSelectedBlocks] = useState<Set<number>>(new Set());
-  const isMountedRef = useRef(true);
+  const hydratedFromStoreRef = useRef(false);
 
-  const generateWeeklyPlan = useGenerateWeeklyPlan();
+  // Bakgrunnsgenerering via zustand-store (overlever navigering)
+  const bgJob = useKIStore((s) => s.weeklyPlanJob);
+  const startWeeklyPlan = useKIStore((s) => s.startWeeklyPlan);
+  const clearWeeklyPlan = useKIStore((s) => s.clearWeeklyPlan);
   const createMutation = useCreateArbeidsplan();
+  const isPending = bgJob?.status === "pending";
 
+  // Hydrér fra bakgrunnsjobb (zustand store) — f.eks. etter navigering tilbake
   useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
+    if (!bgJob || hydratedFromStoreRef.current) return;
+
+    if (bgJob.status === "success" && bgJob.result) {
+      hydratedFromStoreRef.current = true;
+      setPlan(bgJob.result);
+      setError(null);
+      showToast.success(
+        `KI-assistenten genererte en ukeplan med ${bgJob.result.blocks.length} studieøkter!`,
+      );
+      clearWeeklyPlan();
+    } else if (bgJob.status === "error") {
+      hydratedFromStoreRef.current = true;
+      setError(bgJob.error ?? "KI-generering feilet. Prøv igjen.");
+      clearWeeklyPlan();
+    }
+  }, [bgJob, clearWeeklyPlan]);
 
   const generatePlan = () => {
     setError(null);
     setPlan(null);
     setSelectedBlocks(new Set());
+    hydratedFromStoreRef.current = false;
 
-    const sortedAssignments = [...assignments]
-      .filter((a): a is WeeklyPlanAssignment & { dueAt: NonNullable<WeeklyPlanAssignment["dueAt"]> } => !!a.dueAt)
-      .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime())
-      .slice(0, 20);
-
-    if (sortedAssignments.length === 0) {
-      if (isMountedRef.current) {
-        setError("Ingen oppgaver med frister funnet. Legg til oppgaver i Canvas først.");
-      }
+    const hasAssignmentsWithDue = assignments.some((a) => !!a.dueAt);
+    if (!hasAssignmentsWithDue) {
+      setError("Ingen oppgaver med frister funnet. Legg til oppgaver i Canvas først.");
       return;
     }
 
-    generateWeeklyPlan.mutate(
-      { assignments: sortedAssignments },
-      {
-        onSuccess: (data) => {
-          if (!isMountedRef.current) return;
-          setPlan(data);
-          showToast.success(
-            `KI-assistenten genererte en ukeplan med ${data.blocks.length} studieøkter!`,
-          );
-        },
-        onError: (mutationError) => {
-          if (!isMountedRef.current) return;
-          setError(
-            mutationError instanceof Error
-              ? mutationError.message
-              : "KI-generering feilet. Sjekk at du har oppgaver med frister i Canvas.",
-          );
-        },
-      },
-    );
+    startWeeklyPlan(assignments);
   };
 
   const toggleBlockSelection = (index: number) => {
@@ -150,7 +142,7 @@ export function WeeklyPlanSuggestions({
     }
   };
 
-  if (!plan && !generateWeeklyPlan.isPending && !error) {
+  if (!plan && !isPending && !error) {
     return (
       <div className="rounded-xl border-2 border-dashed border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-950/20 p-8">
         <div className="text-center space-y-4">
@@ -184,7 +176,7 @@ export function WeeklyPlanSuggestions({
     );
   }
 
-  if (generateWeeklyPlan.isPending) {
+  if (isPending) {
     return (
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-12">
         <LoadingView

@@ -1,13 +1,20 @@
 /*
  * KIOppsummering - Delt oppsummeringskomponent for KI
  * Erstatter KunngjoringOppsummering, SideOppsummering og KalenderOppsummering
+ * Bruker kiStore for bakgrunnsgenerering — overlever navigering mellom visninger.
  */
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Sparkles, Loader2, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
-import { useKIOppsummering as useKIOppsummeringHook, type KIOppsummeringResponse } from "@/app/ki/ki-api";
+import { Sparkles, Loader2, ChevronDown, ChevronUp, CheckCircle2, RefreshCw } from "lucide-react";
+import type { KIOppsummeringResponse } from "@/app/ki/ki-api";
 import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
+import { useKIStore } from "@/app/store/kiStore";
+import { simpleHash } from "@/app/lib/utils";
+
+// Hvor lenge en oppsummering er gyldig før den bør regenereres (2 dager).
+// Canvas-innhold (kunngjøringer, moduler osv.) kan endre seg — TTL sikrer fersk data.
+const OPPSUMMERING_TTL_MS = 2 * 24 * 60 * 60 * 1000;
 
 // Størrelseskonfigurasjoner
 const storrelser = {
@@ -56,58 +63,74 @@ interface KIOppsummeringProps {
 
 // Hovedkomponenten for KI-oppsummering
 export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOppsummeringProps) {
-    const { oppsummer, isPending, data, error } = useKIOppsummeringHook();
     const [åpen, settÅpen] = useState(false);
     const [resultat, settResultat] = useState<KIOppsummeringResponse | null>(null);
-    const [requesting, setRequesting] = useState(false);
+    const [genererTidspunkt, settGenererTidspunkt] = useState<number | null>(null);
+    const [erUtløpt, settErUtløpt] = useState(false);
     const tekstRef = useRef(tekst);
     tekstRef.current = tekst;
-    const isMountedRef = useRef(true);
     const harTekst = tekst.trim().length > 0;
-    const visLoading = isPending || requesting;
+
+    // Bakgrunnsgenerering via zustand-store
+    const key = harTekst ? simpleHash(tekst.trim()) : "";
+    const bgJob = useKIStore((s) => s.oppsummeringJobs[key]);
+    const startOppsummering = useKIStore((s) => s.startOppsummering);
+    const clearOppsummering = useKIStore((s) => s.clearOppsummering);
+    const visLoading = bgJob?.status === "pending";
 
     const s = storrelser[storrelse];
 
+    // Hydrér fra bakgrunnsjobb (zustand store) — f.eks. etter navigering tilbake
     useEffect(() => {
-        isMountedRef.current = true;
-        return () => {
-            isMountedRef.current = false;
-        };
-    }, []);
+        if (!bgJob || resultat) return;
 
-    // Håndterer klikk på oppsummeringsknappen – stabil callback, umiddelbar loading-feedback
+        if (bgJob.status === "success" && bgJob.result) {
+            settResultat(bgJob.result);
+            settGenererTidspunkt(Date.now());
+            settErUtløpt(false);
+            settÅpen(true);
+            clearOppsummering(key);
+        } else if (bgJob.status === "error") {
+            clearOppsummering(key);
+        }
+    }, [bgJob, key, resultat, clearOppsummering]);
+
+    // TTL-timer: marker oppsummeringen som utløpt etter OPPSUMMERING_TTL_MS
+    useEffect(() => {
+        if (!genererTidspunkt) return;
+        const gjenstående = OPPSUMMERING_TTL_MS - (Date.now() - genererTidspunkt);
+        if (gjenstående <= 0) {
+            settErUtløpt(true);
+            return;
+        }
+        const timer = window.setTimeout(() => settErUtløpt(true), gjenstående);
+        return () => window.clearTimeout(timer);
+    }, [genererTidspunkt]);
+
+    // Håndterer klikk på oppsummeringsknappen
     const handleOppsummer = useCallback(() => {
-        if (resultat) {
+        if (resultat && !erUtløpt) {
             settÅpen((v) => !v);
             return;
         }
         const currentTekst = tekstRef.current.trim();
         if (!currentTekst) return;
-        setRequesting(true);
-        oppsummer(currentTekst, {
-            type: "begge",
-            onSuccess: (data) => {
-                if (!isMountedRef.current) return;
-                setRequesting(false);
-                settResultat(data);
-                settÅpen(true);
-            },
-            onError: () => {
-                if (!isMountedRef.current) return;
-                setRequesting(false);
-            },
-        });
-    }, [oppsummer, resultat]);
+        // Nullstill gammel data ved regenerering
+        settResultat(null);
+        settGenererTidspunkt(null);
+        settErUtløpt(false);
+        startOppsummering(currentTekst);
+    }, [startOppsummering, resultat, erUtløpt]);
 
-    // Oppdaterer resultat og åpner oppsummering når data kommer inn (fallback for cache/race)
-    useEffect(() => {
-        if (!isMountedRef.current) return;
-        if (data?.suksess && !resultat) {
-            setRequesting(false);
-            settResultat(data);
-            settÅpen(true);
-        }
-    }, [data, resultat]);
+    // Regenerer-knapp handler (eksplisitt regenerering)
+    const handleRegenerer = useCallback(() => {
+        const currentTekst = tekstRef.current.trim();
+        if (!currentTekst) return;
+        settResultat(null);
+        settGenererTidspunkt(null);
+        settErUtløpt(false);
+        startOppsummering(currentTekst);
+    }, [startOppsummering]);
 
     // Bestemmer knappetekst basert på tilstand
     const isInline = variant === "inline";
@@ -143,10 +166,13 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
 
     // Bestemmer knappetekst basert på tilstand
     const knappTekst = resultat
-        ? (åpen ? "Skjul oppsummering" : "Vis oppsummering")
+        ? erUtløpt
+            ? "Oppsummer på nytt"
+            : (åpen ? "Skjul oppsummering" : "Vis oppsummering")
         : harTekst ? "Oppsummer med KI" : "Ingen innhold å oppsummere";
 
-    // Håndterer loading state
+    const errorMessage = bgJob?.status === "error" ? bgJob.error : null;
+
     return (
         <div className={wrapperClass}>
             <button
@@ -204,12 +230,23 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
                             Ingen oppsummering tilgjengelig.
                         </p>
                     )}
+                    {erUtløpt && (
+                        <button
+                            type="button"
+                            onClick={handleRegenerer}
+                            disabled={visLoading}
+                            className={`inline-flex items-center gap-1.5 ${s.feil} text-purple-500 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors disabled:opacity-50`}
+                        >
+                            <RefreshCw className="w-3 h-3" />
+                            Innholdet kan ha endret seg — klikk for å oppdatere
+                        </button>
+                    )}
                 </div>
             )}
 
-            {error && !resultat && (
+            {errorMessage && !resultat && (
                 <p className={`${s.feilMargin} ${s.feil} text-red-500 dark:text-red-400`}>
-                    {lagBrukervennligFeilmelding(error instanceof Error ? error : null, { ki: true })}
+                    {lagBrukervennligFeilmelding(new Error(errorMessage), { ki: true })}
                 </p>
             )}
         </div>

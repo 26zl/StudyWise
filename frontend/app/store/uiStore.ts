@@ -32,8 +32,6 @@ interface UIState {
     setSelectedChatId: (id: string | null) => void;
     currentChatId: string | null;
     setCurrentChatId: (id: string | null) => void;
-    runningChatId: string | null;
-    setRunningChatId: (id: string | null) => void;
     // Signal for å starte ny chat
     newChatToken: number;
     requestNewChat: () => void;
@@ -69,14 +67,11 @@ export const useUIStore = create<UIState>()((set) => ({
     setSelectedChatId: (id) => set({ selectedChatId: id }),
     currentChatId: null,
     setCurrentChatId: (id) => set({ currentChatId: id }),
-    runningChatId: null,
-    setRunningChatId: (id) => set({ runningChatId: id }),
     newChatToken: 0,
     requestNewChat: () => set((state) => ({
         newChatToken: state.newChatToken + 1,
         selectedChatId: null,
         currentChatId: null,
-        runningChatId: null,
     })),
     canvasContextSelection: defaultSelection,
     setCanvasContextSelection: (selection) => set({ canvasContextSelection: selection }),
@@ -118,7 +113,6 @@ export const useUIStore = create<UIState>()((set) => ({
             isVenstreMenyOpen: true,
             selectedChatId: null,
             currentChatId: null,
-            runningChatId: null,
             newChatToken: 0,
             canvasContextSelection: createDefaultCanvasContextPreferences(),
             canvasTokenInvalid: false,

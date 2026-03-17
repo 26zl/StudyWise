@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 import { useUIStore } from "@/app/store/uiStore";
+import { useKIStore } from "@/app/store/kiStore";
 import {
     MessageSquare,
     BookOpen,
@@ -52,7 +53,8 @@ export function Sidebar({
     const { isVenstreMenyOpen, lukkVenstreMeny } = useUIStore();
     const [erCanvasUtvidet, settErCanvasUtvidet] = useState(true);
     const handleLoggUt = useLoggUtWithRedirect();
-    const { setSelectedChatId, currentChatId, runningChatId, setCurrentChatId, requestNewChat } = useUIStore();
+    const { setSelectedChatId, currentChatId, setCurrentChatId, requestNewChat } = useUIStore();
+    const { runningChatId } = useKIStore();
     const { chats } = useChatHistory();
     const pathname = usePathname();
 
