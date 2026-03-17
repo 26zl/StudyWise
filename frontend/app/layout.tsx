@@ -9,6 +9,11 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#020617" },
+  ],
 };
 import { ClerkProvider } from "@clerk/nextjs";
 import { nbNO } from "@clerk/localizations";
@@ -21,7 +26,15 @@ const clerkPublishableKey = getFrontendClerkPublishableKey();
 
 export const metadata: Metadata = {
   title: "StudyWise",
-  description: "Bacheloroppgave i IT ved USN 2026",
+  description: "KI-drevet studieassistent med Canvas LMS-integrasjon",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "StudyWise",
+  },
+  icons: {
+    apple: "/icons/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({
@@ -45,6 +58,20 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://clerk.studwize.page" />
         <link rel="dns-prefetch" href="https://clerk.studwize.page" />
+        {/*
+          Suppress kjent Clerk v7 key-prop warning: "Each child in a list should have a unique key prop"
+          fra __experimental_CheckoutProvider. Dette er en intern Clerk-bug i @clerk/nextjs v7 med React 19.
+          Feilen kommer IKKE fra vår kode — den trigges av ClerkProvider sin interne rendering.
+          Kan trygt ignoreres. Fjern dette scriptet når Clerk fikser det i en fremtidig versjon.
+          Se: https://github.com/clerk/javascript/issues
+        */}
+        {process.env.NODE_ENV === "development" && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `(function(){var o=console.error;console.error=function(){if(typeof arguments[0]==="string"&&arguments[0].indexOf("__experimental_CheckoutProvider")!==-1)return;o.apply(console,arguments)};})();`,
+            }}
+          />
+        )}
       </head>
       <body className="antialiased min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950" suppressHydrationWarning>
         <ClerkProvider
