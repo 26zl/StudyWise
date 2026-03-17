@@ -34,6 +34,7 @@ import taskBreakdownRouter from "./rutere/ki/taskBreakdown.js";
 import weeklyPlanRouter from "./rutere/ki/weeklyPlan.js";
 import { kiOppsummeringRouter } from "./rutere/ki/kiOppsummering.js";
 import debugRouter from "./rutere/debug/canvasDiagnostic.js";
+import quizRouter from "./rutere/quiz/quiz.js";
 import {
   cleanupExpiredSharedChats,
   SHARE_CLEANUP_INTERVAL_MS,
@@ -289,6 +290,7 @@ app.use("/api/ki/task-breakdown", noCache, taskBreakdownRouter);
 app.use("/api/ki/weekly-plan", noCache, weeklyPlanRouter);
 app.use("/api/user", brukerAuthRuter);
 app.use("/api/arbeidsplan", noCache, arbeidsplanRuter);
+app.use("/api/quiz", noCache, quizRouter);
 
 // Admin: krever requireAuth (allerede kjørt) + requireRole("admin")
 app.use("/api/admin", requireRole("admin"), adminAuditRouter);

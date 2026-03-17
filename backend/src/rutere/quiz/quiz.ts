@@ -1,0 +1,155 @@
+/**
+ * Quiz API — genererer KI-baserte quizer fra Canvas-kursinnhold.
+ * POST /api/quiz/generate — tar courseId, moduleNames, questionCount
+ * og returnerer quiz-spørsmål generert av Claude.
+ */
+import { randomUUID } from "crypto";
+import { Router } from "express";
+import { z } from "zod";
+import { logger } from "../../utils/logger.js";
+import {
+  apiError,
+  sendZodError,
+  sendUnknownError,
+  requireUserId,
+} from "../../utils/apiError.js";
+import { rateLimitKi } from "../../middleware/rate-limit.js";
+import { DEFAULT_MODEL } from "../ki/aiModels.js";
+import { chatCompletion, isClientAvailable } from "../ki/aiClient.js";
+import { handleAIJsonRouteError } from "../ki/handleAIError.js";
+import { knyttCanvasToken } from "../../middleware/auth.js";
+import { loadCanvasContext } from "../../services/context-loader.service.js";
+
+const router = Router();
+router.use(rateLimitKi);
+
+const GenerateQuizRequestSchema = z.object({
+  courseId: z.number(),
+  courseName: z.string().min(1),
+  moduleNames: z.array(z.string().min(1)).min(1),
+  questionCount: z.number().min(1).max(50).default(10),
+});
+
+const QuizQuestionDraftSchema = z.object({
+  question: z.string().min(1),
+  options: z.array(z.string().min(1)).length(4),
+  correctIndex: z.number().min(0).max(3),
+  explanation: z.string().min(1),
+});
+
+const QUIZ_SYSTEM_PROMPT = `Du er en ekspert studieveileder som lager quiz-spørsmål basert på kursmateriell.
+Svar ALLTID med KUN et JSON-array uten ekstra tekst, markdown eller forklaring.
+Hvert objekt i arrayet skal ha:
+- "question": spørsmålet (norsk)
+- "options": nøyaktig 4 svaralternativer (array med 4 strenger)
+- "correctIndex": indeks (0-3) til riktig svar
+- "explanation": kort forklaring på hvorfor svaret er riktig (1-3 setninger)
+
+Regler:
+- Spørsmålene skal variere i vanskelighetsgrad (lett, middels, vanskelig)
+- Alternativene skal være plausible — unngå åpenbart feil distraktorer
+- Bruk norsk språk
+- Basér spørsmålene UTELUKKENDE på det medfølgende kursmateriellet
+- Shuffle riktig svar-posisjon — IKKE sett correctIndex til 0 for alle spørsmål`;
+
+function extractJsonArray(text: string): string {
+  const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const start = cleaned.indexOf("[");
+  const end = cleaned.lastIndexOf("]");
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error("AI_RESPONSE_NOT_JSON_ARRAY");
+  }
+  return cleaned.slice(start, end + 1);
+}
+
+// POST /api/quiz/generate
+router.post("/generate", knyttCanvasToken, async (req, res) => {
+  try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
+    const parsed = GenerateQuizRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return sendZodError(res, parsed.error, "quiz generate");
+    }
+
+    if (!isClientAvailable(DEFAULT_MODEL)) {
+      return apiError.serviceUnavailable(res, "KI-tjenesten");
+    }
+
+    if (!req.canvasToken) {
+      return apiError.unauthorized(res, "Canvas-token mangler");
+    }
+
+    const { courseName, moduleNames, questionCount } = parsed.data;
+
+    // Hent Canvas-kontekst for kurset via context-loader (bruker hybrid søk + Redis/MongoDB)
+    const moduleListStr = moduleNames.join(", ");
+    const contextResult = await loadCanvasContext(
+      userId,
+      req.canvasToken,
+      "canvas_full",
+      { courseHint: courseName, moduleHint: moduleNames[0] ?? null, fileHint: null },
+      `Quiz om ${moduleListStr} i ${courseName}`,
+      req.canvasBaseUrl,
+    );
+
+    const contextBlock = contextResult.hasCanvasData
+      ? `\n\nKURSMATERIELL:\n${contextResult.kontekst}`
+      : "";
+
+    const userPrompt = `Lag ${questionCount} quiz-spørsmål om følgende moduler i emnet "${courseName}":
+${moduleNames.map((m) => `- ${m}`).join("\n")}
+${contextBlock}
+
+Generer nøyaktig ${questionCount} spørsmål som JSON-array.`;
+
+    const result = await chatCompletion({
+      model: DEFAULT_MODEL,
+      messages: [
+        { role: "system", content: QUIZ_SYSTEM_PROMPT },
+        { role: "user", content: userPrompt },
+      ],
+      max_tokens: 4096,
+      temperature: 0.7,
+    });
+
+    const rawQuestions = z
+      .array(QuizQuestionDraftSchema)
+      .min(1)
+      .max(50)
+      .parse(JSON.parse(extractJsonArray(result.text)));
+
+    const questions = rawQuestions.map((q) => ({
+      id: randomUUID(),
+      ...q,
+    }));
+
+    logger.info(
+      { userId, courseName, moduleNames, questionCount: questions.length },
+      "Genererte quiz-spørsmål via KI",
+    );
+
+    return res.headersSent ? undefined : res.json({ questions });
+  } catch (error) {
+    if (res.headersSent) return;
+    if (
+      handleAIJsonRouteError(res, error, {
+        kontekst: "quiz-generate",
+        timeoutMessage: "Quiz-genereringen tok for lang tid. Prøv igjen.",
+        invalidResponseMessage: "KI-responsen kunne ikke tolkes som quiz-spørsmål",
+        invalidResponseTest: (candidate) =>
+          candidate instanceof Error && candidate.message === "AI_RESPONSE_NOT_JSON_ARRAY",
+      })
+    ) {
+      return;
+    }
+
+    return sendUnknownError(res, error, {
+      kontekst: "POST quiz generate",
+      melding: "Kunne ikke generere quiz. Prøv igjen.",
+    });
+  }
+});
+
+export default router;

@@ -128,6 +128,10 @@ const nextConfig = {
   transpilePackages: ["common"],
   serverExternalPackages: ["isomorphic-dompurify", "jsdom"],
   output: "standalone",
+  // Øk timeout for proxy-requests (standard er 30s)
+  experimental: {
+    proxyTimeout: 180_000, // 3 minutter
+  },
   turbopack: {
     root: path.resolve(__dirname, ".."),
   },
