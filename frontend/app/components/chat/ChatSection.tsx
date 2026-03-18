@@ -34,6 +34,8 @@ interface Melding {
     innhold: string;
     tidsstempel: Date;
     vedleggNavn?: string[];
+    /** Markerer at KI-svaret feilet for denne brukerforespørselen */
+    feilet?: boolean;
 }
 
 /** Forslag som vises når chatten er tom. */
@@ -760,6 +762,13 @@ export function ChatSection() {
                     const responseText = data.response.trim();
                     if (!responseText) {
                         showToast.error("Dokumentanalyse feilet", "Dokumentanalysen returnerte et tomt svar. Prøv igjen.");
+                        if (isMountedRef.current) {
+                            settMeldinger((prev) =>
+                                prev.map((m) =>
+                                    m.id === brukerMelding.id ? { ...m, feilet: true } : m,
+                                ),
+                            );
+                        }
                         persistDocumentUserMessageOnly();
                         avsluttDokumentanalyseUtenSvar();
                         return;
@@ -787,6 +796,14 @@ export function ChatSection() {
                 onError: (error) => {
                     settKiError(error instanceof Error ? error : new Error(String(error)));
                     showToast.error("Dokumentanalyse feilet", lagFeilTekst(error instanceof Error ? error : new Error(String(error)), "dokument"));
+                    // Marker brukerens melding som feilet
+                    if (isMountedRef.current) {
+                        settMeldinger((prev) =>
+                            prev.map((m) =>
+                                m.id === brukerMelding.id ? { ...m, feilet: true } : m,
+                            ),
+                        );
+                    }
                     persistDocumentUserMessageOnly();
                     avsluttDokumentanalyseUtenSvar();
                 },
@@ -937,6 +954,14 @@ export function ChatSection() {
                 if (!responseText) {
                     showToast.error("KI-svar feilet", "KI-assistenten returnerte et tomt svar. Prøv igjen.");
                     settAnimerendeMeldingId(null);
+                    // Marker brukerens melding som feilet
+                    if (isMountedRef.current) {
+                        settMeldinger((prev) =>
+                            prev.map((m) =>
+                                m.id === brukerMelding.id ? { ...m, feilet: true } : m,
+                            ),
+                        );
+                    }
                     handleChatResponse();
                     return;
                 }
@@ -978,6 +1003,14 @@ export function ChatSection() {
                 const err = error instanceof Error ? error : new Error("Uventet feil");
                 settKiError(err);
                 showToast.error("KI-svar feilet", lagFeilTekst(err, "chat"));
+                // Marker brukerens melding som feilet slik at retry-knapp vises
+                if (isMountedRef.current) {
+                    settMeldinger((prev) =>
+                        prev.map((m) =>
+                            m.id === brukerMelding.id ? { ...m, feilet: true } : m,
+                        ),
+                    );
+                }
                 handleChatResponse();
             });
     };
@@ -1341,6 +1374,31 @@ export function ChatSection() {
                                     )}
                                 </div>
 
+                                {/* Retry-knapp under feilede brukermeldinger */}
+                                {melding.rolle === "user" && melding.feilet && (
+                                    <div className="flex items-center gap-2 mt-1.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                // Fjern feilet-melding, sett tekst og send på nytt
+                                                settMeldinger((prev) => prev.filter((m) => m.id !== melding.id));
+                                                settKiError(null);
+                                                settTekstInput(melding.innhold);
+                                                // Liten delay slik at state oppdateres før sending
+                                                setTimeout(() => {
+                                                    tekstInputRef.current?.focus();
+                                                }, 50);
+                                            }}
+                                            disabled={skriver || analyserarDokument}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <RefreshCw className="w-3.5 h-3.5" />
+                                            Prøv igjen
+                                        </button>
+                                        <span className="text-xs text-red-500 dark:text-red-400">Sending feilet</span>
+                                    </div>
+                                )}
+
                                 {/* Handlingsknapper under AI-svar */}
                                 {melding.rolle === "assistant" && animerendeMeldingId !== melding.id && !skriver && (
                                     <div className="flex items-center justify-between mt-1.5 px-0.5">
@@ -1555,4 +1613,4 @@ export function ChatSection() {
             </div>
         </div>
     );
-}   
+} 
