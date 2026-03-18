@@ -14,7 +14,8 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
-  CheckCircle2
+  CheckCircle2,
+  Info
 } from "lucide-react";
 import {
   useCurrentArbeidsplan,
@@ -27,6 +28,26 @@ import { PRIORITY_COLORS, DAYS_ORDER, PRIORITY_LABELS } from "@/app/arbeidsplan/
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
+
+/** Forklaring for hvorfor en oppgave har en gitt prioritet */
+function getPriorityExplanation(priority: string, task: string): string {
+  const lower = task.toLowerCase();
+  const harFrist = /frist|deadline|innlevering|eksamen/.test(lower);
+  const harRepetisjon = /repeter|gjennomgå|les igjen|oppsummer/.test(lower);
+
+  switch (priority) {
+    case "high":
+      if (harFrist) return "Nær forestående frist eller eksamen";
+      return "Viktig oppgave som bør gjøres først";
+    case "medium":
+      return "Bør gjøres denne uken";
+    case "low":
+      if (harRepetisjon) return "Repetisjon – gjør når du har tid til overs";
+      return "Kan utsettes om nødvendig";
+    default:
+      return "";
+  }
+}
 
 export function MinArbeidsplan() {
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
@@ -275,9 +296,15 @@ const undoTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
                               </p>
                             </div>
                             
-                            <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${PRIORITY_COLORS[block.priority]}`}>
-                              {PRIORITY_LABELS[block.priority]}
-                            </span>
+                            <div className="relative group/prio flex items-center gap-1">
+                              <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${PRIORITY_COLORS[block.priority]}`}>
+                                {PRIORITY_LABELS[block.priority]}
+                              </span>
+                              <Info className="w-3.5 h-3.5 text-slate-400 cursor-help" />
+                              <div className="absolute right-0 top-full mt-1 z-20 w-52 p-2 rounded-lg bg-slate-900 dark:bg-slate-700 text-white text-xs shadow-lg opacity-0 pointer-events-none group-hover/prio:opacity-100 transition-opacity">
+                                {getPriorityExplanation(block.priority, block.task)}
+                              </div>
+                            </div>
                           </div>
 
                           <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
