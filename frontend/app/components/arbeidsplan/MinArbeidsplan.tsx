@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { 
   Calendar, 
   Check, 
@@ -26,10 +26,13 @@ import {
 import { PRIORITY_COLORS, DAYS_ORDER, PRIORITY_LABELS } from "@/app/arbeidsplan/arbeidsplan-api";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
+import { showToast } from "@/app/components/ui/Toaster";
 
 export function MinArbeidsplan() {
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
   const [bekreftSlett, setBekreftSlett] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(false);
+const undoTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined); 
   const { data: plan, isLoading, isError, refetch } = useCurrentArbeidsplan();
   const { data: stats } = useProgressStats();
   const toggleMutation = useToggleBlockCompletion();
@@ -51,8 +54,23 @@ export function MinArbeidsplan() {
       setBekreftSlett(true);
       return;
     }
-    deleteMutation.mutate(plan._id);
     setBekreftSlett(false);
+    setPendingDelete(true);
+
+    showToast.undoable(
+      "Arbeidsplan slettet",
+      () => {
+        clearTimeout(undoTimerRef.current);
+        setPendingDelete(false);
+        showToast.info("Sletting angret");
+      },
+      5000,
+    );
+
+    undoTimerRef.current = setTimeout(() => {
+      deleteMutation.mutate(plan._id);
+      setPendingDelete(false);
+    }, 5000);
   };
 
   if (isLoading) {
@@ -114,7 +132,7 @@ export function MinArbeidsplan() {
   });
 
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 transition-opacity ${pendingDelete ? "opacity-50 pointer-events-none" : ""}`}>
       {/* Header med progress */}
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-linear-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 p-6">
         <div className="flex items-start justify-between mb-4">
@@ -129,7 +147,7 @@ export function MinArbeidsplan() {
           <button
             onClick={handleDeletePlan}
             onBlur={() => setBekreftSlett(false)}
-            disabled={deleteMutation.isPending}
+            disabled={deleteMutation.isPending || pendingDelete}
             className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
               bekreftSlett
                 ? "bg-red-600 text-white hover:bg-red-700"

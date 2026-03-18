@@ -52,6 +52,17 @@ export const showToast = {
     toast.warning(melding, { description: beskrivelse });
   },
 
+  // Suksess med angre-knapp (undo ved sletting)
+  undoable: (melding: string, onUndo: () => void, varighet = 5000) => {
+    toast.success(melding, {
+      duration: varighet,
+      action: {
+        label: "Angre",
+        onClick: onUndo,
+      },
+    });
+  },
+
   // Lasting-melding med promise
   promise: <T,>(
     promise: Promise<T>,
@@ -71,4 +82,4 @@ export const showToast = {
 };
 
 // Re-eksporter toast for direkte bruk
-export { toast };
+export { toast };  
