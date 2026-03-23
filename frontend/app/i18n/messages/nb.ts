@@ -1,7 +1,10 @@
 export const nbMessages = {
   common: {
     actions: {
+      askAi: "Spør KI",
+      backToSignIn: "Tilbake til innlogging",
       cancel: "Avbryt",
+      change: "Endre",
       clearAll: "Slett alle",
       delete: "Slett",
       editProfileSecurity: "Rediger profil og sikkerhet",
@@ -14,9 +17,12 @@ export const nbMessages = {
       retry: "Prøv igjen",
       restoreConnection: "Gjenopprett tilkobling",
       save: "Lagre",
+      sendCode: "Send kode",
+      completeReset: "Sett nytt passord",
       show: "Vis",
       signOut: "Logg ut",
       start: "Start",
+      verifyCode: "Bekreft kode",
     },
     labels: {
       canvasUser: "Canvas bruker",
@@ -72,6 +78,63 @@ export const nbMessages = {
     deleteError: "Kunne ikke slette samtalen",
     deleteSuccess: "Samtale slettet",
     saveError: "Kunne ikke lagre samtalen",
+  },
+  auth: {
+    forgotPassword: {
+      complete: {
+        description: "Passordet ditt er oppdatert, og du sendes videre til dashboardet.",
+        title: "Passord oppdatert",
+      },
+      code: {
+        descriptionEmail:
+          "Skriv inn koden vi sendte til e-postadressen som er koblet til kontoen din.",
+        label: "Bekreftelseskode",
+        placeholder: "123456",
+      },
+      description:
+        "Har du glemt passordet ditt? Skriv inn e-postadressen din, bekreft koden vi sender, og velg et nytt passord.",
+      emailOnly: "Kun e-post",
+      eyebrow: "Konto-gjenoppretting",
+      identifier: {
+        description:
+          "Bruk e-postadressen som er knyttet til StudyWise-kontoen din.",
+        emailLabel: "E-postadresse",
+        emailPlaceholder: "navn@example.com",
+      },
+      mfa: {
+        description:
+          "Passordet er oppdatert, men kontoen krever totrinnsbekreftelse før innloggingen kan fullføres. Gå tilbake til innlogging for å fortsette.",
+        title: "Tofaktor kreves",
+      },
+      setCredential: {
+        description: "Velg et nytt passord for e-postinnloggingen din.",
+        label: "Nytt passord",
+        placeholder: "Skriv inn nytt passord",
+      },
+      sent: {
+        emailDescription: "Vi har sendt en gjenopprettingskode til e-posten din.",
+        emailTitle: "Kode sendt på e-post",
+      },
+      steps: {
+        identify: "Finn kontoen",
+        setCredential: "Velg nytt passord",
+        verify: "Bekreft kode",
+      },
+      thirdParty: {
+        description:
+          "Hvis du vanligvis logger inn med Microsoft, Google eller Apple, trenger du som regel ikke å nullstille passord her. Gå tilbake til innlogging og velg samme metode som før.",
+        title: "Bruker du Microsoft, Google eller Apple?",
+      },
+      support:
+        "Hvis du ikke mottar koden, sjekk spamfilteret ditt. Bruker du vanligvis Microsoft, Google eller Apple, går du tilbake og logger inn med samme metode.",
+      title: "Glemt passord?",
+    },
+    signIn: {
+      forgotPasswordAction: "Gjenopprett tilgang",
+      forgotPasswordDescription:
+        "For e-postinnlogging. Bruker du Microsoft, Google eller Apple, fortsetter du med samme leverandør i stedet.",
+      forgotPasswordTitle: "Glemt passord?",
+    },
   },
   errors: {
     boundary: {
@@ -136,6 +199,35 @@ export const nbMessages = {
       events: "Hendelser",
     },
     title: "Varslinger",
+  },
+  landing: {
+    actions: {
+      continueToDashboard: "Fortsett til dashboard",
+      signInOrRegister: "Logg inn / Registrer",
+    },
+    features: {
+      aiPartner: {
+        description:
+          "Står du fast? Få umiddelbar hjelp, forklaringer og studietips fra din personlige KI-assistent.",
+        title: "KI-Studiepartner",
+      },
+      canvasIntegration: {
+        description:
+          "Koble til Canvas én gang og få tilgang til alle dine emner, moduler, filer og kunngjøringer direkte i dashboardet.",
+        title: "Sømløs Canvas-integrasjon",
+      },
+      heading: "Funksjoner",
+      overview: {
+        description:
+          "Se alt som skjer i dag og de neste dagene. Dine personlige gjøremål og frister fra skolen samlet på ett sted.",
+        title: "Total Oversikt",
+      },
+    },
+    hero: {
+      description:
+        "StudyWise samler alt du trenger på ett sted. Få full oversikt over Canvas, dine kommende oppgaver, og få hjelp av KI til å studere smartere – ikke hardere.",
+      title: "Din intelligente studieassistent",
+    },
   },
   overview: {
     missingCanvasPlanner:

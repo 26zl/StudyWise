@@ -21,7 +21,7 @@ import { showToast } from "@/app/components/ui/Toaster";
 import { useVarsler, type VarslingTab } from "@/app/hooks/useVarsler";
 import { formaterTid, type FristStatus } from "@/app/lib/varsler";
 import type { FristElement, KunngjoringElement, HendelseElement, VarslingElement } from "@/app/lib/varsler";
-import { KIOppsummering } from "@/app/components/ki/KIOppsummering";
+import { CanvasKIHandlinger } from "@/app/components/ki/CanvasKIActions";
 import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { useUIStore } from "@/app/store/uiStore";
 import { useLanguage } from "@/app/i18n";
@@ -222,6 +222,17 @@ function FristKort({ frist, language }: { frist: FristElement; language: "nb" | 
     const { t } = useLanguage();
     const tidTekst = formaterTid(frist.timerIgjen, language);
     const datoLocale = language === "en" ? enUS : nb;
+    const fristTekst = [
+        frist.tittel,
+        `${language === "en" ? "Course" : "Emne"}: ${frist.emne}`,
+        `${language === "en" ? "Deadline" : "Frist"}: ${format(
+            frist.dato,
+            language === "en" ? "MMMM d, yyyy 'at' HH:mm" : "d. MMMM yyyy 'kl.' HH:mm",
+            { locale: datoLocale },
+        )}`,
+        t("notifications.remaining", { time: tidTekst }),
+        frist.erInnlevert ? t("notifications.submitted") : "",
+    ].filter(Boolean).join(". ");
 
     return (
         <div className={`p-4 rounded-lg border ${fristFarge(frist.status)} transition-colors`}>
@@ -252,6 +263,13 @@ function FristKort({ frist, language }: { frist: FristElement; language: "nb" | 
                             date: format(frist.dato, language === "en" ? "MMMM d, yyyy 'at' HH:mm" : "d. MMMM yyyy 'kl.' HH:mm", { locale: datoLocale }),
                         })}
                     </p>
+                    <CanvasKIHandlinger
+                        tekst={fristTekst}
+                        storrelse="sm"
+                        kildetype="assignment"
+                        tittel={frist.tittel}
+                        emne={frist.emne}
+                    />
                 </div>
             </div>
         </div>
@@ -260,6 +278,12 @@ function FristKort({ frist, language }: { frist: FristElement; language: "nb" | 
 
 function KunngjoringKort({ kunngjoring, language }: { kunngjoring: KunngjoringElement; language: "nb" | "en" }) {
     const datoLocale = language === "en" ? enUS : nb;
+    const kunngjoringsTekst = [
+        kunngjoring.tittel,
+        `${language === "en" ? "Course" : "Emne"}: ${kunngjoring.emne}`,
+        kunngjoring.melding,
+    ].filter(Boolean).join(". ");
+
     return (
         <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
             <div className="flex items-start gap-3">
@@ -271,7 +295,13 @@ function KunngjoringKort({ kunngjoring, language }: { kunngjoring: KunngjoringEl
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                         {kunngjoring.emne} &middot; {formatDistanceToNow(kunngjoring.dato, { addSuffix: true, locale: datoLocale })}
                     </p>
-                    <KIOppsummering tekst={kunngjoring.melding} storrelse="sm" />
+                    <CanvasKIHandlinger
+                        tekst={kunngjoringsTekst}
+                        storrelse="sm"
+                        kildetype="announcement"
+                        tittel={kunngjoring.tittel}
+                        emne={kunngjoring.emne}
+                    />
                 </div>
             </div>
         </div>
@@ -280,6 +310,21 @@ function KunngjoringKort({ kunngjoring, language }: { kunngjoring: KunngjoringEl
 
 function HendelseKort({ hendelse, language }: { hendelse: HendelseElement; language: "nb" | "en" }) {
     const datoLocale = language === "en" ? enUS : nb;
+    const hendelseTekst = [
+        hendelse.tittel,
+        `${language === "en" ? "Start" : "Start"}: ${format(
+            hendelse.dato,
+            language === "en" ? "MMMM d, yyyy 'at' HH:mm" : "d. MMMM yyyy 'kl.' HH:mm",
+            { locale: datoLocale },
+        )}`,
+        hendelse.sluttDato
+            ? `${language === "en" ? "Ends" : "Slutter"}: ${format(hendelse.sluttDato, "HH:mm")}`
+            : "",
+        hendelse.lokasjon
+            ? `${language === "en" ? "Location" : "Lokasjon"}: ${hendelse.lokasjon}`
+            : "",
+    ].filter(Boolean).join(". ");
+
     return (
         <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
             <div className="flex items-start gap-3">
@@ -301,6 +346,12 @@ function HendelseKort({ hendelse, language }: { hendelse: HendelseElement; langu
                             </span>
                         )}
                     </div>
+                    <CanvasKIHandlinger
+                        tekst={hendelseTekst}
+                        storrelse="sm"
+                        kildetype="event"
+                        tittel={hendelse.tittel}
+                    />
                 </div>
             </div>
         </div>

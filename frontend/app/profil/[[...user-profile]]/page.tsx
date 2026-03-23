@@ -8,8 +8,12 @@
 import { UserProfile } from "@clerk/nextjs";
 import Link from "next/link";
 import { Footer } from "@/app/components/layout/footer";
+import { useLanguage } from "@/app/i18n";
 
 export default function ProfilPage() {
+  const { language } = useLanguage();
+  const backLabel = language === "en" ? "Back to dashboard" : "Tilbake til dashboard";
+
   return (
     <div className="min-h-full flex flex-col bg-slate-50 dark:bg-slate-950">
       <div className="flex-1 px-3 py-4 pb-12 sm:px-4 sm:py-6">
@@ -19,10 +23,11 @@ export default function ProfilPage() {
             prefetch={false}
             className="inline-flex min-h-11 min-w-11 items-center rounded-lg py-2 text-sm text-slate-700 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:text-slate-300 dark:hover:text-white"
           >
-            ← Tilbake til dashboard
+            ← {backLabel}
           </Link>
           <div className="mt-4 w-full overflow-x-hidden">
             <UserProfile
+              key={language}
               path="/profil"
               routing="path"
               appearance={{

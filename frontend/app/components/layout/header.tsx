@@ -12,6 +12,8 @@ import { useUIStore } from "@/app/store/uiStore";
 import { useTheme } from "next-themes";
 import { useState, useEffect } from "react";
 import { useLoggUtWithRedirect } from "@/app/auth/auth-api";
+import { useLanguage } from "@/app/i18n";
+import type { Language } from "@/app/i18n";
 
 type NavigationItem = {
   href: string;
@@ -24,15 +26,49 @@ type AuthAction = {
   label: string;
 };
 
-const FELLES_NAVIGASJON: NavigationItem[] = [{ href: "/", label: "Hjem" }];
-const INNLOGGET_NAVIGASJON: NavigationItem[] = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/profil", label: "Profil", icon: UserCircle2 },
-];
-const AUTH_ACTIONS: AuthAction[] = [
-  { kind: "sign-in", label: "Logg inn" },
-  { kind: "sign-up", label: "Registrer" },
-];
+function getHeaderLabels(language: Language) {
+  if (language === "en") {
+    return {
+      commonNavigation: [{ href: "/", label: "Home" }] satisfies NavigationItem[],
+      signedInNavigation: [
+        { href: "/dashboard", label: "Dashboard" },
+        { href: "/profil", label: "Profile", icon: UserCircle2 },
+      ] satisfies NavigationItem[],
+      authActions: [
+        { kind: "sign-in", label: "Sign in" },
+        { kind: "sign-up", label: "Register" },
+      ] satisfies AuthAction[],
+      toggleTheme: "Toggle theme",
+      lightTheme: "Light theme",
+      darkTheme: "Dark theme",
+      closeSidebar: "Close left sidebar",
+      openSidebar: "Open left sidebar",
+      closeMenu: "Close menu",
+      openMenu: "Menu",
+      signOut: "Sign out",
+    };
+  }
+
+  return {
+    commonNavigation: [{ href: "/", label: "Hjem" }] satisfies NavigationItem[],
+    signedInNavigation: [
+      { href: "/dashboard", label: "Dashboard" },
+      { href: "/profil", label: "Profil", icon: UserCircle2 },
+    ] satisfies NavigationItem[],
+    authActions: [
+      { kind: "sign-in", label: "Logg inn" },
+      { kind: "sign-up", label: "Registrer" },
+    ] satisfies AuthAction[],
+    toggleTheme: "Bytt tema",
+    lightTheme: "Lyst tema",
+    darkTheme: "Mørkt tema",
+    closeSidebar: "Lukk venstremeny",
+    openSidebar: "Åpne venstremeny",
+    closeMenu: "Lukk meny",
+    openMenu: "Meny",
+    signOut: "Logg ut",
+  };
+}
 
 function NavigationLink({
   href,
@@ -92,11 +128,13 @@ function ThemeToggleButton({
   mounted,
   isDarkMode,
   onToggle,
+  labels,
 }: {
   mobile?: boolean;
   mounted: boolean;
   isDarkMode: boolean;
   onToggle: () => void;
+  labels: ReturnType<typeof getHeaderLabels>;
 }) {
   if (mobile) {
     return (
@@ -104,11 +142,11 @@ function ThemeToggleButton({
         type="button"
         onClick={onToggle}
         className="flex items-center gap-2 text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-3 min-h-11 w-full touch-manipulation"
-        aria-label="Bytt tema"
+        aria-label={labels.toggleTheme}
       >
         <Sun className="h-5 w-5 dark:hidden" />
         <Moon className="h-5 w-5 hidden dark:block" />
-        <span>{isDarkMode ? "Lyst tema" : "Mørkt tema"}</span>
+        <span>{isDarkMode ? labels.lightTheme : labels.darkTheme}</span>
       </button>
     );
   }
@@ -118,7 +156,7 @@ function ThemeToggleButton({
       type="button"
       onClick={onToggle}
       className="min-w-11 min-h-11 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors touch-manipulation"
-      aria-label="Bytt tema"
+      aria-label={labels.toggleTheme}
     >
       {mounted ? (
         <>
@@ -142,6 +180,8 @@ export function Header() {
   const isDarkMode = mounted && resolvedTheme === "dark";
   const handleLoggUt = useLoggUtWithRedirect();
   const { isLoaded: authLoaded, isSignedIn } = useAuth();
+  const { language } = useLanguage();
+  const labels = getHeaderLabels(language);
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
@@ -166,7 +206,7 @@ export function Header() {
             type="button"
             onClick={toggleVenstreMeny}
             className="min-w-11 min-h-11 -ml-1 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg touch-manipulation"
-            aria-label={isVenstreMenyOpen ? "Lukk venstremeny" : "Åpne venstremeny"}
+            aria-label={isVenstreMenyOpen ? labels.closeSidebar : labels.openSidebar}
           >
             {isVenstreMenyOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
@@ -177,12 +217,12 @@ export function Header() {
       </div>
 
       <nav className="hidden md:flex items-center gap-6 text-sm text-slate-600 dark:text-slate-400">
-        {FELLES_NAVIGASJON.map((item) => (
+        {labels.commonNavigation.map((item) => (
           <NavigationLink key={item.href} {...item} />
         ))}
         {authLoaded && isSignedIn ? (
           <>
-            {INNLOGGET_NAVIGASJON.map((item) => (
+            {labels.signedInNavigation.map((item) => (
               <NavigationLink key={item.href} {...item} />
             ))}
             <button
@@ -191,11 +231,11 @@ export function Header() {
               className="inline-flex items-center gap-1.5 hover:text-red-600 dark:hover:text-red-400 transition-colors"
             >
               <LogOut className="h-4 w-4" />
-              <span>Logg ut</span>
+              <span>{labels.signOut}</span>
             </button>
           </>
         ) : (
-          AUTH_ACTIONS.map((action) => (
+          labels.authActions.map((action) => (
             <AuthActionButton key={action.kind} action={action} />
           ))
         )}
@@ -203,6 +243,7 @@ export function Header() {
           mounted={mounted}
           isDarkMode={isDarkMode}
           onToggle={() => setTheme(isDarkMode ? "light" : "dark")}
+          labels={labels}
         />
       </nav>
 
@@ -210,7 +251,7 @@ export function Header() {
         type="button"
         onClick={() => setMobilMenyOpen(!mobilMenyOpen)}
         className="md:hidden min-w-11 min-h-11 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg touch-manipulation"
-        aria-label={mobilMenyOpen ? "Lukk meny" : "Meny"}
+        aria-label={mobilMenyOpen ? labels.closeMenu : labels.openMenu}
       >
         {mobilMenyOpen ? <X size={24} /> : <MoreVertical size={24} />}
       </button>
@@ -218,7 +259,7 @@ export function Header() {
       {mobilMenyOpen && (
         <nav className="md:hidden absolute top-full left-0 right-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-lg z-40">
           <div className="flex flex-col p-4 gap-2 text-sm text-slate-600 dark:text-slate-400">
-            {FELLES_NAVIGASJON.map((item) => (
+            {labels.commonNavigation.map((item) => (
               <NavigationLink
                 key={item.href}
                 {...item}
@@ -228,7 +269,7 @@ export function Header() {
             ))}
             {authLoaded && isSignedIn ? (
               <>
-                {INNLOGGET_NAVIGASJON.map((item) => (
+                {labels.signedInNavigation.map((item) => (
                   <NavigationLink
                     key={item.href}
                     {...item}
@@ -242,11 +283,11 @@ export function Header() {
                   className="inline-flex items-center gap-2 text-left hover:text-red-600 dark:hover:text-red-400 transition-colors py-3 min-h-11 w-full touch-manipulation"
                 >
                   <LogOut className="h-5 w-5" />
-                  <span>Logg ut</span>
+                  <span>{labels.signOut}</span>
                 </button>
               </>
             ) : (
-              AUTH_ACTIONS.map((action) => (
+              labels.authActions.map((action) => (
                 <AuthActionButton key={action.kind} action={action} mobile />
               ))
             )}
@@ -255,6 +296,7 @@ export function Header() {
               mounted={mounted}
               isDarkMode={isDarkMode}
               onToggle={() => setTheme(isDarkMode ? "light" : "dark")}
+              labels={labels}
             />
           </div>
         </nav>

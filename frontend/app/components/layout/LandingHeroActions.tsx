@@ -10,6 +10,7 @@ import { ArrowRight } from "lucide-react";
 import type { MeResponse } from "common/auth";
 import { useAuth } from "@clerk/nextjs";
 import { useMeg } from "@/app/auth/auth-api";
+import { useLanguage } from "@/app/i18n";
 
 interface LandingHeroActionsProps {
   /** Brukerdata fra server – brukes som initialData for rask første render. Valgfri; ved navigering til forsiden brukes React Query-cache (useMeg). */
@@ -17,6 +18,7 @@ interface LandingHeroActionsProps {
 }
 
 export function LandingHeroActions({ initialUser = null }: LandingHeroActionsProps) {
+  const { t } = useLanguage();
   const { isLoaded, isSignedIn } = useAuth();
   const megQuery = useMeg({
     initialData: initialUser?.user ? initialUser : undefined,
@@ -33,7 +35,9 @@ export function LandingHeroActions({ initialUser = null }: LandingHeroActionsPro
         prefetch={false}
         className={`group inline-flex items-center justify-center gap-2 px-8 py-4 ${ctaWidth} bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-full font-medium transition-all hover:shadow-lg hover:shadow-blue-500/25`}
       >
-        {erInnlogget ? "Fortsett til Dashboard" : "Gå til Dashboard"}
+        {erInnlogget
+          ? t("landing.actions.continueToDashboard")
+          : t("common.actions.goToDashboard")}
         <ArrowRight
           size={18}
           className="group-hover:translate-x-1 transition-transform"
@@ -46,7 +50,7 @@ export function LandingHeroActions({ initialUser = null }: LandingHeroActionsPro
           prefetch={false}
           className={`inline-flex items-center justify-center px-8 py-4 ${ctaWidth} bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full font-medium transition-colors`}
         >
-          Logg inn / Registrer
+          {t("landing.actions.signInOrRegister")}
         </Link>
       )}
     </div>

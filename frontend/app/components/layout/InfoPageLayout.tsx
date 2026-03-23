@@ -2,10 +2,13 @@
  * InfoPageLayout – felles layout for informasjonssider (Om oss, Personvern, Sikkerhet, Vilkår, Kontakt).
  * Gir tittel, valgfri beskrivelse, tilbake-lenke og hjelpekomponenter InfoSection/InfoCard.
  */
+"use client";
+
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Footer } from "@/app/components/layout/footer";
 import { cn } from "@/app/lib/utils";
+import { useLanguage } from "@/app/i18n";
 
 type InfoPageLayoutProps = {
   title: string;
@@ -35,11 +38,15 @@ export function InfoPageLayout({
   description,
   updatedAt,
   backHref = "/",
-  backLabel = "← Tilbake til forsiden",
+  backLabel,
   className,
   contentClassName,
   children,
 }: InfoPageLayoutProps) {
+  const { language } = useLanguage();
+  const resolvedBackLabel = backLabel ?? (language === "en" ? "← Back to home" : "← Tilbake til forsiden");
+  const updatedAtLabel = language === "en" ? "Last updated" : "Sist oppdatert";
+
   return (
     <div className={cn("min-h-full flex flex-col bg-slate-50 dark:bg-slate-950", className)}>
       <div className="mx-auto flex-1 w-full max-w-3xl px-4 py-12 sm:px-6 lg:max-w-5xl lg:px-8 xl:max-w-6xl">
@@ -48,7 +55,7 @@ export function InfoPageLayout({
           prefetch={false}
           className="mb-8 inline-flex items-center text-sm text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
         >
-          {backLabel}
+          {resolvedBackLabel}
         </Link>
 
         <header className="mb-8">
@@ -58,7 +65,7 @@ export function InfoPageLayout({
           ) : null}
           {updatedAt ? (
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-              Sist oppdatert: {updatedAt}
+              {updatedAtLabel}: {updatedAt}
             </p>
           ) : null}
         </header>

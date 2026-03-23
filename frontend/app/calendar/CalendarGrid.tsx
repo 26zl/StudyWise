@@ -18,6 +18,7 @@ import {
     isBefore,
     startOfDay,
 } from "date-fns";
+import { enUS, nb } from "date-fns/locale";
 import { AlertCircle } from "lucide-react";
 import { cn } from "../lib/utils";
 import { Assignment, COURSE_COLOR_CLASSES } from "common/calendar-ui";
@@ -26,20 +27,55 @@ import { Assignment, COURSE_COLOR_CLASSES } from "common/calendar-ui";
 interface CalendarGridProps {
     currentDate: Date;
     assignments: Assignment[];
+    language: "nb" | "en";
     onDateClick: (date: Date) => void;
     selectedDate: Date | null;
 }
 
-// Ukedager - kortere tekst for mobil
-const WEEK_DAYS = ["Man", "Tir", "Ons", "Tor", "Fre", "Lor", "Son"];
+function getCalendarGridLabels(language: "nb" | "en") {
+    if (language === "en") {
+        return {
+            weekDays: [
+                { full: "Mon", mobile: "Mo" },
+                { full: "Tue", mobile: "Tu" },
+                { full: "Wed", mobile: "We" },
+                { full: "Thu", mobile: "Th" },
+                { full: "Fri", mobile: "Fr" },
+                { full: "Sat", mobile: "Sa" },
+                { full: "Sun", mobile: "Su" },
+            ],
+            dayLabel: (date: Date) => format(date, "MMMM d", { locale: enUS }),
+            eventCount: (count: number) => count === 1 ? "1 event" : `${count} events`,
+            more: (count: number) => `+${count} more`,
+        };
+    }
+
+    return {
+        weekDays: [
+            { full: "Man", mobile: "Ma" },
+            { full: "Tir", mobile: "Ti" },
+            { full: "Ons", mobile: "On" },
+            { full: "Tor", mobile: "To" },
+            { full: "Fre", mobile: "Fr" },
+            { full: "Lør", mobile: "Lø" },
+            { full: "Søn", mobile: "Sø" },
+        ],
+        dayLabel: (date: Date) => format(date, "d. MMMM", { locale: nb }),
+        eventCount: (count: number) => count === 1 ? "1 hendelse" : `${count} hendelser`,
+        more: (count: number) => `+${count} mer`,
+    };
+}
 
 // Hovedkomponent for kalendergrid som viser dager og innleveringer
 export const CalendarGrid = memo(function CalendarGrid({
     currentDate,
     assignments,
+    language,
     onDateClick,
     selectedDate,
 }: CalendarGridProps) {
+    const labels = getCalendarGridLabels(language);
+
     // Beregn alle dager som skal vises i kalenderen
     const days = useMemo(() => {
         const monthStart = startOfMonth(currentDate);
@@ -101,13 +137,13 @@ export const CalendarGrid = memo(function CalendarGrid({
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
             {/* Ukedager header - kortere tekst på mobil */}
             <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-700">
-                {WEEK_DAYS.map((day) => (
+                {labels.weekDays.map((day) => (
                     <div
-                        key={day}
+                        key={day.full}
                         className="py-2 md:py-3 text-center text-xs md:text-sm font-semibold text-slate-500 dark:text-slate-400"
                     >
-                        <span className="hidden sm:inline">{day}</span>
-                        <span className="sm:hidden">{day.charAt(0)}</span>
+                        <span className="hidden sm:inline">{day.full}</span>
+                        <span className="sm:hidden">{day.mobile}</span>
                     </div>
                 ))}
             </div>
@@ -124,9 +160,10 @@ export const CalendarGrid = memo(function CalendarGrid({
 
                     return (
                         <button
+                            type="button"
                             key={day.toISOString()}
                             onClick={() => onDateClick(day)}
-                            aria-label={`${format(day, "d. MMMM")}${dayAssignments.length > 0 ? `, ${dayAssignments.length} ${dayAssignments.length === 1 ? "hendelse" : "hendelser"}` : ""}`}
+                            aria-label={`${labels.dayLabel(day)}${dayAssignments.length > 0 ? `, ${labels.eventCount(dayAssignments.length)}` : ""}`}
                             className={cn(
                                 // Mobile-first: mindre padding og høyde, større på desktop
                                 "min-h-16 sm:min-h-20 md:min-h-24 p-1 sm:p-1.5 md:p-2 border-b border-r border-slate-200 dark:border-slate-700 text-left transition-all duration-200 relative",
@@ -175,7 +212,7 @@ export const CalendarGrid = memo(function CalendarGrid({
                                 ))}
                                 {dayAssignments.length > 2 && (
                                     <div className="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 font-medium px-1">
-                                        +{dayAssignments.length - 2} mer
+                                        {labels.more(dayAssignments.length - 2)}
                                     </div>
                                 )}
                             </div>

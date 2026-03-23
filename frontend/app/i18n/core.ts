@@ -4,6 +4,7 @@ import type { Language, MessageKey, PartialMessages, TranslationValues } from ".
 
 export const DEFAULT_LANGUAGE: Language = "nb";
 export const LANGUAGE_STORAGE_KEY = "studywise-language";
+export const LANGUAGE_COOKIE_KEY = LANGUAGE_STORAGE_KEY;
 
 const messagesByLanguage: Record<Language, PartialMessages> = {
   en: enMessages,
@@ -12,6 +13,16 @@ const messagesByLanguage: Record<Language, PartialMessages> = {
 
 export function isLanguage(value: string | null | undefined): value is Language {
   return value === "nb" || value === "en";
+}
+
+export function getPreferredLanguageFromAcceptLanguage(
+  acceptLanguage: string | null | undefined,
+): Language {
+  if (!acceptLanguage) {
+    return DEFAULT_LANGUAGE;
+  }
+
+  return /\ben\b/i.test(acceptLanguage) ? "en" : DEFAULT_LANGUAGE;
 }
 
 export function getMessages(language: Language): PartialMessages {

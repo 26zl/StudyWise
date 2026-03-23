@@ -7,7 +7,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { Send, Bot, Download, Copy, Share2, RefreshCw, ThumbsUp, ThumbsDown, MoreHorizontal, Plus, Image, FileText, User } from "lucide-react";
+import { Send, Bot, Download, Copy, Share2, RefreshCw, Plus, Image, FileText, User } from "lucide-react";
 import { LoadingSpinner, LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
 import { AttachmentStrip } from "@/app/components/chat/AttachmentStrip";
@@ -66,6 +66,11 @@ type PendingConversationState = {
     mode: "chat" | "document";
     status: "pending" | "failed";
     isResponsePending: boolean;
+};
+
+type SendMeldingOptions = {
+    forcedText?: string;
+    skipCanvasValidation?: boolean;
 };
 
 /** Modul-nivå state for å overleve unmount (f.eks. ved refresh under pågående svar). */
@@ -170,6 +175,7 @@ export function ChatSection() {
     const meldingerSluttRef = useRef<HTMLDivElement>(null);
     const tekstInputRef = useRef<HTMLTextAreaElement>(null);
     const filInputRef = useRef<HTMLInputElement>(null);
+    const sendMeldingRef = useRef<(options?: SendMeldingOptions) => Promise<void>>(async () => {});
     const meldingerRef = useRef<Melding[]>([]);
     const oppretterChatRef = useRef(false);
     const isMountedRef = useRef(true);
@@ -194,6 +200,8 @@ export function ChatSection() {
         setSelectedChatId,
         setCurrentChatId,
         newChatToken,
+        pendingKIMelding,
+        clearPendingKIMelding,
         canvasContextSelection,
     } = useUIStore();
     const { setRunningChatId } = useKIStore();
@@ -639,12 +647,17 @@ export function ChatSection() {
     );
 
     /** Hovedfunksjon: validerer input, legger til brukermelding, og enten kjører dokumentanalyse eller sender til KI-chat. Oppretter chat ved behov og setter pending state. */
-    const sendMelding = async () => {
+    const sendMelding = async ({
+        forcedText,
+        skipCanvasValidation = false,
+    }: SendMeldingOptions = {}) => {
+        const råTekst = forcedText ?? tekstInput;
+        const trimmetTekst = råTekst.trim();
         const harVedlegg = vedlegg.length > 0;
-        if ((!tekstInput.trim() && !harVedlegg) || skriver || analyserarDokument) return;
+        if ((!trimmetTekst && !harVedlegg) || skriver || analyserarDokument) return;
 
         const vedlagtNavn = vedlegg.map((f) => f.name).join(", ");
-        const brukerMeldingInnhold = tekstInput.trim() || (harVedlegg ? `Analyser dokumentet: ${vedlagtNavn}` : "");
+        const brukerMeldingInnhold = trimmetTekst || (harVedlegg ? `Analyser dokumentet: ${vedlagtNavn}` : "");
         settTekstInput("");
 
         // Reset høyde
@@ -822,7 +835,7 @@ export function ChatSection() {
             /canvas|data|mine|hva har jeg/i.test(brukerMeldingInnhold);
 
         // Sjekk om bruker spør om noe som ikke er valgt i innstillinger — STOPP FØR vi oppretter chat
-        if (spørOmCanvas) {
+        if (!skipCanvasValidation && spørOmCanvas) {
             const manglerData: string[] = [];
 
             // Sjekk mot brukerens valg (canvasContextSelection), ikke kontekst-strengen
@@ -1015,6 +1028,8 @@ export function ChatSection() {
             });
     };
 
+    sendMeldingRef.current = sendMelding;
+
     /** Enter sender melding; Shift+Enter gir ny linje. */
     const handterTastetrykk = (e: React.KeyboardEvent) => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -1028,8 +1043,32 @@ export function ChatSection() {
         tekstInputRef.current?.focus();
     };
 
+    /** Sender forhåndsdefinert melding fra andre seksjoner (f.eks. Canvas -> KI-chat). */
+    useEffect(() => {
+        if (!mounted || loading || !pendingKIMelding) return;
+        if (selectedChatId || aktivChatId || meldinger.length > 0) return;
+        if (skriver || analyserarDokument || pendingConversationState) return;
+
+        clearPendingKIMelding();
+        void sendMeldingRef.current({
+            forcedText: pendingKIMelding.melding,
+            skipCanvasValidation: pendingKIMelding.skipCanvasValidation,
+        });
+    }, [
+        aktivChatId,
+        analyserarDokument,
+        clearPendingKIMelding,
+        loading,
+        meldinger.length,
+        mounted,
+        pendingKIMelding,
+        selectedChatId,
+        skriver,
+    ]);
+
     /** Gjenopptar pending samtale ved mount, eller åpner sist opprettede chat fra sessionStorage ved tilbakekomst. */
     useEffect(() => {
+        if (pendingKIMelding) return;
         if (!loading && meldinger.length === 0 && !selectedChatId && pendingConversationState) {
             hydratePendingConversation(pendingConversationState);
             return;
@@ -1042,7 +1081,7 @@ export function ChatSection() {
         } catch {
             /* ignore */
         }
-    }, [loading, chats, aktivChatId, selectedChatId, meldinger.length, setSelectedChatId, hydratePendingConversation]);
+    }, [loading, chats, aktivChatId, selectedChatId, meldinger.length, setSelectedChatId, hydratePendingConversation, pendingKIMelding]);
 
     /** Ved mount: prøver én gang å lagre på nytt en pending som feilet (status === "failed"). */
     useEffect(() => {
@@ -1401,7 +1440,7 @@ export function ChatSection() {
 
                                 {/* Handlingsknapper under AI-svar */}
                                 {melding.rolle === "assistant" && animerendeMeldingId !== melding.id && !skriver && (
-                                    <div className="flex items-center justify-between mt-1.5 px-0.5">
+                                    <div className="flex items-center mt-1.5 px-0.5">
                                         <div className="flex items-center gap-0.5">
                                             <button
                                                 type="button"
@@ -1444,40 +1483,6 @@ export function ChatSection() {
                                                 title="Kopier"
                                             >
                                                 <Copy className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => showToast.info("Regenerer-funksjon kommer snart")}
-                                                className={actionBtnClass}
-                                                title="Regenerer svar"
-                                            >
-                                                <RefreshCw className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                        <div className="flex items-center gap-0.5">
-                                            <button
-                                                type="button"
-                                                onClick={() => showToast.success("Positiv tilbakemelding registrert")}
-                                                className={actionBtnClass}
-                                                title="Bra svar"
-                                            >
-                                                <ThumbsUp className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => showToast.success("Negativ tilbakemelding registrert")}
-                                                className={actionBtnClass}
-                                                title="Dårlig svar"
-                                            >
-                                                <ThumbsDown className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => showToast.info("Flere valg kommer snart")}
-                                                className={actionBtnClass}
-                                                title="Flere valg"
-                                            >
-                                                <MoreHorizontal className="w-4 h-4" />
                                             </button>
                                         </div>
                                     </div>
@@ -1593,7 +1598,9 @@ export function ChatSection() {
                             style={{ outline: "none" }}
                         />
                         <button
-                            onClick={sendMelding}
+                            onClick={() => {
+                                void sendMelding();
+                            }}
                             disabled={(!tekstInput.trim() && vedlegg.length === 0) || skriver || analyserarDokument}
                             className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                             aria-label={skriver || analyserarDokument ? "Sender melding" : "Send melding"}

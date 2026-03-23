@@ -8,26 +8,95 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FC } from "react";
 import { addMonths, setMonth, setYear, subMonths, format } from "date-fns";
-import { nb } from "date-fns/locale";
+import { enUS, nb } from "date-fns/locale";
 import { Clock, MapPin, ChevronLeft, ChevronRight, CalendarDays, Filter } from "lucide-react";
 import { CalendarGrid } from "./CalendarGrid";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
-import { lagBrukervennligFeilmelding, CANVAS_TOKEN_UGYLDIG_MELDING } from "../lib/errorUtils";
+import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
 import { useCombinedCalendarData } from "./calendar-api";
 import { useUIStore } from "../store/uiStore";
-import { KIOppsummering } from "@/app/components/ki/KIOppsummering";
+import { CanvasKIHandlinger } from "@/app/components/ki/CanvasKIActions";
 import { cn } from "../lib/utils";
 import type { Assignment, CalendarFilterType } from "common/calendar-ui";
 import { COURSE_COLOR_CLASSES } from "common/calendar-ui";
+import { useLanguage } from "@/app/i18n";
 
-const MONTHS = ["Januar", "Februar", "Mars", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Desember"];
-const FILTER_OPTIONS: { value: CalendarFilterType; label: string; shortLabel: string }[] = [
-  { value: "all", label: "Alle hendelser", shortLabel: "Alle" },
-  { value: "assignments", label: "Kun innleveringer", shortLabel: "Oppgaver" },
-  { value: "timetable", label: "Kun forelesninger", shortLabel: "Forelesninger" },
-];
 const COURSE_CODE_REGEX = /^([A-ZÆØÅ]{2,5}\d{4,5}[A-Z]?|\d{4,5}[A-Z])/i;
+
+function capitalizeLabel(label: string) {
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function getCalendarLabels(language: "nb" | "en") {
+  if (language === "en") {
+    return {
+      missingToken: "You must save a Canvas API token to fetch the calendar.",
+      loadError: "Could not fetch calendar data. Try again.",
+      today: "Today",
+      prevMonth: "Previous month",
+      nextMonth: "Next month",
+      filterLabel: "Show:",
+      filters: {
+        all: { label: "All events", shortLabel: "All" },
+        assignments: { label: "Assignments only", shortLabel: "Tasks" },
+        timetable: { label: "Lectures only", shortLabel: "Lectures" },
+      },
+      noLecturesFoundShort: "(No lectures found)",
+      coursesLegend: "Courses:",
+      headings: {
+        lectures: "Lectures",
+        assignments: "Assignments",
+        events: "Events",
+      },
+      selectDate: "Select a date",
+      noLecturesThisDay: "No lectures on this day.",
+      noAssignmentsThisDay: "No assignments on this day.",
+      noEventsThisDay: "No events on this day.",
+      clickDate: "Click a date in the calendar to see details.",
+      noLecturesForCourses: "No lectures found in Canvas for your courses.",
+      noLecturesPeriod: "No lectures found for your courses.",
+      noAssignmentsPeriod: "No deadlines found in Canvas for the selected period.",
+      noEventsPeriod: "No events found for the selected period.",
+      syncedWithCanvas: "The calendar syncs automatically with Canvas LMS",
+      courseLabel: "Course",
+      locationLabel: "Location",
+    };
+  }
+
+  return {
+    missingToken: "Du må lagre en Canvas API-token for å hente kalenderen.",
+    loadError: "Kunne ikke hente kalenderdata. Prøv igjen.",
+    today: "I dag",
+    prevMonth: "Forrige måned",
+    nextMonth: "Neste måned",
+    filterLabel: "Vis:",
+    filters: {
+      all: { label: "Alle hendelser", shortLabel: "Alle" },
+      assignments: { label: "Kun innleveringer", shortLabel: "Oppgaver" },
+      timetable: { label: "Kun forelesninger", shortLabel: "Forelesninger" },
+    },
+    noLecturesFoundShort: "(Ingen forelesninger funnet)",
+    coursesLegend: "Emner:",
+    headings: {
+      lectures: "Forelesninger",
+      assignments: "Innleveringer",
+      events: "Hendelser",
+    },
+    selectDate: "Velg en dato",
+    noLecturesThisDay: "Ingen forelesninger denne dagen.",
+    noAssignmentsThisDay: "Ingen innleveringer denne dagen.",
+    noEventsThisDay: "Ingen hendelser denne dagen.",
+    clickDate: "Klikk på en dato i kalenderen for å se detaljer.",
+    noLecturesForCourses: "Fant ingen forelesninger i Canvas for dine emner.",
+    noLecturesPeriod: "Ingen forelesninger funnet for dine emner.",
+    noAssignmentsPeriod: "Ingen frister funnet i Canvas for valgt periode.",
+    noEventsPeriod: "Ingen hendelser funnet for valgt periode.",
+    syncedWithCanvas: "Kalenderen synkroniseres automatisk med Canvas LMS",
+    courseLabel: "Emne",
+    locationLabel: "Lokasjon",
+  };
+}
 
 // Props for CalendarSection
 interface CalendarSectionProps {
@@ -42,6 +111,9 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<CalendarFilterType>("all");
+  const { language, t } = useLanguage();
+  const labels = getCalendarLabels(language);
+  const locale = language === "en" ? enUS : nb;
   const canvasTokenInvalid = useUIStore((state) => state.canvasTokenInvalid);
   // Hent kombinert data fra Canvas
   const { data, isLoading, isError, error, hasLecturesData } = useCombinedCalendarData(
@@ -93,16 +165,32 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
         a.dueDate.getFullYear() === selectedDate.getFullYear()
     );
   }, [assignments, selectedDate]);
+  const filterOptions: { value: CalendarFilterType; label: string; shortLabel: string }[] = useMemo(
+    () => [
+      { value: "all", label: labels.filters.all.label, shortLabel: labels.filters.all.shortLabel },
+      { value: "assignments", label: labels.filters.assignments.label, shortLabel: labels.filters.assignments.shortLabel },
+      { value: "timetable", label: labels.filters.timetable.label, shortLabel: labels.filters.timetable.shortLabel },
+    ],
+    [labels],
+  );
+  const monthOptions = useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, index) => ({
+        value: index.toString(),
+        label: capitalizeLabel(format(new Date(2026, index, 1), "MMMM", { locale })),
+      })),
+    [locale],
+  );
   if (!harCanvasToken) {
-    return <FeilMelding melding="Du må lagre en Canvas API-token for å hente kalenderen." />;
+    return <FeilMelding melding={labels.missingToken} />;
   }
   if (canvasTokenInvalid) {
-    return <FeilMelding type="warning" melding={CANVAS_TOKEN_UGYLDIG_MELDING} />;
+    return <FeilMelding type="warning" melding={t("errors.canvas.tokenInvalid")} />;
   }
   if (isLoading) {
     return (
-      <div className="calendar-page flex min-h-[400px] items-center justify-center">
-        <LoadingView text="Laster kalender..." fullPage={false} />
+      <div className="calendar-page flex min-h-100 items-center justify-center">
+        <LoadingView translationKey="common.loading.calendar" fullPage={false} />
       </div>
     );
   }
@@ -110,7 +198,8 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
     const feilMelding = lagBrukervennligFeilmelding(
       error instanceof Error ? error : null,
       { kalender: true },
-      "Kunne ikke hente kalenderdata. Prøv igjen."
+      labels.loadError,
+      t,
     );
     return <FeilMelding melding={feilMelding} />;
   }
@@ -135,7 +224,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 capitalize">
-              {format(currentDate, "MMMM yyyy", { locale: nb })}
+              {format(currentDate, "MMMM yyyy", { locale })}
             </h1>
             <div className="flex items-center gap-2">
               <select
@@ -143,8 +232,8 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
                 onChange={(e) => handleMonthChange(parseInt(e.target.value, 10))}
                 className="h-8 sm:h-9 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                {MONTHS.map((month, index) => (
-                  <option key={month} value={index.toString()}>{month}</option>
+                {monthOptions.map((month) => (
+                  <option key={month.value} value={month.value}>{month.label}</option>
                 ))}
               </select>
               <select
@@ -160,18 +249,19 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
           </div>
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={handleToday}
               className="flex items-center gap-1.5 sm:gap-2 h-8 sm:h-9 px-2.5 sm:px-4 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <CalendarDays className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              I dag
+              {labels.today}
             </button>
             <div className="flex items-center border border-slate-200 dark:border-slate-600 rounded-lg overflow-hidden">
-              <button onClick={handlePrevMonth} className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors" aria-label="Forrige måned">
+              <button type="button" onClick={handlePrevMonth} className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors" aria-label={labels.prevMonth}>
                 <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
               <div className="w-px h-8 sm:h-9 bg-slate-200 dark:bg-slate-600" />
-              <button onClick={handleNextMonth} className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors" aria-label="Neste måned">
+              <button type="button" onClick={handleNextMonth} className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors" aria-label={labels.nextMonth}>
                 <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
@@ -180,11 +270,12 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 pb-2 border-b border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-slate-600 dark:text-slate-400">
             <Filter className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span>Vis:</span>
+            <span>{labels.filterLabel}</span>
           </div>
           <div className="flex items-center gap-1">
-            {FILTER_OPTIONS.map((option) => (
+            {filterOptions.map((option) => (
               <button
+                type="button"
                 key={option.value}
                 onClick={() => setFilter(option.value)}
                 className={cn(
@@ -198,7 +289,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
             ))}
           </div>
           {filter === "timetable" && !hasLecturesData && (
-            <span className="text-[10px] sm:text-xs text-amber-600 dark:text-amber-400">(Ingen forelesninger funnet)</span>
+            <span className="text-[10px] sm:text-xs text-amber-600 dark:text-amber-400">{labels.noLecturesFoundShort}</span>
           )}
         </div>
       </div>
@@ -206,7 +297,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
       {/* Emneforklaring */}
       {uniqueCourses.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3 sm:mb-4 px-2 sm:px-3 py-1.5 sm:py-2 bg-slate-100/50 dark:bg-slate-800/50 rounded-lg text-[10px] sm:text-xs">
-          <span className="font-medium text-slate-500 dark:text-slate-400">Emner:</span>
+          <span className="font-medium text-slate-500 dark:text-slate-400">{labels.coursesLegend}</span>
           {uniqueCourses.map((course) => {
             const displayCode = course.code.match(COURSE_CODE_REGEX)?.[0]?.toUpperCase() ?? course.code;
             return (
@@ -223,6 +314,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
         <CalendarGrid
           currentDate={currentDate}
           assignments={assignments}
+          language={language}
           onDateClick={setSelectedDate}
           selectedDate={selectedDate}
         />
@@ -231,32 +323,32 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 h-fit">
           <h2 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3 sm:mb-4">
             {selectedDate
-              ? `${filter === "timetable" ? "Forelesninger" : filter === "assignments" ? "Innleveringer" : "Hendelser"} ${selectedDate.getDate()}. ${[
-                  "januar",
-                  "februar",
-                  "mars",
-                  "april",
-                  "mai",
-                  "juni",
-                  "juli",
-                  "august",
-                  "september",
-                  "oktober",
-                  "november",
-                  "desember",
-                ][selectedDate.getMonth()]}`
-              : "Velg en dato"}
+              ? `${filter === "timetable" ? labels.headings.lectures : filter === "assignments" ? labels.headings.assignments : labels.headings.events}${language === "en" ? " for " : " "}${format(selectedDate, language === "en" ? "MMMM d" : "d. MMMM", { locale })}`
+              : labels.selectDate}
           </h2>
           {/* Valgt datoens oppgaver */}
           {selectedDateAssignments.length > 0 ? (
             <ul className="space-y-2 sm:space-y-3">
               {selectedDateAssignments.map((assignment) => {
+                const erHendelse =
+                  assignment.source === "event" || assignment.source === "timetable";
+                const beskrivelse =
+                  assignment.description && assignment.description !== "calendar_event"
+                    ? assignment.description
+                    : undefined;
                 const oppsummeringstekst = [
                   assignment.title,
-                  assignment.courseCode && `Emne: ${assignment.courseCode}`,
-                  assignment.dueDate && format(assignment.dueDate, "d. MMMM yyyy", { locale: nb }),
-                  assignment.location && `Lokasjon: ${assignment.location}`,
-                  assignment.description,
+                  assignment.courseCode &&
+                    `${labels.courseLabel}: ${assignment.courseCode}`,
+                  assignment.dueDate &&
+                    format(
+                      assignment.dueDate,
+                      language === "en" ? "MMMM d, yyyy" : "d. MMMM yyyy",
+                      { locale },
+                    ),
+                  assignment.location &&
+                    `${labels.locationLabel}: ${assignment.location}`,
+                  beskrivelse,
                 ].filter(Boolean).join(". ");
                 return (
                   <li
@@ -301,7 +393,13 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
                           </div>
                         )}
 
-                        <KIOppsummering tekst={oppsummeringstekst} storrelse="sm" />
+                        <CanvasKIHandlinger
+                          tekst={oppsummeringstekst}
+                          storrelse="sm"
+                          kildetype={erHendelse ? "event" : "assignment"}
+                          tittel={assignment.title}
+                          emne={assignment.courseName ?? assignment.courseCode}
+                        />
                       </div>
                     </div>
                   </li>
@@ -311,27 +409,27 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
           ) : selectedDate ? (
             <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm">
               {filter === "timetable"
-                ? "Ingen forelesninger denne dagen."
+                ? labels.noLecturesThisDay
                 : filter === "assignments"
-                  ? "Ingen innleveringer denne dagen."
-                  : "Ingen hendelser denne dagen."}
+                  ? labels.noAssignmentsThisDay
+                  : labels.noEventsThisDay}
             </p>
           ) : (
-            <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm">Klikk pa en dato i kalenderen for a se detaljer.</p>
+            <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm">{labels.clickDate}</p>
           )}
         </div>
       </div>
 
       <div className="calendar-footer">
         {filter === "timetable" && !hasLecturesData
-          ? "Fant ingen forelesninger i Canvas for dine emner."
+          ? labels.noLecturesForCourses
           : assignments.length === 0
             ? filter === "timetable"
-              ? "Ingen forelesninger funnet for dine emner."
+              ? labels.noLecturesPeriod
               : filter === "assignments"
-                ? "Ingen frister funnet i Canvas for valgt periode."
-                : "Ingen hendelser funnet for valgt periode."
-            : "Kalenderen synkroniseres automatisk med Canvas LMS"}
+                ? labels.noAssignmentsPeriod
+                : labels.noEventsPeriod
+            : labels.syncedWithCanvas}
       </div>
     </div>
   );

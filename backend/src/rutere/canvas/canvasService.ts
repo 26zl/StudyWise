@@ -412,10 +412,17 @@ export async function fetchCalendarEvents(
   };
 }
 // Type for enrollment data med section info
-export interface EnrollmentData {
-  course_id: number;
-  course_section_id?: number;
-}
+const EnrollmentDataSchema = z
+  .object({
+    course_id: z.number(),
+    course_section_id: z.preprocess(
+      (value) => (value == null ? undefined : value),
+      z.number().optional(),
+    ),
+  })
+  .loose();
+
+export type EnrollmentData = z.infer<typeof EnrollmentDataSchema>;
 /**
  * Hent brukerens enrollments med section_id
  * Brukes for å bygge course_section context codes for calendar_events
@@ -432,7 +439,22 @@ export async function fetchUserEnrollments(canvasToken?: string | null, baseUrl?
     },
     cacheTtl: CACHE_TTL.COURSES,
   });
-  const enrollments = response.data as EnrollmentData[];
+  const enrollments: EnrollmentData[] = [];
+  let invalidCount = 0;
+
+  response.data.forEach((item) => {
+    const parsed = EnrollmentDataSchema.safeParse(item);
+    if (parsed.success) {
+      enrollments.push(parsed.data);
+    } else {
+      invalidCount++;
+    }
+  });
+
+  if (invalidCount > 0) {
+    logger.warn({ invalidCount }, "Ignorerte ugyldige enrollments fra Canvas");
+  }
+
   return {
     data: enrollments,
     meta: response.meta,
@@ -447,7 +469,7 @@ export function buildSectionToCourseMap(
 ): Map<number, number> {
   const map = new Map<number, number>();
   enrollments.forEach((enrollment) => {
-    if (enrollment.course_section_id) {
+    if (typeof enrollment.course_section_id === "number") {
       map.set(enrollment.course_section_id, enrollment.course_id);
     }
   });

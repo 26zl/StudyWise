@@ -12,8 +12,9 @@ import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { format } from "date-fns";
-import { nb } from "date-fns/locale";
-import { KIOppsummering } from "@/app/components/ki/KIOppsummering";
+import { enUS, nb } from "date-fns/locale";
+import { CanvasKIHandlinger } from "@/app/components/ki/CanvasKIActions";
+import { useLanguage } from "@/app/i18n";
 
 // Props for CanvasPageVisning komponenten
 interface CanvasPageVisningProps {
@@ -28,11 +29,28 @@ const htmlParser = createCanvasHtmlParser();
 // Hovedkomponenten for visning av en Canvas-side
 export function CanvasPageVisning({ courseId, pageId, onBack }: CanvasPageVisningProps): JSX.Element | null {
     const { data: page, isLoading, isError, error } = useCanvasPage(courseId, pageId);
+    const { language } = useLanguage();
+    const locale = language === "en" ? enUS : nb;
+    const labels = language === "en"
+        ? {
+            loading: "Loading page...",
+            loadError: "Could not load the page. Try again.",
+            goBack: "Go back",
+            backToModules: "Back to modules",
+            published: "Published",
+        }
+        : {
+            loading: "Laster siden...",
+            loadError: "Kunne ikke laste siden. Prøv igjen.",
+            goBack: "Gå tilbake",
+            backToModules: "Tilbake til moduler",
+            published: "Publisert",
+        };
 
     if (isLoading) {
         return (
             <div className="p-8">
-                <LoadingView text="Laster siden..." fullPage={false} />
+                <LoadingView text={labels.loading} fullPage={false} />
             </div>
         );
     }
@@ -40,7 +58,7 @@ export function CanvasPageVisning({ courseId, pageId, onBack }: CanvasPageVisnin
         const feilMelding = lagBrukervennligFeilmelding(
             error instanceof Error ? error : null,
             { canvas: true },
-            "Kunne ikke laste siden. Prøv igjen."
+            labels.loadError
         );
         return (
             <div className="p-8 space-y-4">
@@ -50,22 +68,31 @@ export function CanvasPageVisning({ courseId, pageId, onBack }: CanvasPageVisnin
                     onClick={onBack}
                     className="rounded-lg px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm transition-colors"
                 >
-                    Gå tilbake
+                    {labels.goBack}
                 </button>
             </div>
         );
     }
     if (!page) return null;
 
+    const publisertDato = page.created_at
+        ? format(
+            new Date(page.created_at),
+            language === "en" ? "MMMM d, yyyy" : "d. MMMM yyyy",
+            { locale },
+        )
+        : null;
+
     // Hovedrendering av siden
     return (
         <div className="max-w-4xl mx-auto">
             <button
+                type="button"
                 onClick={onBack}
                 className="flex items-center gap-2 mb-6 text-sm text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
             >
                 <ArrowLeft size={16} />
-                Tilbake til moduler
+                {labels.backToModules}
             </button>
 
             <article className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
@@ -75,17 +102,22 @@ export function CanvasPageVisning({ courseId, pageId, onBack }: CanvasPageVisnin
                     </h1>
                     
                     <div className="flex flex-wrap gap-4 text-xs text-slate-500 dark:text-slate-400">
-                        {page.created_at && (
+                        {page.created_at && publisertDato && (
                             <div className="flex items-center gap-1.5">
                                 <Calendar size={14} />
-                                <span>Publisert {format(new Date(page.created_at), "d. MMMM yyyy", { locale: nb })}</span>
+                                <span>{labels.published} {publisertDato}</span>
                             </div>
                         )}
                     </div>
                 </header>
 
-                {/* KI-oppsummering av sideinnhold – alltid synlig per modul */}
-                <KIOppsummering tekst={(page.body && page.body.trim()) || page.title || ""} storrelse="lg" />
+                {/* KI-handlinger for sideinnhold – oppsummering + direkte spørsmål til KI-chat */}
+                <CanvasKIHandlinger
+                    tekst={(page.body && page.body.trim()) || page.title || ""}
+                    storrelse="lg"
+                    kildetype="page"
+                    tittel={page.title}
+                />
 
                 <div className="p-8 prose prose-slate dark:prose-invert max-w-none">
                      {/*

@@ -21,6 +21,11 @@ function toVarslerIdSet(ids: readonly string[]): Set<string> {
 /** Alias for common/auth – brukes i UI-store og komponenter. */
 export type CanvasContextSelection = CanvasContextPreferences;
 
+interface PendingKIMelding {
+    melding: string;
+    skipCanvasValidation?: boolean;
+}
+
 interface UIState {
     // Holder styr på om sidebaren er åpen (true) eller lukket (false) på mobil
     isVenstreMenyOpen: boolean;
@@ -35,6 +40,10 @@ interface UIState {
     // Signal for å starte ny chat
     newChatToken: number;
     requestNewChat: () => void;
+    // Midlertidig KI-handoff mellom visninger (f.eks. Canvas -> chat)
+    pendingKIMelding: PendingKIMelding | null;
+    setPendingKIMelding: (melding: PendingKIMelding | null) => void;
+    clearPendingKIMelding: () => void;
     // Canvas-kontekst valg (hvilke datatyper som er valgt)
     canvasContextSelection: CanvasContextPreferences;
     setCanvasContextSelection: (selection: CanvasContextPreferences) => void;
@@ -73,6 +82,9 @@ export const useUIStore = create<UIState>()((set) => ({
         selectedChatId: null,
         currentChatId: null,
     })),
+    pendingKIMelding: null,
+    setPendingKIMelding: (melding) => set({ pendingKIMelding: melding }),
+    clearPendingKIMelding: () => set({ pendingKIMelding: null }),
     canvasContextSelection: defaultSelection,
     setCanvasContextSelection: (selection) => set({ canvasContextSelection: selection }),
     canvasTokenInvalid: false,
@@ -114,6 +126,7 @@ export const useUIStore = create<UIState>()((set) => ({
             selectedChatId: null,
             currentChatId: null,
             newChatToken: 0,
+            pendingKIMelding: null,
             canvasContextSelection: createDefaultCanvasContextPreferences(),
             canvasTokenInvalid: false,
             varslerLestIds: new Set(),

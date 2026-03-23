@@ -1,9 +1,31 @@
 /*
 * Footer-komponent
 */
+"use client";
+
 import Link from "next/link";
+import { useLanguage } from "@/app/i18n";
 
 export function Footer() {
+    const { language } = useLanguage();
+    const labels = language === "en"
+        ? {
+            about: "About us",
+            privacy: "Privacy",
+            security: "Security",
+            terms: "Terms",
+            contact: "Contact",
+            copyright: "© 2026 StudyWise - USN bachelor project. All rights reserved.",
+        }
+        : {
+            about: "Om oss",
+            privacy: "Personvern",
+            security: "Sikkerhet",
+            terms: "Vilkår",
+            contact: "Kontakt",
+            copyright: "© 2026 StudyWise - USN Bachelorprosjekt. Alle rettigheter reservert.",
+        };
+
     return (
         <footer className="shrink-0 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
             <div className="px-4 py-3">
@@ -13,39 +35,39 @@ export function Footer() {
                         prefetch={false}
                         className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
                     >
-                        Om oss
+                        {labels.about}
                     </Link>
                     <Link
                         href="/personvern"
                         prefetch={false}
                         className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
                     >
-                        Personvern
+                        {labels.privacy}
                     </Link>
                     <Link
                         href="/sikkerhet"
                         prefetch={false}
                         className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
                     >
-                        Sikkerhet
+                        {labels.security}
                     </Link>
                     <Link
                         href="/vilkar"
                         prefetch={false}
                         className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
                     >
-                        Vilkår
+                        {labels.terms}
                     </Link>
                     <Link
                         href="/kontakt"
                         prefetch={false}
                         className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
                     >
-                        Kontakt
+                        {labels.contact}
                     </Link>
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-400 text-center leading-tight">
-                    © 2026 StudyWise - USN Bachelorprosjekt. Alle rettigheter reservert.
+                    {labels.copyright}
                 </p>
             </div>
         </footer>

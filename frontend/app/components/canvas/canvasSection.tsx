@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useMemo, type CSSProperties } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { nb } from "date-fns/locale";
+import { enUS, nb } from "date-fns/locale";
 import {
     ArrowLeft,
     ChevronRight,
@@ -32,13 +32,14 @@ import {
     type AssignmentMedEmne,
 } from "@/app/canvas/canvas-api";
 import { useUIStore } from "@/app/store/uiStore";
-import { KIOppsummering } from "@/app/components/ki/KIOppsummering";
+import { CanvasKIHandlinger } from "@/app/components/ki/CanvasKIActions";
 import { showToast } from "@/app/components/ui/Toaster";
 import { erInnlevert as erInnlevertOppgave } from "@/app/canvas/canvasUtils";
 import { createCanvasHtmlParser, parseCanvasHtml, sikkerFilNedlastingUrl } from "@/app/canvas/canvasHtml";
 import { CanvasPageVisning } from "@/app/components/canvas/CanvasPageVisning";
 import { lagBrukervennligFeilmelding, CANVAS_TOKEN_UGYLDIG_MELDING } from "@/app/lib/errorUtils";
 import { formaterDatoLong, formaterDatoMedTid, dagerFraIdag, formaterDagerRelativtFrist } from "@/app/lib/dato";
+import { useLanguage, type Language } from "@/app/i18n";
 
 // Typer for Canvas visninger
 type CanvasVisning = "announcements" | "courses" | "assignments";
@@ -47,6 +48,152 @@ type CanvasVisning = "announcements" | "courses" | "assignments";
 interface CanvasSectionProps {
     startVisning?: CanvasVisning;
     harCanvasToken?: boolean;
+}
+
+function getCanvasLabels(language: Language) {
+    if (language === "en") {
+        return {
+            sectionTitles: {
+                announcements: "Announcements",
+                courses: "Courses",
+                assignments: "Assignments",
+            } satisfies Record<CanvasVisning, string>,
+            announcementsMissingToken: "You must save a Canvas API token to fetch announcements.",
+            announcementsLoading: "Loading announcements...",
+            announcementsLoadError: "Could not load announcements. Try again.",
+            announcementsEmpty: "No announcements",
+            coursesMissingToken: "You must save a Canvas API token to fetch courses.",
+            coursesLoadError: "Could not load courses. Try again.",
+            backToCourses: "Back to courses",
+            frontPage: "Front page",
+            modules: "Modules",
+            pages: "Pages",
+            files: "Files",
+            frontPageLoading: "Loading front page...",
+            frontPageLoadError: "Could not load front page. Try again.",
+            frontPageEmpty: "No content on the front page.",
+            frontPageUnavailable: "Front page unavailable.",
+            modulesLoading: "Loading modules...",
+            modulesAccessError: "No access to modules for this course (403/unauthorized).",
+            modulesEmpty: "This course has no available modules.",
+            moduleLabel: "Module",
+            courseLabel: "Course",
+            contentLabel: "Content",
+            noItems: "No items.",
+            openFileErrorTitle: "Could not open file",
+            openFileErrorDescription: "Canvas did not return a valid download link for this file.",
+            retrySoon: "Try again shortly.",
+            pagesLoading: "Loading pages...",
+            pagesAccessError: "This course has no pages or you do not have access (403/unauthorized).",
+            pagesEmpty: "This course has no available pages.",
+            pagesNothingToShow: "This course has no pages to show.",
+            filesLoading: "Loading files...",
+            filesAccessError: "This course has no files or you do not have access (403/unauthorized).",
+            filesEmpty: "This course has no available files.",
+            filesNothingToShow: "This course has no files to show.",
+            noCourses: "No courses found",
+            noContent: "No content",
+            tokenInvalidHelp: "Go to Settings to add a new token.",
+            assignmentsMissingToken: "You must save a Canvas API token to fetch assignments.",
+            assignmentsLoading: "Loading assignments...",
+            assignmentsLoadError: "Could not load assignments. Try again.",
+            assignmentsEmptyTitle: "No assignments found.",
+            assignmentsEmptyDescription: "When you have active assignments in your Canvas courses, they will appear here.",
+            showingAssignments: (filtered: number, total: number) => `Showing ${filtered} of ${total} assignments`,
+            assignmentFilters: {
+                alle: "All",
+                kommende: "Upcoming",
+                forfalt: "Overdue",
+                "uten-frist": "No due date",
+            } as Record<"alle" | "kommende" | "forfalt" | "uten-frist", string>,
+            sortByDue: "Sorted by due date",
+            sortByCourse: "Sorted by course",
+            assignmentCourse: "Course",
+            submitted: "Submitted",
+            points: "Points",
+            due: "Due",
+            pointsSuffix: "points",
+            noDueDate: "No due date",
+            showLessAssignments: "Show fewer assignments",
+            showAllAssignments: (count: number) => `Show all ${count} assignments`,
+        };
+    }
+
+    return {
+        sectionTitles: {
+            announcements: "Kunngjøringer",
+            courses: "Emner",
+            assignments: "Oppgaver",
+        } satisfies Record<CanvasVisning, string>,
+        announcementsMissingToken: "Du må lagre en Canvas API-token for å hente kunngjøringer.",
+        announcementsLoading: "Laster kunngjøringer...",
+        announcementsLoadError: "Kunne ikke laste kunngjøringer. Prøv igjen.",
+        announcementsEmpty: "Ingen kunngjøringer",
+        coursesMissingToken: "Du må lagre en Canvas API-token for å hente emner.",
+        coursesLoadError: "Kunne ikke laste emner. Prøv igjen.",
+        backToCourses: "Tilbake til emner",
+        frontPage: "Forside",
+        modules: "Moduler",
+        pages: "Sider",
+        files: "Filer",
+        frontPageLoading: "Laster forside...",
+        frontPageLoadError: "Kunne ikke laste forside. Prøv igjen.",
+        frontPageEmpty: "Ingen innhold på forsiden.",
+        frontPageUnavailable: "Forside ikke tilgjengelig.",
+        modulesLoading: "Laster moduler...",
+        modulesAccessError: "Ingen tilgang til moduler for dette emnet (403/unauthorized).",
+        modulesEmpty: "Dette emnet har ingen moduler tilgjengelig.",
+        moduleLabel: "Modul",
+        courseLabel: "Emne",
+        contentLabel: "Innhold",
+        noItems: "Ingen punkter.",
+        openFileErrorTitle: "Kunne ikke åpne fil",
+        openFileErrorDescription: "Canvas returnerte ingen gyldig nedlastingslenke for denne filen.",
+        retrySoon: "Prøv igjen om litt.",
+        pagesLoading: "Laster sider...",
+        pagesAccessError: "Dette emnet har ingen sider eller du mangler tilgang (403/unauthorized).",
+        pagesEmpty: "Dette emnet har ingen sider tilgjengelig.",
+        pagesNothingToShow: "Dette emnet har ingen sider å vise.",
+        filesLoading: "Laster filer...",
+        filesAccessError: "Dette emnet har ingen filer eller du mangler tilgang (403/unauthorized).",
+        filesEmpty: "Dette emnet har ingen filer tilgjengelig.",
+        filesNothingToShow: "Dette emnet har ingen filer å vise.",
+        noCourses: "Ingen emner funnet",
+        noContent: "Ingen innhold",
+        tokenInvalidHelp: "Gå til Innstillinger for å legge til et nytt token.",
+        assignmentsMissingToken: "Du må lagre en Canvas API-token for å hente oppgaver.",
+        assignmentsLoading: "Laster oppgaver...",
+        assignmentsLoadError: "Kunne ikke laste oppgaver. Prøv igjen.",
+        assignmentsEmptyTitle: "Ingen oppgaver funnet.",
+        assignmentsEmptyDescription: "Når du har aktive oppgaver i Canvas-emnene dine, dukker de opp her.",
+        showingAssignments: (filtered: number, total: number) => `Viser ${filtered} av ${total} oppgaver`,
+        assignmentFilters: {
+            alle: "Alle",
+            kommende: "Kommende",
+            forfalt: "Forfalt",
+            "uten-frist": "Uten frist",
+        } as Record<"alle" | "kommende" | "forfalt" | "uten-frist", string>,
+        sortByDue: "Sortert etter frist",
+        sortByCourse: "Sortert etter emne",
+        assignmentCourse: "Emne",
+        submitted: "Innlevert",
+        points: "Poeng",
+        due: "Frist",
+        pointsSuffix: "poeng",
+        noDueDate: "Ingen frist",
+        showLessAssignments: "Vis færre oppgaver",
+        showAllAssignments: (count: number) => `Vis alle ${count} oppgaver`,
+    };
+}
+
+function useCanvasLabels() {
+    const { language } = useLanguage();
+
+    return {
+        language,
+        labels: getCanvasLabels(language),
+        dateLocale: language === "en" ? enUS : nb,
+    };
 }
 
 // Validering mot DOM-basert XSS - tillater kun http/https for href
@@ -127,23 +274,24 @@ function LasteSkjelett({ linjer = 3 }: { linjer?: number }) {
 // Kunngjørings-visning
 function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const { data, isLoading, isError, error } = useCanvasAnnouncements(harCanvasToken);
+    const { labels, dateLocale } = useCanvasLabels();
 
     if (!harCanvasToken) {
-        return <FeilMelding melding="Du må lagre en Canvas API-token for å hente kunngjøringer." />;
+        return <FeilMelding melding={labels.announcementsMissingToken} />;
     }
 
     if (isLoading) {
-        return <LoadingView text="Laster kunngjøringer..." fullPage={false} />;
+        return <LoadingView text={labels.announcementsLoading} fullPage={false} />;
     }
 
     if (isError) {
-        return <FeilMelding melding={lagBrukervennligFeilmelding(error instanceof Error ? error : null, { canvas: true }, "Kunne ikke laste kunngjøringer. Prøv igjen.")} />;
+        return <FeilMelding melding={lagBrukervennligFeilmelding(error instanceof Error ? error : null, { canvas: true }, labels.announcementsLoadError)} />;
     }
 
     if (!data?.announcements?.length) {
         return (
             <div className="text-center py-12">
-                <p className="text-slate-500 dark:text-slate-400">Ingen kunngjøringer</p>
+                <p className="text-slate-500 dark:text-slate-400">{labels.announcementsEmpty}</p>
             </div>
         );
     }
@@ -164,7 +312,7 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                             <time className="text-sm text-slate-500 dark:text-slate-400">
                                 {formatDistanceToNow(new Date(announcement.posted_at), {
                                     addSuffix: true,
-                                    locale: nb,
+                                    locale: dateLocale,
                                 })}
                             </time>
                         )}
@@ -177,7 +325,12 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     )}
 
                     {announcement.message && (
-                        <KIOppsummering tekst={announcement.message} storrelse="md" />
+                        <CanvasKIHandlinger
+                            tekst={announcement.message}
+                            storrelse="md"
+                            kildetype="announcement"
+                            tittel={announcement.title}
+                        />
                     )}
                 </article>
             ))}
@@ -189,6 +342,7 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
 function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const { data, isLoading, isError, error } = useCanvasCourses(harCanvasToken);
     const metadataQuery = useCoursesMetadata(harCanvasToken);
+    const { labels } = useCanvasLabels();
     const [valgtEmneId, settValgtEmneId] = useState<number | null>(null);
     const [valgtEmneVisning, settValgtEmneVisning] = useState<"modules" | "files" | "frontpage" | "pages">("frontpage");
     const [valgtSide, settValgtSide] = useState<{ pageId: string; courseId: number } | null>(null);
@@ -211,7 +365,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const frontPageQuery = useCanvasFrontPage(valgtEmneId, harCanvasToken && (!metaReady || valgtMeta?.hasFrontPage === true));
 
     if (!harCanvasToken) {
-        return <FeilMelding melding="Du må lagre en Canvas API-token for å hente emner." />;
+        return <FeilMelding melding={labels.coursesMissingToken} />;
     }
 
     if (isLoading) {
@@ -227,7 +381,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     }
 
     if (isError) {
-        return <FeilMelding melding={lagBrukervennligFeilmelding(error instanceof Error ? error : null, { canvas: true }, "Kunne ikke laste emner. Prøv igjen.")} />;
+        return <FeilMelding melding={lagBrukervennligFeilmelding(error instanceof Error ? error : null, { canvas: true }, labels.coursesLoadError)} />;
     }
 
     // Vis valgt side hvis satt
@@ -248,11 +402,12 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
         return (
             <div>
                 <button
+                    type="button"
                     onClick={() => settValgtEmneId(null)}
                     className="flex items-center gap-2 mb-6 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
                 >
                     <ArrowLeft size={16} />
-                    Tilbake til emner
+                    {labels.backToCourses}
                 </button>
 
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
@@ -272,34 +427,38 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                         <div className="mb-4 flex flex-wrap items-center gap-2">
                             {visForsideTab && (
                                 <button
+                                    type="button"
                                     onClick={() => settValgtEmneVisning("frontpage")}
                                     className={`px-3 py-1 rounded-lg text-sm border ${valgtEmneVisning === "frontpage" ? "bg-blue-600 text-white border-blue-600" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"}`}
                                 >
-                                    Forside
+                                    {labels.frontPage}
                                 </button>
                             )}
                             {visModulerTab && (
                                 <button
+                                    type="button"
                                     onClick={() => settValgtEmneVisning("modules")}
                                     className={`px-3 py-1 rounded-lg text-sm border ${valgtEmneVisning === "modules" ? "bg-blue-600 text-white border-blue-600" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"}`}
                                 >
-                                    Moduler{meta?.modulesCount ? ` (${meta.modulesCount})` : ""}
+                                    {labels.modules}{meta?.modulesCount ? ` (${meta.modulesCount})` : ""}
                                 </button>
                             )}
                             {visSiderTab && (
                                 <button
+                                    type="button"
                                     onClick={() => settValgtEmneVisning("pages")}
                                     className={`px-3 py-1 rounded-lg text-sm border ${valgtEmneVisning === "pages" ? "bg-blue-600 text-white border-blue-600" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"}`}
                                 >
-                                    Sider{meta?.pagesCount ? ` (${meta.pagesCount})` : ""}
+                                    {labels.pages}{meta?.pagesCount ? ` (${meta.pagesCount})` : ""}
                                 </button>
                             )}
                             {visFilerTab && (
                                 <button
+                                    type="button"
                                     onClick={() => settValgtEmneVisning("files")}
                                     className={`px-3 py-1 rounded-lg text-sm border ${valgtEmneVisning === "files" ? "bg-blue-600 text-white border-blue-600" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"}`}
                                 >
-                                    Filer{meta?.filesCount ? ` (${meta.filesCount})` : ""}
+                                    {labels.files}{meta?.filesCount ? ` (${meta.filesCount})` : ""}
                                 </button>
                             )}
                         </div>
@@ -309,27 +468,27 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                 {valgtEmneVisning === "frontpage" && (
                     <div className="space-y-3">
                         {frontPageQuery.isLoading && (
-                            <LoadingView text="Laster forside..." fullPage={false} />
+                            <LoadingView text={labels.frontPageLoading} fullPage={false} />
                         )}
                         {frontPageQuery.isError && (
-                            <FeilMelding melding={lagBrukervennligFeilmelding(frontPageQuery.error instanceof Error ? frontPageQuery.error : null, { canvas: true }, "Kunne ikke laste forside. Prøv igjen.")} />
+                            <FeilMelding melding={lagBrukervennligFeilmelding(frontPageQuery.error instanceof Error ? frontPageQuery.error : null, { canvas: true }, labels.frontPageLoadError)} />
                         )}
                         {frontPageQuery.data && (
                             <article className="min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4">
                                 <header className="mb-3 flex items-center gap-2 text-slate-900 dark:text-white font-semibold">
-                                    <BookOpen size={18} /> {frontPageQuery.data.title || "Forside"}
+                                    <BookOpen size={18} /> {frontPageQuery.data.title || labels.frontPage}
                                 </header>
                                 {frontPageQuery.data.body ? (
                                     <div className="min-w-0 overflow-x-auto prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-200 prose-table:block prose-table:overflow-x-auto prose-img:max-w-full prose-img:h-auto [&_iframe]:max-w-full">
                                         {parseCanvasHtml(frontPageQuery.data.body, htmlParser)}
                                     </div>
                                 ) : (
-                                    <p className="text-slate-500 dark:text-slate-400 text-sm">Ingen innhold på forsiden.</p>
+                                    <p className="text-slate-500 dark:text-slate-400 text-sm">{labels.frontPageEmpty}</p>
                                 )}
                             </article>
                         )}
                         {!frontPageQuery.isLoading && !frontPageQuery.data && (
-                            <p className="text-sm text-slate-500 dark:text-slate-400">Forside ikke tilgjengelig.</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">{labels.frontPageUnavailable}</p>
                         )}
                     </div>
                 )}
@@ -337,16 +496,16 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                 {valgtEmneVisning === "modules" && (
                     <>
                         {modulerQuery.isLoading && (
-                    <LoadingView text="Laster moduler..." fullPage={false} />
+                    <LoadingView text={labels.modulesLoading} fullPage={false} />
                 )}
 
                         {modulerQuery.isError && (
-                            <FeilMelding melding="Ingen tilgang til moduler for dette emnet (403/unauthorized)." />
+                            <FeilMelding melding={labels.modulesAccessError} />
                         )}
 
                         {/* Vis melding når query er disabled pga metadata sier ingen moduler */}
                         {!modulerQuery.isLoading && !modulerQuery.isError && !modulerQuery.data?.modules?.length && metaReady && valgtMeta?.hasModules === false && (
-                            <p className="text-sm text-slate-500 dark:text-slate-400">Dette emnet har ingen moduler tilgjengelig.</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">{labels.modulesEmpty}</p>
                         )}
 
                 {modulerQuery.data?.modules && modulerQuery.data.modules.length > 0 && (
@@ -362,19 +521,22 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                     </h4>
                                 </div>
 
-                                {/* Oppsummer med KI for denne modulen – bruker samme KI-oppsummering som ellers */}
+                                {/* KI-handlinger for denne modulen – oppsummering + direkte spørsmål til KI-chat */}
                                 <div className="px-4 pt-1 pb-2">
-                                    <KIOppsummering
+                                    <CanvasKIHandlinger
                                         tekst={[
-                                            `Modul: ${module.name}.`,
-                                            course?.name ? `Emne: ${course.name}.` : "",
+                                            `${labels.moduleLabel}: ${module.name}.`,
+                                            course?.name ? `${labels.courseLabel}: ${course.name}.` : "",
                                             module.items?.length
-                                                ? `Innhold: ${module.items.map((it) => it.title).filter(Boolean).join(", ")}.`
-                                                : "Ingen punkter.",
+                                                ? `${labels.contentLabel}: ${module.items.map((it) => it.title).filter(Boolean).join(", ")}.`
+                                                : labels.noItems,
                                         ]
                                             .filter(Boolean)
                                             .join(" ")}
                                         storrelse="sm"
+                                        kildetype="module"
+                                        tittel={module.name}
+                                        emne={course?.name}
                                     />
                                 </div>
 
@@ -449,16 +611,16 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                                         }
                                                     }
                                                     showToast.error(
-                                                        "Kunne ikke åpne fil",
-                                                        "Canvas returnerte ingen gyldig nedlastingslenke for denne filen.",
+                                                        labels.openFileErrorTitle,
+                                                        labels.openFileErrorDescription,
                                                     );
                                                 } catch (err) {
                                                     showToast.error(
-                                                        "Kunne ikke åpne fil",
+                                                        labels.openFileErrorTitle,
                                                         lagBrukervennligFeilmelding(
                                                             err instanceof Error ? err : null,
                                                             { canvas: true },
-                                                            "Prøv igjen om litt.",
+                                                            labels.retrySoon,
                                                         ),
                                                     );
                                                 }
@@ -520,20 +682,20 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                 {modulerQuery.data && modulerQuery.data.modules.length === 0 && (
                     <div className="space-y-4">
                         {frontPageQuery.isLoading && (
-                            <LoadingView text="Laster forside..." fullPage={false} />
+                            <LoadingView text={labels.frontPageLoading} fullPage={false} />
                         )}
 
                         {frontPageQuery.data && (
                             <article className="min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-4">
                                 <header className="mb-3 flex items-center gap-2 text-slate-900 dark:text-white font-semibold">
-                                    <BookOpen size={18} /> Forside
+                                    <BookOpen size={18} /> {labels.frontPage}
                                 </header>
                                 {frontPageQuery.data.body ? (
                                     <div className="min-w-0 overflow-x-auto prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-200 prose-img:max-w-full prose-img:h-auto [&_iframe]:max-w-full">
                                         {parseCanvasHtml(frontPageQuery.data.body, htmlParser)}
                                     </div>
                                 ) : (
-                                    <p className="text-slate-500 dark:text-slate-400 text-sm">Ingen innhold på forsiden.</p>
+                                    <p className="text-slate-500 dark:text-slate-400 text-sm">{labels.frontPageEmpty}</p>
                                 )}
                             </article>
                         )}
@@ -541,7 +703,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                         {siderQuery.data && siderQuery.data.length > 0 && (
                             <div className="rounded-xl border border-slate-200 dark:border-slate-700">
                                 <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 font-medium text-slate-900 dark:text-white">
-                                    Sider
+                                    {labels.pages}
                                 </div>
                                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {siderQuery.data.map((p) => (
@@ -561,7 +723,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                         {(!siderQuery.data || siderQuery.data.length === 0) && filerQuery.data && filerQuery.data.length > 0 && (
                             <div className="rounded-xl border border-slate-200 dark:border-slate-700">
                                 <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 font-medium text-slate-900 dark:text-white">
-                                    Filer
+                                    {labels.files}
                                 </div>
                                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {filerQuery.data.map((f) => {
@@ -591,21 +753,21 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                 {valgtEmneVisning === "pages" && (
                     <div className="space-y-3">
                         {siderQuery.isLoading && (
-                            <LoadingView text="Laster sider..." fullPage={false} />
+                            <LoadingView text={labels.pagesLoading} fullPage={false} />
                         )}
                         {siderQuery.isError && (
-                            <FeilMelding melding="Dette emnet har ingen sider eller du mangler tilgang (403/unauthorized)." />
+                            <FeilMelding melding={labels.pagesAccessError} />
                         )}
                         {!siderQuery.isLoading && !siderQuery.isError && !siderQuery.data && metaReady && valgtMeta?.hasPages === false && (
-                            <p className="text-sm text-slate-500 dark:text-slate-400">Dette emnet har ingen sider tilgjengelig.</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">{labels.pagesEmpty}</p>
                         )}
                         {siderQuery.data && siderQuery.data.length === 0 && (
-                            <p className="text-sm text-slate-500 dark:text-slate-400">Dette emnet har ingen sider å vise.</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">{labels.pagesNothingToShow}</p>
                         )}
                         {siderQuery.data && siderQuery.data.length > 0 && (
                             <div className="rounded-xl border border-slate-200 dark:border-slate-700">
                                 <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 font-medium text-slate-900 dark:text-white">
-                                    Sider
+                                    {labels.pages}
                                 </div>
                                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {siderQuery.data.map((p) => (
@@ -627,22 +789,22 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                 {valgtEmneVisning === "files" && (
                     <div className="space-y-3">
                         {filerQuery.isLoading && (
-                            <LoadingView text="Laster filer..." fullPage={false} />
+                            <LoadingView text={labels.filesLoading} fullPage={false} />
                         )}
                         {filerQuery.isError && (
-                            <FeilMelding melding="Dette emnet har ingen filer eller du mangler tilgang (403/unauthorized)." />
+                            <FeilMelding melding={labels.filesAccessError} />
                         )}
                         {/* Vis melding når query er disabled pga metadata sier ingen filer */}
                         {!filerQuery.isLoading && !filerQuery.isError && !filerQuery.data && metaReady && valgtMeta?.hasFiles === false && (
-                            <p className="text-sm text-slate-500 dark:text-slate-400">Dette emnet har ingen filer tilgjengelig.</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">{labels.filesEmpty}</p>
                         )}
                         {filerQuery.data && filerQuery.data.length === 0 && (
-                            <p className="text-sm text-slate-500 dark:text-slate-400">Dette emnet har ingen filer å vise.</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">{labels.filesNothingToShow}</p>
                         )}
                         {filerQuery.data && filerQuery.data.length > 0 && (
                             <div className="rounded-xl border border-slate-200 dark:border-slate-700">
                                 <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 font-medium text-slate-900 dark:text-white">
-                                    Filer
+                                    {labels.files}
                                 </div>
                                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {filerQuery.data.map((f) => {
@@ -674,7 +836,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     if (!data?.courses?.length) {
         return (
             <div className="text-center py-12">
-                <p className="text-slate-500 dark:text-slate-400">Ingen emner funnet</p>
+                <p className="text-slate-500 dark:text-slate-400">{labels.noCourses}</p>
             </div>
         );
     }
@@ -726,43 +888,47 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                     <>
                                         {visForsideKnapp && (
                                             <button
+                                                type="button"
                                                 onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("frontpage"); }}
                                                 className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
                                             >
-                                                Forside
+                                                {labels.frontPage}
                                                 <ChevronRight size={16} />
                                             </button>
                                         )}
                                         {visModulerKnapp && (
                                             <button
+                                                type="button"
                                                 onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("modules"); }}
                                                 className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
                                             >
-                                                Moduler{meta?.modulesCount ? ` (${meta.modulesCount})` : ""}
+                                                {labels.modules}{meta?.modulesCount ? ` (${meta.modulesCount})` : ""}
                                                 <ChevronRight size={16} />
                                             </button>
                                         )}
                                         {visSiderKnapp && (
                                             <button
+                                                type="button"
                                                 onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("pages"); }}
                                                 className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
                                             >
-                                                Sider{meta?.pagesCount ? ` (${meta.pagesCount})` : ""}
+                                                {labels.pages}{meta?.pagesCount ? ` (${meta.pagesCount})` : ""}
                                                 <ChevronRight size={16} />
                                             </button>
                                         )}
                                         {visFilerKnapp && (
                                             <button
+                                                type="button"
                                                 onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("files"); }}
                                                 className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
                                             >
-                                                Filer{meta?.filesCount ? ` (${meta.filesCount})` : ""}
+                                                {labels.files}{meta?.filesCount ? ` (${meta.filesCount})` : ""}
                                                 <ChevronRight size={16} />
                                             </button>
                                         )}
                                         {!harInnhold && (
                                             <span className="text-sm text-slate-400 dark:text-slate-500 italic">
-                                                Ingen innhold
+                                                {labels.noContent}
                                             </span>
                                         )}
                                     </>
@@ -788,24 +954,19 @@ function TokenUgyldigAdvarsel() {
 export function CanvasSection({ startVisning = "announcements", harCanvasToken = false }: CanvasSectionProps) {
     const [visning, settVisning] = useState<CanvasVisning>(startVisning);
     const canvasTokenInvalid = useUIStore((state) => state.canvasTokenInvalid);
+    const { labels } = useCanvasLabels();
 
     // Oppdater visning hvis startVisning endres
     useEffect(() => {
         settVisning(startVisning);
     }, [startVisning]);
 
-    const visningTitler: Record<CanvasVisning, string> = {
-        announcements: "Kunngjøringer",
-        courses: "Emner",
-        assignments: "Oppgaver",
-    };
-
     return (
         <div className="h-full flex flex-col">
             {/* Header */}
             <div className="shrink-0 px-4 md:px-6 py-4 border-b border-slate-200 dark:border-slate-800">
                 <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
-                    {visningTitler[visning]}
+                    {labels.sectionTitles[visning]}
                 </h2>
             </div>
 
@@ -816,7 +977,7 @@ export function CanvasSection({ startVisning = "announcements", harCanvasToken =
             <div className="flex-1 overflow-y-auto p-4 md:p-6">
                 {canvasTokenInvalid ? (
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Gå til Innstillinger for å legge til et nytt token.
+                        {labels.tokenInvalidHelp}
                     </p>
                 ) : (
                     <>
@@ -834,6 +995,7 @@ export function CanvasSection({ startVisning = "announcements", harCanvasToken =
 function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const assignmentsQuery = useCanvasAllAssignments({ enabled: harCanvasToken });
     const allAssignments: AssignmentMedEmne[] = assignmentsQuery.data || [];
+    const { language, labels } = useCanvasLabels();
 
     const [filter, settFilter] = useState<"alle" | "kommende" | "forfalt" | "uten-frist">("kommende");
     const [sortering, settSortering] = useState<"frist" | "emne">("frist");
@@ -859,20 +1021,20 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                 return new Date(a.due_at).getTime() - new Date(b.due_at).getTime();
             });
         } else {
-            filtrert.sort((a, b) => a.course_name.localeCompare(b.course_name, "nb"));
+            filtrert.sort((a, b) => a.course_name.localeCompare(b.course_name, language === "en" ? "en" : "nb"));
         }
 
         return filtrert;
-    }, [allAssignments, filter, sortering]);
+    }, [allAssignments, filter, language, sortering]);
 
     if (!harCanvasToken) {
-        return <FeilMelding melding="Du må lagre en Canvas API-token for å hente oppgaver." />;
+        return <FeilMelding melding={labels.assignmentsMissingToken} />;
     }
 
     if (assignmentsQuery.isLoading) {
         return (
             <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-8">
-                <LoadingView text="Laster oppgaver..." fullPage={false} />
+                <LoadingView text={labels.assignmentsLoading} fullPage={false} />
             </div>
         );
     }
@@ -883,7 +1045,7 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                 melding={lagBrukervennligFeilmelding(
                     assignmentsQuery.error instanceof Error ? assignmentsQuery.error : null,
                     { canvas: true },
-                    "Kunne ikke laste oppgaver. Prøv igjen.",
+                    labels.assignmentsLoadError,
                 )}
             />
         );
@@ -893,7 +1055,7 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
         return (
             <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-8 text-center">
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                    Ingen oppgaver funnet. Når du har aktive oppgaver i Canvas-emnene dine, dukker de opp her.
+                    {labels.assignmentsEmptyTitle} {labels.assignmentsEmptyDescription}
                 </p>
             </div>
         );
@@ -903,20 +1065,15 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
         <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm text-slate-500 dark:text-slate-400">
-                    Viser {filtrerteOppgaver.length} av {allAssignments.length} oppgaver
+                    {labels.showingAssignments(filtrerteOppgaver.length, allAssignments.length)}
                 </span>
                 <div className="flex-1" />
                 <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
                     {(["alle", "kommende", "forfalt", "uten-frist"] as const).map((f) => {
-                        const labels = {
-                            alle: "Alle",
-                            kommende: "Kommende",
-                            forfalt: "Forfalt",
-                            "uten-frist": "Uten frist",
-                        };
                         return (
                             <button
                                 key={f}
+                                type="button"
                                 onClick={() => settFilter(f)}
                                 className={`px-3 py-1 rounded-full border transition-colors ${
                                     filter === f
@@ -924,15 +1081,16 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                         : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                                 }`}
                             >
-                                {labels[f]}
+                                {labels.assignmentFilters[f]}
                             </button>
                         );
                     })}
                     <button
+                        type="button"
                         onClick={() => settSortering(sortering === "frist" ? "emne" : "frist")}
                         className="px-3 py-1 rounded-full border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                     >
-                        {sortering === "frist" ? "Sortert etter frist" : "Sortert etter emne"}
+                        {sortering === "frist" ? labels.sortByDue : labels.sortByCourse}
                     </button>
                 </div>
             </div>
@@ -944,16 +1102,16 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     const fristDato = harFrist ? new Date(assignment.due_at!) : null;
                     const erForfalt = fristDato ? fristDato < nå : false;
 
-                    const dagerTekst = fristDato ? formaterDagerRelativtFrist(dagerFraIdag(fristDato)) : "";
+                    const dagerTekst = fristDato ? formaterDagerRelativtFrist(dagerFraIdag(fristDato), language) : "";
 
                     const erInnlevert = erInnlevertOppgave(assignment);
 
                     const oppsummeringstekst = [
                         assignment.name,
-                        `Emne: ${assignment.course_name}`,
-                        erInnlevert ? "Innlevert" : "",
-                        assignment.points_possible != null ? `Poeng: ${assignment.points_possible}` : "",
-                        assignment.due_at ? `Frist: ${formaterDatoLong(assignment.due_at)}` : "",
+                        `${labels.assignmentCourse}: ${assignment.course_name}`,
+                        erInnlevert ? labels.submitted : "",
+                        assignment.points_possible != null ? `${labels.points}: ${assignment.points_possible}` : "",
+                        assignment.due_at ? `${labels.due}: ${formaterDatoLong(assignment.due_at, language)}` : "",
                     ].filter(Boolean).join(". ");
 
                     return (
@@ -968,12 +1126,12 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                     </h3>
                                     <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                                         <span>{assignment.course_name}</span>
-                                        {assignment.points_possible ? (
-                                            <span>· {assignment.points_possible} poeng</span>
+                                        {assignment.points_possible != null ? (
+                                            <span>· {assignment.points_possible} {labels.pointsSuffix}</span>
                                         ) : null}
                                         {erInnlevert && (
                                             <span className="inline-flex items-center rounded-md bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 text-xs font-medium text-green-800 dark:text-green-300">
-                                                Innlevert
+                                                {labels.submitted}
                                             </span>
                                         )}
                                     </p>
@@ -991,17 +1149,23 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                                 {dagerTekst}
                                             </div>
                                             <div className="text-slate-500 dark:text-slate-400 mt-0.5">
-                                                {formaterDatoMedTid(fristDato!)}
+                                                {formaterDatoMedTid(fristDato!, language)}
                                             </div>
                                         </>
                                     ) : (
                                         <span className="italic text-slate-400 dark:text-slate-500">
-                                            Ingen frist
+                                            {labels.noDueDate}
                                         </span>
                                     )}
                                 </div>
                             </div>
-                            <KIOppsummering tekst={oppsummeringstekst} storrelse="md" />
+                            <CanvasKIHandlinger
+                                tekst={oppsummeringstekst}
+                                storrelse="md"
+                                kildetype="assignment"
+                                tittel={assignment.name}
+                                emne={assignment.course_name}
+                            />
                         </div>
                     );
                 })}
@@ -1009,12 +1173,13 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
 
             {filtrerteOppgaver.length > 15 && (
                 <button
+                    type="button"
                     onClick={() => settVisAlle((v) => !v)}
                     className="w-full text-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 py-2"
                 >
                     {visAlle
-                        ? "Vis færre oppgaver"
-                        : `Vis alle ${filtrerteOppgaver.length} oppgaver`}
+                        ? labels.showLessAssignments
+                        : labels.showAllAssignments(filtrerteOppgaver.length)}
                 </button>
             )}
         </div>

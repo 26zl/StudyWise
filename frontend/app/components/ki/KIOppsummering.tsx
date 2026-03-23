@@ -11,6 +11,7 @@ import type { KIOppsummeringResponse } from "@/app/ki/ki-api";
 import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { useKIStore } from "@/app/store/kiStore";
 import { simpleHash } from "@/app/lib/utils";
+import { useLanguage } from "@/app/i18n";
 
 // Hvor lenge en oppsummering er gyldig før den bør regenereres (2 dager).
 // Canvas-innhold (kunngjøringer, moduler osv.) kan endre seg — TTL sikrer fersk data.
@@ -61,8 +62,38 @@ interface KIOppsummeringProps {
     variant?: "default" | "inline";
 }
 
+function getSummaryLabels(language: "nb" | "en") {
+    if (language === "en") {
+        return {
+            summaryHeading: "TL;DR",
+            keyPointsHeading: "Key points",
+            summarizeAgain: "Summarize again",
+            hideSummary: "Hide summary",
+            showSummary: "Show summary",
+            summarizeWithAi: "Summarize with AI",
+            noContentToSummarize: "No content to summarize",
+            noSummaryAvailable: "No summary available.",
+            refreshExpired: "The content may have changed - click to refresh",
+        };
+    }
+
+    return {
+        summaryHeading: "Kort fortalt",
+        keyPointsHeading: "Hovedpunkter",
+        summarizeAgain: "Oppsummer på nytt",
+        hideSummary: "Skjul oppsummering",
+        showSummary: "Vis oppsummering",
+        summarizeWithAi: "Oppsummer med KI",
+        noContentToSummarize: "Ingen innhold å oppsummere",
+        noSummaryAvailable: "Ingen oppsummering tilgjengelig.",
+        refreshExpired: "Innholdet kan ha endret seg - klikk for å oppdatere",
+    };
+}
+
 // Hovedkomponenten for KI-oppsummering
 export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOppsummeringProps) {
+    const { language } = useLanguage();
+    const labels = getSummaryLabels(language);
     const [åpen, settÅpen] = useState(false);
     const [resultat, settResultat] = useState<KIOppsummeringResponse | null>(null);
     const [genererTidspunkt, settGenererTidspunkt] = useState<number | null>(null);
@@ -167,9 +198,9 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
     // Bestemmer knappetekst basert på tilstand
     const knappTekst = resultat
         ? erUtløpt
-            ? "Oppsummer på nytt"
-            : (åpen ? "Skjul oppsummering" : "Vis oppsummering")
-        : harTekst ? "Oppsummer med KI" : "Ingen innhold å oppsummere";
+            ? labels.summarizeAgain
+            : (åpen ? labels.hideSummary : labels.showSummary)
+        : harTekst ? labels.summarizeWithAi : labels.noContentToSummarize;
 
     const errorMessage = bgJob?.status === "error" ? bgJob.error : null;
 
@@ -191,7 +222,7 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
                     {resultat.oppsummering && (
                         <div>
                             <h4 className={`${s.overskrift} font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-0.5 sm:mb-1`}>
-                                TL;DR
+                                {labels.summaryHeading}
                             </h4>
                             <p className={`${s.tekst} text-slate-700 dark:text-slate-300 leading-snug`}>
                                 {resultat.oppsummering}
@@ -201,7 +232,7 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
                     {resultat.handlinger && resultat.handlinger.length > 0 && (
                         <div>
                             <h4 className={`${s.overskrift} font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-0.5 sm:mb-1`}>
-                                Hovedpunkter
+                                {labels.keyPointsHeading}
                             </h4>
                             <ul className="space-y-1 sm:space-y-1.5">
                                 {resultat.handlinger.map((punkt, i) => {
@@ -227,7 +258,7 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
                     )}
                     {!resultat.oppsummering && (!resultat.handlinger || resultat.handlinger.length === 0) && (
                         <p className={`${s.tekst} text-slate-500 dark:text-slate-400`}>
-                            Ingen oppsummering tilgjengelig.
+                            {labels.noSummaryAvailable}
                         </p>
                     )}
                     {erUtløpt && (
@@ -238,7 +269,7 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
                             className={`inline-flex items-center gap-1.5 ${s.feil} text-purple-500 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors disabled:opacity-50`}
                         >
                             <RefreshCw className="w-3 h-3" />
-                            Innholdet kan ha endret seg — klikk for å oppdatere
+                            {labels.refreshExpired}
                         </button>
                     )}
                 </div>

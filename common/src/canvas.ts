@@ -55,6 +55,7 @@ export const CanvasAssignmentSchema = z.object({
   id: z.number(),
   name: z.string(),
   due_at: z.string().nullable(),
+  description: z.string().nullable().optional(),
   points_possible: z.number().nullable(),
   html_url: z.string().optional(),
   course_id: z.number().optional(),

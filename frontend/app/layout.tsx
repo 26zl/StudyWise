@@ -3,6 +3,7 @@
  * Clerk, tema, Providers, Header, Toaster osv. omslutter alle ruter.
  */
 import type { Metadata, Viewport } from "next";
+import { cookies, headers } from "next/headers";
 import "./globals.css";
 
 export const viewport: Viewport = {
@@ -15,31 +16,54 @@ export const viewport: Viewport = {
     { media: "(prefers-color-scheme: dark)", color: "#020617" },
   ],
 };
-import { ClerkProvider } from "@clerk/nextjs";
-import { nbNO } from "@clerk/localizations";
 import { ThemeProvider } from "@/app/components/ui/theme-provider";
 import { getFrontendClerkPublishableKey, validateFrontendEnv } from "./lib/validateEnv";
 import { MainAppShell } from "@/app/components/layout/MainAppShell";
+import {
+  getPreferredLanguageFromAcceptLanguage,
+  isLanguage,
+  LANGUAGE_COOKIE_KEY,
+} from "@/app/i18n/core";
+import type { Language } from "@/app/i18n/types";
 
 validateFrontendEnv();
 const clerkPublishableKey = getFrontendClerkPublishableKey();
 
-export const metadata: Metadata = {
-  title: "StudyWise",
-  description: "KI-drevet studieassistent med Canvas LMS-integrasjon",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "StudyWise",
-  },
-  icons: {
-    apple: "/icons/apple-touch-icon.png",
-  },
-};
+async function resolveInitialLanguage(): Promise<Language> {
+  const [cookieStore, headerStore] = await Promise.all([cookies(), headers()]);
+  const cookieLanguage = cookieStore.get(LANGUAGE_COOKIE_KEY)?.value;
 
-export default function RootLayout({
+  if (isLanguage(cookieLanguage)) {
+    return cookieLanguage;
+  }
+
+  return getPreferredLanguageFromAcceptLanguage(headerStore.get("accept-language"));
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const language = await resolveInitialLanguage();
+
+  return {
+    title: "StudyWise",
+    description:
+      language === "en"
+        ? "AI-powered study assistant with Canvas LMS integration"
+        : "KI-drevet studieassistent med Canvas LMS-integrasjon",
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "black-translucent",
+      title: "StudyWise",
+    },
+    icons: {
+      apple: "/icons/apple-touch-icon.png",
+    },
+  };
+}
+
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const initialLanguage = await resolveInitialLanguage();
   const rumApplicationId =
     process.env.DD_RUM_APPLICATION_ID ?? process.env.NEXT_PUBLIC_DD_RUM_APPLICATION_ID;
   const rumClientToken =
@@ -54,7 +78,7 @@ export default function RootLayout({
       : null;
 
   return (
-    <html lang="nb" suppressHydrationWarning>
+    <html lang={initialLanguage} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://clerk.studwize.page" />
         <link rel="dns-prefetch" href="https://clerk.studwize.page" />
@@ -68,30 +92,27 @@ export default function RootLayout({
         {process.env.NODE_ENV === "development" && (
           <script
             dangerouslySetInnerHTML={{
-              __html: `(function(){var o=console.error;console.error=function(){if(typeof arguments[0]==="string"&&arguments[0].indexOf("__experimental_CheckoutProvider")!==-1)return;o.apply(console,arguments)};})();`,
+              __html: `(function(){var originalError=console.error;console.error=function(){try{var args=Array.prototype.slice.call(arguments);var joined=args.map(function(arg){return typeof arg==="string"?arg:"";}).join(" ");var isClerkCheckoutKeyWarning=joined.indexOf('Each child in a list should have a unique "key" prop')!==-1&&joined.indexOf("__experimental_CheckoutProvider")!==-1;if(isClerkCheckoutKeyWarning)return;}catch(_error){}originalError.apply(console,arguments);};})();`,
             }}
           />
         )}
       </head>
       <body className="antialiased min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950" suppressHydrationWarning>
-        <ClerkProvider
-          publishableKey={clerkPublishableKey ?? undefined}
-          localization={nbNO}
-          signInUrl="/auth/sign-in"
-          signUpUrl="/auth/sign-up"
-          dynamic
-        >
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-            {rumConfig && (
-              <script
-                dangerouslySetInnerHTML={{
-                  __html: `window.__DD_RUM_CONFIG__=${JSON.stringify(rumConfig)};`,
-                }}
-              />
-            )}
-            <MainAppShell>{children}</MainAppShell>
-          </ThemeProvider>
-        </ClerkProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          {rumConfig && (
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `window.__DD_RUM_CONFIG__=${JSON.stringify(rumConfig)};`,
+              }}
+            />
+          )}
+          <MainAppShell
+            clerkPublishableKey={clerkPublishableKey}
+            initialLanguage={initialLanguage}
+          >
+            {children}
+          </MainAppShell>
+        </ThemeProvider>
       </body>
     </html>
   );

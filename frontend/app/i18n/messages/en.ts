@@ -3,7 +3,10 @@ import type { PartialMessages } from "../types";
 export const enMessages = {
   common: {
     actions: {
+      askAi: "Ask AI",
+      backToSignIn: "Back to sign in",
       cancel: "Cancel",
+      change: "Change",
       clearAll: "Clear all",
       delete: "Delete",
       editProfileSecurity: "Edit profile and security",
@@ -16,9 +19,12 @@ export const enMessages = {
       retry: "Try again",
       restoreConnection: "Restore connection",
       save: "Save",
+      sendCode: "Send code",
+      completeReset: "Set new password",
       show: "Show",
       signOut: "Sign out",
       start: "Start",
+      verifyCode: "Verify code",
     },
     labels: {
       canvasUser: "Canvas user",
@@ -74,6 +80,63 @@ export const enMessages = {
     deleteError: "Could not delete the conversation",
     deleteSuccess: "Conversation deleted",
     saveError: "Could not save the conversation",
+  },
+  auth: {
+    forgotPassword: {
+      complete: {
+        description: "Your password has been updated, and you are being redirected to the dashboard.",
+        title: "Password updated",
+      },
+      code: {
+        descriptionEmail:
+          "Enter the code we sent to the email address connected to your account.",
+        label: "Verification code",
+        placeholder: "123456",
+      },
+      description:
+        "Forgot your password? Enter your email address, verify the code we send, and choose a new password.",
+      emailOnly: "Email only",
+      eyebrow: "Account recovery",
+      identifier: {
+        description:
+          "Use the email address that is connected to your StudyWise account.",
+        emailLabel: "Email address",
+        emailPlaceholder: "name@example.com",
+      },
+      mfa: {
+        description:
+          "Your password is updated, but this account requires two-factor authentication before sign-in can finish. Go back to sign in to continue.",
+        title: "Two-factor authentication required",
+      },
+      setCredential: {
+        description: "Choose a new password for your email sign-in.",
+        label: "New password",
+        placeholder: "Enter new password",
+      },
+      sent: {
+        emailDescription: "We have sent a recovery code to your email.",
+        emailTitle: "Code sent by email",
+      },
+      steps: {
+        identify: "Find your account",
+        setCredential: "Choose a new password",
+        verify: "Verify code",
+      },
+      thirdParty: {
+        description:
+          "If you usually sign in with Microsoft, Google, or Apple, you normally do not need to reset a password here. Go back to sign in and choose the same method you used before.",
+        title: "Do you use Microsoft, Google, or Apple?",
+      },
+      support:
+        "If you do not receive the code, check your spam folder. If you usually use Microsoft, Google, or Apple, go back and sign in with the same method.",
+      title: "Forgot password?",
+    },
+    signIn: {
+      forgotPasswordAction: "Recover access",
+      forgotPasswordDescription:
+        "For email sign-in. If you use Microsoft, Google, or Apple, continue with the same provider instead.",
+      forgotPasswordTitle: "Forgot password?",
+    },
   },
   errors: {
     boundary: {
@@ -138,6 +201,35 @@ export const enMessages = {
       events: "Events",
     },
     title: "Notifications",
+  },
+  landing: {
+    actions: {
+      continueToDashboard: "Continue to Dashboard",
+      signInOrRegister: "Sign in / Register",
+    },
+    features: {
+      aiPartner: {
+        description:
+          "Stuck on something? Get instant help, explanations, and study tips from your personal AI assistant.",
+        title: "AI Study Partner",
+      },
+      canvasIntegration: {
+        description:
+          "Connect Canvas once and get access to all your courses, modules, files, and announcements directly in the dashboard.",
+        title: "Seamless Canvas Integration",
+      },
+      heading: "Features",
+      overview: {
+        description:
+          "See everything happening today and in the coming days. Your personal tasks and school deadlines are gathered in one place.",
+        title: "Complete Overview",
+      },
+    },
+    hero: {
+      description:
+        "StudyWise gathers everything you need in one place. Get a full overview of Canvas, your upcoming assignments, and AI help to study smarter, not harder.",
+      title: "Your Intelligent Study Assistant",
+    },
   },
   overview: {
     missingCanvasPlanner:

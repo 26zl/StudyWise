@@ -6,16 +6,40 @@
 // Dette er nødvendig for biblioteker som bruker React Context (som React Query).
 "use client";
 
+import { ClerkProvider, useAuth } from "@clerk/nextjs";
+import { enUS, nbNO } from "@clerk/localizations";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useCallback } from "react";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
-import { useAuth } from "@clerk/nextjs";
 import { useAuthSync } from "./hooks/use-auth-sync";
 import { setClerkGetToken } from "./lib/clerkTokenForApi";
 import { setDatadogUser, clearDatadogUser } from "@/app/components/layout/DatadogRum";
 import { AUTH_ME_QUERY_KEY, prefetchMe } from "./auth/auth-api";
 import type { MeResponse } from "common/auth";
-import { LanguageProvider } from "@/app/i18n";
+import { LanguageProvider, useLanguage } from "@/app/i18n";
+import type { Language } from "@/app/i18n/types";
+
+function ClerkProviderMedSprak({
+  children,
+  clerkPublishableKey,
+}: {
+  children: React.ReactNode;
+  clerkPublishableKey?: string | null;
+}) {
+  const { language } = useLanguage();
+
+  return (
+    <ClerkProvider
+      publishableKey={clerkPublishableKey ?? undefined}
+      localization={language === "en" ? enUS : nbNO}
+      signInUrl="/auth/sign-in"
+      signUpUrl="/auth/sign-up"
+      dynamic
+    >
+      {children}
+    </ClerkProvider>
+  );
+}
 
 // Gir backend API tilgang til Clerk session token (for brukere som logger inn med Clerk)
 function ClerkTokenSync() {
@@ -90,7 +114,15 @@ function DatadogUserSync() {
   return null;
 }
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({
+  children,
+  clerkPublishableKey,
+  initialLanguage,
+}: {
+  children: React.ReactNode;
+  clerkPublishableKey?: string | null;
+  initialLanguage: Language;
+}) {
   // Lager en instans av QueryClient som håndterer caching av data.
   // useState sikrer at clienten bare lages én gang per sesjon (ikke på hver render).
   const [queryClient] = useState(
@@ -111,16 +143,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
   // Pakker inn applikasjonen (children) med Provideren.
   // Dette gjør at alle komponenter inni kan bruke hooks som useQuery().
   return (
-    <QueryClientProvider client={queryClient}>
-      <NuqsAdapter>
-        <LanguageProvider>
-          <ClerkTokenSync />
-          <AuthSyncListener />
-          <PrefetchMeOnMount />
-          <DatadogUserSync />
-          {children}
-        </LanguageProvider>
-      </NuqsAdapter>
-    </QueryClientProvider>
+    <LanguageProvider initialLanguage={initialLanguage}>
+      <ClerkProviderMedSprak clerkPublishableKey={clerkPublishableKey}>
+        <QueryClientProvider client={queryClient}>
+          <NuqsAdapter>
+            <ClerkTokenSync />
+            <AuthSyncListener />
+            <PrefetchMeOnMount />
+            <DatadogUserSync />
+            {children}
+          </NuqsAdapter>
+        </QueryClientProvider>
+      </ClerkProviderMedSprak>
+    </LanguageProvider>
   );
 }

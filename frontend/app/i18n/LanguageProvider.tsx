@@ -11,6 +11,7 @@ import {
 } from "react";
 import {
   DEFAULT_LANGUAGE,
+  LANGUAGE_COOKIE_KEY,
   isLanguage,
   LANGUAGE_STORAGE_KEY,
   translate,
@@ -25,9 +26,9 @@ interface LanguageContextValue {
 
 export const LanguageContext = createContext<LanguageContextValue | null>(null);
 
-function getInitialLanguage(): Language {
+function getClientPreferredLanguage(fallback: Language): Language {
   if (typeof window === "undefined") {
-    return DEFAULT_LANGUAGE;
+    return fallback;
   }
 
   const storedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
@@ -35,15 +36,38 @@ function getInitialLanguage(): Language {
     return storedLanguage;
   }
 
-  return window.navigator.language.toLowerCase().startsWith("en") ? "en" : DEFAULT_LANGUAGE;
+  return window.navigator.language.toLowerCase().startsWith("en") ? "en" : fallback;
 }
 
-export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>(DEFAULT_LANGUAGE);
+function setLanguageCookie(language: Language) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  // SSR language persistence is only needed in deployed secure contexts.
+  // localStorage still preserves the preference during local http development.
+  if (!window.isSecureContext) {
+    return;
+  }
+
+  document.cookie = `${LANGUAGE_COOKIE_KEY}=${encodeURIComponent(language)}; path=/; max-age=31536000; SameSite=Lax; Secure`;
+}
+
+export function LanguageProvider({
+  children,
+  initialLanguage = DEFAULT_LANGUAGE,
+}: {
+  children: ReactNode;
+  initialLanguage?: Language;
+}) {
+  const [language, setLanguageState] = useState<Language>(initialLanguage);
 
   useEffect(() => {
-    setLanguageState(getInitialLanguage());
-  }, []);
+    const preferredLanguage = getClientPreferredLanguage(initialLanguage);
+    setLanguageState((currentLanguage) =>
+      currentLanguage === preferredLanguage ? currentLanguage : preferredLanguage,
+    );
+  }, [initialLanguage]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -51,6 +75,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     }
 
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    setLanguageCookie(language);
     document.documentElement.lang = language;
   }, [language]);
 

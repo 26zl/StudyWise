@@ -221,7 +221,7 @@ export function useMeg(options?: { initialData?: MeResponse; enabled?: boolean }
   });
 }
 // Hook for utlogging
-export function useLoggUt() {
+function useLoggUt() {
   return useMutation({
     mutationFn: () => loggUt(),
   });
