@@ -12,7 +12,7 @@ import { useLanguage } from "@/app/i18n";
 
 function DashboardFallback() {
   const { t } = useLanguage();
-  return <LoadingView text={t("dashboard.loading")} />;
+  return <LoadingView text={t("common.loading.dashboard")} />;
 }
 
 export default function DashboardPage() {

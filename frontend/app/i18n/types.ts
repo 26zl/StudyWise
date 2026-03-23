@@ -1,42 +1,30 @@
+import { nbMessages } from "./messages/nb";
+
 export type Language = "nb" | "en";
 
-export type TranslationKey =
-  | "common.loading"
-  | "common.error"
-  | "common.retry"
-  | "common.reload"
-  | "common.goToDashboard"
-  | "dashboard.loading"
-  | "dashboard.loadingUserData"
-  | "dashboard.loadingChat"
-  | "dashboard.loadingCalendar"
-  | "dashboard.loadingCanvas"
-  | "dashboard.loadingNotifications"
-  | "dashboard.loadingSettings"
-  | "dashboard.loadingQuiz"
-  | "dashboard.redirectingToLogin"
-  | "nav.overview"
-  | "nav.newChat"
-  | "nav.aiAssistant"
-  | "nav.taskBreakdown"
-  | "nav.quiz"
-  | "nav.chatHistory"
-  | "nav.noChats"
-  | "nav.canvas"
-  | "nav.notifications"
-  | "nav.courses"
-  | "nav.calendar"
-  | "nav.assignments"
-  | "nav.announcements"
-  | "nav.settings"
-  | "user.canvasUser"
-  | "user.notLoggedIn"
-  | "user.logout"
-  | "errors.generic"
-  | "errors.section"
-  | "errors.couldNotLoad"
-  | "errors.tryReload"
-  | "errors.network.generic"
-  | "settings.language.label"
-  | "settings.language.nb"
-  | "settings.language.en";
+type Primitive = string;
+
+export type Messages = typeof nbMessages;
+
+export type PartialMessages = {
+  [K in keyof Messages]?: Messages[K] extends Primitive ? string : PartialMessagesFor<Messages[K]>;
+};
+
+type PartialMessagesFor<T> = {
+  [K in keyof T]?: T[K] extends Primitive ? string : PartialMessagesFor<T[K]>;
+};
+
+type NestedKeys<T> = {
+  [K in keyof T & string]: T[K] extends Primitive
+    ? K
+    : `${K}.${NestedKeys<T[K]>}`;
+}[keyof T & string];
+
+export type MessageKey = NestedKeys<Messages>;
+
+export type TranslationValues = Record<string, number | string>;
+
+export type Translator = (
+  key: MessageKey,
+  values?: TranslationValues,
+) => string;

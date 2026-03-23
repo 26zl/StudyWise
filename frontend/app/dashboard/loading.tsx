@@ -5,5 +5,5 @@
 import { LoadingView } from "@/app/components/ui/Loading";
 
 export default function DashboardLoading() {
-  return <LoadingView text="Laster dashboard..." />;
+  return <LoadingView translationKey="common.loading.dashboard" />;
 }

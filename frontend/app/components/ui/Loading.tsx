@@ -5,6 +5,8 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
+import { useLanguage } from "@/app/i18n";
+import type { MessageKey, TranslationValues } from "@/app/i18n";
 
 const SPINNER_DEFAULT_CLASS =
   "w-8 h-8 text-blue-600 dark:text-blue-400 animate-spin";
@@ -27,6 +29,10 @@ export function LoadingSpinner({ className }: LoadingSpinnerProps) {
 export interface LoadingViewProps {
   /** Tekst under sirkelen, f.eks. "Laster dashboard..." */
   text?: string;
+  /** Oversettelsesnøkkel for tekst under sirkelen */
+  translationKey?: MessageKey;
+  /** Verdier for enkel strenginterpolasjon */
+  values?: TranslationValues;
   /** Full høyde (min-h-full) og bakgrunn – for route loading.tsx. Default true. */
   fullPage?: boolean;
   /** Ekstra CSS på wrapper */
@@ -39,9 +45,16 @@ export interface LoadingViewProps {
  */
 export function LoadingView({
   text,
+  translationKey,
+  values,
   fullPage = true,
   className = "",
 }: LoadingViewProps) {
+  const { t } = useLanguage();
+  const visningstekst =
+    text ??
+    (translationKey ? t(translationKey, values) : t("common.loading.generic"));
+
   return (
     <div
       className={
@@ -52,8 +65,8 @@ export function LoadingView({
     >
       <div className="flex flex-col items-center gap-3">
         <LoadingSpinner />
-        {text ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">{text}</p>
+        {visningstekst ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400">{visningstekst}</p>
         ) : null}
       </div>
     </div>

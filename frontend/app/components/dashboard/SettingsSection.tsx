@@ -7,13 +7,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Moon, Sun, Key, User, Info, Trash2, MessageSquare, Bot, CheckCircle, Shield, ExternalLink } from "lucide-react";
+import { Moon, Sun, Key, User, Info, Trash2, MessageSquare, Bot, CheckCircle, Shield, ExternalLink, Languages } from "lucide-react";
 import { useClerk } from "@clerk/nextjs";
 import { AUTH_ME_QUERY_KEY, CanvasTokenConflictError, useLagreCanvasToken, useSlettCanvasToken, useSlettKonto } from "@/app/auth/auth-api";
 import { resetCanvasTokenStatus, useCanvasUser } from "@/app/canvas/canvas-api";
 import { useTheme } from "next-themes";
 import { format } from "date-fns";
-import { nb } from "date-fns/locale";
+import { enUS, nb } from "date-fns/locale";
 import { useChatHistory } from "@/app/hooks/useChatHistory";
 import { broadcastLogout, clearClientAuthState } from "@/app/hooks/use-auth-sync";
 import { showToast } from "@/app/components/ui/Toaster";
@@ -21,6 +21,7 @@ import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { CanvasContextSelector } from "@/app/components/canvas/CanvasContextSelector";
 import { CANVAS_INSTITUSJONER_NORGE } from "common/canvasInstitutions";
 import { CanvasBaseUrlSchema } from "common/auth";
+import { useLanguage } from "@/app/i18n";
 
 // Typer for SettingsSection props
 interface SettingsSectionProps {
@@ -108,6 +109,7 @@ export function SettingsSection({
     canvasBaseUrl: brukerCanvasBaseUrl,
 }: SettingsSectionProps) {
     const clerk = useClerk();
+    const { language, setLanguage, t } = useLanguage();
     const { setTheme, resolvedTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
 
@@ -150,6 +152,22 @@ export function SettingsSection({
     const [valgtInstitusjonUrl, setValgtInstitusjonUrl] = useState<string>("");
     const [annenCanvasUrl, setAnnenCanvasUrl] = useState("");
     const { clearAll: clearChatHistory, chats, loading: chatsLoading } = useChatHistory();
+    const datoLocale = language === "en" ? enUS : nb;
+    const slettBekreftelsesord = t("settings.deleteAccount.confirmKeyword");
+    const getCanvasFeilmelding = (error: unknown) =>
+        lagBrukervennligFeilmelding(
+            error instanceof Error ? error : null,
+            { canvas: true },
+            t("errors.generic.default"),
+            t,
+        );
+    const getGenerellFeilmelding = (error: unknown) =>
+        lagBrukervennligFeilmelding(
+            error instanceof Error ? error : null,
+            {},
+            t("errors.generic.default"),
+            t,
+        );
 
     useEffect(() => {
         return () => {
@@ -172,7 +190,11 @@ export function SettingsSection({
 
     // Formater opprettelsesdato hvis tilgjengelig
     const opprettetDato = canvasUser?.created_at
-        ? format(new Date(canvasUser.created_at), "d. MMMM yyyy", { locale: nb })
+        ? format(
+            new Date(canvasUser.created_at),
+            language === "en" ? "MMMM d, yyyy" : "d. MMMM yyyy",
+            { locale: datoLocale },
+        )
         : null;
 
     // Håndter lagring av Canvas token
@@ -184,14 +206,17 @@ export function SettingsSection({
             ? annenCanvasUrl.trim()
             : valgtInstitusjonUrl;
         if (!valgtCanvasBaseUrl) {
-            showToast.error("Velg institusjon", "Velg en Canvas-institusjon før du lagrer tokenet.");
+            showToast.error(
+                t("settings.canvasToken.chooseInstitutionTitle"),
+                t("settings.canvasToken.chooseInstitutionDescription"),
+            );
             return;
         }
         const parsedCanvasBaseUrl = CanvasBaseUrlSchema.safeParse(valgtCanvasBaseUrl);
         if (!parsedCanvasBaseUrl.success) {
             showToast.error(
-                "Ugyldig Canvas-URL",
-                parsedCanvasBaseUrl.error.issues[0]?.message || "Skriv inn en gyldig Canvas-instans.",
+                t("settings.canvasToken.invalidUrlTitle"),
+                t("settings.canvasToken.invalidUrlDescription"),
             );
             return;
         }
@@ -208,7 +233,10 @@ export function SettingsSection({
             // Invalidér queries for å hente data på nytt
             queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY });
             queryClient.invalidateQueries({ queryKey: ["canvas"] });
-            showToast.success("Canvas-token lagret", "Canvas-data blir tilgjengelig om kort tid.");
+            showToast.success(
+                t("settings.canvasToken.saveSuccessTitle"),
+                t("settings.canvasToken.saveSuccessDescription"),
+            );
             // Sett cooldown for å hindre spamming (clear ved unmount)
             setCooldown(true);
             if (cooldownTimeoutRef.current) clearTimeout(cooldownTimeoutRef.current);
@@ -220,13 +248,12 @@ export function SettingsSection({
                     melding: err.message,
                 });
                 showToast.warning(
-                    "Canvas-kontoen er allerede koblet",
-                    "Hvis dette er din konto, kan du gjenopprette tilkoblingen her.",
+                    t("settings.canvasToken.alreadyConnectedTitle"),
+                    t("settings.canvasToken.alreadyConnectedDescription"),
                 );
                 return;
             }
-            const feilmelding = lagBrukervennligFeilmelding(err instanceof Error ? err : null, { canvas: true });
-            showToast.error("Kunne ikke lagre token", feilmelding);
+            showToast.error(t("settings.canvasToken.saveErrorTitle"), getCanvasFeilmelding(err));
         }
     };
 
@@ -239,10 +266,12 @@ export function SettingsSection({
             // Invalidér queries for å oppdatere UI
             queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY });
             queryClient.invalidateQueries({ queryKey: ["canvas"] });
-            showToast.success("Canvas-token slettet", "Canvas-tilkoblingen er fjernet.");
+            showToast.success(
+                t("settings.canvasToken.deleteSuccessTitle"),
+                t("settings.canvasToken.deleteSuccessDescription"),
+            );
         } catch (err) {
-            const feilmelding = lagBrukervennligFeilmelding(err instanceof Error ? err : null, { canvas: true });
-            showToast.error("Kunne ikke slette token", feilmelding);
+            showToast.error(t("settings.canvasToken.deleteErrorTitle"), getCanvasFeilmelding(err));
         }
     };
 
@@ -257,11 +286,14 @@ export function SettingsSection({
             const result = await slettKonto();
 
             if (result.providerAccountDeleted) {
-                showToast.success("Konto slettet", "StudyWise-kontoen og tilknyttet data er slettet.");
+                showToast.success(
+                    t("settings.deleteAccount.deleteSuccessTitle"),
+                    t("settings.deleteAccount.deleteSuccessDescription"),
+                );
             } else {
                 showToast.warning(
-                    "StudyWise-konto slettet",
-                    "Dataene er slettet, men innloggingskontoen kunne ikke fjernes automatisk. Vi logger deg ut nå.",
+                    t("settings.deleteAccount.deletePartialTitle"),
+                    t("settings.deleteAccount.deletePartialDescription"),
                 );
             }
 
@@ -270,16 +302,15 @@ export function SettingsSection({
                 await clerk.signOut();
             } catch {
                 showToast.error(
-                    "Manuell utlogging kreves",
-                    "StudyWise-dataene er slettet, men vi klarte ikke å avslutte innloggingssesjonen automatisk.",
+                    t("settings.deleteAccount.manualSignOutTitle"),
+                    t("settings.deleteAccount.manualSignOutDescription"),
                 );
                 return;
             }
 
             fullforLokalUtlogging();
         } catch (err) {
-            const feilmelding = lagBrukervennligFeilmelding(err instanceof Error ? err : null, {}, "Prøv igjen.");
-            showToast.error("Kunne ikke slette konto", feilmelding);
+            showToast.error(t("settings.deleteAccount.deleteErrorTitle"), getGenerellFeilmelding(err));
         }
     };
 
@@ -292,7 +323,7 @@ export function SettingsSection({
             {/* Header */}
             <div className="shrink-0 px-4 md:px-6 py-4 border-b border-slate-200 dark:border-slate-800">
                 <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
-                    Innstillinger
+                    {t("settings.title")}
                 </h2>
             </div>
 
@@ -306,7 +337,7 @@ export function SettingsSection({
                                 <User size={20} className="text-slate-600 dark:text-slate-300" />
                             </div>
                             <h3 className="font-semibold text-slate-900 dark:text-white">
-                                Profil
+                                {t("settings.profile.title")}
                             </h3>
                         </div>
 
@@ -315,15 +346,15 @@ export function SettingsSection({
                             <div className="flex items-center gap-4">
                                 <ProfileAvatar
                                     label={lokalBrukerEpost}
-                                    alt="Profilbilde for StudyWise-konto"
+                                    alt={t("settings.profile.avatarAltStudyWise")}
                                     tone="blue"
                                 />
                                 <div>
                                     <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                                        StudyWise-konto
+                                        {t("settings.profile.studywiseAccount")}
                                     </p>
                                     <p className="font-medium text-slate-900 dark:text-white">
-                                        {lokalBrukerEpost || "Ikke innlogget"}
+                                        {lokalBrukerEpost || t("common.labels.notSignedIn")}
                                     </p>
                                 </div>
                             </div>
@@ -334,7 +365,7 @@ export function SettingsSection({
                             {/* Canvas-tilkobling */}
                             <div>
                                 <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">
-                                    Canvas-tilkobling
+                                    {t("settings.profile.canvasConnection")}
                                 </p>
                                 {canvasUserQuery.isLoading ? (
                                     <div className="flex items-center gap-4">
@@ -349,7 +380,7 @@ export function SettingsSection({
                                         <ProfileAvatar
                                             imageUrl={getSafeAvatarUrl(canvasUser.avatar_url)}
                                             label={canvasUser.name}
-                                            alt={canvasUser.name || "Profilbilde for Canvas-konto"}
+                                            alt={canvasUser.name || t("settings.profile.avatarAltCanvas")}
                                             tone="green"
                                         />
                                         <div>
@@ -363,14 +394,14 @@ export function SettingsSection({
                                             )}
                                             {opprettetDato && (
                                                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                                                    Tilkoblet siden {opprettetDato}
+                                                    {t("settings.profile.connectedSince", { date: opprettetDato })}
                                                 </p>
                                             )}
                                         </div>
                                     </div>
                                 ) : (
                                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                                        Ikke tilkoblet. Legg til Canvas API-token nedenfor.
+                                        {t("settings.profile.notConnected")}
                                     </p>
                                 )}
                             </div>
@@ -384,18 +415,18 @@ export function SettingsSection({
                                 <Shield size={20} className="text-slate-600 dark:text-slate-300" />
                             </div>
                             <h3 className="font-semibold text-slate-900 dark:text-white">
-                                Konto og sikkerhet
+                                {t("settings.accountSecurity.title")}
                             </h3>
                         </div>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                            Endre e-post, passord, aktiver to-faktor (2FA) og administrer tilkoblede innloggingsmetoder (Google, Microsoft, Apple). Dette håndteres av innloggingsleverandøren vår (Clerk).
+                            {t("settings.accountSecurity.description")}
                         </p>
                         <Link
                             href="/profil"
                             prefetch={false}
                             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors"
                         >
-                            Rediger profil og sikkerhet
+                            {t("settings.accountSecurity.action")}
                             <ExternalLink size={14} />
                         </Link>
                     </section>
@@ -406,11 +437,11 @@ export function SettingsSection({
                                 <Trash2 size={20} className="text-red-600 dark:text-red-300" />
                             </div>
                             <h3 className="font-semibold text-slate-900 dark:text-white">
-                                Slett konto
+                                {t("settings.deleteAccount.title")}
                             </h3>
                         </div>
                         <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                            Dette sletter StudyWise-kontoen din, Canvas-koblinger, preferanser, arbeidsplaner og samtalehistorikk. Handlingen kan ikke angres.
+                            {t("settings.deleteAccount.description")}
                         </p>
 
                         {!visKontoSletting ? (
@@ -420,28 +451,28 @@ export function SettingsSection({
                                 className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700"
                             >
                                 <Trash2 size={16} />
-                                Start kontosletting
+                                {t("settings.deleteAccount.start")}
                             </button>
                         ) : (
                             <div className="space-y-3 rounded-lg border border-red-200 dark:border-red-900 bg-white/80 dark:bg-slate-900/40 p-4">
                                 <p className="text-sm text-slate-700 dark:text-slate-300">
-                                    Skriv <span className="font-semibold">SLETT</span> for å bekrefte.
+                                    {t("settings.deleteAccount.confirmInstruction", { keyword: slettBekreftelsesord })}
                                 </p>
                                 <input
                                     type="text"
                                     value={kontoSlettBekreftelse}
                                     onChange={(e) => setKontoSlettBekreftelse(e.target.value)}
-                                    placeholder="SLETT"
+                                    placeholder={t("settings.deleteAccount.confirmPlaceholder")}
                                     className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
                                 />
                                 <div className="flex flex-wrap items-center gap-3">
                                     <button
                                         type="button"
                                         onClick={() => void handleSlettKonto()}
-                                        disabled={kontoSlettBekreftelse.trim().toUpperCase() !== "SLETT" || isSlettingKonto}
+                                        disabled={kontoSlettBekreftelse.trim().toUpperCase() !== slettBekreftelsesord.toUpperCase() || isSlettingKonto}
                                         className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
-                                        {isSlettingKonto ? "Sletter konto..." : "Slett konto permanent"}
+                                        {isSlettingKonto ? t("settings.deleteAccount.deleting") : t("settings.deleteAccount.deletePermanent")}
                                     </button>
                                     <button
                                         type="button"
@@ -452,11 +483,40 @@ export function SettingsSection({
                                         disabled={isSlettingKonto}
                                         className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                                     >
-                                        Avbryt
+                                        {t("settings.deleteAccount.cancel")}
                                     </button>
                                 </div>
                             </div>
                         )}
+                    </section>
+
+                    <section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
+                                <Languages size={20} className="text-slate-600 dark:text-slate-300" />
+                            </div>
+                            <h3 className="font-semibold text-slate-900 dark:text-white">
+                                {t("settings.language.title")}
+                            </h3>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label htmlFor="language-select" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                {t("settings.language.label")}
+                            </label>
+                            <select
+                                id="language-select"
+                                value={language}
+                                onChange={(e) => setLanguage(e.target.value === "en" ? "en" : "nb")}
+                                className="w-full max-w-xs min-h-11 px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value="nb">{t("settings.language.options.nb")}</option>
+                                <option value="en">{t("settings.language.options.en")}</option>
+                            </select>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">
+                                {t("settings.language.help")}
+                            </p>
+                        </div>
                     </section>
 
                     {/* Utseende */}
@@ -470,15 +530,15 @@ export function SettingsSection({
                                 )}
                             </div>
                             <h3 className="font-semibold text-slate-900 dark:text-white">
-                                Utseende
+                                {t("settings.appearance.title")}
                             </h3>
                         </div>
 
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-slate-700 dark:text-slate-300">Mørk modus</p>
+                                <p className="text-slate-700 dark:text-slate-300">{t("settings.appearance.darkMode.label")}</p>
                                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                                    Bytt mellom lyst og mørkt tema
+                                    {t("settings.appearance.darkMode.description")}
                                 </p>
                             </div>
                             <button
@@ -487,7 +547,7 @@ export function SettingsSection({
                                     }`}
                                 role="switch"
                                 aria-checked={isDarkMode}
-                                aria-label={isDarkMode ? "Deaktiver mørk modus" : "Aktiver mørk modus"}
+                                aria-label={isDarkMode ? t("settings.appearance.darkMode.disable") : t("settings.appearance.darkMode.enable")}
                             >
                                 <span
                                     className={`block w-6 h-6 rounded-full bg-white shadow-sm transition-transform duration-200 ${isDarkMode ? "translate-x-6" : "translate-x-0"
@@ -504,18 +564,19 @@ export function SettingsSection({
                                 <Key size={20} className="text-slate-600 dark:text-slate-300" />
                             </div>
                             <h3 className="font-semibold text-slate-900 dark:text-white">
-                                Canvas API Token
+                                {t("settings.canvasToken.title")}
                             </h3>
                         </div>
 
                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                            Koble til din Canvas-konto for å hente emner, kunngjøringer,
-                            frister og forelesninger. Velg institusjon under før du lagrer tokenet. Listen dekker kjente norske Canvas-instanser, og du kan angi en annen Instructure-URL ved behov.
+                            {t("settings.canvasToken.description")}
                         </p>
 
                         {brukerCanvasBaseUrl && (
                             <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-                                Din institusjon: <span className="font-medium text-slate-800 dark:text-slate-200">{brukerCanvasBaseUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}</span>
+                                {t("settings.canvasToken.currentInstitution", {
+                                    institution: brukerCanvasBaseUrl.replace(/^https?:\/\//, "").replace(/\/$/, ""),
+                                })}
                             </p>
                         )}
 
@@ -525,7 +586,7 @@ export function SettingsSection({
                                     <div className="flex gap-2">
                                         <CheckCircle size={16} className="text-green-600 shrink-0 mt-0.5" />
                                         <p className="text-sm text-green-700 dark:text-green-300">
-                                            Canvas-token er koblet til kontoen din.
+                                            {t("settings.canvasToken.connected")}
                                         </p>
                                     </div>
                                     {/* Slett bekreftelse - Forenklet */}
@@ -534,12 +595,12 @@ export function SettingsSection({
                                             onClick={() => setVisSlettBekreftelse(true)}
                                             className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
                                         >
-                                            Slett tilkobling
+                                            {t("settings.canvasToken.deleteConnection")}
                                         </button>
                                     ) : (
                                         <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
                                             <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
-                                                Er du sikker?
+                                                {t("settings.canvasToken.deleteConfirm")}
                                             </span>
                                             <div className="flex items-center gap-2">
                                                 <button
@@ -547,13 +608,13 @@ export function SettingsSection({
                                                     disabled={isSlettingToken}
                                                     className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
-                                                    {isSlettingToken ? "Sletter..." : "Ja, slett Canvas API Token"}
+                                                    {isSlettingToken ? t("settings.canvasToken.deleting") : t("settings.canvasToken.deletingButton")}
                                                 </button>
                                                 <button
                                                     onClick={() => setVisSlettBekreftelse(false)}
                                                     className="px-2 py-1 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs rounded transition-colors"
                                                 >
-                                                    Avbryt
+                                                    {t("common.actions.cancel")}
                                                 </button>
                                             </div>
                                         </div>
@@ -565,7 +626,7 @@ export function SettingsSection({
                         <fieldset className="space-y-3">
                             <div>
                                 <label htmlFor="canvas-institusjon" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                    Institusjon (Canvas)
+                                    {t("settings.canvasToken.institutionLabel")}
                                 </label>
                                 <select
                                     id="canvas-institusjon"
@@ -578,11 +639,11 @@ export function SettingsSection({
                                     }}
                                     className="w-full min-h-11 px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
-                                    <option value="">Velg institusjon</option>
+                                    <option value="">{t("settings.canvasToken.institutionPlaceholder")}</option>
                                     {CANVAS_INSTITUSJONER_NORGE.map((inst) => (
                                         <option key={inst.url} value={inst.url}>{inst.navn}</option>
                                     ))}
-                                    <option value="other">Annen Instructure-instans</option>
+                                    <option value="other">{t("settings.canvasToken.institutionOther")}</option>
                                 </select>
                                 {valgtInstitusjonUrl === "other" ? (
                                     <input
@@ -592,13 +653,13 @@ export function SettingsSection({
                                             setAnnenCanvasUrl(e.target.value);
                                             setCanvasKonflikt(null);
                                         }}
-                                        placeholder="https://din-skole.instructure.com"
+                                        placeholder={t("settings.canvasToken.customUrlPlaceholder")}
                                         className="mt-2 w-full min-h-11 px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     />
                                 ) : null}
                                 {manglerCanvasUrl && (
                                     <p className="mt-1.5 text-sm text-amber-600 dark:text-amber-400">
-                                        Velg institusjon (eller angi URL) før du lagrer tokenet.
+                                        {t("settings.canvasToken.institutionRequired")}
                                     </p>
                                 )}
                             </div>
@@ -613,7 +674,7 @@ export function SettingsSection({
                                         disabled={isPending || cooldown}
                                         className="mt-3 inline-flex items-center rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        {isPending ? "Gjenoppretter..." : "Gjenopprett tilkobling"}
+                                        {isPending ? t("settings.canvasToken.restoring") : t("settings.canvasToken.restoreConnection")}
                                     </button>
                                 </div>
                             )}
@@ -629,7 +690,7 @@ export function SettingsSection({
                                             setCanvasKonflikt(null);
                                         }
                                     }}
-                                    placeholder="Lim inn din Canvas API token"
+                                    placeholder={t("settings.canvasToken.placeholder")}
                                     className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                 />
                                 <button
@@ -637,7 +698,7 @@ export function SettingsSection({
                                     onClick={() => setVisToken(!visToken)}
                                     className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                                 >
-                                    {visToken ? "Skjul" : "Vis"}
+                                    {visToken ? t("settings.canvasToken.hide") : t("settings.canvasToken.show")}
                                 </button>
                             </div>
 
@@ -646,7 +707,7 @@ export function SettingsSection({
                                 disabled={!canvasToken.trim() || isPending || cooldown || manglerCanvasUrl}
                                 className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
-                                {isPending ? "Lagrer..." : "Lagre token"}
+                                {isPending ? t("settings.canvasToken.saving") : t("settings.canvasToken.save")}
                             </button>
                         </fieldset>
 
@@ -655,12 +716,12 @@ export function SettingsSection({
                             <div className="flex gap-2">
                                 <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />
                                 <div className="text-sm text-blue-700 dark:text-blue-300">
-                                    <p className="font-medium mb-1">Slik får du en API token:</p>
+                                    <p className="font-medium mb-1">{t("settings.canvasToken.howTo.title")}</p>
                                     <ol className="list-decimal list-inside space-y-1 text-blue-600 dark:text-blue-400">
-                                        <li>Logg inn på Canvas</li>
-                                        <li>Gå til Innstillinger → Godkjente integrasjoner</li>
-                                        <li>Klikk &quot;Ny tilgangstoken&quot;</li>
-                                        <li>Kopier token og lim inn her</li>
+                                        <li>{t("settings.canvasToken.howTo.step1")}</li>
+                                        <li>{t("settings.canvasToken.howTo.step2")}</li>
+                                        <li>{t("settings.canvasToken.howTo.step3")}</li>
+                                        <li>{t("settings.canvasToken.howTo.step4")}</li>
                                     </ol>
                                 </div>
                             </div>
@@ -674,28 +735,35 @@ export function SettingsSection({
                                 <MessageSquare size={20} className="text-slate-600 dark:text-slate-300" />
                             </div>
                             <h3 className="font-semibold text-slate-900 dark:text-white">
-                                Samtalehistorikk
+                                {t("settings.chatHistory.title")}
                             </h3>
                         </div>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                            Samtalene lagres kryptert. Du kan slette alt her.
+                            {t("settings.chatHistory.description")}
                         </p>
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-slate-700 dark:text-slate-300">
-                                    Lagrede samtaler
+                                    {t("settings.chatHistory.savedChats")}
                                 </p>
                                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                                    {chatsLoading ? "Laster..." : `${chats.length} samtaler`}
+                                    {chatsLoading
+                                        ? t("settings.chatHistory.loading")
+                                        : t(
+                                            chats.length === 1
+                                                ? "settings.chatHistory.countOne"
+                                                : "settings.chatHistory.countOther",
+                                            { count: chats.length },
+                                        )}
                                 </p>
                             </div>
                             <button
                                 onClick={clearChatHistory}
-                                aria-label="Slett alle samtaler"
+                                aria-label={t("settings.chatHistory.clearAll")}
                                 className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                             >
                                 <Trash2 size={16} />
-                                Slett alle samtaler
+                                {t("settings.chatHistory.clearAll")}
                             </button>
                         </div>
                     </section>
@@ -708,11 +776,11 @@ export function SettingsSection({
                                     <Bot size={20} className="text-slate-600 dark:text-slate-300" />
                                 </div>
                                 <h3 className="font-semibold text-slate-900 dark:text-white">
-                                    AI Canvas-kontekst
+                                    {t("settings.canvasContext.title")}
                                 </h3>
                             </div>
                             <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                                Velg hvilken Canvas-data AI-en skal ha tilgang til når du chatter.
+                                {t("settings.canvasContext.description")}
                             </p>
                             <CanvasContextSelector />
                         </section>

@@ -6,6 +6,7 @@
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { showToast, toast } from "@/app/components/ui/Toaster";
+import { useLanguage } from "@/app/i18n";
 import {
   ChatHistoryResponseSchema,
   ChatMessage,
@@ -104,6 +105,7 @@ async function loadChatHistory(): Promise<SavedChat[]> {
 
 export function useChatHistory() {
   const queryClient = useQueryClient();
+  const { t } = useLanguage();
   const { data, isLoading } = useQuery({
     queryKey: CHAT_HISTORY_QUERY_KEY,
     queryFn: loadChatHistory,
@@ -157,7 +159,7 @@ export function useChatHistory() {
           continue;
         }
         if (!options?.silent) {
-          showToast.error("Kunne ikke lagre samtalen", "Prøv igjen senere.");
+          showToast.error(t("chatHistory.saveError"), t("errors.generic.retry"));
         }
         return undefined;
       }
@@ -177,36 +179,36 @@ export function useChatHistory() {
       queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) =>
         (prev ?? []).filter((c) => c.id !== id)
       );
-      showToast.success("Samtale slettet");
+      showToast.success(t("chatHistory.deleteSuccess"));
     } catch (error) {
       if (erIkkeAutentisert(error)) return;
-      showToast.error("Kunne ikke slette samtalen");
+      showToast.error(t("chatHistory.deleteError"));
     }
   };
 
   /** Viser bekreftelses-toast; ved "Slett" kalles DELETE mot API og cache tømmes. */
   const clearAll = useCallback(() => {
-    toast("Slett hele samtalehistorikken?", {
-      description: "Alle lagrede samtaler fjernes. Dette kan ikke angres.",
+    toast(t("chatHistory.clearConfirmTitle"), {
+      description: t("chatHistory.clearConfirmDescription"),
       position: "top-center",
       action: {
-        label: "Slett",
+        label: t("common.actions.delete"),
         onClick: async () => {
           try {
             await fetchJson<unknown>("/api/ki/chat/history", {
               method: "DELETE",
             });
             queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, []);
-            showToast.success("Samtalehistorikk slettet");
+            showToast.success(t("chatHistory.clearSuccess"));
           } catch (error) {
             if (erIkkeAutentisert(error)) return;
-            showToast.error("Kunne ikke slette historikken");
+            showToast.error(t("chatHistory.clearError"));
           }
         },
       },
-      cancel: { label: "Avbryt", onClick: () => {} },
+      cancel: { label: t("common.actions.cancel"), onClick: () => {} },
     });
-  }, [queryClient]);
+  }, [queryClient, t]);
 
   return { chats, saveChat, loadChat, deleteChat, clearAll, loading: isLoading };
 }

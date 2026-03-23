@@ -1,25 +1,40 @@
 /**
  * Felles dato- og klokkeslettformatering for frontend.
- * Bruker norsk locale (no-NO) konsistent på tvers av komponenter.
+ * Støtter norsk og engelsk locale for brukerrettet dato/klokkeslett.
  */
 
-const LOCALE = "no-NO";
+import type { Language } from "@/app/i18n/types";
+
+const LOCALES: Record<Language, string> = {
+  en: "en-US",
+  nb: "no-NO",
+};
 
 function tilDato(verdi: Date | string | number): Date {
   return verdi instanceof Date ? verdi : new Date(verdi);
 }
 
+function getLocale(language: Language = "nb"): string {
+  return LOCALES[language];
+}
+
 /** Kort dato: "5. des." */
-export function formaterDatoShort(d: Date | string | number): string {
-  return tilDato(d).toLocaleDateString(LOCALE, {
+export function formaterDatoShort(
+  d: Date | string | number,
+  language: Language = "nb",
+): string {
+  return tilDato(d).toLocaleDateString(getLocale(language), {
     day: "numeric",
     month: "short",
   });
 }
 
 /** Lang dato: "5. desember 2025" */
-export function formaterDatoLong(d: Date | string | number): string {
-  return tilDato(d).toLocaleDateString(LOCALE, {
+export function formaterDatoLong(
+  d: Date | string | number,
+  language: Language = "nb",
+): string {
+  return tilDato(d).toLocaleDateString(getLocale(language), {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -27,8 +42,11 @@ export function formaterDatoLong(d: Date | string | number): string {
 }
 
 /** Full dato med ukedag: "fredag 5. desember 2025" */
-export function formaterDatoFull(d: Date | string | number): string {
-  return tilDato(d).toLocaleDateString(LOCALE, {
+export function formaterDatoFull(
+  d: Date | string | number,
+  language: Language = "nb",
+): string {
+  return tilDato(d).toLocaleDateString(getLocale(language), {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -37,13 +55,17 @@ export function formaterDatoFull(d: Date | string | number): string {
 }
 
 /** Dato med klokkeslett: "5. des. kl. 14:30" */
-export function formaterDatoMedTid(d: Date | string | number): string {
+export function formaterDatoMedTid(
+  d: Date | string | number,
+  language: Language = "nb",
+): string {
   const date = tilDato(d);
-  const dato = date.toLocaleDateString(LOCALE, {
+  const locale = getLocale(language);
+  const dato = date.toLocaleDateString(locale, {
     day: "numeric",
     month: "short",
   });
-  const tid = date.toLocaleTimeString(LOCALE, {
+  const tid = date.toLocaleTimeString(locale, {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -51,22 +73,29 @@ export function formaterDatoMedTid(d: Date | string | number): string {
 }
 
 /** Kun klokkeslett: "14:30" */
-export function formaterKlokkeslett(d: Date | string | number): string {
-  return tilDato(d).toLocaleTimeString(LOCALE, {
+export function formaterKlokkeslett(
+  d: Date | string | number,
+  language: Language = "nb",
+): string {
+  return tilDato(d).toLocaleTimeString(getLocale(language), {
     hour: "2-digit",
     minute: "2-digit",
   });
 }
 
 /** Dato og tid for eksport/visning: "5. desember 2025, 14:30" */
-export function formaterDatoOgTid(d: Date | string | number): string {
+export function formaterDatoOgTid(
+  d: Date | string | number,
+  language: Language = "nb",
+): string {
   const date = tilDato(d);
-  const dato = date.toLocaleDateString(LOCALE, {
+  const locale = getLocale(language);
+  const dato = date.toLocaleDateString(locale, {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
-  const tid = date.toLocaleTimeString(LOCALE, {
+  const tid = date.toLocaleTimeString(locale, {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -85,7 +114,20 @@ export function dagerFraIdag(d: Date | string | number): number {
 }
 
 /** Tekst for frist/hendelse: "I dag", "I morgen", "Om X dager", "X dag/dager siden". */
-export function formaterDagerRelativtFrist(dager: number): string {
+export function formaterDagerRelativtFrist(
+  dager: number,
+  language: Language = "nb",
+): string {
+  if (language === "en") {
+    if (dager < 0) {
+      const n = Math.abs(dager);
+      return n === 1 ? "1 day ago" : `${n} days ago`;
+    }
+    if (dager === 0) return "Today";
+    if (dager === 1) return "Tomorrow";
+    return `In ${dager} days`;
+  }
+
   if (dager < 0) {
     const n = Math.abs(dager);
     return n === 1 ? "1 dag siden" : `${n} dager siden`;

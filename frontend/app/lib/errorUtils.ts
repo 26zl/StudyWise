@@ -8,6 +8,7 @@ import {
   type CanvasValidationIssue,
   getErrorMessage as getCanvasErrorMessage,
 } from "common/canvasErrors";
+import type { Translator } from "@/app/i18n/types";
 import { ForbiddenError, SessionExpiredError } from "./errors";
 
 /** Melding ved ugyldig/utløpt Canvas API-token – brukes i CanvasSection, CalendarSection og VarslingerSection */
@@ -165,13 +166,29 @@ interface FeilmeldingKontekst {
 /** Fallback for feil ved lasting av brukerdata (/me). Én kilde for DashboardView og oversikt. */
 const BRUKERDATA_FEIL_FALLBACK = "Kunne ikke laste brukerdata. Sjekk internettforbindelsen og prøv igjen.";
 
+function hentTekst(
+  t: Translator | undefined,
+  key: Parameters<Translator>[0],
+  fallback: string,
+): string {
+  return t ? t(key) : fallback;
+}
+
 /** Brukervennlig feilmelding for feil ved henting av brukerdata (auth-kontekst, inkl. 429 rate limit). */
-export function getBrukerdataFeilmelding(error: Error | string | null | undefined): string {
+export function getBrukerdataFeilmelding(
+  error: Error | string | null | undefined,
+  t?: Translator,
+): string {
   const msg = typeof error === "string" ? error : error?.message || "";
   if (/sesjon|logg inn på nytt|ikke autentisert/i.test(msg)) {
-    return "Sesjonen har utløpt. Logg inn på nytt.";
+    return hentTekst(t, "errors.userData.sessionExpired", "Sesjonen har utløpt. Logg inn på nytt.");
   }
-  return lagBrukervennligFeilmelding(error ?? null, { auth: true }, BRUKERDATA_FEIL_FALLBACK);
+  return lagBrukervennligFeilmelding(
+    error ?? null,
+    { auth: true },
+    t ? t("errors.userData.generic") : BRUKERDATA_FEIL_FALLBACK,
+    t,
+  );
 }
 
 // Hent brukervennlig feilmelding basert på feiltype og kontekst
@@ -179,6 +196,7 @@ export function lagBrukervennligFeilmelding(
   error: Error | string | null,
   kontekst: FeilmeldingKontekst = {},
   fallback = "Noe gikk galt. Prøv igjen.",
+  t?: Translator,
 ): string {
   // Sjekk for strukturert Canvas-feilkode først (høyeste prioritet)
   if (kontekst.canvas && error && typeof error === "object") {
@@ -205,24 +223,36 @@ export function lagBrukervennligFeilmelding(
     switch (feiltype) {
       case "auth":
       case "token":
-        return "Canvas-tokenet ditt er ugyldig eller utløpt. Oppdater tokenet i innstillinger.";
+        return hentTekst(
+          t,
+          "errors.canvas.tokenInvalid",
+          "Canvas-tokenet ditt er ugyldig eller utløpt. Oppdater tokenet i innstillinger.",
+        );
       case "forbidden":
-        return "Du har ikke tilgang til denne ressursen i Canvas.";
+        return hentTekst(t, "errors.canvas.permissionDenied", "Du har ikke tilgang til denne ressursen i Canvas.");
       case "rate_limit":
-        return "For mange forespørsler til Canvas. Vent noen sekunder og prøv igjen.";
+        return hentTekst(
+          t,
+          "errors.canvas.rateLimit",
+          "For mange forespørsler til Canvas. Vent noen sekunder og prøv igjen.",
+        );
       case "timeout":
-        return "Henting av Canvas-data tok for lang tid. Prøv igjen.";
+        return hentTekst(t, "errors.canvas.timeout", "Henting av Canvas-data tok for lang tid. Prøv igjen.");
       case "not_found":
-        return "Ressursen ble ikke funnet i Canvas.";
+        return hentTekst(t, "errors.canvas.notFound", "Ressursen ble ikke funnet i Canvas.");
       case "validation": {
         const msg = typeof error === "string" ? error : error?.message;
         if (msg) {
           return msg.length <= 300 ? msg : `${msg.slice(0, 297)}…`;
         }
-        return "Sjekk at Canvas-institusjon og URL er riktig, og prøv igjen.";
+        return hentTekst(
+          t,
+          "errors.canvas.validation",
+          "Sjekk at Canvas-institusjon og URL er riktig, og prøv igjen.",
+        );
       }
       case "network":
-        return "Kunne ikke koble til Canvas. Sjekk internettforbindelsen din.";
+        return hentTekst(t, "errors.canvas.network", "Kunne ikke koble til Canvas. Sjekk internettforbindelsen din.");
     }
   }
 
@@ -248,24 +278,24 @@ export function lagBrukervennligFeilmelding(
       case "auth": {
         const msg = typeof error === "string" ? error : error?.message || "";
         if (/sesjon|logg inn på nytt|ikke autentisert/i.test(msg)) {
-          return "Sesjonen har utløpt. Logg inn på nytt.";
+          return hentTekst(t, "errors.userData.sessionExpired", "Sesjonen har utløpt. Logg inn på nytt.");
         }
-        return "Kunne ikke verifisere innlogging. Prøv igjen.";
+        return hentTekst(t, "errors.generic.default", "Kunne ikke verifisere innlogging. Prøv igjen.");
       }
       case "forbidden":
-        return "Du har ikke tilgang til denne handlingen.";
+        return hentTekst(t, "errors.generic.forbidden", "Du har ikke tilgang til denne handlingen.");
       case "not_found":
-        return "Ingen bruker med denne e-postadressen. Opprett en konto under «Registrer» først.";
+        return hentTekst(t, "errors.generic.notFound", "Ingen bruker med denne e-postadressen. Opprett en konto under «Registrer» først.");
       case "conflict":
-        return "En bruker med denne e-postadressen finnes allerede. Logg inn i stedet, eller bruk en annen e-post.";
+        return hentTekst(t, "errors.generic.conflict", "En bruker med denne e-postadressen finnes allerede. Logg inn i stedet, eller bruk en annen e-post.");
       case "rate_limit":
-        return "For mange forsøk. Vent noen minutter og prøv igjen.";
+        return hentTekst(t, "errors.generic.rateLimit", "For mange forsøk. Vent noen minutter og prøv igjen.");
       case "validation":
-        return "Ugyldig e-postadresse eller passord. Sjekk at formatet er riktig.";
+        return hentTekst(t, "errors.generic.validation", "Ugyldig e-postadresse eller passord. Sjekk at formatet er riktig.");
       case "network":
-        return "Kunne ikke koble til serveren. Sjekk internettforbindelsen din og prøv igjen.";
+        return hentTekst(t, "errors.generic.network", "Kunne ikke koble til serveren. Sjekk internettforbindelsen din og prøv igjen.");
       case "server":
-        return "Noe gikk galt på serveren. Prøv igjen om litt.";
+        return hentTekst(t, "errors.generic.server", "Noe gikk galt på serveren. Prøv igjen om litt.");
     }
   }
 
@@ -299,23 +329,23 @@ export function lagBrukervennligFeilmelding(
 // Generiske meldinger
   switch (feiltype) {
     case "auth":
-      return "Du må logge inn på nytt.";
+      return hentTekst(t, "errors.generic.auth", "Du må logge inn på nytt.");
     case "forbidden":
-      return "Du har ikke tilgang til denne ressursen.";
+      return hentTekst(t, "errors.generic.forbidden", "Du har ikke tilgang til denne ressursen.");
     case "conflict":
-      return "Ressursen finnes allerede.";
+      return hentTekst(t, "errors.generic.conflict", "Ressursen finnes allerede.");
     case "rate_limit":
-      return "For mange forespørsler. Vent litt og prøv igjen.";
+      return hentTekst(t, "errors.generic.rateLimit", "For mange forespørsler. Vent litt og prøv igjen.");
     case "timeout":
-      return "Forespørselen tok for lang tid. Prøv igjen.";
+      return hentTekst(t, "errors.generic.timeout", "Forespørselen tok for lang tid. Prøv igjen.");
     case "network":
-      return "Nettverksfeil. Sjekk internettforbindelsen din.";
+      return hentTekst(t, "errors.generic.network", "Nettverksfeil. Sjekk internettforbindelsen din.");
     case "not_found":
-      return "Ressursen ble ikke funnet.";
+      return hentTekst(t, "errors.generic.notFound", "Ressursen ble ikke funnet.");
     case "server":
-      return "Serverfeil. Prøv igjen om litt.";
+      return hentTekst(t, "errors.generic.server", "Serverfeil. Prøv igjen om litt.");
     case "validation":
-      return "Ugyldig data. Sjekk at alle felt er fylt ut riktig.";
+      return hentTekst(t, "errors.generic.validation", "Ugyldig data. Sjekk at alle felt er fylt ut riktig.");
     default: {
       // Hvis vi har en feilmelding, bruk den (men oversett vanlige engelske)
       const msg = typeof error === "string" ? error : error?.message;

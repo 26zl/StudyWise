@@ -6,6 +6,7 @@
 
 import type { AssignmentMedEmne } from "../canvas/canvas-api";
 import { erInnlevert } from "../canvas/canvasUtils";
+import type { Language } from "@/app/i18n/types";
 
 // —— Frist-terrkler og -typer ——
 
@@ -32,8 +33,24 @@ export function erInnenforFristVindu(
     return timer > 0 && timer <= FRIST_VINDU_TIMER;
 }
 
-/** Formater timer igjen til lesbar norsk tekst */
-export function formaterTid(timer: number): string {
+/** Formater timer igjen til lesbar tekst på valgt språk */
+export function formaterTid(timer: number, language: Language = "nb"): string {
+    if (language === "en") {
+        if (timer < 1) return "under 1 hour";
+        if (timer < 24) {
+            const hours = Math.round(timer);
+            return hours === 1 ? "1 hour" : `${hours} hours`;
+        }
+        const days = Math.floor(timer / 24);
+        const remainingHours = Math.round(timer % 24);
+        if (days === 1) {
+            if (remainingHours <= 0) return "1 day";
+            return remainingHours === 1 ? "1 day and 1 hour" : `1 day and ${remainingHours} hours`;
+        }
+        if (remainingHours <= 0) return `${days} days`;
+        return remainingHours === 1 ? `${days} days and 1 hour` : `${days} days and ${remainingHours} hours`;
+    }
+
     if (timer < 1) return "under 1 time";
     if (timer < 24) return `${Math.round(timer)} timer`;
     const dager = Math.floor(timer / 24);

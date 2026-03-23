@@ -6,7 +6,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { formatDistanceToNow, format } from "date-fns";
-import { nb } from "date-fns/locale";
 import {
     Bell,
     Clock,
@@ -23,8 +22,10 @@ import { useVarsler, type VarslingTab } from "@/app/hooks/useVarsler";
 import { formaterTid, type FristStatus } from "@/app/lib/varsler";
 import type { FristElement, KunngjoringElement, HendelseElement, VarslingElement } from "@/app/lib/varsler";
 import { KIOppsummering } from "@/app/components/ki/KIOppsummering";
-import { lagBrukervennligFeilmelding, CANVAS_TOKEN_UGYLDIG_MELDING } from "@/app/lib/errorUtils";
+import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { useUIStore } from "@/app/store/uiStore";
+import { useLanguage } from "@/app/i18n";
+import { enUS, nb } from "date-fns/locale";
 
 interface VarslingerSectionProps {
     harCanvasToken?: boolean;
@@ -45,6 +46,7 @@ function fristBadgeFarge(status: FristStatus) {
 export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionProps) {
     const [aktivTab, settAktivTab] = useState<VarslingTab>("alle");
     const canvasTokenInvalid = useUIStore((state) => state.canvasTokenInvalid);
+    const { language, t } = useLanguage();
 
     const {
         frister,
@@ -77,10 +79,10 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
     }, []);
 
     const tabs: { id: VarslingTab; label: string; antall: number; uleste: number }[] = [
-        { id: "alle", label: "Alle", antall: safeAlle.length, uleste: safeAlle.filter((e) => !lestIds.has(e.id)).length },
-        { id: "frister", label: "Frister", antall: frister.length, uleste: frister.filter((e) => !lestIds.has(e.id)).length },
-        { id: "kunngjøringer", label: "Kunngjøringer", antall: kunngjøringer.length, uleste: kunngjøringer.filter((e) => !lestIds.has(e.id)).length },
-        { id: "hendelser", label: "Hendelser", antall: hendelser.length, uleste: hendelser.filter((e) => !lestIds.has(e.id)).length },
+        { id: "alle", label: t("notifications.tabs.all"), antall: safeAlle.length, uleste: safeAlle.filter((e) => !lestIds.has(e.id)).length },
+        { id: "frister", label: t("notifications.tabs.deadlines"), antall: frister.length, uleste: frister.filter((e) => !lestIds.has(e.id)).length },
+        { id: "kunngjøringer", label: t("notifications.tabs.announcements"), antall: kunngjøringer.length, uleste: kunngjøringer.filter((e) => !lestIds.has(e.id)).length },
+        { id: "hendelser", label: t("notifications.tabs.events"), antall: hendelser.length, uleste: hendelser.filter((e) => !lestIds.has(e.id)).length },
     ];
 
     const aktiveListe =
@@ -92,14 +94,14 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
     if (!harCanvasToken) {
         return (
             <div className="p-6 sm:p-8">
-                <FeilMelding melding="Du må lagre en Canvas API-token for å hente varslinger." />
+                <FeilMelding melding={t("notifications.missingCanvasToken")} />
             </div>
         );
     }
     if (canvasTokenInvalid) {
         return (
             <div className="p-6 sm:p-8">
-                <FeilMelding type="warning" melding={CANVAS_TOKEN_UGYLDIG_MELDING} />
+                <FeilMelding type="warning" melding={t("errors.canvas.tokenInvalid")} />
             </div>
         );
     }
@@ -109,7 +111,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
             <div className="flex items-center gap-3">
                 <Bell className="w-6 h-6 text-slate-700 dark:text-slate-300" />
                 <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
-                    Varslinger
+                    {t("notifications.title")}
                 </h1>
             </div>
 
@@ -119,7 +121,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                         type="button"
                         onClick={() => {
                             markAllAsLest();
-                            if (ulesteCount > 0) showToast.success("Alle varsler markert som lest");
+                            if (ulesteCount > 0) showToast.success(t("notifications.allMarkedAsRead"));
                         }}
                         disabled={ulesteCount === 0}
                         className={`
@@ -131,7 +133,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                         `}
                     >
                         <CheckCheck className="w-4 h-4 shrink-0" />
-                        {ulesteCount === 0 ? "Alle markert som lest" : "Marker alle som lest"}
+                        {ulesteCount === 0 ? t("notifications.allMarkedAsRead") : t("notifications.markAllAsRead")}
                     </button>
                 </div>
             )}
@@ -142,7 +144,8 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                     melding={lagBrukervennligFeilmelding(
                         error instanceof Error ? error : null,
                         { canvas: true },
-                        "Noen varsler kunne ikke lastes. Resten vises under.",
+                        t("notifications.partialLoadFallback"),
+                        t,
                     )}
                 />
             )}
@@ -175,26 +178,33 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
             )}
 
             {isLoading ? (
-                <LoadingView text="Laster varsler..." fullPage={false} />
+                <LoadingView translationKey="common.loading.notifications" fullPage={false} />
             ) : isError ? (
                 <FeilMelding
                     melding={lagBrukervennligFeilmelding(
                         error instanceof Error ? error : null,
                         { canvas: true },
-                        "Kunne ikke laste varsler. Prøv igjen.",
+                        t("errors.generic.retry"),
+                        t,
                     )}
                 />
             ) : aktiveListe.length === 0 ? (
                 <div className="text-center py-12">
                     <Bell className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Ingen {aktivTab === "alle" ? "varslinger" : aktivTab} for øyeblikket.
+                        {aktivTab === "alle"
+                            ? t("notifications.empty.all")
+                            : aktivTab === "frister"
+                                ? t("notifications.empty.deadlines")
+                                : aktivTab === "kunngjøringer"
+                                    ? t("notifications.empty.announcements")
+                                    : t("notifications.empty.events")}
                     </p>
                 </div>
             ) : (
                 <div className="space-y-3">
                     {aktiveListe.map((element) => (
-                        <VarslingKort key={element.id} element={element} />
+                        <VarslingKort key={element.id} element={element} language={language} />
                     ))}
                 </div>
             )}
@@ -202,14 +212,16 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
     );
 }
 
-function VarslingKort({ element }: { element: VarslingElement }) {
-    if (element.type === "frist") return <FristKort frist={element} />;
-    if (element.type === "kunngjoring") return <KunngjoringKort kunngjoring={element} />;
-    return <HendelseKort hendelse={element} />;
+function VarslingKort({ element, language }: { element: VarslingElement; language: "nb" | "en" }) {
+    if (element.type === "frist") return <FristKort frist={element} language={language} />;
+    if (element.type === "kunngjoring") return <KunngjoringKort kunngjoring={element} language={language} />;
+    return <HendelseKort hendelse={element} language={language} />;
 }
 
-function FristKort({ frist }: { frist: FristElement }) {
-    const tidTekst = formaterTid(frist.timerIgjen);
+function FristKort({ frist, language }: { frist: FristElement; language: "nb" | "en" }) {
+    const { t } = useLanguage();
+    const tidTekst = formaterTid(frist.timerIgjen, language);
+    const datoLocale = language === "en" ? enUS : nb;
 
     return (
         <div className={`p-4 rounded-lg border ${fristFarge(frist.status)} transition-colors`}>
@@ -226,17 +238,19 @@ function FristKort({ frist }: { frist: FristElement }) {
                                 {frist.erInnlevert && (
                                     <span className="inline-flex items-center gap-1 rounded-md bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 text-xs font-medium text-green-800 dark:text-green-300">
                                         <CheckCircle2 className="w-3 h-3" />
-                                        Innlevert
+                                        {t("notifications.submitted")}
                                     </span>
                                 )}
                             </p>
                         </div>
                         <span className={`shrink-0 px-2 py-1 rounded-md text-xs font-semibold ${fristBadgeFarge(frist.status)}`}>
-                            {tidTekst} igjen
+                            {t("notifications.remaining", { time: tidTekst })}
                         </span>
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                        Frist: {format(frist.dato, "d. MMMM yyyy 'kl.' HH:mm", { locale: nb })}
+                        {t("notifications.deadlineAt", {
+                            date: format(frist.dato, language === "en" ? "MMMM d, yyyy 'at' HH:mm" : "d. MMMM yyyy 'kl.' HH:mm", { locale: datoLocale }),
+                        })}
                     </p>
                 </div>
             </div>
@@ -244,7 +258,8 @@ function FristKort({ frist }: { frist: FristElement }) {
     );
 }
 
-function KunngjoringKort({ kunngjoring }: { kunngjoring: KunngjoringElement }) {
+function KunngjoringKort({ kunngjoring, language }: { kunngjoring: KunngjoringElement; language: "nb" | "en" }) {
+    const datoLocale = language === "en" ? enUS : nb;
     return (
         <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
             <div className="flex items-start gap-3">
@@ -254,7 +269,7 @@ function KunngjoringKort({ kunngjoring }: { kunngjoring: KunngjoringElement }) {
                         {kunngjoring.tittel}
                     </h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                        {kunngjoring.emne} &middot; {formatDistanceToNow(kunngjoring.dato, { addSuffix: true, locale: nb })}
+                        {kunngjoring.emne} &middot; {formatDistanceToNow(kunngjoring.dato, { addSuffix: true, locale: datoLocale })}
                     </p>
                     <KIOppsummering tekst={kunngjoring.melding} storrelse="sm" />
                 </div>
@@ -263,7 +278,8 @@ function KunngjoringKort({ kunngjoring }: { kunngjoring: KunngjoringElement }) {
     );
 }
 
-function HendelseKort({ hendelse }: { hendelse: HendelseElement }) {
+function HendelseKort({ hendelse, language }: { hendelse: HendelseElement; language: "nb" | "en" }) {
+    const datoLocale = language === "en" ? enUS : nb;
     return (
         <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
             <div className="flex items-start gap-3">
@@ -275,7 +291,7 @@ function HendelseKort({ hendelse }: { hendelse: HendelseElement }) {
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-slate-500 dark:text-slate-400">
                         <span className="flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5" />
-                            {format(hendelse.dato, "d. MMM HH:mm", { locale: nb })}
+                            {format(hendelse.dato, language === "en" ? "MMM d HH:mm" : "d. MMM HH:mm", { locale: datoLocale })}
                             {hendelse.sluttDato && ` – ${format(hendelse.sluttDato, "HH:mm")}`}
                         </span>
                         {hendelse.lokasjon && (

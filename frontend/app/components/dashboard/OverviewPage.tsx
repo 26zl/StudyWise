@@ -44,11 +44,11 @@ import {
   formaterDagerRelativtFrist,
 } from "@/app/lib/dato";
 import {
-  CANVAS_TOKEN_MANGLER_MELDING,
   getBrukerdataFeilmelding,
   lagBrukervennligFeilmelding,
 } from "@/app/lib/errorUtils";
 import { erInnenforFristVindu, FRIST_VINDU_DAGER } from "@/app/lib/varsler";
+import { useLanguage } from "@/app/i18n";
 
 const SIDEBAR_VISNING: VisningType = "chat";
 
@@ -62,6 +62,7 @@ interface QuickActionCardProps {
 
 export function OversiktPage() {
   const router = useRouter();
+  const { language, t } = useLanguage();
   const [activeTab, setActiveTab] = useState<"mine-oppgaver" | "ki-forslag">(
     "mine-oppgaver",
   );
@@ -115,13 +116,22 @@ export function OversiktPage() {
     setActiveTab("mine-oppgaver");
   };
 
+  const brukerdataFeilmelding = getBrukerdataFeilmelding(megQuery.error, t);
+
+  const oppgaveFeilmelding = lagBrukervennligFeilmelding(
+    assignmentsQuery.error instanceof Error ? assignmentsQuery.error : null,
+    { canvas: true },
+    t("errors.generic.default"),
+    t,
+  );
+
   if (megQuery.isLoading) {
     return (
       <SidebarAppLoadingState
         aktivVisning={SIDEBAR_VISNING}
         byttVisning={byttVisning}
         brukernavn={brukernavn}
-        label="Laster oversikt..."
+        label={t("common.loading.overview")}
       />
     );
   }
@@ -131,7 +141,7 @@ export function OversiktPage() {
       <SidebarAppLoadingState
         aktivVisning={SIDEBAR_VISNING}
         byttVisning={byttVisning}
-        label="Sender deg til innlogging..."
+        label={t("common.loading.redirectingToSignIn")}
       />
     );
   }
@@ -141,7 +151,7 @@ export function OversiktPage() {
       <SidebarAppErrorState
         aktivVisning={SIDEBAR_VISNING}
         byttVisning={byttVisning}
-        message={getBrukerdataFeilmelding(megQuery.error)}
+        message={brukerdataFeilmelding}
         onRetry={() => {
           void megQuery.refetch();
         }}
@@ -161,10 +171,10 @@ export function OversiktPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-                  Oversikt
+                  {t("overview.title")}
                 </h1>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  {formaterDatoFull(new Date())}
+                  {formaterDatoFull(new Date(), language)}
                 </p>
               </div>
               <div className="flex items-center gap-3">
@@ -174,7 +184,7 @@ export function OversiktPage() {
                   className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
                 >
                   <MessageSquare size={18} />
-                  <span>KI Chat</span>
+                  <span>{t("overview.openChat")}</span>
                 </Link>
               </div>
             </div>
@@ -184,13 +194,13 @@ export function OversiktPage() {
         <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
           {!harCanvasToken && (
             <div className="space-y-3">
-              <FeilMelding melding={CANVAS_TOKEN_MANGLER_MELDING} />
+              <FeilMelding melding={t("errors.canvas.tokenMissing")} />
               <Link
                 href="/dashboard?view=settings"
                 prefetch={false}
                 className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
               >
-                Gå til innstillinger
+                {t("common.actions.goToSettings")}
               </Link>
             </div>
           )}
@@ -198,37 +208,37 @@ export function OversiktPage() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <StatCard
               icon={BookOpen}
-              label="Aktive emner"
+              label={t("overview.stats.activeCourses")}
               value={assignmentsQuery.isError ? "—" : activeCoursesCount}
               color="blue"
             />
             <StatCard
               icon={Clock}
-              label="Kommende oppgaver"
+              label={t("overview.stats.upcomingAssignments")}
               value={assignmentsQuery.isError ? "—" : upcomingAssignments.length}
               color="yellow"
             />
             <StatCard
               icon={TrendingUp}
-              label="Totalt oppgaver"
+              label={t("overview.stats.totalAssignments")}
               value={assignmentsQuery.isError ? "—" : totalAssignments}
               color="green"
             />
             <StatCard
               icon={Calendar}
-              label="Emner totalt"
+              label={t("overview.stats.totalCourses")}
               value={totalCourses}
               color="purple"
             />
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-800/50">
-            <div className="flex gap-1" role="tablist" aria-label="Oversikt: Min arbeidsplan eller KI Ukeplangenerator">
+            <div className="flex gap-1" role="tablist" aria-label={t("overview.tabs.ariaLabel")}>
               <button
                 type="button"
                 role="tab"
                 aria-selected={activeTab === "mine-oppgaver"}
-                aria-label="Min arbeidsplan"
+                aria-label={t("overview.tabs.myWorkPlan")}
                 onClick={() => setActiveTab("mine-oppgaver")}
                 className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
                   activeTab === "mine-oppgaver"
@@ -238,14 +248,14 @@ export function OversiktPage() {
               >
                 <div className="flex items-center justify-center gap-2">
                   <TrendingUp className="h-4 w-4" aria-hidden />
-                  Min arbeidsplan
+                  {t("overview.tabs.myWorkPlan")}
                 </div>
               </button>
               <button
                 type="button"
                 role="tab"
                 aria-selected={activeTab === "ki-forslag"}
-                aria-label="KI Ukeplangenerator"
+                aria-label={t("overview.tabs.aiWeekPlan")}
                 onClick={() => setActiveTab("ki-forslag")}
                 className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
                   activeTab === "ki-forslag"
@@ -255,7 +265,7 @@ export function OversiktPage() {
               >
                 <div className="flex items-center justify-center gap-2">
                   <Sparkles className="h-4 w-4" aria-hidden />
-                  KI Ukeplangenerator
+                  {t("overview.tabs.aiWeekPlan")}
                 </div>
               </button>
             </div>
@@ -268,30 +278,22 @@ export function OversiktPage() {
               <div className="space-y-2">
                 {!harCanvasToken ? (
                   <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50 space-y-3">
-                    <FeilMelding melding="Du må knytte en Canvas API-token for å hente oppgaver og generere ukeplan med KI. Gå til Innstillinger for å legge til token." />
+                    <FeilMelding melding={t("overview.missingCanvasPlanner")} />
                     <Link
                       href="/dashboard?view=settings"
                       prefetch={false}
                       className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
                     >
-                      Gå til innstillinger
+                      {t("common.actions.goToSettings")}
                     </Link>
                   </div>
                 ) : assignmentsQuery.isLoading ? (
                   <div className="rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900 p-8">
-                    <LoadingView text="Laster oppgaver..." fullPage={false} />
+                    <LoadingView translationKey="common.loading.assignments" fullPage={false} />
                   </div>
                 ) : assignmentsQuery.isError ? (
                   <div className="rounded-lg border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
-                    <FeilMelding
-                      melding={lagBrukervennligFeilmelding(
-                        assignmentsQuery.error instanceof Error
-                          ? assignmentsQuery.error
-                          : null,
-                        { canvas: true },
-                        "Kunne ikke hente oppgaver. Prøv igjen.",
-                      )}
-                    />
+                    <FeilMelding melding={oppgaveFeilmelding} />
                   </div>
                 ) : ikkeInnleverteAssignments.length > 0 ? (
                   <WeeklyPlanSuggestions
@@ -312,11 +314,10 @@ export function OversiktPage() {
                       <AlertCircle className="h-12 w-12 text-slate-400 dark:text-slate-500" />
                       <div>
                         <h3 className="mb-1 font-semibold text-slate-900 dark:text-white">
-                          Ingen oppgaver funnet
+                          {t("overview.noAssignments.title")}
                         </h3>
                         <p className="text-sm text-slate-500 dark:text-slate-400">
-                          Koble til Canvas for å se dine oppgaver og få KI-forslag
-                          til ukeplan
+                          {t("overview.noAssignments.description")}
                         </p>
                       </div>
                       <Link
@@ -324,7 +325,7 @@ export function OversiktPage() {
                         prefetch={false}
                         className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
                       >
-                        Gå til innstillinger
+                        {t("common.actions.goToSettings")}
                       </Link>
                     </div>
                   </div>
@@ -335,26 +336,26 @@ export function OversiktPage() {
 
           <div className="space-y-2">
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
-              Rask tilgang
+              {t("overview.quickAccess.title")}
             </h2>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <QuickActionCard
-                title="KI Assistent"
-                description="Få hjelp med studier og oppgaver"
+                title={t("overview.quickActions.aiAssistant.title")}
+                description={t("overview.quickActions.aiAssistant.description")}
                 icon={MessageSquare}
                 href="/dashboard"
                 color="blue"
               />
               <QuickActionCard
-                title="Oppgavedeling med KI"
-                description="Bryt ned oppgaver i mindre deler"
+                title={t("overview.quickActions.taskBreakdown.title")}
+                description={t("overview.quickActions.taskBreakdown.description")}
                 icon={Sparkles}
                 href="/ai-breakdown"
                 color="purple"
               />
               <QuickActionCard
-                title="Emner"
-                description="Se alle dine Canvas-emner"
+                title={t("overview.quickActions.courses.title")}
+                description={t("overview.quickActions.courses.description")}
                 icon={BookOpen}
                 href="/dashboard?view=canvas-courses"
                 color="green"
@@ -365,7 +366,7 @@ export function OversiktPage() {
           {upcomingAssignments.length > 0 ? (
             <div className="space-y-2">
               <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
-                Kommende frister (neste {FRIST_VINDU_DAGER} dager)
+                {t("overview.upcomingDeadlines", { days: FRIST_VINDU_DAGER })}
               </h2>
               <div className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-900">
                 {upcomingAssignments.slice(0, 5).map((assignment) => {
@@ -394,10 +395,10 @@ export function OversiktPage() {
                                 : "text-slate-700 dark:text-slate-300"
                             }`}
                           >
-                            {formaterDagerRelativtFrist(daysUntil)}
+                            {formaterDagerRelativtFrist(daysUntil, language)}
                           </div>
                           <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                            {formaterDatoShort(assignment.due_at!)}
+                            {formaterDatoShort(assignment.due_at!, language)}
                           </div>
                         </div>
                       </div>

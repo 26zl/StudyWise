@@ -110,7 +110,7 @@ export function SidebarAppLoadingState({
       brukernavn={brukernavn}
       footer={footer}
     >
-      <LoadingView text={label ?? t("common.loading")} fullPage={false} />
+      <LoadingView text={label ?? t("common.loading.generic")} fullPage={false} />
     </SidebarAppState>
   );
 }
@@ -141,7 +141,7 @@ export function SidebarAppErrorState({
           onClick={onRetry}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
         >
-          {t("common.retry")}
+          {t("common.actions.retry")}
         </button>
       ) : null}
     </SidebarAppState>

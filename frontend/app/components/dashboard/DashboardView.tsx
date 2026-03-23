@@ -26,6 +26,7 @@ import {
   SidebarAppShell,
 } from "@/app/components/layout/SidebarAppShell";
 import { useLanguage } from "@/app/i18n";
+import type { MessageKey } from "@/app/i18n";
 
 const GYLDIGE_VISNINGER = [
   "chat",
@@ -46,9 +47,14 @@ const CalendarSection = lazy(() => import("@/app/calendar/CalendarSection").then
 const VarslingerSection = lazy(() => import("@/app/components/dashboard/VarslingerSection").then(m => ({ default: m.VarslingerSection })));
 const QuizView = lazy(() => import("@/app/components/ki/QuizView").then(m => ({ default: m.QuizView })));
 
-function SectionLoader({ text }: { text?: string }) {
-  const { t } = useLanguage();
-  return <LoadingView text={text ?? t("common.loading")} fullPage={false} />;
+function SectionLoader({
+  text,
+  translationKey = "common.loading.generic",
+}: {
+  text?: string;
+  translationKey?: MessageKey;
+}) {
+  return <LoadingView text={text} translationKey={translationKey} fullPage={false} />;
 }
 
 // Hovedkomponent for dashboard-visningen
@@ -114,24 +120,24 @@ export function DashboardView() {
         if (aktivVisning === "canvas-assignments") return "assignments";
         return "announcements";
     };
+    const brukerdataFeilmelding = getBrukerdataFeilmelding(megQuery.error, t);
     // Skal redirecte til innlogging: vis spinner i stedet for feilmelding så bruker ikke ser rød boks i et splitt sekund
     if (skalRedirecteTilAuth(megQuery)) {
         return (
             <SidebarAppLoadingState
                 aktivVisning={aktivVisning}
                 byttVisning={settAktivVisning}
-                label={t("dashboard.redirectingToLogin")}
+                label={t("common.loading.redirectingToSignIn")}
             />
         );
     }
     // Feil uten brukerdata (f.eks. nettverksfeil, 429 rate limit): vis feilmelding og retry – useAuthRedirect håndterer auth-feil
     if (megQuery.isError && !megQuery.data?.user) {
-        const feilmelding = getBrukerdataFeilmelding(megQuery.error);
         return (
             <SidebarAppErrorState
                 aktivVisning={aktivVisning}
                 byttVisning={settAktivVisning}
-                message={feilmelding}
+                message={brukerdataFeilmelding}
                 onRetry={() => {
                     void megQuery.refetch();
                 }}
@@ -147,19 +153,19 @@ export function DashboardView() {
             brukernavn={megQuery.isLoading ? "..." : brukernavn}
         >
             {!visInnhold ? (
-                <SectionLoader text={megQuery.isLoading ? t("dashboard.loadingUserData") : t("common.loading")} />
+                <SectionLoader translationKey={megQuery.isLoading ? "common.loading.userData" : "common.loading.generic"} />
             ) : (
             <>
             {aktivVisning === "chat" && (
-                <SectionErrorBoundary sectionName="KI-chat">
-                    <Suspense fallback={<SectionLoader text={t("dashboard.loadingChat")} />}>
+                <SectionErrorBoundary sectionName={t("dashboard.sections.aiChat")}>
+                    <Suspense fallback={<SectionLoader translationKey="common.loading.aiChat" />}>
                         <ChatSection />
                     </Suspense>
                 </SectionErrorBoundary>
             )}
             {aktivVisning === "calendar" && (
-                <SectionErrorBoundary sectionName="kalender">
-                    <Suspense fallback={<SectionLoader text={t("dashboard.loadingCalendar")} />}>
+                <SectionErrorBoundary sectionName={t("dashboard.sections.calendar")}>
+                    <Suspense fallback={<SectionLoader translationKey="common.loading.calendar" />}>
                         <CalendarSection harCanvasToken={harCanvasToken} />
                     </Suspense>
                 </SectionErrorBoundary>
@@ -167,23 +173,23 @@ export function DashboardView() {
             {(aktivVisning === "canvas-announcements" ||
                 aktivVisning === "canvas-courses" ||
                 aktivVisning === "canvas-assignments") && (
-                <SectionErrorBoundary sectionName="Canvas">
-                    <Suspense fallback={<SectionLoader text={t("dashboard.loadingCanvas")} />}>
+                <SectionErrorBoundary sectionName={t("dashboard.sections.canvas")}>
+                    <Suspense fallback={<SectionLoader translationKey="common.loading.canvas" />}>
                         <CanvasSection startVisning={hentCanvasVisning()} harCanvasToken={harCanvasToken} />
                     </Suspense>
                 </SectionErrorBoundary>
             )}
 
             {aktivVisning === "varslinger" && (
-                <SectionErrorBoundary sectionName="varslinger">
-                    <Suspense fallback={<SectionLoader text={t("dashboard.loadingNotifications")} />}>
+                <SectionErrorBoundary sectionName={t("dashboard.sections.notifications")}>
+                    <Suspense fallback={<SectionLoader translationKey="common.loading.notifications" />}>
                         <VarslingerSection harCanvasToken={harCanvasToken} />
                     </Suspense>
                 </SectionErrorBoundary>
             )}
             {aktivVisning === "settings" && (
-                <SectionErrorBoundary sectionName="innstillinger">
-                    <Suspense fallback={<SectionLoader text={t("dashboard.loadingSettings")} />}>
+                <SectionErrorBoundary sectionName={t("dashboard.sections.settings")}>
+                    <Suspense fallback={<SectionLoader translationKey="common.loading.settings" />}>
                         <SettingsSection
                             harCanvasToken={harCanvasToken}
                             lokalBrukerEpost={megQuery.data?.user?.email}
@@ -193,8 +199,8 @@ export function DashboardView() {
                 </SectionErrorBoundary>
             )}
             {aktivVisning === "quiz" && (
-                <SectionErrorBoundary sectionName="quiz">
-                    <Suspense fallback={<SectionLoader text={t("dashboard.loadingQuiz")} />}>
+                <SectionErrorBoundary sectionName={t("dashboard.sections.quiz")}>
+                    <Suspense fallback={<SectionLoader translationKey="common.loading.quiz" />}>
                         <QuizView />
                     </Suspense>
                 </SectionErrorBoundary>
