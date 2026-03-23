@@ -8,10 +8,16 @@
 import { Suspense } from "react";
 import { DashboardView } from "@/app/components/dashboard/DashboardView";
 import { LoadingView } from "@/app/components/ui/Loading";
+import { useLanguage } from "@/app/i18n";
+
+function DashboardFallback() {
+  const { t } = useLanguage();
+  return <LoadingView text={t("dashboard.loading")} />;
+}
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<LoadingView text="Laster dashboard..." />}>
+    <Suspense fallback={<DashboardFallback />}>
       <DashboardView />
     </Suspense>
   );

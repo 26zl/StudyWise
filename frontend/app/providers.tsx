@@ -15,6 +15,7 @@ import { setClerkGetToken } from "./lib/clerkTokenForApi";
 import { setDatadogUser, clearDatadogUser } from "@/app/components/layout/DatadogRum";
 import { AUTH_ME_QUERY_KEY, prefetchMe } from "./auth/auth-api";
 import type { MeResponse } from "common/auth";
+import { LanguageProvider } from "@/app/i18n";
 
 // Gir backend API tilgang til Clerk session token (for brukere som logger inn med Clerk)
 function ClerkTokenSync() {
@@ -112,11 +113,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <NuqsAdapter>
-        <ClerkTokenSync />
-        <AuthSyncListener />
-        <PrefetchMeOnMount />
-        <DatadogUserSync />
-        {children}
+        <LanguageProvider>
+          <ClerkTokenSync />
+          <AuthSyncListener />
+          <PrefetchMeOnMount />
+          <DatadogUserSync />
+          {children}
+        </LanguageProvider>
       </NuqsAdapter>
     </QueryClientProvider>
   );

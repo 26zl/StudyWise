@@ -2,12 +2,15 @@
  * SidebarAppShell – app-skall med sidebar (dashboard-navigasjon), hovedinnhold og valgfri footer.
  * Eksporterer også SidebarAppLoadingState og SidebarAppErrorState for felles last-/feilvisning.
  */
+"use client";
+
 import type { ReactNode } from "react";
 import { Sidebar, type VisningType } from "@/app/components/dashboard/Sidebar";
 import { Footer } from "@/app/components/layout/footer";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { cn } from "@/app/lib/utils";
+import { useLanguage } from "@/app/i18n";
 
 type SidebarAppShellProps = {
   aktivVisning: VisningType;
@@ -99,6 +102,7 @@ export function SidebarAppLoadingState({
   footer,
   label,
 }: SidebarAppLoadingStateProps) {
+  const { t } = useLanguage();
   return (
     <SidebarAppState
       aktivVisning={aktivVisning}
@@ -106,7 +110,7 @@ export function SidebarAppLoadingState({
       brukernavn={brukernavn}
       footer={footer}
     >
-      <LoadingView text={label ?? "Laster..."} fullPage={false} />
+      <LoadingView text={label ?? t("common.loading")} fullPage={false} />
     </SidebarAppState>
   );
 }
@@ -119,6 +123,7 @@ export function SidebarAppErrorState({
   message,
   onRetry,
 }: SidebarAppErrorStateProps) {
+  const { t } = useLanguage();
   return (
     <SidebarAppState
       aktivVisning={aktivVisning}
@@ -136,7 +141,7 @@ export function SidebarAppErrorState({
           onClick={onRetry}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
         >
-          Prøv igjen
+          {t("common.retry")}
         </button>
       ) : null}
     </SidebarAppState>

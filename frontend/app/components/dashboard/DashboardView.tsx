@@ -25,6 +25,7 @@ import {
   SidebarAppLoadingState,
   SidebarAppShell,
 } from "@/app/components/layout/SidebarAppShell";
+import { useLanguage } from "@/app/i18n";
 
 const GYLDIGE_VISNINGER = [
   "chat",
@@ -45,13 +46,15 @@ const CalendarSection = lazy(() => import("@/app/calendar/CalendarSection").then
 const VarslingerSection = lazy(() => import("@/app/components/dashboard/VarslingerSection").then(m => ({ default: m.VarslingerSection })));
 const QuizView = lazy(() => import("@/app/components/ki/QuizView").then(m => ({ default: m.QuizView })));
 
-function SectionLoader({ text = "Laster..." }: { text?: string }) {
-  return <LoadingView text={text} fullPage={false} />;
+function SectionLoader({ text }: { text?: string }) {
+  const { t } = useLanguage();
+  return <LoadingView text={text ?? t("common.loading")} fullPage={false} />;
 }
 
 // Hovedkomponent for dashboard-visningen
 export function DashboardView() {
     const queryClient = useQueryClient();
+    const { t } = useLanguage();
 
     const [aktivVisning, setView] = useQueryState(
         "view",
@@ -117,7 +120,7 @@ export function DashboardView() {
             <SidebarAppLoadingState
                 aktivVisning={aktivVisning}
                 byttVisning={settAktivVisning}
-                label="Sender deg til innlogging..."
+                label={t("dashboard.redirectingToLogin")}
             />
         );
     }
@@ -144,19 +147,19 @@ export function DashboardView() {
             brukernavn={megQuery.isLoading ? "..." : brukernavn}
         >
             {!visInnhold ? (
-                <SectionLoader text={megQuery.isLoading ? "Laster brukerdata..." : "Laster..."} />
+                <SectionLoader text={megQuery.isLoading ? t("dashboard.loadingUserData") : t("common.loading")} />
             ) : (
             <>
             {aktivVisning === "chat" && (
                 <SectionErrorBoundary sectionName="KI-chat">
-                    <Suspense fallback={<SectionLoader text="Laster KI-chat..." />}>
+                    <Suspense fallback={<SectionLoader text={t("dashboard.loadingChat")} />}>
                         <ChatSection />
                     </Suspense>
                 </SectionErrorBoundary>
             )}
             {aktivVisning === "calendar" && (
                 <SectionErrorBoundary sectionName="kalender">
-                    <Suspense fallback={<SectionLoader text="Laster kalender..." />}>
+                    <Suspense fallback={<SectionLoader text={t("dashboard.loadingCalendar")} />}>
                         <CalendarSection harCanvasToken={harCanvasToken} />
                     </Suspense>
                 </SectionErrorBoundary>
@@ -165,7 +168,7 @@ export function DashboardView() {
                 aktivVisning === "canvas-courses" ||
                 aktivVisning === "canvas-assignments") && (
                 <SectionErrorBoundary sectionName="Canvas">
-                    <Suspense fallback={<SectionLoader text="Laster Canvas..." />}>
+                    <Suspense fallback={<SectionLoader text={t("dashboard.loadingCanvas")} />}>
                         <CanvasSection startVisning={hentCanvasVisning()} harCanvasToken={harCanvasToken} />
                     </Suspense>
                 </SectionErrorBoundary>
@@ -173,14 +176,14 @@ export function DashboardView() {
 
             {aktivVisning === "varslinger" && (
                 <SectionErrorBoundary sectionName="varslinger">
-                    <Suspense fallback={<SectionLoader text="Laster varslinger..." />}>
+                    <Suspense fallback={<SectionLoader text={t("dashboard.loadingNotifications")} />}>
                         <VarslingerSection harCanvasToken={harCanvasToken} />
                     </Suspense>
                 </SectionErrorBoundary>
             )}
             {aktivVisning === "settings" && (
                 <SectionErrorBoundary sectionName="innstillinger">
-                    <Suspense fallback={<SectionLoader text="Laster innstillinger..." />}>
+                    <Suspense fallback={<SectionLoader text={t("dashboard.loadingSettings")} />}>
                         <SettingsSection
                             harCanvasToken={harCanvasToken}
                             lokalBrukerEpost={megQuery.data?.user?.email}
@@ -191,7 +194,7 @@ export function DashboardView() {
             )}
             {aktivVisning === "quiz" && (
                 <SectionErrorBoundary sectionName="quiz">
-                    <Suspense fallback={<SectionLoader text="Laster quiz..." />}>
+                    <Suspense fallback={<SectionLoader text={t("dashboard.loadingQuiz")} />}>
                         <QuizView />
                     </Suspense>
                 </SectionErrorBoundary>

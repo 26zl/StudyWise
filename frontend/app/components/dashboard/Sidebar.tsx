@@ -27,6 +27,7 @@ import { useLoggUtWithRedirect } from "@/app/auth/auth-api";
 import { useChatHistory } from "@/app/hooks/useChatHistory";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useLanguage } from "@/app/i18n";
 
 // Typer for de ulike visningene i sidebar
 export type VisningType =
@@ -59,6 +60,7 @@ export function Sidebar({
     const { runningChatId } = useKIStore();
     const { chats } = useChatHistory();
     const pathname = usePathname();
+    const { t } = useLanguage();
 
     const handleNavigasjon = (visning: VisningType) => {
         byttVisning(visning);
@@ -145,7 +147,7 @@ export function Sidebar({
                             `}
                         >
                             <LayoutDashboard size={18} className="shrink-0" />
-                            <span className="truncate">Oversikt</span>
+                            <span className="truncate">{t("nav.overview")}</span>
                         </Link>
                     </div>
 
@@ -159,13 +161,13 @@ export function Sidebar({
                         className="w-full flex items-center justify-center gap-2 px-5 py-3.5 mb-8 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium"
                     >
                         <Plus size={18} />
-                        <span>Ny samtale</span>
+                        <span>{t("nav.newChat")}</span>
                     </button>
 
                     {/* Chat-historikk */}
                     <div className="mb-8">
                         <div className="mb-4">
-                            <NavElement view="chat" icon={MessageSquare} label="KI Assistent" isActiveOverride={erChatAktiv} />
+                            <NavElement view="chat" icon={MessageSquare} label={t("nav.aiAssistant")} isActiveOverride={erChatAktiv} />
                         </div>
                         
                         {/* Oppgavedeling med KI */}
@@ -187,18 +189,18 @@ export function Sidebar({
                             `}
                         >
                             <Sparkles size={18} className="shrink-0" />
-                            <span className="truncate">Oppgavedeling med KI</span>
+                            <span className="truncate">{t("nav.taskBreakdown")}</span>
                         </Link>
 
                         {/* Quiz med KI */}
-                        <NavElement view="quiz" icon={Brain} label="Quiz" />
+                        <NavElement view="quiz" icon={Brain} label={t("nav.quiz")} />
                         
                         <p className="px-5 pt-6 pb-3 text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                            Samtalehistorikk
+                            {t("nav.chatHistory")}
                         </p>
                         {chats.length === 0 ? (
                             <div className="px-5 py-4 text-xs text-slate-500 dark:text-slate-400">
-                                Ingen samtaler ennå
+                                {t("nav.noChats")}
                             </div>
                         ) : (
                             chats.slice(0, 5).map((chat) => (
@@ -253,7 +255,7 @@ export function Sidebar({
                             onClick={() => settErCanvasUtvidet(!erCanvasUtvidet)}
                             className="w-full flex items-center justify-between px-5 py-3.5 text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-xl"
                         >
-                            <span>Canvas</span>
+                            <span>{t("nav.canvas")}</span>
                             {erCanvasUtvidet ? (
                                 <ChevronDown size={16} />
                             ) : (
@@ -266,31 +268,31 @@ export function Sidebar({
                                 <NavElement
                                     view="varslinger"
                                     icon={Bell}
-                                    label="Varslinger"
+                                    label={t("nav.notifications")}
                                     indent
                                 />
                                 <NavElement
                                     view="canvas-courses"
                                     icon={BookOpen}
-                                    label="Emner"
+                                    label={t("nav.courses")}
                                     indent
                                 />
                                 <NavElement
                                     view="calendar"
                                     icon={CalendarDays}
-                                    label="Kalender"
+                                    label={t("nav.calendar")}
                                     indent
                                 />
                                 <NavElement
                                     view="canvas-assignments"
                                     icon={ClipboardList}
-                                    label="Oppgaver"
+                                    label={t("nav.assignments")}
                                     indent
                                 />
                                 <NavElement
                                     view="canvas-announcements"
                                     icon={Megaphone}
-                                    label="Kunngjøringer"
+                                    label={t("nav.announcements")}
                                     indent
                                 />
                             </div>
@@ -299,7 +301,7 @@ export function Sidebar({
 
                     {/* Innstillinger */}
                     <div className="border-t border-slate-200 dark:border-slate-800 pt-8">
-                        <NavElement view="settings" icon={Settings} label="Innstillinger" />
+                        <NavElement view="settings" icon={Settings} label={t("nav.settings")} />
                     </div>
                 </nav>
 
@@ -311,17 +313,17 @@ export function Sidebar({
                         </div>
                         <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
                             <p className="text-sm font-medium text-slate-900 dark:text-white truncate leading-tight">
-                                {brukernavn || "Ikke innlogget"}
+                                {brukernavn || t("user.notLoggedIn")}
                             </p>
                             <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight">
-                                Canvas bruker
+                                {t("user.canvasUser")}
                             </p>
                         </div>
                         <button
                             onClick={handleLoggUt}
                             className="shrink-0 p-2 -mr-2 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center"
-                            aria-label="Logg ut"
-                            title="Logg ut"
+                            aria-label={t("user.logout")}
+                            title={t("user.logout")}
                         >
                             <LogOut size={20} />
                         </button>
