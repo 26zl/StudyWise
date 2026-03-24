@@ -110,9 +110,9 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
         <div className="p-4 sm:p-6 lg:p-8 space-y-6">
             <div className="flex items-center gap-3">
                 <Bell className="w-6 h-6 text-slate-700 dark:text-slate-300" />
-                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
                     {t("notifications.title")}
-                </h1>
+                </h2>
             </div>
 
             {!isError && safeAlle.length > 0 && (
@@ -312,7 +312,7 @@ function HendelseKort({ hendelse, language }: { hendelse: HendelseElement; langu
     const datoLocale = language === "en" ? enUS : nb;
     const hendelseTekst = [
         hendelse.tittel,
-        `${language === "en" ? "Start" : "Start"}: ${format(
+        `${language === "en" ? "Starts" : "Start"}: ${format(
             hendelse.dato,
             language === "en" ? "MMMM d, yyyy 'at' HH:mm" : "d. MMMM yyyy 'kl.' HH:mm",
             { locale: datoLocale },

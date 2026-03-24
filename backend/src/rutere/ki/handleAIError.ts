@@ -8,6 +8,7 @@ import { ZodError, type ZodType } from "zod";
 import { logger } from "../../utils/logger.js";
 import { CircuitBreakerError } from "../../utils/circuitBreaker.js";
 import { apiError } from "../../utils/apiError.js";
+import { isClientAvailable, getMissingClientError } from "./aiClient.js";
 
 /**
  * Parser feilrespons med riktig skjema.
@@ -190,4 +191,19 @@ export function handleAIJsonRouteError(
     }
 
     return false;
+}
+
+/**
+ * Sjekker at AI-klienten er tilgjengelig for gitt modell.
+ * Returnerer true (håndtert, respons sendt) hvis IKKE tilgjengelig, false hvis alt OK.
+ * Brukes i KI-ruter for å unngå duplisert isClientAvailable-sjekk.
+ *
+ * @example
+ * if (checkAIClientUnavailable(res, model, KIChatResponseSchema)) return;
+ */
+export function checkAIClientUnavailable(res: Response, model: string, schema: ZodType): boolean {
+    if (isClientAvailable(model)) return false;
+    logger.error(getMissingClientError(model));
+    res.status(500).json(parseErrorResponse(schema, "KI-tjenesten er ikke konfigurert. Kontakt administrator."));
+    return true;
 }

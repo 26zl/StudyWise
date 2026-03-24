@@ -16,7 +16,8 @@ import { getCache, setCache } from "../../cache/redis.js";
 import { sendZodError, sendUnknownError } from "../../utils/apiError.js";
 import { handleAIError } from "./handleAIError.js";
 import { DEFAULT_MODEL } from "./aiModels.js";
-import { chatCompletion, isClientAvailable } from "./aiClient.js";
+import { chatCompletion } from "./aiClient.js";
+import { checkAIClientUnavailable } from "./handleAIError.js";
 import { isProd } from "../../utils/env.js";
 import { KI_OPPSUMMERING_CACHE_TTL } from "./kiConstants.js";
 
@@ -53,15 +54,7 @@ router.post(
 
     const { tekst, type } = parsed.data;
 
-    if (!isClientAvailable(DEFAULT_MODEL)) {
-      logger.error("AI-klient ikke tilgjengelig for oppsummering");
-      return res.status(500).json(
-        KIOppsummeringResponseSchema.parse({
-          suksess: false,
-          melding: "KI-tjenesten er ikke konfigurert. Kontakt administrator.",
-        }),
-      );
-    }
+    if (checkAIClientUnavailable(res, DEFAULT_MODEL, KIOppsummeringResponseSchema)) return;
 
     // Stripp HTML fra teksten
     const renTekst = stripHtml(tekst);

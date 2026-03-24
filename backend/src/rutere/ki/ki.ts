@@ -6,7 +6,7 @@
 import { Router } from "express";
 import { createHash } from "crypto";
 import { logger } from "../../utils/logger.js";
-import { apiError } from "../../utils/apiError.js";
+import { apiError, sendZodError } from "../../utils/apiError.js";
 import { getCache, setCache } from "../../cache/redis.js";
 import { rateLimitKi } from "../../middleware/rate-limit.js";
 import {
@@ -20,12 +20,13 @@ import { kiAnalyseRouter } from "./kiAnalyse.js";
 import { kiShareRouter } from "./kiShare.js";
 import { SUPPORTED_MODELS, DEFAULT_MODEL, resolveModel } from "./aiModels.js";
 import { STUDYWISE_SYSTEM_PROMPT } from "./systemPrompt.js";
-import { chatCompletion, isClientAvailable, getMissingClientError } from "./aiClient.js";
-import { handleAIError } from "./handleAIError.js";
+import { chatCompletion } from "./aiClient.js";
+import { handleAIError, checkAIClientUnavailable } from "./handleAIError.js";
 import { loadCanvasContext, ensureCanvasSync, type IntentType, type ContextResult } from "../../services/context-loader.service.js";
 import { isSyncing, waitForSync } from "../../services/canvas-sync.service.js";
 import { trimToTokenLimit, countTokens } from "../../utils/tokenCounter.js";
 import { knyttCanvasTokenValgfritt } from "../../middleware/auth.js";
+import { setupSSE, writeSSE } from "../../utils/sseUtils.js";
 
 /** Parser JSON sync-status fra Redis. Returnerer statusfeltet, eller null ved ugyldig verdi. */
 function parseSyncStatus(raw: string | null): string | null {
@@ -315,20 +316,11 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
   // Valider request body
   const parseResult = KIChatRequestSchema.safeParse(req.body);
   if (!parseResult.success) {
-    const errorMessages = parseResult.error.issues
-      .map((issue) => issue.message)
-      .join(", ");
     logger.warn(
       { errors: parseResult.error.issues, userId: req.user.id },
       "Ugyldig chat-forespørsel",
     );
-    return res.status(400).json(
-      KIChatResponseSchema.parse({
-        suksess: false,
-        melding: "Ugyldig forespørsel: " + errorMessages,
-        response: "",
-      }),
-    );
+    return sendZodError(res, parseResult.error, "Ugyldig chat-forespørsel");
   }
 
   const {
@@ -374,16 +366,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
 
   const model = resolveModel(requestedModel);
 
-  if (!isClientAvailable(model)) {
-    logger.error(getMissingClientError(model));
-    return res.status(500).json(
-      KIChatResponseSchema.parse({
-        suksess: false,
-        melding: "KI-tjenesten er ikke konfigurert. Kontakt administrator.",
-        response: "",
-      }),
-    );
-  }
+  if (checkAIClientUnavailable(res, model, KIChatResponseSchema)) return;
 
   if (requestedModel && !SUPPORTED_MODELS[requestedModel]) {
     logger.warn(
@@ -392,7 +375,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     );
   }
 
-  let keepaliveInterval: ReturnType<typeof setInterval> | undefined;
+  let sseCleanup: (() => void) | undefined;
   let sseStarted = false;
 
   const abortController = new AbortController();
@@ -422,26 +405,9 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
 
     // SSE-headere og keepalive tidlig slik at proxy/klient ikke lukker under lang kontekstlasting (f.eks. PDF-oppsummering)
     if (!res.headersSent) {
-      res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
-      res.setHeader("Connection", "keep-alive");
-      res.setHeader("X-Accel-Buffering", "no");
-      res.removeHeader("Content-Encoding");
-      res.flushHeaders();
+      const sse = setupSSE(req, res, 130_000); // maks timeout (canvas_full=120s) + margin
+      sseCleanup = sse.clearKeepalive;
       sseStarted = true;
-      keepaliveInterval = setInterval(() => {
-        if (res.writableEnded || res.destroyed) {
-          clearInterval(keepaliveInterval);
-          keepaliveInterval = undefined;
-          return;
-        }
-        try {
-          res.write(": keepalive\n\n");
-        } catch {
-          clearInterval(keepaliveInterval);
-          keepaliveInterval = undefined;
-        }
-      }, 10_000);
     }
 
     // ——— Laste Canvas-kontekst via context-loader (Redis → API fallback) ———
@@ -660,15 +626,6 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       "Sender til AI-tjenesten",
     );
 
-    // Socket timeout for lang AI-svar (SSE-headere og keepalive er allerede satt tidlig)
-    if (!res.writableEnded && !req.socket.destroyed) {
-      try {
-        req.socket.setTimeout(TIMEOUT_MS + 10000);
-      } catch {
-        // Socket allerede lukket — ignorer
-      }
-    }
-
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("CHAT_TIMEOUT")), TIMEOUT_MS),
     );
@@ -684,8 +641,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       timeoutPromise,
     ]);
 
-    clearInterval(keepaliveInterval);
-    keepaliveInterval = undefined;
+    sseCleanup?.();
 
     const responseText = result.text;
     const usage = result.usage;
@@ -711,13 +667,13 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
           }
         : undefined,
     });
-    if (!res.writableEnded) {
-      res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    // writeSSE base64-koder JSON-payloaden før den skrives til event-streamen.
+    if (writeSSE(res, payload)) {
       res.end();
     }
     return;
   } catch (error) {
-    if (keepaliveInterval) clearInterval(keepaliveInterval);
+    sseCleanup?.();
 
     // Respons allerede avsluttet — ingenting mer å gjøre
     if (res.writableEnded) return;
@@ -734,8 +690,9 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
         melding: errorMessage,
         response: "",
       });
-      res.write(`data: ${JSON.stringify(errorPayload)}\n\n`);
-      res.end();
+      if (writeSSE(res, errorPayload)) {
+        res.end();
+      }
       return;
     }
 

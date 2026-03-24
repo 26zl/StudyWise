@@ -284,12 +284,24 @@ function extractXlsx(buffer: Buffer, filename: string): ExtractResult | null {
       const rowTexts: string[] = [];
 
       for (const row of rows) {
-        // eslint-disable-next-line security/detect-unsafe-regex
-        const cells = [...row[1].matchAll(/<c[^>]*(?:\st="([^"]*)")?[^>]*>[\s\S]*?<v>([\s\S]*?)<\/v>[\s\S]*?<\/c>/g)];
         const cellValues: string[] = [];
-        for (const cell of cells) {
-          const type = cell[1]; // "s" = shared string
-          const value = cell[2];
+        // Sikker parsing: split på <c-tagger og prosesser individuelt (unngår ReDoS)
+        const cellOpenings = [...row[1].matchAll(/<c\b/g)];
+        for (const cellStart of cellOpenings) {
+          const startIdx = cellStart.index!;
+          const closeIdx = row[1].indexOf("</c>", startIdx);
+          if (closeIdx === -1) continue;
+          const cellXml = row[1].slice(startIdx, closeIdx + 4);
+
+          // Hent type-attributt (t="s" betyr shared string)
+          const typeMatch = cellXml.match(/\st="([^"]*)"/);
+          const type = typeMatch?.[1];
+
+          // Hent <v>-verdien
+          const valueMatch = cellXml.match(/<v>([^<]*)<\/v>/);
+          if (!valueMatch) continue;
+          const value = valueMatch[1];
+
           if (type === "s") {
             const idx = parseInt(value, 10);
             cellValues.push(sharedStrings[idx] ?? value);

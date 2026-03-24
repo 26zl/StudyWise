@@ -14,6 +14,7 @@ import { AUDIT_CATEGORIES } from "../../../database/models/AuditLog.js";
 const router = Router();
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
+const MAX_OFFSET = 10_000;
 const VALID_CATEGORIES = new Set<string>(AUDIT_CATEGORIES);
 
 /** Trygge nøkler tillatt i revisjonsliste-metadata (ingen PII eller rå request-data). */
@@ -69,7 +70,7 @@ router.get("/audit", async (req, res) => {
     Math.max(0, parseInt(String(req.query.limit), 10) || DEFAULT_LIMIT),
     MAX_LIMIT,
   );
-  const offset = Math.max(0, parseInt(String(req.query.offset), 10) || 0);
+  const offset = Math.min(Math.max(0, parseInt(String(req.query.offset), 10) || 0), MAX_OFFSET);
   const rawCategory = typeof req.query.category === "string" ? req.query.category : undefined;
   const category: AuditCategory | undefined =
     rawCategory && VALID_CATEGORIES.has(rawCategory) ? (rawCategory as AuditCategory) : undefined;

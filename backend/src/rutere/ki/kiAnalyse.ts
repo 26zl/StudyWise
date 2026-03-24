@@ -18,20 +18,22 @@ import {
 } from "../../services/document.js";
 import { summarizeIfNeeded, countWords } from "../../services/summarization.service.js";
 import { resolveModel } from "./aiModels.js";
-import { chatCompletion, chatCompletionWithVision, isClientAvailable, isVisionAvailable } from "./aiClient.js";
+import { chatCompletion, chatCompletionWithVision, isVisionAvailable, isClientAvailable, getMissingClientError } from "./aiClient.js";
 import type { ImageAttachment } from "./aiClient.js";
 import { STUDYWISE_SYSTEM_PROMPT, STUDYWISE_DOCUMENT_PROMPT } from "./systemPrompt.js";
+import { setupSSE, writeSSE } from "../../utils/sseUtils.js";
 
 /** Send SSE-feilrespons og avslutt strømmen */
-function sendSSEFeil(res: Response, melding: string, keepaliveInterval: ReturnType<typeof setInterval>): void {
-    clearInterval(keepaliveInterval);
-    if (res.writableEnded) return;
-    res.write(`data: ${JSON.stringify(KIDocumentAnalyseResponseSchema.parse({
+function sendSSEFeil(res: Response, melding: string, cleanup: () => void): void {
+    cleanup();
+    const payload = KIDocumentAnalyseResponseSchema.parse({
         suksess: false,
         melding,
         response: "",
-    }))}\n\n`);
-    res.end();
+    });
+    if (writeSSE(res, payload)) {
+        res.end();
+    }
 }
 
 /** MIME-typer som Claude Vision støtter direkte */
@@ -73,41 +75,20 @@ const upload = multer({
  */
 router.post("/analyze-document", upload.single('document'), async (req: Request, res: Response) => {
   // Set SSE headers FIRST — prevents proxy buffering timeout
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no");
-  res.removeHeader("Content-Encoding");
-  if (!req.socket.destroyed) {
-    try { req.socket.setTimeout(120000); } catch { /* socket allerede lukket */ }
-  }
-  res.flushHeaders();
-
-  // Keepalive to prevent proxy (Next.js rewrite) from timing out during AI processing
-  const keepaliveInterval = setInterval(() => {
-      if (res.writableEnded || res.destroyed) {
-        clearInterval(keepaliveInterval);
-        return;
-      }
-      try {
-        res.write(": keepalive\n\n");
-      } catch {
-        clearInterval(keepaliveInterval);
-      }
-  }, 10000);
+  const { clearKeepalive } = setupSSE(req, res, 120_000);
 
   try {
 
     logger.info("Mottok dokumentanalyse-forespørsel");
 
     if (!req.file) {
-        sendSSEFeil(res, "Ingen fil mottatt.", keepaliveInterval);
+        sendSSEFeil(res, "Ingen fil mottatt.", clearKeepalive);
         return;
     }
 
     const bodyResult = KIDocumentAnalyseRequestSchema.safeParse(req.body);
     if (!bodyResult.success) {
-        sendSSEFeil(res, "Ugyldig forespørsel. Sjekk at alle felt er fylt ut riktig.", keepaliveInterval);
+        sendSSEFeil(res, "Ugyldig forespørsel. Sjekk at alle felt er fylt ut riktig.", clearKeepalive);
         return;
     }
     const { question: q, sporsmaal: s, model: bodyModel } = bodyResult.data;
@@ -115,8 +96,8 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
     const model = resolveModel(bodyModel);
 
     if (!isClientAvailable(model)) {
-        logger.error("AI-klient ikke tilgjengelig for modell: %s", model);
-        sendSSEFeil(res, "KI-tjenesten er ikke konfigurert. Kontakt administrator.", keepaliveInterval);
+        logger.error(getMissingClientError(model));
+        sendSSEFeil(res, "KI-tjenesten er ikke konfigurert. Kontakt administrator.", clearKeepalive);
         return;
     }
 
@@ -142,18 +123,18 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
                 docResult = await parseDocument(filBuffer, filMimetype, req.file.originalname);
             } catch (parseError) {
                 logger.error({ err: parseError }, "File parsing failed");
-                sendSSEFeil(res, "Kunne ikke lese filen. Prøv et annet format.", keepaliveInterval);
+                sendSSEFeil(res, "Kunne ikke lese filen. Prøv et annet format.", clearKeepalive);
                 return;
             }
 
             if (!docResult.success) {
                 logger.warn({ parseError: docResult.error }, "Dokument-parsing feilet");
-                sendSSEFeil(res, "Kunne ikke lese dokumentet. Prøv et annet format.", keepaliveInterval);
+                sendSSEFeil(res, "Kunne ikke lese dokumentet. Prøv et annet format.", clearKeepalive);
                 return;
             }
 
             if (!docResult.text || docResult.text.trim().length === 0) {
-                sendSSEFeil(res, "Filen inneholder ingen lesbar tekst.", keepaliveInterval);
+                sendSSEFeil(res, "Filen inneholder ingen lesbar tekst.", clearKeepalive);
                 return;
             }
 
@@ -262,8 +243,8 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
                 truncated: docResult.truncated,
             } : {
                 sider: 1,
-                tegn: 0,
-                fileType: "image",
+                tegn: filBuffer.length,
+                fileType: brukerVision ? "image" : "unknown",
                 redacted: false,
                 truncated: false,
             },
@@ -273,31 +254,30 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
                 total_tokens: usage.total_tokens,
             } : undefined,
         });
-        clearInterval(keepaliveInterval);
-        if (!res.writableEnded) {
-            res.write(`data: ${JSON.stringify(payload)}\n\n`);
+        clearKeepalive();
+        // writeSSE base64-koder JSON-payloaden før den skrives til event-streamen.
+        if (writeSSE(res, payload)) {
             res.end();
         }
         return;
 
   } catch (error) {
-    clearInterval(keepaliveInterval);
+    clearKeepalive();
     logger.error({ err: error }, "analyze-document unhandled error");
-    if (!res.writableEnded) {
-        try {
-            const isTimeout = error instanceof Error && error.message === "ANALYSE_TIMEOUT";
-            const errorPayload = KIDocumentAnalyseResponseSchema.parse({
-                suksess: false,
-                melding: isTimeout
-                    ? "Dokumentanalysen tok for lang tid. Prøv med et mindre dokument eller prøv igjen."
-                    : "Kunne ikke analysere dokumentet. Prøv igjen.",
-                response: "",
-            });
-            res.write(`data: ${JSON.stringify(errorPayload)}\n\n`);
+    try {
+        const isTimeout = error instanceof Error && error.message === "ANALYSE_TIMEOUT";
+        const errorPayload = KIDocumentAnalyseResponseSchema.parse({
+            suksess: false,
+            melding: isTimeout
+                ? "Dokumentanalysen tok for lang tid. Prøv med et mindre dokument eller prøv igjen."
+                : "Kunne ikke analysere dokumentet. Prøv igjen.",
+            response: "",
+        });
+        if (writeSSE(res, errorPayload)) {
             res.end();
-        } catch {
-            // Headers already ended, nothing to do
         }
+    } catch {
+        // Stream allerede avsluttet
     }
   }
 });

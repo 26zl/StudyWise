@@ -158,7 +158,7 @@ const undoTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-linear-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-1">
               {plan.week}
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400">

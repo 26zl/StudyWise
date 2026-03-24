@@ -7,6 +7,7 @@ import type { ZodType } from "zod";
 import { useQuery, type QueryClient } from "@tanstack/react-query";
 import { useUIStore } from "../store/uiStore";
 import { fetchApi } from "../lib/apiClient";
+import { CANVAS_QUERY_OPTIONS } from "../lib/queryConfig";
 
 // Importer Zod schemas fra common
 import {
@@ -61,6 +62,7 @@ import {
   CanvasResourceError,
   CanvasApiError,
 } from "../lib/errors";
+import { parseApiErrorBody } from "../lib/errorUtils";
 
 // Sjekk om en feil er en token-feil som krever re-autentisering
 function isTokenError(error: unknown): boolean {
@@ -122,22 +124,13 @@ async function håndterFeilRespons(
     );
   }
 
-  // Hjelpefunksjon: parse feilrespons-body til melding + kode
+  // Hjelpefunksjon: parse feilrespons-body til melding + kode (delegerer til delt parser)
   const parseErrorBody = async (
     defaultMessage: string,
     defaultCode: CanvasErrorCode,
   ): Promise<{ errorMessage: string; errorCode: CanvasErrorCode }> => {
-    const errorText = await res.text();
-    let errorMessage = defaultMessage;
-    let errorCode = defaultCode;
-    try {
-      const error = JSON.parse(errorText);
-      errorMessage = error.melding || error.feil || errorMessage;
-      errorCode = error.kode || errorCode;
-    } catch {
-      if (errorText) errorMessage = errorText;
-    }
-    return { errorMessage, errorCode };
+    const parsed = await parseApiErrorBody(res, defaultMessage, defaultCode);
+    return { errorMessage: parsed.errorMessage, errorCode: (parsed.errorCode ?? defaultCode) as CanvasErrorCode };
   };
 
   // Håndter 403 - skille mellom "token mangler" (vår backend) og "permission denied" (Canvas)
@@ -240,8 +233,7 @@ export async function openModuleItem(
 // Standard query-opsjoner for Canvas-hooks
 const canvasQueryOptions = {
   retry: shouldRetryCanvasQuery,
-  staleTime: 1000 * 60 * 2, // 2 minutter før data anses som stale
-  refetchOnWindowFocus: false, // Ikke refetch automatisk ved vindu-fokus
+  ...CANVAS_QUERY_OPTIONS,
 };
 
 // Hook for å sjekke om Canvas-queries skal være aktivert

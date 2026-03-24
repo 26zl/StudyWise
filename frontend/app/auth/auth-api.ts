@@ -5,6 +5,7 @@
 import { useCallback, useRef } from "react";
 import { useClerk } from "@clerk/nextjs";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { AUTH_QUERY_OPTIONS } from "../lib/queryConfig";
 import {
   CanvasTokenResponseSchema,
   MeResponseSchema,
@@ -136,6 +137,11 @@ async function hentMeg(signal?: AbortSignal): Promise<MeResponse> {
     if (res.status === 401 || res.status === 403) {
       throw createAuthStatusError(res.status, json, "Ikke autentisert");
     }
+    if (res.status === 409) {
+      // Konto-konflikt: bruker er autentisert men app-bruker har ulik Clerk-konto.
+      // Skal IKKE trigge auth-redirect (det ville skapt en uendelig loop).
+      throw createApiError(json, "Kontoen din har en innloggingskonflikt. Prøv å logge inn med en annen metode.");
+    }
     throw createApiError(json, "Kunne ikke hente brukerdata");
   } catch (err) {
     clearTimeout(timeoutId);
@@ -207,6 +213,9 @@ export function useMeg(options?: { initialData?: MeResponse; enabled?: boolean }
       if (isAuthError) {
         return failureCount < 1;
       }
+      // Konto-konflikt (409) er deterministisk — retry hjelper ikke
+      const msg = error instanceof Error ? error.message : "";
+      if (msg.includes("innloggingskonflikt") || msg.includes("allerede en konto")) return false;
       // Maks 2 retries ved nettverksfeil — unngår lang ventetid
       return failureCount < 2;
     },
@@ -215,8 +224,7 @@ export function useMeg(options?: { initialData?: MeResponse; enabled?: boolean }
       if (isAuthError && attemptIndex === 0) return 200;
       return Math.min(1000 * 2 ** attemptIndex, 4000);
     },
-    staleTime: 1000 * 60 * 5, // Cache i 5 minutter - unngår unødvendige requests
-    refetchOnWindowFocus: false, // Ikke refetch ved window focus
+    ...AUTH_QUERY_OPTIONS,
     initialData: options?.initialData,
   });
 }

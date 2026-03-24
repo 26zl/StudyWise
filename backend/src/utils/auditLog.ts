@@ -33,6 +33,7 @@ export const AUDIT_ACTIONS = {
   ADMIN_ACTION: "admin_action",
   ACCOUNT_DELETED: "account_deleted",
   PREFERENCES_UPDATED: "preferences_updated",
+  ACCOUNT_RELINKED: "account_relinked",
 } as const;
 
 export function getDeletedAuditActorId(userId: string): string {

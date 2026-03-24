@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, MessageSquarePlus } from "lucide-react";
+import DOMPurify from "isomorphic-dompurify";
 import { KIOppsummering } from "@/app/components/ki/KIOppsummering";
 import { useLanguage } from "@/app/i18n";
 import { useUIStore } from "@/app/store/uiStore";
@@ -71,12 +72,9 @@ function rensCanvasTekst(tekst: string) {
         return trimmet.replace(/\s+/g, " ").trim();
     }
 
-    const container = document.createElement("div");
-    container.innerHTML = trimmet;
-
-    return (container.textContent ?? container.innerText ?? "")
-        .replace(/\s+/g, " ")
-        .trim();
+    // Sanitér HTML først for å unngå XSS ved DOM-parsing, deretter hent ren tekst
+    const sanitized = DOMPurify.sanitize(trimmet, { ALLOWED_TAGS: [] });
+    return sanitized.replace(/\s+/g, " ").trim();
 }
 
 function lagPrompt({

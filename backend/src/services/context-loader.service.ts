@@ -27,6 +27,7 @@ import type { TargetedQuery } from "../rutere/ki/ki.js";
 import { TWO_WEEKS_MS } from "common/dateUtils";
 import { isCanvasAssignmentSubmitted } from "common/canvas";
 import { stripHtml } from "../utils/htmlUtils.js";
+import { normaliserFilnavnHint } from "../utils/dateFormatter.js";
 import { formatCourseLabel } from "./semantic-search.service.js";
 import {
   searchChunks,
@@ -111,10 +112,6 @@ function formaterLettKontekst(emner: LettKontekstEmne[]): string {
 
   kontekst += "[CANVAS-DATA SLUTT]";
   return kontekst;
-}
-
-function normaliserFilnavnHint(value: string): string {
-  return value.toLowerCase().replace(/\.pdf$/i, "").replace(/[_-]/g, " ").trim();
 }
 
 function titleMatchesFileHint(title: string, fileHint: string): boolean {

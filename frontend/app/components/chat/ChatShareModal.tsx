@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Link2, MessageSquare, ShieldAlert, X } from "lucide-react";
 
 interface ChatShareModalProps {
@@ -28,6 +28,7 @@ export function ChatShareModal({
   expiresInDays = 30,
 }: ChatShareModalProps) {
   const [hasConfirmed, setHasConfirmed] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -36,23 +37,48 @@ export function ChatShareModal({
     }
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !isPending) onClose();
+      // Trap focus inside the modal
+      if (e.key === "Tab" && dialogRef.current) {
+        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     document.addEventListener("keydown", handleKeyDown);
+    // Auto-focus the dialog on open
+    dialogRef.current?.focus();
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, isPending, onClose]);
+
+  const handleBackdropClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.target === e.currentTarget && !isPending) onClose();
+    },
+    [isPending, onClose],
+  );
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6">
-      <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-950">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6" onClick={handleBackdropClick} role="presentation">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="share-modal-title" tabIndex={-1} className="w-full max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl outline-none dark:border-slate-700 dark:bg-slate-950">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5 dark:border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
               <Link2 className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+              <h2 id="share-modal-title" className="text-xl font-semibold text-slate-900 dark:text-white">
                 Del hele chatten
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -73,7 +99,7 @@ export function ChatShareModal({
         </div>
 
         <div className="space-y-5 px-6 py-6">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-800 dark:bg-slate-900">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-start gap-3">
               <MessageSquare className="mt-0.5 h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" />
               <div>
@@ -87,7 +113,7 @@ export function ChatShareModal({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 dark:border-amber-900/60 dark:bg-amber-950/40">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 dark:border-amber-900/60 dark:bg-amber-950/40">
             <div className="flex items-start gap-3">
               <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300" />
               <div className="space-y-2 text-sm text-amber-900 dark:text-amber-100">
@@ -102,7 +128,7 @@ export function ChatShareModal({
             </div>
           </div>
 
-          <label className="flex items-start gap-3 rounded-2xl border border-slate-200 px-4 py-4 text-sm text-slate-700 dark:border-slate-800 dark:text-slate-200">
+          <label className="flex items-start gap-3 rounded-xl border border-slate-200 px-4 py-4 text-sm text-slate-700 dark:border-slate-800 dark:text-slate-200">
             <input
               type="checkbox"
               checked={hasConfirmed}
@@ -115,7 +141,7 @@ export function ChatShareModal({
             </span>
           </label>
 
-          <div className="flex items-start gap-3 rounded-2xl bg-slate-100 px-4 py-4 text-sm text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+          <div className="flex items-start gap-3 rounded-xl bg-slate-100 px-4 py-4 text-sm text-slate-600 dark:bg-slate-900 dark:text-slate-300">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" />
             <p>
               StudyWise fjerner ikke automatisk innhold fra chatten ved deling. Ga gjennom samtalen med personvern-briller for du oppretter lenken.

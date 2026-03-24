@@ -283,13 +283,28 @@ function queueExistingUserProfileSync(
   })();
 }
 
+/** Spesialresultat for kontokonflikt som ikke er en auth-feil. */
+export interface AccountConflictResult {
+  __accountConflict: true;
+  email: string;
+}
+
+/** Type-guard for AccountConflictResult. */
+export function isAccountConflict(
+  result: IUser | AccountConflictResult | null,
+): result is AccountConflictResult {
+  return result !== null && typeof result === "object" && "__accountConflict" in result;
+}
+
 /**
  * Henter eller oppretter StudyWise-bruker for en Clerk user id.
  * Eksisterende brukere får lokal profil oppdatert fra Clerk med jevne mellomrom i bakgrunnen.
+ * Ved e-postkonflikt med annen Clerk-konto re-linkes brukeren automatisk.
+ * Returnerer AccountConflictResult kun hvis re-linking feiler (race condition).
  */
 export async function findOrCreateUserByClerkId(
   clerkUserId: string,
-): Promise<IUser | null> {
+): Promise<IUser | AccountConflictResult | null> {
   // +canvasApiToken slik at GET /me kan gjenbruke bruker uten ekstra DB-kall
   const existing = await User.findOne({ clerkId: clerkUserId }).select("+canvasApiToken");
   if (existing) {
@@ -327,16 +342,50 @@ export async function findOrCreateUserByClerkId(
       }
 
       if (existingByEmail.clerkId && existingByEmail.clerkId !== clerkUserId) {
-        logger.warn(
+        // Samme e-post, annen Clerk-konto — typisk når bruker bytter OAuth-leverandør
+        // (f.eks. Microsoft → Google). E-posten er verifisert av begge leverandørene,
+        // så vi re-linker eksisterende bruker til den nye Clerk-kontoen.
+        const oldClerkId = existingByEmail.clerkId;
+        logger.info(
           {
             clerkUserId,
             userId: existingByEmail._id,
             email,
-            existingClerkId: existingByEmail.clerkId,
+            oldClerkId,
           },
-          "Kunne ikke linke Clerk-bruker fordi e-post allerede er knyttet til annen Clerk-konto",
+          "Re-linker eksisterende bruker til ny Clerk-konto (samme e-post, annen OAuth-leverandør)",
         );
-        return null;
+
+        const relinkedUser = await User.findOneAndUpdate(
+          { _id: existingByEmail._id, clerkId: oldClerkId },
+          {
+            $set: {
+              clerkId: clerkUserId,
+              firstName: firstName ?? existingByEmail.firstName,
+              lastName: lastName ?? existingByEmail.lastName,
+              clerkProfileSyncedAt,
+            },
+          },
+          { returnDocument: "after" },
+        ).select("+canvasApiToken");
+
+        if (relinkedUser) {
+          await audit({
+            actorUserId: relinkedUser._id.toString(),
+            action: AUDIT_ACTIONS.ACCOUNT_RELINKED,
+            category: "auth",
+            outcome: "success",
+            metadata: { oldClerkId, newClerkId: clerkUserId, email },
+          });
+          return relinkedUser;
+        }
+
+        // Atomisk oppdatering feilet (race condition) — returner spesifikk feilmelding
+        logger.error(
+          { clerkUserId, userId: existingByEmail._id, email, oldClerkId },
+          "Kunne ikke re-linke Clerk-bruker — atomisk oppdatering feilet",
+        );
+        return { __accountConflict: true as const, email };
       }
 
       const linkedUser = await User.findOneAndUpdate(
@@ -357,7 +406,7 @@ export async function findOrCreateUserByClerkId(
           },
         },
         { returnDocument: "after" },
-      );
+      ).select("+canvasApiToken");
 
       if (linkedUser?.deletedAt) {
         logger.warn(
@@ -405,7 +454,7 @@ export async function findOrCreateUserByClerkId(
 
       const concurrentUser = await User.findOne({
         $or: [{ clerkId: clerkUserId }, { email }],
-      });
+      }).select("+canvasApiToken");
 
       if (concurrentUser?.deletedAt) {
         logger.warn(
@@ -423,9 +472,9 @@ export async function findOrCreateUserByClerkId(
             email,
             existingClerkId: concurrentUser.clerkId,
           },
-          "Duplicate-key recovery fant bruker knyttet til annen Clerk-konto; avviser",
+          "Duplicate-key recovery fant bruker knyttet til annen Clerk-konto",
         );
-        return null;
+        return { __accountConflict: true as const, email: email ?? "" };
       }
 
       if (concurrentUser) {

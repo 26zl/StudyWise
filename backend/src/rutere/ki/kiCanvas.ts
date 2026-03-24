@@ -5,7 +5,8 @@
  */
 import { logger } from "../../utils/logger.js";
 import { stripHtml } from "../../utils/htmlUtils.js";
-import { getWeekNumber, TWO_WEEKS_MS } from "common/dateUtils";
+import { TWO_WEEKS_MS } from "common/dateUtils";
+import { formaterDatoMedTid, dagensDatoStreng, normaliserFilnavnHint } from "../../utils/dateFormatter.js";
 import {
   fetchCoursesForKI,
   fetchTodo,
@@ -26,23 +27,6 @@ import { summarizeIfNeeded } from "../../services/summarization.service.js";
 
 // Begrens samtidige kall til Canvas API for å unngå rate limiting
 const limit = pLimit(3);
-
-const DAG_NAVN = ["søndag", "mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag"];
-const MÅNED_NAVN = ["januar", "februar", "mars", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "desember"];
-
-function formaterDatoMedTid(isoString: string | null | undefined): string {
-  if (!isoString) return "";
-  const d = new Date(isoString);
-  const dato = d.toLocaleDateString("no-NO", { timeZone: "Europe/Oslo" });
-  const tid = d.toLocaleTimeString("no-NO", { timeZone: "Europe/Oslo", hour: "2-digit", minute: "2-digit" });
-  return `${dato} kl. ${tid}`;
-}
-
-function dagensDatoStreng(includeWeek = false): string {
-  const idag = new Date();
-  const base = `${DAG_NAVN[idag.getDay()]} ${idag.getDate()}. ${MÅNED_NAVN[idag.getMonth()]} ${idag.getFullYear()}`;
-  return includeWeek ? `${base} (uke ${getWeekNumber(idag)})` : base;
-}
 
 /**
  * Lett Canvas-kontekst: kun emnenavn + kommende frister (neste 14 dager).
@@ -205,14 +189,14 @@ export async function byggMålrettetCanvasKontekst(
     }
 
     if (!matchedCourse && target.fileHint) {
-      const normHintSearch = target.fileHint.toLowerCase().replace(/\.pdf$/i, "").replace(/[_-]/g, " ").trim();
+      const normHintSearch = normaliserFilnavnHint(target.fileHint);
       for (const course of allCourses) {
         try {
           const { data: mods } = await fetchModules(canvasToken, course.id, baseUrl);
           const found = mods.some((m) =>
             m.items?.some((item) => {
               if (item.type !== "File") return false;
-              const normT = (item.title ?? "").toLowerCase().replace(/\.pdf$/i, "").replace(/[_-]/g, " ").trim();
+              const normT = normaliserFilnavnHint(item.title ?? "");
               return normT.includes(normHintSearch) || normHintSearch.includes(normT);
             }),
           );

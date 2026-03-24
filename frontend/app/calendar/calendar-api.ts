@@ -16,6 +16,7 @@ import type {
 } from "common/calendar-ui";
 import { fetchCanvas } from "../canvas/canvas-api";
 import { useUIStore } from "../store/uiStore";
+import { CALENDAR_QUERY_OPTIONS } from "../lib/queryConfig";
 
 // Re-eksporter for bakoverkompatibilitet
 export { CanvasTokenMissingError } from "../lib/errors";
@@ -260,9 +261,7 @@ export function useCalendarData(enabled = true) {
       };
     },
     enabled: isEnabled,
-    staleTime: 60 * 1000, // 60 sekunder før data anses som stale
-    refetchOnWindowFocus: false, // Unngå tunge refetches ved hvert fokus
-    gcTime: 5 * 60 * 1000, // Garbage collect etter 5 min inaktivitet
+    ...CALENDAR_QUERY_OPTIONS,
   });
 
   return query;

@@ -33,8 +33,8 @@ export interface ApiErrorPayload {
   canvasKonflikt?: boolean;
 }
 
-// Feiltyper som kan identifiseres (kun brukt internt i lagBrukervennligFeilmelding)
-type FeilType =
+// Feiltyper som kan identifiseres
+export type FeilType =
   | "auth"
   | "token"
   | "rate_limit"
@@ -47,7 +47,7 @@ type FeilType =
   | "conflict"
   | "unknown";
 
-function identifiserFeiltype(
+export function identifiserFeiltype(
   error: Error | string | null,
   status?: number,
 ): FeilType {
@@ -456,4 +456,28 @@ export async function parseApiError(
   } catch {
     return errorText;
   }
+}
+
+/**
+ * Parser feilrespons-body og returnerer melding + kode + rå payload.
+ * Brukes av canvas-api, ki-api og auth-api for konsekvent feilhåndtering.
+ */
+export async function parseApiErrorBody(
+  res: Response,
+  defaultMessage: string,
+  defaultCode?: string,
+): Promise<{ errorMessage: string; errorCode: string | undefined; payload: ApiErrorPayload | null }> {
+  const errorText = await res.text();
+  let errorMessage = defaultMessage;
+  let errorCode = defaultCode;
+  let payload: ApiErrorPayload | null = null;
+  try {
+    const json = JSON.parse(errorText);
+    payload = isApiErrorPayload(json) ? json : null;
+    errorMessage = extractApiErrorMessage(json, defaultMessage);
+    if (payload?.kode) errorCode = payload.kode;
+  } catch {
+    if (errorText) errorMessage = errorText;
+  }
+  return { errorMessage, errorCode, payload };
 }

@@ -23,7 +23,7 @@ import {
   type TaskBreakdownGenerateRequest,
   type WeeklyPlanGenerateRequest,
 } from "common/ki";
-import { parseApiError } from "../lib/errorUtils";
+import { parseApiError, identifiserFeiltype, type FeilType } from "../lib/errorUtils";
 import { fetchApi } from "../lib/apiClient";
 import { ForbiddenError } from "../lib/errors";
 
@@ -251,51 +251,48 @@ function erTekniskFeilmelding(msg: string): boolean {
   );
 }
 
-/** Klassifiserer KI-feil: sjekker error.name først, deretter meldingsinnhold, og bruker HTTP-status som fallback. */
+/** Mapper generell FeilType til KI-spesifikk kategori. */
+function feilTypeToKICategory(type: FeilType): KIErrorCategory {
+  switch (type) {
+    case "auth":
+    case "token":
+      return "auth";
+    case "rate_limit":
+      return "rate_limit";
+    case "timeout":
+      return "timeout";
+    case "server":
+    case "network":
+      return "service";
+    default:
+      return "unknown";
+  }
+}
+
+/** Klassifiserer KI-feil: sjekker KI-spesifikke error.name og config-meldinger, deretter delegerer til delt identifiserFeiltype. */
 function classifyKIError(
   message: string,
   status?: number,
   errorName?: string,
 ): KIErrorCategory {
-  // 1. Sjekk error.name (spesialiserte feilklasser)
-  if (errorName === "KIAuthError") return "auth";
+  // KI-spesifikk: sjekk error.name for spesialiserte feilklasser
   if (errorName === "KIConfigError") return "config";
-  if (errorName === "KIRateLimitError") return "rate_limit";
-  if (errorName === "KITimeoutError") return "timeout";
-  if (errorName === "KIServiceError") return "service";
 
-  // 2. Sjekk meldingsinnhold før generiske 5xx-statuskoder, så vi ikke mister mer spesifikke årsaker.
+  // KI-spesifikk: sjekk for konfigurasjonsfeil i meldingsinnhold
   const lower = message.trim().toLowerCase();
-  if (
-    lower.includes("logge inn på nytt") ||
-    lower.includes("ikke autentisert") ||
-    lower.includes("ingen jwt")
-  )
-    return "auth";
   if (
     lower.includes("anthropic_api_key") ||
     lower.includes("ingen ai-leverandør tilgjengelig") ||
     lower.includes("ikke konfigurert")
   )
     return "config";
-  if (lower.includes("rate limit") || lower.includes("for mange forespørsler"))
-    return "rate_limit";
-  if (lower.includes("timeout") || lower.includes("tok for lang tid"))
-    return "timeout";
-  if (
-    lower.includes("overbelastet") ||
-    lower.includes("utilgjengelig") ||
-    lower.includes("server")
-  )
-    return "service";
 
-  // 3. Sjekk HTTP-status som fallback når meldingen ikke er spesifikk nok.
-  if (status === 401) return "auth";
-  if (status === 429) return "rate_limit";
-  if (status === 504) return "timeout";
-  if (status === 500 || status === 502 || status === 503) return "service";
-
-  return "unknown";
+  // Bruk delt feilklassifiserer for alt annet
+  const feilType = identifiserFeiltype(
+    errorName ? Object.assign(new Error(message), { name: errorName }) : message,
+    status,
+  );
+  return feilTypeToKICategory(feilType);
 }
 
 function getDisplayMessageForCategory(
@@ -466,6 +463,26 @@ async function håndterKIFeilRespons(res: Response): Promise<void> {
   }
 }
 
+function tryDecodeSSEPayload(dataLine: string): string | null {
+  if (typeof globalThis.atob !== "function") {
+    return null;
+  }
+
+  try {
+    const binary = globalThis.atob(dataLine);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+function parseSSEPayload<T>(dataLine: string, schema: ZodType<T>): T {
+  const decoded = tryDecodeSSEPayload(dataLine);
+  const json = decoded ?? dataLine;
+  return schema.parse(JSON.parse(json));
+}
+
 /** Parser KI-respons: SSE (siste data:-linje) eller vanlig JSON. */
 async function parseKIResponse<T>(
   res: Response,
@@ -484,7 +501,7 @@ async function parseKIResponse<T>(
     if (!lastData) {
       throw new Error("Ingen respons mottatt fra KI-tjenesten.");
     }
-    return schema.parse(JSON.parse(lastData));
+    return parseSSEPayload(lastData, schema);
   }
   const data = await res.json();
   return schema.parse(data);
@@ -676,9 +693,7 @@ export async function streamKIChat(
     throw new KIServiceError("Ingen respons mottatt fra KI-tjenesten.");
   }
 
-  return assertSuccessfulKIChat(
-    KIChatResponseSchema.parse(JSON.parse(lastDataLine)),
-  );
+  return assertSuccessfulKIChat(parseSSEPayload(lastDataLine, KIChatResponseSchema));
 }
 
 // React query hooks
@@ -872,4 +887,3 @@ export async function generateOppsummeringApi(
 ) {
   return postKI("/oppsummering", { tekst, type }, KIOppsummeringResponseSchema);
 }
-

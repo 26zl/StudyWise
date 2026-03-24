@@ -122,6 +122,35 @@ function getMimeFromMagicBytes(buffer: Buffer): string | null {
 }
 
 /**
+ * Verifiserer at ZIP-basert Office-fil (OOXML) inneholder forventede interne filer.
+ * DOCX → word/document.xml, XLSX → xl/workbook.xml, PPTX → ppt/presentation.xml.
+ * Returnerer feilmelding ved mismatch, ellers null.
+ */
+function validateOfficeZipStructure(buffer: Buffer, declaredMime: string): string | null {
+    // Nøkkelmappe/-fil som identifiserer hvert Office-format
+    const expectedEntries: Record<string, string> = {
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "word/",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xl/",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation": "ppt/",
+    };
+
+    const expected = expectedEntries[declaredMime];
+    if (!expected) return null; // Ukjent type, ingen ekstra sjekk
+
+    try {
+        // ZIP central directory entries er synlige som ASCII-strenger i bufferen.
+        // Enkel sjekk: søk etter forventet mappeprefix i rå buffer.
+        const content = buffer.toString("latin1");
+        if (!content.includes(expected)) {
+            return `Filinnholdet mangler forventet ${expected}-mappe for ${declaredMime}. Filen kan være et annet Office-format.`;
+        }
+    } catch {
+        // Kan ikke lese buffer — la det passere
+    }
+    return null;
+}
+
+/**
  * Sjekker at buffer matcher forventet MIME (eller at det er ren tekst for text/*).
  * Returnerer feilmelding ved mismatch, ellers null.
  */
@@ -141,14 +170,20 @@ export function validateFileMagicBytes(buffer: Buffer, declaredMimeType: string)
         return `Kunne ikke bekrefte filtype fra innhold (ingen kjent signatur). Forventet ${declaredMimeType}.`;
     }
 
-    // Alle Office Open XML-formater (docx, pptx, xlsx) deler PK ZIP-signatur
+    // Alle Office Open XML-formater (docx, pptx, xlsx) deler PK ZIP-signatur.
+    // Verifiser intern ZIP-struktur for å skille mellom formatene.
     const allowedForZip = [
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "application/msword",
     ];
-    if (fromMagic === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" && allowedForZip.includes(declaredNorm)) return null;
+    if (fromMagic === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" && allowedForZip.includes(declaredNorm)) {
+        // Sjekk intern struktur for å verifisere at ZIP-innholdet matcher deklarert type
+        const structureError = validateOfficeZipStructure(buffer, declaredNorm);
+        if (structureError) return structureError;
+        return null;
+    }
     if (fromMagic === "application/msword" && declaredNorm === "application/msword") return null;
 
     if (fromMagic !== declaredNorm) {

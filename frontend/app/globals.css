@@ -233,15 +233,6 @@ body {
     animation: fade-in 0.2s ease-out;
 }
 
-/* Funksjon for å skjule scrollbar men beholde scroll-funksjonalitet */
-.scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-}
-
-.scrollbar-hide::-webkit-scrollbar {
-    display: none;
-}
 /*
    Calendar Styles - Mobile First
 

@@ -11,7 +11,7 @@ import { apiError } from "../utils/apiError.js";
 import { normalizeCanvasBaseUrl } from "common/auth";
 import type { UserRole } from "common/auth";
 import type { IUser } from "../database/models/User.js";
-import { getClerkUserIdFromToken, findOrCreateUserByClerkId } from "../rutere/auth/clerkAuth.js";
+import { getClerkUserIdFromToken, findOrCreateUserByClerkId, isAccountConflict } from "../rutere/auth/clerkAuth.js";
 import { audit, AUDIT_ACTIONS } from "../utils/auditLog.js";
 
 const hentBearerToken = (req: Request): string | null => {
@@ -96,9 +96,33 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       return;
     }
 
-    const user = await findOrCreateUserByClerkId(clerkUserId);
+    const userResult = await findOrCreateUserByClerkId(clerkUserId);
     const tDb = Date.now();
-    if (!user) {
+
+    if (isAccountConflict(userResult)) {
+      // Konto-konflikt: bruker er autentisert med Clerk, men re-linking til eksisterende
+      // app-bruker feilet. Dette er IKKE en auth-feil — returner 409 slik at frontend
+      // ikke looper mellom /auth og /dashboard.
+      logger.warn(
+        { clerkUserId, email: userResult.email },
+        "Konto-konflikt: kunne ikke re-linke Clerk-bruker til eksisterende app-bruker",
+      );
+      await audit({
+        actorUserId: clerkUserId,
+        action: AUDIT_ACTIONS.TOKEN_VERIFICATION_FAILURE,
+        category: "auth",
+        outcome: "failure",
+        metadata: { reason: "account_conflict", email: userResult.email },
+        req,
+      });
+      apiError.conflict(res,
+        "Det finnes allerede en konto med denne e-postadressen koblet til en annen innloggingsmetode. " +
+        "Prøv å logge inn med den opprinnelige metoden (f.eks. Microsoft eller Google), eller kontakt support.",
+      );
+      return;
+    }
+
+    if (!userResult) {
       await audit({
         actorUserId: clerkUserId,
         action: AUDIT_ACTIONS.TOKEN_VERIFICATION_FAILURE,
@@ -110,6 +134,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       apiError.unauthorized(res, "Kunne ikke verifisere bruker");
       return;
     }
+
+    const user = userResult;
 
     logger.debug(
       { clerkMs: tClerk - t0, dbMs: tDb - tClerk, totalAuthMs: tDb - t0, url: req.originalUrl },
