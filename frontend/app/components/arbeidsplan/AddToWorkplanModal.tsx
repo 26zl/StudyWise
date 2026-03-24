@@ -4,12 +4,12 @@
  */
 "use client";
 
-import { useState } from "react";
-import { X, Calendar, Clock, CheckCircle2, Sparkles } from "lucide-react";
+import { useState, useMemo } from "react";
+import { X, Calendar, Clock, CheckCircle2, Sparkles, AlertTriangle } from "lucide-react";
 import type { SubTask } from "common/ki";
 import { getIsoWeekInfo, parseTimerStreng } from "common/dateUtils";
 import { UKEDAGER } from "common/arbeidsplan";
-import { useCreateArbeidsplan, type StudyBlock } from "@/app/arbeidsplan/arbeidsplan-api";
+import { useCreateArbeidsplan, useCurrentArbeidsplan, type StudyBlock } from "@/app/arbeidsplan/arbeidsplan-api";
 import { showToast } from "@/app/components/ui/Toaster";
 
 interface AddToWorkplanModalProps {
@@ -40,6 +40,7 @@ export function AddToWorkplanModal({
   const [startTime, setStartTime] = useState("08:00-10:00");
   
   const { mutate: createPlan, isPending } = useCreateArbeidsplan();
+  const { data: existingPlan } = useCurrentArbeidsplan();
 
   if (!isOpen) return null;
 
@@ -137,6 +138,27 @@ export function AddToWorkplanModal({
     acc[day] = count;
     return acc;
   }, {} as Partial<Record<StudyBlock["day"], number>>);
+
+  // Sjekk konflikter mot eksisterende plan
+  const conflicts = useMemo(() => {
+    if (!existingPlan?.blocks || selectedDays.length === 0) return [];
+    const found: { day: string; timeSlot: string; existingTask: string }[] = [];
+    const seen = new Set<string>();
+    for (const sub of subtasks) {
+      const dayIndex = subtasks.indexOf(sub) % selectedDays.length;
+      const day = selectedDays[dayIndex];
+      for (const existing of existingPlan.blocks) {
+        if (existing.day === day && existing.timeSlot === startTime) {
+          const key = `${day}-${existing.timeSlot}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            found.push({ day, timeSlot: existing.timeSlot, existingTask: existing.task });
+          }
+        }
+      }
+    }
+    return found;
+  }, [existingPlan?.blocks, selectedDays, startTime, subtasks]);
 
   return (
     <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
@@ -272,6 +294,7 @@ export function AddToWorkplanModal({
               {UKEDAGER.map((day) => {
                 const count = tasksPerDay[day] || 0;
                 const isSelected = selectedDays.includes(day);
+                const hasConflict = conflicts.some((c) => c.day === day);
 
                 return (
                   <button
@@ -279,7 +302,9 @@ export function AddToWorkplanModal({
                     onClick={() => toggleDay(day)}
                     className={`p-3 rounded-lg border-2 transition-all ${
                       isSelected
-                        ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
+                        ? hasConflict
+                          ? "border-amber-500 bg-amber-50 dark:bg-amber-900/20"
+                          : "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
                         : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
                     }`}
                   >
@@ -287,17 +312,46 @@ export function AddToWorkplanModal({
                       <span className="text-sm font-medium text-slate-900 dark:text-white">
                         {day.slice(0, 3)}
                       </span>
-                      {isSelected && count > 0 && (
-                        <span className="text-xs font-bold text-purple-600 dark:text-purple-400">
-                          {count}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {isSelected && hasConflict && (
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                        )}
+                        {isSelected && count > 0 && (
+                          <span className="text-xs font-bold text-purple-600 dark:text-purple-400">
+                            {count}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </button>
                 );
               })}
             </div>
           </div>
+
+          {/* Konfliktvarsel */}
+          {conflicts.length > 0 && (
+            <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                    {conflicts.length === 1 ? "1 tidskonflikt oppdaget" : `${conflicts.length} tidskonflikter oppdaget`}
+                  </h4>
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mb-2">
+                    Noen tidsluker overlapper med eksisterende oppgaver. Vurder å velge et annet tidspunkt.
+                  </p>
+                  <div className="space-y-1">
+                    {conflicts.map((c, i) => (
+                      <div key={i} className="text-xs text-amber-800 dark:text-amber-200">
+                        <span className="font-medium">{c.day} {c.timeSlot}:</span> «{c.existingTask}»
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Preview */}
           {selectedDays.length > 0 && (
