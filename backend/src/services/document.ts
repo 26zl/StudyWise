@@ -211,7 +211,8 @@ export const EXTENSION_TO_MIME: Record<string, string> = {
 };
 
 /**
- * Saniterer og renser tekst fra dokumenter
+ * Saniterer og renser tekst fra dokumenter.
+ * Maskerer PII: epost, telefon, norske fødselsnummer, studentnummer, adresser og personnavn.
  */
 function sanitizeText(text: string): { cleanText: string; redacted: boolean } {
     let cleanText = text;
@@ -220,18 +221,48 @@ function sanitizeText(text: string): { cleanText: string; redacted: boolean } {
     // Fjern null bytes
     cleanText = cleanText.replace(/\0/g, "");
 
-    // Masker enkel PII (epost og telefon)
+    // Masker epost
     const emailRegex = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-    const phoneRegex = /\b(?:\+?\d[\d\s-]{6,14}\d)\b/g;
-
     cleanText = cleanText.replace(emailRegex, () => {
         redacted = true;
         return "[REDACTED_EMAIL]";
     });
 
+    // Masker telefonnummer (norske og internasjonale)
+    const phoneRegex = /\b(?:\+?\d[\d\s-]{6,14}\d)\b/g;
     cleanText = cleanText.replace(phoneRegex, () => {
         redacted = true;
         return "[REDACTED_PHONE]";
+    });
+
+    // Masker norske fødselsnummer (11 siffer, ddmmyyxxxxx)
+    const fodselsnummerRegex = /\b([0-3]\d[0-1]\d{3}\s?\d{5})\b/g;
+    cleanText = cleanText.replace(fodselsnummerRegex, () => {
+        redacted = true;
+        return "[REDACTED_SSN]";
+    });
+
+    // Masker studentnummer (typisk 6-8 siffer, ofte prefixet med bokstaver)
+    // Fanger: s123456, 12345678, stud-123456, osv.
+    const studentnummerRegex = /\b(?:s|stud[-.]?)?(\d{6,8})\b/gi;
+    cleanText = cleanText.replace(studentnummerRegex, () => {
+        redacted = true;
+        return "[REDACTED_STUDENT_ID]";
+    });
+
+    // Masker norske adresser (gatenavn + nummer + eventuelt postnummer/sted)
+    // Enkel heuristikk: "Gatenavn 123" eller "Gatenavn 123A" fulgt av eventuelt 4-sifret postnummer
+    const adresseRegex = /\b([A-ZÆØÅ][a-zæøå]+(?:gata|gaten|veien|vegen|vei|gate|plass|allé|alléen|vn\.|gt\.)?)\s+\d{1,4}[A-Za-z]?\b(?:\s*,?\s*\d{4}\s+[A-ZÆØÅ][a-zæøå]+)?/gi;
+    cleanText = cleanText.replace(adresseRegex, () => {
+        redacted = true;
+        return "[REDACTED_ADDRESS]";
+    });
+
+    // Masker postnummer + sted (4 siffer + stedsnavn)
+    const postnummerRegex = /\b\d{4}\s+[A-ZÆØÅ][a-zæøå]+(?:\s+[A-ZÆØÅ][a-zæøå]+)?\b/g;
+    cleanText = cleanText.replace(postnummerRegex, () => {
+        redacted = true;
+        return "[REDACTED_POSTAL]";
     });
 
     // Fjern kontrollkarakterer (ASCII 0-31 og 127), behold tab/newline/CR

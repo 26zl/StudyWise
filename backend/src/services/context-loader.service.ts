@@ -49,7 +49,7 @@ export type IntentType = "general_chat" | "canvas_light" | "canvas_full";
 export interface ContextResult {
   kontekst: string;
   hasCanvasData: boolean;
-  source: "redis" | "api" | "vector" | "none";
+  source: "redis" | "mongodb" | "api" | "vector" | "chunks" | "none";
 }
 
 interface SyncedCourse {
@@ -515,7 +515,7 @@ async function byggMålrettetKontekstFraMongo(
       kontekst += `OPPGAVER (${matchedStructure.oppgaver.length}):\n`;
       for (const oppg of matchedStructure.oppgaver) {
         const frist = oppg.due_at ? new Date(oppg.due_at).toLocaleDateString("nb-NO") : "ingen frist";
-        const poeng = oppg.points_possible ? `${oppg.points_possible}p` : "";
+        const poeng = oppg.points_possible != null ? `${oppg.points_possible}p` : "";
         const status = isCanvasAssignmentSubmitted(oppg) ? "✓" : "⏳";
         kontekst += `- ${status} ${oppg.name} — frist: ${frist} ${poeng}\n`;
 
@@ -726,7 +726,7 @@ async function byggMålrettetKontekstFraRedis(
         kontekst += `OPPGAVER (${oppgaver.length}):\n`;
         for (const oppg of oppgaver) {
           const frist = oppg.due_at ? new Date(oppg.due_at).toLocaleDateString("nb-NO") : "ingen frist";
-          const poeng = oppg.points_possible ? `${oppg.points_possible}p` : "";
+          const poeng = oppg.points_possible != null ? `${oppg.points_possible}p` : "";
           const status = isCanvasAssignmentSubmitted(oppg) ? "✓" : "⏳";
           kontekst += `- ${status} ${oppg.name} — frist: ${frist} ${poeng}\n`;
 
@@ -1121,7 +1121,7 @@ export async function loadCanvasContext(
     const mongoKontekst = await byggLettKontekstFraMongo(userId);
     if (mongoKontekst) {
       logger.info(
-        { userId, intent, source: "redis", contextLength: mongoKontekst.length },
+        { userId, intent, source: "mongodb", contextLength: mongoKontekst.length },
         "Canvas-kontekst lastet fra MongoDB (lett fallback)",
       );
       // Trigger bakgrunns-sync for å oppdatere Redis
@@ -1130,7 +1130,7 @@ export async function loadCanvasContext(
           logger.warn({ err, userId }, "Bakgrunns-sync feilet etter MongoDB-fallback");
         });
       }
-      return { kontekst: mongoKontekst, hasCanvasData: true, source: "redis" };
+      return { kontekst: mongoKontekst, hasCanvasData: true, source: "mongodb" };
     }
 
     // Siste fallback: direkte Canvas API via kiCanvas
@@ -1197,10 +1197,10 @@ export async function loadCanvasContext(
     const chunkKontekst = await byggKontekstFraChunks(userId, message, target);
     if (chunkKontekst) {
       logger.info(
-        { userId, intent, source: "vector", contextLength: chunkKontekst.length },
+        { userId, intent, source: "chunks", contextLength: chunkKontekst.length },
         "Canvas-kontekst lastet fra chunk-søk (keyword)",
       );
-      return { kontekst: chunkKontekst, hasCanvasData: true, source: "vector" };
+      return { kontekst: chunkKontekst, hasCanvasData: true, source: "chunks" };
     }
   }
 
@@ -1222,7 +1222,7 @@ export async function loadCanvasContext(
     const mongoKontekst = await byggMålrettetKontekstFraMongo(userId, target);
     if (mongoKontekst) {
       logger.info(
-        { userId, intent, target, source: "redis", contextLength: mongoKontekst.length },
+        { userId, intent, target, source: "mongodb", contextLength: mongoKontekst.length },
         "Målrettet Canvas-kontekst lastet fra MongoDB (fallback)",
       );
       if (redisAvailable) {
@@ -1230,7 +1230,7 @@ export async function loadCanvasContext(
           logger.warn({ err, userId }, "Bakgrunns-sync feilet etter MongoDB-fallback");
         });
       }
-      return { kontekst: mongoKontekst, hasCanvasData: true, source: "redis" };
+      return { kontekst: mongoKontekst, hasCanvasData: true, source: "mongodb" };
     }
 
     // Siste fallback: direkte Canvas API via kiCanvas
@@ -1269,7 +1269,7 @@ export async function loadCanvasContext(
   const mongoFallback = await byggLettKontekstFraMongo(userId);
   if (mongoFallback) {
     logger.info(
-      { userId, intent, source: "redis", contextLength: mongoFallback.length },
+      { userId, intent, source: "mongodb", contextLength: mongoFallback.length },
       "canvas_full uten mål — lett kontekst fra MongoDB (fallback)",
     );
     if (redisAvailable) {
@@ -1277,7 +1277,7 @@ export async function loadCanvasContext(
         logger.warn({ err, userId }, "Bakgrunns-sync feilet etter MongoDB-fallback");
       });
     }
-    return { kontekst: mongoFallback, hasCanvasData: true, source: "redis" };
+    return { kontekst: mongoFallback, hasCanvasData: true, source: "mongodb" };
   }
 
   // Siste fallback: Canvas API

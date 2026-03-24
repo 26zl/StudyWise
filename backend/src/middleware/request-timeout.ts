@@ -2,7 +2,7 @@
  * Request timeout middleware
  *
  * Setter en maks-tid for requests. Hvis requesten ikke er ferdig innen fristen,
- * sendes 504 Gateway Timeout og requesten avbrytes.
+ * sendes 504 Gateway Timeout og signalerer avbrudd via AbortController.
  *
  * SSE-endepunkter (text/event-stream) ekskluderes fordi de er langvarige av natur.
  */
@@ -29,6 +29,16 @@ function getRequestPath(req: Request): string {
     return (req.originalUrl ?? req.url ?? req.path ?? "").split("?")[0] ?? "";
 }
 
+// Utvid Express Request for å inkludere AbortController signal
+declare global {
+    namespace Express {
+        interface Request {
+            timeoutSignal?: AbortSignal;
+            timeoutAborted?: boolean;
+        }
+    }
+}
+
 export function requestTimeout(req: Request, res: Response, next: NextFunction) {
     const pathname = getRequestPath(req);
 
@@ -52,21 +62,44 @@ export function requestTimeout(req: Request, res: Response, next: NextFunction) 
                 ? UPLOAD_TIMEOUT_MS
                 : DEFAULT_TIMEOUT_MS;
 
+    // Opprett AbortController for å signalere avbrudd til nedstrøms operasjoner
+    const abortController = new AbortController();
+    req.timeoutSignal = abortController.signal;
+    req.timeoutAborted = false;
+
     const timer = setTimeout(() => {
+        req.timeoutAborted = true;
+        abortController.abort();
+
         if (!res.headersSent) {
             logger.warn(
                 { method: req.method, path: req.path, timeoutMs },
-                "Request timeout — avbryter",
+                "Request timeout — avbryter nedstrøms operasjoner",
             );
             res.status(504).json({
                 feil: "Gateway Timeout",
                 melding: "Forespørselen tok for lang tid. Prøv igjen.",
             });
         }
+
+        // Ødelegg socket for å stoppe pågående I/O
+        if (req.socket && !req.socket.destroyed) {
+            req.socket.destroy();
+        }
     }, timeoutMs);
 
     // Rydd opp timeren når responsen er ferdig
-    res.on("close", () => clearTimeout(timer));
+    res.on("close", () => {
+        clearTimeout(timer);
+    });
+
+    // Rydd opp hvis klienten avbryter tidlig
+    req.on("close", () => {
+        clearTimeout(timer);
+        if (!res.headersSent) {
+            abortController.abort();
+        }
+    });
 
     next();
 }
