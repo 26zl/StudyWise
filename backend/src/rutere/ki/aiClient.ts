@@ -127,8 +127,9 @@ export async function chatCompletionWithVision(options: {
     images: ImageAttachment[];
     max_tokens: number;
     temperature: number;
+    signal?: AbortSignal;
 }): Promise<ChatCompletionResult> {
-    const { model, messages, images, max_tokens, temperature } = options;
+    const { model, messages, images, max_tokens, temperature, signal } = options;
 
     if (!anthropicClient) {
         throw new Error("Vision er ikke tilgjengelig. Kall kun chatCompletionWithVision når isVisionAvailable(model) er sann.");
@@ -140,6 +141,7 @@ export async function chatCompletionWithVision(options: {
         images,
         max_tokens,
         temperature,
+        signal,
     }));
     result.text = stripAnalyseTags(result.text);
     return result;
@@ -285,12 +287,13 @@ async function callAnthropicWithVision(options: {
     images: ImageAttachment[];
     max_tokens: number;
     temperature: number;
+    signal?: AbortSignal;
 }): Promise<ChatCompletionResult> {
     if (!anthropicClient) {
         throw new Error("Anthropic-klient ikke initialisert (mangler ANTHROPIC_API_KEY)");
     }
 
-    const { model, messages, images, max_tokens, temperature } = options;
+    const { model, messages, images, max_tokens, temperature, signal } = options;
 
     // Ekstraher system-meldinger
     const systemMessages = messages.filter(m => m.role === "system");
@@ -369,7 +372,7 @@ async function callAnthropicWithVision(options: {
         messages: anthropicMessages,
         max_tokens,
         temperature: Math.min(Math.max(temperature, 0), 1),
-    });
+    }, { signal });
 
     const text = result.content
         .filter(block => block.type === "text")

@@ -119,6 +119,7 @@ Frist: ${dueDateText}`;
       ],
       max_tokens: 1024,
       temperature: 0.3,
+      signal: req.timeoutSignal,
     });
 
     const subtasks = parseGeneratedSubtasks(result.text);
@@ -130,6 +131,8 @@ Frist: ${dueDateText}`;
 
     return res.json(TaskBreakdownResponseSchema.parse({ subtasks }));
   } catch (error) {
+    if (res.headersSent || res.writableEnded || req.timeoutSignal?.aborted) return;
+
     if (
       handleAIJsonRouteError(res, error, {
         kontekst: "task-breakdown",

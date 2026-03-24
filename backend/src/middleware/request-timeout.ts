@@ -17,7 +17,7 @@ const KI_WEEKLY_PLAN_TIMEOUT_MS = 120_000; // 2 minutter for ukeplangenerator (A
 
 // Endepunkter som har lengre timeout (filopplasting, dokumentanalyse, KI-chat som laster Canvas-kontekst)
 const LONG_TIMEOUT_PREFIXES = [
-    "/api/ki/analyse",
+    "/api/ki/analyze-document",
     "/api/ki/oppsummering",
     "/api/ki/chat",
     "/api/ki/task-breakdown",

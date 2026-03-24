@@ -27,6 +27,7 @@ import { isSyncing, waitForSync } from "../../services/canvas-sync.service.js";
 import { trimToTokenLimit, countTokens } from "../../utils/tokenCounter.js";
 import { knyttCanvasTokenValgfritt } from "../../middleware/auth.js";
 import { setupSSE, writeSSE } from "../../utils/sseUtils.js";
+import { createLinkedAbortController } from "../../utils/abort.js";
 
 /** Parser JSON sync-status fra Redis. Returnerer statusfeltet, eller null ved ugyldig verdi. */
 function parseSyncStatus(raw: string | null): string | null {
@@ -378,7 +379,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
   let sseCleanup: (() => void) | undefined;
   let sseStarted = false;
 
-  const abortController = new AbortController();
+  const abortController = createLinkedAbortController(req.timeoutSignal);
   const abortOnResponseEnd = () => abortController.abort();
   res.once("finish", abortOnResponseEnd);
   res.once("close", abortOnResponseEnd);
@@ -715,6 +716,10 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
         response: "",
       }),
     );
+  } finally {
+    abortController.cleanup();
+    res.off("finish", abortOnResponseEnd);
+    res.off("close", abortOnResponseEnd);
   }
 });
 

@@ -10,6 +10,7 @@ import {
   PAGE_SIZE,
   MAX_PAGES,
   FORELESNINGER_VINDU,
+  validateCanvasRedirectUrl,
 } from "./canvasUtils.js";
 import {
   CanvasUserSchema,
@@ -49,6 +50,22 @@ const requireToken = (token?: string | null) => {
 const buildCanvasAuthHeaders = (token: string) => ({
   Authorization: `Bearer ${token.replace(/^Bearer\s+/i, "").trim()}`,
 });
+
+function getValidatedCanvasDownloadUrl(
+  downloadUrl: string | null | undefined,
+  baseUrl?: string,
+): string | null {
+  if (!downloadUrl || !baseUrl) {
+    return null;
+  }
+
+  try {
+    const canvasOrigin = new URL(baseUrl).origin;
+    return validateCanvasRedirectUrl(downloadUrl, canvasOrigin, "/files/");
+  } catch {
+    return null;
+  }
+}
 
 async function fetchUserProfileFromEndpoint(
   endpoint: "/api/v1/users/self/profile" | "/api/v1/users/self",
@@ -703,10 +720,13 @@ export async function fetchFileContent(
   try {
     const token = requireToken(canvasToken);
     const { data: freshFile } = await fetchFileMetadata(token, file.id, baseUrl);
-    const downloadUrl = freshFile.url;
+    const downloadUrl = getValidatedCanvasDownloadUrl(freshFile.url, baseUrl);
 
     if (!downloadUrl) {
-      logger.warn({ fileId: file.id, filename: file.filename }, "Ingen download-URL for fil");
+      logger.warn(
+        { fileId: file.id, filename: file.filename },
+        "Ingen gyldig download-URL for fil",
+      );
       return null;
     }
 
@@ -758,10 +778,13 @@ export async function fetchPdfContent(
   try {
     const token = requireToken(canvasToken);
     const { data: freshFile } = await fetchFileMetadata(token, file.id, baseUrl);
-    const downloadUrl = freshFile.url;
+    const downloadUrl = getValidatedCanvasDownloadUrl(freshFile.url, baseUrl);
 
     if (!downloadUrl) {
-      logger.warn({ fileId: file.id, filename: file.filename }, "Ingen download-URL for PDF");
+      logger.warn(
+        { fileId: file.id, filename: file.filename },
+        "Ingen gyldig download-URL for PDF",
+      );
       return null;
     }
 

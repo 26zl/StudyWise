@@ -112,6 +112,7 @@ Generer nøyaktig ${questionCount} spørsmål som JSON-array.`;
       ],
       max_tokens: 4096,
       temperature: 0.7,
+      signal: req.timeoutSignal,
     });
 
     const rawQuestions = z
@@ -132,7 +133,7 @@ Generer nøyaktig ${questionCount} spørsmål som JSON-array.`;
 
     return res.headersSent ? undefined : res.json({ questions });
   } catch (error) {
-    if (res.headersSent) return;
+    if (res.headersSent || res.writableEnded || req.timeoutSignal?.aborted) return;
     if (
       handleAIJsonRouteError(res, error, {
         kontekst: "quiz-generate",

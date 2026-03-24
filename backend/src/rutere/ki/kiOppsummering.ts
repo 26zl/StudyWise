@@ -120,6 +120,7 @@ Hvis det ikke er noen handlingspunkter, skriv "HANDLINGER: Ingen handlingspunkte
           ],
           max_tokens: 2048,
           temperature: 0.3,
+          signal: req.timeoutSignal,
         }),
         timeoutPromise,
       ]);
@@ -194,6 +195,8 @@ Hvis det ikke er noen handlingspunkter, skriv "HANDLINGER: Ingen handlingspunkte
       );
       return res.json(response);
     } catch (error) {
+      if (res.headersSent || res.writableEnded || req.timeoutSignal?.aborted) return;
+
       if (handleAIError(res, error, KIOppsummeringResponseSchema, {
         timeoutLabel: "OPPSUMMERING_TIMEOUT",
         timeoutMessage: "Oppsummeringen tok for lang tid. Prøv igjen.",

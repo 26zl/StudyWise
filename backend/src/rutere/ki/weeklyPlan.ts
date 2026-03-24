@@ -250,6 +250,7 @@ router.post("/generate", async (req, res) => {
       ],
       max_tokens: 2048,
       temperature: 0.3,
+      signal: req.timeoutSignal,
     });
 
     const payload = parseGeneratedWeeklyPlan(result.text, oppgaver);
@@ -261,6 +262,8 @@ router.post("/generate", async (req, res) => {
 
     return res.json(payload);
   } catch (error) {
+    if (res.headersSent || res.writableEnded || req.timeoutSignal?.aborted) return;
+
     if (
       handleAIJsonRouteError(res, error, {
         kontekst: "weekly-plan",

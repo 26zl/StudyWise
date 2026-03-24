@@ -502,10 +502,10 @@ export function isSafePathSegment(value: string): boolean {
 export function validateCanvasRedirectUrl(urlStr: string, allowedOrigin: string, pathPrefix?: string): string | null {
     try {
         const allowedUrl = new URL(allowedOrigin);
-        const allowedHost = allowedUrl.hostname;
         const parsed = new URL(urlStr);
-        if (parsed.hostname !== allowedHost) return null;
-        if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+        if (parsed.origin !== allowedUrl.origin) return null;
+        if (parsed.protocol !== "https:") return null;
+        if (parsed.username || parsed.password) return null;
         if (pathPrefix && !parsed.pathname.startsWith(pathPrefix)) return null;
         return urlStr;
     } catch {

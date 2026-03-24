@@ -14,7 +14,8 @@ import {
 import {
     parseDocument,
     formatDocumentContext,
-    getSupportedMimeTypes
+    getSupportedMimeTypes,
+    validateFileMagicBytes,
 } from "../../services/document.js";
 import { summarizeIfNeeded, countWords } from "../../services/summarization.service.js";
 import { resolveModel } from "./aiModels.js";
@@ -22,6 +23,7 @@ import { chatCompletion, chatCompletionWithVision, isVisionAvailable, isClientAv
 import type { ImageAttachment } from "./aiClient.js";
 import { STUDYWISE_SYSTEM_PROMPT, STUDYWISE_DOCUMENT_PROMPT } from "./systemPrompt.js";
 import { setupSSE, writeSSE } from "../../utils/sseUtils.js";
+import { createLinkedAbortController } from "../../utils/abort.js";
 
 /** Send SSE-feilrespons og avslutt strømmen */
 function sendSSEFeil(res: Response, melding: string, cleanup: () => void): void {
@@ -76,6 +78,10 @@ const upload = multer({
 router.post("/analyze-document", upload.single('document'), async (req: Request, res: Response) => {
   // Set SSE headers FIRST — prevents proxy buffering timeout
   const { clearKeepalive } = setupSSE(req, res, 120_000);
+  const abortController = createLinkedAbortController(req.timeoutSignal);
+  const abortOnResponseEnd = () => abortController.abort();
+  res.once("finish", abortOnResponseEnd);
+  res.once("close", abortOnResponseEnd);
 
   try {
 
@@ -101,8 +107,13 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
         return;
     }
 
-        const filMimetype = req.file.mimetype;
+        const filMimetype = normaliserMime(req.file.mimetype);
         const filBuffer = req.file.buffer;
+        const magicError = validateFileMagicBytes(filBuffer, filMimetype);
+        if (magicError) {
+            sendSSEFeil(res, magicError, clearKeepalive);
+            return;
+        }
         const brukerVision = erVisionBilde(filMimetype) && isVisionAvailable(model);
 
         // For Vision-bilder: send bildet direkte til Claude + OCR som fallback
@@ -193,6 +204,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
                     images: [imageAttachment],
                     max_tokens: 6000,
                     temperature: 0.5,
+                    signal: abortController.signal,
                 }),
                 timeoutPromise,
             ]);
@@ -217,6 +229,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
                     messages: apiMessages,
                     max_tokens: 6000,
                     temperature: 0.5,
+                    signal: abortController.signal,
                 }),
                 timeoutPromise,
             ]);
@@ -279,6 +292,10 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
     } catch {
         // Stream allerede avsluttet
     }
+  } finally {
+    abortController.cleanup();
+    res.off("finish", abortOnResponseEnd);
+    res.off("close", abortOnResponseEnd);
   }
 });
 
