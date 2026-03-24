@@ -224,6 +224,18 @@ function extractQueryTarget(message: string): TargetedQuery {
     "prosjekt", "bacheloroppgave", "kommunikasjon", "innovasjon",
     "ikt", "informasjon", "system", "programmering", "java", "c#",
     "embedded", "elektronikk", "fysikk", "diskret",
+    // Tillegg: vanlige norske fag og emnekode-prefikser
+    "analyse", "logistikk", "regnskap", "markedsføring", "juss", "etikk",
+    "organisasjon", "sosiologi", "psykologi", "filosofi", "historie",
+    "biologi", "kjemi", "geografi", "engelsk", "norsk", "spansk", "tysk",
+    "finans", "investering", "revisjon", "skatt", "forretning",
+  ];
+
+  // Vanlige emnekode-prefikser (2-4 bokstaver som ofte starter emnekoder)
+  const courseCodePrefixes = [
+    "is", "dat", "itk", "inf", "bsy", "ing", "te", "fo", "ikt", "alg",
+    "mat", "sta", "øko", "adm", "led", "pro", "kom", "inn", "sik", "net",
+    "mob", "web", "sys", "ele", "fys", "bio", "kje", "geo", "his", "fil",
   ];
 
   // Sammensatte ord: "algoritmer og datastrukturer" → matcher "algoritmer"
@@ -246,6 +258,43 @@ function extractQueryTarget(message: string): TargetedQuery {
     if (cleanedForCourse.includes(compound)) {
       courseHint = mapped;
       break;
+    }
+  }
+
+  // Prøv å matche emnekoder direkte (f.eks. "DAT102", "ALG200", "IS-304")
+  if (!courseHint) {
+    const courseCodeMatch = cleanedForCourse.match(/\b([a-zæøå]{2,4})-?(\d{2,4})\b/i);
+    if (courseCodeMatch) {
+      // Returner hele emnekoden som hint (f.eks. "dat102")
+      courseHint = courseCodeMatch[0].replace("-", "").toLowerCase();
+      logger.info({ courseHint, pattern: "courseCode" }, "Ekstraherte emnekode fra melding");
+    }
+  }
+
+  // Prøv å ekstrahere fag fra "i [FAG]" eller "om [FAG]" mønstre
+  if (!courseHint) {
+    const prepositionMatch = cleanedForCourse.match(/\b(?:i|om|fra|til|for)\s+([a-zæøå]{3,})\b/i);
+    if (prepositionMatch) {
+      const potentialCourse = prepositionMatch[1].toLowerCase();
+      // Sjekk om det matcher et kjent nøkkelord eller emnekode-prefiks
+      if (courseKeywords.includes(potentialCourse) || courseCodePrefixes.includes(potentialCourse)) {
+        courseHint = potentialCourse;
+        logger.info({ courseHint, pattern: "preposition" }, "Ekstraherte fag fra preposisjonsfrase");
+      }
+    }
+  }
+
+  // Sjekk emnekode-prefikser (f.eks. "dat", "inf") som selvstendige ord
+  if (!courseHint) {
+    for (const prefix of courseCodePrefixes) {
+      // Match som helt ord, ikke del av et annet ord
+      // eslint-disable-next-line security/detect-non-literal-regexp -- prefix er fra konstant liste, ikke brukerinput
+      const prefixRegex = new RegExp(`\\b${prefix}\\b`, "i");
+      if (prefixRegex.test(cleanedForCourse)) {
+        courseHint = prefix;
+        logger.info({ courseHint, pattern: "codePrefix" }, "Ekstraherte emnekode-prefiks fra melding");
+        break;
+      }
     }
   }
 
@@ -468,17 +517,17 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       const lastUserMsg = messages.filter((m: { role: string }) => m.role === "user").at(-1)?.content ?? "";
       const target = extractQueryTarget(lastUserMsg);
 
-      // CourseHint carryover: hvis ingen courseHint i siste melding, sjekk de 4 siste
+      // CourseHint carryover: hvis ingen courseHint i siste melding, sjekk de 6 siste for lengre samtaler
       if (!target.courseHint) {
         const recentUserMsgs = messages
           .filter((m: { role: string }) => m.role === "user")
-          .slice(-4);
+          .slice(-6);
         for (let i = recentUserMsgs.length - 2; i >= 0; i--) {
           const prevTarget = extractQueryTarget(recentUserMsgs[i].content);
           if (prevTarget.courseHint) {
             target.courseHint = prevTarget.courseHint;
             logger.info(
-              { courseHint: target.courseHint, fromPreviousMsg: true },
+              { courseHint: target.courseHint, fromPreviousMsg: true, msgIndex: i },
               "CourseHint arvet fra tidligere melding",
             );
             break;

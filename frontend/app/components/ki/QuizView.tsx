@@ -15,6 +15,8 @@ import {
   Minus,
   Plus,
   AlertCircle,
+  Layers,
+  RotateCw,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { useCanvasCourses, useCanvasModules } from "@/app/canvas/canvas-api";
@@ -42,6 +44,14 @@ interface ModuleOption {
   id: string;
   name: string;
 }
+
+interface Flashcard {
+  id: string;
+  front: string;
+  back: string;
+}
+
+type StudyMode = "quiz" | "flashcards";
 
 // --- Dropdown-komponenter ---
 
@@ -229,13 +239,18 @@ function MultiSelectDropdown({
 function QuestionCountSelector({
   count,
   onChange,
+  label,
 }: {
   count: number;
   onChange: (n: number) => void;
+  label?: string;
 }) {
   const presets = [5, 10, 15, 20];
   return (
     <div className="space-y-4">
+      {label && (
+        <span className="text-sm text-muted-foreground">{label}</span>
+      )}
       <div className="flex items-center gap-3">
         {presets.map((n) => (
           <button
@@ -270,6 +285,249 @@ function QuestionCountSelector({
         </div>
       </div>
     </div>
+  );
+}
+
+// --- Modusvelger ---
+
+function ModeToggle({
+  mode,
+  onChangeMode,
+}: {
+  mode: StudyMode;
+  onChangeMode: (m: StudyMode) => void;
+}) {
+  return (
+    <div className="inline-flex items-center bg-muted rounded-xl p-1 gap-1">
+      <button
+        onClick={() => onChangeMode("quiz")}
+        className={cn(
+          "flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+          mode === "quiz"
+            ? "bg-background text-foreground shadow-sm"
+            : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        <Brain className="w-4 h-4" />
+        Quiz
+      </button>
+      <button
+        onClick={() => onChangeMode("flashcards")}
+        className={cn(
+          "flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+          mode === "flashcards"
+            ? "bg-background text-foreground shadow-sm"
+            : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        <Layers className="w-4 h-4" />
+        Flashcards
+      </button>
+    </div>
+  );
+}
+
+// --- Aktiv flashcard-visning ---
+
+function FlashcardActive({
+  cards,
+  onFinish,
+}: {
+  cards: Flashcard[];
+  onFinish: (known: number, unknown: number) => void;
+}) {
+  const [current, setCurrent] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+  const [known, setKnown] = useState(0);
+  const [unknown, setUnknown] = useState(0);
+
+  const card = cards[current];
+  const isLast = current === cards.length - 1;
+  const progress = ((current + 1) / cards.length) * 100;
+
+  const handleMark = (didKnow: boolean) => {
+    const newKnown = didKnow ? known + 1 : known;
+    const newUnknown = didKnow ? unknown : unknown + 1;
+    
+    if (didKnow) setKnown((k) => k + 1);
+    else setUnknown((u) => u + 1);
+
+    if (isLast) {
+      onFinish(newKnown, newUnknown);
+    } else {
+      setFlipped(false);
+      setTimeout(() => setCurrent((c) => c + 1), 150);
+    }
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto">
+      {/* Progress */}
+      <div className="mb-10">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-base font-medium text-muted-foreground">
+            Kort {current + 1} av {cards.length}
+          </span>
+          <div className="flex items-center gap-4">
+            <span className="text-base text-muted-foreground">
+              <span className="text-foreground font-medium">{known}</span> kan
+            </span>
+            <span className="text-base text-muted-foreground">
+              <span className="text-foreground font-medium">{unknown}</span> øv mer
+            </span>
+          </div>
+        </div>
+        <div className="h-2 bg-muted rounded-full overflow-hidden">
+          <motion.div
+            className="h-full bg-foreground rounded-full"
+            initial={{ width: 0 }}
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.3 }}
+          />
+        </div>
+      </div>
+
+      {/* Card */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={card.id}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          transition={{ duration: 0.25 }}
+        >
+          <div
+            onClick={() => setFlipped(!flipped)}
+            className="relative cursor-pointer select-none"
+            style={{ perspective: "1000px" }}
+          >
+            <motion.div
+              animate={{ rotateY: flipped ? 180 : 0 }}
+              transition={{ duration: 0.5, ease: "easeInOut" }}
+              style={{ transformStyle: "preserve-3d" }}
+              className="relative w-full min-h-[320px]"
+            >
+              {/* Front */}
+              <div
+                className="absolute inset-0 flex flex-col items-center justify-center p-10 rounded-2xl border border-border bg-card"
+                style={{ backfaceVisibility: "hidden" }}
+              >
+                <div className="w-12 h-12 rounded-xl bg-accent flex items-center justify-center mb-6">
+                  <Layers className="w-6 h-6 text-foreground/70" />
+                </div>
+                <p className="text-xl font-semibold text-foreground text-center leading-relaxed">
+                  {card.front}
+                </p>
+                <p className="text-sm text-muted-foreground mt-6 flex items-center gap-2">
+                  <RotateCw className="w-4 h-4" />
+                  Klikk for å snu
+                </p>
+              </div>
+              {/* Back */}
+              <div
+                className="absolute inset-0 flex flex-col items-center justify-center p-10 rounded-2xl border border-border bg-accent/40"
+                style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+              >
+                <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
+                  Svar
+                </p>
+                <p className="text-lg text-foreground text-center leading-relaxed">
+                  {card.back}
+                </p>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Mark buttons */}
+          {flipped && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-8 flex items-center justify-center gap-4"
+            >
+              <button
+                onClick={() => handleMark(false)}
+                className="flex items-center gap-2 px-6 py-3 rounded-xl border border-border text-base font-medium text-muted-foreground hover:text-foreground hover:border-foreground/20 transition-all"
+              >
+                <X className="w-5 h-5" />
+                Øv mer
+              </button>
+              <button
+                onClick={() => handleMark(true)}
+                className="flex items-center gap-2 px-6 py-3 bg-foreground text-background rounded-xl text-base font-medium hover:opacity-90 transition-opacity"
+              >
+                <Check className="w-5 h-5" />
+                Kan dette
+              </button>
+            </motion.div>
+          )}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// --- Flashcard-resultatvisning ---
+
+function FlashcardResults({
+  known,
+  total,
+  onBack,
+}: {
+  known: number;
+  total: number;
+  onBack: () => void;
+}) {
+  const pct = Math.round((known / total) * 100);
+  const emoji = pct >= 80 ? "🎉" : pct >= 50 ? "👍" : "💪";
+  const msg = pct >= 80 ? "Fantastisk!" : pct >= 50 ? "Bra jobbet!" : "Fortsett å øve!";
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="max-w-lg mx-auto text-center"
+    >
+      <div className="w-24 h-24 rounded-2xl bg-accent flex items-center justify-center mx-auto mb-6">
+        <Layers className="w-12 h-12 text-foreground/70" />
+      </div>
+      <p className="text-4xl mb-2">{emoji}</p>
+      <h3 className="text-3xl font-bold text-foreground mb-3">{msg}</h3>
+      <p className="text-lg text-muted-foreground mb-8">
+        Du kunne <span className="font-semibold text-foreground">{known}</span> av{" "}
+        <span className="font-semibold text-foreground">{total}</span> kort ({pct}%)
+      </p>
+
+      <div className="relative w-40 h-40 mx-auto mb-10">
+        <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(var(--border))" strokeWidth="6" />
+          <motion.circle
+            cx="50"
+            cy="50"
+            r="42"
+            fill="none"
+            stroke="hsl(var(--foreground))"
+            strokeWidth="6"
+            strokeLinecap="round"
+            strokeDasharray={2 * Math.PI * 42}
+            initial={{ strokeDashoffset: 2 * Math.PI * 42 }}
+            animate={{ strokeDashoffset: 2 * Math.PI * 42 * (1 - known / total) }}
+            transition={{ duration: 1, ease: "easeOut" }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-3xl font-bold text-foreground">{pct}%</span>
+        </div>
+      </div>
+
+      <button
+        onClick={onBack}
+        className="flex items-center gap-2 px-6 py-3 bg-foreground text-background rounded-xl text-base font-medium hover:opacity-90 transition-opacity mx-auto"
+      >
+        <ArrowLeft className="w-5 h-5" />
+        Tilbake
+      </button>
+    </motion.div>
   );
 }
 
@@ -509,12 +767,15 @@ function QuizResults({
 type QuizPhase = "setup" | "active" | "results";
 
 export function QuizView() {
+  const [studyMode, setStudyMode] = useState<StudyMode>("quiz");
   const [phase, setPhase] = useState<QuizPhase>("setup");
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
   const [questionCount, setQuestionCount] = useState(10);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+  const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [finalScore, setFinalScore] = useState({ score: 0, total: 0 });
+  const [flashcardScore, setFlashcardScore] = useState({ known: 0, total: 0 });
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -556,19 +817,21 @@ export function QuizView() {
       .filter((m) => selectedModules.includes(m.id))
       .map((m) => m.name);
 
-    // Quiz-generering kan ta opptil 2 minutter
+    // Generering kan ta opptil 2 minutter
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 120_000);
 
+    const endpoint = studyMode === "quiz" ? "/api/quiz/generate" : "/api/flashcards/generate";
+
     try {
-      const res = await fetchApi("/api/quiz/generate", {
+      const res = await fetchApi(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           courseId: selectedCourse.numericId,
           courseName: selectedCourse.name,
           moduleNames,
-          questionCount,
+          [studyMode === "quiz" ? "questionCount" : "cardCount"]: questionCount,
         }),
         signal: controller.signal,
       });
@@ -581,17 +844,26 @@ export function QuizView() {
       }
 
       const data = await res.json();
-      if (!data.questions || data.questions.length === 0) {
-        throw new Error("Ingen spørsmål ble generert");
+
+      if (studyMode === "quiz") {
+        if (!data.questions || data.questions.length === 0) {
+          throw new Error("Ingen spørsmål ble generert");
+        }
+        setQuizQuestions(data.questions);
+      } else {
+        if (!data.flashcards || data.flashcards.length === 0) {
+          throw new Error("Ingen flashcards ble generert");
+        }
+        setFlashcards(data.flashcards);
       }
 
-      setQuizQuestions(data.questions);
       setPhase("active");
     } catch (err) {
       clearTimeout(timeoutId);
+      const contentType = studyMode === "quiz" ? "quiz" : "flashcards";
       const msg = err instanceof Error 
         ? (err.name === "AbortError" ? "Forespørselen tok for lang tid" : err.message) 
-        : "Kunne ikke generere quiz";
+        : `Kunne ikke generere ${contentType}`;
       setError(msg);
       toast.error(msg);
     } finally {
@@ -599,8 +871,13 @@ export function QuizView() {
     }
   };
 
-  const handleFinish = (score: number, total: number) => {
+  const handleFinishQuiz = (score: number, total: number) => {
     setFinalScore({ score, total });
+    setPhase("results");
+  };
+
+  const handleFinishFlashcards = (known: number, unknown: number) => {
+    setFlashcardScore({ known, total: known + unknown });
     setPhase("results");
   };
 
@@ -609,6 +886,15 @@ export function QuizView() {
   };
 
   const handleBackToSetup = () => {
+    setPhase("setup");
+    setSelectedCourseId(null);
+    setSelectedModules([]);
+    setQuestionCount(10);
+    setError(null);
+  };
+
+  const handleChangeMode = (m: StudyMode) => {
+    setStudyMode(m);
     setPhase("setup");
     setSelectedCourseId(null);
     setSelectedModules([]);
@@ -632,14 +918,27 @@ export function QuizView() {
                 {/* Header */}
                 <div className="flex items-center gap-4 mb-10">
                   <div className="w-14 h-14 rounded-2xl bg-accent flex items-center justify-center">
-                    <Brain className="w-7 h-7 text-foreground/70" />
+                    {studyMode === "quiz" ? (
+                      <Brain className="w-7 h-7 text-foreground/70" />
+                    ) : (
+                      <Layers className="w-7 h-7 text-foreground/70" />
+                    )}
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-foreground">Quiz</h2>
+                    <h2 className="text-2xl font-bold text-foreground">
+                      Quiz / Flashcards
+                    </h2>
                     <p className="text-base text-muted-foreground">
-                      Lag en KI-generert quiz basert på Canvas-innholdet ditt
+                      {studyMode === "quiz"
+                        ? "Lag en KI-generert quiz basert på Canvas-innholdet ditt"
+                        : "Lag KI-genererte flashcards for effektiv repetisjon"}
                     </p>
                   </div>
+                </div>
+
+                {/* Mode Toggle */}
+                <div className="mb-10">
+                  <ModeToggle mode={studyMode} onChangeMode={handleChangeMode} />
                 </div>
 
                 {/* Step 1: Course */}
@@ -714,7 +1013,7 @@ export function QuizView() {
                       className="mb-10 relative z-0"
                     >
                       <label className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4 block">
-                        3. Antall spørsmål
+                        3. {studyMode === "quiz" ? "Antall spørsmål" : "Antall kort"}
                       </label>
                       <QuestionCountSelector
                         count={questionCount}
@@ -758,12 +1057,12 @@ export function QuizView() {
                             >
                               <Sparkles className="w-5 h-5" />
                             </motion.div>
-                            Genererer quiz...
+                            {studyMode === "quiz" ? "Genererer quiz..." : "Genererer flashcards..."}
                           </>
                         ) : (
                           <>
                             <Sparkles className="w-5 h-5" />
-                            Generer quiz
+                            {studyMode === "quiz" ? "Generer quiz" : "Generer flashcards"}
                           </>
                         )}
                       </button>
@@ -773,7 +1072,7 @@ export function QuizView() {
               </motion.div>
             )}
 
-            {/* === ACTIVE QUIZ === */}
+            {/* === ACTIVE === */}
             {phase === "active" && (
               <motion.div
                 key="active"
@@ -781,7 +1080,11 @@ export function QuizView() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
-                <QuizActive questions={quizQuestions} onFinish={handleFinish} />
+                {studyMode === "quiz" ? (
+                  <QuizActive questions={quizQuestions} onFinish={handleFinishQuiz} />
+                ) : (
+                  <FlashcardActive cards={flashcards} onFinish={handleFinishFlashcards} />
+                )}
               </motion.div>
             )}
 
@@ -793,12 +1096,20 @@ export function QuizView() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
-                <QuizResults
-                  score={finalScore.score}
-                  total={finalScore.total}
-                  onRestart={handleRestart}
-                  onBack={handleBackToSetup}
-                />
+                {studyMode === "quiz" ? (
+                  <QuizResults
+                    score={finalScore.score}
+                    total={finalScore.total}
+                    onRestart={handleRestart}
+                    onBack={handleBackToSetup}
+                  />
+                ) : (
+                  <FlashcardResults
+                    known={flashcardScore.known}
+                    total={flashcardScore.total}
+                    onBack={handleBackToSetup}
+                  />
+                )}
               </motion.div>
             )}
           </AnimatePresence>

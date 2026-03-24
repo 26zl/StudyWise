@@ -65,7 +65,7 @@ export const nbMessages = {
       noChatsYet: "Ingen samtaler ennå",
       notifications: "Varslinger",
       overview: "Oversikt",
-      quiz: "Quiz",
+      quiz: "Quiz / Flashcards",
       settings: "Innstillinger",
       taskBreakdown: "Oppgavedeling med KI",
     },

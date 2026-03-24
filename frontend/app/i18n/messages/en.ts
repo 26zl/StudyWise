@@ -67,7 +67,7 @@ export const enMessages = {
       noChatsYet: "No conversations yet",
       notifications: "Notifications",
       overview: "Overview",
-      quiz: "Quiz",
+      quiz: "Quiz / Flashcards",
       settings: "Settings",
       taskBreakdown: "AI Task Breakdown",
     },

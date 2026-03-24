@@ -243,6 +243,8 @@ async function finnRelevanteEmner(
 
   if (target.courseHint) {
     const hint = target.courseHint.toLowerCase();
+    
+    // Eksakt eller substring-match i navn eller emnekode
     const matched = emner.filter(
       (emne) =>
         emne.name.toLowerCase().includes(hint) ||
@@ -250,6 +252,29 @@ async function finnRelevanteEmner(
     );
     if (matched.length > 0) {
       return matched;
+    }
+
+    // Fuzzy matching: sjekk om hint er et prefiks av emnekoden
+    // Eksempel: hint="dat" skal matche course_code="DAT102"
+    const fuzzyMatched = emner.filter((emne) => {
+      const code = (emne.course_code ?? "").toLowerCase();
+      // Sjekk om emnekoden starter med hint (f.eks. "dat" matcher "dat102")
+      if (code.startsWith(hint)) {
+        return true;
+      }
+      // Sjekk om hint er en del av emnekoden uten bindestrek (f.eks. "is304" matcher "IS-304")
+      const codeWithoutDash = code.replace(/-/g, "");
+      if (codeWithoutDash.startsWith(hint) || codeWithoutDash.includes(hint)) {
+        return true;
+      }
+      return false;
+    });
+    if (fuzzyMatched.length > 0) {
+      logger.info(
+        { hint, matchedCourses: fuzzyMatched.map((e) => e.course_code) },
+        "Fuzzy-match på emnekode-prefiks",
+      );
+      return fuzzyMatched;
     }
   }
 
