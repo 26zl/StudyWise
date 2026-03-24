@@ -1,63 +1,133 @@
 "use client";
 
-// SmartSuggestions-komponenten genererer og viser smarte forslag basert på den siste AI-meldingen
-import { useState, useEffect } from "react";
-import { Sparkles } from "lucide-react";
+/*
+ * SmartSuggestions – kontekstbevisste oppfølgingsforslag i KI-chatten.
+ * Smarte oppfølgingsspørsmål (#35): forslag basert på svarets innhold/kategori.
+ * Auto-genererte modulspørsmål (#12): foreslår spørsmål om emner/emnekoder nevnt i samtalen.
+ */
+import { useState, useEffect, useMemo } from "react";
+import { Sparkles, BookOpen, Lightbulb } from "lucide-react";
 
-// Props for SmartSuggestions-komponenten
 interface SmartSuggestionsProps {
   lastAIMessage: string;
   onSelectSuggestion: (suggestion: string) => void;
   disabled?: boolean;
 }
-// Komponent for å vise smarte forslag basert på den siste AI-meldingen
+
+// --- Kategorisering av AI-svar ---
+
+type ResponseCategory = "kode" | "liste" | "oppgave" | "forklaring" | "planlegging" | "oppsummering" | "generelt";
+
+function categorizeResponse(text: string): ResponseCategory {
+  if (/```/.test(text)) return "kode";
+  if ((text.match(/\d+\.\s/g) || []).length >= 3) return "liste";
+  if (/oppsummer|sammendrag|kort fortalt|hovedpunkt/i.test(text)) return "oppsummering";
+  if (/frist|deadline|innlevering|eksamen|dato/i.test(text)) return "oppgave";
+  if (/plan|uke|tid|fordel|prioriter|studie/i.test(text)) return "planlegging";
+  if (/betyr|definisjon|konsept|forklaring|forstå|prinsipp/i.test(text)) return "forklaring";
+  return "generelt";
+}
+
+// --- Kategoribaserte oppfølgingsforslag (#35) ---
+
+const FOLLOW_UPS: Record<ResponseCategory, string[]> = {
+  kode: ["Forklar koden steg for steg", "Vis en alternativ løsning", "Hva kan gå galt med denne koden?"],
+  liste: ["Forklar punkt 1 mer detaljert", "Gi meg eksempler på hvert punkt", "Hvilke er viktigst?"],
+  forklaring: ["Gi meg et praktisk eksempel", "Forklar det enda enklere", "Test meg på dette"],
+  oppgave: ["Hjelp meg lage en plan for oppgaven", "Hva bør jeg starte med?", "Hvor lang tid bør jeg sette av?"],
+  planlegging: ["Juster planen for kortere økter", "Legg til pauser", "Hva om jeg har mindre tid?"],
+  oppsummering: ["Utdyp det viktigste punktet", "Lag flashcards basert på dette", "Test meg på innholdet"],
+  generelt: ["Fortsett...", "Forklar enklere", "Gi meg et eksempel"],
+};
+
+// --- Modulspørsmål (#12) ---
+
+/** Finn emnekoder som DAPE1400, TDT4100 etc. */
+function extractModules(text: string): string[] {
+  const matches = text.match(/\b[A-ZÆØÅ]{2,4}\d{4}\b/g);
+  return [...new Set(matches || [])].slice(0, 2);
+}
+
+/** Finn fagområder nevnt i teksten */
+function detectTopic(text: string): string | null {
+  const lower = text.toLowerCase();
+  const topics: [RegExp, string][] = [
+    [/programm|kode|variabel|funksjoner?|class|objekt|loop|array|algoritm/, "programmering"],
+    [/matematikk|integral|derivasjon|ligning|kalkulus|statistikk/, "matematikk"],
+    [/database|sql|tabell|relasjon|normalis/, "databaser"],
+    [/nettverk|protokoll|tcp|http|server|klient/, "nettverk"],
+    [/design|ux|ui|brukergrensesnitt|wireframe/, "design"],
+    [/prosjekt|scrum|agil|sprint|backlog/, "prosjektledelse"],
+  ];
+  for (const [pattern, topic] of topics) {
+    if (pattern.test(lower)) return topic;
+  }
+  return null;
+}
+
+type SuggestionType = "followup" | "module" | "hint";
+
 export function SmartSuggestions({
   lastAIMessage,
   onSelectSuggestion,
   disabled = false,
 }: SmartSuggestionsProps) {
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-// Bruk useEffect for å oppdatere forslagene hver gang den siste AI-meldingen endres
+  const [suggestions, setSuggestions] = useState<{ text: string; type: SuggestionType }[]>([]);
+
+  const analysis = useMemo(() => {
+    if (!lastAIMessage?.trim()) return null;
+    return {
+      category: categorizeResponse(lastAIMessage),
+      modules: extractModules(lastAIMessage),
+      topic: detectTopic(lastAIMessage),
+    };
+  }, [lastAIMessage]);
+
   useEffect(() => {
-    if (!lastAIMessage || lastAIMessage.trim() === "") {
+    if (!analysis) {
       setSuggestions([]);
       return;
     }
 
-    // Enkle heuristikker for å generere relevante forslag basert på innholdet i AI-meldingen
-    const newSuggestions: string[] = [];
-    const lowerMessage = lastAIMessage.toLowerCase();
+    const { category, modules, topic } = analysis;
+    const result: { text: string; type: SuggestionType }[] = [];
+    const seen = new Set<string>();
 
-    // Eksempler på heuristikker:
-    if (lowerMessage.includes("modul") || lowerMessage.includes("forelesning")) {
-      newSuggestions.push("Vis meg neste modul");
-      newSuggestions.push("Hva er pensum for denne modulen?");
-    } else if (lowerMessage.includes("oppgave") || lowerMessage.includes("innlevering")) {
-      newSuggestions.push("Hva er fristen?");
-      newSuggestions.push("Hjelp meg å starte");
-    } else if (lowerMessage.includes("eksamen")) {
-      newSuggestions.push("Gi meg studietips");
-      newSuggestions.push("Hva bør jeg fokusere på?");
-    } else {
-      const listeMatch = lowerMessage.match(/\d+\.\s/g);
-      if (listeMatch && listeMatch.length >= 3) {
-        newSuggestions.push("Forklar punkt 1 mer detaljert");
-        newSuggestions.push("Gi meg eksempler");
-      } else if (lowerMessage.includes("```")) {
-        newSuggestions.push("Forklar koden linje for linje");
-        newSuggestions.push("Gi meg et lignende eksempel");
+    const add = (text: string, type: SuggestionType) => {
+      if (!seen.has(text) && result.length < 4) {
+        seen.add(text);
+        result.push({ text, type });
       }
+    };
+
+    // 1. Kontekstbaserte oppfølginger (#35) — 2 stk
+    for (const fu of FOLLOW_UPS[category].slice(0, 2)) {
+      add(fu, "followup");
     }
-    // Hvis heuristikkene ikke gir nok forslag, legg til noen generiske forslag
-    if (newSuggestions.length < 3) {
-      newSuggestions.push("Fortsett...");
-      newSuggestions.push("Forklar enklere");
+
+    // 2. Modulspørsmål (#12) — 1 stk hvis emnekode eller fagområde nevnt
+    if (modules.length > 0) {
+      add(`Gi meg øvingsoppgaver for ${modules[0]}`, "module");
+    } else if (topic) {
+      add(`Forklar de viktigste konseptene innen ${topic}`, "module");
     }
-    // Begrens antall forslag til 3
-    setSuggestions(newSuggestions.slice(0, 3));
-  }, [lastAIMessage]);
+
+    // 3. Fyll opp med generiske hints
+    for (const g of ["Fortsett...", "Forklar enklere"]) {
+      add(g, "hint");
+    }
+
+    setSuggestions(result.slice(0, 3));
+  }, [analysis]);
+
   if (suggestions.length === 0) return null;
-// Render forslagene
+
+  const getIcon = (type: SuggestionType) => {
+    if (type === "module") return <BookOpen className="w-3 h-3 mr-1 inline-block opacity-60" />;
+    if (type === "hint") return <Lightbulb className="w-3 h-3 mr-1 inline-block opacity-60" />;
+    return null;
+  };
+
   return (
     <div className="py-3 px-4 md:px-6">
       <div className="max-w-[940px] mx-auto flex items-start gap-2">
@@ -67,14 +137,19 @@ export function SmartSuggestions({
             Forslag til oppfølging:
           </p>
           <div className="flex flex-wrap gap-2">
-            {suggestions.map((suggestion, index) => (
+            {suggestions.map((s, i) => (
               <button
-                key={index}
-                onClick={() => onSelectSuggestion(suggestion)}
+                key={i}
+                onClick={() => onSelectSuggestion(s.text)}
                 disabled={disabled}
-                className="px-3 py-1.5 text-xs rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`px-3 py-1.5 text-xs rounded-full border bg-white dark:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  s.type === "module"
+                    ? "border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                    : "border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                }`}
               >
-                {suggestion}
+                {getIcon(s.type)}
+                {s.text}
               </button>
             ))}
           </div>
@@ -82,4 +157,4 @@ export function SmartSuggestions({
       </div>
     </div>
   );
-}
+} 
