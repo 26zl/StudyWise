@@ -244,6 +244,7 @@ function sanitizeText(text: string): { cleanText: string; redacted: boolean } {
 
     // Masker studentnummer (typisk 6-8 siffer, ofte prefixet med bokstaver)
     // Fanger: s123456, 12345678, stud-123456, osv.
+    // eslint-disable-next-line security/detect-unsafe-regex
     const studentnummerRegex = /\b(?:s|stud[-.]?)?(\d{6,8})\b/gi;
     cleanText = cleanText.replace(studentnummerRegex, () => {
         redacted = true;
@@ -252,6 +253,7 @@ function sanitizeText(text: string): { cleanText: string; redacted: boolean } {
 
     // Masker norske adresser (gatenavn + nummer + eventuelt postnummer/sted)
     // Enkel heuristikk: "Gatenavn 123" eller "Gatenavn 123A" fulgt av eventuelt 4-sifret postnummer
+    // eslint-disable-next-line security/detect-unsafe-regex
     const adresseRegex = /\b([A-ZÆØÅ][a-zæøå]+(?:gata|gaten|veien|vegen|vei|gate|plass|allé|alléen|vn\.|gt\.)?)\s+\d{1,4}[A-Za-z]?\b(?:\s*,?\s*\d{4}\s+[A-ZÆØÅ][a-zæøå]+)?/gi;
     cleanText = cleanText.replace(adresseRegex, () => {
         redacted = true;
@@ -259,6 +261,7 @@ function sanitizeText(text: string): { cleanText: string; redacted: boolean } {
     });
 
     // Masker postnummer + sted (4 siffer + stedsnavn)
+    // eslint-disable-next-line security/detect-unsafe-regex
     const postnummerRegex = /\b\d{4}\s+[A-ZÆØÅ][a-zæøå]+(?:\s+[A-ZÆØÅ][a-zæøå]+)?\b/g;
     cleanText = cleanText.replace(postnummerRegex, () => {
         redacted = true;

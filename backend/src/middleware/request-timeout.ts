@@ -31,6 +31,7 @@ function getRequestPath(req: Request): string {
 
 // Utvid Express Request for å inkludere AbortController signal
 declare global {
+    // eslint-disable-next-line @typescript-eslint/no-namespace
     namespace Express {
         interface Request {
             timeoutSignal?: AbortSignal;
