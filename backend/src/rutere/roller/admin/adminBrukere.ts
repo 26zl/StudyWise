@@ -11,13 +11,15 @@ import { Router } from "express";
 import { z } from "zod";
 import { RoleSchema } from "common/auth";
 import { User } from "../../../database/models/User.js";
-import { ChatHistory } from "../../../database/models/ChatHistory.js";
-import { TaskBreakdown } from "../../../database/models/TaskBreakdown.js";
-import { Arbeidsplan } from "../../../database/models/arbeidsplan.js";
-import { ContentEmbedding } from "../../../database/models/ContentEmbedding.js";
 import { apiError, requireUserId, sendZodError } from "../../../utils/apiError.js";
-import { audit, AUDIT_ACTIONS } from "../../../utils/auditLog.js";
+import {
+  anonymizeAuditTrailForDeletedUser,
+  audit,
+  AUDIT_ACTIONS,
+  getDeletedAuditActorId,
+} from "../../../utils/auditLog.js";
 import { logger } from "../../../utils/logger.js";
+import { deleteAccountData } from "../../auth/kontoSlett.js";
 
 const router = Router();
 
@@ -159,17 +161,8 @@ router.delete("/brukere/:id", async (req, res) => {
       return apiError.notFound(res, "Bruker");
     }
 
-    // Slett relatert data parallelt
-    await Promise.all([
-      ChatHistory.deleteMany({ user: targetId }),
-      TaskBreakdown.deleteMany({ user: targetId }),
-      Arbeidsplan.deleteMany({ userId: targetId }),
-      ContentEmbedding.deleteMany({ userId: targetId }),
-    ]);
-
-    // Soft-delete brukeren (setter deletedAt)
-    bruker.deletedAt = new Date();
-    await bruker.save();
+    const deletionResult = await deleteAccountData(targetId);
+    const deletedAuditActorId = getDeletedAuditActorId(targetId);
 
     await audit({
       actorUserId,
@@ -177,12 +170,29 @@ router.delete("/brukere/:id", async (req, res) => {
       category: "admin",
       outcome: "success",
       role: req.actorRole,
-      targetUserId: targetId,
-      metadata: { subAction: "brukere.slett" },
+      targetUserId: deletedAuditActorId,
+      metadata: {
+        subAction: "brukere.slett",
+        deleted: deletionResult.deleted,
+        providerAccountDeleted: deletionResult.providerAccountDeleted,
+      },
       req,
     });
 
-    return res.json({ slettet: true });
+    try {
+      await anonymizeAuditTrailForDeletedUser(targetId);
+    } catch (auditError) {
+      logger.warn(
+        { err: auditError, targetUserId: targetId },
+        "Klarte ikke å anonymisere revisjonsspor etter admin-sletting",
+      );
+    }
+
+    return res.json({
+      slettet: true,
+      deleted: deletionResult.deleted,
+      providerAccountDeleted: deletionResult.providerAccountDeleted,
+    });
   } catch (err) {
     logger.error({ err }, "Admin brukersletting feilet");
     return apiError.serverError(res);

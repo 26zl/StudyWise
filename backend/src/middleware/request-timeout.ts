@@ -14,6 +14,7 @@ const DEFAULT_TIMEOUT_MS = 30_000;  // 30 sekunder for vanlige requests
 const UPLOAD_TIMEOUT_MS = 120_000;  // 2 minutter for filopplasting, dokumentanalyse, task-breakdown
 const KI_CHAT_TIMEOUT_MS = 180_000; // 3 minutter for KI-chat (kontekstlasting + oppsummering kan ta lang tid)
 const KI_WEEKLY_PLAN_TIMEOUT_MS = 120_000; // 2 minutter for ukeplangenerator (AI kan ta lang tid)
+const FILE_DOWNLOAD_TIMEOUT_MS = 180_000; // 3 minutter for store eller trege Canvas-filer
 
 // Endepunkter som har lengre timeout (filopplasting, dokumentanalyse, KI-chat som laster Canvas-kontekst)
 const LONG_TIMEOUT_PREFIXES = [
@@ -23,6 +24,7 @@ const LONG_TIMEOUT_PREFIXES = [
     "/api/ki/task-breakdown",
     "/api/ki/weekly-plan",
     "/api/quiz/generate",
+    "/api/flashcards/generate",
 ];
 
 function getRequestPath(req: Request): string {
@@ -54,14 +56,23 @@ export function requestTimeout(req: Request, res: Response, next: NextFunction) 
 
     const isKiChat = pathname.startsWith("/api/ki/chat");
     const isWeeklyPlan = pathname.startsWith("/api/ki/weekly-plan");
-    const isLongRequest = isKiChat || isWeeklyPlan || LONG_TIMEOUT_PREFIXES.some(p => pathname.startsWith(p));
+    const isFileDownload =
+        req.method === "GET" &&
+        /^\/api\/canvas\/filer\/\d+\/download$/.test(pathname);
+    const isLongRequest =
+        isKiChat ||
+        isWeeklyPlan ||
+        isFileDownload ||
+        LONG_TIMEOUT_PREFIXES.some(p => pathname.startsWith(p));
     const timeoutMs = isKiChat
         ? KI_CHAT_TIMEOUT_MS
         : isWeeklyPlan
             ? KI_WEEKLY_PLAN_TIMEOUT_MS
-            : isLongRequest
-                ? UPLOAD_TIMEOUT_MS
-                : DEFAULT_TIMEOUT_MS;
+            : isFileDownload
+                ? FILE_DOWNLOAD_TIMEOUT_MS
+                : isLongRequest
+                    ? UPLOAD_TIMEOUT_MS
+                    : DEFAULT_TIMEOUT_MS;
 
     // Opprett AbortController for å signalere avbrudd til nedstrøms operasjoner
     const abortController = new AbortController();

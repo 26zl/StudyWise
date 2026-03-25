@@ -19,6 +19,10 @@ import { chatCompletion, isClientAvailable } from "../ki/aiClient.js";
 import { handleAIJsonRouteError } from "../ki/handleAIError.js";
 import { knyttCanvasToken } from "../../middleware/auth.js";
 import { loadCanvasContext } from "../../services/context-loader.service.js";
+import {
+  createCourseTargetedQuery,
+  extractJsonArray,
+} from "../ki/studyContentUtils.js";
 
 const router = Router();
 router.use(rateLimitKi);
@@ -48,16 +52,6 @@ Regler:
 - Basér flashcards UTELUKKENDE på det medfølgende kursmateriellet
 - Hold svarene konsise men fullstendige`;
 
-function extractJsonArray(text: string): string {
-  const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  const start = cleaned.indexOf("[");
-  const end = cleaned.lastIndexOf("]");
-  if (start === -1 || end === -1 || end < start) {
-    throw new Error("AI_RESPONSE_NOT_JSON_ARRAY");
-  }
-  return cleaned.slice(start, end + 1);
-}
-
 // POST /api/flashcards/generate
 router.post("/generate", knyttCanvasToken, async (req, res) => {
   try {
@@ -77,7 +71,7 @@ router.post("/generate", knyttCanvasToken, async (req, res) => {
       return apiError.unauthorized(res, "Canvas-token mangler");
     }
 
-    const { courseName, moduleNames, cardCount } = parsed.data;
+    const { courseId, courseName, moduleNames, cardCount } = parsed.data;
 
     // Hent Canvas-kontekst for kurset via context-loader (bruker hybrid søk + Redis/MongoDB)
     const moduleListStr = moduleNames.join(", ");
@@ -85,7 +79,7 @@ router.post("/generate", knyttCanvasToken, async (req, res) => {
       userId,
       req.canvasToken,
       "canvas_full",
-      { courseHint: courseName, moduleHint: moduleNames[0] ?? null, fileHint: null },
+      createCourseTargetedQuery(courseId, courseName, moduleNames),
       `Flashcards om ${moduleListStr} i ${courseName}`,
       req.canvasBaseUrl,
     );

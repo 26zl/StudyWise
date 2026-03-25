@@ -182,6 +182,7 @@ function isLikelyFollowUpQuestion(message: string): boolean {
 // Målrettet kontekst-ekstraksjon: identifiser hvilke(t) emne/modul brukeren spør om
 // ————————————————————————————————————————————————————————
 export interface TargetedQuery {
+  courseIdHint: number | null;
   courseHint: string | null;
   moduleHint: string | null;
   fileHint: string | null;
@@ -317,7 +318,7 @@ function extractQueryTarget(message: string): TargetedQuery {
     }
   }
 
-  return { courseHint, moduleHint, fileHint };
+  return { courseIdHint: null, courseHint, moduleHint, fileHint };
 }
 
 /** Definerer express router */
@@ -601,6 +602,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
           contextResult.hasCanvasData &&
           (contextResult.kontekst.includes("--- PDF-INNHOLD:") ||
             contextResult.kontekst.includes("--- FIL-INNHOLD:") ||
+            target.courseIdHint !== null ||
             !!target.courseHint ||
             !!target.moduleHint ||
             !!target.fileHint);

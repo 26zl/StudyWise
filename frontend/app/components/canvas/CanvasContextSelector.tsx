@@ -26,6 +26,7 @@ export function CanvasContextSelector() {
   const {
     mutate: oppdaterBackendDebounced,
     isPending: oppdatererPreferanser,
+    flush: flushPreferanser,
   } = useDebouncedPreferanseOppdater();
   const initializedRef = useRef(false);
   
@@ -36,6 +37,26 @@ export function CanvasContextSelector() {
       initializedRef.current = true;
     }
   }, [megData?.user?.canvasContextPreferences, setSelected]);
+
+  useEffect(() => {
+    const handlePageHide = () => {
+      flushPreferanser();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        flushPreferanser();
+      }
+    };
+
+    window.addEventListener("pagehide", handlePageHide);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+      flushPreferanser();
+    };
+  }, [flushPreferanser]);
 
   const { data: announcementsData, isLoading: loadingAnnouncements } = useCanvasAnnouncements();
   const { data: coursesData, isLoading: loadingCourses } = useCanvasCourses();

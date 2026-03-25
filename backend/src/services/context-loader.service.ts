@@ -61,6 +61,23 @@ interface SyncedCourse {
   fileNames: string[];
 }
 
+function hasCourseTarget(target?: TargetedQuery): boolean {
+  return target?.courseIdHint !== null && target?.courseIdHint !== undefined
+    ? true
+    : !!target?.courseHint;
+}
+
+function matchesCourseId(
+  candidateCourseId: string | number | null | undefined,
+  courseIdHint: number | null | undefined,
+): boolean {
+  if (candidateCourseId == null || courseIdHint == null) {
+    return false;
+  }
+
+  return String(candidateCourseId) === String(courseIdHint);
+}
+
 /** Felles datastruktur for lett kontekst-bygging (brukes av både Redis- og MongoDB-kilde) */
 interface LettKontekstEmne {
   name: string;
@@ -237,8 +254,21 @@ async function finnRelevanteEmner(
   const emner = await hentKjentEmnekatalog(userId);
   if (emner.length === 0) return [];
 
-  if (!target?.courseHint && !target?.moduleHint && !target?.fileHint) {
+  if (!hasCourseTarget(target) && !target?.moduleHint && !target?.fileHint) {
     return emner;
+  }
+
+  if (!target) {
+    return emner;
+  }
+
+  if (target?.courseIdHint != null) {
+    const matched = emner.filter((emne) =>
+      matchesCourseId(emne.id, target.courseIdHint),
+    );
+    if (matched.length > 0) {
+      return matched;
+    }
   }
 
   if (target.courseHint) {
@@ -441,7 +471,13 @@ async function byggMålrettetKontekstFraMongo(
     // Finn matchende kurs — søk i courseHint, moduleHint, fileHint (samme rekkefølge som finnRelevanteEmner)
     let matchedStructure: (typeof structures)[number] | undefined;
 
-    if (target.courseHint) {
+    if (target.courseIdHint != null) {
+      matchedStructure = structures.find((s) =>
+        matchesCourseId(s.courseId, target.courseIdHint),
+      );
+    }
+
+    if (!matchedStructure && target.courseHint) {
       const hint = target.courseHint.toLowerCase();
       matchedStructure = structures.find(
         (s) =>
@@ -825,7 +861,7 @@ async function byggKontekstFraChunks(
     const relevantCourses = await finnRelevanteEmner(userId, target);
     const courseIds = relevantCourses.map((course) => String(course.id));
     // Blokkér kun når courseHint er eksplisitt satt men ingen kurs matchet
-    if (target?.courseHint && courseIds.length === 0) {
+    if (hasCourseTarget(target) && courseIds.length === 0) {
       logger.info({ userId, target }, "Chunk-søk: courseHint satt men ingen kurs matchet");
       return null;
     }
@@ -861,7 +897,12 @@ async function byggKontekstFraChunks(
 
       if (allChunks.length === 0) {
         logger.info(
-          { userId, courseCount: courseIds.length, courseHint: target?.courseHint },
+          {
+            userId,
+            courseCount: courseIds.length,
+            courseHint: target?.courseHint,
+            courseIdHint: target?.courseIdHint,
+          },
           "Ingen lagrede chunks funnet i MongoDB",
         );
         return null;
@@ -986,7 +1027,7 @@ async function byggKontekstFraHybridSearch(
     // Blokkér kun når courseHint er eksplisitt satt men ingen kurs matchet.
     // Når courseHint er null, søker vi på tvers av alle kurs —
     // retrieval-scoren bestemmer relevans.
-    if (target?.courseHint && courseIds.length === 0) {
+    if (hasCourseTarget(target) && courseIds.length === 0) {
       logger.info({ userId, target }, "Hybrid søk: courseHint satt men ingen kurs matchet");
       return null;
     }
@@ -1170,7 +1211,11 @@ export async function loadCanvasContext(
   }
 
   // ── canvas_full ──
-  const hasSpecificTarget = !!(target?.courseHint || target?.moduleHint || target?.fileHint);
+  const hasSpecificTarget = !!(
+    hasCourseTarget(target) ||
+    target?.moduleHint ||
+    target?.fileHint
+  );
 
   // Kunngjøring-deteksjon: Kunngjøringer er strukturert data som ikke er indeksert i
   // Pinecone/BM25, så hybrid-søk finner dem aldri. Når brukeren spør om kunngjøringer,

@@ -92,7 +92,7 @@ function vent(ms: number) {
 /** Henter chat-liste fra API og normaliserer timestamps. Returnerer [] ved auth-feil. */
 async function loadChatHistory(): Promise<SavedChat[]> {
   try {
-    const raw = await fetchJson<unknown>("/api/ki/chat/history?limit=20&page=1");
+    const raw = await fetchJson<unknown>(`/api/ki/chat/history?limit=${MAX_CHATS}&page=1`);
     const parsed = ChatHistoryResponseSchema.parse(raw);
     return parsed.chats
       .slice(0, MAX_CHATS)

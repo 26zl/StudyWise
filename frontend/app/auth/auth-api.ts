@@ -306,6 +306,7 @@ async function oppdaterBrukerPreferanser(
     "Kunne ikke oppdatere preferanser",
     {
       method: "PUT",
+      keepalive: true,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(preferences),
     },
