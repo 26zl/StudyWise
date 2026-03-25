@@ -8,8 +8,13 @@
  *   DELETE /brukere/:id       – Slett bruker og all relatert data
  */
 import { Router } from "express";
-import { z } from "zod";
-import { RoleSchema } from "common/auth";
+import {
+  AdminBrukereQuerySchema,
+  AdminBrukerListeResponseSchema,
+  AdminEndreRolleResponseSchema,
+  AdminEndreRolleSchema,
+  AdminSlettBrukerResponseSchema,
+} from "common/admin";
 import { User } from "../../../database/models/User.js";
 import { apiError, requireUserId, sendZodError } from "../../../utils/apiError.js";
 import {
@@ -27,25 +32,34 @@ const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 const MAX_OFFSET = 10_000;
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 // ── GET /brukere ────────────────────────────────────────────────────────────
 router.get("/brukere", async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
 
+  const parsedQuery = AdminBrukereQuerySchema.safeParse(req.query);
+  if (!parsedQuery.success) {
+    return sendZodError(res, parsedQuery.error, "adminBrukere.query");
+  }
+
   const limit = Math.min(
-    Math.max(0, parseInt(String(req.query.limit), 10) || DEFAULT_LIMIT),
+    Math.max(0, parseInt(parsedQuery.data.limit ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT),
     MAX_LIMIT,
   );
   const offset = Math.min(
-    Math.max(0, parseInt(String(req.query.offset), 10) || 0),
+    Math.max(0, parseInt(parsedQuery.data.offset ?? "0", 10) || 0),
     MAX_OFFSET,
   );
-  const search = typeof req.query.search === "string" ? req.query.search.trim() : undefined;
+  const search = parsedQuery.data.search?.trim();
 
   try {
     const filter: Record<string, unknown> = { deletedAt: { $exists: false } };
     if (search && search.length > 0) {
-      filter.email = { $regex: search, $options: "i" };
+      filter.email = { $regex: escapeRegex(search), $options: "i" };
     }
 
     const [brukere, total] = await Promise.all([
@@ -68,9 +82,9 @@ router.get("/brukere", async (req, res) => {
       req,
     });
 
-    return res.json({
+    const response = AdminBrukerListeResponseSchema.parse({
       brukere: brukere.map((b) => ({
-        id: b._id,
+        id: String(b._id),
         email: b.email,
         rolle: b.role,
         brukernavn: b.username,
@@ -84,6 +98,7 @@ router.get("/brukere", async (req, res) => {
       limit,
       offset,
     });
+    return res.json(response);
   } catch (err) {
     logger.error({ err }, "Admin brukerliste feilet");
     return apiError.serverError(res);
@@ -91,10 +106,6 @@ router.get("/brukere", async (req, res) => {
 });
 
 // ── PATCH /brukere/:id/rolle ────────────────────────────────────────────────
-const EndreRolleSchema = z.object({
-  rolle: RoleSchema,
-});
-
 router.patch("/brukere/:id/rolle", async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
@@ -106,7 +117,7 @@ router.patch("/brukere/:id/rolle", async (req, res) => {
     return apiError.badRequest(res, "Du kan ikke endre din egen rolle");
   }
 
-  const parsed = EndreRolleSchema.safeParse(req.body);
+  const parsed = AdminEndreRolleSchema.safeParse(req.body);
   if (!parsed.success) {
     return sendZodError(res, parsed.error, "rolle");
   }
@@ -136,7 +147,9 @@ router.patch("/brukere/:id/rolle", async (req, res) => {
       req,
     });
 
-    return res.json({ id: targetId, rolle: parsed.data.rolle });
+    return res.json(
+      AdminEndreRolleResponseSchema.parse({ id: targetId, rolle: parsed.data.rolle }),
+    );
   } catch (err) {
     logger.error({ err }, "Admin rolleendring feilet");
     return apiError.serverError(res);
@@ -188,11 +201,13 @@ router.delete("/brukere/:id", async (req, res) => {
       );
     }
 
-    return res.json({
+    return res.json(
+      AdminSlettBrukerResponseSchema.parse({
       slettet: true,
       deleted: deletionResult.deleted,
       providerAccountDeleted: deletionResult.providerAccountDeleted,
-    });
+      }),
+    );
   } catch (err) {
     logger.error({ err }, "Admin brukersletting feilet");
     return apiError.serverError(res);

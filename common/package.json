@@ -48,6 +48,10 @@
     "./arbeidsplan": {
       "types": "./src/arbeidsplan.ts",
       "import": "./dist/arbeidsplan.js"
+    },
+    "./admin": {
+      "types": "./src/admin.ts",
+      "import": "./dist/admin.js"
     }
   },
   "scripts": {

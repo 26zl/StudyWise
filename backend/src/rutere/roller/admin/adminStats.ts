@@ -6,6 +6,7 @@
  *   GET /statistikk – Aggregerte nøkkeltall for plattformen
  */
 import { Router } from "express";
+import { AdminStatsResponseSchema } from "common/admin";
 import { User } from "../../../database/models/User.js";
 import { ChatHistory } from "../../../database/models/ChatHistory.js";
 import { TaskBreakdown } from "../../../database/models/TaskBreakdown.js";
@@ -49,7 +50,8 @@ router.get("/statistikk", async (req, res) => {
       req,
     });
 
-    return res.json({
+    return res.json(
+      AdminStatsResponseSchema.parse({
       brukere: {
         totalt: totalBrukere,
         admin: antallAdmin,
@@ -59,7 +61,8 @@ router.get("/statistikk", async (req, res) => {
       samtaler: totalSamtaler,
       oppgaveoppdelinger: totalOppgaver,
       embeddings: totalEmbeddings,
-    });
+      }),
+    );
   } catch (err) {
     logger.error({ err }, "Admin statistikk feilet");
     return apiError.serverError(res);

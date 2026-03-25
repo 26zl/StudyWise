@@ -82,6 +82,13 @@ export default async function RootLayout({
       <head>
         <link rel="preconnect" href="https://clerk.studwize.page" />
         <link rel="dns-prefetch" href="https://clerk.studwize.page" />
+        {rumConfig && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `window.__DD_RUM_CONFIG__=${JSON.stringify(rumConfig)};`,
+            }}
+          />
+        )}
         {/*
           Suppress kjent Clerk v7 key-prop warning: "Each child in a list should have a unique key prop"
           fra __experimental_CheckoutProvider. Dette er en intern Clerk-bug i @clerk/nextjs v7 med React 19.
@@ -99,13 +106,6 @@ export default async function RootLayout({
       </head>
       <body className="antialiased min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950" suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          {rumConfig && (
-            <script
-              dangerouslySetInnerHTML={{
-                __html: `window.__DD_RUM_CONFIG__=${JSON.stringify(rumConfig)};`,
-              }}
-            />
-          )}
           <MainAppShell
             clerkPublishableKey={clerkPublishableKey}
             initialLanguage={initialLanguage}

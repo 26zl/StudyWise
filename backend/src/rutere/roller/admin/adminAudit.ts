@@ -4,8 +4,9 @@
  */
 import type { Request } from "express";
 import { Router } from "express";
+import { AdminAuditItemSchema, AdminAuditQuerySchema, AdminAuditResponseSchema } from "common/admin";
 import { AuditLog } from "../../../database/models/AuditLog.js";
-import { apiError } from "../../../utils/apiError.js";
+import { apiError, sendZodError } from "../../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../../utils/auditLog.js";
 import { logger } from "../../../utils/logger.js";
 import type { AuditCategory } from "../../../database/models/AuditLog.js";
@@ -33,7 +34,7 @@ function shapeAuditItem(raw: {
   role?: string;
   metadata?: Record<string, unknown>;
   createdAt: Date;
-}): Record<string, unknown> {
+}) {
   const meta = raw.metadata;
   const safeMeta =
     meta && typeof meta === "object"
@@ -41,7 +42,7 @@ function shapeAuditItem(raw: {
           Object.entries(meta).filter(([k]) => ALLOWED_METADATA_KEYS.has(k)),
         )
       : undefined;
-  return {
+  return AdminAuditItemSchema.parse({
     id: raw._id,
     action: raw.action,
     category: raw.category,
@@ -51,7 +52,7 @@ function shapeAuditItem(raw: {
     role: raw.role,
     metadata: Object.keys(safeMeta ?? {}).length > 0 ? safeMeta : undefined,
     createdAt: raw.createdAt,
-  };
+  });
 }
 
 /**
@@ -66,12 +67,20 @@ router.get("/audit", async (req, res) => {
     return apiError.unauthorized(res);
   }
 
+  const parsedQuery = AdminAuditQuerySchema.safeParse(req.query);
+  if (!parsedQuery.success) {
+    return sendZodError(res, parsedQuery.error, "adminAudit.query");
+  }
+
   const limit = Math.min(
-    Math.max(0, parseInt(String(req.query.limit), 10) || DEFAULT_LIMIT),
+    Math.max(0, parseInt(parsedQuery.data.limit ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT),
     MAX_LIMIT,
   );
-  const offset = Math.min(Math.max(0, parseInt(String(req.query.offset), 10) || 0), MAX_OFFSET);
-  const rawCategory = typeof req.query.category === "string" ? req.query.category : undefined;
+  const offset = Math.min(
+    Math.max(0, parseInt(parsedQuery.data.offset ?? "0", 10) || 0),
+    MAX_OFFSET,
+  );
+  const rawCategory = parsedQuery.data.category;
   const category: AuditCategory | undefined =
     rawCategory && VALID_CATEGORIES.has(rawCategory) ? (rawCategory as AuditCategory) : undefined;
 
@@ -92,12 +101,14 @@ router.get("/audit", async (req, res) => {
       req,
     });
 
-    return res.json({
+    return res.json(
+      AdminAuditResponseSchema.parse({
       items: items.map((item) => shapeAuditItem(item as Parameters<typeof shapeAuditItem>[0])),
       total,
       limit,
       offset,
-    });
+      }),
+    );
   } catch (err) {
     logger.error({ err, requestId }, "Admin audit list failed");
     return apiError.serverError(res);
