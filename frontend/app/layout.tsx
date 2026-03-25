@@ -65,9 +65,9 @@ export default async function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const initialLanguage = await resolveInitialLanguage();
   const rumApplicationId =
-    process.env.DD_RUM_APPLICATION_ID ?? process.env.NEXT_PUBLIC_DD_RUM_APPLICATION_ID ?? "6d1263e0-6ea4-452d-bd26-a3b1edd2264c";
+    process.env.DD_RUM_APPLICATION_ID ?? process.env.NEXT_PUBLIC_DD_RUM_APPLICATION_ID;
   const rumClientToken =
-    process.env.DD_RUM_CLIENT_TOKEN ?? process.env.NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN ?? "pube24e48923b7366b68136b3fefed2837b";
+    process.env.DD_RUM_CLIENT_TOKEN ?? process.env.NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN;
   const rumConfig =
     rumApplicationId && rumClientToken
       ? {
