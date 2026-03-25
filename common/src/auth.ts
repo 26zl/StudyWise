@@ -80,6 +80,11 @@ export const CanvasContextPreferencesSchema = z.object({
   events: z.boolean(),
 });
 
+/** Innloggingsmetode (OAuth-leverandør eller e-post/passord). */
+export const AUTH_PROVIDERS = ["google", "microsoft", "email"] as const;
+export type AuthProvider = (typeof AUTH_PROVIDERS)[number];
+export const AuthProviderSchema = z.enum(AUTH_PROVIDERS);
+
 /** RBAC: kun vanlig bruker og admin. */
 export const APP_ROLES = ["user", "admin"] as const;
 export type UserRole = (typeof APP_ROLES)[number];
@@ -155,6 +160,8 @@ export const AuthBrukerSchema = z.object({
   varslerState: VarslerStateSchema.optional(),
   /** RBAC-rolle (user, admin). */
   role: RoleSchema.optional(),
+  /** Innloggingsmetode (google, microsoft, email). */
+  authProvider: AuthProviderSchema.optional(),
 });
 
 // Me / logout / preferences (Clerk-only; ingen lokale login/register/refresh-endepunkter)

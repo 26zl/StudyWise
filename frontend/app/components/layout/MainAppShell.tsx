@@ -29,10 +29,16 @@ export function MainAppShell({
   return (
     <Providers clerkPublishableKey={clerkPublishableKey} initialLanguage={initialLanguage}>
       <div className="flex flex-col min-h-screen">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-lg focus:bg-slate-900 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white dark:focus:bg-white dark:focus:text-slate-900"
+        >
+          Hopp til innhold
+        </a>
         <Header />
-        <div className="flex-1 min-h-0 overflow-y-auto relative flex flex-col">
+        <main id="main-content" tabIndex={-1} className="flex-1 min-h-0 overflow-y-auto relative flex flex-col outline-none">
           {children}
-        </div>
+        </main>
       </div>
       <Toaster />
       <Suspense fallback={null}>

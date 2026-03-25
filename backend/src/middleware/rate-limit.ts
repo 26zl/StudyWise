@@ -7,6 +7,7 @@ import { RateLimiterMemory, RateLimiterRedis, RateLimiterRes } from "rate-limite
 import redisClient, { isRedisReady } from "../cache/redis.js";
 import { logger } from "../utils/logger.js";
 import { apiError, sendError } from "../utils/apiError.js";
+import { audit, AUDIT_ACTIONS } from "../utils/auditLog.js";
 
 
 // Ratelimit konfigurasjonstype
@@ -69,6 +70,20 @@ export const createRateLimiter = ({
             if (isRateLimiterResult(err)) {
                 setRateLimitHeaders(res, err, points);
                 res.setHeader("Retry-After", String(Math.ceil(err.msBeforeNext / 1000)));
+                void audit({
+                    actorUserId: (req as Request & { user?: { id?: string } }).user?.id ?? key,
+                    action: AUDIT_ACTIONS.RATE_LIMIT_EXCEEDED,
+                    category: "security",
+                    outcome: "failure",
+                    req,
+                    metadata: {
+                        keyPrefix,
+                        endpoint: req.path,
+                        method: req.method,
+                        limit: points,
+                        duration,
+                    },
+                });
                 return apiError.rateLimited(res, "Du har nådd grensen for forespørsler. Prøv igjen senere.");
             }
             logger.error({ err }, "Rate limiter feil");

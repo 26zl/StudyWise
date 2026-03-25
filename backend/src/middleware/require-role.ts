@@ -4,6 +4,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { apiError } from "../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../utils/auditLog.js";
+import { checkSecurityThresholds } from "../utils/securityAlert.js";
 import type { UserRole } from "common/auth";
 
 export function requireRole(...allowedRoles: UserRole[]) {
@@ -23,6 +24,13 @@ export function requireRole(...allowedRoles: UserRole[]) {
         role,
         metadata: { allowedRoles: [...allowedRoles], path: req.path },
         req,
+      });
+      void checkSecurityThresholds({
+        type: "rbac_abuse",
+        key: req.user.id,
+        actorUserId: req.user.id,
+        ip: req.ip ?? req.socket?.remoteAddress,
+        metadata: { path: req.path },
       });
       apiError.forbidden(res, "Manglende tilgang for denne rollen");
       return;

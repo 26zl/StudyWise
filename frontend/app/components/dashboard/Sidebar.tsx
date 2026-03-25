@@ -22,6 +22,7 @@ import {
     CalendarDays,
     Sparkles,
     Brain,
+    Shield,
 } from "lucide-react";
 import { useLoggUtWithRedirect } from "@/app/auth/auth-api";
 import { useChatHistory } from "@/app/hooks/useChatHistory";
@@ -38,13 +39,15 @@ export type VisningType =
     | "canvas-assignments"
     | "varslinger"
     | "settings"
-    | "quiz";
+    | "quiz"
+    | "admin";
 
 // Props for Sidebar-komponenten
 interface SidebarProps {
     aktivVisning: VisningType;
     byttVisning: (visning: VisningType) => void;
     brukernavn?: string;
+    brukerRolle?: string;
 }
 
 // Sidebar-komponent
@@ -52,6 +55,7 @@ export function Sidebar({
     aktivVisning,
     byttVisning,
     brukernavn,
+    brukerRolle,
 }: SidebarProps) {
     const { isVenstreMenyOpen, lukkVenstreMeny } = useUIStore();
     const [erCanvasUtvidet, settErCanvasUtvidet] = useState(true);
@@ -89,6 +93,7 @@ export function Sidebar({
         return (
             <button
                 onClick={() => handleNavigasjon(view)}
+                aria-current={erAktiv ? "page" : undefined}
                 className={`
                     w-full flex items-center gap-3 px-5 py-3.5 rounded-xl text-left text-sm
                     transition-colors duration-150
@@ -128,12 +133,13 @@ export function Sidebar({
                 `}
             >
                 {/* Navigasjon — på mobil lukkes menyen via X i header, ikke egen rad */}
-                <nav className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-3">
+                <nav aria-label="Hovednavigasjon" className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-3">
                     {/* Hovednavigasjon */}
                     <div className="mb-4">
                         <Link
                             href="/oversikt"
                             prefetch={false}
+                            aria-current={pathname === "/oversikt" ? "page" : undefined}
                             onClick={() => {
                                 if (window.innerWidth < 768) lukkVenstreMeny();
                             }}
@@ -174,6 +180,7 @@ export function Sidebar({
                         <Link
                             href="/ai-breakdown"
                             prefetch={false}
+                            aria-current={pathname === "/ai-breakdown" ? "page" : undefined}
                             onClick={() => {
                                 if (window.innerWidth < 768) {
                                     lukkVenstreMeny();
@@ -253,6 +260,8 @@ export function Sidebar({
                     <div className="border-t border-slate-200 dark:border-slate-800 pt-8 pb-3">
                         <button
                             onClick={() => settErCanvasUtvidet(!erCanvasUtvidet)}
+                            aria-expanded={erCanvasUtvidet}
+                            aria-controls="sidebar-canvas-menu"
                             className="w-full flex items-center justify-between px-5 py-3.5 text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-xl"
                         >
                             <span>{t("dashboard.sidebar.canvas")}</span>
@@ -264,7 +273,7 @@ export function Sidebar({
                         </button>
 
                         {erCanvasUtvidet && (
-                            <div className="mt-4 space-y-2">
+                            <div id="sidebar-canvas-menu" className="mt-4 space-y-2">
                                 <NavElement
                                     view="varslinger"
                                     icon={Bell}
@@ -299,9 +308,12 @@ export function Sidebar({
                         )}
                     </div>
 
-                    {/* Innstillinger */}
-                    <div className="border-t border-slate-200 dark:border-slate-800 pt-8">
+                    {/* Innstillinger + Admin */}
+                    <div className="border-t border-slate-200 dark:border-slate-800 pt-8 space-y-2">
                         <NavElement view="settings" icon={Settings} label={t("dashboard.sidebar.settings")} />
+                        {brukerRolle === "admin" && (
+                            <NavElement view="admin" icon={Shield} label={t("dashboard.sidebar.admin")} />
+                        )}
                     </div>
                 </nav>
 

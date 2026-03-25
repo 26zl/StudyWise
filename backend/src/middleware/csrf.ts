@@ -15,6 +15,7 @@ import {
 import { sendError } from "../utils/apiError.js";
 import { isProd } from "../utils/env.js";
 import { getConfiguredWebOriginSet, normalizeWebOrigin } from "../utils/webOrigins.js";
+import { audit, AUDIT_ACTIONS } from "../utils/auditLog.js";
 
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -27,8 +28,21 @@ function getOriginFromReferer(referer: string | undefined): string | null {
   return normalizeWebOrigin(referer);
 }
 
-// Send 403 Forbidden med en melding om CSRF-feil.
-function rejectCsrf(res: Response, melding: string): void {
+// Send 403 Forbidden med en melding om CSRF-feil, og logg til audit.
+function rejectCsrf(req: Request, res: Response, melding: string): void {
+  void audit({
+    actorUserId: (req as Request & { user?: { id?: string } }).user?.id ?? "anonymous",
+    action: AUDIT_ACTIONS.CSRF_VIOLATION,
+    category: "security",
+    outcome: "failure",
+    req,
+    metadata: {
+      method: req.method,
+      path: req.path,
+      origin: req.get("origin"),
+      referer: req.get("referer"),
+    },
+  });
   sendError(res, "validation_error", {
     status: 403,
     feil: "Forbidden",
@@ -64,25 +78,25 @@ export function beskytteMotCsrf(
   // Påkrevd: kun forespørsler som sender vår CSRF-header godtas (frontend setter den).
   const csrfHeader = req.get(AUTH_CSRF_HEADER_NAME);
   if (csrfHeader !== AUTH_CSRF_HEADER_VALUE) {
-    return rejectCsrf(res, "Mangler gyldig CSRF-beskyttelse.");
+    return rejectCsrf(req, res, "Mangler gyldig CSRF-beskyttelse.");
   }
 
   if (rawOrigin && !origin) {
-    return rejectCsrf(res, "Ugyldig origin for foresporselen.");
+    return rejectCsrf(req, res, "Ugyldig origin for foresporselen.");
   }
 
   if (!rawOrigin && rawReferer && !refererOrigin) {
-    return rejectCsrf(res, "Ugyldig referer for foresporselen.");
+    return rejectCsrf(req, res, "Ugyldig referer for foresporselen.");
   }
 
   // Ekstra sjekk: origin/referer må komme fra tillatte frontend-origins (WEB_ORIGINS).
   const allowedOrigins = getAllowedOrigins();
   if (origin && !allowedOrigins.has(origin)) {
-    return rejectCsrf(res, "Ugyldig origin for foresporselen.");
+    return rejectCsrf(req, res, "Ugyldig origin for foresporselen.");
   }
 
   if (!origin && refererOrigin && !allowedOrigins.has(refererOrigin)) {
-    return rejectCsrf(res, "Ugyldig referer for foresporselen.");
+    return rejectCsrf(req, res, "Ugyldig referer for foresporselen.");
   }
 
   return next();

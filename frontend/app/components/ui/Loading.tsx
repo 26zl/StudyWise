@@ -19,6 +19,7 @@ export interface LoadingSpinnerProps {
 export function LoadingSpinner({ className }: LoadingSpinnerProps) {
   return (
     <Loader2
+      aria-hidden="true"
       className={
         className ? `${SPINNER_DEFAULT_CLASS} ${className}`.trim() : SPINNER_DEFAULT_CLASS
       }
@@ -57,6 +58,8 @@ export function LoadingView({
 
   return (
     <div
+      role="status"
+      aria-live="polite"
       className={
         fullPage
           ? `flex min-h-full items-center justify-center bg-slate-50 p-8 dark:bg-slate-950 ${className}`.trim()

@@ -45,6 +45,8 @@ import { requestIdMiddleware } from "./middleware/request-id.js";
 import { requireAuth, knyttCanvasToken } from "./middleware/auth.js";
 import { requireRole } from "./middleware/require-role.js";
 import adminAuditRouter from "./rutere/roller/admin/adminAudit.js";
+import adminBrukereRouter from "./rutere/roller/admin/adminBrukere.js";
+import adminStatsRouter from "./rutere/roller/admin/adminStats.js";
 import { beskytteMotCsrf } from "./middleware/csrf.js";
 import { noCache } from "./middleware/no-cache.js";
 import { apiError, sendError } from "./utils/apiError.js";
@@ -296,6 +298,8 @@ app.use("/api/flashcards", noCache, flashcardsRouter);
 
 // Admin: krever requireAuth (allerede kjørt) + requireRole("admin")
 app.use("/api/admin", requireRole("admin"), adminAuditRouter);
+app.use("/api/admin", requireRole("admin"), adminBrukereRouter);
+app.use("/api/admin", requireRole("admin"), adminStatsRouter);
 
 // Debug-ruter (kun development, krever auth)
 if (!isProd) {

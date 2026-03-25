@@ -13,6 +13,7 @@ import type { UserRole } from "common/auth";
 import type { IUser } from "../database/models/User.js";
 import { getClerkUserIdFromToken, findOrCreateUserByClerkId, isAccountConflict } from "../rutere/auth/clerkAuth.js";
 import { audit, AUDIT_ACTIONS } from "../utils/auditLog.js";
+import { checkSecurityThresholds } from "../utils/securityAlert.js";
 
 const hentBearerToken = (req: Request): string | null => {
   const authHeader = req.headers.authorization;
@@ -91,6 +92,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         outcome: "failure",
         metadata: { reason: "invalid_or_expired" },
         req,
+      });
+      void checkSecurityThresholds({
+        type: "brute_force",
+        key: req.ip ?? req.socket?.remoteAddress ?? "unknown",
+        ip: req.ip ?? req.socket?.remoteAddress,
       });
       apiError.unauthorized(res, "Ugyldig eller utløpt token");
       return;

@@ -394,6 +394,7 @@ router.get("/me", rateLimitMe, async (req, res) => {
                 canvasContextPreferences: preferences,
                 varslerState,
                 role: bruker.role ?? "user",
+                authProvider: bruker.authProvider,
             }),
         }));
     } catch (error) {

@@ -80,11 +80,15 @@ function buildCspValue() {
     "https://*.clerk.com",
     "https://challenges.cloudflare.com",
     "https://va.vercel-scripts.com",
+    // Datadog RUM SDK worker/chunk loading
+    "https://www.datadoghq-browser-agent.com",
   ];
   const connectSrc = [
     "'self'",
     "https://vitals.vercel-analytics.com",
+    // Datadog RUM: browser intake, session replay, logs
     "https://*.browser-intake-us5-datadoghq.com",
+    "https://*.us5.datadoghq.com",
     "https://*.clerk.accounts.dev",
     "https://*.clerk.com",
   ];

@@ -65,7 +65,7 @@ export function CookieBanner() {
     >
       <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <p className="text-sm text-slate-600 dark:text-slate-300">
-          Vi bruker nødvendige cookies og driftsmonitorering for innlogging, sikkerhet og feilsporing. Hvis du godtar det, aktiverer vi også valgfrie ytelsesmålinger.{" "}
+          Vi bruker nødvendige cookies og driftsmonitorering for innlogging, sikkerhet og feilsporing (berettiget interesse, GDPR Art. 6(1)(f)). «Godta alle» aktiverer i tillegg valgfrie ytelsesmålinger basert på ditt samtykke (Art. 6(1)(a)).{" "}
           <Link
             href="/personvern"
             prefetch={false}

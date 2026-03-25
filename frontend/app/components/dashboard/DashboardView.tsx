@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useEffect, Suspense, lazy, useCallback } from "react";
+import { useEffect, useRef, Suspense, lazy, useCallback } from "react";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { useQueryClient } from "@tanstack/react-query";
 import { LoadingView } from "@/app/components/ui/Loading";
@@ -37,6 +37,7 @@ const GYLDIGE_VISNINGER = [
   "varslinger",
   "settings",
   "quiz",
+  "admin",
 ] as const satisfies readonly VisningType[];
 
 // Lazy load tunge komponenter for raskere initial page load
@@ -46,6 +47,7 @@ const SettingsSection = lazy(() => import("@/app/components/dashboard/SettingsSe
 const CalendarSection = lazy(() => import("@/app/calendar/CalendarSection").then(m => ({ default: m.CalendarSection })));
 const VarslingerSection = lazy(() => import("@/app/components/dashboard/VarslingerSection").then(m => ({ default: m.VarslingerSection })));
 const QuizView = lazy(() => import("@/app/components/ki/QuizView").then(m => ({ default: m.QuizView })));
+const AdminSection = lazy(() => import("@/app/components/admin/AdminSection").then(m => ({ default: m.AdminSection })));
 
 function SectionLoader({
   text,
@@ -72,6 +74,17 @@ export function DashboardView() {
         },
         [setView],
     );
+
+    // Flytt fokus til hovedinnhold ved visningsbytte (WCAG 2.4.3)
+    const harMountet = useRef(false);
+    useEffect(() => {
+        if (!harMountet.current) {
+            harMountet.current = true;
+            return;
+        }
+        const main = document.getElementById("main-content");
+        main?.focus();
+    }, [aktivVisning]);
 
     // Hent brukerdata og Canvas-token status – vent til Clerk er klar for å unngå 401 race
     const { isLoaded: clerkLoaded } = useAuth();
@@ -151,6 +164,7 @@ export function DashboardView() {
             aktivVisning={aktivVisning}
             byttVisning={settAktivVisning}
             brukernavn={megQuery.isLoading ? "..." : brukernavn}
+            brukerRolle={megQuery.data?.user?.role}
         >
             {!visInnhold ? (
                 <SectionLoader translationKey={megQuery.isLoading ? "common.loading.userData" : "common.loading.generic"} />
@@ -202,6 +216,13 @@ export function DashboardView() {
                 <SectionErrorBoundary sectionName={t("dashboard.sections.quiz")}>
                     <Suspense fallback={<SectionLoader translationKey="common.loading.quiz" />}>
                         <QuizView />
+                    </Suspense>
+                </SectionErrorBoundary>
+            )}
+            {aktivVisning === "admin" && megQuery.data?.user?.role === "admin" && (
+                <SectionErrorBoundary sectionName={t("dashboard.sections.admin")}>
+                    <Suspense fallback={<SectionLoader text={t("admin.loading")} />}>
+                        <AdminSection />
                     </Suspense>
                 </SectionErrorBoundary>
             )}

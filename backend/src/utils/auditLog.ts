@@ -34,6 +34,9 @@ export const AUDIT_ACTIONS = {
   ACCOUNT_DELETED: "account_deleted",
   PREFERENCES_UPDATED: "preferences_updated",
   ACCOUNT_RELINKED: "account_relinked",
+  SECURITY_ALERT: "security_alert",
+  CSRF_VIOLATION: "csrf_violation",
+  RATE_LIMIT_EXCEEDED: "rate_limit_exceeded",
 } as const;
 
 export function getDeletedAuditActorId(userId: string): string {

@@ -2,7 +2,9 @@ import mongoose, { Schema, Document } from 'mongoose';
 import {
     normalizeCanvasBaseUrl,
     type UserRole,
+    type AuthProvider,
     APP_ROLES,
+    AUTH_PROVIDERS,
     createDefaultCanvasContextPreferences,
     createDefaultVarslerState,
 } from "common/auth";
@@ -32,6 +34,8 @@ export interface IUser extends Document {
     deletedAt?: Date;
     /** RBAC-rolle. Standard user. */
     role: UserRole;
+    /** Innloggingsmetode (google, microsoft, email). Settes ved opprettelse/sync fra Clerk. */
+    authProvider?: AuthProvider;
     /** Clerk-brukernavn (påkrevd ved registrering). */
     username?: string;
     firstName?: string;
@@ -72,6 +76,11 @@ const UserSchema: Schema = new Schema(
             type: String,
             enum: APP_ROLES,
             default: "user",
+        },
+        authProvider: {
+            type: String,
+            enum: AUTH_PROVIDERS,
+            default: undefined,
         },
         username: {
             type: String,

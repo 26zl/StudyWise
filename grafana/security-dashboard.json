@@ -1,0 +1,223 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_DATADOG",
+      "label": "Datadog",
+      "description": "Datadog data source",
+      "type": "datasource",
+      "pluginId": "grafana-datadog-datasource"
+    }
+  ],
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "10.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "grafana-datadog-datasource",
+      "name": "Datadog",
+      "version": "1.0.0"
+    }
+  ],
+  "title": "StudyWise Security Overview",
+  "description": "Security monitoring dashboard for StudyWise — auth failures, CSRF violations, rate limits, and security alerts",
+  "tags": ["security", "studywise", "datadog"],
+  "timezone": "browser",
+  "editable": true,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "5m",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Auth Failures Over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": "${DS_DATADOG}",
+      "targets": [
+        {
+          "queryType": "logs",
+          "query": "service:studywise-backend action:token_verification_failure",
+          "aggregationType": "count",
+          "groupBy": ["@outcome"]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 30
+          },
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Security Alerts",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": "${DS_DATADOG}",
+      "targets": [
+        {
+          "queryType": "logs",
+          "query": "service:studywise-backend action:security_alert",
+          "aggregationType": "count",
+          "groupBy": ["@alertType"]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 50
+          },
+          "color": { "mode": "fixed", "fixedColor": "red" }
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 3,
+      "title": "CSRF Violations",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 },
+      "datasource": "${DS_DATADOG}",
+      "targets": [
+        {
+          "queryType": "logs",
+          "query": "service:studywise-backend action:csrf_violation",
+          "aggregationType": "count"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "value": 0, "color": "green" },
+              { "value": 5, "color": "yellow" },
+              { "value": 20, "color": "red" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Rate Limit Hits",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 8 },
+      "datasource": "${DS_DATADOG}",
+      "targets": [
+        {
+          "queryType": "logs",
+          "query": "service:studywise-backend action:rate_limit_exceeded",
+          "aggregationType": "count"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "value": 0, "color": "green" },
+              { "value": 20, "color": "yellow" },
+              { "value": 100, "color": "red" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Access Denied (RBAC)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
+      "datasource": "${DS_DATADOG}",
+      "targets": [
+        {
+          "queryType": "logs",
+          "query": "service:studywise-backend action:access_denied",
+          "aggregationType": "count"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "value": 0, "color": "green" },
+              { "value": 3, "color": "yellow" },
+              { "value": 10, "color": "red" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Brute Force Alerts",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 },
+      "datasource": "${DS_DATADOG}",
+      "targets": [
+        {
+          "queryType": "logs",
+          "query": "service:studywise-backend action:security_alert alertType:brute_force",
+          "aggregationType": "count"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "value": 0, "color": "green" },
+              { "value": 1, "color": "red" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Rate Limits by Endpoint",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": "${DS_DATADOG}",
+      "targets": [
+        {
+          "queryType": "logs",
+          "query": "service:studywise-backend action:rate_limit_exceeded",
+          "aggregationType": "count",
+          "groupBy": ["@endpoint"]
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Top IPs with Failures",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": "${DS_DATADOG}",
+      "targets": [
+        {
+          "queryType": "logs",
+          "query": "service:studywise-backend (action:token_verification_failure OR action:csrf_violation OR action:rate_limit_exceeded)",
+          "aggregationType": "count",
+          "groupBy": ["@ip"]
+        }
+      ],
+      "options": {
+        "sortBy": [{ "displayName": "Count", "desc": true }]
+      }
+    }
+  ]
+}

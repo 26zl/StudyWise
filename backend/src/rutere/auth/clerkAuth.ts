@@ -6,7 +6,7 @@ import { createClerkClient, verifyToken } from "@clerk/backend";
 import { User } from "../../database/models/User.js";
 import { logger } from "../../utils/logger.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
-import type { UserRole } from "common/auth";
+import type { UserRole, AuthProvider } from "common/auth";
 import type { IUser } from "../../database/models/User.js";
 import { getConfiguredWebOrigins } from "../../utils/webOrigins.js";
 
@@ -25,6 +25,7 @@ type ClerkProfile = {
   username?: string;
   firstName?: string;
   lastName?: string;
+  authProvider?: AuthProvider;
 };
 
 // Clerk backend client brukes for å hente brukerinfo og sjekke helse, ikke for auth-verifisering – det gjøres med verifyToken() direkte i getClerkUserIdFromToken() for å unngå overhead ved å opprette klient i auth-flow.
@@ -98,11 +99,30 @@ async function getClerkProfile(
     return null;
   }
 
+  // Bestem innloggingsmetode fra Clerk external accounts
+  let authProvider: AuthProvider | undefined;
+  const externalAccounts = clerkUser.externalAccounts ?? [];
+  for (const account of externalAccounts) {
+    const provider = account.provider?.toLowerCase() ?? "";
+    if (provider.includes("google") || provider === "oauth_google") {
+      authProvider = "google";
+      break;
+    }
+    if (provider.includes("microsoft") || provider === "oauth_microsoft") {
+      authProvider = "microsoft";
+      break;
+    }
+  }
+  if (!authProvider) {
+    authProvider = "email";
+  }
+
   return {
     email,
     username: clerkUser.username ?? undefined,
     firstName: clerkUser.firstName ?? undefined,
     lastName: clerkUser.lastName ?? undefined,
+    authProvider,
   };
 }
 
@@ -135,6 +155,10 @@ function buildClerkProfileUpdate(
 
   if (includeEmail) {
     setFields.email = profile.email;
+  }
+
+  if (profile.authProvider) {
+    setFields.authProvider = profile.authProvider;
   }
 
   if (profile.username) {
@@ -433,6 +457,7 @@ export async function findOrCreateUserByClerkId(
         role: DEFAULT_ROLE,
         firstName,
         lastName,
+        authProvider: profile.authProvider,
       });
       logger.info(
         { userId: user._id, clerkId: clerkUserId },

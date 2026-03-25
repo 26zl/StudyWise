@@ -44,6 +44,34 @@ export default function PersonvernPage() {
         </ul>
       </InfoSection>
 
+      <InfoSection title="Behandlingsgrunnlag (GDPR Art. 6)">
+        <p className="mb-3">
+          Vi behandler personopplysninger på følgende rettslige grunnlag:
+        </p>
+        <ul className="space-y-3">
+          <li>
+            <strong>Avtale — Art. 6(1)(b):</strong> Kontoinformasjon (e-post,
+            innlogging via Clerk), Canvas API-token, samtalehistorikk, preferanser
+            og arbeidsplaner behandles fordi det er nødvendig for å levere
+            tjenesten du har registrert deg for.
+          </li>
+          <li>
+            <strong>Berettiget interesse — Art. 6(1)(f):</strong> Sikkerhetslogging,
+            revisjonslogg, driftsmonitorering (Datadog APM/RUM) og
+            misbruksdeteksjon behandles på grunnlag av vår berettigede interesse
+            i sikker og stabil drift. Disse dataene er minimert og
+            pseudonymisert der det er mulig.
+          </li>
+          <li>
+            <strong>Samtykke — Art. 6(1)(a):</strong> Valgfrie ytelsesmålinger
+            (f.eks. Speed Insights) aktiveres kun dersom du eksplisitt godtar
+            dette via cookie-banneret. Du kan når som helst trekke tilbake
+            samtykket ved å slette localStorage eller åpne appen i et
+            inkognitovindu.
+          </li>
+        </ul>
+      </InfoSection>
+
       <InfoSection title="Formål med behandlingen">
         <p className="mb-3">Vi bruker dataene for å:</p>
         <ul className="space-y-3">

@@ -151,10 +151,14 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
             )}
 
             {!isError && (
-                <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-700 pb-3">
+                <div role="tablist" aria-label={t("notifications.title")} className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-700 pb-3">
                     {tabs.map((tab) => (
                         <button
                             key={tab.id}
+                            role="tab"
+                            aria-selected={aktivTab === tab.id}
+                            aria-controls={`varslinger-tabpanel-${tab.id}`}
+                            id={`varslinger-tab-${tab.id}`}
                             onClick={() => settAktivTab(tab.id)}
                             className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                                 aktivTab === tab.id
@@ -177,6 +181,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                 </div>
             )}
 
+            <div role="tabpanel" id={`varslinger-tabpanel-${aktivTab}`} aria-labelledby={`varslinger-tab-${aktivTab}`}>
             {isLoading ? (
                 <LoadingView translationKey="common.loading.notifications" fullPage={false} />
             ) : isError ? (
@@ -208,6 +213,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                     ))}
                 </div>
             )}
+            </div>
         </div>
     );
 }
