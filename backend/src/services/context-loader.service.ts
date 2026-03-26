@@ -1019,6 +1019,9 @@ function filtrerHybridResultater(
 /**
  * Bygger kontekst via hybrid søk: Pinecone + BM25 → RRF → Cohere Rerank.
  * Erstatter separat vector- og keyword-søk med én samlet pipeline.
+ *
+ * Bruker chunkHint som søkequery når den finnes — dette gir bedre BM25-matching
+ * på fagbegreper som brukeren eksplisitt nevner (f.eks. "recursion", "kvantitativ metode").
  */
 async function byggKontekstFraHybridSearch(
   userId: string,
@@ -1038,7 +1041,17 @@ async function byggKontekstFraHybridSearch(
 
     const coursesPinned = courseIds.length > 0;
 
-    const { results, degraded, sources } = await hybridSearch(userId, message, {
+    // Bruk chunkHint som søkequery når den finnes — gir bedre nøkkelord-matching
+    // Fallback til full melding for semantisk søk
+    const searchQuery = target?.chunkHint || message;
+    if (target?.chunkHint) {
+      logger.info(
+        { userId, chunkHint: target.chunkHint, intent: "canvas_full" },
+        "Hybrid søk trigget av chunkHint",
+      );
+    }
+
+    const { results, degraded, sources } = await hybridSearch(userId, searchQuery, {
       courseIds: coursesPinned ? courseIds : undefined,
     });
 
@@ -1078,7 +1091,9 @@ async function byggKontekstFraHybridSearch(
     logger.info(
       {
         userId,
-        resultsCount: filteredResults.length,
+        chunkHint: target?.chunkHint ?? null,
+        intent: "canvas_full",
+        finalCount: filteredResults.length,
         topScore: filteredResults[0].score.toFixed(3),
         topFile: filteredResults[0].source.fileName,
         contextLength: kontekst.length,
@@ -1165,6 +1180,25 @@ export async function loadCanvasContext(
   const redisAvailable = isRedisReady();
   const hasRedisSyncData = redisAvailable && (await hasCanvasSyncData(userId));
   const hasStoredAIContent = await hasStoredContentForUser(userId);
+
+  // ── Hybrid søk når chunkHint finnes (uavhengig av intent) ──
+  // chunkHint indikerer at brukeren spør om spesifikt faginnhold, selv om
+  // intent er canvas_light (f.eks. "forklar kvantitativ metode").
+  if (hasStoredAIContent && message && target?.chunkHint) {
+    const hybridKontekst = await byggKontekstFraHybridSearch(userId, message, target);
+    if (hybridKontekst) {
+      logger.info(
+        { userId, intent, chunkHint: target.chunkHint, source: "vector", contextLength: hybridKontekst.length },
+        "Canvas-kontekst lastet fra hybrid søk (chunkHint-trigget)",
+      );
+      return { kontekst: hybridKontekst, hasCanvasData: true, source: "vector" };
+    }
+    // Hvis hybrid søk ikke ga resultater, fortsett med vanlig intent-basert flyt
+    logger.info(
+      { userId, intent, chunkHint: target.chunkHint },
+      "Hybrid søk (chunkHint) ga ingen resultater — fortsetter med intent-basert flyt",
+    );
+  }
 
   // ── canvas_light ──
   if (intent === "canvas_light") {

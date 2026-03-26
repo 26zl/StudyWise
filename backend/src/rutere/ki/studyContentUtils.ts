@@ -35,5 +35,6 @@ export function createCourseTargetedQuery(
     courseHint: courseName,
     moduleHint: moduleNames[0] ?? null,
     fileHint: null,
+    chunkHint: null,
   };
 }

@@ -112,6 +112,12 @@ const SKRIVEFEIL_MAP: Record<string, string> = {
   "operativsytem": "operativsystem",
   "bachelro": "bacheloroppgave",
   "bacheloropp": "bacheloroppgave",
+  // Vanlige skrivefeil for "forklar"
+  "forkalre": "forklar",
+  "forklra": "forklar",
+  "forklrae": "forklar",
+  "forkaler": "forklar",
+
 };
 
 // Pre-kompilerte regex-patterns for skrivefeil (unngår re-kompilering per kall)
@@ -179,6 +185,34 @@ function isLikelyFollowUpQuestion(message: string): boolean {
   return followUpPrefixes.some((prefix) => lower.startsWith(prefix));
 }
 
+/**
+ * Detekterer om brukeren eksplisitt vil bytte kurs/emne.
+ * Returnerer true kun ved sterke signaler som "bytt til", "i stedet for", eller eksplisitt emnekode.
+ */
+function hasExplicitCourseOverride(message: string): boolean {
+  const lower = normaliserSkrivefeil(message);
+
+  // Eksplisitte byttefraser
+  const overridePhrases = [
+    "bytt til", "bytte til", "bytt emne", "bytte emne", "bytt fag", "bytte fag",
+    "i stedet for", "istedenfor", "nå vil jeg", "gå til", "endre til",
+    "snakk om", "spør om", "heller om", "endre fokus",
+    "et annet fag", "et annet emne", "annet kurs",
+  ];
+
+  if (overridePhrases.some((phrase) => lower.includes(phrase))) {
+    return true;
+  }
+
+  // Eksplisitt emnekode (f.eks. "INF2010", "MET1020", "DAT-102")
+  const courseCodePattern = /\b[a-zæøå]{2,4}-?\d{2,4}\b/i;
+  if (courseCodePattern.test(lower)) {
+    return true;
+  }
+
+  return false;
+}
+
 // ————————————————————————————————————————————————————————
 // Målrettet kontekst-ekstraksjon: identifiser hvilke(t) emne/modul brukeren spør om
 // ————————————————————————————————————————————————————————
@@ -187,6 +221,8 @@ export interface TargetedQuery {
   courseHint: string | null;
   moduleHint: string | null;
   fileHint: string | null;
+  /** Nøkkelord fra brukerens melding for BM25/hybrid-søk (substantiv, fagbegreper) */
+  chunkHint: string | null;
 }
 
 /** Generiske norske ord som ikke identifiserer en spesifikk modul — settes til null
@@ -205,6 +241,64 @@ const GENERIC_MODULE_WORDS = new Set([
   "leksjonene", "forelesningene", "modulene", "emner", "fagene",
   "forelesningane", "leksjonane",
 ]);
+
+/** Stoppord som filtreres bort fra chunkHint — vanlige norske/engelske ord uten faglig verdi */
+const CHUNK_STOPWORDS = new Set([
+  // Hilsener og høflighetsfraser
+  "hei", "hallo", "takk", "vennligst", "please", "hello", "hi",
+  // Norske stoppord
+  "kan", "du", "meg", "jeg", "vi", "de", "det", "den", "fra", "til", "om",
+  "og", "i", "på", "av", "er", "en", "et", "som", "med", "for", "ha", "har",
+  "være", "var", "vil", "skal", "må", "kunne", "bli", "ble", "blitt", "ikke",
+  "hva", "hvordan", "hvorfor", "når", "hvor", "hvem", "hvilke", "hvilken",
+  "gi", "lage", "lag", "vis", "vise", "skriv", "skrive", "fortell", "forklar",
+  "forklare", "forklaring", "oppsummer", "oppsummere", "oppsummering",
+  "beskriv", "beskrive", "beskrivelse",
+  "dekker", "dekke", "handler", "handle", "menes", "mener", "betyr", "betydning",
+  "alt", "alle", "noe", "noen", "denne", "dette", "disse", "sin", "sitt", "sine",
+  // Generiske kontekst-ord (ikke fagspesifikke)
+  "emnet", "emne", "faget", "fag", "kurset", "kurs", "temaet", "tema",
+  "innholdet", "innhold", "stoffet", "stoff", "materialet", "materiale",
+  "pensum", "leksjonen", "leksjon", "forelesningen", "forelesning",
+  "modulen", "modul", "kapitlet", "kapittel", "dokumentet", "dokument",
+  // Engelske stoppord (ofte brukt i norske setninger)
+  "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+  "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
+  "what", "how", "why", "when", "where", "who", "which",
+  "about", "explain", "describe", "tell", "give", "show", "make", "write",
+]);
+
+/**
+ * Ekstraherer de viktigste søkeordene (3–6) fra brukerens melding.
+ * Fjerner stoppord og beholder substantiv/fagbegreper.
+ *
+ * Eksempel: "kan du lage en oppsummering av recursion som dekker alt"
+ * → "recursion"
+ *
+ * Eksempel: "forklar kvantitativ og kvalitativ metode"
+ * → "kvantitativ kvalitativ metode"
+ */
+function extractChunkHint(message: string): string | null {
+  const lower = normaliserSkrivefeil(message);
+
+  // Del opp i ord (kun alfanumeriske + æøå)
+  const words = lower
+    .replace(/[^\wæøå\s-]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 3) // Ignorer veldig korte ord
+    .filter((w) => !CHUNK_STOPWORDS.has(w));
+
+  // Fjern duplikater og behold rekkefølge
+  const unique = [...new Set(words)];
+
+  // Returner 3–6 viktigste ord
+  const keywords = unique.slice(0, 6);
+
+  if (keywords.length === 0) return null;
+
+  const chunkHint = keywords.join(" ");
+  return chunkHint;
+}
 
 function extractQueryTarget(message: string): TargetedQuery {
   const lower = normaliserSkrivefeil(message);
@@ -319,7 +413,16 @@ function extractQueryTarget(message: string): TargetedQuery {
     }
   }
 
-  return { courseIdHint: null, courseHint, moduleHint, fileHint };
+  // Ekstraher chunkHint: nøkkelord for BM25/hybrid søk
+  const chunkHint = extractChunkHint(message);
+  if (chunkHint) {
+    logger.info(
+      { chunkHint, messagePreview: message.substring(0, 80) },
+      "chunkHint ekstrahert",
+    );
+  }
+
+  return { courseIdHint: null, courseHint, moduleHint, fileHint, chunkHint };
 }
 
 /** Definerer express router */
@@ -519,23 +622,38 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       const lastUserMsg = messages.filter((m: { role: string }) => m.role === "user").at(-1)?.content ?? "";
       const target = extractQueryTarget(lastUserMsg);
 
-      // CourseHint carryover: hvis ingen courseHint i siste melding, sjekk de 6 siste for lengre samtaler
-      if (!target.courseHint) {
-        const recentUserMsgs = messages
-          .filter((m: { role: string }) => m.role === "user")
-          .slice(-6);
-        for (let i = recentUserMsgs.length - 2; i >= 0; i--) {
-          const prevTarget = extractQueryTarget(recentUserMsgs[i].content);
-          if (prevTarget.courseHint) {
-            target.courseHint = prevTarget.courseHint;
-            logger.info(
-              { courseHint: target.courseHint, fromPreviousMsg: true, msgIndex: i },
-              "CourseHint arvet fra tidligere melding",
-            );
-            break;
-          }
-        }
+      // ─── Session-locked courseHint ───
+      // Bruker Redis for å låse courseHint til første gyldige ekstraksjon i sesjonen.
+      // Oppdateres KUN ved eksplisitt kursbytte-signal fra brukeren.
+      const courseHintLockKey = `ki:session:${req.user.id}:locked-course-hint`;
+      const SESSION_COURSEHINT_TTL = 3600; // 1 time — matcher typisk chat-sesjon
+
+      const lockedCourseHint = await getCache(courseHintLockKey);
+      const hasOverride = hasExplicitCourseOverride(lastUserMsg);
+
+      if (hasOverride && target.courseHint) {
+        // Bruker vil eksplisitt bytte kurs — oppdater låsen
+        await setCache(courseHintLockKey, target.courseHint, SESSION_COURSEHINT_TTL);
+        logger.info(
+          { courseHint: target.courseHint, override: true },
+          "courseHint låst (eksplisitt override)",
+        );
+      } else if (lockedCourseHint) {
+        // Bruk eksisterende låst courseHint — ikke re-ekstraher fra historikk
+        target.courseHint = lockedCourseHint;
+        logger.info(
+          { courseHint: target.courseHint, fromLock: true },
+          "courseHint arvet fra sesjonslås",
+        );
+      } else if (target.courseHint) {
+        // Første gang vi ekstraherer courseHint — lås den for sesjonen
+        await setCache(courseHintLockKey, target.courseHint, SESSION_COURSEHINT_TTL);
+        logger.info(
+          { courseHint: target.courseHint, newLock: true },
+          "courseHint låst (første ekstraksjon)",
+        );
       }
+      // Hvis ingen courseHint finnes og ingen lås — fortsett uten (bredt søk)
 
       logger.info(
         { intent, target, messagePreview: lastUserMsg.substring(0, 100) },
