@@ -13,7 +13,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.64",
     "@anthropic-ai/sdk": "^0.78.0",
-    "@clerk/backend": "^3.2.2",
+    "@clerk/backend": "^3.2.3",
     "@napi-rs/canvas": "^0.1.97",
     "@pinecone-database/pinecone": "^7.1.0",
     "adm-zip": "^0.5.16",
@@ -27,7 +27,7 @@
     "helmet": "^8.1.0",
     "js-tiktoken": "^1.0.21",
     "mammoth": "^1.12.0",
-    "mongoose": "^9.3.2",
+    "mongoose": "^9.3.3",
     "multer": "^2.1.1",
     "p-limit": "^4.0.0",
     "pdf-parse": "1.1.4",

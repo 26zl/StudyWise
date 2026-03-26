@@ -172,9 +172,54 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Generate SBOM
-        uses: CycloneDX/gh-node-module-generatebom@27e13c2bf0fae78d66387b35ca9749d8cc853060 # v1.0.3
-        with:
-          output: sbom.json
+        run: >-
+          pnpm dlx @cyclonedx/cdxgen@12.1.3
+          -r
+          -t nodejs
+          --no-babel
+          --spec-version 1.5
+          --project-name studywise
+          --project-version "${GITHUB_SHA}"
+          -o sbom.json
+          .
+
+      - name: Verify SBOM structure
+        run: |
+          node <<'EOF'
+          const fs = require("node:fs");
+
+          const bom = JSON.parse(fs.readFileSync("sbom.json", "utf8"));
+          const components = Array.isArray(bom.components) ? bom.components : [];
+          const dependencies = Array.isArray(bom.dependencies) ? bom.dependencies : [];
+          const workspaceComponents = new Set(
+            (bom.metadata?.component?.components ?? []).map((component) => component.name),
+          );
+          const expectedWorkspaces = ["backend", "common", "docs", "frontend"];
+          const missingWorkspaces = expectedWorkspaces.filter(
+            (name) => !workspaceComponents.has(name),
+          );
+
+          if (components.length === 0) {
+            console.error("SBOM has no components.");
+            process.exit(1);
+          }
+
+          if (dependencies.length === 0) {
+            console.error("SBOM has no dependency graph.");
+            process.exit(1);
+          }
+
+          if (missingWorkspaces.length > 0) {
+            console.error(
+              `SBOM is missing workspace packages: ${missingWorkspaces.join(", ")}`,
+            );
+            process.exit(1);
+          }
+
+          console.log(
+            `SBOM OK: ${components.length} components and ${dependencies.length} dependency nodes.`,
+          );
+          EOF
 
       - name: Upload SBOM
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
