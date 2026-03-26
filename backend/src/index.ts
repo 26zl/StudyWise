@@ -111,7 +111,7 @@ if (isProd) {
 
 // Sikkerhets-headere via Helmet
 // I produksjon: Streng CSP for API-responses(Swagger deaktivert)
-// I development: CSP deaktivert for Swagger UI
+// I development: Mer liberal, men fortsatt aktiv, CSP for å støtte Swagger UI
 app.use(
   helmet({
     contentSecurityPolicy: isProd
@@ -124,7 +124,20 @@ app.use(
             upgradeInsecureRequests: [],
           },
         }
-      : false,
+      : {
+          // Liberal CSP for utvikling, slik at Swagger UI og andre verktøy fungerer
+          directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:"],
+            connectSrc: ["'self'"],
+            fontSrc: ["'self'", "data:"],
+            objectSrc: ["'none'"],
+            baseUri: ["'self'"],
+            frameAncestors: ["'self'"],
+          },
+        },
     crossOriginEmbedderPolicy: false,
     crossOriginResourcePolicy: { policy: "cross-origin" },
   }),
