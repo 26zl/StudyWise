@@ -16,7 +16,10 @@ import {
   requireUserId,
 } from "../../utils/apiError.js";
 import {
+  ChatPinUpdateSchema,
   ChatMessageSchema,
+  ChatTitleUpdateSchema,
+  ChatTopicUpdateSchema,
   ChatSaveSchema,
   ChatSaveResponseSchema,
   ChatHistoryResponseSchema,
@@ -56,6 +59,8 @@ kiHistoryRouter.get("/chat/history", async (req, res) => {
           {
             id: doc._id.toString(),
             title: doc.title ?? "Samtale",
+            topic: doc.topic,
+            pinned: doc.pinned ?? false,
             messages,
             timestamp: doc.createdAt,
           },
@@ -100,6 +105,8 @@ kiHistoryRouter.post("/chat/history", async (req, res) => {
     const doc = await ChatHistory.create({
       user: userId,
       title,
+      topic: parsed.topic?.trim() || undefined,
+      pinned: parsed.pinned ?? false,
       encryptedMessages,
     });
 
@@ -108,6 +115,8 @@ kiHistoryRouter.post("/chat/history", async (req, res) => {
         chat: {
           id: doc._id.toString(),
           title: doc.title,
+          topic: doc.topic,
+          pinned: doc.pinned ?? false,
           messages: parsed.messages,
           timestamp: doc.createdAt,
         },
@@ -133,9 +142,15 @@ kiHistoryRouter.put("/chat/history/:id", async (req, res) => {
     }
     const parsed = ChatSaveSchema.parse(req.body);
     const encryptedMessages = encrypt(JSON.stringify(parsed.messages));
-    const update: { encryptedMessages: string; title?: string } = { encryptedMessages };
+    const update: { encryptedMessages: string; title?: string; topic?: string; pinned?: boolean } = { encryptedMessages };
     if (parsed.title != null && parsed.title !== "") {
       update.title = parsed.title.trim().slice(0, 120) || "Samtale";
+    }
+    if (parsed.topic !== undefined) {
+      update.topic = parsed.topic?.trim() || undefined;
+    }
+    if (parsed.pinned !== undefined) {
+      update.pinned = parsed.pinned;
     }
     const doc = await ChatHistory.findOneAndUpdate(
       { _id: id, user: userId },
@@ -149,6 +164,8 @@ kiHistoryRouter.put("/chat/history/:id", async (req, res) => {
         chat: {
           id: doc._id.toString(),
           title: doc.title,
+          topic: doc.topic,
+          pinned: doc.pinned ?? false,
           messages: parsed.messages,
           timestamp: doc.createdAt,
         },
@@ -159,6 +176,79 @@ kiHistoryRouter.put("/chat/history/:id", async (req, res) => {
       return sendZodError(res, error, "chat-history");
     }
     return sendUnknownError(res, error, { kontekst: "PUT chat-history", melding: "Kunne ikke oppdatere samtalen. Prøv igjen." });
+  }
+});
+
+kiHistoryRouter.patch("/chat/history/:id/pin", async (req, res) => {
+  try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+    const { id } = req.params;
+    if (!isValidMongoObjectId(id)) {
+      return apiError.badRequest(res, "Ugyldig samtale-ID");
+    }
+    const parsed = ChatPinUpdateSchema.parse(req.body);
+    const doc = await ChatHistory.findOneAndUpdate(
+      { _id: id, user: userId },
+      { pinned: parsed.pinned },
+      { returnDocument: "after" },
+    ).select("_id pinned");
+    if (!doc) return apiError.notFound(res, "Samtalen");
+    return res.json({ id: doc._id.toString(), pinned: doc.pinned ?? false });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return sendZodError(res, error, "chat-pin");
+    }
+    return sendUnknownError(res, error, { kontekst: "PATCH chat-pin", melding: "Kunne ikke oppdatere pin." });
+  }
+});
+
+kiHistoryRouter.patch("/chat/history/:id/topic", async (req, res) => {
+  try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+    const { id } = req.params;
+    if (!isValidMongoObjectId(id)) {
+      return apiError.badRequest(res, "Ugyldig samtale-ID");
+    }
+    const parsed = ChatTopicUpdateSchema.parse(req.body);
+    const doc = await ChatHistory.findOneAndUpdate(
+      { _id: id, user: userId },
+      { topic: parsed.topic?.trim() || undefined },
+      { returnDocument: "after" },
+    ).select("_id topic");
+    if (!doc) return apiError.notFound(res, "Samtalen");
+    return res.json({ id: doc._id.toString(), topic: doc.topic });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return sendZodError(res, error, "chat-topic");
+    }
+    return sendUnknownError(res, error, { kontekst: "PATCH chat-topic", melding: "Kunne ikke oppdatere tema." });
+  }
+});
+
+kiHistoryRouter.patch("/chat/history/:id/title", async (req, res) => {
+  try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+    const { id } = req.params;
+    if (!isValidMongoObjectId(id)) {
+      return apiError.badRequest(res, "Ugyldig samtale-ID");
+    }
+    const parsed = ChatTitleUpdateSchema.parse(req.body);
+    const nextTitle = parsed.title.trim().slice(0, 120) || "Samtale";
+    const doc = await ChatHistory.findOneAndUpdate(
+      { _id: id, user: userId },
+      { title: nextTitle },
+      { returnDocument: "after" },
+    ).select("_id title");
+    if (!doc) return apiError.notFound(res, "Samtalen");
+    return res.json({ id: doc._id.toString(), title: doc.title });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return sendZodError(res, error, "chat-title");
+    }
+    return sendUnknownError(res, error, { kontekst: "PATCH chat-title", melding: "Kunne ikke oppdatere tittel." });
   }
 });
 

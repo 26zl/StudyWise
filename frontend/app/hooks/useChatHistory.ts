@@ -21,6 +21,8 @@ import { ForbiddenError, SessionExpiredError } from "../lib/errors";
 export interface SavedChat {
   id: string;
   title: string;
+  topic?: string;
+  pinned?: boolean;
   messages: ChatMessage[];
   timestamp: Date;
 }
@@ -167,6 +169,70 @@ export function useChatHistory() {
     return undefined;
   }, [queryClient]);
 
+  const setChatTopic = useCallback(async (id: string, topic: string) => {
+    try {
+      const normalizedTopic = topic.trim();
+      const raw = await fetchJson<{ id: string; topic?: string }>(`/api/ki/chat/history/${id}/topic`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic: normalizedTopic.length > 0 ? normalizedTopic : null }),
+      });
+      queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) =>
+        (prev ?? []).map((chat) =>
+          chat.id === raw.id ? { ...chat, topic: raw.topic } : chat,
+        ),
+      );
+      return true;
+    } catch (error) {
+      if (!erIkkeAutentisert(error)) {
+        showToast.error("Kunne ikke oppdatere tema");
+      }
+      return false;
+    }
+  }, [queryClient]);
+
+  const setChatPinned = useCallback(async (id: string, pinned: boolean) => {
+    try {
+      const raw = await fetchJson<{ id: string; pinned: boolean }>(`/api/ki/chat/history/${id}/pin`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pinned }),
+      });
+      queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) =>
+        (prev ?? []).map((chat) =>
+          chat.id === raw.id ? { ...chat, pinned: raw.pinned } : chat,
+        ),
+      );
+      return true;
+    } catch (error) {
+      if (!erIkkeAutentisert(error)) {
+        showToast.error("Kunne ikke oppdatere bokmerke");
+      }
+      return false;
+    }
+  }, [queryClient]);
+
+  const setChatTitle = useCallback(async (id: string, title: string) => {
+    try {
+      const raw = await fetchJson<{ id: string; title: string }>(`/api/ki/chat/history/${id}/title`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) =>
+        (prev ?? []).map((chat) =>
+          chat.id === raw.id ? { ...chat, title: raw.title } : chat,
+        ),
+      );
+      return true;
+    } catch (error) {
+      if (!erIkkeAutentisert(error)) {
+        showToast.error("Kunne ikke oppdatere chat-navn");
+      }
+      return false;
+    }
+  }, [queryClient]);
+
   /** Returnerer én lagret samtale fra cache etter id, eller undefined. */
   const loadChat = useCallback((id: string) => chats.find((c) => c.id === id), [chats]);
 
@@ -210,7 +276,7 @@ export function useChatHistory() {
     });
   }, [queryClient, t]);
 
-  return { chats, saveChat, loadChat, deleteChat, clearAll, loading: isLoading };
+  return { chats, saveChat, setChatTopic, setChatPinned, setChatTitle, loadChat, deleteChat, clearAll, loading: isLoading };
 }
 
 /** Prefetch av chat-historikk (f.eks. i DashboardView) for raskere visning når bruker åpner chat. */

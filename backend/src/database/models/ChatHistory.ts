@@ -9,6 +9,8 @@ export interface ChatHistoryDocument {
   _id: Types.ObjectId;
   user: Types.ObjectId;
   title: string;
+  topic?: string;
+  pinned?: boolean;
   encryptedMessages: string;
   shareTokenHash?: string;
   sharedAt?: Date;
@@ -45,6 +47,8 @@ const ChatHistorySchema = new Schema<ChatHistoryDocument>(
   {
     user: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     title: { type: String, required: true },
+    topic: { type: String, default: undefined, index: true },
+    pinned: { type: Boolean, default: false, index: true },
     encryptedMessages: { type: String, required: true },
     shareTokenHash: { type: String, default: undefined },
     sharedAt: { type: Date, default: undefined },
@@ -56,6 +60,8 @@ const ChatHistorySchema = new Schema<ChatHistoryDocument>(
 );
 
 ChatHistorySchema.index({ user: 1, createdAt: -1 });
+ChatHistorySchema.index({ user: 1, topic: 1, createdAt: -1 });
+ChatHistorySchema.index({ user: 1, pinned: 1, createdAt: -1 });
 ChatHistorySchema.index({ shareTokenHash: 1 }, { unique: true, sparse: true });
 ChatHistorySchema.index({ isShared: 1, shareExpiresAt: 1 });
 

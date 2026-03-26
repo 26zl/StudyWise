@@ -1,38 +1,36 @@
 /**
- * ChatShareModal – modal for å opprette delingslenke på en chat.
- * Viser varsel om at lenken er offentlig og at alle med lenken kan se innholdet;
- * krever bekreftelse før kall til backend (POST /api/ki/chat/:id/share).
+ * ChatShareModal – modal for å opprette delingslenke.
+ * Deling er alltid offentlig og utløper automatisk etter 30 dager.
  */
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Link2, MessageSquare, ShieldAlert, X } from "lucide-react";
+import { AlertTriangle, Copy, ExternalLink, Link2, MessageSquare, ShieldAlert, X } from "lucide-react";
+import { showToast } from "@/app/components/ui/Toaster";
 
 interface ChatShareModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void | Promise<void>;
+  onGenerate: () => Promise<{ shareUrl: string } | null>;
   isPending?: boolean;
   chatTitle: string;
   messageCount: number;
-  expiresInDays?: number;
 }
 
 export function ChatShareModal({
   isOpen,
   onClose,
-  onConfirm,
+  onGenerate,
   isPending = false,
   chatTitle,
   messageCount,
-  expiresInDays = 30,
 }: ChatShareModalProps) {
-  const [hasConfirmed, setHasConfirmed] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) {
-      setHasConfirmed(false);
+      setShareUrl(null);
       return;
     }
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -67,6 +65,23 @@ export function ChatShareModal({
     [isPending, onClose],
   );
 
+  const handleGenerate = useCallback(async () => {
+    const result = await onGenerate();
+    if (result?.shareUrl) {
+      setShareUrl(result.shareUrl);
+    }
+  }, [onGenerate]);
+
+  const handleCopy = useCallback(async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      showToast.success("Delingslenke kopiert");
+    } catch {
+      showToast.error("Kunne ikke kopiere delingslenken");
+    }
+  }, [shareUrl]);
+
   if (!isOpen) return null;
 
   return (
@@ -82,7 +97,7 @@ export function ChatShareModal({
                 Del hele chatten
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Offentlig lenke til et snapshot av samtalen slik den ser ut na.
+                Opprett en offentlig leselenke til denne samtalen.
               </p>
             </div>
           </div>
@@ -121,25 +136,10 @@ export function ChatShareModal({
                 <p>
                   Alle med lenken kan lese hele chatten. Dette kan inkludere kursnavn, oppgavenavn, filnavn, egne notater og annen tekst du selv har skrevet i chatten.
                 </p>
-                <p>
-                  Lenken utloper automatisk etter {expiresInDays} dager og kan fjernes tidligere fra StudyWise.
-                </p>
+                <p>Lenken utløper automatisk etter 30 dager.</p>
               </div>
             </div>
           </div>
-
-          <label className="flex items-start gap-3 rounded-xl border border-slate-200 px-4 py-4 text-sm text-slate-700 dark:border-slate-800 dark:text-slate-200">
-            <input
-              type="checkbox"
-              checked={hasConfirmed}
-              onChange={(event) => setHasConfirmed(event.target.checked)}
-              disabled={isPending}
-              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 dark:border-slate-600"
-            />
-            <span>
-              Jeg forstar at denne delingslenken viser hele samtalen offentlig for alle som har lenken.
-            </span>
-          </label>
 
           <div className="flex items-start gap-3 rounded-xl bg-slate-100 px-4 py-4 text-sm text-slate-600 dark:bg-slate-900 dark:text-slate-300">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" />
@@ -147,6 +147,38 @@ export function ChatShareModal({
               StudyWise fjerner ikke automatisk innhold fra chatten ved deling. Ga gjennom samtalen med personvern-briller for du oppretter lenken.
             </p>
           </div>
+
+          {shareUrl ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-800 dark:bg-slate-900">
+              <p className="mb-2 text-sm font-medium text-slate-900 dark:text-white">Delingslenke</p>
+              <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                <input
+                  value={shareUrl}
+                  readOnly
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleCopy()}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    Kopier
+                  </button>
+                  <a
+                    href={shareUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Åpne
+                  </a>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4 dark:border-slate-800">
@@ -161,11 +193,11 @@ export function ChatShareModal({
 
           <button
             type="button"
-            onClick={() => void onConfirm()}
-            disabled={!hasConfirmed || isPending}
+            onClick={() => void handleGenerate()}
+            disabled={isPending}
             className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
           >
-            {isPending ? "Oppretter lenke..." : "Opprett delingslenke"}
+            {isPending ? "Lagrer..." : (shareUrl ? "Opprett ny lenke" : "Opprett delingslenke")}
           </button>
         </div>
       </div>

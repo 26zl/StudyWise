@@ -21,10 +21,14 @@ export const ChatSaveSchema = z.object({
     .min(1, "Samtalen må inneholde minst én melding")
     .max(200, "Maks 200 meldinger per samtale"),
   title: z.string().max(120, "Tittel må være maks 120 tegn").optional().nullable(),
+  topic: z.string().max(40, "Tema må være maks 40 tegn").optional().nullable(),
+  pinned: z.boolean().optional(),
 });
 
 export const ChatShareCreateSchema = z.object({
   shareMode: z.enum(["full_chat"]).default("full_chat"),
+  accessType: z.enum(["public", "private"]).default("public"),
+  expiresAt: z.coerce.date().nullable().optional(),
 });
 
 const ChatShareTypeSchema = z.enum(["full_chat"]);
@@ -33,6 +37,8 @@ const ChatShareTypeSchema = z.enum(["full_chat"]);
 const ChatEntrySchema = z.object({
   id: z.string(),
   title: z.string(),
+  topic: z.string().optional(),
+  pinned: z.boolean().optional(),
   messages: z.array(ChatMessageSchema),
   timestamp: z.coerce.date(),
 });
@@ -66,10 +72,63 @@ export const SharedChatResponseSchema = z.object({
 
 // Schema for share-respons (returneres ved deling)
 export const ChatShareResponseSchema = z.object({
-  shareToken: z.string(),
+  shareId: z.string(),
   shareUrl: z.string(),
-  expiresAt: z.coerce.date(),
-  shareType: ChatShareTypeSchema.default("full_chat"),
+  expiresAt: z.coerce.date().nullable(),
+  accessType: z.enum(["public", "private"]).default("public"),
+});
+
+export const SharedChatListItemSchema = z.object({
+  shareId: z.string(),
+  chatId: z.string(),
+  chatTitle: z.string(),
+  topic: z.string().optional(),
+  shareUrl: z.string(),
+  createdAt: z.coerce.date(),
+  expiresAt: z.coerce.date().nullable(),
+  isActive: z.boolean(),
+  accessType: z.enum(["public", "private"]),
+  viewCount: z.number().int().nonnegative(),
+});
+
+export const SharedChatListResponseSchema = z.object({
+  links: z.array(SharedChatListItemSchema),
+});
+
+export const SharedChatUpdateSchema = z.object({
+  isActive: z.boolean().optional(),
+  accessType: z.enum(["public", "private"]).optional(),
+  expiresAt: z.coerce.date().nullable().optional(),
+}).refine(
+  (value) =>
+    value.isActive !== undefined ||
+    value.accessType !== undefined ||
+    value.expiresAt !== undefined,
+  { message: "Minst ett felt må oppdateres" },
+);
+
+export const SharedChatPublicResponseSchema = z.object({
+  shareId: z.string(),
+  chatId: z.string(),
+  chatTitle: z.string(),
+  messages: z.array(ChatMessageSchema).min(1),
+  createdAt: z.coerce.date(),
+  expiresAt: z.coerce.date().nullable(),
+  accessType: z.enum(["public", "private"]),
+  isActive: z.boolean(),
+  viewCount: z.number().int().nonnegative(),
+});
+
+export const ChatTopicUpdateSchema = z.object({
+  topic: z.string().max(40, "Tema må være maks 40 tegn").nullable(),
+});
+
+export const ChatPinUpdateSchema = z.object({
+  pinned: z.boolean(),
+});
+
+export const ChatTitleUpdateSchema = z.object({
+  title: z.string().min(1, "Tittel må fylles ut").max(120, "Tittel må være maks 120 tegn"),
 });
 // Type-definisjoner for chat-meldinger og historikk
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
@@ -79,3 +138,10 @@ export type ChatSaveResponse = z.infer<typeof ChatSaveResponseSchema>;
 export type ChatHistoryResponse = z.infer<typeof ChatHistoryResponseSchema>;
 export type SharedChatResponse = z.infer<typeof SharedChatResponseSchema>;
 export type ChatShareResponse = z.infer<typeof ChatShareResponseSchema>;
+export type SharedChatListItem = z.infer<typeof SharedChatListItemSchema>;
+export type SharedChatListResponse = z.infer<typeof SharedChatListResponseSchema>;
+export type SharedChatUpdatePayload = z.infer<typeof SharedChatUpdateSchema>;
+export type SharedChatPublicResponse = z.infer<typeof SharedChatPublicResponseSchema>;
+export type ChatTopicUpdatePayload = z.infer<typeof ChatTopicUpdateSchema>;
+export type ChatPinUpdatePayload = z.infer<typeof ChatPinUpdateSchema>;
+export type ChatTitleUpdatePayload = z.infer<typeof ChatTitleUpdateSchema>;

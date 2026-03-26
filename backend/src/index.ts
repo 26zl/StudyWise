@@ -267,6 +267,7 @@ app.use("/api", noCache, sharedChatRouter);
 app.use((req, res, next) => {
   if (offentligSti.has(req.path)) return next();
   if (req.path.startsWith("/api/shared/") && req.method === "GET") return next();
+  if (req.path.startsWith("/api/ki/share/") && req.method === "GET") return next();
   if (!isProd && req.path.startsWith("/api-docs")) return next();
   return requireAuth(req, res, next);
 });

@@ -1,17 +1,16 @@
 /**
  * KI chat-deling (share links).
  *
- * Inneholder både private (innloggede) endepunkter for å opprette/slette deling,
- * og offentlige endepunkter for å hente en delt chat via token.
- *
- * Merk: Chat-innhold lagres kryptert; deling bruker token-hash + snapshot for trygg eksponering.
+ * Inneholder endepunkter for å opprette/administrere delingslenker,
+ * og offentlig uthenting av delte chatter.
  */
-import { Router } from "express";
-import { createHash, randomBytes } from "crypto";
-import mongoose from "mongoose";
+import { Router, type Request, type Response } from "express";
 import { z } from "zod";
+import { randomBytes } from "crypto";
+import mongoose from "mongoose";
 import { ChatHistory, type ChatHistoryDocument } from "../../database/models/ChatHistory.js";
-import { decrypt, encrypt } from "../../utils/kryptering.js";
+import { SharedChat } from "../../database/models/SharedChat.js";
+import { decrypt } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
 import {
   apiError,
@@ -19,198 +18,77 @@ import {
   sendUnknownError,
   sendZodError,
 } from "../../utils/apiError.js";
-import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import {
   ChatMessageSchema,
   ChatShareCreateSchema,
   ChatShareResponseSchema,
+  SharedChatListResponseSchema,
   SharedChatResponseSchema,
+  SharedChatPublicResponseSchema,
+  SharedChatUpdateSchema,
 } from "common/chat";
 import { createRateLimiter } from "../../middleware/rate-limit.js";
 import { isValidMongoObjectId } from "../../utils/mongoId.js";
+import { requireAuth } from "../../middleware/auth.js";
 
 export const kiShareRouter = Router();
 export const sharedChatRouter = Router();
-
-const SHARE_TTL_DAYS = 30;
 export const SHARE_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
-const OPPORTUNISTIC_CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
-const SHARE_TOKEN_BYTES = 32;
-const SHARE_TYPE = "full_chat";
+
+function createShareId(): string {
+  return randomBytes(18).toString("base64url").slice(0, 12);
+}
 const PUBLIC_SHARE_RATE_LIMIT = createRateLimiter({
-  points: 60,
+  points: 120,
   duration: 60,
   keyPrefix: "rlflx:share-public",
 });
-
-let lastOpportunisticCleanupAt = 0;
-
-function buildShareExpiry(now = new Date()): Date {
-  return new Date(now.getTime() + SHARE_TTL_DAYS * 24 * 60 * 60 * 1000);
-}
-
-function createShareToken(): string {
-  return randomBytes(SHARE_TOKEN_BYTES).toString("base64url");
-}
-
-function hashShareToken(token: string): string {
-  return createHash("sha256").update(token, "utf8").digest("hex");
-}
-
-function hashSharedSource(text: string): string {
-  return createHash("sha256").update(text, "utf8").digest("hex");
-}
-
-function notFoundSharedChat(res: Parameters<typeof apiError.notFound>[0]) {
-  return apiError.notFound(res, "Den delte samtalen");
-}
-
-async function parseEncryptedMessages(
-  encryptedMessages: string,
-): Promise<z.infer<typeof ChatMessageSchema>[]> {
-  const decrypted = JSON.parse(decrypt(encryptedMessages));
-  return z.array(ChatMessageSchema).parse(decrypted);
-}
+const DEFAULT_SHARE_TTL_DAYS = 30;
 
 async function parseStoredChatMessages(
   doc: Pick<ChatHistoryDocument, "encryptedMessages">,
 ): Promise<z.infer<typeof ChatMessageSchema>[]> {
-  return parseEncryptedMessages(doc.encryptedMessages);
+  const decrypted = JSON.parse(decrypt(doc.encryptedMessages));
+  return z.array(ChatMessageSchema).parse(decrypted);
 }
 
-async function clearShareState(chatId: mongoose.Types.ObjectId): Promise<void> {
-  await ChatHistory.updateOne(
-    { _id: chatId },
-    {
-      $set: { isShared: false },
-      $unset: {
-        shareToken: 1,
-        shareTokenHash: 1,
-        sharedAt: 1,
-        shareExpiresAt: 1,
-        sharedSnapshot: 1,
-      },
-    },
-  );
+function buildShareUrl(shareId: string): string {
+  return `/share/${shareId}`;
 }
 
-async function auditShareExpired(
-  doc: Pick<ChatHistoryDocument, "_id" | "user" | "shareExpiresAt">,
-  reason: "expired_on_access" | "scheduled_cleanup" | "opportunistic_cleanup",
-): Promise<void> {
-  await audit({
-    actorUserId: "system",
-    targetUserId: doc.user.toString(),
-    action: AUDIT_ACTIONS.SHARE_EXPIRED,
-    category: "privacy",
-    outcome: "success",
-    metadata: {
-      chatId: doc._id.toString(),
-      expiresAt: doc.shareExpiresAt?.toISOString(),
-      reason,
-    },
-  });
+function isExpired(expiresAt?: Date | null): boolean {
+  return Boolean(expiresAt && expiresAt.getTime() <= Date.now());
 }
 
-async function auditInvalidShareAccess(
-  req: Parameters<typeof audit>[0]["req"],
-  reason:
-    | "invalid_format"
-    | "unknown_token"
-    | "missing_snapshot"
-    | "expired"
-    | "corrupt_share",
-): Promise<void> {
-  await audit({
-    actorUserId: "anonymous",
-    action: AUDIT_ACTIONS.INVALID_SHARE_ACCESS,
-    category: "privacy",
-    outcome: "failure",
-    metadata: {
-      reason,
-      path: req?.path,
-      method: req?.method,
-    },
-    req,
-  });
-}
-
-function scheduleOpportunisticCleanup(): void {
-  const now = Date.now();
-  if (now - lastOpportunisticCleanupAt < OPPORTUNISTIC_CLEANUP_INTERVAL_MS) {
-    return;
-  }
-
-  lastOpportunisticCleanupAt = now;
-  void cleanupExpiredSharedChats({
-    limit: 25,
-    reason: "opportunistic_cleanup",
-  }).catch((error) => {
-    logger.warn({ err: error }, "Opportunistisk cleanup av utløpte delinger feilet");
-  });
-}
-
-/**
- * Rydder opp utløpte chat-delingstokens.
- *
- * Brukes både som planlagt jobb (interval) og opportunistisk ved trafikk.
- *
- * @returns Antall delinger som ble ryddet opp.
- */
-export async function cleanupExpiredSharedChats(options?: {
-  limit?: number;
+export async function cleanupExpiredSharedChats(_options?: {
   reason?: "scheduled_cleanup" | "opportunistic_cleanup";
 }): Promise<number> {
-  const limit = options?.limit ?? 100;
-  const reason = options?.reason ?? "scheduled_cleanup";
-  const expiredShares = await ChatHistory.find({
-    isShared: true,
-    shareExpiresAt: { $lte: new Date() },
-  })
-    .select("_id user shareExpiresAt")
-    .sort({ shareExpiresAt: 1 })
-    .limit(limit);
-
-  if (expiredShares.length === 0) {
-    return 0;
-  }
-
-  const ids = expiredShares.map((share) => share._id);
-  await ChatHistory.updateMany(
-    { _id: { $in: ids } },
+  const result = await SharedChat.updateMany(
     {
-      $set: { isShared: false },
-      $unset: {
-        shareToken: 1,
-        shareTokenHash: 1,
-        sharedAt: 1,
-        shareExpiresAt: 1,
-        sharedSnapshot: 1,
-      },
+      isActive: true,
+      expiresAt: { $lte: new Date() },
+    },
+    {
+      $set: { isActive: false },
     },
   );
+  return result.modifiedCount ?? 0;
+}
 
-  const auditResults = await Promise.allSettled(
-    expiredShares.map((share) => auditShareExpired(share, reason)),
-  );
-  for (const r of auditResults) {
-    if (r.status === "rejected") {
-      logger.warn({ err: r.reason, reason }, "Feil ved audit-logging av utløpt deling");
-    }
-  }
-
-  logger.info(
-    { count: expiredShares.length, reason },
-    "Utløpte delinger ryddet",
-  );
-
-  return expiredShares.length;
+async function ensureAuthenticated(
+  req: Request,
+  res: Response,
+): Promise<boolean> {
+  if (req.user?.id) return true;
+  let authenticated = false;
+  await requireAuth(req, res, () => {
+    authenticated = true;
+  });
+  return authenticated;
 }
 
 kiShareRouter.post("/chat/:chatId/share", async (req, res) => {
   try {
-    scheduleOpportunisticCleanup();
-
     const userId = requireUserId(req, res);
     if (!userId) return;
 
@@ -244,58 +122,48 @@ kiShareRouter.post("/chat/:chatId/share", async (req, res) => {
       return apiError.badRequest(res, "Samtalen er tom og kan ikke deles");
     }
 
-    const now = new Date();
-    const snapshotPayload = JSON.stringify(messages);
-    const shareToken = createShareToken();
-    const shareExpiresAt = buildShareExpiry(now);
+    ChatShareCreateSchema.parse(parseResult.data);
 
-    doc.shareTokenHash = hashShareToken(shareToken);
-    doc.sharedAt = now;
-    doc.shareExpiresAt = shareExpiresAt;
-    doc.sharedSnapshot = {
-      version: 2,
-      type: SHARE_TYPE,
-      title: doc.title?.trim() || "Samtale",
-      encryptedMessages: encrypt(snapshotPayload),
-      messageCount: messages.length,
-      sourceHash: hashSharedSource(snapshotPayload),
-      generatedAt: now,
-    };
-    doc.isShared = true;
-    await doc.save();
-
-    await audit({
-      actorUserId: userId,
-      action: AUDIT_ACTIONS.SHARE_CREATED,
-      category: "privacy",
-      outcome: "success",
-      role: req.actorRole,
-      metadata: {
-        chatId: doc._id.toString(),
-        expiresAt: shareExpiresAt.toISOString(),
-        shareType: SHARE_TYPE,
-        messageCount: messages.length,
+    const shareId = createShareId();
+    const ownerObjectId = new mongoose.Types.ObjectId(userId);
+    const shared = await SharedChat.findOneAndUpdate(
+      {
+        chatId: doc._id,
+        ownerId: ownerObjectId,
+        isActive: true,
       },
-      req,
-    });
+      {
+        $set: {
+          chatId: doc._id,
+          ownerId: ownerObjectId,
+          accessType: "public",
+          expiresAt: new Date(Date.now() + DEFAULT_SHARE_TTL_DAYS * 24 * 60 * 60 * 1000),
+          isActive: true,
+        },
+        $setOnInsert: {
+          shareId,
+          viewCount: 0,
+        },
+      },
+      { upsert: true, returnDocument: "after" },
+    );
 
     logger.info(
       {
         userId,
         chatId: doc._id.toString(),
-        shareExpiresAt,
-        shareType: SHARE_TYPE,
-        messageCount: messages.length,
+        shareId: shared.shareId,
+        accessType: shared.accessType,
       },
-      "Opprettet delingslenke for full chat",
+      "Opprettet delingslenke for chat",
     );
 
     return res.json(
       ChatShareResponseSchema.parse({
-        shareToken,
-        shareUrl: `/delt-chat/${shareToken}`,
-        expiresAt: shareExpiresAt,
-        shareType: SHARE_TYPE,
+        shareId: shared.shareId,
+        shareUrl: buildShareUrl(shared.shareId),
+        expiresAt: shared.expiresAt ?? null,
+        accessType: shared.accessType,
       }),
     );
   } catch (error) {
@@ -306,138 +174,223 @@ kiShareRouter.post("/chat/:chatId/share", async (req, res) => {
   }
 });
 
-kiShareRouter.delete("/chat/:chatId/share", async (req, res) => {
+kiShareRouter.get("/chat/shared", async (req, res) => {
   try {
     const userId = requireUserId(req, res);
     if (!userId) return;
 
-    const { chatId } = req.params;
-    if (!isValidMongoObjectId(chatId)) {
-      return apiError.badRequest(res, "Ugyldig samtale-ID");
-    }
+    const docs = await SharedChat.find({
+      ownerId: userId,
+      isActive: true,
+    })
+      .sort({ createdAt: -1 })
+      .populate("chatId", "title topic");
 
-    const doc = await ChatHistory.findOne({ _id: chatId, user: userId });
-    if (!doc) {
-      return apiError.notFound(res, "Samtalen");
-    }
+    const links = docs
+      .filter((doc) => !isExpired(doc.expiresAt))
+      .map((doc) => {
+        const chatTitle =
+          doc.chatId &&
+          typeof doc.chatId === "object" &&
+          "title" in doc.chatId &&
+          typeof doc.chatId.title === "string" &&
+          doc.chatId.title.trim().length > 0
+            ? doc.chatId.title
+            : "Samtale";
 
-    await clearShareState(doc._id);
-    await audit({
-      actorUserId: userId,
-      action: AUDIT_ACTIONS.SHARE_REMOVED,
-      category: "privacy",
-      outcome: "success",
-      role: req.actorRole,
-      metadata: {
-        chatId: doc._id.toString(),
-      },
-      req,
-    });
+        return {
+          shareId: doc.shareId,
+          chatId: typeof doc.chatId === "object" && doc.chatId && "_id" in doc.chatId
+            ? String(doc.chatId._id)
+            : String(doc.chatId),
+          chatTitle,
+          topic:
+            doc.chatId &&
+            typeof doc.chatId === "object" &&
+            "topic" in doc.chatId &&
+            typeof doc.chatId.topic === "string"
+              ? doc.chatId.topic
+              : undefined,
+          shareUrl: buildShareUrl(doc.shareId),
+          createdAt: doc.createdAt,
+          expiresAt: doc.expiresAt ?? null,
+          isActive: doc.isActive,
+          accessType: doc.accessType,
+          viewCount: doc.viewCount,
+        };
+      });
 
-    logger.info({ userId, chatId }, "Deling av chat fjernet");
-    return res.status(204).send();
+    return res.json(
+      SharedChatListResponseSchema.parse({ links }),
+    );
   } catch (error) {
     return sendUnknownError(res, error, {
-      kontekst: "DELETE chat share",
-      melding: "Kunne ikke fjerne deling. Prøv igjen.",
+      kontekst: "GET chat shared",
+      melding: "Kunne ikke hente delte chatter.",
     });
   }
 });
 
-sharedChatRouter.get("/shared/:shareToken", PUBLIC_SHARE_RATE_LIMIT, async (req, res) => {
+kiShareRouter.patch("/chat/shared/:shareId", async (req, res) => {
   try {
-    scheduleOpportunisticCleanup();
+    const userId = requireUserId(req, res);
+    if (!userId) return;
 
-    const shareToken = Array.isArray(req.params.shareToken)
-      ? req.params.shareToken[0]
-      : req.params.shareToken;
-    const tokenPattern = /^[A-Za-z0-9_-]{40,45}$/;
-    if (!shareToken || !tokenPattern.test(shareToken)) {
-      await auditInvalidShareAccess(req, "invalid_format");
-      return notFoundSharedChat(res);
+    const parsed = SharedChatUpdateSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return sendZodError(res, parsed.error, "chat shared update");
     }
 
-    const shareTokenHash = hashShareToken(shareToken);
-    const doc = await ChatHistory.findOne({
-      shareTokenHash,
-      isShared: true,
-    }).select("_id user shareExpiresAt sharedAt sharedSnapshot");
-
-    if (!doc) {
-      await auditInvalidShareAccess(req, "unknown_token");
-      return notFoundSharedChat(res);
-    }
-
-    if (!doc.shareExpiresAt || doc.shareExpiresAt.getTime() <= Date.now()) {
-      await clearShareState(doc._id);
-      await Promise.all([
-        auditShareExpired(doc, "expired_on_access"),
-        auditInvalidShareAccess(req, "expired"),
-      ]);
-      return notFoundSharedChat(res);
-    }
-
-    if (!doc.sharedSnapshot || !doc.sharedAt) {
-      await clearShareState(doc._id);
-      await auditInvalidShareAccess(req, "missing_snapshot");
-      return notFoundSharedChat(res);
-    }
-
-    let title = doc.sharedSnapshot.title?.trim() || "";
-    let messages: z.infer<typeof ChatMessageSchema>[] = [];
-    if (doc.sharedSnapshot.type !== "full_chat") {
-      await clearShareState(doc._id);
-      await auditInvalidShareAccess(req, "corrupt_share");
-      return notFoundSharedChat(res);
-    }
-
-    title = title || "Delt StudyWise-chat";
-    if (!doc.sharedSnapshot.encryptedMessages) {
-      await clearShareState(doc._id);
-      await auditInvalidShareAccess(req, "missing_snapshot");
-      return notFoundSharedChat(res);
-    }
-
-    try {
-      messages = await parseEncryptedMessages(doc.sharedSnapshot.encryptedMessages);
-    } catch (error) {
-      logger.warn(
-        { err: error, chatId: doc._id.toString() },
-        "Kunne ikke dekryptere delt chat-snapshot",
-      );
-      await clearShareState(doc._id);
-      await auditInvalidShareAccess(req, "corrupt_share");
-      return notFoundSharedChat(res);
-    }
-
-    await audit({
-      actorUserId: "anonymous",
-      targetUserId: doc.user.toString(),
-      action: AUDIT_ACTIONS.SHARE_VIEWED,
-      category: "privacy",
-      outcome: "success",
-      metadata: {
-        chatId: doc._id.toString(),
-        shareType: doc.sharedSnapshot.type,
-        messageCount: messages.length,
-      },
-      req,
+    const doc = await SharedChat.findOne({
+      shareId: req.params.shareId,
+      ownerId: userId,
     });
 
+    if (!doc) {
+      return apiError.notFound(res, "Delt lenke");
+    }
+
+    if (parsed.data.isActive !== undefined) {
+      doc.isActive = parsed.data.isActive;
+    }
+    if (parsed.data.accessType !== undefined) {
+      doc.accessType = parsed.data.accessType;
+    }
+    if (parsed.data.expiresAt !== undefined) {
+      doc.expiresAt = parsed.data.expiresAt;
+    }
+
+    await doc.save();
+
+    return res.json({
+      ok: true,
+    });
+  } catch (error) {
+    return sendUnknownError(res, error, {
+      kontekst: "PATCH chat shared",
+      melding: "Kunne ikke oppdatere delt lenke.",
+    });
+  }
+});
+
+kiShareRouter.delete("/chat/shared/:shareId", async (req, res) => {
+  try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
+    const doc = await SharedChat.findOne({
+      shareId: req.params.shareId,
+      ownerId: userId,
+    });
+    if (!doc) {
+      return apiError.notFound(res, "Delt lenke");
+    }
+
+    doc.isActive = false;
+    await doc.save();
+    return res.status(204).send();
+  } catch (error) {
+    return sendUnknownError(res, error, {
+      kontekst: "DELETE chat shared",
+      melding: "Kunne ikke slette delt lenke.",
+    });
+  }
+});
+
+sharedChatRouter.get("/ki/share/:shareId", PUBLIC_SHARE_RATE_LIMIT, async (req, res) => {
+  try {
+    const shareId = Array.isArray(req.params.shareId) ? req.params.shareId[0] : req.params.shareId;
+    if (!shareId || !/^[A-Za-z0-9]{12}$/.test(shareId)) {
+      return apiError.notFound(res, "Den delte samtalen");
+    }
+
+    const shared = await SharedChat.findOne({ shareId });
+    if (!shared || !shared.isActive || isExpired(shared.expiresAt)) {
+      return apiError.notFound(res, "Den delte samtalen");
+    }
+
+    if (shared.accessType === "private") {
+      const isAuthed = await ensureAuthenticated(req, res);
+      if (!isAuthed) return;
+    }
+
+    const chat = await ChatHistory.findById(shared.chatId).select("title encryptedMessages");
+    if (!chat) {
+      return apiError.notFound(res, "Samtalen");
+    }
+
+    const messages = await parseStoredChatMessages(chat);
+    if (messages.length === 0) {
+      return apiError.notFound(res, "Den delte samtalen");
+    }
+
+    await SharedChat.updateOne({ _id: shared._id }, { $inc: { viewCount: 1 } });
+    const updated = shared.viewCount + 1;
+
     return res.json(
-      SharedChatResponseSchema.parse({
-        title,
+      SharedChatPublicResponseSchema.parse({
+        shareId: shared.shareId,
+        chatId: chat._id.toString(),
+        chatTitle: chat.title?.trim() || "Samtale",
         messages,
-        sharedAt: doc.sharedAt,
-        expiresAt: doc.shareExpiresAt,
-        shareType: doc.sharedSnapshot.type,
+        createdAt: shared.createdAt,
+        expiresAt: shared.expiresAt ?? null,
+        accessType: shared.accessType,
+        isActive: shared.isActive,
+        viewCount: updated,
       }),
     );
   } catch (error) {
-    await auditInvalidShareAccess(req, "corrupt_share");
     return sendUnknownError(res, error, {
       kontekst: "GET shared chat",
       melding: "Kunne ikke hente delt samtale.",
     });
   }
 });
+
+sharedChatRouter.get("/shared/:shareId", PUBLIC_SHARE_RATE_LIMIT, async (req, res) => {
+  try {
+    const shareId = Array.isArray(req.params.shareId) ? req.params.shareId[0] : req.params.shareId;
+    if (!shareId || !/^[A-Za-z0-9]{12}$/.test(shareId)) {
+      return apiError.notFound(res, "Den delte samtalen");
+    }
+
+    const shared = await SharedChat.findOne({ shareId });
+    if (!shared || !shared.isActive || isExpired(shared.expiresAt)) {
+      return apiError.notFound(res, "Den delte samtalen");
+    }
+
+    if (shared.accessType === "private") {
+      const isAuthed = await ensureAuthenticated(req, res);
+      if (!isAuthed) return;
+    }
+
+    const chat = await ChatHistory.findById(shared.chatId).select("title encryptedMessages");
+    if (!chat) {
+      return apiError.notFound(res, "Samtalen");
+    }
+
+    const messages = await parseStoredChatMessages(chat);
+    if (messages.length === 0) {
+      return apiError.notFound(res, "Den delte samtalen");
+    }
+
+    await SharedChat.updateOne({ _id: shared._id }, { $inc: { viewCount: 1 } });
+
+    return res.json(
+      SharedChatResponseSchema.parse({
+        title: chat.title?.trim() || "Delt StudyWise-chat",
+        messages,
+        sharedAt: shared.createdAt,
+        expiresAt: shared.expiresAt ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        shareType: "full_chat",
+      }),
+    );
+  } catch (error) {
+    return sendUnknownError(res, error, {
+      kontekst: "GET shared chat",
+      melding: "Kunne ikke hente delt samtale.",
+    });
+  }
+});
+

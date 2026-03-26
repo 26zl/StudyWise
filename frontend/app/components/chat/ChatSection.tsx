@@ -1200,7 +1200,7 @@ export function ChatSection() {
         "Samtale";
 
     const opprettDelingslenke = useCallback(async () => {
-        if (oppretterDeling) return;
+        if (oppretterDeling) return null;
         setOppretterDeling(true);
         try {
             let chatId = aktivChatId;
@@ -1227,13 +1227,15 @@ export function ChatSection() {
 
             if (!chatId) {
                 showToast.info(t("chat.saveBeforeShare"));
-                return;
+                return null;
             }
 
             const res = await fetchApi(`/api/ki/chat/${chatId}/share`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ shareMode: "full_chat" }),
+                body: JSON.stringify({
+                    shareMode: "full_chat",
+                }),
             });
 
             if (!res.ok) {
@@ -1242,21 +1244,18 @@ export function ChatSection() {
 
             const data = ChatShareResponseSchema.parse(await res.json());
             const fullUrl = `${window.location.origin}${data.shareUrl}`;
-            await navigator.clipboard.writeText(fullUrl);
-            showToast.success(
-                t("chat.shareLinkCopied"),
-                t("chat.shareLinkDescription"),
-            );
-            setViserShareModal(false);
+            return { shareUrl: fullUrl };
         } catch (error) {
             const meldingTekst = error instanceof Error
                 ? error.message
                 : t("chat.couldNotShareChatFallback");
             showToast.error(meldingTekst);
+            return null;
         } finally {
             setOppretterDeling(false);
         }
-    }, [aktivChatId, oppretterDeling, saveChat, settAktivSamtale]);
+        return null;
+    }, [aktivChatId, oppretterDeling, saveChat, settAktivSamtale, t]);
 
     return (
         <div className="h-full flex">
@@ -1267,7 +1266,7 @@ export function ChatSection() {
                         setViserShareModal(false);
                     }
                 }}
-                onConfirm={opprettDelingslenke}
+                onGenerate={opprettDelingslenke}
                 isPending={oppretterDeling}
                 chatTitle={delingsTittel}
                 messageCount={meldinger.length}
@@ -1455,18 +1454,18 @@ export function ChatSection() {
                                                 type="button"
                                                 onClick={() => {
                                                     exportToMarkdown(
-                                                        [{
-                                                            rolle: melding.rolle,
-                                                            innhold: melding.innhold,
-                                                            tidsstempel: melding.tidsstempel,
-                                                        }],
-                                                        "AI-svar",
-                                                        "studywise-svar",
+                                                        meldinger.map((m) => ({
+                                                            rolle: m.rolle,
+                                                            innhold: m.innhold,
+                                                            tidsstempel: m.tidsstempel,
+                                                        })),
+                                                        undefined,
+                                                        "studywise-samtale",
                                                     );
-                                                    showToast.success(t("chat.answerDownloaded"));
+                                                    showToast.success(t("chat.conversationDownloaded"));
                                                 }}
                                                 className={actionBtnClass}
-                                                title="Last ned svar"
+                                                title="Last ned samtale"
                                             >
                                                 <Download className="w-4 h-4" />
                                             </button>

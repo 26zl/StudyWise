@@ -64,6 +64,10 @@ export default function DeltSamtaleSide() {
                 );
                 if (cancelled) return;
                 if (!res.ok) {
+                    if (res.status === 401) {
+                        window.location.assign("/login");
+                        return;
+                    }
                     if (res.status === 404) {
                         setFeil(t("sharedChat.notFoundOrExpired"));
                         return;
