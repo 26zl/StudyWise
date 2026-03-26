@@ -25,8 +25,11 @@ kiHistoryRouter.get("/chat/history", async (req, res) => {
     const userId = requireUserId(req, res);
     if (!userId) return;
 
-    const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
-    const page = Math.max(Number(req.query.page) || 1, 1);
+    const queryParsed = z.object({
+      limit: z.coerce.number().int().min(1).max(100).default(20).catch(20),
+      page: z.coerce.number().int().min(1).default(1).catch(1),
+    }).safeParse(req.query);
+    const { limit, page } = queryParsed.success ? queryParsed.data : { limit: 20, page: 1 };
     const skip = (page - 1) * limit;
 
     const [docs, total] = await Promise.all([

@@ -76,6 +76,11 @@ function readSubtasks(breakdown: TaskBreakdownHydratedDocument): SubTask[] {
   return SubTaskSchema.array().parse(breakdown.subtasks);
 }
 
+/** Validerer at assignmentId er en ikke-tom streng med maks 50 tegn (Canvas assignment ID). */
+function isValidAssignmentId(id: unknown): id is string {
+  return typeof id === "string" && id.trim().length > 0 && id.length <= 50;
+}
+
 // POST /api/ki/task-breakdown/:assignmentId/generate
 router.post("/:assignmentId/generate", async (req, res) => {
   try {
@@ -83,7 +88,7 @@ router.post("/:assignmentId/generate", async (req, res) => {
     if (!userId) return;
 
     const { assignmentId } = req.params;
-    if (!assignmentId?.trim()) {
+    if (!isValidAssignmentId(assignmentId)) {
       return apiError.badRequest(res, "Ugyldig oppgave-ID");
     }
 
@@ -156,6 +161,9 @@ Frist: ${dueDateText}`;
 router.get("/:assignmentId", async (req, res) => {
   try {
     const { assignmentId } = req.params;
+    if (!isValidAssignmentId(assignmentId)) {
+      return apiError.badRequest(res, "Ugyldig oppgave-ID");
+    }
     const userId = requireUserId(req, res);
     if (!userId) return;
 
@@ -180,6 +188,9 @@ router.get("/:assignmentId", async (req, res) => {
 router.post("/:assignmentId", async (req, res) => {
   try {
     const { assignmentId } = req.params;
+    if (!isValidAssignmentId(assignmentId)) {
+      return apiError.badRequest(res, "Ugyldig oppgave-ID");
+    }
     const userId = requireUserId(req, res);
     if (!userId) return;
 
@@ -213,6 +224,9 @@ router.post("/:assignmentId", async (req, res) => {
 router.put("/:assignmentId/toggle/:taskId", async (req, res) => {
   try {
     const { assignmentId, taskId } = req.params;
+    if (!isValidAssignmentId(assignmentId) || !taskId?.trim()) {
+      return apiError.badRequest(res, "Ugyldig oppgave-ID eller deloppgave-ID");
+    }
     const userId = requireUserId(req, res);
     if (!userId) return;
 
@@ -245,6 +259,9 @@ router.put("/:assignmentId/toggle/:taskId", async (req, res) => {
 router.delete("/:assignmentId", async (req, res) => {
   try {
     const { assignmentId } = req.params;
+    if (!isValidAssignmentId(assignmentId)) {
+      return apiError.badRequest(res, "Ugyldig oppgave-ID");
+    }
     const userId = requireUserId(req, res);
     if (!userId) return;
 

@@ -126,11 +126,20 @@ jobs:
 
       - name: Inspect Datadog markers in build output
         run: |
+          search_markers() {
+            local dir="$1"
+            if command -v rg >/dev/null 2>&1; then
+              rg -n --hidden --glob '!**/*.map' "__DD_RUM_CONFIG__|studywise-frontend|NEXT_PUBLIC_DD_RUM_APPLICATION_ID|us5\\.datadoghq\\.com" "$dir"
+            else
+              grep -R -n -E --exclude='*.map' "__DD_RUM_CONFIG__|studywise-frontend|NEXT_PUBLIC_DD_RUM_APPLICATION_ID|us5\\.datadoghq\\.com" "$dir"
+            fi
+          }
+
           found=0
           for dir in frontend/.next .vercel/output; do
             if [ -d "$dir" ]; then
               echo "Inspecting $dir"
-              if rg -n --hidden --glob '!**/*.map' "__DD_RUM_CONFIG__|studywise-frontend|NEXT_PUBLIC_DD_RUM_APPLICATION_ID|us5\\.datadoghq\\.com" "$dir"; then
+              if search_markers "$dir"; then
                 found=1
               fi
             fi

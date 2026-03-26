@@ -24,6 +24,7 @@ import {
   getDeletedAuditActorId,
 } from "../../../utils/auditLog.js";
 import { logger } from "../../../utils/logger.js";
+import { isValidMongoObjectId } from "../../../utils/mongoId.js";
 import { deleteAccountData } from "../../auth/kontoSlett.js";
 
 const router = Router();
@@ -112,6 +113,10 @@ router.patch("/brukere/:id/rolle", async (req, res) => {
 
   const targetId = req.params.id;
 
+  if (!isValidMongoObjectId(targetId)) {
+    return apiError.badRequest(res, "Ugyldig bruker-ID");
+  }
+
   // Kan ikke endre egen rolle
   if (targetId === actorUserId) {
     return apiError.badRequest(res, "Du kan ikke endre din egen rolle");
@@ -162,6 +167,10 @@ router.delete("/brukere/:id", async (req, res) => {
   if (!actorUserId) return;
 
   const targetId = req.params.id;
+
+  if (!isValidMongoObjectId(targetId)) {
+    return apiError.badRequest(res, "Ugyldig bruker-ID");
+  }
 
   // Kan ikke slette seg selv
   if (targetId === actorUserId) {

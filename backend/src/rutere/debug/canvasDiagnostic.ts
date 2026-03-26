@@ -30,7 +30,7 @@ router.get("/canvas-content", async (req: Request, res: Response) => {
   const query = typeof req.query.q === "string" ? req.query.q : "";
 
   if (!isRedisReady()) {
-    return res.json({ error: "Redis not available", userId });
+    return res.json({ error: "Redis not available" });
   }
 
   try {

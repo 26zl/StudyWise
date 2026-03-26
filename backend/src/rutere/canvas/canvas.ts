@@ -60,7 +60,7 @@ import {
   type CalendarItem,
 } from "common/calendar";
 
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 import {
   type CanvasApiError,
   type CanvasErrorCode,
@@ -592,13 +592,16 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
   const tenantPrefix = req.canvasBaseUrl ? getCanvasTenantCachePrefix(req.canvasBaseUrl) : "default";
   const cacheKey = `canvas:${tenantPrefix}:${tokenAvtrykk}:kalender-v3`; // Ny versjon med Planner API
   const cacheTimestampKey = `${cacheKey}:timestamp`;
-  // Parse query params
+  // Parse og valider query params
+  const queryParsed = z.object({
+    refresh: z.enum(["true", "false"]).optional(),
+    page: z.coerce.number().int().min(1).default(1).catch(1),
+    limit: z.coerce.number().int().min(1).max(500).default(100).catch(100),
+  }).safeParse(req.query);
+  const queryParams = queryParsed.success ? queryParsed.data : { page: 1, limit: 100 };
   const forceRefresh = req.query.refresh === "true";
-  const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
-  const limit = Math.min(
-    500,
-    Math.max(1, parseInt(req.query.limit as string, 10) || 100),
-  );
+  const page = queryParams.page;
+  const limit = queryParams.limit;
   const buildCachedCalendarResponse = (
     cached: string,
     cacheAge?: number,
