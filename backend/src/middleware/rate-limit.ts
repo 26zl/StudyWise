@@ -135,3 +135,19 @@ export const rateLimitAccountDeletion = createRateLimiter({
   keyPrefix: "rlflx:account-delete",
   keyGenerator: (req) => req.user?.id ?? getClientIp(req),
 });
+
+// Kontaktskjema: streng i prod (5 per 10 min), generøs i dev (50 per minutt)
+// IP-basert for å forhindre spam uten å kreve autentisering
+export const rateLimitContact = isProd
+  ? createRateLimiter({
+      points: 5,
+      duration: 600, // 10 minutter
+      keyPrefix: "rlflx:contact",
+      keyGenerator: getClientIp,
+    })
+  : createRateLimiter({
+      points: 50,
+      duration: 60,
+      keyPrefix: "rlflx:contact:dev",
+      keyGenerator: getClientIp,
+    });

@@ -1,19 +1,13 @@
 /*
- * Kontakt - Kontaktinformasjon for StudyWise
+ * Kontakt - Kontaktinformasjon og kontaktskjema for StudyWise
  */
 import Link from "next/link";
 import { Github, Mail, MessageSquare, School } from "lucide-react";
 import { InfoCard, InfoPageLayout, InfoSection } from "@/app/components/layout/InfoPageLayout";
+import { ContactForm } from "./ContactForm";
 
 export default function KontaktPage() {
   const kontaktpunkter = [
-    {
-      icon: Mail,
-      title: "E-post",
-      description: "For generelle henvendelser og support",
-      detail: "Kommer snart",
-      accent: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400",
-    },
     {
       icon: MessageSquare,
       title: "Tilbakemeldinger",
@@ -41,8 +35,27 @@ export default function KontaktPage() {
   return (
     <InfoPageLayout
       title="Kontakt oss"
-      description="Har du spørsmål, tilbakemeldinger eller trenger hjelp? Ta kontakt med oss."
+      description="Har du spørsmål, tilbakemeldinger eller trenger hjelp? Send oss en melding."
     >
+      {/* Kontaktskjema */}
+      <InfoCard className="mb-6">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="rounded-lg bg-blue-100 p-2 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+            <Mail className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-slate-900 dark:text-white">
+              Send oss en melding
+            </h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              E-post: kontakt@studwize.page
+            </p>
+          </div>
+        </div>
+        <ContactForm />
+      </InfoCard>
+
+      {/* Andre kontaktpunkter */}
       <div className="grid gap-4">
         {kontaktpunkter.map((kontaktpunkt) => (
           <InfoCard key={kontaktpunkt.title} className="flex gap-4">
@@ -56,11 +69,6 @@ export default function KontaktPage() {
               <p className="text-sm text-slate-600 dark:text-slate-400">
                 {kontaktpunkt.description}
               </p>
-              {kontaktpunkt.detail ? (
-                <span className="mt-2 inline-block text-sm italic text-slate-500 dark:text-slate-500">
-                  {kontaktpunkt.detail}
-                </span>
-              ) : null}
             </div>
           </InfoCard>
         ))}

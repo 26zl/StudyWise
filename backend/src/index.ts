@@ -263,11 +263,15 @@ app.use(beskytteMotCsrf);
 // Clerk-only auth: protected routes require Authorization: Bearer <clerk_session_token>
 const offentligSti = new Set(["/health", "/ready", "/health/dependencies"]);
 
+// Offentlige API-ruter (monteres FØR auth-middleware)
+import { contactRouter } from "./rutere/contact/contact.js";
+app.use("/api/kontakt", noCache, contactRouter);
+
 app.use("/api", noCache, sharedChatRouter);
 app.use((req, res, next) => {
   if (offentligSti.has(req.path)) return next();
   if (req.path.startsWith("/api/shared/") && req.method === "GET") return next();
-  if (req.path.startsWith("/api/ki/share/") && req.method === "GET") return next();
+  if (req.path.startsWith("/api/kontakt")) return next(); // Allerede montert over
   if (!isProd && req.path.startsWith("/api-docs")) return next();
   return requireAuth(req, res, next);
 });

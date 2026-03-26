@@ -52,6 +52,10 @@
     "./admin": {
       "types": "./dist/admin.d.ts",
       "import": "./dist/admin.js"
+    },
+    "./contact": {
+      "types": "./dist/contact.d.ts",
+      "import": "./dist/contact.js"
     }
   },
   "scripts": {
