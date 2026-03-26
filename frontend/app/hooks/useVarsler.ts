@@ -5,7 +5,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { type VarslerState, normalizeVarslerState } from "common/auth";
-import { toast } from "@/app/components/ui/Toaster";
+import { showToast } from "@/app/components/ui/Toaster";
 import {
     useCanvasAllAssignments,
     useCanvasAnnouncements,
@@ -24,6 +24,7 @@ import {
 } from "../lib/varsler";
 import { useUIStore } from "../store/uiStore";
 import { useOppdaterVarslerState } from "../auth/auth-api";
+import { useLanguage } from "../i18n";
 
 function createVarslerStateSignature(state: VarslerState): string {
     const lestSignature = [...state.lestIds].sort().join("|");
@@ -204,6 +205,7 @@ export interface UseVarslerPopupsOptions {
 }
 // Viser en toast hvis det finnes uleste varsler (som ikke er markert lest i UI-storen).
 export function useVarslerPopups(harCanvasToken: boolean, options: UseVarslerPopupsOptions = {}) {
+    const { t } = useLanguage();
     const { onGåTilVarslinger } = options;
     const planlagtSignaturRef = useRef<string | null>(null);
     const onGåRef = useRef(onGåTilVarslinger);
@@ -255,33 +257,38 @@ export function useVarslerPopups(harCanvasToken: boolean, options: UseVarslerPop
 
         planlagtSignaturRef.current = ulesteSignatur;
         try {
-            const t = setTimeout(() => {
+            const timeoutId = setTimeout(() => {
                 if (ulesteCountRef.current <= 0) return;
                 const nyeToastIds = ulesteIds.filter((id) => !visteIds.has(id));
                 addToastVist(nyeToastIds);
 
                 const melding =
                     ulesteCountRef.current === 1
-                        ? "Du har 1 ulest varsel"
-                        : `Du har ${ulesteCountRef.current} uleste varsler`;
+                        ? t("notifications.toast.oneUnread")
+                        : t("notifications.toast.manyUnread", {
+                              count: ulesteCountRef.current,
+                          });
 
-                toast.info(melding, {
-                    description: "Klikk for å åpne varslinger.",
-                    duration: 6000,
-                    action: onGåRef.current
-                        ? {
-                              label: "Se varsler",
-                              onClick: () => {
-                                  markAllRef.current();
-                                  onGåRef.current?.();
-                              },
-                          }
-                        : undefined,
-                });
+                showToast.info(
+                    melding,
+                    t("notifications.toast.description"),
+                    {
+                        duration: 6000,
+                        action: onGåRef.current
+                            ? {
+                                  label: t("notifications.toast.action"),
+                                  onClick: () => {
+                                      markAllRef.current();
+                                      onGåRef.current?.();
+                                  },
+                              }
+                            : undefined,
+                    },
+                );
             }, TOAST_DELAY_MS);
 
             return () => {
-                clearTimeout(t);
+                clearTimeout(timeoutId);
                 if (planlagtSignaturRef.current === ulesteSignatur) {
                     planlagtSignaturRef.current = null;
                 }
@@ -299,5 +306,6 @@ export function useVarslerPopups(harCanvasToken: boolean, options: UseVarslerPop
         ulesteIds,
         ulesteSignatur,
         visteIds,
+        t,
     ]);
 }

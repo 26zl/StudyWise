@@ -564,6 +564,18 @@ const TOKEN_CACHE_TTL_MS = 30_000;
 const TOKEN_CACHE_MAX = 500;
 const tokenCache = new Map<string, { sub: string; exp: number }>();
 
+function resolveTokenCacheExpiry(payload: { exp?: unknown }): number {
+  const now = Date.now();
+  const localExpiry = now + TOKEN_CACHE_TTL_MS;
+  const jwtExpiry =
+    typeof payload.exp === "number" && Number.isFinite(payload.exp)
+      ? payload.exp * 1000
+      : null;
+
+  if (!jwtExpiry) return localExpiry;
+  return Math.min(localExpiry, jwtExpiry);
+}
+
 function pruneTokenCache(): void {
   // Fjern utløpte entries først
   const now = Date.now();
@@ -607,8 +619,11 @@ export async function getClerkUserIdFromToken(bearerToken: string): Promise<stri
     const sub = payload?.sub;
     if (typeof sub !== "string") return null;
 
-    // Cache verifisert token
-    tokenCache.set(bearerToken, { sub, exp: Date.now() + TOKEN_CACHE_TTL_MS });
+    // Cache aldri lengre enn tokenets faktiske utløpstid.
+    tokenCache.set(bearerToken, {
+      sub,
+      exp: resolveTokenCacheExpiry(payload),
+    });
     pruneTokenCache();
 
     return sub;

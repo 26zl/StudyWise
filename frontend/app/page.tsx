@@ -1,16 +1,18 @@
 /*
  * Forside – velkomstside for applikasjonen.
- * Ingen server-fetch her slik at Next.js kan cache RSC-payload ved client-navigering;
- * LandingHeroActions bruker useMeg() (React Query) som har cache ved tilbake til forsiden.
+ * Henter bruker trygt på serveren slik at innloggede brukere ikke ser gjeste-CTAer
+ * i et kort øyeblikk ved refresh før Clerk er hydrert i klienten.
  */
 import { Footer } from "@/app/components/layout/footer";
 import { BookOpen, Bot, LayoutDashboard } from "lucide-react";
 import { LandingHeroActions } from "@/app/components/layout/LandingHeroActions";
+import { getUserServerSafe } from "@/app/auth/auth-server";
 import { translate } from "@/app/i18n";
 import { resolveRequestLanguage } from "@/app/i18n/server";
 
 export default async function HomePage() {
   const language = await resolveRequestLanguage();
+  const initialUser = await getUserServerSafe();
 
   return (
     <div className="min-h-full flex flex-col bg-white text-slate-900 transition-colors dark:bg-slate-900 dark:text-slate-100">
@@ -24,7 +26,7 @@ export default async function HomePage() {
             <p className="text-lg md:text-xl text-slate-700 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed">
               {translate(language, "landing.hero.description")}
             </p>
-            <LandingHeroActions />
+            <LandingHeroActions initialUser={initialUser} />
           </div>
         </section>
         <section className="px-4 sm:px-6 lg:px-8 py-16 bg-slate-50/50 dark:bg-slate-800/20 border-t border-slate-100 dark:border-slate-800" aria-labelledby="funksjoner-heading">

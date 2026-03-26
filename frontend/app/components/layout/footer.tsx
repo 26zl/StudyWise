@@ -33,40 +33,40 @@ export function Footer() {
                     <Link
                         href="/om-oss"
                         prefetch={false}
-                        className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
+                        className="text-xs text-slate-700 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
                     >
                         {labels.about}
                     </Link>
                     <Link
                         href="/personvern"
                         prefetch={false}
-                        className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
+                        className="text-xs text-slate-700 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
                     >
                         {labels.privacy}
                     </Link>
                     <Link
                         href="/sikkerhet"
                         prefetch={false}
-                        className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
+                        className="text-xs text-slate-700 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
                     >
                         {labels.security}
                     </Link>
                     <Link
                         href="/vilkar"
                         prefetch={false}
-                        className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
+                        className="text-xs text-slate-700 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
                     >
                         {labels.terms}
                     </Link>
                     <Link
                         href="/kontakt"
                         prefetch={false}
-                        className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
+                        className="text-xs text-slate-700 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
                     >
                         {labels.contact}
                     </Link>
                 </div>
-                <p className="text-xs text-slate-600 dark:text-slate-400 text-center leading-tight">
+                <p className="text-xs text-slate-700 dark:text-slate-300 text-center leading-tight">
                     {labels.copyright}
                 </p>
             </div>

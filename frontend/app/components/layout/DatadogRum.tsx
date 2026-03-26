@@ -81,9 +81,9 @@ export function DatadogRum() {
                 plugins: [reactPlugin({ router: false })],
             });
             flushPendingDatadogUser();
-        } catch (err) {
-            if (process.env.NODE_ENV === "development") {
-                console.error("Datadog RUM init feilet — RUM deaktivert", err);
+        } catch {
+            if (typeof window !== "undefined") {
+                window.__DD_RUM_INIT_DONE__ = false;
             }
         }
     }, []);

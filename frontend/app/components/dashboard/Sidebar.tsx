@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useUIStore } from "@/app/store/uiStore";
 import { useKIStore } from "@/app/store/kiStore";
 import {
@@ -23,12 +23,15 @@ import {
     Sparkles,
     Brain,
     Shield,
+    X,
 } from "lucide-react";
 import { useLoggUtWithRedirect } from "@/app/auth/auth-api";
 import { useChatHistory } from "@/app/hooks/useChatHistory";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "@/app/i18n";
+import { useDialogAccessibility } from "@/app/hooks/useDialogAccessibility";
+import { useMediaQuery } from "@/app/hooks/useMediaQuery";
 
 // Typer for de ulike visningene i sidebar
 export type VisningType =
@@ -65,6 +68,19 @@ export function Sidebar({
     const { chats } = useChatHistory();
     const pathname = usePathname();
     const { t } = useLanguage();
+    const erMobil = useMediaQuery("(max-width: 767px)");
+    const dialogRef = useRef<HTMLElement | null>(null);
+    const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+    const headingId = useId();
+    const dialogId = "dashboard-sidebar";
+
+    useDialogAccessibility({
+        open: isVenstreMenyOpen,
+        enabled: erMobil,
+        containerRef: dialogRef,
+        initialFocusRef: closeButtonRef,
+        onClose: lukkVenstreMeny,
+    });
 
     const handleNavigasjon = (visning: VisningType) => {
         byttVisning(visning);
@@ -92,11 +108,13 @@ export function Sidebar({
         const erAktiv = isActiveOverride !== undefined ? isActiveOverride : aktivVisning === view;
         return (
             <button
+                type="button"
                 onClick={() => handleNavigasjon(view)}
                 aria-current={erAktiv ? "page" : undefined}
                 className={`
                     w-full flex items-center gap-3 px-5 py-3.5 rounded-xl text-left text-sm
                     transition-colors duration-150
+                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
                     ${indent ? "pl-11" : ""}
                     ${erAktiv
                         ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
@@ -114,14 +132,23 @@ export function Sidebar({
         <>
             {/* Mobil overlegg (Overlay) */}
             {isVenstreMenyOpen && (
-                <div
+                <button
+                    type="button"
+                    aria-label={t("common.actions.close")}
                     className="md:hidden fixed inset-0 bg-black/30 z-40"
                     onClick={lukkVenstreMeny}
+                    tabIndex={-1}
                 />
             )}
 
             {/* Sidebar / Venstremeny */}
             <aside
+                ref={dialogRef}
+                id={erMobil ? dialogId : undefined}
+                role={erMobil ? "dialog" : undefined}
+                aria-modal={erMobil ? "true" : undefined}
+                aria-labelledby={erMobil ? headingId : undefined}
+                tabIndex={erMobil ? -1 : undefined}
                 className={`
                     fixed md:relative z-50 md:z-auto
                     w-72 h-full
@@ -132,8 +159,24 @@ export function Sidebar({
                     ${isVenstreMenyOpen ? "translate-x-0" : "-translate-x-full md:w-0 md:min-w-0 md:overflow-hidden"}
                 `}
             >
-                {/* Navigasjon — på mobil lukkes menyen via X i header, ikke egen rad */}
-                <nav aria-label="Hovednavigasjon" className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-3">
+                {erMobil && (
+                    <div className="flex items-center justify-end gap-3 border-b border-slate-200 dark:border-slate-800 px-5 py-4">
+                        <h2 id={headingId} className="sr-only">
+                            {t("dashboard.sidebar.navigationTitle")}
+                        </h2>
+                        <button
+                            ref={closeButtonRef}
+                            type="button"
+                            onClick={lukkVenstreMeny}
+                            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+                            aria-label={t("common.actions.close")}
+                        >
+                            <X size={20} />
+                        </button>
+                    </div>
+                )}
+
+                <nav aria-label={t("dashboard.sidebar.navigationTitle")} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-3">
                     {/* Hovednavigasjon */}
                     <div className="mb-4">
                         <Link
@@ -146,6 +189,7 @@ export function Sidebar({
                             className={`
                                 w-full flex items-center gap-3 px-5 py-3.5 rounded-xl text-left text-sm
                                 transition-colors duration-150
+                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
                                 ${pathname === "/oversikt"
                                     ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
                                     : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
@@ -160,11 +204,12 @@ export function Sidebar({
 
                     {/* Ny samtale-knapp */}
                     <button
+                        type="button"
                         onClick={() => {
                             requestNewChat();
                             handleNavigasjon("chat");
                         }}
-                        className="w-full flex items-center justify-center gap-2 px-5 py-3.5 mb-8 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium"
+                        className="w-full flex items-center justify-center gap-2 px-5 py-3.5 mb-8 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
                     >
                         <Plus size={18} />
                         <span>{t("common.actions.newConversation")}</span>
@@ -189,6 +234,7 @@ export function Sidebar({
                             className={`
                                 w-full flex items-center gap-3 px-5 py-3.5 rounded-xl text-left text-sm
                                 transition-colors duration-150
+                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
                                 ${pathname === "/ai-breakdown"
                                     ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
                                     : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
@@ -219,6 +265,7 @@ export function Sidebar({
                                     return (
                                         <button
                                             key={chat.id}
+                                            type="button"
                                             onClick={() => {
                                                 setSelectedChatId(chat.id);
                                                 setCurrentChatId(chat.id);
@@ -227,6 +274,7 @@ export function Sidebar({
                                             className={`
                                                 group w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left text-sm
                                                 transition-all duration-150
+                                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
                                                 ${visPågåendeMarkering
                                                     ? "border-sky-200/80 dark:border-sky-900/70 bg-sky-50/80 dark:bg-sky-950/25 text-slate-900 dark:text-slate-100"
                                                     : "border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
@@ -259,10 +307,11 @@ export function Sidebar({
                     {/* Canvas-seksjon */}
                     <div className="border-t border-slate-200 dark:border-slate-800 pt-8 pb-3">
                         <button
+                            type="button"
                             onClick={() => settErCanvasUtvidet(!erCanvasUtvidet)}
                             aria-expanded={erCanvasUtvidet}
                             aria-controls="sidebar-canvas-menu"
-                            className="w-full flex items-center justify-between px-5 py-3.5 text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-xl"
+                            className="w-full flex items-center justify-between px-5 py-3.5 text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
                         >
                             <span>{t("dashboard.sidebar.canvas")}</span>
                             {erCanvasUtvidet ? (
@@ -332,8 +381,9 @@ export function Sidebar({
                             </p>
                         </div>
                         <button
+                            type="button"
                             onClick={handleLoggUt}
-                            className="shrink-0 p-2 -mr-2 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center"
+                            className="shrink-0 p-2 -mr-2 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
                             aria-label={t("common.actions.signOut")}
                             title={t("common.actions.signOut")}
                         >

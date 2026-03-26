@@ -69,7 +69,7 @@ export const CACHE_TTL = {
 // Paginering: per_page verdier for ulike endepunkt-typer
 export const PAGE_SIZE = {
     DEFAULT: 100,       // Standard for de fleste lister
-    ANNOUNCEMENTS: 50,  // Kunngjøringer har ofte mye innhold
+    ANNOUNCEMENTS: 100, // Kunngjøringer kan være mange; bruk maks standard-størrelse
     MODULES: 50,        // Moduler inkluderer items, begrens størrelse
 } as const;
 

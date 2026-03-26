@@ -9,6 +9,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Bot, Download, Copy, Share2, RefreshCw, Plus, Image, FileText, User } from "lucide-react";
 import { LoadingSpinner, LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
+import { useLanguage } from "@/app/i18n";
 import { AttachmentStrip } from "@/app/components/chat/AttachmentStrip";
 import { ChatShareModal } from "@/app/components/chat/ChatShareModal";
 import ReactMarkdown, { type Components } from "react-markdown";
@@ -157,6 +158,7 @@ const markdownKomponenter: Components = {
 };
 
 export function ChatSection() {
+    const { t } = useLanguage();
     const [mounted, setMounted] = useState(false);
     const [meldinger, settMeldinger] = useState<Melding[]>([]);
     const [tekstInput, settTekstInput] = useState("");
@@ -244,7 +246,7 @@ export function ChatSection() {
     const visKiFeilDetaljer = process.env.NODE_ENV === "development";
     const tilkoblingsBanner = lagTilkoblingsBanner(kiError);
     const tilkoblingsBannerVist = kiError
-        ? (tilkoblingsBanner ?? { melding: "Kunne ikke koble til KI-assistenten. Prøv igjen senere.", type: "error" as const })
+        ? (tilkoblingsBanner ?? { melding: t("chat.aiConnectionError"), type: "error" as const })
         : null;
 
     // Dokumentanalyse hook
@@ -496,7 +498,7 @@ export function ChatSection() {
     const nySamtale = async () => {
         if (meldinger.length > 0) {
             void lagreSamtale(meldinger).catch(() => {
-                showToast.error("Kunne ikke lagre samtale før ny chat ble opprettet. Du kan fortsette med ny chat.");
+                showToast.error(t("chat.saveBeforeNewError"));
             });
         }
         stoppAktivAnimasjon();
@@ -545,7 +547,7 @@ export function ChatSection() {
         if (godkjente.length === 0) return;
 
         if (vedlegg.length > 0 || godkjente.length > 1) {
-            showToast.info("Kun ett vedlegg om gangen", "Jeg bruker bare det første vedlegget.");
+            showToast.info(t("chat.oneAttachmentOnly"), t("chat.oneAttachmentOnlyDescription"));
         }
 
         settVedlegg([godkjente[0]]);
@@ -772,7 +774,7 @@ export function ChatSection() {
                 onSuccess: (data) => {
                     const responseText = data.response.trim();
                     if (!responseText) {
-                        showToast.error("Dokumentanalyse feilet", "Dokumentanalysen returnerte et tomt svar. Prøv igjen.");
+                        showToast.error(t("chat.documentAnalysisFailed"), t("chat.documentAnalysisEmpty"));
                         if (isMountedRef.current) {
                             settMeldinger((prev) =>
                                 prev.map((m) =>
@@ -806,7 +808,7 @@ export function ChatSection() {
                 },
                 onError: (error) => {
                     settKiError(error instanceof Error ? error : new Error(String(error)));
-                    showToast.error("Dokumentanalyse feilet", lagFeilTekst(error instanceof Error ? error : new Error(String(error)), "dokument"));
+                    showToast.error(t("chat.documentAnalysisFailed"), lagFeilTekst(error instanceof Error ? error : new Error(String(error)), "dokument"));
                     // Marker brukerens melding som feilet
                     if (isMountedRef.current) {
                         settMeldinger((prev) =>
@@ -963,7 +965,7 @@ export function ChatSection() {
             .then((data) => {
                 const responseText = data.response.trim();
                 if (!responseText) {
-                    showToast.error("KI-svar feilet", "KI-assistenten returnerte et tomt svar. Prøv igjen.");
+                    showToast.error(t("chat.aiResponseFailed"), t("chat.aiResponseEmpty"));
                     settAnimerendeMeldingId(null);
                     // Marker brukerens melding som feilet
                     if (isMountedRef.current) {
@@ -1013,7 +1015,7 @@ export function ChatSection() {
                 settAnimerendeMeldingId(null);
                 const err = error instanceof Error ? error : new Error("Uventet feil");
                 settKiError(err);
-                showToast.error("KI-svar feilet", lagFeilTekst(err, "chat"));
+                showToast.error(t("chat.aiResponseFailed"), lagFeilTekst(err, "chat"));
                 // Marker brukerens melding som feilet slik at retry-knapp vises
                 if (isMountedRef.current) {
                     settMeldinger((prev) =>
@@ -1224,7 +1226,7 @@ export function ChatSection() {
             }
 
             if (!chatId) {
-                showToast.info("Lagre samtalen først for å dele den.");
+                showToast.info(t("chat.saveBeforeShare"));
                 return;
             }
 
@@ -1235,21 +1237,21 @@ export function ChatSection() {
             });
 
             if (!res.ok) {
-                throw new Error(await parseApiError(res, "Kunne ikke dele chatten."));
+                throw new Error(await parseApiError(res, t("chat.couldNotShareChat")));
             }
 
             const data = ChatShareResponseSchema.parse(await res.json());
             const fullUrl = `${window.location.origin}${data.shareUrl}`;
             await navigator.clipboard.writeText(fullUrl);
             showToast.success(
-                "Delingslenke kopiert",
-                "Lenken viser hele samtalen slik den ser ut na. Alle med lenken kan lese bruker- og KI-meldinger.",
+                t("chat.shareLinkCopied"),
+                t("chat.shareLinkDescription"),
             );
             setViserShareModal(false);
         } catch (error) {
             const meldingTekst = error instanceof Error
                 ? error.message
-                : "Kunne ikke dele chatten";
+                : t("chat.couldNotShareChatFallback");
             showToast.error(meldingTekst);
         } finally {
             setOppretterDeling(false);
@@ -1312,14 +1314,14 @@ export function ChatSection() {
                     {/* Placeholder før hydration - matcher server-rendering */}
                     {!mounted && (
                         <div className="py-12">
-                            <LoadingView text="Laster..." fullPage={false} />
+                            <LoadingView text={t("chat.loadingGeneric")} fullPage={false} />
                         </div>
                     )}
 
                     {/* Loading state - vis kun etter mount for å unngå hydration mismatch */}
                     {mounted && loading && (
                         <div className="py-12">
-                            <LoadingView text="Laster samtalehistorikk..." fullPage={false} />
+                            <LoadingView text={t("chat.loadingChatHistory")} fullPage={false} />
                         </div>
                     )}
 
@@ -1341,6 +1343,7 @@ export function ChatSection() {
                                 {forslag.map((forslagTekst, index) => (
                                     <button
                                         key={index}
+                                        type="button"
                                         onClick={() => handterForslag(forslagTekst)}
                                         className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-left hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm transition-all group"
                                     >
@@ -1460,7 +1463,7 @@ export function ChatSection() {
                                                         "AI-svar",
                                                         "studywise-svar",
                                                     );
-                                                    showToast.success("Svar lastet ned");
+                                                    showToast.success(t("chat.answerDownloaded"));
                                                 }}
                                                 className={actionBtnClass}
                                                 title="Last ned svar"
@@ -1472,9 +1475,9 @@ export function ChatSection() {
                                                 onClick={async () => {
                                                     try {
                                                         await navigator.clipboard.writeText(melding.innhold);
-                                                        showToast.success("Kopiert til utklippstavle");
+                                                        showToast.success(t("chat.copiedToClipboard"));
                                                     } catch {
-                                                        showToast.error("Kunne ikke kopiere");
+                                                        showToast.error(t("chat.couldNotCopy"));
                                                     }
                                                 }}
                                                 className={actionBtnClass}
@@ -1505,7 +1508,7 @@ export function ChatSection() {
                                 {analyserarDokument ? (
                                     <div className="flex items-center gap-2">
                                         <LoadingSpinner className="w-4 h-4" />
-                                        <span className="text-sm text-slate-500 dark:text-slate-400">Analyserer dokument...</span>
+                                        <span className="text-sm text-slate-500 dark:text-slate-400">{t("chat.analyzingDocument")}</span>
                                     </div>
                                 ) : (
                                     <div className="flex gap-1">
@@ -1563,7 +1566,7 @@ export function ChatSection() {
                                     undefined,
                                     "studywise-samtale",
                                 );
-                                showToast.success("Samtale lastet ned som Markdown");
+                                showToast.success(t("chat.conversationDownloaded"));
                             }}
                             disabled={meldinger.length === 0 || skriver || analyserarDokument}
                             className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
@@ -1575,6 +1578,7 @@ export function ChatSection() {
 
                         {/* Filopplasting */}
                         <button
+                            type="button"
                             onClick={() => filInputRef.current?.click()}
                             disabled={skriver || analyserarDokument}
                             className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
@@ -1596,6 +1600,7 @@ export function ChatSection() {
                             style={{ outline: "none" }}
                         />
                         <button
+                            type="button"
                             onClick={() => {
                                 void sendMelding();
                             }}

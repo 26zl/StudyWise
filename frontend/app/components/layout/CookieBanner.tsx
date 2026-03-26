@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
 import Link from "next/link";
 
 export const COOKIE_CONSENT_STORAGE_KEY = "studywise_cookie_consent";
@@ -39,6 +39,7 @@ function setStoredConsent(value: "accepted" | "declined"): void {
 export function CookieBanner() {
   const [consent, setConsent] = useState<CookieConsentStatus>(null);
   const [mounted, setMounted] = useState(false);
+  const titleId = useId();
 
   useEffect(() => {
     setConsent(getStoredCookieConsent());
@@ -59,12 +60,16 @@ export function CookieBanner() {
 
   return (
     <div
-      role="dialog"
-      aria-label="Informasjon om bruk av informasjonskapsler"
+      role="region"
+      aria-labelledby={titleId}
       className="fixed bottom-0 left-0 right-0 z-50 p-4 md:p-5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.3)]"
     >
       <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <p className="text-sm text-slate-600 dark:text-slate-300">
+        <div className="space-y-2">
+          <h2 id={titleId} className="text-sm font-semibold text-slate-900 dark:text-white">
+            Informasjon om bruk av informasjonskapsler
+          </h2>
+          <p className="text-sm text-slate-600 dark:text-slate-300">
           Vi bruker nødvendige cookies og driftsmonitorering for innlogging, sikkerhet og feilsporing (berettiget interesse, GDPR Art. 6(1)(f)). «Godta alle» aktiverer i tillegg valgfrie ytelsesmålinger basert på ditt samtykke (Art. 6(1)(a)).{" "}
           <Link
             href="/personvern"
@@ -73,7 +78,8 @@ export function CookieBanner() {
           >
             Les mer i personvernerklæringen
           </Link>
-        </p>
+          </p>
+        </div>
         <div className="flex flex-wrap items-center gap-3 shrink-0">
           <button
             type="button"

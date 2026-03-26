@@ -271,13 +271,16 @@ export default function ForgotPasswordPage() {
                       id="email"
                       type="email"
                       autoComplete="email"
+                      aria-required="true"
+                      aria-invalid={!!identifikatorFeil}
+                      aria-describedby={identifikatorFeil ? "email-error" : undefined}
                       value={epostadresse}
                       onChange={(event) => setEpostadresse(event.target.value)}
                       placeholder={t("auth.forgotPassword.identifier.emailPlaceholder")}
                       className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-xs transition-colors placeholder:text-slate-400 focus:border-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
                     />
                     {identifikatorFeil && (
-                      <p className="text-sm text-rose-600 dark:text-rose-300">
+                      <p id="email-error" className="text-sm text-rose-600 dark:text-rose-300">
                         {identifikatorFeil}
                       </p>
                     )}
@@ -314,13 +317,16 @@ export default function ForgotPasswordPage() {
                     type="text"
                     inputMode="numeric"
                     autoComplete="one-time-code"
+                    aria-required="true"
+                    aria-invalid={!!kodeFeil}
+                    aria-describedby={kodeFeil ? "code-error" : undefined}
                     value={kode}
                     onChange={(event) => setKode(event.target.value)}
                     placeholder={t("auth.forgotPassword.code.placeholder")}
                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-xs transition-colors placeholder:text-slate-400 focus:border-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
                   />
                   {kodeFeil && (
-                    <p className="text-sm text-rose-600 dark:text-rose-300">
+                    <p id="code-error" className="text-sm text-rose-600 dark:text-rose-300">
                       {kodeFeil}
                     </p>
                   )}
@@ -367,13 +373,16 @@ export default function ForgotPasswordPage() {
                     id="password"
                     type="password"
                     autoComplete="new-password"
+                    aria-required="true"
+                    aria-invalid={!!passordFeil}
+                    aria-describedby={passordFeil ? "password-error" : undefined}
                     value={passord}
                     onChange={(event) => setPassord(event.target.value)}
                     placeholder={t("auth.forgotPassword.setCredential.placeholder")}
                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-xs transition-colors placeholder:text-slate-400 focus:border-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
                   />
                   {passordFeil && (
-                    <p className="text-sm text-rose-600 dark:text-rose-300">
+                    <p id="password-error" className="text-sm text-rose-600 dark:text-rose-300">
                       {passordFeil}
                     </p>
                   )}

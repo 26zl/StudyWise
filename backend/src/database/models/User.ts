@@ -47,6 +47,11 @@ export interface IUser extends Document {
     // Brukerpreferanser for AI Canvas-kontekst
     canvasContextPreferences?: ICanvasContextPreferences;
     varslerState?: IVarslerState;
+    uiPreferences?: {
+        language?: "nb" | "en";
+        theme?: "light" | "dark" | "system";
+        cookieConsent?: "accepted" | "declined";
+    };
     createdAt: Date;
     updatedAt: Date;
 }
@@ -129,6 +134,14 @@ const UserSchema: Schema = new Schema(
                 toastVistIds: { type: [String], default: [] },
             },
             default: createDefaultVarslerState,
+        },
+        uiPreferences: {
+            type: {
+                language: { type: String, enum: ["nb", "en"] },
+                theme: { type: String, enum: ["light", "dark", "system"] },
+                cookieConsent: { type: String, enum: ["accepted", "declined"] },
+            },
+            default: undefined,
         },
     },
     {

@@ -26,6 +26,7 @@ import type {
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
+import { useLanguage } from "@/app/i18n";
 import {
   DAYS_ORDER,
   PRIORITY_COLORS,
@@ -51,6 +52,7 @@ export function WeeklyPlanSuggestions({
   assignments,
   onPlanCreated,
 }: WeeklyPlanSuggestionsProps) {
+  const { t } = useLanguage();
   const [plan, setPlan] = useState<WeeklyPlanSuggestionResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
@@ -133,12 +135,12 @@ export function WeeklyPlanSuggestions({
         totalHours: beregnTimer(selectedBlocksArray),
       });
 
-      showToast.success("Arbeidsplan lagret!");
+      showToast.success(t("arbeidsplan.planSaved"));
       onPlanCreated?.();
       setPlan(null);
       setSelectedBlocks(new Set());
     } catch {
-      showToast.error("Kunne ikke lagre arbeidsplan. Prøv igjen.");
+      showToast.error(t("arbeidsplan.planSaveError"));
     }
   };
 
@@ -158,6 +160,7 @@ export function WeeklyPlanSuggestions({
               Du kan deretter velge hvilke studieblokker du vil legge til i din arbeidsplan.
             </p>
             <button
+              type="button"
               onClick={generatePlan}
               disabled={assignments.length === 0}
               className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed inline-flex items-center gap-2"
@@ -234,6 +237,7 @@ export function WeeklyPlanSuggestions({
             </p>
           </div>
           <button
+            type="button"
             onClick={generatePlan}
             className="px-4 py-2 text-sm font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition-colors"
           >
@@ -244,6 +248,7 @@ export function WeeklyPlanSuggestions({
         <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-3">
             <button
+              type="button"
               onClick={allSelected ? deselectAll : selectAll}
               className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
                 allSelected
@@ -268,6 +273,7 @@ export function WeeklyPlanSuggestions({
           </div>
 
           <button
+            type="button"
             onClick={handleSavePlan}
             disabled={selectedBlocks.size === 0 || createMutation.isPending}
             className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors disabled:cursor-not-allowed inline-flex items-center gap-2"
@@ -298,6 +304,7 @@ export function WeeklyPlanSuggestions({
               className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 overflow-hidden"
             >
               <button
+                type="button"
                 onClick={() => setExpandedDay(isExpanded ? null : day)}
                 className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
               >
@@ -326,6 +333,7 @@ export function WeeklyPlanSuggestions({
                     >
                       <div className="flex items-start gap-3">
                         <button
+                          type="button"
                           onClick={() => toggleBlockSelection(block.index)}
                           className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
                             selectedBlocks.has(block.index)

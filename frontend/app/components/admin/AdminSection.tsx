@@ -23,6 +23,7 @@ import { useMeg } from "@/app/auth/auth-api";
 import { LoadingSpinner } from "@/app/components/ui/Loading";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { showToast } from "@/app/components/ui/Toaster";
+import { formaterDatoLong, formaterDatoOgTid } from "@/app/lib/dato";
 import {
   useAdminStats,
   useAdminBrukere,
@@ -55,7 +56,7 @@ function StatistikkFane() {
   const { data, isLoading, error } = useAdminStats();
 
   if (isLoading) return <LoadingSpinner />;
-  if (error || !data) return <FeilMelding melding="Kunne ikke hente statistikk" />;
+  if (error || !data) return <FeilMelding melding={t("admin.errors.statsFailed")} />;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -73,7 +74,7 @@ function StatistikkFane() {
 // ── Brukere-fane ────────────────────────────────────────────────────────────
 
 function BrukereFane() {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const megQuery = useMeg();
   const minId = megQuery.data?.user?.id;
 
@@ -144,12 +145,12 @@ function BrukereFane() {
           onChange={(e) => handleSearch(e.target.value)}
           placeholder={t("admin.users.searchPlaceholder")}
           aria-label={t("admin.users.searchPlaceholder")}
-          className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+          className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
 
       {isLoading && <LoadingSpinner />}
-      {error && <FeilMelding melding="Kunne ikke hente brukere" />}
+      {error && <FeilMelding melding={t("admin.errors.usersFailed")} />}
 
       {data && (
         <>
@@ -215,13 +216,14 @@ function BrukereFane() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                          {new Date(bruker.opprettet).toLocaleDateString("nb-NO")}
+                          {formaterDatoLong(bruker.opprettet, language)}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             {!erDeg && (
                               <>
                                 <button
+                                  type="button"
                                   onClick={() => handleEndreRolle(bruker)}
                                   disabled={endreRolle.isPending}
                                   title={t("admin.users.changeRole")}
@@ -232,6 +234,7 @@ function BrukereFane() {
                                 {bekreftSlett === bruker.id ? (
                                   <div className="flex items-center gap-1">
                                     <button
+                                      type="button"
                                       onClick={() => handleSlett(bruker.id)}
                                       disabled={slettBruker.isPending}
                                       className="rounded-lg p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
@@ -239,6 +242,7 @@ function BrukereFane() {
                                       <Check size={16} />
                                     </button>
                                     <button
+                                      type="button"
                                       onClick={() => setBekreftSlett(null)}
                                       className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                                     >
@@ -247,6 +251,7 @@ function BrukereFane() {
                                   </div>
                                 ) : (
                                   <button
+                                    type="button"
                                     onClick={() => setBekreftSlett(bruker.id)}
                                     title={t("admin.users.deleteUser")}
                                     className="rounded-lg p-1.5 text-slate-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors"
@@ -274,6 +279,7 @@ function BrukereFane() {
               </span>
               <div className="flex gap-2">
                 <button
+                  type="button"
                   onClick={() => setOffset((o) => Math.max(0, o - limit))}
                   disabled={!harForrige}
                   className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition-colors"
@@ -281,6 +287,7 @@ function BrukereFane() {
                   <ChevronLeft size={16} />
                 </button>
                 <button
+                  type="button"
                   onClick={() => setOffset((o) => o + limit)}
                   disabled={!harNeste}
                   className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition-colors"
@@ -299,7 +306,7 @@ function BrukereFane() {
 // ── Revisjonslogg-fane ──────────────────────────────────────────────────────
 
 function RevisjonsloggFane() {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const [offset, setOffset] = useState(0);
   const limit = 50;
 
@@ -310,7 +317,7 @@ function RevisjonsloggFane() {
   const harForrige = offset > 0;
 
   if (isLoading) return <LoadingSpinner />;
-  if (error) return <FeilMelding melding="Kunne ikke hente revisjonslogg" />;
+  if (error) return <FeilMelding melding={t("admin.errors.auditFailed")} />;
 
   return (
     <div className="space-y-4">
@@ -358,7 +365,7 @@ function RevisjonsloggFane() {
                     {item.actorUserId}
                   </td>
                   <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                    {new Date(item.createdAt).toLocaleString("nb-NO")}
+                    {formaterDatoOgTid(item.createdAt, language)}
                   </td>
                 </tr>
               ))
@@ -374,6 +381,7 @@ function RevisjonsloggFane() {
           </span>
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={() => setOffset((o) => Math.max(0, o - limit))}
               disabled={!harForrige}
               className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition-colors"
@@ -381,6 +389,7 @@ function RevisjonsloggFane() {
               <ChevronLeft size={16} />
             </button>
             <button
+              type="button"
               onClick={() => setOffset((o) => o + limit)}
               disabled={!harNeste}
               className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition-colors"
@@ -423,6 +432,7 @@ export function AdminSection() {
         {FANER.map(({ id, ikon: Ikon, labelKey }) => (
           <button
             key={id}
+            type="button"
             role="tab"
             aria-selected={aktivFane === id}
             aria-controls={`admin-tabpanel-${id}`}

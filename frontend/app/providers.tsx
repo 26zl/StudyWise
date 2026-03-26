@@ -15,6 +15,7 @@ import { useAuthSync } from "./hooks/use-auth-sync";
 import { setClerkGetToken } from "./lib/clerkTokenForApi";
 import { setDatadogUser, clearDatadogUser } from "@/app/components/layout/DatadogRum";
 import { AUTH_ME_QUERY_KEY, prefetchMe } from "./auth/auth-api";
+import { usePreferencesSync } from "./hooks/usePreferencesSync";
 import type { MeResponse } from "common/auth";
 import { LanguageProvider, useLanguage } from "@/app/i18n";
 import type { Language } from "@/app/i18n/types";
@@ -114,6 +115,12 @@ function DatadogUserSync() {
   return null;
 }
 
+// Synkroniserer UI-preferanser (sprak, tema, cookie-samtykke) med backend
+function PreferencesSync() {
+  usePreferencesSync();
+  return null;
+}
+
 export function Providers({
   children,
   clerkPublishableKey,
@@ -151,6 +158,7 @@ export function Providers({
             <AuthSyncListener />
             <PrefetchMeOnMount />
             <DatadogUserSync />
+            <PreferencesSync />
             {children}
           </NuqsAdapter>
         </QueryClientProvider>

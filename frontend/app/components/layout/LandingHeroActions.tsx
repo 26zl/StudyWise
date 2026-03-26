@@ -24,8 +24,24 @@ export function LandingHeroActions({ initialUser = null }: LandingHeroActionsPro
     initialData: initialUser?.user ? initialUser : undefined,
     enabled: isLoaded && isSignedIn,
   });
+  const authAvklart = Boolean(initialUser?.user) || isLoaded;
   const erInnlogget = Boolean(megQuery.data?.user ?? initialUser?.user ?? (isLoaded && isSignedIn));
   const ctaWidth = "min-w-[200px]";
+
+  if (!authAvklart) {
+    return (
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+        <div
+          className={`h-14 ${ctaWidth} animate-pulse rounded-full bg-slate-200 dark:bg-slate-800`}
+          aria-hidden="true"
+        />
+        <div
+          className={`hidden h-14 ${ctaWidth} animate-pulse rounded-full bg-slate-100 dark:bg-slate-800/70 sm:block`}
+          aria-hidden="true"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">

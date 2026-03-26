@@ -6,6 +6,7 @@ import { z } from "zod";
 import { CANVAS_INSTITUSJONER_NORGE } from "./canvasInstitutions.js";
 
 export function normalizeCanvasBaseUrl(url: string): string {
+  if (!url) return url;
   return url.trim().replace(/\/$/, "").toLowerCase();
 }
 
@@ -17,7 +18,6 @@ export const EmailSchema = z
   .pipe(z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Ugyldig e-post"));
 
 /** Gyldig Canvas base URL for StudyWise sin Canvas-integrasjon. */
-const CANVAS_INSTRUCTURE_HOST_REGEX = /^([a-z0-9-]+\.)?instructure\.com$/i;
 const CANVAS_BASE_URL_REGEX = /^https:\/\/([^/?#]+)\/?$/i;
 
 function extractCanvasHostname(url: string): string | null {
@@ -37,10 +37,7 @@ function isAllowedCanvasBaseUrl(url: string): boolean {
     return false;
   }
 
-  return (
-    CANVAS_INSTRUCTURE_HOST_REGEX.test(hostname) ||
-    KJENTE_CANVAS_HOSTS.has(hostname)
-  );
+  return KJENTE_CANVAS_HOSTS.has(hostname);
 }
 
 export const CanvasBaseUrlSchema = z
@@ -98,6 +95,23 @@ export const VarslerStateSchema = z.object({
   toastVistIds: z.array(z.string()).max(VARSLER_MAX_IDS, `Maks ${VARSLER_MAX_IDS} varsel-IDs`),
 });
 
+/** UI-preferanser som synkes til backend slik at bruker slipper å sette dem på nytt. */
+export const LANGUAGES = ["nb", "en"] as const;
+export type AppLanguage = (typeof LANGUAGES)[number];
+
+export const THEMES = ["light", "dark", "system"] as const;
+export type AppTheme = (typeof THEMES)[number];
+
+export const COOKIE_CONSENT_VALUES = ["accepted", "declined"] as const;
+export type CookieConsentValue = (typeof COOKIE_CONSENT_VALUES)[number];
+
+export const UIPreferencesSchema = z.object({
+  language: z.enum(LANGUAGES).optional(),
+  theme: z.enum(THEMES).optional(),
+  cookieConsent: z.enum(COOKIE_CONSENT_VALUES).optional(),
+});
+export type UIPreferences = z.infer<typeof UIPreferencesSchema>;
+
 export type CanvasContextPreferences = z.infer<typeof CanvasContextPreferencesSchema>;
 export type VarslerState = z.infer<typeof VarslerStateSchema>;
 
@@ -138,11 +152,13 @@ export const PreferencesUpdateSchema = z
   .object({
     canvasContextPreferences: CanvasContextPreferencesSchema.optional(),
     varslerState: VarslerStateSchema.optional(),
+    uiPreferences: UIPreferencesSchema.optional(),
   })
   .refine(
     (data) =>
       data.canvasContextPreferences !== undefined ||
-      data.varslerState !== undefined,
+      data.varslerState !== undefined ||
+      data.uiPreferences !== undefined,
     "Ingen preferanser oppgitt",
   );
 
@@ -158,6 +174,7 @@ export const AuthBrukerSchema = z.object({
   canvasBaseUrl: CanvasBaseUrlSchema.optional().nullable(),
   canvasContextPreferences: CanvasContextPreferencesSchema.optional(),
   varslerState: VarslerStateSchema.optional(),
+  uiPreferences: UIPreferencesSchema.optional(),
   /** RBAC-rolle (user, admin). */
   role: RoleSchema.optional(),
   /** Innloggingsmetode (google, microsoft, email). */
@@ -177,6 +194,7 @@ export const PreferencesResponseSchema = z.object({
   melding: z.string(),
   canvasContextPreferences: CanvasContextPreferencesSchema.optional(),
   varslerState: VarslerStateSchema.optional(),
+  uiPreferences: UIPreferencesSchema.optional(),
 });
 
 export const AccountDeletionDeletedSchema = z.object({

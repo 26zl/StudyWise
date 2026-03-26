@@ -19,6 +19,7 @@ import {
   type CanvasContextPreferences,
   type VarslerState,
   type PreferencesResponse,
+  type UIPreferences,
 } from "common/auth";
 import { CanvasErrorCodeSchema } from "common/canvasErrors";
 import { AppError, CanvasApiError } from "../lib/errors";
@@ -60,6 +61,7 @@ function mergeCachedUserPreferences(
         updated.canvasContextPreferences ??
         current.user.canvasContextPreferences,
       varslerState: updated.varslerState ?? current.user.varslerState,
+      uiPreferences: updated.uiPreferences ?? current.user.uiPreferences,
     },
   });
 }
@@ -294,6 +296,7 @@ export function useSlettCanvasToken() {
 type UserPreferencesUpdate = {
   canvasContextPreferences?: CanvasContextPreferences;
   varslerState?: VarslerState;
+  uiPreferences?: UIPreferences;
 };
 
 // Hjelpefunksjon for å oppdatere brukerpreferanser. Returnerer oppdatert preferanse-objekt.
@@ -340,6 +343,13 @@ export function useOppdaterPreferanser() {
 export function useOppdaterVarslerState() {
   return useOppdaterBrukerPreferanser((varslerState: VarslerState) => ({
     varslerState,
+  }));
+}
+
+// Hook for oppdatering av UI-preferanser (språk, tema, cookie-samtykke)
+export function useOppdaterUIPreferanser() {
+  return useOppdaterBrukerPreferanser((uiPreferences: UIPreferences) => ({
+    uiPreferences,
   }));
 }
 

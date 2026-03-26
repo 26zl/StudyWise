@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import {
     Bell,
@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
+import { CanvasTokenNotice } from "@/app/components/canvas/CanvasTokenNotice";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useVarsler, type VarslingTab } from "@/app/hooks/useVarsler";
 import { formaterTid, type FristStatus } from "@/app/lib/varsler";
@@ -30,6 +31,9 @@ import { enUS, nb } from "date-fns/locale";
 interface VarslingerSectionProps {
     harCanvasToken?: boolean;
 }
+
+const INITIAL_NOTIFICATIONS_VISIBLE = 10;
+const NOTIFICATIONS_VISIBLE_STEP = 10;
 // Varslinger-seksjonen håndterer visning av frister, kunngjøringer og hendelser, med faner for filtrering.
 function fristFarge(status: FristStatus) {
     if (status === "kritisk") return "border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20";
@@ -45,6 +49,7 @@ function fristBadgeFarge(status: FristStatus) {
 // VarslingerSection - hovedkomponent for varslinger-siden, med faner og kortvisning. Deler data og lest/ulest-status med popup via useVarsler og uiStore.
 export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionProps) {
     const [aktivTab, settAktivTab] = useState<VarslingTab>("alle");
+    const [visibleCount, setVisibleCount] = useState(INITIAL_NOTIFICATIONS_VISIBLE);
     const canvasTokenInvalid = useUIStore((state) => state.canvasTokenInvalid);
     const { language, t } = useLanguage();
 
@@ -90,130 +95,167 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
             : aktivTab === "frister" ? frister
             : aktivTab === "kunngjøringer" ? kunngjøringer
             : hendelser;
+    const synligeElementer = useMemo(
+        () => aktiveListe.slice(0, visibleCount),
+        [aktiveListe, visibleCount],
+    );
+    const remainingNotifications = Math.max(aktiveListe.length - visibleCount, 0);
+
+    useEffect(() => {
+        setVisibleCount(INITIAL_NOTIFICATIONS_VISIBLE);
+    }, [aktivTab]);
 
     if (!harCanvasToken) {
         return (
             <div className="p-6 sm:p-8">
-                <FeilMelding melding={t("notifications.missingCanvasToken")} />
+                <CanvasTokenNotice />
             </div>
         );
     }
     if (canvasTokenInvalid) {
         return (
             <div className="p-6 sm:p-8">
-                <FeilMelding type="warning" melding={t("errors.canvas.tokenInvalid")} />
+                <CanvasTokenNotice variant="invalid" />
             </div>
         );
     }
 
     return (
-        <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-            <div className="flex items-center gap-3">
+        <div className="h-full flex flex-col">
+          <div className="shrink-0 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+            <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+              <div className="flex items-center gap-3">
                 <Bell className="w-6 h-6 text-slate-700 dark:text-slate-300" />
-                <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white">
                     {t("notifications.title")}
-                </h2>
+                </h1>
+              </div>
             </div>
+          </div>
 
-            {!isError && safeAlle.length > 0 && (
-                <div>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            markAllAsLest();
-                            if (ulesteCount > 0) showToast.success(t("notifications.allMarkedAsRead"));
-                        }}
-                        disabled={ulesteCount === 0}
-                        className={`
-                            inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors
-                            ${ulesteCount === 0
-                                ? "text-slate-400 dark:text-slate-500 cursor-default"
-                                : "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50"
-                            }
-                        `}
-                    >
-                        <CheckCheck className="w-4 h-4 shrink-0" />
-                        {ulesteCount === 0 ? t("notifications.allMarkedAsRead") : t("notifications.markAllAsRead")}
-                    </button>
-                </div>
-            )}
+          <div className="flex-1 overflow-y-auto">
+            <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
 
-            {hasPartialError && (
-                <FeilMelding
-                    type="warning"
-                    melding={lagBrukervennligFeilmelding(
-                        error instanceof Error ? error : null,
-                        { canvas: true },
-                        t("notifications.partialLoadFallback"),
-                        t,
-                    )}
-                />
-            )}
+              {!isError && safeAlle.length > 0 && (
+                  <div>
+                      <button
+                          type="button"
+                          onClick={() => {
+                              markAllAsLest();
+                              if (ulesteCount > 0) showToast.success(t("notifications.allMarkedAsRead"));
+                          }}
+                          disabled={ulesteCount === 0}
+                          className={`
+                              inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                              ${ulesteCount === 0
+                                  ? "text-slate-400 dark:text-slate-500 cursor-default"
+                                  : "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                              }
+                          `}
+                      >
+                          <CheckCheck className="w-4 h-4 shrink-0" />
+                          {ulesteCount === 0 ? t("notifications.allMarkedAsRead") : t("notifications.markAllAsRead")}
+                      </button>
+                  </div>
+              )}
 
-            {!isError && (
-                <div role="tablist" aria-label={t("notifications.title")} className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-700 pb-3">
-                    {tabs.map((tab) => (
-                        <button
-                            key={tab.id}
-                            role="tab"
-                            aria-selected={aktivTab === tab.id}
-                            aria-controls={`varslinger-tabpanel-${tab.id}`}
-                            id={`varslinger-tab-${tab.id}`}
-                            onClick={() => settAktivTab(tab.id)}
-                            className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                aktivTab === tab.id
-                                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                            }`}
-                        >
-                            {tab.label}
-                            {tab.uleste > 0 && (
-                                <span className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-xs font-semibold ${
-                                    aktivTab === tab.id
-                                        ? "bg-blue-600 dark:bg-blue-500 text-white"
-                                        : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                                }`}>
-                                    {tab.uleste}
-                                </span>
-                            )}
-                        </button>
-                    ))}
-                </div>
-            )}
+              {hasPartialError && (
+                  <FeilMelding
+                      type="warning"
+                      melding={lagBrukervennligFeilmelding(
+                          error instanceof Error ? error : null,
+                          { canvas: true },
+                          t("notifications.partialLoadFallback"),
+                          t,
+                      )}
+                  />
+              )}
 
-            <div role="tabpanel" id={`varslinger-tabpanel-${aktivTab}`} aria-labelledby={`varslinger-tab-${aktivTab}`}>
-            {isLoading ? (
-                <LoadingView translationKey="common.loading.notifications" fullPage={false} />
-            ) : isError ? (
-                <FeilMelding
-                    melding={lagBrukervennligFeilmelding(
-                        error instanceof Error ? error : null,
-                        { canvas: true },
-                        t("errors.generic.retry"),
-                        t,
-                    )}
-                />
-            ) : aktiveListe.length === 0 ? (
-                <div className="text-center py-12">
-                    <Bell className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                        {aktivTab === "alle"
-                            ? t("notifications.empty.all")
-                            : aktivTab === "frister"
-                                ? t("notifications.empty.deadlines")
-                                : aktivTab === "kunngjøringer"
-                                    ? t("notifications.empty.announcements")
-                                    : t("notifications.empty.events")}
-                    </p>
-                </div>
-            ) : (
-                <div className="space-y-3">
-                    {aktiveListe.map((element) => (
-                        <VarslingKort key={element.id} element={element} language={language} />
-                    ))}
-                </div>
-            )}
+              {!isError && (
+                  <div role="tablist" aria-label={t("notifications.title")} className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-700 pb-3">
+                      {tabs.map((tab) => (
+                          <button
+                              key={tab.id}
+                              type="button"
+                              role="tab"
+                              aria-selected={aktivTab === tab.id}
+                              aria-controls={`varslinger-tabpanel-${tab.id}`}
+                              id={`varslinger-tab-${tab.id}`}
+                              onClick={() => settAktivTab(tab.id)}
+                              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                  aktivTab === tab.id
+                                      ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                                      : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                              }`}
+                          >
+                              {tab.label}
+                              {tab.uleste > 0 && (
+                                  <span className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-xs font-semibold ${
+                                      aktivTab === tab.id
+                                          ? "bg-blue-600 dark:bg-blue-500 text-white"
+                                          : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                                  }`}>
+                                      {tab.uleste}
+                                  </span>
+                              )}
+                          </button>
+                      ))}
+                  </div>
+              )}
+
+              <div role="tabpanel" id={`varslinger-tabpanel-${aktivTab}`} aria-labelledby={`varslinger-tab-${aktivTab}`}>
+              {isLoading ? (
+                  <LoadingView translationKey="common.loading.notifications" fullPage={false} />
+              ) : isError ? (
+                  <FeilMelding
+                      melding={lagBrukervennligFeilmelding(
+                          error instanceof Error ? error : null,
+                          { canvas: true },
+                          t("errors.generic.retry"),
+                          t,
+                      )}
+                  />
+              ) : aktiveListe.length === 0 ? (
+                  <div className="text-center py-12">
+                      <Bell className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                          {aktivTab === "alle"
+                              ? t("notifications.empty.all")
+                              : aktivTab === "frister"
+                                  ? t("notifications.empty.deadlines")
+                                  : aktivTab === "kunngjøringer"
+                                      ? t("notifications.empty.announcements")
+                                      : t("notifications.empty.events")}
+                      </p>
+                  </div>
+              ) : (
+                  <div className="space-y-3">
+                      {synligeElementer.map((element) => (
+                          <VarslingKort key={element.id} element={element} language={language} />
+                      ))}
+                      {remainingNotifications > 0 && (
+                          <div className="flex justify-center pt-2">
+                              <button
+                                  type="button"
+                                  onClick={() =>
+                                      setVisibleCount((current) =>
+                                          Math.min(
+                                              current + NOTIFICATIONS_VISIBLE_STEP,
+                                              aktiveListe.length,
+                                          ),
+                                      )
+                                  }
+                                  className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-200 dark:hover:bg-slate-800"
+                              >
+                                  {t("notifications.loadMore", { count: remainingNotifications })}
+                              </button>
+                          </div>
+                      )}
+                  </div>
+              )}
+              </div>
             </div>
+          </div>
         </div>
     );
 }

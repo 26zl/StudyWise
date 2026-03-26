@@ -215,7 +215,7 @@ export function DashboardView() {
             {aktivVisning === "quiz" && (
                 <SectionErrorBoundary sectionName={t("dashboard.sections.quiz")}>
                     <Suspense fallback={<SectionLoader translationKey="common.loading.quiz" />}>
-                        <QuizView />
+                        <QuizView harCanvasToken={harCanvasToken} />
                     </Suspense>
                 </SectionErrorBoundary>
             )}

@@ -4,7 +4,9 @@
  */
 "use client";
 
-import { Toaster as SonnerToaster, toast } from "sonner";
+import { Toaster as SonnerToaster, toast, type ExternalToast } from "sonner";
+
+type ToastOptions = Pick<ExternalToast, "action" | "duration">;
 
 // Toaster-komponent for å vise toast-meldinger
 export function Toaster() {
@@ -33,23 +35,23 @@ export function Toaster() {
 // Hjelpefunksjoner for å vise toasts
 export const showToast = {
   // Suksess-melding
-  success: (melding: string, beskrivelse?: string) => {
-    toast.success(melding, { description: beskrivelse });
+  success: (melding: string, beskrivelse?: string, options?: ToastOptions) => {
+    toast.success(melding, { description: beskrivelse, ...options });
   },
 
   // Feil-melding
-  error: (melding: string, beskrivelse?: string) => {
-    toast.error(melding, { description: beskrivelse });
+  error: (melding: string, beskrivelse?: string, options?: ToastOptions) => {
+    toast.error(melding, { description: beskrivelse, ...options });
   },
 
   // Informasjons-melding
-  info: (melding: string, beskrivelse?: string) => {
-    toast.info(melding, { description: beskrivelse });
+  info: (melding: string, beskrivelse?: string, options?: ToastOptions) => {
+    toast.info(melding, { description: beskrivelse, ...options });
   },
 
   // Advarsel-melding
-  warning: (melding: string, beskrivelse?: string) => {
-    toast.warning(melding, { description: beskrivelse });
+  warning: (melding: string, beskrivelse?: string, options?: ToastOptions) => {
+    toast.warning(melding, { description: beskrivelse, ...options });
   },
 
   // Suksess med angre-knapp (undo ved sletting)

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { MinArbeidsplan } from "@/app/components/arbeidsplan/MinArbeidsplan";
 import { WeeklyPlanSuggestions } from "@/app/components/arbeidsplan/WeeklyPlanSuggestions";
+import { CanvasTokenNotice } from "@/app/components/canvas/CanvasTokenNotice";
 import type { VisningType } from "@/app/components/dashboard/Sidebar";
 import {
   SidebarAppErrorState,
@@ -66,6 +67,14 @@ export function OversiktPage() {
   const [activeTab, setActiveTab] = useState<"mine-oppgaver" | "ki-forslag">(
     "mine-oppgaver",
   );
+  const activeTabId =
+    activeTab === "mine-oppgaver"
+      ? "overview-tab-my-workplan"
+      : "overview-tab-ai-weekplan";
+  const activePanelId =
+    activeTab === "mine-oppgaver"
+      ? "overview-panel-my-workplan"
+      : "overview-panel-ai-weekplan";
 
   const { isLoaded: clerkLoaded } = useAuth();
   const megQuery = useMeg({ enabled: clerkLoaded });
@@ -123,6 +132,18 @@ export function OversiktPage() {
     { canvas: true },
     t("errors.generic.default"),
     t,
+  );
+
+  const handleOverviewTabKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+
+      event.preventDefault();
+      setActiveTab((currentTab) =>
+        currentTab === "mine-oppgaver" ? "ki-forslag" : "mine-oppgaver",
+      );
+    },
+    [],
   );
 
   if (megQuery.isLoading) {
@@ -193,16 +214,7 @@ export function OversiktPage() {
 
         <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
           {!harCanvasToken && (
-            <div className="space-y-3">
-              <FeilMelding melding={t("errors.canvas.tokenMissing")} />
-              <Link
-                href="/dashboard?view=settings"
-                prefetch={false}
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
-              >
-                {t("common.actions.goToSettings")}
-              </Link>
-            </div>
+            <CanvasTokenNotice />
           )}
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
@@ -236,10 +248,13 @@ export function OversiktPage() {
             <div className="flex gap-1" role="tablist" aria-label={t("overview.tabs.ariaLabel")}>
               <button
                 type="button"
+                id="overview-tab-my-workplan"
                 role="tab"
                 aria-selected={activeTab === "mine-oppgaver"}
+                aria-controls="overview-panel-my-workplan"
                 aria-label={t("overview.tabs.myWorkPlan")}
                 onClick={() => setActiveTab("mine-oppgaver")}
+                onKeyDown={handleOverviewTabKeyDown}
                 className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
                   activeTab === "mine-oppgaver"
                     ? "bg-purple-600 text-white"
@@ -253,10 +268,13 @@ export function OversiktPage() {
               </button>
               <button
                 type="button"
+                id="overview-tab-ai-weekplan"
                 role="tab"
                 aria-selected={activeTab === "ki-forslag"}
+                aria-controls="overview-panel-ai-weekplan"
                 aria-label={t("overview.tabs.aiWeekPlan")}
                 onClick={() => setActiveTab("ki-forslag")}
+                onKeyDown={handleOverviewTabKeyDown}
                 className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
                   activeTab === "ki-forslag"
                     ? "bg-purple-600 text-white"
@@ -271,28 +289,26 @@ export function OversiktPage() {
             </div>
           </div>
 
-          <div>
+          <div
+            id={activePanelId}
+            role="tabpanel"
+            aria-labelledby={activeTabId}
+            className="outline-none"
+          >
             {activeTab === "mine-oppgaver" ? <MinArbeidsplan /> : null}
 
             {activeTab === "ki-forslag" ? (
               <div className="space-y-2">
                 {!harCanvasToken ? (
-                  <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50 space-y-3">
-                    <FeilMelding melding={t("overview.missingCanvasPlanner")} />
-                    <Link
-                      href="/dashboard?view=settings"
-                      prefetch={false}
-                      className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
-                    >
-                      {t("common.actions.goToSettings")}
-                    </Link>
+                  <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
+                    <CanvasTokenNotice message={t("overview.missingCanvasPlanner")} />
                   </div>
                 ) : assignmentsQuery.isLoading ? (
-                  <div className="rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900 p-8">
+                  <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/50 p-8">
                     <LoadingView translationKey="common.loading.assignments" fullPage={false} />
                   </div>
                 ) : assignmentsQuery.isError ? (
-                  <div className="rounded-lg border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
+                  <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
                     <FeilMelding melding={oppgaveFeilmelding} />
                   </div>
                 ) : ikkeInnleverteAssignments.length > 0 ? (
@@ -309,7 +325,7 @@ export function OversiktPage() {
                     onPlanCreated={handlePlanCreated}
                   />
                 ) : (
-                  <div className="rounded-lg border border-slate-200 bg-white p-8 dark:border-slate-700 dark:bg-slate-900">
+                  <div className="rounded-xl border border-slate-200 bg-white p-8 dark:border-slate-700 dark:bg-slate-800/50">
                     <div className="flex flex-col items-center justify-center space-y-3 text-center">
                       <AlertCircle className="h-12 w-12 text-slate-400 dark:text-slate-500" />
                       <div>
@@ -368,7 +384,7 @@ export function OversiktPage() {
               <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
                 {t("overview.upcomingDeadlines", { days: FRIST_VINDU_DAGER })}
               </h2>
-              <div className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-900">
+              <div className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800/50">
                 {upcomingAssignments.slice(0, 5).map((assignment) => {
                   const daysUntil = dagerFraIdag(assignment.due_at!);
                   const isUrgent = daysUntil <= 2;
@@ -439,7 +455,7 @@ function QuickActionCard({
     <Link
       href={href}
       prefetch={false}
-      className={`block rounded-lg border p-6 transition-colors ${colorClasses[color]}`}
+      className={`block rounded-xl border p-6 transition-colors ${colorClasses[color]}`}
     >
       <Icon size={24} className={`mb-3 ${iconColorClasses[color]}`} />
       <h3 className="mb-1 font-semibold text-slate-900 dark:text-white">{title}</h3>

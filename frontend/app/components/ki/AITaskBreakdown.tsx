@@ -26,6 +26,7 @@ import { parseTimerStreng } from "common/dateUtils";
 import type { SubTask } from "common/ki";
 import { LoadingSpinner } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
+import { useLanguage } from "@/app/i18n";
 import { AddToWorkplanModal } from "@/app/components/arbeidsplan/AddToWorkplanModal";
 import {
   useDeleteTaskBreakdown,
@@ -62,6 +63,7 @@ export function AITaskBreakdown({
   dueDate,
   onSave,
 }: AITaskBreakdownProps) {
+  const { t } = useLanguage();
   const [subtasks, setSubtasks] = useState<SubTask[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<SubTask>>({});
@@ -113,11 +115,13 @@ export function AITaskBreakdown({
       setSubtasks(bgJob.result.subtasks);
       setShowEditor(true);
       setShowApprovalPrompt(bgJob.result.subtasks.some((t) => !t.approved));
-      showToast.success(`KI-assistenten genererte ${bgJob.result.subtasks.length} deloppgaver!`);
+      showToast.success(
+        t("taskBreakdown.generatedSuccess", { count: bgJob.result.subtasks.length }),
+      );
       clearTaskBreakdown(assignmentId);
     } else if (bgJob.status === "error") {
       hydratedFromStoreRef.current = true;
-      showToast.error(bgJob.error ?? "KI-generering feilet. Prøv igjen.");
+      showToast.error(bgJob.error ?? t("taskBreakdown.generatedError"));
       clearTaskBreakdown(assignmentId);
     }
   }, [bgJob, assignmentId, clearTaskBreakdown]);
@@ -143,7 +147,7 @@ export function AITaskBreakdown({
         onSave?.(saved.subtasks);
       }
     } catch {
-      showToast.error("Kunne ikke lagre deloppgavene. Prøv igjen.");
+      showToast.error(t("taskBreakdown.saveError"));
     }
   };
 
@@ -207,7 +211,7 @@ export function AITaskBreakdown({
     const approved = subtasks.map((task) => ({ ...task, approved: true }));
     setSubtasks(approved);
     setShowApprovalPrompt(false);
-    showToast.success("Alle deloppgaver godkjent!");
+    showToast.success(t("taskBreakdown.allApproved"));
     void persistSubtasks(approved, { notify: true });
   };
 
@@ -215,7 +219,7 @@ export function AITaskBreakdown({
     setSubtasks([]);
     setShowEditor(false);
     setShowApprovalPrompt(false);
-    showToast.info("Alle deloppgaver avvist");
+    showToast.info(t("taskBreakdown.allRejected"));
     void persistSubtasks([], { notify: true });
   };
 
@@ -258,7 +262,7 @@ export function AITaskBreakdown({
   const addNewTask = () => {
     const newTask: SubTask = {
       id: `task-${Date.now()}`,
-      title: "Ny deloppgave",
+      title: t("taskBreakdown.newTaskTitle"),
       description: "",
       estimatedTime: "1t",
       priority: "medium",
@@ -281,6 +285,7 @@ export function AITaskBreakdown({
       {/* Generate Button */}
       {!showEditor && (
         <button
+          type="button"
           onClick={generateSubtasks}
           disabled={isBusy}
           className="w-full px-4 py-3 rounded-lg border-2 border-dashed border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed group"
@@ -291,15 +296,15 @@ export function AITaskBreakdown({
                 <LoadingSpinner className="w-5 h-5" />
                 <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
                   {taskBreakdownQuery.isLoading
-                    ? "Laster lagrede deloppgaver..."
-                    : "Genererer deloppgaver med AI..."}
+                    ? t("taskBreakdown.loadingSaved")
+                    : t("taskBreakdown.generating")}
                 </span>
               </>
             ) : (
               <>
                 <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300" />
                 <span className="text-sm font-medium text-blue-700 dark:text-blue-300 group-hover:text-blue-800 dark:group-hover:text-blue-200">
-                  Få KI til å foreslå deloppgaver
+                  {t("taskBreakdown.generateAction")}
                 </span>
               </>
             )}
@@ -318,11 +323,14 @@ export function AITaskBreakdown({
                   <div className="flex items-center gap-2 mb-1">
                     <TrendingUp className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                      Fremdrift
+                      {t("taskBreakdown.progress.title")}
                     </h3>
                   </div>
                   <p className="text-sm text-slate-600 dark:text-slate-400">
-                    {stats.completed} av {stats.approved} deloppgaver fullført
+                    {t("taskBreakdown.progress.summary", {
+                      completed: stats.completed,
+                      approved: stats.approved,
+                    })}
                   </p>
                 </div>
                 {stats.completed === stats.approved && (
@@ -339,8 +347,13 @@ export function AITaskBreakdown({
                   />
                 </div>
                 <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
-                  <span>{stats.percentageCompleted}% fullført</span>
-                  <span>{stats.completedHours.toFixed(1)} / {stats.totalEstimatedHours.toFixed(1)} timer</span>
+                  <span>{t("taskBreakdown.progress.percentComplete", { percent: stats.percentageCompleted })}</span>
+                  <span>
+                    {t("taskBreakdown.progress.hours", {
+                      completed: stats.completedHours.toFixed(1),
+                      total: stats.totalEstimatedHours.toFixed(1),
+                    })}
+                  </span>
                 </div>
               </div>
 
@@ -351,7 +364,7 @@ export function AITaskBreakdown({
                     {stats.approved}
                   </div>
                   <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                    Godkjent
+                    {t("taskBreakdown.progress.approved")}
                   </div>
                 </div>
                 <div className="text-center p-3 rounded-lg bg-white/50 dark:bg-slate-900/30">
@@ -359,7 +372,7 @@ export function AITaskBreakdown({
                     {stats.completed}
                   </div>
                   <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                    Fullført
+                    {t("taskBreakdown.progress.completed")}
                   </div>
                 </div>
                 <div className="text-center p-3 rounded-lg bg-white/50 dark:bg-slate-900/30">
@@ -367,7 +380,7 @@ export function AITaskBreakdown({
                     {stats.remaining}
                   </div>
                   <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                    Gjenstår
+                    {t("taskBreakdown.progress.remaining")}
                   </div>
                 </div>
               </div>
@@ -381,31 +394,34 @@ export function AITaskBreakdown({
                 <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400 mt-0.5 shrink-0" />
                 <div className="flex-1">
                   <h4 className="text-sm font-semibold text-purple-900 dark:text-purple-100 mb-1">
-                    KI-assistenten har generert {subtasks.length} deloppgaver for deg
+                    {t("taskBreakdown.approval.title", { count: subtasks.length })}
                   </h4>
                   <p className="text-xs text-purple-700 dark:text-purple-300 mb-3">
-                    Gå gjennom forslagene og godkjenn, avvis, eller rediger dem etter din arbeidsstil.
+                    {t("taskBreakdown.approval.description")}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <button
+                      type="button"
                       onClick={approveAll}
                       className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                     >
                       <ThumbsUp className="w-4 h-4" />
-                      Godkjenn alle
+                      {t("taskBreakdown.approval.approveAll")}
                     </button>
                     <button
+                      type="button"
                       onClick={rejectAll}
                       className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                     >
                       <ThumbsDown className="w-4 h-4" />
-                      Avvis alle
+                      {t("taskBreakdown.approval.rejectAll")}
                     </button>
                     <button
+                      type="button"
                       onClick={() => setShowApprovalPrompt(false)}
                       className="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium transition-colors"
                     >
-                      Gå gjennom manuelt
+                      {t("taskBreakdown.approval.reviewManually")}
                     </button>
                   </div>
                 </div>
@@ -418,7 +434,7 @@ export function AITaskBreakdown({
             <div className="flex items-center gap-2 min-w-0">
               <Sparkles className="w-5 h-5 shrink-0 text-purple-600 dark:text-purple-400" />
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white truncate">
-                KI-foreslåtte deloppgaver
+                {t("taskBreakdown.editor.title")}
               </h3>
               <span className="text-sm text-slate-500 dark:text-slate-400 shrink-0">
                 ({stats.approved}/{stats.total})
@@ -427,32 +443,35 @@ export function AITaskBreakdown({
 
             <div className="flex flex-wrap items-center gap-2">
               <button
+                type="button"
                 onClick={generateSubtasks}
                 disabled={isBusy}
                 className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                title="Regenerer deloppgaver"
+                title={t("taskBreakdown.editor.regenerate")}
               >
                 <RefreshCw className={`w-4 h-4 text-slate-600 dark:text-slate-400 ${isGenerating ? 'animate-spin' : ''}`} />
               </button>
 
               <button
+                type="button"
                 onClick={addNewTask}
                 className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
               >
                 <Plus className="w-4 h-4" />
-                <span className="hidden xs:inline">Ny oppgave</span>
-                <span className="xs:hidden">Ny</span>
+                <span className="hidden xs:inline">{t("taskBreakdown.editor.newTask")}</span>
+                <span className="xs:hidden">{t("taskBreakdown.editor.newShort")}</span>
               </button>
 
               {/* ARBEIDSPLAN KNAPP */}
               {stats.approved > 0 && (
                 <button
+                  type="button"
                   onClick={() => setShowWorkplanModal(true)}
                   className="flex items-center gap-2 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors"
                 >
                   <CalendarIcon className="w-4 h-4" />
-                  <span className="hidden sm:inline">Legg til i arbeidsplan ({stats.approved})</span>
-                  <span className="sm:hidden">Arbeidsplan ({stats.approved})</span>
+                  <span className="hidden sm:inline">{t("taskBreakdown.editor.addToWorkplan", { count: stats.approved })}</span>
+                  <span className="sm:hidden">{t("taskBreakdown.editor.addToWorkplanShort", { count: stats.approved })}</span>
                 </button>
               )}
             </div>
@@ -479,14 +498,14 @@ export function AITaskBreakdown({
                       value={editForm.title || ""}
                       onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
                       className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
-                      placeholder="Tittel"
+                      placeholder={t("taskBreakdown.fields.titlePlaceholder")}
                     />
                     <textarea
                       value={editForm.description || ""}
                       onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                       className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white resize-none"
                       rows={3}
-                      placeholder="Beskrivelse"
+                      placeholder={t("taskBreakdown.fields.descriptionPlaceholder")}
                     />
                     <div className="flex gap-3">
                       <input
@@ -501,24 +520,26 @@ export function AITaskBreakdown({
                         onChange={(e) => setEditForm({ ...editForm, priority: e.target.value as "low" | "medium" | "high" })}
                         className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                       >
-                        <option value="low">Lav prioritet</option>
-                        <option value="medium">Middels prioritet</option>
-                        <option value="high">Høy prioritet</option>
+                        <option value="low">{t("taskBreakdown.priority.low")}</option>
+                        <option value="medium">{t("taskBreakdown.priority.medium")}</option>
+                        <option value="high">{t("taskBreakdown.priority.high")}</option>
                       </select>
                     </div>
                     <div className="flex gap-2">
                       <button
+                        type="button"
                         onClick={saveEdit}
                         className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
                       >
                         <Check className="w-4 h-4" />
-                        Lagre
+                        {t("common.actions.save")}
                       </button>
                       <button
+                        type="button"
                         onClick={cancelEdit}
                         className="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium transition-colors"
                       >
-                        Avbryt
+                        {t("common.actions.cancel")}
                       </button>
                     </div>
                   </div>
@@ -528,6 +549,7 @@ export function AITaskBreakdown({
                     {/* Checkbox */}
                     {task.approved && (
                       <button
+                        type="button"
                         onClick={() => toggleComplete(task.id)}
                         className={`mt-0.5 w-5 h-5 shrink-0 rounded border-2 flex items-center justify-center transition-all ${
                           task.completed
@@ -573,23 +595,26 @@ export function AITaskBreakdown({
                         {!task.approved ? (
                           <>
                             <button
+                              type="button"
                               onClick={() => approveTask(task.id)}
                               className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-medium transition-colors"
                             >
                               <ThumbsUp className="w-3.5 h-3.5" />
-                              Godkjenn
+                              {t("taskBreakdown.actions.approve")}
                             </button>
                             <button
+                              type="button"
                               onClick={() => rejectTask(task.id)}
                               className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-medium transition-colors"
                             >
                               <ThumbsDown className="w-3.5 h-3.5" />
-                              Avvis
+                              {t("taskBreakdown.actions.reject")}
                             </button>
                             <button
+                              type="button"
                               onClick={() => startEdit(task)}
                               className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                              title="Rediger"
+                              title={t("taskBreakdown.actions.edit")}
                             >
                               <Edit2 className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                             </button>
@@ -597,16 +622,18 @@ export function AITaskBreakdown({
                         ) : (
                           <>
                             <button
+                              type="button"
                               onClick={() => startEdit(task)}
                               className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                              title="Rediger"
+                              title={t("taskBreakdown.actions.edit")}
                             >
                               <Edit2 className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                             </button>
                             <button
+                              type="button"
                               onClick={() => deleteTask(task.id)}
                               className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                              title="Slett"
+                              title={t("taskBreakdown.actions.delete")}
                             >
                               <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
                             </button>

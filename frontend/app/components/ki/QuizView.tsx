@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain,
@@ -19,9 +19,14 @@ import {
   RotateCw,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
+import { useLanguage } from "@/app/i18n";
 import { useCanvasCourses, useCanvasModules } from "@/app/canvas/canvas-api";
+import { CanvasTokenNotice } from "@/app/components/canvas/CanvasTokenNotice";
+import { FeilMelding } from "@/app/components/ui/FeilMelding";
+import { LoadingView } from "@/app/components/ui/Loading";
+import { showToast } from "@/app/components/ui/Toaster";
 import { fetchApi } from "@/app/lib/apiClient";
-import { toast } from "sonner";
+import { parseApiError } from "@/app/lib/errorUtils";
 
 // --- Typer ---
 
@@ -53,7 +58,7 @@ interface Flashcard {
 
 type StudyMode = "quiz" | "flashcards";
 
-// --- Dropdown-komponenter ---
+// --- Feltkomponenter ---
 
 function Dropdown({
   label,
@@ -66,78 +71,27 @@ function Dropdown({
   options: { id: string; name: string; emoji?: string }[];
   onSelect: (id: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const selected = options.find((o) => o.id === value);
-
   return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className={cn(
-          "flex items-center justify-between w-full px-5 py-4 rounded-xl border text-base transition-all duration-200",
-          open
-            ? "border-foreground/20 bg-card shadow-[var(--shadow-md)]"
-            : "border-border bg-card hover:border-foreground/10"
-        )}
+    <div className="relative">
+      <select
+        aria-label={label}
+        value={value ?? ""}
+        onChange={(event) => onSelect(event.target.value)}
+        className="w-full appearance-none rounded-xl border border-slate-300 bg-white px-5 py-4 pr-12 text-base text-slate-900 shadow-sm transition-colors hover:border-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-950 dark:text-white dark:hover:border-slate-500"
       >
-        <span className={cn(selected ? "text-foreground font-medium" : "text-muted-foreground")}>
-          {selected ? (
-            <span className="flex items-center gap-3">
-              {selected.emoji && <span className="text-lg">{selected.emoji}</span>}
-              {selected.name}
-            </span>
-          ) : (
-            label
-          )}
-        </span>
-        <ChevronDown
-          className={cn(
-            "w-5 h-5 text-muted-foreground transition-transform duration-200",
-            open && "rotate-180"
-          )}
-        />
-      </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.15 }}
-            className="absolute z-50 mt-2 w-full bg-white dark:bg-neutral-900 border border-border rounded-xl shadow-[var(--shadow-lg)] overflow-hidden max-h-72 overflow-y-auto"
-          >
-            {options.map((opt) => (
-              <button
-                key={opt.id}
-                onClick={() => {
-                  onSelect(opt.id);
-                  setOpen(false);
-                }}
-                className={cn(
-                  "flex items-center gap-3 w-full px-5 py-3.5 text-base text-left transition-colors",
-                  value === opt.id
-                    ? "bg-accent text-foreground font-medium"
-                    : "text-foreground hover:bg-accent/50"
-                )}
-              >
-                {opt.emoji && <span className="text-lg">{opt.emoji}</span>}
-                <span className="flex-1 truncate">{opt.name}</span>
-                {value === opt.id && <Check className="w-5 h-5 text-foreground shrink-0" />}
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+        <option value="" disabled>
+          {label}
+        </option>
+        {options.map((opt) => (
+          <option key={opt.id} value={opt.id}>
+            {opt.emoji ? `${opt.emoji} ${opt.name}` : opt.name}
+          </option>
+        ))}
+      </select>
+      <ChevronDown
+        aria-hidden
+        className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400 dark:text-slate-500"
+      />
     </div>
   );
 }
@@ -155,84 +109,50 @@ function MultiSelectDropdown({
   onToggle: (id: string) => void;
   disabled?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
   const selectedNames = options.filter((o) => selected.includes(o.id)).map((o) => o.name);
 
   return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => !disabled && setOpen(!open)}
-        disabled={disabled}
-        className={cn(
-          "flex items-center justify-between w-full px-5 py-4 rounded-xl border text-base transition-all duration-200",
-          disabled && "opacity-50 cursor-not-allowed",
-          open
-            ? "border-foreground/20 bg-card shadow-[var(--shadow-md)]"
-            : "border-border bg-card hover:border-foreground/10"
-        )}
-      >
-        <span className={cn(selectedNames.length > 0 ? "text-foreground font-medium" : "text-muted-foreground")}>
-          {selectedNames.length > 0
-            ? selectedNames.length <= 2
-              ? selectedNames.join(", ")
-              : `${selectedNames.length} moduler valgt`
-            : label}
-        </span>
-        <ChevronDown
-          className={cn(
-            "w-5 h-5 text-muted-foreground transition-transform duration-200",
-            open && "rotate-180"
-          )}
-        />
-      </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.15 }}
-            className="absolute z-50 mt-2 w-full bg-white dark:bg-neutral-900 border border-border rounded-xl shadow-[var(--shadow-lg)] overflow-hidden max-h-72 overflow-y-auto"
-          >
-            {options.map((opt) => {
-              const isSelected = selected.includes(opt.id);
-              return (
-                <button
-                  key={opt.id}
-                  onClick={() => onToggle(opt.id)}
-                  className={cn(
-                    "flex items-center gap-4 w-full px-5 py-3.5 text-base text-left transition-colors",
-                    isSelected ? "bg-accent/60" : "hover:bg-accent/50"
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "w-5 h-5 rounded border flex items-center justify-center transition-all shrink-0",
-                      isSelected
-                        ? "bg-foreground border-foreground"
-                        : "border-border"
-                    )}
-                  >
-                    {isSelected && <Check className="w-3.5 h-3.5 text-background" />}
-                  </div>
-                  <span className="text-foreground truncate">{opt.name}</span>
-                </button>
-              );
-            })}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+    <fieldset
+      aria-label={label}
+      disabled={disabled}
+      className="space-y-4 rounded-xl border border-slate-300 bg-white p-4 shadow-sm dark:border-slate-600 dark:bg-slate-950 disabled:opacity-60"
+    >
+      <legend className="sr-only">{label}</legend>
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        {selectedNames.length > 0
+          ? selectedNames.length <= 2
+            ? selectedNames.join(", ")
+            : `${selectedNames.length} moduler valgt`
+          : label}
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {options.map((opt) => {
+          const isSelected = selected.includes(opt.id);
+          const checkboxId = `quiz-module-${opt.id}`;
+          return (
+            <label
+              key={opt.id}
+              htmlFor={checkboxId}
+              className={cn(
+                "flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 text-left transition-colors",
+                isSelected
+                  ? "border-blue-500 bg-blue-50 text-slate-900 dark:border-blue-500 dark:bg-blue-950/40 dark:text-white"
+                  : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-800",
+              )}
+            >
+              <input
+                id={checkboxId}
+                type="checkbox"
+                checked={isSelected}
+                onChange={() => onToggle(opt.id)}
+                className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-900"
+              />
+              <span className="flex-1 text-sm font-medium">{opt.name}</span>
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }
 
@@ -249,36 +169,42 @@ function QuestionCountSelector({
   return (
     <div className="space-y-4">
       {label && (
-        <span className="text-sm text-muted-foreground">{label}</span>
+        <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
       )}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         {presets.map((n) => (
           <button
             key={n}
+            type="button"
             onClick={() => onChange(n)}
             className={cn(
-              "w-14 h-14 rounded-xl text-base font-semibold border transition-all duration-200",
+              "flex h-14 w-14 items-center justify-center rounded-xl border text-base font-semibold transition-all duration-200",
               count === n
-                ? "bg-foreground text-background border-foreground"
-                : "bg-card text-muted-foreground border-border hover:border-foreground/20 hover:text-foreground"
+                ? "border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500"
+                : "border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
             )}
+            aria-pressed={count === n}
           >
             {n}
           </button>
         ))}
         <div className="flex items-center gap-2 ml-3">
           <button
+            type="button"
             onClick={() => onChange(Math.max(1, count - 1))}
-            className="w-11 h-11 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/20 transition-all"
+            className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 text-slate-600 transition-all hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
+            aria-label="Reduser antall"
           >
             <Minus className="w-4 h-4" />
           </button>
-          <span className="w-10 text-center text-base font-semibold text-foreground">
+          <span className="w-10 text-center text-base font-semibold text-slate-900 dark:text-white">
             {count}
           </span>
           <button
+            type="button"
             onClick={() => onChange(Math.min(50, count + 1))}
-            className="w-11 h-11 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/20 transition-all"
+            className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 text-slate-600 transition-all hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
+            aria-label="Øk antall"
           >
             <Plus className="w-4 h-4" />
           </button>
@@ -298,26 +224,36 @@ function ModeToggle({
   onChangeMode: (m: StudyMode) => void;
 }) {
   return (
-    <div className="inline-flex items-center bg-muted rounded-xl p-1 gap-1">
+    <div
+      className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800"
+      role="tablist"
+      aria-label="Velg studiemodus"
+    >
       <button
+        type="button"
         onClick={() => onChangeMode("quiz")}
+        role="tab"
+        aria-selected={mode === "quiz"}
         className={cn(
           "flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
           mode === "quiz"
-            ? "bg-background text-foreground shadow-sm"
-            : "text-muted-foreground hover:text-foreground"
+            ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white"
+            : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
         )}
       >
         <Brain className="w-4 h-4" />
         Quiz
       </button>
       <button
+        type="button"
         onClick={() => onChangeMode("flashcards")}
+        role="tab"
+        aria-selected={mode === "flashcards"}
         className={cn(
           "flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
           mode === "flashcards"
-            ? "bg-background text-foreground shadow-sm"
-            : "text-muted-foreground hover:text-foreground"
+            ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white"
+            : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
         )}
       >
         <Layers className="w-4 h-4" />
@@ -365,21 +301,21 @@ function FlashcardActive({
       {/* Progress */}
       <div className="mb-10">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-base font-medium text-muted-foreground">
+          <span className="text-base font-medium text-slate-500 dark:text-slate-400">
             Kort {current + 1} av {cards.length}
           </span>
           <div className="flex items-center gap-4">
-            <span className="text-base text-muted-foreground">
-              <span className="text-foreground font-medium">{known}</span> kan
+            <span className="text-base text-slate-500 dark:text-slate-400">
+              <span className="font-medium text-slate-900 dark:text-white">{known}</span> kan
             </span>
-            <span className="text-base text-muted-foreground">
-              <span className="text-foreground font-medium">{unknown}</span> øv mer
+            <span className="text-base text-slate-500 dark:text-slate-400">
+              <span className="font-medium text-slate-900 dark:text-white">{unknown}</span> øv mer
             </span>
           </div>
         </div>
-        <div className="h-2 bg-muted rounded-full overflow-hidden">
+        <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
           <motion.div
-            className="h-full bg-foreground rounded-full"
+            className="h-full rounded-full bg-blue-600 dark:bg-blue-500"
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.3 }}
@@ -396,47 +332,50 @@ function FlashcardActive({
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.25 }}
         >
-          <div
+          <button
+            type="button"
             onClick={() => setFlipped(!flipped)}
-            className="relative cursor-pointer select-none"
+            aria-pressed={flipped}
+            aria-label={flipped ? "Vis spørsmålet på forsiden av kortet" : "Snu kortet for å vise svaret"}
+            className="relative block w-full cursor-pointer select-none rounded-2xl text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-950"
             style={{ perspective: "1000px" }}
           >
             <motion.div
               animate={{ rotateY: flipped ? 180 : 0 }}
               transition={{ duration: 0.5, ease: "easeInOut" }}
               style={{ transformStyle: "preserve-3d" }}
-              className="relative w-full min-h-[320px]"
+              className="relative w-full min-h-80"
             >
               {/* Front */}
               <div
-                className="absolute inset-0 flex flex-col items-center justify-center p-10 rounded-2xl border border-border bg-card"
+                className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-10 shadow-sm dark:border-slate-700 dark:bg-slate-900"
                 style={{ backfaceVisibility: "hidden" }}
               >
-                <div className="w-12 h-12 rounded-xl bg-accent flex items-center justify-center mb-6">
-                  <Layers className="w-6 h-6 text-foreground/70" />
+                <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-950/40">
+                  <Layers className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                 </div>
-                <p className="text-xl font-semibold text-foreground text-center leading-relaxed">
+                <p className="text-center text-xl font-semibold leading-relaxed text-slate-900 dark:text-white">
                   {card.front}
                 </p>
-                <p className="text-sm text-muted-foreground mt-6 flex items-center gap-2">
+                <p className="mt-6 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                   <RotateCw className="w-4 h-4" />
-                  Klikk for å snu
+                  Trykk for å snu
                 </p>
               </div>
               {/* Back */}
               <div
-                className="absolute inset-0 flex flex-col items-center justify-center p-10 rounded-2xl border border-border bg-accent/40"
+                className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl border border-blue-200 bg-blue-50/80 p-10 shadow-sm dark:border-blue-900 dark:bg-blue-950/30"
                 style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
               >
-                <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
+                <p className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Svar
                 </p>
-                <p className="text-lg text-foreground text-center leading-relaxed">
+                <p className="text-center text-lg leading-relaxed text-slate-900 dark:text-white">
                   {card.back}
                 </p>
               </div>
             </motion.div>
-          </div>
+          </button>
 
           {/* Mark buttons */}
           {flipped && (
@@ -446,15 +385,17 @@ function FlashcardActive({
               className="mt-8 flex items-center justify-center gap-4"
             >
               <button
+                type="button"
                 onClick={() => handleMark(false)}
-                className="flex items-center gap-2 px-6 py-3 rounded-xl border border-border text-base font-medium text-muted-foreground hover:text-foreground hover:border-foreground/20 transition-all"
+                className="flex items-center gap-2 rounded-xl border border-slate-300 px-6 py-3 text-base font-medium text-slate-600 transition-all hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
               >
                 <X className="w-5 h-5" />
                 Øv mer
               </button>
               <button
+                type="button"
                 onClick={() => handleMark(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-foreground text-background rounded-xl text-base font-medium hover:opacity-90 transition-opacity"
+                className="flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-base font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
               >
                 <Check className="w-5 h-5" />
                 Kan dette
@@ -488,14 +429,14 @@ function FlashcardResults({
       animate={{ opacity: 1, scale: 1 }}
       className="max-w-lg mx-auto text-center"
     >
-      <div className="w-24 h-24 rounded-2xl bg-accent flex items-center justify-center mx-auto mb-6">
-        <Layers className="w-12 h-12 text-foreground/70" />
+      <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-950/40">
+        <Layers className="h-12 w-12 text-blue-600 dark:text-blue-400" />
       </div>
       <p className="text-4xl mb-2">{emoji}</p>
-      <h3 className="text-3xl font-bold text-foreground mb-3">{msg}</h3>
-      <p className="text-lg text-muted-foreground mb-8">
-        Du kunne <span className="font-semibold text-foreground">{known}</span> av{" "}
-        <span className="font-semibold text-foreground">{total}</span> kort ({pct}%)
+      <h3 className="mb-3 text-3xl font-bold text-slate-900 dark:text-white">{msg}</h3>
+      <p className="mb-8 text-lg text-slate-500 dark:text-slate-400">
+        Du kunne <span className="font-semibold text-slate-900 dark:text-white">{known}</span> av{" "}
+        <span className="font-semibold text-slate-900 dark:text-white">{total}</span> kort ({pct}%)
       </p>
 
       <div className="relative w-40 h-40 mx-auto mb-10">
@@ -516,13 +457,14 @@ function FlashcardResults({
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-3xl font-bold text-foreground">{pct}%</span>
+          <span className="text-3xl font-bold text-slate-900 dark:text-white">{pct}%</span>
         </div>
       </div>
 
       <button
+        type="button"
         onClick={onBack}
-        className="flex items-center gap-2 px-6 py-3 bg-foreground text-background rounded-xl text-base font-medium hover:opacity-90 transition-opacity mx-auto"
+        className="mx-auto flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-base font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
       >
         <ArrowLeft className="w-5 h-5" />
         Tilbake
@@ -573,16 +515,16 @@ function QuizActive({
     <div className="max-w-3xl mx-auto">
       <div className="mb-10">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-base font-medium text-muted-foreground">
+          <span className="text-base font-medium text-slate-500 dark:text-slate-400">
             Spørsmål {current + 1} av {questions.length}
           </span>
-          <span className="text-base font-medium text-muted-foreground">
+          <span className="text-base font-medium text-slate-500 dark:text-slate-400">
             {score} riktige
           </span>
         </div>
-        <div className="h-2 bg-muted rounded-full overflow-hidden">
+        <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
           <motion.div
-            className="h-full bg-foreground rounded-full"
+            className="h-full rounded-full bg-blue-600 dark:bg-blue-500"
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.3 }}
@@ -598,7 +540,7 @@ function QuizActive({
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.25 }}
         >
-          <h3 className="text-xl font-semibold text-foreground mb-8 leading-relaxed">
+          <h3 className="mb-8 text-xl font-semibold leading-relaxed text-slate-900 dark:text-white">
             {q.question}
           </h3>
 
@@ -606,15 +548,24 @@ function QuizActive({
             {q.options.map((opt, idx) => {
               const isCorrect = idx === q.correctIndex;
               const isSelected = idx === selected;
-              let style = "border-border hover:border-foreground/20 hover:bg-accent/50";
+              let style =
+                "border-slate-300 bg-white text-slate-900 hover:border-slate-400 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-white dark:hover:border-slate-500 dark:hover:bg-slate-900";
               if (selected !== null) {
-                if (isCorrect) style = "border-primary bg-accent";
-                else if (isSelected && !isCorrect) style = "border-destructive bg-destructive/10";
-                else style = "border-border opacity-50";
+                if (isCorrect) {
+                  style =
+                    "border-green-500 bg-green-50 text-slate-900 dark:border-green-500 dark:bg-green-950/40 dark:text-white";
+                } else if (isSelected && !isCorrect) {
+                  style =
+                    "border-red-500 bg-red-50 text-slate-900 dark:border-red-500 dark:bg-red-950/40 dark:text-white";
+                } else {
+                  style =
+                    "border-slate-300 bg-white text-slate-500 opacity-60 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-400";
+                }
               }
               return (
                 <button
                   key={idx}
+                  type="button"
                   onClick={() => handleSelect(idx)}
                   disabled={selected !== null}
                   className={cn(
@@ -626,20 +577,20 @@ function QuizActive({
                     className={cn(
                       "w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 border",
                       selected !== null && isCorrect
-                        ? "bg-foreground text-background border-foreground"
+                        ? "border-green-600 bg-green-600 text-white dark:border-green-500 dark:bg-green-500"
                         : selected !== null && isSelected && !isCorrect
-                        ? "bg-destructive text-destructive-foreground border-destructive"
-                        : "border-border text-muted-foreground"
+                        ? "border-red-600 bg-red-600 text-white dark:border-red-500 dark:bg-red-500"
+                        : "border-slate-300 text-slate-500 dark:border-slate-600 dark:text-slate-400"
                     )}
                   >
                     {String.fromCharCode(65 + idx)}
                   </span>
-                  <span className="text-base text-foreground">{opt}</span>
+                  <span className="text-base">{opt}</span>
                   {selected !== null && isCorrect && (
-                    <Check className="w-5 h-5 text-foreground ml-auto" />
+                    <Check className="ml-auto h-5 w-5 text-green-600 dark:text-green-400" />
                   )}
                   {selected !== null && isSelected && !isCorrect && (
-                    <X className="w-5 h-5 text-destructive ml-auto" />
+                    <X className="ml-auto h-5 w-5 text-red-600 dark:text-red-400" />
                   )}
                 </button>
               );
@@ -654,11 +605,11 @@ function QuizActive({
                 exit={{ opacity: 0, height: 0 }}
                 className="mt-6 overflow-hidden"
               >
-                <div className="bg-accent/60 rounded-xl px-5 py-4 border border-border">
-                  <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 dark:border-blue-900 dark:bg-blue-950/30">
+                  <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Forklaring
                   </p>
-                  <p className="text-base text-foreground leading-relaxed">
+                  <p className="text-base leading-relaxed text-slate-900 dark:text-white">
                     {q.explanation}
                   </p>
                 </div>
@@ -673,8 +624,9 @@ function QuizActive({
               className="mt-8 flex justify-end"
             >
               <button
+                type="button"
                 onClick={handleNext}
-                className="flex items-center gap-2 px-6 py-3 bg-foreground text-background rounded-xl text-base font-medium hover:opacity-90 transition-opacity"
+                className="flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-base font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
               >
                 {isLast ? "Se resultat" : "Neste spørsmål"}
                 <ArrowRight className="w-5 h-5" />
@@ -710,14 +662,14 @@ function QuizResults({
       animate={{ opacity: 1, scale: 1 }}
       className="max-w-lg mx-auto text-center"
     >
-      <div className="w-24 h-24 rounded-2xl bg-accent flex items-center justify-center mx-auto mb-6">
-        <Trophy className="w-12 h-12 text-foreground/70" />
+      <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-950/40">
+        <Trophy className="h-12 w-12 text-blue-600 dark:text-blue-400" />
       </div>
       <p className="text-4xl mb-2">{emoji}</p>
-      <h3 className="text-3xl font-bold text-foreground mb-3">{msg}</h3>
-      <p className="text-lg text-muted-foreground mb-8">
-        Du fikk <span className="font-semibold text-foreground">{score}</span> av{" "}
-        <span className="font-semibold text-foreground">{total}</span> riktige ({pct}%)
+      <h3 className="mb-3 text-3xl font-bold text-slate-900 dark:text-white">{msg}</h3>
+      <p className="mb-8 text-lg text-slate-500 dark:text-slate-400">
+        Du fikk <span className="font-semibold text-slate-900 dark:text-white">{score}</span> av{" "}
+        <span className="font-semibold text-slate-900 dark:text-white">{total}</span> riktige ({pct}%)
       </p>
 
       <div className="relative w-40 h-40 mx-auto mb-10">
@@ -738,21 +690,23 @@ function QuizResults({
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-3xl font-bold text-foreground">{pct}%</span>
+          <span className="text-3xl font-bold text-slate-900 dark:text-white">{pct}%</span>
         </div>
       </div>
 
       <div className="flex items-center justify-center gap-4">
         <button
+          type="button"
           onClick={onBack}
-          className="flex items-center gap-2 px-5 py-3 rounded-xl border border-border text-base font-medium text-muted-foreground hover:text-foreground hover:border-foreground/20 transition-all"
+          className="flex items-center gap-2 rounded-xl border border-slate-300 px-5 py-3 text-base font-medium text-slate-600 transition-all hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
         >
           <ArrowLeft className="w-5 h-5" />
           Ny quiz
         </button>
         <button
+          type="button"
           onClick={onRestart}
-          className="flex items-center gap-2 px-6 py-3 bg-foreground text-background rounded-xl text-base font-medium hover:opacity-90 transition-opacity"
+          className="flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-base font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
         >
           <RotateCcw className="w-5 h-5" />
           Prøv igjen
@@ -766,7 +720,12 @@ function QuizResults({
 
 type QuizPhase = "setup" | "active" | "results";
 
-export function QuizView() {
+interface QuizViewProps {
+  harCanvasToken?: boolean;
+}
+
+export function QuizView({ harCanvasToken = false }: QuizViewProps) {
+  const { t } = useLanguage();
   const [studyMode, setStudyMode] = useState<StudyMode>("quiz");
   const [phase, setPhase] = useState<QuizPhase>("setup");
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
@@ -780,9 +739,12 @@ export function QuizView() {
   const [error, setError] = useState<string | null>(null);
 
   // Hent ekte Canvas-data
-  const { data: coursesData, isLoading: coursesLoading } = useCanvasCourses();
+  const { data: coursesData, isLoading: coursesLoading } = useCanvasCourses(harCanvasToken);
   const selectedNumericId = selectedCourseId ? Number(selectedCourseId) : null;
-  const { data: modulesData, isLoading: modulesLoading } = useCanvasModules(selectedNumericId);
+  const { data: modulesData, isLoading: modulesLoading } = useCanvasModules(
+    selectedNumericId,
+    harCanvasToken,
+  );
 
   // Transformer Canvas-kurs til dropdown-options
   const courseOptions: CourseOption[] = (coursesData?.courses ?? []).map((c) => ({
@@ -839,20 +801,26 @@ export function QuizView() {
       clearTimeout(timeoutId);
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.melding ?? data.feil ?? `Feil ${res.status}`);
+        throw new Error(
+          await parseApiError(
+            res,
+            studyMode === "quiz"
+              ? t("quiz.couldNotGenerateQuiz")
+              : t("quiz.couldNotGenerateFlashcards"),
+          ),
+        );
       }
 
       const data = await res.json();
 
       if (studyMode === "quiz") {
         if (!data.questions || data.questions.length === 0) {
-          throw new Error("Ingen spørsmål ble generert");
+          throw new Error(t("quiz.noQuestionsGenerated"));
         }
         setQuizQuestions(data.questions);
       } else {
         if (!data.flashcards || data.flashcards.length === 0) {
-          throw new Error("Ingen flashcards ble generert");
+          throw new Error(t("quiz.noFlashcardsGenerated"));
         }
         setFlashcards(data.flashcards);
       }
@@ -862,10 +830,10 @@ export function QuizView() {
       clearTimeout(timeoutId);
       const contentType = studyMode === "quiz" ? "quiz" : "flashcards";
       const msg = err instanceof Error 
-        ? (err.name === "AbortError" ? "Forespørselen tok for lang tid" : err.message) 
-        : `Kunne ikke generere ${contentType}`;
+        ? (err.name === "AbortError" ? t("quiz.requestTimeout") : err.message)
+        : t("quiz.couldNotGenerate", { contentType });
       setError(msg);
-      toast.error(msg);
+      showToast.error(msg);
     } finally {
       setIsGenerating(false);
     }
@@ -903,9 +871,31 @@ export function QuizView() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-8 py-12">
+    <div className="min-h-full bg-slate-50 dark:bg-slate-950">
+      <div className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-purple-500 to-blue-500">
+              {studyMode === "quiz" ? (
+                <Brain className="h-6 w-6 text-white" />
+              ) : (
+                <Layers className="h-6 w-6 text-white" />
+              )}
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                Quiz / Flashcards
+              </h1>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Tren på Canvas-innholdet ditt med KI-genererte spørsmål og kort.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-8">
           <AnimatePresence mode="wait">
             {/* === SETUP === */}
             {phase === "setup" && (
@@ -915,49 +905,31 @@ export function QuizView() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
-                {/* Header */}
-                <div className="flex items-center gap-4 mb-10">
-                  <div className="w-14 h-14 rounded-2xl bg-accent flex items-center justify-center">
-                    {studyMode === "quiz" ? (
-                      <Brain className="w-7 h-7 text-foreground/70" />
-                    ) : (
-                      <Layers className="w-7 h-7 text-foreground/70" />
-                    )}
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-foreground">
-                      Quiz / Flashcards
-                    </h2>
-                    <p className="text-base text-muted-foreground">
-                      {studyMode === "quiz"
-                        ? "Lag en KI-generert quiz basert på Canvas-innholdet ditt"
-                        : "Lag KI-genererte flashcards for effektiv repetisjon"}
-                    </p>
-                  </div>
-                </div>
-
                 {/* Mode Toggle */}
                 <div className="mb-10">
                   <ModeToggle mode={studyMode} onChangeMode={handleChangeMode} />
                 </div>
 
+                {!harCanvasToken && (
+                  <div className="mb-8">
+                    <CanvasTokenNotice />
+                  </div>
+                )}
+
                 {/* Step 1: Course */}
                 <div className="mb-8">
-                  <label className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4 block">
+                  <label className="mb-4 block text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     1. Velg emne
                   </label>
-                  {coursesLoading ? (
-                    <div className="px-5 py-4 rounded-xl border border-border bg-card text-base text-muted-foreground">
-                      Laster emner...
+                  {!harCanvasToken ? null : coursesLoading ? (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/50">
+                      <LoadingView text={t("quiz.loadingCourses")} fullPage={false} />
                     </div>
                   ) : courseOptions.length === 0 ? (
-                    <div className="flex items-center gap-3 px-5 py-4 rounded-xl border border-border bg-card text-base text-muted-foreground">
-                      <AlertCircle className="w-5 h-5" />
-                      Ingen Canvas-emner funnet. Koble til Canvas først.
-                    </div>
+                    <FeilMelding melding={t("quiz.noCoursesFound")} />
                   ) : (
                     <Dropdown
-                      label="Velg et emne..."
+                      label={t("quiz.selectCourse")}
                       value={selectedCourseId}
                       options={courseOptions.map((c) => ({ id: c.id, name: c.name, emoji: c.emoji }))}
                       onSelect={(id) => {
@@ -978,21 +950,18 @@ export function QuizView() {
                       transition={{ duration: 0.2 }}
                       className="mb-8 relative z-30 isolate"
                     >
-                      <label className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4 block">
+                      <label className="mb-4 block text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                         2. Velg moduler
                       </label>
                       {modulesLoading ? (
-                        <div className="px-5 py-4 rounded-xl border border-border bg-card text-base text-muted-foreground">
-                          Laster moduler...
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/50">
+                          <LoadingView text={t("quiz.loadingModules")} fullPage={false} />
                         </div>
                       ) : moduleOptions.length === 0 ? (
-                        <div className="flex items-center gap-3 px-5 py-4 rounded-xl border border-border bg-card text-base text-muted-foreground">
-                          <AlertCircle className="w-5 h-5" />
-                          Ingen moduler funnet for dette emnet
-                        </div>
+                        <FeilMelding melding={t("quiz.noModulesFound")} />
                       ) : (
                         <MultiSelectDropdown
-                          label="Velg moduler..."
+                          label={t("quiz.selectModules")}
                           selected={selectedModules}
                           options={moduleOptions}
                           onToggle={toggleModule}
@@ -1012,7 +981,7 @@ export function QuizView() {
                       transition={{ duration: 0.2 }}
                       className="mb-10 relative z-0"
                     >
-                      <label className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4 block">
+                      <label className="mb-4 block text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                         3. {studyMode === "quiz" ? "Antall spørsmål" : "Antall kort"}
                       </label>
                       <QuestionCountSelector
@@ -1025,7 +994,10 @@ export function QuizView() {
 
                 {/* Error */}
                 {error && (
-                  <div className="mb-6 flex items-center gap-3 px-5 py-4 rounded-xl border border-destructive/30 bg-destructive/5 text-base text-destructive">
+                  <div
+                    role="alert"
+                    className="mb-6 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-base text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+                  >
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     {error}
                   </div>
@@ -1040,13 +1012,14 @@ export function QuizView() {
                       className="relative z-0"
                     >
                       <button
+                        type="button"
                         onClick={handleGenerate}
                         disabled={isGenerating}
                         className={cn(
-                          "flex items-center justify-center gap-3 w-full py-4 rounded-xl text-lg font-semibold transition-all duration-200",
+                          "flex w-full items-center justify-center gap-3 rounded-xl py-4 text-lg font-semibold transition-all duration-200",
                           isGenerating
-                            ? "bg-muted text-muted-foreground cursor-wait"
-                            : "bg-foreground text-background hover:opacity-90"
+                            ? "cursor-wait bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                            : "bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
                         )}
                       >
                         {isGenerating ? (

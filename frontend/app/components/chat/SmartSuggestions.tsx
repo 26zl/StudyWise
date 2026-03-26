@@ -140,6 +140,7 @@ export function SmartSuggestions({
             {suggestions.map((s, i) => (
               <button
                 key={i}
+                type="button"
                 onClick={() => onSelectSuggestion(s.text)}
                 disabled={disabled}
                 className={`px-3 py-1.5 text-xs rounded-full border bg-white dark:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${

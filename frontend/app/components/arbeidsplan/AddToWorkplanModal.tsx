@@ -4,13 +4,14 @@
  */
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef, useId, useCallback } from "react";
 import { X, Calendar, Clock, CheckCircle2, Sparkles, AlertTriangle } from "lucide-react";
 import type { SubTask } from "common/ki";
 import { getIsoWeekInfo, parseTimerStreng } from "common/dateUtils";
 import { UKEDAGER } from "common/arbeidsplan";
 import { useCreateArbeidsplan, useCurrentArbeidsplan, type StudyBlock } from "@/app/arbeidsplan/arbeidsplan-api";
 import { showToast } from "@/app/components/ui/Toaster";
+import { useLanguage } from "@/app/i18n";
 
 interface AddToWorkplanModalProps {
   isOpen: boolean;
@@ -35,6 +36,9 @@ export function AddToWorkplanModal({
   subtasks,
   assignmentTitle,
 }: AddToWorkplanModalProps) {
+  const { t } = useLanguage();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   const [selectedWeek, setSelectedWeek] = useState<"current" | "next">("current");
   const [selectedDays, setSelectedDays] = useState<StudyBlock["day"][]>(["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag"]);
   const [startTime, setStartTime] = useState("08:00-10:00");
@@ -42,20 +46,49 @@ export function AddToWorkplanModal({
   const { mutate: createPlan, isPending } = useCreateArbeidsplan();
   const { data: existingPlan } = useCurrentArbeidsplan();
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (!isOpen) return;
 
-  // Beregn uke-tekst med ISO 8601-korrekt ukenummer
-  const now = new Date();
-  const selectedDate = new Date(now);
-  if (selectedWeek === "next") {
-    selectedDate.setDate(selectedDate.getDate() + 7);
-  }
-  const { weekNumber, weekYear } = getIsoWeekInfo(selectedDate);
-  const { weekNumber: currentWeekNumber, weekYear: currentWeekYear } = getIsoWeekInfo(now);
-  const nextWeekDate = new Date(now);
-  nextWeekDate.setDate(nextWeekDate.getDate() + 7);
-  const { weekNumber: nextWeekNumber, weekYear: nextWeekYear } = getIsoWeekInfo(nextWeekDate);
-  const weekText = `Uke ${weekNumber}, ${weekYear}`;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !isPending) {
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialogRef.current) return;
+
+      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), select:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    dialogRef.current?.focus();
+
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, isPending, onClose]);
+
+  const handleBackdropClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (event.target === event.currentTarget && !isPending) {
+        onClose();
+      }
+    },
+    [isPending, onClose],
+  );
 
   const toggleDay = (day: StudyBlock["day"]) => {
     setSelectedDays(prev =>
@@ -82,7 +115,7 @@ export function AddToWorkplanModal({
   // Konverter SubTask til StudyBlock og fordel over valgte dager
   const handleAdd = () => {
     if (selectedDays.length === 0) {
-      showToast.error("Velg minst én dag");
+      showToast.error(t("arbeidsplan.selectAtLeastOneDay"));
       return;
     }
 
@@ -124,8 +157,8 @@ export function AddToWorkplanModal({
         },
         onError: () => {
           showToast.error(
-            "Kunne ikke legge til i arbeidsplan",
-            "Prøv igjen eller kontakt support hvis feilen vedvarer"
+            t("arbeidsplan.addToWorkplanError"),
+            t("arbeidsplan.addToWorkplanErrorDescription")
           );
         },
       }
@@ -160,9 +193,35 @@ export function AddToWorkplanModal({
     return found;
   }, [existingPlan?.blocks, selectedDays, startTime, subtasks]);
 
+  if (!isOpen) return null;
+
+  // Beregn uke-tekst med ISO 8601-korrekt ukenummer
+  const now = new Date();
+  const selectedDate = new Date(now);
+  if (selectedWeek === "next") {
+    selectedDate.setDate(selectedDate.getDate() + 7);
+  }
+  const { weekNumber, weekYear } = getIsoWeekInfo(selectedDate);
+  const { weekNumber: currentWeekNumber, weekYear: currentWeekYear } = getIsoWeekInfo(now);
+  const nextWeekDate = new Date(now);
+  nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+  const { weekNumber: nextWeekNumber, weekYear: nextWeekYear } = getIsoWeekInfo(nextWeekDate);
+  const weekText = `Uke ${weekNumber}, ${weekYear}`;
+
   return (
-    <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 dark:bg-black/70"
+      onClick={handleBackdropClick}
+      role="presentation"
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl outline-none dark:bg-slate-900"
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -170,7 +229,7 @@ export function AddToWorkplanModal({
               <Calendar className="w-5 h-5 text-purple-600 dark:text-purple-400" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+              <h2 id={titleId} className="text-xl font-bold text-slate-900 dark:text-white">
                 Legg til i arbeidsplan
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -179,8 +238,10 @@ export function AddToWorkplanModal({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            aria-label="Lukk dialogen"
           >
             <X className="w-5 h-5 text-slate-500 dark:text-slate-400" />
           </button>
@@ -195,7 +256,9 @@ export function AddToWorkplanModal({
             </label>
             <div className="grid grid-cols-2 gap-3">
               <button
+                type="button"
                 onClick={() => setSelectedWeek("current")}
+                aria-pressed={selectedWeek === "current"}
                 className={`p-4 rounded-lg border-2 transition-all ${
                   selectedWeek === "current"
                     ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
@@ -216,7 +279,9 @@ export function AddToWorkplanModal({
               </button>
 
               <button
+                type="button"
                 onClick={() => setSelectedWeek("next")}
+                aria-pressed={selectedWeek === "next"}
                 className={`p-4 rounded-lg border-2 transition-all ${
                   selectedWeek === "next"
                     ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
@@ -264,24 +329,28 @@ export function AddToWorkplanModal({
               </label>
               <div className="flex gap-2">
                 <button
+                  type="button"
                   onClick={selectWeekdays}
                   className="text-xs px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
                   Ukedager
                 </button>
                 <button
+                  type="button"
                   onClick={selectWeekend}
                   className="text-xs px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
                   Helg
                 </button>
                 <button
+                  type="button"
                   onClick={selectAll}
                   className="text-xs px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
                   Alle
                 </button>
                 <button
+                  type="button"
                   onClick={clearAll}
                   className="text-xs px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
@@ -299,7 +368,9 @@ export function AddToWorkplanModal({
                 return (
                   <button
                     key={day}
+                    type="button"
                     onClick={() => toggleDay(day)}
+                    aria-pressed={isSelected}
                     className={`p-3 rounded-lg border-2 transition-all ${
                       isSelected
                         ? hasConflict
@@ -388,6 +459,7 @@ export function AddToWorkplanModal({
         {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
           <button
+            type="button"
             onClick={onClose}
             disabled={isPending}
             className="px-4 py-2 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
@@ -395,6 +467,7 @@ export function AddToWorkplanModal({
             Avbryt
           </button>
           <button
+            type="button"
             onClick={handleAdd}
             disabled={isPending || selectedDays.length === 0}
             className="flex items-center gap-2 px-6 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
@@ -415,4 +488,4 @@ export function AddToWorkplanModal({
       </div>
     </div>
   );
-} 
+}

@@ -70,20 +70,6 @@ export default async function RootLayout({
       <head>
         <link rel="preconnect" href="https://clerk.studwize.page" />
         <link rel="dns-prefetch" href="https://clerk.studwize.page" />
-        {/*
-          Suppress kjent Clerk v7 key-prop warning: "Each child in a list should have a unique key prop"
-          fra __experimental_CheckoutProvider. Dette er en intern Clerk-bug i @clerk/nextjs v7 med React 19.
-          Feilen kommer IKKE fra vår kode — den trigges av ClerkProvider sin interne rendering.
-          Kan trygt ignoreres. Fjern dette scriptet når Clerk fikser det i en fremtidig versjon.
-          Se: https://github.com/clerk/javascript/issues
-        */}
-        {process.env.NODE_ENV === "development" && (
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `(function(){var originalError=console.error;console.error=function(){try{var args=Array.prototype.slice.call(arguments);var joined=args.map(function(arg){return typeof arg==="string"?arg:"";}).join(" ");var isClerkCheckoutKeyWarning=joined.indexOf('Each child in a list should have a unique "key" prop')!==-1&&joined.indexOf("__experimental_CheckoutProvider")!==-1;if(isClerkCheckoutKeyWarning)return;}catch(_error){}originalError.apply(console,arguments);};})();`,
-            }}
-          />
-        )}
       </head>
       <body className="antialiased min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950" suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>

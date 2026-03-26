@@ -10,10 +10,12 @@ import { Menu, Moon, Sun, X, MoreVertical, LogOut, UserCircle2 } from "lucide-re
 import { SignInButton, SignUpButton, useAuth } from "@clerk/nextjs";
 import { useUIStore } from "@/app/store/uiStore";
 import { useTheme } from "next-themes";
-import { useState, useEffect } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useLoggUtWithRedirect } from "@/app/auth/auth-api";
 import { useLanguage } from "@/app/i18n";
 import type { Language } from "@/app/i18n";
+import { useDialogAccessibility } from "@/app/hooks/useDialogAccessibility";
+import { useMediaQuery } from "@/app/hooks/useMediaQuery";
 
 type NavigationItem = {
   href: string;
@@ -81,8 +83,8 @@ function NavigationLink({
   onClick?: () => void;
 }) {
   const className = mobile
-    ? "inline-flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-3 min-h-11 touch-manipulation"
-    : "inline-flex items-center gap-1.5 hover:text-blue-600 dark:hover:text-blue-400 transition-colors";
+    ? "inline-flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-3 min-h-11 touch-manipulation focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+    : "inline-flex items-center gap-1.5 hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded";
 
   return (
     <Link href={href} prefetch={false} onClick={onClick} className={className}>
@@ -100,8 +102,8 @@ function AuthActionButton({
   mobile?: boolean;
 }) {
   const className = mobile
-    ? "text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-3 min-h-11 touch-manipulation w-full"
-    : "hover:text-blue-600 dark:hover:text-blue-400 transition-colors";
+    ? "text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-3 min-h-11 touch-manipulation w-full focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+    : "hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded";
   const button = (
     <button type="button" className={className}>
       {action.label}
@@ -182,11 +184,24 @@ export function Header() {
   const { isLoaded: authLoaded, isSignedIn } = useAuth();
   const { language } = useLanguage();
   const labels = getHeaderLabels(language);
+  const erMobil = useMediaQuery("(max-width: 767px)");
+  const mobilDialogRef = useRef<HTMLDivElement | null>(null);
+  const mobilCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const mobilMenuId = useId();
+  const mobilMenuHeadingId = useId();
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     setMobilMenyOpen(false);
   }, [pathname]);
+
+  useDialogAccessibility({
+    open: mobilMenyOpen,
+    enabled: erMobil,
+    containerRef: mobilDialogRef,
+    initialFocusRef: mobilCloseButtonRef,
+    onClose: () => setMobilMenyOpen(false),
+  });
 
   const handleMobilNavigation = () => {
     setMobilMenyOpen(false);
@@ -207,6 +222,8 @@ export function Header() {
             onClick={toggleVenstreMeny}
             className="min-w-11 min-h-11 -ml-1 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg touch-manipulation"
             aria-label={isVenstreMenyOpen ? labels.closeSidebar : labels.openSidebar}
+            aria-expanded={erMobil ? isVenstreMenyOpen : undefined}
+            aria-controls={erMobil ? "dashboard-sidebar" : undefined}
           >
             {isVenstreMenyOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
@@ -220,7 +237,9 @@ export function Header() {
         {labels.commonNavigation.map((item) => (
           <NavigationLink key={item.href} {...item} />
         ))}
-        {authLoaded && isSignedIn ? (
+        {!authLoaded ? (
+          <AuthStatusPlaceholder />
+        ) : isSignedIn ? (
           <>
             {labels.signedInNavigation.map((item) => (
               <NavigationLink key={item.href} {...item} />
@@ -228,7 +247,7 @@ export function Header() {
             <button
               type="button"
               onClick={handleLoggUt}
-              className="inline-flex items-center gap-1.5 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+              className="inline-flex items-center gap-1.5 hover:text-red-600 dark:hover:text-red-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
             >
               <LogOut className="h-4 w-4" />
               <span>{labels.signOut}</span>
@@ -252,13 +271,46 @@ export function Header() {
         onClick={() => setMobilMenyOpen(!mobilMenyOpen)}
         className="md:hidden min-w-11 min-h-11 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg touch-manipulation"
         aria-label={mobilMenyOpen ? labels.closeMenu : labels.openMenu}
+        aria-expanded={mobilMenyOpen}
+        aria-controls={mobilMenuId}
+        aria-haspopup="dialog"
       >
         {mobilMenyOpen ? <X size={24} /> : <MoreVertical size={24} />}
       </button>
       </div>
       {mobilMenyOpen && (
-        <nav className="md:hidden absolute top-full left-0 right-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-lg z-40">
+        <>
+          <button
+            type="button"
+            aria-label={labels.closeMenu}
+            className="md:hidden fixed inset-0 top-14 bg-black/30 z-30"
+            onClick={() => setMobilMenyOpen(false)}
+            tabIndex={-1}
+          />
+          <div
+            ref={mobilDialogRef}
+            id={mobilMenuId}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={mobilMenuHeadingId}
+            tabIndex={-1}
+            className="md:hidden absolute top-full left-0 right-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-lg z-40"
+          >
           <div className="flex flex-col p-4 gap-2 text-sm text-slate-600 dark:text-slate-400">
+            <div className="mb-1 flex items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-slate-800">
+              <h2 id={mobilMenuHeadingId} className="text-sm font-semibold text-slate-900 dark:text-white">
+                {labels.openMenu}
+              </h2>
+              <button
+                ref={mobilCloseButtonRef}
+                type="button"
+                onClick={() => setMobilMenyOpen(false)}
+                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+                aria-label={labels.closeMenu}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
             {labels.commonNavigation.map((item) => (
               <NavigationLink
                 key={item.href}
@@ -267,7 +319,9 @@ export function Header() {
                 onClick={handleMobilNavigation}
               />
             ))}
-            {authLoaded && isSignedIn ? (
+            {!authLoaded ? (
+              <AuthStatusPlaceholder mobile />
+            ) : isSignedIn ? (
               <>
                 {labels.signedInNavigation.map((item) => (
                   <NavigationLink
@@ -299,8 +353,27 @@ export function Header() {
               labels={labels}
             />
           </div>
-        </nav>
+          </div>
+        </>
       )}
     </header>
+  );
+}
+
+function AuthStatusPlaceholder({ mobile = false }: { mobile?: boolean }) {
+  if (mobile) {
+    return (
+      <div className="space-y-2 py-2" aria-hidden="true">
+        <div className="h-11 rounded-lg bg-slate-100 animate-pulse dark:bg-slate-800" />
+        <div className="h-11 rounded-lg bg-slate-100 animate-pulse dark:bg-slate-800" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3" aria-hidden="true">
+      <div className="h-11 w-24 rounded-lg bg-slate-100 animate-pulse dark:bg-slate-800" />
+      <div className="h-11 w-24 rounded-lg bg-slate-100 animate-pulse dark:bg-slate-800" />
+    </div>
   );
 }

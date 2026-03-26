@@ -11,6 +11,7 @@ import { addMonths, setMonth, setYear, subMonths, format } from "date-fns";
 import { enUS, nb } from "date-fns/locale";
 import { Clock, MapPin, ChevronLeft, ChevronRight, CalendarDays, Filter } from "lucide-react";
 import { CalendarGrid } from "./CalendarGrid";
+import { CanvasTokenNotice } from "@/app/components/canvas/CanvasTokenNotice";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { lagBrukervennligFeilmelding } from "../lib/errorUtils";
@@ -181,11 +182,29 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
       })),
     [locale],
   );
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
+  const uniqueCourses = useMemo(() => {
+    return courses.filter((course, index, self) => {
+      if (course.code === "Annet") return false;
+      const codeMatch = course.code.match(COURSE_CODE_REGEX);
+      const cleanCode = codeMatch ? codeMatch[0].toUpperCase() : course.code;
+      return self.findIndex((c) => (c.code.match(COURSE_CODE_REGEX)?.[0]?.toUpperCase() ?? c.code) === cleanCode) === index;
+    });
+  }, [courses]);
   if (!harCanvasToken) {
-    return <FeilMelding melding={labels.missingToken} />;
+    return (
+      <div className="p-4 sm:p-6 lg:p-8">
+        <CanvasTokenNotice />
+      </div>
+    );
   }
   if (canvasTokenInvalid) {
-    return <FeilMelding type="warning" melding={t("errors.canvas.tokenInvalid")} />;
+    return (
+      <div className="p-4 sm:p-6 lg:p-8">
+        <CanvasTokenNotice variant="invalid" />
+      </div>
+    );
   }
   if (isLoading) {
     return (
@@ -206,16 +225,6 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
 
   // Formater tid for forelesninger
   const formatTime = (date: Date) => format(date, "HH:mm");
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
-  const uniqueCourses = useMemo(() => {
-    return courses.filter((course, index, self) => {
-      if (course.code === "Annet") return false;
-      const codeMatch = course.code.match(COURSE_CODE_REGEX);
-      const cleanCode = codeMatch ? codeMatch[0].toUpperCase() : course.code;
-      return self.findIndex((c) => (c.code.match(COURSE_CODE_REGEX)?.[0]?.toUpperCase() ?? c.code) === cleanCode) === index;
-    });
-  }, [courses]);
 
   return (
     <div className="calendar-page">

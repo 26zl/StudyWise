@@ -15,8 +15,10 @@ import {
 } from "@/app/canvas/canvas-api";
 import { useUIStore, type CanvasContextSelection } from "@/app/store/uiStore";
 import { useMeg, useDebouncedPreferanseOppdater } from "@/app/auth/auth-api";
+import { useLanguage } from "@/app/i18n";
 
 export function CanvasContextSelector() {
+  const { t } = useLanguage();
   // Bruk global state for valg så de bevares mellom view-bytter
   const selected = useUIStore((state) => state.canvasContextSelection);
   const setSelected = useUIStore((state) => state.setCanvasContextSelection);
@@ -84,30 +86,30 @@ export function CanvasContextSelector() {
   const options = [
     {
       key: "announcements" as const,
-      label: "Nyheter",
+      label: t("settings.canvasContext.selector.options.announcements.label"),
       count: announcementsData?.announcements?.length || 0,
-      description: "Kunngjøringer fra forelesere",
+      description: t("settings.canvasContext.selector.options.announcements.description"),
       loading: loadingAnnouncements,
     },
     {
       key: "courses" as const,
-      label: "Emner",
+      label: t("settings.canvasContext.selector.options.courses.label"),
       count: coursesData?.courses?.length || 0,
-      description: "Dine aktive emner",
+      description: t("settings.canvasContext.selector.options.courses.description"),
       loading: loadingCourses,
     },
     {
       key: "assignments" as const,
-      label: "Oppgaver",
+      label: t("settings.canvasContext.selector.options.assignments.label"),
       count: todoData?.todos?.length || 0,
-      description: "Frister og innleveringer",
+      description: t("settings.canvasContext.selector.options.assignments.description"),
       loading: loadingTodo,
     },
     {
       key: "events" as const,
-      label: "Hendelser",
+      label: t("settings.canvasContext.selector.options.events.label"),
       count: eventsData?.events?.length || 0,
-      description: "Kalender og møter",
+      description: t("settings.canvasContext.selector.options.events.description"),
       loading: loadingEvents,
     },
   ];
@@ -116,7 +118,7 @@ export function CanvasContextSelector() {
     <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
       <div className="flex items-center justify-between p-3 sm:p-4 border-b border-slate-200 dark:border-slate-700">
         <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
-          Gi AI tilgang til:
+          {t("settings.canvasContext.selector.title")}
         </h4>
         {isLoading && (
           <LoadingSpinner className="w-4 h-4 text-blue-600 dark:text-blue-400 animate-spin" />
@@ -124,7 +126,7 @@ export function CanvasContextSelector() {
       </div>
       {allOff && (
         <div className="mx-3 sm:mx-4 mt-3 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 rounded">
-          Ingen data valgt. AI kan ikke svare på Canvas-spørsmål før du velger minst ett datasett.
+          {t("settings.canvasContext.selector.emptySelection")}
         </div>
       )}
       <div className="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 sm:gap-3">

@@ -28,6 +28,7 @@ import { PRIORITY_COLORS, DAYS_ORDER, PRIORITY_LABELS } from "@/app/arbeidsplan/
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
+import { useLanguage } from "@/app/i18n";
 
 /** Forklaring for hvorfor en oppgave har en gitt prioritet */
 function getPriorityExplanation(priority: string, task: string): string {
@@ -50,10 +51,11 @@ function getPriorityExplanation(priority: string, task: string): string {
 }
 
 export function MinArbeidsplan() {
+  const { t } = useLanguage();
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
   const [bekreftSlett, setBekreftSlett] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(false);
-const undoTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined); 
+const undoTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const { data: plan, isLoading, isError, refetch } = useCurrentArbeidsplan();
   const { data: stats } = useProgressStats();
   const toggleMutation = useToggleBlockCompletion();
@@ -79,11 +81,11 @@ const undoTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
     setPendingDelete(true);
 
     showToast.undoable(
-      "Arbeidsplan slettet",
+      t("arbeidsplan.planDeleted"),
       () => {
         clearTimeout(undoTimerRef.current);
         setPendingDelete(false);
-        showToast.info("Sletting angret");
+        showToast.info(t("arbeidsplan.deleteUndone"));
       },
       5000,
     );
@@ -97,7 +99,7 @@ const undoTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   if (isLoading) {
     return (
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-8">
-        <LoadingView text="Laster arbeidsplan..." fullPage={false} />
+        <LoadingView text={t("arbeidsplan.loadingPlan")} fullPage={false} />
       </div>
     );
   }
@@ -105,7 +107,7 @@ const undoTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   if (isError) {
     return (
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6 space-y-4">
-        <FeilMelding melding="Kunne ikke laste arbeidsplan. Prøv igjen senere." />
+        <FeilMelding melding={t("arbeidsplan.loadError")} />
         <button
           type="button"
           onClick={() => void refetch()}
@@ -166,6 +168,7 @@ const undoTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
             </p>
           </div>
           <button
+            type="button"
             onClick={handleDeletePlan}
             onBlur={() => setBekreftSlett(false)}
             disabled={deleteMutation.isPending || pendingDelete}
@@ -225,6 +228,7 @@ const undoTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
             >
               {/* Day header */}
               <button
+                type="button"
                 onClick={() => setExpandedDay(isExpanded ? null : day)}
                 className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
               >
@@ -267,6 +271,7 @@ const undoTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
                       <div className="flex items-start gap-3">
                         {/* Checkbox */}
                         <button
+                          type="button"
                           onClick={() => handleToggleComplete(block.index, block.completed)}
                           disabled={toggleMutation.isPending}
                           className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center transition-all disabled:opacity-50 ${

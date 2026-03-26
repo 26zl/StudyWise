@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
+import { CanvasTokenNotice } from "@/app/components/canvas/CanvasTokenNotice";
 import {
     useCanvasAnnouncements,
     useCanvasCourses,
@@ -37,9 +38,10 @@ import { showToast } from "@/app/components/ui/Toaster";
 import { erInnlevert as erInnlevertOppgave } from "@/app/canvas/canvasUtils";
 import { createCanvasHtmlParser, parseCanvasHtml, sikkerFilNedlastingUrl } from "@/app/canvas/canvasHtml";
 import { CanvasPageVisning } from "@/app/components/canvas/CanvasPageVisning";
-import { lagBrukervennligFeilmelding, CANVAS_TOKEN_UGYLDIG_MELDING } from "@/app/lib/errorUtils";
+import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { formaterDatoLong, formaterDatoMedTid, dagerFraIdag, formaterDagerRelativtFrist } from "@/app/lib/dato";
 import { useLanguage, type Language } from "@/app/i18n";
+import { fetchApi } from "@/app/lib/apiClient";
 
 // Typer for Canvas visninger
 type CanvasVisning = "announcements" | "courses" | "assignments";
@@ -62,6 +64,7 @@ function getCanvasLabels(language: Language) {
             announcementsLoading: "Loading announcements...",
             announcementsLoadError: "Could not load announcements. Try again.",
             announcementsEmpty: "No announcements",
+            loadMoreAnnouncements: (count: number) => `Load more announcements (${count} left)`,
             coursesMissingToken: "You must save a Canvas API token to fetch courses.",
             coursesLoadError: "Could not load courses. Try again.",
             backToCourses: "Back to courses",
@@ -129,6 +132,7 @@ function getCanvasLabels(language: Language) {
         announcementsLoading: "Laster kunngjøringer...",
         announcementsLoadError: "Kunne ikke laste kunngjøringer. Prøv igjen.",
         announcementsEmpty: "Ingen kunngjøringer",
+        loadMoreAnnouncements: (count: number) => `Hent flere kunngjøringer (${count} igjen)`,
         coursesMissingToken: "Du må lagre en Canvas API-token for å hente emner.",
         coursesLoadError: "Kunne ikke laste emner. Prøv igjen.",
         backToCourses: "Tilbake til emner",
@@ -186,6 +190,9 @@ function getCanvasLabels(language: Language) {
     };
 }
 
+const INITIAL_ANNOUNCEMENTS_VISIBLE = 10;
+const ANNOUNCEMENTS_VISIBLE_STEP = 10;
+
 function useCanvasLabels() {
     const { language } = useLanguage();
 
@@ -215,6 +222,17 @@ const normalizeStyle = (style?: string | CSSProperties) => {
     }, {} as CSSProperties);
 };
 
+const erBeskyttetCanvasBildeUrl = (src?: string) => {
+    if (!src || typeof src !== "string") return false;
+
+    try {
+        const url = new URL(src, "https://www.studwize.page");
+        return url.pathname.startsWith("/api/canvas/");
+    } catch {
+        return src.startsWith("/api/canvas/");
+    }
+};
+
 // Tilpasset Bilde-komponent med laste-tilstand og håndtering av lasting/feil
 const TilpassetBilde = ({
     src,
@@ -224,8 +242,58 @@ const TilpassetBilde = ({
     class: _class, // HTML class attributt fra DOM parser
     ...props
 }: React.ImgHTMLAttributes<HTMLImageElement> & { class?: string }) => {
+    const originalSrc = typeof src === "string" ? src : undefined;
     const [laster, settLaster] = useState(true);
+    const [resolvedSrc, setResolvedSrc] = useState<string | undefined>(() =>
+        erBeskyttetCanvasBildeUrl(originalSrc) ? undefined : originalSrc,
+    );
     const safeStyle = normalizeStyle(style);
+
+    useEffect(() => {
+        let isCancelled = false;
+        let objectUrl: string | null = null;
+
+        settLaster(true);
+        setResolvedSrc(erBeskyttetCanvasBildeUrl(originalSrc) ? undefined : originalSrc);
+
+        if (!originalSrc || !erBeskyttetCanvasBildeUrl(originalSrc)) {
+            return () => {
+                if (objectUrl) {
+                    URL.revokeObjectURL(objectUrl);
+                }
+            };
+        }
+
+        const hentBeskyttetBilde = async () => {
+            try {
+                const res = await fetchApi(originalSrc);
+                if (!res.ok) {
+                    throw new Error(`Kunne ikke hente Canvas-bilde (${res.status})`);
+                }
+
+                const blob = await res.blob();
+                objectUrl = URL.createObjectURL(blob);
+
+                if (!isCancelled) {
+                    setResolvedSrc(objectUrl);
+                }
+            } catch {
+                if (!isCancelled) {
+                    setResolvedSrc(undefined);
+                    settLaster(false);
+                }
+            }
+        };
+
+        void hentBeskyttetBilde();
+
+        return () => {
+            isCancelled = true;
+            if (objectUrl) {
+                URL.revokeObjectURL(objectUrl);
+            }
+        };
+    }, [originalSrc]);
 
     // Render bilde med laste-effekt
     return (
@@ -233,16 +301,22 @@ const TilpassetBilde = ({
             {laster && (
                 <span className="absolute inset-0 animate-pulse bg-slate-200 dark:bg-slate-700" />
             )}
-            <img
-                src={src}
-                alt={alt}
-                {...props}
-                className={`transition-opacity duration-500 ${laster ? "opacity-0" : "opacity-100"} max-w-full max-h-75 w-auto h-auto object-contain`}
-                style={safeStyle}
-                onLoad={() => settLaster(false)}
-                onError={() => settLaster(false)}
-                loading="lazy"
-            />
+            {resolvedSrc ? (
+                <img
+                    src={resolvedSrc}
+                    alt={alt}
+                    {...props}
+                    className={`transition-opacity duration-500 ${laster ? "opacity-0" : "opacity-100"} max-w-full max-h-75 w-auto h-auto object-contain`}
+                    style={safeStyle}
+                    onLoad={() => settLaster(false)}
+                    onError={() => settLaster(false)}
+                    loading="lazy"
+                />
+            ) : (
+                <span className="inline-flex min-h-24 min-w-32 items-center justify-center px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+                    {alt || "Canvas bilde"}
+                </span>
+            )}
         </span>
     );
 };
@@ -275,9 +349,20 @@ function LasteSkjelett({ linjer = 3 }: { linjer?: number }) {
 function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const { data, isLoading, isError, error } = useCanvasAnnouncements(harCanvasToken);
     const { labels, dateLocale } = useCanvasLabels();
+    const [visibleCount, setVisibleCount] = useState(INITIAL_ANNOUNCEMENTS_VISIBLE);
+    const announcements = data?.announcements ?? [];
+    const visibleAnnouncements = useMemo(
+        () => announcements.slice(0, visibleCount),
+        [announcements, visibleCount],
+    );
+    const remainingAnnouncements = Math.max(announcements.length - visibleCount, 0);
+
+    useEffect(() => {
+        setVisibleCount(INITIAL_ANNOUNCEMENTS_VISIBLE);
+    }, [announcements.length]);
 
     if (!harCanvasToken) {
-        return <FeilMelding melding={labels.announcementsMissingToken} />;
+        return <CanvasTokenNotice />;
     }
 
     if (isLoading) {
@@ -288,7 +373,7 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
         return <FeilMelding melding={lagBrukervennligFeilmelding(error instanceof Error ? error : null, { canvas: true }, labels.announcementsLoadError)} />;
     }
 
-    if (!data?.announcements?.length) {
+    if (!announcements.length) {
         return (
             <div className="text-center py-12">
                 <p className="text-slate-500 dark:text-slate-400">{labels.announcementsEmpty}</p>
@@ -299,7 +384,7 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     // Vis kunngjøringer
     return (
         <div className="space-y-4">
-            {data.announcements.map((announcement) => (
+            {visibleAnnouncements.map((announcement) => (
                 <article
                     key={announcement.id}
                     className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 transition-colors hover:border-slate-300 dark:hover:border-slate-600"
@@ -334,6 +419,21 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     )}
                 </article>
             ))}
+            {remainingAnnouncements > 0 && (
+                <div className="flex justify-center pt-2">
+                    <button
+                        type="button"
+                        onClick={() =>
+                            setVisibleCount((current) =>
+                                Math.min(current + ANNOUNCEMENTS_VISIBLE_STEP, announcements.length),
+                            )
+                        }
+                        className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                        {labels.loadMoreAnnouncements(remainingAnnouncements)}
+                    </button>
+                </div>
+            )}
         </div>
     );
 }
@@ -365,7 +465,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const frontPageQuery = useCanvasFrontPage(valgtEmneId, harCanvasToken && (!metaReady || valgtMeta?.hasFrontPage === true));
 
     if (!harCanvasToken) {
-        return <FeilMelding melding={labels.coursesMissingToken} />;
+        return <CanvasTokenNotice />;
     }
 
     if (isLoading) {
@@ -709,6 +809,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                     {siderQuery.data.map((p) => (
                                         <button
                                             key={p.url}
+                                            type="button"
                                             onClick={() => settValgtSide({ pageId: p.url, courseId: valgtEmneId! })}
                                             className="w-full text-left px-4 py-3 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm text-slate-800 dark:text-slate-200 flex items-center gap-2"
                                         >
@@ -773,6 +874,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                     {siderQuery.data.map((p) => (
                                         <button
                                             key={p.url}
+                                            type="button"
                                             onClick={() => settValgtSide({ pageId: p.url, courseId: valgtEmneId! })}
                                             className="w-full text-left px-4 py-3 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm text-slate-800 dark:text-slate-200 flex items-center gap-2"
                                         >
@@ -864,20 +966,30 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     const visSiderKnapp = !meta || meta.hasPages;
                     const visFilerKnapp = !meta || meta.hasFiles;
                     const harInnhold = visForsideKnapp || visModulerKnapp || visSiderKnapp || visFilerKnapp;
+                    const åpneEmne = (visning: "frontpage" | "modules" | "files" | "pages") => {
+                        settValgtEmneId(emne.id);
+                        settValgtEmneVisning(visning);
+                    };
 
                     return (
-                        <div
+                        <article
                             key={emne.id}
-                            className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-left hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm transition-all group cursor-pointer"
-                            onClick={() => { settValgtEmneId(emne.id); settValgtEmneVisning(velgDefaultVisning()); }}
+                            className="rounded-xl border border-slate-200 bg-white p-5 text-left transition-all hover:border-slate-300 hover:shadow-sm dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-slate-600"
                         >
-                            <h3 className="font-semibold text-slate-900 dark:text-white mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                                {emne.name}
-                            </h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
-                                {emne.course_code}
-                            </p>
-                            <div className="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={() => åpneEmne(velgDefaultVisning())}
+                                className="group block w-full rounded-lg text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+                                aria-label={`Åpne emnet ${emne.name}`}
+                            >
+                                <h3 className="mb-1 font-semibold text-slate-900 transition-colors group-hover:text-blue-600 dark:text-white dark:group-hover:text-blue-400">
+                                    {emne.name}
+                                </h3>
+                                <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+                                    {emne.course_code}
+                                </p>
+                            </button>
+                            <div className="flex flex-wrap gap-2" aria-label={`Tilgjengelig innhold i ${emne.name}`}>
                                 {metadataLaster ? (
                                     <>
                                         <div className="h-6 w-16 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
@@ -889,7 +1001,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                         {visForsideKnapp && (
                                             <button
                                                 type="button"
-                                                onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("frontpage"); }}
+                                                onClick={() => åpneEmne("frontpage")}
                                                 className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
                                             >
                                                 {labels.frontPage}
@@ -899,7 +1011,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                         {visModulerKnapp && (
                                             <button
                                                 type="button"
-                                                onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("modules"); }}
+                                                onClick={() => åpneEmne("modules")}
                                                 className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
                                             >
                                                 {labels.modules}{meta?.modulesCount ? ` (${meta.modulesCount})` : ""}
@@ -909,7 +1021,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                         {visSiderKnapp && (
                                             <button
                                                 type="button"
-                                                onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("pages"); }}
+                                                onClick={() => åpneEmne("pages")}
                                                 className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
                                             >
                                                 {labels.pages}{meta?.pagesCount ? ` (${meta.pagesCount})` : ""}
@@ -919,7 +1031,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                         {visFilerKnapp && (
                                             <button
                                                 type="button"
-                                                onClick={(e) => { e.stopPropagation(); settValgtEmneId(emne.id); settValgtEmneVisning("files"); }}
+                                                onClick={() => åpneEmne("files")}
                                                 className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
                                             >
                                                 {labels.files}{meta?.filesCount ? ` (${meta.filesCount})` : ""}
@@ -934,7 +1046,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                     </>
                                 )}
                             </div>
-                        </div>
+                        </article>
                     );
                 })}
             </div>
@@ -944,9 +1056,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
 // Advarsel når Canvas-token er ugyldig/slettet
 function TokenUgyldigAdvarsel() {
     return (
-        <div className="mx-4 md:mx-6 mt-4">
-            <FeilMelding type="warning" melding={CANVAS_TOKEN_UGYLDIG_MELDING} />
-        </div>
+        <CanvasTokenNotice variant="invalid" className="mx-4 mt-4 md:mx-6" />
     );
 }
 
@@ -975,11 +1085,7 @@ export function CanvasSection({ startVisning = "announcements", harCanvasToken =
 
             {/* Innhold: når token er ugyldig vises bare advarselen over, ikke dobbel feilmelding */}
             <div className="flex-1 overflow-y-auto p-4 md:p-6">
-                {canvasTokenInvalid ? (
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                        {labels.tokenInvalidHelp}
-                    </p>
-                ) : (
+                {canvasTokenInvalid ? null : (
                     <>
                         {visning === "announcements" && <KunngjoringVisning harCanvasToken={harCanvasToken} />}
                         {visning === "courses" && <EmneVisning harCanvasToken={harCanvasToken} />}
@@ -1028,7 +1134,7 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     }, [allAssignments, filter, language, sortering]);
 
     if (!harCanvasToken) {
-        return <FeilMelding melding={labels.assignmentsMissingToken} />;
+        return <CanvasTokenNotice />;
     }
 
     if (assignmentsQuery.isLoading) {

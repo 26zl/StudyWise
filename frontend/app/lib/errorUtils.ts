@@ -304,7 +304,11 @@ export function lagBrukervennligFeilmelding(
     switch (feiltype) {
       case "auth":
       case "token":
-        return "Canvas-token mangler eller er ugyldig. Legg til tokenet i innstillinger.";
+        return hentTekst(
+          t,
+          "errors.canvas.tokenInvalid",
+          "Canvas API-tokenet ditt er ugyldig, utløpt eller slettet i Canvas. Gå til Innstillinger for å legge til et nytt token.",
+        );
       case "validation": {
         // Vis den faktiske feilmeldingen fra backend (f.eks. "Canvas-institusjon mangler")
         const msg = typeof error === "string" ? error : error?.message;

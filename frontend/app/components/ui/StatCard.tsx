@@ -25,7 +25,7 @@ export function StatCard({ icon: Icon, label, value, color }: StatCardProps) {
         <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-300">{label}</p>
                     <p className="text-3xl font-bold text-slate-900 dark:text-white mt-1">
                         {value}
                     </p>

@@ -44,7 +44,7 @@ function shapeAuditItem(raw: {
         )
       : undefined;
   return AdminAuditItemSchema.parse({
-    id: raw._id,
+    id: String(raw._id),
     action: raw.action,
     category: raw.category,
     outcome: raw.outcome,

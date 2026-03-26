@@ -14,6 +14,9 @@ import { CodeBlock } from "@/app/components/ui/CodeBlock";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { Footer } from "@/app/components/layout/footer";
+import { useLanguage } from "@/app/i18n";
+import { fetchApi } from "@/app/lib/apiClient";
+import { parseApiError } from "@/app/lib/errorUtils";
 import {
     SharedChatResponseSchema,
     type SharedChatResponse,
@@ -27,6 +30,7 @@ const markdownKomponenter: Components = {
 
 export default function DeltSamtaleSide() {
     const params = useParams<{ shareToken: string }>();
+    const { language, t } = useLanguage();
     const [data, setData] = useState<SharedChatResponse | null>(null);
     const [laster, setLaster] = useState(true);
     const [feil, setFeil] = useState<string | null>(null);
@@ -37,7 +41,7 @@ export default function DeltSamtaleSide() {
     useEffect(() => {
         if (!token) {
             setLaster(false);
-            setFeil("Mangler delingslenke.");
+            setFeil(t("sharedChat.missingShareLink"));
             return;
         }
         const ac = new AbortController();
@@ -47,28 +51,37 @@ export default function DeltSamtaleSide() {
         setData(null);
         (async () => {
             try {
-                const res = await fetch(`/api/shared/${token}`, {
-                    cache: "no-store",
-                    signal: ac.signal,
-                    credentials: "omit",
-                  });
+                const res = await fetchApi(
+                    `/api/shared/${token}`,
+                    {
+                        signal: ac.signal,
+                    },
+                    {
+                        auth: false,
+                        credentials: "omit",
+                        cache: "no-store",
+                    },
+                );
                 if (cancelled) return;
                 if (!res.ok) {
                     if (res.status === 404) {
-                        setFeil("Denne samtalen finnes ikke eller er ikke lenger delt.");
+                        setFeil(t("sharedChat.notFoundOrExpired"));
                         return;
                     }
-                    setFeil("Kunne ikke hente samtalen. Prøv igjen senere.");
+                    setFeil(await parseApiError(res, t("sharedChat.fetchError")));
                     return;
                 }
                 const json = await res.json();
-                const parsed = SharedChatResponseSchema.parse(json);
+                const parsed = SharedChatResponseSchema.safeParse(json);
+                if (!parsed.success) {
+                    setFeil(t("sharedChat.invalidServerData"));
+                    return;
+                }
                 if (cancelled) return;
-                setData(parsed);
+                setData(parsed.data);
             } catch (err) {
                 if (cancelled || (err instanceof Error && err.name === "AbortError")) return;
-                const isParse = err instanceof Error && (("ZodError" in err) || err.message.includes("parse"));
-                setFeil(isParse ? "Ugyldig data fra server. Prøv igjen senere." : "Noe gikk galt ved henting av samtalen.");
+                setFeil(t("sharedChat.genericFetchError"));
             } finally {
                 if (!cancelled) setLaster(false);
             }
@@ -77,17 +90,17 @@ export default function DeltSamtaleSide() {
             cancelled = true;
             ac.abort();
         };
-    }, [token, retryKey]);
+    }, [token, retryKey, t]);
 
     if (laster) {
-        return <LoadingView text="Laster delt samtale..." fullPage />;
+        return <LoadingView text={t("sharedChat.loading")} fullPage />;
     }
 
     if (feil || !data) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 gap-4">
                 <div className="w-full max-w-md">
-                    <FeilMelding melding={feil ?? "Den delte samtalen finnes ikke."} />
+                    <FeilMelding melding={feil ?? t("sharedChat.notFound")} />
                 </div>
                 {feil && (
                     <button
@@ -95,7 +108,7 @@ export default function DeltSamtaleSide() {
                         onClick={() => setRetryKey((k) => k + 1)}
                         className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
                     >
-                        Prøv igjen
+                        {t("common.actions.retry")}
                     </button>
                 )}
             </div>
@@ -110,14 +123,14 @@ export default function DeltSamtaleSide() {
                         {data.title}
                     </h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Delt {formaterDatoLong(data.sharedAt)} · Utløper {formaterDatoLong(data.expiresAt)}
+                        {t("sharedChat.sharedAt", { date: formaterDatoLong(data.sharedAt, language) })} · {t("sharedChat.expiresAt", { date: formaterDatoLong(data.expiresAt, language) })}
                     </p>
                     <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-purple-100 dark:bg-purple-900/40 px-3 py-1 text-xs font-medium text-purple-700 dark:text-purple-300">
                         <User className="w-3.5 h-3.5" />
-                        StudyWise delt chat
+                        {t("sharedChat.badge")}
                     </div>
                     <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
-                        Denne lenken viser hele chatten slik den ble delt, inkludert brukerens egne meldinger og KI-svar.
+                        {t("sharedChat.disclaimer")}
                     </p>
                 </div>
 
@@ -170,7 +183,7 @@ export default function DeltSamtaleSide() {
 
                 <div className="mt-12 pt-4 border-t border-slate-200 dark:border-slate-700">
                     <p className="text-xs text-slate-400 dark:text-slate-500 text-center">
-                        Denne siden viser et delt snapshot av hele StudyWise-chatten.
+                        {t("sharedChat.footer")}
                     </p>
                 </div>
             </div>

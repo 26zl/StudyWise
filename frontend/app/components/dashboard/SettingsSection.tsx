@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Moon, Sun, Key, User, Info, Trash2, MessageSquare, Bot, CheckCircle, Shield, ExternalLink, Languages } from "lucide-react";
+import { Moon, Sun, Key, User, Info, Trash2, MessageSquare, Bot, CheckCircle, Shield, ExternalLink, Languages, Cookie } from "lucide-react";
 import { useClerk } from "@clerk/nextjs";
 import { AUTH_ME_QUERY_KEY, CanvasTokenConflictError, useLagreCanvasToken, useSlettCanvasToken, useSlettKonto } from "@/app/auth/auth-api";
 import { resetCanvasTokenStatus, useCanvasUser } from "@/app/canvas/canvas-api";
@@ -22,6 +22,12 @@ import { CanvasContextSelector } from "@/app/components/canvas/CanvasContextSele
 import { CANVAS_INSTITUSJONER_NORGE } from "common/canvasInstitutions";
 import { CanvasBaseUrlSchema } from "common/auth";
 import { useLanguage } from "@/app/i18n";
+import {
+    COOKIE_CONSENT_STORAGE_KEY,
+    COOKIE_CONSENT_CHANGED_EVENT,
+    getStoredCookieConsent,
+    type CookieConsentStatus,
+} from "@/app/components/layout/CookieBanner";
 
 // Typer for SettingsSection props
 interface SettingsSectionProps {
@@ -121,6 +127,25 @@ export function SettingsSection({
     // Bestem om mørk modus er aktiv
     const isDarkMode = mounted && resolvedTheme === "dark";
     const toggleTheme = () => setTheme(isDarkMode ? "light" : "dark");
+    // Cookie-samtykke
+    const [cookieConsent, setCookieConsent] = useState<CookieConsentStatus>(null);
+    useEffect(() => {
+        setCookieConsent(getStoredCookieConsent());
+        const sync = () => setCookieConsent(getStoredCookieConsent());
+        window.addEventListener(COOKIE_CONSENT_CHANGED_EVENT, sync);
+        window.addEventListener("storage", sync);
+        return () => {
+            window.removeEventListener(COOKIE_CONSENT_CHANGED_EVENT, sync);
+            window.removeEventListener("storage", sync);
+        };
+    }, []);
+    const handleCookieChoice = (choice: "accepted" | "declined") => {
+        try {
+            localStorage.setItem(COOKIE_CONSENT_STORAGE_KEY, choice);
+            window.dispatchEvent(new CustomEvent(COOKIE_CONSENT_CHANGED_EVENT, { detail: choice }));
+        } catch { /* ignore */ }
+        setCookieConsent(choice);
+    };
     const queryClient = useQueryClient();
     const [canvasToken, setCanvasToken] = useState("");
     const [canvasKonflikt, setCanvasKonflikt] = useState<{
@@ -542,6 +567,7 @@ export function SettingsSection({
                                 </p>
                             </div>
                             <button
+                                type="button"
                                 onClick={toggleTheme}
                                 className={`shrink-0 w-14 h-8 rounded-full p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900 focus:ring-blue-500 ${isDarkMode ? "bg-blue-600" : "bg-slate-200 dark:bg-slate-600"
                                     }`}
@@ -553,6 +579,63 @@ export function SettingsSection({
                                     className={`block w-6 h-6 rounded-full bg-white shadow-sm transition-transform duration-200 ${isDarkMode ? "translate-x-6" : "translate-x-0"
                                         }`}
                                 />
+                            </button>
+                        </div>
+                    </section>
+
+                    {/* Informasjonskapsler */}
+                    <section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
+                                <Cookie size={20} className="text-slate-600 dark:text-slate-300" />
+                            </div>
+                            <h3 className="font-semibold text-slate-900 dark:text-white">
+                                {t("settings.cookies.title")}
+                            </h3>
+                        </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+                            {t("settings.cookies.description")}
+                        </p>
+                        <div className="flex items-center justify-between mb-3">
+                            <p className="text-sm text-slate-700 dark:text-slate-300">
+                                {cookieConsent === "accepted"
+                                    ? t("settings.cookies.status.accepted")
+                                    : cookieConsent === "declined"
+                                        ? t("settings.cookies.status.declined")
+                                        : t("settings.cookies.status.unknown")}
+                            </p>
+                            {cookieConsent && (
+                                <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${
+                                    cookieConsent === "accepted"
+                                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                        : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                                }`}>
+                                    {cookieConsent === "accepted" ? t("settings.cookies.accepted") : t("settings.cookies.declined")}
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={() => handleCookieChoice("declined")}
+                                className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                    cookieConsent === "declined"
+                                        ? "border-slate-400 dark:border-slate-500 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white"
+                                        : "border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                }`}
+                            >
+                                {t("settings.cookies.declined")}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleCookieChoice("accepted")}
+                                className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                    cookieConsent === "accepted"
+                                        ? "border-green-400 dark:border-green-600 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400"
+                                        : "border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                }`}
+                            >
+                                {t("settings.cookies.accepted")}
                             </button>
                         </div>
                     </section>
@@ -592,6 +675,7 @@ export function SettingsSection({
                                     {/* Slett bekreftelse - Forenklet */}
                                     {!visSlettBekreftelse ? (
                                         <button
+                                            type="button"
                                             onClick={() => setVisSlettBekreftelse(true)}
                                             className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
                                         >
@@ -604,6 +688,7 @@ export function SettingsSection({
                                             </span>
                                             <div className="flex items-center gap-2">
                                                 <button
+                                                    type="button"
                                                     onClick={handleSlettToken}
                                                     disabled={isSlettingToken}
                                                     className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -611,6 +696,7 @@ export function SettingsSection({
                                                     {isSlettingToken ? t("settings.canvasToken.deleting") : t("settings.canvasToken.deletingButton")}
                                                 </button>
                                                 <button
+                                                    type="button"
                                                     onClick={() => setVisSlettBekreftelse(false)}
                                                     className="px-2 py-1 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs rounded transition-colors"
                                                 >
@@ -631,6 +717,7 @@ export function SettingsSection({
                                 <select
                                     id="canvas-institusjon"
                                     value={valgtInstitusjonUrl}
+                                    aria-required="true"
                                     onChange={(e) => {
                                         const v = e.target.value;
                                         setValgtInstitusjonUrl(v);
@@ -649,6 +736,7 @@ export function SettingsSection({
                                     <input
                                         type="url"
                                         value={annenCanvasUrl}
+                                        aria-required="true"
                                         onChange={(e) => {
                                             setAnnenCanvasUrl(e.target.value);
                                             setCanvasKonflikt(null);
@@ -681,8 +769,11 @@ export function SettingsSection({
 
                             <div className="relative">
                                 <input
+                                    id="canvas-token"
                                     type={visToken ? "text" : "password"}
                                     value={canvasToken}
+                                    aria-required="true"
+                                    aria-label={t("settings.canvasToken.title")}
                                     onChange={(e) => {
                                         const nesteToken = e.target.value;
                                         setCanvasToken(nesteToken);
@@ -703,6 +794,7 @@ export function SettingsSection({
                             </div>
 
                             <button
+                                type="button"
                                 onClick={() => void handleLagreToken()}
                                 disabled={!canvasToken.trim() || isPending || cooldown || manglerCanvasUrl}
                                 className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -758,6 +850,7 @@ export function SettingsSection({
                                 </p>
                             </div>
                             <button
+                                type="button"
                                 onClick={clearChatHistory}
                                 aria-label={t("settings.chatHistory.clearAll")}
                                 className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"

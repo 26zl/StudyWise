@@ -1281,6 +1281,7 @@ router.get("/filer/:fileId/download", async (req, res) => {
       headers: canvasToken
         ? buildCanvasAuthHeaders(canvasToken)
         : undefined,
+      signal: req.timeoutSignal,
     });
     if (!canvasRes.ok || !canvasRes.body) {
       return res

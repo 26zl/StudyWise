@@ -8,7 +8,7 @@ import { User, type IUser } from "../../database/models/User.js";
 import { CanvasUser } from "../../database/models/CanvasUser.js";
 import { decrypt, encrypt } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 import { apiError, sendError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
 import { warmCanvasCache, fetchUserProfile } from "../canvas/canvasService.js";
 import { invalidateCacheByPattern } from "../../cache/redis.js";
@@ -21,6 +21,7 @@ import {
   CanvasTokenRequestSchema,
   CanvasTokenResponseSchema,
   CanvasContextPreferencesSchema,
+  UIPreferencesSchema,
   PreferencesUpdateSchema,
   PreferencesResponseSchema,
   AccountDeletionResponseSchema,
@@ -402,6 +403,7 @@ router.get("/me", rateLimitMe, async (req, res) => {
                 canvasBaseUrl: bruker.canvasBaseUrl ?? null,
                 canvasContextPreferences: preferences,
                 varslerState,
+                uiPreferences: bruker.uiPreferences ?? undefined,
                 role: bruker.role ?? "user",
                 authProvider: bruker.authProvider,
             }),
@@ -419,16 +421,20 @@ router.put("/preferences", async (req, res) => {
             return apiError.unauthorized(res);
         }
 
-        const { canvasContextPreferences, varslerState } = PreferencesUpdateSchema.parse(req.body);
+        const { canvasContextPreferences, varslerState, uiPreferences } = PreferencesUpdateSchema.parse(req.body);
         const updateFields: {
             canvasContextPreferences?: ReturnType<typeof createDefaultCanvasContextPreferences>;
             varslerState?: ReturnType<typeof normalizeVarslerState>;
+            uiPreferences?: z.infer<typeof UIPreferencesSchema>;
         } = {};
         if (canvasContextPreferences !== undefined) {
             updateFields.canvasContextPreferences = CanvasContextPreferencesSchema.parse(canvasContextPreferences);
         }
         if (varslerState !== undefined) {
             updateFields.varslerState = normalizeVarslerState(varslerState);
+        }
+        if (uiPreferences !== undefined) {
+            updateFields.uiPreferences = UIPreferencesSchema.parse(uiPreferences);
         }
 
         const oppdatertBruker = await User.findByIdAndUpdate(
@@ -459,6 +465,7 @@ router.put("/preferences", async (req, res) => {
             varslerState: normalizeVarslerState(
                 oppdatertBruker.varslerState || createDefaultVarslerState(),
             ),
+            uiPreferences: oppdatertBruker.uiPreferences ?? undefined,
           }),
         );
     } catch (error) {

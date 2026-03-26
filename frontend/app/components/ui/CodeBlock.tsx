@@ -68,14 +68,16 @@ export function CodeBlock({ className, children }: CodeBlockProps) {
             <span className="w-3 h-3 rounded-full bg-yellow-400 dark:bg-yellow-500" />
             <span className="w-3 h-3 rounded-full bg-green-400 dark:bg-green-500" />
           </div>
-          <span className="text-xs font-medium text-slate-500 dark:text-slate-400 ml-1 uppercase tracking-wide">
+          <span className="text-xs font-medium text-slate-600 dark:text-slate-300 ml-1 uppercase tracking-wide">
             {sprakLabel}
           </span>
         </div>
         <button
+          type="button"
           onClick={kopierKode}
-          className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
           title="Kopier kode"
+          aria-label="Kopier kode"
         >
           {kopiert ? (
             <>

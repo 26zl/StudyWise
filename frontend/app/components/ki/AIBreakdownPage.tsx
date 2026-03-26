@@ -5,7 +5,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -17,6 +16,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { AITaskBreakdown } from "@/app/components/ki/AITaskBreakdown";
+import { CanvasTokenNotice } from "@/app/components/canvas/CanvasTokenNotice";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { type VisningType } from "@/app/components/dashboard/Sidebar";
@@ -40,6 +40,7 @@ import {
   getBrukerdataFeilmelding,
   lagBrukervennligFeilmelding,
 } from "@/app/lib/errorUtils";
+import { useLanguage } from "@/app/i18n";
 
 const SIDEBAR_VISNING: VisningType = "chat";
 
@@ -57,6 +58,7 @@ function sorterOppgaver(oppgaver: AssignmentMedEmne[]): AssignmentMedEmne[] {
 export function AIBreakdownPage() {
   const router = useRouter();
   const [expandedAssignmentIds, setExpandedAssignmentIds] = useState<Set<string>>(new Set());
+  const { language, t } = useLanguage();
 
   const { isLoaded: clerkLoaded } = useAuth();
   const megQuery = useMeg({ enabled: clerkLoaded });
@@ -114,7 +116,7 @@ export function AIBreakdownPage() {
         aktivVisning={SIDEBAR_VISNING}
         byttVisning={byttVisning}
         brukernavn={brukernavn}
-        label="Laster oppgaver..."
+        label={t("common.loading.assignments")}
       />
     );
   }
@@ -124,13 +126,13 @@ export function AIBreakdownPage() {
       <SidebarAppLoadingState
         aktivVisning={SIDEBAR_VISNING}
         byttVisning={byttVisning}
-        label="Sender deg til innlogging..."
+        label={t("common.loading.redirectingToSignIn")}
       />
     );
   }
 
   if (megQuery.isError && !megQuery.data?.user) {
-    const feilmelding = getBrukerdataFeilmelding(megQuery.error);
+    const feilmelding = getBrukerdataFeilmelding(megQuery.error, t);
     return (
       <SidebarAppErrorState
         aktivVisning={SIDEBAR_VISNING}
@@ -150,8 +152,8 @@ export function AIBreakdownPage() {
       brukernavn={brukernavn}
     >
       <div className="min-h-full bg-slate-50 dark:bg-slate-950">
-          <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-linear-to-br from-purple-500 to-blue-500 flex items-center justify-center shrink-0">
@@ -159,10 +161,10 @@ export function AIBreakdownPage() {
                   </div>
                   <div className="min-w-0">
                     <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white truncate">
-                      Oppgavedeling med KI
+                      {t("aiBreakdown.title")}
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-                      Bryt ned Canvas-oppgaver i konkrete deloppgaver
+                      {t("aiBreakdown.subtitle")}
                     </p>
                   </div>
                 </div>
@@ -174,14 +176,14 @@ export function AIBreakdownPage() {
                       onClick={() => setExpandedAssignmentIds(new Set(aktiveOppgaver.map((assignment) => assignment.id.toString())))}
                       className="px-3 py-2 text-sm rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
                     >
-                      Utvid alle
+                      {t("aiBreakdown.expandAll")}
                     </button>
                     <button
                       type="button"
                       onClick={() => setExpandedAssignmentIds(new Set())}
                       className="px-3 py-2 text-sm rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
                     >
-                      Lukk alle
+                      {t("aiBreakdown.collapseAll")}
                     </button>
                   </div>
                 )}
@@ -189,75 +191,69 @@ export function AIBreakdownPage() {
             </div>
           </div>
 
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <StatCard
                 icon={BookOpen}
-                label="Aktive oppgaver"
+                label={t("aiBreakdown.stats.activeAssignments")}
                 value={aktiveOppgaver.length}
                 color="blue"
               />
               <StatCard
                 icon={CalendarClock}
-                label="Med frist"
+                label={t("aiBreakdown.stats.withDeadline")}
                 value={oppgaverMedFrist.length}
                 color="purple"
               />
               <StatCard
                 icon={AlertCircle}
-                label="Forsinket"
+                label={t("aiBreakdown.stats.overdue")}
                 value={forsinkedeOppgaver.length}
                 color="yellow"
               />
               <StatCard
                 icon={Clock}
-                label="Uten frist"
+                label={t("aiBreakdown.stats.withoutDeadline")}
                 value={oppgaverUtenFrist}
                 color="green"
               />
             </div>
 
             {!harCanvasToken && (
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 space-y-3">
-                <FeilMelding melding="Du må knytte en Canvas API-token for å hente oppgaver og bruke oppgavedeling med KI. Gå til Innstillinger for å legge til token." />
-                <Link
-                  href="/dashboard?view=settings"
-                  prefetch={false}
-                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
-                >
-                  Gå til innstillinger
-                </Link>
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6">
+                <CanvasTokenNotice />
               </div>
             )}
 
             {harCanvasToken && assignmentsQuery.isLoading && (
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-10">
-                <LoadingView text="Laster oppgaver..." fullPage={false} />
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-10">
+                <LoadingView translationKey="common.loading.assignments" fullPage={false} />
               </div>
             )}
 
             {harCanvasToken && assignmentsQuery.isError && (
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6">
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6">
                 <FeilMelding
                   melding={lagBrukervennligFeilmelding(
                     assignmentsQuery.error instanceof Error ? assignmentsQuery.error : null,
                     { canvas: true },
-                    "Kunne ikke hente oppgaver fra Canvas.",
+                    t("aiBreakdown.errors.loadAssignments"),
+                    t,
                   )}
                 />
               </div>
             )}
 
             {harCanvasToken && !assignmentsQuery.isLoading && !assignmentsQuery.isError && aktiveOppgaver.length === 0 && (
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-8">
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-8">
                 <div className="flex flex-col items-center justify-center text-center space-y-3">
                   <BookOpen className="w-12 h-12 text-slate-400 dark:text-slate-500" />
                   <div>
                     <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-1">
-                      Ingen aktive oppgaver funnet
+                      {t("aiBreakdown.empty.title")}
                     </h2>
                     <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xl">
-                      Vi fant ingen ikke-innleverte Canvas-oppgaver å bryte ned akkurat nå.
+                      {t("aiBreakdown.empty.description")}
                     </p>
                   </div>
                 </div>
@@ -270,9 +266,17 @@ export function AIBreakdownPage() {
                   const assignmentId = assignment.id.toString();
                   const isExpanded = expandedAssignmentIds.has(assignmentId);
                   const assignmentKontekst = [
-                    `Emne: ${assignment.course_name}.`,
-                    assignment.due_at ? `Frist: ${formaterDatoLong(assignment.due_at)}.` : null,
-                    assignment.points_possible != null ? `Poengverdi: ${assignment.points_possible}.` : null,
+                    t("aiBreakdown.assignmentContext.course", { course: assignment.course_name }),
+                    assignment.due_at
+                      ? t("aiBreakdown.assignmentContext.dueDate", {
+                          date: formaterDatoLong(assignment.due_at, language),
+                        })
+                      : null,
+                    assignment.points_possible != null
+                      ? t("aiBreakdown.assignmentContext.points", {
+                          points: assignment.points_possible,
+                        })
+                      : null,
                   ]
                     .filter((value): value is string => value != null)
                     .join(" ");
@@ -280,7 +284,7 @@ export function AIBreakdownPage() {
                   return (
                     <div
                       key={assignmentId}
-                      className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden transition-all"
+                      className="bg-white dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden transition-all"
                     >
                       <button
                         type="button"
@@ -310,13 +314,13 @@ export function AIBreakdownPage() {
                               {assignment.due_at && (
                                 <>
                                   <span>•</span>
-                                  <span>Frist {formaterDatoLong(assignment.due_at)}</span>
+                                  <span>{t("aiBreakdown.assignmentMeta.dueDate", { date: formaterDatoLong(assignment.due_at, language) })}</span>
                                 </>
                               )}
                               {assignment.points_possible != null && (
                                 <>
                                   <span>•</span>
-                                  <span>{assignment.points_possible} poeng</span>
+                                  <span>{t("aiBreakdown.assignmentMeta.points", { points: assignment.points_possible })}</span>
                                 </>
                               )}
                             </div>
@@ -335,7 +339,7 @@ export function AIBreakdownPage() {
                         <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4 border-t border-slate-100 dark:border-slate-800 pt-4">
                           <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
                             <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                              Oppgavekontekst
+                              {t("aiBreakdown.assignmentContext.title")}
                             </p>
                             <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
                               {assignmentKontekst}

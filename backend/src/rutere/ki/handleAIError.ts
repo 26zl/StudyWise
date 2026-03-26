@@ -142,6 +142,12 @@ export function handleAIJsonRouteError(
     const errorMessage = error instanceof Error ? error.message : String(error);
     const lower = errorMessage.toLowerCase();
     const kontekst = options.kontekst ?? "AI";
+    const isJsonSyntaxError =
+        error instanceof SyntaxError &&
+        (lower.includes("json") ||
+            lower.includes("unexpected token") ||
+            lower.includes("unexpected end") ||
+            lower.includes("unterminated"));
 
     logger.error({ err: error }, `${kontekst} feil`);
 
@@ -181,6 +187,7 @@ export function handleAIJsonRouteError(
 
     if (
         error instanceof ZodError ||
+        isJsonSyntaxError ||
         options.invalidResponseTest?.(error)
     ) {
         apiError.badRequest(

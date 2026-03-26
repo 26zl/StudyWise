@@ -65,6 +65,11 @@ const multerStringField = z
   .optional()
   .transform((v) => (Array.isArray(v) ? v[0] : v));
 
+const optionalNullableDateSchema = z.preprocess(
+  (value) => (value == null || value === "" ? undefined : value),
+  z.coerce.date().optional(),
+);
+
 // Request-body for dokumentanalyse (question/sporsmaal, model) – multer sender ofte string eller string[]
 export const KIDocumentAnalyseRequestSchema = z.object({
   question: multerStringField,
@@ -118,7 +123,7 @@ export const TaskBreakdownGenerateRequestSchema = z.object({
     .max(5000, "Oppgavebeskrivelse må være maks 5000 tegn")
     .optional()
     .default(""),
-  dueDate: z.coerce.date().optional(),
+  dueDate: optionalNullableDateSchema,
 });
 
 export const WeeklyPlanAssignmentSchema = z.object({
@@ -127,7 +132,7 @@ export const WeeklyPlanAssignmentSchema = z.object({
     .string()
     .min(1, "Oppgavenavn kan ikke være tomt")
     .max(200, "Oppgavenavn må være maks 200 tegn"),
-  dueAt: z.coerce.date().optional(),
+  dueAt: optionalNullableDateSchema,
   courseName: z.string().max(200, "Emnenavn må være maks 200 tegn").optional(),
   description: z
     .string()
