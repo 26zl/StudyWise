@@ -1254,7 +1254,6 @@ export function ChatSection() {
         } finally {
             setOppretterDeling(false);
         }
-        return null;
     }, [aktivChatId, oppretterDeling, saveChat, settAktivSamtale, t]);
 
     return (
