@@ -43,7 +43,7 @@ Komplett oversikt over teknologier og tjenester som brukes i StudyWise:
 | **API** | Swagger UI + swagger-jsdoc, Helmet, CORS, compression, rate-limiter-flexible |
 | **Logging** | Pino + pino-http |
 | **Monorepo** | pnpm workspaces med `frontend`, `backend`, `common`, `docs` |
-| **CI/CD** | GitHub Actions (actionlint → quality → dependency-scan → secret-scan), Heroku (backend), Vercel (frontend), Cloudflare, GitHub Pages (docs) |
+| **CI/CD** | GitHub Actions (actionlint → quality → dependency-scan → secret-scan → sbom), Heroku (backend), Vercel (frontend), Cloudflare, GitHub Pages (docs) |
 | **Observability** | Datadog APM (påkrevd i prod), RUM i frontend ved `NEXT_PUBLIC_DD_RUM_*` |
 | **Dokumentasjon** | VitePress; bygges og publiseres til GitHub Pages ved endringer i `docs/` |
 

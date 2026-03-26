@@ -52,6 +52,7 @@ import { DocumentParseResultSchema } from "common/document";    // Document proc
 import { AUTH_CHANNEL_NAME } from "common/auth";                // Auth constants (e.g. BroadcastChannel sync)
 import { getWeekNumber } from "common/dateUtils";               // Date utilities
 import { UKEDAGER } from "common/arbeidsplan";                  // Work plan constants
+import { PaginationQueryValueSchema } from "common/admin";      // Admin pagination/query types
 ```
 
 When adding a new schema to common, add a subpath export in `common/package.json` `"exports"` map.
@@ -158,7 +159,7 @@ Typical route setup: `router.use(requireAuth)` then per-route `knyttCanvasToken`
 
 ### Audit Logging
 
-`backend/src/utils/auditLog.ts` — `audit()` writes structured events to MongoDB (`AuditLog` model) with actor, action, category, outcome, and request metadata. Used for auth failures, admin actions, and account deletion. Import `AUDIT_ACTIONS` for predefined action constants.
+`backend/src/utils/auditLog.ts` — `audit()` writes structured events to MongoDB (`AuditLog` model) with actor, action, category, outcome, and request metadata. Categories: `auth`, `profile`, `integration`, `admin`, `security`, `privacy`, `ki`. Covers auth failures, admin actions, account deletion, Canvas token ops, chat sharing, RBAC/CSRF/rate-limit violations, security alerts, and all KI operations (chat, document analysis, summarization, task breakdown, weekly plan, history deletion). Import `AUDIT_ACTIONS` for predefined action constants. AuditLog has a 2-year TTL and automatic GDPR anonymization on user deletion.
 
 ### Dashboard (SPA Container)
 
@@ -197,7 +198,9 @@ Each file handles a distinct AI feature:
 - `kiAnalyse.ts` - Document analysis (PDF, Word, images via Vision)
 - `kiOppsummering.ts` - Text summarization
 - `kiHistory.ts` - Chat history management
+- `kiShare.ts` - Chat sharing (public share links with expiry)
 - `taskBreakdown.ts` - Task breakdown generation
+- `weeklyPlan.ts` - AI-generated weekly study plans
 
 Shared infrastructure (reuse these, don't duplicate):
 
@@ -206,6 +209,7 @@ Shared infrastructure (reuse these, don't duplicate):
 - `aiModels.ts` - Model config, `DEFAULT_MODEL`
 - `kiConstants.ts` - `KI_CACHE_TTL`, `KI_OPPSUMMERING_CACHE_TTL`, `KI_TIMEOUT_MS`
 - `systemPrompt.ts` - Single source for `STUDYWISE_SYSTEM_PROMPT`
+- `studyContentUtils.ts` - Shared helpers for study content processing (JSON extraction, targeted queries)
 
 SSE endpoints must check `res.writableEnded` before writing keepalive pings. SSE responses skip gzip compression (`text/event-stream` filter in `backend/src/index.ts`).
 
@@ -368,6 +372,7 @@ Runs on push and PRs to `main`. **Actionlint must be green before other jobs run
 - **quality** – typecheck, lint, lint:md, verify build
 - **dependency-scan** – `pnpm audit --audit-level=high`
 - **secret-scan** – TruffleHog (`trufflesecurity/trufflehog@v3.93.8`) scans for leaked secrets
+- **sbom** – generates CycloneDX SBOM (Software Bill of Materials), uploaded as artifact
 
 All jobs have `permissions: contents: read` and `actions: read` (workflow-level or per-job). Timeouts on all jobs. Deploy (`deploy.yml`) triggers automatically when CI succeeds on push to `main`.
 
@@ -408,7 +413,7 @@ All jobs have `permissions: contents: read` and `actions: read` (workflow-level 
 - **Type errors after clean** → `pnpm build`
 - **"MongoNetworkError"** → Check `MONGO_URI` in `.env` and IP whitelist in MongoDB Atlas
 - **"bad auth : authentication failed"** (Atlas) → Verify username/password and Database Access permissions.
-- **Redis "almost full" / high memory** → Redis caches Canvas API + sync structure (per user/course). Set **maxmemory-policy** to `allkeys-lru` (or `volatile-lru`) so Redis evicts old keys instead of rejecting writes. Increase Redis memory in Redis Cloud if needed. Sync cache TTL is 30 min to limit growth.
+- **Redis "almost full" / high memory** → Redis caches Canvas API + sync structure (per user/course). Set **maxmemory-policy** to `allkeys-lru` (or `volatile-lru`) so Redis evicts old keys instead of rejecting writes. Increase Redis memory in Redis Cloud if needed. Sync cache TTL is 2 hours (`SYNC_CACHE_TTL = 7200`) to limit growth.
 
 ---
 

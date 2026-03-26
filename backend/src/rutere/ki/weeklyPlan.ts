@@ -10,6 +10,7 @@ import {
 } from "common/ki";
 import { getIsoWeekInfo, parseTimerStreng } from "common/dateUtils";
 import { rateLimitKi } from "../../middleware/rate-limit.js";
+import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import {
   apiError,
   requireUserId,
@@ -259,6 +260,15 @@ router.post("/generate", async (req, res) => {
       { userId, blockCount: payload.blocks.length, assignmentCount: oppgaver.length },
       "Genererte weekly plan via backend",
     );
+
+    audit({
+      actorUserId: userId,
+      action: AUDIT_ACTIONS.KI_WEEKLY_PLAN,
+      category: "ki",
+      outcome: "success",
+      metadata: { blockCount: payload.blocks.length, assignmentCount: oppgaver.length },
+      req,
+    });
 
     return res.json(payload);
   } catch (error) {

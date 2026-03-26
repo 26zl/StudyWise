@@ -14,6 +14,7 @@ export const AUDIT_CATEGORIES = [
   "admin",
   "security",
   "privacy",
+  "ki",
 ] as const;
 export type AuditCategory = (typeof AUDIT_CATEGORIES)[number];
 
@@ -58,6 +59,7 @@ const AuditLogSchema = new Schema<IAuditLog>(
 AuditLogSchema.index({ createdAt: -1 });
 AuditLogSchema.index({ actorUserId: 1, createdAt: -1 });
 AuditLogSchema.index({ category: 1, createdAt: -1 });
+AuditLogSchema.index({ targetUserId: 1, createdAt: -1 });
 // Én indeks på requestId (sparse). Ikke index: true på feltet for å unngå duplikat med schema.index().
 AuditLogSchema.index({ requestId: 1 }, { sparse: true });
 

@@ -36,18 +36,15 @@ function flushPendingDatadogUser() {
  */
 declare global {
     interface Window {
-        __DD_RUM_CONFIG__?: { applicationId: string; clientToken: string; site: string };
         __DD_RUM_INIT_DONE__?: boolean;
     }
 }
 
 export function DatadogRum() {
     useEffect(() => {
-        // Først fra server-injisert config (Vercel runtime), deretter fra build-time NEXT_PUBLIC_*
-        const fromWindow = typeof window !== "undefined" ? window.__DD_RUM_CONFIG__ : undefined;
-        const applicationId = fromWindow?.applicationId ?? process.env.NEXT_PUBLIC_DD_RUM_APPLICATION_ID;
-        const clientToken = fromWindow?.clientToken ?? process.env.NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN;
-        const site = fromWindow?.site ?? process.env.NEXT_PUBLIC_DD_SITE ?? "us5.datadoghq.com";
+        const applicationId = process.env.NEXT_PUBLIC_DD_RUM_APPLICATION_ID;
+        const clientToken = process.env.NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN;
+        const site = process.env.NEXT_PUBLIC_DD_SITE ?? "us5.datadoghq.com";
         if (!applicationId || !clientToken) {
             if (!hasWarnedMissingConfig) {
                 hasWarnedMissingConfig = true;
@@ -77,7 +74,7 @@ export function DatadogRum() {
                 env: process.env.NODE_ENV ?? "development",
                 version: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ?? "0.0.0",
                 sessionSampleRate: 100,
-                sessionReplaySampleRate: 20,
+                sessionReplaySampleRate: 50,
                 defaultPrivacyLevel: "mask-user-input",
                 trackUserInteractions: true,
                 trackResources: true,

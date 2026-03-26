@@ -6,6 +6,7 @@
 import { Router, type Request, type Response } from "express";
 import crypto from "crypto";
 import { logger } from "../../utils/logger.js";
+import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import { stripHtml } from "../../utils/htmlUtils.js";
 import {
   KIOppsummeringRequestSchema,
@@ -193,6 +194,18 @@ Hvis det ikke er noen handlingspunkter, skriv "HANDLINGER: Ingen handlingspunkte
         { type, tekstLengde: renTekst.length },
         "Oppsummering generert",
       );
+
+      if (req.user?.id) {
+        audit({
+          actorUserId: req.user.id,
+          action: AUDIT_ACTIONS.KI_OPPSUMMERING,
+          category: "ki",
+          outcome: "success",
+          metadata: { type, tekstLengde: renTekst.length },
+          req,
+        });
+      }
+
       return res.json(response);
     } catch (error) {
       if (res.headersSent || res.writableEnded || req.timeoutSignal?.aborted) return;

@@ -64,31 +64,12 @@ export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const initialLanguage = await resolveInitialLanguage();
-  const rumApplicationId =
-    process.env.DD_RUM_APPLICATION_ID ?? process.env.NEXT_PUBLIC_DD_RUM_APPLICATION_ID;
-  const rumClientToken =
-    process.env.DD_RUM_CLIENT_TOKEN ?? process.env.NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN;
-  const rumConfig =
-    rumApplicationId && rumClientToken
-      ? {
-          applicationId: rumApplicationId,
-          clientToken: rumClientToken,
-          site: process.env.DD_SITE ?? process.env.NEXT_PUBLIC_DD_SITE ?? "us5.datadoghq.com",
-        }
-      : null;
 
   return (
     <html lang={initialLanguage} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://clerk.studwize.page" />
         <link rel="dns-prefetch" href="https://clerk.studwize.page" />
-        {rumConfig && (
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `window.__DD_RUM_CONFIG__=${JSON.stringify(rumConfig)};`,
-            }}
-          />
-        )}
         {/*
           Suppress kjent Clerk v7 key-prop warning: "Each child in a list should have a unique key prop"
           fra __experimental_CheckoutProvider. Dette er en intern Clerk-bug i @clerk/nextjs v7 med React 19.

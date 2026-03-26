@@ -1,5 +1,7 @@
 # StudyWise Dockerfile — kun for lokal utvikling via docker compose
 # Brukes IKKE i produksjon (frontend deployes til Vercel, backend til Heroku)
+# Base image holdes på tag-nivå i lokal dev slik at `docker pull` får siste sikkerhetsfikser
+# uten at repoet må oppdateres for hver nye digest.
 
 FROM node:22-alpine AS base
 

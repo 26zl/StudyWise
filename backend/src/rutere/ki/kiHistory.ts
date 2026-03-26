@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ChatHistory } from "../../database/models/ChatHistory.js";
 import { encrypt, decrypt } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
+import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import {
   apiError,
   sendZodError,
@@ -167,6 +168,16 @@ kiHistoryRouter.delete("/chat/history/:id", async (req, res) => {
       return apiError.badRequest(res, "Ugyldig samtale-ID");
     }
     await ChatHistory.deleteOne({ _id: id, user: userId });
+
+    audit({
+      actorUserId: userId,
+      action: AUDIT_ACTIONS.KI_HISTORY_DELETED,
+      category: "ki",
+      outcome: "success",
+      metadata: { chatId: id },
+      req,
+    });
+
     return res.status(204).send();
   } catch (error) {
     return sendUnknownError(res, error, { kontekst: "DELETE chat-history", melding: "Kunne ikke slette samtalen. Prøv igjen." });
@@ -179,6 +190,15 @@ kiHistoryRouter.delete("/chat/history", async (req, res) => {
     const userId = requireUserId(req, res);
     if (!userId) return;
     await ChatHistory.deleteMany({ user: userId });
+
+    audit({
+      actorUserId: userId,
+      action: AUDIT_ACTIONS.KI_HISTORY_ALL_DELETED,
+      category: "ki",
+      outcome: "success",
+      req,
+    });
+
     return res.status(204).send();
   } catch (error) {
     return sendUnknownError(res, error, { kontekst: "DELETE chat-history", melding: "Kunne ikke slette samtalehistorikken. Prøv igjen." });

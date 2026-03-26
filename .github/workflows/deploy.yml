@@ -31,7 +31,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2
         with:
           egress-policy: audit
 
@@ -63,7 +63,7 @@ jobs:
           git config user.name "StudyWise CI"
 
       - name: Install Vercel CLI
-        run: npm install -g vercel@latest
+        run: npm install -g vercel@50.37.0
 
       - name: Pull Vercel configuration
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
@@ -119,21 +119,52 @@ jobs:
           require_any NEXT_PUBLIC_DD_SITE DD_SITE
 
       - name: Build with Vercel
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -a
+          . "$GITHUB_WORKSPACE/.vercel/.env.production.local"
+          set +a
+          vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Inspect Datadog markers in build output
         run: |
+          set -a
+          . "$GITHUB_WORKSPACE/.vercel/.env.production.local"
+          set +a
+
+          require_inlined_value() {
+            local key="$1"
+            local value="${!key:-}"
+
+            if [ -z "$value" ]; then
+              echo "$key is empty after sourcing .vercel/.env.production.local"
+              exit 1
+            fi
+
+            for dir in frontend/.next .vercel/output; do
+              if [ -d "$dir" ] && grep -R -F -q --binary-files=text --exclude='*.map' -- "$value" "$dir"; then
+                echo "$key=inlined"
+                return
+              fi
+            done
+
+            echo "$key not inlined into build output"
+            exit 1
+          }
+
           search_markers() {
             local dir="$1"
             if command -v rg >/dev/null 2>&1; then
-              rg -n --hidden --glob '!**/*.map' "__DD_RUM_CONFIG__|studywise-frontend|NEXT_PUBLIC_DD_RUM_APPLICATION_ID|us5\\.datadoghq\\.com" "$dir"
+              rg -n --hidden --glob '!**/*.map' "studywise-frontend|Datadog RUM er deaktivert|us5\\.datadoghq\\.com|browser-intake" "$dir"
             else
-              grep -R -n -E --exclude='*.map' "__DD_RUM_CONFIG__|studywise-frontend|NEXT_PUBLIC_DD_RUM_APPLICATION_ID|us5\\.datadoghq\\.com" "$dir"
+              grep -R -n -E --exclude='*.map' "studywise-frontend|Datadog RUM er deaktivert|us5\\.datadoghq\\.com|browser-intake" "$dir"
             fi
           }
+
+          require_inlined_value NEXT_PUBLIC_DD_RUM_APPLICATION_ID
+          require_inlined_value NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN
 
           found=0
           for dir in frontend/.next .vercel/output; do

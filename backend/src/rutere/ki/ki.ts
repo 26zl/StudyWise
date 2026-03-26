@@ -7,6 +7,7 @@ import { Router } from "express";
 import { createHash } from "crypto";
 import { logger } from "../../utils/logger.js";
 import { apiError, sendZodError } from "../../utils/apiError.js";
+import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import { getCache, setCache } from "../../cache/redis.js";
 import { rateLimitKi } from "../../middleware/rate-limit.js";
 import {
@@ -728,6 +729,16 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     if (writeSSE(res, payload)) {
       res.end();
     }
+
+    audit({
+      actorUserId: req.user!.id,
+      action: AUDIT_ACTIONS.KI_CHAT,
+      category: "ki",
+      outcome: "success",
+      metadata: { model, tokens: usage?.total_tokens, messageCount: messages.length },
+      req,
+    });
+
     return;
   } catch (error) {
     sseCleanup?.();

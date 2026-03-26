@@ -49,6 +49,8 @@ import { Assignment, COURSE_COLOR_CLASSES } from "common/calendar-ui"; // Kalend
 import { DocumentParseResultSchema } from "common/document";   // Dokumentbehandling
 import { AUTH_CHANNEL_NAME } from "common/auth"; // Auth-konstanter (f.eks. BroadcastChannel sync)
 import { getWeekNumber } from "common/dateUtils";          // Dato-hjelpefunksjoner
+import { UKEDAGER } from "common/arbeidsplan";             // Arbeidsplan-konstanter
+import { PaginationQueryValueSchema } from "common/admin"; // Admin-paginering og -typer
 ```
 
 Når du legger til et nytt skjema i common, legg til en subpath-eksport i `common/package.json` sitt `"exports"`-kart.
@@ -186,7 +188,9 @@ Hver fil håndterer ett KI-område:
 - `kiAnalyse.ts` – Oppgaveanalyse (bruker `analyzeDocumentCore()` delt av begge endepunkter)
 - `kiOppsummering.ts` – Tekstoppsummering
 - `kiHistory.ts` – Chat-historikk
+- `kiShare.ts` – Chat-deling (offentlige delelenker med utløpstid)
 - `taskBreakdown.ts` – Oppgavedeling
+- `weeklyPlan.ts` – KI-genererte ukeplaner
 
 Delt infrastruktur (gjenbruk disse, ikke dupliser):
 
@@ -195,6 +199,7 @@ Delt infrastruktur (gjenbruk disse, ikke dupliser):
 - `aiModels.ts` – Modellkonfigurasjon, `DEFAULT_MODEL`
 - `kiConstants.ts` – `KI_CACHE_TTL`, `KI_OPPSUMMERING_CACHE_TTL`, `KI_TIMEOUT_MS`
 - `systemPrompt.ts` – Én kilde for `STUDYWISE_SYSTEM_PROMPT`
+- `studyContentUtils.ts` – Delte hjelpefunksjoner for studieinnhold (JSON-ekstraksjon, målrettede spørringer)
 
 SSE-endepunkter må sjekke `res.writableEnded` før de skriver keepalive-pings.
 
@@ -357,6 +362,7 @@ Kjøres ved push og PR mot `main`. **Actionlint må være grønn før de andre j
 - **quality** – typecheck, lint, lint:md, verify build
 - **dependency-scan** – `pnpm audit --audit-level=high`
 - **secret-scan** – TruffleHog (`trufflesecurity/trufflehog@v3.93.8`) skanner etter lekkede hemmeligheter
+- **sbom** – genererer CycloneDX SBOM (Software Bill of Materials), lastes opp som artefakt
 
 Alle jobber har `permissions: contents: read` og `actions: read` (på workflow-nivå eller per jobb). Timeout på alle jobber. Deploy (`deploy.yml`) utløses automatisk når hele CI er grønn ved push til `main`.
 
@@ -405,7 +411,7 @@ Alle jobber har `permissions: contents: read` og `actions: read` (på workflow-n
 - **"MongoNetworkError"** → Sjekk `MONGO_URI` i `.env` og IP whitelist i MongoDB Atlas
 - **"bad auth : authentication failed"** (Atlas) → Sjekk brukernavn/passord og Database Access-rettigheter.
 - **TypeScript-feil etter endringer i `common/`** → Kjør `pnpm build:common`, deretter `pnpm typecheck`
-- **Redis «nesten full» / høyt minne** → Redis cacher Canvas API + sync-struktur (per bruker/emne). Sett **maxmemory-policy** til `allkeys-lru` (eller `volatile-lru`) i Redis Cloud slik at Redis evicter eldre nøkler. Sync-cache TTL er 30 min for å begrense vekst.
+- **Redis «nesten full» / høyt minne** → Redis cacher Canvas API + sync-struktur (per bruker/emne). Sett **maxmemory-policy** til `allkeys-lru` (eller `volatile-lru`) i Redis Cloud slik at Redis evicter eldre nøkler. Sync-cache TTL er 2 timer (`SYNC_CACHE_TTL = 7200`) for å begrense vekst.
 
 ---
 

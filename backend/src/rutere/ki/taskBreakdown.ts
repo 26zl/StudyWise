@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { logger } from "../../utils/logger.js";
+import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import {
   apiError,
   sendZodError,
@@ -133,6 +134,15 @@ Frist: ${dueDateText}`;
       { userId, assignmentId, subtaskCount: subtasks.length },
       "Genererte task breakdown via backend",
     );
+
+    audit({
+      actorUserId: userId,
+      action: AUDIT_ACTIONS.KI_TASK_BREAKDOWN,
+      category: "ki",
+      outcome: "success",
+      metadata: { assignmentId, subtaskCount: subtasks.length },
+      req,
+    });
 
     return res.json(TaskBreakdownResponseSchema.parse({ subtasks }));
   } catch (error) {

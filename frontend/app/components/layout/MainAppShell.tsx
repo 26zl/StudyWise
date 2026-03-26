@@ -1,7 +1,7 @@
 /*
  * Felles app-shell: Providers (React Query, nuqs), Header, Toaster, CookieBanner, DatadogRum.
  * Brukes fra root layout slik at alle sider får samme chrome.
- * DatadogRum initialiseres direkte for å sikre tidlig RUM-oppsett; TelemetryConsent lazy-loades.
+ * DatadogRum initialiseres direkte med build-time NEXT_PUBLIC_*; TelemetryConsent lazy-loades.
  */
 "use client";
 

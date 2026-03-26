@@ -37,6 +37,13 @@ export const AUDIT_ACTIONS = {
   SECURITY_ALERT: "security_alert",
   CSRF_VIOLATION: "csrf_violation",
   RATE_LIMIT_EXCEEDED: "rate_limit_exceeded",
+  KI_CHAT: "ki_chat",
+  KI_DOCUMENT_ANALYZED: "ki_document_analyzed",
+  KI_OPPSUMMERING: "ki_oppsummering",
+  KI_TASK_BREAKDOWN: "ki_task_breakdown",
+  KI_WEEKLY_PLAN: "ki_weekly_plan",
+  KI_HISTORY_DELETED: "ki_history_deleted",
+  KI_HISTORY_ALL_DELETED: "ki_history_all_deleted",
 } as const;
 
 export function getDeletedAuditActorId(userId: string): string {

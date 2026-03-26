@@ -21,7 +21,8 @@ const VALID_CATEGORIES = new Set<string>(AUDIT_CATEGORIES);
 /** Trygge nøkler tillatt i revisjonsliste-metadata (ingen PII eller rå request-data). */
 const ALLOWED_METADATA_KEYS = new Set([
   "subAction", "messageCount", "limit", "offset", "category", "reason",
-  "shareType", "chatId",
+  "shareType", "chatId", "model", "tokens", "fileType", "type",
+  "tekstLengde", "assignmentId", "subtaskCount", "blockCount", "assignmentCount",
 ]);
 
 function shapeAuditItem(raw: {

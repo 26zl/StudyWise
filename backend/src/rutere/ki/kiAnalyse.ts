@@ -7,6 +7,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import multer from "multer";
 import { logger } from "../../utils/logger.js";
+import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import {
     KIDocumentAnalyseResponseSchema,
     KIDocumentAnalyseRequestSchema,
@@ -272,6 +273,18 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
         if (writeSSE(res, payload)) {
             res.end();
         }
+
+        if (req.user?.id) {
+            audit({
+                actorUserId: req.user.id,
+                action: AUDIT_ACTIONS.KI_DOCUMENT_ANALYZED,
+                category: "ki",
+                outcome: "success",
+                metadata: { model, fileType: req.file?.mimetype, tokens: usage?.total_tokens },
+                req,
+            });
+        }
+
         return;
 
   } catch (error) {
