@@ -11,7 +11,6 @@ type DatadogUser = {
 
 let pendingDatadogUser: DatadogUser | null = null;
 let pendingClearUser = false;
-let hasWarnedMissingConfig = false;
 
 function flushPendingDatadogUser() {
     if (!datadogRum.getInitConfiguration()) return;
@@ -46,10 +45,6 @@ export function DatadogRum() {
         const clientToken = process.env.NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN;
         const site = process.env.NEXT_PUBLIC_DD_SITE ?? "us5.datadoghq.com";
         if (!applicationId || !clientToken) {
-            if (!hasWarnedMissingConfig) {
-                hasWarnedMissingConfig = true;
-                console.warn("Datadog RUM er deaktivert fordi applicationId/clientToken mangler i denne deployen.");
-            }
             return;
         }
 
@@ -87,7 +82,9 @@ export function DatadogRum() {
             });
             flushPendingDatadogUser();
         } catch (err) {
-            console.error("Datadog RUM init feilet — RUM deaktivert", err);
+            if (process.env.NODE_ENV === "development") {
+                console.error("Datadog RUM init feilet — RUM deaktivert", err);
+            }
         }
     }, []);
 

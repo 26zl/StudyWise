@@ -6,7 +6,6 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
 import { Send, Bot, Download, Copy, Share2, RefreshCw, Plus, Image, FileText, User } from "lucide-react";
 import { LoadingSpinner, LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
@@ -242,8 +241,7 @@ export function ChatSection() {
     }, []);
 
     // KI-feilbanner basert på reelle feil (chat/dokumentanalyse) – ingen eget test-connection-kall
-    const searchParams = useSearchParams();
-    const visKiFeilDetaljer = typeof window !== "undefined" && (process.env.NODE_ENV === "development" || searchParams.get("ki_debug") === "1");
+    const visKiFeilDetaljer = process.env.NODE_ENV === "development";
     const tilkoblingsBanner = lagTilkoblingsBanner(kiError);
     const tilkoblingsBannerVist = kiError
         ? (tilkoblingsBanner ?? { melding: "Kunne ikke koble til KI-assistenten. Prøv igjen senere.", type: "error" as const })

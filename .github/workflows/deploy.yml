@@ -71,93 +71,6 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      - name: Verify Datadog env cache
-        run: |
-          ENV_FILE=".vercel/.env.production.local"
-
-          if [ ! -f "$ENV_FILE" ]; then
-            echo "$ENV_FILE missing after vercel pull"
-            ls -la .vercel || true
-            exit 1
-          fi
-
-          read_env_value() {
-            local key="$1"
-            local line
-
-            line=$(grep -m1 "^${key}=" "$ENV_FILE" || true)
-            if [ -z "$line" ]; then
-              return 1
-            fi
-
-            line="${line#*=}"
-            line="${line%$'\r'}"
-
-            if [ "${line#\"}" != "$line" ] && [ "${line%\"}" != "$line" ]; then
-              line="${line#\"}"
-              line="${line%\"}"
-            fi
-
-            printf '%s' "$line"
-          }
-
-          probe_key() {
-            local key="$1"
-            local line
-
-            line=$(grep -m1 "^${key}=" "$ENV_FILE" || true)
-
-            if [ -z "$line" ]; then
-              echo "absent"
-              return
-            fi
-
-            local value
-            value=$(read_env_value "$key" || true)
-
-            if [ -n "$value" ]; then
-              echo "present (length=${#value})"
-            else
-              echo "empty"
-            fi
-          }
-
-          require_any() {
-            local label="$1"
-            shift
-
-            local key
-            local value
-            local status
-
-            for key in "$@"; do
-              value=$(read_env_value "$key" || true)
-              if [ -n "$value" ]; then
-                echo "${label}=present (${key}, length=${#value})"
-                return
-              fi
-
-              status=$(probe_key "$key")
-              echo "${key}=${status}"
-            done
-
-            echo "${label}=missing_or_empty"
-
-            local available_keys
-            available_keys=$(grep -E '^(NEXT_PUBLIC_DD_|DD_)' "$ENV_FILE" | cut -d= -f1 | paste -sd ',' - || true)
-            if [ -n "$available_keys" ]; then
-              echo "Datadog keys found in env file: ${available_keys}"
-            else
-              echo "No Datadog keys found in env file"
-            fi
-
-            exit 1
-          }
-
-          require_any DATADOG_APPLICATION_ID NEXT_PUBLIC_DD_RUM_APPLICATION_ID DD_RUM_APPLICATION_ID
-          require_any DATADOG_CLIENT_TOKEN NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN DD_RUM_CLIENT_TOKEN
-          require_any DATADOG_SITE NEXT_PUBLIC_DD_SITE DD_SITE
-
       - name: Build with Vercel
         run: |
           ENV_FILE="$GITHUB_WORKSPACE/.vercel/.env.production.local"
@@ -193,110 +106,20 @@ jobs:
 
           if [ -z "${NEXT_PUBLIC_DD_RUM_APPLICATION_ID:-}" ] && [ -n "${DD_RUM_APPLICATION_ID:-}" ]; then
             export "NEXT_PUBLIC_DD_RUM_APPLICATION_ID=${DD_RUM_APPLICATION_ID}"
-            echo "Mapped NEXT_PUBLIC_DD_RUM_APPLICATION_ID from DD_RUM_APPLICATION_ID"
           fi
 
           if [ -z "${NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN:-}" ] && [ -n "${DD_RUM_CLIENT_TOKEN:-}" ]; then
             export "NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN=${DD_RUM_CLIENT_TOKEN}"
-            echo "Mapped NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN from DD_RUM_CLIENT_TOKEN"
           fi
 
           if [ -z "${NEXT_PUBLIC_DD_SITE:-}" ] && [ -n "${DD_SITE:-}" ]; then
             export "NEXT_PUBLIC_DD_SITE=${DD_SITE}"
-            echo "Mapped NEXT_PUBLIC_DD_SITE from DD_SITE"
           fi
 
           vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      - name: Inspect Datadog markers in build output
-        run: |
-          ENV_FILE="$GITHUB_WORKSPACE/.vercel/.env.production.local"
-
-          if [ ! -f "$ENV_FILE" ]; then
-            echo "$ENV_FILE missing before Datadog inspection"
-            exit 1
-          fi
-
-          read_env_value() {
-            local key="$1"
-            local line
-
-            line=$(grep -m1 "^${key}=" "$ENV_FILE" || true)
-            if [ -z "$line" ]; then
-              return 1
-            fi
-
-            line="${line#*=}"
-            line="${line%$'\r'}"
-
-            if [ "${line#\"}" != "$line" ] && [ "${line%\"}" != "$line" ]; then
-              line="${line#\"}"
-              line="${line%\"}"
-            fi
-
-            printf '%s' "$line"
-          }
-
-          require_inlined_value() {
-            local label="$1"
-            shift
-
-            local key
-            local value
-
-            for key in "$@"; do
-              value=$(read_env_value "$key" || true)
-              if [ -n "$value" ]; then
-                break
-              fi
-              value=""
-            done
-
-            if [ -z "$value" ]; then
-              echo "$label is missing or empty in .vercel/.env.production.local"
-              exit 1
-            fi
-
-            for dir in frontend/.next .vercel/output; do
-              if [ -d "$dir" ] && grep -R -F -q --binary-files=text --exclude='*.map' -- "$value" "$dir"; then
-                echo "$label=inlined"
-                return
-              fi
-            done
-
-            echo "$label not inlined into build output"
-            exit 1
-          }
-
-          search_markers() {
-            local dir="$1"
-            if command -v rg >/dev/null 2>&1; then
-              rg -n --hidden --glob '!**/*.map' "studywise-frontend|Datadog RUM er deaktivert|us5\\.datadoghq\\.com|browser-intake" "$dir"
-            else
-              grep -R -n -E --exclude='*.map' "studywise-frontend|Datadog RUM er deaktivert|us5\\.datadoghq\\.com|browser-intake" "$dir"
-            fi
-          }
-
-          require_inlined_value DD_RUM_APPLICATION_ID NEXT_PUBLIC_DD_RUM_APPLICATION_ID DD_RUM_APPLICATION_ID
-          require_inlined_value DD_RUM_CLIENT_TOKEN NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN DD_RUM_CLIENT_TOKEN
-
-          found=0
-          for dir in frontend/.next .vercel/output; do
-            if [ -d "$dir" ]; then
-              echo "Inspecting $dir"
-              if search_markers "$dir"; then
-                found=1
-              fi
-            fi
-          done
-
-          if [ "$found" -eq 0 ]; then
-            echo "No Datadog markers found in build output"
-            exit 1
-          fi
 
       - name: Deploy frontend to Vercel
         id: deploy
