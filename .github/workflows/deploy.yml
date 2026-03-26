@@ -171,8 +171,7 @@ jobs:
                 value="${value%\"}"
               fi
 
-              printf -v "$key" '%s' "$value"
-              export "$key"
+              export "$key=$value"
             done < "$ENV_FILE"
           }
 
