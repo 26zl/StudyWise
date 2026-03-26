@@ -199,6 +199,9 @@ export const enMessages = {
       "Some notifications could not be loaded. The rest are shown below.",
     remaining: "{time} left",
     submitted: "Submitted",
+    manuallySubmitted: "Manually submitted",
+    markAsSubmitted: "Mark as submitted",
+    unmarkAsSubmitted: "Unmark as submitted",
     tabs: {
       all: "All",
       announcements: "Announcements",

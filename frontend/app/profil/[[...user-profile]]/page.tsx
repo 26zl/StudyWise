@@ -5,14 +5,65 @@
  */
 "use client";
 
-import { UserProfile } from "@clerk/nextjs";
+import { useEffect, useRef } from "react";
+import { UserProfile, useAuth, useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { Footer } from "@/app/components/layout/footer";
+import { useMeg, useOppdaterProfil } from "@/app/auth/auth-api";
+import { showToast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
+
+function normalizeName(value: string | null | undefined): string {
+  return (value ?? "").trim();
+}
 
 export default function ProfilPage() {
   const { language } = useLanguage();
+  const { isLoaded: authLoaded, userId } = useAuth();
+  const { isLoaded: clerkUserLoaded, user: clerkUser } = useUser();
+  const { data: meData } = useMeg({ enabled: authLoaded && !!userId });
+  const { mutateAsync: oppdaterProfil, isPending: isProfilOppdateringPending } = useOppdaterProfil();
+  const sisteSyncForsokRef = useRef<string | null>(null);
   const backLabel = language === "en" ? "Back to dashboard" : "Tilbake til dashboard";
+
+  useEffect(() => {
+    if (!clerkUserLoaded || !meData?.user || isProfilOppdateringPending) return;
+
+    const clerkFirstName = normalizeName(clerkUser?.firstName);
+    const clerkLastName = normalizeName(clerkUser?.lastName);
+    const localFirstName = normalizeName(meData.user.firstName);
+    const localLastName = normalizeName(meData.user.lastName);
+
+    const profileUpdate: { firstName?: string; lastName?: string } = {};
+    if (clerkFirstName !== localFirstName) profileUpdate.firstName = clerkFirstName;
+    if (clerkLastName !== localLastName) profileUpdate.lastName = clerkLastName;
+
+    if (Object.keys(profileUpdate).length === 0) {
+      sisteSyncForsokRef.current = null;
+      return;
+    }
+
+    const syncNokkel = `${localFirstName}|${localLastName}->${clerkFirstName}|${clerkLastName}`;
+    if (sisteSyncForsokRef.current === syncNokkel) return;
+    sisteSyncForsokRef.current = syncNokkel;
+
+    void oppdaterProfil({ ...profileUpdate, skipClerkSync: true }).catch(() => {
+      showToast.warning(
+        language === "en" ? "Profile sync failed" : "Profilsynk feilet",
+        language === "en"
+          ? "Name was updated in profile settings, but could not be synced to StudyWise."
+          : "Navn ble oppdatert i profilinnstillinger, men kunne ikke synkes til StudyWise.",
+      );
+    });
+  }, [
+    clerkUser?.firstName,
+    clerkUser?.lastName,
+    clerkUserLoaded,
+    isProfilOppdateringPending,
+    language,
+    meData?.user,
+    oppdaterProfil,
+  ]);
 
   return (
     <div className="min-h-full flex flex-col bg-slate-50 dark:bg-slate-950">

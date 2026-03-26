@@ -35,6 +35,7 @@ import {
   type AssignmentMedEmne,
 } from "@/app/canvas/canvas-api";
 import { erInnlevert } from "@/app/canvas/canvasUtils";
+import { useManuellInnlevering } from "@/app/hooks/useManuellInnlevering";
 import { formaterDatoLong } from "@/app/lib/dato";
 import {
   getBrukerdataFeilmelding,
@@ -65,6 +66,7 @@ export function AIBreakdownPage() {
   const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
   const userQuery = useCanvasUser(megQuery.isSuccess && harCanvasToken);
   const assignmentsQuery = useCanvasAllAssignments({ enabled: harCanvasToken });
+  const { ferdigeIdSet } = useManuellInnlevering();
 
   const brukernavn =
     userQuery.data?.name?.split(" ")[0] ||
@@ -82,8 +84,8 @@ export function AIBreakdownPage() {
 
   const aktiveOppgaver = useMemo(
     () =>
-      sorterOppgaver((assignmentsQuery.data ?? []).filter((assignment) => !erInnlevert(assignment))),
-    [assignmentsQuery.data],
+      sorterOppgaver((assignmentsQuery.data ?? []).filter((assignment) => !erInnlevert(assignment) && !ferdigeIdSet.has(assignment.id))),
+    [assignmentsQuery.data, ferdigeIdSet],
   );
 
   useEffect(() => {

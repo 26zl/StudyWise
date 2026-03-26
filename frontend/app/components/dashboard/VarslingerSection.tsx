@@ -25,6 +25,7 @@ import type { FristElement, KunngjoringElement, HendelseElement, VarslingElement
 import { CanvasKIHandlinger } from "@/app/components/ki/CanvasKIActions";
 import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { useUIStore } from "@/app/store/uiStore";
+import { useManuellInnlevering } from "@/app/hooks/useManuellInnlevering";
 import { useLanguage } from "@/app/i18n";
 import { enUS, nb } from "date-fns/locale";
 
@@ -268,8 +269,11 @@ function VarslingKort({ element, language }: { element: VarslingElement; languag
 
 function FristKort({ frist, language }: { frist: FristElement; language: "nb" | "en" }) {
     const { t } = useLanguage();
+    const { ferdigeIdSet, toggleFerdig } = useManuellInnlevering();
     const tidTekst = formaterTid(frist.timerIgjen, language);
     const datoLocale = language === "en" ? enUS : nb;
+    const assignmentId = Number(frist.id.replace("frist-", ""));
+    const erManueltFerdig = Number.isFinite(assignmentId) && ferdigeIdSet.has(assignmentId);
     const fristTekst = [
         frist.tittel,
         `${language === "en" ? "Course" : "Emne"}: ${frist.emne}`,
@@ -285,11 +289,34 @@ function FristKort({ frist, language }: { frist: FristElement; language: "nb" | 
     return (
         <div className={`p-4 rounded-lg border ${fristFarge(frist.status)} transition-colors`}>
             <div className="flex items-start gap-3">
-                <Clock className="w-5 h-5 mt-0.5 shrink-0 text-slate-500 dark:text-slate-400" />
+                {!frist.erInnlevert && Number.isFinite(assignmentId) && (
+                    <button
+                        type="button"
+                        role="checkbox"
+                        aria-checked={erManueltFerdig}
+                        aria-label={erManueltFerdig ? t("notifications.unmarkAsSubmitted") : t("notifications.markAsSubmitted")}
+                        title={erManueltFerdig ? t("notifications.unmarkAsSubmitted") : t("notifications.markAsSubmitted")}
+                        onClick={() => toggleFerdig(assignmentId)}
+                        className={`mt-0.5 shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
+                            erManueltFerdig
+                                ? "bg-green-500 dark:bg-green-600 border-green-500 dark:border-green-600 text-white"
+                                : "border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500"
+                        }`}
+                    >
+                        {erManueltFerdig && (
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                        )}
+                    </button>
+                )}
+                {(frist.erInnlevert || !Number.isFinite(assignmentId)) && (
+                    <Clock className="w-5 h-5 mt-0.5 shrink-0 text-slate-500 dark:text-slate-400" />
+                )}
                 <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                            <h3 className="font-medium text-slate-900 dark:text-white truncate">
+                            <h3 className={`font-medium truncate ${erManueltFerdig ? "line-through text-slate-400 dark:text-slate-500" : "text-slate-900 dark:text-white"}`}>
                                 {frist.tittel}
                             </h3>
                             <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -298,6 +325,12 @@ function FristKort({ frist, language }: { frist: FristElement; language: "nb" | 
                                     <span className="inline-flex items-center gap-1 rounded-md bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 text-xs font-medium text-green-800 dark:text-green-300">
                                         <CheckCircle2 className="w-3 h-3" />
                                         {t("notifications.submitted")}
+                                    </span>
+                                )}
+                                {erManueltFerdig && !frist.erInnlevert && (
+                                    <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                                        <CheckCircle2 className="w-3 h-3" />
+                                        {t("notifications.manuallySubmitted")}
                                     </span>
                                 )}
                             </p>

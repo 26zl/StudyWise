@@ -197,6 +197,9 @@ export const nbMessages = {
       "Noen varsler kunne ikke lastes. Resten vises under.",
     remaining: "{time} igjen",
     submitted: "Innlevert",
+    manuallySubmitted: "Manuelt innlevert",
+    markAsSubmitted: "Marker som innlevert",
+    unmarkAsSubmitted: "Fjern innlevert-markering",
     tabs: {
       all: "Alle",
       announcements: "Kunngjøringer",

@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useUIStore } from "@/app/store/uiStore";
 import { useKIStore } from "@/app/store/kiStore";
 import {
@@ -28,7 +28,7 @@ import {
 import { useLoggUtWithRedirect } from "@/app/auth/auth-api";
 import { useChatHistory } from "@/app/hooks/useChatHistory";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useLanguage } from "@/app/i18n";
 import { useDialogAccessibility } from "@/app/hooks/useDialogAccessibility";
 import { useMediaQuery } from "@/app/hooks/useMediaQuery";
@@ -67,12 +67,17 @@ export function Sidebar({
     const { runningChatId } = useKIStore();
     const { chats } = useChatHistory();
     const pathname = usePathname();
+    const router = useRouter();
     const { t } = useLanguage();
     const erMobil = useMediaQuery("(max-width: 767px)");
     const dialogRef = useRef<HTMLElement | null>(null);
     const closeButtonRef = useRef<HTMLButtonElement | null>(null);
     const headingId = useId();
     const dialogId = "dashboard-sidebar";
+    const [pendingVisning, setPendingVisning] = useState<VisningType | null>(null);
+    const [pendingPathname, setPendingPathname] = useState<
+      "/dashboard" | "/oversikt" | "/ai-breakdown" | null
+    >(null);
 
     useDialogAccessibility({
         open: isVenstreMenyOpen,
@@ -82,14 +87,47 @@ export function Sidebar({
         onClose: lukkVenstreMeny,
     });
 
+    useEffect(() => {
+        router.prefetch("/dashboard");
+        router.prefetch("/oversikt");
+        router.prefetch("/ai-breakdown");
+    }, [router]);
+
+    useEffect(() => {
+        if (pendingPathname != null && pathname === pendingPathname) {
+            setPendingPathname(null);
+        }
+    }, [pathname, pendingPathname]);
+
+    useEffect(() => {
+        if (pathname !== "/dashboard") {
+            setPendingVisning(null);
+            return;
+        }
+
+        if (pendingVisning != null && pendingVisning === aktivVisning) {
+            setPendingVisning(null);
+        }
+    }, [pathname, pendingVisning, aktivVisning]);
+
     const handleNavigasjon = (visning: VisningType) => {
+        if (pathname !== "/dashboard") {
+            setPendingPathname("/dashboard");
+        } else {
+            setPendingPathname(null);
+        }
+        setPendingVisning(visning);
         byttVisning(visning);
         if (window.innerWidth < 768) {
             lukkVenstreMeny();
         }
     };
-    // KI Assistent er kun «aktiv» når vi faktisk er på dashboard
-    const erChatAktiv = pathname === "/dashboard" && aktivVisning === "chat";
+    const effektivPathname = pendingPathname ?? pathname;
+    const erPåDashboard = effektivPathname === "/dashboard";
+    const effektivVisning = pendingVisning ?? aktivVisning;
+
+    // KI Assistent er kun «aktiv» når dashboardet faktisk er aktivt
+    const erChatAktiv = erPåDashboard && effektivVisning === "chat";
 
     // Enkel komponent for navigasjonselementer
     const NavElement = ({
@@ -105,7 +143,9 @@ export function Sidebar({
         indent?: boolean;
         isActiveOverride?: boolean;
     }) => {
-        const erAktiv = isActiveOverride !== undefined ? isActiveOverride : aktivVisning === view;
+        const erAktiv = isActiveOverride !== undefined
+            ? isActiveOverride
+            : erPåDashboard && effektivVisning === view;
         return (
             <button
                 type="button"
@@ -182,15 +222,17 @@ export function Sidebar({
                         <Link
                             href="/oversikt"
                             prefetch={false}
-                            aria-current={pathname === "/oversikt" ? "page" : undefined}
+                            aria-current={effektivPathname === "/oversikt" ? "page" : undefined}
                             onClick={() => {
+                                setPendingVisning(null);
+                                setPendingPathname("/oversikt");
                                 if (window.innerWidth < 768) lukkVenstreMeny();
                             }}
                             className={`
                                 w-full flex items-center gap-3 px-5 py-3.5 rounded-xl text-left text-sm
                                 transition-colors duration-150
                                 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
-                                ${pathname === "/oversikt"
+                                ${effektivPathname === "/oversikt"
                                     ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
                                     : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
                                 }
@@ -225,8 +267,10 @@ export function Sidebar({
                         <Link
                             href="/ai-breakdown"
                             prefetch={false}
-                            aria-current={pathname === "/ai-breakdown" ? "page" : undefined}
+                            aria-current={effektivPathname === "/ai-breakdown" ? "page" : undefined}
                             onClick={() => {
+                                setPendingVisning(null);
+                                setPendingPathname("/ai-breakdown");
                                 if (window.innerWidth < 768) {
                                     lukkVenstreMeny();
                                 }
@@ -235,7 +279,7 @@ export function Sidebar({
                                 w-full flex items-center gap-3 px-5 py-3.5 rounded-xl text-left text-sm
                                 transition-colors duration-150
                                 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
-                                ${pathname === "/ai-breakdown"
+                                ${effektivPathname === "/ai-breakdown"
                                     ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
                                     : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
                                 }
@@ -259,7 +303,7 @@ export function Sidebar({
                             chats.slice(0, 5).map((chat) => (
                                 (() => {
                                     const erAktivSamtale = currentChatId === chat.id;
-                                    const erPåChatSide = pathname === "/dashboard" && aktivVisning === "chat";
+                                    const erPåChatSide = erPåDashboard && effektivVisning === "chat";
                                     // Marker aktivt: på chat-siden vises valgt samtale, på andre sider kun hvis KI jobber i bakgrunnen
                                     const visPågåendeMarkering = erAktivSamtale && (erPåChatSide || runningChatId === chat.id);
                                     return (

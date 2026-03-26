@@ -23,6 +23,7 @@ import {
     type VarslingElement,
 } from "../lib/varsler";
 import { useUIStore } from "../store/uiStore";
+import { useManuellInnlevering } from "./useManuellInnlevering";
 import { useOppdaterVarslerState } from "../auth/auth-api";
 import { useLanguage } from "../i18n";
 
@@ -141,6 +142,8 @@ export function useVarsler(harCanvasToken: boolean): UseVarslerResult {
     const markAllAsLestStore = useUIStore((s) => s.markAllVarslerAsLest);
     const isHydrated = useUIStore((s) => s.varslerStateHydrated);
 
+    const { ferdigeIdSet } = useManuellInnlevering();
+
     const emneNavnMap = useMemo(() => {
         const courses = coursesQuery.data?.courses ?? [];
         const map = new Map<string, string>();
@@ -148,7 +151,11 @@ export function useVarsler(harCanvasToken: boolean): UseVarslerResult {
         return map;
     }, [coursesQuery.data]);
 
-    const frister = useMemo(() => buildFrister(assignmentsQuery.data ?? []), [assignmentsQuery.data]);
+    const ikkeManuelleOppgaver = useMemo(
+        () => (assignmentsQuery.data ?? []).filter((o) => !ferdigeIdSet.has(o.id)),
+        [assignmentsQuery.data, ferdigeIdSet],
+    );
+    const frister = useMemo(() => buildFrister(ikkeManuelleOppgaver), [ikkeManuelleOppgaver]);
     const kunngjøringer = useMemo(
         () => buildKunngjøringer(announcementsQuery.data?.announcements ?? [], emneNavnMap),
         [announcementsQuery.data, emneNavnMap],

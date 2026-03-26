@@ -121,14 +121,16 @@ export function buildKunngjøringer(
     announcements: { id: number; title: string; message?: string | null; context_code?: string; posted_at?: string | null }[],
     emneNavnMap: Map<string, string>,
 ): KunngjoringElement[] {
-    return announcements.map((a) => ({
-        type: "kunngjoring" as const,
-        id: `kunngjoring-${a.id}`,
-        tittel: a.title,
-        emne: (a.context_code && emneNavnMap.get(a.context_code)) ?? a.context_code?.replace("course_", "Emne ") ?? "",
-        dato: a.posted_at ? new Date(a.posted_at) : new Date(),
-        melding: a.message ?? "",
-    }));
+    return announcements
+        .map((a) => ({
+            type: "kunngjoring" as const,
+            id: `kunngjoring-${a.id}`,
+            tittel: a.title,
+            emne: (a.context_code && emneNavnMap.get(a.context_code)) ?? a.context_code?.replace("course_", "Emne ") ?? "",
+            dato: a.posted_at ? new Date(a.posted_at) : new Date(),
+            melding: a.message ?? "",
+        }))
+        .sort((a, b) => b.dato.getTime() - a.dato.getTime());
 }
 // Hendelser bygges fra kalenderdata, med ekstra håndtering
 export function buildHendelser(
@@ -144,15 +146,15 @@ export function buildHendelser(
             sluttDato: e.end_at ? new Date(e.end_at) : null,
             lokasjon: e.location_name ?? null,
         }))
-        .sort((a, b) => a.dato.getTime() - b.dato.getTime());
+        .sort((a, b) => b.dato.getTime() - a.dato.getTime());
 }
-// Bygg en samlet liste av alle varslingselementer, sortert på dato
+// Bygg en samlet liste av alle varslingselementer, sortert på dato (nyeste først)
 export function buildAlleElementer(
     frister: FristElement[],
     kunngjøringer: KunngjoringElement[],
     hendelser: HendelseElement[],
 ): VarslingElement[] {
     return [...frister, ...kunngjøringer, ...hendelser].sort(
-        (a, b) => a.dato.getTime() - b.dato.getTime(),
+        (a, b) => b.dato.getTime() - a.dato.getTime(),
     );
 }

@@ -11,6 +11,7 @@ import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { AUTH_CHANNEL_NAME } from "common/auth";
 import { clearDatadogUser } from "@/app/components/layout/DatadogRum";
 import { useUIStore } from "../store/uiStore";
+import { useManuellInnleveringStore } from "./useManuellInnlevering";
 
 // Konstantverdier for BroadcastChannel (same-origin per spec )
 const LOGOUT_MESSAGE = "logout";
@@ -20,6 +21,7 @@ export function clearClientAuthState(queryClient: QueryClient): void {
     clearDatadogUser();
     queryClient.clear();
     useUIStore.getState().reset();
+    useManuellInnleveringStore.getState().reset();
 }
 
 function kreverAuthRedirect(pathname: string | null): boolean {

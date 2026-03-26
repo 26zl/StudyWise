@@ -36,6 +36,7 @@ import { useUIStore } from "@/app/store/uiStore";
 import { CanvasKIHandlinger } from "@/app/components/ki/CanvasKIActions";
 import { showToast } from "@/app/components/ui/Toaster";
 import { erInnlevert as erInnlevertOppgave } from "@/app/canvas/canvasUtils";
+import { useManuellInnlevering } from "@/app/hooks/useManuellInnlevering";
 import { createCanvasHtmlParser, parseCanvasHtml, sikkerFilNedlastingUrl } from "@/app/canvas/canvasHtml";
 import { CanvasPageVisning } from "@/app/components/canvas/CanvasPageVisning";
 import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
@@ -113,6 +114,9 @@ function getCanvasLabels(language: Language) {
             sortByCourse: "Sorted by course",
             assignmentCourse: "Course",
             submitted: "Submitted",
+            manuallySubmitted: "Manually submitted",
+            markAsSubmitted: "Mark as submitted",
+            unmarkAsSubmitted: "Unmark as submitted",
             points: "Points",
             due: "Due",
             pointsSuffix: "points",
@@ -181,6 +185,9 @@ function getCanvasLabels(language: Language) {
         sortByCourse: "Sortert etter emne",
         assignmentCourse: "Emne",
         submitted: "Innlevert",
+        manuallySubmitted: "Manuelt innlevert",
+        markAsSubmitted: "Marker som innlevert",
+        unmarkAsSubmitted: "Fjern innlevert-markering",
         points: "Poeng",
         due: "Frist",
         pointsSuffix: "poeng",
@@ -1102,6 +1109,7 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const assignmentsQuery = useCanvasAllAssignments({ enabled: harCanvasToken });
     const allAssignments: AssignmentMedEmne[] = assignmentsQuery.data || [];
     const { language, labels } = useCanvasLabels();
+    const { ferdigeIdSet, toggleFerdig } = useManuellInnlevering();
 
     const [filter, settFilter] = useState<"alle" | "kommende" | "forfalt" | "uten-frist">("kommende");
     const [sortering, settSortering] = useState<"frist" | "emne">("frist");
@@ -1211,11 +1219,13 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     const dagerTekst = fristDato ? formaterDagerRelativtFrist(dagerFraIdag(fristDato), language) : "";
 
                     const erInnlevert = erInnlevertOppgave(assignment);
+                    const erManueltFerdig = ferdigeIdSet.has(assignment.id);
+                    const erFerdig = erInnlevert || erManueltFerdig;
 
                     const oppsummeringstekst = [
                         assignment.name,
                         `${labels.assignmentCourse}: ${assignment.course_name}`,
-                        erInnlevert ? labels.submitted : "",
+                        erFerdig ? labels.submitted : "",
                         assignment.points_possible != null ? `${labels.points}: ${assignment.points_possible}` : "",
                         assignment.due_at ? `${labels.due}: ${formaterDatoLong(assignment.due_at, language)}` : "",
                     ].filter(Boolean).join(". ");
@@ -1226,21 +1236,49 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                             className="px-4 py-3 flex flex-col gap-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
                         >
                             <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4">
-                                <div className="flex-1 min-w-0">
-                                    <h3 className="font-medium text-sm sm:text-base text-slate-900 dark:text-white truncate">
-                                        {assignment.name}
-                                    </h3>
-                                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                                        <span>{assignment.course_name}</span>
-                                        {assignment.points_possible != null ? (
-                                            <span>· {assignment.points_possible} {labels.pointsSuffix}</span>
-                                        ) : null}
-                                        {erInnlevert && (
-                                            <span className="inline-flex items-center rounded-md bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 text-xs font-medium text-green-800 dark:text-green-300">
-                                                {labels.submitted}
-                                            </span>
-                                        )}
-                                    </p>
+                                <div className="flex items-start gap-3 flex-1 min-w-0">
+                                    {!erInnlevert && (
+                                        <button
+                                            type="button"
+                                            role="checkbox"
+                                            aria-checked={erManueltFerdig}
+                                            aria-label={erManueltFerdig ? labels.unmarkAsSubmitted : labels.markAsSubmitted}
+                                            title={erManueltFerdig ? labels.unmarkAsSubmitted : labels.markAsSubmitted}
+                                            onClick={() => toggleFerdig(assignment.id)}
+                                            className={`mt-1 shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
+                                                erManueltFerdig
+                                                    ? "bg-green-500 dark:bg-green-600 border-green-500 dark:border-green-600 text-white"
+                                                    : "border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500"
+                                            }`}
+                                        >
+                                            {erManueltFerdig && (
+                                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            )}
+                                        </button>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className={`font-medium text-sm sm:text-base truncate ${erManueltFerdig ? "line-through text-slate-400 dark:text-slate-500" : "text-slate-900 dark:text-white"}`}>
+                                            {assignment.name}
+                                        </h3>
+                                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                            <span>{assignment.course_name}</span>
+                                            {assignment.points_possible != null ? (
+                                                <span>· {assignment.points_possible} {labels.pointsSuffix}</span>
+                                            ) : null}
+                                            {erInnlevert && (
+                                                <span className="inline-flex items-center rounded-md bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 text-xs font-medium text-green-800 dark:text-green-300">
+                                                    {labels.submitted}
+                                                </span>
+                                            )}
+                                            {erManueltFerdig && !erInnlevert && (
+                                                <span className="inline-flex items-center rounded-md bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                                                    {labels.manuallySubmitted}
+                                                </span>
+                                            )}
+                                        </p>
+                                    </div>
                                 </div>
                                 <div className="text-right shrink-0 text-xs sm:text-sm">
                                     {harFrist ? (

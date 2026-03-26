@@ -38,6 +38,7 @@ import {
   type AssignmentMedEmne,
 } from "@/app/canvas/canvas-api";
 import { erInnlevert } from "@/app/canvas/canvasUtils";
+import { useManuellInnlevering } from "@/app/hooks/useManuellInnlevering";
 import {
   dagerFraIdag,
   formaterDatoFull,
@@ -101,11 +102,13 @@ export function OversiktPage() {
     courses: coursesQuery.data?.courses,
   });
 
+  const { ferdigeIdSet, toggleFerdig } = useManuellInnlevering();
+
   const allAssignments: AssignmentMedEmne[] = assignmentsQuery.isError
     ? []
     : assignmentsQuery.data ?? [];
   const ikkeInnleverteAssignments = allAssignments.filter(
-    (assignment) => !erInnlevert(assignment),
+    (assignment) => !erInnlevert(assignment) && !ferdigeIdSet.has(assignment.id),
   );
 
   const totalCourses = coursesQuery.data?.courses?.length || 0;
@@ -395,13 +398,24 @@ export function OversiktPage() {
                       className="p-4 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
                     >
                       <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="truncate font-medium text-slate-900 dark:text-white">
-                            {assignment.name}
-                          </h3>
-                          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                            {assignment.course_name}
-                          </p>
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          <button
+                            type="button"
+                            role="checkbox"
+                            aria-checked={false}
+                            aria-label={t("notifications.markAsSubmitted")}
+                            title={t("notifications.markAsSubmitted")}
+                            onClick={() => toggleFerdig(assignment.id)}
+                            className="mt-0.5 shrink-0 w-5 h-5 rounded border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <h3 className="truncate font-medium text-slate-900 dark:text-white">
+                              {assignment.name}
+                            </h3>
+                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                              {assignment.course_name}
+                            </p>
+                          </div>
                         </div>
                         <div className="shrink-0 text-right">
                           <div

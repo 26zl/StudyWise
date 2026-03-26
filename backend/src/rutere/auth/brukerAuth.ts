@@ -457,8 +457,8 @@ router.put("/profile", rateLimitMe, async (req, res) => {
             return apiError.notFound(res, "Bruker");
         }
 
-        // Synkroniser til Clerk hvis brukeren har clerkId
-        if (oppdatertBruker.clerkId) {
+        // Synkroniser til Clerk hvis brukeren har clerkId (hopp over hvis endringen allerede kom fra Clerk)
+        if (oppdatertBruker.clerkId && !parsed.skipClerkSync) {
             const { updateClerkUserProfile } = await import("./clerkAuth.js");
             const clerkUpdates: { firstName?: string; lastName?: string } = {};
             if (parsed.firstName !== undefined) clerkUpdates.firstName = parsed.firstName || "";

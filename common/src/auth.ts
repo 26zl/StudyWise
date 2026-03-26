@@ -186,6 +186,8 @@ export const ProfileUpdateSchema = z
   .object({
     firstName: z.string().trim().max(100, "Fornavn kan maks være 100 tegn").optional(),
     lastName: z.string().trim().max(100, "Etternavn kan maks være 100 tegn").optional(),
+    /** Hopp over tilbakesynk til Clerk (brukes når endringen allerede kom fra Clerk). */
+    skipClerkSync: z.boolean().optional(),
   })
   .refine(
     (data) => data.firstName !== undefined || data.lastName !== undefined,
