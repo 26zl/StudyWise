@@ -10,7 +10,11 @@ export const stripHtml = (html: string, options?: { removeStyles?: boolean }): s
   // Fjern <link rel="stylesheet"> og <style> tags hvis ønsket
   if (options?.removeStyles) {
     cleaned = cleaned.replace(/<link[^>]*rel=["']stylesheet["'][^>]*>/gi, "");
-    cleaned = cleaned.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
+    let previous: string;
+    do {
+      previous = cleaned;
+      cleaned = cleaned.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
+    } while (cleaned !== previous);
   }
 
   return cleaned
