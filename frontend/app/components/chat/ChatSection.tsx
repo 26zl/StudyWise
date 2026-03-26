@@ -1443,28 +1443,20 @@ export function ChatSection() {
                                         <div className="flex items-center gap-0.5">
                                             <button
                                                 type="button"
-                                                onClick={() => setViserShareModal(true)}
-                                                className={actionBtnClass}
-                                                title="Del hele chatten"
-                                            >
-                                                <Share2 className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                type="button"
                                                 onClick={() => {
                                                     exportToMarkdown(
-                                                        meldinger.map((m) => ({
-                                                            rolle: m.rolle,
-                                                            innhold: m.innhold,
-                                                            tidsstempel: m.tidsstempel,
-                                                        })),
+                                                        [{
+                                                            rolle: "assistant",
+                                                            innhold: melding.innhold,
+                                                            tidsstempel: melding.tidsstempel,
+                                                        }],
                                                         undefined,
-                                                        "studywise-samtale",
+                                                        "studywise-svar",
                                                     );
-                                                    showToast.success(t("chat.conversationDownloaded"));
+                                                    showToast.success("Svar lastet ned");
                                                 }}
                                                 className={actionBtnClass}
-                                                title="Last ned samtale"
+                                                title="Last ned svar"
                                             >
                                                 <Download className="w-4 h-4" />
                                             </button>
@@ -1572,6 +1564,18 @@ export function ChatSection() {
                             aria-label="Eksporter samtale som Markdown"
                         >
                             <FileText className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+                        </button>
+
+                        {/* Del samtale */}
+                        <button
+                            type="button"
+                            onClick={() => setViserShareModal(true)}
+                            disabled={meldinger.length === 0 || skriver || analyserarDokument}
+                            className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                            title="Del samtale"
+                            aria-label="Del samtale"
+                        >
+                            <Share2 className="w-5 h-5 text-slate-400 dark:text-slate-500" />
                         </button>
 
                         {/* Filopplasting */}
