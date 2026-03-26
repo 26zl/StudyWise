@@ -2,6 +2,8 @@
 * Swagger/OpenAPI dokumentasjon for API
 */
 import swaggerJsdoc from "swagger-jsdoc";
+import { discoverSwaggerPaths } from "./swaggerRouteDiscovery.js";
+import { isProd } from "./utils/env.js";
 
 const options: swaggerJsdoc.Options = {
   definition: {
@@ -18,6 +20,14 @@ const options: swaggerJsdoc.Options = {
     },
     servers: [],
     components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+          description: "Bruk Clerk Bearer-token for beskyttede API-ruter.",
+        },
+      },
       schemas: {
         HealthCheck: {
           type: "object",
@@ -52,4 +62,16 @@ const options: swaggerJsdoc.Options = {
   apis: ["./src/rutere/**/*.ts", "./src/index.ts"],
 };
 
-export const swaggerSpec = swaggerJsdoc(options);
+const generatedSpec = swaggerJsdoc(options) as { paths?: Record<string, unknown> } & Record<
+  string,
+  unknown
+>;
+const generatedPaths = isProd ? {} : discoverSwaggerPaths();
+
+export const swaggerSpec = {
+  ...generatedSpec,
+  paths: {
+    ...(generatedSpec.paths ?? {}),
+    ...generatedPaths,
+  },
+};
