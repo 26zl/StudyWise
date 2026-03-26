@@ -181,11 +181,11 @@ export const PreferencesResponseSchema = z.object({
 
 export const AccountDeletionDeletedSchema = z.object({
   user: z.boolean(),
-  chatHistory: z.number(),
-  taskBreakdown: z.number(),
-  contentEmbedding: z.number(),
-  canvasUser: z.number(),
-  arbeidsplan: z.number(),
+  chatHistory: z.number().int().min(0),
+  taskBreakdown: z.number().int().min(0),
+  contentEmbedding: z.number().int().min(0),
+  canvasUser: z.number().int().min(0),
+  arbeidsplan: z.number().int().min(0),
 });
 
 export const AccountDeletionResponseSchema = z.object({

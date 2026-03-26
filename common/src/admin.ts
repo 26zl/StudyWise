@@ -5,7 +5,7 @@
 import { z } from "zod";
 import { AuthProviderSchema, RoleSchema } from "./auth.js";
 
-const PaginationQueryValueSchema = z.string().trim().regex(/^\d+$/);
+const PaginationQueryValueSchema = z.string().trim().max(6).regex(/^\d+$/);
 
 export const AdminBrukereQuerySchema = z.object({
   limit: PaginationQueryValueSchema.optional(),

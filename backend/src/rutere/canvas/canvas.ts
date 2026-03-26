@@ -15,6 +15,7 @@ import {
   isSafePathSegment,
   erInnenforKalenderVindu,
   beregnKalenderVindu,
+  buildCanvasAuthHeaders,
   CACHE_TTL,
   getCanvasTenantCachePrefix,
   type CanvasHttpError,
@@ -1275,9 +1276,7 @@ router.get("/filer/:fileId/download", async (req, res) => {
     // Last ned fra Canvas og stream til klient
     const canvasRes = await fetch(safeUrl, {
       headers: canvasToken
-        ? {
-            Authorization: `Bearer ${canvasToken}`,
-          }
+        ? buildCanvasAuthHeaders(canvasToken)
         : undefined,
     });
     if (!canvasRes.ok || !canvasRes.body) {

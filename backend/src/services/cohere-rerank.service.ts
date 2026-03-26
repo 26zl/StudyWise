@@ -15,6 +15,7 @@ import { CircuitBreaker } from "../utils/circuitBreaker.js";
 
 const COHERE_API_KEY = process.env.COHERE_API_KEY?.trim();
 const COHERE_RERANK_MODEL = "rerank-v3.5";
+/** Stabil Cohere v2 endepunkt — hardkodet fordi URL-en er fast og versjonert. */
 const COHERE_RERANK_URL = "https://api.cohere.com/v2/rerank";
 
 /** Timeout for Cohere API-kall (ms) */

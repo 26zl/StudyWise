@@ -22,7 +22,7 @@ import { SUPPORTED_MODELS, DEFAULT_MODEL, resolveModel } from "./aiModels.js";
 import { STUDYWISE_SYSTEM_PROMPT } from "./systemPrompt.js";
 import { chatCompletion } from "./aiClient.js";
 import { handleAIError, checkAIClientUnavailable } from "./handleAIError.js";
-import { loadCanvasContext, ensureCanvasSync, type IntentType, type ContextResult } from "../../services/context-loader.service.js";
+import { loadCanvasContext, ensureCanvasSync, ContextResultSchema, type IntentType, type ContextResult } from "../../services/context-loader.service.js";
 import { isSyncing, waitForSync } from "../../services/canvas-sync.service.js";
 import { trimToTokenLimit, countTokens } from "../../utils/tokenCounter.js";
 import { knyttCanvasTokenValgfritt } from "../../middleware/auth.js";
@@ -567,12 +567,17 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
 
       if (cachedSessionCtx) {
         try {
-          contextResult = JSON.parse(cachedSessionCtx) as ContextResult;
-          usedSessionCache = true;
-          logger.info(
-            { sessionCacheKey, contextLength: contextResult.kontekst.length },
-            "Bruker cached session-kontekst for kurs",
-          );
+          const parsed = ContextResultSchema.safeParse(JSON.parse(cachedSessionCtx));
+          if (!parsed.success) {
+            logger.warn({ sessionCacheKey, errors: parsed.error.issues }, "Ugyldig struktur i session-cache — henter på nytt");
+          } else {
+            contextResult = parsed.data;
+            usedSessionCache = true;
+            logger.info(
+              { sessionCacheKey, contextLength: contextResult.kontekst.length },
+              "Bruker cached session-kontekst for kurs",
+            );
+          }
         } catch {
           logger.warn({ sessionCacheKey }, "Ugyldig JSON i session-cache — henter på nytt");
         }

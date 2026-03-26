@@ -256,12 +256,17 @@ async function _doSync(
     logger.info({ userId }, "Ingen aktive emner funnet for Canvas sync");
     // Vent på invalidering og sletting FØR vi skriver ny cache-state,
     // slik at en sen invalidering ikke overskriver de nye verdiene.
-    await Promise.allSettled([
+    const cleanupResults = await Promise.allSettled([
       invalidateCacheByPattern(`canvas:user:${userId}:emne:*`),
       deleteStoredUserContent(userId),
       invalidateUserKISessionCache(userId),
       CanvasStructureModel.deleteMany({ userId }),
     ]);
+    for (const r of cleanupResults) {
+      if (r.status === "rejected") {
+        logger.warn({ err: r.reason, userId }, "Feil under cleanup av tom emneliste");
+      }
+    }
     // Nå er det trygt å skrive tom liste og syncMeta
     await setCache(userKey(userId, "emner"), "[]", SYNC_CACHE_TTL);
     const emptyMeta: SyncMeta = { lastSyncAt: new Date().toISOString(), courseHashes: {} };
@@ -367,7 +372,7 @@ async function _doSync(
             // Data uendret — hopp over Redis-skriving, bare oppdater TTL
             unchanged++;
             const keys = ["meta", "moduler", "oppgaver", "kunngjøringer"];
-            await Promise.allSettled(
+            const ttlResults = await Promise.allSettled(
               keys.map(async (k) => {
                 const existing = await getCache(userKey(userId, "emne", courseId, k));
                 if (existing) {
@@ -375,6 +380,11 @@ async function _doSync(
                 }
               }),
             );
+            for (const r of ttlResults) {
+              if (r.status === "rejected") {
+                logger.warn({ err: r.reason, userId, courseId }, "Feil ved TTL-refresh for uendret kurs");
+              }
+            }
 
             // Backfill til MongoDB hvis dokumentet ikke finnes ennå
             // (eksisterende brukere som aldri fikk initial upsert)
@@ -676,15 +686,25 @@ async function _doSync(
     (courseId) => !(courseId in newHashes),
   );
   if (removedCourseIds.length > 0) {
-    await Promise.allSettled(
+    const removeResults = await Promise.allSettled(
       removedCourseIds.map(async (removedCourseId) => {
-        await Promise.allSettled([
+        const innerResults = await Promise.allSettled([
           invalidateCacheByPattern(userKey(userId, "emne", removedCourseId, "*")),
           deleteStoredCourseContent(userId, removedCourseId),
           CanvasStructureModel.deleteOne({ userId, courseId: removedCourseId }),
         ]);
+        for (const r of innerResults) {
+          if (r.status === "rejected") {
+            logger.warn({ err: r.reason, userId, courseId: removedCourseId }, "Feil ved opprydding av fjernet kurs");
+          }
+        }
       }),
     );
+    for (const r of removeResults) {
+      if (r.status === "rejected") {
+        logger.warn({ err: r.reason, userId }, "Feil ved fjerning av inaktivt kurs");
+      }
+    }
     logger.info(
       { userId, removedCourseIds },
       "Fjernet lagret data for kurs som ikke lenger er aktive",
@@ -758,7 +778,7 @@ export async function invalidateUserCanvasCache(
       : Promise.resolve(),
   };
 
-  const [contentResult, , sessionResult, redisResult] = await Promise.allSettled([
+  const [contentResult, structureResult, sessionResult, redisResult] = await Promise.allSettled([
     tasks.contentDeletion,
     tasks.structureDeletion,
     tasks.sessionInvalidation,
@@ -770,6 +790,10 @@ export async function invalidateUserCanvasCache(
     if (strictContentDeletion) {
       throw contentResult.reason;
     }
+  }
+
+  if (structureResult.status === "rejected") {
+    logger.warn({ err: structureResult.reason, userId }, "Feil ved sletting av Canvas-struktur");
   }
 
   if (sessionResult.status === "rejected") {

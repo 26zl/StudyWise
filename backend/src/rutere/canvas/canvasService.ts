@@ -11,6 +11,7 @@ import {
   MAX_PAGES,
   FORELESNINGER_VINDU,
   validateCanvasRedirectUrl,
+  buildCanvasAuthHeaders,
 } from "./canvasUtils.js";
 import {
   CanvasUserSchema,
@@ -47,9 +48,6 @@ const requireToken = (token?: string | null) => {
   return token;
 };
 
-const buildCanvasAuthHeaders = (token: string) => ({
-  Authorization: `Bearer ${token.replace(/^Bearer\s+/i, "").trim()}`,
-});
 
 function getValidatedCanvasDownloadUrl(
   downloadUrl: string | null | undefined,

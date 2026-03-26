@@ -175,9 +175,14 @@ export async function cleanupExpiredSharedChats(options?: {
     },
   );
 
-  await Promise.allSettled(
+  const auditResults = await Promise.allSettled(
     expiredShares.map((share) => auditShareExpired(share, reason)),
   );
+  for (const r of auditResults) {
+    if (r.status === "rejected") {
+      logger.warn({ err: r.reason, reason }, "Feil ved audit-logging av utløpt deling");
+    }
+  }
 
   logger.info(
     { count: expiredShares.length, reason },

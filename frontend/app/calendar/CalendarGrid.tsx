@@ -102,8 +102,8 @@ export const CalendarGrid = memo(function CalendarGrid({
         return map;
     }, [assignments]);
 
-    // Pre-beregn today og threeDaysFromNow en gang
-    const today = useMemo(() => startOfDay(new Date()), []);
+    // Beregn today og threeDaysFromNow — oppdateres ved navigering/re-render
+    const today = useMemo(() => startOfDay(new Date()), [currentDate]);
     const threeDaysFromNow = useMemo(() => {
         const d = new Date(today);
         d.setDate(today.getDate() + 3);

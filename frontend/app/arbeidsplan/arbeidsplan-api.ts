@@ -6,6 +6,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { fetchApi } from "../lib/apiClient";
+import { parseApiError } from "../lib/errorUtils";
 import { StudyBlockSchema, type StudyBlock } from "common/arbeidsplan";
 import { UKEDAGER } from "common/arbeidsplan";
 export const DAYS_ORDER: string[] = [...UKEDAGER];
@@ -80,7 +81,7 @@ async function fetchArbeidsplan(url: string): Promise<Arbeidsplan | null> {
   const res = await fetchApi(url, { method: "GET" });
 
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
+    throw new Error(await parseApiError(res, "Kunne ikke hente arbeidsplan"));
   }
 
   const json = await res.json();
@@ -102,7 +103,7 @@ async function createArbeidsplan(data: {
   });
 
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
+    throw new Error(await parseApiError(res, "Kunne ikke opprette arbeidsplan"));
   }
 
   const json = await res.json();
@@ -122,7 +123,7 @@ async function updateBlock(
   });
 
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
+    throw new Error(await parseApiError(res, "Kunne ikke oppdatere studieblokk"));
   }
 
   const json = await res.json();
@@ -136,7 +137,7 @@ async function deleteArbeidsplan(planId: string): Promise<void> {
   });
 
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
+    throw new Error(await parseApiError(res, "Kunne ikke slette arbeidsplan"));
   }
 }
 
@@ -144,7 +145,7 @@ async function fetchProgress(): Promise<ProgressStats> {
   const res = await fetchApi("/api/arbeidsplan/stats/progress", { method: "GET" });
 
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
+    throw new Error(await parseApiError(res, "Kunne ikke hente fremgangsstatistikk"));
   }
 
   const json = await res.json();

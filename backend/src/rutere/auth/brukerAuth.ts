@@ -276,12 +276,21 @@ router.post("/token", rateLimitToken, async (req, res) => {
             return handleCanvasVerificationError(res, canvasError);
         }
         if (forceRelink && eksisterendeTokenBruker) {
-            usersToInvalidate.add(eksisterendeTokenBruker._id.toString());
-            const oppdatert = await User.findByIdAndUpdate(eksisterendeTokenBruker._id, {
-                $unset: { canvasApiToken: 1, canvasTokenHash: 1, canvasUser: 1, canvasBaseUrl: 1 }
+            // Re-query for å unngå race condition — brukeren kan ha blitt slettet/endret
+            // mellom den opprinnelige sjekken (linje 203) og Canvas-verifiseringen
+            const freshTokenBruker = await User.findOne({
+                canvasBaseUrl,
+                canvasTokenHash: nyTokenHash,
+                _id: { $ne: userId },
             });
-            if (!oppdatert) {
-                logger.warn({ userId, targetUserId: eksisterendeTokenBruker._id }, "forceRelink: bruker ble slettet mellom sjekk og oppdatering");
+            if (freshTokenBruker) {
+                usersToInvalidate.add(freshTokenBruker._id.toString());
+                const oppdatert = await User.findByIdAndUpdate(freshTokenBruker._id, {
+                    $unset: { canvasApiToken: 1, canvasTokenHash: 1, canvasUser: 1, canvasBaseUrl: 1 }
+                });
+                if (!oppdatert) {
+                    logger.warn({ userId, targetUserId: freshTokenBruker._id }, "forceRelink: bruker ble slettet mellom sjekk og oppdatering");
+                }
             }
         }
 

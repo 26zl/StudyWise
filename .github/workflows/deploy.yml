@@ -71,15 +71,15 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      - name: Pull production environment variables
-        run: vercel env pull frontend/.env.production.local --environment=production --yes --token=${{ secrets.VERCEL_TOKEN }}
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      - name: Verify frontend env presence
+      - name: Verify Vercel pull env cache
         run: |
-          ENV_FILE="frontend/.env.production.local"
+          ENV_FILE=".vercel/.env.production.local"
+
+          if [ ! -f "$ENV_FILE" ]; then
+            echo "$ENV_FILE missing after vercel pull"
+            ls -la .vercel || true
+            exit 1
+          fi
 
           require_key() {
             local key="$1"
@@ -123,6 +123,23 @@ jobs:
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Inspect Datadog markers in build output
+        run: |
+          found=0
+          for dir in frontend/.next .vercel/output; do
+            if [ -d "$dir" ]; then
+              echo "Inspecting $dir"
+              if rg -n --hidden --glob '!**/*.map' "__DD_RUM_CONFIG__|studywise-frontend|NEXT_PUBLIC_DD_RUM_APPLICATION_ID|us5\\.datadoghq\\.com" "$dir"; then
+                found=1
+              fi
+            fi
+          done
+
+          if [ "$found" -eq 0 ]; then
+            echo "No Datadog markers found in build output"
+            exit 1
+          fi
 
       - name: Deploy frontend to Vercel
         id: deploy

@@ -16,6 +16,11 @@ import {
 import { normalizeCanvasBaseUrl } from "common/auth";
 import { canvasCircuit } from "../../utils/circuitBreaker.js";
 
+/** Bygger Canvas Authorization-header med Bearer-token (renset for eventuelle prefiks). */
+export const buildCanvasAuthHeaders = (token: string) => ({
+    Authorization: `Bearer ${token.replace(/^Bearer\s+/i, "").trim()}`,
+});
+
 // Typer og Interfaces
 // Canvas fetch funksjon med paginering og timeout
 export interface CanvasFetchOptions {
@@ -347,7 +352,7 @@ async function hentCanvasDataImpl<T>(
                 response = await fetch(currentUrl, {
                     method: "GET",
                     headers: {
-                        Authorization: `Bearer ${cleanToken}`,
+                        ...buildCanvasAuthHeaders(cleanToken),
                         "Content-Type": "application/json",
                     },
                     signal: controller.signal,

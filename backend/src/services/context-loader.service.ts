@@ -43,15 +43,19 @@ import {
 import { hybridSearch, type HybridSearchResult } from "./hybrid-retrieval.service.js";
 import { CanvasStructureModel, type ICanvasStructure } from "../database/models/CanvasStructure.js";
 
+import { z } from "zod";
+
 // ─── Typer ─────────────────────────────────────────────────
 
 export type IntentType = "general_chat" | "canvas_light" | "canvas_full";
 
-export interface ContextResult {
-  kontekst: string;
-  hasCanvasData: boolean;
-  source: "redis" | "mongodb" | "api" | "vector" | "chunks" | "none";
-}
+export const ContextResultSchema = z.object({
+  kontekst: z.string(),
+  hasCanvasData: z.boolean(),
+  source: z.enum(["redis", "mongodb", "api", "vector", "chunks", "none"]),
+});
+
+export type ContextResult = z.infer<typeof ContextResultSchema>;
 
 interface SyncedCourse {
   id: string;

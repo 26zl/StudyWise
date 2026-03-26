@@ -11,7 +11,7 @@ type ApiRequestOptions = {
   cache?: RequestCache;
 };
 
-export function mergeHeaders(...headerSets: Array<HeadersInit | undefined>): Headers {
+function mergeHeaders(...headerSets: Array<HeadersInit | undefined>): Headers {
   const headers = new Headers();
 
   for (const headerSet of headerSets) {
@@ -26,7 +26,7 @@ export function mergeHeaders(...headerSets: Array<HeadersInit | undefined>): Hea
   return headers;
 }
 
-export async function buildApiRequestInit(
+async function buildApiRequestInit(
   init: RequestInit = {},
   options: ApiRequestOptions = {},
 ): Promise<RequestInit> {
