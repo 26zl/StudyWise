@@ -110,7 +110,7 @@ export function AIBreakdownPage() {
   );
   const oppgaverUtenFrist = aktiveOppgaver.length - oppgaverMedFrist.length;
 
-  if (megQuery.isLoading) {
+  if (megQuery.isPending) {
     return (
       <SidebarAppLoadingState
         aktivVisning={SIDEBAR_VISNING}

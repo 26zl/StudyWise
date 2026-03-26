@@ -146,7 +146,7 @@ export function OversiktPage() {
     [],
   );
 
-  if (megQuery.isLoading) {
+  if (megQuery.isPending) {
     return (
       <SidebarAppLoadingState
         aktivVisning={SIDEBAR_VISNING}

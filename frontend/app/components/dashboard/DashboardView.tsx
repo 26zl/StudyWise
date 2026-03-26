@@ -158,16 +158,17 @@ export function DashboardView() {
         );
     }
     // Én shell: sidebar + faner vises alltid; innhold = loader mens /me laster, deretter seksjoner (redirect/feil håndteres over)
-    const visInnhold = !megQuery.isLoading;
+    // isPending fanger også disabled-tilstand (Clerk ikke klar ennå), isLoading kun aktiv fetching
+    const visInnhold = megQuery.isSuccess || megQuery.isError;
     return (
         <SidebarAppShell
             aktivVisning={aktivVisning}
             byttVisning={settAktivVisning}
-            brukernavn={megQuery.isLoading ? "..." : brukernavn}
+            brukernavn={megQuery.isPending ? "..." : brukernavn}
             brukerRolle={megQuery.data?.user?.role}
         >
             {!visInnhold ? (
-                <SectionLoader translationKey={megQuery.isLoading ? "common.loading.userData" : "common.loading.generic"} />
+                <SectionLoader translationKey={megQuery.isPending ? "common.loading.userData" : "common.loading.generic"} />
             ) : (
             <>
             {aktivVisning === "chat" && (
@@ -208,6 +209,9 @@ export function DashboardView() {
                             harCanvasToken={harCanvasToken}
                             lokalBrukerEpost={megQuery.data?.user?.email}
                             canvasBaseUrl={megQuery.data?.user?.canvasBaseUrl ?? undefined}
+                            fornavn={megQuery.data?.user?.firstName ?? undefined}
+                            etternavn={megQuery.data?.user?.lastName ?? undefined}
+                            authProvider={megQuery.data?.user?.authProvider ?? undefined}
                         />
                     </Suspense>
                 </SectionErrorBoundary>

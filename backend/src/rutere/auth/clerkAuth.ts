@@ -522,6 +522,29 @@ export async function findOrCreateUserByClerkId(
 }
 
 /**
+ * Oppdaterer brukerprofil i Clerk (firstName, lastName).
+ * Returnerer true ved suksess.
+ */
+export async function updateClerkUserProfile(
+  clerkUserId: string,
+  updates: { firstName?: string; lastName?: string },
+): Promise<boolean> {
+  const clerk = getClerkBackendClient();
+  if (!clerk) {
+    logger.warn("Clerk backend client ikke tilgjengelig for profiloppdatering");
+    return false;
+  }
+
+  try {
+    await clerk.users.updateUser(clerkUserId, updates);
+    return true;
+  } catch (error) {
+    logger.error({ err: error, clerkUserId }, "Kunne ikke oppdatere Clerk-brukerprofil");
+    return false;
+  }
+}
+
+/**
  * Sletter bruker i Clerk. Returnerer true ved suksess eller hvis bruker allerede er borte (404).
  */
 export async function deleteClerkUserById(clerkUserId: string): Promise<boolean> {

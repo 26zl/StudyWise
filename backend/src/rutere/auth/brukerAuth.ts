@@ -28,6 +28,8 @@ import {
   AuthBrukerSchema,
   MeResponseSchema,
   LogoutResponseSchema,
+  ProfileUpdateSchema,
+  ProfileUpdateResponseSchema,
   createDefaultCanvasContextPreferences,
   createDefaultVarslerState,
   normalizeVarslerState,
@@ -410,6 +412,100 @@ router.get("/me", rateLimitMe, async (req, res) => {
         }));
     } catch (error) {
         return sendUnknownError(res, error, { kontekst: "henting av brukerprofil", melding: "Kunne ikke laste brukerdata. Prøv igjen." });
+    }
+});
+
+// PUT /profile — oppdater brukerprofil (fornavn, etternavn). Synker til Clerk.
+router.put("/profile", rateLimitMe, async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) {
+            return apiError.unauthorized(res);
+        }
+
+        const parsed = ProfileUpdateSchema.parse(req.body);
+        const bruker = await hentAutentisertBruker(userId, res, "+canvasApiToken");
+        if (!bruker) return;
+
+        // Oppdater i MongoDB
+        const updateFields: Record<string, unknown> = {};
+        const unsetFields: Record<string, 1> = {};
+
+        if (parsed.firstName !== undefined) {
+            if (parsed.firstName === "") {
+                unsetFields.firstName = 1;
+            } else {
+                updateFields.firstName = parsed.firstName;
+            }
+        }
+        if (parsed.lastName !== undefined) {
+            if (parsed.lastName === "") {
+                unsetFields.lastName = 1;
+            } else {
+                updateFields.lastName = parsed.lastName;
+            }
+        }
+
+        const mongoUpdate: Record<string, unknown> = {};
+        if (Object.keys(updateFields).length > 0) mongoUpdate.$set = updateFields;
+        if (Object.keys(unsetFields).length > 0) mongoUpdate.$unset = unsetFields;
+
+        const oppdatertBruker = await User.findByIdAndUpdate(userId, mongoUpdate, {
+            returnDocument: "after",
+        }).select("+canvasApiToken");
+        if (!oppdatertBruker) {
+            return apiError.notFound(res, "Bruker");
+        }
+
+        // Synkroniser til Clerk hvis brukeren har clerkId
+        if (oppdatertBruker.clerkId) {
+            const { updateClerkUserProfile } = await import("./clerkAuth.js");
+            const clerkUpdates: { firstName?: string; lastName?: string } = {};
+            if (parsed.firstName !== undefined) clerkUpdates.firstName = parsed.firstName || "";
+            if (parsed.lastName !== undefined) clerkUpdates.lastName = parsed.lastName || "";
+            const clerkSuccess = await updateClerkUserProfile(oppdatertBruker.clerkId, clerkUpdates);
+            if (!clerkSuccess) {
+                logger.warn({ userId }, "Profiloppdatering synket til MongoDB men ikke til Clerk");
+            }
+        }
+
+        logger.info({ userId }, "Brukerprofil oppdatert");
+        await audit({
+            actorUserId: userId,
+            action: AUDIT_ACTIONS.PREFERENCES_UPDATED,
+            category: "profile",
+            outcome: "success",
+            metadata: { fields: Object.keys(parsed) },
+            role: req.actorRole,
+            req,
+        });
+
+        const harCanvasToken = !!oppdatertBruker.canvasApiToken;
+        const preferences = oppdatertBruker.canvasContextPreferences || createDefaultCanvasContextPreferences();
+        const varslerState = normalizeVarslerState(oppdatertBruker.varslerState || createDefaultVarslerState());
+
+        return res.json(ProfileUpdateResponseSchema.parse({
+            melding: "Profil oppdatert",
+            user: AuthBrukerSchema.parse({
+                id: oppdatertBruker._id.toString(),
+                email: oppdatertBruker.email,
+                username: oppdatertBruker.username,
+                firstName: oppdatertBruker.firstName,
+                lastName: oppdatertBruker.lastName,
+                hasCanvasToken: harCanvasToken,
+                canvasBaseUrl: oppdatertBruker.canvasBaseUrl ?? null,
+                canvasContextPreferences: preferences,
+                varslerState,
+                uiPreferences: oppdatertBruker.uiPreferences ?? undefined,
+                role: oppdatertBruker.role ?? "user",
+                authProvider: oppdatertBruker.authProvider,
+            }),
+        }));
+    } catch (error) {
+        if (error instanceof ZodError) {
+            return sendZodError(res, error, "Profiloppdatering");
+        }
+        return sendUnknownError(res, error, { kontekst: "profiloppdatering", melding: "Kunne ikke oppdatere profil. Prøv igjen." });
     }
 });
 

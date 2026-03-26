@@ -181,6 +181,24 @@ export const AuthBrukerSchema = z.object({
   authProvider: AuthProviderSchema.optional(),
 });
 
+/** Oppdatering av brukerprofil (fornavn, etternavn). Minst ett felt må oppgis. */
+export const ProfileUpdateSchema = z
+  .object({
+    firstName: z.string().trim().max(100, "Fornavn kan maks være 100 tegn").optional(),
+    lastName: z.string().trim().max(100, "Etternavn kan maks være 100 tegn").optional(),
+  })
+  .refine(
+    (data) => data.firstName !== undefined || data.lastName !== undefined,
+    "Minst ett felt må oppgis",
+  );
+export type ProfileUpdate = z.infer<typeof ProfileUpdateSchema>;
+
+export const ProfileUpdateResponseSchema = z.object({
+  melding: z.string(),
+  user: AuthBrukerSchema,
+});
+export type ProfileUpdateResponse = z.infer<typeof ProfileUpdateResponseSchema>;
+
 // Me / logout / preferences (Clerk-only; ingen lokale login/register/refresh-endepunkter)
 export const MeResponseSchema = z.object({
   user: AuthBrukerSchema,

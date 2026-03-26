@@ -130,6 +130,16 @@ function buildCspValue() {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Datadog RUM: mapper DD_RUM_* (Vercel runtime) til NEXT_PUBLIC_DD_RUM_* (build-time inline).
+  // Uten dette når ikke server-side env-variabler nettleseren fordi Next.js kun inliner NEXT_PUBLIC_* ved bygging.
+  env: {
+    NEXT_PUBLIC_DD_RUM_APPLICATION_ID:
+      process.env.NEXT_PUBLIC_DD_RUM_APPLICATION_ID || process.env.DD_RUM_APPLICATION_ID || "",
+    NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN:
+      process.env.NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN || process.env.DD_RUM_CLIENT_TOKEN || "",
+    NEXT_PUBLIC_DD_SITE:
+      process.env.NEXT_PUBLIC_DD_SITE || process.env.DD_RUM_SITE || "",
+  },
   transpilePackages: ["common"],
   serverExternalPackages: ["isomorphic-dompurify", "jsdom"],
   output: "standalone",

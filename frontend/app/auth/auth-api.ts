@@ -11,10 +11,13 @@ import {
   MeResponseSchema,
   LogoutResponseSchema,
   AccountDeletionResponseSchema,
+  ProfileUpdateResponseSchema,
   type CanvasTokenResponse,
   type MeResponse,
   type LogoutResponse,
   type AccountDeletionResponse,
+  type ProfileUpdate,
+  type ProfileUpdateResponse,
   PreferencesResponseSchema,
   type CanvasContextPreferences,
   type VarslerState,
@@ -230,6 +233,40 @@ export function useMeg(options?: { initialData?: MeResponse; enabled?: boolean }
     initialData: options?.initialData,
   });
 }
+// Oppdater brukerprofil (fornavn, etternavn)
+async function oppdaterProfil(data: ProfileUpdate): Promise<ProfileUpdateResponse> {
+  return requestAuthedJson(
+    "/api/user/profile",
+    ProfileUpdateResponseSchema,
+    "Kunne ikke oppdatere profil",
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    },
+  );
+}
+
+// Hook for oppdatering av brukerprofil
+export function useOppdaterProfil() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: oppdaterProfil,
+    onSuccess: (data) => {
+      // Oppdater cached /me-data med ny profilinfo
+      queryClient.setQueryData<MeResponse | undefined>(
+        AUTH_ME_QUERY_KEY,
+        (current) => {
+          if (!current) return current;
+          return MeResponseSchema.parse({
+            user: { ...current.user, ...data.user },
+          });
+        },
+      );
+    },
+  });
+}
+
 // Hook for utlogging
 function useLoggUt() {
   return useMutation({

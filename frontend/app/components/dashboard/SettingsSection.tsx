@@ -7,9 +7,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Moon, Sun, Key, User, Info, Trash2, MessageSquare, Bot, CheckCircle, Shield, ExternalLink, Languages, Cookie } from "lucide-react";
+import { Moon, Sun, Key, User, Info, Trash2, MessageSquare, Bot, CheckCircle, Shield, ExternalLink, Languages, Cookie, Pencil, Save, X } from "lucide-react";
 import { useClerk } from "@clerk/nextjs";
-import { AUTH_ME_QUERY_KEY, CanvasTokenConflictError, useLagreCanvasToken, useSlettCanvasToken, useSlettKonto } from "@/app/auth/auth-api";
+import { AUTH_ME_QUERY_KEY, CanvasTokenConflictError, useLagreCanvasToken, useSlettCanvasToken, useSlettKonto, useOppdaterProfil } from "@/app/auth/auth-api";
 import { resetCanvasTokenStatus, useCanvasUser } from "@/app/canvas/canvas-api";
 import { useTheme } from "next-themes";
 import { format } from "date-fns";
@@ -35,6 +35,12 @@ interface SettingsSectionProps {
     lokalBrukerEpost?: string;
     /** Nåværende Canvas base URL for brukerens institusjon (fra /me). */
     canvasBaseUrl?: string | null;
+    /** Brukerens fornavn (fra /me). */
+    fornavn?: string;
+    /** Brukerens etternavn (fra /me). */
+    etternavn?: string;
+    /** Innloggingsmetode (fra /me). */
+    authProvider?: string;
 }
 
 function getAvatarInitialer(value: string | null | undefined): string {
@@ -113,11 +119,28 @@ export function SettingsSection({
     harCanvasToken,
     lokalBrukerEpost,
     canvasBaseUrl: brukerCanvasBaseUrl,
+    fornavn,
+    etternavn,
+    authProvider,
 }: SettingsSectionProps) {
     const clerk = useClerk();
     const { language, setLanguage, t } = useLanguage();
     const { setTheme, resolvedTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
+
+    // Profilredigering
+    const [redigerProfil, setRedigerProfil] = useState(false);
+    const [profilFornavn, setProfilFornavn] = useState(fornavn ?? "");
+    const [profilEtternavn, setProfilEtternavn] = useState(etternavn ?? "");
+    const { mutateAsync: oppdaterProfil, isPending: isOppdateringProfil } = useOppdaterProfil();
+
+    // Synk lokale felter når props endres (f.eks. etter lagring)
+    useEffect(() => {
+        if (!redigerProfil) {
+            setProfilFornavn(fornavn ?? "");
+            setProfilEtternavn(etternavn ?? "");
+        }
+    }, [fornavn, etternavn, redigerProfil]);
 
     // Sett mounted til true etter første render
     useEffect(() => {
@@ -357,32 +380,129 @@ export function SettingsSection({
                 <div className="max-w-4xl w-full space-y-8">
                     {/* Brukerinformasjon */}
                     <section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
-                                <User size={20} className="text-slate-600 dark:text-slate-300" />
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
+                                    <User size={20} className="text-slate-600 dark:text-slate-300" />
+                                </div>
+                                <h3 className="font-semibold text-slate-900 dark:text-white">
+                                    {t("settings.profile.title")}
+                                </h3>
                             </div>
-                            <h3 className="font-semibold text-slate-900 dark:text-white">
-                                {t("settings.profile.title")}
-                            </h3>
+                            {!redigerProfil && (
+                                <button
+                                    type="button"
+                                    onClick={() => setRedigerProfil(true)}
+                                    className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                                >
+                                    <Pencil size={14} />
+                                    {t("settings.profile.edit")}
+                                </button>
+                            )}
                         </div>
 
                         <div className="space-y-4">
                             {/* Lokal StudyWise-konto */}
                             <div className="flex items-center gap-4">
                                 <ProfileAvatar
-                                    label={lokalBrukerEpost}
+                                    label={fornavn && etternavn ? `${fornavn} ${etternavn}` : lokalBrukerEpost}
                                     alt={t("settings.profile.avatarAltStudyWise")}
                                     tone="blue"
                                 />
-                                <div>
+                                <div className="min-w-0">
                                     <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                                         {t("settings.profile.studywiseAccount")}
                                     </p>
-                                    <p className="font-medium text-slate-900 dark:text-white">
+                                    {fornavn || etternavn ? (
+                                        <p className="font-medium text-slate-900 dark:text-white">
+                                            {[fornavn, etternavn].filter(Boolean).join(" ")}
+                                        </p>
+                                    ) : null}
+                                    <p className={`${fornavn || etternavn ? "text-sm text-slate-500 dark:text-slate-400" : "font-medium text-slate-900 dark:text-white"}`}>
                                         {lokalBrukerEpost || t("common.labels.notSignedIn")}
                                     </p>
+                                    {authProvider && (
+                                        <p className="text-xs text-slate-400 dark:text-slate-500 capitalize">
+                                            {t("settings.profile.signedInWith", { provider: authProvider === "email" ? t("settings.profile.providers.email") : authProvider === "google" ? "Google" : "Microsoft" })}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
+
+                            {/* Profilredigering */}
+                            {redigerProfil && (
+                                <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4 space-y-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label htmlFor="profil-fornavn" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                                {t("settings.profile.firstName")}
+                                            </label>
+                                            <input
+                                                id="profil-fornavn"
+                                                type="text"
+                                                value={profilFornavn}
+                                                onChange={(e) => setProfilFornavn(e.target.value)}
+                                                placeholder={t("settings.profile.firstNamePlaceholder")}
+                                                className="w-full min-h-11 px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="profil-etternavn" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                                {t("settings.profile.lastName")}
+                                            </label>
+                                            <input
+                                                id="profil-etternavn"
+                                                type="text"
+                                                value={profilEtternavn}
+                                                onChange={(e) => setProfilEtternavn(e.target.value)}
+                                                placeholder={t("settings.profile.lastNamePlaceholder")}
+                                                className="w-full min-h-11 px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            disabled={isOppdateringProfil}
+                                            onClick={async () => {
+                                                try {
+                                                    await oppdaterProfil({
+                                                        firstName: profilFornavn,
+                                                        lastName: profilEtternavn,
+                                                    });
+                                                    setRedigerProfil(false);
+                                                    showToast.success(
+                                                        t("settings.profile.saveSuccessTitle"),
+                                                        t("settings.profile.saveSuccessDescription"),
+                                                    );
+                                                } catch {
+                                                    showToast.error(
+                                                        t("settings.profile.saveErrorTitle"),
+                                                        t("settings.profile.saveErrorDescription"),
+                                                    );
+                                                }
+                                            }}
+                                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            <Save size={14} />
+                                            {isOppdateringProfil ? t("settings.profile.saving") : t("settings.profile.save")}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setRedigerProfil(false);
+                                                setProfilFornavn(fornavn ?? "");
+                                                setProfilEtternavn(etternavn ?? "");
+                                            }}
+                                            disabled={isOppdateringProfil}
+                                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                        >
+                                            <X size={14} />
+                                            {t("common.actions.cancel")}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Skillelinje */}
                             <div className="border-t border-slate-100 dark:border-slate-700" />
