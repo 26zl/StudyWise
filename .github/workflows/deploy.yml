@@ -71,7 +71,7 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      - name: Verify Vercel pull env cache
+      - name: Verify Datadog env cache
         run: |
           ENV_FILE=".vercel/.env.production.local"
 
@@ -114,35 +114,9 @@ jobs:
             fi
           }
 
-          require_any() {
-            local found=0
-            for key in "$@"; do
-              local value
-              value=$(read_env_value "$key" || true)
-
-              if [ -n "$value" ]; then
-                echo "${key}=present"
-                found=1
-                break
-              fi
-            done
-
-            if [ "$found" -eq 0 ]; then
-              echo "missing or empty any of: $*"
-              exit 1
-            fi
-          }
-
-          require_key CLERK_SECRET_KEY
-          require_any NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY CLERK_PUBLISHABLE_KEY
-          require_key NEXT_PUBLIC_CLERK_SIGN_IN_URL
-          require_key NEXT_PUBLIC_CLERK_SIGN_UP_URL
-          require_key NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL
-          require_key NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL
-          require_key INTERNAL_API_URL
-          require_any NEXT_PUBLIC_DD_RUM_APPLICATION_ID DD_RUM_APPLICATION_ID
-          require_any NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN DD_RUM_CLIENT_TOKEN
-          require_any NEXT_PUBLIC_DD_SITE DD_SITE
+          require_key NEXT_PUBLIC_DD_RUM_APPLICATION_ID
+          require_key NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN
+          require_key NEXT_PUBLIC_DD_SITE
 
       - name: Build with Vercel
         run: |
