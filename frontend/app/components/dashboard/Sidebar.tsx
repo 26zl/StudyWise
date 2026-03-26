@@ -25,6 +25,7 @@ import {
     Shield,
     MoreHorizontal,
     X,
+    ArrowRight,
 } from "lucide-react";
 import { useLoggUtWithRedirect } from "@/app/auth/auth-api";
 import { useChatHistory } from "@/app/hooks/useChatHistory";
@@ -310,22 +311,23 @@ export function Sidebar({
                                 onClick={() => {
                                     if (window.innerWidth < 768) lukkVenstreMeny();
                                 }}
-                                className="text-xs font-medium uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+                                className="group flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-blue-500 dark:text-slate-400 dark:hover:text-blue-400 transition-colors"
                             >
-                                Bookmarks
+                                {t("dashboard.sidebar.bookmarks")}
+                                <ArrowRight size={11} className="opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
                             </Link>
                             <button
                                 type="button"
                                 onClick={() => settErBookmarksUtvidet((prev) => !prev)}
                                 className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
-                                aria-label={erBookmarksUtvidet ? "Skjul bookmarks" : "Vis bookmarks"}
+                                aria-label={erBookmarksUtvidet ? "Skjul festede samtaler" : "Vis festede samtaler"}
                             >
                                 {erBookmarksUtvidet ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                             </button>
                         </div>
                         {!erBookmarksUtvidet ? null : bookmarkedChats.length === 0 ? (
                             <div className="px-5 pb-3 text-xs text-slate-500 dark:text-slate-400">
-                                Ingen bookmarks ennå
+                                {t("dashboard.sidebar.noBookmarksYet")}
                             </div>
                         ) : (
                             bookmarkedChats.map((chat) => {
@@ -438,9 +440,10 @@ export function Sidebar({
                                 onClick={() => {
                                     if (window.innerWidth < 768) lukkVenstreMeny();
                                 }}
-                                className="text-xs font-medium uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+                                className="group flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-blue-500 dark:text-slate-400 dark:hover:text-blue-400 transition-colors"
                             >
                                 {t("dashboard.sidebar.chatHistory")}
+                                <ArrowRight size={11} className="opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
                             </Link>
                             <button
                                 type="button"
@@ -635,7 +638,7 @@ export function Sidebar({
                     </div>
                 </nav>
                 {erHistorikkUtvidet && hasHiddenHistoryChats && (
-                    <div className="pointer-events-none h-8 bg-gradient-to-t from-white to-transparent dark:from-slate-900 dark:to-transparent" />
+                    <div className="pointer-events-none h-8 bg-linear-to-t from-white to-transparent dark:from-slate-900 dark:to-transparent" />
                 )}
 
                 {/* Bruker-seksjon */}
@@ -666,7 +669,7 @@ export function Sidebar({
             </aside>
             {renameModalChatId && (
                 <div
-                    className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 p-4"
+                    className="fixed inset-0 z-120 flex items-center justify-center bg-black/35 p-4"
                     onClick={() => setRenameModalChatId(null)}
                 >
                     <div

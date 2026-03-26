@@ -14,6 +14,7 @@ export function Footer() {
             privacy: "Privacy",
             security: "Security",
             terms: "Terms",
+            faq: "FAQ",
             contact: "Contact",
             copyright: "© 2026 StudyWise - USN bachelor project. All rights reserved.",
         }
@@ -22,6 +23,7 @@ export function Footer() {
             privacy: "Personvern",
             security: "Sikkerhet",
             terms: "Vilkår",
+            faq: "FAQ",
             contact: "Kontakt",
             copyright: "© 2026 StudyWise - USN Bachelorprosjekt. Alle rettigheter reservert.",
         };
@@ -57,6 +59,13 @@ export function Footer() {
                         className="text-xs text-slate-700 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
                     >
                         {labels.terms}
+                    </Link>
+                    <Link
+                        href="/faq"
+                        prefetch={false}
+                        className="text-xs text-slate-700 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
+                    >
+                        {labels.faq}
                     </Link>
                     <Link
                         href="/kontakt"

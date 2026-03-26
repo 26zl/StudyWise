@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import { Bot, User } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -31,6 +32,7 @@ export default function SharePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { setSelectedChatId, setCurrentChatId } = useUIStore();
+  const { isSignedIn } = useAuth();
 
   useEffect(() => {
     const shareId = typeof params?.shareId === "string" ? params.shareId : "";
@@ -103,7 +105,7 @@ export default function SharePage() {
             Dette er en delt StudyWise-samtale
           </p>
           <Link
-            href="/login"
+            href="/auth/sign-up"
             className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
           >
             Prøv StudyWise
@@ -114,6 +116,10 @@ export default function SharePage() {
             type="button"
             onClick={async () => {
               if (!data) return;
+              if (!isSignedIn) {
+                router.push(`/auth/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`);
+                return;
+              }
               const res = await fetchApi("/api/ki/chat/history", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

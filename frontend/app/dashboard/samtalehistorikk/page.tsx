@@ -23,7 +23,7 @@ export default function SamtalehistorikkPage() {
   const { isLoaded } = useAuth();
   const megQuery = useMeg({ enabled: isLoaded });
   useAuthRedirect(megQuery);
-  const { chats, loading: chatsLoading, deleteChat } = useChatHistory();
+  const { chats, loading: chatsLoading, deleteChat, clearAll } = useChatHistory();
   const { setSelectedChatId, setCurrentChatId } = useUIStore();
   const { language } = useLanguage();
   const [query, setQuery] = useState("");
@@ -95,7 +95,19 @@ export default function SamtalehistorikkPage() {
     <SidebarAppShell aktivVisning="chat" byttVisning={byttVisning} brukernavn={brukernavn}>
       <div className="min-h-full bg-white px-4 py-6 text-slate-900 dark:bg-slate-900 dark:text-slate-100 md:px-8">
         <div className="mx-auto w-full max-w-5xl">
-          <h1 className="mb-4 text-2xl font-semibold">Samtalehistorikk</h1>
+          <div className="mb-4 flex items-center justify-between">
+            <h1 className="text-2xl font-semibold">Samtaler</h1>
+            {chats.length > 0 && (
+              <button
+                type="button"
+                onClick={clearAll}
+                className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20 transition-colors"
+              >
+                <Trash2 className="h-4 w-4" />
+                Slett alle
+              </button>
+            )}
+          </div>
           <div className="mb-4">
             <label className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />

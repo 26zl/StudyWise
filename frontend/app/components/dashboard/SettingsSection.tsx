@@ -7,14 +7,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Moon, Sun, Key, User, Info, Trash2, MessageSquare, Bot, CheckCircle, Shield, ExternalLink, Languages, Cookie, Pencil, Save, X } from "lucide-react";
+import { Moon, Sun, Key, User, Info, Trash2, Bot, CheckCircle, Shield, ExternalLink, Languages, Cookie, Pencil, Save, X } from "lucide-react";
 import { useClerk } from "@clerk/nextjs";
 import { AUTH_ME_QUERY_KEY, CanvasTokenConflictError, useLagreCanvasToken, useSlettCanvasToken, useSlettKonto, useOppdaterProfil } from "@/app/auth/auth-api";
 import { resetCanvasTokenStatus, useCanvasUser } from "@/app/canvas/canvas-api";
 import { useTheme } from "next-themes";
 import { format } from "date-fns";
 import { enUS, nb } from "date-fns/locale";
-import { useChatHistory } from "@/app/hooks/useChatHistory";
 import { broadcastLogout, clearClientAuthState } from "@/app/hooks/use-auth-sync";
 import { showToast } from "@/app/components/ui/Toaster";
 import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
@@ -199,7 +198,6 @@ export function SettingsSection({
     // Multi-tenant: velg institusjon ved lagring av token
     const [valgtInstitusjonUrl, setValgtInstitusjonUrl] = useState<string>("");
     const [annenCanvasUrl, setAnnenCanvasUrl] = useState("");
-    const { clearAll: clearChatHistory, chats, loading: chatsLoading } = useChatHistory();
     const datoLocale = language === "en" ? enUS : nb;
     const slettBekreftelsesord = t("settings.deleteAccount.confirmKeyword");
     const getCanvasFeilmelding = (error: unknown) =>
@@ -937,47 +935,6 @@ export function SettingsSection({
                                     </ol>
                                 </div>
                             </div>
-                        </div>
-                    </section>
-
-                    {/* Samtalehistorikk */}
-                    <section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
-                                <MessageSquare size={20} className="text-slate-600 dark:text-slate-300" />
-                            </div>
-                            <h3 className="font-semibold text-slate-900 dark:text-white">
-                                {t("settings.chatHistory.title")}
-                            </h3>
-                        </div>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                            {t("settings.chatHistory.description")}
-                        </p>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-slate-700 dark:text-slate-300">
-                                    {t("settings.chatHistory.savedChats")}
-                                </p>
-                                <p className="text-sm text-slate-500 dark:text-slate-400">
-                                    {chatsLoading
-                                        ? t("settings.chatHistory.loading")
-                                        : t(
-                                            chats.length === 1
-                                                ? "settings.chatHistory.countOne"
-                                                : "settings.chatHistory.countOther",
-                                            { count: chats.length },
-                                        )}
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={clearChatHistory}
-                                aria-label={t("settings.chatHistory.clearAll")}
-                                className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                            >
-                                <Trash2 size={16} />
-                                {t("settings.chatHistory.clearAll")}
-                            </button>
                         </div>
                     </section>
 

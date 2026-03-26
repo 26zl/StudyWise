@@ -1443,25 +1443,6 @@ export function ChatSection() {
                                         <div className="flex items-center gap-0.5">
                                             <button
                                                 type="button"
-                                                onClick={() => {
-                                                    exportToMarkdown(
-                                                        [{
-                                                            rolle: "assistant",
-                                                            innhold: melding.innhold,
-                                                            tidsstempel: melding.tidsstempel,
-                                                        }],
-                                                        undefined,
-                                                        "studywise-svar",
-                                                    );
-                                                    showToast.success("Svar lastet ned");
-                                                }}
-                                                className={actionBtnClass}
-                                                title="Last ned svar"
-                                            >
-                                                <Download className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                type="button"
                                                 onClick={async () => {
                                                     try {
                                                         await navigator.clipboard.writeText(melding.innhold);
@@ -1542,6 +1523,18 @@ export function ChatSection() {
                             className="hidden"
                         />
 
+                        {/* Del samtale */}
+                        <button
+                            type="button"
+                            onClick={() => setViserShareModal(true)}
+                            disabled={meldinger.length === 0 || skriver || analyserarDokument}
+                            className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                            title="Del hele chatten"
+                            aria-label="Del samtale"
+                        >
+                            <Share2 className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+                        </button>
+
                         {/* Eksporter samtale som Markdown */}
                         <button
                             type="button"
@@ -1563,19 +1556,7 @@ export function ChatSection() {
                             title="Eksporter samtale (MD)"
                             aria-label="Eksporter samtale som Markdown"
                         >
-                            <FileText className="w-5 h-5 text-slate-400 dark:text-slate-500" />
-                        </button>
-
-                        {/* Del samtale */}
-                        <button
-                            type="button"
-                            onClick={() => setViserShareModal(true)}
-                            disabled={meldinger.length === 0 || skriver || analyserarDokument}
-                            className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-                            title="Del samtale"
-                            aria-label="Del samtale"
-                        >
-                            <Share2 className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+                            <Download className="w-5 h-5 text-slate-400 dark:text-slate-500" />
                         </button>
 
                         {/* Filopplasting */}

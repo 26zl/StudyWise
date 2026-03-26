@@ -1,9 +1,8 @@
 /*
  * Kontakt - Kontaktinformasjon og kontaktskjema for StudyWise
  */
-import Link from "next/link";
 import { Github, Mail, MessageSquare, School } from "lucide-react";
-import { InfoCard, InfoPageLayout, InfoSection } from "@/app/components/layout/InfoPageLayout";
+import { InfoCard, InfoPageLayout } from "@/app/components/layout/InfoPageLayout";
 import { ContactForm } from "./ContactForm";
 
 export default function KontaktPage() {
@@ -74,43 +73,6 @@ export default function KontaktPage() {
         ))}
       </div>
 
-      <InfoSection title="Ofte stilte spørsmål">
-        <div className="space-y-4">
-          <div>
-            <h3 className="mb-1 font-medium text-slate-900 dark:text-white">
-              Hvordan får jeg Canvas API-token?
-            </h3>
-            <p className="text-sm">
-              Logg inn på Canvas, gå til Innstillinger → Godkjente integrasjoner,
-              og klikk &quot;Ny tilgangstoken&quot;. Kopier tokenet og lim det inn i
-              StudyWise under Innstillinger.
-            </p>
-          </div>
-          <div>
-            <h3 className="mb-1 font-medium text-slate-900 dark:text-white">
-              Er dataene mine trygge?
-            </h3>
-            <p className="text-sm">
-              Ja, alle sensitive data krypteres. Les mer på vår{" "}
-              <Link href="/sikkerhet" prefetch={false} className="text-blue-500 hover:underline">
-                sikkerhetsside
-              </Link>
-              .
-            </p>
-          </div>
-          <div>
-            <h3 className="mb-1 font-medium text-slate-900 dark:text-white">
-              Hvordan sletter jeg kontoen min?
-            </h3>
-            <p className="text-sm">
-              Gå til Innstillinger eller kontakt oss for å be om kontosletting.
-              Kontoopplysninger og tilknyttede data slettes eller anonymiseres,
-              mens begrensede sikkerhets- og revisjonslogger kan beholdes i
-              pseudonymisert form i en begrenset periode.
-            </p>
-          </div>
-        </div>
-      </InfoSection>
     </InfoPageLayout>
   );
 }
