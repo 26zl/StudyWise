@@ -11,6 +11,7 @@ type DatadogUser = {
 
 let pendingDatadogUser: DatadogUser | null = null;
 let pendingClearUser = false;
+let hasWarnedMissingConfig = false;
 
 function flushPendingDatadogUser() {
     if (!datadogRum.getInitConfiguration()) return;
@@ -47,7 +48,13 @@ export function DatadogRum() {
         const applicationId = fromWindow?.applicationId ?? process.env.NEXT_PUBLIC_DD_RUM_APPLICATION_ID;
         const clientToken = fromWindow?.clientToken ?? process.env.NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN;
         const site = fromWindow?.site ?? process.env.NEXT_PUBLIC_DD_SITE ?? "us5.datadoghq.com";
-        if (!applicationId || !clientToken) return;
+        if (!applicationId || !clientToken) {
+            if (!hasWarnedMissingConfig) {
+                hasWarnedMissingConfig = true;
+                console.warn("Datadog RUM er deaktivert fordi applicationId/clientToken mangler i denne deployen.");
+            }
+            return;
+        }
 
         // Én init per window – unngår "SDK is loaded more than once" (Strict Mode / dobbel mount / Turbopack)
         if (typeof window !== "undefined" && window.__DD_RUM_INIT_DONE__) {

@@ -40,8 +40,8 @@ export function MainAppShell({
         </main>
       </div>
       <Toaster />
+      <DatadogRum />
       <Suspense fallback={null}>
-        <DatadogRum />
         <TelemetryConsent />
       </Suspense>
       <CookieBanner />
