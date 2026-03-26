@@ -101,16 +101,24 @@ jobs:
             printf '%s' "$line"
           }
 
-          require_key() {
+          probe_key() {
             local key="$1"
+            local line
+
+            line=$(grep -m1 "^${key}=" "$ENV_FILE" || true)
+
+            if [ -z "$line" ]; then
+              echo "absent"
+              return
+            fi
+
             local value
             value=$(read_env_value "$key" || true)
 
             if [ -n "$value" ]; then
-              echo "${key}=present"
+              echo "present (length=${#value})"
             else
-              echo "${key}=missing_or_empty"
-              exit 1
+              echo "empty"
             fi
           }
 
@@ -120,22 +128,35 @@ jobs:
 
             local key
             local value
+            local status
 
             for key in "$@"; do
               value=$(read_env_value "$key" || true)
               if [ -n "$value" ]; then
-                echo "${label}=present (${key})"
+                echo "${label}=present (${key}, length=${#value})"
                 return
               fi
+
+              status=$(probe_key "$key")
+              echo "${key}=${status}"
             done
 
             echo "${label}=missing_or_empty"
+
+            local available_keys
+            available_keys=$(grep -E '^(NEXT_PUBLIC_DD_|DD_)' "$ENV_FILE" | cut -d= -f1 | paste -sd ',' - || true)
+            if [ -n "$available_keys" ]; then
+              echo "Datadog keys found in env file: ${available_keys}"
+            else
+              echo "No Datadog keys found in env file"
+            fi
+
             exit 1
           }
 
-          require_any DD_RUM_APPLICATION_ID NEXT_PUBLIC_DD_RUM_APPLICATION_ID DD_RUM_APPLICATION_ID
-          require_any DD_RUM_CLIENT_TOKEN NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN DD_RUM_CLIENT_TOKEN
-          require_any DD_SITE NEXT_PUBLIC_DD_SITE DD_SITE
+          require_any DATADOG_APPLICATION_ID NEXT_PUBLIC_DD_RUM_APPLICATION_ID DD_RUM_APPLICATION_ID
+          require_any DATADOG_CLIENT_TOKEN NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN DD_RUM_CLIENT_TOKEN
+          require_any DATADOG_SITE NEXT_PUBLIC_DD_SITE DD_SITE
 
       - name: Build with Vercel
         run: |
