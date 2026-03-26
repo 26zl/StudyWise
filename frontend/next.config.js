@@ -86,7 +86,8 @@ function buildCspValue() {
   const connectSrc = [
     "'self'",
     "https://vitals.vercel-analytics.com",
-    // Datadog RUM: browser intake, session replay, logs
+    // Datadog RUM: exact intake-host + eventuelle underdomener for replay/logs
+    "https://browser-intake-us5-datadoghq.com",
     "https://*.browser-intake-us5-datadoghq.com",
     "https://*.us5.datadoghq.com",
     "https://*.clerk.accounts.dev",
