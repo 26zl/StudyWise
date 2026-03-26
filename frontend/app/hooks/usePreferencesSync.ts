@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * Synk av UI-preferanser mellom frontend og backend.
+ *
+ * Backend er autoritativ ved første innlasting etter innlogging (vi "hydrater" UI fra /me),
+ * og lokale endringer (språk/tema/cookie-samtykke) sendes tilbake til backend (debounced).
+ */
 import { useAuth } from "@clerk/nextjs";
 import { useEffect, useRef } from "react";
 import { useTheme } from "next-themes";

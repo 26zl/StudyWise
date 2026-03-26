@@ -12,6 +12,10 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 /** Max length for accepted request IDs (generous limit to allow non-UUID formats) */
 const MAX_REQUEST_ID_LENGTH = 128;
 
+/**
+ * Setter `req.id` og `x-request-id` respons-header for korrelasjon i logger.
+ * Godtar innkommende `x-request-id` hvis den er "trygg", ellers genereres UUID.
+ */
 export function requestIdMiddleware(req: Request, res: Response, next: NextFunction): void {
   const incoming = req.get(HEADER_REQUEST_ID);
   const trimmed = typeof incoming === "string" ? incoming.trim() : "";

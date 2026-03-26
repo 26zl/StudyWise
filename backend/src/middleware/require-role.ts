@@ -7,6 +7,11 @@ import { audit, AUDIT_ACTIONS } from "../utils/auditLog.js";
 import { checkSecurityThresholds } from "../utils/securityAlert.js";
 import type { UserRole } from "common/auth";
 
+/**
+ * RBAC-guard som krever at `req.actorRole` er i listen av tillatte roller.
+ *
+ * Returnerer en Express-middleware som svarer 401/403 ved avvik og auditerer hendelsen.
+ */
 export function requireRole(...allowedRoles: UserRole[]) {
   const set = new Set(allowedRoles);
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {

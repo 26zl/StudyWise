@@ -1,3 +1,9 @@
+/**
+ * KI ukeplan-generator.
+ *
+ * Genererer et strukturert forslag til ukeplan basert på oppgaver, frister og tilgjengelige tidsluker.
+ * Returnerer alltid validert JSON iht. `common/ki`.
+ */
 import { Router } from "express";
 import { z } from "zod";
 import {

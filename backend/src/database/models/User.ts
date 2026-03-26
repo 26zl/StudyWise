@@ -1,4 +1,10 @@
-import mongoose, { Schema, Document } from 'mongoose';
+/**
+ * MongoDB modell: `User`.
+ *
+ * Lokal StudyWise-bruker som speiler Clerk-identitet, lagrer RBAC-rolle, Canvas-token (kryptert)
+ * og preferanser som synkes med frontend.
+ */
+import mongoose, { Schema, Document } from "mongoose";
 import {
     normalizeCanvasBaseUrl,
     type UserRole,

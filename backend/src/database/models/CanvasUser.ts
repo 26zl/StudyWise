@@ -1,4 +1,10 @@
-import mongoose, { Schema, Document } from 'mongoose';
+/**
+ * MongoDB modell: `CanvasUser`.
+ *
+ * Cache av Canvas-profilinfo (Canvas-bruker) koblet til lokal `User` via `localUser`.
+ * Brukes for å unngå hyppige Canvas API-kall og for å vise profilkontekst i UI.
+ */
+import mongoose, { Schema, Document } from "mongoose";
 import { normalizeCanvasBaseUrl } from "common/auth";
 
 export interface ICanvasUser extends Document {

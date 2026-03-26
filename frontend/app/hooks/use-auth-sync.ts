@@ -1,3 +1,9 @@
+/**
+ * Auth-sync mellom faner (Clerk).
+ *
+ * Bruker BroadcastChannel til å varsle andre faner om logout, og rydder klient-state
+ * (React Query + zustand + Datadog) før eventuell redirect.
+ */
 import { useEffect, useRef } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";

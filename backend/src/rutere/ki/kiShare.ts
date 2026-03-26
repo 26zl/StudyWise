@@ -1,3 +1,11 @@
+/**
+ * KI chat-deling (share links).
+ *
+ * Inneholder både private (innloggede) endepunkter for å opprette/slette deling,
+ * og offentlige endepunkter for å hente en delt chat via token.
+ *
+ * Merk: Chat-innhold lagres kryptert; deling bruker token-hash + snapshot for trygg eksponering.
+ */
 import { Router } from "express";
 import { createHash, randomBytes } from "crypto";
 import mongoose from "mongoose";
@@ -142,6 +150,13 @@ function scheduleOpportunisticCleanup(): void {
   });
 }
 
+/**
+ * Rydder opp utløpte chat-delingstokens.
+ *
+ * Brukes både som planlagt jobb (interval) og opportunistisk ved trafikk.
+ *
+ * @returns Antall delinger som ble ryddet opp.
+ */
 export async function cleanupExpiredSharedChats(options?: {
   limit?: number;
   reason?: "scheduled_cleanup" | "opportunistic_cleanup";

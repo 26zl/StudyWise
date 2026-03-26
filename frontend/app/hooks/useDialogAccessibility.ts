@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * Tilgjengelighet for dialog/modals uten ekstra bibliotek.
+ *
+ * Gjør tre ting når `open`:
+ * - Låser body scroll
+ * - Setter initial focus
+ * - Trap'er Tab/Shift+Tab inne i container og lukker på Escape
+ */
 import { useEffect, type RefObject } from "react";
 
 function getFocusableElements(container: HTMLElement): HTMLElement[] {
@@ -39,6 +47,9 @@ type UseDialogAccessibilityOptions<
   onClose: () => void;
 };
 
+/**
+ * Hook som gir "focus trap" + Escape-close for en dialog.
+ */
 export function useDialogAccessibility<
   TContainer extends HTMLElement = HTMLElement,
   TInitialFocus extends HTMLElement = HTMLElement,

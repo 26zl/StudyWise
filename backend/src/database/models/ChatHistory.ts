@@ -1,3 +1,8 @@
+/**
+ * MongoDB modell: `ChatHistory`.
+ *
+ * Lagrer kryptert KI-chat-historikk per bruker, samt metadata for deling (share link/snapshot).
+ */
 import { Schema, model, Types } from "mongoose";
 
 export interface ChatHistoryDocument {

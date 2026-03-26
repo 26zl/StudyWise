@@ -42,6 +42,11 @@ declare global {
     }
 }
 
+/**
+ * Setter en tidsfrist for requesten og avbryter nedstrøms operasjoner ved timeout.
+ *
+ * Legger `req.timeoutSignal` til slik at services kan avbryte fetch/AI-kall osv.
+ */
 export function requestTimeout(req: Request, res: Response, next: NextFunction) {
     const pathname = getRequestPath(req);
 

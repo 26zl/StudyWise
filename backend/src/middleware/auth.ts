@@ -47,6 +47,11 @@ export interface CanvasTilkobling {
   canvasBaseUrl?: string;
 }
 
+/**
+ * Henter (og dekrypterer) Canvas-tilkobling for en bruker.
+ *
+ * Returnerer token + base URL hvis brukeren har lagret token; ellers null/undefined felter.
+ */
 export async function hentCanvasTilkoblingForBruker(
   userId: string,
 ): Promise<CanvasTilkobling | null> {

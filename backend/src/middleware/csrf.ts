@@ -50,7 +50,11 @@ function rejectCsrf(req: Request, res: Response, melding: string): void {
   });
 }
 
-// Middleware for å beskytte mot CSRF på state-endrende forespørsler.
+/**
+ * Middleware for å beskytte mot CSRF på state-endrende forespørsler.
+ *
+ * Kombinerer "custom header" (x-studywise-csrf: 1) med origin/referer-validering mot WEB_ORIGINS.
+ */
 export function beskytteMotCsrf(
   req: Request,
   res: Response,

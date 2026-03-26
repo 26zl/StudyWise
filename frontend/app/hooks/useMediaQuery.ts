@@ -1,7 +1,15 @@
 "use client";
 
+/**
+ * React-hook for `matchMedia`.
+ *
+ * Returnerer true/false for en CSS media query og oppdaterer ved endring.
+ */
 import { useEffect, useState } from "react";
 
+/**
+ * Lytter på `window.matchMedia(query)` og returnerer om den matcher.
+ */
 export function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(false);
 

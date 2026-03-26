@@ -1,3 +1,8 @@
+/**
+ * KI chat-historikk API.
+ *
+ * CRUD-lignende endepunkter for å lagre og hente kryptert chat-historikk per bruker.
+ */
 import { Router } from "express";
 import { z } from "zod";
 import { ChatHistory } from "../../database/models/ChatHistory.js";

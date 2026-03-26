@@ -1,3 +1,9 @@
+/**
+ * Swagger route discovery.
+ *
+ * Parser backend sitt `index.ts`/router-oppsett for å finne Express-ruter og bygge Swagger paths.
+ * Brukes for å holde dokumentasjonen i sync uten manuell duplisering.
+ */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -299,6 +305,12 @@ function dedupeRoutes(routes: DiscoveredRoute[]): DiscoveredRoute[] {
   });
 }
 
+/**
+ * Oppdager Express-ruter og returnerer et Swagger `paths`-objekt.
+ *
+ * Dette er en best-effort parser (heuristikk) som forsøker å holde Swagger i sync med
+ * faktisk router-oppsett uten å kreve manuell duplisering.
+ */
 export function discoverSwaggerPaths(): SwaggerPaths {
   const indexFilePath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "index.ts");
   const discoveredRoutes = dedupeRoutes(

@@ -82,7 +82,9 @@ async function fetchUserProfileFromEndpoint(
   };
 }
 
-// Hent brukerprofil
+/**
+ * Henter brukerprofil fra Canvas (med fallback mellom endepunkter).
+ */
 export async function fetchUserProfile(canvasToken?: string | null, baseUrl?: string) {
   const token = requireToken(canvasToken);
   try {
@@ -108,10 +110,10 @@ export async function fetchUserProfile(canvasToken?: string | null, baseUrl?: st
   }
 }
 
-// Hent aktive kurs for brukeren
-// Henter kun aktive kurs brukeren er meldt opp i
-// enrollment_state=active filtrerer ut fullførte/avsluttede emner
-// Inkluderer også enrollments for å få section_id (trengs for calendar_events)
+/**
+ * Henter aktive kurs for brukeren (enrollment_state=active).
+ * Inkluderer enrollment-data slik at vi får `section_id` (bl.a. brukt av calendar events).
+ */
 export async function fetchCourses(canvasToken?: string | null, baseUrl?: string): Promise<
   CanvasResponseWithMeta<CanvasCourse[]>
 > {
@@ -142,6 +144,10 @@ export async function fetchCourses(canvasToken?: string | null, baseUrl?: string
 // Faller tilbake til kun aktive kurs dersom henting av fullførte feiler
 export type CanvasCourseForKI = CanvasCourse & { __completed?: boolean };
 
+/**
+ * Henter kurs for KI-kontekst: aktive + (best effort) fullførte emner.
+ * Fullførte emner markeres med `__completed`.
+ */
 export async function fetchCoursesForKI(canvasToken?: string | null, baseUrl?: string): Promise<
   CanvasResponseWithMeta<CanvasCourseForKI[]>
 > {
@@ -185,7 +191,9 @@ export async function fetchCoursesForKI(canvasToken?: string | null, baseUrl?: s
   };
 }
 
-// Hent spesifikt kurs (med syllabus for fallback-visning)
+/**
+ * Henter ett spesifikt kurs (inkl. `syllabus_body` for fallback-visning).
+ */
 export async function fetchCourse(canvasToken: string | null | undefined, courseId: number, baseUrl?: string) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown>(`/api/v1/courses/${courseId}`, {
@@ -200,12 +208,11 @@ export async function fetchCourse(canvasToken: string | null | undefined, course
   };
 }
 
-// Hent oppgaver for et kurs
-// bucket parameter filtrerer oppgaver:
-// - "upcoming": Oppgaver som har frist i fremtiden og ikke er levert
-// - "future": Oppgaver med frist i fremtiden (inkl. leverte)
-// - "past": Oppgaver med frist i fortiden
-// - "undated": Oppgaver uten frist
+/**
+ * Henter oppgaver for et kurs.
+ *
+ * `bucket` kan brukes for å filtrere oppgaver (upcoming/future/past/undated/etc).
+ */
 export async function fetchAssignments(
   canvasToken: string | null | undefined,
   courseId: number,
@@ -237,7 +244,9 @@ export async function fetchAssignments(
   };
 }
 
-// Hent kunngjøringer for et kurs
+/**
+ * Henter kunngjøringer (announcements) for et kurs.
+ */
 export async function fetchCourseAnnouncements(canvasToken: string | null | undefined, courseId: number, baseUrl?: string) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown[]>(
@@ -255,7 +264,9 @@ export async function fetchCourseAnnouncements(canvasToken: string | null | unde
   };
 }
 
-// Hent alle kunngjøringer for brukeren på tvers av kurs
+/**
+ * Henter alle kunngjøringer for brukeren på tvers av kurs.
+ */
 export async function fetchAllAnnouncements(canvasToken?: string | null, baseUrl?: string) {
   const token = requireToken(canvasToken);
   const coursesRes = await fetchCourses(token, baseUrl);
@@ -276,7 +287,9 @@ export async function fetchAllAnnouncements(canvasToken?: string | null, baseUrl
   };
 }
 
-// Hent todo-liste for brukeren
+/**
+ * Henter todo-liste for innlogget bruker.
+ */
 export async function fetchTodo(canvasToken?: string | null, baseUrl?: string) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown[]>("/api/v1/users/self/todo", {
@@ -290,7 +303,9 @@ export async function fetchTodo(canvasToken?: string | null, baseUrl?: string) {
   };
 }
 
-// Hent kommende kalenderhendelser for brukeren
+/**
+ * Henter kommende kalenderhendelser for innlogget bruker.
+ */
 export async function fetchUpcomingEvents(canvasToken?: string | null, baseUrl?: string) {
   const token = requireToken(canvasToken);
   const response = await hentCanvasData<unknown[]>("/api/v1/users/self/upcoming_events", {
@@ -325,9 +340,12 @@ export async function fetchUpcomingEvents(canvasToken?: string | null, baseUrl?:
     meta: response.meta,
   };
 }
-// Hent planleggingsobjekter for brukeren innenfor et datointervall
-// Planner API returnerer alle assignments, quizzes, discussions, announcements etc. i ett kall
-// Dette er MAKS 3-4 API kall (paginering) i stedet for N kall per kurs
+/**
+ * Henter planner items for brukeren innenfor et datointervall.
+ *
+ * Planner API returnerer assignments/quizzes/discussions/announcements etc. i ett kall
+ * (typisk få kall med paginering, i stedet for N kall per kurs).
+ */
 export async function fetchPlannerItems(
   canvasToken: string | null | undefined,
   query: {
