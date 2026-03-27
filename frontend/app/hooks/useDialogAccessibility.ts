@@ -8,7 +8,7 @@
  * - Setter initial focus
  * - Trap'er Tab/Shift+Tab inne i container og lukker på Escape
  */
-import { useEffect, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 
 function getFocusableElements(container: HTMLElement): HTMLElement[] {
   return Array.from(
@@ -60,6 +60,12 @@ export function useDialogAccessibility<
   initialFocusRef,
   onClose,
 }: UseDialogAccessibilityOptions<TContainer, TInitialFocus>) {
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (!open || !enabled || typeof document === "undefined") {
       return;
@@ -86,7 +92,7 @@ export function useDialogAccessibility<
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -131,5 +137,5 @@ export function useDialogAccessibility<
         previousActiveElement.focus();
       }
     };
-  }, [containerRef, enabled, initialFocusRef, onClose, open]);
+  }, [containerRef, enabled, initialFocusRef, open]);
 }

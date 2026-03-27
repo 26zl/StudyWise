@@ -86,6 +86,7 @@ export function OversiktPage() {
     userQuery.data?.name?.split(" ")[0] ||
     megQuery.data?.user?.firstName ||
     megQuery.data?.user?.email?.split("@")[0];
+  const brukerRolle = megQuery.data?.user?.role;
 
   const byttVisning = useCallback(
     (visning: VisningType) => {
@@ -155,6 +156,7 @@ export function OversiktPage() {
         aktivVisning={SIDEBAR_VISNING}
         byttVisning={byttVisning}
         brukernavn={brukernavn}
+        brukerRolle={brukerRolle}
         label={t("common.loading.overview")}
       />
     );
@@ -165,6 +167,7 @@ export function OversiktPage() {
       <SidebarAppLoadingState
         aktivVisning={SIDEBAR_VISNING}
         byttVisning={byttVisning}
+        brukerRolle={brukerRolle}
         label={t("common.loading.redirectingToSignIn")}
       />
     );
@@ -175,6 +178,7 @@ export function OversiktPage() {
       <SidebarAppErrorState
         aktivVisning={SIDEBAR_VISNING}
         byttVisning={byttVisning}
+        brukerRolle={brukerRolle}
         message={brukerdataFeilmelding}
         onRetry={() => {
           void megQuery.refetch();
@@ -188,6 +192,7 @@ export function OversiktPage() {
       aktivVisning={SIDEBAR_VISNING}
       byttVisning={byttVisning}
       brukernavn={brukernavn}
+      brukerRolle={brukerRolle}
     >
       <div className="min-h-full bg-slate-50 dark:bg-slate-950">
         <div className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">

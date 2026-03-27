@@ -6,7 +6,7 @@
 
 import type { ReactNode } from "react";
 import DOMPurify, { type Config as DOMPurifyConfig } from "isomorphic-dompurify";
-import parse, { Element, type HTMLReactParserOptions } from "html-react-parser";
+import parse, { Element, domToReact, type DOMNode, type HTMLReactParserOptions } from "html-react-parser";
 import { ExternalLink } from "lucide-react";
 
 // DOMPurify konfigurasjon - streng XSS-beskyttelse
@@ -30,6 +30,21 @@ const DOMPURIFY_CONFIG: DOMPurifyConfig = {
     FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form", "input", "button"],
     FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover"],
 };
+
+function erTillattRelativUrl(value: string): boolean {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.startsWith("//")) {
+        return false;
+    }
+
+    return (
+        trimmed.startsWith("/") ||
+        trimmed.startsWith("./") ||
+        trimmed.startsWith("../") ||
+        trimmed.startsWith("#") ||
+        !/^[A-Za-z][A-Za-z\d+.-]*:/.test(trimmed)
+    );
+}
 
 /**
  * Validerer og saniterer URL-er for sikker bruk i href-attributter.
@@ -62,7 +77,7 @@ export const sikkerHref = (u?: string | null): string => {
     }
 
     // Relative app/proxy-URL-er er trygge å beholde som relative paths.
-    if (trimmedOriginal.startsWith("/")) {
+    if (erTillattRelativUrl(trimmedOriginal)) {
         return trimmedOriginal;
     }
 
@@ -133,17 +148,24 @@ export const canvasBildeProxyUrl = (src: string | undefined): string | undefined
         return sikkerFilNedlastingUrl(fileId);
     }
 
+    if (erTillattRelativUrl(trimmed)) {
+        return trimmed;
+    }
+
     try {
         const url = new URL(trimmed);
-        if (url.protocol !== "http:" && url.protocol !== "https:") return trimmed;
+        if (url.protocol !== "http:" && url.protocol !== "https:") {
+            return undefined;
+        }
         const fileId = extractCanvasFileId(`${url.pathname}${url.search}${url.hash}`);
         if (fileId) {
             return sikkerFilNedlastingUrl(fileId) ?? trimmed;
         }
+        return url.href;
     } catch {
         // Ugyldig URL
     }
-    return trimmed;
+    return undefined;
 };
 
 // Lager parser-opsjoner. Kan utvides med custom bilde-rendering fra konsument
@@ -152,21 +174,16 @@ export const createCanvasHtmlParser = (renderImage?: (el: Element) => ReactNode)
         if (domNode instanceof Element) {
             if (domNode.tagName === "a") {
                 const href = domNode.attribs?.href;
-                const proxiedHref = canvasBildeProxyUrl(href);
-                // html-react-parser ChildNode typings mangler data-felt; begrens til tekstnoder
-                const firstChild = domNode.children?.[0] as { data?: unknown } | undefined;
-                const text =
-                    firstChild && typeof firstChild.data === "string"
-                        ? firstChild.data
-                        : "";
+                const resolvedHref = canvasBildeProxyUrl(href) ?? sikkerHref(href);
+                const children = domToReact(domNode.children as DOMNode[], { replace });
                 return (
                     <a
-                        href={proxiedHref ?? sikkerHref(href)}
+                        href={resolvedHref}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
                     >
-                        {text}
+                        {children}
                         <ExternalLink size={12} className="opacity-50" />
                     </a>
                 ) as unknown as Element;

@@ -1168,7 +1168,20 @@ export function ChatSection() {
     useEffect(() => {
         if (!aktivChatId || loading) return;
         const chat = loadChatById(aktivChatId);
-        if (!chat) return;
+        if (!chat) {
+            const pending = pendingChatRef.current;
+            if ((pending && pending.chatId === aktivChatId) || pendingConversationState?.chatId === aktivChatId) return;
+            if (animerendeMeldingId) return;
+
+            stoppAktivAnimasjon();
+            settMeldinger([]);
+            meldingerRef.current = [];
+            settAktivSamtale(null);
+            setSelectedChatId(null);
+            settSkriver(false);
+            settAnalysererDokument(false);
+            return;
+        }
         const pending = pendingChatRef.current;
         if ((pending && pending.chatId === aktivChatId) || pendingConversationState?.chatId === aktivChatId) return;
         // Ikke overskriv meldingsinnhold mens pågående AI-svar animeres ord-for-ord.
@@ -1190,7 +1203,7 @@ export function ChatSection() {
             innhold: m.innhold,
             tidsstempel: new Date(),
         })));
-    }, [aktivChatId, chats, loadChatById, loading, animerendeMeldingId]);
+    }, [aktivChatId, chats, loadChatById, loading, animerendeMeldingId, setSelectedChatId, settAktivSamtale, stoppAktivAnimasjon]);
 
     const sisteAssistentsvar =
         [...meldinger].reverse().find((melding) => melding.rolle === "assistant")?.innhold ?? "";

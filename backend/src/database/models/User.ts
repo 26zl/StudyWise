@@ -30,6 +30,27 @@ export interface IVarslerState {
     toastVistIds: string[];
 }
 
+export interface SanitizedUsername {
+    username: string;
+    usernameNormalized: string;
+}
+
+export function sanitizeUsername(username: string | null | undefined): SanitizedUsername | null {
+    if (typeof username !== "string") {
+        return null;
+    }
+
+    const trimmed = username.trim();
+    if (!trimmed) {
+        return null;
+    }
+
+    return {
+        username: trimmed,
+        usernameNormalized: trimmed.toLowerCase(),
+    };
+}
+
 export interface IUser extends Document {
     email: string;
     /** Clerk user id (f.eks. user_xxx) for brukere som logger inn via Clerk. */
@@ -44,6 +65,8 @@ export interface IUser extends Document {
     authProvider?: AuthProvider;
     /** Clerk-brukernavn (påkrevd ved registrering). */
     username?: string;
+    /** Intern normalisert variant av username for case-insensitiv unikhet. */
+    usernameNormalized?: string;
     firstName?: string;
     lastName?: string;
     canvasApiToken?: string; // Kryptert token
@@ -96,6 +119,12 @@ const UserSchema: Schema = new Schema(
         username: {
             type: String,
             trim: true,
+        },
+        usernameNormalized: {
+            type: String,
+            trim: true,
+            lowercase: true,
+            select: false,
         },
         firstName: {
             type: String,
@@ -157,6 +186,10 @@ const UserSchema: Schema = new Schema(
 
 // Clerk-brukere slås opp på clerkId
 UserSchema.index({ clerkId: 1 }, { unique: true, sparse: true, name: "clerk_id_unique" });
+UserSchema.index(
+    { usernameNormalized: 1 },
+    { unique: true, sparse: true, name: "username_normalized_unique" },
+);
 
 // Merk: email har allerede indeks via unique: true.
 // Canvas-token må være tenant-aware, så vi bruker sammensatt indeks.

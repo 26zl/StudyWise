@@ -27,11 +27,70 @@ export function getWeekNumber(date: Date): number {
     return getIsoWeekInfo(date).weekNumber;
 }
 
+function parseLocalizedNumber(value: string): number {
+    const parsed = Number.parseFloat(value.replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
 /** Parse tidsstreng til antall timer (f.eks. "2 timer" → 2, "1.5 timer" → 1.5). Ekstraherer kun det numeriske tallet. */
 export function parseTimerStreng(tid: string): number {
-    const match = tid.match(/(\d+(?:[.,]\d+)?)/);
-    if (!match) return 0;
+    const normalized = tid.trim().toLowerCase();
+    if (!normalized) return 0;
 
-    const parsed = Number.parseFloat(match[1].replace(",", "."));
-    return Number.isFinite(parsed) ? parsed : 0;
+    const clockMatch = normalized.match(/\b(\d{1,2}):(\d{2})\b/);
+    if (clockMatch) {
+        const hours = Number.parseInt(clockMatch[1], 10);
+        const minutes = Number.parseInt(clockMatch[2], 10);
+        if (Number.isFinite(hours) && Number.isFinite(minutes)) {
+            return hours + minutes / 60;
+        }
+    }
+
+    const hourRangeMatch = normalized.match(
+        /(\d+(?:[.,]\d+)?)\s*(?:-|til)\s*(\d+(?:[.,]\d+)?)\s*(?:t|time|timer|h|hr|hrs|hour|hours)\b/,
+    );
+    if (hourRangeMatch) {
+        return (
+            parseLocalizedNumber(hourRangeMatch[1]) +
+            parseLocalizedNumber(hourRangeMatch[2])
+        ) / 2;
+    }
+
+    const minuteRangeMatch = normalized.match(
+        /(\d+(?:[.,]\d+)?)\s*(?:-|til)\s*(\d+(?:[.,]\d+)?)\s*(?:min|mins|minute|minutes|minutt|minutter)\b/,
+    );
+    if (minuteRangeMatch) {
+        return (
+            parseLocalizedNumber(minuteRangeMatch[1]) +
+            parseLocalizedNumber(minuteRangeMatch[2])
+        ) / 120;
+    }
+
+    let totalHours = 0;
+    let foundUnit = false;
+
+    const hourMatches = normalized.matchAll(
+        /(\d+(?:[.,]\d+)?)\s*(?:t|time|timer|h|hr|hrs|hour|hours)\b/g,
+    );
+    for (const match of hourMatches) {
+        totalHours += parseLocalizedNumber(match[1]);
+        foundUnit = true;
+    }
+
+    const minuteMatches = normalized.matchAll(
+        /(\d+(?:[.,]\d+)?)\s*(?:min|mins|minute|minutes|minutt|minutter)\b/g,
+    );
+    for (const match of minuteMatches) {
+        totalHours += parseLocalizedNumber(match[1]) / 60;
+        foundUnit = true;
+    }
+
+    if (foundUnit) {
+        return totalHours;
+    }
+
+    const numericMatch = normalized.match(/(\d+(?:[.,]\d+)?)/);
+    if (!numericMatch) return 0;
+
+    return parseLocalizedNumber(numericMatch[1]);
 }

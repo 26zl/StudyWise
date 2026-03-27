@@ -7,6 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isPublicApiPath } from "./utils/publicApiPaths.js";
 
 type HttpMethod = "get" | "post" | "put" | "patch" | "delete";
 type SwaggerSchema = Record<string, unknown>;
@@ -283,7 +284,7 @@ function buildResponses(routePath: string): SwaggerResponses {
 function createOperation(route: DiscoveredRoute): SwaggerOperation {
   const openApiPath = toOpenApiPath(route.path);
   const parameters = buildPathParameters(openApiPath);
-  const requiresAuth = route.path.startsWith("/api/") && !route.path.startsWith("/api/shared/");
+  const requiresAuth = route.path.startsWith("/api/") && !isPublicApiPath(route.path, route.method);
 
   return {
     operationId: buildOperationId(route.method, openApiPath),

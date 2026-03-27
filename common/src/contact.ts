@@ -31,7 +31,9 @@ export const KontaktRequestSchema = z.object({
     .max(5000, "Meldingen kan ikke være mer enn 5000 tegn"),
   turnstileToken: z
     .string()
-    .min(1, "Verifisering kreves"),
+    .trim()
+    .min(1, "Verifisering kreves")
+    .max(2048, "Verifiseringstoken er ugyldig"),
   // Honeypot-felt: skal alltid være tomt (sendes som skjult felt)
   nettsted: z.string().trim().max(200).optional(),
   // Valgfri metadata: URL der brukeren sendte skjemaet fra

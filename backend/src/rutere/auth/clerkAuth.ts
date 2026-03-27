@@ -9,6 +9,7 @@ import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import type { UserRole, AuthProvider } from "common/auth";
 import type { IUser } from "../../database/models/User.js";
 import { getConfiguredWebOrigins } from "../../utils/webOrigins.js";
+import { sanitizeUsername } from "../../database/models/User.js";
 
 /** Standard rolle for nye brukere. */
 const DEFAULT_ROLE: UserRole = "user";
@@ -71,6 +72,68 @@ function normalizeEmail(email: string | undefined): string | null {
 
   const normalized = email.toLowerCase().trim();
   return normalized.length > 0 ? normalized : null;
+}
+
+type UsernameSyncAction =
+  | { mode: "set"; username: string; usernameNormalized: string }
+  | { mode: "unset" }
+  | { mode: "keep"; conflictingUserId: string };
+
+async function resolveUsernameSyncAction(
+  username: string | undefined,
+  excludeUserId?: IUser["_id"] | null,
+): Promise<UsernameSyncAction> {
+  const sanitized = sanitizeUsername(username);
+  if (!sanitized) {
+    return { mode: "unset" };
+  }
+
+  const filter: Record<string, unknown> = {
+    usernameNormalized: sanitized.usernameNormalized,
+  };
+  if (excludeUserId) {
+    filter._id = { $ne: excludeUserId };
+  }
+
+  const conflictingUser = await User.findOne(filter).select("_id");
+  if (conflictingUser) {
+    return { mode: "keep", conflictingUserId: conflictingUser._id.toString() };
+  }
+
+  return {
+    mode: "set",
+    username: sanitized.username,
+    usernameNormalized: sanitized.usernameNormalized,
+  };
+}
+
+function resolveStoredUsername(
+  action: UsernameSyncAction,
+  fallbackUsername: string | undefined,
+): string | undefined {
+  switch (action.mode) {
+    case "set":
+      return action.username;
+    case "unset":
+      return undefined;
+    case "keep":
+      return fallbackUsername;
+  }
+}
+
+async function recordUserCreated(user: IUser, clerkUserId: string): Promise<void> {
+  logger.info(
+    { userId: user._id, clerkId: clerkUserId },
+    "Clerk-bruker opprettet i MongoDB",
+  );
+  await audit({
+    actorUserId: user._id.toString(),
+    action: AUDIT_ACTIONS.USER_CREATED,
+    category: "auth",
+    outcome: "success",
+    role: user.role ?? DEFAULT_ROLE,
+    metadata: { clerkId: clerkUserId },
+  });
 }
 
 /** Henter e-post og navn fra Clerk Backend API for en bruker. Returnerer null ved feil eller manglende primær e-post. */
@@ -146,8 +209,12 @@ function shouldSyncExistingUserProfile(user: IUser): boolean {
 function buildClerkProfileUpdate(
   profile: ClerkProfile,
   syncedAt: Date,
-  includeEmail = true,
+  options: {
+    includeEmail?: boolean;
+    usernameAction: UsernameSyncAction;
+  },
 ) {
+  const { includeEmail = true, usernameAction } = options;
   const setFields: Record<string, unknown> = {
     clerkProfileSyncedAt: syncedAt,
   };
@@ -161,10 +228,12 @@ function buildClerkProfileUpdate(
     setFields.authProvider = profile.authProvider;
   }
 
-  if (profile.username) {
-    setFields.username = profile.username;
-  } else {
+  if (usernameAction.mode === "set") {
+    setFields.username = usernameAction.username;
+    setFields.usernameNormalized = usernameAction.usernameNormalized;
+  } else if (usernameAction.mode === "unset") {
     unsetFields.username = 1;
+    unsetFields.usernameNormalized = 1;
   }
 
   if (profile.firstName) {
@@ -195,11 +264,21 @@ async function syncExistingUserWithClerkProfile(
   profile: ClerkProfile,
 ): Promise<IUser> {
   const syncedAt = new Date();
+  const existingUsername = existing.username ?? undefined;
+  const usernameAction = await resolveUsernameSyncAction(profile.username, existing._id);
+  const nextUsername = resolveStoredUsername(usernameAction, existingUsername);
   const emailChanged = existing.email !== profile.email;
-  const usernameChanged = (existing.username ?? undefined) !== profile.username;
+  const usernameChanged = existingUsername !== nextUsername;
   const firstNameChanged =
     (existing.firstName ?? undefined) !== profile.firstName;
   const lastNameChanged = (existing.lastName ?? undefined) !== profile.lastName;
+
+  if (usernameAction.mode === "keep") {
+    logger.info(
+      { clerkUserId, userId: existing._id, conflictingUserId: usernameAction.conflictingUserId },
+      "Droppet Clerk-brukernavn fordi det allerede er i bruk",
+    );
+  }
 
   if (!emailChanged && !usernameChanged && !firstNameChanged && !lastNameChanged) {
     const updated = await User.findByIdAndUpdate(
@@ -222,15 +301,16 @@ async function syncExistingUserWithClerkProfile(
           clerkUserId,
           userId: existing._id,
           conflictingUserId: conflictingUser._id,
-          currentEmail: existing.email,
-          requestedEmail: profile.email,
         },
         "Kunne ikke oppdatere lokal e-post fra Clerk fordi adressen allerede er i bruk",
       );
 
       const updatedWithoutEmail = await User.findByIdAndUpdate(
         existing._id,
-        buildClerkProfileUpdate(profile, syncedAt, false),
+        buildClerkProfileUpdate(profile, syncedAt, {
+          includeEmail: false,
+          usernameAction,
+        }),
         { returnDocument: "after" },
       );
       return updatedWithoutEmail ?? existing;
@@ -240,7 +320,9 @@ async function syncExistingUserWithClerkProfile(
   try {
     const updated = await User.findOneAndUpdate(
       { _id: existing._id, clerkId: clerkUserId },
-      buildClerkProfileUpdate(profile, syncedAt),
+      buildClerkProfileUpdate(profile, syncedAt, {
+        usernameAction,
+      }),
       { returnDocument: "after" },
     );
 
@@ -261,13 +343,13 @@ async function syncExistingUserWithClerkProfile(
 
     return existing;
   } catch (error) {
-    if (isDuplicateKeyError(error)) {
-      logger.warn(
-        { err: error, clerkUserId, userId: existing._id, email: profile.email },
-        "Duplicate-key under Clerk-profilsynk; beholder eksisterende lokal profil",
-      );
-      const latest = await User.findOne({ clerkId: clerkUserId });
-      return latest ?? existing;
+      if (isDuplicateKeyError(error)) {
+        logger.warn(
+          { err: error, clerkUserId, userId: existing._id },
+          "Duplicate-key under Clerk-profilsynk; beholder eksisterende lokal profil",
+        );
+        const latest = await User.findOne({ clerkId: clerkUserId });
+        return latest ?? existing;
     }
 
     throw error;
@@ -310,7 +392,6 @@ function queueExistingUserProfileSync(
 /** Spesialresultat for kontokonflikt som ikke er en auth-feil. */
 export interface AccountConflictResult {
   __accountConflict: true;
-  email: string;
 }
 
 /** Type-guard for AccountConflictResult. */
@@ -354,12 +435,20 @@ export async function findOrCreateUserByClerkId(
 
     const { email, firstName, lastName } = profile;
     const clerkProfileSyncedAt = new Date();
+    const usernameAction = await resolveUsernameSyncAction(profile.username);
+
+    if (usernameAction.mode === "keep") {
+      logger.info(
+        { clerkUserId, conflictingUserId: usernameAction.conflictingUserId },
+        "Clerk-brukernavn allerede i bruk; oppretter bruker uten lokalt brukernavn",
+      );
+    }
 
     const existingByEmail = await User.findOne({ email });
     if (existingByEmail) {
       if (existingByEmail.deletedAt) {
         logger.warn(
-          { clerkUserId, userId: existingByEmail._id, email },
+          { clerkUserId, userId: existingByEmail._id },
           "Avviser innlogging fordi e-post tilhører slettet StudyWise-bruker",
         );
         return null;
@@ -374,7 +463,6 @@ export async function findOrCreateUserByClerkId(
           {
             clerkUserId,
             userId: existingByEmail._id,
-            email,
             oldClerkId,
           },
           "Re-linker eksisterende bruker til ny Clerk-konto (samme e-post, annen OAuth-leverandør)",
@@ -399,17 +487,17 @@ export async function findOrCreateUserByClerkId(
             action: AUDIT_ACTIONS.ACCOUNT_RELINKED,
             category: "auth",
             outcome: "success",
-            metadata: { oldClerkId, newClerkId: clerkUserId, email },
+            metadata: { oldClerkId, newClerkId: clerkUserId },
           });
           return relinkedUser;
         }
 
         // Atomisk oppdatering feilet (race condition) — returner spesifikk feilmelding
         logger.error(
-          { clerkUserId, userId: existingByEmail._id, email, oldClerkId },
+          { clerkUserId, userId: existingByEmail._id, oldClerkId },
           "Kunne ikke re-linke Clerk-bruker — atomisk oppdatering feilet",
         );
-        return { __accountConflict: true as const, email };
+        return { __accountConflict: true as const };
       }
 
       const linkedUser = await User.findOneAndUpdate(
@@ -434,7 +522,7 @@ export async function findOrCreateUserByClerkId(
 
       if (linkedUser?.deletedAt) {
         logger.warn(
-          { clerkUserId, userId: linkedUser._id, email },
+          { clerkUserId, userId: linkedUser._id },
           "Linket bruker er slettet og kan ikke gjenopprettes automatisk",
         );
         return null;
@@ -442,39 +530,61 @@ export async function findOrCreateUserByClerkId(
 
       if (linkedUser) {
         logger.info(
-          { userId: linkedUser._id, clerkUserId, email },
+          { userId: linkedUser._id, clerkUserId },
           "Eksisterende bruker linket til Clerk",
         );
         return linkedUser;
       }
     }
 
+    const buildCreateUserPayload = (includeUsername: boolean) => ({
+      email,
+      clerkId: clerkUserId,
+      clerkProfileSyncedAt,
+      role: DEFAULT_ROLE,
+      firstName,
+      lastName,
+      authProvider: profile.authProvider,
+      ...(includeUsername && usernameAction.mode === "set"
+        ? {
+            username: usernameAction.username,
+            usernameNormalized: usernameAction.usernameNormalized,
+          }
+        : {}),
+    });
+
     try {
-      const user = await User.create({
-        email,
-        clerkId: clerkUserId,
-        clerkProfileSyncedAt,
-        role: DEFAULT_ROLE,
-        firstName,
-        lastName,
-        authProvider: profile.authProvider,
-      });
-      logger.info(
-        { userId: user._id, clerkId: clerkUserId },
-        "Clerk-bruker opprettet i MongoDB",
-      );
-      await audit({
-        actorUserId: user._id.toString(),
-        action: AUDIT_ACTIONS.USER_CREATED,
-        category: "auth",
-        outcome: "success",
-        role: user.role ?? DEFAULT_ROLE,
-        metadata: { clerkId: clerkUserId },
-      });
+      const user = await User.create(buildCreateUserPayload(true));
+      await recordUserCreated(user, clerkUserId);
       return user;
     } catch (error) {
+      let duplicateError = error;
       if (!isDuplicateKeyError(error)) {
         throw error;
+      }
+
+      if (usernameAction.mode === "set") {
+        const conflictingUsernameUser = await User.findOne({
+          usernameNormalized: usernameAction.usernameNormalized,
+        }).select("_id");
+
+        if (conflictingUsernameUser) {
+          logger.warn(
+            { clerkUserId, conflictingUserId: conflictingUsernameUser._id },
+            "Clerk-brukernavn ble tatt samtidig; prøver opprettelse uten lokalt brukernavn",
+          );
+
+          try {
+            const fallbackUser = await User.create(buildCreateUserPayload(false));
+            await recordUserCreated(fallbackUser, clerkUserId);
+            return fallbackUser;
+          } catch (fallbackError) {
+            if (!isDuplicateKeyError(fallbackError)) {
+              throw fallbackError;
+            }
+            duplicateError = fallbackError;
+          }
+        }
       }
 
       const concurrentUser = await User.findOne({
@@ -483,7 +593,7 @@ export async function findOrCreateUserByClerkId(
 
       if (concurrentUser?.deletedAt) {
         logger.warn(
-          { clerkUserId, userId: concurrentUser._id, email },
+          { clerkUserId, userId: concurrentUser._id },
           "Race-condition traff slettet bruker; avviser automatisk gjenoppretting",
         );
         return null;
@@ -494,23 +604,22 @@ export async function findOrCreateUserByClerkId(
           {
             clerkUserId,
             userId: concurrentUser._id,
-            email,
             existingClerkId: concurrentUser.clerkId,
           },
           "Duplicate-key recovery fant bruker knyttet til annen Clerk-konto",
         );
-        return { __accountConflict: true as const, email: email ?? "" };
+        return { __accountConflict: true as const };
       }
 
       if (concurrentUser) {
         logger.info(
-          { userId: concurrentUser._id, clerkUserId, email },
+          { userId: concurrentUser._id, clerkUserId },
           "Gjenbruker bruker etter duplicate-key race",
         );
         return concurrentUser;
       }
 
-      throw error;
+      throw duplicateError;
     }
   } catch (err) {
     logger.error(

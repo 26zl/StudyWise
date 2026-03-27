@@ -125,6 +125,7 @@ export function DashboardView() {
         userQuery.data?.name?.split(" ")[0] ||
         megQuery.data?.user?.firstName ||
         megQuery.data?.user?.email?.split("@")?.[0];
+    const brukerRolle = megQuery.data?.user?.role;
 
     // Hjelpefunksjon for å bestemme hvilken Canvas-visning som skal vises
     const hentCanvasVisning = () => {
@@ -140,6 +141,7 @@ export function DashboardView() {
             <SidebarAppLoadingState
                 aktivVisning={aktivVisning}
                 byttVisning={settAktivVisning}
+                brukerRolle={brukerRolle}
                 label={t("common.loading.redirectingToSignIn")}
             />
         );
@@ -150,6 +152,7 @@ export function DashboardView() {
             <SidebarAppErrorState
                 aktivVisning={aktivVisning}
                 byttVisning={settAktivVisning}
+                brukerRolle={brukerRolle}
                 message={brukerdataFeilmelding}
                 onRetry={() => {
                     void megQuery.refetch();
@@ -165,7 +168,7 @@ export function DashboardView() {
             aktivVisning={aktivVisning}
             byttVisning={settAktivVisning}
             brukernavn={megQuery.isPending ? "..." : brukernavn}
-            brukerRolle={megQuery.data?.user?.role}
+            brukerRolle={brukerRolle}
         >
             {!visInnhold ? (
                 <SectionLoader translationKey={megQuery.isPending ? "common.loading.userData" : "common.loading.generic"} />

@@ -9,6 +9,11 @@ import { UKEDAGER } from "./arbeidsplan.js";
 export const KI_MAX_MESSAGE_LENGTH_BACKEND = 50000; // Backend hard limit
 export const KI_MAX_MESSAGE_LENGTH_FRONTEND = 45000; // Frontend limit (buffer under backend)
 
+const KIClientContentSchema = z
+  .string()
+  .max(KI_MAX_MESSAGE_LENGTH_BACKEND, `Meldingen kan være maks ${KI_MAX_MESSAGE_LENGTH_BACKEND} tegn`)
+  .refine((value) => value.trim().length > 0, "Meldingen kan ikke være tom");
+
 // zod schemas for KI API
 export const KIMessageSchema = z.object({
   role: z.enum(["user", "assistant", "system"]),
@@ -19,22 +24,22 @@ export const KIMessageSchema = z.object({
 // Klienten kan kun sende user/assistant. System-meldinger styres kun av backend (prompt-injection-sikring).
 export const KIChatClientMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
-  content: z.string(),
+  content: KIClientContentSchema,
   timestamp: z.string().optional(),
 });
 
 // Request-schema for KI chat API
 export const KIChatRequestSchema = z.object({
-  messages: z.array(KIChatClientMessageSchema),
-  model: z.string().optional(),
+  messages: z.array(KIChatClientMessageSchema).min(1, "Minst én melding må sendes inn").max(200, "Maks 200 meldinger kan sendes inn"),
+  model: z.string().trim().min(1).max(100).optional(),
   temperature: z.number().min(0).max(1).optional(),
 });
 
 // Felles token-bruk schema (delt mellom chat og dokumentanalyse)
 const UsageSchema = z.object({
-  prompt_tokens: z.number(),
-  completion_tokens: z.number(),
-  total_tokens: z.number(),
+  prompt_tokens: z.number().int().nonnegative(),
+  completion_tokens: z.number().int().nonnegative(),
+  total_tokens: z.number().int().nonnegative(),
 });
 
 // Svar-schema for KI chat API
@@ -63,7 +68,14 @@ export const KIModelsResponseSchema = z.object({
 const multerStringField = z
   .union([z.string(), z.array(z.string())])
   .optional()
-  .transform((v) => (Array.isArray(v) ? v[0] : v));
+  .transform((value) => {
+    const firstValue = Array.isArray(value) ? value[0] : value;
+    if (typeof firstValue !== "string") {
+      return undefined;
+    }
+    const trimmed = firstValue.trim();
+    return trimmed === "" ? undefined : trimmed;
+  });
 
 const optionalNullableDateSchema = z.preprocess(
   (value) => (value == null || value === "" ? undefined : value),
@@ -116,10 +128,12 @@ export const TaskBreakdownResponseSchema = z.object({
 export const TaskBreakdownGenerateRequestSchema = z.object({
   assignmentTitle: z
     .string()
+    .trim()
     .min(1, "Oppgavetittel kan ikke være tom")
     .max(200, "Oppgavetittel må være maks 200 tegn"),
   assignmentDescription: z
     .string()
+    .trim()
     .max(5000, "Oppgavebeskrivelse må være maks 5000 tegn")
     .optional()
     .default(""),
@@ -178,6 +192,7 @@ export const WeeklyPlanSuggestionResponseSchema = WeeklyPlanSuggestionDraftSchem
 export const KIOppsummeringRequestSchema = z.object({
   tekst: z
     .string()
+    .trim()
     .min(1, "Tekst kan ikke være tom")
     .max(50000, "Tekst kan være maks 50 000 tegn"),
   type: z.enum(["tldr", "handlinger", "begge"]).optional().default("begge"),
@@ -191,10 +206,25 @@ export const KIOppsummeringResponseSchema = z
     handlinger: z.array(z.string()).optional(),
     melding: z.string().optional(),
   })
-  .refine(
-    (d) => d.suksess === true || (d.melding != null && d.melding !== ""),
-    { message: "Feilrespons (suksess: false) må inneholde en melding" },
-  );
+  .superRefine((data, ctx) => {
+    if (!data.suksess && (data.melding == null || data.melding.trim() === "")) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Feilrespons (suksess: false) må inneholde en melding",
+      });
+    }
+
+    if (
+      data.suksess &&
+      (data.oppsummering == null || data.oppsummering.trim() === "") &&
+      (data.handlinger == null || data.handlinger.length === 0)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Suksessrespons må inneholde oppsummering eller handlinger",
+      });
+    }
+  });
 
 // Type exports
 export type KIOppsummeringRequest = z.infer<typeof KIOppsummeringRequestSchema>;

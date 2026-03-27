@@ -5,13 +5,41 @@
 import { z } from "zod";
 import { KI_MAX_MESSAGE_LENGTH_BACKEND } from "./ki.js";
 
+const CHAT_TITLE_MAX_LENGTH = 120;
+const CHAT_TOPIC_MAX_LENGTH = 40;
+
+function normalizeOptionalText(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+const OptionalNullableChatTitleSchema = z.preprocess(
+  normalizeOptionalText,
+  z.string().max(CHAT_TITLE_MAX_LENGTH, `Tittel må være maks ${CHAT_TITLE_MAX_LENGTH} tegn`).nullable().optional(),
+);
+
+const OptionalNullableChatTopicSchema = z.preprocess(
+  normalizeOptionalText,
+  z.string().max(CHAT_TOPIC_MAX_LENGTH, `Tema må være maks ${CHAT_TOPIC_MAX_LENGTH} tegn`).nullable().optional(),
+);
+
+export const CHAT_SHARE_ACCESS_TYPES = ["public", "private"] as const;
+export const ChatShareAccessTypeSchema = z.enum(CHAT_SHARE_ACCESS_TYPES);
+
+export const CHAT_SHARE_MODES = ["full_chat"] as const;
+export const ChatShareTypeSchema = z.enum(CHAT_SHARE_MODES);
+
 // Maks antall chat-samtaler som skal vises i historikken
 export const ChatMessageSchema = z.object({
   rolle: z.enum(["user", "assistant"]),
   innhold: z
     .string()
-    .min(1, "Meldingen kan ikke være tom")
-    .max(KI_MAX_MESSAGE_LENGTH_BACKEND, `Meldingen kan være maks ${KI_MAX_MESSAGE_LENGTH_BACKEND} tegn`),
+    .max(KI_MAX_MESSAGE_LENGTH_BACKEND, `Meldingen kan være maks ${KI_MAX_MESSAGE_LENGTH_BACKEND} tegn`)
+    .refine((value) => value.trim().length > 0, "Meldingen kan ikke være tom"),
 });
 
 // Schema for lagring av chat-samtale. title valgfri; brukes for visning (f.eks. avkortet første spørsmål).
@@ -20,18 +48,16 @@ export const ChatSaveSchema = z.object({
     .array(ChatMessageSchema)
     .min(1, "Samtalen må inneholde minst én melding")
     .max(200, "Maks 200 meldinger per samtale"),
-  title: z.string().max(120, "Tittel må være maks 120 tegn").optional().nullable(),
-  topic: z.string().max(40, "Tema må være maks 40 tegn").optional().nullable(),
+  title: OptionalNullableChatTitleSchema,
+  topic: OptionalNullableChatTopicSchema,
   pinned: z.boolean().optional(),
 });
 
 export const ChatShareCreateSchema = z.object({
-  shareMode: z.enum(["full_chat"]).default("full_chat"),
-  accessType: z.enum(["public", "private"]).default("public"),
+  shareMode: ChatShareTypeSchema.default("full_chat"),
+  accessType: ChatShareAccessTypeSchema.default("public"),
   expiresAt: z.coerce.date().nullable().optional(),
 });
-
-const ChatShareTypeSchema = z.enum(["full_chat"]);
 
 // Felles schema for en enkelt chat-samtale (delt mellom save og historikk)
 const ChatEntrySchema = z.object({
@@ -87,7 +113,7 @@ export const SharedChatListItemSchema = z.object({
   createdAt: z.coerce.date(),
   expiresAt: z.coerce.date().nullable(),
   isActive: z.boolean(),
-  accessType: z.enum(["public", "private"]),
+  accessType: ChatShareAccessTypeSchema,
   viewCount: z.number().int().nonnegative(),
 });
 
@@ -97,7 +123,7 @@ export const SharedChatListResponseSchema = z.object({
 
 export const SharedChatUpdateSchema = z.object({
   isActive: z.boolean().optional(),
-  accessType: z.enum(["public", "private"]).optional(),
+  accessType: ChatShareAccessTypeSchema.optional(),
   expiresAt: z.coerce.date().nullable().optional(),
 }).refine(
   (value) =>
@@ -109,18 +135,17 @@ export const SharedChatUpdateSchema = z.object({
 
 export const SharedChatPublicResponseSchema = z.object({
   shareId: z.string(),
-  chatId: z.string(),
   chatTitle: z.string(),
   messages: z.array(ChatMessageSchema).min(1),
   createdAt: z.coerce.date(),
   expiresAt: z.coerce.date().nullable(),
-  accessType: z.enum(["public", "private"]),
-  isActive: z.boolean(),
-  viewCount: z.number().int().nonnegative(),
 });
 
 export const ChatTopicUpdateSchema = z.object({
-  topic: z.string().max(40, "Tema må være maks 40 tegn").nullable(),
+  topic: z.preprocess(
+    normalizeOptionalText,
+    z.string().max(CHAT_TOPIC_MAX_LENGTH, `Tema må være maks ${CHAT_TOPIC_MAX_LENGTH} tegn`).nullable(),
+  ),
 });
 
 export const ChatPinUpdateSchema = z.object({
@@ -128,7 +153,7 @@ export const ChatPinUpdateSchema = z.object({
 });
 
 export const ChatTitleUpdateSchema = z.object({
-  title: z.string().min(1, "Tittel må fylles ut").max(120, "Tittel må være maks 120 tegn"),
+  title: z.string().trim().min(1, "Tittel må fylles ut").max(CHAT_TITLE_MAX_LENGTH, `Tittel må være maks ${CHAT_TITLE_MAX_LENGTH} tegn`),
 });
 // Type-definisjoner for chat-meldinger og historikk
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;

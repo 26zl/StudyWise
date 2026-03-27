@@ -84,9 +84,18 @@ export function requestTimeout(req: Request, res: Response, next: NextFunction) 
     req.timeoutSignal = abortController.signal;
     req.timeoutAborted = false;
 
-    const timer = setTimeout(() => {
+    const cleanup = () => {
+        clearTimeout(timer);
+    };
+
+    const abortRequest = () => {
+        if (abortController.signal.aborted) return;
         req.timeoutAborted = true;
         abortController.abort();
+    };
+
+    const timer = setTimeout(() => {
+        abortRequest();
 
         if (!res.headersSent) {
             logger.warn(
@@ -106,15 +115,21 @@ export function requestTimeout(req: Request, res: Response, next: NextFunction) 
     }, timeoutMs);
 
     // Rydd opp timeren når responsen er ferdig
-    res.on("close", () => {
-        clearTimeout(timer);
-    });
+    res.once("finish", cleanup);
+    res.once("close", cleanup);
 
     // Rydd opp hvis klienten avbryter tidlig
-    req.on("close", () => {
-        clearTimeout(timer);
-        if (!res.headersSent) {
-            abortController.abort();
+    req.once("aborted", () => {
+        cleanup();
+        if (!res.writableEnded) {
+            abortRequest();
+        }
+    });
+
+    req.once("close", () => {
+        cleanup();
+        if (!res.writableEnded) {
+            abortRequest();
         }
     });
 

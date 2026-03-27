@@ -8,7 +8,7 @@ import { User } from "../database/models/User.js";
 import { decrypt } from "../utils/kryptering.js";
 import { logger } from "../utils/logger.js";
 import { apiError } from "../utils/apiError.js";
-import { normalizeCanvasBaseUrl, CanvasBaseUrlSchema } from "common/auth";
+import { normalizeCanvasBaseUrl, StoredCanvasBaseUrlSchema } from "common/auth";
 import type { UserRole } from "common/auth";
 import type { IUser } from "../database/models/User.js";
 import { getClerkUserIdFromToken, findOrCreateUserByClerkId, isAccountConflict } from "../rutere/auth/clerkAuth.js";
@@ -42,6 +42,53 @@ const hentAuthToken = (req: Request): string | null => {
 
 const DEFAULT_ROLE: UserRole = "user";
 
+type AuthResolution =
+  | { status: "authenticated"; clerkUserId: string }
+  | { status: "missing_token" }
+  | { status: "invalid_or_expired" }
+  | { status: "account_conflict"; clerkUserId: string }
+  | { status: "user_sync_failed"; clerkUserId: string };
+
+function settAutentisertBrukerPåRequest(req: Request, user: IUser): void {
+  const role = (user.role ?? DEFAULT_ROLE) as UserRole;
+  req.user = { id: user._id.toString() };
+  (req as Request & { actorRole: UserRole }).actorRole = role;
+  (req as Request & { authenticatedUser?: IUser }).authenticatedUser = user;
+}
+
+async function resolveAuthentication(req: Request): Promise<AuthResolution> {
+  const token = hentAuthToken(req);
+  if (!token) {
+    return { status: "missing_token" };
+  }
+
+  const t0 = Date.now();
+  const clerkUserId = await getClerkUserIdFromToken(token);
+  const tClerk = Date.now();
+  if (!clerkUserId) {
+    return { status: "invalid_or_expired" };
+  }
+
+  const userResult = await findOrCreateUserByClerkId(clerkUserId);
+  const tDb = Date.now();
+
+  if (isAccountConflict(userResult)) {
+    return { status: "account_conflict", clerkUserId };
+  }
+
+  if (!userResult) {
+    return { status: "user_sync_failed", clerkUserId };
+  }
+
+  logger.debug(
+    { clerkMs: tClerk - t0, dbMs: tDb - tClerk, totalAuthMs: tDb - t0, url: req.originalUrl },
+    "auth-timing",
+  );
+
+  settAutentisertBrukerPåRequest(req, userResult);
+  return { status: "authenticated", clerkUserId };
+}
+
 export interface CanvasTilkobling {
   canvasToken?: string;
   canvasBaseUrl?: string;
@@ -63,7 +110,7 @@ export async function hentCanvasTilkoblingForBruker(
   const normalizedBaseUrl = user.canvasBaseUrl
     ? normalizeCanvasBaseUrl(user.canvasBaseUrl)
     : undefined;
-  const validatedBaseUrl = normalizedBaseUrl && CanvasBaseUrlSchema.safeParse(normalizedBaseUrl).success
+  const validatedBaseUrl = normalizedBaseUrl && StoredCanvasBaseUrlSchema.safeParse(normalizedBaseUrl).success
     ? normalizedBaseUrl
     : undefined;
 
@@ -91,17 +138,20 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return;
   }
 
-  const token = hentAuthToken(req);
-  if (!token) {
-    apiError.unauthorized(res, "Mangler autentiseringstoken");
-    return;
-  }
-
   try {
-    const t0 = Date.now();
-    const clerkUserId = await getClerkUserIdFromToken(token);
-    const tClerk = Date.now();
-    if (!clerkUserId) {
+    const result = await resolveAuthentication(req);
+
+    if (result.status === "authenticated") {
+      next();
+      return;
+    }
+
+    if (result.status === "missing_token") {
+      apiError.unauthorized(res, "Mangler autentiseringstoken");
+      return;
+    }
+
+    if (result.status === "invalid_or_expired") {
       await audit({
         actorUserId: "anonymous",
         action: AUDIT_ACTIONS.TOKEN_VERIFICATION_FAILURE,
@@ -119,23 +169,20 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       return;
     }
 
-    const userResult = await findOrCreateUserByClerkId(clerkUserId);
-    const tDb = Date.now();
-
-    if (isAccountConflict(userResult)) {
+    if (result.status === "account_conflict") {
       // Konto-konflikt: bruker er autentisert med Clerk, men re-linking til eksisterende
       // app-bruker feilet. Dette er IKKE en auth-feil — returner 409 slik at frontend
       // ikke looper mellom /auth og /dashboard.
       logger.warn(
-        { clerkUserId, email: userResult.email },
+        { clerkUserId: result.clerkUserId },
         "Konto-konflikt: kunne ikke re-linke Clerk-bruker til eksisterende app-bruker",
       );
       await audit({
-        actorUserId: clerkUserId,
+        actorUserId: result.clerkUserId,
         action: AUDIT_ACTIONS.TOKEN_VERIFICATION_FAILURE,
         category: "auth",
         outcome: "failure",
-        metadata: { reason: "account_conflict", email: userResult.email },
+        metadata: { reason: "account_conflict" },
         req,
       });
       apiError.conflict(res,
@@ -145,9 +192,9 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       return;
     }
 
-    if (!userResult) {
+    if (result.status === "user_sync_failed") {
       await audit({
-        actorUserId: clerkUserId,
+        actorUserId: result.clerkUserId,
         action: AUDIT_ACTIONS.TOKEN_VERIFICATION_FAILURE,
         category: "auth",
         outcome: "failure",
@@ -157,19 +204,6 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       apiError.unauthorized(res, "Kunne ikke verifisere bruker");
       return;
     }
-
-    const user = userResult;
-
-    logger.debug(
-      { clerkMs: tClerk - t0, dbMs: tDb - tClerk, totalAuthMs: tDb - t0, url: req.originalUrl },
-      "auth-timing",
-    );
-
-    const role = (user.role ?? DEFAULT_ROLE) as UserRole;
-    req.user = { id: user._id.toString() };
-    (req as Request & { actorRole: UserRole }).actorRole = role;
-    (req as Request & { authenticatedUser?: IUser }).authenticatedUser = user;
-    next();
   } catch (err) {
     logger.warn({ err, requestId: (req as Request & { id?: string }).id }, "requireAuth error");
     await audit({
@@ -181,6 +215,27 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       req,
     });
     apiError.unauthorized(res, "Autentisering feilet");
+  }
+}
+
+export async function tryAuthenticateRequest(req: Request): Promise<boolean> {
+  if (req.user?.id) {
+    return true;
+  }
+
+  if (req.method === "OPTIONS") {
+    return false;
+  }
+
+  try {
+    const result = await resolveAuthentication(req);
+    return result.status === "authenticated";
+  } catch (error) {
+    logger.warn(
+      { err: error, requestId: (req as Request & { id?: string }).id },
+      "tryAuthenticateRequest feilet",
+    );
+    return false;
   }
 }
 

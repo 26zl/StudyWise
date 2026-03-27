@@ -7,6 +7,7 @@ import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-quer
 import { useCallback } from "react";
 import { showToast, toast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
+import { useUIStore } from "@/app/store/uiStore";
 import {
   ChatHistoryResponseSchema,
   ChatMessage,
@@ -108,6 +109,10 @@ async function loadChatHistory(): Promise<SavedChat[]> {
 export function useChatHistory() {
   const queryClient = useQueryClient();
   const { t } = useLanguage();
+  const currentChatId = useUIStore((state) => state.currentChatId);
+  const selectedChatId = useUIStore((state) => state.selectedChatId);
+  const setCurrentChatId = useUIStore((state) => state.setCurrentChatId);
+  const setSelectedChatId = useUIStore((state) => state.setSelectedChatId);
   const { data, isLoading } = useQuery({
     queryKey: CHAT_HISTORY_QUERY_KEY,
     queryFn: loadChatHistory,
@@ -237,7 +242,7 @@ export function useChatHistory() {
   const loadChat = useCallback((id: string) => chats.find((c) => c.id === id), [chats]);
 
   /** Sletter en samtale i backend og fjerner den fra cache. */
-  const deleteChat = async (id: string) => {
+  const deleteChat = useCallback(async (id: string) => {
     try {
       await fetchJson<unknown>("/api/ki/chat/history/" + id, {
         method: "DELETE",
@@ -245,12 +250,27 @@ export function useChatHistory() {
       queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) =>
         (prev ?? []).filter((c) => c.id !== id)
       );
+      if (currentChatId === id) {
+        setCurrentChatId(null);
+      }
+      if (selectedChatId === id) {
+        setSelectedChatId(null);
+      }
       showToast.success(t("chatHistory.deleteSuccess"));
+      return true;
     } catch (error) {
-      if (erIkkeAutentisert(error)) return;
+      if (erIkkeAutentisert(error)) return false;
       showToast.error(t("chatHistory.deleteError"));
+      return false;
     }
-  };
+  }, [
+    currentChatId,
+    queryClient,
+    selectedChatId,
+    setCurrentChatId,
+    setSelectedChatId,
+    t,
+  ]);
 
   /** Viser bekreftelses-toast; ved "Slett" kalles DELETE mot API og cache tømmes. */
   const clearAll = useCallback(() => {
@@ -265,6 +285,8 @@ export function useChatHistory() {
               method: "DELETE",
             });
             queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, []);
+            setCurrentChatId(null);
+            setSelectedChatId(null);
             showToast.success(t("chatHistory.clearSuccess"));
           } catch (error) {
             if (erIkkeAutentisert(error)) return;
@@ -274,7 +296,7 @@ export function useChatHistory() {
       },
       cancel: { label: t("common.actions.cancel"), onClick: () => {} },
     });
-  }, [queryClient, t]);
+  }, [queryClient, setCurrentChatId, setSelectedChatId, t]);
 
   return { chats, saveChat, setChatTopic, setChatPinned, setChatTitle, loadChat, deleteChat, clearAll, loading: isLoading };
 }

@@ -54,13 +54,9 @@ export default function SharePage() {
         const res = await fetchApi(
           `/api/ki/share/${shareId}`,
           { signal: ac.signal },
-          { auth: false, credentials: "include", cache: "no-store" },
+          { auth: false, credentials: "omit", cache: "no-store" },
         );
         if (cancelled) return;
-        if (res.status === 401) {
-          router.push("/login");
-          return;
-        }
         if (!res.ok) {
           setError(await parseApiError(res, "Kunne ikke hente delt samtale."));
           return;
@@ -83,7 +79,7 @@ export default function SharePage() {
       cancelled = true;
       ac.abort();
     };
-  }, [params?.shareId, router]);
+  }, [params?.shareId]);
 
   if (loading) return <LoadingView text="Laster delt samtale..." fullPage />;
 
@@ -117,7 +113,8 @@ export default function SharePage() {
             onClick={async () => {
               if (!data) return;
               if (!isSignedIn) {
-                router.push(`/auth/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`);
+                const redirectUrl = `${window.location.pathname}${window.location.search}`;
+                router.push(`/auth/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
                 return;
               }
               const res = await fetchApi("/api/ki/chat/history", {
@@ -125,7 +122,7 @@ export default function SharePage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   messages: data.messages.map((m) => ({ rolle: m.rolle, innhold: m.innhold })),
-                  title: `${data.chatTitle} (delt)`,
+                  title: data.chatTitle,
                 }),
               });
               if (!res.ok) {
@@ -147,12 +144,12 @@ export default function SharePage() {
                 setSelectedChatId(chatId);
                 setCurrentChatId(chatId);
               }
-              showToast.success("Ny samtale startet fra delt chat");
+              showToast.success("Samtalen ble kopiert til StudyWise");
               router.push("/dashboard");
             }}
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
-            Fortsett samtalen i StudyWise
+            Opprett kopi i StudyWise
           </button>
         </div>
       </div>

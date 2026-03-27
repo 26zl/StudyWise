@@ -15,6 +15,7 @@
 import mongoose from "mongoose";
 import crypto from "crypto";
 import { logger } from "../utils/logger.js";
+import { sanitizeUsername } from "./models/User.js";
 
 // Schema for å spore hvilke migrasjoner som er kjørt
 const migrationSchema = new mongoose.Schema({
@@ -200,6 +201,103 @@ const migrations: Migration[] = [
         { $set: { role: "user" } },
       );
       logger.info({ modifiedCount: result.modifiedCount }, "Migrasjon: student-brukere satt til user");
+    },
+  },
+  {
+    id: "2026-03-27-normalize-usernames-and-remove-duplicates",
+    description: "Normaliser brukernavn, fjern duplikater og forbered unik indeks",
+    up: async () => {
+      const col = mongoose.connection.collection("users");
+      const cursor = col
+        .find(
+          {},
+          {
+            projection: {
+              _id: 1,
+              username: 1,
+              usernameNormalized: 1,
+              createdAt: 1,
+            },
+          },
+        )
+        .sort({ createdAt: 1, _id: 1 });
+
+      const seen = new Set<string>();
+      const BATCH_SIZE = 500;
+      type BulkOp = { updateOne: { filter: object; update: object } };
+      let batch: BulkOp[] = [];
+      let updated = 0;
+      let clearedDuplicates = 0;
+
+      for await (const doc of cursor) {
+        const sanitized = sanitizeUsername(
+          typeof doc.username === "string" ? doc.username : undefined,
+        );
+
+        if (!sanitized) {
+          if (doc.username !== undefined || doc.usernameNormalized !== undefined) {
+            batch.push({
+              updateOne: {
+                filter: { _id: doc._id },
+                update: {
+                  $unset: {
+                    username: 1,
+                    usernameNormalized: 1,
+                  },
+                },
+              },
+            });
+            updated++;
+          }
+        } else if (seen.has(sanitized.usernameNormalized)) {
+          batch.push({
+            updateOne: {
+              filter: { _id: doc._id },
+              update: {
+                $unset: {
+                  username: 1,
+                  usernameNormalized: 1,
+                },
+              },
+            },
+          });
+          updated++;
+          clearedDuplicates++;
+        } else {
+          seen.add(sanitized.usernameNormalized);
+          if (
+            doc.username !== sanitized.username ||
+            doc.usernameNormalized !== sanitized.usernameNormalized
+          ) {
+            batch.push({
+              updateOne: {
+                filter: { _id: doc._id },
+                update: {
+                  $set: {
+                    username: sanitized.username,
+                    usernameNormalized: sanitized.usernameNormalized,
+                  },
+                },
+              },
+            });
+            updated++;
+          }
+        }
+
+        if (batch.length >= BATCH_SIZE) {
+          await col.bulkWrite(batch, { ordered: false });
+          batch = [];
+        }
+      }
+
+      if (batch.length > 0) {
+        await col.bulkWrite(batch, { ordered: false });
+      }
+
+      logger.info(
+        { updated, clearedDuplicates },
+        "Migrasjon: brukernavn normalisert og duplikater ryddet",
+      );
     },
   },
 ];

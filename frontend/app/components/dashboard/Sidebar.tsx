@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useUIStore } from "@/app/store/uiStore";
 import { useKIStore } from "@/app/store/kiStore";
 import {
@@ -80,11 +80,28 @@ export function Sidebar({
     const dialogRef = useRef<HTMLElement | null>(null);
     const closeButtonRef = useRef<HTMLButtonElement | null>(null);
     const headingId = useId();
+    const renameDialogRef = useRef<HTMLDivElement | null>(null);
+    const renameCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+    const renameInputRef = useRef<HTMLTextAreaElement | null>(null);
+    const renameTitleId = useId();
+    const renameDescriptionId = useId();
+    const renameInputId = useId();
     const dialogId = "dashboard-sidebar";
     const [pendingVisning, setPendingVisning] = useState<VisningType | null>(null);
     const [pendingPathname, setPendingPathname] = useState<
       "/dashboard" | "/oversikt" | "/ai-breakdown" | null
     >(null);
+
+    const handleCloseRenameModal = useCallback(() => {
+        setRenameModalChatId(null);
+        setRenameValue("");
+    }, []);
+
+    const handleOpenRenameModal = useCallback((chatId: string, title: string) => {
+        setRenameModalChatId(chatId);
+        setRenameValue(title);
+        setOpenActionsChatId(null);
+    }, []);
 
     useDialogAccessibility({
         open: isVenstreMenyOpen,
@@ -92,6 +109,13 @@ export function Sidebar({
         containerRef: dialogRef,
         initialFocusRef: closeButtonRef,
         onClose: lukkVenstreMeny,
+    });
+
+    useDialogAccessibility({
+        open: renameModalChatId !== null,
+        containerRef: renameDialogRef,
+        initialFocusRef: renameInputRef,
+        onClose: handleCloseRenameModal,
     });
 
     useEffect(() => {
@@ -132,6 +156,8 @@ export function Sidebar({
     const effektivPathname = pendingPathname ?? pathname;
     const erPåDashboard = effektivPathname === "/dashboard";
     const effektivVisning = pendingVisning ?? aktivVisning;
+    const skalViseAdmin =
+        brukerRolle === "admin" || (brukerRolle == null && erPåDashboard && effektivVisning === "admin");
 
     // KI Assistent er kun «aktiv» når dashboardet faktisk er aktivt
     const erChatAktiv = erPåDashboard && effektivVisning === "chat";
@@ -387,16 +413,14 @@ export function Sidebar({
                                                     className="fixed inset-0 z-10 cursor-default"
                                                 />
                                                 <div className="absolute right-2 z-20 mt-1 w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setRenameModalChatId(chat.id);
-                                                            setRenameValue(chat.title);
-                                                            setOpenActionsChatId(null);
-                                                        }}
-                                                        className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-                                                    >
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleOpenRenameModal(chat.id, chat.title);
+                                                            }}
+                                                            className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                                                        >
                                                         Gi nytt navn
                                                     </button>
                                                     <button
@@ -517,16 +541,14 @@ export function Sidebar({
                                                     className="fixed inset-0 z-10 cursor-default"
                                                 />
                                                 <div className="absolute right-2 z-20 mt-1 w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setRenameModalChatId(chat.id);
-                                                            setRenameValue(chat.title);
-                                                            setOpenActionsChatId(null);
-                                                        }}
-                                                        className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-                                                    >
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleOpenRenameModal(chat.id, chat.title);
+                                                            }}
+                                                            className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                                                        >
                                                         Gi nytt navn
                                                     </button>
                                                     <button
@@ -632,7 +654,7 @@ export function Sidebar({
                     {/* Innstillinger + Admin */}
                     <div className="border-t border-slate-200 dark:border-slate-800 pt-8 space-y-2">
                         <NavElement view="settings" icon={Settings} label={t("dashboard.sidebar.settings")} />
-                        {brukerRolle === "admin" && (
+                        {skalViseAdmin && (
                             <NavElement view="admin" icon={Shield} label={t("dashboard.sidebar.admin")} />
                         )}
                     </div>
@@ -670,24 +692,40 @@ export function Sidebar({
             {renameModalChatId && (
                 <div
                     className="fixed inset-0 z-120 flex items-center justify-center bg-black/35 p-4"
-                    onClick={() => setRenameModalChatId(null)}
+                    onClick={handleCloseRenameModal}
+                    role="presentation"
                 >
                     <div
+                        ref={renameDialogRef}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby={renameTitleId}
+                        aria-describedby={renameDescriptionId}
+                        tabIndex={-1}
                         className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-700 dark:bg-slate-900"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="mb-4 flex items-center justify-between">
-                            <h3 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">Endre samtalenavn</h3>
+                            <h3 id={renameTitleId} className="text-3xl font-semibold text-slate-900 dark:text-slate-100">Endre samtalenavn</h3>
                             <button
+                                ref={renameCloseButtonRef}
                                 type="button"
-                                onClick={() => setRenameModalChatId(null)}
+                                onClick={handleCloseRenameModal}
                                 className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                                 aria-label="Lukk"
                             >
                                 <X size={18} />
                             </button>
                         </div>
+                        <p id={renameDescriptionId} className="mb-4 text-sm text-slate-600 dark:text-slate-400">
+                            Gi samtalen et kort og tydelig navn.
+                        </p>
+                        <label htmlFor={renameInputId} className="sr-only">
+                            Nytt samtalenavn
+                        </label>
                         <textarea
+                            ref={renameInputRef}
+                            id={renameInputId}
                             value={renameValue}
                             onChange={(e) => setRenameValue(e.target.value)}
                             rows={3}
@@ -699,9 +737,12 @@ export function Sidebar({
                                 onClick={async () => {
                                     const next = renameValue.trim();
                                     if (!next || !renameModalChatId) return;
-                                    await setChatTitle(renameModalChatId, next);
-                                    setRenameModalChatId(null);
+                                    const ok = await setChatTitle(renameModalChatId, next);
+                                    if (ok) {
+                                        handleCloseRenameModal();
+                                    }
                                 }}
+                                disabled={!renameValue.trim()}
                                 className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
                             >
                                 Lagre

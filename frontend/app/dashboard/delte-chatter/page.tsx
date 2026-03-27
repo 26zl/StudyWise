@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { Link2, Pin, Search, Trash2, Users } from "lucide-react";
+import { Pin, Search } from "lucide-react";
 import { useMeg } from "@/app/auth/auth-api";
 import { skalRedirecteTilAuth, useAuthRedirect } from "@/app/auth/authUtils";
 import type { VisningType } from "@/app/components/dashboard/Sidebar";
@@ -12,18 +12,12 @@ import {
   SidebarAppLoadingState,
   SidebarAppShell,
 } from "@/app/components/layout/SidebarAppShell";
+import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { useChatHistory } from "@/app/hooks/useChatHistory";
-import { fetchApi } from "@/app/lib/apiClient";
-import { parseApiError } from "@/app/lib/errorUtils";
 import { formaterDatoShort } from "@/app/lib/dato";
 import { useLanguage } from "@/app/i18n";
-import { showToast, toast } from "@/app/components/ui/Toaster";
-import { LoadingView } from "@/app/components/ui/Loading";
-import { FeilMelding } from "@/app/components/ui/FeilMelding";
+import { showToast } from "@/app/components/ui/Toaster";
 import { useUIStore } from "@/app/store/uiStore";
-import { SharedChatListResponseSchema, type SharedChatListItem } from "common/chat";
-
-type TabType = "my" | "shared";
 
 export default function DelteChatterPage() {
   const router = useRouter();
@@ -32,51 +26,51 @@ export default function DelteChatterPage() {
   useAuthRedirect(megQuery);
   const { chats, loading: chatsLoading, setChatPinned } = useChatHistory();
   const { setSelectedChatId, setCurrentChatId } = useUIStore();
-  const { language } = useLanguage();
-  const [tab, setTab] = useState<TabType>("my");
-  const [links, setLinks] = useState<SharedChatListItem[]>([]);
-  const [loadingLinks, setLoadingLinks] = useState(false);
+  const { language, t } = useLanguage();
   const [query, setQuery] = useState("");
 
   const brukernavn =
     megQuery.data?.user?.firstName ||
     megQuery.data?.user?.email?.split("@")?.[0];
-
-  const byttVisning = useCallback((visning: VisningType) => {
-    router.push(visning === "chat" ? "/dashboard" : `/dashboard?view=${visning}`);
-  }, [router]);
-
-  const loadLinks = async () => {
-    setLoadingLinks(true);
-    try {
-      const res = await fetchApi("/api/ki/chat/shared");
-      if (!res.ok) {
-        throw new Error(await parseApiError(res, "Kunne ikke hente delte chatter"));
-      }
-      const parsed = SharedChatListResponseSchema.parse(await res.json());
-      setLinks(parsed.links);
-    } catch (error) {
-      showToast.error(error instanceof Error ? error.message : "Kunne ikke hente delte chatter");
-      setLinks([]);
-    } finally {
-      setLoadingLinks(false);
-    }
+  const brukerRolle = megQuery.data?.user?.role;
+  const erEngelsk = language === "en";
+  const tekster = {
+    title: erEngelsk ? "My bookmarks" : "Mine bokmerker",
+    loading: erEngelsk ? "Loading bookmarks..." : "Laster bokmerker...",
+    searchLabel: erEngelsk ? "Search bookmarked conversations" : "Søk i bokmerkede chatter",
+    searchPlaceholder: erEngelsk ? "Search conversations..." : "Søk i chatter...",
+    noSearchMatches: erEngelsk
+      ? "No bookmarked conversations match your search."
+      : "Ingen bokmerkede chatter matcher søket.",
+    removedFromBookmarks: erEngelsk ? "Removed from bookmarks" : "Fjernet fra bokmerker",
+    unpin: erEngelsk ? "Remove bookmark" : "Fjern bokmerke",
   };
 
-  useEffect(() => {
-    if (isLoaded) {
-      void loadLinks();
-    }
-  }, [isLoaded]);
+  const byttVisning = useCallback(
+    (visning: VisningType) => {
+      router.push(visning === "chat" ? "/dashboard" : `/dashboard?view=${visning}`);
+    },
+    [router],
+  );
+
+  const åpneSamtale = useCallback(
+    (chatId: string) => {
+      setSelectedChatId(chatId);
+      setCurrentChatId(chatId);
+      router.push("/dashboard");
+    },
+    [router, setCurrentChatId, setSelectedChatId],
+  );
 
   const filteredChats = useMemo(() => {
+    const term = query.trim().toLowerCase();
     return chats.filter((chat) => {
       if (!chat.pinned) return false;
-      const matchesQuery =
-        query.trim() === "" ||
-        chat.title.toLowerCase().includes(query.toLowerCase()) ||
-        chat.messages.some((m) => m.innhold.toLowerCase().includes(query.toLowerCase()));
-      return matchesQuery;
+      if (!term) return true;
+      return (
+        chat.title.toLowerCase().includes(term) ||
+        chat.messages.some((message) => message.innhold.toLowerCase().includes(term))
+      );
     });
   }, [chats, query]);
 
@@ -86,7 +80,8 @@ export default function DelteChatterPage() {
         aktivVisning="chat"
         byttVisning={byttVisning}
         brukernavn={brukernavn}
-        label="Laster tråder..."
+        brukerRolle={brukerRolle}
+        label={tekster.loading}
       />
     );
   }
@@ -96,7 +91,8 @@ export default function DelteChatterPage() {
       <SidebarAppLoadingState
         aktivVisning="chat"
         byttVisning={byttVisning}
-        label="Sender deg til innlogging..."
+        brukerRolle={brukerRolle}
+        label={t("common.loading.redirectingToSignIn")}
       />
     );
   }
@@ -106,7 +102,8 @@ export default function DelteChatterPage() {
       <SidebarAppErrorState
         aktivVisning="chat"
         byttVisning={byttVisning}
-        message="Kunne ikke laste brukerdata."
+        brukerRolle={brukerRolle}
+        message={t("errors.userData.generic")}
         onRetry={() => {
           void megQuery.refetch();
         }}
@@ -115,135 +112,63 @@ export default function DelteChatterPage() {
   }
 
   return (
-    <SidebarAppShell aktivVisning="chat" byttVisning={byttVisning} brukernavn={brukernavn}>
+    <SidebarAppShell
+      aktivVisning="chat"
+      byttVisning={byttVisning}
+      brukernavn={brukernavn}
+      brukerRolle={brukerRolle}
+    >
       <div className="min-h-full bg-white px-4 py-6 text-slate-900 dark:bg-slate-900 dark:text-slate-100 md:px-8">
         <div className="mx-auto w-full max-w-5xl">
-          <div className="mb-5 flex items-center gap-6 border-b border-slate-200 dark:border-slate-800">
-            <button
-              type="button"
-              onClick={() => setTab("my")}
-              className={`inline-flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium ${
-                tab === "my"
-                  ? "border-slate-900 text-slate-900 dark:border-white dark:text-white"
-                  : "border-transparent text-slate-500"
-              }`}
-            >
-              <Link2 className="h-4 w-4" />
-              Mine bookmarks
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab("shared")}
-              className={`inline-flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium ${
-                tab === "shared"
-                  ? "border-slate-900 text-slate-900 dark:border-white dark:text-white"
-                  : "border-transparent text-slate-500"
-              }`}
-            >
-              <Users className="h-4 w-4" />
-              Delte chatter
-            </button>
+          <div className="mb-4 flex items-center justify-between">
+            <h1 className="text-2xl font-semibold">{tekster.title}</h1>
           </div>
 
-          {tab === "my" ? (
-            <>
-              <div className="mb-4">
-                <label className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Søk i chatter..."
-                    className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm dark:border-slate-700 dark:bg-slate-950"
-                  />
-                </label>
-              </div>
+          <div className="mb-4">
+            <label htmlFor="bookmarks-search" className="sr-only">
+              {tekster.searchLabel}
+            </label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                id="bookmarks-search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={tekster.searchPlaceholder}
+                aria-label={tekster.searchLabel}
+                className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm dark:border-slate-700 dark:bg-slate-950"
+              />
+            </div>
+          </div>
 
-              {filteredChats.length === 0 ? (
-                <FeilMelding melding="Ingen bokmerkede chatter matcher filteret." type="info" />
-              ) : (
-                <div className="space-y-1">
-                  {filteredChats.map((chat) => (
-                    <ThreadRow
-                      key={chat.id}
-                      title={chat.title}
-                      preview={chat.messages[chat.messages.length - 1]?.innhold ?? ""}
-                      date={formaterDatoShort(chat.timestamp, language)}
-                      onOpen={() => {
-                        setSelectedChatId(chat.id);
-                        setCurrentChatId(chat.id);
-                        router.push("/dashboard");
-                      }}
-                      onTogglePin={async () => {
-                        const ok = await setChatPinned(chat.id, false);
-                        if (ok) showToast.success("Fjernet fra bookmarks");
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
-            </>
+          {filteredChats.length === 0 ? (
+            <FeilMelding
+              melding={
+                query.trim().length > 0
+                  ? tekster.noSearchMatches
+                  : t("dashboard.sidebar.noBookmarksYet")
+              }
+              type="info"
+            />
           ) : (
-            <>
-              {loadingLinks ? (
-                <LoadingView text="Laster delte chatter..." fullPage={false} />
-              ) : links.length === 0 ? (
-                <FeilMelding melding="Ingen delte chatter ennå." type="info" />
-              ) : (
-                <div className="space-y-1">
-                  {links.map((item) => (
-                    <button
-                      type="button"
-                      key={item.shareId}
-                      className="w-full rounded-lg border-b border-slate-200 px-1 py-4 text-left hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
-                      onClick={() => {
-                        setSelectedChatId(item.chatId);
-                        setCurrentChatId(item.chatId);
-                        router.push("/dashboard");
-                      }}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="truncate text-lg font-semibold">{item.chatTitle}</p>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const fullUrl = `${window.location.origin}${item.shareUrl}`;
-                              void navigator.clipboard.writeText(fullUrl);
-                              toast("Lenke kopiert");
-                            }}
-                            className="rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
-                          >
-                            Kopier lenke
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const res = await fetchApi(`/api/ki/chat/shared/${item.shareId}`, { method: "DELETE" });
-                              if (!res.ok) {
-                                showToast.error(await parseApiError(res, "Kunne ikke slette delingslenke"));
-                                return;
-                              }
-                              setLinks((prev) => prev.filter((link) => link.shareId !== item.shareId));
-                              showToast.success("Delingslenke slettet");
-                            }}
-                            className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 text-xs text-red-600 dark:border-red-800 dark:text-red-400"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            Slett
-                          </button>
-                        </div>
-                      </div>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {formaterDatoShort(item.createdAt, language)} · {item.viewCount} visninger
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </>
+            <div className="space-y-1">
+              {filteredChats.map((chat) => (
+                <BookmarkedThreadRow
+                  key={chat.id}
+                  title={chat.title}
+                  preview={chat.messages[chat.messages.length - 1]?.innhold ?? ""}
+                  date={formaterDatoShort(chat.timestamp, language)}
+                  onOpen={() => åpneSamtale(chat.id)}
+                  onTogglePin={async () => {
+                    const ok = await setChatPinned(chat.id, false);
+                    if (ok) {
+                      showToast.success(tekster.removedFromBookmarks);
+                    }
+                  }}
+                  unpinLabel={tekster.unpin}
+                />
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -251,43 +176,46 @@ export default function DelteChatterPage() {
   );
 }
 
-function ThreadRow({
+function BookmarkedThreadRow({
   title,
   preview,
   date,
   onOpen,
   onTogglePin,
+  unpinLabel,
 }: {
   title: string;
   preview: string;
   date: string;
   onOpen: () => void;
   onTogglePin: () => Promise<void>;
+  unpinLabel: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="w-full rounded-lg border-b border-slate-200 px-1 py-4 text-left hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <p className="truncate text-lg font-semibold">{title}</p>
-      </div>
-      <p className="mt-1 line-clamp-2 text-sm text-slate-600 dark:text-slate-300">{preview}</p>
-      <div className="mt-2 flex items-center justify-between">
-        <p className="text-xs text-slate-500">{date}</p>
+    <article className="rounded-lg border-b border-slate-200 dark:border-slate-800">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="w-full rounded-lg px-1 pt-4 text-left hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 dark:hover:bg-slate-800/50"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <p className="truncate text-lg font-semibold">{title}</p>
+        </div>
+        <p className="mt-1 line-clamp-2 text-sm text-slate-600 dark:text-slate-300">{preview}</p>
+        <p className="mt-2 text-xs text-slate-500">{date}</p>
+      </button>
+      <div className="flex items-center justify-end px-1 pb-4 pt-3">
         <button
           type="button"
-          onClick={async (e) => {
-            e.stopPropagation();
+          onClick={async () => {
             await onTogglePin();
           }}
           className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
         >
           <Pin className="h-3.5 w-3.5" />
-          Unpin
+          {unpinLabel}
         </button>
       </div>
-    </button>
+    </article>
   );
 }

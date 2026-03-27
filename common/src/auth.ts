@@ -14,6 +14,7 @@ export function normalizeCanvasBaseUrl(url: string): string {
 export const EmailSchema = z
   .string()
   .trim()
+  .max(320, "E-post kan ikke være mer enn 320 tegn")
   .transform((s) => s.toLowerCase())
   .pipe(z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Ugyldig e-post"));
 
@@ -40,14 +41,19 @@ function isAllowedCanvasBaseUrl(url: string): boolean {
   return KJENTE_CANVAS_HOSTS.has(hostname);
 }
 
-export const CanvasBaseUrlSchema = z
+export const StoredCanvasBaseUrlSchema = z
   .string()
   .trim()
   .check(z.url({ message: "Ugyldig Canvas-URL" }))
-  .refine((url) => isAllowedCanvasBaseUrl(url), {
-    message: "Må være en kjent Canvas-instans (f.eks. https://mitt.uib.no eller https://usn.instructure.com)",
+  .refine((url) => CANVAS_BASE_URL_REGEX.test(url), {
+    message: "Canvas-URL må være en komplett https://-adresse uten sti eller query",
   })
   .transform(normalizeCanvasBaseUrl);
+
+export const CanvasBaseUrlSchema = StoredCanvasBaseUrlSchema
+  .refine((url) => isAllowedCanvasBaseUrl(url), {
+    message: "Må være en kjent Canvas-instans (f.eks. https://mitt.uib.no eller https://usn.instructure.com)",
+  });
 
 // Request schema for lagring av Canvas token (canonicalisert: trim; tom streng/whitespace avvises)
 export const CanvasTokenRequestSchema = z.object({
@@ -154,13 +160,30 @@ export const PreferencesUpdateSchema = z
     varslerState: VarslerStateSchema.optional(),
     uiPreferences: UIPreferencesSchema.optional(),
   })
-  .refine(
-    (data) =>
-      data.canvasContextPreferences !== undefined ||
-      data.varslerState !== undefined ||
-      data.uiPreferences !== undefined,
-    "Ingen preferanser oppgitt",
-  );
+  .superRefine((data, ctx) => {
+    const hasUiPreferences =
+      data.uiPreferences !== undefined &&
+      Object.values(data.uiPreferences).some((value) => value !== undefined);
+
+    if (data.uiPreferences !== undefined && !hasUiPreferences) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["uiPreferences"],
+        message: "Minst én UI-preferanse må oppgis",
+      });
+    }
+
+    if (
+      data.canvasContextPreferences === undefined &&
+      data.varslerState === undefined &&
+      !hasUiPreferences
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Ingen preferanser oppgitt",
+      });
+    }
+  });
 
 // Auth bruker (lokal)
 export const AuthBrukerSchema = z.object({
@@ -171,7 +194,7 @@ export const AuthBrukerSchema = z.object({
   lastName: z.string().optional(),
   hasCanvasToken: z.boolean(),
   /** Canvas base URL for brukerens institusjon (multi-tenant). */
-  canvasBaseUrl: CanvasBaseUrlSchema.optional().nullable(),
+  canvasBaseUrl: StoredCanvasBaseUrlSchema.optional().nullable(),
   canvasContextPreferences: CanvasContextPreferencesSchema.optional(),
   varslerState: VarslerStateSchema.optional(),
   uiPreferences: UIPreferencesSchema.optional(),

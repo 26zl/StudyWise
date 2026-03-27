@@ -24,7 +24,7 @@ type SidebarAppShellProps = {
 
 type SidebarAppStateProps = Pick<
   SidebarAppShellProps,
-  "aktivVisning" | "byttVisning" | "brukernavn" | "footer"
+  "aktivVisning" | "byttVisning" | "brukernavn" | "brukerRolle" | "footer"
 > & {
   className?: string;
   children: ReactNode;
@@ -32,14 +32,14 @@ type SidebarAppStateProps = Pick<
 
 type SidebarAppLoadingStateProps = Pick<
   SidebarAppShellProps,
-  "aktivVisning" | "byttVisning" | "brukernavn" | "footer"
+  "aktivVisning" | "byttVisning" | "brukernavn" | "brukerRolle" | "footer"
 > & {
   label?: string;
 };
 
 type SidebarAppErrorStateProps = Pick<
   SidebarAppShellProps,
-  "aktivVisning" | "byttVisning" | "brukernavn" | "footer"
+  "aktivVisning" | "byttVisning" | "brukernavn" | "brukerRolle" | "footer"
 > & {
   message: string;
   onRetry?: () => void;
@@ -58,7 +58,7 @@ export function SidebarAppShell({
     <div className="flex h-full min-h-full min-w-0 flex-col bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 md:flex-row">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-lg focus:bg-slate-900 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white dark:focus:bg-white dark:focus:text-slate-900"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-100 focus:rounded-lg focus:bg-slate-900 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white dark:focus:bg-white dark:focus:text-slate-900"
       >
         Hopp til innhold
       </a>
@@ -80,6 +80,7 @@ function SidebarAppState({
   aktivVisning,
   byttVisning,
   brukernavn,
+  brukerRolle,
   footer = true,
   className,
   children,
@@ -89,6 +90,7 @@ function SidebarAppState({
       aktivVisning={aktivVisning}
       byttVisning={byttVisning}
       brukernavn={brukernavn}
+      brukerRolle={brukerRolle}
       footer={footer}
       contentClassName="bg-slate-50 dark:bg-slate-950"
     >
@@ -108,6 +110,7 @@ export function SidebarAppLoadingState({
   aktivVisning,
   byttVisning,
   brukernavn,
+  brukerRolle,
   footer,
   label,
 }: SidebarAppLoadingStateProps) {
@@ -117,6 +120,7 @@ export function SidebarAppLoadingState({
       aktivVisning={aktivVisning}
       byttVisning={byttVisning}
       brukernavn={brukernavn}
+      brukerRolle={brukerRolle}
       footer={footer}
     >
       <LoadingView text={label ?? t("common.loading.generic")} fullPage={false} />
@@ -128,6 +132,7 @@ export function SidebarAppErrorState({
   aktivVisning,
   byttVisning,
   brukernavn,
+  brukerRolle,
   footer,
   message,
   onRetry,
@@ -138,6 +143,7 @@ export function SidebarAppErrorState({
       aktivVisning={aktivVisning}
       byttVisning={byttVisning}
       brukernavn={brukernavn}
+      brukerRolle={brukerRolle}
       footer={footer}
       className="gap-5"
     >
