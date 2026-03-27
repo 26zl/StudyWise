@@ -8,14 +8,26 @@
 
 import mongoose, { Schema, type Document } from "mongoose";
 
+export interface ICanvasModuleItem {
+  id?: number;
+  title: string;
+  type: string;
+  content_id?: number;
+  external_url?: string;
+  /** Per-item hash for endringsdeteksjon: hash(id + title + external_url) */
+  contentHash?: string;
+  /** Hash av hentet ExternalUrl-innhold (for å unngå re-indeksering av uendrede sider) */
+  crawledHash?: string;
+  /** Tidspunkt for siste crawl av ExternalUrl */
+  crawledAt?: Date;
+  /** Liste over PDF-URL-er som er crawlet fra denne ExternalUrl-en */
+  crawledPdfs?: string[];
+}
+
 export interface ICanvasModule {
   id: number;
   name: string;
-  items: Array<{
-    title: string;
-    type: string;
-    content_id?: number;
-  }>;
+  items: ICanvasModuleItem[];
 }
 
 export interface ICanvasAssignment {

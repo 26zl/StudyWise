@@ -94,6 +94,7 @@ export const CanvasModuleItemSchema = z.object({
   id: z.number(),
   title: z.string(),
   type: z.string(),
+  updated_at: z.string().nullable().optional(),
   html_url: z.string().optional(),
   page_url: z.string().optional(),
   url: z.string().optional(),

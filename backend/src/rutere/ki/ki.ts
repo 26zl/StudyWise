@@ -204,9 +204,15 @@ function hasExplicitCourseOverride(message: string): boolean {
     return true;
   }
 
-  // Eksplisitt emnekode (f.eks. "INF2010", "MET1020", "DAT-102")
-  const courseCodePattern = /\b[a-zæøå]{2,4}-?\d{2,4}\b/i;
+  // Eksplisitt emnekode (f.eks. "INF2010", "MET1020", "DAT-102", "6105N")
+  const courseCodePattern = /\b(?:[a-zæøå]{2,4}-?\d{2,4}|\d{4,5}[a-zæøå])\b/i;
   if (courseCodePattern.test(lower)) {
+    return true;
+  }
+
+  // "i windows emnet", "i dat2000-kurset", "i inf2010-faget"
+  // Tolkes som eksplisitt kurskontekst, ikke bare tematisk ord.
+  if (/\bi\s+[a-zæøå0-9-]{2,}\s+(?:emnet|kurset|faget)\b/i.test(lower)) {
     return true;
   }
 
@@ -357,9 +363,9 @@ function extractQueryTarget(message: string): TargetedQuery {
     }
   }
 
-  // Prøv å matche emnekoder direkte (f.eks. "DAT102", "ALG200", "IS-304")
+  // Prøv å matche emnekoder direkte (f.eks. "DAT102", "ALG200", "IS-304", "6105N")
   if (!courseHint) {
-    const courseCodeMatch = cleanedForCourse.match(/\b([a-zæøå]{2,4})-?(\d{2,4})\b/i);
+    const courseCodeMatch = cleanedForCourse.match(/\b(?:([a-zæøå]{2,4})-?(\d{2,4})|(\d{4,5}[a-zæøå]))\b/i);
     if (courseCodeMatch) {
       // Returner hele emnekoden som hint (f.eks. "dat102")
       courseHint = courseCodeMatch[0].replace("-", "").toLowerCase();
@@ -367,10 +373,13 @@ function extractQueryTarget(message: string): TargetedQuery {
     }
   }
 
-  // Prøv å ekstrahere fag fra "i [FAG]" eller "om [FAG]" mønstre
+  // Prøv å ekstrahere fag fra "i [FAG]" eller "om [FAG]" mønstre.
+  // Bruk siste match i setningen for å unngå at tidlige preposisjoner
+  // (f.eks. "til nettverk i windows emnet") låser hint til feil fag.
   if (!courseHint) {
-    const prepositionMatch = cleanedForCourse.match(/\b(?:i|om|fra|til|for)\s+([a-zæøå]{3,})\b/i);
-    if (prepositionMatch) {
+    const prepositionMatches = [...cleanedForCourse.matchAll(/\b(?:i|om|fra|til|for)\s+([a-zæøå]{3,})\b/gi)];
+    const prepositionMatch = prepositionMatches.at(-1);
+    if (prepositionMatch?.[1]) {
       const potentialCourse = prepositionMatch[1].toLowerCase();
       // Sjekk om det matcher et kjent nøkkelord eller emnekode-prefiks
       if (courseKeywords.includes(potentialCourse) || courseCodePrefixes.includes(potentialCourse)) {
@@ -640,12 +649,27 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
           "courseHint låst (eksplisitt override)",
         );
       } else if (lockedCourseHint) {
-        // Bruk eksisterende låst courseHint — ikke re-ekstraher fra historikk
-        target.courseHint = lockedCourseHint;
-        logger.info(
-          { courseHint: target.courseHint, fromLock: true },
-          "courseHint arvet fra sesjonslås",
-        );
+        // Bruk eksisterende låst courseHint kun når meldingen ikke gir ny eksplisitt courseHint.
+        // Dette hindrer at sesjonslås overstyrer ny emnekode som 6105N.
+        if (!target.courseHint) {
+          target.courseHint = lockedCourseHint;
+          logger.info(
+            { courseHint: target.courseHint, fromLock: true },
+            "courseHint arvet fra sesjonslås",
+          );
+        } else if (target.courseHint !== lockedCourseHint && hasOverride) {
+          await setCache(courseHintLockKey, target.courseHint, SESSION_COURSEHINT_TTL);
+          logger.info(
+            { previousCourseHint: lockedCourseHint, courseHint: target.courseHint, override: true },
+            "courseHint oppdatert fra ny eksplisitt hint",
+          );
+        } else if (target.courseHint !== lockedCourseHint) {
+          target.courseHint = lockedCourseHint;
+          logger.info(
+            { courseHint: target.courseHint, fromLock: true, ignoredHint: true },
+            "courseHint beholdt fra sesjonslås (ingen eksplisitt override)",
+          );
+        }
       } else if (target.courseHint) {
         // Første gang vi ekstraherer courseHint — lås den for sesjonen
         await setCache(courseHintLockKey, target.courseHint, SESSION_COURSEHINT_TTL);

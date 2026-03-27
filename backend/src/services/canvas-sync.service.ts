@@ -55,7 +55,8 @@ import {
   updateStoredFileMetadata,
   upsertStoredFileContent,
 } from "./embedding.service.js";
-import { CanvasStructureModel } from "../database/models/CanvasStructure.js";
+import { CanvasStructureModel, type ICanvasModuleItem } from "../database/models/CanvasStructure.js";
+import { crawlCourseExternalUrls } from "./externalUrlCrawler.js";
 
 // ─── Konstanter ────────────────────────────────────────────
 
@@ -147,6 +148,25 @@ export function userKey(userId: string, ...parts: string[]): string {
 /** Redis-nøkkel for sync-status ("running" | "done") */
 function syncStatusKey(userId: string): string {
   return userKey(userId, "sync", "status");
+}
+
+/**
+ * Beregner contentHash for et modul-item basert på tilgjengelige felter.
+ * Brukes for å detektere endringer uten å måtte re-prosessere alt.
+ */
+function computeModuleItemHash(item: {
+  id?: number;
+  title?: string;
+  updated_at?: string | null;
+  external_url?: string;
+}): string {
+  const parts = [
+    String(item.id ?? ""),
+    item.title ?? "",
+    item.updated_at ?? "",
+    item.external_url ?? "",
+  ];
+  return sha256(parts.join("|"));
 }
 
 // ─── Hovedfunksjon ─────────────────────────────────────────
@@ -358,7 +378,77 @@ async function _doSync(
           const oppgaver = assignmentsResult.value.data;
           const kunngjøringer = announcementsResult.value.data;
 
-          // Bygg data-objekt for hashing
+          // ── Per-item change detection ──
+          // Hent lagrede item-hashes fra MongoDB for å sammenligne med innkommende data
+          const previousStructure = await CanvasStructureModel.findOne(
+            { userId, courseId },
+            { moduler: 1 },
+          ).lean();
+          const previousItemHashes = new Map<
+            string,
+            {
+              contentHash?: string;
+              crawledHash?: string;
+              crawledAt?: Date;
+              crawledPdfs?: string[];
+            }
+          >();
+          if (previousStructure?.moduler) {
+            for (const mod of previousStructure.moduler) {
+              if (!mod.items) continue;
+              for (const item of mod.items) {
+                if (item.id != null) {
+                    previousItemHashes.set(
+                      `${mod.id}:${item.id}`,
+                      {
+                        contentHash: item.contentHash,
+                        crawledHash: item.crawledHash,
+                        crawledAt: item.crawledAt,
+                        crawledPdfs: item.crawledPdfs,
+                      },
+                    );
+                  }
+                }
+            }
+          }
+
+          // Berik hver modul-item med contentHash og logg endringer
+          const enrichedModuler = moduler.map((mod) => {
+            if (!mod.items) return mod;
+            const enrichedItems: ICanvasModuleItem[] = mod.items.map((item) => {
+              const newContentHash = computeModuleItemHash(item);
+              const itemKey = `${mod.id}:${item.id}`;
+              const prev = previousItemHashes.get(itemKey);
+              const enrichedItem: ICanvasModuleItem = {
+                id: item.id,
+                title: item.title,
+                type: item.type,
+                content_id: item.content_id,
+                external_url: item.external_url,
+                contentHash: newContentHash,
+                // Behold crawledHash fra forrige sync (oppdateres kun ved ExternalUrl-crawling)
+                crawledHash: prev?.crawledHash,
+                // Behold crawl-metadata fra forrige sync
+                crawledAt: prev?.crawledAt,
+                crawledPdfs: prev?.crawledPdfs,
+              };
+              if (prev?.contentHash && prev.contentHash === newContentHash) {
+                logger.info(
+                  { userId, courseId, itemId: item.id, type: item.type },
+                  "Canvas item uendret, hopper over",
+                );
+              } else {
+                logger.info(
+                  { userId, courseId, itemId: item.id, type: item.type },
+                  "Canvas item endret, oppdaterer",
+                );
+              }
+              return enrichedItem;
+            });
+            return { ...mod, items: enrichedItems };
+          });
+
+          // Bygg data-objekt for hashing (bruker original moduler for hash-kontinuitet)
           const courseData = {
             meta: {
               id: course.id,
@@ -368,6 +458,12 @@ async function _doSync(
             moduler,
             oppgaver,
             kunngjøringer,
+          };
+
+          // Data som lagres i MongoDB inkluderer berikede moduler med contentHash
+          const storageData = {
+            ...courseData,
+            moduler: enrichedModuler,
           };
 
           // Hash for å sjekke om data har endret seg (ikke sikkerhetskritisk — cache invalidering)
@@ -405,7 +501,7 @@ async function _doSync(
                   courseId,
                   courseName: course.name,
                   course_code: course.course_code ?? "",
-                  moduler: courseData.moduler,
+                  moduler: storageData.moduler,
                   oppgaver: courseData.oppgaver,
                   kunngjøringer: courseData.kunngjøringer,
                   syncedAt: new Date(),
@@ -416,6 +512,22 @@ async function _doSync(
             ).catch((err) => {
               logger.warn({ err, userId, courseId }, "Kunne ikke backfille Canvas-struktur til MongoDB");
             });
+
+            // Backfill contentHash/crawl-metadata på eksisterende dokumenter som mangler per-item hashes
+            const missingItemHashes = enrichedModuler.some((mod) =>
+              (mod.items ?? []).some((item) => !previousItemHashes.get(`${mod.id}:${item.id}`)?.contentHash),
+            );
+            if (missingItemHashes) {
+              await CanvasStructureModel.updateOne(
+                { userId, courseId },
+                { $set: { moduler: storageData.moduler } },
+              ).catch((err) => {
+                logger.warn(
+                  { err, userId, courseId },
+                  "Kunne ikke backfille item-hasher på eksisterende Canvas-struktur",
+                );
+              });
+            }
           } else {
             // Data endret — skriv til Redis
             await Promise.all([
@@ -426,7 +538,7 @@ async function _doSync(
               ),
               setCache(
                 userKey(userId, "emne", courseId, "moduler"),
-                JSON.stringify(courseData.moduler),
+                JSON.stringify(storageData.moduler),
                 SYNC_CACHE_TTL,
               ),
               setCache(
@@ -455,7 +567,7 @@ async function _doSync(
                 courseId,
                 courseName: course.name,
                 course_code: course.course_code ?? "",
-                moduler: courseData.moduler,
+                moduler: storageData.moduler,
                 oppgaver: courseData.oppgaver,
                 kunngjøringer: courseData.kunngjøringer,
                 syncedAt: new Date(),
@@ -666,6 +778,40 @@ async function _doSync(
           }
 
           await deleteCacheKeys([userKey(userId, "emne", courseId, "chunks")]);
+
+          // ── ExternalUrl crawling og indeksering ──
+          // Kaller den avanserte crawleren som parser HTML med cheerio og oppdager PDF-er
+          if (isEmbeddingAvailable()) {
+            // Finn hvilke ExternalUrl-items som har endret contentHash
+            const changedExternalUrlIds = new Set<number>();
+            for (const mod of enrichedModuler) {
+              for (const item of mod.items ?? []) {
+                if (item.type === "ExternalUrl" && item.id != null) {
+                  const itemKey = `${mod.id}:${item.id}`;
+                  const prev = previousItemHashes.get(itemKey);
+                  const enrichedItem = item as ICanvasModuleItem;
+                  if (!prev?.contentHash || prev.contentHash !== enrichedItem.contentHash) {
+                    changedExternalUrlIds.add(item.id);
+                  }
+                }
+              }
+            }
+
+            // Kun crawl hvis det er endrede ExternalUrl-items
+            if (changedExternalUrlIds.size > 0) {
+              crawlCourseExternalUrls({
+                userId,
+                courseId,
+                courseName: course.name,
+                moduler: enrichedModuler,
+              }, { changedItemIds: changedExternalUrlIds }).catch((err) => {
+                logger.warn(
+                  { err, userId, courseId },
+                  "ExternalUrl-crawling feilet",
+                );
+              });
+            }
+          }
         } catch (error) {
           // Behold forrige hash slik at kurset ikke behandles som "fjernet"
           const prevHash = previousMeta.courseHashes[courseId];

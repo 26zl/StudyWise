@@ -108,25 +108,16 @@ export function requestTimeout(req: Request, res: Response, next: NextFunction) 
             });
         }
 
-        // Ødelegg *kun* socket hvis headers allerede har blitt sendt (f.eks en fryst strømming)
-        if (req.socket && !req.socket.destroyed) {
-            req.socket.destroy();
-        }
+        // Ikke ødelegg socket manuelt her; vi har allerede sendt 504-respons.
+        // Manuell destroy gir ECONNRESET/socket hang up i proxy/klient.
     }, timeoutMs);
 
     // Rydd opp timeren når responsen er ferdig
     res.once("finish", cleanup);
     res.once("close", cleanup);
 
-    // Rydd opp hvis klienten avbryter tidlig
+    // Rydd opp hvis klienten avbryter requesten tidlig.
     req.once("aborted", () => {
-        cleanup();
-        if (!res.writableEnded) {
-            abortRequest();
-        }
-    });
-
-    req.once("close", () => {
         cleanup();
         if (!res.writableEnded) {
             abortRequest();
