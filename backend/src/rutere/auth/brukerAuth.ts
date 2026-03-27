@@ -550,7 +550,7 @@ router.put("/profile", rateLimitMe, async (req, res) => {
 });
 
 // PUT /preferences
-router.put("/preferences", async (req, res) => {
+router.put("/preferences", rateLimitMe, async (req, res) => {
     try {
         const userId = req.user?.id;
         if (!userId) {

@@ -48,6 +48,7 @@ import adminBrukereRouter from "./rutere/roller/admin/adminBrukere.js";
 import adminStatsRouter from "./rutere/roller/admin/adminStats.js";
 import { beskytteMotCsrf } from "./middleware/csrf.js";
 import { noCache } from "./middleware/no-cache.js";
+import { rateLimitMe } from "./middleware/rate-limit.js";
 import { apiError, sendError } from "./utils/apiError.js";
 import { requestTimeout } from "./middleware/request-timeout.js";
 import { getConfiguredWebOriginSet, normalizeWebOrigin } from "./utils/webOrigins.js";
@@ -291,9 +292,9 @@ app.use("/api/quiz", noCache, quizRouter);
 app.use("/api/flashcards", noCache, flashcardsRouter);
 
 // Admin: krever requireAuth (allerede kjørt) + requireRole("admin")
-app.use("/api/admin", requireRole("admin"), adminAuditRouter);
-app.use("/api/admin", requireRole("admin"), adminBrukereRouter);
-app.use("/api/admin", requireRole("admin"), adminStatsRouter);
+app.use("/api/admin", rateLimitMe, requireRole("admin"), adminAuditRouter);
+app.use("/api/admin", rateLimitMe, requireRole("admin"), adminBrukereRouter);
+app.use("/api/admin", rateLimitMe, requireRole("admin"), adminStatsRouter);
 
 // Debug-ruter (kun development, krever auth)
 if (!isProd) {

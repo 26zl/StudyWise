@@ -9,8 +9,10 @@ import { Arbeidsplan, type IArbeidsplan, type IStudyBlock } from "../../database
 import { requireUserId, sendZodError, sendUnknownError, apiError } from "../../utils/apiError.js";
 import { getIsoWeekInfo, parseTimerStreng } from "common/dateUtils";
 import { CreateArbeidsplanSchema, UpdateBlockSchema } from "common/arbeidsplan";
+import { rateLimitMe } from "../../middleware/rate-limit.js";
 
 const router = Router();
+router.use(rateLimitMe);
 
 function serializeStudyBlock(block: IStudyBlock) {
   return {
