@@ -192,9 +192,10 @@ export default function DelteChatterPage() {
               ) : (
                 <div className="space-y-1">
                   {links.map((item) => (
-                    <div
+                    <button
+                      type="button"
                       key={item.shareId}
-                      className="cursor-pointer rounded-lg border-b border-slate-200 px-1 py-4 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
+                      className="w-full rounded-lg border-b border-slate-200 px-1 py-4 text-left hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
                       onClick={() => {
                         setSelectedChatId(item.chatId);
                         setCurrentChatId(item.chatId);
@@ -238,7 +239,7 @@ export default function DelteChatterPage() {
                       <p className="mt-1 text-xs text-slate-500">
                         {formaterDatoShort(item.createdAt, language)} · {item.viewCount} visninger
                       </p>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}

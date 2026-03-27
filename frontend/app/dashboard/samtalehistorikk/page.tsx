@@ -187,6 +187,7 @@ export default function SamtalehistorikkPage() {
                     {selectMode && (
                       <input
                         type="checkbox"
+                        aria-label={`Velg "${chat.title}"`}
                         checked={selectedIds.has(chat.id)}
                         onChange={(e) => {
                           e.stopPropagation();

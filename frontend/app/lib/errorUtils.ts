@@ -47,6 +47,17 @@ export type FeilType =
   | "conflict"
   | "unknown";
 
+/** Sjekk om en feilmelding indikerer et ugyldig/manglende/utløpt token. */
+export function erTokenFeilmelding(msg: string): boolean {
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes("token") &&
+    (lower.includes("ugyldig") ||
+      lower.includes("mangler") ||
+      lower.includes("utløpt"))
+  );
+}
+
 export function identifiserFeiltype(
   error: Error | string | null,
   status?: number,
@@ -83,10 +94,7 @@ export function identifiserFeiltype(
     lowerMsg.includes("401") ||
     lowerMsg.includes("unauthorized") ||
     lowerMsg.includes("ikke autentisert") ||
-    (lowerMsg.includes("token") &&
-      (lowerMsg.includes("ugyldig") ||
-        lowerMsg.includes("utløpt") ||
-        lowerMsg.includes("mangler")))
+    erTokenFeilmelding(msg)
   ) {
     return "auth";
   }

@@ -104,13 +104,13 @@ export function formaterDatoOgTid(
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
-/** Antall hele dager fra i dag (midnatt). Positiv = fremtid, negativ = fortid. */
+/** Antall hele dager fra i dag (UTC-midnatt). Positiv = fremtid, negativ = fortid. */
 export function dagerFraIdag(d: Date | string | number): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const other = new Date(tilDato(d));
-  other.setHours(0, 0, 0, 0);
-  return Math.round((other.getTime() - today.getTime()) / MS_PER_DAY);
+  const now = new Date();
+  const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const other = tilDato(d);
+  const otherUTC = Date.UTC(other.getUTCFullYear(), other.getUTCMonth(), other.getUTCDate());
+  return Math.round((otherUTC - todayUTC) / MS_PER_DAY);
 }
 
 /** Tekst for frist/hendelse: "I dag", "I morgen", "Om X dager", "X dag/dager siden". */

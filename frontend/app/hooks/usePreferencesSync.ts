@@ -67,6 +67,9 @@ export function usePreferencesSync() {
   // Step 1: Apply backend preferences to local state on first load
   useEffect(() => {
     if (!me?.user || hasAppliedBackend.current) return;
+    // Guard: userId-reset effect may not have run yet for this user
+    const currentUserId = userId ?? null;
+    if (syncedUserId.current !== currentUserId) return;
     hasAppliedBackend.current = true;
     const currentConsent = getStoredCookieConsent();
     const backendConsent = uiPrefs?.cookieConsent;
@@ -115,11 +118,12 @@ export function usePreferencesSync() {
       theme: nextTheme,
       cookieConsent: nextCookieConsent,
     };
-  }, [me?.user, uiPrefs, language, setLanguage, theme, setTheme]);
+  }, [me?.user, uiPrefs, language, setLanguage, theme, setTheme, userId]);
 
   // Step 2: Watch for local changes and sync to backend
   useEffect(() => {
     if (!me?.user || !hasAppliedBackend.current) return;
+    if (syncedUserId.current !== (userId ?? null)) return;
 
     const currentConsent = getStoredCookieConsent();
     const prev = prevValues.current;
@@ -159,11 +163,12 @@ export function usePreferencesSync() {
         syncToBackendRef.current(fullPrefs);
       }, 500);
     }
-  }, [language, theme, me?.user]);
+  }, [language, theme, me?.user, userId]);
 
   // Step 3: Listen for cookie consent changes (from CookieBanner)
   useEffect(() => {
     if (!me?.user || !hasAppliedBackend.current) return;
+    if (syncedUserId.current !== (userId ?? null)) return;
 
     const handleConsentChange = () => {
       const consent = getStoredCookieConsent();

@@ -62,7 +62,7 @@ import {
   CanvasResourceError,
   CanvasApiError,
 } from "../lib/errors";
-import { parseApiErrorBody } from "../lib/errorUtils";
+import { parseApiErrorBody, erTokenFeilmelding } from "../lib/errorUtils";
 
 // Sjekk om en feil er en token-feil som krever re-autentisering
 function isTokenError(error: unknown): boolean {
@@ -75,14 +75,7 @@ function isTokenError(error: unknown): boolean {
     return error.code === "token_invalid" || error.code === "token_missing";
   }
   if (error instanceof Error) {
-    const msg = error.message.toLowerCase();
-    // Kun ekte token-feil, ikke "ingen tilgang"
-    return (
-      msg.includes("token") &&
-      (msg.includes("ugyldig") ||
-        msg.includes("mangler") ||
-        msg.includes("utløpt"))
-    );
+    return erTokenFeilmelding(error.message);
   }
   return false;
 }

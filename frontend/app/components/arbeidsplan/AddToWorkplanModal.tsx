@@ -165,10 +165,10 @@ export function AddToWorkplanModal({
     );
   };
 
-  // Beregn fordeling
-  const tasksPerDay = selectedDays.reduce((acc, day) => {
-    const count = subtasks.filter((_, i) => selectedDays[i % selectedDays.length] === day).length;
-    acc[day] = count;
+  // Beregn fordeling (speiler round-robin-logikken i handleAdd)
+  const tasksPerDay = subtasks.reduce((acc, _, i) => {
+    const day = selectedDays[i % selectedDays.length];
+    acc[day] = (acc[day] ?? 0) + 1;
     return acc;
   }, {} as Partial<Record<StudyBlock["day"], number>>);
 

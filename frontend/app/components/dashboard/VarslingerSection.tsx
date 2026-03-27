@@ -316,9 +316,9 @@ function FristKort({ frist, language }: { frist: FristElement; language: "nb" | 
                 <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                            <h3 className={`font-medium truncate ${erManueltFerdig ? "line-through text-slate-400 dark:text-slate-500" : "text-slate-900 dark:text-white"}`}>
+                            <h2 className={`font-medium truncate text-base ${erManueltFerdig ? "line-through text-slate-400 dark:text-slate-500" : "text-slate-900 dark:text-white"}`}>
                                 {frist.tittel}
-                            </h3>
+                            </h2>
                             <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                                 <span>{frist.emne}</span>
                                 {frist.erInnlevert && (
@@ -336,6 +336,14 @@ function FristKort({ frist, language }: { frist: FristElement; language: "nb" | 
                             </p>
                         </div>
                         <span className={`shrink-0 px-2 py-1 rounded-md text-xs font-semibold ${fristBadgeFarge(frist.status)}`}>
+                            <span className="sr-only">
+                                {frist.status === "kritisk"
+                                    ? (language === "en" ? "Urgent" : "Haster")
+                                    : frist.status === "snart"
+                                      ? (language === "en" ? "Soon" : "Snart")
+                                      : (language === "en" ? "Upcoming" : "Kommende")}
+                                {": "}
+                            </span>
                             {t("notifications.remaining", { time: tidTekst })}
                         </span>
                     </div>
@@ -370,9 +378,9 @@ function KunngjoringKort({ kunngjoring, language }: { kunngjoring: KunngjoringEl
             <div className="flex items-start gap-3">
                 <Megaphone className="w-5 h-5 mt-0.5 shrink-0 text-purple-500 dark:text-purple-400" />
                 <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-slate-900 dark:text-white">
+                    <h2 className="font-medium text-base text-slate-900 dark:text-white">
                         {kunngjoring.tittel}
-                    </h3>
+                    </h2>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                         {kunngjoring.emne} &middot; {formatDistanceToNow(kunngjoring.dato, { addSuffix: true, locale: datoLocale })}
                     </p>
@@ -411,9 +419,9 @@ function HendelseKort({ hendelse, language }: { hendelse: HendelseElement; langu
             <div className="flex items-start gap-3">
                 <CalendarDays className="w-5 h-5 mt-0.5 shrink-0 text-blue-500 dark:text-blue-400" />
                 <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-slate-900 dark:text-white">
+                    <h2 className="font-medium text-base text-slate-900 dark:text-white">
                         {hendelse.tittel}
-                    </h3>
+                    </h2>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-slate-500 dark:text-slate-400">
                         <span className="flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5" />
