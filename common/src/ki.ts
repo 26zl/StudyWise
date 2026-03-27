@@ -184,12 +184,17 @@ export const KIOppsummeringRequestSchema = z.object({
 });
 
 // Respons-schema for KI oppsummering
-export const KIOppsummeringResponseSchema = z.object({
-  suksess: z.boolean(),
-  oppsummering: z.string().optional(),
-  handlinger: z.array(z.string()).optional(),
-  melding: z.string().optional(),
-});
+export const KIOppsummeringResponseSchema = z
+  .object({
+    suksess: z.boolean(),
+    oppsummering: z.string().optional(),
+    handlinger: z.array(z.string()).optional(),
+    melding: z.string().optional(),
+  })
+  .refine(
+    (d) => d.suksess === true || (d.melding != null && d.melding !== ""),
+    { message: "Feilrespons (suksess: false) må inneholde en melding" },
+  );
 
 // Type exports
 export type KIOppsummeringRequest = z.infer<typeof KIOppsummeringRequestSchema>;

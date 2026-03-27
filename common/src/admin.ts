@@ -3,7 +3,7 @@
  */
 
 import { z } from "zod";
-import { AuthProviderSchema, RoleSchema } from "./auth.js";
+import { AccountDeletionDeletedSchema, AuthProviderSchema, RoleSchema } from "./auth.js";
 
 export const PaginationQueryValueSchema = z.string().trim().max(6).regex(/^\d+$/);
 
@@ -41,18 +41,9 @@ export const AdminEndreRolleResponseSchema = z.object({
   rolle: RoleSchema,
 });
 
-export const AdminDeletedSchema = z.object({
-  user: z.boolean(),
-  chatHistory: z.number().int().min(0),
-  taskBreakdown: z.number().int().min(0),
-  contentEmbedding: z.number().int().min(0),
-  canvasUser: z.number().int().min(0),
-  arbeidsplan: z.number().int().min(0),
-});
-
 export const AdminSlettBrukerResponseSchema = z.object({
   slettet: z.literal(true),
-  deleted: AdminDeletedSchema,
+  deleted: AccountDeletionDeletedSchema,
   providerAccountDeleted: z.boolean(),
 });
 
