@@ -101,6 +101,18 @@ export const VarslerStateSchema = z.object({
   toastVistIds: z.array(z.string()).max(VARSLER_MAX_IDS, `Maks ${VARSLER_MAX_IDS} varsel-IDs`),
 });
 
+/** Maks antall manuelt markerte Canvas-oppgaver per bruker. */
+export const MANUELL_INNLEVERING_MAX_IDS = 2000;
+
+export const ManuellInnleveringStateSchema = z.object({
+  ferdigeIds: z
+    .array(z.number().int().positive())
+    .max(
+      MANUELL_INNLEVERING_MAX_IDS,
+      `Maks ${MANUELL_INNLEVERING_MAX_IDS} manuelt markerte oppgaver`,
+    ),
+});
+
 /** UI-preferanser som synkes til backend slik at bruker slipper å sette dem på nytt. */
 export const LANGUAGES = ["nb", "en"] as const;
 export type AppLanguage = (typeof LANGUAGES)[number];
@@ -120,6 +132,7 @@ export type UIPreferences = z.infer<typeof UIPreferencesSchema>;
 
 export type CanvasContextPreferences = z.infer<typeof CanvasContextPreferencesSchema>;
 export type VarslerState = z.infer<typeof VarslerStateSchema>;
+export type ManuellInnleveringState = z.infer<typeof ManuellInnleveringStateSchema>;
 
 export const DEFAULT_CANVAS_CONTEXT_PREFERENCES: CanvasContextPreferences = {
   announcements: true,
@@ -139,6 +152,12 @@ export function createDefaultVarslerState(): VarslerState {
   };
 }
 
+export function createDefaultManuellInnleveringState(): ManuellInnleveringState {
+  return {
+    ferdigeIds: [],
+  };
+}
+
 export function normalizeVarslerState(
   varslerState?: {
     lestIds?: readonly string[];
@@ -154,10 +173,23 @@ export function normalizeVarslerState(
   });
 }
 
+export function normalizeManuellInnleveringState(
+  manuellInnleveringState?: {
+    ferdigeIds?: readonly number[];
+  } | null,
+): ManuellInnleveringState {
+  const ferdigeIds = manuellInnleveringState?.ferdigeIds ?? [];
+
+  return ManuellInnleveringStateSchema.parse({
+    ferdigeIds: Array.from(new Set(ferdigeIds)).slice(-MANUELL_INNLEVERING_MAX_IDS),
+  });
+}
+
 export const PreferencesUpdateSchema = z
   .object({
     canvasContextPreferences: CanvasContextPreferencesSchema.optional(),
     varslerState: VarslerStateSchema.optional(),
+    manuellInnleveringState: ManuellInnleveringStateSchema.optional(),
     uiPreferences: UIPreferencesSchema.optional(),
   })
   .superRefine((data, ctx) => {
@@ -176,6 +208,7 @@ export const PreferencesUpdateSchema = z
     if (
       data.canvasContextPreferences === undefined &&
       data.varslerState === undefined &&
+      data.manuellInnleveringState === undefined &&
       !hasUiPreferences
     ) {
       ctx.addIssue({
@@ -197,6 +230,7 @@ export const AuthBrukerSchema = z.object({
   canvasBaseUrl: StoredCanvasBaseUrlSchema.optional().nullable(),
   canvasContextPreferences: CanvasContextPreferencesSchema.optional(),
   varslerState: VarslerStateSchema.optional(),
+  manuellInnleveringState: ManuellInnleveringStateSchema.optional(),
   uiPreferences: UIPreferencesSchema.optional(),
   /** RBAC-rolle (user, admin). */
   role: RoleSchema.optional(),
@@ -237,6 +271,7 @@ export const PreferencesResponseSchema = z.object({
   melding: z.string(),
   canvasContextPreferences: CanvasContextPreferencesSchema.optional(),
   varslerState: VarslerStateSchema.optional(),
+  manuellInnleveringState: ManuellInnleveringStateSchema.optional(),
   uiPreferences: UIPreferencesSchema.optional(),
 });
 

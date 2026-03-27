@@ -1,48 +1,79 @@
 /*
- * Manuell innlevering – zustand-store med localStorage-persistens.
- * Lar bruker merke oppgaver som «ferdig/innlevert» selv om Canvas ikke rapporterer det.
- * Brukes i varslinger, oversikt, oppgaveliste og KI-nedbrytning.
+ * Manuell innlevering – database-synket tilstand for manuelt markerte oppgaver.
+ * Bruker /me som autoritativ kilde og oppdaterer via /preferences.
  */
 
-import { useMemo } from "react";
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { useMemo, useCallback } from "react";
+import { useAuth } from "@clerk/nextjs";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  AUTH_ME_QUERY_KEY,
+  useMeg,
+  useOppdaterManuellInnleveringState,
+} from "@/app/auth/auth-api";
+import type { MeResponse } from "common/auth";
+import {
+  createDefaultManuellInnleveringState,
+  normalizeManuellInnleveringState,
+} from "common/auth";
 
-interface ManuellInnleveringState {
-    /** Canvas assignment-IDer manuelt merket som ferdig. */
-    ferdigeIds: number[];
-    /** Legg til / fjern manuell ferdig-markering for en oppgave. */
-    toggleFerdig: (assignmentId: number) => void;
-    /** Nullstill alle manuelle markeringer (f.eks. ved utlogging). */
-    reset: () => void;
+function byggNesteState(
+  ferdigeIds: readonly number[],
+  assignmentId: number,
+) {
+  const finnes = ferdigeIds.includes(assignmentId);
+  return normalizeManuellInnleveringState({
+    ferdigeIds: finnes
+      ? ferdigeIds.filter((id) => id !== assignmentId)
+      : [...ferdigeIds, assignmentId],
+  });
 }
-
-export const useManuellInnleveringStore = create<ManuellInnleveringState>()(
-    persist(
-        (set) => ({
-            ferdigeIds: [],
-            toggleFerdig: (assignmentId) =>
-                set((state) => {
-                    const finnes = state.ferdigeIds.includes(assignmentId);
-                    return {
-                        ferdigeIds: finnes
-                            ? state.ferdigeIds.filter((id) => id !== assignmentId)
-                            : [...state.ferdigeIds, assignmentId],
-                    };
-                }),
-            reset: () => set({ ferdigeIds: [] }),
-        }),
-        {
-            name: "studywise-manuell-innlevering",
-            partialize: (state) => ({ ferdigeIds: state.ferdigeIds }),
-        },
-    ),
-);
 
 /** Hook som returnerer et Set for rask oppslag + toggle-funksjon. */
 export function useManuellInnlevering() {
-    const ferdigeIds = useManuellInnleveringStore((s) => s.ferdigeIds);
-    const toggleFerdig = useManuellInnleveringStore((s) => s.toggleFerdig);
-    const ferdigeIdSet = useMemo(() => new Set(ferdigeIds), [ferdigeIds]);
-    return { ferdigeIdSet, toggleFerdig };
+  const queryClient = useQueryClient();
+  const { isLoaded, userId } = useAuth();
+  const { data: me } = useMeg({ enabled: isLoaded && !!userId });
+  const { mutate } = useOppdaterManuellInnleveringState();
+
+  const manuellInnleveringState =
+    me?.user?.manuellInnleveringState ?? createDefaultManuellInnleveringState();
+  const ferdigeIds = manuellInnleveringState.ferdigeIds;
+  const ferdigeIdSet = useMemo(() => new Set(ferdigeIds), [ferdigeIds]);
+
+  const toggleFerdig = useCallback(
+    (assignmentId: number) => {
+      if (!userId) return;
+
+      const currentState = normalizeManuellInnleveringState(
+        queryClient.getQueryData<MeResponse>(AUTH_ME_QUERY_KEY)?.user
+          ?.manuellInnleveringState ?? manuellInnleveringState,
+      );
+      const nesteState = byggNesteState(currentState.ferdigeIds, assignmentId);
+      const forrigeMe = queryClient.getQueryData<MeResponse>(AUTH_ME_QUERY_KEY);
+
+      queryClient.setQueryData<MeResponse | undefined>(
+        AUTH_ME_QUERY_KEY,
+        (current) =>
+          current
+            ? {
+                ...current,
+                user: {
+                  ...current.user,
+                  manuellInnleveringState: nesteState,
+                },
+              }
+            : current,
+      );
+
+      mutate(nesteState, {
+        onError: () => {
+          queryClient.setQueryData(AUTH_ME_QUERY_KEY, forrigeMe);
+        },
+      });
+    },
+    [manuellInnleveringState, mutate, queryClient, userId],
+  );
+
+  return { ferdigeIdSet, toggleFerdig };
 }

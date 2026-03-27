@@ -12,6 +12,7 @@ import {
     APP_ROLES,
     AUTH_PROVIDERS,
     createDefaultCanvasContextPreferences,
+    createDefaultManuellInnleveringState,
     createDefaultVarslerState,
 } from "common/auth";
 
@@ -28,6 +29,10 @@ export interface ICanvasContextPreferences {
 export interface IVarslerState {
     lestIds: string[];
     toastVistIds: string[];
+}
+
+export interface IManuellInnleveringState {
+    ferdigeIds: number[];
 }
 
 export interface SanitizedUsername {
@@ -76,6 +81,7 @@ export interface IUser extends Document {
     // Brukerpreferanser for AI Canvas-kontekst
     canvasContextPreferences?: ICanvasContextPreferences;
     varslerState?: IVarslerState;
+    manuellInnleveringState?: IManuellInnleveringState;
     uiPreferences?: {
         language?: "nb" | "en";
         theme?: "light" | "dark" | "system";
@@ -169,6 +175,12 @@ const UserSchema: Schema = new Schema(
                 toastVistIds: { type: [String], default: [] },
             },
             default: createDefaultVarslerState,
+        },
+        manuellInnleveringState: {
+            type: {
+                ferdigeIds: { type: [Number], default: [] },
+            },
+            default: createDefaultManuellInnleveringState,
         },
         uiPreferences: {
             type: {

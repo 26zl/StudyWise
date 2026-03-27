@@ -6,6 +6,5 @@ export {
   getPreferredLanguageFromAcceptLanguage,
   isLanguage,
   LANGUAGE_COOKIE_KEY,
-  LANGUAGE_STORAGE_KEY,
   translate,
 } from "./core";

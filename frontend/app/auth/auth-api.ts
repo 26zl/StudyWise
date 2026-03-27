@@ -23,6 +23,7 @@ import {
   type VarslerState,
   type PreferencesResponse,
   type UIPreferences,
+  type ManuellInnleveringState,
 } from "common/auth";
 import { CanvasErrorCodeSchema } from "common/canvasErrors";
 import { AppError, CanvasApiError } from "../lib/errors";
@@ -64,6 +65,8 @@ function mergeCachedUserPreferences(
         updated.canvasContextPreferences ??
         current.user.canvasContextPreferences,
       varslerState: updated.varslerState ?? current.user.varslerState,
+      manuellInnleveringState:
+        updated.manuellInnleveringState ?? current.user.manuellInnleveringState,
       uiPreferences: updated.uiPreferences ?? current.user.uiPreferences,
     },
   });
@@ -333,6 +336,7 @@ export function useSlettCanvasToken() {
 type UserPreferencesUpdate = {
   canvasContextPreferences?: CanvasContextPreferences;
   varslerState?: VarslerState;
+  manuellInnleveringState?: ManuellInnleveringState;
   uiPreferences?: UIPreferences;
 };
 
@@ -381,6 +385,15 @@ export function useOppdaterVarslerState() {
   return useOppdaterBrukerPreferanser((varslerState: VarslerState) => ({
     varslerState,
   }));
+}
+
+// Hook for oppdatering av manuell innlevering (database er autoritativ)
+export function useOppdaterManuellInnleveringState() {
+  return useOppdaterBrukerPreferanser(
+    (manuellInnleveringState: ManuellInnleveringState) => ({
+      manuellInnleveringState,
+    }),
+  );
 }
 
 // Hook for oppdatering av UI-preferanser (språk, tema, cookie-samtykke)

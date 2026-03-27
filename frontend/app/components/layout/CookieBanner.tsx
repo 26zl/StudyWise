@@ -1,62 +1,27 @@
 /*
  * Cookie banner – vises til bruker godtar eller avviser.
- * Lagrer valg i localStorage (studywise_cookie_consent).
+ * Innloggede brukere lagrer samtykke i databasen; gjester kun i minnet for aktiv side.
  * Les mer lenker til /personvern.
  */
 "use client";
 
 import { useState, useEffect, useId } from "react";
 import Link from "next/link";
-
-export const COOKIE_CONSENT_STORAGE_KEY = "studywise_cookie_consent";
-export const COOKIE_CONSENT_CHANGED_EVENT = "studywise-cookie-consent-changed";
-export type CookieConsentStatus = "accepted" | "declined" | null;
-
-export function getStoredCookieConsent(): CookieConsentStatus {
-  if (typeof window === "undefined") return null;
-  try {
-    const v = localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY);
-    if (v === "accepted" || v === "declined") return v;
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function setStoredConsent(value: "accepted" | "declined"): void {
-  try {
-    localStorage.setItem(COOKIE_CONSENT_STORAGE_KEY, value);
-    window.dispatchEvent(
-      new CustomEvent(COOKIE_CONSENT_CHANGED_EVENT, {
-        detail: value,
-      }),
-    );
-  } catch {
-    // ignore
-  }
-}
+import { useCookieConsent } from "@/app/hooks/useCookieConsent";
 
 export function CookieBanner() {
-  const [consent, setConsent] = useState<CookieConsentStatus>(null);
+  const { consent, isReady, setConsent } = useCookieConsent();
   const [mounted, setMounted] = useState(false);
   const titleId = useId();
 
   useEffect(() => {
-    setConsent(getStoredCookieConsent());
     setMounted(true);
   }, []);
 
-  const handleAccept = () => {
-    setStoredConsent("accepted");
-    setConsent("accepted");
-  };
+  const handleAccept = () => void setConsent("accepted");
+  const handleDecline = () => void setConsent("declined");
 
-  const handleDecline = () => {
-    setStoredConsent("declined");
-    setConsent("declined");
-  };
-
-  if (!mounted || consent !== null) return null;
+  if (!mounted || !isReady || consent !== null) return null;
 
   return (
     <div

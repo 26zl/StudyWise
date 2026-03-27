@@ -12,8 +12,6 @@ import {
 import {
   DEFAULT_LANGUAGE,
   LANGUAGE_COOKIE_KEY,
-  isLanguage,
-  LANGUAGE_STORAGE_KEY,
   translate,
 } from "./core";
 import type { Language, MessageKey, TranslationValues, Translator } from "./types";
@@ -26,26 +24,12 @@ interface LanguageContextValue {
 
 export const LanguageContext = createContext<LanguageContextValue | null>(null);
 
-function getClientPreferredLanguage(fallback: Language): Language {
-  if (typeof window === "undefined") {
-    return fallback;
-  }
-
-  const storedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-  if (isLanguage(storedLanguage)) {
-    return storedLanguage;
-  }
-
-  return window.navigator.language.toLowerCase().startsWith("en") ? "en" : fallback;
-}
-
 function setLanguageCookie(language: Language) {
   if (typeof window === "undefined") {
     return;
   }
 
   // SSR language persistence is only needed in deployed secure contexts.
-  // localStorage still preserves the preference during local http development.
   if (!window.isSecureContext) {
     return;
   }
@@ -63,18 +47,10 @@ export function LanguageProvider({
   const [language, setLanguageState] = useState<Language>(initialLanguage);
 
   useEffect(() => {
-    const preferredLanguage = getClientPreferredLanguage(initialLanguage);
-    setLanguageState((currentLanguage) =>
-      currentLanguage === preferredLanguage ? currentLanguage : preferredLanguage,
-    );
-  }, [initialLanguage]);
-
-  useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
-    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
     setLanguageCookie(language);
     document.documentElement.lang = language;
   }, [language]);

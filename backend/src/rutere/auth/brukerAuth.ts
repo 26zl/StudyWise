@@ -32,7 +32,9 @@ import {
   ProfileUpdateSchema,
   ProfileUpdateResponseSchema,
   createDefaultCanvasContextPreferences,
+  createDefaultManuellInnleveringState,
   createDefaultVarslerState,
+  normalizeManuellInnleveringState,
   normalizeVarslerState,
 } from "common/auth";
 import { rateLimitToken, rateLimitMe, rateLimitAccountDeletion } from "../../middleware/rate-limit.js";
@@ -434,6 +436,9 @@ router.get("/me", rateLimitMe, async (req, res) => {
         }
         const preferences = bruker.canvasContextPreferences || createDefaultCanvasContextPreferences();
         const varslerState = normalizeVarslerState(bruker.varslerState || createDefaultVarslerState());
+        const manuellInnleveringState = normalizeManuellInnleveringState(
+            bruker.manuellInnleveringState || createDefaultManuellInnleveringState(),
+        );
         return res.json(MeResponseSchema.parse({
             user: AuthBrukerSchema.parse({
                 id: bruker._id.toString(),
@@ -445,6 +450,7 @@ router.get("/me", rateLimitMe, async (req, res) => {
                 canvasBaseUrl: bruker.canvasBaseUrl ?? null,
                 canvasContextPreferences: preferences,
                 varslerState,
+                manuellInnleveringState,
                 uiPreferences: bruker.uiPreferences ?? undefined,
                 role: bruker.role ?? "user",
                 authProvider: bruker.authProvider,
@@ -523,6 +529,9 @@ router.put("/profile", rateLimitMe, async (req, res) => {
         const harCanvasToken = !!oppdatertBruker.canvasApiToken;
         const preferences = oppdatertBruker.canvasContextPreferences || createDefaultCanvasContextPreferences();
         const varslerState = normalizeVarslerState(oppdatertBruker.varslerState || createDefaultVarslerState());
+        const manuellInnleveringState = normalizeManuellInnleveringState(
+            oppdatertBruker.manuellInnleveringState || createDefaultManuellInnleveringState(),
+        );
 
         return res.json(ProfileUpdateResponseSchema.parse({
             melding: "Profil oppdatert",
@@ -536,6 +545,7 @@ router.put("/profile", rateLimitMe, async (req, res) => {
                 canvasBaseUrl: oppdatertBruker.canvasBaseUrl ?? null,
                 canvasContextPreferences: preferences,
                 varslerState,
+                manuellInnleveringState,
                 uiPreferences: oppdatertBruker.uiPreferences ?? undefined,
                 role: oppdatertBruker.role ?? "user",
                 authProvider: oppdatertBruker.authProvider,
@@ -557,10 +567,14 @@ router.put("/preferences", rateLimitMe, async (req, res) => {
             return apiError.unauthorized(res);
         }
 
-        const { canvasContextPreferences, varslerState, uiPreferences } = PreferencesUpdateSchema.parse(req.body);
+        const bruker = await hentAutentisertBruker(userId, res);
+        if (!bruker) return;
+
+        const { canvasContextPreferences, varslerState, manuellInnleveringState, uiPreferences } = PreferencesUpdateSchema.parse(req.body);
         const updateFields: {
             canvasContextPreferences?: ReturnType<typeof createDefaultCanvasContextPreferences>;
             varslerState?: ReturnType<typeof normalizeVarslerState>;
+            manuellInnleveringState?: ReturnType<typeof normalizeManuellInnleveringState>;
             uiPreferences?: z.infer<typeof UIPreferencesSchema>;
         } = {};
         if (canvasContextPreferences !== undefined) {
@@ -569,13 +583,19 @@ router.put("/preferences", rateLimitMe, async (req, res) => {
         if (varslerState !== undefined) {
             updateFields.varslerState = normalizeVarslerState(varslerState);
         }
+        if (manuellInnleveringState !== undefined) {
+            updateFields.manuellInnleveringState = normalizeManuellInnleveringState(manuellInnleveringState);
+        }
         if (uiPreferences !== undefined) {
-            updateFields.uiPreferences = UIPreferencesSchema.parse(uiPreferences);
+            updateFields.uiPreferences = UIPreferencesSchema.parse({
+                ...(bruker.uiPreferences ?? {}),
+                ...uiPreferences,
+            });
         }
 
         const oppdatertBruker = await User.findByIdAndUpdate(
           userId,
-          updateFields,
+          { $set: updateFields },
           { returnDocument: "after" },
         );
 
@@ -600,6 +620,9 @@ router.put("/preferences", rateLimitMe, async (req, res) => {
                 oppdatertBruker.canvasContextPreferences || createDefaultCanvasContextPreferences(),
             varslerState: normalizeVarslerState(
                 oppdatertBruker.varslerState || createDefaultVarslerState(),
+            ),
+            manuellInnleveringState: normalizeManuellInnleveringState(
+                oppdatertBruker.manuellInnleveringState || createDefaultManuellInnleveringState(),
             ),
             uiPreferences: oppdatertBruker.uiPreferences ?? undefined,
           }),

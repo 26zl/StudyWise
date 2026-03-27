@@ -66,8 +66,8 @@ export default function PersonvernPage() {
             <strong>Samtykke — Art. 6(1)(a):</strong> Valgfrie ytelsesmålinger
             (f.eks. Speed Insights) aktiveres kun dersom du eksplisitt godtar
             dette via cookie-banneret. Du kan når som helst trekke tilbake
-            samtykket ved å slette localStorage eller åpne appen i et
-            inkognitovindu.
+            samtykket ved å endre valget i innstillingene dine. Hvis du ikke er
+            innlogget, gjelder valget bare for den åpne økten.
           </li>
         </ul>
       </InfoSection>
@@ -123,9 +123,9 @@ export default function PersonvernPage() {
           aktiverer vi i tillegg valgfrie ytelsesmålinger (for eksempel Speed
           Insights). Ved første besøk vises en melding nederst på siden der du kan
           velge <strong>Kun nødvendige</strong> eller <strong>Godta alle</strong>.
-          Valget lagres i nettleseren din (localStorage) og brukes ikke til
-          markedsføring. Du kan endre valget ved å slette lagringen for denne siden
-          eller å åpne appen i et inkognitovindu.
+          For innloggede brukere lagres valget på brukerprofilen din i databasen og
+          brukes ikke til markedsføring. Hvis du ikke er innlogget, huskes valget
+          bare for den åpne nettleserøkten.
         </p>
       </InfoSection>
 

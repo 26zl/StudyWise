@@ -3,8 +3,7 @@ import { nbMessages } from "./messages/nb";
 import type { Language, MessageKey, PartialMessages, TranslationValues } from "./types";
 
 export const DEFAULT_LANGUAGE: Language = "nb";
-export const LANGUAGE_STORAGE_KEY = "studywise-language";
-export const LANGUAGE_COOKIE_KEY = LANGUAGE_STORAGE_KEY;
+export const LANGUAGE_COOKIE_KEY = "studywise-language";
 
 const messagesByLanguage: Record<Language, PartialMessages> = {
   en: enMessages,

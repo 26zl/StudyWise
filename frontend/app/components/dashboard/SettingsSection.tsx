@@ -20,13 +20,8 @@ import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { CanvasContextSelector } from "@/app/components/canvas/CanvasContextSelector";
 import { CANVAS_INSTITUSJONER_NORGE } from "common/canvasInstitutions";
 import { CanvasBaseUrlSchema } from "common/auth";
+import { useCookieConsent } from "@/app/hooks/useCookieConsent";
 import { useLanguage } from "@/app/i18n";
-import {
-    COOKIE_CONSENT_STORAGE_KEY,
-    COOKIE_CONSENT_CHANGED_EVENT,
-    getStoredCookieConsent,
-    type CookieConsentStatus,
-} from "@/app/components/layout/CookieBanner";
 
 // Typer for SettingsSection props
 interface SettingsSectionProps {
@@ -149,24 +144,25 @@ export function SettingsSection({
     // Bestem om mørk modus er aktiv
     const isDarkMode = mounted && resolvedTheme === "dark";
     const toggleTheme = () => setTheme(isDarkMode ? "light" : "dark");
-    // Cookie-samtykke
-    const [cookieConsent, setCookieConsent] = useState<CookieConsentStatus>(null);
-    useEffect(() => {
-        setCookieConsent(getStoredCookieConsent());
-        const sync = () => setCookieConsent(getStoredCookieConsent());
-        window.addEventListener(COOKIE_CONSENT_CHANGED_EVENT, sync);
-        window.addEventListener("storage", sync);
-        return () => {
-            window.removeEventListener(COOKIE_CONSENT_CHANGED_EVENT, sync);
-            window.removeEventListener("storage", sync);
-        };
-    }, []);
-    const handleCookieChoice = (choice: "accepted" | "declined") => {
+    const {
+        consent: cookieConsent,
+        isPending: isOppdateringCookieConsent,
+        setConsent: setCookieConsent,
+    } = useCookieConsent();
+    const handleCookieChoice = async (choice: "accepted" | "declined") => {
         try {
-            localStorage.setItem(COOKIE_CONSENT_STORAGE_KEY, choice);
-            window.dispatchEvent(new CustomEvent(COOKIE_CONSENT_CHANGED_EVENT, { detail: choice }));
-        } catch { /* ignore */ }
-        setCookieConsent(choice);
+            await setCookieConsent(choice);
+        } catch (error) {
+            showToast.error(
+                t("settings.cookies.title"),
+                lagBrukervennligFeilmelding(
+                    error instanceof Error ? error : null,
+                    {},
+                    t("errors.generic.default"),
+                    t,
+                ),
+            );
+        }
     };
     const queryClient = useQueryClient();
     const [canvasToken, setCanvasToken] = useState("");
@@ -736,6 +732,7 @@ export function SettingsSection({
                             <button
                                 type="button"
                                 onClick={() => handleCookieChoice("declined")}
+                                disabled={isOppdateringCookieConsent}
                                 className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                                     cookieConsent === "declined"
                                         ? "border-slate-400 dark:border-slate-500 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white"
@@ -747,6 +744,7 @@ export function SettingsSection({
                             <button
                                 type="button"
                                 onClick={() => handleCookieChoice("accepted")}
+                                disabled={isOppdateringCookieConsent}
                                 className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                                     cookieConsent === "accepted"
                                         ? "border-green-400 dark:border-green-600 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400"
