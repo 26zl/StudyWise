@@ -106,11 +106,15 @@ HANDLINGER:
 Hvis det ikke er noen handlingspunkter, skriv "HANDLINGER: Ingen handlingspunkter." Skriv på norsk bokmål.`;
     }
 
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     try {
       const TIMEOUT_MS = 30000;
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("OPPSUMMERING_TIMEOUT")), TIMEOUT_MS),
-      );
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(
+          () => reject(new Error("OPPSUMMERING_TIMEOUT")),
+          TIMEOUT_MS,
+        );
+      });
 
       const result = await Promise.race([
         chatCompletion({
@@ -125,6 +129,10 @@ Hvis det ikke er noen handlingspunkter, skriv "HANDLINGER: Ingen handlingspunkte
         }),
         timeoutPromise,
       ]);
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+        timeoutHandle = undefined;
+      }
 
       const responseText = result.text;
 
@@ -196,18 +204,23 @@ Hvis det ikke er noen handlingspunkter, skriv "HANDLINGER: Ingen handlingspunkte
       );
 
       if (req.user?.id) {
-        audit({
+        void audit({
           actorUserId: req.user.id,
           action: AUDIT_ACTIONS.KI_OPPSUMMERING,
           category: "ki",
           outcome: "success",
           metadata: { type, tekstLengde: renTekst.length },
           req,
+        }).catch((err) => {
+          logger.warn({ err, userId: req.user!.id }, "Audit-feil for KI-oppsummering");
         });
       }
 
       return res.json(response);
     } catch (error) {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
       if (res.headersSent || res.writableEnded || req.timeoutSignal?.aborted) return;
 
       if (handleAIError(res, error, KIOppsummeringResponseSchema, {

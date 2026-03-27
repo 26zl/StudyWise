@@ -132,7 +132,7 @@ export function ChatShareModal({
             <div className="flex items-start gap-3">
               <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300" />
               <div className="space-y-2 text-sm text-amber-900 dark:text-amber-100">
-                <p className="font-medium">Del bare hvis du er trygg pa innholdet.</p>
+                <p className="font-medium">Del bare hvis du er trygg på innholdet.</p>
                 <p>
                   Alle med lenken kan lese hele chatten. Dette kan inkludere kursnavn, oppgavenavn, filnavn, egne notater og annen tekst du selv har skrevet i chatten.
                 </p>
@@ -141,10 +141,10 @@ export function ChatShareModal({
             </div>
           </div>
 
-          <div className="flex items-start gap-3 rounded-xl bg-slate-100 px-4 py-4 text-sm text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+          <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-100 px-4 py-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" />
             <p>
-              StudyWise fjerner ikke automatisk innhold fra chatten ved deling. Ga gjennom samtalen med personvern-briller for du oppretter lenken.
+              StudyWise fjerner ikke automatisk innhold fra chatten ved deling. Gå gjennom samtalen med personvern-briller før du oppretter lenken.
             </p>
           </div>
 
@@ -169,7 +169,7 @@ export function ChatShareModal({
                   <a
                     href={shareUrl}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />

@@ -4,6 +4,7 @@
  */
 import { Router, type Request, type Response } from "express";
 import crypto from "crypto";
+import mongoose from "mongoose";
 import { User, type IUser } from "../../database/models/User.js";
 import { CanvasUser } from "../../database/models/CanvasUser.js";
 import { decrypt, encrypt } from "../../utils/kryptering.js";
@@ -245,23 +246,8 @@ router.post("/token", rateLimitToken, async (req, res) => {
 
             if (eksisterendeKobling && eksisterendeKobling.localUser.toString() !== userId.toString()) {
                 if (forceRelink) {
-                    // Bruker har bedt om å gjenvinne kontoen - fjern gammel kobling
                     logger.info({ userId, oldUserId: eksisterendeKobling.localUser, canvasId: canvasUserId, canvasBaseUrl: canvasBaseUrl },
-                        "Canvas-konto re-kobles til ny bruker (force relink)");
-                    usersToInvalidate.add(eksisterendeKobling.localUser.toString());
-
-                    await User.findByIdAndUpdate(eksisterendeKobling.localUser, {
-                        $unset: { canvasApiToken: 1, canvasTokenHash: 1, canvasUser: 1, canvasBaseUrl: 1 }
-                    });
-
-                    // Oppdater CanvasUser til å peke på ny bruker
-                    eksisterendeKobling.localUser = bruker._id;
-                    eksisterendeKobling.canvasBaseUrl = canvasBaseUrl;
-                    await eksisterendeKobling.save();
-                    // Sett canvasUser-ref på ny bruker slik at data er konsistent (ellers mangler den til første /whoami)
-                    await User.findByIdAndUpdate(bruker._id, {
-                        canvasUser: eksisterendeKobling._id,
-                    });
+                        "Canvas-konto vil re-kobles til ny bruker (force relink) i transaksjon");
                 } else {
                     // Avvis uten force-flagg - dette er en sikkerhetsrisiko
                     logger.warn({ userId, existingUserId: eksisterendeKobling.localUser, canvasId: canvasUserId, canvasBaseUrl: canvasBaseUrl },
@@ -278,31 +264,75 @@ router.post("/token", rateLimitToken, async (req, res) => {
             logger.warn({ err: canvasError, userId }, "Kunne ikke verifisere Canvas-token");
             return handleCanvasVerificationError(res, canvasError);
         }
-        if (forceRelink && eksisterendeTokenBruker) {
-            // Re-query for å unngå race condition — brukeren kan ha blitt slettet/endret
-            // mellom den opprinnelige sjekken (linje 203) og Canvas-verifiseringen
-            const freshTokenBruker = await User.findOne({
-                canvasBaseUrl,
-                canvasTokenHash: nyTokenHash,
-                _id: { $ne: userId },
-            });
-            if (freshTokenBruker) {
-                usersToInvalidate.add(freshTokenBruker._id.toString());
-                const oppdatert = await User.findByIdAndUpdate(freshTokenBruker._id, {
-                    $unset: { canvasApiToken: 1, canvasTokenHash: 1, canvasUser: 1, canvasBaseUrl: 1 }
-                });
-                if (!oppdatert) {
-                    logger.warn({ userId, targetUserId: freshTokenBruker._id }, "forceRelink: bruker ble slettet mellom sjekk og oppdatering");
+        const kryptertToken = encrypt(cleanToken);
+        let gammeltKryptertToken: string | undefined;
+        const session = await mongoose.startSession();
+        try {
+            await session.withTransaction(async () => {
+                const brukerTx = await User.findById(userId)
+                    .select("+canvasApiToken +canvasTokenHash")
+                    .session(session);
+                if (!brukerTx) {
+                    throw new Error("Bruker ble ikke funnet under token-transaksjon");
                 }
-            }
+
+                gammeltKryptertToken = brukerTx.canvasApiToken;
+
+                if (forceRelink && canvasUserId !== null) {
+                    const freshKobling = await CanvasUser.findOne({
+                        canvasId: canvasUserId,
+                        canvasBaseUrl,
+                    }).session(session);
+
+                    if (freshKobling && freshKobling.localUser.toString() !== userId.toString()) {
+                        usersToInvalidate.add(freshKobling.localUser.toString());
+                        await User.updateOne(
+                            { _id: freshKobling.localUser },
+                            { $unset: { canvasApiToken: 1, canvasTokenHash: 1, canvasUser: 1, canvasBaseUrl: 1 } },
+                            { session },
+                        );
+
+                        freshKobling.localUser = brukerTx._id;
+                        freshKobling.canvasBaseUrl = canvasBaseUrl;
+                        await freshKobling.save({ session });
+
+                        await User.updateOne(
+                            { _id: brukerTx._id },
+                            { $set: { canvasUser: freshKobling._id } },
+                            { session },
+                        );
+                    }
+                }
+
+                if (forceRelink && eksisterendeTokenBruker) {
+                    const freshTokenBruker = await User.findOne({
+                        canvasBaseUrl,
+                        canvasTokenHash: nyTokenHash,
+                        _id: { $ne: userId },
+                    }).session(session);
+
+                    if (freshTokenBruker) {
+                        usersToInvalidate.add(freshTokenBruker._id.toString());
+                        const oppdatert = await User.findByIdAndUpdate(
+                            freshTokenBruker._id,
+                            { $unset: { canvasApiToken: 1, canvasTokenHash: 1, canvasUser: 1, canvasBaseUrl: 1 } },
+                            { session },
+                        );
+                        if (!oppdatert) {
+                            logger.warn({ userId, targetUserId: freshTokenBruker._id }, "forceRelink: bruker ble slettet mellom sjekk og oppdatering");
+                        }
+                    }
+                }
+
+                brukerTx.canvasApiToken = kryptertToken;
+                brukerTx.canvasTokenHash = nyTokenHash;
+                brukerTx.canvasBaseUrl = canvasBaseUrl;
+                await brukerTx.save({ session });
+            });
+        } finally {
+            await session.endSession();
         }
 
-        const kryptertToken = encrypt(cleanToken);
-        const gammeltKryptertToken = bruker.canvasApiToken;
-        bruker.canvasApiToken = kryptertToken;
-        bruker.canvasTokenHash = nyTokenHash;
-        bruker.canvasBaseUrl = canvasBaseUrl;
-        await bruker.save();
         logger.info({ userId }, "Canvas token lagret for bruker");
         await audit({
           actorUserId: userId,
@@ -352,15 +382,25 @@ router.delete("/token", rateLimitToken, async (req, res) => {
             return apiError.badRequest(res, "Ingen Canvas-token å slette");
         }
         await invalidateStoredCanvasDataForUser(userId, bruker.canvasApiToken);
-        // Slett koblingene i databasen fullstendig
-        const slettetCanvasUsers = await CanvasUser.deleteMany({ localUser: bruker._id });
-        logger.info({ userId, deletedCount: slettetCanvasUsers.deletedCount }, "Slettet CanvasUser-dokumenter fra database");
-
-        // $unset fjerner Canvas-feltene atomisk — unngår setter-krasj på canvasBaseUrl (normalizeCanvasBaseUrl)
-        await User.updateOne(
-            { _id: bruker._id },
-            { $unset: { canvasApiToken: 1, canvasTokenHash: 1, canvasUser: 1, canvasBaseUrl: 1 } },
-        );
+        // Slett koblingene i databasen atomisk — sikrer at CanvasUser og User-feltene
+        // enten begge slettes eller begge beholdes ved feil
+        let deletedCanvasUsers = 0;
+        const session = await mongoose.startSession();
+        try {
+            await session.withTransaction(async () => {
+                const canvasRes = await CanvasUser.deleteMany({ localUser: bruker._id }, { session });
+                deletedCanvasUsers = canvasRes.deletedCount;
+                // $unset fjerner Canvas-feltene atomisk — unngår setter-krasj på canvasBaseUrl (normalizeCanvasBaseUrl)
+                await User.updateOne(
+                    { _id: bruker._id },
+                    { $unset: { canvasApiToken: 1, canvasTokenHash: 1, canvasUser: 1, canvasBaseUrl: 1 } },
+                    { session },
+                );
+            });
+        } finally {
+            await session.endSession();
+        }
+        logger.info({ userId, deletedCount: deletedCanvasUsers }, "Slettet CanvasUser-dokumenter fra database");
 
         logger.info({ userId }, "Canvas token slettet og bruker frakoblet fullstendig");
         await audit({

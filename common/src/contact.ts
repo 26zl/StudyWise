@@ -33,7 +33,7 @@ export const KontaktRequestSchema = z.object({
     .string()
     .min(1, "Verifisering kreves"),
   // Honeypot-felt: skal alltid være tomt (sendes som skjult felt)
-  nettsted: z.string().optional(),
+  nettsted: z.string().trim().max(200).optional(),
   // Valgfri metadata: URL der brukeren sendte skjemaet fra
   sideUrl: z
     .string()

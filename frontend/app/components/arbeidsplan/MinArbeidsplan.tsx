@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { 
   Calendar, 
   Check, 
@@ -55,7 +55,8 @@ export function MinArbeidsplan() {
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
   const [bekreftSlett, setBekreftSlett] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(false);
-const undoTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(undoTimerRef.current), []);
   const { data: plan, isLoading, isError, refetch } = useCurrentArbeidsplan();
   const { data: stats } = useProgressStats();
   const toggleMutation = useToggleBlockCompletion();

@@ -51,40 +51,57 @@ export async function deleteAccountData(userId: string): Promise<AccountDeletion
     await invalidateUserCanvasCache(userId, { strictContentDeletion: true })
   ).contentEmbeddingDeleted;
 
-  const [chatRes, taskRes, canvasRes, arbeidsplanRes] = await Promise.all([
-    ChatHistory.deleteMany({ user: id }),
-    TaskBreakdown.deleteMany({ userId: id }),
-    CanvasUser.deleteMany({ localUser: id }),
-    Arbeidsplan.deleteMany({ userId }),
-  ]);
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      // MERK: invalidateUserCanvasCache (Pinecone/Redis) kjørte allerede utenfor denne transaksjonen.
+      // Hvis transaksjonen feiler, er innholdsdata allerede slettet fra Pinecone/MongoDB.
+      // Dette er akseptert risiko siden Pinecone ikke støtter distribuerte transaksjoner.
+      const [chatRes, taskRes, canvasRes, arbeidsplanRes] = await Promise.all([
+        ChatHistory.deleteMany({ user: id }, { session }),
+        TaskBreakdown.deleteMany({ userId: id }, { session }),
+        CanvasUser.deleteMany({ localUser: id }, { session }),
+        Arbeidsplan.deleteMany({ userId }, { session }),
+      ]);
 
-  result.chatHistory = chatRes.deletedCount ?? 0;
-  result.taskBreakdown = taskRes.deletedCount ?? 0;
-  result.canvasUser = canvasRes.deletedCount ?? 0;
-  result.arbeidsplan = arbeidsplanRes.deletedCount ?? 0;
+      result.chatHistory = chatRes.deletedCount ?? 0;
+      result.taskBreakdown = taskRes.deletedCount ?? 0;
+      result.canvasUser = canvasRes.deletedCount ?? 0;
+      result.arbeidsplan = arbeidsplanRes.deletedCount ?? 0;
 
-  const anonymizedEmail = `deleted-${user._id.toString()}@studywise.invalid`;
-  const userRes = await User.updateOne(
-    { _id: id, deletedAt: { $exists: false } },
-    {
-      $set: {
-        email: anonymizedEmail,
-        deletedAt: new Date(),
-      },
-      $unset: {
-        canvasApiToken: 1,
-        canvasBaseUrl: 1,
-        canvasTokenHash: 1,
-        canvasUser: 1,
-        username: 1,
-        firstName: 1,
-        lastName: 1,
-        canvasContextPreferences: 1,
-        varslerState: 1,
-      },
-    },
-  );
-  result.user = (userRes.modifiedCount ?? 0) > 0;
+      const anonymizedEmail = `deleted-${user._id.toString()}@studywise.invalid`;
+      const userRes = await User.updateOne(
+        { _id: id, deletedAt: { $exists: false } },
+        {
+          $set: {
+            email: anonymizedEmail,
+            deletedAt: new Date(),
+          },
+          $unset: {
+            canvasApiToken: 1,
+            canvasBaseUrl: 1,
+            canvasTokenHash: 1,
+            canvasUser: 1,
+            username: 1,
+            firstName: 1,
+            lastName: 1,
+            canvasContextPreferences: 1,
+            varslerState: 1,
+          },
+        },
+        { session },
+      );
+      result.user = (userRes.modifiedCount ?? 0) > 0;
+    });
+  } catch (txError) {
+    logger.error(
+      { err: txError, userId, contentEmbeddingDeleted: result.contentEmbedding },
+      "MongoDB-transaksjon feilet etter cache-invalidering — innholds-data er slettet fra Pinecone/MongoDB, men brukerprofil og historikk er ikke slettet",
+    );
+    throw txError;
+  } finally {
+    await session.endSession();
+  }
 
   if (user.clerkId) {
     providerAccountDeleted = await deleteClerkUserById(user.clerkId);

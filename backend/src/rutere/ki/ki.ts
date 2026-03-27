@@ -532,6 +532,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
 
   let sseCleanup: (() => void) | undefined;
   let sseStarted = false;
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
 
   const abortController = createLinkedAbortController(req.timeoutSignal);
   const abortOnResponseEnd = () => abortController.abort();
@@ -802,9 +803,9 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       "Sender til AI-tjenesten",
     );
 
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("CHAT_TIMEOUT")), TIMEOUT_MS),
-    );
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => reject(new Error("CHAT_TIMEOUT")), TIMEOUT_MS);
+    });
 
     const result = await Promise.race([
       chatCompletion({
@@ -816,6 +817,10 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       }),
       timeoutPromise,
     ]);
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+      timeoutHandle = undefined;
+    }
 
     sseCleanup?.();
 
@@ -848,13 +853,15 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       res.end();
     }
 
-    audit({
+    void audit({
       actorUserId: req.user!.id,
       action: AUDIT_ACTIONS.KI_CHAT,
       category: "ki",
       outcome: "success",
       metadata: { model, tokens: usage?.total_tokens, messageCount: messages.length },
       req,
+    }).catch((err) => {
+      logger.warn({ err, userId: req.user!.id }, "Audit-feil for KI chat");
     });
 
     return;
@@ -902,6 +909,9 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       }),
     );
   } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
     abortController.cleanup();
     res.off("finish", abortOnResponseEnd);
     res.off("close", abortOnResponseEnd);

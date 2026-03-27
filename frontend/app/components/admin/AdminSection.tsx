@@ -282,7 +282,7 @@ function BrukereFane() {
                   type="button"
                   onClick={() => setOffset((o) => Math.max(0, o - limit))}
                   disabled={!harForrige}
-                  className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition-colors"
+                  className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
                 >
                   <ChevronLeft size={16} />
                 </button>
@@ -290,7 +290,7 @@ function BrukereFane() {
                   type="button"
                   onClick={() => setOffset((o) => o + limit)}
                   disabled={!harNeste}
-                  className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition-colors"
+                  className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
                 >
                   <ChevronRight size={16} />
                 </button>
@@ -384,7 +384,7 @@ function RevisjonsloggFane() {
               type="button"
               onClick={() => setOffset((o) => Math.max(0, o - limit))}
               disabled={!harForrige}
-              className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition-colors"
+              className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
             >
               <ChevronLeft size={16} />
             </button>
@@ -392,7 +392,7 @@ function RevisjonsloggFane() {
               type="button"
               onClick={() => setOffset((o) => o + limit)}
               disabled={!harNeste}
-              className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition-colors"
+              className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
             >
               <ChevronRight size={16} />
             </button>

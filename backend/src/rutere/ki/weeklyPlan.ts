@@ -267,13 +267,15 @@ router.post("/generate", async (req, res) => {
       "Genererte weekly plan via backend",
     );
 
-    audit({
+    void audit({
       actorUserId: userId,
       action: AUDIT_ACTIONS.KI_WEEKLY_PLAN,
       category: "ki",
       outcome: "success",
       metadata: { blockCount: payload.blocks.length, assignmentCount: oppgaver.length },
       req,
+    }).catch((err) => {
+      logger.warn({ err, userId }, "Audit-feil for weekly-plan");
     });
 
     return res.json(payload);

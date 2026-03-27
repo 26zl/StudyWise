@@ -399,14 +399,19 @@ async function performOCR(buffer: Buffer): Promise<{ text: string; confidence: n
                 }
             },
         });
-        
+
+        let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
         const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => {
+            timeoutHandle = setTimeout(() => {
                 reject(new Error(`OCR timed out after ${OCR_TIMEOUT_MS / 1000} seconds`));
             }, OCR_TIMEOUT_MS);
         });
-        
+
         const result = await Promise.race([ocrPromise, timeoutPromise]);
+        if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+            timeoutHandle = undefined;
+        }
 
         const text = result.data.text;
         const confidence = result.data.confidence;

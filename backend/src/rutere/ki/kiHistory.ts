@@ -264,13 +264,15 @@ kiHistoryRouter.delete("/chat/history/:id", async (req, res) => {
     }
     await ChatHistory.deleteOne({ _id: id, user: userId });
 
-    audit({
+    void audit({
       actorUserId: userId,
       action: AUDIT_ACTIONS.KI_HISTORY_DELETED,
       category: "ki",
       outcome: "success",
       metadata: { chatId: id },
       req,
+    }).catch((err) => {
+      logger.warn({ err, userId, chatId: id }, "Audit-feil for sletting av chat-historikk");
     });
 
     return res.status(204).send();
@@ -286,12 +288,14 @@ kiHistoryRouter.delete("/chat/history", async (req, res) => {
     if (!userId) return;
     await ChatHistory.deleteMany({ user: userId });
 
-    audit({
+    void audit({
       actorUserId: userId,
       action: AUDIT_ACTIONS.KI_HISTORY_ALL_DELETED,
       category: "ki",
       outcome: "success",
       req,
+    }).catch((err) => {
+      logger.warn({ err, userId }, "Audit-feil for sletting av all chat-historikk");
     });
 
     return res.status(204).send();

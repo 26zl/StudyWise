@@ -113,14 +113,23 @@ export async function waitForSync(userId: string, timeoutMs: number): Promise<Sy
   const pending = activeSyncs.get(userId);
   if (!pending) return null;
 
-  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs));
-  return Promise.race([
-    pending.catch((err) => {
-      logger.warn({ err, userId }, "Canvas sync feilet mens en forespørsel ventet - fortsetter uten sync-resultat");
-      return null;
-    }),
-    timeout,
-  ]);
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timeoutHandle = setTimeout(() => resolve(null), timeoutMs);
+  });
+  try {
+    return await Promise.race([
+      pending.catch((err) => {
+        logger.warn({ err, userId }, "Canvas sync feilet mens en forespørsel ventet - fortsetter uten sync-resultat");
+        return null;
+      }),
+      timeout,
+    ]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
 }
 
 // ─── Hjelpefunksjoner ──────────────────────────────────────

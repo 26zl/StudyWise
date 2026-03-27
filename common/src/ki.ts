@@ -27,7 +27,7 @@ export const KIChatClientMessageSchema = z.object({
 export const KIChatRequestSchema = z.object({
   messages: z.array(KIChatClientMessageSchema),
   model: z.string().optional(),
-  temperature: z.number().min(0).max(2).optional(),
+  temperature: z.number().min(0).max(1).optional(),
 });
 
 // Felles token-bruk schema (delt mellom chat og dokumentanalyse)

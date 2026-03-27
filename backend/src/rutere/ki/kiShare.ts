@@ -9,7 +9,7 @@ import { z } from "zod";
 import { randomBytes } from "crypto";
 import mongoose from "mongoose";
 import { ChatHistory, type ChatHistoryDocument } from "../../database/models/ChatHistory.js";
-import { SharedChat } from "../../database/models/SharedChat.js";
+import { SharedChat, type SharedChatDocument } from "../../database/models/SharedChat.js";
 import { decrypt } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
 import {
@@ -34,9 +34,71 @@ import { requireAuth } from "../../middleware/auth.js";
 export const kiShareRouter = Router();
 export const sharedChatRouter = Router();
 export const SHARE_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+const SHARE_OPPORTUNISTIC_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+
+let lastOpportunisticCleanupAt = 0;
 
 function createShareId(): string {
   return randomBytes(18).toString("base64url").slice(0, 12);
+}
+
+function triggerOpportunisticCleanup(): void {
+  const now = Date.now();
+  if (now - lastOpportunisticCleanupAt < SHARE_OPPORTUNISTIC_CLEANUP_INTERVAL_MS) {
+    return;
+  }
+  lastOpportunisticCleanupAt = now;
+  void cleanupExpiredSharedChats({ reason: "opportunistic_cleanup" }).catch((error) => {
+    logger.warn({ err: error }, "Opportunistisk cleanup av utløpte delinger feilet");
+  });
+}
+
+async function loadSharedChatForRead(req: Request, res: Response, shareId: string): Promise<{
+  shared: SharedChatDocument;
+  chat: Pick<ChatHistoryDocument, "_id" | "title" | "encryptedMessages">;
+  messages: z.infer<typeof ChatMessageSchema>[];
+  updatedViewCount: number;
+} | null> {
+  triggerOpportunisticCleanup();
+
+  const shared = await SharedChat.findOne({ shareId });
+  if (!shared || !shared.isActive || isExpired(shared.expiresAt)) {
+    apiError.notFound(res, "Den delte samtalen");
+    return null;
+  }
+
+  if (shared.accessType === "private") {
+    const isAuthed = await ensureAuthenticated(req, res);
+    if (!isAuthed) return null;
+    // Kun eieren kan lese private delinger — returner 404 (ikke 403) for å unngå å avsløre at lenken eksisterer
+    if (req.user!.id !== shared.ownerId.toString()) {
+      apiError.notFound(res, "Den delte samtalen");
+      return null;
+    }
+  }
+
+  const chat = await ChatHistory.findById(shared.chatId).select("title encryptedMessages");
+  if (!chat) {
+    apiError.notFound(res, "Samtalen");
+    return null;
+  }
+
+  const sharedDoc = shared as SharedChatDocument;
+  const chatDoc = chat as Pick<ChatHistoryDocument, "_id" | "title" | "encryptedMessages">;
+
+  const messages = await parseStoredChatMessages(chatDoc);
+  if (messages.length === 0) {
+    apiError.notFound(res, "Den delte samtalen");
+    return null;
+  }
+
+  await SharedChat.updateOne({ _id: sharedDoc._id }, { $inc: { viewCount: 1 } });
+  return {
+    shared: sharedDoc,
+    chat: chatDoc,
+    messages,
+    updatedViewCount: sharedDoc.viewCount + 1,
+  };
 }
 const PUBLIC_SHARE_RATE_LIMIT = createRateLimiter({
   points: 120,
@@ -136,12 +198,12 @@ kiShareRouter.post("/chat/:chatId/share", async (req, res) => {
         $set: {
           chatId: doc._id,
           ownerId: ownerObjectId,
-          accessType: "public",
           expiresAt: new Date(Date.now() + DEFAULT_SHARE_TTL_DAYS * 24 * 60 * 60 * 1000),
           isActive: true,
         },
         $setOnInsert: {
           shareId,
+          accessType: "public",
           viewCount: 0,
         },
       },
@@ -300,32 +362,13 @@ kiShareRouter.delete("/chat/shared/:shareId", async (req, res) => {
 sharedChatRouter.get("/ki/share/:shareId", PUBLIC_SHARE_RATE_LIMIT, async (req, res) => {
   try {
     const shareId = Array.isArray(req.params.shareId) ? req.params.shareId[0] : req.params.shareId;
-    if (!shareId || !/^[A-Za-z0-9]{12}$/.test(shareId)) {
+    if (!shareId || !/^[A-Za-z0-9_-]{12}$/.test(shareId)) {
       return apiError.notFound(res, "Den delte samtalen");
     }
 
-    const shared = await SharedChat.findOne({ shareId });
-    if (!shared || !shared.isActive || isExpired(shared.expiresAt)) {
-      return apiError.notFound(res, "Den delte samtalen");
-    }
-
-    if (shared.accessType === "private") {
-      const isAuthed = await ensureAuthenticated(req, res);
-      if (!isAuthed) return;
-    }
-
-    const chat = await ChatHistory.findById(shared.chatId).select("title encryptedMessages");
-    if (!chat) {
-      return apiError.notFound(res, "Samtalen");
-    }
-
-    const messages = await parseStoredChatMessages(chat);
-    if (messages.length === 0) {
-      return apiError.notFound(res, "Den delte samtalen");
-    }
-
-    await SharedChat.updateOne({ _id: shared._id }, { $inc: { viewCount: 1 } });
-    const updated = shared.viewCount + 1;
+    const loaded = await loadSharedChatForRead(req, res, shareId);
+    if (!loaded) return;
+    const { shared, chat, messages, updatedViewCount } = loaded;
 
     return res.json(
       SharedChatPublicResponseSchema.parse({
@@ -337,7 +380,7 @@ sharedChatRouter.get("/ki/share/:shareId", PUBLIC_SHARE_RATE_LIMIT, async (req, 
         expiresAt: shared.expiresAt ?? null,
         accessType: shared.accessType,
         isActive: shared.isActive,
-        viewCount: updated,
+        viewCount: updatedViewCount,
       }),
     );
   } catch (error) {
@@ -351,31 +394,13 @@ sharedChatRouter.get("/ki/share/:shareId", PUBLIC_SHARE_RATE_LIMIT, async (req, 
 sharedChatRouter.get("/shared/:shareId", PUBLIC_SHARE_RATE_LIMIT, async (req, res) => {
   try {
     const shareId = Array.isArray(req.params.shareId) ? req.params.shareId[0] : req.params.shareId;
-    if (!shareId || !/^[A-Za-z0-9]{12}$/.test(shareId)) {
+    if (!shareId || !/^[A-Za-z0-9_-]{12}$/.test(shareId)) {
       return apiError.notFound(res, "Den delte samtalen");
     }
 
-    const shared = await SharedChat.findOne({ shareId });
-    if (!shared || !shared.isActive || isExpired(shared.expiresAt)) {
-      return apiError.notFound(res, "Den delte samtalen");
-    }
-
-    if (shared.accessType === "private") {
-      const isAuthed = await ensureAuthenticated(req, res);
-      if (!isAuthed) return;
-    }
-
-    const chat = await ChatHistory.findById(shared.chatId).select("title encryptedMessages");
-    if (!chat) {
-      return apiError.notFound(res, "Samtalen");
-    }
-
-    const messages = await parseStoredChatMessages(chat);
-    if (messages.length === 0) {
-      return apiError.notFound(res, "Den delte samtalen");
-    }
-
-    await SharedChat.updateOne({ _id: shared._id }, { $inc: { viewCount: 1 } });
+    const loaded = await loadSharedChatForRead(req, res, shareId);
+    if (!loaded) return;
+    const { shared, chat, messages } = loaded;
 
     return res.json(
       SharedChatResponseSchema.parse({

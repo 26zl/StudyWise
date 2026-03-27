@@ -135,13 +135,15 @@ Frist: ${dueDateText}`;
       "Genererte task breakdown via backend",
     );
 
-    audit({
+    void audit({
       actorUserId: userId,
       action: AUDIT_ACTIONS.KI_TASK_BREAKDOWN,
       category: "ki",
       outcome: "success",
       metadata: { assignmentId, subtaskCount: subtasks.length },
       req,
+    }).catch((err) => {
+      logger.warn({ err, userId, assignmentId }, "Audit-feil for task-breakdown");
     });
 
     return res.json(TaskBreakdownResponseSchema.parse({ subtasks }));

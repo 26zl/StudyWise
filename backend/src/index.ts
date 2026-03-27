@@ -16,7 +16,6 @@ import "./datadog.js";
 
 import express from "express";
 import cors from "cors";
-import { RateLimiterMemory } from "rate-limiter-flexible";
 import compression from "compression";
 import helmet from "helmet";
 import swaggerUi from "swagger-ui-express";
@@ -174,29 +173,6 @@ app.use(
 
 // JSON body parser med økt størrelse på 10mb
 app.use(express.json({ limit: "10mb" }));
-
-// Rate limiting: 300 req/min per IP – tåler hyppige SSR-/klientkall til /me uten å åpne for misbruk
-const rateLimiter = new RateLimiterMemory({
-  points: 300,
-  duration: 60,
-});
-// Middleware for rate limiting
-const rateLimiterMiddleware = (
-  req: express.Request,
-  res: express.Response,
-  next: express.NextFunction, 
-) => {
-  rateLimiter
-    .consume(req.ip ?? req.socket?.remoteAddress ?? "unknown")
-    .then(() => {
-      next();
-    })
-    .catch(() => {
-      return apiError.rateLimited(res, "Vennligst prøv igjen senere.");
-    });
-};
-// Setter i gang rate limiter middleware
-app.use(rateLimiterMiddleware);
 
 // Request timeout — forhindrer at trege eksterne API-kall tømmer server-ressurser
 app.use(requestTimeout);

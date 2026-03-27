@@ -80,6 +80,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
   // Set SSE headers FIRST — prevents proxy buffering timeout
   const { clearKeepalive } = setupSSE(req, res, 120_000);
   const abortController = createLinkedAbortController(req.timeoutSignal);
+  let analyseTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
   const abortOnResponseEnd = () => abortController.abort();
   res.once("finish", abortOnResponseEnd);
   res.once("close", abortOnResponseEnd);
@@ -171,9 +172,9 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
 
         // Timeout guard — dokumentanalyse kan ta lengre tid enn chat, men bør ikke henge evig
         const ANALYSE_TIMEOUT_MS = 120000;
-        const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("ANALYSE_TIMEOUT")), ANALYSE_TIMEOUT_MS)
-        );
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            analyseTimeoutHandle = setTimeout(() => reject(new Error("ANALYSE_TIMEOUT")), ANALYSE_TIMEOUT_MS);
+        });
 
         let result;
 
@@ -209,6 +210,10 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
                 }),
                 timeoutPromise,
             ]);
+            if (analyseTimeoutHandle) {
+                clearTimeout(analyseTimeoutHandle);
+                analyseTimeoutHandle = undefined;
+            }
         } else {
             // --- Vanlig tekst-basert dokumentanalyse ---
             const apiMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
@@ -234,6 +239,10 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
                 }),
                 timeoutPromise,
             ]);
+            if (analyseTimeoutHandle) {
+                clearTimeout(analyseTimeoutHandle);
+                analyseTimeoutHandle = undefined;
+            }
         }
 
         const responseText = result.text;
@@ -275,13 +284,15 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
         }
 
         if (req.user?.id) {
-            audit({
+            void audit({
                 actorUserId: req.user.id,
                 action: AUDIT_ACTIONS.KI_DOCUMENT_ANALYZED,
                 category: "ki",
                 outcome: "success",
                 metadata: { model, fileType: req.file?.mimetype, tokens: usage?.total_tokens },
                 req,
+            }).catch((err) => {
+                logger.warn({ err, userId: req.user!.id }, "Audit-feil for dokumentanalyse");
             });
         }
 
@@ -306,6 +317,9 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
         // Stream allerede avsluttet
     }
   } finally {
+    if (analyseTimeoutHandle) {
+        clearTimeout(analyseTimeoutHandle);
+    }
     abortController.cleanup();
     res.off("finish", abortOnResponseEnd);
     res.off("close", abortOnResponseEnd);

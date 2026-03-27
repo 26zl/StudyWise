@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { datadogRum } from "@datadog/browser-rum";
+import { datadogRum, type RumPlugin } from "@datadog/browser-rum";
 import { reactPlugin } from "@datadog/browser-rum-react";
 
 type DatadogUser = {
@@ -78,7 +78,7 @@ export function DatadogRum() {
                 allowedTracingUrls: [
                     { match: /\/api\//, propagatorTypes: ["tracecontext"] },
                 ],
-                plugins: [reactPlugin({ router: false })],
+                plugins: [reactPlugin({ router: false }) as RumPlugin],
             });
             flushPendingDatadogUser();
         } catch {

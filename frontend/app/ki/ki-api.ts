@@ -679,6 +679,10 @@ export async function streamKIChat(
         }
       }
     }
+  } catch (err) {
+    // Kanseller strømmen ved feil slik at nettleseren frigir TCP-forbindelsen
+    await res.body.cancel().catch(() => {});
+    throw err;
   } finally {
     reader.releaseLock();
   }

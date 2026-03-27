@@ -8,7 +8,7 @@ import { User } from "../database/models/User.js";
 import { decrypt } from "../utils/kryptering.js";
 import { logger } from "../utils/logger.js";
 import { apiError } from "../utils/apiError.js";
-import { normalizeCanvasBaseUrl } from "common/auth";
+import { normalizeCanvasBaseUrl, CanvasBaseUrlSchema } from "common/auth";
 import type { UserRole } from "common/auth";
 import type { IUser } from "../database/models/User.js";
 import { getClerkUserIdFromToken, findOrCreateUserByClerkId, isAccountConflict } from "../rutere/auth/clerkAuth.js";
@@ -60,11 +60,23 @@ export async function hentCanvasTilkoblingForBruker(
     return null;
   }
 
+  const normalizedBaseUrl = user.canvasBaseUrl
+    ? normalizeCanvasBaseUrl(user.canvasBaseUrl)
+    : undefined;
+  const validatedBaseUrl = normalizedBaseUrl && CanvasBaseUrlSchema.safeParse(normalizedBaseUrl).success
+    ? normalizedBaseUrl
+    : undefined;
+
+  if (normalizedBaseUrl && !validatedBaseUrl) {
+    logger.warn(
+      { userId, canvasBaseUrl: normalizedBaseUrl },
+      "Ugyldig/ikke-tillatt canvasBaseUrl i brukerprofil — ignorerer verdien",
+    );
+  }
+
   return {
     canvasToken: user.canvasApiToken ? decrypt(user.canvasApiToken) : undefined,
-    canvasBaseUrl: user.canvasBaseUrl
-      ? normalizeCanvasBaseUrl(user.canvasBaseUrl)
-      : undefined,
+    canvasBaseUrl: validatedBaseUrl,
   };
 }
 
