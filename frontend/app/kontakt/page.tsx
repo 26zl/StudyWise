@@ -1,7 +1,7 @@
 /*
  * Kontakt - Kontaktinformasjon og kontaktskjema for StudyWise
  */
-import { Github, Mail, MessageSquare, School } from "lucide-react";
+import { Github, Mail, MessageSquare, School, MapPin } from "lucide-react";
 import { InfoCard, InfoPageLayout } from "@/app/components/layout/InfoPageLayout";
 import { ContactForm } from "./ContactForm";
 
@@ -72,6 +72,35 @@ export default function KontaktPage() {
           </InfoCard>
         ))}
       </div>
+
+      {/* Kart over campus */}
+      <InfoCard className="mt-6">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="rounded-lg bg-emerald-100 p-2 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+            <MapPin className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-slate-900 dark:text-white">
+              Her finner du oss
+            </h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Universitetet i Sørøst-Norge, Campus Bø
+            </p>
+          </div>
+        </div>
+        <div className="h-64 sm:h-80 w-full overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800/50">
+          <iframe
+            src="https://www.google.com/maps?q=Universitetet+i+S%C3%B8r%C3%B8st-Norge,+Campus+B%C3%B8&t=&z=15&ie=UTF8&iwloc=&output=embed"
+            width="100%"
+            height="100%"
+            style={{ border: 0 }}
+            allowFullScreen={false}
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            title="Kart USN Campus Bø"
+          ></iframe>
+        </div>
+      </InfoCard>
 
     </InfoPageLayout>
   );

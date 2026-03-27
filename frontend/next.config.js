@@ -98,6 +98,8 @@ function buildCspValue() {
     "https://challenges.cloudflare.com",
     "https://*.clerk.accounts.dev",
     "https://*.clerk.com",
+    "https://maps.google.com",
+    "https://www.google.com",
   ];
 
   for (const origin of CLERK_CUSTOM_ORIGINS) {

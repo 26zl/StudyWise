@@ -72,9 +72,7 @@ export function ContactForm() {
   useEffect(() => {
     if (!TURNSTILE_SITE_KEY || typeof window === "undefined") return;
 
-    // Expose callbacks globally for Turnstile
-    (window as unknown as Record<string, unknown>).onTurnstileSuccess = onTurnstileSuccess;
-    (window as unknown as Record<string, unknown>).onTurnstileError = onTurnstileError;
+    if (!TURNSTILE_SITE_KEY || typeof window === "undefined") return;
 
     const renderWidget = () => {
       if (
@@ -85,9 +83,9 @@ export function ContactForm() {
         const turnstile = (window as unknown as { turnstile: { render: (el: HTMLElement, opts: object) => string } }).turnstile;
         widgetIdRef.current = turnstile.render(turnstileRef.current, {
           sitekey: TURNSTILE_SITE_KEY,
-          callback: "onTurnstileSuccess",
-          "error-callback": "onTurnstileError",
-          "expired-callback": "onTurnstileError",
+          callback: (token: string) => onTurnstileSuccess(token),
+          "error-callback": () => onTurnstileError(),
+          "expired-callback": () => onTurnstileError(),
           theme: "auto",
         });
         setTurnstileLoaded(true);
@@ -110,12 +108,6 @@ export function ContactForm() {
       setTimeout(renderWidget, 100);
     };
     document.head.appendChild(script);
-
-    return () => {
-      // Cleanup global callbacks
-      delete (window as unknown as Record<string, unknown>).onTurnstileSuccess;
-      delete (window as unknown as Record<string, unknown>).onTurnstileError;
-    };
   }, [onTurnstileSuccess, onTurnstileError]);
 
   // Reset Turnstile after submission

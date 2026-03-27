@@ -225,6 +225,31 @@ export const validateEnv = (): void => {
     }
   }
 
+  // Valider Kontaktskjema-variabler (påkrevd i produksjon for at skjemaet skal fungere)
+  if (nodeEnv === "production") {
+    if (!process.env.TURNSTILE_SECRET_KEY?.trim()) {
+      manglende.push("TURNSTILE_SECRET_KEY (påkrevd for kontaktskjema i produksjon)");
+    }
+    if (!process.env.CONTACT_WORKER_URL?.trim()) {
+      manglende.push("CONTACT_WORKER_URL (påkrevd for kontaktskjema i produksjon)");
+    } else {
+      try {
+        new URL(process.env.CONTACT_WORKER_URL);
+      } catch {
+        manglende.push("CONTACT_WORKER_URL (må være en gyldig URL)");
+      }
+    }
+    if (!process.env.CONTACT_WORKER_SECRET?.trim()) {
+      manglende.push("CONTACT_WORKER_SECRET (påkrevd for kontaktskjema i produksjon)");
+    }
+    if (!process.env.CONTACT_TO_EMAIL?.trim()) {
+      manglende.push("CONTACT_TO_EMAIL (påkrevd for kontaktskjema i produksjon)");
+    }
+    if (!process.env.CONTACT_FROM_EMAIL?.trim()) {
+      manglende.push("CONTACT_FROM_EMAIL (påkrevd for kontaktskjema i produksjon)");
+    }
+  }
+
   // Avslutt hvis påkrevde variabler mangler
   if (manglende.length > 0) {
     const liste = manglende.join(", ");

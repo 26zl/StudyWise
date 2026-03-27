@@ -188,6 +188,7 @@ Location: `frontend/app/dashboard/page.tsx` (page) and `frontend/app/components/
 - **Allowed frontend origins**: `WEB_ORIGINS` (comma-separated) is used by CORS, CSRF, and Clerk `authorizedParties`
 - **Cookie names**: `common/src/auth.ts`
 - **Message limits**: `common/src/ki.ts`
+- **Contact Form**: Powered by Cloudflare Turnstile (`TURNSTILE_SECRET_KEY`) and a transport layer forwarding to a Cloudflare Worker (`CONTACT_WORKER_URL`, `CONTACT_WORKER_SECRET`, `CONTACT_TO_EMAIL`, `CONTACT_FROM_EMAIL`). These variables are required in production.
 
 ### AI Routes (`backend/src/rutere/ki/`)
 
@@ -201,6 +202,10 @@ Each file handles a distinct AI feature:
 - `kiShare.ts` - Chat sharing (public share links with expiry)
 - `taskBreakdown.ts` - Task breakdown generation
 - `weeklyPlan.ts` - AI-generated weekly study plans
+
+Other routes:
+
+- `kontakt/kontakt.ts` - Handles contact form submissions with Turnstile verification and forwards to Cloudflare Worker.
 
 Shared infrastructure (reuse these, don't duplicate):
 
@@ -362,7 +367,7 @@ pnpm install
 pnpm build  # Builds common package first!
 ```
 
-**Environment**: Copy `backend/.env.example` → `backend/.env` and fill in required values. Required: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`. Datadog: `DD_*` (APM in production). Production: `API_HOST`, `WEB_ORIGINS`, `INTERNAL_HOSTS` (comma-separated hostnames for internal traffic, e.g. Vercel → Heroku direct).
+**Environment**: Copy `backend/.env.example` → `backend/.env` and fill in required values. Required for dev: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`. For production (optional in dev): Datadog APM (`DD_*`) and Contact Form (`TURNSTILE_SECRET_KEY`, `CONTACT_WORKER_URL`, etc). Production: `API_HOST`, `WEB_ORIGINS`, `INTERNAL_HOSTS` (comma-separated hostnames for internal traffic, e.g. Vercel → Heroku direct).
 
 ### CI Pipeline (`.github/workflows/ci.yml`)
 
@@ -413,6 +418,7 @@ All jobs have `permissions: contents: read` and `actions: read` (workflow-level 
 - **Type errors after clean** → `pnpm build`
 - **"MongoNetworkError"** → Check `MONGO_URI` in `.env` and IP whitelist in MongoDB Atlas
 - **"bad auth : authentication failed"** (Atlas) → Verify username/password and Database Access permissions.
+- **TypeScript errors after changes in `common/`** → Run `pnpm build:common`, then `pnpm typecheck`
 - **Redis "almost full" / high memory** → Redis caches Canvas API + sync structure (per user/course). Set **maxmemory-policy** to `allkeys-lru` (or `volatile-lru`) so Redis evicts old keys instead of rejecting writes. Increase Redis memory in Redis Cloud if needed. Sync cache TTL is 2 hours (`SYNC_CACHE_TTL = 7200`) to limit growth.
 
 ---

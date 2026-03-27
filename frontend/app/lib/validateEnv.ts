@@ -6,7 +6,13 @@
  * localhost i next dev via next.config.js.
  */
 
-const ALWAYS_REQUIRED_FRONTEND_ENV_VARS = ["CLERK_SECRET_KEY"] as const;
+const ALWAYS_REQUIRED_FRONTEND_ENV_VARS = [
+  "CLERK_SECRET_KEY",
+  "NEXT_PUBLIC_CLERK_SIGN_IN_URL",
+  "NEXT_PUBLIC_CLERK_SIGN_UP_URL",
+  "NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL",
+  "NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL"
+] as const;
 
 interface ValidateFrontendEnvOptions {
   requireInternalApiUrl?: boolean;
@@ -68,6 +74,12 @@ export function validateFrontendEnv(options: ValidateFrontendEnvOptions = {}): v
       manglende.push(
         `INTERNAL_API_URL (må være en gyldig URL, fikk: ${internalApiUrl})`,
       );
+    }
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    if (!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim()) {
+      manglende.push("NEXT_PUBLIC_TURNSTILE_SITE_KEY (påkrevd i produksjon for spam-beskyttelse)");
     }
   }
 

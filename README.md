@@ -6,74 +6,48 @@
 [![OWASP Dependency-Check](https://github.com/26zl/StudyWise/actions/workflows/owasp-dependency-check.yml/badge.svg)](https://github.com/26zl/StudyWise/actions/workflows/owasp-dependency-check.yml)
 [![Update dependencies](https://github.com/26zl/StudyWise/actions/workflows/update-dependencies.yml/badge.svg)](https://github.com/26zl/StudyWise/actions/workflows/update-dependencies.yml)
 
-STUDYWISE - En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas Instructure. Bachelor i IT 2026.
+STUDYWISE - En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas Instructure.
+**Produksjonsnettside:** <https://www.studwize.page>
 
-Produksjonsnettside - <https://www.studwize.page>
+> **Utvikling?** Les [CONTRIBUTING.md](./CONTRIBUTING.md) (veileder for bidragsytere) og [AGENTS.md](./AGENTS.md) (arkitektur og teknisk "lovverk").
 
-> **Deploy:** Backend på Heroku (auto-deploy fra `main`), frontend på Vercel via CI, CDN og sikkerhet (Cloudflare), dokumentasjon på GitHub Pages (`docs/`).
+## Teknologi & Arkitektur (Monorepo)
 
-**Utvikling?** Les [CONTRIBUTING.md](./CONTRIBUTING.md) for detaljert guide om hvordan du skal kode og utvikle dette prosjektet.
+Prosjektet er bygd som et **pnpm-monorepo** for å dele skjemaer og typer (`common`) sømløst mellom klient og server.
 
-## Teknologi stack (Monorepo)
+- **Frontend:** Next.js 16 (React 19), Tailwind CSS v4, React Query, Zustand.
+- **Backend:** Node.js, Express 5, TypeScript.
+- **Databaser & Cache:** MongoDB (primær database), Pinecone (vektorsøk for KI-dokumenter), Redis (hurtigminne for Canvas API og sessions).
+- **KI-Motor:** Anthropic Claude & Cohere (hybrid søk).
+- **Infrastruktur & Sikkerhet:** Heroku (backend), Vercel (frontend), Datadog (APM/overvåking), Clerk (bruker-autentisering), Cloudflare (WAF/CDN/Turnstile).
 
-### Frontend
-
-- **Ramme**: Next.js 16, React 19, TypeScript 5.9, App Router
-- **Styling**: Tailwind CSS v4 (`@tailwindcss/postcss`), next-themes (dark mode)
-- **State**: TanStack React Query v5 (server), Zustand (klient), nuqs (URL-synkronisert state, f.eks. dashboard `?view=`)
-- **Skjemaer**: react-hook-form, @hookform/resolvers, Zod
-- **UI**: Lucide React, Sonner (toast), Vercel Speed Insights
-- **Observability**: Datadog RUM for brukeropplevelse, sesjonsinnspilling og feilsporing i frontend
-
-### Backend
-
-- **Ramme**: Express 5, Node.js 20+, TypeScript (tsx i dev, node i prod)
-- **Database**: MongoDB via Mongoose v9 for persistering og indekser
-- **Cache**: Redis for Canvas API-cache, sync-struktur, KI-sesjon og rate limiting. PDF/fil-innhold lagres kun i MongoDB.
-- **Vektorsøk og embedding**: **Pinecone** (serverless, integrated embedding); chunk-tekst i MongoDB som sannhetskilde
-- **Auth**: Clerk (autentisering og brukersynk)
-- **KI**: Anthropic Claude, **Cohere** rerank (rerank-v3.5) for hybrid søk, circuit breakers, request timeout
-- **API**: Swagger UI + swagger-jsdoc, compression, Helmet, CORS
-- **Logging**: Pino + pino-http (redakterer PII)
-- **Filer**: Multer; tekst fra PDF/Word (unpdf, mammoth), OCR (tesseract.js, sharp)
-- **Observability**: Datadog APM (dd-trace) for tracing, runtime metrics og log-korrelasjon
-
-Alle viktige tjenester som må konfigureres: MongoDB, Redis, **Pinecone**, Clerk, Anthropic (Claude), **Cohere**. Datadog (`DD_*`) for APM i produksjon.
+---
 
 ## Kom i gang
 
 ### Forutsetninger
 
-- Node.js 20+ installert
-- pnpm installert (`npm install -g pnpm`)
-- Canvas LMS-konto fra ditt lærested i Norge som bruker Canvas
-
-> **Viktig:** Hold din lokale versjon oppdatert! Kjør `git pull origin main` jevnlig.
+- Node.js 20+ og `pnpm` installert (`npm install -g pnpm`)
+- Canvas LMS-konto
 
 ### Installasjon
 
-1. **Klon repoet**:
+```bash
+git clone https://github.com/26zl/StudyWise.git
+cd StudyWise
+pnpm install
+```
 
-   ```bash
-   git clone <repo-url>
-   cd StudyWise
-   ```
+### Konfigurer miljøvariabler
 
-2. **Installer dependencies**:
+Kopier `backend/.env.example` til `backend/.env` og fyll ut påkrevde verdier som `MONGO_URI`, `REDIS_URL`, og div. API-nøkler (AI, Pinecone m.m.).
 
-   ```bash
-   pnpm install
-   ```
+### Bygg og Start
 
-3. **Konfigurer miljøvariabler**:
-
-   Kopier `backend/.env.example` til `backend/.env` og fyll ut (bl.a. `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`). For APM i prod: `DD_*` (Datadog).
-
-4. **Bygg prosjektet**:
-
-   ```bash
-   pnpm build
-   ```
+```bash
+pnpm build
+pnpm dev
+```
 
 ## Kommandoer (kjør fra rot)
 
@@ -98,10 +72,6 @@ pnpm --filter common add <pakkenavn>
 pnpm run clean:all        # Fjerner alt: node_modules, dist, .next, pnpm-lock.yaml
 pnpm run clean:install    # Full reinstall (clean + install + update + build)
 pnpm kill:dev             # Stopp alle Node prosesser (Windows)
-pnpm run update           # Oppdater alle pakker
-
-# Docker (kun lokal utvikling)
-docker compose up --build # Starter MongoDB, Redis, backend og frontend (alle med security_opt: no-new-privileges)
 ```
 
 ## Utviklingsservere
@@ -109,51 +79,10 @@ docker compose up --build # Starter MongoDB, Redis, backend og frontend (alle me
 | Tjeneste     | URL                              |
 | ------------ | -------------------------------- |
 | Frontend     | <http://localhost:3000>          |
-| Backend      | <http://localhost:4000>          |
+| Backend API  | <http://localhost:4000>          |
 | Swagger UI   | <http://localhost:4000/api-docs> |
-| Health Check | <http://localhost:4000/health>   |
 | Docs         | <http://localhost:5173>          |
-
-## API Dokumentasjon
-
-### Swagger UI
-
-Backend har integrert Swagger UI: <http://localhost:4000/api-docs>
-
-### Hovedendepunkter
-
-- `GET /health` - Server health check
-- `GET /api/canvas/*` - Canvas LMS integrasjon (emner, oppgaver, moduler, kunngjøringer, kalender)
-- `/api/user/*` - StudyWise-brukerdata (profil, preferanser, Canvas-token, logout, kontosletting). Innlogging og registrering håndteres av Clerk.
-- `/api/ki/*` - KI-assistenten (chat, dokumentanalyse, oppsummering, task breakdown)
-
-### Canvas API
-
-- [Canvas REST API](https://developerdocs.instructure.com/services/canvas/resources/)
-- [Canvas Developer Docs](https://developerdocs.instructure.com/services/canvas)
-
-## Kodestandarder
-
-- **TypeScript**: Strict mode, unngå `any`
-- **Logging**: Bruk `pino` logger i backend, aldri `console.log`
-- **Validering**: Zod på alle grensesnitt
-- **Styling**: Tailwind CSS, mobile-first, dark mode støtte
-- **Navngivning**: Norske/Engelske navn for ruter/variabler, engelske filnavn
-
-## Feilsøking
-
-### Common package feil
-
-```bash
-pnpm build:common  # Eller bare: pnpm build
-```
-
-### Port allerede i bruk
-
-```bash
-pnpm kill:dev
-```
 
 ## Lisens
 
-Se LICENSE-fil for detaljer.
+Dette prosjektet er utgitt under **MIT-lisensen**. Se filen [LICENSE](./LICENSE) for flere detaljer.
