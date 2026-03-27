@@ -195,6 +195,10 @@ export const knyttCanvasToken = async (req: Request, res: Response, next: NextFu
             return apiError.unauthorized(res, "Ugyldig bruker");
         }
 
+        if (!canvasTilkobling.canvasToken) {
+            return apiError.unauthorized(res, "Brukeren har ikke tilknyttet et Canvas-token.");
+        }
+
         req.canvasToken = canvasTilkobling.canvasToken;
         req.canvasBaseUrl = canvasTilkobling.canvasBaseUrl;
     } catch (error) {

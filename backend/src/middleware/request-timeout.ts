@@ -93,13 +93,13 @@ export function requestTimeout(req: Request, res: Response, next: NextFunction) 
                 { method: req.method, path: req.path, timeoutMs },
                 "Request timeout — avbryter nedstrøms operasjoner",
             );
-            res.status(504).json({
+            return res.status(504).json({
                 feil: "Gateway Timeout",
                 melding: "Forespørselen tok for lang tid. Prøv igjen.",
             });
         }
 
-        // Ødelegg socket for å stoppe pågående I/O
+        // Ødelegg *kun* socket hvis headers allerede har blitt sendt (f.eks en fryst strømming)
         if (req.socket && !req.socket.destroyed) {
             req.socket.destroy();
         }

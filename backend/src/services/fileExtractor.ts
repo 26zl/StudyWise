@@ -28,6 +28,9 @@ const MAX_SHEETS_OR_SLIDES = 50;
 /** Maks tegn for ekstrahert innhold */
 const MAX_CONTENT_LENGTH = 50_000;
 
+/** Maks dekomprimert størrelse per intern XML-fil for å forhindre Zip-bomber (50 MB) */
+const MAX_DECOMPRESSED_ENTRY_SIZE = 50 * 1024 * 1024;
+
 // ─── Filtype-klassifisering ─────────────────────────────────
 
 /** Kodefil-endelser → språknavn for AI-kontekst */
@@ -215,6 +218,10 @@ function extractPptx(buffer: Buffer, filename: string): ExtractResult | null {
 
     for (const entry of entries) {
       if (slideCount >= MAX_SHEETS_OR_SLIDES) break;
+      if (entry.header.size > MAX_DECOMPRESSED_ENTRY_SIZE) {
+        logger.warn({ filename, entryName: entry.entryName, size: entry.header.size }, "Utpakket fil for stor (mulig zip bomb), hopper over data");
+        continue;
+      }
       const xml = entry.getData().toString("utf-8");
       // Ekstraher tekst fra <a:t>-tagger (DrawingML text runs)
       const textParts = [...xml.matchAll(/<a:t[^>]*>([\s\S]*?)<\/a:t>/g)]
@@ -256,10 +263,14 @@ function extractXlsx(buffer: Buffer, filename: string): ExtractResult | null {
     const sharedStrings: string[] = [];
     const ssEntry = zip.getEntry("xl/sharedStrings.xml");
     if (ssEntry) {
-      const ssXml = ssEntry.getData().toString("utf-8");
-      const matches = [...ssXml.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)];
-      for (const m of matches) {
-        sharedStrings.push(m[1]);
+      if (ssEntry.header.size > MAX_DECOMPRESSED_ENTRY_SIZE) {
+        logger.warn({ filename, entryName: ssEntry.entryName, size: ssEntry.header.size }, "Utpakket sharedStrings for stor (mulig zip bomb), hopper over");
+      } else {
+        const ssXml = ssEntry.getData().toString("utf-8");
+        const matches = [...ssXml.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)];
+        for (const m of matches) {
+          sharedStrings.push(m[1]);
+        }
       }
     }
 
@@ -277,6 +288,10 @@ function extractXlsx(buffer: Buffer, filename: string): ExtractResult | null {
 
     for (const entry of sheetEntries) {
       if (sheetCount >= MAX_SHEETS_OR_SLIDES) break;
+      if (entry.header.size > MAX_DECOMPRESSED_ENTRY_SIZE) {
+        logger.warn({ filename, entryName: entry.entryName, size: entry.header.size }, "Utpakket ark for stort (mulig zip bomb), hopper over");
+        continue;
+      }
       const xml = entry.getData().toString("utf-8");
 
       // Hent rader — <row>...</row>
