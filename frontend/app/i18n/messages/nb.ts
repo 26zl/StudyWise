@@ -41,6 +41,7 @@ export const nbMessages = {
       overview: "Laster oversikt...",
       profile: "Laster profil...",
       quiz: "Laster quiz...",
+      redirectingToDashboard: "Sender deg videre til dashboardet...",
       redirectingToSignIn: "Sender deg til innlogging...",
       settings: "Laster innstillinger...",
       userData: "Laster brukerdata...",
@@ -77,7 +78,8 @@ export const nbMessages = {
     },
   },
   chatHistory: {
-    clearConfirmDescription: "Alle lagrede samtaler fjernes. Dette kan ikke angres.",
+    clearConfirmDescription:
+      "Alle lagrede samtaler fjernes. Dette kan ikke angres.",
     clearConfirmTitle: "Slett hele samtalehistorikken?",
     clearError: "Kunne ikke slette historikken",
     clearSuccess: "Samtalehistorikk slettet",
@@ -88,7 +90,8 @@ export const nbMessages = {
   auth: {
     forgotPassword: {
       complete: {
-        description: "Passordet ditt er oppdatert, og du sendes videre til dashboardet.",
+        description:
+          "Passordet ditt er oppdatert, og du sendes videre til dashboardet.",
         title: "Passord oppdatert",
       },
       code: {
@@ -118,7 +121,8 @@ export const nbMessages = {
         placeholder: "Skriv inn nytt passord",
       },
       sent: {
-        emailDescription: "Vi har sendt en gjenopprettingskode til e-posten din.",
+        emailDescription:
+          "Vi har sendt en gjenopprettingskode til e-posten din.",
         emailTitle: "Kode sendt på e-post",
       },
       steps: {
@@ -128,18 +132,27 @@ export const nbMessages = {
       },
       thirdParty: {
         description:
-          "Hvis du vanligvis logger inn med Microsoft, Google eller Apple, trenger du som regel ikke å nullstille passord her. Gå tilbake til innlogging og velg samme metode som før.",
-        title: "Bruker du Microsoft, Google eller Apple?",
+          "Hvis du vanligvis logger inn med Microsoft eller Google, trenger du som regel ikke å nullstille passord her. Gå tilbake til innlogging og velg samme metode som før.",
+        title: "Bruker du Microsoft eller Google?",
       },
       support:
-        "Hvis du ikke mottar koden, sjekk spamfilteret ditt. Bruker du vanligvis Microsoft, Google eller Apple, går du tilbake og logger inn med samme metode.",
+        "Hvis du ikke mottar koden, sjekk spamfilteret ditt. Bruker du vanligvis Microsoft eller Google, går du tilbake og logger inn med samme metode.",
       title: "Glemt passord?",
     },
     signIn: {
       forgotPasswordAction: "Gjenopprett tilgang",
       forgotPasswordDescription:
-        "For e-postinnlogging. Bruker du Microsoft, Google eller Apple, fortsetter du med samme leverandør i stedet.",
+        "For e-postinnlogging. Bruker du Microsoft eller Google, fortsetter du med samme leverandør i stedet.",
       forgotPasswordTitle: "Glemt passord?",
+    },
+    humanCheck: {
+      eyebrow: "Cloudflare Turnstile",
+      title: "Botbeskyttelse",
+      description:
+        "Denne kontrollen er integrert sammen med innlogging og registrering for å redusere automatisert misbruk.",
+      verifying: "Verifiserer...",
+      widgetError:
+        "Vi klarte ikke å laste Cloudflare Turnstile. Last siden på nytt og prøv igjen.",
     },
   },
   errors: {
@@ -152,13 +165,15 @@ export const nbMessages = {
       network: "Kunne ikke koble til Canvas. Sjekk internettforbindelsen din.",
       notFound: "Ressursen ble ikke funnet i Canvas.",
       permissionDenied: "Du har ikke tilgang til denne ressursen i Canvas.",
-      rateLimit: "For mange forespørsler til Canvas. Vent noen sekunder og prøv igjen.",
+      rateLimit:
+        "For mange forespørsler til Canvas. Vent noen sekunder og prøv igjen.",
       tokenInvalid:
         "Canvas API-tokenet ditt er ugyldig, utløpt eller slettet i Canvas. Gå til Innstillinger for å legge til et nytt token.",
       tokenMissing:
         "Du må knytte en Canvas API-token for å bruke denne funksjonen. Gå til Innstillinger for å legge til token.",
       timeout: "Henting av Canvas-data tok for lang tid. Prøv igjen.",
-      validation: "Sjekk at Canvas-institusjon og URL er riktig, og prøv igjen.",
+      validation:
+        "Sjekk at Canvas-institusjon og URL er riktig, og prøv igjen.",
     },
     generic: {
       auth: "Du må logge inn på nytt.",
@@ -195,8 +210,7 @@ export const nbMessages = {
     loadMore: "Hent flere ({count} igjen)",
     missingCanvasToken:
       "Du må lagre en Canvas API-token for å hente varslinger.",
-    partialLoadFallback:
-      "Noen varsler kunne ikke lastes. Resten vises under.",
+    partialLoadFallback: "Noen varsler kunne ikke lastes. Resten vises under.",
     remaining: "{time} igjen",
     submitted: "Innlevert",
     manuallySubmitted: "Manuelt innlevert",
@@ -287,9 +301,11 @@ export const nbMessages = {
   },
   settings: {
     accountSecurity: {
-      action: "Rediger profil og sikkerhet",
+      action: "Åpne konto",
+      connectionHint:
+        "Hvis Google eller Microsoft viser en rød feilmelding under tilkoblede kontoer, er kontoen ikke koblet. Det betyr vanligvis at den eksterne kontoen allerede er i bruk av en annen bruker.",
       description:
-        "Endre e-post, passord, aktiver to-faktor (2FA) og administrer tilkoblede innloggingsmetoder (Google, Microsoft, Apple). Dette håndteres av innloggingsleverandøren vår (Clerk).",
+        "Åpne kontosiden for å administrere brukernavn, fornavn, etternavn, e-post, passord, to-faktor (2FA) og tilkoblede innloggingsmetoder (Google, Microsoft). Der kan du også slette StudyWise-kontoen din.",
       title: "Konto og sikkerhet",
     },
     appearance: {
@@ -338,7 +354,6 @@ export const nbMessages = {
       chooseInstitutionTitle: "Velg institusjon",
       connected: "Canvas-token er koblet til kontoen din.",
       currentInstitution: "Din institusjon: {institution}",
-      customUrlPlaceholder: "https://din-skole.instructure.com",
       deleteConfirm: "Er du sikker?",
       deleteConnection: "Slett tilkobling",
       deleteErrorTitle: "Kunne ikke slette token",
@@ -347,7 +362,7 @@ export const nbMessages = {
       deleting: "Sletter...",
       deletingButton: "Ja, slett Canvas API Token",
       description:
-        "Koble til din Canvas-konto for å hente emner, kunngjøringer, frister og forelesninger. Velg institusjon under før du lagrer tokenet. Listen dekker kjente norske Canvas-instanser, og du kan angi en annen Instructure-URL ved behov.",
+        "Koble til din Canvas-konto for å hente emner, kunngjøringer, frister og forelesninger. Velg institusjon under før du lagrer tokenet. Listen dekker de støttede norske Canvas-instansene i StudyWise.",
       hide: "Skjul",
       howTo: {
         step1: "Logg inn på Canvas",
@@ -357,10 +372,8 @@ export const nbMessages = {
         title: "Slik får du en API token:",
       },
       institutionLabel: "Institusjon (Canvas)",
-      institutionOther: "Annen Instructure-instans",
       institutionPlaceholder: "Velg institusjon",
-      institutionRequired:
-        "Velg institusjon (eller angi URL) før du lagrer tokenet.",
+      institutionRequired: "Velg institusjon før du lagrer tokenet.",
       invalidUrlDescription: "Skriv inn en gyldig Canvas-instans.",
       invalidUrlTitle: "Ugyldig Canvas-URL",
       placeholder: "Lim inn din Canvas API token",
@@ -368,8 +381,7 @@ export const nbMessages = {
       restoring: "Gjenoppretter...",
       save: "Lagre token",
       saveErrorTitle: "Kunne ikke lagre token",
-      saveSuccessDescription:
-        "Canvas-data blir tilgjengelig om kort tid.",
+      saveSuccessDescription: "Canvas-data blir tilgjengelig om kort tid.",
       saveSuccessTitle: "Canvas-token lagret",
       saving: "Lagrer...",
       show: "Vis",
@@ -409,7 +421,8 @@ export const nbMessages = {
     cookies: {
       accepted: "Godtatt",
       declined: "Kun nødvendige",
-      description: "Nødvendige cookies er alltid aktive. Valgfrie ytelsesmålinger (Vercel Speed Insights) krever ditt samtykke.",
+      description:
+        "Nødvendige cookies er alltid aktive. Valgfrie ytelsesmålinger (Vercel Speed Insights) krever ditt samtykke.",
       status: {
         accepted: "Du har godtatt valgfrie ytelsesmålinger.",
         declined: "Du bruker kun nødvendige cookies.",
@@ -432,25 +445,11 @@ export const nbMessages = {
       avatarAltStudyWise: "Profilbilde for StudyWise-konto",
       canvasConnection: "Canvas-tilkobling",
       connectedSince: "Tilkoblet siden {date}",
-      edit: "Rediger",
-      firstName: "Fornavn",
-      firstNamePlaceholder: "Skriv inn fornavn",
-      lastName: "Etternavn",
-      lastNamePlaceholder: "Skriv inn etternavn",
-      notConnected:
-        "Ikke tilkoblet. Legg til Canvas API-token nedenfor.",
-      providers: {
-        email: "e-post",
-      },
-      save: "Lagre",
-      saveErrorDescription: "Kunne ikke lagre profilendringene. Prøv igjen.",
-      saveErrorTitle: "Feil ved lagring",
-      saveSuccessDescription: "Profilendringene er lagret.",
-      saveSuccessTitle: "Profil oppdatert",
-      saving: "Lagrer...",
-      signedInWith: "Logget inn med {provider}",
+      notConnected: "Ikke tilkoblet. Legg til Canvas API-token nedenfor.",
       studywiseAccount: "StudyWise-konto",
-      title: "Profil",
+      title: "Kontooversikt",
+      username: "Brukernavn",
+      usernameNotSet: "Ikke satt",
     },
     title: "Innstillinger",
   },
@@ -482,7 +481,8 @@ export const nbMessages = {
       noUsers: "Ingen brukere funnet.",
       changeRole: "Endre rolle",
       deleteUser: "Slett bruker",
-      deleteConfirm: "Er du sikker på at du vil slette denne brukeren? All data slettes permanent.",
+      deleteConfirm:
+        "Er du sikker på at du vil slette denne brukeren? All data slettes permanent.",
       roleChanged: "Rolle endret",
       userDeleted: "Bruker slettet",
       cannotChangeSelf: "Du kan ikke endre din egen rolle",
@@ -506,7 +506,8 @@ export const nbMessages = {
   },
   quiz: {
     title: "Quiz / Flashcards",
-    subtitle: "Tren på Canvas-innholdet ditt med KI-genererte spørsmål og kort.",
+    subtitle:
+      "Tren på Canvas-innholdet ditt med KI-genererte spørsmål og kort.",
     noCoursesFound: "Ingen Canvas-emner funnet. Koble til Canvas først.",
     noModulesFound: "Ingen moduler funnet for dette emnet.",
     loadingCourses: "Laster emner...",
@@ -534,7 +535,8 @@ export const nbMessages = {
     planSaveError: "Kunne ikke lagre arbeidsplan. Prøv igjen.",
     selectAtLeastOneDay: "Velg minst én dag",
     addToWorkplanError: "Kunne ikke legge til i arbeidsplan",
-    addToWorkplanErrorDescription: "Prøv igjen eller kontakt support hvis feilen vedvarer",
+    addToWorkplanErrorDescription:
+      "Prøv igjen eller kontakt support hvis feilen vedvarer",
   },
   aiBreakdown: {
     assignmentContext: {
@@ -549,7 +551,8 @@ export const nbMessages = {
     },
     collapseAll: "Lukk alle",
     empty: {
-      description: "Vi fant ingen ikke-innleverte Canvas-oppgaver å bryte ned akkurat nå.",
+      description:
+        "Vi fant ingen ikke-innleverte Canvas-oppgaver å bryte ned akkurat nå.",
       title: "Ingen aktive oppgaver funnet",
     },
     errors: {
@@ -574,7 +577,8 @@ export const nbMessages = {
     },
     approval: {
       approveAll: "Godkjenn alle",
-      description: "Gå gjennom forslagene og godkjenn, avvis, eller rediger dem etter din arbeidsstil.",
+      description:
+        "Gå gjennom forslagene og godkjenn, avvis, eller rediger dem etter din arbeidsstil.",
       rejectAll: "Avvis alle",
       reviewManually: "Gå gjennom manuelt",
       title: "KI-assistenten har generert {count} deloppgaver for deg",
@@ -616,16 +620,19 @@ export const nbMessages = {
     },
   },
   chat: {
-    saveBeforeNewError: "Kunne ikke lagre samtale før ny chat ble opprettet. Du kan fortsette med ny chat.",
+    saveBeforeNewError:
+      "Kunne ikke lagre samtale før ny chat ble opprettet. Du kan fortsette med ny chat.",
     oneAttachmentOnly: "Kun ett vedlegg om gangen",
     oneAttachmentOnlyDescription: "Jeg bruker bare det første vedlegget.",
     documentAnalysisFailed: "Dokumentanalyse feilet",
-    documentAnalysisEmpty: "Dokumentanalysen returnerte et tomt svar. Prøv igjen.",
+    documentAnalysisEmpty:
+      "Dokumentanalysen returnerte et tomt svar. Prøv igjen.",
     aiResponseFailed: "KI-svar feilet",
     aiResponseEmpty: "KI-assistenten returnerte et tomt svar. Prøv igjen.",
     saveBeforeShare: "Lagre samtalen først for å dele den.",
     shareLinkCopied: "Delingslenke kopiert",
-    shareLinkDescription: "Lenken viser hele samtalen slik den ser ut na. Alle med lenken kan lese bruker- og KI-meldinger.",
+    shareLinkDescription:
+      "Lenken viser hele samtalen slik den ser ut na. Alle med lenken kan lese bruker- og KI-meldinger.",
     couldNotShareChat: "Kunne ikke dele chatten.",
     couldNotShareChatFallback: "Kunne ikke dele chatten",
     answerDownloaded: "Svar lastet ned",
@@ -633,7 +640,8 @@ export const nbMessages = {
     couldNotCopy: "Kunne ikke kopiere",
     conversationDownloaded: "Samtale lastet ned som Markdown",
     analyzingDocument: "Analyserer dokument...",
-    aiConnectionError: "Kunne ikke koble til KI-assistenten. Prøv igjen senere.",
+    aiConnectionError:
+      "Kunne ikke koble til KI-assistenten. Prøv igjen senere.",
     loadingGeneric: "Laster...",
     loadingChatHistory: "Laster samtalehistorikk...",
   },
@@ -648,7 +656,8 @@ export const nbMessages = {
     sharedAt: "Delt {date}",
     expiresAt: "Utløper {date}",
     badge: "StudyWise delt chat",
-    disclaimer: "Denne lenken viser hele chatten slik den ble delt, inkludert brukerens egne meldinger og KI-svar.",
+    disclaimer:
+      "Denne lenken viser hele chatten slik den ble delt, inkludert brukerens egne meldinger og KI-svar.",
     footer: "Denne siden viser et delt snapshot av hele StudyWise-chatten.",
   },
   profil: {

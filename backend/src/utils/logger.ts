@@ -27,7 +27,6 @@ export const logger = pino({
             "req.headers.cookie",
             "req.headers['set-cookie']",
             "req.headers['x-api-key']",
-            "req.headers['x-clerk-auth-token']",
             "req.headers['x-clerk-request-data']",
             "req.headers['x-clerk-auth-signature']",
             "req.headers['x-clerk-auth-status']",

@@ -11,6 +11,7 @@ import { CanvasUser } from "./models/CanvasUser.js";
 import { CanvasStructureModel } from "./models/CanvasStructure.js";
 import { ChatHistory } from "./models/ChatHistory.js";
 import { ContentEmbedding } from "./models/ContentEmbedding.js";
+import { SharedChat } from "./models/SharedChat.js";
 import { TaskBreakdown } from "./models/TaskBreakdown.js";
 import { User } from "./models/User.js";
 
@@ -45,6 +46,7 @@ async function ensureDatabaseIndexes() {
         CanvasStructureModel.createIndexes(),
         ChatHistory.createIndexes(),
         ContentEmbedding.createIndexes(),
+        SharedChat.createIndexes(),
         TaskBreakdown.createIndexes(),
     ]);
     logger.info("MongoDB-indekser verifisert");

@@ -17,23 +17,38 @@ interface ApiErrorResponse {
   error?: string;
 }
 
+export interface SendKontaktPayload extends KontaktRequest {
+  attachments?: File[];
+}
+
 /**
  * Sender kontaktskjema til backend
  * Bruker auth: false siden kontakt-endepunktet er offentlig
  * Bruker relativ URL for å gå gjennom Next.js proxy
  */
 export async function sendKontakt(
-  data: KontaktRequest,
+  data: SendKontaktPayload,
 ): Promise<SendKontaktResult> {
   try {
+    const formData = new FormData();
+    formData.append("navn", data.navn);
+    formData.append("epost", data.epost);
+    formData.append("emne", data.emne);
+    formData.append("melding", data.melding);
+    formData.append("turnstileToken", data.turnstileToken);
+    formData.append("nettsted", data.nettsted ?? "");
+    if (data.sideUrl) {
+      formData.append("sideUrl", data.sideUrl);
+    }
+    for (const attachment of data.attachments ?? []) {
+      formData.append("attachments", attachment);
+    }
+
     const response = await fetchApi(
       "/api/kontakt",
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
+        body: formData,
       },
       { auth: false },
     );

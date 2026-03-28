@@ -151,7 +151,7 @@ Frontend never calls external APIs directly. All `/api/*` and `/health` requests
 
 Request authentication flows through middleware in `backend/src/middleware/`:
 
-1. **`requireAuth`** (`auth.ts`) — Verifies Clerk Bearer token (from `Authorization` header or `x-clerk-auth-token` proxy header), finds/creates MongoDB `User` by `clerkId`, sets `req.user` and `req.actorRole`
+1. **`requireAuth`** (`auth.ts`) — Verifies Clerk Bearer token from the `Authorization` header, finds/creates MongoDB `User` by `clerkId`, sets `req.user` and `req.actorRole`
 2. **`knyttCanvasToken`** (`auth.ts`) — Attaches decrypted Canvas API token and base URL to `req.canvasToken` / `req.canvasBaseUrl`. Use `knyttCanvasTokenValgfritt` for routes that work with or without Canvas
 3. **`requireRole`** (`require-role.ts`) — RBAC guard; checks `req.actorRole` against allowed roles
 
@@ -245,7 +245,7 @@ The backend accepts file uploads via `multer` and processes them with:
 - **Toast notifications** - Frontend must use `sonner` for user-facing notifications. Never use `alert()` or `confirm()`
 - **`req.user` typing** - Globally typed via `backend/src/typer/express.d.ts`. Never cast with `as any`
 - **Middleware ordering** - In `backend/src/index.ts`, mount all route handlers AFTER body parsers, CORS, and auth middleware. Mounting before means `req.body` and `req.user` will be `undefined`
-- **Host validation** - In production, `API_HOST` env var controls which hostname is allowed (e.g. `api.studwize.page`). Direct access via `herokuapp.com` returns 403. `/health` is exempt. `INTERNAL_HOSTS` (comma-separated) allows additional hostnames for internal traffic (e.g. Vercel → Heroku direct).
+- **Host validation** - In production, `API_HOST` is required and controls which hostname is allowed (e.g. `api.studwize.page`). Direct access via `herokuapp.com` returns 403. `/health` is exempt. `INTERNAL_HOSTS` (comma-separated) allows additional hostnames for internal traffic (e.g. Vercel → Heroku direct). `TRUST_PROXY_HOPS` must match the real proxy chain so client IPs, Turnstile `remoteip` and rate limiting stay correct.
 - **CORS pre-check** - Origin validation happens before `cors()` middleware to prevent generic 500 errors from invalid origins
 - **Trust proxy** - Set to `1` in Express for correct IP handling behind Cloudflare/Heroku proxies
 
@@ -367,7 +367,7 @@ pnpm install
 pnpm build  # Builds common package first!
 ```
 
-**Environment**: Copy `backend/.env.example` → `backend/.env` and fill in required values. Required for dev: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`. For production (optional in dev): Datadog APM (`DD_*`) and Contact Form (`TURNSTILE_SECRET_KEY`, `CONTACT_WORKER_URL`, etc). Production: `API_HOST`, `WEB_ORIGINS`, `INTERNAL_HOSTS` (comma-separated hostnames for internal traffic, e.g. Vercel → Heroku direct).
+**Environment**: Copy `backend/.env.example` → `backend/.env` and fill in required values. Required for dev: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, Turnstile/contact vars. Production additionally requires `API_HOST`, `TRUST_PROXY_HOPS`, `WEB_ORIGINS` and optional `INTERNAL_HOSTS` (comma-separated hostnames for internal traffic, e.g. Vercel → Heroku direct), plus Datadog APM (`DD_*`).
 
 ### CI Pipeline (`.github/workflows/ci.yml`)
 

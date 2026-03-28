@@ -7,11 +7,51 @@ import type { CookieConsentValue, UIPreferences } from "common/auth";
 
 export const COOKIE_CONSENT_CHANGED_EVENT = "studywise-cookie-consent-changed";
 export type CookieConsentStatus = CookieConsentValue | null;
+const COOKIE_CONSENT_STORAGE_PREFIX = "studywise_cookie_consent";
 
 let gjesteSamtykke: CookieConsentStatus = null;
 
 function parseCookieConsent(value: unknown): CookieConsentStatus {
   return value === "accepted" || value === "declined" ? value : null;
+}
+
+function getAuthenticatedConsentStorageKey(userId: string): string {
+  return `${COOKIE_CONSENT_STORAGE_PREFIX}:${userId}`;
+}
+
+function readAuthenticatedConsentFromStorage(userId: string): CookieConsentStatus {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    return parseCookieConsent(
+      window.localStorage.getItem(getAuthenticatedConsentStorageKey(userId)),
+    );
+  } catch {
+    return null;
+  }
+}
+
+function writeAuthenticatedConsentToStorage(
+  userId: string,
+  consent: CookieConsentStatus,
+): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    const storageKey = getAuthenticatedConsentStorageKey(userId);
+    if (consent === null) {
+      window.localStorage.removeItem(storageKey);
+      return;
+    }
+
+    window.localStorage.setItem(storageKey, consent);
+  } catch {
+    // Ignorer lagringsfeil i browser-miljøer der localStorage er utilgjengelig.
+  }
 }
 
 function emitCookieConsentChange(value: CookieConsentStatus): void {
@@ -40,6 +80,8 @@ export function useCookieConsent() {
     useOppdaterUIPreferanser();
   const [guestConsent, setGuestConsent] =
     useState<CookieConsentStatus>(gjesteSamtykke);
+  const [cachedAuthenticatedConsent, setCachedAuthenticatedConsent] =
+    useState<CookieConsentStatus>(null);
   const [pendingConsent, setPendingConsent] =
     useState<CookieConsentStatus>(null);
 
@@ -69,13 +111,56 @@ export function useCookieConsent() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isLoaded || !userId) {
+      setCachedAuthenticatedConsent(null);
+      return;
+    }
+
+    setCachedAuthenticatedConsent(readAuthenticatedConsentFromStorage(userId));
+  }, [isLoaded, userId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !userId) {
+      return;
+    }
+
+    const storageKey = getAuthenticatedConsentStorageKey(userId);
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== storageKey) {
+        return;
+      }
+
+      setCachedAuthenticatedConsent(parseCookieConsent(event.newValue));
+    };
+
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, [userId]);
+
   const isAuthenticated = !!userId;
   const backendConsent = parseCookieConsent(
     me?.user?.uiPreferences?.cookieConsent,
   );
   const consent =
-    pendingConsent ?? (isAuthenticated ? backendConsent : guestConsent);
-  const isReady = isLoaded && (!isAuthenticated || !henterMeg);
+    pendingConsent ??
+    (isAuthenticated
+      ? (backendConsent ?? cachedAuthenticatedConsent)
+      : guestConsent);
+  const isReady =
+    isLoaded &&
+    (!isAuthenticated || cachedAuthenticatedConsent !== null || !henterMeg);
+
+  useEffect(() => {
+    if (!isAuthenticated || !userId || henterMeg) {
+      return;
+    }
+
+    writeAuthenticatedConsentToStorage(userId, backendConsent);
+    setCachedAuthenticatedConsent(backendConsent);
+  }, [backendConsent, henterMeg, isAuthenticated, userId]);
 
   const setConsent = useCallback(
     async (nextConsent: Exclude<CookieConsentStatus, null>) => {
@@ -96,12 +181,16 @@ export function useCookieConsent() {
       setPendingConsent(nextConsent);
       try {
         await oppdaterUIPreferanser(nextPrefs);
+        if (userId) {
+          writeAuthenticatedConsentToStorage(userId, nextConsent);
+          setCachedAuthenticatedConsent(nextConsent);
+        }
         emitCookieConsentChange(nextConsent);
       } finally {
         setPendingConsent(null);
       }
     },
-    [isAuthenticated, me?.user?.uiPreferences, oppdaterUIPreferanser],
+    [isAuthenticated, me?.user?.uiPreferences, oppdaterUIPreferanser, userId],
   );
 
   return {

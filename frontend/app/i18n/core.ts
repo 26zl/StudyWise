@@ -24,10 +24,6 @@ export function getPreferredLanguageFromAcceptLanguage(
   return /\ben\b/i.test(acceptLanguage) ? "en" : DEFAULT_LANGUAGE;
 }
 
-export function getMessages(language: Language): PartialMessages {
-  return messagesByLanguage[language];
-}
-
 function getNestedMessage(
   messages: PartialMessages,
   key: MessageKey,

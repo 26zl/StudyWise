@@ -20,13 +20,18 @@ interface TurnstileVerifyResponse {
 export interface TurnstileResult {
   success: boolean;
   errorCodes?: string[];
+  hostname?: string;
+  action?: string;
+  cdata?: string;
 }
 
 /**
  * Sjekker om Turnstile er konfigurert
  */
-export function isTurnstileConfigured(): boolean {
-  return !!process.env.TURNSTILE_SECRET_KEY?.trim();
+export function isTurnstileConfigured(
+  secretKey: string | undefined = process.env.TURNSTILE_SECRET_KEY,
+): boolean {
+  return !!secretKey?.trim();
 }
 
 /**
@@ -39,9 +44,8 @@ export function isTurnstileConfigured(): boolean {
 export async function verifyTurnstileToken(
   token: string,
   remoteIp?: string,
+  secretKey: string | undefined = process.env.TURNSTILE_SECRET_KEY,
 ): Promise<TurnstileResult> {
-  const secretKey = process.env.TURNSTILE_SECRET_KEY;
-
   if (!secretKey) {
     logger.warn("Turnstile secret key ikke konfigurert");
     return { success: false, errorCodes: ["missing-secret-key"] };
@@ -93,6 +97,9 @@ export async function verifyTurnstileToken(
     return {
       success: result.success,
       errorCodes: result["error-codes"],
+      hostname: result.hostname,
+      action: result.action,
+      cdata: result.cdata,
     };
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {

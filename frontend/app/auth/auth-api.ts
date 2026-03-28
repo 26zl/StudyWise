@@ -255,6 +255,38 @@ export function useOppdaterProfil() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: oppdaterProfil,
+    onMutate: async (updates) => {
+      await queryClient.cancelQueries({ queryKey: AUTH_ME_QUERY_KEY });
+      const previous = queryClient.getQueryData<MeResponse | undefined>(AUTH_ME_QUERY_KEY);
+
+      queryClient.setQueryData<MeResponse | undefined>(
+        AUTH_ME_QUERY_KEY,
+        (current) => {
+          if (!current) return current;
+
+          const nextUser = {
+            ...current.user,
+            ...(updates.firstName !== undefined
+              ? { firstName: updates.firstName || undefined }
+              : {}),
+            ...(updates.lastName !== undefined
+              ? { lastName: updates.lastName || undefined }
+              : {}),
+          };
+
+          return MeResponseSchema.parse({
+            user: nextUser,
+          });
+        },
+      );
+
+      return { previous };
+    },
+    onError: (_error, _updates, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(AUTH_ME_QUERY_KEY, context.previous);
+      }
+    },
     onSuccess: (data) => {
       // Oppdater cached /me-data med ny profilinfo
       queryClient.setQueryData<MeResponse | undefined>(
@@ -266,6 +298,9 @@ export function useOppdaterProfil() {
           });
         },
       );
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY });
     },
   });
 }
@@ -374,7 +409,7 @@ function useOppdaterBrukerPreferanser<TValue>(
 }
 
 // Hook for oppdatering av Canvas-kontekst preferanser
-export function useOppdaterPreferanser() {
+function useOppdaterPreferanser() {
   return useOppdaterBrukerPreferanser((canvasContextPreferences: CanvasContextPreferences) => ({
     canvasContextPreferences,
   }));

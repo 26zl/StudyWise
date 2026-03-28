@@ -40,10 +40,10 @@ interface Melding {
 
 /** Forslag som vises når chatten er tom. */
 const forslag = [
-    "Hva er de viktigste fristene mine denne uken?",
-    "Forklar konseptet fra siste forelesning",
-    "Hjelp meg planlegge studieøkten min",
-    "Vis meg kunngjøringer fra mine emner",
+    "Hvilke oppgaver og frister bør jeg prioritere denne uken?",
+    "Hvilke emner er jeg registrert på akkurat nå?",
+    "Oppsummer nye kunngjøringer og viktige endringer fra emnene mine",
+    "Forklar det viktigste fra siste modul eller forelesning i et av emnene mine",
 ];
 
 /** Serialisert melding (tidsstempel som ISO-streng) for lagring i modulstate. */

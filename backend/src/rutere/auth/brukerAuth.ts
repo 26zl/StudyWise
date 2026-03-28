@@ -47,9 +47,27 @@ import {
 } from "../../utils/auditLog.js";
 import { deleteAccountData } from "./kontoSlett.js";
 import type { CanvasApiError } from "../canvas/canvasErrors.js";
+import {
+    buildCanvasUserPayload,
+    isMongoDuplicateKeyError,
+} from "../../utils/canvasUserSync.js";
 
 const router = Router();
 const SHA256_HEX_REGEX = /^[a-f0-9]{64}$/i;
+
+type CanvasTokenConflictType = "token" | "account";
+
+class CanvasTokenConflictError extends Error {
+    conflictType: CanvasTokenConflictType;
+
+    constructor(conflictType: CanvasTokenConflictType) {
+        super(conflictType === "token"
+            ? "Dette Canvas-tokenet er allerede koblet til en annen bruker. Hvis dette er din konto, kan du bruke 'Gjenopprett tilkobling' for å flytte den hit."
+            : "Denne Canvas-kontoen er allerede koblet til en annen StudyWise-bruker. Hvis dette er din konto, kan du bruke 'Gjenopprett tilkobling' for å flytte den hit.");
+        this.name = "CanvasTokenConflictError";
+        this.conflictType = conflictType;
+    }
+}
 
 // Ikke cache auth-responser i browser eller mellomlagring
 router.use(noCache);
@@ -103,7 +121,7 @@ function handleCanvasVerificationError(res: Response, error: unknown) {
             case "server_error":
             case "unknown":
                 return sendError(res, "service_unavailable", {
-                    melding: "Kunne ikke kontakte den valgte Canvas-instansen. Sjekk at institusjonen/URL-en er riktig, eller prøv \"Annen Instructure-instans\" hvis skolen bruker en annen Canvas-adresse.",
+                    melding: "Kunne ikke kontakte den valgte Canvas-instansen. Sjekk at institusjonen er riktig og prøv igjen.",
                 });
             default:
                 break;
@@ -119,7 +137,7 @@ function handleCanvasVerificationError(res: Response, error: unknown) {
             lowerMessage.includes("getaddrinfo")
         ) {
             return sendError(res, "service_unavailable", {
-                melding: "Kunne ikke kontakte den valgte Canvas-instansen. Sjekk at institusjonen/URL-en er riktig, eller prøv \"Annen Instructure-instans\" hvis skolen bruker en annen Canvas-adresse.",
+                melding: "Kunne ikke kontakte den valgte Canvas-instansen. Sjekk at institusjonen er riktig og prøv igjen.",
             });
         }
         if (lowerMessage.includes("timeout")) {
@@ -135,6 +153,15 @@ function handleCanvasVerificationError(res: Response, error: unknown) {
         "Canvas-konto kunne ikke verifiseres",
         "Sjekk at du har valgt riktig Canvas-institusjon og at tokenet fortsatt er gyldig.",
     );
+}
+
+function sendCanvasConflictResponse(res: Response, conflictType: CanvasTokenConflictType) {
+    const error = new CanvasTokenConflictError(conflictType);
+    return res.status(409).json(CanvasTokenResponseSchema.parse({
+        feil: "Canvas-konto konflikt",
+        melding: error.message,
+        canvasKonflikt: true,
+    }));
 }
 
 /** Invalider Redis Canvas-cache for et (kryptert) token. Brukes ved token-sletting eller -bytte. */
@@ -214,12 +241,7 @@ router.post("/token", rateLimitToken, async (req, res) => {
         if (eksisterendeTokenBruker) {
             logger.warn({ userId, existingUserId: eksisterendeTokenBruker._id }, "Forsøk på å bruke eksisterende Canvas token");
             if (!forceRelink) {
-                return res.status(409).json(CanvasTokenResponseSchema.parse({
-                    feil: "Canvas-konto konflikt",
-                    melding: "Dette Canvas-tokenet er allerede koblet til en annen bruker. " +
-                        "Hvis dette er din konto, kan du bruke 'Gjenopprett tilkobling' for å flytte den hit.",
-                    canvasKonflikt: true,
-                }));
+                return sendCanvasConflictResponse(res, "token");
             }
         }
         // Sjekk hash først (timing-safe for SAMME bruker)
@@ -235,31 +257,26 @@ router.post("/token", rateLimitToken, async (req, res) => {
             }));
         }
         // Verifiser Canvas-konto eierskap FØR lagring
-        let canvasUserId: number | null = null;
+        let canvasProfile: Awaited<ReturnType<typeof fetchUserProfile>>["data"] | null = null;
         try {
-            const { data: canvasProfile } = await fetchUserProfile(cleanToken, canvasBaseUrl);
-            canvasUserId = canvasProfile.id;
+            const { data } = await fetchUserProfile(cleanToken, canvasBaseUrl);
+            canvasProfile = data;
 
             // Sjekk om denne Canvas-kontoen allerede er koblet til en ANNEN StudyWise-bruker
             const eksisterendeKobling = await CanvasUser.findOne({
-                canvasId: canvasUserId,
+                canvasId: canvasProfile.id,
                 canvasBaseUrl: canvasBaseUrl,
             });
 
             if (eksisterendeKobling && eksisterendeKobling.localUser.toString() !== userId.toString()) {
                 if (forceRelink) {
-                    logger.info({ userId, oldUserId: eksisterendeKobling.localUser, canvasId: canvasUserId, canvasBaseUrl: canvasBaseUrl },
+                    logger.info({ userId, oldUserId: eksisterendeKobling.localUser, canvasId: canvasProfile.id, canvasBaseUrl: canvasBaseUrl },
                         "Canvas-konto vil re-kobles til ny bruker (force relink) i transaksjon");
                 } else {
                     // Avvis uten force-flagg - dette er en sikkerhetsrisiko
-                    logger.warn({ userId, existingUserId: eksisterendeKobling.localUser, canvasId: canvasUserId, canvasBaseUrl: canvasBaseUrl },
+                    logger.warn({ userId, existingUserId: eksisterendeKobling.localUser, canvasId: canvasProfile.id, canvasBaseUrl: canvasBaseUrl },
                         "Canvas-konto tilhører allerede en annen bruker - avvist");
-                    return res.status(409).json(CanvasTokenResponseSchema.parse({
-                        feil: "Canvas-konto konflikt",
-                        melding: "Denne Canvas-kontoen er allerede koblet til en annen StudyWise-bruker. " +
-                            "Hvis dette er din konto, kan du bruke 'Gjenopprett tilkobling' for å flytte den hit.",
-                        canvasKonflikt: true, // Frontend kan bruke dette til å vise "Gjenopprett"-knapp
-                    }));
+                    return sendCanvasConflictResponse(res, "account");
                 }
             }
         } catch (canvasError) {
@@ -271,6 +288,9 @@ router.post("/token", rateLimitToken, async (req, res) => {
         const session = await mongoose.startSession();
         try {
             await session.withTransaction(async () => {
+                if (!canvasProfile) {
+                    throw new Error("Canvas-profil mangler etter verifisering");
+                }
                 const brukerTx = await User.findById(userId)
                     .select("+canvasApiToken +canvasTokenHash")
                     .session(session);
@@ -279,58 +299,70 @@ router.post("/token", rateLimitToken, async (req, res) => {
                 }
 
                 gammeltKryptertToken = brukerTx.canvasApiToken;
+                const brukerTxId = brukerTx._id.toString();
+                const disconnectedUserIds = new Set<string>();
 
-                if (forceRelink && canvasUserId !== null) {
-                    const freshKobling = await CanvasUser.findOne({
-                        canvasId: canvasUserId,
-                        canvasBaseUrl,
-                    }).session(session);
-
-                    if (freshKobling && freshKobling.localUser.toString() !== userId.toString()) {
-                        usersToInvalidate.add(freshKobling.localUser.toString());
-                        await User.updateOne(
-                            { _id: freshKobling.localUser },
+                const disconnectCanvasForUser = async (targetUserId: string) => {
+                    if (targetUserId === brukerTxId || disconnectedUserIds.has(targetUserId)) {
+                        return;
+                    }
+                    disconnectedUserIds.add(targetUserId);
+                    usersToInvalidate.add(targetUserId);
+                    await Promise.all([
+                        User.updateOne(
+                            { _id: targetUserId },
                             { $unset: { canvasApiToken: 1, canvasTokenHash: 1, canvasUser: 1, canvasBaseUrl: 1 } },
                             { session },
-                        );
+                        ),
+                        CanvasUser.deleteMany({ localUser: targetUserId }, { session }),
+                    ]);
+                };
 
-                        freshKobling.localUser = brukerTx._id;
-                        freshKobling.canvasBaseUrl = canvasBaseUrl;
-                        await freshKobling.save({ session });
-
-                        await User.updateOne(
-                            { _id: brukerTx._id },
-                            { $set: { canvasUser: freshKobling._id } },
-                            { session },
-                        );
+                const freshTokenBruker = await User.findOne({
+                    canvasBaseUrl,
+                    canvasTokenHash: nyTokenHash,
+                    _id: { $ne: brukerTx._id },
+                }).session(session);
+                if (freshTokenBruker) {
+                    if (!forceRelink) {
+                        throw new CanvasTokenConflictError("token");
                     }
+                    await disconnectCanvasForUser(freshTokenBruker._id.toString());
                 }
 
-                if (forceRelink && eksisterendeTokenBruker) {
-                    const freshTokenBruker = await User.findOne({
-                        canvasBaseUrl,
-                        canvasTokenHash: nyTokenHash,
-                        _id: { $ne: userId },
-                    }).session(session);
-
-                    if (freshTokenBruker) {
-                        usersToInvalidate.add(freshTokenBruker._id.toString());
-                        const oppdatert = await User.findByIdAndUpdate(
-                            freshTokenBruker._id,
-                            { $unset: { canvasApiToken: 1, canvasTokenHash: 1, canvasUser: 1, canvasBaseUrl: 1 } },
-                            { session },
-                        );
-                        if (!oppdatert) {
-                            logger.warn({ userId, targetUserId: freshTokenBruker._id }, "forceRelink: bruker ble slettet mellom sjekk og oppdatering");
-                        }
+                const freshKobling = await CanvasUser.findOne({
+                    canvasId: canvasProfile.id,
+                    canvasBaseUrl,
+                }).session(session);
+                if (freshKobling && freshKobling.localUser.toString() !== brukerTxId) {
+                    if (!forceRelink) {
+                        throw new CanvasTokenConflictError("account");
                     }
+                    await disconnectCanvasForUser(freshKobling.localUser.toString());
                 }
+
+                await CanvasUser.deleteMany({ localUser: brukerTx._id }, { session });
+                const nyCanvasBruker = new CanvasUser(
+                    buildCanvasUserPayload(canvasProfile, canvasBaseUrl, brukerTx._id),
+                );
+                await nyCanvasBruker.save({ session });
 
                 brukerTx.canvasApiToken = kryptertToken;
                 brukerTx.canvasTokenHash = nyTokenHash;
                 brukerTx.canvasBaseUrl = canvasBaseUrl;
+                brukerTx.canvasUser = nyCanvasBruker._id;
                 await brukerTx.save({ session });
             });
+        } catch (error) {
+            if (error instanceof CanvasTokenConflictError) {
+                logger.warn({ userId, conflictType: error.conflictType }, "Canvas-token lagring stoppet på konflikt i transaksjon");
+                return sendCanvasConflictResponse(res, error.conflictType);
+            }
+            if (isMongoDuplicateKeyError(error)) {
+                logger.warn({ userId, canvasBaseUrl }, "Canvas-token lagring traff unikhetskonflikt i transaksjon");
+                return sendCanvasConflictResponse(res, "account");
+            }
+            throw error;
         } finally {
             await session.endSession();
         }

@@ -12,10 +12,10 @@
  * Migrasjoner kjøres i rekkefølge og er idempotente (kjøres kun én gang).
  */
 
-import mongoose from "mongoose";
+import mongoose, { type AnyBulkWriteOperation } from "mongoose";
 import crypto from "crypto";
 import { logger } from "../utils/logger.js";
-import { sanitizeUsername } from "./models/User.js";
+import { sanitizeUsername, type IUser } from "./models/User.js";
 
 // Schema for å spore hvilke migrasjoner som er kjørt
 const migrationSchema = new mongoose.Schema({
@@ -297,6 +297,145 @@ const migrations: Migration[] = [
       logger.info(
         { updated, clearedDuplicates },
         "Migrasjon: brukernavn normalisert og duplikater ryddet",
+      );
+    },
+  },
+  {
+    id: "2026-03-28-enforce-canvas-user-one-to-one-and-shared-chat-uniqueness",
+    description: "Rydd CanvasUser 1:1-koblinger og deaktiver dupliserte aktive delingslenker",
+    up: async () => {
+      const { User } = await import("./models/User.js");
+      const { CanvasUser } = await import("./models/CanvasUser.js");
+      const { SharedChat } = await import("./models/SharedChat.js");
+
+      const users = await User.find({}, { _id: 1, canvasUser: 1 }).lean();
+      const existingUserIds = new Set(users.map((user) => String(user._id)));
+      const canvasUsers = await CanvasUser.find(
+        {},
+        {
+          _id: 1,
+          localUser: 1,
+          canvasBaseUrl: 1,
+          canvasId: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ).lean();
+
+      const getDocTimestamp = (doc: { updatedAt?: Date; createdAt?: Date; _id: unknown }) => {
+        return doc.updatedAt?.getTime() ?? doc.createdAt?.getTime() ?? 0;
+      };
+
+      const canvasUsersSorted = [...canvasUsers].sort((a, b) => {
+        const byTime = getDocTimestamp(b) - getDocTimestamp(a);
+        if (byTime !== 0) return byTime;
+        return String(b._id).localeCompare(String(a._id));
+      });
+
+      const keptCanvasUserByOwner = new Map<string, string>();
+      const keptCanvasUserByIdentity = new Map<string, string>();
+      const canvasUserDeleteIds: string[] = [];
+
+      for (const canvasUser of canvasUsersSorted) {
+        const canvasUserId = String(canvasUser._id);
+        const ownerId = String(canvasUser.localUser ?? "");
+        const identityKey = `${canvasUser.canvasBaseUrl}::${canvasUser.canvasId}`;
+
+        if (!ownerId || !existingUserIds.has(ownerId)) {
+          canvasUserDeleteIds.push(canvasUserId);
+          continue;
+        }
+
+        if (
+          keptCanvasUserByOwner.has(ownerId) ||
+          keptCanvasUserByIdentity.has(identityKey)
+        ) {
+          canvasUserDeleteIds.push(canvasUserId);
+          continue;
+        }
+
+        keptCanvasUserByOwner.set(ownerId, canvasUserId);
+        keptCanvasUserByIdentity.set(identityKey, canvasUserId);
+      }
+
+      if (canvasUserDeleteIds.length > 0) {
+        await CanvasUser.deleteMany({ _id: { $in: canvasUserDeleteIds } });
+      }
+
+      const userBulkOps: AnyBulkWriteOperation<IUser>[] = [];
+      for (const user of users) {
+        const ownerId = String(user._id);
+        const expectedCanvasUserId = keptCanvasUserByOwner.get(ownerId);
+        const currentCanvasUserId =
+          user.canvasUser != null ? String(user.canvasUser) : null;
+
+        if (expectedCanvasUserId) {
+          if (currentCanvasUserId !== expectedCanvasUserId) {
+            userBulkOps.push({
+              updateOne: {
+                filter: { _id: user._id },
+                update: {
+                  $set: {
+                    canvasUser: new mongoose.Types.ObjectId(expectedCanvasUserId),
+                  },
+                },
+              },
+            });
+          }
+          continue;
+        }
+
+        if (currentCanvasUserId) {
+          userBulkOps.push({
+            updateOne: {
+              filter: { _id: user._id },
+              update: { $unset: { canvasUser: 1 } },
+            },
+          });
+        }
+      }
+
+      if (userBulkOps.length > 0) {
+        await User.bulkWrite(userBulkOps, { ordered: false });
+      }
+
+      const activeSharedChats = await SharedChat.find(
+        { isActive: true },
+        { _id: 1, ownerId: 1, chatId: 1, createdAt: 1, updatedAt: 1 },
+      ).lean();
+
+      const activeSharedChatsSorted = [...activeSharedChats].sort((a, b) => {
+        const byTime = getDocTimestamp(b) - getDocTimestamp(a);
+        if (byTime !== 0) return byTime;
+        return String(b._id).localeCompare(String(a._id));
+      });
+
+      const seenActiveShares = new Set<string>();
+      const sharedChatDeactivateIds: string[] = [];
+
+      for (const sharedChat of activeSharedChatsSorted) {
+        const key = `${sharedChat.ownerId}::${sharedChat.chatId}`;
+        if (seenActiveShares.has(key)) {
+          sharedChatDeactivateIds.push(String(sharedChat._id));
+          continue;
+        }
+        seenActiveShares.add(key);
+      }
+
+      if (sharedChatDeactivateIds.length > 0) {
+        await SharedChat.updateMany(
+          { _id: { $in: sharedChatDeactivateIds } },
+          { $set: { isActive: false } },
+        );
+      }
+
+      logger.info(
+        {
+          deletedCanvasUsers: canvasUserDeleteIds.length,
+          rewiredUsers: userBulkOps.length,
+          deactivatedSharedChats: sharedChatDeactivateIds.length,
+        },
+        "Migrasjon: CanvasUser/SharedChat-relasjoner ryddet",
       );
     },
   },

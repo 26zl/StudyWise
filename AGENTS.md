@@ -141,7 +141,7 @@ Frontend kaller aldri eksterne APIer direkte. Alle forespørsler til `/api/*` og
 
 Forespørsler autentiseres gjennom middleware i `backend/src/middleware/`:
 
-1. **`requireAuth`** (`auth.ts`) — Verifiserer Clerk Bearer-token (fra `Authorization`-header eller `x-clerk-auth-token` proxy-header), finner/oppretter MongoDB `User` via `clerkId`, setter `req.user` og `req.actorRole`
+1. **`requireAuth`** (`auth.ts`) — Verifiserer Clerk Bearer-token fra `Authorization`-header, finner/oppretter MongoDB `User` via `clerkId`, setter `req.user` og `req.actorRole`
 2. **`knyttCanvasToken`** (`auth.ts`) — Knytter dekryptert Canvas API-token og base URL til `req.canvasToken` / `req.canvasBaseUrl`. Bruk `knyttCanvasTokenValgfritt` for ruter som fungerer med eller uten Canvas
 3. **`requireRole`** (`require-role.ts`) — RBAC-guard; sjekker `req.actorRole` mot tillatte roller
 
@@ -225,7 +225,7 @@ Backend tar imot filopplasting via `multer` og prosesserer med:
 - **Relative URLer** – frontend bruker `/api/...`, Next.js rewriter til backend
 - **Konfigurasjon**: Ikke endre tsconfig/eslint/next.config uten å spørre
 - **Norsk naming** – ruter, komponenter og variabler på norsk; filnavn på engelsk
-- **Host-validering** – I produksjon styrer `API_HOST` env-variabel hvilket hostname som er tillatt (f.eks. `api.studwize.page`). Direkte tilgang via `herokuapp.com` returnerer 403. `/health` er unntatt.
+- **Host-validering** – I produksjon er `API_HOST` påkrevd og styrer hvilket hostname som er tillatt (f.eks. `api.studwize.page`). Direkte tilgang via `herokuapp.com` returnerer 403. `/health` er unntatt. `TRUST_PROXY_HOPS` må settes riktig for faktisk proxy-kjede slik at klient-IP og rate limiting blir korrekt.
 - **CORS pre-check** – Origin-validering skjer før `cors()`-middleware for å unngå generiske 500-feil fra ugyldige origins
 - **Trust proxy** – Satt til `1` i Express for korrekt IP-håndtering bak Cloudflare/Heroku-proxyer
 - **Rate limiting** – bruk eksisterende `rateLimitKi`-middleware for KI-endepunkter; for andre sensitive endepunkter: `rate-limiter-flexible` (se `backend/src/middleware/rate-limit.ts`)

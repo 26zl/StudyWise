@@ -6,6 +6,7 @@
 import mongoose from "mongoose";
 import { User } from "../../database/models/User.js";
 import { ChatHistory } from "../../database/models/ChatHistory.js";
+import { SharedChat } from "../../database/models/SharedChat.js";
 import { TaskBreakdown } from "../../database/models/TaskBreakdown.js";
 import { CanvasUser } from "../../database/models/CanvasUser.js";
 import { Arbeidsplan } from "../../database/models/arbeidsplan.js";
@@ -17,6 +18,7 @@ export interface AccountDeletionResult {
   deleted: {
     user: boolean;
     chatHistory: number;
+    sharedChat: number;
     taskBreakdown: number;
     contentEmbedding: number;
     canvasUser: number;
@@ -34,6 +36,7 @@ export async function deleteAccountData(userId: string): Promise<AccountDeletion
   const result: AccountDeletionResult["deleted"] = {
     user: false,
     chatHistory: 0,
+    sharedChat: 0,
     taskBreakdown: 0,
     contentEmbedding: 0,
     canvasUser: 0,
@@ -57,14 +60,16 @@ export async function deleteAccountData(userId: string): Promise<AccountDeletion
       // MERK: invalidateUserCanvasCache (Pinecone/Redis) kjørte allerede utenfor denne transaksjonen.
       // Hvis transaksjonen feiler, er innholdsdata allerede slettet fra Pinecone/MongoDB.
       // Dette er akseptert risiko siden Pinecone ikke støtter distribuerte transaksjoner.
-      const [chatRes, taskRes, canvasRes, arbeidsplanRes] = await Promise.all([
+      const [chatRes, sharedChatRes, taskRes, canvasRes, arbeidsplanRes] = await Promise.all([
         ChatHistory.deleteMany({ user: id }, { session }),
+        SharedChat.deleteMany({ ownerId: id }, { session }),
         TaskBreakdown.deleteMany({ userId: id }, { session }),
         CanvasUser.deleteMany({ localUser: id }, { session }),
         Arbeidsplan.deleteMany({ userId }, { session }),
       ]);
 
       result.chatHistory = chatRes.deletedCount ?? 0;
+      result.sharedChat = sharedChatRes.deletedCount ?? 0;
       result.taskBreakdown = taskRes.deletedCount ?? 0;
       result.canvasUser = canvasRes.deletedCount ?? 0;
       result.arbeidsplan = arbeidsplanRes.deletedCount ?? 0;
@@ -83,10 +88,15 @@ export async function deleteAccountData(userId: string): Promise<AccountDeletion
             canvasTokenHash: 1,
             canvasUser: 1,
             username: 1,
+            usernameNormalized: 1,
             firstName: 1,
             lastName: 1,
+            clerkProfileSyncedAt: 1,
+            authProvider: 1,
             canvasContextPreferences: 1,
             varslerState: 1,
+            manuellInnleveringState: 1,
+            uiPreferences: 1,
           },
         },
         { session },

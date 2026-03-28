@@ -53,11 +53,11 @@ export const ChatSaveSchema = z.object({
   pinned: z.boolean().optional(),
 });
 
-export const ChatShareCreateSchema = z.object({
-  shareMode: ChatShareTypeSchema.default("full_chat"),
-  accessType: ChatShareAccessTypeSchema.default("public"),
-  expiresAt: z.coerce.date().nullable().optional(),
-});
+export const ChatShareCreateSchema = z
+  .object({
+    shareMode: ChatShareTypeSchema.default("full_chat"),
+  })
+  .strict();
 
 // Felles schema for en enkelt chat-samtale (delt mellom save og historikk)
 const ChatEntrySchema = z.object({

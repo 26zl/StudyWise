@@ -5,6 +5,26 @@
 
 import { z } from "zod";
 
+export const KONTAKT_ALLOWED_ATTACHMENT_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const;
+
+export const KONTAKT_MAX_ATTACHMENTS = 3;
+export const KONTAKT_MAX_ATTACHMENT_SIZE_BYTES = 5 * 1024 * 1024;
+
+export const KontaktAttachmentSchema = z.object({
+  filnavn: z.string().trim().min(1).max(255),
+  mimeType: z.enum(KONTAKT_ALLOWED_ATTACHMENT_TYPES),
+  størrelse: z
+    .number()
+    .int()
+    .positive()
+    .max(KONTAKT_MAX_ATTACHMENT_SIZE_BYTES),
+  innholdBase64: z.string().trim().min(1),
+});
+
 /**
  * Kontaktforespørsel-schema for POST /api/kontakt
  */
@@ -45,6 +65,7 @@ export const KontaktRequestSchema = z.object({
 });
 
 export type KontaktRequest = z.infer<typeof KontaktRequestSchema>;
+export type KontaktAttachment = z.infer<typeof KontaktAttachmentSchema>;
 
 /**
  * Kontaktrespons-schema

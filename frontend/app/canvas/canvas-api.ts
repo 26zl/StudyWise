@@ -236,7 +236,7 @@ function useCanvasEnabled(enabled: boolean): boolean {
 }
 
 // React Query hooks
-// Hent innlogget bruker (og trigger sync i backend)
+// Hent innlogget Canvas-bruker og hold lokal cache/profilinfo synkronisert i backend
 export function useCanvasUser(enabled = true) {
   const isEnabled = useCanvasEnabled(enabled);
   return useQuery({

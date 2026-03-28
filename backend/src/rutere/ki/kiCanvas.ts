@@ -149,6 +149,61 @@ export async function byggLettCanvasKontekst(canvasToken: string, baseUrl?: stri
 }
 
 /**
+ * Autoritativ kursoversikt direkte fra Canvas.
+ * Brukes når studenten eksplisitt spør hvilke emner/kurs de er registrert på.
+ * Går direkte mot Canvas API for å unngå at svaret påvirkes av lagrede filchunks eller delvis sync-cache.
+ */
+export async function byggKursoversiktKontekst(canvasToken: string, baseUrl?: string): Promise<string> {
+  try {
+    const { data: emner } = await fetchCoursesForKI(canvasToken, baseUrl);
+    const aktiveEmner = emner
+      .filter((emne) => !emne.__completed)
+      .sort((a, b) => `${a.course_code ?? ""} ${a.name}`.localeCompare(`${b.course_code ?? ""} ${b.name}`, "nb"));
+    const avsluttedeEmner = emner
+      .filter((emne) => emne.__completed)
+      .sort((a, b) => `${a.course_code ?? ""} ${a.name}`.localeCompare(`${b.course_code ?? ""} ${b.name}`, "nb"));
+
+    const deler: string[] = ["[CANVAS-DATA START] (kursoversikt)"];
+    deler.push(`\nDAGENS DATO: ${dagensDatoStreng(true)}`);
+
+    if (aktiveEmner.length === 0 && avsluttedeEmner.length === 0) {
+      deler.push("\nINGEN EMNER FUNNET i Canvas for denne brukeren.");
+      deler.push("[CANVAS-DATA SLUTT]");
+      return deler.join("\n");
+    }
+
+    if (aktiveEmner.length > 0) {
+      deler.push(`\nAKTIVE EMNER (${aktiveEmner.length}):`);
+      for (const emne of aktiveEmner) {
+        deler.push(`- ${emne.name}${emne.course_code ? ` (${emne.course_code})` : ""}`);
+      }
+    }
+
+    if (avsluttedeEmner.length > 0) {
+      deler.push(`\nAVSLUTTEDE EMNER (${avsluttedeEmner.length}):`);
+      for (const emne of avsluttedeEmner) {
+        deler.push(`- ${emne.name}${emne.course_code ? ` (${emne.course_code})` : ""}`);
+      }
+    }
+
+    deler.push("\n---");
+    deler.push("Dette er en direkte kursoversikt fra Canvas. Den viser registrerte emner, ikke detaljinnhold fra filer eller moduler.");
+    deler.push("[CANVAS-DATA SLUTT]");
+
+    const kontekst = deler.join("\n");
+    logger.info(
+      { emnerCount: emner.length, aktive: aktiveEmner.length, avsluttede: avsluttedeEmner.length, contextLength: kontekst.length },
+      "Autoritativ kursoversikt bygget fra Canvas API",
+    );
+
+    return kontekst;
+  } catch (error) {
+    logger.error({ err: error }, "Feil ved bygging av kursoversikt fra Canvas");
+    return "[CANVAS STATUS: Kunne ikke hente kursoversikt fra Canvas. Prøv igjen.]";
+  }
+}
+
+/**
  * Målrettet Canvas-kontekst: henter kun innhold fra det emnet/modulen brukeren spør om.
  * Reduserer ~48 000 tokens → ~5 000–10 000 tokens for modulspesifikke spørsmål.
  */

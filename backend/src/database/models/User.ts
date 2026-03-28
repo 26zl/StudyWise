@@ -213,5 +213,13 @@ UserSchema.index(
         name: "canvas_base_url_canvas_token_hash_unique",
     }
 );
+UserSchema.index(
+    { canvasUser: 1 },
+    {
+        unique: true,
+        sparse: true,
+        name: "canvas_user_unique",
+    },
+);
 
 export const User = mongoose.model<IUser>('User', UserSchema);

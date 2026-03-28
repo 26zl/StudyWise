@@ -432,7 +432,7 @@ export function Sidebar({
                                                         }}
                                                         className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
                                                     >
-                                                        Fjern bookmark
+                                                        Fjern festet samtale
                                                     </button>
                                                     <button
                                                         type="button"
@@ -560,7 +560,7 @@ export function Sidebar({
                                                         }}
                                                         className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
                                                     >
-                                                        Legg til bookmark
+                                                        Fest samtale
                                                     </button>
                                                     <button
                                                         type="button"

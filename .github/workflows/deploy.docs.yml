@@ -5,6 +5,9 @@ on:
     branches: [main, master]
     paths:
       - 'docs/**'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
   workflow_dispatch:
 
 env:

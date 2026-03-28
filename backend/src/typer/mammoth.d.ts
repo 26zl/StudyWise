@@ -1,9 +1,8 @@
 /*
- * Type definisjoner for eksterne biblioteker uten egne typer.
- * unpdf-typer er samlet i typer/unpdf.d.ts.
+ * Supplerende typings for mammoth.
+ * Pakken eksponerer ikke nok typer til vårt bruk i ESM-oppsettet.
  */
 
-// Typings for mammoth
 declare module "mammoth" {
   export interface MammothResult {
     value: string;
@@ -24,8 +23,12 @@ declare module "mammoth" {
   ) => Promise<{ src: string }> | { src: string };
 
   export interface MammothImages {
-    inline(handler: (element: MammothImageElement) => Promise<{ src: string }> | { src: string }): ImageConverter;
-    imgElement(handler: (element: MammothImageElement) => Promise<{ src: string }> | { src: string }): ImageConverter;
+    inline(
+      handler: (element: MammothImageElement) => Promise<{ src: string }> | { src: string },
+    ): ImageConverter;
+    imgElement(
+      handler: (element: MammothImageElement) => Promise<{ src: string }> | { src: string },
+    ): ImageConverter;
     dataUri: ImageConverter;
   }
 
@@ -35,7 +38,10 @@ declare module "mammoth" {
   }
 
   export function extractRawText(input: { buffer: Buffer }): Promise<MammothResult>;
-  export function convertToHtml(input: { buffer: Buffer }, options?: ConvertOptions): Promise<MammothResult>;
+  export function convertToHtml(
+    input: { buffer: Buffer },
+    options?: ConvertOptions,
+  ): Promise<MammothResult>;
 
   export const images: MammothImages;
 
@@ -45,21 +51,4 @@ declare module "mammoth" {
     images: MammothImages;
   };
   export default mammothDefault;
-}
-// Typings for tesseract.js
-declare module "tesseract.js" {
-  interface RecognizeResult {
-    data: { text: string; confidence: number };
-  }
-  interface LoggerInfo {
-    status?: string;
-    progress?: number;
-  }
-  export function recognize(
-    image: Buffer | string,
-    langs: string,
-    options?: { logger?: (info: LoggerInfo) => void }
-  ): Promise<RecognizeResult>;
-  const tesseractDefault: { recognize: typeof recognize };
-  export default tesseractDefault;
 }

@@ -3,9 +3,8 @@ import {
   getPreferredLanguageFromAcceptLanguage,
   isLanguage,
   LANGUAGE_COOKIE_KEY,
-  translate,
 } from "./core";
-import type { Language, MessageKey, TranslationValues } from "./types";
+import type { Language } from "./types";
 
 export async function resolveRequestLanguage(): Promise<Language> {
   const [cookieStore, headerStore] = await Promise.all([cookies(), headers()]);
@@ -16,12 +15,4 @@ export async function resolveRequestLanguage(): Promise<Language> {
   }
 
   return getPreferredLanguageFromAcceptLanguage(headerStore.get("accept-language"));
-}
-
-export async function translateServer(
-  key: MessageKey,
-  values?: TranslationValues,
-): Promise<string> {
-  const language = await resolveRequestLanguage();
-  return translate(language, key, values);
 }

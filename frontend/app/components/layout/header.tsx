@@ -34,7 +34,7 @@ function getHeaderLabels(language: Language) {
       commonNavigation: [{ href: "/", label: "Home" }] satisfies NavigationItem[],
       signedInNavigation: [
         { href: "/dashboard", label: "Dashboard" },
-        { href: "/profil", label: "Profile", icon: UserCircle2 },
+        { href: "/profil", label: "Account", icon: UserCircle2 },
       ] satisfies NavigationItem[],
       authActions: [
         { kind: "sign-in", label: "Sign in" },
@@ -55,7 +55,7 @@ function getHeaderLabels(language: Language) {
     commonNavigation: [{ href: "/", label: "Hjem" }] satisfies NavigationItem[],
     signedInNavigation: [
       { href: "/dashboard", label: "Dashboard" },
-      { href: "/profil", label: "Profil", icon: UserCircle2 },
+      { href: "/profil", label: "Konto", icon: UserCircle2 },
     ] satisfies NavigationItem[],
     authActions: [
       { kind: "sign-in", label: "Logg inn" },

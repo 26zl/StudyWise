@@ -23,7 +23,14 @@ import { SUPPORTED_MODELS, DEFAULT_MODEL, resolveModel } from "./aiModels.js";
 import { STUDYWISE_SYSTEM_PROMPT } from "./systemPrompt.js";
 import { chatCompletion } from "./aiClient.js";
 import { handleAIError, checkAIClientUnavailable } from "./handleAIError.js";
-import { loadCanvasContext, ensureCanvasSync, ContextResultSchema, type IntentType, type ContextResult } from "../../services/context-loader.service.js";
+import {
+  loadCanvasContext,
+  ensureCanvasSync,
+  resolveTargetAgainstKnownCourses,
+  ContextResultSchema,
+  type IntentType,
+  type ContextResult,
+} from "../../services/context-loader.service.js";
 import { isSyncing, waitForSync } from "../../services/canvas-sync.service.js";
 import { trimToTokenLimit, countTokens } from "../../utils/tokenCounter.js";
 import { knyttCanvasTokenValgfritt } from "../../middleware/auth.js";
@@ -52,7 +59,7 @@ const CANVAS_FULL_KEYWORDS = [
   // Innholdstyper
   "pdf", "fil", "last ned", "leksjon",
   "modul", "kompendium", "forelesning", "pensum", "kapittel",
-  "slide", "dokument", "kunngjøring", "kunngjøringer", "kunngjøringene", "sideinnhold",
+  "slide", "dokument", "sideinnhold",
   // Faglige spørsmål — indikerer at brukeren spør om innhold, ikke struktur
   "hvordan fungerer", "hvordan virker", "hva skjer med",
   "definer", "definisjon", "konsept", "teori",
@@ -87,6 +94,19 @@ const CANVAS_LIGHT_KEYWORDS = [
   // Tidsspørsmål
   "hva har jeg", "neste frist", "denne uken", "denne uka",
   "hva skjer", "kommende", "kalender", "timeplan", "når er",
+];
+
+/** Strukturelle Canvas-spørsmål som skal behandles som metadata/oppslag, ikke innholdssøk. */
+const STRUCTURED_CANVAS_QUERY_PATTERNS = [
+  /\b(?:hvilke|alle|mine|oversikt|liste|list opp|vis)\b.*\b(?:emner|fag|kurs)\b/i,
+  /\b(?:emner|fag|kurs)\b.*\b(?:registrert|påmeldt|meldt opp)\b/i,
+  /\b(?:registrert|påmeldt|meldt opp)\b.*\b(?:emner|fag|kurs)\b/i,
+  /\b(?:neste|kommende)\b.*\b(?:frist|frister|oppgave|oppgaver|innlevering|innleveringer|hendelse|hendelser|kunngjøring(?:er|ene)?)\b/i,
+  /\b(?:hvilke|vis|liste|oversikt)\b.*\b(?:oppgaver|innleveringer|frister|kunngjøringer|hendelser)\b/i,
+  /\boppsummer\b.*\b(?:kunngjøring(?:er|ene)?|beskjed(?:er)?|endring(?:er)?)\b/i,
+  /\b(?:kunngjøring(?:er|ene)?|beskjed(?:er)?|endring(?:er)?)\b.*\boppsummer\b/i,
+  /\b(?:kalender|timeplan|todo|gjøremål)\b/i,
+  /\bnår er\b.*\b(?:frist|frister|eksamen|innlevering|oppgave)\b/i,
 ];
 
 /** Vanlige skrivefeil/forkortelser og deres normaliserte form */
@@ -144,12 +164,56 @@ function normaliserSkrivefeil(text: string): string {
   return result;
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function includesWholeKeyword(text: string, keyword: string): boolean {
+  const escaped = escapeRegex(keyword);
+  let pattern: RegExp;
+  if (keyword.includes(" ")) {
+    // eslint-disable-next-line security/detect-non-literal-regexp -- keyword kommer fra hardkodet liste over kursnøkkelord
+    pattern = new RegExp(`(^|\\s)${escaped}(\\s|$)`, "i");
+  } else {
+    // eslint-disable-next-line security/detect-non-literal-regexp -- keyword kommer fra hardkodet liste over kursnøkkelord
+    pattern = new RegExp(`\\b${escaped}\\b`, "i");
+  }
+  return pattern.test(text);
+}
+
+function extractModuleHint(message: string): string | null {
+  const lower = normaliserSkrivefeil(message);
+
+  const numberedMatch = lower.match(
+    /\b(?:modul|leksjon|lesson|module|forelesning|uke|week|kapittel)\s+\d{1,2}[a-z]?\b/i,
+  );
+  if (numberedMatch) {
+    return numberedMatch[0].toLowerCase();
+  }
+
+  const quotedMatch = lower.match(
+    /\b(?:modul|leksjon|lesson|module|forelesning|kapittel)\s+["'«»]([^"'«»]{3,80})["'«»]/i,
+  );
+  if (quotedMatch?.[1]) {
+    return quotedMatch[1].trim().toLowerCase();
+  }
+
+  return null;
+}
+
 function detectIntent(messages: Array<{ role: string; content: string }>): IntentType {
   // Sjekk de siste bruker-meldingene (maks 3) for nøkkelord
   const recentUserMessages = messages
     .filter((m) => m.role === "user")
     .slice(-3)
     .map((m) => normaliserSkrivefeil(m.content));
+
+  // Prioritet 0: Rene struktur-/oppslagsspørsmål skal ikke routes til innholdssøk
+  for (const msg of recentUserMessages) {
+    if (STRUCTURED_CANVAS_QUERY_PATTERNS.some((pattern) => pattern.test(msg))) {
+      return "canvas_light";
+    }
+  }
 
   // Prioritet 1: Eksplisitte innholds-nøkkelord → canvas_full
   for (const msg of recentUserMessages) {
@@ -180,9 +244,22 @@ function isLikelyFollowUpQuestion(message: string): boolean {
     "samme med",
     "hva så med",
     "og",
+    "utdyp",
+    "forklar mer",
+    "si mer",
+    "ta også",
+    "det samme med",
   ];
 
   return followUpPrefixes.some((prefix) => lower.startsWith(prefix));
+}
+
+function refersToCurrentCourseContext(message: string): boolean {
+  const lower = normaliserSkrivefeil(message).trim();
+  if (!lower) return false;
+
+  return /\b(?:samme|dette|det)\s+(?:emnet|faget|kurset|modulen|forelesningen|leksjonen|filen)\b/i.test(lower)
+    || /\bi\s+(?:det|dette|samme)\s+(?:emnet|faget|kurset)\b/i.test(lower);
 }
 
 /**
@@ -262,11 +339,17 @@ const CHUNK_STOPWORDS = new Set([
   "beskriv", "beskrive", "beskrivelse",
   "dekker", "dekke", "handler", "handle", "menes", "mener", "betyr", "betydning",
   "alt", "alle", "noe", "noen", "denne", "dette", "disse", "sin", "sitt", "sine",
+  "siste", "forrige", "neste", "første", "viktig", "viktige", "viktigste",
+  "uke", "uken", "ukes", "dag", "dagen", "dagens", "idag", "nå", "akkurat",
+  "eller", "bør", "burde", "prioritere", "prioritert",
   // Generiske kontekst-ord (ikke fagspesifikke)
   "emnet", "emne", "faget", "fag", "kurset", "kurs", "temaet", "tema",
+  "emner", "emnene", "fagene", "kursene", "oversikt", "liste", "list",
   "innholdet", "innhold", "stoffet", "stoff", "materialet", "materiale",
   "pensum", "leksjonen", "leksjon", "forelesningen", "forelesning",
   "modulen", "modul", "kapitlet", "kapittel", "dokumentet", "dokument",
+  "hent", "hente", "registrert", "registrere", "registrering",
+  "mine", "min", "mitt", "vis", "vise",
   // Engelske stoppord (ofte brukt i norske setninger)
   "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
   "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
@@ -309,12 +392,8 @@ function extractChunkHint(message: string): string | null {
 function extractQueryTarget(message: string): TargetedQuery {
   const lower = normaliserSkrivefeil(message);
 
-  // Ekstraher modul/leksjon-nummer eller -navn
-  const moduleMatch = lower.match(
-    /(?:modul|leksjon|lesson|module|uke|week)\s*(\d+|[a-zæøå]+)/i,
-  );
-  const rawModuleHint = moduleMatch ? moduleMatch[0] : null;
-  // Filtrer bort generiske ord (f.eks. "leksjonen") som ikke identifiserer en bestemt modul
+  // Ekstraher kun spesifikke modulhint (nummererte eller eksplisitt navngitte)
+  const rawModuleHint = extractModuleHint(message);
   const moduleHint = rawModuleHint && !GENERIC_MODULE_WORDS.has(rawModuleHint) ? rawModuleHint : null;
 
   // Vanlige emnefragmenter som kan dukke opp i Canvas-emnenavn
@@ -405,7 +484,7 @@ function extractQueryTarget(message: string): TargetedQuery {
 
   // Fallback til enkle nøkkelord
   if (!courseHint) {
-    courseHint = courseKeywords.find((kw) => cleanedForCourse.includes(kw)) ?? null;
+    courseHint = courseKeywords.find((kw) => includesWholeKeyword(cleanedForCourse, kw)) ?? null;
   }
 
   // Ekstraher filnavn-hints (f.eks. "kapittel3.pdf", "2_Analyse_av_tema.pdf")
@@ -630,7 +709,9 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
 
       // Ekstraher eventuelle emne/modul-hint fra siste brukermelding
       const lastUserMsg = messages.filter((m: { role: string }) => m.role === "user").at(-1)?.content ?? "";
-      const target = extractQueryTarget(lastUserMsg);
+      let target = extractQueryTarget(lastUserMsg);
+      target = await resolveTargetAgainstKnownCourses(req.user.id, target, lastUserMsg);
+      const isLikelyFollowUp = isLikelyFollowUpQuestion(lastUserMsg);
 
       // ─── Session-locked courseHint ───
       // Bruker Redis for å låse courseHint til første gyldige ekstraksjon i sesjonen.
@@ -640,6 +721,10 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
 
       const lockedCourseHint = await getCache(courseHintLockKey);
       const hasOverride = hasExplicitCourseOverride(lastUserMsg);
+      const shouldReuseLockedCourseHint = isLikelyFollowUp
+        || refersToCurrentCourseContext(lastUserMsg)
+        || !!target.moduleHint
+        || !!target.fileHint;
 
       if (hasOverride && target.courseHint) {
         // Bruker vil eksplisitt bytte kurs — oppdater låsen
@@ -652,11 +737,18 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
         // Bruk eksisterende låst courseHint kun når meldingen ikke gir ny eksplisitt courseHint.
         // Dette hindrer at sesjonslås overstyrer ny emnekode som 6105N.
         if (!target.courseHint) {
-          target.courseHint = lockedCourseHint;
-          logger.info(
-            { courseHint: target.courseHint, fromLock: true },
-            "courseHint arvet fra sesjonslås",
-          );
+          if (!shouldReuseLockedCourseHint) {
+            logger.info(
+              { lockedCourseHint, intent, messagePreview: lastUserMsg.substring(0, 100) },
+              "courseHint fra sesjonslås ignorert for nytt, bredt spørsmål",
+            );
+          } else {
+            target.courseHint = lockedCourseHint;
+            logger.info(
+              { courseHint: target.courseHint, fromLock: true },
+              "courseHint arvet fra sesjonslås",
+            );
+          }
         } else if (target.courseHint !== lockedCourseHint && hasOverride) {
           await setCache(courseHintLockKey, target.courseHint, SESSION_COURSEHINT_TTL);
           logger.info(
@@ -679,6 +771,10 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
         );
       }
       // Hvis ingen courseHint finnes og ingen lås — fortsett uten (bredt søk)
+
+      if (target.courseHint && target.courseIdHint == null) {
+        target = await resolveTargetAgainstKnownCourses(req.user.id, target, lastUserMsg);
+      }
 
       logger.info(
         { intent, target, messagePreview: lastUserMsg.substring(0, 100) },

@@ -23,21 +23,8 @@ const hentBearerToken = (req: Request): string | null => {
   return token;
 };
 
-const hentClerkProxyToken = (req: Request): string | null => {
-  const header = req.headers["x-clerk-auth-token"];
-  if (typeof header === "string") {
-    const token = header.trim();
-    return token || null;
-  }
-  if (Array.isArray(header)) {
-    const token = header.find((value) => typeof value === "string" && value.trim());
-    return token?.trim() || null;
-  }
-  return null;
-};
-
 const hentAuthToken = (req: Request): string | null => {
-  return hentBearerToken(req) ?? hentClerkProxyToken(req);
+  return hentBearerToken(req);
 };
 
 const DEFAULT_ROLE: UserRole = "user";

@@ -214,7 +214,7 @@ export function DashboardView() {
                             canvasBaseUrl={megQuery.data?.user?.canvasBaseUrl ?? undefined}
                             fornavn={megQuery.data?.user?.firstName ?? undefined}
                             etternavn={megQuery.data?.user?.lastName ?? undefined}
-                            authProvider={megQuery.data?.user?.authProvider ?? undefined}
+                            username={megQuery.data?.user?.username ?? undefined}
                         />
                     </Suspense>
                 </SectionErrorBoundary>

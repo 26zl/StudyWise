@@ -11,6 +11,9 @@ import { getConfiguredWebOrigins, getInvalidConfiguredWebOrigins } from "./webOr
 interface EnvConfig {
   PORT: string;
   WEB_ORIGINS: string;
+  API_HOST?: string;
+  INTERNAL_HOSTS?: string;
+  TRUST_PROXY_HOPS?: string;
   MONGO_URI: string;
   REDIS_URL: string;
   CLERK_SECRET_KEY: string;
@@ -37,6 +40,29 @@ const requiredEnvVars: (keyof EnvConfig)[] = [
   "PINECONE_INDEX_NAME",
   "COHERE_API_KEY",
 ];
+
+function isValidHostname(value: string): boolean {
+  if (value.length < 1 || value.length > 253) {
+    return false;
+  }
+
+  const labels = value.split(".");
+  if (labels.length < 2) {
+    return false;
+  }
+
+  return labels.every((label) => {
+    if (label.length < 1 || label.length > 63) {
+      return false;
+    }
+
+    if (label.startsWith("-") || label.endsWith("-")) {
+      return false;
+    }
+
+    return /^[a-z0-9-]+$/i.test(label);
+  });
+}
 
 /**
  * Validerer at alle påkrevde miljøvariabler er satt.
@@ -148,6 +174,36 @@ export const validateEnv = (): void => {
     );
   }
 
+  const apiHost = process.env.API_HOST?.trim().toLowerCase();
+  if (nodeEnv === "production" && !apiHost) {
+    manglende.push("API_HOST (påkrevd i produksjon for å blokkere direkte tilgang til backend-origin)");
+  } else if (apiHost && !isValidHostname(apiHost)) {
+    manglende.push(`API_HOST (må være et gyldig hostname uten protokoll, fikk: ${apiHost})`);
+  }
+
+  const internalHostsRaw = process.env.INTERNAL_HOSTS ?? "";
+  const internalHosts = internalHostsRaw
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  for (const host of internalHosts) {
+    if (!isValidHostname(host)) {
+      manglende.push(`INTERNAL_HOSTS (ugyldig hostname i listen: ${host})`);
+    }
+  }
+
+  const trustProxyHopsRaw = process.env.TRUST_PROXY_HOPS?.trim();
+  if (nodeEnv === "production" && !trustProxyHopsRaw) {
+    manglende.push("TRUST_PROXY_HOPS (påkrevd i produksjon for korrekt klient-IP bak proxy-kjede)");
+  } else if (trustProxyHopsRaw) {
+    const trustProxyHops = Number.parseInt(trustProxyHopsRaw, 10);
+    if (!Number.isInteger(trustProxyHops) || trustProxyHops < 1) {
+      manglende.push(
+        `TRUST_PROXY_HOPS (må være et heltall >= 1, fikk: ${trustProxyHopsRaw})`,
+      );
+    }
+  }
+
   // Valider ANTHROPIC_API_KEY format
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   if (anthropicKey && !anthropicKey.startsWith("sk-ant-")) {
@@ -225,29 +281,33 @@ export const validateEnv = (): void => {
     }
   }
 
-  // Valider Kontaktskjema-variabler (påkrevd i produksjon for at skjemaet skal fungere)
-  if (nodeEnv === "production") {
-    if (!process.env.TURNSTILE_SECRET_KEY?.trim()) {
-      manglende.push("TURNSTILE_SECRET_KEY (påkrevd for kontaktskjema i produksjon)");
+  // Valider kontaktskjema/Turnstile-variabler i alle miljøer
+  if (!process.env.TURNSTILE_SECRET_KEY?.trim()) {
+    manglende.push("TURNSTILE_SECRET_KEY (påkrevd for kontaktskjema)");
+  }
+  if (!process.env.AUTH_TURNSTILE_SECRET_KEY?.trim()) {
+    manglende.push("AUTH_TURNSTILE_SECRET_KEY (påkrevd for auth Turnstile)");
+  }
+  if (!process.env.AUTH_TURNSTILE_GATE_SECRET?.trim()) {
+    manglende.push("AUTH_TURNSTILE_GATE_SECRET (påkrevd for auth-gate cookie-signering)");
+  }
+  if (!process.env.CONTACT_WORKER_URL?.trim()) {
+    manglende.push("CONTACT_WORKER_URL (påkrevd for kontaktskjema)");
+  } else {
+    try {
+      new URL(process.env.CONTACT_WORKER_URL);
+    } catch {
+      manglende.push("CONTACT_WORKER_URL (må være en gyldig URL)");
     }
-    if (!process.env.CONTACT_WORKER_URL?.trim()) {
-      manglende.push("CONTACT_WORKER_URL (påkrevd for kontaktskjema i produksjon)");
-    } else {
-      try {
-        new URL(process.env.CONTACT_WORKER_URL);
-      } catch {
-        manglende.push("CONTACT_WORKER_URL (må være en gyldig URL)");
-      }
-    }
-    if (!process.env.CONTACT_WORKER_SECRET?.trim()) {
-      manglende.push("CONTACT_WORKER_SECRET (påkrevd for kontaktskjema i produksjon)");
-    }
-    if (!process.env.CONTACT_TO_EMAIL?.trim()) {
-      manglende.push("CONTACT_TO_EMAIL (påkrevd for kontaktskjema i produksjon)");
-    }
-    if (!process.env.CONTACT_FROM_EMAIL?.trim()) {
-      manglende.push("CONTACT_FROM_EMAIL (påkrevd for kontaktskjema i produksjon)");
-    }
+  }
+  if (!process.env.CONTACT_WORKER_SECRET?.trim()) {
+    manglende.push("CONTACT_WORKER_SECRET (påkrevd for kontaktskjema)");
+  }
+  if (!process.env.CONTACT_TO_EMAIL?.trim()) {
+    manglende.push("CONTACT_TO_EMAIL (påkrevd for kontaktskjema)");
+  }
+  if (!process.env.CONTACT_FROM_EMAIL?.trim()) {
+    manglende.push("CONTACT_FROM_EMAIL (påkrevd for kontaktskjema)");
   }
 
   // Avslutt hvis påkrevde variabler mangler

@@ -3,7 +3,7 @@
 #
 # Forutsetninger:
 #   - backend/.env må finnes (kopier fra backend/.env.example, fyll inn alle påkrevde variabler)
-#   - .env i prosjektrot med Clerk og INTERNAL_API_URL (kopier fra .env.docker.example)
+#   - .env i prosjektrot må sette Clerk- og frontend-variablene som brukes som build args
 #   - MongoDB og Redis startes av compose; backend/frontend bruker dem i nettverket
 
 services:
@@ -53,6 +53,9 @@ services:
       args:
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
         CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+        NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY}
+        AUTH_TURNSTILE_GATE_SECRET: ${AUTH_TURNSTILE_GATE_SECRET}
         INTERNAL_API_URL: ${INTERNAL_API_URL:-http://backend:4000}
     restart: unless-stopped
     security_opt:
@@ -65,6 +68,9 @@ services:
       - INTERNAL_API_URL=${INTERNAL_API_URL:-http://backend:4000}
       - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
       - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      - NEXT_PUBLIC_TURNSTILE_SITE_KEY=${NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+      - NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY=${NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY}
+      - AUTH_TURNSTILE_GATE_SECRET=${AUTH_TURNSTILE_GATE_SECRET}
       - HOSTNAME=0.0.0.0
     depends_on:
       - backend

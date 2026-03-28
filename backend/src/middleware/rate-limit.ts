@@ -101,6 +101,7 @@ const devCanvasLimit = { points: 200, duration: 60, keyPrefix: "rlflx:canvas:dev
 const devCanvasTungLimit = { points: 100, duration: 60, keyPrefix: "rlflx:canvas:tung:dev" };
 const devTokenLimit = { points: 75, duration: 60, keyPrefix: "rlflx:token:dev" };
 const devMeLimit = { points: 200, duration: 60, keyPrefix: "rlflx:me:dev" };
+const devAuthTurnstileLimit = { points: 60, duration: 60, keyPrefix: "rlflx:auth-turnstile:dev" };
 
 // Rate limiter for KI-endepunkter (balansert - 50 requests per 5 minutter)
 // Tillater god brukeropplevelse og burst, med beskyttelse mot misbruk
@@ -151,3 +152,13 @@ export const rateLimitContact = isProd
       keyPrefix: "rlflx:contact:dev",
       keyGenerator: getClientIp,
     });
+
+// Auth Turnstile: moderat grense på offentlig verifisering foran Clerk
+export const rateLimitAuthTurnstile = isProd
+  ? createRateLimiter({
+      points: 10,
+      duration: 600, // 10 minutter
+      keyPrefix: "rlflx:auth-turnstile",
+      keyGenerator: getClientIp,
+    })
+  : createRateLimiter(devAuthTurnstileLimit);

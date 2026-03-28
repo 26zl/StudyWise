@@ -254,8 +254,6 @@ kiShareRouter.post("/chat/:chatId/share", async (req, res) => {
       return apiError.badRequest(res, "Samtalen er tom og kan ikke deles");
     }
 
-    ChatShareCreateSchema.parse(parseResult.data);
-
     const shareId = createShareId();
     const ownerObjectId = new mongoose.Types.ObjectId(userId);
     await deactivateExpiredSharedChats({ ownerId: ownerObjectId, chatId: doc._id });

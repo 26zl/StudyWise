@@ -5,12 +5,17 @@
  * Bruker react-hook-form, Zod-validering og Cloudflare Turnstile
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, type ChangeEvent } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Send, Loader2 } from "lucide-react";
+import { Send, Loader2, ImagePlus, X } from "lucide-react";
+import {
+  KONTAKT_ALLOWED_ATTACHMENT_TYPES,
+  KONTAKT_MAX_ATTACHMENTS,
+  KONTAKT_MAX_ATTACHMENT_SIZE_BYTES,
+} from "common/contact";
 import { sendKontakt } from "./contact-api";
 
 // Client-side validation schema (uten turnstileToken - legges til ved submit)
@@ -43,11 +48,13 @@ const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
 export function ContactForm() {
   const [isSending, setIsSending] = useState(false);
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileLoaded, setTurnstileLoaded] = useState(false);
   const turnstileRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
   const honeypotRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
     register,
@@ -140,11 +147,17 @@ export function ContactForm() {
         turnstileToken: turnstileToken ?? "dev-bypass",
         // Honeypot: les faktisk verdi fra skjult felt (bots fyller ofte ut alle felt)
         nettsted: honeypotRef.current?.value ?? "",
+        sideUrl: typeof window !== "undefined" ? window.location.href : undefined,
+        attachments,
       });
 
       if (result.success) {
         toast.success(result.melding ?? "Takk for din henvendelse!");
         reset();
+        setAttachments([]);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
         resetTurnstile();
       } else {
         toast.error(result.error ?? "Noe gikk galt. Prøv igjen senere.");
@@ -162,6 +175,56 @@ export function ContactForm() {
     "w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400";
 
   const errorClassName = "mt-1 text-sm text-red-500 dark:text-red-400";
+  const acceptedTypes = KONTAKT_ALLOWED_ATTACHMENT_TYPES.join(",");
+  const maxAttachmentSizeMb = Math.floor(KONTAKT_MAX_ATTACHMENT_SIZE_BYTES / (1024 * 1024));
+
+  const formatFileSize = (size: number) => {
+    if (size < 1024 * 1024) {
+      return `${Math.ceil(size / 1024)} KB`;
+    }
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const handleAttachmentsChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files ?? []);
+    if (selectedFiles.length === 0) {
+      setAttachments([]);
+      return;
+    }
+
+    const nextFiles: File[] = [];
+    for (const file of selectedFiles) {
+      if (!KONTAKT_ALLOWED_ATTACHMENT_TYPES.includes(
+        file.type as (typeof KONTAKT_ALLOWED_ATTACHMENT_TYPES)[number],
+      )) {
+        toast.error("Kun JPG, PNG og WebP-bilder er tillatt");
+        continue;
+      }
+      if (file.size > KONTAKT_MAX_ATTACHMENT_SIZE_BYTES) {
+        toast.error(`Hvert bilde må være mindre enn ${maxAttachmentSizeMb} MB`);
+        continue;
+      }
+      nextFiles.push(file);
+    }
+
+    if (nextFiles.length > KONTAKT_MAX_ATTACHMENTS) {
+      toast.error(`Du kan laste opp maks ${KONTAKT_MAX_ATTACHMENTS} bilder`);
+      setAttachments(nextFiles.slice(0, KONTAKT_MAX_ATTACHMENTS));
+      return;
+    }
+
+    setAttachments(nextFiles);
+  };
+
+  const removeAttachment = (indexToRemove: number) => {
+    setAttachments((current) => {
+      const next = current.filter((_, index) => index !== indexToRemove);
+      if (next.length === 0 && fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      return next;
+    });
+  };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -248,6 +311,62 @@ export function ContactForm() {
           {...register("melding")}
         />
         {errors.melding && <p className={errorClassName}>{errors.melding.message}</p>}
+      </div>
+
+      <div>
+        <label
+          htmlFor="attachments"
+          className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300"
+        >
+          Bilder ved behov
+        </label>
+        <label
+          htmlFor="attachments"
+          className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600 transition-colors hover:border-blue-400 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:bg-slate-800"
+        >
+          <ImagePlus className="h-4 w-4" />
+          Velg opptil {KONTAKT_MAX_ATTACHMENTS} bilder
+        </label>
+        <input
+          ref={fileInputRef}
+          id="attachments"
+          type="file"
+          accept={acceptedTypes}
+          multiple
+          className="hidden"
+          disabled={isSending}
+          onChange={handleAttachmentsChange}
+        />
+        <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+          JPG, PNG eller WebP. Maks {KONTAKT_MAX_ATTACHMENTS} bilder, {maxAttachmentSizeMb} MB per bilde.
+        </p>
+        {attachments.length > 0 && (
+          <ul className="mt-3 space-y-2">
+            {attachments.map((file, index) => (
+              <li
+                key={`${file.name}-${file.size}-${index}`}
+                className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-slate-800 dark:text-slate-100">
+                    {file.name}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {formatFileSize(file.size)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeAttachment(index)}
+                  className="ml-3 rounded p-1 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                  aria-label={`Fjern ${file.name}`}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* Turnstile widget */}

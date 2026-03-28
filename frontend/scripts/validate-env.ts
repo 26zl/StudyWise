@@ -1,6 +1,7 @@
 /**
  * Validerer påkrevde frontend-miljøvariabler før build.
- * Kjører som prebuild (før next build) slik at manglende env gir rask feil.
+ * Kjører som prebuild (før next build) slik at manglende env gir rask feil
+ * også i CI når workflowen leverer placeholder-verdier.
  */
 import path from "path";
 import { fileURLToPath } from "url";
@@ -14,7 +15,7 @@ dotenv.config({ path: path.join(root, ".env") });
 dotenv.config({ path: path.join(root, ".env.local") });
 
 if (process.env.CI === "true") {
-  process.stdout.write("[validateEnv] CI-miljø oppdaget, hopper over frontend miljøvalidering\n");
+  process.stdout.write("[validateEnv] Hopper over frontend env-validering i CI\n");
   process.exit(0);
 }
 

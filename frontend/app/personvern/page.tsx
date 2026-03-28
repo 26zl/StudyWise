@@ -12,7 +12,7 @@ export default function PersonvernPage() {
           <li>
             <strong>Kontoinformasjon og innlogging:</strong> Innlogging håndteres av
             Clerk (e-post, passord og valgfri to-faktor). Du kan koble til Google,
-            Microsoft eller Apple hvis det er aktivert. Vi lagrer ikke passord selv;
+            eller Microsoft hvis det er aktivert. Vi lagrer ikke passord selv;
             Clerk håndterer sikkerhet og 2FA.
           </li>
           <li>
@@ -21,7 +21,8 @@ export default function PersonvernPage() {
             driftsmonitorering og feilsporing for å kunne knytte feil til
             backend/APM og følge stabiliteten i løsningen. Hvis du godtar det,
             aktiverer vi også valgfrie ytelsesmålinger. Valget for valgfrie
-            målinger lagres lokalt i nettleseren.
+            målinger lagres på brukerprofilen din når du er innlogget, og caches
+            også lokalt i nettleseren for å unngå at banneret vises på nytt.
           </li>
           <li>
             <strong>Canvas API-token:</strong> Lagres kryptert (AES-256-GCM) for å
@@ -124,8 +125,9 @@ export default function PersonvernPage() {
           Insights). Ved første besøk vises en melding nederst på siden der du kan
           velge <strong>Kun nødvendige</strong> eller <strong>Godta alle</strong>.
           For innloggede brukere lagres valget på brukerprofilen din i databasen og
-          brukes ikke til markedsføring. Hvis du ikke er innlogget, huskes valget
-          bare for den åpne nettleserøkten.
+          caches også i nettleserens localStorage for å unngå at banneret vises på
+          nytt mellom besøk. Dette brukes ikke til markedsføring. Hvis du ikke er
+          innlogget, huskes valget bare for den åpne nettleserøkten.
         </p>
       </InfoSection>
 
@@ -193,8 +195,7 @@ export default function PersonvernPage() {
           </li>
           <li>
             Innlogging og passord håndteres av Clerk; vi lagrer ikke passord selv.
-            Clerk støtter to-faktor (2FA) og tilkobling til Google, Microsoft og
-            Apple.
+            Clerk støtter to-faktor (2FA) og tilkobling til Google og Microsoft.
           </li>
           <li>
             Sikkerhets- og revisjonslogger minimeres og pseudonymiseres ved

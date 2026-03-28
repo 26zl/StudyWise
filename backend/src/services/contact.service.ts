@@ -11,6 +11,7 @@
 
 import { logger } from "../utils/logger.js";
 import { isProd } from "../utils/env.js";
+import { KontaktAttachmentSchema, type KontaktAttachment } from "common/contact";
 
 const TRANSPORT_TIMEOUT_MS = 10000;
 
@@ -22,6 +23,7 @@ export interface KontaktPayload {
   sideUrl?: string;
   timestamp: string;
   requestId?: string;
+  attachments?: KontaktAttachment[];
 }
 
 export interface TransportResult {
@@ -91,6 +93,9 @@ export async function sendKontaktmelding(
       timestamp: payload.timestamp,
       toEmail: config.toEmail,
       fromEmail: config.fromEmail,
+      attachments: payload.attachments?.map((attachment) =>
+        KontaktAttachmentSchema.parse(attachment),
+      ) ?? [],
     };
 
     const response = await fetch(config.workerUrl, {

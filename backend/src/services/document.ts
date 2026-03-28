@@ -506,7 +506,7 @@ async function parseImageDocument(buffer: Buffer): Promise<DocumentParseResult> 
  * Bruker unpdf sin renderPageAsImage for å konvertere sider til PNG,
  * deretter Tesseract for tekstgjenkjenning.
  */
-async function ocrPdfPages(pdfData: Uint8Array, numPages: number): Promise<{ text: string; avgConfidence: number; pagesProcessed: number }> {
+async function ocrPdfPages(pdfSource: Buffer, numPages: number): Promise<{ text: string; avgConfidence: number; pagesProcessed: number }> {
     const pagesToProcess = Math.min(numPages, MAX_OCR_PAGES);
     logger.info({ totalPages: numPages, pagesToProcess }, "Starting PDF page rasterization for OCR");
 
@@ -514,17 +514,17 @@ async function ocrPdfPages(pdfData: Uint8Array, numPages: number): Promise<{ tex
     let totalConfidence = 0;
     let successfulPages = 0;
 
-    // VIKTIG: Vi sender rå pdfData til renderPageAsImage i stedet for en
-    // forhåndsopprettet proxy. renderPageAsImage kaller getDocumentProxy
-    // internt og sender med CanvasFactory hentet fra canvasImport.
-    // Uten dette bruker pdf.js den bundlede NodeCanvasFactory som har en
-    // ødelagt require-path (erstatt av bundler med en Proxy som kaster feil).
+    // VIKTIG: renderPageAsImage/pdf.js kan detache den underliggende ArrayBuffer-en.
+    // Hvis vi gjenbruker samme Uint8Array for flere sider, kan side 2+ feile med
+    // DataCloneError i Node 20. Derfor lager vi en fersk bytekopi per side.
 
     for (let page = 1; page <= pagesToProcess; page++) {
         try {
+            const pdfDataForPage = Uint8Array.from(pdfSource);
+
             // Rasteriser PDF-side til PNG-bilde (scale 2.0 for bedre OCR-kvalitet)
             // canvasImport er påkrevd i Node.js — unpdf auto-detecter IKKE @napi-rs/canvas
-            const imageBuffer = await renderPageAsImage(pdfData, page, {
+            const imageBuffer = await renderPageAsImage(pdfDataForPage, page, {
                 scale: 2.0,
                 canvasImport: () => import("@napi-rs/canvas"),
             });
@@ -552,7 +552,8 @@ async function ocrPdfPages(pdfData: Uint8Array, numPages: number): Promise<{ tex
     const avgConfidence = successfulPages > 0 ? totalConfidence / successfulPages : 0;
 
     logger.info({
-        pagesProcessed: pagesToProcess,
+        pagesAttempted: pagesToProcess,
+        pagesProcessed: successfulPages,
         pagesWithText: successfulPages,
         avgConfidence,
         skippedPages: numPages > MAX_OCR_PAGES ? numPages - MAX_OCR_PAGES : 0,
@@ -572,12 +573,10 @@ async function ocrPdfPages(pdfData: Uint8Array, numPages: number): Promise<{ tex
 async function parsePdfDocument(buffer: Buffer): Promise<DocumentParseResult> {
     try {
         // Lag en uavhengig kopi av PDF-dataene.
-        // extractText() (pdf.js) detacher den underliggende ArrayBuffer-en via
-        // transferToFixedLength, noe som gjør originaldataene ubrukelige for
-        // etterfølgende kall (som getDocumentProxy i OCR-fallback).
-        // Derfor lager vi to separate kopier: én for extractText og én for OCR.
-        const pdfDataForExtract = new Uint8Array(buffer);
-        const pdfDataForOcr = new Uint8Array(buffer);
+        // extractText() (pdf.js) kan detache den underliggende ArrayBuffer-en via
+        // transferToFixedLength, så vi lager en eksplisitt bytekopi for det løpet.
+        // OCR-fallbacken bruker original Buffer og lager en ny kopi per side.
+        const pdfDataForExtract = Uint8Array.from(buffer);
         
         logger.info({ bufferLength: buffer.length, pdfDataLength: pdfDataForExtract.length }, "Starting PDF extraction");
         
@@ -609,7 +608,7 @@ async function parsePdfDocument(buffer: Buffer): Promise<DocumentParseResult> {
             
             // Rasteriser PDF-sider til bilder og kjør OCR per side
             try {
-                const ocrResult = await ocrPdfPages(pdfDataForOcr, numPages);
+                const ocrResult = await ocrPdfPages(buffer, numPages);
                 logger.info({
                     ocrTextLength: ocrResult.text.length,
                     ocrTrimmedLength: ocrResult.text.trim().length,

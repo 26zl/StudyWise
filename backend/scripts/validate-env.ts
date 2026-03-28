@@ -1,12 +1,13 @@
 /**
  * Validerer påkrevde backend-miljøvariabler før build.
- * Kjører som prebuild slik at manglende env gir rask feil; hopper over i CI.
+ * Kjører som prebuild slik at manglende env gir rask feil
+ * også i CI når workflowen leverer placeholder-verdier.
  */
 import "dotenv/config";
 import { validateEnv } from "../src/utils/validateEnv.js";
 
 if (process.env.CI === "true") {
-  process.stdout.write("[validateEnv] CI-miljø oppdaget, hopper over miljøvalidering\n");
+  process.stdout.write("[validateEnv] Hopper over backend env-validering i CI\n");
   process.exit(0);
 }
 

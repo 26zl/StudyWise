@@ -278,6 +278,7 @@ export const PreferencesResponseSchema = z.object({
 export const AccountDeletionDeletedSchema = z.object({
   user: z.boolean(),
   chatHistory: z.number().int().min(0),
+  sharedChat: z.number().int().min(0),
   taskBreakdown: z.number().int().min(0),
   contentEmbedding: z.number().int().min(0),
   canvasUser: z.number().int().min(0),
@@ -288,6 +289,22 @@ export const AccountDeletionResponseSchema = z.object({
   melding: z.string(),
   deleted: AccountDeletionDeletedSchema,
   providerAccountDeleted: z.boolean(),
+});
+
+/** Kortlivet cookie som markerer at bruker nylig har passert auth-Turnstile. */
+export const AUTH_TURNSTILE_COOKIE_NAME = "studywise_auth_turnstile";
+export const AUTH_TURNSTILE_ACTION = "studywise-auth";
+
+export const AuthTurnstileVerifyRequestSchema = z.object({
+  turnstileToken: z
+    .string()
+    .trim()
+    .min(1, "Turnstile-token mangler")
+    .max(2048, "Turnstile-token er ugyldig"),
+});
+
+export const AuthTurnstileVerifyResponseSchema = z.object({
+  success: z.literal(true),
 });
 
 /** BroadcastChannel for auth-sync på tvers av faner (Clerk session). */
@@ -306,3 +323,5 @@ export type MeResponse = z.infer<typeof MeResponseSchema>;
 export type LogoutResponse = z.infer<typeof LogoutResponseSchema>;
 export type PreferencesResponse = z.infer<typeof PreferencesResponseSchema>;
 export type AccountDeletionResponse = z.infer<typeof AccountDeletionResponseSchema>;
+export type AuthTurnstileVerifyRequest = z.infer<typeof AuthTurnstileVerifyRequestSchema>;
+export type AuthTurnstileVerifyResponse = z.infer<typeof AuthTurnstileVerifyResponseSchema>;

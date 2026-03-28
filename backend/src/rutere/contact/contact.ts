@@ -10,7 +10,14 @@
  */
 
 import { Router, type Request, type Response } from "express";
-import { KontaktRequestSchema, KontaktResponseSchema } from "common/contact";
+import multer from "multer";
+import {
+  KONTAKT_ALLOWED_ATTACHMENT_TYPES,
+  KONTAKT_MAX_ATTACHMENTS,
+  KONTAKT_MAX_ATTACHMENT_SIZE_BYTES,
+  KontaktRequestSchema,
+  KontaktResponseSchema,
+} from "common/contact";
 import { logger } from "../../utils/logger.js";
 import { apiError, sendZodError } from "../../utils/apiError.js";
 import { rateLimitContact } from "../../middleware/rate-limit.js";
@@ -22,24 +29,106 @@ import { sendKontaktmelding } from "../../services/contact.service.js";
 import { isProd } from "../../utils/env.js";
 
 const router = Router();
+const INVALID_ATTACHMENT_TYPE_ERROR = "INVALID_ATTACHMENT_TYPE";
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    files: KONTAKT_MAX_ATTACHMENTS,
+    fileSize: KONTAKT_MAX_ATTACHMENT_SIZE_BYTES,
+  },
+  fileFilter: (_req, file, callback) => {
+    if (
+      !KONTAKT_ALLOWED_ATTACHMENT_TYPES.includes(
+        file.mimetype as (typeof KONTAKT_ALLOWED_ATTACHMENT_TYPES)[number],
+      )
+    ) {
+      callback(new Error(INVALID_ATTACHMENT_TYPE_ERROR));
+      return;
+    }
+    callback(null, true);
+  },
+});
+
+function extractKontaktPayload(req: Request) {
+  const body = req.body as Record<string, unknown>;
+  return {
+    navn: typeof body.navn === "string" ? body.navn : "",
+    epost: typeof body.epost === "string" ? body.epost : "",
+    emne: typeof body.emne === "string" ? body.emne : "",
+    melding: typeof body.melding === "string" ? body.melding : "",
+    turnstileToken:
+      typeof body.turnstileToken === "string" ? body.turnstileToken : "",
+    nettsted: typeof body.nettsted === "string" ? body.nettsted : undefined,
+    sideUrl: typeof body.sideUrl === "string" ? body.sideUrl : undefined,
+  };
+}
+
+function buildKontaktAttachments(files: Express.Multer.File[] | undefined) {
+  return (files ?? []).map((file) => ({
+    filnavn: file.originalname,
+    mimeType: file.mimetype as (typeof KONTAKT_ALLOWED_ATTACHMENT_TYPES)[number],
+    størrelse: file.size,
+    innholdBase64: file.buffer.toString("base64"),
+  }));
+}
 
 /**
  * POST /api/kontakt
  * Offentlig endepunkt for kontakthenvendelser
  */
-router.post("/", rateLimitContact, async (req: Request, res: Response) => {
+router.post(
+  "/",
+  rateLimitContact,
+  (req, res, next) => {
+    upload.array("attachments", KONTAKT_MAX_ATTACHMENTS)(req, res, (error) => {
+      if (!error) {
+        return next();
+      }
+
+      if (error instanceof multer.MulterError) {
+        if (error.code === "LIMIT_FILE_SIZE") {
+          return apiError.badRequest(
+            res,
+            `Hvert bilde må være mindre enn ${Math.floor(KONTAKT_MAX_ATTACHMENT_SIZE_BYTES / (1024 * 1024))} MB`,
+          );
+        }
+        if (error.code === "LIMIT_FILE_COUNT") {
+          return apiError.badRequest(
+            res,
+            `Du kan laste opp maks ${KONTAKT_MAX_ATTACHMENTS} bilder`,
+          );
+        }
+      }
+
+      if (error instanceof Error && error.message === INVALID_ATTACHMENT_TYPE_ERROR) {
+        return apiError.badRequest(
+          res,
+          "Kun JPG, PNG og WebP-bilder er tillatt som vedlegg",
+        );
+      }
+
+      logger.info({ err: error }, "Kontaktskjema: ugyldig vedlegg avvist");
+      return apiError.badRequest(
+        res,
+        "Kun JPG, PNG og WebP-bilder er tillatt som vedlegg",
+      );
+    });
+  },
+  async (req: Request, res: Response) => {
   // Konverter requestId til string - req.id kan være string | number | object
   const rawId = req.id;
   const requestId = typeof rawId === "string" ? rawId : typeof rawId === "number" ? String(rawId) : undefined;
 
   // Valider request body
-  const parseResult = KontaktRequestSchema.safeParse(req.body);
+  const parseResult = KontaktRequestSchema.safeParse(extractKontaktPayload(req));
   if (!parseResult.success) {
     return sendZodError(res, parseResult.error, "Kontaktskjema");
   }
 
   const { navn, epost, emne, melding, turnstileToken, nettsted, sideUrl } =
     parseResult.data;
+  const attachments = buildKontaktAttachments(req.files as Express.Multer.File[] | undefined);
 
   // Honeypot-sjekk: nettsted-feltet skal være tomt
   if (nettsted && nettsted.length > 0) {
@@ -83,11 +172,12 @@ router.post("/", rateLimitContact, async (req: Request, res: Response) => {
       navn,
       epost,
       emne,
-      melding,
-      sideUrl,
-      timestamp: new Date().toISOString(),
-      requestId,
-    });
+        melding,
+        sideUrl,
+        timestamp: new Date().toISOString(),
+        requestId,
+        attachments,
+      });
 
     if (!result.success) {
       logger.error(
@@ -104,6 +194,7 @@ router.post("/", rateLimitContact, async (req: Request, res: Response) => {
         epostDomene: epost.split("@")[1] ?? "unknown",
         emneLength: emne.length,
         meldingLength: melding.length,
+        attachmentsCount: attachments.length,
       },
       "Kontakthenvendelse mottatt",
     );

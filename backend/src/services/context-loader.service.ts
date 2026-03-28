@@ -22,7 +22,7 @@
 import { logger } from "../utils/logger.js";
 import { getCache, isRedisReady } from "../cache/redis.js";
 import { syncCanvasDataForUser, hasCanvasSyncData, userKey, isSyncing, waitForSync } from "./canvas-sync.service.js";
-import { byggLettCanvasKontekst, byggMålrettetCanvasKontekst } from "../rutere/ki/kiCanvas.js";
+import { byggKursoversiktKontekst, byggLettCanvasKontekst, byggMålrettetCanvasKontekst } from "../rutere/ki/kiCanvas.js";
 import type { TargetedQuery } from "../rutere/ki/ki.js";
 import { TWO_WEEKS_MS } from "common/dateUtils";
 import { isCanvasAssignmentSubmitted } from "common/canvas";
@@ -63,6 +63,175 @@ interface SyncedCourse {
   course_code?: string;
   moduleTitles: string[];
   fileNames: string[];
+}
+
+const COURSE_MATCH_STOPWORDS = new Set([
+  "og", "i", "på", "for", "til", "av", "med", "om",
+  "emne", "emner", "kurs", "kursene", "fag", "faget", "fagene",
+  "høst", "host", "vår", "var", "semester", "kull", "bø", "bo",
+  "campus", "gruppe", "klasse", "studie", "studiet", "innføring",
+]);
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normaliserCanvasSporsmal(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\wæøå\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const COURSE_OVERVIEW_PATTERNS = [
+  /\b(?:hvilke|alle|mine|oversikt|liste|list opp|vis)\b.*\b(?:emner|fag|kurs)\b/i,
+  /\b(?:emner|fag|kurs)\b.*\b(?:registrert|påmeldt|meldt opp)\b/i,
+  /\b(?:registrert|påmeldt|meldt opp)\b.*\b(?:emner|fag|kurs)\b/i,
+];
+
+const STRUCTURED_CANVAS_QUERY_PATTERNS = [
+  ...COURSE_OVERVIEW_PATTERNS,
+  /\b(?:neste|kommende)\b.*\b(?:frist|frister|oppgave|oppgaver|innlevering|innleveringer|hendelse|hendelser|kunngjøring(?:er|ene)?)\b/i,
+  /\b(?:hvilke|vis|liste|oversikt)\b.*\b(?:oppgaver|innleveringer|frister|kunngjøringer|hendelser)\b/i,
+  /\boppsummer\b.*\b(?:kunngjøring(?:er|ene)?|beskjed(?:er)?|endring(?:er)?)\b/i,
+  /\b(?:kunngjøring(?:er|ene)?|beskjed(?:er)?|endring(?:er)?)\b.*\boppsummer\b/i,
+  /\b(?:kalender|timeplan|todo|gjøremål)\b/i,
+  /\bnår er\b.*\b(?:frist|frister|eksamen|innlevering|oppgave)\b/i,
+];
+
+function isCourseOverviewQuery(message: string): boolean {
+  const normalized = normaliserCanvasSporsmal(message);
+  return COURSE_OVERVIEW_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+function skalPrioritereStrukturkontekst(message: string): boolean {
+  const normalized = normaliserCanvasSporsmal(message);
+  return STRUCTURED_CANVAS_QUERY_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+function tokenizeCourseMatchText(value: string): string[] {
+  return normaliserCanvasSporsmal(value)
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3)
+    .filter((token) => !/^\d+$/.test(token))
+    .filter((token) => !COURSE_MATCH_STOPWORDS.has(token));
+}
+
+function scoreKnownCourseMatch(
+  course: SyncedCourse,
+  normalizedMessage: string,
+  normalizedHint: string | null,
+): number {
+  const compactMessage = normalizedMessage.replace(/\s+/g, "");
+  const normalizedName = normaliserCanvasSporsmal(course.name);
+  const normalizedCode = normaliserCanvasSporsmal(course.course_code ?? "");
+  const compactCode = (course.course_code ?? "").toLowerCase().replace(/[^a-z0-9æøå]/g, "");
+
+  let score = 0;
+
+  if (compactCode && compactMessage.includes(compactCode)) {
+    score += 140;
+  } else if (normalizedCode && normalizedMessage.includes(normalizedCode)) {
+    score += 120;
+  }
+
+  if (normalizedHint) {
+    if (normalizedCode && (normalizedCode.includes(normalizedHint) || normalizedHint.includes(normalizedCode))) {
+      score += 90;
+    }
+    if (normalizedName.includes(normalizedHint) || normalizedHint.includes(normalizedName)) {
+      score += 80;
+    }
+  }
+
+  if (normalizedName.length >= 6 && normalizedMessage.includes(normalizedName)) {
+    score += 100;
+  }
+
+  const tokens = tokenizeCourseMatchText(`${course.name} ${course.course_code ?? ""}`);
+  if (tokens.length > 0) {
+    const matchedTokens = tokens.filter((token) =>
+      // eslint-disable-next-line security/detect-non-literal-regexp -- token er avledet fra intern kurskatalog og escapeRegex() brukes
+      new RegExp(`(^|\\s)${escapeRegex(token)}(\\s|$)`, "i").test(normalizedMessage),
+    );
+
+    if (matchedTokens.length >= 2) {
+      score += matchedTokens.length * 22;
+    } else if (matchedTokens.length === 1 && tokens.length === 1) {
+      score += 35;
+    }
+  }
+
+  return score;
+}
+
+/**
+ * Matcher brukerens melding mot faktiske emner i Canvas-katalogen.
+ * Dette gjør courseHint robust for alle studier, ikke bare hardkodede fagord.
+ */
+export async function resolveTargetAgainstKnownCourses(
+  userId: string,
+  target: TargetedQuery,
+  message: string,
+): Promise<TargetedQuery> {
+  if (target.courseIdHint != null) {
+    return target;
+  }
+
+  const emner = await hentKjentEmnekatalog(userId);
+  if (emner.length === 0) {
+    return target;
+  }
+
+  const normalizedMessage = normaliserCanvasSporsmal(message);
+  if (!normalizedMessage) {
+    return target;
+  }
+
+  const normalizedHint = target.courseHint ? normaliserCanvasSporsmal(target.courseHint) : null;
+  const scored = emner
+    .map((course) => ({
+      course,
+      score: scoreKnownCourseMatch(course, normalizedMessage, normalizedHint),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (scored.length === 0) {
+    return target;
+  }
+
+  const [best, secondBest] = scored;
+  const hasStrongMatch = best.score >= 70 || (best.score >= 45 && (!secondBest || best.score - secondBest.score >= 20));
+  if (!hasStrongMatch) {
+    return target;
+  }
+
+  const numericCourseId = /^\d+$/.test(best.course.id) ? Number(best.course.id) : null;
+  const resolvedHint = best.course.course_code
+    ? best.course.course_code.replace(/-/g, "").toLowerCase()
+    : normaliserCanvasSporsmal(best.course.name);
+
+  logger.info(
+    {
+      userId,
+      originalCourseHint: target.courseHint,
+      resolvedCourseHint: resolvedHint,
+      resolvedCourseId: numericCourseId,
+      matchedCourseName: best.course.name,
+      matchedCourseCode: best.course.course_code,
+      score: best.score,
+    },
+    "Matchet kurshint mot brukerens faktiske emnekatalog",
+  );
+
+  return {
+    ...target,
+    courseIdHint: numericCourseId,
+    courseHint: resolvedHint,
+  };
 }
 
 function hasCourseTarget(target?: TargetedQuery): boolean {
@@ -338,7 +507,7 @@ async function finnRelevanteEmner(
 
 /** Nøkkelord som indikerer at brukeren spør om kunngjøringer.
  * Bruker regex for å fange vanlige skrivefeil (f.eks. "kungjøring" uten 'n'). */
-const ANNOUNCEMENT_PATTERN = /ku+n{1,2}gj[øo]ring|beskjed|announcement|nyhet|varsel/i;
+const ANNOUNCEMENT_PATTERN = /ku+n{1,2}gj[øo]ring|beskjed|announcement|nyhet|varsel|endring/i;
 
 function isAnnouncementQuery(message: string): boolean {
   return ANNOUNCEMENT_PATTERN.test(message);
@@ -1180,11 +1349,37 @@ export async function loadCanvasContext(
   const redisAvailable = isRedisReady();
   const hasRedisSyncData = redisAvailable && (await hasCanvasSyncData(userId));
   const hasStoredAIContent = await hasStoredContentForUser(userId);
+  const wantsCourseOverview = Boolean(message && isCourseOverviewQuery(message));
+  const shouldPreferStructuredContext = Boolean(message && skalPrioritereStrukturkontekst(message));
+  const wantsAnnouncements = Boolean(message && isAnnouncementQuery(message));
+  const hasSpecificTarget = !!(
+    hasCourseTarget(target) ||
+    target?.moduleHint ||
+    target?.fileHint
+  );
+
+  if (wantsCourseOverview) {
+    logger.info(
+      { userId, intent, source: "api" },
+      "Canvas-kontekst: eksplisitt emneoversikt-spørsmål — bruker direkte Canvas-API",
+    );
+
+    const apiKontekst = await byggKursoversiktKontekst(canvasToken, baseUrl);
+    const hasData = apiKontekst.includes("CANVAS-DATA");
+
+    if (redisAvailable) {
+      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
+        logger.warn({ err, userId }, "Bakgrunns-sync feilet etter kursoversikt-fallback");
+      });
+    }
+
+    return { kontekst: apiKontekst, hasCanvasData: hasData, source: "api" };
+  }
 
   // ── Hybrid søk når chunkHint finnes (uavhengig av intent) ──
   // chunkHint indikerer at brukeren spør om spesifikt faginnhold, selv om
   // intent er canvas_light (f.eks. "forklar kvantitativ metode").
-  if (hasStoredAIContent && message && target?.chunkHint) {
+  if (!shouldPreferStructuredContext && hasStoredAIContent && message && target?.chunkHint) {
     const hybridKontekst = await byggKontekstFraHybridSearch(userId, message, target);
     if (hybridKontekst) {
       logger.info(
@@ -1202,6 +1397,64 @@ export async function loadCanvasContext(
 
   // ── canvas_light ──
   if (intent === "canvas_light") {
+    if (wantsAnnouncements && !hasSpecificTarget) {
+      const announcements = await hentKunngjøringerForBruker(userId);
+      if (announcements.length > 0) {
+        const kontekst = "[CANVAS-DATA START]\n" + formaterKunngjøringerKontekst(announcements) + "\n[CANVAS-DATA SLUTT]";
+        logger.info(
+          { userId, intent, source: "redis", count: announcements.length, contextLength: kontekst.length },
+          "Canvas-kontekst lastet som kunngjøringsoversikt",
+        );
+        return { kontekst, hasCanvasData: true, source: "redis" };
+      }
+    }
+
+    if (hasSpecificTarget && target) {
+      if (hasRedisSyncData) {
+        const redisKontekst = await byggMålrettetKontekstFraRedis(userId, target);
+        if (redisKontekst) {
+          logger.info(
+            { userId, intent, target, source: "redis", contextLength: redisKontekst.length },
+            "Canvas-kontekst lastet fra Redis (målrettet metadata)",
+          );
+          return { kontekst: redisKontekst, hasCanvasData: true, source: "redis" };
+        }
+      }
+
+      const mongoKontekst = await byggMålrettetKontekstFraMongo(userId, target);
+      if (mongoKontekst) {
+        logger.info(
+          { userId, intent, target, source: "mongodb", contextLength: mongoKontekst.length },
+          "Canvas-kontekst lastet fra MongoDB (målrettet metadata fallback)",
+        );
+        if (redisAvailable) {
+          syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
+            logger.warn({ err, userId }, "Bakgrunns-sync feilet etter målrettet metadata-fallback");
+          });
+        }
+        return { kontekst: mongoKontekst, hasCanvasData: true, source: "mongodb" };
+      }
+
+      logger.info(
+        { userId, intent, target, source: "api" },
+        "Redis+MongoDB mangler data — bruker API-fallback (målrettet metadata)",
+      );
+      const apiKontekst = await byggMålrettetCanvasKontekst(canvasToken, target, baseUrl);
+      const hasData =
+        apiKontekst.includes("CANVAS-DATA") ||
+        apiKontekst.includes("MODULER") ||
+        apiKontekst.includes("OPPGAVER") ||
+        apiKontekst.includes("KUNNGJØRINGER");
+
+      if (redisAvailable) {
+        syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
+          logger.warn({ err, userId }, "Bakgrunns-sync feilet etter målrettet metadata API-fallback");
+        });
+      }
+
+      return { kontekst: apiKontekst, hasCanvasData: hasData, source: "api" };
+    }
+
     // Prøv Redis først
     if (hasRedisSyncData) {
       const redisKontekst = await byggLettKontekstFraRedis(userId);
@@ -1249,16 +1502,9 @@ export async function loadCanvasContext(
   }
 
   // ── canvas_full ──
-  const hasSpecificTarget = !!(
-    hasCourseTarget(target) ||
-    target?.moduleHint ||
-    target?.fileHint
-  );
-
   // Kunngjøring-deteksjon: Kunngjøringer er strukturert data som ikke er indeksert i
   // Pinecone/BM25, så hybrid-søk finner dem aldri. Når brukeren spør om kunngjøringer,
   // hent dem direkte fra Redis/MongoDB og injiser i konteksten.
-  const wantsAnnouncements = message ? isAnnouncementQuery(message) : false;
   let announcementBlock = "";
 
   if (wantsAnnouncements) {
@@ -1276,7 +1522,7 @@ export async function loadCanvasContext(
   }
 
   // Trinn 0: Hybrid søk (Pinecone + BM25 → RRF → Cohere Rerank)
-  if (hasStoredAIContent && message) {
+  if (!shouldPreferStructuredContext && hasStoredAIContent && message) {
     const hybridKontekst = await byggKontekstFraHybridSearch(userId, message, target);
     if (hybridKontekst) {
       const kontekstMedKunngjøringer = announcementBlock
@@ -1298,7 +1544,7 @@ export async function loadCanvasContext(
   }
 
   // Trinn 1: Chunk-basert søk (keyword fallback når hybrid søk ikke ga treff)
-  if (hasStoredAIContent && message) {
+  if (!shouldPreferStructuredContext && hasStoredAIContent && message) {
     const chunkKontekst = await byggKontekstFraChunks(userId, message, target);
     if (chunkKontekst) {
       logger.info(

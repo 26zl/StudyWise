@@ -43,6 +43,7 @@ export const enMessages = {
       overview: "Loading overview...",
       profile: "Loading profile...",
       quiz: "Loading quiz...",
+      redirectingToDashboard: "Redirecting you to the dashboard...",
       redirectingToSignIn: "Redirecting to sign in...",
       settings: "Loading settings...",
       userData: "Loading user data...",
@@ -130,18 +131,27 @@ export const enMessages = {
       },
       thirdParty: {
         description:
-          "If you usually sign in with Microsoft, Google, or Apple, you normally do not need to reset a password here. Go back to sign in and choose the same method you used before.",
-        title: "Do you use Microsoft, Google, or Apple?",
+          "If you usually sign in with Microsoft or Google, you normally do not need to reset a password here. Go back to sign in and choose the same method you used before.",
+        title: "Do you use Microsoft or Google?",
       },
       support:
-        "If you do not receive the code, check your spam folder. If you usually use Microsoft, Google, or Apple, go back and sign in with the same method.",
+        "If you do not receive the code, check your spam folder. If you usually use Microsoft or Google, go back and sign in with the same method.",
       title: "Forgot password?",
     },
     signIn: {
       forgotPasswordAction: "Recover access",
       forgotPasswordDescription:
-        "For email sign-in. If you use Microsoft, Google, or Apple, continue with the same provider instead.",
+        "For email sign-in. If you use Microsoft or Google, continue with the same provider instead.",
       forgotPasswordTitle: "Forgot password?",
+    },
+    humanCheck: {
+      eyebrow: "Cloudflare Turnstile",
+      title: "Extra bot protection",
+      description:
+        "This check is integrated alongside sign in and sign up to reduce automated abuse.",
+      verifying: "Verifying...",
+      widgetError:
+        "We could not load Cloudflare Turnstile. Reload the page and try again.",
     },
   },
   errors: {
@@ -289,9 +299,11 @@ export const enMessages = {
   },
   settings: {
     accountSecurity: {
-      action: "Edit profile and security",
+      action: "Open account",
+      connectionHint:
+        "If Google or Microsoft shows a red error message under connected accounts, the account is not connected. It usually means that external account is already used by another user.",
       description:
-        "Change email, password, enable two-factor authentication (2FA), and manage connected sign-in methods (Google, Microsoft, Apple). This is handled by our identity provider (Clerk).",
+        "Open the account page to change username, first name, last name, email, password, two-factor authentication (2FA), and connected sign-in methods (Google, Microsoft). You can also delete your StudyWise account there.",
       title: "Account and security",
     },
     appearance: {
@@ -340,7 +352,6 @@ export const enMessages = {
       chooseInstitutionTitle: "Choose institution",
       connected: "The Canvas token is connected to your account.",
       currentInstitution: "Your institution: {institution}",
-      customUrlPlaceholder: "https://your-school.instructure.com",
       deleteConfirm: "Are you sure?",
       deleteConnection: "Delete connection",
       deleteErrorTitle: "Could not delete token",
@@ -349,7 +360,7 @@ export const enMessages = {
       deleting: "Deleting...",
       deletingButton: "Yes, delete Canvas API token",
       description:
-        "Connect your Canvas account to fetch courses, announcements, deadlines, and lectures. Choose your institution below before saving the token. The list covers known Norwegian Canvas instances, and you can enter another Instructure URL if needed.",
+        "Connect your Canvas account to fetch courses, announcements, deadlines, and lectures. Choose your institution below before saving the token. The list covers the Norwegian Canvas instances supported by StudyWise.",
       hide: "Hide",
       howTo: {
         step1: "Sign in to Canvas",
@@ -359,10 +370,9 @@ export const enMessages = {
         title: "How to get an API token:",
       },
       institutionLabel: "Institution (Canvas)",
-      institutionOther: "Other Instructure instance",
       institutionPlaceholder: "Choose institution",
       institutionRequired:
-        "Choose an institution (or enter a URL) before saving the token.",
+        "Choose an institution before saving the token.",
       invalidUrlDescription: "Enter a valid Canvas instance.",
       invalidUrlTitle: "Invalid Canvas URL",
       placeholder: "Paste your Canvas API token",
@@ -433,24 +443,11 @@ export const enMessages = {
       avatarAltStudyWise: "Profile image for StudyWise account",
       canvasConnection: "Canvas connection",
       connectedSince: "Connected since {date}",
-      edit: "Edit",
-      firstName: "First name",
-      firstNamePlaceholder: "Enter first name",
-      lastName: "Last name",
-      lastNamePlaceholder: "Enter last name",
       notConnected: "Not connected. Add a Canvas API token below.",
-      providers: {
-        email: "email",
-      },
-      save: "Save",
-      saveErrorDescription: "Could not save profile changes. Please try again.",
-      saveErrorTitle: "Error saving",
-      saveSuccessDescription: "Your profile changes have been saved.",
-      saveSuccessTitle: "Profile updated",
-      saving: "Saving...",
-      signedInWith: "Signed in with {provider}",
       studywiseAccount: "StudyWise account",
-      title: "Profile",
+      title: "Account overview",
+      username: "Username",
+      usernameNotSet: "Not set",
     },
     title: "Settings",
   },

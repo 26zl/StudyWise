@@ -22,7 +22,7 @@ interface LanguageContextValue {
   t: Translator;
 }
 
-export const LanguageContext = createContext<LanguageContextValue | null>(null);
+const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 function setLanguageCookie(language: Language) {
   if (typeof window === "undefined") {

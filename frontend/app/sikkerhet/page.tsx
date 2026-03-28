@@ -51,7 +51,7 @@ export default function SikkerhetPage() {
       icon: Cookie,
       title: "Sikre sesjoner (Clerk)",
       description:
-        "Innlogging og sesjoner håndteres av Clerk med sikre cookies (httpOnly, secure, sameSite). Clerk støtter to-faktor (2FA) og innlogging med Google, Microsoft og Apple. Tilgangstoken har kort levetid og sendes kun over HTTPS.",
+        "Innlogging og sesjoner håndteres av Clerk med sikre cookies (httpOnly, secure, sameSite). Clerk støtter to-faktor (2FA) og innlogging med Google og Microsoft. Tilgangstoken har kort levetid og sendes kun over HTTPS.",
     },
     {
       icon: Eye,

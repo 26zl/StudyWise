@@ -6,7 +6,7 @@
 // Dette er nødvendig for biblioteker som bruker React Context (som React Query).
 "use client";
 
-import { ClerkProvider, useAuth } from "@clerk/nextjs";
+import { ClerkProvider, useAuth, useUser } from "@clerk/nextjs";
 import { enUS, nbNO } from "@clerk/localizations";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useCallback } from "react";
@@ -16,9 +16,14 @@ import { setClerkGetToken } from "./lib/clerkTokenForApi";
 import { setDatadogUser, clearDatadogUser } from "@/app/components/layout/DatadogRum";
 import { AUTH_ME_QUERY_KEY, prefetchMe } from "./auth/auth-api";
 import { usePreferencesSync } from "./hooks/usePreferencesSync";
-import type { MeResponse } from "common/auth";
+import { MeResponseSchema, type MeResponse } from "common/auth";
 import { LanguageProvider, useLanguage } from "@/app/i18n";
 import type { Language } from "@/app/i18n/types";
+
+function normalizeProfileField(value: string | null | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
 
 function ClerkProviderMedSprak({
   children,
@@ -115,6 +120,64 @@ function DatadogUserSync() {
   return null;
 }
 
+function ClerkProfileCacheSync() {
+  const queryClient = useQueryClient();
+  const { isLoaded: authLoaded, userId } = useAuth();
+  const { isLoaded: clerkUserLoaded, user } = useUser();
+
+  useEffect(() => {
+    if (!authLoaded || !userId || !clerkUserLoaded) {
+      return;
+    }
+
+    const nextFirstName = normalizeProfileField(user?.firstName);
+    const nextLastName = normalizeProfileField(user?.lastName);
+    const nextUsername = normalizeProfileField(user?.username);
+    const nextEmail = normalizeProfileField(user?.primaryEmailAddress?.emailAddress)?.toLowerCase();
+
+    queryClient.setQueryData<MeResponse | undefined>(
+      AUTH_ME_QUERY_KEY,
+      (current) => {
+        if (!current) {
+          return current;
+        }
+
+        const currentUser = current.user;
+        const hasChanges =
+          currentUser.firstName !== nextFirstName ||
+          currentUser.lastName !== nextLastName ||
+          currentUser.username !== nextUsername ||
+          (nextEmail !== undefined && currentUser.email !== nextEmail);
+
+        if (!hasChanges) {
+          return current;
+        }
+
+        return MeResponseSchema.parse({
+          user: {
+            ...currentUser,
+            firstName: nextFirstName,
+            lastName: nextLastName,
+            username: nextUsername,
+            email: nextEmail ?? currentUser.email,
+          },
+        });
+      },
+    );
+  }, [
+    authLoaded,
+    clerkUserLoaded,
+    queryClient,
+    user?.firstName,
+    user?.lastName,
+    user?.primaryEmailAddress?.emailAddress,
+    user?.username,
+    userId,
+  ]);
+
+  return null;
+}
+
 // Synkroniserer UI-preferanser (sprak, tema, cookie-samtykke) med backend
 function PreferencesSync() {
   usePreferencesSync();
@@ -158,6 +221,7 @@ export function Providers({
             <AuthSyncListener />
             <PrefetchMeOnMount />
             <DatadogUserSync />
+            <ClerkProfileCacheSync />
             <PreferencesSync />
             {children}
           </NuqsAdapter>

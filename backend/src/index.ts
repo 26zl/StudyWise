@@ -53,6 +53,7 @@ import { apiError, sendError } from "./utils/apiError.js";
 import { requestTimeout } from "./middleware/request-timeout.js";
 import { getConfiguredWebOriginSet, normalizeWebOrigin } from "./utils/webOrigins.js";
 import { isPublicApiPath } from "./utils/publicApiPaths.js";
+import { authTurnstileRouter } from "./rutere/auth/authTurnstile.js";
 import {
   getDependenciesHealth,
   getLivenessHealth,
@@ -67,6 +68,20 @@ import { isCohereConfigured } from "./services/cohere-rerank.service.js";
 const app = express();
 import { isProd } from "./utils/env.js";
 
+function resolveTrustProxyHops(): number {
+  const raw = process.env.TRUST_PROXY_HOPS?.trim();
+  if (!raw) {
+    return isProd ? 2 : 0;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`TRUST_PROXY_HOPS må være et heltall >= 1, fikk: ${raw}`);
+  }
+
+  return parsed;
+}
+
 // Global error handlers - fanger uventede feil
 process.on("unhandledRejection", (reason, promise) => {
   logger.fatal({ reason, promise }, "Unhandled Promise Rejection - avslutter");
@@ -78,36 +93,36 @@ process.on("uncaughtException", (error) => {
   process.exit(1);
 });
 
-// Trust proxy for korrekt IP-håndtering bak proxyer (f.eks. ved bruk av Heroku, Vercel, eller Nginx)
-app.set("trust proxy", 1);
+// Trust proxy må matche faktisk proxy-kjede, ellers blir klient-IP og req.protocol feil.
+const trustProxyHops = resolveTrustProxyHops();
+app.set("trust proxy", trustProxyHops);
+logger.info({ trustProxyHops }, "Express trust proxy konfigurert");
 
 // Host header validering i produksjon - blokkerer direkte tilgang via herokuapp subdomain
 // Tillater intern trafikk fra Vercel via INTERNAL_HOSTS (f.eks. Heroku-domenet direkte)
 if (isProd) {
   const tillattHost = process.env.API_HOST?.trim().toLowerCase(); // f.eks. "api.studwize.page"
-  if (tillattHost) {
-    const internalHosts = new Set(
-      (process.env.INTERNAL_HOSTS ?? "")
-        .split(",")
-        .map((h) => h.trim().toLowerCase())
-        .filter(Boolean),
-    );
-    const publicHealthPaths = new Set(["/health", "/ready", "/health/dependencies"]);
-    app.use((req, res, next) => {
-      const host = req.get("host");
-      const requestHost = host?.split(":")[0]?.trim().toLowerCase();
-      // Tillat health checks fra Heroku (ingen host header eller intern IP)
-      if (publicHealthPaths.has(req.path)) return next();
-      if (requestHost && requestHost !== tillattHost && !internalHosts.has(requestHost)) {
-        logger.warn(
-          { host, requestHost, path: req.path },
-          "Blokkert forespørsel fra ugyldig host",
-        );
-        return sendError(res, "forbidden", { feil: "Forbidden" });
-      }
-      next();
-    });
-  }
+  const internalHosts = new Set(
+    (process.env.INTERNAL_HOSTS ?? "")
+      .split(",")
+      .map((h) => h.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  const publicHealthPaths = new Set(["/health", "/ready", "/health/dependencies"]);
+  app.use((req, res, next) => {
+    const host = req.get("host");
+    const requestHost = host?.split(":")[0]?.trim().toLowerCase();
+    // Tillat health checks fra Heroku (ingen host header eller intern IP)
+    if (publicHealthPaths.has(req.path)) return next();
+    if (requestHost && requestHost !== tillattHost && !internalHosts.has(requestHost)) {
+      logger.warn(
+        { host, requestHost, path: req.path },
+        "Blokkert forespørsel fra ugyldig host",
+      );
+      return sendError(res, "forbidden", { feil: "Forbidden" });
+    }
+    next();
+  });
 }
 
 // Sikkerhets-headere via Helmet
@@ -244,6 +259,7 @@ const offentligSti = new Set(["/health", "/ready", "/health/dependencies"]);
 // Offentlige API-ruter (monteres FØR auth-middleware)
 import { contactRouter } from "./rutere/contact/contact.js";
 app.use("/api/kontakt", noCache, contactRouter);
+app.use("/api/auth-turnstile", noCache, authTurnstileRouter);
 
 app.use("/api", noCache, sharedChatRouter);
 app.use((req, res, next) => {

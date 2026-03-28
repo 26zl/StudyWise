@@ -1,6 +1,7 @@
 /*
  * Cookie banner – vises til bruker godtar eller avviser.
- * Innloggede brukere lagrer samtykke i databasen; gjester kun i minnet for aktiv side.
+ * Innloggede brukere lagrer samtykke i databasen og cacher det i localStorage for å unngå reprompt.
+ * Gjester lagrer fortsatt kun samtykke i minnet for aktiv side.
  * Les mer lenker til /personvern.
  */
 "use client";

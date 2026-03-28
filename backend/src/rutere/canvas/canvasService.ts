@@ -48,6 +48,48 @@ const requireToken = (token?: string | null) => {
   return token;
 };
 
+function parseCanvasAnnouncements(
+  items: unknown[],
+  context: { courseId?: number; scope: "course" | "all" },
+) {
+  const valid: z.infer<typeof CanvasAnnouncementSchema>[] = [];
+  const invalidSamples: Array<{ index: number; issues: string[] }> = [];
+  let invalidCount = 0;
+
+  items.forEach((item, index) => {
+    const parsed = CanvasAnnouncementSchema.safeParse(item);
+    if (parsed.success) {
+      valid.push(parsed.data);
+      return;
+    }
+
+    invalidCount++;
+    if (invalidSamples.length < 3) {
+      invalidSamples.push({
+        index,
+        issues: parsed.error.issues.map((issue) => {
+          const path = issue.path.join(".");
+          return path ? `${path}: ${issue.message}` : issue.message;
+        }),
+      });
+    }
+  });
+
+  if (invalidCount > 0) {
+    logger.warn(
+      {
+        courseId: context.courseId,
+        scope: context.scope,
+        invalidCount,
+        invalidSamples,
+      },
+      "Ignorerte ugyldige Canvas announcements",
+    );
+  }
+
+  return valid;
+}
+
 
 function getValidatedCanvasDownloadUrl(
   downloadUrl: string | null | undefined,
@@ -259,7 +301,7 @@ export async function fetchCourseAnnouncements(canvasToken: string | null | unde
     }
   );
   return {
-    data: z.array(CanvasAnnouncementSchema).parse(response.data),
+    data: parseCanvasAnnouncements(response.data, { courseId, scope: "course" }),
     meta: response.meta,
   };
 }
@@ -282,7 +324,7 @@ export async function fetchAllAnnouncements(canvasToken?: string | null, baseUrl
     cacheTtl: CACHE_TTL.ANNOUNCEMENTS,
   });
   return {
-    data: z.array(CanvasAnnouncementSchema).parse(response.data),
+    data: parseCanvasAnnouncements(response.data, { scope: "all" }),
     meta: response.meta,
   };
 }

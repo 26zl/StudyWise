@@ -6,6 +6,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { ChatHistory } from "../../database/models/ChatHistory.js";
+import { SharedChat } from "../../database/models/SharedChat.js";
 import { encrypt, decrypt } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
@@ -262,7 +263,10 @@ kiHistoryRouter.delete("/chat/history/:id", async (req, res) => {
     if (!isValidMongoObjectId(id)) {
       return apiError.badRequest(res, "Ugyldig samtale-ID");
     }
-    await ChatHistory.deleteOne({ _id: id, user: userId });
+    await Promise.all([
+      ChatHistory.deleteOne({ _id: id, user: userId }),
+      SharedChat.deleteMany({ ownerId: userId, chatId: id }),
+    ]);
 
     void audit({
       actorUserId: userId,
@@ -286,7 +290,10 @@ kiHistoryRouter.delete("/chat/history", async (req, res) => {
   try {
     const userId = requireUserId(req, res);
     if (!userId) return;
-    await ChatHistory.deleteMany({ user: userId });
+    await Promise.all([
+      ChatHistory.deleteMany({ user: userId }),
+      SharedChat.deleteMany({ ownerId: userId }),
+    ]);
 
     void audit({
       actorUserId: userId,

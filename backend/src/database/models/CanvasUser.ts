@@ -95,5 +95,9 @@ CanvasUserSchema.index(
     { canvasBaseUrl: 1, canvasId: 1 },
     { unique: true, name: "canvas_base_url_canvas_id_unique" },
 );
+CanvasUserSchema.index(
+    { localUser: 1 },
+    { unique: true, name: "canvas_user_local_user_unique" },
+);
 
 export const CanvasUser = mongoose.model<ICanvasUser>('CanvasUser', CanvasUserSchema);

@@ -1,13 +1,16 @@
 /*
  * Miljøvariabel-validering for frontend
  *
- * Clerk-nøkler er alltid påkrevd.
+ * Clerk- og Turnstile-variabler er alltid påkrevd.
  * INTERNAL_API_URL er påkrevd for build/produksjon, men kan falle tilbake til
  * localhost i next dev via next.config.js.
  */
 
 const ALWAYS_REQUIRED_FRONTEND_ENV_VARS = [
   "CLERK_SECRET_KEY",
+  "AUTH_TURNSTILE_GATE_SECRET",
+  "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
+  "NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY",
   "NEXT_PUBLIC_CLERK_SIGN_IN_URL",
   "NEXT_PUBLIC_CLERK_SIGN_UP_URL",
   "NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL",
@@ -36,11 +39,9 @@ export function getFrontendClerkPublishableKey(): string | null {
 /**
  * Validerer frontend miljøvariabler.
  * Ved feil kastes en feil med tydelig liste over manglende/ugyldige variabler.
- * I GitHub Actions hoppes valideringen over slik at repository-builden kan kjøre
- * uten prod-hemmeligheter. Vercel/runtime bruker fortsatt vanlig validering.
  */
 export function validateFrontendEnv(options: ValidateFrontendEnvOptions = {}): void {
-  if (process.env.GITHUB_ACTIONS === "true") {
+  if (process.env.CI === "true") {
     return;
   }
 
@@ -74,12 +75,6 @@ export function validateFrontendEnv(options: ValidateFrontendEnvOptions = {}): v
       manglende.push(
         `INTERNAL_API_URL (må være en gyldig URL, fikk: ${internalApiUrl})`,
       );
-    }
-  }
-
-  if (process.env.NODE_ENV === "production") {
-    if (!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim()) {
-      manglende.push("NEXT_PUBLIC_TURNSTILE_SITE_KEY (påkrevd i produksjon for spam-beskyttelse)");
     }
   }
 

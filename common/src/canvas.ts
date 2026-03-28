@@ -82,11 +82,13 @@ export const CanvasAnnouncementSchema = z.object({
   context_code: z.string().optional(), // f.eks. "course_12345"
   author: z
     .object({
-      id: z.number(),
-      display_name: z.string(),
+      id: z.number().optional(),
+      display_name: z.string().nullable().optional(),
     })
+    .loose()
+    .nullable()
     .optional(),
-  html_url: z.string().optional(),
+  html_url: z.string().nullable().optional(),
 });
 
 // Schema for Canvas moduler og modul-innhold

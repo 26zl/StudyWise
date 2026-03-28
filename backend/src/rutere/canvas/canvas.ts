@@ -30,6 +30,10 @@ import { getCache, setCache } from "../../cache/redis.js";
 import { CanvasUser } from "../../database/models/CanvasUser.js";
 import { User } from "../../database/models/User.js";
 import {
+  buildCanvasUserPayload,
+  isMongoDuplicateKeyError,
+} from "../../utils/canvasUserSync.js";
+import {
   fetchUserProfile,
   fetchCourses,
   fetchCourse,
@@ -141,68 +145,46 @@ router.get("/whoami", async (req, res) => {
       return apiError.badRequest(res, "Canvas-institusjon mangler");
     }
     const { data: canvasUser } = await fetchUserProfile(req.canvasToken, resolvedCanvasBaseUrl);
-    // Er denne Canvas-brukeren allerede koblet til en ANNEN lokal bruker?
+    // whoami skal aldri stjele eller flytte en eksisterende kobling mellom brukere.
     const eksisterendeKobling = await CanvasUser.findOne({
       canvasId: canvasUser.id,
       canvasBaseUrl: resolvedCanvasBaseUrl,
-    });
-    // Sikre toString() på begge sider + null-check
+    }).select("localUser");
     if (
       eksisterendeKobling &&
       eksisterendeKobling.localUser &&
       eksisterendeKobling.localUser.toString() !== req.user.id.toString()
     ) {
-      // Canvas-brukeren er koblet til en annen lokal bruker.
-      // Løsning: Vi antar at den som har gyldig token nå er eieren.
-      // Vi sletter koblingen fra den GAMLE brukeren for å rydde opp.
       logger.warn(
-        `Canvas-bruker ${canvasUser.id} var koblet til bruker ${eksisterendeKobling.localUser}. Flytter kobling til ${req.user.id}.`,
+        {
+          userId: req.user.id,
+          existingUserId: eksisterendeKobling.localUser.toString(),
+          canvasId: canvasUser.id,
+          canvasBaseUrl: resolvedCanvasBaseUrl,
+        },
+        "whoami avvist fordi Canvas-kontoen allerede er koblet til en annen StudyWise-bruker",
       );
-
-      await User.findByIdAndUpdate(eksisterendeKobling.localUser, {
-        $unset: { canvasUser: 1 },
-      });
-
-      // Vi trenger ikke returnere 409 - koden under vil oppdatere CanvasUser til å peke på req.user.id
+      return apiError.conflict(
+        res,
+        "Denne Canvas-kontoen er allerede koblet til en annen StudyWise-bruker. Koble til tokenet på nytt og bruk gjenoppretting hvis du skal flytte koblingen.",
+      );
     }
 
-    // Lagre eller oppdater bruker i vår egen database (kun canvas data, ikke lokal bruker fra vårt eget auth system)
-    // OBS: Dette er ren datasynkronisering. Det bekrefter at Canvas-tokenet virker, men logger ikke brukeren inn i VÅRT system.
     const oppdatertCanvasBruker = await CanvasUser.findOneAndUpdate(
-      { canvasId: canvasUser.id, canvasBaseUrl: resolvedCanvasBaseUrl }, // Finn basert på canvasId + tenant
-      {
-        canvasId: canvasUser.id,
-        canvasBaseUrl: resolvedCanvasBaseUrl,
-        name: canvasUser.name,
-        sortableName: canvasUser.sortable_name,
-        shortName: canvasUser.short_name,
-        avatarUrl: canvasUser.avatar_url,
-        firstName: canvasUser.first_name,
-        lastName: canvasUser.last_name,
-        locale: canvasUser.locale,
-        effectiveLocale: canvasUser.effective_locale,
-        permissions: {
-          canUpdateName: canvasUser.permissions?.can_update_name,
-          canUpdateAvatar: canvasUser.permissions?.can_update_avatar,
-          limitParentAppWebAccess:
-            canvasUser.permissions?.limit_parent_app_web_access,
-        },
-        canvasUserCreatedAt: canvasUser.created_at
-          ? new Date(canvasUser.created_at)
-          : undefined,
-        localUser: req.user.id,
-      },
+      { localUser: req.user.id },
+      buildCanvasUserPayload(canvasUser, resolvedCanvasBaseUrl, req.user.id),
       {
         upsert: true,
         returnDocument: "after",
         setDefaultsOnInsert: true,
         runValidators: true,
-      }, // Opprett hvis ikke finnes
+      },
     );
     if (oppdatertCanvasBruker?._id) {
-      await User.findByIdAndUpdate(req.user.id, {
-        canvasUser: oppdatertCanvasBruker._id,
-      });
+      await User.updateOne(
+        { _id: req.user.id },
+        { $set: { canvasUser: oppdatertCanvasBruker._id } },
+      );
     }
     logger.info("Canvas bruker synkronisert");
     // Returner Canvas-data med created_at
@@ -218,6 +200,16 @@ router.get("/whoami", async (req, res) => {
       created_at: createdAt,
     });
   } catch (error) {
+    if (isMongoDuplicateKeyError(error)) {
+      logger.warn(
+        { userId: req.user?.id, canvasBaseUrl: req.canvasBaseUrl },
+        "whoami traff unikhetskonflikt for Canvas-bruker",
+      );
+      return apiError.conflict(
+        res,
+        "Canvas-kontoen kunne ikke synkroniseres fordi den allerede er koblet til en annen bruker. Koble til tokenet på nytt og bruk gjenoppretting hvis dette er din konto.",
+      );
+    }
     return handleCanvasError(
       res,
       error,
