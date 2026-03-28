@@ -47,6 +47,106 @@ const MAX_SEARCH_RESULTS = 10;
 /** Maks kontekst-lengde i tegn (~3000 tokens ≈ 12000 tegn) */
 const MAX_CONTEXT_CHARS = 12000;
 
+/** Terskel for gjennomsnittlig ord per linje for å flagge sparse chunks */
+const SPARSE_AVG_WORDS_THRESHOLD = 8;
+
+/** Minimum antall linjer for at en chunk skal vurderes som sparse */
+const SPARSE_MIN_LINES = 3;
+
+/** Maks tegn for ekspandert filinnhold (~3000 tokens ≈ 12000 tegn) */
+const MAX_EXPANDED_FILE_CHARS = 12000;
+
+/**
+ * Velger chunks fra en fil for full ekspansjon i konteksten.
+ * Prioriterer: 1) allerede matchede chunks, 2) nærliggende chunks, 3) resten i dokumentrekkefølge.
+ *
+ * @param allChunks - Alle chunks fra filen, sortert etter index
+ * @param matchedChunkIndexes - Set med chunk-indekser som allerede er matchet
+ * @param maxChars - Maks tegn for ekspanderte chunks
+ * @returns Array av chunks å inkludere (ekskluderer allerede matchede)
+ */
+export function selectChunksForExpansion(
+  allChunks: ContentChunk[],
+  matchedChunkIndexes: Set<number>,
+  maxChars: number = MAX_EXPANDED_FILE_CHARS,
+): ContentChunk[] {
+  // Filtrer ut allerede matchede chunks
+  const unmatchedChunks = allChunks.filter((c) => !matchedChunkIndexes.has(c.index));
+  if (unmatchedChunks.length === 0) return [];
+
+  // Sorter etter prioritet: nærliggende til matchede chunks først
+  const matchedIndexArray = Array.from(matchedChunkIndexes);
+  const minMatched = Math.min(...matchedIndexArray);
+  const maxMatched = Math.max(...matchedIndexArray);
+
+  // Chunks i samme "seksjon" (innenfor ±3 av matchede chunks) prioriteres
+  const nearbyChunks: ContentChunk[] = [];
+  const otherChunks: ContentChunk[] = [];
+
+  for (const chunk of unmatchedChunks) {
+    const isNearby = chunk.index >= minMatched - 3 && chunk.index <= maxMatched + 3;
+    if (isNearby) {
+      nearbyChunks.push(chunk);
+    } else {
+      otherChunks.push(chunk);
+    }
+  }
+
+  // Sorter begge grupper etter dokumentrekkefølge
+  nearbyChunks.sort((a, b) => a.index - b.index);
+  otherChunks.sort((a, b) => a.index - b.index);
+
+  // Velg chunks innenfor budsjett
+  const selectedChunks: ContentChunk[] = [];
+  let totalLength = 0;
+
+  // Først nærliggende chunks
+  for (const chunk of nearbyChunks) {
+    if (totalLength + chunk.text.length > maxChars) break;
+    selectedChunks.push(chunk);
+    totalLength += chunk.text.length;
+  }
+
+  // Deretter andre chunks hvis det er plass
+  for (const chunk of otherChunks) {
+    if (totalLength + chunk.text.length > maxChars) break;
+    selectedChunks.push(chunk);
+    totalLength += chunk.text.length;
+  }
+
+  // Sorter endelig utvalg etter dokumentrekkefølge
+  selectedChunks.sort((a, b) => a.index - b.index);
+
+  return selectedChunks;
+}
+
+/**
+ * Sjekker om en chunk er "sparse" — typisk PowerPoint-kulepunkter
+ * eller konverterte PDF-slides med lite tekst per linje.
+ *
+ * @returns { sparse: boolean, avgWordsPerLine: number }
+ */
+export function checkChunkSparsity(text: string): { sparse: boolean; avgWordsPerLine: number } {
+  const lines = text
+    .split(/\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  if (lines.length < SPARSE_MIN_LINES) {
+    return { sparse: false, avgWordsPerLine: 0 };
+  }
+
+  const totalWords = lines.reduce((sum, line) => {
+    const words = line.split(/\s+/).filter((w) => w.length > 0);
+    return sum + words.length;
+  }, 0);
+
+  const avgWordsPerLine = totalWords / lines.length;
+  const sparse = avgWordsPerLine < SPARSE_AVG_WORDS_THRESHOLD;
+
+  return { sparse, avgWordsPerLine };
+}
+
 /**
  * Deler en tekst i overlappende chunks.
  * Prøver å bryte på avsnittgrenser (\n\n), deretter setningsgrenser (.),

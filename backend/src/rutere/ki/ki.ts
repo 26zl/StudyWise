@@ -152,6 +152,46 @@ function normaliserSkrivefeil(text: string): string {
   return result;
 }
 
+/**
+ * Lager et stabilt og Redis-trygt nøkkelsegment for courseHint.
+ * Hashing hindrer problemer med mellomrom/spesialtegn i nøkler.
+ */
+function buildCourseHintCacheSegment(courseHint: string): string {
+  const normalized = normaliserSkrivefeil(courseHint)
+    .normalize("NFKC")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return createHash("sha256")
+    .update(normalized)
+    .digest("hex")
+    .slice(0, 12);
+}
+
+/**
+ * Saniterer courseHint-verdi for Redis-lagring.
+ * Normaliserer mellomrom, casing og spesialtegn slik at verdier som
+ * "MET1020", "MET 1020" og "met1020" alle matcher.
+ * Logger advarsel hvis verdien ble endret.
+ */
+function sanitizeCourseHintValue(courseHint: string): string {
+  const original = courseHint;
+  const sanitized = courseHint
+    .trim()
+    .toUpperCase()
+    .normalize("NFKC")
+    .replace(/\s+/g, "")  // Fjern alle mellomrom
+    .replace(/[^A-Z0-9\-:]/g, "");  // Behold kun alfanumeriske, kolon og bindestrek
+
+  if (original !== sanitized) {
+    logger.warn(
+      { original, sanitized },
+      "courseHint-verdi sanitert før Redis-lagring",
+    );
+  }
+  return sanitized;
+}
+
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -218,6 +258,37 @@ function detectIntent(messages: Array<{ role: string; content: string }>): Inten
     if (CANVAS_LIGHT_KEYWORDS.some((kw) => msg.includes(kw))) return "canvas_light";
   }
   return "general_chat";
+}
+
+function selectModel(
+  intent: IntentType | "canvas_hint",
+  messageCount: number,
+  contextLength: number,
+): string {
+  if (intent === "general_chat" || intent === "canvas_hint") {
+    return "claude-haiku-4-5";
+  }
+  if (intent === "canvas_light" || (messageCount <= 4 && contextLength < 6000)) {
+    return "claude-haiku-4-5";
+  }
+  return "claude-sonnet-4-20250514";
+}
+
+function chooseModelForFullDocumentMode(
+  baseModel: string,
+  systemPrompt: string,
+  canvasContext: string,
+  historyMessages: Array<{ role: string; content: string }>,
+): { model: string; reason: "base" | "largest_context" } {
+  const historyTokens = historyMessages.reduce((sum, msg) => sum + countTokens(msg.content) + 4, 0);
+  const requestedWindowTokens = countTokens(systemPrompt) + countTokens(canvasContext) + historyTokens + 2000;
+  const largestAvailableContextModel = "claude-sonnet-4-20250514";
+  const largestAvailableContextWindow = 200000;
+
+  if (requestedWindowTokens > largestAvailableContextWindow) {
+    return { model: largestAvailableContextModel, reason: "largest_context" };
+  }
+  return { model: baseModel, reason: "base" };
 }
 
 function isLikelyFollowUpQuestion(message: string): boolean {
@@ -595,9 +666,9 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     );
   }
 
-  const model = resolveModel(requestedModel);
+  const resolvedRequestedModel = resolveModel(requestedModel);
 
-  if (checkAIClientUnavailable(res, model, KIChatResponseSchema)) return;
+  if (checkAIClientUnavailable(res, resolvedRequestedModel, KIChatResponseSchema)) return;
 
   if (requestedModel && !SUPPORTED_MODELS[requestedModel]) {
     logger.warn(
@@ -630,7 +701,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
           suksess: true,
           response:
             "Jeg har ikke tilgang til Canvas-data akkurat nå. Sjekk at du har:\n\n1. Lagt inn et gyldig Canvas API-token i Innstillinger\n2. Valgt minst ett datasett under «Gi AI tilgang til» i chatten",
-          model: model,
+          model: resolvedRequestedModel,
         }),
       );
     }
@@ -645,6 +716,8 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     // ——— Laste Canvas-kontekst via context-loader (Redis → API fallback) ———
     let canvasKontekst = "";
     let hasCanvasData = false;
+    let fullDocumentModeActive = false;
+    let fullDocumentStrictPrefix = "";
 
     if (intent !== "general_chat" && req.canvasToken && req.user?.id) {
       const baseUrl = req.canvasBaseUrl;
@@ -704,27 +777,31 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       // ─── Session-locked courseHint ───
       // Bruker Redis for å låse courseHint til første gyldige ekstraksjon i sesjonen.
       // Oppdateres KUN ved eksplisitt kursbytte-signal fra brukeren.
+      // Alle courseHint-verdier saniteres før lagring/sammenligning for konsistent matching.
       const courseHintLockKey = `ki:session:${req.user.id}:locked-course-hint`;
       const SESSION_COURSEHINT_TTL = 3600; // 1 time — matcher typisk chat-sesjon
 
-      const lockedCourseHint = await getCache(courseHintLockKey);
+      const lockedCourseHintRaw = await getCache(courseHintLockKey);
+      const lockedCourseHint = lockedCourseHintRaw ? sanitizeCourseHintValue(lockedCourseHintRaw) : null;
+      const sanitizedTargetHint = target.courseHint ? sanitizeCourseHintValue(target.courseHint) : null;
       const hasOverride = hasExplicitCourseOverride(lastUserMsg);
       const shouldReuseLockedCourseHint = isLikelyFollowUp
         || refersToCurrentCourseContext(lastUserMsg)
         || !!target.moduleHint
         || !!target.fileHint;
 
-      if (hasOverride && target.courseHint) {
+      if (hasOverride && sanitizedTargetHint) {
         // Bruker vil eksplisitt bytte kurs — oppdater låsen
-        await setCache(courseHintLockKey, target.courseHint, SESSION_COURSEHINT_TTL);
+        await setCache(courseHintLockKey, sanitizedTargetHint, SESSION_COURSEHINT_TTL);
+        target.courseHint = sanitizedTargetHint;
         logger.info(
-          { courseHint: target.courseHint, override: true },
+          { courseHint: sanitizedTargetHint, override: true },
           "courseHint låst (eksplisitt override)",
         );
       } else if (lockedCourseHint) {
         // Bruk eksisterende låst courseHint kun når meldingen ikke gir ny eksplisitt courseHint.
         // Dette hindrer at sesjonslås overstyrer ny emnekode som 6105N.
-        if (!target.courseHint) {
+        if (!sanitizedTargetHint) {
           if (!shouldReuseLockedCourseHint) {
             logger.info(
               { lockedCourseHint, intent, messagePreview: lastUserMsg.substring(0, 100) },
@@ -737,24 +814,29 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
               "courseHint arvet fra sesjonslås",
             );
           }
-        } else if (target.courseHint !== lockedCourseHint && hasOverride) {
-          await setCache(courseHintLockKey, target.courseHint, SESSION_COURSEHINT_TTL);
+        } else if (sanitizedTargetHint !== lockedCourseHint && hasOverride) {
+          await setCache(courseHintLockKey, sanitizedTargetHint, SESSION_COURSEHINT_TTL);
+          target.courseHint = sanitizedTargetHint;
           logger.info(
-            { previousCourseHint: lockedCourseHint, courseHint: target.courseHint, override: true },
+            { previousCourseHint: lockedCourseHint, courseHint: sanitizedTargetHint, override: true },
             "courseHint oppdatert fra ny eksplisitt hint",
           );
-        } else if (target.courseHint !== lockedCourseHint) {
+        } else if (sanitizedTargetHint !== lockedCourseHint) {
           target.courseHint = lockedCourseHint;
           logger.info(
             { courseHint: target.courseHint, fromLock: true, ignoredHint: true },
             "courseHint beholdt fra sesjonslås (ingen eksplisitt override)",
           );
+        } else {
+          // Verdiene er like etter sanitering — bruk låst verdi
+          target.courseHint = lockedCourseHint;
         }
-      } else if (target.courseHint) {
+      } else if (sanitizedTargetHint) {
         // Første gang vi ekstraherer courseHint — lås den for sesjonen
-        await setCache(courseHintLockKey, target.courseHint, SESSION_COURSEHINT_TTL);
+        await setCache(courseHintLockKey, sanitizedTargetHint, SESSION_COURSEHINT_TTL);
+        target.courseHint = sanitizedTargetHint;
         logger.info(
-          { courseHint: target.courseHint, newLock: true },
+          { courseHint: sanitizedTargetHint, newLock: true },
           "courseHint låst (første ekstraksjon)",
         );
       }
@@ -780,11 +862,19 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
         intent === "canvas_full" &&
         !target.courseHint &&
         isLikelyFollowUpQuestion(lastUserMsg);
+      const scopedCourseHint = target.courseHint ?? lockedCourseHint;
+      const courseHintCacheSegment = scopedCourseHint
+        ? buildCourseHintCacheSegment(scopedCourseHint)
+        : null;
       const lastCourseSessionKey =
-        intent === "canvas_full" ? `ki:session:${req.user.id}:last-course` : null;
+        intent === "canvas_full"
+          ? courseHintCacheSegment
+            ? `ki:session:${req.user.id}:last-course:${courseHintCacheSegment}`
+            : `ki:session:${req.user.id}:last-course`
+          : null;
       const sessionCacheKey = intent === "canvas_full"
         ? target.courseHint
-          ? `ki:session:${req.user.id}:${target.courseHint}:${queryHash}`
+          ? `ki:session:${req.user.id}:course:${buildCourseHintCacheSegment(target.courseHint)}:${queryHash}`
           : followUpWithoutCourseHint
             ? lastCourseSessionKey
             : null
@@ -853,6 +943,46 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
 
       canvasKontekst = contextResult.kontekst;
       hasCanvasData = contextResult.hasCanvasData;
+      fullDocumentModeActive = !!contextResult.fullDocumentMode;
+
+      // Append instruksjon for sparse innhold (PowerPoint-kulepunkter)
+      if (contextResult.hasSparseChunks) {
+        enhancedSystemPrompt += `
+
+## Sparse Course Material
+
+Some of the retrieved course material consists of sparse bullet points from PowerPoint slides. For these sections: use the bullet points as structural anchors, but provide a complete and thorough explanation of each point using your knowledge of the subject. Do not simply repeat the bullet points — expand them into full pedagogical explanations so the student gains real understanding.
+`;
+        logger.info(
+          { userId: req.user.id },
+          "Sparse chunks detektert — system prompt utvidet",
+        );
+      }
+
+      if (fullDocumentModeActive) {
+        fullDocumentStrictPrefix = `STRICT MODE: You must answer ONLY from the document provided below.
+Do NOT use general knowledge. Do NOT invent section headings or examples that are not in the document. If content is missing from the document, say so explicitly. This overrides all other instructions.
+
+`;
+        enhancedSystemPrompt += `
+
+## Full Document Mode
+
+You have been given the complete content of the source file below.
+Your answer must be based EXCLUSIVELY on this content.
+
+Rules:
+- Cover ALL main topics present in the document, in document order
+- Never invent, assume, or add information that is not in the document
+- If something is not in the document, say 'dette er ikkje dekka i dette dokumentet' — do not fill in with general knowledge
+- Never write sections like 'Praktisk datainnsamling (frå obligoppgåva)' or similar unless that exact heading exists in the document
+- At the end, write one sentence listing other chapters or topics in this file the student can ask about next
+`;
+        logger.info(
+          { userId: req.user.id },
+          "Full dokument-mode aktivert — system prompt utvidet",
+        );
+      }
 
       logger.info(
         {
@@ -872,39 +1002,70 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       );
     }
 
-    // Legg Canvas-kontekst inn i system-prompten kun hvis tilgjengelig
-    if (hasCanvasData) {
-      enhancedSystemPrompt += "\n\n" + canvasKontekst;
-    }
-
     // Dynamisk timeout og max_tokens basert på intent
-    const maxTokens = intent === "canvas_full" ? 4096 : 2048;
+    const maxTokens = 2000;
     const TIMEOUT_MS = intent === "canvas_full" ? 120000 : intent === "canvas_light" ? 60000 : 30000;
 
     // Token-basert trimming av samtalehistorikk.
     // Reserverer plass til system-prompt + AI-respons, bruker resten til historikk.
     // Claude Sonnet har 200k kontekst, men vi begrenser for kostnads- og latens-kontroll.
-    const systemPromptTokens = countTokens(enhancedSystemPrompt);
-    const MAX_CONTEXT_TOKENS = intent === "canvas_full" ? 16000 : 8000;
+    const systemPromptTokens = countTokens(enhancedSystemPrompt) + (hasCanvasData ? countTokens(canvasKontekst) : 0);
+    const MAX_CONTEXT_TOKENS = intent === "canvas_full" ? 13000 : 8000;
     const historyBudget = Math.max(MAX_CONTEXT_TOKENS - systemPromptTokens - maxTokens, 1000);
-    const trimmedMessages = trimToTokenLimit(messages, historyBudget);
+    const tokenTrimmedMessages = trimToTokenLimit(messages, historyBudget);
+    const trimmedMessages = tokenTrimmedMessages.slice(-8);
 
     // System-prompt styres kun av backend (KIChatClientMessageSchema tillater ikke "system" fra klient — prompt-injection-sikring).
-    const fullMessages = [
-      { role: "system" as const, content: enhancedSystemPrompt },
+    const fullMessages: Array<{
+      role: "system" | "user" | "assistant";
+      content: string;
+      cache_control?: { type: "ephemeral" };
+    }> = [
+      { role: "system", content: fullDocumentStrictPrefix + enhancedSystemPrompt, cache_control: { type: "ephemeral" } },
+      ...(hasCanvasData
+        ? [{ role: "system" as const, content: canvasKontekst, cache_control: { type: "ephemeral" as const } }]
+        : []),
       ...trimmedMessages.map((m: { role: string; content: string }) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
       })),
     ];
+    const selectedModelBase = selectModel(intent, trimmedMessages.length, hasCanvasData ? canvasKontekst.length : 0);
+    const fullDocumentModelSelection = fullDocumentModeActive
+      ? chooseModelForFullDocumentMode(selectedModelBase, enhancedSystemPrompt, canvasKontekst, trimmedMessages)
+      : { model: selectedModelBase, reason: "base" as const };
+    const selectedModel = fullDocumentModelSelection.model;
+    const selectedModelReason = selectedModel === "claude-haiku-4-5" ? "haiku" : "sonnet";
+    logger.info(
+      {
+        intent,
+        model: selectedModel,
+        reason: selectedModelReason,
+        messageCount: trimmedMessages.length,
+        contextLength: hasCanvasData ? canvasKontekst.length : 0,
+      },
+      "Valgte modell for KI chat",
+    );
+    if (fullDocumentModeActive) {
+      logger.info(
+        {
+          mode: "full_document",
+          selectedModel,
+          selectionReason: fullDocumentModelSelection.reason,
+        },
+        "Valgte modell for full dokument-mode",
+      );
+    }
 
     logger.info(
       {
         intent,
-        model,
+        model: selectedModel,
         messageCount: fullMessages.length,
         harCanvasToken: !!req.canvasToken,
         systemPromptLength: enhancedSystemPrompt.length,
+        canvasContextLength: hasCanvasData ? canvasKontekst.length : 0,
+        historyCount: trimmedMessages.length,
         maxTokens,
         timeoutMs: TIMEOUT_MS,
       },
@@ -917,7 +1078,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
 
     const result = await Promise.race([
       chatCompletion({
-        model,
+        model: selectedModel,
         messages: fullMessages,
         max_tokens: maxTokens,
         temperature: Math.min(Math.max(temperature, 0), 1),
@@ -937,7 +1098,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
 
     logger.info(
       {
-        model,
+        model: selectedModel,
         responseLength: responseText.length,
         tokens: usage?.total_tokens,
       },
@@ -947,7 +1108,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     const payload = KIChatResponseSchema.parse({
       suksess: true,
       response: responseText,
-      model: model,
+      model: selectedModel,
       usage: usage
         ? {
             prompt_tokens: usage.prompt_tokens,
@@ -966,7 +1127,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       action: AUDIT_ACTIONS.KI_CHAT,
       category: "ki",
       outcome: "success",
-      metadata: { model, tokens: usage?.total_tokens, messageCount: messages.length },
+      metadata: { model: selectedModel, tokens: usage?.total_tokens, messageCount: messages.length },
       req,
     }).catch((err) => {
       logger.warn({ err, userId: req.user!.id }, "Audit-feil for KI chat");

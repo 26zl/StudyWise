@@ -22,7 +22,6 @@
 import { logger } from "../utils/logger.js";
 import { getCache, isRedisReady } from "../cache/redis.js";
 import { syncCanvasDataForUser, hasCanvasSyncData, userKey, isSyncing, waitForSync } from "./canvas-sync.service.js";
-import { byggKursoversiktKontekst, byggLettCanvasKontekst, byggMålrettetCanvasKontekst } from "../rutere/ki/kiCanvas.js";
 import type { TargetedQuery } from "../rutere/ki/ki.js";
 import { TWO_WEEKS_MS } from "common/dateUtils";
 import { isCanvasAssignmentSubmitted } from "common/canvas";
@@ -33,11 +32,14 @@ import {
   searchChunks,
   buildChunkContext,
   buildChunkContextFromEntries,
+  checkChunkSparsity,
+  selectChunksForExpansion,
 } from "./chunk.service.js";
 import {
   getStoredCourseCatalog,
   getStoredChunksForCourses,
   getStoredChunksForFile,
+  getStoredFullDocumentForFile,
   hasStoredContentForUser,
 } from "./embedding.service.js";
 import { hybridSearch, type HybridSearchResult } from "./hybrid-retrieval.service.js";
@@ -58,6 +60,10 @@ export const ContextResultSchema = z.object({
   kontekst: z.string(),
   hasCanvasData: z.boolean(),
   source: z.enum(["redis", "mongodb", "api", "vector", "chunks", "none"]),
+  /** true hvis minst én chunk inneholder sparse kulepunkt-innhold (PowerPoint etc.) */
+  hasSparseChunks: z.boolean().optional(),
+  /** true når konteksten er hentet som full dokumenttekst (ikke chunk-sammensetning) */
+  fullDocumentMode: z.boolean().optional(),
 });
 
 export type ContextResult = z.infer<typeof ContextResultSchema>;
@@ -81,6 +87,38 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+const FULL_DOCUMENT_TRIGGER_WORDS = [
+  "oppsummere",
+  "oppsummer",
+  "forklar hele",
+  "gi meg oversikt",
+  "hva dekker",
+  "hele kapittel",
+  "alle temaene",
+  "hva handler om",
+  "sammendrag",
+  "gå gjennom",
+];
+
+function shouldUseFullDocumentMode(
+  message: string,
+  target: TargetedQuery | undefined,
+  filteredResults: HybridSearchResult[],
+): { enabled: boolean; reason: string; triggerWord?: string } {
+  const rawLower = message.toLowerCase();
+  const normalized = normaliserCanvasSporsmal(message);
+  const wordCount = normalized.split(/\s+/).filter(Boolean).length;
+  const triggerWord = FULL_DOCUMENT_TRIGGER_WORDS.find((word) => rawLower.includes(word));
+  const explicitBroadQuery = !!triggerWord;
+  const explicitFileOrChapter = Boolean(target?.fileHint || target?.moduleHint);
+  const uniqueFileIds = new Set(filteredResults.map((r) => `${r.source.courseId}:${r.source.fileId}`));
+  const singleFileBroadMatch = uniqueFileIds.size === 1 && wordCount < 6;
+
+  if (explicitBroadQuery) return { enabled: true, reason: "explicit_broad_query", triggerWord };
+  if (explicitFileOrChapter) return { enabled: true, reason: "explicit_file_or_chapter" };
+  if (singleFileBroadMatch) return { enabled: true, reason: "single_file_broad_query" };
+  return { enabled: false, reason: "chunk_mode_no_trigger_word" };
+}
 function tokenizeCourseMatchText(value: string): string[] {
   return normaliserCanvasSporsmal(value)
     .split(" ")
@@ -279,6 +317,30 @@ function titleMatchesFileHint(title: string, fileHint: string): boolean {
   const normHint = normaliserFilnavnHint(fileHint);
   const normTitle = normaliserFilnavnHint(title);
   return normTitle.includes(normHint) || normHint.includes(normTitle);
+}
+
+/**
+ * Formaterer kursoversikt fra lagret MongoDB/Redis-data.
+ * Brukes når brukeren spør om "hvilke fag har jeg" o.l.
+ */
+function formaterKursoversiktFraLagring(
+  courses: Array<{ courseName: string; course_code?: string; moduler?: Array<{ name: string }> }>,
+): string {
+  let kontekst = "[CANVAS-DATA START]\n";
+  kontekst += `EMNER (${courses.length} aktive):\n`;
+  for (const course of courses) {
+    const label = formatCourseLabel(course.courseName, course.course_code);
+    kontekst += `- ${label}\n`;
+    if (course.moduler && course.moduler.length > 0) {
+      kontekst += `  Moduler: ${course.moduler.map((m) => m.name).slice(0, 5).join(", ")}`;
+      if (course.moduler.length > 5) {
+        kontekst += ` (+${course.moduler.length - 5} til)`;
+      }
+      kontekst += "\n";
+    }
+  }
+  kontekst += "[CANVAS-DATA SLUTT]";
+  return kontekst;
 }
 
 async function hentSynkroniserteEmnerFraRedis(userId: string): Promise<SyncedCourse[]> {
@@ -1162,12 +1224,15 @@ function filtrerHybridResultater(
  *
  * Bruker chunkHint som søkequery når den finnes — dette gir bedre BM25-matching
  * på fagbegreper som brukeren eksplisitt nevner (f.eks. "recursion", "kvantitativ metode").
+ *
+ * Returnerer også hasSparseChunks for å signalisere om konteksten inneholder
+ * PowerPoint-kulepunkter eller lignende sparse innhold.
  */
 async function byggKontekstFraHybridSearch(
   userId: string,
   message: string,
   target?: TargetedQuery,
-): Promise<string | null> {
+): Promise<{ kontekst: string; hasSparseChunks: boolean; fullDocumentMode: boolean } | null> {
   try {
     const relevantCourses = await finnRelevanteEmner(userId, target);
     const courseIds = relevantCourses.map((course) => String(course.id));
@@ -1219,13 +1284,193 @@ async function byggKontekstFraHybridSearch(
       return null;
     }
 
-    const kontekst = buildChunkContextFromEntries(
-      filteredResults.map((result) => ({
-        text: result.text,
-        source: result.source,
-        index: result.chunkIndex,
-      })),
-    );
+    // ── Full dokument-mode ──
+    const fullDocumentDecision = shouldUseFullDocumentMode(message, target, filteredResults);
+    if (fullDocumentDecision.enabled) {
+      const primary = filteredResults[0];
+      const fullDocument = await getStoredFullDocumentForFile(
+        userId,
+        primary.source.courseId,
+        primary.source.fileId,
+      );
+
+      if (fullDocument) {
+        const maxTokens = 20000;
+        const estimatedChars = maxTokens * 4;
+        const truncatedFullText = fullDocument.fullText.slice(0, estimatedChars);
+        const truncated = truncatedFullText.length < fullDocument.fullText.length;
+        const kontekst =
+          "[CANVAS-DATA START]\n" +
+          `--- FIL-INNHOLD (FULLT DOKUMENT): ${fullDocument.fileName} ---\n` +
+          truncatedFullText +
+          "\n[CANVAS-DATA SLUTT]";
+
+        logger.info(
+          {
+            mode: "full_document",
+            triggerWord: fullDocumentDecision.triggerWord ?? null,
+            fileId: primary.source.fileId,
+            fileName: fullDocument.fileName,
+            fullTextChars: fullDocument.charCount,
+            injectedChars: truncatedFullText.length,
+            truncated,
+            reason: fullDocumentDecision.reason,
+          },
+          "Full dokument-mode aktivert",
+        );
+
+        return { kontekst, hasSparseChunks: false, fullDocumentMode: true };
+      }
+    }
+    if (!fullDocumentDecision.enabled) {
+      logger.info(
+        {
+          mode: "chunk",
+          reason: "no trigger word matched",
+          queryPreview: message.substring(0, 120),
+        },
+        "Full dokument-mode ikke trigget",
+      );
+    }
+
+    // ── Sparsity-sjekk på chunks ──
+    // Oppdager PowerPoint-kulepunkter og lignende sparse innhold
+    let hasSparseChunks = false;
+    for (const result of filteredResults) {
+      const { sparse, avgWordsPerLine } = checkChunkSparsity(result.text);
+      if (sparse) {
+        hasSparseChunks = true;
+        logger.debug(
+          {
+            chunkId: `${result.source.courseId}:${result.source.fileId}:${result.chunkIndex}`,
+            avgWordsPerLine: avgWordsPerLine.toFixed(1),
+            sparse: true,
+          },
+          "Sparse chunk detektert",
+        );
+      }
+    }
+
+    // ── File-aware context expansion ──
+    // Hent full innhold fra matchede filer (ikke bare oppsummering)
+    const MAX_EXPANDED_CHARS = 23000; // topFile opptil 20k + sekundære opptil 3k
+    const MAX_TOPFILE_EXPANDED_CHARS = 20000;
+    const MAX_SECONDARY_EXPANDED_CHARS = 3000;
+    const expandedChunks: Array<{ text: string; source: typeof filteredResults[0]["source"]; index: number }> = [];
+    let totalExpandedChars = 0;
+    let filesExpanded = 0;
+
+    // Grupper etter fileId og samle matchede indekser
+    const fileMatchCounts = new Map<string, { count: number; source: typeof filteredResults[0]["source"]; indexes: Set<number> }>();
+    for (const result of filteredResults) {
+      const fileKey = `${result.source.courseId}:${result.source.fileId}`;
+      const existing = fileMatchCounts.get(fileKey);
+      if (existing) {
+        existing.count++;
+        existing.indexes.add(result.chunkIndex);
+      } else {
+        fileMatchCounts.set(fileKey, {
+          count: 1,
+          source: result.source,
+          indexes: new Set([result.chunkIndex]),
+        });
+      }
+    }
+
+    // Identifiser topFile: høyeste score først, deretter flest matcher.
+    const topResult = [...filteredResults]
+      .sort((a, b) => {
+        if (Math.abs(b.score - a.score) > 0.0001) return b.score - a.score;
+        const aCount = fileMatchCounts.get(`${a.source.courseId}:${a.source.fileId}`)?.count ?? 0;
+        const bCount = fileMatchCounts.get(`${b.source.courseId}:${b.source.fileId}`)?.count ?? 0;
+        return bCount - aCount;
+      })[0];
+    const topFileKey = `${topResult.source.courseId}:${topResult.source.fileId}`;
+    const topFileInfo = fileMatchCounts.get(topFileKey);
+
+    // Sorter sekundære filer etter flest matcher
+    const secondaryFiles = Array.from(fileMatchCounts.entries())
+      .filter(([key]) => key !== topFileKey)
+      .sort((a, b) => b[1].count - a[1].count);
+
+    const expansionOrder: Array<{ fileInfo: { count: number; source: typeof filteredResults[0]["source"]; indexes: Set<number> }; reason: "topFile" | "secondary"; budgetCap: number }> = [];
+    if (topFileInfo) {
+      expansionOrder.push({ fileInfo: topFileInfo, reason: "topFile", budgetCap: MAX_TOPFILE_EXPANDED_CHARS });
+    }
+    for (const [, fileInfo] of secondaryFiles) {
+      expansionOrder.push({ fileInfo, reason: "secondary", budgetCap: MAX_SECONDARY_EXPANDED_CHARS });
+    }
+
+    for (const { fileInfo, reason, budgetCap } of expansionOrder) {
+      if (totalExpandedChars >= MAX_EXPANDED_CHARS) break;
+
+      try {
+        // Hent alle chunks fra filen
+        const allFileChunks = await getStoredChunksForFile(
+          userId,
+          fileInfo.source.courseId,
+          fileInfo.source.fileId,
+        );
+
+        // Hopp over hvis filen har få chunks (lite å ekspandere)
+        if (allFileChunks.length <= fileInfo.indexes.size + 2) continue;
+
+        const remainingBudget = Math.min(
+          budgetCap,
+          MAX_EXPANDED_CHARS - totalExpandedChars,
+        );
+        if (remainingBudget <= 0) continue;
+        const additionalChunks = selectChunksForExpansion(
+          allFileChunks,
+          fileInfo.indexes,
+          remainingBudget,
+        );
+
+        if (additionalChunks.length > 0) {
+          for (const chunk of additionalChunks) {
+            expandedChunks.push({
+              text: chunk.text,
+              source: fileInfo.source,
+              index: chunk.index,
+            });
+            totalExpandedChars += chunk.text.length;
+          }
+          filesExpanded++;
+
+          logger.info(
+            {
+              fileId: fileInfo.source.fileId,
+              fileName: fileInfo.source.fileName,
+              reason,
+              charsAdded: additionalChunks.reduce((sum, c) => sum + c.text.length, 0),
+            },
+            "Fil-ekspansjon lagt til kontekst",
+          );
+        }
+      } catch (err) {
+        logger.warn(
+          { err, userId, fileId: fileInfo.source.fileId },
+          "Feil ved henting av fil-chunks for ekspansjon",
+        );
+      }
+    }
+
+    // Kombiner matchede chunks med ekspanderte chunks og sorter etter filnavn + indeks
+    const allChunksForContext = [
+      ...filteredResults.map((r) => ({ text: r.text, source: r.source, index: r.chunkIndex })),
+      ...expandedChunks,
+    ];
+
+    // Sorter etter fil og deretter indeks for logisk dokumentrekkefølge
+    allChunksForContext.sort((a, b) => {
+      const fileCompare = `${a.source.courseId}:${a.source.fileId}`.localeCompare(
+        `${b.source.courseId}:${b.source.fileId}`,
+      );
+      if (fileCompare !== 0) return fileCompare;
+      return a.index - b.index;
+    });
+
+    const kontekst = buildChunkContextFromEntries(allChunksForContext, 13000);
     if (kontekst.length === 0) return null;
 
     logger.info(
@@ -1233,16 +1478,23 @@ async function byggKontekstFraHybridSearch(
         userId,
         chunkHint: target?.chunkHint ?? null,
         intent: "canvas_full",
-        finalCount: filteredResults.length,
+        matchedChunks: filteredResults.length,
+        filesExpanded,
+        totalExpandedChars,
         topScore: filteredResults[0].score.toFixed(3),
         topFile: filteredResults[0].source.fileName,
         contextLength: kontekst.length,
+        hasSparseChunks,
         sources,
       },
-      "Hybrid søk kontekst bygget",
+      "Hybrid søk kontekst bygget med full fil-ekspansjon",
     );
 
-    return "[CANVAS-DATA START]\n" + kontekst + "\n[CANVAS-DATA SLUTT]";
+    return {
+      kontekst: "[CANVAS-DATA START]\n" + kontekst + "\n[CANVAS-DATA SLUTT]",
+      hasSparseChunks,
+      fullDocumentMode: false,
+    };
   } catch (error) {
     logger.warn({ err: error }, "Feil ved hybrid søk — faller tilbake til keyword-søk");
     return null;
@@ -1330,34 +1582,69 @@ export async function loadCanvasContext(
   );
 
   if (wantsCourseOverview) {
-    logger.info(
-      { userId, intent, source: "api" },
-      "Canvas-kontekst: eksplisitt emneoversikt-spørsmål — bruker direkte Canvas-API",
-    );
-
-    const apiKontekst = await byggKursoversiktKontekst(canvasToken, baseUrl);
-    const hasData = apiKontekst.includes("CANVAS-DATA");
-
-    if (redisAvailable) {
-      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
-        logger.warn({ err, userId }, "Bakgrunns-sync feilet etter kursoversikt-fallback");
-      });
+    // Prøv Redis først (prosessert kursdata fra sync)
+    const dbCoursesKey = `db:user:${userId}:courses`;
+    const cachedCourses = await getCache(dbCoursesKey);
+    if (cachedCourses) {
+      try {
+        const courses = JSON.parse(cachedCourses);
+        const kontekst = formaterKursoversiktFraLagring(courses);
+        logger.info(
+          { userId, intent, source: "redis", courseCount: courses.length },
+          "Canvas-kontekst: kursoversikt lastet fra Redis",
+        );
+        return { kontekst, hasCanvasData: true, source: "redis" };
+      } catch {
+        // Ugyldig JSON — fortsett til MongoDB
+      }
     }
 
-    return { kontekst: apiKontekst, hasCanvasData: hasData, source: "api" };
+    // MongoDB fallback
+    const mongoKontekst = await byggLettKontekstFraMongo(userId);
+    if (mongoKontekst) {
+      logger.info(
+        { userId, intent, source: "mongodb" },
+        "Canvas-kontekst: kursoversikt lastet fra MongoDB",
+      );
+      // Trigger bakgrunns-sync for å oppdatere Redis
+      if (redisAvailable) {
+        syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
+          logger.warn({ err, userId }, "Bakgrunns-sync feilet etter MongoDB-fallback");
+        });
+      }
+      return { kontekst: mongoKontekst, hasCanvasData: true, source: "mongodb" };
+    }
+
+    // Ingen lagret data — trigger sync og returner tom kontekst
+    logger.info(
+      { userId, intent, source: "none" },
+      "Canvas-kontekst: ingen lagret kursoversikt — trigger sync",
+    );
+    if (redisAvailable) {
+      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
+        logger.warn({ err, userId }, "Bakgrunns-sync feilet");
+      });
+    }
+    return { kontekst: "", hasCanvasData: false, source: "none" };
   }
 
   // ── Hybrid søk når chunkHint finnes (uavhengig av intent) ──
   // chunkHint indikerer at brukeren spør om spesifikt faginnhold, selv om
   // intent er canvas_light (f.eks. "forklar kvantitativ metode").
   if (!shouldPreferStructuredContext && hasStoredAIContent && message && target?.chunkHint) {
-    const hybridKontekst = await byggKontekstFraHybridSearch(userId, message, target);
-    if (hybridKontekst) {
+    const hybridResult = await byggKontekstFraHybridSearch(userId, message, target);
+    if (hybridResult) {
       logger.info(
-        { userId, intent, chunkHint: target.chunkHint, source: "vector", contextLength: hybridKontekst.length },
+        { userId, intent, chunkHint: target.chunkHint, source: "vector", contextLength: hybridResult.kontekst.length },
         "Canvas-kontekst lastet fra hybrid søk (chunkHint-trigget)",
       );
-      return { kontekst: hybridKontekst, hasCanvasData: true, source: "vector" };
+      return {
+        kontekst: hybridResult.kontekst,
+        hasCanvasData: true,
+        source: "vector",
+        hasSparseChunks: hybridResult.hasSparseChunks,
+        fullDocumentMode: hybridResult.fullDocumentMode,
+      };
     }
     // Hvis hybrid søk ikke ga resultater, fortsett med vanlig intent-basert flyt
     logger.info(
@@ -1406,24 +1693,17 @@ export async function loadCanvasContext(
         return { kontekst: mongoKontekst, hasCanvasData: true, source: "mongodb" };
       }
 
+      // Ingen lokal data — trigger sync og returner tom kontekst (ingen Canvas API-kall)
       logger.info(
-        { userId, intent, target, source: "api" },
-        "Redis+MongoDB mangler data — bruker API-fallback (målrettet metadata)",
+        { userId, intent, target, source: "none" },
+        "Redis+MongoDB mangler data — trigger sync (målrettet metadata)",
       );
-      const apiKontekst = await byggMålrettetCanvasKontekst(canvasToken, target, baseUrl);
-      const hasData =
-        apiKontekst.includes("CANVAS-DATA") ||
-        apiKontekst.includes("MODULER") ||
-        apiKontekst.includes("OPPGAVER") ||
-        apiKontekst.includes("KUNNGJØRINGER");
-
       if (redisAvailable) {
         syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
-          logger.warn({ err, userId }, "Bakgrunns-sync feilet etter målrettet metadata API-fallback");
+          logger.warn({ err, userId }, "Bakgrunns-sync feilet");
         });
       }
-
-      return { kontekst: apiKontekst, hasCanvasData: hasData, source: "api" };
+      return { kontekst: "", hasCanvasData: false, source: "none" };
     }
 
     // Prøv Redis først
@@ -1458,18 +1738,17 @@ export async function loadCanvasContext(
       return { kontekst: mongoKontekst, hasCanvasData: true, source: "mongodb" };
     }
 
-    // Siste fallback: direkte Canvas API via kiCanvas
-    logger.info({ userId, intent, source: "api" }, "Redis+MongoDB mangler data — bruker API-fallback (lett)");
-    const apiKontekst = await byggLettCanvasKontekst(canvasToken, baseUrl);
-    const hasData = apiKontekst.includes("CANVAS-DATA");
-
+    // Ingen lokal data — trigger sync og returner tom kontekst (ingen Canvas API-kall)
+    logger.info(
+      { userId, intent, source: "none" },
+      "Redis+MongoDB mangler data — trigger sync (lett)",
+    );
     if (redisAvailable) {
       syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
-        logger.warn({ err, userId }, "Bakgrunns-sync feilet etter API-fallback");
+        logger.warn({ err, userId }, "Bakgrunns-sync feilet");
       });
     }
-
-    return { kontekst: apiKontekst, hasCanvasData: hasData, source: "api" };
+    return { kontekst: "", hasCanvasData: false, source: "none" };
   }
 
   // ── canvas_full ──
@@ -1494,16 +1773,22 @@ export async function loadCanvasContext(
 
   // Trinn 0: Hybrid søk (Pinecone + BM25 → RRF → Cohere Rerank)
   if (!shouldPreferStructuredContext && hasStoredAIContent && message) {
-    const hybridKontekst = await byggKontekstFraHybridSearch(userId, message, target);
-    if (hybridKontekst) {
+    const hybridResult = await byggKontekstFraHybridSearch(userId, message, target);
+    if (hybridResult) {
       const kontekstMedKunngjøringer = announcementBlock
-        ? hybridKontekst.replace("[CANVAS-DATA SLUTT]", announcementBlock + "\n[CANVAS-DATA SLUTT]")
-        : hybridKontekst;
+        ? hybridResult.kontekst.replace("[CANVAS-DATA SLUTT]", announcementBlock + "\n[CANVAS-DATA SLUTT]")
+        : hybridResult.kontekst;
       logger.info(
         { userId, intent, source: "vector", contextLength: kontekstMedKunngjøringer.length },
         "Canvas-kontekst lastet fra hybrid søk",
       );
-      return { kontekst: kontekstMedKunngjøringer, hasCanvasData: true, source: "vector" };
+      return {
+        kontekst: kontekstMedKunngjøringer,
+        hasCanvasData: true,
+        source: "vector",
+        hasSparseChunks: hybridResult.hasSparseChunks,
+        fullDocumentMode: hybridResult.fullDocumentMode,
+      };
     }
   }
 
@@ -1555,24 +1840,17 @@ export async function loadCanvasContext(
       return { kontekst: mongoKontekst, hasCanvasData: true, source: "mongodb" };
     }
 
-    // Siste fallback: direkte Canvas API via kiCanvas
+    // Ingen lokal data — trigger sync og returner tom kontekst (ingen Canvas API-kall)
     logger.info(
-      { userId, intent, target, source: "api" },
-      "Redis+MongoDB mangler data — bruker API-fallback (målrettet)",
+      { userId, intent, target, source: "none" },
+      "Redis+MongoDB mangler data — trigger sync (målrettet)",
     );
-    const apiKontekst = await byggMålrettetCanvasKontekst(canvasToken, target, baseUrl);
-    const hasData =
-      apiKontekst.includes("CANVAS-DATA") ||
-      apiKontekst.includes("MODULER") ||
-      apiKontekst.includes("OPPGAVER");
-
     if (redisAvailable) {
       syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
-        logger.warn({ err, userId }, "Bakgrunns-sync feilet etter API-fallback");
+        logger.warn({ err, userId }, "Bakgrunns-sync feilet");
       });
     }
-
-    return { kontekst: apiKontekst, hasCanvasData: hasData, source: "api" };
+    return { kontekst: "", hasCanvasData: false, source: "none" };
   }
 
   // canvas_full uten spesifikt mål → bruk lett kontekst (som eksisterende logikk)
@@ -1602,17 +1880,17 @@ export async function loadCanvasContext(
     return { kontekst: mongoFallback, hasCanvasData: true, source: "mongodb" };
   }
 
-  // Siste fallback: Canvas API
-  const apiKontekst = await byggLettCanvasKontekst(canvasToken, baseUrl);
-  const hasData = apiKontekst.includes("CANVAS-DATA");
-
+  // Ingen lokal data — trigger sync og returner tom kontekst (ingen Canvas API-kall)
+  logger.info(
+    { userId, intent, source: "none" },
+    "Redis+MongoDB mangler data — trigger sync (canvas_full uten mål)",
+  );
   if (redisAvailable) {
     syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
-      logger.warn({ err, userId }, "Bakgrunns-sync feilet etter API-fallback");
+      logger.warn({ err, userId }, "Bakgrunns-sync feilet");
     });
   }
-
-  return { kontekst: apiKontekst, hasCanvasData: hasData, source: "api" };
+  return { kontekst: "", hasCanvasData: false, source: "none" };
 }
 
 /**

@@ -668,6 +668,10 @@ async function _doSync(
                         fileId: contentId,
                         fileHash: metaHash,
                         chunks: storedChunks,
+                        fullText: storedChunks
+                          .sort((a, b) => a.index - b.index)
+                          .map((chunk) => chunk.text)
+                          .join("\n\n"),
                       });
                       await deleteCacheKeys([legacyFileKey]);
                       continue;
@@ -746,6 +750,7 @@ async function _doSync(
                   fileId: contentId,
                   fileHash: metaHash,
                   chunks,
+                  fullText: content,
                 });
                 await deleteCacheKeys([legacyFileKey]);
                 fileCount++;
@@ -872,6 +877,27 @@ async function _doSync(
     courseHashes: newHashes,
   };
   await setCache(syncMetaKey, JSON.stringify(syncMeta), SYNC_CACHE_TTL);
+
+  // ── Lagre prosessert kursdata til Redis for chat-kontekst ──
+  // Chat-forespørsler leser kun fra denne nøkkelen (ingen Canvas API-kall)
+  // TTL 1 time — chat bruker MongoDB som fallback hvis nøkkelen utløper
+  const DB_COURSES_TTL = 3600;
+  const processedCourses = await CanvasStructureModel.find(
+    { userId },
+    { courseId: 1, courseName: 1, course_code: 1, moduler: 1, oppgaver: 1, kunngjøringer: 1 },
+  ).lean();
+  if (processedCourses.length > 0) {
+    await setCache(
+      `db:user:${userId}:courses`,
+      JSON.stringify(processedCourses),
+      DB_COURSES_TTL,
+    );
+    logger.info(
+      { userId, courseCount: processedCourses.length },
+      "Prosessert kursdata lagret til Redis for chat-kontekst",
+    );
+  }
+
   await invalidateUserKISessionCache(userId);
 
   const durationMs = Date.now() - startTime;

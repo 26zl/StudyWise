@@ -16,6 +16,7 @@ import { CanvasStructureModel } from "../../../database/models/CanvasStructure.j
 import { CanvasUser } from "../../../database/models/CanvasUser.js";
 import { ContentEmbedding } from "../../../database/models/ContentEmbedding.js";
 import { AuditLog } from "../../../database/models/AuditLog.js";
+import { backfillMissingFullText } from "../../../services/embedding.service.js";
 import { apiError, requireUserId } from "../../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../../utils/auditLog.js";
 import { logger } from "../../../utils/logger.js";
@@ -377,6 +378,37 @@ router.get("/statistikk", async (req, res) => {
     );
   } catch (err) {
     logger.error({ err }, "Admin statistikk feilet");
+    return apiError.serverError(res);
+  }
+});
+
+router.post("/maintenance/backfill-fulltext", async (req, res) => {
+  const actorUserId = requireUserId(req, res);
+  if (!actorUserId) return;
+
+  try {
+    const result = await backfillMissingFullText();
+
+    await audit({
+      actorUserId,
+      action: AUDIT_ACTIONS.ADMIN_ACTION,
+      category: "admin",
+      outcome: "success",
+      role: req.actorRole,
+      metadata: {
+        subAction: "maintenance.backfillFullText",
+        scannedFiles: result.scannedFiles,
+        updatedFiles: result.updatedFiles,
+      },
+      req,
+    });
+
+    return res.json({
+      suksess: true,
+      ...result,
+    });
+  } catch (err) {
+    logger.error({ err }, "Admin fullText-backfill feilet");
     return apiError.serverError(res);
   }
 });

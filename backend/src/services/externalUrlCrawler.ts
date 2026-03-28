@@ -791,6 +791,7 @@ async function crawlExternalUrlItem(
         fileId: pdfFileId,
         fileHash: directPdf.hash,
         chunks,
+        fullText: directPdf.content,
       });
       result.pdfsIndexed++;
       await updateItemCrawlStatus(userId, courseId, item.moduleId, item.itemId, directPdf.hash);
@@ -851,6 +852,7 @@ async function crawlExternalUrlItem(
         fileId: item.itemId,
         fileHash: contentHash,
         chunks,
+        fullText: text,
       });
 
       result.crawled++;
@@ -941,6 +943,7 @@ async function processPdfLinks(
           fileId: pdfFileId,
           fileHash: pdfResult.hash,
           chunks,
+          fullText: pdfResult.content,
         });
 
         newlyIndexedPdfs.push(pdf.url);

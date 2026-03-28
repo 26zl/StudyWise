@@ -27,6 +27,12 @@ export interface IContentEmbedding extends Document {
   tokenCount: number;
   /** SHA-256-hash av chunk-teksten (for deduplisering/endringsdeteksjon) */
   contentHash: string;
+  /** Valgfri fulltekst av hele dokumentet (kun når chunkIndex=-1) */
+  fullText?: string;
+  /** Antall tegn i original fulltekst (før trunkering) */
+  charCount?: number;
+  /** Marker om posten er full-dokument-lagring */
+  isFullDocument?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -45,6 +51,9 @@ const ContentEmbeddingSchema = new Schema<IContentEmbedding>(
     text: { type: String, required: true },
     tokenCount: { type: Number, required: true },
     contentHash: { type: String, required: true },
+    fullText: { type: String, required: false },
+    charCount: { type: Number, required: false },
+    isFullDocument: { type: Boolean, required: false, default: false },
   },
   { timestamps: true },
 );

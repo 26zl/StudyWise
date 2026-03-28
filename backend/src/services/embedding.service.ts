@@ -4,6 +4,7 @@
  * Lagrer filchunks i MongoDB (tekst + metadata). Vektorer lagres i Pinecone
  * og genereres via Pinecone integrated embedding (feltet "text" sendes; Pinecone embedder).
  * Semantisk søk bruker Pinecone; keyword-søk og katalog bruker kun MongoDB.
+ *
  */
 
 import mongoose, { type ClientSession } from "mongoose";
@@ -32,6 +33,11 @@ interface StoredFileMetadata {
 interface StoredFileStatus {
   fileHash: string;
   hasEmbedding: boolean;
+}
+
+export interface FullTextBackfillResult {
+  scannedFiles: number;
+  updatedFiles: number;
 }
 
 export interface StoredCourseCatalogEntry {
@@ -158,6 +164,7 @@ export async function upsertStoredFileContent(options: {
   fileId: number;
   fileHash: string;
   chunks: ContentChunk[];
+  fullText?: string;
 }): Promise<number> {
   const {
     userId,
@@ -169,6 +176,7 @@ export async function upsertStoredFileContent(options: {
     fileId,
     fileHash,
     chunks,
+    fullText,
   } = options;
 
   if (chunks.length === 0) return 0;
@@ -282,6 +290,22 @@ export async function upsertStoredFileContent(options: {
     { $set: { fileHash, courseName, moduleId, moduleTitle, fileName } },
   );
 
+  // Lagre full dokumenttekst som én egen post i samme collection (chunkIndex=-1).
+  // Dette gjør at vi kan svare helhetlig på "oppsummer hele filen"-spørsmål.
+  if (typeof fullText === "string" && fullText.trim().length > 0) {
+    await upsertStoredFullText({
+      userId,
+      courseId,
+      courseName,
+      moduleId,
+      moduleTitle,
+      fileName,
+      fileId,
+      fileHash,
+      fullText,
+    });
+  }
+
   // Slett stale vektorer fra Pinecone
   if (staleIds.length > 0) {
     try {
@@ -356,7 +380,7 @@ export async function getStoredChunksForFile(
   fileId: number,
 ): Promise<ContentChunk[]> {
   const docs = await ContentEmbedding.find(
-    { userId, courseId, fileId },
+    { userId, courseId, fileId, chunkIndex: { $gte: 0 } },
     {
       _id: 0,
       courseId: 1,
@@ -442,6 +466,139 @@ export async function getStoredChunksForCourses(
     },
     index: doc.chunkIndex,
   }));
+}
+
+export async function getStoredFullDocumentForFile(
+  userId: string,
+  courseId: string,
+  fileId: number,
+): Promise<{ fullText: string; charCount: number; fileName: string } | null> {
+  const doc = await ContentEmbedding.findOne(
+    { userId, courseId, fileId, chunkIndex: -1 },
+    { _id: 0, fullText: 1, text: 1, charCount: 1, fileName: 1 },
+  ).lean();
+
+  if (!doc) return null;
+  const fullText = typeof doc.fullText === "string" && doc.fullText.length > 0
+    ? doc.fullText
+    : doc.text;
+  if (!fullText || fullText.trim().length === 0) return null;
+
+  return {
+    fullText,
+    charCount: typeof doc.charCount === "number" ? doc.charCount : fullText.length,
+    fileName: doc.fileName,
+  };
+}
+
+export async function upsertStoredFullText(options: {
+  userId: string;
+  courseId: string;
+  courseName: string;
+  moduleId: number;
+  moduleTitle: string;
+  fileName: string;
+  fileId: number;
+  fileHash: string;
+  fullText: string;
+}): Promise<void> {
+  const normalizedFullText = options.fullText.slice(0, 30000);
+  const fullTextHash = crypto.createHash("sha256").update(normalizedFullText, "utf8").digest("hex");
+  await ContentEmbedding.updateOne(
+    { userId: options.userId, courseId: options.courseId, fileId: options.fileId, chunkIndex: -1 },
+    {
+      $set: {
+        courseName: options.courseName,
+        moduleId: options.moduleId,
+        moduleTitle: options.moduleTitle,
+        fileName: options.fileName,
+        fileHash: options.fileHash,
+        text: normalizedFullText,
+        tokenCount: countTokens(normalizedFullText),
+        contentHash: fullTextHash,
+        fullText: normalizedFullText,
+        charCount: options.fullText.length,
+        isFullDocument: true,
+      },
+    },
+    { upsert: true },
+  );
+}
+
+export async function backfillMissingFullText(): Promise<FullTextBackfillResult> {
+  const fileGroups = await ContentEmbedding.aggregate<{
+    userId: string;
+    courseId: string;
+    fileId: number;
+    fileName: string;
+    hasFullDoc: number;
+  }>([
+    {
+      $group: {
+        _id: { userId: "$userId", courseId: "$courseId", fileId: "$fileId" },
+        fileName: { $first: "$fileName" },
+        hasFullDoc: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ["$chunkIndex", -1] },
+                  { $eq: ["$isFullDocument", true] },
+                  { $gt: [{ $strLenCP: { $ifNull: ["$fullText", ""] } }, 0] },
+                ],
+              },
+              1,
+              0,
+            ],
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        userId: "$_id.userId",
+        courseId: "$_id.courseId",
+        fileId: "$_id.fileId",
+        fileName: 1,
+        hasFullDoc: 1,
+      },
+    },
+  ]);
+
+  let updatedFiles = 0;
+  for (const group of fileGroups) {
+    if (group.hasFullDoc > 0) continue;
+
+    const chunks = await ContentEmbedding.find(
+      { userId: group.userId, courseId: group.courseId, fileId: group.fileId, chunkIndex: { $gte: 0 } },
+      { _id: 0, text: 1, chunkIndex: 1, courseName: 1, moduleId: 1, moduleTitle: 1, fileHash: 1, fileName: 1 },
+    ).sort({ chunkIndex: 1 }).lean();
+
+    if (chunks.length === 0) continue;
+    const fullText = chunks.map((chunk) => chunk.text).join("\n\n");
+    if (!fullText.trim()) continue;
+
+    await upsertStoredFullText({
+      userId: group.userId,
+      courseId: group.courseId,
+      courseName: chunks[0].courseName,
+      moduleId: chunks[0].moduleId,
+      moduleTitle: chunks[0].moduleTitle,
+      fileName: chunks[0].fileName,
+      fileId: group.fileId,
+      fileHash: chunks[0].fileHash,
+      fullText,
+    });
+
+    updatedFiles++;
+    logger.info(
+      { fileId: group.fileId, fileName: group.fileName, charCount: fullText.length },
+      "Backfill fullText fullført for fil",
+    );
+  }
+
+  return { scannedFiles: fileGroups.length, updatedFiles };
 }
 
 export interface VectorSearchResult {

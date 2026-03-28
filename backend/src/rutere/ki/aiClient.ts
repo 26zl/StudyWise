@@ -36,6 +36,7 @@ export const anthropicClient = ANTHROPIC_API_KEY
 export interface ChatMessage {
     role: "user" | "assistant" | "system";
     content: string;
+    cache_control?: { type: "ephemeral" };
 }
 
 /** Bildevedlegg for Claude Vision */
@@ -173,7 +174,6 @@ async function callAnthropic(options: {
 
     // Skill ut system-meldinger fra samtalehistorikk
     const systemMessages = messages.filter(m => m.role === "system");
-    const systemPrompt = systemMessages.map(m => m.content).join("\n\n");
     const nonSystemMessages = messages.filter(m => m.role !== "system");
 
     // Normaliser for Anthropic-krav (starts with user, no consecutive same-role)
@@ -201,12 +201,14 @@ async function callAnthropic(options: {
 
     const sdkMessages: SdkMessage[] = [];
 
-    if (systemPrompt) {
+    for (const systemMessage of systemMessages) {
         sdkMessages.push({
             role: "system",
-            content: systemPrompt,
+            content: systemMessage.content,
             providerOptions: {
-                anthropic: { cacheControl: { type: "ephemeral" } },
+                anthropic: {
+                    cacheControl: systemMessage.cache_control ?? { type: "ephemeral" },
+                },
             },
         });
     }

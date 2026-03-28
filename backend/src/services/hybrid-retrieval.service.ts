@@ -32,6 +32,61 @@ const PER_SOURCE_LIMIT = 15;
 /** Endelig antall resultater etter reranking */
 const FINAL_TOP_N = 8;
 
+/** Maks antall parallelle begrep-søk ved multi-concept splitting */
+const MAX_CONCEPT_SPLITS = 3;
+
+/** Minimumslengde for et begrep som skal gi eget søk */
+const MIN_CONCEPT_LENGTH = 4;
+
+// ─── Multi-concept splitting ───────────────────────────────
+
+/**
+ * Splitter en spørring i distinkte begreper for parallelle søk.
+ * Returnerer null hvis spørringen ikke bør splittes (kun ett begrep).
+ *
+ * Splitter på:
+ * - "og", "and", "&" mellom begreper
+ * - Komma og semikolon
+ * - "forskjellen mellom X og Y"
+ * - "hva er X, Y og Z"
+ */
+function splitQueryIntoConcepts(query: string): string[] | null {
+  const trimmed = query.trim().toLowerCase();
+
+  // Sjekk om spørringen inneholder splitt-mønstre
+  const hasAndPattern = /\b(og|and)\b/.test(trimmed);
+  const hasComma = trimmed.includes(",");
+  const hasSemicolon = trimmed.includes(";");
+  const hasAmpersand = trimmed.includes("&");
+
+  if (!hasAndPattern && !hasComma && !hasSemicolon && !hasAmpersand) {
+    return null; // Ingen splitting nødvendig
+  }
+
+  // Fjern vanlige spørsmålsord og -fraser først
+  let cleaned = trimmed
+    .replace(/^(forklar|hva er|beskriv|definer|sammenlign|fortell om)\s+/i, "")
+    .replace(/\?$/, "")
+    .trim();
+
+  // Splitt på "og", "and", ",", ";", "&"
+  const splitPattern = /\s*(?:,|;|\s+og\s+|\s+and\s+|&)\s*/;
+  const parts = cleaned.split(splitPattern).filter((part) => {
+    const cleanPart = part.trim();
+    // Filtrer bort korte ord og stoppord
+    return cleanPart.length >= MIN_CONCEPT_LENGTH &&
+           !["forskjellen", "mellom", "begrepene", "konseptene", "dette", "disse"].includes(cleanPart);
+  });
+
+  // Trenger minst 2 begreper for å splitte
+  if (parts.length < 2) {
+    return null;
+  }
+
+  // Begrens antall splits
+  return parts.slice(0, MAX_CONCEPT_SPLITS);
+}
+
 // ─── Typer ─────────────────────────────────────────────────
 
 export interface HybridSearchResult {
@@ -130,7 +185,45 @@ function reciprocalRankFusion(
 // ─── Eksportert funksjon ───────────────────────────────────
 
 /**
+ * Utfører parallelle søk for en enkelt query.
+ * Intern hjelpefunksjon for hybridSearch.
+ */
+async function singleConceptSearch(
+  userId: string,
+  query: string,
+  options?: {
+    courseIds?: string[];
+    limit?: number;
+  },
+): Promise<{
+  vectorResults: VectorSearchResult[];
+  bm25Results: BM25Result[];
+  degraded: boolean;
+}> {
+  const [vectorResponse, bm25Response] = await Promise.all([
+    vectorSearch(userId, query, {
+      limit: options?.limit ?? PER_SOURCE_LIMIT,
+      courseIds: options?.courseIds,
+    }),
+    bm25Search(userId, query, {
+      limit: options?.limit ?? PER_SOURCE_LIMIT,
+      courseIds: options?.courseIds,
+    }),
+  ]);
+
+  return {
+    vectorResults: vectorResponse.results,
+    bm25Results: bm25Response.results,
+    degraded: vectorResponse.degraded,
+  };
+}
+
+/**
  * Utfører hybrid søk: Pinecone (semantisk) + BM25 (keyword) → RRF → Cohere Rerank.
+ *
+ * Støtter multi-concept queries: Når spørringen inneholder flere distinkte
+ * begreper (f.eks. "reliabilitet og validitet"), kjøres parallelle søk for
+ * hvert begrep og resultatene merges før RRF-fusjon.
  *
  * @param userId - Brukerens lokale ID
  * @param query - Brukerens søketekst
@@ -152,38 +245,102 @@ export async function hybridSearch(
   const topN = options?.topN ?? FINAL_TOP_N;
   const startTime = Date.now();
 
-  // ── Trinn 1: Parallelt søk ──
-  const [vectorResponse, bm25Response] = await Promise.all([
-    vectorSearch(userId, trimmedQuery, {
-      limit: PER_SOURCE_LIMIT,
-      courseIds: options?.courseIds,
-    }),
-    bm25Search(userId, trimmedQuery, {
-      limit: PER_SOURCE_LIMIT,
-      courseIds: options?.courseIds,
-    }),
-  ]);
+  // ── Trinn 0: Sjekk om query bør splittes i flere begreper ──
+  const concepts = splitQueryIntoConcepts(trimmedQuery);
+  const isMultiConcept = concepts !== null && concepts.length > 1;
 
-  const hasVector = vectorResponse.results.length > 0;
-  const hasBm25 = bm25Response.results.length > 0;
+  let allVectorResults: VectorSearchResult[] = [];
+  let allBm25Results: BM25Result[] = [];
+  let anyDegraded = false;
+
+  if (isMultiConcept) {
+    // Multi-concept: kjør parallelle søk for hvert begrep
+    logger.info(
+      { userId, concepts, originalQuery: trimmedQuery.substring(0, 100) },
+      "Multi-concept søk: splitter query i parallelle søk",
+    );
+
+    // Også kjør et søk på hele query for å fange opp sammenheng
+    const searchPromises = [
+      singleConceptSearch(userId, trimmedQuery, {
+        courseIds: options?.courseIds,
+        limit: Math.ceil(PER_SOURCE_LIMIT / 2),
+      }),
+      ...concepts.map((concept) =>
+        singleConceptSearch(userId, concept, {
+          courseIds: options?.courseIds,
+          limit: Math.ceil(PER_SOURCE_LIMIT / concepts.length),
+        }),
+      ),
+    ];
+
+    const searchResults = await Promise.all(searchPromises);
+
+    // Merge resultater fra alle søk
+    for (const result of searchResults) {
+      allVectorResults.push(...result.vectorResults);
+      allBm25Results.push(...result.bm25Results);
+      if (result.degraded) anyDegraded = true;
+    }
+
+    // Dedupliser basert på chunk-nøkkel (courseId:fileId:chunkIndex)
+    const seenVector = new Set<string>();
+    allVectorResults = allVectorResults.filter((r) => {
+      const key = `${r.source.courseId}:${r.source.fileId}:${r.chunkIndex}`;
+      if (seenVector.has(key)) return false;
+      seenVector.add(key);
+      return true;
+    });
+
+    const seenBm25 = new Set<string>();
+    allBm25Results = allBm25Results.filter((r) => {
+      const key = `${r.source.courseId}:${r.source.fileId}:${r.chunkIndex}`;
+      if (seenBm25.has(key)) return false;
+      seenBm25.add(key);
+      return true;
+    });
+
+    logger.info(
+      {
+        userId,
+        conceptCount: concepts.length,
+        mergedVectorCount: allVectorResults.length,
+        mergedBm25Count: allBm25Results.length,
+      },
+      "Multi-concept søk: resultater merget",
+    );
+  } else {
+    // Single concept: standard søk
+    const result = await singleConceptSearch(userId, trimmedQuery, {
+      courseIds: options?.courseIds,
+    });
+    allVectorResults = result.vectorResults;
+    allBm25Results = result.bm25Results;
+    anyDegraded = result.degraded;
+  }
+
+  const hasVector = allVectorResults.length > 0;
+  const hasBm25 = allBm25Results.length > 0;
 
   // Begge feilet / tomt
   if (!hasVector && !hasBm25) {
     logger.info(
-      { userId, degraded: vectorResponse.degraded },
+      { userId, degraded: anyDegraded, isMultiConcept },
       "Hybrid søk: ingen resultater fra verken vektor- eller BM25-søk",
     );
     return {
       results: [],
-      degraded: vectorResponse.degraded,
+      degraded: anyDegraded,
       sources: { vector: false, bm25: false, reranked: false },
     };
   }
 
   // ── Trinn 2: RRF-fusjon ──
-  const fused = reciprocalRankFusion(vectorResponse.results, bm25Response.results);
+  const fused = reciprocalRankFusion(allVectorResults, allBm25Results);
 
   // ── Trinn 3: Cohere Rerank ──
+  // For multi-concept queries, rerank mot hele originalspørringen for best sammenheng
+  const rerankQuery = trimmedQuery;
   let finalResults: HybridSearchResult[];
   let wasReranked = false;
 
@@ -198,7 +355,7 @@ export async function hybridSearch(
       },
     }));
 
-    const reranked = await cohereRerank(trimmedQuery, rerankInput, topN);
+    const reranked = await cohereRerank(rerankQuery, rerankInput, topN);
 
     finalResults = reranked.map((r) => {
       const meta = r.meta as { source: HybridSearchResult["source"]; chunkIndex: number };
@@ -223,11 +380,12 @@ export async function hybridSearch(
   logger.info(
     {
       userId,
-      vectorCount: vectorResponse.results.length,
-      bm25Count: bm25Response.results.length,
+      vectorCount: allVectorResults.length,
+      bm25Count: allBm25Results.length,
       fusedCount: fused.length,
       finalCount: finalResults.length,
       reranked: wasReranked,
+      isMultiConcept,
       elapsedMs: Date.now() - startTime,
     },
     "Hybrid søk fullført",
@@ -235,7 +393,7 @@ export async function hybridSearch(
 
   return {
     results: finalResults,
-    degraded: vectorResponse.degraded,
+    degraded: anyDegraded,
     sources: {
       vector: hasVector,
       bm25: hasBm25,
