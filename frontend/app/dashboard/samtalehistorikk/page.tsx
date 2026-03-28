@@ -14,9 +14,11 @@ import {
 } from "@/app/components/layout/SidebarAppShell";
 import { useChatHistory } from "@/app/hooks/useChatHistory";
 import { fetchApi } from "@/app/lib/apiClient";
+import { lagSamtaleForhandsvisning } from "@/app/components/chat/conversationMessageUtils";
 import { formaterDatoShort } from "@/app/lib/dato";
 import { parseApiError } from "@/app/lib/errorUtils";
 import { useLanguage } from "@/app/i18n";
+import { ConversationListItem } from "@/app/components/dashboard/ConversationListItem";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { showToast, toast } from "@/app/components/ui/Toaster";
@@ -49,20 +51,17 @@ export default function SamtalehistorikkPage() {
   const [loadingLinks, setLoadingLinks] = useState(false);
   const [deletingAllLinks, setDeletingAllLinks] = useState(false);
 
-  const rawTab = searchParams.get("tab");
-  const aktivTab = parseTab(rawTab);
-  const skalTilBookmarks = rawTab === "pinned";
+  const aktivTab = parseTab(searchParams.get("tab"));
   const brukernavn =
     megQuery.data?.user?.firstName ||
     megQuery.data?.user?.email?.split("@")?.[0];
   const brukerRolle = megQuery.data?.user?.role;
   const erEngelsk = language === "en";
   const tekster = {
-    redirectingBookmarks: erEngelsk ? "Redirecting you to bookmarks..." : "Sender deg til bokmerker...",
     title: t("dashboard.sidebar.chatHistory"),
     clearAll: t("common.actions.clearAll"),
     historyTab: erEngelsk ? "History" : "Historikk",
-    sharedTab: erEngelsk ? "Shared chats" : "Delte chatter",
+    sharedTab: erEngelsk ? "Shared conversations" : "Delte samtaler",
     searchLabel: erEngelsk ? "Search all conversations" : "Søk i alle samtaler",
     searchPlaceholder: erEngelsk ? "Search all conversations..." : "Søk i alle samtaler...",
     sortLabel: erEngelsk ? "Sort conversations" : "Sorter samtaler",
@@ -76,19 +75,19 @@ export default function SamtalehistorikkPage() {
       ? "No conversations match your search."
       : "Ingen samtaler matcher søket.",
     bookmarked: erEngelsk ? "Bookmarked" : "Bokmerket",
-    loadSharedError: erEngelsk ? "Could not load shared chats" : "Kunne ikke hente delte chatter",
-    deleteAllSharedTitle: erEngelsk ? "Delete all shared chats?" : "Slett alle delte chatter?",
+    loadSharedError: erEngelsk ? "Could not load shared conversations" : "Kunne ikke hente delte samtaler",
+    deleteAllSharedTitle: erEngelsk ? "Delete all shared conversations?" : "Slett alle delte samtaler?",
     deleteAllSharedDescription: erEngelsk
       ? "All active share links will be removed. This cannot be undone."
       : "Alle aktive delingslenker fjernes. Dette kan ikke angres.",
     deleteAllSharedSuccess: erEngelsk
-      ? "All shared chats deleted"
-      : "Alle delte chatter slettet",
+      ? "All shared conversations deleted"
+      : "Alle delte samtaler slettet",
     deleteAllSharedError: erEngelsk
-      ? "Could not delete shared chats"
-      : "Kunne ikke slette delte chatter",
-    loadingShared: erEngelsk ? "Loading shared chats..." : "Laster delte chatter...",
-    noSharedChats: erEngelsk ? "No shared chats yet." : "Ingen delte chatter ennå.",
+      ? "Could not delete shared conversations"
+      : "Kunne ikke slette delte samtaler",
+    loadingShared: erEngelsk ? "Loading shared conversations..." : "Laster delte samtaler...",
+    noSharedChats: erEngelsk ? "No shared conversations yet." : "Ingen delte samtaler ennå.",
     copyLink: erEngelsk ? "Copy link" : "Kopier lenke",
     linkCopied: erEngelsk ? "Link copied" : "Lenke kopiert",
     copyLinkError: erEngelsk ? "Could not copy the link" : "Kunne ikke kopiere lenken",
@@ -151,12 +150,6 @@ export default function SamtalehistorikkPage() {
       setLoadingLinks(false);
     }
   }, [tekster.loadSharedError]);
-
-  useEffect(() => {
-    if (skalTilBookmarks) {
-      router.replace("/dashboard/delte-chatter", { scroll: false });
-    }
-  }, [router, skalTilBookmarks]);
 
   useEffect(() => {
     if (isLoaded && aktivTab === "shared") {
@@ -228,18 +221,6 @@ export default function SamtalehistorikkPage() {
     tekster.deleteAllSharedSuccess,
     tekster.deleteAllSharedTitle,
   ]);
-
-  if (skalTilBookmarks) {
-    return (
-      <SidebarAppLoadingState
-        aktivVisning="chat"
-        byttVisning={byttVisning}
-        brukernavn={brukernavn}
-        brukerRolle={brukerRolle}
-        label={tekster.redirectingBookmarks}
-      />
-    );
-  }
 
   if (megQuery.isPending || !isLoaded || chatsLoading) {
     return (
@@ -421,62 +402,47 @@ export default function SamtalehistorikkPage() {
               ) : (
                 <div className="space-y-1">
                   {filteredHistoryChats.map((chat) => (
-                    <article
+                    <ConversationListItem
                       key={chat.id}
-                      className="rounded-lg border-b border-slate-200 dark:border-slate-800"
-                    >
-                      <div className="flex items-start gap-2 px-1 py-4">
-                        {selectMode ? (
-                          <input
-                            type="checkbox"
-                            aria-label={`Velg "${chat.title}"`}
-                            checked={selectedIds.has(chat.id)}
-                            onChange={() => {
-                              setSelectedIds((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(chat.id)) next.delete(chat.id);
-                                else next.add(chat.id);
-                                return next;
-                              });
-                            }}
-                            className="mt-1 h-4 w-4 shrink-0"
-                          />
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (selectMode) {
-                              setSelectedIds((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(chat.id)) next.delete(chat.id);
-                                else next.add(chat.id);
-                                return next;
-                              });
-                              return;
-                            }
-                            åpneSamtale(chat.id);
+                      title={chat.title}
+                      preview={lagSamtaleForhandsvisning(chat.messages, chat.title)}
+                      meta={formaterDatoShort(chat.timestamp, language)}
+                      onOpen={() => {
+                        if (selectMode) {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(chat.id)) next.delete(chat.id);
+                            else next.add(chat.id);
+                            return next;
+                          });
+                          return;
+                        }
+                        åpneSamtale(chat.id);
+                      }}
+                      leadingControl={selectMode ? (
+                        <input
+                          type="checkbox"
+                          aria-label={`Velg "${chat.title}"`}
+                          checked={selectedIds.has(chat.id)}
+                          onChange={() => {
+                            setSelectedIds((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(chat.id)) next.delete(chat.id);
+                              else next.add(chat.id);
+                              return next;
+                            });
                           }}
-                          className="w-full rounded-lg text-left hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 dark:hover:bg-slate-800/50"
-                        >
-                          <div className="flex items-center gap-2">
-                            <MessageSquare className="h-4 w-4 opacity-60" />
-                            <p className="truncate text-lg font-semibold">{chat.title}</p>
-                            {chat.pinned ? (
-                              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                                <Pin className="h-3 w-3" />
-                                {tekster.bookmarked}
-                              </span>
-                            ) : null}
-                          </div>
-                          <p className="mt-1 line-clamp-2 text-xs text-slate-600 dark:text-slate-300">
-                            {chat.messages[chat.messages.length - 1]?.innhold ?? ""}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            {formaterDatoShort(chat.timestamp, language)}
-                          </p>
-                        </button>
-                      </div>
-                    </article>
+                          className="mt-1 h-4 w-4 shrink-0"
+                        />
+                      ) : null}
+                      titleIcon={<MessageSquare className="h-4 w-4 opacity-60" />}
+                      titleBadge={chat.pinned ? (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                          <Pin className="h-3 w-3" />
+                          {tekster.bookmarked}
+                        </span>
+                      ) : null}
+                    />
                   ))}
                 </div>
               )}
@@ -492,62 +458,53 @@ export default function SamtalehistorikkPage() {
               ) : (
                 <div className="space-y-1">
                   {links.map((item) => (
-                    <article
+                    <ConversationListItem
                       key={item.shareId}
-                      className="rounded-lg border-b border-slate-200 dark:border-slate-800"
-                    >
-                      <button
-                        type="button"
-                        className="w-full rounded-lg px-1 pt-4 text-left hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 dark:hover:bg-slate-800/50"
-                        onClick={() => åpneSamtale(item.chatId)}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="truncate text-lg font-semibold">{item.chatTitle}</p>
-                        </div>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {formaterDatoShort(item.createdAt, language)} · {tekster.sharedViews(item.viewCount)}
-                        </p>
-                      </button>
-                      <div className="flex items-center justify-end gap-2 px-1 pb-4 pt-3">
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            try {
-                              const fullUrl = `${window.location.origin}${item.shareUrl}`;
-                              await navigator.clipboard.writeText(fullUrl);
-                              toast(tekster.linkCopied);
-                            } catch {
-                              showToast.error(tekster.copyLinkError);
-                            }
-                          }}
-                          className="rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
-                        >
-                          {tekster.copyLink}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const res = await fetchApi(`/api/ki/chat/shared/${item.shareId}`, {
-                              method: "DELETE",
-                            });
-                            if (!res.ok) {
-                              showToast.error(
-                                await parseApiError(res, tekster.deleteShareError),
+                      title={item.chatTitle}
+                      meta={`${formaterDatoShort(item.createdAt, language)} · ${tekster.sharedViews(item.viewCount)}`}
+                      onOpen={() => åpneSamtale(item.chatId)}
+                      footer={(
+                        <>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const fullUrl = `${window.location.origin}${item.shareUrl}`;
+                                await navigator.clipboard.writeText(fullUrl);
+                                toast(tekster.linkCopied);
+                              } catch {
+                                showToast.error(tekster.copyLinkError);
+                              }
+                            }}
+                            className="rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+                          >
+                            {tekster.copyLink}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const res = await fetchApi(`/api/ki/chat/shared/${item.shareId}`, {
+                                method: "DELETE",
+                              });
+                              if (!res.ok) {
+                                showToast.error(
+                                  await parseApiError(res, tekster.deleteShareError),
+                                );
+                                return;
+                              }
+                              setLinks((prev) =>
+                                prev.filter((link) => link.shareId !== item.shareId),
                               );
-                              return;
-                            }
-                            setLinks((prev) =>
-                              prev.filter((link) => link.shareId !== item.shareId),
-                            );
-                            showToast.success(tekster.deleteShareSuccess);
-                          }}
-                          className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 text-xs text-red-600 dark:border-red-800 dark:text-red-400"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          {t("common.actions.delete")}
-                        </button>
-                      </div>
-                    </article>
+                              showToast.success(tekster.deleteShareSuccess);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 text-xs text-red-600 dark:border-red-800 dark:text-red-400"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            {t("common.actions.delete")}
+                          </button>
+                        </>
+                      )}
+                    />
                   ))}
                 </div>
               )}

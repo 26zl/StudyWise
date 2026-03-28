@@ -83,8 +83,10 @@ export default function ProfilPage() {
 
     try {
       const result = await slettKonto();
+      const harFullstendigEksternOpprydding =
+        result.providerAccountDeleted && result.vectorCleanupSucceeded;
 
-      if (result.providerAccountDeleted) {
+      if (harFullstendigEksternOpprydding) {
         showToast.success(
           t("settings.deleteAccount.deleteSuccessTitle"),
           t("settings.deleteAccount.deleteSuccessDescription"),
@@ -99,11 +101,10 @@ export default function ProfilPage() {
       try {
         await clerk.signOut();
       } catch {
-        showToast.error(
+        showToast.warning(
           t("settings.deleteAccount.manualSignOutTitle"),
           t("settings.deleteAccount.manualSignOutDescription"),
         );
-        return;
       }
 
       fullforLokalUtlogging();

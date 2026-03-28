@@ -41,7 +41,48 @@ export const UpdateBlockSchema = z.object({
   completed: z.boolean(),
 });
 
+export const ArbeidsplanSchema = z.object({
+  _id: z.string(),
+  userId: z.string(),
+  week: z.string(),
+  weekNumber: z.number().int().min(1).max(53),
+  year: z.number().int().min(2020).max(2100),
+  blocks: z.array(StudyBlockSchema),
+  totalHours: z.number().min(0).max(300),
+  createdAt: IsoDateStringSchema,
+  updatedAt: IsoDateStringSchema,
+});
+
+export const ArbeidsplanResponseSchema = z.object({
+  suksess: z.literal(true),
+  data: ArbeidsplanSchema.nullable(),
+  melding: z.string().optional(),
+});
+
+export const ArbeidsplanProgressSchema = z.object({
+  totalBlocks: z.number().int().min(0),
+  completedBlocks: z.number().int().min(0),
+  percentage: z.number().min(0).max(100),
+  totalHours: z.number().min(0),
+  completedHours: z.number().min(0),
+});
+
+export const ArbeidsplanProgressResponseSchema = z.object({
+  suksess: z.literal(true),
+  data: ArbeidsplanProgressSchema,
+});
+
+export const ArbeidsplanDeleteResponseSchema = z.object({
+  suksess: z.literal(true),
+  melding: z.string(),
+});
+
 // Type exports
 export type StudyBlock = z.infer<typeof StudyBlockSchema>;
 export type CreateArbeidsplan = z.infer<typeof CreateArbeidsplanSchema>;
 export type UpdateBlock = z.infer<typeof UpdateBlockSchema>;
+export type Arbeidsplan = z.infer<typeof ArbeidsplanSchema>;
+export type ArbeidsplanResponse = z.infer<typeof ArbeidsplanResponseSchema>;
+export type ArbeidsplanProgress = z.infer<typeof ArbeidsplanProgressSchema>;
+export type ArbeidsplanProgressResponse = z.infer<typeof ArbeidsplanProgressResponseSchema>;
+export type ArbeidsplanDeleteResponse = z.infer<typeof ArbeidsplanDeleteResponseSchema>;

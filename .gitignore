@@ -69,3 +69,6 @@ next-env.d.ts
 
 # Tesseract OCR language data (auto-downloaded)
 *.traineddata
+
+# Prompts
+prompts/

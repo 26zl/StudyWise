@@ -27,16 +27,16 @@ import { LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
 import { fetchApi } from "@/app/lib/apiClient";
 import { parseApiError } from "@/app/lib/errorUtils";
+import {
+  FlashcardsGenerateRequestSchema,
+  FlashcardsGenerateResponseSchema,
+  QuizGenerateRequestSchema,
+  QuizGenerateResponseSchema,
+  type Flashcard,
+  type QuizQuestion,
+} from "common/ki";
 
 // --- Typer ---
-
-interface QuizQuestion {
-  id: string;
-  question: string;
-  options: string[];
-  correctIndex: number;
-  explanation: string;
-}
 
 interface CourseOption {
   id: string;
@@ -48,12 +48,6 @@ interface CourseOption {
 interface ModuleOption {
   id: string;
   name: string;
-}
-
-interface Flashcard {
-  id: string;
-  front: string;
-  back: string;
 }
 
 type StudyMode = "quiz" | "flashcards";
@@ -784,17 +778,25 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
     const timeoutId = setTimeout(() => controller.abort(), 120_000);
 
     const endpoint = studyMode === "quiz" ? "/api/quiz/generate" : "/api/flashcards/generate";
+    const requestPayload = studyMode === "quiz"
+      ? QuizGenerateRequestSchema.parse({
+          courseId: selectedCourse.numericId,
+          courseName: selectedCourse.name,
+          moduleNames,
+          questionCount,
+        })
+      : FlashcardsGenerateRequestSchema.parse({
+          courseId: selectedCourse.numericId,
+          courseName: selectedCourse.name,
+          moduleNames,
+          cardCount: questionCount,
+        });
 
     try {
       const res = await fetchApi(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          courseId: selectedCourse.numericId,
-          courseName: selectedCourse.name,
-          moduleNames,
-          [studyMode === "quiz" ? "questionCount" : "cardCount"]: questionCount,
-        }),
+        body: JSON.stringify(requestPayload),
         signal: controller.signal,
       });
 
@@ -811,18 +813,20 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
         );
       }
 
-      const data = await res.json();
+      const raw = await res.json();
 
       if (studyMode === "quiz") {
-        if (!data.questions || data.questions.length === 0) {
+        const parsed = QuizGenerateResponseSchema.parse(raw);
+        if (parsed.questions.length === 0) {
           throw new Error(t("quiz.noQuestionsGenerated"));
         }
-        setQuizQuestions(data.questions);
+        setQuizQuestions(parsed.questions);
       } else {
-        if (!data.flashcards || data.flashcards.length === 0) {
+        const parsed = FlashcardsGenerateResponseSchema.parse(raw);
+        if (parsed.flashcards.length === 0) {
           throw new Error(t("quiz.noFlashcardsGenerated"));
         }
-        setFlashcards(data.flashcards);
+        setFlashcards(parsed.flashcards);
       }
 
       setPhase("active");

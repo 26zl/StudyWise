@@ -4,13 +4,20 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { z } from "zod";
 import { fetchApi } from "../lib/apiClient";
 import { parseApiError } from "../lib/errorUtils";
-import { StudyBlockSchema, type StudyBlock } from "common/arbeidsplan";
-import { UKEDAGER } from "common/arbeidsplan";
+import {
+  ArbeidsplanDeleteResponseSchema,
+  ArbeidsplanProgressResponseSchema,
+  ArbeidsplanResponseSchema,
+  type Arbeidsplan,
+  type ArbeidsplanProgress,
+  type CreateArbeidsplan,
+  UKEDAGER,
+} from "common/arbeidsplan";
 export const DAYS_ORDER: string[] = [...UKEDAGER];
-export type { StudyBlock } from "common/arbeidsplan";
+export type { StudyBlock, Arbeidsplan } from "common/arbeidsplan";
+export type ProgressStats = ArbeidsplanProgress;
 
 // Delte Tailwind-klasser for arbeidsplan-komponenter
 export const PRIORITY_COLORS = {
@@ -25,57 +32,6 @@ export const PRIORITY_LABELS: Record<string, string> = {
   low: "Lav",
 };
 
-// Frontend-spesifikk type med _id og timestamps fra MongoDB
-export interface Arbeidsplan {
-  _id: string;
-  userId: string;
-  week: string;
-  weekNumber: number;
-  year: number;
-  blocks: StudyBlock[];
-  totalHours: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ProgressStats {
-  totalBlocks: number;
-  completedBlocks: number;
-  percentage: number;
-  totalHours: number;
-  completedHours: number;
-}
-
-const ArbeidsplanSchema = z.object({
-  _id: z.string(),
-  userId: z.string(),
-  week: z.string(),
-  weekNumber: z.number(),
-  year: z.number(),
-  blocks: z.array(StudyBlockSchema),
-  totalHours: z.number(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-});
-
-// Response schemas
-const ArbeidsplanResponseSchema = z.object({
-  suksess: z.boolean(),
-  data: ArbeidsplanSchema.nullable(),
-  melding: z.string().optional(),
-});
-
-const ProgressResponseSchema = z.object({
-  suksess: z.boolean(),
-  data: z.object({
-    totalBlocks: z.number(),
-    completedBlocks: z.number(),
-    percentage: z.number(),
-    totalHours: z.number(),
-    completedHours: z.number(),
-  }),
-});
-
 // API funksjoner
 async function fetchArbeidsplan(url: string): Promise<Arbeidsplan | null> {
   const res = await fetchApi(url, { method: "GET" });
@@ -89,13 +45,7 @@ async function fetchArbeidsplan(url: string): Promise<Arbeidsplan | null> {
   return validated.data as Arbeidsplan | null;
 }
 
-async function createArbeidsplan(data: {
-  week: string;
-  weekNumber: number;
-  year: number;
-  blocks: StudyBlock[];
-  totalHours: number;
-}): Promise<Arbeidsplan> {
+async function createArbeidsplan(data: CreateArbeidsplan): Promise<Arbeidsplan> {
   const res = await fetchApi("/api/arbeidsplan", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -139,9 +89,10 @@ async function deleteArbeidsplan(planId: string): Promise<void> {
   if (!res.ok) {
     throw new Error(await parseApiError(res, "Kunne ikke slette arbeidsplan"));
   }
+  ArbeidsplanDeleteResponseSchema.parse(await res.json());
 }
 
-async function fetchProgress(): Promise<ProgressStats> {
+async function fetchProgress(): Promise<ArbeidsplanProgress> {
   const res = await fetchApi("/api/arbeidsplan/stats/progress", { method: "GET" });
 
   if (!res.ok) {
@@ -149,7 +100,7 @@ async function fetchProgress(): Promise<ProgressStats> {
   }
 
   const json = await res.json();
-  const validated = ProgressResponseSchema.parse(json);
+  const validated = ArbeidsplanProgressResponseSchema.parse(json);
   return validated.data;
 }
 

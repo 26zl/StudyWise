@@ -6,6 +6,11 @@
 import { randomUUID } from "crypto";
 import { Router } from "express";
 import { z } from "zod";
+import {
+  FlashcardSchema,
+  FlashcardsGenerateRequestSchema,
+  FlashcardsGenerateResponseSchema,
+} from "common/ki";
 import { logger } from "../../utils/logger.js";
 import {
   apiError,
@@ -27,18 +32,6 @@ import {
 const router = Router();
 router.use(rateLimitKi);
 
-const GenerateFlashcardsRequestSchema = z.object({
-  courseId: z.number(),
-  courseName: z.string().min(1),
-  moduleNames: z.array(z.string().min(1)).min(1),
-  cardCount: z.number().min(1).max(50).default(10),
-});
-
-const FlashcardDraftSchema = z.object({
-  front: z.string().min(1),
-  back: z.string().min(1),
-});
-
 const FLASHCARDS_SYSTEM_PROMPT = `Du er en ekspert studieveileder som lager flashcards basert på kursmateriell.
 Svar ALLTID med KUN et JSON-array uten ekstra tekst, markdown eller forklaring.
 Hvert objekt i arrayet skal ha:
@@ -58,7 +51,7 @@ router.post("/generate", knyttCanvasToken, async (req, res) => {
     const userId = requireUserId(req, res);
     if (!userId) return;
 
-    const parsed = GenerateFlashcardsRequestSchema.safeParse(req.body);
+    const parsed = FlashcardsGenerateRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return sendZodError(res, parsed.error, "flashcards generate");
     }
@@ -106,7 +99,7 @@ Generer nøyaktig ${cardCount} flashcards som JSON-array.`;
     });
 
     const rawFlashcards = z
-      .array(FlashcardDraftSchema)
+      .array(FlashcardSchema.omit({ id: true }))
       .min(1)
       .max(50)
       .parse(JSON.parse(extractJsonArray(result.text)));
@@ -121,7 +114,13 @@ Generer nøyaktig ${cardCount} flashcards som JSON-array.`;
       "Genererte flashcards via KI",
     );
 
-    return res.headersSent ? undefined : res.json({ flashcards });
+    return res.headersSent
+      ? undefined
+      : res.json(
+          FlashcardsGenerateResponseSchema.parse({
+            flashcards,
+          }),
+        );
   } catch (error) {
     if (res.headersSent || res.writableEnded || req.timeoutSignal?.aborted) return;
     if (

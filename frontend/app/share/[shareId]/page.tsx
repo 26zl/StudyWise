@@ -2,43 +2,73 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { Bot, User } from "lucide-react";
-import ReactMarkdown, { type Components } from "react-markdown";
-import remarkGfm from "remark-gfm";
-import rehypeSanitize from "rehype-sanitize";
-import { CodeBlock } from "@/app/components/ui/CodeBlock";
+import { ConversationMessageContent } from "@/app/components/chat/ConversationMessageContent";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { fetchApi } from "@/app/lib/apiClient";
 import { parseApiError } from "@/app/lib/errorUtils";
 import { showToast } from "@/app/components/ui/Toaster";
+import { useLanguage } from "@/app/i18n";
 import { useUIStore } from "@/app/store/uiStore";
 import {
   SharedChatPublicResponseSchema,
   type SharedChatPublicResponse,
 } from "common/chat";
 
-const markdownKomponenter: Components = {
-  code: CodeBlock,
-  pre: ({ children }) => <>{children}</>,
-};
-
 export default function SharePage() {
   const params = useParams<{ shareId: string }>();
+  const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [data, setData] = useState<SharedChatPublicResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { setSelectedChatId, setCurrentChatId } = useUIStore();
-  const { isSignedIn } = useAuth();
+  const { isLoaded: authLoaded, isSignedIn } = useAuth();
+  const { language } = useLanguage();
+  const erEngelsk = language === "en";
+  const redirectQuery = searchParams.toString();
+  const redirectUrl = `${pathname}${redirectQuery ? `?${redirectQuery}` : ""}`;
+  const signInHref = `/auth/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`;
+  const signUpHref = `/auth/sign-up?redirect_url=${encodeURIComponent(redirectUrl)}`;
+  const tekster = {
+    missingShareLink: erEngelsk ? "Missing share link." : "Mangler delingslenke.",
+    fetchShareError: erEngelsk
+      ? "Could not fetch shared conversation."
+      : "Kunne ikke hente delt samtale.",
+    invalidShareData: erEngelsk ? "Invalid data from server." : "Ugyldig data fra server.",
+    genericFetchError: erEngelsk
+      ? "Something went wrong while fetching the conversation."
+      : "Noe gikk galt ved henting av samtalen.",
+    loadingShare: erEngelsk ? "Loading shared conversation..." : "Laster delt samtale...",
+    missingShare: erEngelsk
+      ? "The shared conversation does not exist."
+      : "Den delte samtalen finnes ikke.",
+    sharedHeader: erEngelsk
+      ? "This is a shared StudyWise conversation"
+      : "Dette er en delt StudyWise-samtale",
+    tryStudyWise: erEngelsk ? "Try StudyWise" : "Prøv StudyWise",
+    openDashboard: erEngelsk ? "Open dashboard" : "Åpne dashboard",
+    continueConversation: erEngelsk
+      ? "Continue the conversation in StudyWise"
+      : "Fortsett samtalen i StudyWise",
+    checkingAuth: erEngelsk ? "Checking sign-in..." : "Sjekker innlogging...",
+    couldNotStartConversation: erEngelsk
+      ? "Could not start the conversation"
+      : "Kunne ikke starte samtalen",
+    conversationCopied: erEngelsk
+      ? "The conversation was copied to StudyWise"
+      : "Samtalen ble kopiert til StudyWise",
+  };
 
   useEffect(() => {
     const shareId = typeof params?.shareId === "string" ? params.shareId : "";
     if (!shareId) {
       setLoading(false);
-      setError("Mangler delingslenke.");
+      setError(tekster.missingShareLink);
       return;
     }
 
@@ -58,18 +88,18 @@ export default function SharePage() {
         );
         if (cancelled) return;
         if (!res.ok) {
-          setError(await parseApiError(res, "Kunne ikke hente delt samtale."));
+          setError(await parseApiError(res, tekster.fetchShareError));
           return;
         }
         const parsed = SharedChatPublicResponseSchema.safeParse(await res.json());
         if (!parsed.success) {
-          setError("Ugyldig data fra server.");
+          setError(tekster.invalidShareData);
           return;
         }
         setData(parsed.data);
       } catch (err) {
         if (cancelled || (err instanceof Error && err.name === "AbortError")) return;
-        setError("Noe gikk galt ved henting av samtalen.");
+        setError(tekster.genericFetchError);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -79,15 +109,21 @@ export default function SharePage() {
       cancelled = true;
       ac.abort();
     };
-  }, [params?.shareId]);
+  }, [
+    params?.shareId,
+    tekster.fetchShareError,
+    tekster.genericFetchError,
+    tekster.invalidShareData,
+    tekster.missingShareLink,
+  ]);
 
-  if (loading) return <LoadingView text="Laster delt samtale..." fullPage />;
+  if (loading) return <LoadingView text={tekster.loadingShare} fullPage />;
 
   if (error || !data) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <div className="w-full max-w-md">
-          <FeilMelding melding={error ?? "Den delte samtalen finnes ikke."} />
+          <FeilMelding melding={error ?? tekster.missingShare} />
         </div>
       </div>
     );
@@ -98,13 +134,13 @@ export default function SharePage() {
       <div className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
           <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-            Dette er en delt StudyWise-samtale
+            {tekster.sharedHeader}
           </p>
           <Link
-            href="/auth/sign-up"
+            href={authLoaded && isSignedIn ? "/dashboard" : signUpHref}
             className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
           >
-            Prøv StudyWise
+            {authLoaded && isSignedIn ? tekster.openDashboard : tekster.tryStudyWise}
           </Link>
         </div>
         <div className="mx-auto flex max-w-4xl items-center justify-end px-4 pb-3">
@@ -112,9 +148,11 @@ export default function SharePage() {
             type="button"
             onClick={async () => {
               if (!data) return;
+              if (!authLoaded) {
+                return;
+              }
               if (!isSignedIn) {
-                const redirectUrl = `${window.location.pathname}${window.location.search}`;
-                router.push(`/auth/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
+                router.push(signInHref);
                 return;
               }
               const res = await fetchApi("/api/ki/chat/history", {
@@ -126,7 +164,7 @@ export default function SharePage() {
                 }),
               });
               if (!res.ok) {
-                showToast.error("Kunne ikke starte samtalen");
+                showToast.error(tekster.couldNotStartConversation);
                 return;
               }
               const json = await res.json().catch(() => null);
@@ -144,12 +182,13 @@ export default function SharePage() {
                 setSelectedChatId(chatId);
                 setCurrentChatId(chatId);
               }
-              showToast.success("Samtalen ble kopiert til StudyWise");
+              showToast.success(tekster.conversationCopied);
               router.push("/dashboard");
             }}
+            disabled={!authLoaded}
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
-            Opprett kopi i StudyWise
+            {authLoaded ? tekster.continueConversation : tekster.checkingAuth}
           </button>
         </div>
       </div>
@@ -175,19 +214,7 @@ export default function SharePage() {
                     : "text-slate-900 dark:text-white"
                 }
               >
-                {melding.rolle === "assistant" ? (
-                  <div className="prose prose-base max-w-none prose-p:my-2 prose-p:leading-relaxed prose-code:before:content-none prose-code:after:content-none dark:prose-invert">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      rehypePlugins={[rehypeSanitize]}
-                      components={markdownKomponenter}
-                    >
-                      {melding.innhold}
-                    </ReactMarkdown>
-                  </div>
-                ) : (
-                  <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{melding.innhold}</p>
-                )}
+                <ConversationMessageContent message={melding} />
               </div>
             </div>
 

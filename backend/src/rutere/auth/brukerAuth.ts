@@ -708,6 +708,7 @@ router.delete("/account", rateLimitAccountDeletion, async (req, res) => {
       metadata: {
         deleted: deletionResult.deleted,
         providerAccountDeleted: deletionResult.providerAccountDeleted,
+        vectorCleanupSucceeded: deletionResult.vectorCleanupSucceeded,
       },
       req,
     });
@@ -720,11 +721,12 @@ router.delete("/account", rateLimitAccountDeletion, async (req, res) => {
       );
     }
     return res.json(AccountDeletionResponseSchema.parse({
-      melding: deletionResult.providerAccountDeleted
+      melding: deletionResult.providerAccountDeleted && deletionResult.vectorCleanupSucceeded
         ? "Konto og tilknyttet data er slettet"
-        : "StudyWise-kontoen er slettet, men innloggingskontoen kunne ikke fjernes automatisk.",
+        : "StudyWise-kontoen er slettet, men ekstern opprydding kunne ikke fullfores automatisk.",
       deleted: deletionResult.deleted,
       providerAccountDeleted: deletionResult.providerAccountDeleted,
+      vectorCleanupSucceeded: deletionResult.vectorCleanupSucceeded,
     }));
   } catch (err) {
     await audit({

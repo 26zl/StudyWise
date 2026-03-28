@@ -11,7 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { type VisningType } from "@/app/components/dashboard/Sidebar";
 import { SectionErrorBoundary } from "@/app/components/ui/ErrorBoundary";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, useClerk } from "@clerk/nextjs";
 import { useCanvasUser } from "@/app/canvas/canvas-api";
 import { useMeg } from "@/app/auth/auth-api";
 import { useAuthRedirect, skalRedirecteTilAuth } from "@/app/auth/authUtils";
@@ -88,6 +88,7 @@ export function DashboardView() {
 
     // Hent brukerdata og Canvas-token status – vent til Clerk er klar for å unngå 401 race
     const { isLoaded: clerkLoaded } = useAuth();
+    const clerk = useClerk();
     const megQuery = useMeg({ enabled: clerkLoaded });
     const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
     const brukerQueryAktiv = megQuery.isSuccess && harCanvasToken;
@@ -148,15 +149,18 @@ export function DashboardView() {
     }
     // Feil uten brukerdata (f.eks. nettverksfeil, 429 rate limit): vis feilmelding og retry – useAuthRedirect håndterer auth-feil
     if (megQuery.isError && !megQuery.data?.user) {
+        const feilMsg = megQuery.error?.message ?? "";
+        const erFatalAuthFeil = /kontoen er slettet|innloggingskonflikt|allerede en konto/i.test(feilMsg);
         return (
             <SidebarAppErrorState
                 aktivVisning={aktivVisning}
                 byttVisning={settAktivVisning}
                 brukerRolle={brukerRolle}
                 message={brukerdataFeilmelding}
-                onRetry={() => {
-                    void megQuery.refetch();
-                }}
+                onRetry={erFatalAuthFeil
+                    ? () => { void clerk.signOut({ redirectUrl: "/auth/sign-in" }); }
+                    : () => { void megQuery.refetch(); }
+                }
             />
         );
     }

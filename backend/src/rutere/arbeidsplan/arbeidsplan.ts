@@ -8,7 +8,13 @@ import mongoose from "mongoose";
 import { Arbeidsplan, type IArbeidsplan, type IStudyBlock } from "../../database/models/arbeidsplan.js";
 import { requireUserId, sendZodError, sendUnknownError, apiError } from "../../utils/apiError.js";
 import { getIsoWeekInfo, parseTimerStreng } from "common/dateUtils";
-import { CreateArbeidsplanSchema, UpdateBlockSchema } from "common/arbeidsplan";
+import {
+  ArbeidsplanDeleteResponseSchema,
+  ArbeidsplanProgressResponseSchema,
+  ArbeidsplanResponseSchema,
+  CreateArbeidsplanSchema,
+  UpdateBlockSchema,
+} from "common/arbeidsplan";
 import { rateLimitMe } from "../../middleware/rate-limit.js";
 
 const router = Router();
@@ -78,11 +84,13 @@ router.post("/", async (req: Request, res: Response) => {
       });
     }
 
-    return res.json({
-      suksess: true,
-      data: serializeArbeidsplan(plan),
-      melding: existing ? "Arbeidsplan oppdatert" : "Arbeidsplan opprettet",
-    });
+    return res.json(
+      ArbeidsplanResponseSchema.parse({
+        suksess: true,
+        data: serializeArbeidsplan(plan),
+        melding: existing ? "Arbeidsplan oppdatert" : "Arbeidsplan opprettet",
+      }),
+    );
   } catch (error) {
     sendUnknownError(res, error, { kontekst: "arbeidsplan opprettelse" });
   }
@@ -105,10 +113,12 @@ router.get("/current", async (req: Request, res: Response) => {
       weekNumber,
     });
 
-    return res.json({
-      suksess: true,
-      data: serializeArbeidsplan(plan),
-    });
+    return res.json(
+      ArbeidsplanResponseSchema.parse({
+        suksess: true,
+        data: serializeArbeidsplan(plan),
+      }),
+    );
   } catch (error) {
     sendUnknownError(res, error, { kontekst: "arbeidsplan henting" });
   }
@@ -132,16 +142,18 @@ router.get("/stats/progress", async (req: Request, res: Response) => {
     });
 
     if (!plan) {
-      return res.json({
-        suksess: true,
-        data: {
-          totalBlocks: 0,
-          completedBlocks: 0,
-          percentage: 0,
-          totalHours: 0,
-          completedHours: 0,
-        },
-      });
+      return res.json(
+        ArbeidsplanProgressResponseSchema.parse({
+          suksess: true,
+          data: {
+            totalBlocks: 0,
+            completedBlocks: 0,
+            percentage: 0,
+            totalHours: 0,
+            completedHours: 0,
+          },
+        }),
+      );
     }
 
     const totalBlocks = plan.blocks.length;
@@ -156,16 +168,18 @@ router.get("/stats/progress", async (req: Request, res: Response) => {
         .reduce((sum, b) => sum + parseTimerStreng(b.duration), 0) * 10
     ) / 10;
 
-    return res.json({
-      suksess: true,
-      data: {
-        totalBlocks,
-        completedBlocks,
-        percentage,
-        totalHours: plan.totalHours,
-        completedHours,
-      },
-    });
+    return res.json(
+      ArbeidsplanProgressResponseSchema.parse({
+        suksess: true,
+        data: {
+          totalBlocks,
+          completedBlocks,
+          percentage,
+          totalHours: plan.totalHours,
+          completedHours,
+        },
+      }),
+    );
   } catch (error) {
     sendUnknownError(res, error, { kontekst: "arbeidsplan fremdrift" });
   }
@@ -208,11 +222,13 @@ router.patch("/:id/block", async (req: Request, res: Response) => {
 
     await plan.save();
 
-    return res.json({
-      suksess: true,
-      data: serializeArbeidsplan(plan),
-      melding: "Studieblokk oppdatert",
-    });
+    return res.json(
+      ArbeidsplanResponseSchema.parse({
+        suksess: true,
+        data: serializeArbeidsplan(plan),
+        melding: "Studieblokk oppdatert",
+      }),
+    );
   } catch (error) {
     sendUnknownError(res, error, { kontekst: "studieblokk oppdatering" });
   }
@@ -240,10 +256,12 @@ router.delete("/:id", async (req: Request, res: Response) => {
       return apiError.notFound(res, "Arbeidsplan");
     }
 
-    return res.json({
-      suksess: true,
-      melding: "Arbeidsplan slettet",
-    });
+    return res.json(
+      ArbeidsplanDeleteResponseSchema.parse({
+        suksess: true,
+        melding: "Arbeidsplan slettet",
+      }),
+    );
   } catch (error) {
     sendUnknownError(res, error, { kontekst: "arbeidsplan sletting" });
   }

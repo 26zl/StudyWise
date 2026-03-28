@@ -265,6 +265,7 @@ body {
 @media (min-width: 1280px) {
     .calendar-layout {
         grid-template-columns: 1fr 320px;
+        align-items: start;
     }
 }
 

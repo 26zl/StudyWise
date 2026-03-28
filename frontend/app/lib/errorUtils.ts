@@ -183,6 +183,10 @@ export function getBrukerdataFeilmelding(
   if (/sesjon|logg inn på nytt|ikke autentisert/i.test(msg)) {
     return hentTekst(t, "errors.userData.sessionExpired", "Sesjonen har utløpt. Logg inn på nytt.");
   }
+  // Slettet bruker og kontokonflikter: vis den faktiske meldingen direkte
+  if (/kontoen er slettet|innloggingskonflikt|allerede en konto/i.test(msg)) {
+    return msg;
+  }
   return lagBrukervennligFeilmelding(
     error ?? null,
     { auth: true },

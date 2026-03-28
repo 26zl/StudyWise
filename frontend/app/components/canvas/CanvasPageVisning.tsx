@@ -7,14 +7,13 @@
 import type { JSX } from "react";
 import { useCanvasPage } from "@/app/canvas/canvas-api";
 import { ArrowLeft, Calendar } from "lucide-react";
-import { createCanvasHtmlParser, parseCanvasHtml } from "@/app/canvas/canvasHtml";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
-import { format } from "date-fns";
-import { enUS, nb } from "date-fns/locale";
 import { CanvasKIHandlinger } from "@/app/components/ki/CanvasKIActions";
-import { useLanguage } from "@/app/i18n";
+import { CanvasHtmlContent } from "@/app/components/canvas/CanvasHtmlContent";
+import { useCanvasLabels } from "@/app/components/canvas/canvasLabels";
+import { formaterDatoLong } from "@/app/lib/dato";
 
 // Props for CanvasPageVisning komponenten
 interface CanvasPageVisningProps {
@@ -23,34 +22,15 @@ interface CanvasPageVisningProps {
     onBack: () => void;
 }
 
-// HTML parser alternativer (samme som i CanvasSection, kan evt. flyttes til en shared utility)
-const htmlParser = createCanvasHtmlParser();
-
 // Hovedkomponenten for visning av en Canvas-side
 export function CanvasPageVisning({ courseId, pageId, onBack }: CanvasPageVisningProps): JSX.Element | null {
     const { data: page, isLoading, isError, error } = useCanvasPage(courseId, pageId);
-    const { language } = useLanguage();
-    const locale = language === "en" ? enUS : nb;
-    const labels = language === "en"
-        ? {
-            loading: "Loading page...",
-            loadError: "Could not load the page. Try again.",
-            goBack: "Go back",
-            backToModules: "Back to modules",
-            published: "Published",
-        }
-        : {
-            loading: "Laster siden...",
-            loadError: "Kunne ikke laste siden. Prøv igjen.",
-            goBack: "Gå tilbake",
-            backToModules: "Tilbake til moduler",
-            published: "Publisert",
-        };
+    const { labels, language } = useCanvasLabels();
 
     if (isLoading) {
         return (
             <div className="p-8">
-                <LoadingView text={labels.loading} fullPage={false} />
+                <LoadingView text={labels.pageLoading} fullPage={false} />
             </div>
         );
     }
@@ -58,7 +38,7 @@ export function CanvasPageVisning({ courseId, pageId, onBack }: CanvasPageVisnin
         const feilMelding = lagBrukervennligFeilmelding(
             error instanceof Error ? error : null,
             { canvas: true },
-            labels.loadError
+            labels.pageLoadError,
         );
         return (
             <div className="p-8 space-y-4">
@@ -76,11 +56,7 @@ export function CanvasPageVisning({ courseId, pageId, onBack }: CanvasPageVisnin
     if (!page) return null;
 
     const publisertDato = page.created_at
-        ? format(
-            new Date(page.created_at),
-            language === "en" ? "MMMM d, yyyy" : "d. MMMM yyyy",
-            { locale },
-        )
+        ? formaterDatoLong(page.created_at, language)
         : null;
 
     // Hovedrendering av siden
@@ -119,13 +95,10 @@ export function CanvasPageVisning({ courseId, pageId, onBack }: CanvasPageVisnin
                     tittel={page.title}
                 />
 
-                <div className="p-8 prose prose-slate dark:prose-invert max-w-none">
-                     {/*
-                        OBS: Canvas HTML innhold kan være komplekst.
-                        Vi bruker DOMPurify for sikkerhet og html-react-parser for å kunne tilpasse elementer (f.eks linker).
-                     */}
-                    {parseCanvasHtml(page.body, htmlParser)}
-                </div>
+                <CanvasHtmlContent
+                    html={page.body}
+                    className="p-8 prose prose-slate dark:prose-invert max-w-none"
+                />
             </article>
         </div>
     );

@@ -6,6 +6,11 @@
 import { randomUUID } from "crypto";
 import { Router } from "express";
 import { z } from "zod";
+import {
+  QuizGenerateRequestSchema,
+  QuizGenerateResponseSchema,
+  QuizQuestionSchema,
+} from "common/ki";
 import { logger } from "../../utils/logger.js";
 import {
   apiError,
@@ -26,20 +31,6 @@ import {
 
 const router = Router();
 router.use(rateLimitKi);
-
-const GenerateQuizRequestSchema = z.object({
-  courseId: z.number(),
-  courseName: z.string().min(1),
-  moduleNames: z.array(z.string().min(1)).min(1),
-  questionCount: z.number().min(1).max(50).default(10),
-});
-
-const QuizQuestionDraftSchema = z.object({
-  question: z.string().min(1),
-  options: z.array(z.string().min(1)).length(4),
-  correctIndex: z.number().min(0).max(3),
-  explanation: z.string().min(1),
-});
 
 const QUIZ_SYSTEM_PROMPT = `Du er en ekspert studieveileder som lager quiz-spørsmål basert på kursmateriell.
 Svar ALLTID med KUN et JSON-array uten ekstra tekst, markdown eller forklaring.
@@ -62,7 +53,7 @@ router.post("/generate", knyttCanvasToken, async (req, res) => {
     const userId = requireUserId(req, res);
     if (!userId) return;
 
-    const parsed = GenerateQuizRequestSchema.safeParse(req.body);
+    const parsed = QuizGenerateRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return sendZodError(res, parsed.error, "quiz generate");
     }
@@ -110,7 +101,7 @@ Generer nøyaktig ${questionCount} spørsmål som JSON-array.`;
     });
 
     const rawQuestions = z
-      .array(QuizQuestionDraftSchema)
+      .array(QuizQuestionSchema.omit({ id: true }))
       .min(1)
       .max(50)
       .parse(JSON.parse(extractJsonArray(result.text)));
@@ -125,7 +116,13 @@ Generer nøyaktig ${questionCount} spørsmål som JSON-array.`;
       "Genererte quiz-spørsmål via KI",
     );
 
-    return res.headersSent ? undefined : res.json({ questions });
+    return res.headersSent
+      ? undefined
+      : res.json(
+          QuizGenerateResponseSchema.parse({
+            questions,
+          }),
+        );
   } catch (error) {
     if (res.headersSent || res.writableEnded || req.timeoutSignal?.aborted) return;
     if (

@@ -6,16 +6,13 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Bot, Download, Copy, Share2, RefreshCw, Plus, Image, FileText, User } from "lucide-react";
+import { Send, Bot, Download, Copy, Share2, RefreshCw, Plus, User } from "lucide-react";
 import { LoadingSpinner, LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
 import { AttachmentStrip } from "@/app/components/chat/AttachmentStrip";
 import { ChatShareModal } from "@/app/components/chat/ChatShareModal";
-import ReactMarkdown, { type Components } from "react-markdown";
-import remarkGfm from "remark-gfm";
-import rehypeSanitize from "rehype-sanitize";
-import { CodeBlock } from "@/app/components/ui/CodeBlock";
+import { ConversationMessageContent } from "@/app/components/chat/ConversationMessageContent";
 import { SmartSuggestions } from "@/app/components/chat/SmartSuggestions";
 import { ChatShareResponseSchema } from "common/chat";
 import { streamKIChat, useKIDocumentAnalyse, SUPPORTED_FILE_TYPES, getKIErrorMessage, getKIBannerForError, type KIErrorContext } from "@/app/ki/ki-api";
@@ -25,6 +22,7 @@ import { useUIStore } from "@/app/store/uiStore";
 import { useKIStore } from "@/app/store/kiStore";
 import { exportToMarkdown } from "@/app/utils/exportChat";
 import { fetchApi } from "@/app/lib/apiClient";
+import { formaterTall } from "@/app/lib/dato";
 import { parseApiError } from "@/app/lib/errorUtils";
 
 /** Én melding i chatten (bruker eller assistent), med id og evt. vedleggsnavn. */
@@ -124,19 +122,6 @@ function getPendingUiState(pending?: PendingConversationState | null) {
     };
 }
 
-/** Parse vedlegg-info fra meldingsinnhold og returner ren tekst + filnavn */
-function parseVedlegg(innhold: string): { tekst: string; filer: string[] } {
-    const vedleggMatch = innhold.match(/\n?\n?\[Vedlagt:\s*(.+?)\]\s*$/);
-    if (!vedleggMatch) return { tekst: innhold, filer: [] };
-    const tekst = innhold.slice(0, vedleggMatch.index).trim();
-    const filnavn = vedleggMatch[1].split(",").map((s) => s.trim()).filter(Boolean);
-    return { tekst, filer: filnavn };
-}
-
-function erBildefil(navn: string): boolean {
-    return /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(navn);
-}
-
 /** Felles klassenavn for handlingsknapper under AI-svar */
 const actionBtnClass = "p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-md hover:bg-slate-100 dark:hover:bg-slate-800";
 
@@ -151,14 +136,8 @@ function lagTilkoblingsBanner(error: Error | null | undefined): { melding: strin
     return getKIBannerForError(error);
 }
 
-/** ReactMarkdown-komponenter med CodeBlock for syntax-highlighting. */
-const markdownKomponenter: Components = {
-    code: CodeBlock,
-    pre: ({ children }) => <>{children}</>,
-};
-
 export function ChatSection() {
-    const { t } = useLanguage();
+    const { language, t } = useLanguage();
     const [mounted, setMounted] = useState(false);
     const [meldinger, settMeldinger] = useState<Melding[]>([]);
     const [tekstInput, settTekstInput] = useState("");
@@ -788,7 +767,13 @@ export function ChatSection() {
                     }
 
                     const aiInnhold = data.dokumentInfo
-                        ? `${responseText}\n\n---\n_Dokument: ${data.dokumentInfo.sider} sider, ${data.dokumentInfo.tegn.toLocaleString("nb-NO")} tegn${data.dokumentInfo.truncated ? " (forkortet)" : ""}_`
+                        ? `${responseText}\n\n---\n_${t("chat.documentAnalysisMetadata", {
+                            pages: String(data.dokumentInfo.sider),
+                            characters: formaterTall(data.dokumentInfo.tegn, language),
+                            truncated: data.dokumentInfo.truncated
+                                ? t("chat.documentAnalysisMetadataTruncated")
+                                : "",
+                        })}_`
                         : responseText;
                     const aiMelding: Melding = {
                         id: (Date.now() + 1).toString(),
@@ -1387,42 +1372,7 @@ export function ChatSection() {
                                             : "text-slate-900 dark:text-white"
                                     }
                                 >
-                                    {melding.rolle === "assistant" ? (
-                                        <div className="prose prose-base dark:prose-invert prose-p:my-2 prose-p:leading-relaxed prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-pre:my-0 prose-code:before:content-none prose-code:after:content-none max-w-none">
-                                            <ReactMarkdown 
-                                                remarkPlugins={[remarkGfm]}
-                                                rehypePlugins={[rehypeSanitize]}
-                                                components={markdownKomponenter}
-                                            >
-                                                {melding.innhold}
-                                            </ReactMarkdown>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            {(() => {
-                                                const alleFiler = melding.vedleggNavn ?? parseVedlegg(melding.innhold).filer;
-                                                const renTekst = melding.vedleggNavn ? melding.innhold : parseVedlegg(melding.innhold).tekst;
-                                                return (
-                                                    <>
-                                                        <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{renTekst}</p>
-                                                        {alleFiler.length > 0 && (
-                                                            <div className="flex flex-wrap gap-2 mt-2.5">
-                                                                {alleFiler.map((navn, i) => (
-                                                                    <span
-                                                                        key={i}
-                                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/80 dark:bg-slate-600/50 text-xs text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-600"
-                                                                    >
-                                                                        {erBildefil(navn) ? <Image className="w-3.5 h-3.5 text-slate-400" /> : <FileText className="w-3.5 h-3.5 text-slate-400" />}
-                                                                        {navn}
-                                                                    </span>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </>
-                                                );
-                                            })()}
-                                        </>
-                                    )}
+                                    <ConversationMessageContent message={melding} />
                                 </div>
 
                                 {/* Retry-knapp under feilede brukermeldinger */}
@@ -1542,7 +1492,7 @@ export function ChatSection() {
                             onClick={() => setViserShareModal(true)}
                             disabled={meldinger.length === 0 || skriver || analyserarDokument}
                             className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-                            title="Del hele chatten"
+                            title="Del hele samtalen"
                             aria-label="Del samtale"
                         >
                             <Share2 className="w-5 h-5 text-slate-400 dark:text-slate-500" />

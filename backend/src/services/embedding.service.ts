@@ -6,7 +6,7 @@
  * Semantisk søk bruker Pinecone; keyword-søk og katalog bruker kun MongoDB.
  */
 
-import mongoose from "mongoose";
+import mongoose, { type ClientSession } from "mongoose";
 import crypto from "crypto";
 import { logger } from "../utils/logger.js";
 import { ContentEmbedding } from "../database/models/ContentEmbedding.js";
@@ -567,11 +567,25 @@ export async function deleteStoredCourseContent(
   return result.deletedCount;
 }
 
+export async function deleteStoredUserVectors(userId: string): Promise<void> {
+  await pineconeDeleteByFilter({ userId });
+}
+
+export async function deleteStoredUserMongoContent(
+  userId: string,
+  session?: ClientSession,
+): Promise<number> {
+  const result = await ContentEmbedding.deleteMany(
+    { userId },
+    session ? { session } : undefined,
+  );
+  return result.deletedCount;
+}
+
 export async function deleteStoredUserContent(userId: string): Promise<number> {
   // GDPR: Slett Pinecone først — hvis det feiler, beholdes MongoDB som konsistent
-  await pineconeDeleteByFilter({ userId });
-  const result = await ContentEmbedding.deleteMany({ userId });
-  return result.deletedCount;
+  await deleteStoredUserVectors(userId);
+  return deleteStoredUserMongoContent(userId);
 }
 
 if (isPineconeConfigured()) {

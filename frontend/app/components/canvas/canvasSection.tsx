@@ -5,9 +5,8 @@
  */
 "use client";
 
-import { useState, useEffect, useMemo, type CSSProperties } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { enUS, nb } from "date-fns/locale";
 import {
     ArrowLeft,
     ChevronRight,
@@ -37,15 +36,12 @@ import { CanvasKIHandlinger } from "@/app/components/ki/CanvasKIActions";
 import { showToast } from "@/app/components/ui/Toaster";
 import { erInnlevert as erInnlevertOppgave } from "@/app/canvas/canvasUtils";
 import { useManuellInnlevering } from "@/app/hooks/useManuellInnlevering";
-import { createCanvasHtmlParser, parseCanvasHtml, sikkerFilNedlastingUrl } from "@/app/canvas/canvasHtml";
+import { sikkerFilNedlastingUrl } from "@/app/canvas/canvasHtml";
 import { CanvasPageVisning } from "@/app/components/canvas/CanvasPageVisning";
+import { CanvasHtmlContent } from "@/app/components/canvas/CanvasHtmlContent";
+import { useCanvasLabels, type CanvasVisning } from "@/app/components/canvas/canvasLabels";
 import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { formaterDatoLong, formaterDatoMedTid, dagerFraIdag, formaterDagerRelativtFrist } from "@/app/lib/dato";
-import { useLanguage, type Language } from "@/app/i18n";
-import { fetchApi } from "@/app/lib/apiClient";
-
-// Typer for Canvas visninger
-type CanvasVisning = "announcements" | "courses" | "assignments";
 
 // Props for CanvasSection komponent
 interface CanvasSectionProps {
@@ -53,289 +49,8 @@ interface CanvasSectionProps {
     harCanvasToken?: boolean;
 }
 
-function getCanvasLabels(language: Language) {
-    if (language === "en") {
-        return {
-            sectionTitles: {
-                announcements: "Announcements",
-                courses: "Courses",
-                assignments: "Assignments",
-            } satisfies Record<CanvasVisning, string>,
-            announcementsMissingToken: "You must save a Canvas API token to fetch announcements.",
-            announcementsLoading: "Loading announcements...",
-            announcementsLoadError: "Could not load announcements. Try again.",
-            announcementsEmpty: "No announcements",
-            loadMoreAnnouncements: (count: number) => `Load more announcements (${count} left)`,
-            coursesMissingToken: "You must save a Canvas API token to fetch courses.",
-            coursesLoadError: "Could not load courses. Try again.",
-            backToCourses: "Back to courses",
-            frontPage: "Front page",
-            modules: "Modules",
-            pages: "Pages",
-            files: "Files",
-            frontPageLoading: "Loading front page...",
-            frontPageLoadError: "Could not load front page. Try again.",
-            frontPageEmpty: "No content on the front page.",
-            frontPageUnavailable: "Front page unavailable.",
-            modulesLoading: "Loading modules...",
-            modulesAccessError: "No access to modules for this course (403/unauthorized).",
-            modulesEmpty: "This course has no available modules.",
-            moduleLabel: "Module",
-            courseLabel: "Course",
-            contentLabel: "Content",
-            noItems: "No items.",
-            openFileErrorTitle: "Could not open file",
-            openFileErrorDescription: "Canvas did not return a valid download link for this file.",
-            retrySoon: "Try again shortly.",
-            pagesLoading: "Loading pages...",
-            pagesAccessError: "This course has no pages or you do not have access (403/unauthorized).",
-            pagesEmpty: "This course has no available pages.",
-            pagesNothingToShow: "This course has no pages to show.",
-            filesLoading: "Loading files...",
-            filesAccessError: "This course has no files or you do not have access (403/unauthorized).",
-            filesEmpty: "This course has no available files.",
-            filesNothingToShow: "This course has no files to show.",
-            noCourses: "No courses found",
-            noContent: "No content",
-            tokenInvalidHelp: "Go to Settings to add a new token.",
-            assignmentsMissingToken: "You must save a Canvas API token to fetch assignments.",
-            assignmentsLoading: "Loading assignments...",
-            assignmentsLoadError: "Could not load assignments. Try again.",
-            assignmentsEmptyTitle: "No assignments found.",
-            assignmentsEmptyDescription: "When you have active assignments in your Canvas courses, they will appear here.",
-            showingAssignments: (filtered: number, total: number) => `Showing ${filtered} of ${total} assignments`,
-            assignmentFilters: {
-                alle: "All",
-                kommende: "Upcoming",
-                forfalt: "Overdue",
-                "uten-frist": "No due date",
-            } as Record<"alle" | "kommende" | "forfalt" | "uten-frist", string>,
-            sortByDue: "Sorted by due date",
-            sortByCourse: "Sorted by course",
-            assignmentCourse: "Course",
-            submitted: "Submitted",
-            manuallySubmitted: "Manually submitted",
-            markAsSubmitted: "Mark as submitted",
-            unmarkAsSubmitted: "Unmark as submitted",
-            points: "Points",
-            due: "Due",
-            pointsSuffix: "points",
-            noDueDate: "No due date",
-            showLessAssignments: "Show fewer assignments",
-            showAllAssignments: (count: number) => `Show all ${count} assignments`,
-        };
-    }
-
-    return {
-        sectionTitles: {
-            announcements: "Kunngjøringer",
-            courses: "Emner",
-            assignments: "Oppgaver",
-        } satisfies Record<CanvasVisning, string>,
-        announcementsMissingToken: "Du må lagre en Canvas API-token for å hente kunngjøringer.",
-        announcementsLoading: "Laster kunngjøringer...",
-        announcementsLoadError: "Kunne ikke laste kunngjøringer. Prøv igjen.",
-        announcementsEmpty: "Ingen kunngjøringer",
-        loadMoreAnnouncements: (count: number) => `Hent flere kunngjøringer (${count} igjen)`,
-        coursesMissingToken: "Du må lagre en Canvas API-token for å hente emner.",
-        coursesLoadError: "Kunne ikke laste emner. Prøv igjen.",
-        backToCourses: "Tilbake til emner",
-        frontPage: "Forside",
-        modules: "Moduler",
-        pages: "Sider",
-        files: "Filer",
-        frontPageLoading: "Laster forside...",
-        frontPageLoadError: "Kunne ikke laste forside. Prøv igjen.",
-        frontPageEmpty: "Ingen innhold på forsiden.",
-        frontPageUnavailable: "Forside ikke tilgjengelig.",
-        modulesLoading: "Laster moduler...",
-        modulesAccessError: "Ingen tilgang til moduler for dette emnet (403/unauthorized).",
-        modulesEmpty: "Dette emnet har ingen moduler tilgjengelig.",
-        moduleLabel: "Modul",
-        courseLabel: "Emne",
-        contentLabel: "Innhold",
-        noItems: "Ingen punkter.",
-        openFileErrorTitle: "Kunne ikke åpne fil",
-        openFileErrorDescription: "Canvas returnerte ingen gyldig nedlastingslenke for denne filen.",
-        retrySoon: "Prøv igjen om litt.",
-        pagesLoading: "Laster sider...",
-        pagesAccessError: "Dette emnet har ingen sider eller du mangler tilgang (403/unauthorized).",
-        pagesEmpty: "Dette emnet har ingen sider tilgjengelig.",
-        pagesNothingToShow: "Dette emnet har ingen sider å vise.",
-        filesLoading: "Laster filer...",
-        filesAccessError: "Dette emnet har ingen filer eller du mangler tilgang (403/unauthorized).",
-        filesEmpty: "Dette emnet har ingen filer tilgjengelig.",
-        filesNothingToShow: "Dette emnet har ingen filer å vise.",
-        noCourses: "Ingen emner funnet",
-        noContent: "Ingen innhold",
-        tokenInvalidHelp: "Gå til Innstillinger for å legge til et nytt token.",
-        assignmentsMissingToken: "Du må lagre en Canvas API-token for å hente oppgaver.",
-        assignmentsLoading: "Laster oppgaver...",
-        assignmentsLoadError: "Kunne ikke laste oppgaver. Prøv igjen.",
-        assignmentsEmptyTitle: "Ingen oppgaver funnet.",
-        assignmentsEmptyDescription: "Når du har aktive oppgaver i Canvas-emnene dine, dukker de opp her.",
-        showingAssignments: (filtered: number, total: number) => `Viser ${filtered} av ${total} oppgaver`,
-        assignmentFilters: {
-            alle: "Alle",
-            kommende: "Kommende",
-            forfalt: "Forfalt",
-            "uten-frist": "Uten frist",
-        } as Record<"alle" | "kommende" | "forfalt" | "uten-frist", string>,
-        sortByDue: "Sortert etter frist",
-        sortByCourse: "Sortert etter emne",
-        assignmentCourse: "Emne",
-        submitted: "Innlevert",
-        manuallySubmitted: "Manuelt innlevert",
-        markAsSubmitted: "Marker som innlevert",
-        unmarkAsSubmitted: "Fjern innlevert-markering",
-        points: "Poeng",
-        due: "Frist",
-        pointsSuffix: "poeng",
-        noDueDate: "Ingen frist",
-        showLessAssignments: "Vis færre oppgaver",
-        showAllAssignments: (count: number) => `Vis alle ${count} oppgaver`,
-    };
-}
-
 const INITIAL_ANNOUNCEMENTS_VISIBLE = 10;
 const ANNOUNCEMENTS_VISIBLE_STEP = 10;
-
-function useCanvasLabels() {
-    const { language } = useLanguage();
-
-    return {
-        language,
-        labels: getCanvasLabels(language),
-        dateLocale: language === "en" ? enUS : nb,
-    };
-}
-
-// Validering mot DOM-basert XSS - tillater kun http/https for href
-// Hjelpefunksjon for å parse style-streng til CSSProperties
-const normalizeStyle = (style?: string | CSSProperties) => {
-    if (!style) return undefined;
-    if (typeof style !== "string") return style;
-
-    return style.split(";").reduce((acc, decl) => {
-        const [rawProp, rawValue] = decl.split(":");
-        if (!rawProp || !rawValue) return acc;
-
-        const prop = rawProp.trim().replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-        const value = rawValue.trim();
-        if (!prop || !value) return acc;
-
-        (acc as Record<string, string>)[prop] = value;
-        return acc;
-    }, {} as CSSProperties);
-};
-
-const erBeskyttetCanvasBildeUrl = (src?: string) => {
-    if (!src || typeof src !== "string") return false;
-
-    try {
-        const url = new URL(src, "https://www.studwize.page");
-        return url.pathname.startsWith("/api/canvas/");
-    } catch {
-        return src.startsWith("/api/canvas/");
-    }
-};
-
-// Tilpasset Bilde-komponent med laste-tilstand og håndtering av lasting/feil
-const TilpassetBilde = ({
-    src,
-    alt,
-    style,
-    className: _className, // Ignorerer className/class fra props - vi setter vår egen
-    class: _class, // HTML class attributt fra DOM parser
-    ...props
-}: React.ImgHTMLAttributes<HTMLImageElement> & { class?: string }) => {
-    const originalSrc = typeof src === "string" ? src : undefined;
-    const [laster, settLaster] = useState(true);
-    const [resolvedSrc, setResolvedSrc] = useState<string | undefined>(() =>
-        erBeskyttetCanvasBildeUrl(originalSrc) ? undefined : originalSrc,
-    );
-    const safeStyle = normalizeStyle(style);
-
-    useEffect(() => {
-        let isCancelled = false;
-        let objectUrl: string | null = null;
-
-        settLaster(true);
-        setResolvedSrc(erBeskyttetCanvasBildeUrl(originalSrc) ? undefined : originalSrc);
-
-        if (!originalSrc || !erBeskyttetCanvasBildeUrl(originalSrc)) {
-            return () => {
-                if (objectUrl) {
-                    URL.revokeObjectURL(objectUrl);
-                }
-            };
-        }
-
-        const hentBeskyttetBilde = async () => {
-            try {
-                const res = await fetchApi(originalSrc);
-                if (!res.ok) {
-                    throw new Error(`Kunne ikke hente Canvas-bilde (${res.status})`);
-                }
-
-                const blob = await res.blob();
-                objectUrl = URL.createObjectURL(blob);
-
-                if (!isCancelled) {
-                    setResolvedSrc(objectUrl);
-                }
-            } catch {
-                if (!isCancelled) {
-                    setResolvedSrc(undefined);
-                    settLaster(false);
-                }
-            }
-        };
-
-        void hentBeskyttetBilde();
-
-        return () => {
-            isCancelled = true;
-            if (objectUrl) {
-                URL.revokeObjectURL(objectUrl);
-            }
-        };
-    }, [originalSrc]);
-
-    // Render bilde med laste-effekt
-    return (
-        <span className="relative my-3 inline-block overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
-            {laster && (
-                <span className="absolute inset-0 animate-pulse bg-slate-200 dark:bg-slate-700" />
-            )}
-            {resolvedSrc ? (
-                <img
-                    src={resolvedSrc}
-                    alt={alt}
-                    {...props}
-                    className={`transition-opacity duration-500 ${laster ? "opacity-0" : "opacity-100"} max-w-full max-h-75 w-auto h-auto object-contain`}
-                    style={safeStyle}
-                    onLoad={() => settLaster(false)}
-                    onError={() => settLaster(false)}
-                    loading="lazy"
-                />
-            ) : (
-                <span className="inline-flex min-h-24 min-w-32 items-center justify-center px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
-                    {alt || "Canvas bilde"}
-                </span>
-            )}
-        </span>
-    );
-};
-
-// HTML parser for Canvas innhold (img src blir omskrevet til proxy i canvasHtml)
-const htmlParser = createCanvasHtmlParser((domNode) => (
-    <TilpassetBilde
-        src={domNode.attribs?.src ?? ""}
-        alt={domNode.attribs?.alt || "Canvas bilde"}
-        {...domNode.attribs}
-    />
-));
 
 // Laste-skjelett
 function LasteSkjelett({ linjer = 3 }: { linjer?: number }) {
@@ -411,9 +126,10 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     </header>
 
                     {announcement.message && (
-                        <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
-                            {parseCanvasHtml(announcement.message, htmlParser)}
-                        </div>
+                        <CanvasHtmlContent
+                            html={announcement.message}
+                            className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300"
+                        />
                     )}
 
                     {announcement.message && (
@@ -465,11 +181,12 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const valgtMeta = valgtEmneId ? getMetadata(valgtEmneId) : null;
     const metaReady = !metadataQuery.isLoading && !!metadataQuery.data?.metadata;
 
-    // Kun fetch hvis metadata sier innhold finnes, eller metadata ikke er klar ennå (for backward compat)
-    const modulerQuery = useCanvasModules(valgtEmneId, harCanvasToken && (!metaReady || valgtMeta?.hasModules === true));
-    const filerQuery = useCanvasFiles(valgtEmneId, harCanvasToken && (!metaReady || valgtMeta?.hasFiles === true));
-    const siderQuery = useCanvasPages(valgtEmneId, harCanvasToken); // Sider kan finnes selv om kurset ikke har moduler
-    const frontPageQuery = useCanvasFrontPage(valgtEmneId, harCanvasToken && (!metaReady || valgtMeta?.hasFrontPage === true));
+    // Metadata brukes som hint i UI, men skal ikke kunne sperre innhold hvis den er ufullstendig/stale.
+    const valgtEmneAktivert = harCanvasToken && !!valgtEmneId;
+    const modulerQuery = useCanvasModules(valgtEmneId, valgtEmneAktivert);
+    const filerQuery = useCanvasFiles(valgtEmneId, valgtEmneAktivert);
+    const siderQuery = useCanvasPages(valgtEmneId, valgtEmneAktivert);
+    const frontPageQuery = useCanvasFrontPage(valgtEmneId, valgtEmneAktivert);
 
     if (!harCanvasToken) {
         return <CanvasTokenNotice />;
@@ -525,10 +242,14 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                 {(() => {
                     const meta = getMetadata(valgtEmneId);
                     const metadataLaster = metadataQuery.isLoading;
-                    const visForsideTab = metadataLaster || !meta || meta.hasFrontPage;
-                    const visModulerTab = metadataLaster || !meta || meta.hasModules;
-                    const visSiderTab = metadataLaster || !meta || meta.hasPages;
-                    const visFilerTab = metadataLaster || !meta || meta.hasFiles;
+                    const harForsideData = !!frontPageQuery.data;
+                    const harModulerData = (modulerQuery.data?.modules?.length ?? 0) > 0;
+                    const harSiderData = (siderQuery.data?.length ?? 0) > 0;
+                    const harFilerData = (filerQuery.data?.length ?? 0) > 0;
+                    const visForsideTab = metadataLaster || !meta || meta.hasFrontPage || harForsideData || valgtEmneVisning === "frontpage";
+                    const visModulerTab = metadataLaster || !meta || meta.hasModules || harModulerData || valgtEmneVisning === "modules";
+                    const visSiderTab = metadataLaster || !meta || meta.hasPages || harSiderData || valgtEmneVisning === "pages";
+                    const visFilerTab = metadataLaster || !meta || meta.hasFiles || harFilerData || valgtEmneVisning === "files";
 
                     return (
                         <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -586,9 +307,10 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                     <BookOpen size={18} /> {frontPageQuery.data.title || labels.frontPage}
                                 </header>
                                 {frontPageQuery.data.body ? (
-                                    <div className="min-w-0 overflow-x-auto prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-200 prose-table:block prose-table:overflow-x-auto prose-img:max-w-full prose-img:h-auto [&_iframe]:max-w-full">
-                                        {parseCanvasHtml(frontPageQuery.data.body, htmlParser)}
-                                    </div>
+                                    <CanvasHtmlContent
+                                        html={frontPageQuery.data.body}
+                                        className="min-w-0 overflow-x-auto prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-200 prose-table:block prose-table:overflow-x-auto prose-img:max-w-full prose-img:h-auto [&_iframe]:max-w-full"
+                                    />
                                 ) : (
                                     <p className="text-slate-500 dark:text-slate-400 text-sm">{labels.frontPageEmpty}</p>
                                 )}
@@ -798,9 +520,10 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                     <BookOpen size={18} /> {labels.frontPage}
                                 </header>
                                 {frontPageQuery.data.body ? (
-                                    <div className="min-w-0 overflow-x-auto prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-200 prose-img:max-w-full prose-img:h-auto [&_iframe]:max-w-full">
-                                        {parseCanvasHtml(frontPageQuery.data.body, htmlParser)}
-                                    </div>
+                                    <CanvasHtmlContent
+                                        html={frontPageQuery.data.body}
+                                        className="min-w-0 overflow-x-auto prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-200 prose-img:max-w-full prose-img:h-auto [&_iframe]:max-w-full"
+                                    />
                                 ) : (
                                     <p className="text-slate-500 dark:text-slate-400 text-sm">{labels.frontPageEmpty}</p>
                                 )}
@@ -959,17 +682,19 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
 
                     // Bestem hvilken visning som skal være default basert på metadata
                     const velgDefaultVisning = (): "frontpage" | "modules" | "files" | "pages" => {
-                        if (!meta) return "frontpage"; // Fallback mens metadata laster
+                        if (!meta) return "modules"; // Moduler-visningen har innebygget fallback til sider/filer/forside
                         if (meta.hasFrontPage) return "frontpage";
                         if (meta.hasModules) return "modules";
                         if (meta.hasPages) return "pages";
                         if (meta.hasFiles) return "files";
-                        return "frontpage";
+                        return "modules";
                     };
 
-                    // Vis knapper kun for innhold som finnes
-                    const visForsideKnapp = !meta || meta.hasFrontPage;
-                    const visModulerKnapp = !meta || meta.hasModules;
+                    // Metadata er kun hint. Hvis den sier "ingen innhold" for ALT, kan det skyldes at Canvas API-kall feilet.
+                    // I så fall viser vi alle knapper uten antall, slik at brukeren alltid kan navigere til innholdet.
+                    const metadataHarIngenData = meta && !meta.hasFrontPage && !meta.hasModules && !meta.hasPages && !meta.hasFiles;
+                    const visForsideKnapp = !meta || meta.hasFrontPage || metadataHarIngenData;
+                    const visModulerKnapp = !meta || meta.hasModules || metadataHarIngenData;
                     const visSiderKnapp = !meta || meta.hasPages;
                     const visFilerKnapp = !meta || meta.hasFiles;
                     const harInnhold = visForsideKnapp || visModulerKnapp || visSiderKnapp || visFilerKnapp;
@@ -1046,9 +771,14 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                             </button>
                                         )}
                                         {!harInnhold && (
-                                            <span className="text-sm text-slate-400 dark:text-slate-500 italic">
-                                                {labels.noContent}
-                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => åpneEmne(velgDefaultVisning())}
+                                                className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
+                                            >
+                                                {labels.openCourse}
+                                                <ChevronRight size={16} />
+                                            </button>
                                         )}
                                     </>
                                 )}

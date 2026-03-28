@@ -142,6 +142,13 @@ async function hentMeg(signal?: AbortSignal): Promise<MeResponse> {
     if (res.ok) {
       return MeResponseSchema.parse(json);
     }
+    if (res.status === 403 && json && typeof json === "object" && "error" in json && json.error === "user_deleted") {
+      // Slettet bruker: skal IKKE trigge auth-redirect (ville skapt en uendelig loop).
+      // Frontend må logge ut fra Clerk og vise en tydelig melding.
+      // Varsle andre faner slik at de også rydder opp.
+      broadcastLogout();
+      throw createApiError(json, "Denne kontoen er slettet. Opprett en ny konto for å fortsette.");
+    }
     if (res.status === 401 || res.status === 403) {
       throw createAuthStatusError(res.status, json, "Ikke autentisert");
     }
@@ -221,9 +228,10 @@ export function useMeg(options?: { initialData?: MeResponse; enabled?: boolean }
       if (isAuthError) {
         return failureCount < 1;
       }
-      // Konto-konflikt (409) er deterministisk — retry hjelper ikke
+      // Konto-konflikt (409) og slettet bruker (403) er deterministiske — retry hjelper ikke
       const msg = error instanceof Error ? error.message : "";
       if (msg.includes("innloggingskonflikt") || msg.includes("allerede en konto")) return false;
+      if (msg.includes("kontoen er slettet") || msg.includes("Denne kontoen er slettet")) return false;
       // Maks 2 retries ved nettverksfeil — unngår lang ventetid
       return failureCount < 2;
     },

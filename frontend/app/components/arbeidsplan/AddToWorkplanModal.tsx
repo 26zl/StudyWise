@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useState, useMemo, useEffect, useRef, useId, useCallback } from "react";
+import { useState, useMemo, useRef, useId, useCallback } from "react";
 import { X, Calendar, Clock, CheckCircle2, Sparkles, AlertTriangle } from "lucide-react";
 import type { SubTask } from "common/ki";
 import { getIsoWeekInfo, parseTimerStreng } from "common/dateUtils";
@@ -12,6 +12,7 @@ import { UKEDAGER } from "common/arbeidsplan";
 import { useCreateArbeidsplan, useCurrentArbeidsplan, type StudyBlock } from "@/app/arbeidsplan/arbeidsplan-api";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
+import { useDialogAccessibility } from "@/app/hooks/useDialogAccessibility";
 
 interface AddToWorkplanModalProps {
   isOpen: boolean;
@@ -38,6 +39,7 @@ export function AddToWorkplanModal({
 }: AddToWorkplanModalProps) {
   const { t } = useLanguage();
   const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
   const [selectedWeek, setSelectedWeek] = useState<"current" | "next">("current");
   const [selectedDays, setSelectedDays] = useState<StudyBlock["day"][]>(["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag"]);
@@ -46,48 +48,26 @@ export function AddToWorkplanModal({
   const { mutate: createPlan, isPending } = useCreateArbeidsplan();
   const { data: existingPlan } = useCurrentArbeidsplan();
 
-  useEffect(() => {
-    if (!isOpen) return;
+  const handleClose = useCallback(() => {
+    if (!isPending) {
+      onClose();
+    }
+  }, [isPending, onClose]);
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !isPending) {
-        onClose();
-        return;
-      }
-
-      if (event.key !== "Tab" || !dialogRef.current) return;
-
-      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), select:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      );
-
-      if (focusable.length === 0) return;
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    dialogRef.current?.focus();
-
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, isPending, onClose]);
+  useDialogAccessibility({
+    open: isOpen,
+    containerRef: dialogRef,
+    initialFocusRef: closeButtonRef,
+    onClose: handleClose,
+  });
 
   const handleBackdropClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
-      if (event.target === event.currentTarget && !isPending) {
-        onClose();
+      if (event.target === event.currentTarget) {
+        handleClose();
       }
     },
-    [isPending, onClose],
+    [handleClose],
   );
 
   const toggleDay = (day: StudyBlock["day"]) => {
@@ -238,8 +218,10 @@ export function AddToWorkplanModal({
             </div>
           </div>
           <button
+            ref={closeButtonRef}
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
+            disabled={isPending}
             className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             aria-label="Lukk dialogen"
           >
@@ -460,7 +442,7 @@ export function AddToWorkplanModal({
         <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             disabled={isPending}
             className="px-4 py-2 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
           >

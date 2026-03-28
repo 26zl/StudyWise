@@ -175,7 +175,8 @@ function ThemeToggleButton({
 export function Header() {
   const pathname = usePathname();
   const { toggleVenstreMeny, isVenstreMenyOpen } = useUIStore();
-  const harSidebar = ["/dashboard", "/oversikt", "/ai-breakdown"].includes(pathname);
+  const harSidebar =
+    pathname.startsWith("/dashboard") || pathname === "/oversikt" || pathname === "/ai-breakdown";
   const [mobilMenyOpen, setMobilMenyOpen] = useState(false);
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);

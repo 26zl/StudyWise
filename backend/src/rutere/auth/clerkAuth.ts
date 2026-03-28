@@ -402,11 +402,23 @@ export interface AccountConflictResult {
   __accountConflict: true;
 }
 
+/** Spesialresultat for slettet bruker som prøver å logge inn. */
+export interface UserDeletedResult {
+  __userDeleted: true;
+}
+
 /** Type-guard for AccountConflictResult. */
 export function isAccountConflict(
-  result: IUser | AccountConflictResult | null,
+  result: IUser | AccountConflictResult | UserDeletedResult | null,
 ): result is AccountConflictResult {
   return result !== null && typeof result === "object" && "__accountConflict" in result;
+}
+
+/** Type-guard for UserDeletedResult. */
+export function isUserDeleted(
+  result: IUser | AccountConflictResult | UserDeletedResult | null,
+): result is UserDeletedResult {
+  return result !== null && typeof result === "object" && "__userDeleted" in result;
 }
 
 /**
@@ -417,7 +429,7 @@ export function isAccountConflict(
  */
 export async function findOrCreateUserByClerkId(
   clerkUserId: string,
-): Promise<IUser | AccountConflictResult | null> {
+): Promise<IUser | AccountConflictResult | UserDeletedResult | null> {
   // +canvasApiToken slik at GET /me kan gjenbruke bruker uten ekstra DB-kall
   const existing = await User.findOne({ clerkId: clerkUserId }).select("+canvasApiToken");
   if (existing) {
@@ -426,7 +438,7 @@ export async function findOrCreateUserByClerkId(
         { clerkUserId, userId: existing._id },
         "Avviser innlogging for slettet StudyWise-bruker",
       );
-      return null;
+      return { __userDeleted: true };
     }
 
     if (!shouldSyncExistingUserProfile(existing)) {
@@ -455,12 +467,19 @@ export async function findOrCreateUserByClerkId(
     const existingByEmail = await User.findOne({ email });
     if (existingByEmail) {
       if (existingByEmail.deletedAt) {
-        logger.warn(
-          { clerkUserId, userId: existingByEmail._id },
-          "Avviser innlogging fordi e-post tilhører slettet StudyWise-bruker",
+        // Slettet bruker har fortsatt original e-post (ufullstendig opprydding).
+        // Anonymiser e-posten slik at ny bruker kan opprettes med samme e-post.
+        const anonymizedEmail = `deleted-${existingByEmail._id.toString()}@studywise.invalid`;
+        await User.updateOne(
+          { _id: existingByEmail._id },
+          { $set: { email: anonymizedEmail }, $unset: { clerkId: 1 } },
         );
-        return null;
-      }
+        logger.info(
+          { clerkUserId, deletedUserId: existingByEmail._id },
+          "Anonymiserte e-post for slettet bruker — tillater ny kontoopprettelse",
+        );
+        // Fall gjennom til brukeropprettelse nedenfor
+      } else {
 
       if (existingByEmail.clerkId && existingByEmail.clerkId !== clerkUserId) {
         // Samme e-post, annen Clerk-konto — typisk når bruker bytter OAuth-leverandør
@@ -529,12 +548,18 @@ export async function findOrCreateUserByClerkId(
       ).select("+canvasApiToken");
 
       if (linkedUser?.deletedAt) {
-        logger.warn(
-          { clerkUserId, userId: linkedUser._id },
-          "Linket bruker er slettet og kan ikke gjenopprettes automatisk",
+        // Linket bruker ble slettet mellom findOne og findOneAndUpdate — rydd opp og opprett ny
+        const anonymizedEmail = `deleted-${linkedUser._id.toString()}@studywise.invalid`;
+        await User.updateOne(
+          { _id: linkedUser._id },
+          { $set: { email: anonymizedEmail }, $unset: { clerkId: 1 } },
         );
-        return null;
-      }
+        logger.info(
+          { clerkUserId, deletedUserId: linkedUser._id },
+          "Fjernet clerkId fra slettet bruker etter linking-race — faller gjennom til ny bruker",
+        );
+        // Fall gjennom til brukeropprettelse nedenfor
+      } else
 
       if (linkedUser) {
         logger.info(
@@ -542,6 +567,7 @@ export async function findOrCreateUserByClerkId(
           "Eksisterende bruker linket til Clerk",
         );
         return linkedUser;
+      }
       }
     }
 
@@ -604,7 +630,7 @@ export async function findOrCreateUserByClerkId(
           { clerkUserId, userId: concurrentUser._id },
           "Race-condition traff slettet bruker; avviser automatisk gjenoppretting",
         );
-        return null;
+        return { __userDeleted: true };
       }
 
       if (concurrentUser?.clerkId && concurrentUser.clerkId !== clerkUserId) {
@@ -731,6 +757,16 @@ function pruneTokenCache(): void {
       tokenCache.delete(key);
       deleted++;
     }
+  }
+}
+
+/**
+ * Fjerner alle cached tokens for en gitt clerkId.
+ * Kalles ved kontosletting slik at slettede brukere ikke kan bruke cached tokens i opptil 30s.
+ */
+export function invalidateTokenCacheByClerkId(clerkId: string): void {
+  for (const [token, entry] of tokenCache) {
+    if (entry.sub === clerkId) tokenCache.delete(token);
   }
 }
 

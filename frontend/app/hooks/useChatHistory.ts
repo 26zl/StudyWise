@@ -11,8 +11,11 @@ import { useUIStore } from "@/app/store/uiStore";
 import {
   ChatHistoryResponseSchema,
   ChatMessage,
+  ChatPinUpdateResponseSchema,
   ChatSavePayload,
   ChatSaveResponseSchema,
+  ChatTitleUpdateResponseSchema,
+  ChatTopicUpdateResponseSchema,
 } from "common/chat";
 import { fetchApi } from "../lib/apiClient";
 import { extractApiErrorMessage } from "../lib/errorUtils";
@@ -177,14 +180,15 @@ export function useChatHistory() {
   const setChatTopic = useCallback(async (id: string, topic: string) => {
     try {
       const normalizedTopic = topic.trim();
-      const raw = await fetchJson<{ id: string; topic?: string }>(`/api/ki/chat/history/${id}/topic`, {
+      const raw = await fetchJson<unknown>(`/api/ki/chat/history/${id}/topic`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic: normalizedTopic.length > 0 ? normalizedTopic : null }),
       });
+      const parsed = ChatTopicUpdateResponseSchema.parse(raw);
       queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) =>
         (prev ?? []).map((chat) =>
-          chat.id === raw.id ? { ...chat, topic: raw.topic } : chat,
+          chat.id === parsed.id ? { ...chat, topic: parsed.topic } : chat,
         ),
       );
       return true;
@@ -198,14 +202,15 @@ export function useChatHistory() {
 
   const setChatPinned = useCallback(async (id: string, pinned: boolean) => {
     try {
-      const raw = await fetchJson<{ id: string; pinned: boolean }>(`/api/ki/chat/history/${id}/pin`, {
+      const raw = await fetchJson<unknown>(`/api/ki/chat/history/${id}/pin`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pinned }),
       });
+      const parsed = ChatPinUpdateResponseSchema.parse(raw);
       queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) =>
         (prev ?? []).map((chat) =>
-          chat.id === raw.id ? { ...chat, pinned: raw.pinned } : chat,
+          chat.id === parsed.id ? { ...chat, pinned: parsed.pinned } : chat,
         ),
       );
       return true;
@@ -219,14 +224,15 @@ export function useChatHistory() {
 
   const setChatTitle = useCallback(async (id: string, title: string) => {
     try {
-      const raw = await fetchJson<{ id: string; title: string }>(`/api/ki/chat/history/${id}/title`, {
+      const raw = await fetchJson<unknown>(`/api/ki/chat/history/${id}/title`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title }),
       });
+      const parsed = ChatTitleUpdateResponseSchema.parse(raw);
       queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) =>
         (prev ?? []).map((chat) =>
-          chat.id === raw.id ? { ...chat, title: raw.title } : chat,
+          chat.id === parsed.id ? { ...chat, title: parsed.title } : chat,
         ),
       );
       return true;

@@ -87,15 +87,6 @@ export const ChatHistoryResponseSchema = z.object({
     .optional(),
 });
 
-// Schema for delt chat-respons (offentlig, kun lesbar)
-export const SharedChatResponseSchema = z.object({
-  title: z.string(),
-  messages: z.array(ChatMessageSchema).min(1),
-  sharedAt: z.coerce.date(),
-  expiresAt: z.coerce.date(),
-  shareType: ChatShareTypeSchema.default("full_chat"),
-});
-
 // Schema for share-respons (returneres ved deling)
 export const ChatShareResponseSchema = z.object({
   shareId: z.string(),
@@ -155,13 +146,27 @@ export const ChatPinUpdateSchema = z.object({
 export const ChatTitleUpdateSchema = z.object({
   title: z.string().trim().min(1, "Tittel må fylles ut").max(CHAT_TITLE_MAX_LENGTH, `Tittel må være maks ${CHAT_TITLE_MAX_LENGTH} tegn`),
 });
+
+export const ChatTopicUpdateResponseSchema = z.object({
+  id: z.string(),
+  topic: z.string().optional(),
+});
+
+export const ChatPinUpdateResponseSchema = z.object({
+  id: z.string(),
+  pinned: z.boolean(),
+});
+
+export const ChatTitleUpdateResponseSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+});
 // Type-definisjoner for chat-meldinger og historikk
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type ChatSavePayload = z.infer<typeof ChatSaveSchema>;
 export type ChatShareCreatePayload = z.infer<typeof ChatShareCreateSchema>;
 export type ChatSaveResponse = z.infer<typeof ChatSaveResponseSchema>;
 export type ChatHistoryResponse = z.infer<typeof ChatHistoryResponseSchema>;
-export type SharedChatResponse = z.infer<typeof SharedChatResponseSchema>;
 export type ChatShareResponse = z.infer<typeof ChatShareResponseSchema>;
 export type SharedChatListItem = z.infer<typeof SharedChatListItemSchema>;
 export type SharedChatListResponse = z.infer<typeof SharedChatListResponseSchema>;
@@ -170,3 +175,6 @@ export type SharedChatPublicResponse = z.infer<typeof SharedChatPublicResponseSc
 export type ChatTopicUpdatePayload = z.infer<typeof ChatTopicUpdateSchema>;
 export type ChatPinUpdatePayload = z.infer<typeof ChatPinUpdateSchema>;
 export type ChatTitleUpdatePayload = z.infer<typeof ChatTitleUpdateSchema>;
+export type ChatTopicUpdateResponse = z.infer<typeof ChatTopicUpdateResponseSchema>;
+export type ChatPinUpdateResponse = z.infer<typeof ChatPinUpdateResponseSchema>;
+export type ChatTitleUpdateResponse = z.infer<typeof ChatTitleUpdateResponseSchema>;

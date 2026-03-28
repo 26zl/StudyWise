@@ -15,7 +15,7 @@ export interface ChatHistoryDocument {
   shareTokenHash?: string;
   sharedAt?: Date;
   shareExpiresAt?: Date;
-  /** Snapshot for delt chat (kun type full_chat). */
+  /** Snapshot for delt samtale (kun type full_chat). */
   sharedSnapshot?: {
     version: number;
     type: "full_chat";

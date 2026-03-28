@@ -289,6 +289,7 @@ export const AccountDeletionResponseSchema = z.object({
   melding: z.string(),
   deleted: AccountDeletionDeletedSchema,
   providerAccountDeleted: z.boolean(),
+  vectorCleanupSucceeded: z.boolean(),
 });
 
 /** Kortlivet cookie som markerer at bruker nylig har passert auth-Turnstile. */

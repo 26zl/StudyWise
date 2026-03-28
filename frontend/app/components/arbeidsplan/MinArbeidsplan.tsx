@@ -29,6 +29,7 @@ import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
+import { formaterDatoMedTid } from "@/app/lib/dato";
 
 /** Forklaring for hvorfor en oppgave har en gitt prioritet */
 function getPriorityExplanation(priority: string, task: string): string {
@@ -51,7 +52,7 @@ function getPriorityExplanation(priority: string, task: string): string {
 }
 
 export function MinArbeidsplan() {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
   const [bekreftSlett, setBekreftSlett] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(false);
@@ -324,11 +325,8 @@ export function MinArbeidsplan() {
                             </div>
                             {block.completedAt && (
                               <div className="text-green-600 dark:text-green-400">
-                                ✓ Fullført {new Date(block.completedAt).toLocaleString("nb-NO", {
-                                  month: "short",
-                                  day: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
+                                ✓ {t("arbeidsplan.completedAt", {
+                                  date: formaterDatoMedTid(block.completedAt, language),
                                 })}
                               </div>
                             )}

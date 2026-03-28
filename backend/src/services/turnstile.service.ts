@@ -58,49 +58,50 @@ export async function verifyTurnstileToken(
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), TURNSTILE_TIMEOUT_MS);
+    try {
+      const formData = new URLSearchParams();
+      formData.append("secret", secretKey);
+      formData.append("response", token);
+      if (remoteIp) {
+        formData.append("remoteip", remoteIp);
+      }
 
-    const formData = new URLSearchParams();
-    formData.append("secret", secretKey);
-    formData.append("response", token);
-    if (remoteIp) {
-      formData.append("remoteip", remoteIp);
+      const response = await fetch(TURNSTILE_VERIFY_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: formData.toString(),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        logger.error(
+          { status: response.status },
+          "Turnstile API feilet",
+        );
+        return { success: false, errorCodes: ["api-error"] };
+      }
+
+      const result = (await response.json()) as TurnstileVerifyResponse;
+
+      if (!result.success) {
+        logger.info(
+          { errorCodes: result["error-codes"] },
+          "Turnstile-verifisering feilet",
+        );
+      }
+
+      return {
+        success: result.success,
+        errorCodes: result["error-codes"],
+        hostname: result.hostname,
+        action: result.action,
+        cdata: result.cdata,
+      };
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    const response = await fetch(TURNSTILE_VERIFY_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: formData.toString(),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      logger.error(
-        { status: response.status },
-        "Turnstile API feilet",
-      );
-      return { success: false, errorCodes: ["api-error"] };
-    }
-
-    const result = (await response.json()) as TurnstileVerifyResponse;
-
-    if (!result.success) {
-      logger.info(
-        { errorCodes: result["error-codes"] },
-        "Turnstile-verifisering feilet",
-      );
-    }
-
-    return {
-      success: result.success,
-      errorCodes: result["error-codes"],
-      hostname: result.hostname,
-      action: result.action,
-      cdata: result.cdata,
-    };
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       logger.error("Turnstile-verifisering timet ut");

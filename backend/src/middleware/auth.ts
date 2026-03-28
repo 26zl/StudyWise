@@ -11,7 +11,7 @@ import { apiError } from "../utils/apiError.js";
 import { normalizeCanvasBaseUrl, StoredCanvasBaseUrlSchema } from "common/auth";
 import type { UserRole } from "common/auth";
 import type { IUser } from "../database/models/User.js";
-import { getClerkUserIdFromToken, findOrCreateUserByClerkId, isAccountConflict } from "../rutere/auth/clerkAuth.js";
+import { getClerkUserIdFromToken, findOrCreateUserByClerkId, isAccountConflict, isUserDeleted } from "../rutere/auth/clerkAuth.js";
 import { audit, AUDIT_ACTIONS } from "../utils/auditLog.js";
 import { checkSecurityThresholds } from "../utils/securityAlert.js";
 
@@ -30,6 +30,7 @@ type AuthResolution =
   | { status: "missing_token" }
   | { status: "invalid_or_expired" }
   | { status: "account_conflict"; clerkUserId: string }
+  | { status: "user_deleted"; clerkUserId: string }
   | { status: "user_sync_failed"; clerkUserId: string };
 
 function settAutentisertBrukerPåRequest(req: Request, user: IUser): void {
@@ -57,6 +58,10 @@ async function resolveAuthentication(req: Request): Promise<AuthResolution> {
 
   if (isAccountConflict(userResult)) {
     return { status: "account_conflict", clerkUserId };
+  }
+
+  if (isUserDeleted(userResult)) {
+    return { status: "user_deleted", clerkUserId };
   }
 
   if (!userResult) {
@@ -172,6 +177,26 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         "Det finnes allerede en konto med denne e-postadressen koblet til en annen innloggingsmetode. " +
         "Prøv å logge inn med den opprinnelige metoden (f.eks. Microsoft eller Google), eller kontakt support.",
       );
+      return;
+    }
+
+    if (result.status === "user_deleted") {
+      logger.info(
+        { clerkUserId: result.clerkUserId },
+        "Slettet bruker forsøkte å logge inn",
+      );
+      await audit({
+        actorUserId: result.clerkUserId,
+        action: AUDIT_ACTIONS.TOKEN_VERIFICATION_FAILURE,
+        category: "auth",
+        outcome: "failure",
+        metadata: { reason: "user_deleted" },
+        req,
+      });
+      res.status(403).json({
+        error: "user_deleted",
+        melding: "Denne kontoen er slettet. Opprett en ny konto for å fortsette.",
+      });
       return;
     }
 

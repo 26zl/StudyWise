@@ -107,6 +107,42 @@ export const KIDocumentAnalyseResponseSchema = z.object({
   usage: UsageSchema.optional(),
 });
 
+export const QuizGenerateRequestSchema = z.object({
+  courseId: z.number().int().positive(),
+  courseName: z.string().trim().min(1).max(200),
+  moduleNames: z.array(z.string().trim().min(1).max(200)).min(1).max(50),
+  questionCount: z.number().int().min(1).max(50).default(10),
+});
+
+export const QuizQuestionSchema = z.object({
+  id: z.string().uuid(),
+  question: z.string().min(1),
+  options: z.array(z.string().min(1)).length(4),
+  correctIndex: z.number().int().min(0).max(3),
+  explanation: z.string().min(1),
+});
+
+export const QuizGenerateResponseSchema = z.object({
+  questions: z.array(QuizQuestionSchema).min(1).max(50),
+});
+
+export const FlashcardsGenerateRequestSchema = z.object({
+  courseId: z.number().int().positive(),
+  courseName: z.string().trim().min(1).max(200),
+  moduleNames: z.array(z.string().trim().min(1).max(200)).min(1).max(50),
+  cardCount: z.number().int().min(1).max(50).default(10),
+});
+
+export const FlashcardSchema = z.object({
+  id: z.string().uuid(),
+  front: z.string().min(1),
+  back: z.string().min(1),
+});
+
+export const FlashcardsGenerateResponseSchema = z.object({
+  flashcards: z.array(FlashcardSchema).min(1).max(50),
+});
+
 // Subtask schema for task breakdown API.
 // SubTaskSchema og TaskBreakdownResponseSchema brukes av både backend og frontend-hooker
 // for å holde generering, lagring og visning i sync.
@@ -239,6 +275,12 @@ export type KIDocumentAnalyseRequest = z.infer<typeof KIDocumentAnalyseRequestSc
 export type KIDocumentAnalyseResponse = z.infer<
   typeof KIDocumentAnalyseResponseSchema
 >;
+export type QuizGenerateRequest = z.infer<typeof QuizGenerateRequestSchema>;
+export type QuizQuestion = z.infer<typeof QuizQuestionSchema>;
+export type QuizGenerateResponse = z.infer<typeof QuizGenerateResponseSchema>;
+export type FlashcardsGenerateRequest = z.infer<typeof FlashcardsGenerateRequestSchema>;
+export type Flashcard = z.infer<typeof FlashcardSchema>;
+export type FlashcardsGenerateResponse = z.infer<typeof FlashcardsGenerateResponseSchema>;
 export type SubTask = z.infer<typeof SubTaskSchema>;
 export type TaskBreakdownResponse = z.infer<typeof TaskBreakdownResponseSchema>;
 export type TaskBreakdownGenerateRequest = z.infer<

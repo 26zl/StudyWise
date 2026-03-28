@@ -56,22 +56,16 @@ export function SidebarAppShell({
 }: SidebarAppShellProps) {
   return (
     <div className="flex h-full min-h-full min-w-0 flex-col bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 md:flex-row">
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-100 focus:rounded-lg focus:bg-slate-900 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white dark:focus:bg-white dark:focus:text-slate-900"
-      >
-        Hopp til innhold
-      </a>
       <Sidebar
         aktivVisning={aktivVisning}
         byttVisning={byttVisning}
         brukernavn={brukernavn}
         brukerRolle={brukerRolle}
       />
-      <main id="main-content" tabIndex={-1} className="flex min-w-0 flex-1 flex-col bg-white dark:bg-slate-900 outline-none">
+      <section className="flex min-w-0 flex-1 flex-col bg-white dark:bg-slate-900" aria-label="Appinnhold">
         <div className={cn("flex-1 min-h-0 overflow-y-auto", contentClassName)}>{children}</div>
         {footer ? <Footer /> : null}
-      </main>
+      </section>
     </div>
   );
 }

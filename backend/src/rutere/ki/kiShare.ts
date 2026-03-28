@@ -2,7 +2,7 @@
  * KI chat-deling (share links).
  *
  * Inneholder endepunkter for å opprette/administrere delingslenker,
- * og offentlig uthenting av delte chatter.
+ * og offentlig uthenting av delte samtaler.
  */
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
@@ -23,7 +23,6 @@ import {
   ChatShareCreateSchema,
   ChatShareResponseSchema,
   SharedChatListResponseSchema,
-  SharedChatResponseSchema,
   SharedChatPublicResponseSchema,
   SharedChatUpdateSchema,
 } from "common/chat";
@@ -186,26 +185,12 @@ function buildSharedChatPublicPayload(
   });
 }
 
-function buildSharedChatLegacyPayload(
-  loaded: Awaited<ReturnType<typeof loadSharedChatForRead>>,
-) {
-  if (!loaded) return null;
-  const { shared, chat, messages } = loaded;
-  return SharedChatResponseSchema.parse({
-    title: chat.title?.trim() || "Delt StudyWise-chat",
-    messages,
-    sharedAt: shared.createdAt,
-    expiresAt: shared.expiresAt ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    shareType: "full_chat",
-  });
-}
-
 async function handleSharedChatRead(
   req: Request,
   res: Response,
   buildPayload: (
     loaded: Awaited<ReturnType<typeof loadSharedChatForRead>>,
-  ) => ReturnType<typeof SharedChatPublicResponseSchema.parse> | ReturnType<typeof SharedChatResponseSchema.parse> | null,
+  ) => ReturnType<typeof SharedChatPublicResponseSchema.parse> | null,
 ): Promise<void> {
   const shareId = parseShareIdParam(req);
   if (!shareId) {
@@ -358,7 +343,7 @@ kiShareRouter.get("/chat/shared", async (req, res) => {
   } catch (error) {
     return sendUnknownError(res, error, {
       kontekst: "GET chat shared",
-      melding: "Kunne ikke hente delte chatter.",
+      melding: "Kunne ikke hente delte samtaler.",
     });
   }
 });
@@ -392,7 +377,7 @@ kiShareRouter.delete("/chat/shared", async (req, res) => {
   } catch (error) {
     return sendUnknownError(res, error, {
       kontekst: "DELETE chat shared all",
-      melding: "Kunne ikke slette delte chatter.",
+      melding: "Kunne ikke slette delte samtaler.",
     });
   }
 });
@@ -489,19 +474,7 @@ sharedChatRouter.get("/ki/share/:shareId", PUBLIC_SHARE_RATE_LIMIT, async (req, 
     return;
   } catch (error) {
     return sendUnknownError(res, error, {
-      kontekst: "GET shared chat",
-      melding: "Kunne ikke hente delt samtale.",
-    });
-  }
-});
-
-sharedChatRouter.get("/shared/:shareId", PUBLIC_SHARE_RATE_LIMIT, async (req, res) => {
-  try {
-    await handleSharedChatRead(req, res, buildSharedChatLegacyPayload);
-    return;
-  } catch (error) {
-    return sendUnknownError(res, error, {
-      kontekst: "GET shared chat",
+      kontekst: "GET shared conversation",
       melding: "Kunne ikke hente delt samtale.",
     });
   }

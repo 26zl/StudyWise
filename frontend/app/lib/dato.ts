@@ -18,6 +18,11 @@ function getLocale(language: Language = "nb"): string {
   return LOCALES[language];
 }
 
+/** Tall med locale: "10 000" / "10,000" */
+export function formaterTall(verdi: number, language: Language = "nb"): string {
+  return new Intl.NumberFormat(getLocale(language)).format(verdi);
+}
+
 /** Kort dato: "5. des." */
 export function formaterDatoShort(
   d: Date | string | number,

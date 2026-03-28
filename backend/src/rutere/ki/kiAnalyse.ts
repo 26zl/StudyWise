@@ -60,6 +60,7 @@ function erVisionBilde(mimetype: string): boolean {
 // Definerer express router
 const router = Router();
 const SUPPORTED_MIME_TYPES = getSupportedMimeTypes();
+const INVALID_DOCUMENT_TYPE_ERROR = "INVALID_DOCUMENT_TYPE";
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 15 * 1024 * 1024 }, // 15MB - matcher frontend-grensen
@@ -67,7 +68,7 @@ const upload = multer({
         if (SUPPORTED_MIME_TYPES.includes(file.mimetype)) {
             cb(null, true);
         } else {
-            cb(new Error("Filtypen støttes ikke. Last opp PDF, kode- eller Office-filer."));
+            cb(new Error(INVALID_DOCUMENT_TYPE_ERROR));
         }
     }
 });
@@ -328,6 +329,14 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
 
 // Multer / upload error handler – kun Multer-feil (f.eks. LIMIT_FILE_SIZE) håndteres her; andre feil sendes til global handler
 router.use((err: Error, _req: Request, res: Response, next: NextFunction) => {
+    if (err instanceof Error && err.message === INVALID_DOCUMENT_TYPE_ERROR) {
+        logger.warn({ err }, "Ugyldig dokumenttype avvist");
+        return res.status(400).json(KIDocumentAnalyseResponseSchema.parse({
+            suksess: false,
+            melding: "Filtypen støttes ikke. Last opp PDF, kode- eller Office-filer.",
+            response: "",
+        }));
+    }
     if (!(err instanceof multer.MulterError)) {
         return next(err);
     }

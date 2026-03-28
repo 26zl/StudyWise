@@ -18,9 +18,12 @@ import {
 } from "../../utils/apiError.js";
 import {
   ChatPinUpdateSchema,
+  ChatPinUpdateResponseSchema,
   ChatMessageSchema,
   ChatTitleUpdateSchema,
+  ChatTitleUpdateResponseSchema,
   ChatTopicUpdateSchema,
+  ChatTopicUpdateResponseSchema,
   ChatSaveSchema,
   ChatSaveResponseSchema,
   ChatHistoryResponseSchema,
@@ -195,7 +198,12 @@ kiHistoryRouter.patch("/chat/history/:id/pin", async (req, res) => {
       { returnDocument: "after" },
     ).select("_id pinned");
     if (!doc) return apiError.notFound(res, "Samtalen");
-    return res.json({ id: doc._id.toString(), pinned: doc.pinned ?? false });
+    return res.json(
+      ChatPinUpdateResponseSchema.parse({
+        id: doc._id.toString(),
+        pinned: doc.pinned ?? false,
+      }),
+    );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return sendZodError(res, error, "chat-pin");
@@ -219,7 +227,12 @@ kiHistoryRouter.patch("/chat/history/:id/topic", async (req, res) => {
       { returnDocument: "after" },
     ).select("_id topic");
     if (!doc) return apiError.notFound(res, "Samtalen");
-    return res.json({ id: doc._id.toString(), topic: doc.topic });
+    return res.json(
+      ChatTopicUpdateResponseSchema.parse({
+        id: doc._id.toString(),
+        topic: doc.topic,
+      }),
+    );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return sendZodError(res, error, "chat-topic");
@@ -244,7 +257,12 @@ kiHistoryRouter.patch("/chat/history/:id/title", async (req, res) => {
       { returnDocument: "after" },
     ).select("_id title");
     if (!doc) return apiError.notFound(res, "Samtalen");
-    return res.json({ id: doc._id.toString(), title: doc.title });
+    return res.json(
+      ChatTitleUpdateResponseSchema.parse({
+        id: doc._id.toString(),
+        title: doc.title,
+      }),
+    );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return sendZodError(res, error, "chat-title");

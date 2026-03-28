@@ -82,55 +82,56 @@ export async function sendKontaktmelding(
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), TRANSPORT_TIMEOUT_MS);
-
-    // Bygg payload for worker (ikke logg meldingsinnhold)
-    const workerPayload = {
-      navn: payload.navn,
-      epost: payload.epost,
-      emne: payload.emne,
-      melding: payload.melding,
-      sideUrl: payload.sideUrl,
-      timestamp: payload.timestamp,
-      toEmail: config.toEmail,
-      fromEmail: config.fromEmail,
-      attachments: payload.attachments?.map((attachment) =>
-        KontaktAttachmentSchema.parse(attachment),
-      ) ?? [],
-    };
-
-    const response = await fetch(config.workerUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Contact-Secret": config.workerSecret,
-      },
-      body: JSON.stringify(workerPayload),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      logger.error(
-        {
-          status: response.status,
-          requestId: payload.requestId,
-        },
-        "Kontakttransport feilet",
-      );
-      return { success: false, error: "transport-failed" };
-    }
-
-    logger.info(
-      {
-        requestId: payload.requestId,
-        epostDomene: payload.epost.split("@")[1] ?? "unknown",
+    try {
+      // Bygg payload for worker (ikke logg meldingsinnhold)
+      const workerPayload = {
+        navn: payload.navn,
+        epost: payload.epost,
+        emne: payload.emne,
+        melding: payload.melding,
+        sideUrl: payload.sideUrl,
         timestamp: payload.timestamp,
-      },
-      "Kontaktmelding sendt til worker",
-    );
+        toEmail: config.toEmail,
+        fromEmail: config.fromEmail,
+        attachments: payload.attachments?.map((attachment) =>
+          KontaktAttachmentSchema.parse(attachment),
+        ) ?? [],
+      };
 
-    return { success: true };
+      const response = await fetch(config.workerUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Contact-Secret": config.workerSecret,
+        },
+        body: JSON.stringify(workerPayload),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        logger.error(
+          {
+            status: response.status,
+            requestId: payload.requestId,
+          },
+          "Kontakttransport feilet",
+        );
+        return { success: false, error: "transport-failed" };
+      }
+
+      logger.info(
+        {
+          requestId: payload.requestId,
+          epostDomene: payload.epost.split("@")[1] ?? "unknown",
+          timestamp: payload.timestamp,
+        },
+        "Kontaktmelding sendt til worker",
+      );
+
+      return { success: true };
+    } finally {
+      clearTimeout(timeoutId);
+    }
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       logger.error(

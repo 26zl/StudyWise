@@ -329,7 +329,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
         />
 
         {/* Detaljer-panel - mobile-first design */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 h-fit">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 h-fit xl:max-h-[calc(100vh-12rem)] xl:overflow-y-auto">
           <h2 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3 sm:mb-4">
             {selectedDate
               ? `${filter === "timetable" ? labels.headings.lectures : filter === "assignments" ? labels.headings.assignments : labels.headings.events}${language === "en" ? " for " : " "}${format(selectedDate, language === "en" ? "MMMM d" : "d. MMMM", { locale })}`

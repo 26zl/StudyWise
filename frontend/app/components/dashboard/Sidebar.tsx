@@ -166,6 +166,123 @@ export function Sidebar({
     const historyVisibleCount = 7;
     const historyChats = allHistoryChats.slice(0, historyVisibleCount);
     const hasHiddenHistoryChats = allHistoryChats.length > historyVisibleCount;
+    const erPåChatSide = pathname === "/dashboard" && aktivVisning === "chat";
+    const chatHandlingTekster = {
+        closeMenu: "Lukk meny",
+        actions: "Handlinger",
+        rename: "Gi nytt navn",
+        removeBookmark: "Fjern festet samtale",
+        addBookmark: "Fest samtale",
+        delete: "Slett",
+        hideBookmarks: "Skjul festede samtaler",
+        showBookmarks: "Vis festede samtaler",
+        hideHistory: "Skjul samtalehistorikk",
+        showHistory: "Vis samtalehistorikk",
+        showMore: "Vis flere",
+    };
+    type SidebarChat = (typeof chats)[number];
+
+    const renderChatRad = (chat: SidebarChat, section: "bookmarks" | "history") => {
+        const erAktivSamtale = currentChatId === chat.id;
+        const visPågåendeMarkering = erAktivSamtale && (erPåChatSide || runningChatId === chat.id);
+        const erMenyÅpen = openActionsChatId === chat.id;
+        const erBokmerke = section === "bookmarks";
+
+        return (
+            <div key={`${section}-${chat.id}`} className="relative">
+                <button
+                    type="button"
+                    onClick={() => {
+                        setSelectedChatId(chat.id);
+                        setCurrentChatId(chat.id);
+                        handleNavigasjon("chat");
+                    }}
+                    aria-current={visPågåendeMarkering ? "page" : undefined}
+                    className={`
+                        group w-full flex items-center gap-2 px-3 py-2 rounded-lg border text-left text-sm
+                        transition-all duration-150
+                        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
+                        ${visPågåendeMarkering
+                            ? "border-sky-200/80 dark:border-sky-900/70 bg-sky-50/80 dark:bg-sky-950/25 text-slate-900 dark:text-slate-100"
+                            : "border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
+                        }
+                    `}
+                >
+                    <span
+                        className={`
+                            shrink-0 mt-0.5 h-2 w-2 rounded-full transition-all
+                            ${visPågåendeMarkering ? "opacity-100 scale-100" : "opacity-0 scale-75"}
+                            ${visPågåendeMarkering
+                                ? "bg-sky-500 dark:bg-sky-400"
+                                : "bg-slate-300 dark:bg-slate-600 group-hover:bg-slate-400 dark:group-hover:bg-slate-500"
+                            }
+                        `}
+                    />
+                    <MessageSquare
+                        size={14}
+                        className={`shrink-0 transition-colors ${visPågåendeMarkering ? "text-sky-600 dark:text-sky-300" : "opacity-50"}`}
+                    />
+                    <span className="truncate pr-8">{chat.title}</span>
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setOpenActionsChatId(erMenyÅpen ? null : chat.id)}
+                    className="absolute right-3 top-2.5 rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                    aria-label={chatHandlingTekster.actions}
+                >
+                    <MoreHorizontal size={16} />
+                </button>
+                {erMenyÅpen && (
+                    <>
+                        <button
+                            type="button"
+                            aria-label={chatHandlingTekster.closeMenu}
+                            onClick={() => setOpenActionsChatId(null)}
+                            className="fixed inset-0 z-10 cursor-default"
+                        />
+                        <div className="absolute right-2 z-20 mt-1 w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenRenameModal(chat.id, chat.title);
+                                }}
+                                className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                            >
+                                {chatHandlingTekster.rename}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={async (e) => {
+                                    e.stopPropagation();
+                                    await setChatPinned(chat.id, !erBokmerke);
+                                    setOpenActionsChatId(null);
+                                }}
+                                className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                            >
+                                {erBokmerke ? chatHandlingTekster.removeBookmark : chatHandlingTekster.addBookmark}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={async (e) => {
+                                    e.stopPropagation();
+                                    await deleteChat(chat.id);
+                                    if (currentChatId === chat.id) {
+                                        setCurrentChatId(null);
+                                        setSelectedChatId(null);
+                                    }
+                                    setOpenActionsChatId(null);
+                                }}
+                                className="w-full rounded-md px-2 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                            >
+                                {chatHandlingTekster.delete}
+                            </button>
+                        </div>
+                    </>
+                )}
+            </div>
+        );
+    };
 
     // Enkel komponent for navigasjonselementer
     const NavElement = ({
@@ -332,7 +449,7 @@ export function Sidebar({
                         
                         <div className={`flex items-center justify-between px-5 ${erBookmarksUtvidet ? "pt-2 pb-3" : "pt-2 pb-1"}`}>
                             <Link
-                                href="/dashboard/delte-chatter"
+                                href="/dashboard/bokmerker"
                                 prefetch={false}
                                 onClick={() => {
                                     if (window.innerWidth < 768) lukkVenstreMeny();
@@ -346,7 +463,7 @@ export function Sidebar({
                                 type="button"
                                 onClick={() => settErBookmarksUtvidet((prev) => !prev)}
                                 className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
-                                aria-label={erBookmarksUtvidet ? "Skjul festede samtaler" : "Vis festede samtaler"}
+                                aria-label={erBookmarksUtvidet ? chatHandlingTekster.hideBookmarks : chatHandlingTekster.showBookmarks}
                             >
                                 {erBookmarksUtvidet ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                             </button>
@@ -356,105 +473,7 @@ export function Sidebar({
                                 {t("dashboard.sidebar.noBookmarksYet")}
                             </div>
                         ) : (
-                            bookmarkedChats.map((chat) => {
-                                const erAktivSamtale = currentChatId === chat.id;
-                                const erPåChatSide = pathname === "/dashboard" && aktivVisning === "chat";
-                                const visPågåendeMarkering = erAktivSamtale && (erPåChatSide || runningChatId === chat.id);
-                                const erMenyÅpen = openActionsChatId === chat.id;
-                                return (
-                                    <div key={`bookmark-${chat.id}`} className="relative">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setSelectedChatId(chat.id);
-                                                setCurrentChatId(chat.id);
-                                                handleNavigasjon("chat");
-                                            }}
-                                            className={`
-                                                group w-full flex items-center gap-2 px-3 py-2 rounded-lg border text-left text-sm
-                                                transition-all duration-150
-                                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
-                                                ${visPågåendeMarkering
-                                                    ? "border-sky-200/80 dark:border-sky-900/70 bg-sky-50/80 dark:bg-sky-950/25 text-slate-900 dark:text-slate-100"
-                                                    : "border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
-                                                }
-                                            `}
-                                        >
-                                            <span
-                                                className={`
-                                                    shrink-0 mt-0.5 h-2 w-2 rounded-full transition-all
-                                                    ${visPågåendeMarkering ? "opacity-100 scale-100" : "opacity-0 scale-75"}
-                                                    ${visPågåendeMarkering
-                                                        ? "bg-sky-500 dark:bg-sky-400"
-                                                        : "bg-slate-300 dark:bg-slate-600 group-hover:bg-slate-400 dark:group-hover:bg-slate-500"
-                                                    }
-                                                `}
-                                            />
-                                            <MessageSquare
-                                                size={14}
-                                                className={`shrink-0 transition-colors ${visPågåendeMarkering ? "text-sky-600 dark:text-sky-300" : "opacity-50"}`}
-                                            />
-                                            <span className="truncate pr-8">{chat.title}</span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setOpenActionsChatId(erMenyÅpen ? null : chat.id)}
-                                            className="absolute right-3 top-2 rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                                            aria-label="Handlinger"
-                                        >
-                                            <MoreHorizontal size={16} />
-                                        </button>
-                                        {erMenyÅpen && (
-                                            <>
-                                                <button
-                                                    type="button"
-                                                    aria-label="Lukk meny"
-                                                    onClick={() => setOpenActionsChatId(null)}
-                                                    className="fixed inset-0 z-10 cursor-default"
-                                                />
-                                                <div className="absolute right-2 z-20 mt-1 w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleOpenRenameModal(chat.id, chat.title);
-                                                            }}
-                                                            className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-                                                        >
-                                                        Gi nytt navn
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={async (e) => {
-                                                            e.stopPropagation();
-                                                            await setChatPinned(chat.id, false);
-                                                            setOpenActionsChatId(null);
-                                                        }}
-                                                        className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-                                                    >
-                                                        Fjern festet samtale
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={async (e) => {
-                                                            e.stopPropagation();
-                                                            await deleteChat(chat.id);
-                                                            if (currentChatId === chat.id) {
-                                                                setCurrentChatId(null);
-                                                                setSelectedChatId(null);
-                                                            }
-                                                            setOpenActionsChatId(null);
-                                                        }}
-                                                        className="w-full rounded-md px-2 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
-                                                    >
-                                                        Slett
-                                                    </button>
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-                                );
-                            })
+                            bookmarkedChats.map((chat) => renderChatRad(chat, "bookmarks"))
                         )}
 
                         <div className={`flex items-center justify-between px-5 ${erBookmarksUtvidet ? "pt-5 pb-3" : "pt-2 pb-2"}`}>
@@ -473,7 +492,7 @@ export function Sidebar({
                                 type="button"
                                 onClick={() => settErHistorikkUtvidet((prev) => !prev)}
                                 className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
-                                aria-label={erHistorikkUtvidet ? "Skjul samtalehistorikk" : "Vis samtalehistorikk"}
+                                aria-label={erHistorikkUtvidet ? chatHandlingTekster.hideHistory : chatHandlingTekster.showHistory}
                             >
                                 {erHistorikkUtvidet ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                             </button>
@@ -483,106 +502,7 @@ export function Sidebar({
                                 {t("dashboard.sidebar.noChatsYet")}
                             </div>
                         ) : (
-                            historyChats.map((chat) => {
-                                const erAktivSamtale = currentChatId === chat.id;
-                                const erPåChatSide = pathname === "/dashboard" && aktivVisning === "chat";
-                                const visPågåendeMarkering = erAktivSamtale && (erPåChatSide || runningChatId === chat.id);
-                                const erMenyÅpen = openActionsChatId === chat.id;
-                                return (
-                                    <div key={chat.id} className="relative">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setSelectedChatId(chat.id);
-                                                setCurrentChatId(chat.id);
-                                                handleNavigasjon("chat");
-                                            }}
-                                            className={`
-                                                group w-full flex items-center gap-2 px-3 py-2 rounded-lg border text-left text-sm
-                                                transition-all duration-150
-                                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
-                                                ${visPågåendeMarkering
-                                                    ? "border-sky-200/80 dark:border-sky-900/70 bg-sky-50/80 dark:bg-sky-950/25 text-slate-900 dark:text-slate-100"
-                                                    : "border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
-                                                }
-                                            `}
-                                            aria-current={visPågåendeMarkering ? "true" : undefined}
-                                        >
-                                            <span
-                                                className={`
-                                                    shrink-0 mt-0.5 h-2 w-2 rounded-full transition-all
-                                                    ${visPågåendeMarkering ? "opacity-100 scale-100" : "opacity-0 scale-75"}
-                                                    ${visPågåendeMarkering
-                                                        ? "bg-sky-500 dark:bg-sky-400"
-                                                        : "bg-slate-300 dark:bg-slate-600 group-hover:bg-slate-400 dark:group-hover:bg-slate-500"
-                                                    }
-                                                `}
-                                            />
-                                            <MessageSquare
-                                                size={14}
-                                                className={`shrink-0 transition-colors ${visPågåendeMarkering ? "text-sky-600 dark:text-sky-300" : "opacity-50"}`}
-                                            />
-                                            <span className="truncate pr-8">{chat.title}</span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setOpenActionsChatId(erMenyÅpen ? null : chat.id)}
-                                            className="absolute right-3 top-2.5 rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                                            aria-label="Handlinger"
-                                        >
-                                            <MoreHorizontal size={16} />
-                                        </button>
-                                        {erMenyÅpen && (
-                                            <>
-                                                <button
-                                                    type="button"
-                                                    aria-label="Lukk meny"
-                                                    onClick={() => setOpenActionsChatId(null)}
-                                                    className="fixed inset-0 z-10 cursor-default"
-                                                />
-                                                <div className="absolute right-2 z-20 mt-1 w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleOpenRenameModal(chat.id, chat.title);
-                                                            }}
-                                                            className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-                                                        >
-                                                        Gi nytt navn
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={async (e) => {
-                                                            e.stopPropagation();
-                                                            await setChatPinned(chat.id, true);
-                                                            setOpenActionsChatId(null);
-                                                        }}
-                                                        className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-                                                    >
-                                                        Fest samtale
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={async (e) => {
-                                                            e.stopPropagation();
-                                                            await deleteChat(chat.id);
-                                                            if (currentChatId === chat.id) {
-                                                                setCurrentChatId(null);
-                                                                setSelectedChatId(null);
-                                                            }
-                                                            setOpenActionsChatId(null);
-                                                        }}
-                                                        className="w-full rounded-md px-2 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
-                                                    >
-                                                        Slett
-                                                    </button>
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-                                );
-                            })
+                            historyChats.map((chat) => renderChatRad(chat, "history"))
                         )}
                         {erHistorikkUtvidet && hasHiddenHistoryChats && (
                             <Link
@@ -593,7 +513,7 @@ export function Sidebar({
                                 }}
                                 className="mt-2 block px-3 py-2 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                             >
-                                Vis flere
+                                {chatHandlingTekster.showMore}
                             </Link>
                         )}
                     </div>

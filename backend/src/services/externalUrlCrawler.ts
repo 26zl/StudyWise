@@ -13,7 +13,10 @@
  */
 
 import crypto from "crypto";
+import type { LookupAddress } from "node:dns";
 import { lookup } from "node:dns/promises";
+import { request as httpRequest, type IncomingHttpHeaders, type IncomingMessage } from "node:http";
+import { request as httpsRequest } from "node:https";
 import net from "net";
 import * as cheerio from "cheerio";
 import pLimit from "p-limit";
@@ -109,6 +112,35 @@ type FetchExternalResult =
   | { kind: "skip" }
   | { kind: "failed" };
 
+interface ResolvedAddress {
+  address: string;
+  family: 4 | 6;
+}
+
+interface SafeFetchResponse {
+  status: number;
+  ok: boolean;
+  headers: IncomingHttpHeaders;
+  body: IncomingMessage | null;
+}
+
+type PinnedLookupOptions = {
+  family?: number | "IPv4" | "IPv6";
+  all?: boolean;
+  hints?: number;
+  verbatim?: boolean;
+};
+
+type PinnedLookup = (
+  hostname: string,
+  options: PinnedLookupOptions | number,
+  callback: (
+    error: NodeJS.ErrnoException | null,
+    address?: string | LookupAddress[],
+    family?: number,
+  ) => void,
+) => void;
+
 class BodyTooLargeError extends Error {
   readonly maxBytes: number;
 
@@ -125,6 +157,10 @@ class BodyTooLargeError extends Error {
  * Sjekker om en ekstern URL er trygg for crawling.
  * Forhindrer SSRF mot lokale tjenester og vanlige AWS metadata-endepunkter.
  */
+function normalizeHostname(hostname: string): string {
+  return hostname.replace(/^\[(.*)\]$/, "$1").trim().toLowerCase();
+}
+
 function isSafeExternalUrlFormat(urlStr: string): boolean {
   try {
     const url = new URL(urlStr);
@@ -132,7 +168,7 @@ function isSafeExternalUrlFormat(urlStr: string): boolean {
     // Tillat kun http og https
     if (url.protocol !== "http:" && url.protocol !== "https:") return false;
 
-    const hostname = url.hostname.toLowerCase();
+    const hostname = normalizeHostname(url.hostname);
     
     // Blokker opplagt localhost
     if (hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")) {
@@ -201,28 +237,25 @@ function isBlockedIpAddress(address: string): boolean {
   return true;
 }
 
-async function isPublicResolvableHostname(hostname: string): Promise<boolean> {
-  const ipVersion = net.isIP(hostname);
+async function resolveSafeHostnameAddresses(hostname: string): Promise<ResolvedAddress[] | null> {
+  const normalizedHostname = normalizeHostname(hostname);
+  const ipVersion = net.isIP(normalizedHostname);
   if (ipVersion !== 0) {
-    return !isBlockedIpAddress(hostname);
+    return isBlockedIpAddress(normalizedHostname)
+      ? null
+      : [{ address: normalizedHostname, family: ipVersion as 4 | 6 }];
   }
 
   try {
-    const addresses = await lookup(hostname, { all: true, verbatim: true });
-    if (addresses.length === 0) return false;
-    return addresses.every((entry) => !isBlockedIpAddress(entry.address));
+    const addresses = await lookup(normalizedHostname, { all: true, verbatim: true });
+    if (addresses.length === 0) return null;
+    const mapped = addresses.map((entry) => ({
+      address: entry.address,
+      family: entry.family as 4 | 6,
+    }));
+    return mapped.every((entry) => !isBlockedIpAddress(entry.address)) ? mapped : null;
   } catch {
-    return false;
-  }
-}
-
-async function validateExternalUrlSafety(urlStr: string): Promise<boolean> {
-  if (!isSafeExternalUrlFormat(urlStr)) return false;
-  try {
-    const { hostname } = new URL(urlStr);
-    return await isPublicResolvableHostname(hostname.toLowerCase());
-  } catch {
-    return false;
+    return null;
   }
 }
 
@@ -234,80 +267,172 @@ function resolveRedirectUrl(currentUrl: string, location: string): string | null
   }
 }
 
-async function fetchWithSafeRedirects(url: string, timeoutMs: number): Promise<Response | null> {
+function getHeaderValue(headers: IncomingHttpHeaders, name: string): string | null {
+  const raw = headers[name.toLowerCase()];
+  if (Array.isArray(raw)) {
+    return raw.join(", ");
+  }
+  return typeof raw === "string" ? raw : null;
+}
+
+function discardResponseBody(response: SafeFetchResponse): void {
+  response.body?.resume();
+}
+
+function selectResolvedAddress(
+  addresses: ResolvedAddress[],
+  preferredFamily?: number,
+): ResolvedAddress | null {
+  if (preferredFamily === 4 || preferredFamily === 6) {
+    return addresses.find((entry) => entry.family === preferredFamily) ?? null;
+  }
+  return addresses[0] ?? null;
+}
+
+function normalizeLookupFamily(family: number | "IPv4" | "IPv6" | undefined): number {
+  if (family === "IPv4") return 4;
+  if (family === "IPv6") return 6;
+  return typeof family === "number" ? family : 0;
+}
+
+function createPinnedLookup(addresses: ResolvedAddress[]): PinnedLookup {
+  return (
+    _hostname: string,
+    options: PinnedLookupOptions | number,
+    callback: (
+      error: NodeJS.ErrnoException | null,
+      address?: string | LookupAddress[],
+      family?: number,
+    ) => void,
+  ): void => {
+    const family =
+      typeof options === "number"
+        ? options
+        : normalizeLookupFamily(options?.family);
+    const selected = selectResolvedAddress(addresses, family);
+    if (!selected) {
+      callback(new Error("Ingen trygg DNS-adresse tilgjengelig"));
+      return;
+    }
+
+    if (typeof options === "object" && options?.all) {
+      callback(null, [{ address: selected.address, family: selected.family } satisfies LookupAddress]);
+      return;
+    }
+
+    callback(null, selected.address, selected.family);
+  };
+}
+
+async function performPinnedRequest(
+  targetUrl: string,
+  timeoutMs: number,
+  resolvedAddresses: ResolvedAddress[],
+): Promise<SafeFetchResponse | null> {
+  const parsedUrl = new URL(targetUrl);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await new Promise<SafeFetchResponse | null>((resolve) => {
+      const requestFn = parsedUrl.protocol === "https:" ? httpsRequest : httpRequest;
+      const request = requestFn(
+        parsedUrl,
+        {
+          method: "GET",
+          headers: {
+            "User-Agent": CRAWLER_USER_AGENT,
+            "Accept-Encoding": "identity",
+          },
+          lookup: createPinnedLookup(resolvedAddresses) as never,
+          signal: controller.signal,
+          ...(parsedUrl.protocol === "https:" ? { servername: normalizeHostname(parsedUrl.hostname) } : {}),
+        },
+        (response) => {
+          resolve({
+            status: response.statusCode ?? 0,
+            ok: (response.statusCode ?? 0) >= 200 && (response.statusCode ?? 0) < 300,
+            headers: response.headers,
+            body: response,
+          });
+        },
+      );
+
+      request.on("error", (error) => {
+        if (error instanceof Error && error.name === "AbortError") {
+          logger.warn({ url: targetUrl }, "ExternalUrl crawl tidsavbrutt");
+        } else {
+          logger.warn({ err: error, url: targetUrl }, "Feil ved henting av ExternalUrl");
+        }
+        resolve(null);
+      });
+
+      request.end();
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchWithSafeRedirects(url: string, timeoutMs: number): Promise<SafeFetchResponse | null> {
   let currentUrl = url;
 
   for (let attempt = 0; attempt <= MAX_REDIRECTS; attempt++) {
-    if (!(await validateExternalUrlSafety(currentUrl))) {
+    const parsedUrl = new URL(currentUrl);
+    const resolvedAddresses = await resolveSafeHostnameAddresses(parsedUrl.hostname);
+    if (!isSafeExternalUrlFormat(currentUrl) || !resolvedAddresses) {
       logger.warn({ url: currentUrl }, "ExternalUrl avvist (SSRF-beskyttelse)");
       return null;
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const response = await fetch(currentUrl, {
-        signal: controller.signal,
-        headers: { "User-Agent": CRAWLER_USER_AGENT },
-        redirect: "manual",
-      });
-
-      if (REDIRECT_STATUS_CODES.has(response.status)) {
-        const location = response.headers.get("location");
-        if (!location) {
-          logger.warn({ url: currentUrl, status: response.status }, "Redirect uten Location-header");
-          return null;
-        }
-
-        const redirectedUrl = resolveRedirectUrl(currentUrl, location);
-        if (!redirectedUrl) {
-          logger.warn({ url: currentUrl, location }, "Ugyldig redirect-url mottatt");
-          return null;
-        }
-
-        currentUrl = redirectedUrl;
-        continue;
-      }
-
-      return response;
-    } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") {
-        logger.warn({ url: currentUrl }, "ExternalUrl crawl tidsavbrutt");
-      } else {
-        logger.warn({ err: error, url: currentUrl }, "Feil ved henting av ExternalUrl");
-      }
+    const response = await performPinnedRequest(currentUrl, timeoutMs, resolvedAddresses);
+    if (!response) {
       return null;
-    } finally {
-      clearTimeout(timeout);
     }
+
+    if (REDIRECT_STATUS_CODES.has(response.status)) {
+      const location = getHeaderValue(response.headers, "location");
+      if (!location) {
+        discardResponseBody(response);
+        logger.warn({ url: currentUrl, status: response.status }, "Redirect uten Location-header");
+        return null;
+      }
+
+      const redirectedUrl = resolveRedirectUrl(currentUrl, location);
+      if (!redirectedUrl) {
+        discardResponseBody(response);
+        logger.warn({ url: currentUrl, location }, "Ugyldig redirect-url mottatt");
+        return null;
+      }
+
+      discardResponseBody(response);
+      currentUrl = redirectedUrl;
+      continue;
+    }
+
+    return response;
   }
 
   logger.warn({ url }, "For mange redirects ved ExternalUrl-crawl");
   return null;
 }
 
-async function readResponseBodyWithLimit(response: Response, maxBytes: number): Promise<Buffer> {
+async function readResponseBodyWithLimit(response: SafeFetchResponse, maxBytes: number): Promise<Buffer> {
   if (!response.body) {
     return Buffer.alloc(0);
   }
 
-  const reader = response.body.getReader();
   const chunks: Buffer[] = [];
   let totalBytes = 0;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (!value) continue;
-
-    totalBytes += value.byteLength;
+  for await (const chunk of response.body) {
+    const bufferChunk = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += bufferChunk.length;
     if (totalBytes > maxBytes) {
-      await reader.cancel();
+      response.body.destroy();
       throw new BodyTooLargeError(maxBytes);
     }
-
-    chunks.push(Buffer.from(value));
+    chunks.push(bufferChunk);
   }
 
   return Buffer.concat(chunks);
@@ -331,6 +456,7 @@ async function fetchExternalContent(url: string): Promise<FetchExternalResult> {
 
   try {
     if (!response.ok) {
+      discardResponseBody(response);
       logger.warn(
         { url, status: response.status },
         "ExternalUrl henting feilet",
@@ -338,12 +464,13 @@ async function fetchExternalContent(url: string): Promise<FetchExternalResult> {
       return { kind: "failed" };
     }
 
-    const contentType = response.headers.get("content-type") ?? "";
+    const contentType = getHeaderValue(response.headers, "content-type") ?? "";
     if (contentType.includes("application/pdf")) {
       const buffer = await readResponseBodyWithLimit(response, MAX_PDF_SIZE_BYTES);
       return { kind: "pdf", buffer };
     }
     if (!contentType.includes("text/html") && !contentType.includes("text/plain")) {
+      discardResponseBody(response);
       logger.info(
         { url, contentType },
         "ExternalUrl er ikke HTML — hopper over",
@@ -452,6 +579,7 @@ async function downloadAndProcessPdf(
 
   try {
     if (!response.ok) {
+      discardResponseBody(response);
       logger.warn(
         { url: pdfUrl, status: response.status },
         "PDF-nedlasting feilet",
@@ -460,8 +588,9 @@ async function downloadAndProcessPdf(
     }
 
     // Sjekk størrelse via Content-Length header
-    const contentLength = response.headers.get("content-length");
+    const contentLength = getHeaderValue(response.headers, "content-length");
     if (contentLength && parseInt(contentLength, 10) > MAX_PDF_SIZE_BYTES) {
+      discardResponseBody(response);
       logger.warn(
         { url: pdfUrl, size: contentLength },
         "PDF for stor — hopper over",

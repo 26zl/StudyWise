@@ -197,6 +197,7 @@ router.delete("/brukere/:id", async (req, res) => {
         subAction: "brukere.slett",
         deleted: deletionResult.deleted,
         providerAccountDeleted: deletionResult.providerAccountDeleted,
+        vectorCleanupSucceeded: deletionResult.vectorCleanupSucceeded,
       },
       req,
     });
@@ -215,6 +216,7 @@ router.delete("/brukere/:id", async (req, res) => {
       slettet: true,
       deleted: deletionResult.deleted,
       providerAccountDeleted: deletionResult.providerAccountDeleted,
+      vectorCleanupSucceeded: deletionResult.vectorCleanupSucceeded,
       }),
     );
   } catch (err) {

@@ -4,7 +4,7 @@
  */
 
 import { fetchApi } from "@/app/lib/apiClient";
-import type { KontaktRequest, KontaktResponse } from "common/contact";
+import { KontaktResponseSchema, type KontaktRequest } from "common/contact";
 
 export interface SendKontaktResult {
   success: boolean;
@@ -61,7 +61,7 @@ export async function sendKontakt(
       };
     }
 
-    const result = (await response.json()) as KontaktResponse;
+    const result = KontaktResponseSchema.parse(await response.json());
     return {
       success: result.suksess,
       melding: result.melding,

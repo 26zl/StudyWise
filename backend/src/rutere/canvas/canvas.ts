@@ -431,6 +431,15 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
         const pages =
           pagesResult.status === "fulfilled" ? pagesResult.value.data : [];
 
+        // Sjekk om alle API-kall feilet — i så fall returnerer vi null
+        // slik at frontend kan vise alle knapper som fallback i stedet for "ingen innhold"
+        const alleFeilet =
+          courseDetailsResult.status === "rejected" &&
+          frontPageResult.status === "rejected" &&
+          modulesResult.status === "rejected" &&
+          filesResult.status === "rejected" &&
+          pagesResult.status === "rejected";
+
         return {
           courseId,
           hasFrontPage: wikiHasContent || syllabusHasContent,
@@ -440,6 +449,7 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
           modulesCount: modules.length,
           filesCount: files.length,
           pagesCount: pages.length,
+          alleFeilet,
         };
       }),
     );
@@ -461,6 +471,11 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
     > = {};
 
     metadataResults.forEach((m) => {
+      // Ekskluder emner der alle API-kall feilet — frontend viser da alle knapper som fallback
+      if (m.alleFeilet) {
+        logger.warn({ courseId: m.courseId }, "Alle metadata-kall feilet for emne, ekskluderer fra metadata");
+        return;
+      }
       metadataMap[m.courseId] = {
         hasFrontPage: m.hasFrontPage,
         hasModules: m.hasModules,

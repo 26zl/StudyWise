@@ -15,8 +15,12 @@ import { AppError } from "../lib/errors";
 export type MegQueryResult = UseQueryResult<MeResponse, Error>;
 
 function erAuthFeil(error: unknown): boolean {
-  if (AppError.isAppError(error) && error.requiresReauth()) return true;
   const message = error instanceof Error ? error.message : String(error);
+  // Slettet bruker og kontokonflikter skal IKKE trigge redirect — de trenger spesialhåndtering
+  if (message.includes("kontoen er slettet") || message.includes("innloggingskonflikt") || message.includes("allerede en konto")) {
+    return false;
+  }
+  if (AppError.isAppError(error) && error.requiresReauth()) return true;
   return message.includes("401") || message.includes("Ikke autentisert");
 }
 

@@ -27,6 +27,7 @@ import {
 } from "../../services/turnstile.service.js";
 import { sendKontaktmelding } from "../../services/contact.service.js";
 import { isProd } from "../../utils/env.js";
+import { validateFileMagicBytes } from "../../services/document.js";
 
 const router = Router();
 const INVALID_ATTACHMENT_TYPE_ERROR = "INVALID_ATTACHMENT_TYPE";
@@ -71,6 +72,20 @@ function buildKontaktAttachments(files: Express.Multer.File[] | undefined) {
     størrelse: file.size,
     innholdBase64: file.buffer.toString("base64"),
   }));
+}
+
+function validateKontaktAttachments(files: Express.Multer.File[] | undefined): string | null {
+  for (const file of files ?? []) {
+    const validationError = validateFileMagicBytes(file.buffer, file.mimetype);
+    if (validationError) {
+      logger.info(
+        { filnavn: file.originalname, mimetype: file.mimetype, validationError },
+        "Kontaktskjema: vedlegg avvist etter innholdsvalidering",
+      );
+      return "Kun JPG, PNG og WebP-bilder er tillatt som vedlegg";
+    }
+  }
+  return null;
 }
 
 /**
@@ -124,6 +139,13 @@ router.post(
   const parseResult = KontaktRequestSchema.safeParse(extractKontaktPayload(req));
   if (!parseResult.success) {
     return sendZodError(res, parseResult.error, "Kontaktskjema");
+  }
+
+  const attachmentValidationError = validateKontaktAttachments(
+    req.files as Express.Multer.File[] | undefined,
+  );
+  if (attachmentValidationError) {
+    return apiError.badRequest(res, attachmentValidationError);
   }
 
   const { navn, epost, emne, melding, turnstileToken, nettsted, sideUrl } =

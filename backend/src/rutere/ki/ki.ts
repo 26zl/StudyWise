@@ -32,6 +32,7 @@ import {
   type ContextResult,
 } from "../../services/context-loader.service.js";
 import { isSyncing, waitForSync } from "../../services/canvas-sync.service.js";
+import { isStructuredCanvasQuery } from "../../services/canvasStructuredQueries.js";
 import { trimToTokenLimit, countTokens } from "../../utils/tokenCounter.js";
 import { knyttCanvasTokenValgfritt } from "../../middleware/auth.js";
 import { setupSSE, writeSSE } from "../../utils/sseUtils.js";
@@ -94,19 +95,6 @@ const CANVAS_LIGHT_KEYWORDS = [
   // Tidsspørsmål
   "hva har jeg", "neste frist", "denne uken", "denne uka",
   "hva skjer", "kommende", "kalender", "timeplan", "når er",
-];
-
-/** Strukturelle Canvas-spørsmål som skal behandles som metadata/oppslag, ikke innholdssøk. */
-const STRUCTURED_CANVAS_QUERY_PATTERNS = [
-  /\b(?:hvilke|alle|mine|oversikt|liste|list opp|vis)\b.*\b(?:emner|fag|kurs)\b/i,
-  /\b(?:emner|fag|kurs)\b.*\b(?:registrert|påmeldt|meldt opp)\b/i,
-  /\b(?:registrert|påmeldt|meldt opp)\b.*\b(?:emner|fag|kurs)\b/i,
-  /\b(?:neste|kommende)\b.*\b(?:frist|frister|oppgave|oppgaver|innlevering|innleveringer|hendelse|hendelser|kunngjøring(?:er|ene)?)\b/i,
-  /\b(?:hvilke|vis|liste|oversikt)\b.*\b(?:oppgaver|innleveringer|frister|kunngjøringer|hendelser)\b/i,
-  /\boppsummer\b.*\b(?:kunngjøring(?:er|ene)?|beskjed(?:er)?|endring(?:er)?)\b/i,
-  /\b(?:kunngjøring(?:er|ene)?|beskjed(?:er)?|endring(?:er)?)\b.*\boppsummer\b/i,
-  /\b(?:kalender|timeplan|todo|gjøremål)\b/i,
-  /\bnår er\b.*\b(?:frist|frister|eksamen|innlevering|oppgave)\b/i,
 ];
 
 /** Vanlige skrivefeil/forkortelser og deres normaliserte form */
@@ -210,7 +198,7 @@ function detectIntent(messages: Array<{ role: string; content: string }>): Inten
 
   // Prioritet 0: Rene struktur-/oppslagsspørsmål skal ikke routes til innholdssøk
   for (const msg of recentUserMessages) {
-    if (STRUCTURED_CANVAS_QUERY_PATTERNS.some((pattern) => pattern.test(msg))) {
+    if (isStructuredCanvasQuery(msg)) {
       return "canvas_light";
     }
   }

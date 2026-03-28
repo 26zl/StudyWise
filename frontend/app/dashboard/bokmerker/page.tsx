@@ -7,6 +7,7 @@ import { Pin, Search } from "lucide-react";
 import { useMeg } from "@/app/auth/auth-api";
 import { skalRedirecteTilAuth, useAuthRedirect } from "@/app/auth/authUtils";
 import type { VisningType } from "@/app/components/dashboard/Sidebar";
+import { ConversationListItem } from "@/app/components/dashboard/ConversationListItem";
 import {
   SidebarAppErrorState,
   SidebarAppLoadingState,
@@ -14,12 +15,13 @@ import {
 } from "@/app/components/layout/SidebarAppShell";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { useChatHistory } from "@/app/hooks/useChatHistory";
+import { lagSamtaleForhandsvisning } from "@/app/components/chat/conversationMessageUtils";
 import { formaterDatoShort } from "@/app/lib/dato";
 import { useLanguage } from "@/app/i18n";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useUIStore } from "@/app/store/uiStore";
 
-export default function DelteChatterPage() {
+export default function BokmerkerPage() {
   const router = useRouter();
   const { isLoaded } = useAuth();
   const megQuery = useMeg({ enabled: isLoaded });
@@ -37,11 +39,11 @@ export default function DelteChatterPage() {
   const tekster = {
     title: erEngelsk ? "My bookmarks" : "Mine bokmerker",
     loading: erEngelsk ? "Loading bookmarks..." : "Laster bokmerker...",
-    searchLabel: erEngelsk ? "Search bookmarked conversations" : "Søk i bokmerkede chatter",
-    searchPlaceholder: erEngelsk ? "Search conversations..." : "Søk i chatter...",
+    searchLabel: erEngelsk ? "Search bookmarked conversations" : "Søk i bokmerkede samtaler",
+    searchPlaceholder: erEngelsk ? "Search conversations..." : "Søk i samtaler...",
     noSearchMatches: erEngelsk
       ? "No bookmarked conversations match your search."
-      : "Ingen bokmerkede chatter matcher søket.",
+      : "Ingen bokmerkede samtaler matcher søket.",
     removedFromBookmarks: erEngelsk ? "Removed from bookmarks" : "Fjernet fra bokmerker",
     unpin: erEngelsk ? "Remove bookmark" : "Fjern bokmerke",
   };
@@ -153,19 +155,27 @@ export default function DelteChatterPage() {
           ) : (
             <div className="space-y-1">
               {filteredChats.map((chat) => (
-                <BookmarkedThreadRow
+                <ConversationListItem
                   key={chat.id}
                   title={chat.title}
-                  preview={chat.messages[chat.messages.length - 1]?.innhold ?? ""}
-                  date={formaterDatoShort(chat.timestamp, language)}
+                  preview={lagSamtaleForhandsvisning(chat.messages, chat.title)}
+                  meta={formaterDatoShort(chat.timestamp, language)}
                   onOpen={() => åpneSamtale(chat.id)}
-                  onTogglePin={async () => {
-                    const ok = await setChatPinned(chat.id, false);
-                    if (ok) {
-                      showToast.success(tekster.removedFromBookmarks);
-                    }
-                  }}
-                  unpinLabel={tekster.unpin}
+                  footer={(
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const ok = await setChatPinned(chat.id, false);
+                        if (ok) {
+                          showToast.success(tekster.removedFromBookmarks);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+                    >
+                      <Pin className="h-3.5 w-3.5" />
+                      {tekster.unpin}
+                    </button>
+                  )}
                 />
               ))}
             </div>
@@ -173,49 +183,5 @@ export default function DelteChatterPage() {
         </div>
       </div>
     </SidebarAppShell>
-  );
-}
-
-function BookmarkedThreadRow({
-  title,
-  preview,
-  date,
-  onOpen,
-  onTogglePin,
-  unpinLabel,
-}: {
-  title: string;
-  preview: string;
-  date: string;
-  onOpen: () => void;
-  onTogglePin: () => Promise<void>;
-  unpinLabel: string;
-}) {
-  return (
-    <article className="rounded-lg border-b border-slate-200 dark:border-slate-800">
-      <button
-        type="button"
-        onClick={onOpen}
-        className="w-full rounded-lg px-1 pt-4 text-left hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 dark:hover:bg-slate-800/50"
-      >
-        <div className="flex items-center justify-between gap-3">
-          <p className="truncate text-lg font-semibold">{title}</p>
-        </div>
-        <p className="mt-1 line-clamp-2 text-sm text-slate-600 dark:text-slate-300">{preview}</p>
-        <p className="mt-2 text-xs text-slate-500">{date}</p>
-      </button>
-      <div className="flex items-center justify-end px-1 pb-4 pt-3">
-        <button
-          type="button"
-          onClick={async () => {
-            await onTogglePin();
-          }}
-          className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
-        >
-          <Pin className="h-3.5 w-3.5" />
-          {unpinLabel}
-        </button>
-      </div>
-    </article>
   );
 }

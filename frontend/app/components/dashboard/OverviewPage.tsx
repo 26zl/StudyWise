@@ -28,7 +28,7 @@ import {
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { StatCard } from "@/app/components/ui/StatCard";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, useClerk } from "@clerk/nextjs";
 import { useMeg } from "@/app/auth/auth-api";
 import { skalRedirecteTilAuth, useAuthRedirect } from "@/app/auth/authUtils";
 import {
@@ -78,6 +78,7 @@ export function OversiktPage() {
       : "overview-panel-ai-weekplan";
 
   const { isLoaded: clerkLoaded } = useAuth();
+  const clerk = useClerk();
   const megQuery = useMeg({ enabled: clerkLoaded });
   const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
   const userQuery = useCanvasUser(megQuery.isSuccess && harCanvasToken);
@@ -174,15 +175,18 @@ export function OversiktPage() {
   }
 
   if (megQuery.isError && !megQuery.data?.user) {
+    const feilMsg = megQuery.error?.message ?? "";
+    const erFatalAuthFeil = /kontoen er slettet|innloggingskonflikt|allerede en konto/i.test(feilMsg);
     return (
       <SidebarAppErrorState
         aktivVisning={SIDEBAR_VISNING}
         byttVisning={byttVisning}
         brukerRolle={brukerRolle}
         message={brukerdataFeilmelding}
-        onRetry={() => {
-          void megQuery.refetch();
-        }}
+        onRetry={erFatalAuthFeil
+          ? () => { void clerk.signOut({ redirectUrl: "/auth/sign-in" }); }
+          : () => { void megQuery.refetch(); }
+        }
       />
     );
   }

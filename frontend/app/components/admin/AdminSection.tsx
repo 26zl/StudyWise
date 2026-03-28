@@ -4,13 +4,29 @@
  */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Users,
   BarChart3,
   ScrollText,
   Shield,
   ShieldCheck,
+  Share2,
+  Eye,
+  Pin,
+  Link,
+  Mail,
+  Building2,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  Activity,
+  AlertTriangle,
+  Database,
+  BookOpen,
+  FileText,
+  RefreshCcw,
+  UserX,
   Trash2,
   Check,
   X,
@@ -23,7 +39,7 @@ import { useMeg } from "@/app/auth/auth-api";
 import { LoadingSpinner } from "@/app/components/ui/Loading";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { showToast } from "@/app/components/ui/Toaster";
-import { formaterDatoLong, formaterDatoOgTid } from "@/app/lib/dato";
+import { formaterDatoLong, formaterDatoOgTid, formaterTall } from "@/app/lib/dato";
 import {
   useAdminStats,
   useAdminBrukere,
@@ -37,36 +53,179 @@ type AdminFane = "stats" | "users" | "audit";
 
 // ── Statistikk-fane ─────────────────────────────────────────────────────────
 
-function StatKort({ label, verdi, ikon: Ikon }: { label: string; verdi: number; ikon: React.ElementType }) {
+type StatKortData = {
+  label: string;
+  verdi: number;
+  ikon: React.ElementType;
+  format?: "number" | "percent";
+};
+
+function formaterStatVerdi(
+  verdi: number,
+  language: "nb" | "en",
+  format: StatKortData["format"] = "number",
+): string {
+  const formatted = formaterTall(verdi, language);
+  return format === "percent" ? `${formatted} %` : formatted;
+}
+
+function StatKort({
+  label,
+  verdi,
+  ikon: Ikon,
+  language,
+  format,
+}: {
+  label: string;
+  verdi: number;
+  ikon: React.ElementType;
+  language: "nb" | "en";
+  format?: StatKortData["format"];
+}) {
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
-      <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700">
+    <div className="flex min-h-28 items-center gap-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700">
         <Ikon size={20} className="text-slate-600 dark:text-slate-300" />
       </div>
-      <div>
-        <p className="text-2xl font-semibold text-slate-900 dark:text-white">{verdi}</p>
-        <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
+      <div className="min-w-0">
+        <p className="text-2xl font-semibold text-slate-900 dark:text-white">{formaterStatVerdi(verdi, language, format)}</p>
+        <p className="text-sm leading-5 text-slate-500 dark:text-slate-400">{label}</p>
       </div>
     </div>
   );
 }
 
+function StatSeksjon({
+  title,
+  stats,
+  language,
+}: {
+  title: string;
+  stats: StatKortData[];
+  language: "nb" | "en";
+}) {
+  return (
+    <section className="space-y-3">
+      <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+        {title}
+      </h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+        {stats.map((stat) => (
+          <StatKort
+            key={stat.label}
+            label={stat.label}
+            verdi={stat.verdi}
+            ikon={stat.ikon}
+            language={language}
+            format={stat.format}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function StatistikkFane() {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const { data, isLoading, error } = useAdminStats();
 
   if (isLoading) return <LoadingSpinner />;
   if (error || !data) return <FeilMelding melding={t("admin.errors.statsFailed")} />;
 
+  const brukerStats: StatKortData[] = [
+    { label: t("admin.stats.totalUsers"), verdi: data.brukere.totalt, ikon: Users },
+    { label: t("admin.stats.adminUsers"), verdi: data.brukere.admin, ikon: ShieldCheck },
+    { label: t("admin.stats.regularUsers"), verdi: data.brukere.vanlige, ikon: Users },
+    { label: t("admin.stats.canvasUsers"), verdi: data.brukere.medCanvas, ikon: Link },
+    { label: t("admin.stats.withoutCanvasUsers"), verdi: data.brukere.utenCanvas, ikon: UserX },
+    { label: t("admin.stats.deletedUsers"), verdi: data.brukere.slettede, ikon: Trash2 },
+    { label: t("admin.stats.googleUsers"), verdi: data.brukere.google, ikon: Users },
+    { label: t("admin.stats.microsoftUsers"), verdi: data.brukere.microsoft, ikon: Building2 },
+    { label: t("admin.stats.emailUsers"), verdi: data.brukere.email, ikon: Mail },
+    { label: t("admin.stats.unknownProviderUsers"), verdi: data.brukere.ukjentProvider, ikon: AlertTriangle },
+  ];
+
+  const samtaleStats: StatKortData[] = [
+    { label: t("admin.stats.totalChats"), verdi: data.samtaler.totalt, ikon: ScrollText },
+    { label: t("admin.stats.bookmarkedChats"), verdi: data.samtaler.bokmerket, ikon: Pin },
+    { label: t("admin.stats.avgChatsPerUser"), verdi: data.samtaler.snittPerBruker, ikon: BarChart3 },
+    { label: t("admin.stats.activeShareLinks"), verdi: data.deling.aktiveLenker, ikon: Share2 },
+    { label: t("admin.stats.inactiveShareLinks"), verdi: data.deling.inaktiveLenker, ikon: Share2 },
+    { label: t("admin.stats.expiredShareLinks"), verdi: data.deling.utlopteLenker, ikon: Clock3 },
+    { label: t("admin.stats.shareLinksWithViews"), verdi: data.deling.lenkerMedVisninger, ikon: Eye },
+    { label: t("admin.stats.shareViewsTotal"), verdi: data.deling.visningerTotalt, ikon: Eye },
+  ];
+
+  const planStats: StatKortData[] = [
+    { label: t("admin.stats.totalTasks"), verdi: data.oppgaver.oppgaveoppdelinger, ikon: BarChart3 },
+    { label: t("admin.stats.totalSubtasks"), verdi: data.oppgaver.deloppgaverTotalt, ikon: BarChart3 },
+    { label: t("admin.stats.completedSubtasks"), verdi: data.oppgaver.fullforteDeloppgaver, ikon: CheckCircle2 },
+    { label: t("admin.stats.approvedSubtasks"), verdi: data.oppgaver.godkjenteDeloppgaver, ikon: CheckCircle2 },
+    { label: t("admin.stats.avgSubtasksPerBreakdown"), verdi: data.oppgaver.snittDeloppgaverPerOppdeling, ikon: BarChart3 },
+    { label: t("admin.stats.workPlans"), verdi: data.arbeidsplan.planer, ikon: CalendarDays },
+    { label: t("admin.stats.workPlanBlocks"), verdi: data.arbeidsplan.blokkerTotalt, ikon: CalendarDays },
+    { label: t("admin.stats.completedWorkPlanBlocks"), verdi: data.arbeidsplan.fullforteBlokker, ikon: CheckCircle2 },
+    { label: t("admin.stats.usersWithWorkPlan"), verdi: data.arbeidsplan.brukereMedPlan, ikon: Users },
+    { label: t("admin.stats.workPlanCompletionRate"), verdi: data.arbeidsplan.fullforingsgrad, ikon: BarChart3, format: "percent" },
+  ];
+
+  const innholdsStats: StatKortData[] = [
+    { label: t("admin.stats.totalEmbeddings"), verdi: data.innhold.dokumentfragmenter, ikon: Database },
+    { label: t("admin.stats.documentFiles"), verdi: data.innhold.dokumentfiler, ikon: FileText },
+    { label: t("admin.stats.documentCourses"), verdi: data.innhold.dokumentemner, ikon: BookOpen },
+    { label: t("admin.stats.usersWithContent"), verdi: data.innhold.brukereMedInnhold, ikon: Users },
+    { label: t("admin.stats.totalTokens"), verdi: data.innhold.tokensTotalt, ikon: Database },
+    { label: t("admin.stats.avgChunksPerFile"), verdi: data.innhold.snittChunksPerFil, ikon: BarChart3 },
+    { label: t("admin.stats.cachedCourseStructures"), verdi: data.innhold.kursstrukturer, ikon: BookOpen },
+    { label: t("admin.stats.cachedCanvasAssignments"), verdi: data.innhold.canvasOppgaver, ikon: ScrollText },
+    { label: t("admin.stats.cachedCanvasAnnouncements"), verdi: data.innhold.canvasKunngjoringer, ikon: ScrollText },
+    { label: t("admin.stats.cachedCanvasModules"), verdi: data.innhold.canvasModuler, ikon: BookOpen },
+    { label: t("admin.stats.cachedCanvasModuleItems"), verdi: data.innhold.canvasModulElementer, ikon: FileText },
+  ];
+
+  const syncStats: StatKortData[] = [
+    { label: t("admin.stats.usersWithSyncData"), verdi: data.sync.brukereMedSyncData, ikon: RefreshCcw },
+    { label: t("admin.stats.usersWithFreshSync24h"), verdi: data.sync.brukereMedFerskSync24t, ikon: RefreshCcw },
+    { label: t("admin.stats.usersWithStaleSync7d"), verdi: data.sync.brukereMedGammelSync7d, ikon: Clock3 },
+    { label: t("admin.stats.canvasUsersWithoutSync"), verdi: data.sync.canvasBrukereUtenSyncData, ikon: AlertTriangle },
+  ];
+
+  const revisjonsStats: StatKortData[] = [
+    { label: t("admin.stats.auditEventsTotal"), verdi: data.revisjon.hendelserTotalt, ikon: Activity },
+    { label: t("admin.stats.auditFailuresTotal"), verdi: data.revisjon.feilTotalt, ikon: AlertTriangle },
+    { label: t("admin.stats.auditEvents24h"), verdi: data.revisjon.hendelser24t, ikon: Activity },
+    { label: t("admin.stats.auditFailures24h"), verdi: data.revisjon.feil24t, ikon: AlertTriangle },
+    { label: t("admin.stats.adminEvents24h"), verdi: data.revisjon.admin24t, ikon: Shield },
+    { label: t("admin.stats.authEvents24h"), verdi: data.revisjon.auth24t, ikon: Shield },
+    { label: t("admin.stats.integrationEvents24h"), verdi: data.revisjon.integration24t, ikon: Link },
+    { label: t("admin.stats.aiEvents24h"), verdi: data.revisjon.ki24t, ikon: BarChart3 },
+    { label: t("admin.stats.privacyEvents24h"), verdi: data.revisjon.privacy24t, ikon: Shield },
+    { label: t("admin.stats.profileEvents24h"), verdi: data.revisjon.profile24t, ikon: Users },
+    { label: t("admin.stats.securityEvents24h"), verdi: data.revisjon.security24t, ikon: ShieldCheck },
+  ];
+
+  const kvalitetsStats: StatKortData[] = [
+    { label: t("admin.stats.orphanedChats"), verdi: data.kvalitet.orphanedSamtaler, ikon: AlertTriangle },
+    { label: t("admin.stats.orphanedTaskBreakdowns"), verdi: data.kvalitet.orphanedOppgaveoppdelinger, ikon: AlertTriangle },
+    { label: t("admin.stats.orphanedDocumentChunks"), verdi: data.kvalitet.orphanedDokumentfragmenter, ikon: Database },
+    { label: t("admin.stats.orphanedWorkPlans"), verdi: data.kvalitet.orphanedArbeidsplaner, ikon: CalendarDays },
+    { label: t("admin.stats.orphanedCanvasStructures"), verdi: data.kvalitet.orphanedCanvasStrukturer, ikon: BookOpen },
+    { label: t("admin.stats.orphanedCanvasUsers"), verdi: data.kvalitet.orphanedCanvasBrukere, ikon: UserX },
+    { label: t("admin.stats.ownerlessShareLinks"), verdi: data.kvalitet.delingerUtenEier, ikon: Share2 },
+  ];
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      <StatKort label={t("admin.stats.totalUsers")} verdi={data.brukere.totalt} ikon={Users} />
-      <StatKort label={t("admin.stats.adminUsers")} verdi={data.brukere.admin} ikon={ShieldCheck} />
-      <StatKort label={t("admin.stats.regularUsers")} verdi={data.brukere.vanlige} ikon={Users} />
-      <StatKort label={t("admin.stats.canvasUsers")} verdi={data.brukere.medCanvas} ikon={Users} />
-      <StatKort label={t("admin.stats.totalChats")} verdi={data.samtaler} ikon={ScrollText} />
-      <StatKort label={t("admin.stats.totalTasks")} verdi={data.oppgaveoppdelinger} ikon={BarChart3} />
-      <StatKort label={t("admin.stats.totalEmbeddings")} verdi={data.embeddings} ikon={ScrollText} />
+    <div className="space-y-8">
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        {t("admin.stats.note")}
+      </p>
+      <StatSeksjon title={t("admin.stats.sections.users")} stats={brukerStats} language={language} />
+      <StatSeksjon title={t("admin.stats.sections.conversations")} stats={samtaleStats} language={language} />
+      <StatSeksjon title={t("admin.stats.sections.planning")} stats={planStats} language={language} />
+      <StatSeksjon title={t("admin.stats.sections.content")} stats={innholdsStats} language={language} />
+      <StatSeksjon title={t("admin.stats.sections.sync")} stats={syncStats} language={language} />
+      <StatSeksjon title={t("admin.stats.sections.audit")} stats={revisjonsStats} language={language} />
+      <StatSeksjon title={t("admin.stats.sections.quality")} stats={kvalitetsStats} language={language} />
     </div>
   );
 }
@@ -84,15 +243,23 @@ function BrukereFane() {
   const limit = 20;
 
   // Enkel debounce
-  const [timer, setTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const handleSearch = (value: string) => {
     setSearch(value);
-    if (timer) clearTimeout(timer);
-    const t2 = setTimeout(() => {
+    if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
+    debounceTimeoutRef.current = setTimeout(() => {
       setDebouncedSearch(value);
       setOffset(0);
     }, 400);
-    setTimer(t2);
   };
 
   const { data, isLoading, error } = useAdminBrukere({ limit, offset, search: debouncedSearch || undefined });
@@ -122,8 +289,15 @@ function BrukereFane() {
       return;
     }
     slettBruker.mutate(brukerId, {
-      onSuccess: () => {
-        showToast.success(t("admin.users.userDeleted"));
+      onSuccess: (result) => {
+        if (result.providerAccountDeleted && result.vectorCleanupSucceeded) {
+          showToast.success(t("admin.users.userDeleted"));
+        } else {
+          showToast.warning(
+            t("admin.users.userDeleted"),
+            t("admin.users.userDeletedPartial"),
+          );
+        }
         setBekreftSlett(null);
       },
       onError: (err) => showToast.error(err instanceof Error ? err.message : "Feil"),
@@ -416,7 +590,7 @@ export function AdminSection() {
   const [aktivFane, setAktivFane] = useState<AdminFane>("stats");
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
@@ -428,7 +602,7 @@ export function AdminSection() {
       </div>
 
       {/* Faner */}
-      <div role="tablist" aria-label={t("admin.title")} className="flex gap-1 rounded-xl bg-slate-100 dark:bg-slate-800 p-1">
+      <div role="tablist" aria-label={t("admin.title")} className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 dark:bg-slate-800 p-1">
         {FANER.map(({ id, ikon: Ikon, labelKey }) => (
           <button
             key={id}
@@ -438,13 +612,13 @@ export function AdminSection() {
             aria-controls={`admin-tabpanel-${id}`}
             id={`admin-tab-${id}`}
             onClick={() => setAktivFane(id)}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
+            className={`flex items-center gap-1.5 sm:gap-2 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-medium whitespace-nowrap transition-colors ${
               aktivFane === id
                 ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
                 : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
             }`}
           >
-            <Ikon size={16} />
+            <Ikon size={16} className="shrink-0" />
             {t(labelKey)}
           </button>
         ))}
