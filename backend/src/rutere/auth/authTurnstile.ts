@@ -40,11 +40,6 @@ function extractFrontendHostname(req: Request): string | null {
     }
   }
 
-  const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
-  if (forwardedHost) {
-    return forwardedHost.split(":")[0]?.trim().toLowerCase() ?? null;
-  }
-
   return null;
 }
 

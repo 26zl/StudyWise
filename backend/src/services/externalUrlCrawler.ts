@@ -13,6 +13,8 @@
  */
 
 import crypto from "crypto";
+import { lookup } from "node:dns/promises";
+import net from "net";
 import * as cheerio from "cheerio";
 import pLimit from "p-limit";
 import { logger } from "../utils/logger.js";
@@ -40,6 +42,14 @@ const MAX_PDFS_PER_PAGE = 5;
 
 /** Maks størrelse på PDF-fil (10 MB) */
 const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024;
+
+/** Maks størrelse på HTML/TXT som crawles (2 MB) */
+const MAX_TEXT_CONTENT_SIZE_BYTES = 2 * 1024 * 1024;
+
+/** Maks antall redirects per URL for å unngå redirect-loop og SSRF-kjeder */
+const MAX_REDIRECTS = 3;
+
+const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 
 /** User-Agent for crawler-forespørsler */
 const CRAWLER_USER_AGENT = "StudyWise/1.0 ExternalUrl-Crawler";
@@ -99,7 +109,209 @@ type FetchExternalResult =
   | { kind: "skip" }
   | { kind: "failed" };
 
+class BodyTooLargeError extends Error {
+  readonly maxBytes: number;
+
+  constructor(maxBytes: number) {
+    super(`BODY_TOO_LARGE:${maxBytes}`);
+    this.name = "BodyTooLargeError";
+    this.maxBytes = maxBytes;
+  }
+}
+
 // ─── Hjelpefunksjoner ──────────────────────────────────────
+
+/**
+ * Sjekker om en ekstern URL er trygg for crawling.
+ * Forhindrer SSRF mot lokale tjenester og vanlige AWS metadata-endepunkter.
+ */
+function isSafeExternalUrlFormat(urlStr: string): boolean {
+  try {
+    const url = new URL(urlStr);
+    
+    // Tillat kun http og https
+    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+
+    const hostname = url.hostname.toLowerCase();
+    
+    // Blokker opplagt localhost
+    if (hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")) {
+      return false;
+    }
+
+    // Blokker private/loopback IP-adresser ved direkte IP i URL
+    if (net.isIP(hostname)) {
+      if (isBlockedIpAddress(hostname)) return false;
+    }
+    
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isBlockedIpv4Address(address: string): boolean {
+  const parts = address.split(".");
+  if (parts.length !== 4) return true;
+
+  const octets = parts.map((part) => Number.parseInt(part, 10));
+  if (octets.some((octet) => Number.isNaN(octet) || octet < 0 || octet > 255)) {
+    return true;
+  }
+
+  const [first, second] = octets;
+
+  // 0.0.0.0/8, loopback, private, link-local og CGNAT/reserved ranges
+  return (
+    first === 0 ||
+    first === 10 ||
+    first === 127 ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168) ||
+    (first === 100 && second >= 64 && second <= 127)
+  );
+}
+
+function isBlockedIpv6Address(address: string): boolean {
+  const lower = address.toLowerCase();
+  if (lower === "::" || lower === "::1" || lower === "0:0:0:0:0:0:0:1") {
+    return true;
+  }
+  // Unique local addresses fc00::/7 og link-local fe80::/10
+  if (lower.startsWith("fc") || lower.startsWith("fd") || lower.startsWith("fe80:")) {
+    return true;
+  }
+  // IPv4-mapped IPv6 (::ffff:x.x.x.x)
+  const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped?.[1]) {
+    return isBlockedIpv4Address(mapped[1]);
+  }
+  // AWS metadata IPv6 variant
+  if (lower.includes("fd00:ec2::254")) {
+    return true;
+  }
+  return false;
+}
+
+function isBlockedIpAddress(address: string): boolean {
+  const ipVersion = net.isIP(address);
+  if (ipVersion === 4) return isBlockedIpv4Address(address);
+  if (ipVersion === 6) return isBlockedIpv6Address(address);
+  return true;
+}
+
+async function isPublicResolvableHostname(hostname: string): Promise<boolean> {
+  const ipVersion = net.isIP(hostname);
+  if (ipVersion !== 0) {
+    return !isBlockedIpAddress(hostname);
+  }
+
+  try {
+    const addresses = await lookup(hostname, { all: true, verbatim: true });
+    if (addresses.length === 0) return false;
+    return addresses.every((entry) => !isBlockedIpAddress(entry.address));
+  } catch {
+    return false;
+  }
+}
+
+async function validateExternalUrlSafety(urlStr: string): Promise<boolean> {
+  if (!isSafeExternalUrlFormat(urlStr)) return false;
+  try {
+    const { hostname } = new URL(urlStr);
+    return await isPublicResolvableHostname(hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+function resolveRedirectUrl(currentUrl: string, location: string): string | null {
+  try {
+    return new URL(location, currentUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
+async function fetchWithSafeRedirects(url: string, timeoutMs: number): Promise<Response | null> {
+  let currentUrl = url;
+
+  for (let attempt = 0; attempt <= MAX_REDIRECTS; attempt++) {
+    if (!(await validateExternalUrlSafety(currentUrl))) {
+      logger.warn({ url: currentUrl }, "ExternalUrl avvist (SSRF-beskyttelse)");
+      return null;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(currentUrl, {
+        signal: controller.signal,
+        headers: { "User-Agent": CRAWLER_USER_AGENT },
+        redirect: "manual",
+      });
+
+      if (REDIRECT_STATUS_CODES.has(response.status)) {
+        const location = response.headers.get("location");
+        if (!location) {
+          logger.warn({ url: currentUrl, status: response.status }, "Redirect uten Location-header");
+          return null;
+        }
+
+        const redirectedUrl = resolveRedirectUrl(currentUrl, location);
+        if (!redirectedUrl) {
+          logger.warn({ url: currentUrl, location }, "Ugyldig redirect-url mottatt");
+          return null;
+        }
+
+        currentUrl = redirectedUrl;
+        continue;
+      }
+
+      return response;
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        logger.warn({ url: currentUrl }, "ExternalUrl crawl tidsavbrutt");
+      } else {
+        logger.warn({ err: error, url: currentUrl }, "Feil ved henting av ExternalUrl");
+      }
+      return null;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  logger.warn({ url }, "For mange redirects ved ExternalUrl-crawl");
+  return null;
+}
+
+async function readResponseBodyWithLimit(response: Response, maxBytes: number): Promise<Buffer> {
+  if (!response.body) {
+    return Buffer.alloc(0);
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+
+    totalBytes += value.byteLength;
+    if (totalBytes > maxBytes) {
+      await reader.cancel();
+      throw new BodyTooLargeError(maxBytes);
+    }
+
+    chunks.push(Buffer.from(value));
+  }
+
+  return Buffer.concat(chunks);
+}
 
 /**
  * Genererer SHA-256 hash av en streng.
@@ -112,16 +324,12 @@ function sha256(data: string): string {
  * Henter HTML fra en URL med timeout.
  */
 async function fetchExternalContent(url: string): Promise<FetchExternalResult> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const response = await fetchWithSafeRedirects(url, FETCH_TIMEOUT_MS);
+  if (!response) {
+    return { kind: "failed" };
+  }
 
   try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: { "User-Agent": CRAWLER_USER_AGENT },
-    });
-    clearTimeout(timeout);
-
     if (!response.ok) {
       logger.warn(
         { url, status: response.status },
@@ -132,7 +340,7 @@ async function fetchExternalContent(url: string): Promise<FetchExternalResult> {
 
     const contentType = response.headers.get("content-type") ?? "";
     if (contentType.includes("application/pdf")) {
-      const buffer = Buffer.from(await response.arrayBuffer());
+      const buffer = await readResponseBodyWithLimit(response, MAX_PDF_SIZE_BYTES);
       return { kind: "pdf", buffer };
     }
     if (!contentType.includes("text/html") && !contentType.includes("text/plain")) {
@@ -143,13 +351,17 @@ async function fetchExternalContent(url: string): Promise<FetchExternalResult> {
       return { kind: "skip" };
     }
 
-    return { kind: "html", html: await response.text() };
+    const textBuffer = await readResponseBodyWithLimit(response, MAX_TEXT_CONTENT_SIZE_BYTES);
+    return { kind: "html", html: textBuffer.toString("utf8") };
   } catch (error) {
-    clearTimeout(timeout);
-    if (error instanceof Error && error.name === "AbortError") {
-      logger.warn({ url }, "ExternalUrl crawl tidsavbrutt");
-    } else {
+    if (error instanceof BodyTooLargeError) {
+      logger.warn({ url, maxBytes: error.maxBytes }, "ExternalUrl innhold for stort — hopper over");
+      return { kind: "skip" };
+    }
+    if (error instanceof Error) {
       logger.warn({ err: error, url }, "Feil ved henting av ExternalUrl");
+    } else {
+      logger.warn({ url }, "Feil ved henting av ExternalUrl");
     }
     return { kind: "failed" };
   }
@@ -233,16 +445,12 @@ function findPdfLinks(html: string, baseUrl: string): Array<{ url: string; title
 async function downloadAndProcessPdf(
   pdfUrl: string,
 ): Promise<{ content: string; hash: string } | null> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS * 2);
+  const response = await fetchWithSafeRedirects(pdfUrl, FETCH_TIMEOUT_MS * 2);
+  if (!response) {
+    return null;
+  }
 
   try {
-    const response = await fetch(pdfUrl, {
-      signal: controller.signal,
-      headers: { "User-Agent": CRAWLER_USER_AGENT },
-    });
-    clearTimeout(timeout);
-
     if (!response.ok) {
       logger.warn(
         { url: pdfUrl, status: response.status },
@@ -261,7 +469,7 @@ async function downloadAndProcessPdf(
       return null;
     }
 
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const buffer = await readResponseBodyWithLimit(response, MAX_PDF_SIZE_BYTES);
 
     // Dobbeltsjekk størrelse etter nedlasting
     if (buffer.length > MAX_PDF_SIZE_BYTES) {
@@ -274,14 +482,24 @@ async function downloadAndProcessPdf(
 
     return parsePdfBuffer(buffer, pdfUrl);
   } catch (error) {
-    clearTimeout(timeout);
-    if (error instanceof Error && error.name === "AbortError") {
-      logger.warn({ url: pdfUrl }, "PDF-nedlasting tidsavbrutt");
-    } else {
+    if (error instanceof BodyTooLargeError) {
+      logger.warn({ url: pdfUrl, maxBytes: MAX_PDF_SIZE_BYTES }, "PDF for stor — hopper over");
+      return null;
+    }
+    if (error instanceof Error) {
       logger.warn({ err: error, url: pdfUrl }, "Feil ved PDF-nedlasting");
+    } else {
+      logger.warn({ url: pdfUrl }, "Feil ved PDF-nedlasting");
     }
     return null;
   }
+}
+
+function createStableFileId(source: string): number {
+  const digest = crypto.createHash("sha256").update(source, "utf8").digest();
+  const high = digest.readUInt32BE(0) & 0x001fffff; // behold 21 bit
+  const low = digest.readUInt32BE(4); // behold 32 bit
+  return high * 0x100000000 + low; // 53-bit safe integer
 }
 
 async function parsePdfBuffer(
@@ -425,7 +643,7 @@ async function crawlExternalUrlItem(
       result.failed++;
       return result;
     }
-    const pdfFileId = Math.abs(hashCode(item.externalUrl));
+    const pdfFileId = createStableFileId(item.externalUrl);
     const chunks = createChunksFromContent(directPdf.content, {
       courseId,
       courseName,
@@ -572,7 +790,7 @@ async function processPdfLinks(
 
     // Chunk og indekser PDF-innhold
     // Generer unik fileId for PDF-en basert på URL-hash
-    const pdfFileId = Math.abs(hashCode(pdf.url));
+    const pdfFileId = createStableFileId(pdf.url);
 
     const chunks = createChunksFromContent(pdfResult.content, {
       courseId,
@@ -622,19 +840,6 @@ async function processPdfLinks(
       newlyIndexedPdfs,
     );
   }
-}
-
-/**
- * Enkel hash-funksjon for å generere en numerisk ID fra en streng.
- */
-function hashCode(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash; // Konverter til 32-bit integer
-  }
-  return hash;
 }
 
 /**

@@ -23,10 +23,6 @@ const hentBearerToken = (req: Request): string | null => {
   return token;
 };
 
-const hentAuthToken = (req: Request): string | null => {
-  return hentBearerToken(req);
-};
-
 const DEFAULT_ROLE: UserRole = "user";
 
 type AuthResolution =
@@ -44,7 +40,7 @@ function settAutentisertBrukerPåRequest(req: Request, user: IUser): void {
 }
 
 async function resolveAuthentication(req: Request): Promise<AuthResolution> {
-  const token = hentAuthToken(req);
+  const token = hentBearerToken(req);
   if (!token) {
     return { status: "missing_token" };
   }

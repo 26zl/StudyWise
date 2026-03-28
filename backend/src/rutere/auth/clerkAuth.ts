@@ -162,6 +162,14 @@ async function getClerkProfile(
     return null;
   }
 
+  if (primaryEmail?.verification?.status !== "verified") {
+    logger.warn(
+      { clerkUserId, email },
+      "Primær e-postadresse er ikke verifisert. Kontoen kan ikke synkroniseres av sikkerhetshensyn.",
+    );
+    return null;
+  }
+
   // Bestem innloggingsmetode fra Clerk external accounts
   let authProvider: AuthProvider | undefined;
   const externalAccounts = clerkUser.externalAccounts ?? [];

@@ -87,7 +87,6 @@ async function loadSharedChatForRead(req: Request, res: Response, shareId: strin
   shared: SharedChatDocument;
   chat: Pick<ChatHistoryDocument, "_id" | "title" | "encryptedMessages">;
   messages: z.infer<typeof ChatMessageSchema>[];
-  updatedViewCount: number;
 } | null> {
   triggerOpportunisticCleanup();
 
@@ -134,9 +133,9 @@ async function loadSharedChatForRead(req: Request, res: Response, shareId: strin
     shared: sharedDoc,
     chat: chatDoc,
     messages,
-    updatedViewCount: sharedDoc.viewCount + 1,
   };
 }
+
 const PUBLIC_SHARE_RATE_LIMIT = createRateLimiter({
   points: 120,
   duration: 60,
