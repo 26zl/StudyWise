@@ -4,9 +4,10 @@
  */
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQueryState, parseAsStringLiteral } from "nuqs";
 import {
   AlertCircle,
   BookOpen,
@@ -65,8 +66,11 @@ interface QuickActionCardProps {
 export function OversiktPage() {
   const router = useRouter();
   const { language, t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<"mine-oppgaver" | "ki-forslag">(
-    "mine-oppgaver",
+  const [activeTab, setActiveTab] = useQueryState(
+    "tab",
+    parseAsStringLiteral(["mine-oppgaver", "ki-forslag"] as const).withDefault(
+      "mine-oppgaver",
+    ),
   );
   const activeTabId =
     activeTab === "mine-oppgaver"
@@ -144,11 +148,9 @@ export function OversiktPage() {
       if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
 
       event.preventDefault();
-      setActiveTab((currentTab) =>
-        currentTab === "mine-oppgaver" ? "ki-forslag" : "mine-oppgaver",
-      );
+      setActiveTab(activeTab === "mine-oppgaver" ? "ki-forslag" : "mine-oppgaver");
     },
-    [],
+    [activeTab, setActiveTab],
   );
 
   if (megQuery.isPending) {

@@ -1,18 +1,12 @@
 /**
  * CanvasContextSelector – velger hvilke Canvas-data (nyheter, emner, oppgaver, hendelser) som skal inngå i KI-kontekst.
- * Synkroniserer valg med backend (preferanser) og viser antall per kategori.
+ * Synkroniserer valg med backend (preferanser) og bruker enkel av/på-logikk per kategori.
  */
 "use client";
 
 import { useEffect, useRef } from "react";
 import { Check } from "lucide-react";
 import { LoadingSpinner } from "@/app/components/ui/Loading";
-import {
-  useCanvasAnnouncements,
-  useCanvasCourses,
-  useCanvasTodo,
-  useCanvasUpcomingEvents,
-} from "@/app/canvas/canvas-api";
 import { useUIStore, type CanvasContextSelection } from "@/app/store/uiStore";
 import { useMeg, useDebouncedPreferanseOppdater } from "@/app/auth/auth-api";
 import { useLanguage } from "@/app/i18n";
@@ -60,17 +54,7 @@ export function CanvasContextSelector() {
     };
   }, [flushPreferanser]);
 
-  const { data: announcementsData, isLoading: loadingAnnouncements } = useCanvasAnnouncements();
-  const { data: coursesData, isLoading: loadingCourses } = useCanvasCourses();
-  const { data: todoData, isLoading: loadingTodo } = useCanvasTodo(selected.assignments);
-  const { data: eventsData, isLoading: loadingEvents } = useCanvasUpcomingEvents(selected.events);
-
-  const isLoading =
-    loadingAnnouncements ||
-    loadingCourses ||
-    loadingTodo ||
-    loadingEvents ||
-    oppdatererPreferanser;
+  const isLoading = oppdatererPreferanser;
 
   const toggleOption = (key: keyof CanvasContextSelection) => {
     if (oppdatererPreferanser) return;
@@ -87,30 +71,22 @@ export function CanvasContextSelector() {
     {
       key: "announcements" as const,
       label: t("settings.canvasContext.selector.options.announcements.label"),
-      count: announcementsData?.announcements?.length || 0,
       description: t("settings.canvasContext.selector.options.announcements.description"),
-      loading: loadingAnnouncements,
     },
     {
       key: "courses" as const,
       label: t("settings.canvasContext.selector.options.courses.label"),
-      count: coursesData?.courses?.length || 0,
       description: t("settings.canvasContext.selector.options.courses.description"),
-      loading: loadingCourses,
     },
     {
       key: "assignments" as const,
       label: t("settings.canvasContext.selector.options.assignments.label"),
-      count: todoData?.todos?.length || 0,
       description: t("settings.canvasContext.selector.options.assignments.description"),
-      loading: loadingTodo,
     },
     {
       key: "events" as const,
       label: t("settings.canvasContext.selector.options.events.label"),
-      count: eventsData?.events?.length || 0,
       description: t("settings.canvasContext.selector.options.events.description"),
-      loading: loadingEvents,
     },
   ];
 
@@ -153,18 +129,9 @@ export function CanvasContextSelector() {
                 {selected[option.key] && <Check className="w-3 h-3 text-white" />}
               </div>
               <div className="text-left flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-slate-900 dark:text-white truncate">
-                    {option.label}
-                  </span>
-                  {option.loading ? (
-                    <LoadingSpinner className="w-3 h-3 text-blue-600 dark:text-blue-400 animate-spin" />
-                  ) : (
-                    <span className="text-xs text-slate-500 dark:text-slate-400">
-                      ({option.count})
-                    </span>
-                  )}
-                </div>
+                <span className="text-sm font-medium text-slate-900 dark:text-white truncate block">
+                  {option.label}
+                </span>
               </div>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 truncate w-full">

@@ -37,6 +37,7 @@ const GYLDIGE_VISNINGER = [
   "varslinger",
   "settings",
   "quiz",
+  "flashcards",
   "admin",
 ] as const satisfies readonly VisningType[];
 
@@ -219,11 +220,12 @@ export function DashboardView() {
                             fornavn={megQuery.data?.user?.firstName ?? undefined}
                             etternavn={megQuery.data?.user?.lastName ?? undefined}
                             username={megQuery.data?.user?.username ?? undefined}
+                            browserPushPreferences={megQuery.data?.user?.browserPushPreferences}
                         />
                     </Suspense>
                 </SectionErrorBoundary>
             )}
-            {aktivVisning === "quiz" && (
+            {(aktivVisning === "quiz" || aktivVisning === "flashcards") && (
                 <SectionErrorBoundary sectionName={t("dashboard.sections.quiz")}>
                     <Suspense fallback={<SectionLoader translationKey="common.loading.quiz" />}>
                         <QuizView harCanvasToken={harCanvasToken} />

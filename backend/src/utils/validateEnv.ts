@@ -24,6 +24,9 @@ interface EnvConfig {
   PINECONE_API_KEY: string;
   PINECONE_INDEX_NAME: string;
   COHERE_API_KEY: string;
+  WEB_PUSH_VAPID_PUBLIC_KEY?: string;
+  WEB_PUSH_VAPID_PRIVATE_KEY?: string;
+  WEB_PUSH_SUBJECT?: string;
 }
 
 const requiredEnvVars: (keyof EnvConfig)[] = [
@@ -243,6 +246,24 @@ export const validateEnv = (): void => {
   const cohereKey = process.env.COHERE_API_KEY;
   if (!cohereKey || !cohereKey.trim()) {
     manglende.push("COHERE_API_KEY (påkrevd for Cohere rerank)");
+  }
+
+  const webPushPublicKey = process.env.WEB_PUSH_VAPID_PUBLIC_KEY?.trim();
+  const webPushPrivateKey = process.env.WEB_PUSH_VAPID_PRIVATE_KEY?.trim();
+  const webPushSubject = process.env.WEB_PUSH_SUBJECT?.trim();
+  const hasAnyWebPushConfig =
+    Boolean(webPushPublicKey) || Boolean(webPushPrivateKey) || Boolean(webPushSubject);
+
+  if (hasAnyWebPushConfig) {
+    if (!webPushPublicKey) {
+      manglende.push("WEB_PUSH_VAPID_PUBLIC_KEY (påkrevd når web-push brukes)");
+    }
+    if (!webPushPrivateKey) {
+      manglende.push("WEB_PUSH_VAPID_PRIVATE_KEY (påkrevd når web-push brukes)");
+    }
+    if (webPushSubject && !/^mailto:|^https?:\/\//i.test(webPushSubject)) {
+      manglende.push("WEB_PUSH_SUBJECT (må starte med mailto: eller https://)");
+    }
   }
 
   // Valider Datadog-variabler kun i produksjon (påkrevd for monitorering i dette miljøet)

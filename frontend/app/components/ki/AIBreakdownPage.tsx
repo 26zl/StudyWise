@@ -4,8 +4,9 @@
  */
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryState, parseAsArrayOf, parseAsString } from "nuqs";
 import {
   AlertCircle,
   BookOpen,
@@ -58,7 +59,14 @@ function sorterOppgaver(oppgaver: AssignmentMedEmne[]): AssignmentMedEmne[] {
 
 export function AIBreakdownPage() {
   const router = useRouter();
-  const [expandedAssignmentIds, setExpandedAssignmentIds] = useState<Set<string>>(new Set());
+  const [expandedAssignmentIdsInUrl, setExpandedAssignmentIdsInUrl] = useQueryState(
+    "expanded",
+    parseAsArrayOf(parseAsString).withDefault([]),
+  );
+  const expandedAssignmentIds = useMemo(
+    () => new Set(expandedAssignmentIdsInUrl),
+    [expandedAssignmentIdsInUrl],
+  );
   const { language, t } = useLanguage();
 
   const { isLoaded: clerkLoaded } = useAuth();
@@ -92,14 +100,15 @@ export function AIBreakdownPage() {
 
   useEffect(() => {
     const gyldigeIds = new Set(aktiveOppgaver.map((assignment) => assignment.id.toString()));
-    setExpandedAssignmentIds((current) => {
-      const neste = new Set([...current].filter((id) => gyldigeIds.has(id)));
-      if (neste.size === 0 && aktiveOppgaver.length > 0) {
-        neste.add(aktiveOppgaver[0].id.toString());
+    setExpandedAssignmentIdsInUrl((current) => {
+      const nåværende = current ?? [];
+      const neste = [...new Set(nåværende.filter((id) => gyldigeIds.has(id)))];
+      if (neste.length === 0 && aktiveOppgaver.length > 0) {
+        neste.push(aktiveOppgaver[0].id.toString());
       }
-      return neste;
+      return neste.length > 0 ? neste : null;
     });
-  }, [aktiveOppgaver]);
+  }, [aktiveOppgaver, setExpandedAssignmentIdsInUrl]);
 
   const oppgaverMedFrist = useMemo(
     () => aktiveOppgaver.filter((assignment) => Boolean(assignment.due_at)),
@@ -184,14 +193,18 @@ export function AIBreakdownPage() {
                   <div className="flex gap-2 shrink-0">
                     <button
                       type="button"
-                      onClick={() => setExpandedAssignmentIds(new Set(aktiveOppgaver.map((assignment) => assignment.id.toString())))}
+                      onClick={() =>
+                        setExpandedAssignmentIdsInUrl(
+                          aktiveOppgaver.map((assignment) => assignment.id.toString()),
+                        )
+                      }
                       className="px-3 py-2 text-sm rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
                     >
                       {t("aiBreakdown.expandAll")}
                     </button>
                     <button
                       type="button"
-                      onClick={() => setExpandedAssignmentIds(new Set())}
+                      onClick={() => setExpandedAssignmentIdsInUrl(null)}
                       className="px-3 py-2 text-sm rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
                     >
                       {t("aiBreakdown.collapseAll")}
@@ -300,14 +313,15 @@ export function AIBreakdownPage() {
                       <button
                         type="button"
                         onClick={() =>
-                          setExpandedAssignmentIds((current) => {
-                            const neste = new Set(current);
+                          setExpandedAssignmentIdsInUrl((current) => {
+                            const neste = new Set(current ?? []);
                             if (neste.has(assignmentId)) {
                               neste.delete(assignmentId);
                             } else {
                               neste.add(assignmentId);
                             }
-                            return neste;
+                            const expanded = Array.from(neste);
+                            return expanded.length > 0 ? expanded : null;
                           })
                         }
                         className="w-full p-4 sm:p-6 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"

@@ -53,7 +53,7 @@ function getPriorityExplanation(priority: string, task: string): string {
 
 export function MinArbeidsplan() {
   const { language, t } = useLanguage();
-  const [expandedDay, setExpandedDay] = useState<string | null>(null);
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(() => new Set());
   const [bekreftSlett, setBekreftSlett] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(false);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -155,6 +155,28 @@ export function MinArbeidsplan() {
   const sortedDays = Object.keys(blocksByDay).sort((a, b) => {
     return DAYS_ORDER.indexOf(a) - DAYS_ORDER.indexOf(b);
   });
+  const allExpanded = sortedDays.every((day) => expandedDays.has(day));
+  const anyExpanded = expandedDays.size > 0;
+
+  const handleExpandAll = () => {
+    setExpandedDays(new Set(sortedDays));
+  };
+
+  const handleCollapseAll = () => {
+    setExpandedDays(new Set());
+  };
+
+  const handleToggleDay = (day: string) => {
+    setExpandedDays((previous) => {
+      const next = new Set(previous);
+      if (next.has(day)) {
+        next.delete(day);
+      } else {
+        next.add(day);
+      }
+      return next;
+    });
+  };
 
   return (
     <div className={`space-y-4 transition-opacity ${pendingDelete ? "opacity-50 pointer-events-none" : ""}`}>
@@ -169,20 +191,38 @@ export function MinArbeidsplan() {
               Din personlige arbeidsplan
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleDeletePlan}
-            onBlur={() => setBekreftSlett(false)}
-            disabled={deleteMutation.isPending || pendingDelete}
-            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
-              bekreftSlett
-                ? "bg-red-600 text-white hover:bg-red-700"
-                : "text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30"
-            }`}
-            title="Slett arbeidsplan"
-          >
-            {bekreftSlett ? "Bekreft sletting" : <Trash2 className="w-5 h-5" />}
-          </button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleExpandAll}
+              disabled={allExpanded}
+              className="px-3 py-2 text-sm rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {t("arbeidsplan.expandAll")}
+            </button>
+            <button
+              type="button"
+              onClick={handleCollapseAll}
+              disabled={!anyExpanded}
+              className="px-3 py-2 text-sm rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {t("arbeidsplan.collapseAll")}
+            </button>
+            <button
+              type="button"
+              onClick={handleDeletePlan}
+              onBlur={() => setBekreftSlett(false)}
+              disabled={deleteMutation.isPending || pendingDelete}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+                bekreftSlett
+                  ? "bg-red-600 text-white hover:bg-red-700"
+                  : "text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30"
+              }`}
+              title="Slett arbeidsplan"
+            >
+              {bekreftSlett ? "Bekreft sletting" : <Trash2 className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
 
         {/* Progress bar */}
@@ -221,7 +261,7 @@ export function MinArbeidsplan() {
           const dayBlocks = blocksByDay[day];
           const completed = dayBlocks.filter(b => b.completed).length;
           const total = dayBlocks.length;
-          const isExpanded = expandedDay === day;
+          const isExpanded = expandedDays.has(day);
 
           return (
             <div
@@ -231,7 +271,7 @@ export function MinArbeidsplan() {
               {/* Day header */}
               <button
                 type="button"
-                onClick={() => setExpandedDay(isExpanded ? null : day)}
+                onClick={() => handleToggleDay(day)}
                 className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
               >
                 <div className="flex items-center gap-3">

@@ -10,7 +10,7 @@ import { CanvasUser } from "../../database/models/CanvasUser.js";
 import { decrypt, encrypt } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
 import { z, ZodError } from "zod";
-import { apiError, sendError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
+import { apiError, requireUserId, sendError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
 import { warmCanvasCache, fetchUserProfile } from "../canvas/canvasService.js";
 import { invalidateCacheByPattern } from "../../cache/redis.js";
 import {
@@ -37,6 +37,16 @@ import {
   normalizeManuellInnleveringState,
   normalizeVarslerState,
 } from "common/auth";
+import {
+  BrowserPushPreferencesSchema,
+  createDefaultBrowserPushPreferences,
+  normalizeBrowserPushPreferences,
+  DeleteWebPushSubscriptionRequestSchema,
+  SaveWebPushSubscriptionRequestSchema,
+  SendTestWebPushResponseSchema,
+  WebPushClientConfigResponseSchema,
+  WebPushSubscriptionResponseSchema,
+} from "common/notifications";
 import { rateLimitToken, rateLimitMe, rateLimitAccountDeletion } from "../../middleware/rate-limit.js";
 import { noCache } from "../../middleware/no-cache.js";
 import {
@@ -51,6 +61,14 @@ import {
     buildCanvasUserPayload,
     isMongoDuplicateKeyError,
 } from "../../utils/canvasUserSync.js";
+import {
+    isWebPushConfigured,
+    getWebPushClientConfig,
+    sendTestWebPush,
+    removeWebPushSubscription,
+    upsertWebPushSubscription,
+    WebPushSubscriptionConflictError,
+} from "../../services/webPush.service.js";
 
 const router = Router();
 const SHA256_HEX_REGEX = /^[a-f0-9]{64}$/i;
@@ -483,6 +501,10 @@ router.get("/me", rateLimitMe, async (req, res) => {
                 canvasContextPreferences: preferences,
                 varslerState,
                 manuellInnleveringState,
+                browserPushPreferences:
+                    normalizeBrowserPushPreferences(
+                        bruker.browserPushPreferences ?? createDefaultBrowserPushPreferences(),
+                    ),
                 uiPreferences: bruker.uiPreferences ?? undefined,
                 role: bruker.role ?? "user",
                 authProvider: bruker.authProvider,
@@ -578,6 +600,10 @@ router.put("/profile", rateLimitMe, async (req, res) => {
                 canvasContextPreferences: preferences,
                 varslerState,
                 manuellInnleveringState,
+                browserPushPreferences:
+                    normalizeBrowserPushPreferences(
+                        oppdatertBruker.browserPushPreferences ?? createDefaultBrowserPushPreferences(),
+                    ),
                 uiPreferences: oppdatertBruker.uiPreferences ?? undefined,
                 role: oppdatertBruker.role ?? "user",
                 authProvider: oppdatertBruker.authProvider,
@@ -602,11 +628,18 @@ router.put("/preferences", rateLimitMe, async (req, res) => {
         const bruker = await hentAutentisertBruker(userId, res);
         if (!bruker) return;
 
-        const { canvasContextPreferences, varslerState, manuellInnleveringState, uiPreferences } = PreferencesUpdateSchema.parse(req.body);
+        const {
+            canvasContextPreferences,
+            varslerState,
+            manuellInnleveringState,
+            browserPushPreferences,
+            uiPreferences,
+        } = PreferencesUpdateSchema.parse(req.body);
         const updateFields: {
             canvasContextPreferences?: ReturnType<typeof createDefaultCanvasContextPreferences>;
             varslerState?: ReturnType<typeof normalizeVarslerState>;
             manuellInnleveringState?: ReturnType<typeof normalizeManuellInnleveringState>;
+            browserPushPreferences?: z.infer<typeof BrowserPushPreferencesSchema>;
             uiPreferences?: z.infer<typeof UIPreferencesSchema>;
         } = {};
         if (canvasContextPreferences !== undefined) {
@@ -617,6 +650,11 @@ router.put("/preferences", rateLimitMe, async (req, res) => {
         }
         if (manuellInnleveringState !== undefined) {
             updateFields.manuellInnleveringState = normalizeManuellInnleveringState(manuellInnleveringState);
+        }
+        if (browserPushPreferences !== undefined) {
+            updateFields.browserPushPreferences = normalizeBrowserPushPreferences(
+                browserPushPreferences,
+            );
         }
         if (uiPreferences !== undefined) {
             updateFields.uiPreferences = UIPreferencesSchema.parse({
@@ -656,6 +694,10 @@ router.put("/preferences", rateLimitMe, async (req, res) => {
             manuellInnleveringState: normalizeManuellInnleveringState(
                 oppdatertBruker.manuellInnleveringState || createDefaultManuellInnleveringState(),
             ),
+            browserPushPreferences:
+                normalizeBrowserPushPreferences(
+                    oppdatertBruker.browserPushPreferences ?? createDefaultBrowserPushPreferences(),
+                ),
             uiPreferences: oppdatertBruker.uiPreferences ?? undefined,
           }),
         );
@@ -664,6 +706,96 @@ router.put("/preferences", rateLimitMe, async (req, res) => {
             return sendZodError(res, error, "Preferanser");
         }
         return sendUnknownError(res, error, { kontekst: "oppdatering av preferanser", melding: "Kunne ikke lagre preferanser. Prøv igjen." });
+    }
+});
+
+router.post("/push-subscriptions", rateLimitMe, async (req, res) => {
+    try {
+        const userId = requireUserId(req, res);
+        if (!userId) return;
+
+        if (!isWebPushConfigured()) {
+            return apiError.serviceUnavailable(res, "Nettleservarsler");
+        }
+
+        const parsed = SaveWebPushSubscriptionRequestSchema.parse(req.body);
+        await upsertWebPushSubscription(
+            userId,
+            parsed.subscription,
+            req.get("user-agent") ?? undefined,
+        );
+
+        return res.json(
+            WebPushSubscriptionResponseSchema.parse({
+                success: true,
+                subscribed: true,
+            }),
+        );
+    } catch (error) {
+        if (error instanceof ZodError) {
+            return sendZodError(res, error, "Web-push abonnement");
+        }
+        if (error instanceof WebPushSubscriptionConflictError) {
+            return apiError.conflict(res, error.message);
+        }
+        return sendUnknownError(res, error, {
+            kontekst: "lagring av web-push abonnement",
+            melding: "Kunne ikke aktivere nettleservarsler. Prøv igjen.",
+        });
+    }
+});
+
+router.get("/push-client-config", rateLimitMe, async (_req, res) => {
+    const payload = WebPushClientConfigResponseSchema.parse(getWebPushClientConfig());
+    return res.json(payload);
+});
+
+router.delete("/push-subscriptions", rateLimitMe, async (req, res) => {
+    try {
+        const userId = requireUserId(req, res);
+        if (!userId) return;
+
+        const parsed = DeleteWebPushSubscriptionRequestSchema.parse(req.body);
+        await removeWebPushSubscription(userId, parsed.endpoint);
+
+        return res.json(
+            WebPushSubscriptionResponseSchema.parse({
+                success: true,
+                subscribed: false,
+            }),
+        );
+    } catch (error) {
+        if (error instanceof ZodError) {
+            return sendZodError(res, error, "Sletting av web-push abonnement");
+        }
+        return sendUnknownError(res, error, {
+            kontekst: "sletting av web-push abonnement",
+            melding: "Kunne ikke deaktivere nettleservarsler. Prøv igjen.",
+        });
+    }
+});
+
+router.post("/push-subscriptions/test", rateLimitMe, async (req, res) => {
+    try {
+        const userId = requireUserId(req, res);
+        if (!userId) return;
+
+        if (!isWebPushConfigured()) {
+            return apiError.serviceUnavailable(res, "Nettleservarsler");
+        }
+
+        const delivered = await sendTestWebPush(userId);
+        return res.json(
+            SendTestWebPushResponseSchema.parse({
+                success: true,
+                delivered,
+            }),
+        );
+    } catch (error) {
+        return sendUnknownError(res, error, {
+            kontekst: "test av web-push",
+            melding: "Kunne ikke sende testvarsel. Prøv igjen.",
+        });
     }
 });
 

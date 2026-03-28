@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 import { CANVAS_INSTITUSJONER_NORGE } from "./canvasInstitutions.js";
+import { BrowserPushPreferencesSchema } from "./notifications.js";
 
 export function normalizeCanvasBaseUrl(url: string): string {
   if (!url) return url;
@@ -190,6 +191,7 @@ export const PreferencesUpdateSchema = z
     canvasContextPreferences: CanvasContextPreferencesSchema.optional(),
     varslerState: VarslerStateSchema.optional(),
     manuellInnleveringState: ManuellInnleveringStateSchema.optional(),
+    browserPushPreferences: BrowserPushPreferencesSchema.optional(),
     uiPreferences: UIPreferencesSchema.optional(),
   })
   .superRefine((data, ctx) => {
@@ -209,6 +211,7 @@ export const PreferencesUpdateSchema = z
       data.canvasContextPreferences === undefined &&
       data.varslerState === undefined &&
       data.manuellInnleveringState === undefined &&
+      data.browserPushPreferences === undefined &&
       !hasUiPreferences
     ) {
       ctx.addIssue({
@@ -231,6 +234,7 @@ export const AuthBrukerSchema = z.object({
   canvasContextPreferences: CanvasContextPreferencesSchema.optional(),
   varslerState: VarslerStateSchema.optional(),
   manuellInnleveringState: ManuellInnleveringStateSchema.optional(),
+  browserPushPreferences: BrowserPushPreferencesSchema.optional(),
   uiPreferences: UIPreferencesSchema.optional(),
   /** RBAC-rolle (user, admin). */
   role: RoleSchema.optional(),
@@ -272,6 +276,7 @@ export const PreferencesResponseSchema = z.object({
   canvasContextPreferences: CanvasContextPreferencesSchema.optional(),
   varslerState: VarslerStateSchema.optional(),
   manuellInnleveringState: ManuellInnleveringStateSchema.optional(),
+  browserPushPreferences: BrowserPushPreferencesSchema.optional(),
   uiPreferences: UIPreferencesSchema.optional(),
 });
 

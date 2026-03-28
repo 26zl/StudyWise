@@ -27,6 +27,10 @@ import { logger } from "../../utils/logger.js";
 import { DEFAULT_MODEL } from "./aiModels.js";
 import { chatCompletion, isClientAvailable } from "./aiClient.js";
 import { handleAIJsonRouteError } from "./handleAIError.js";
+import {
+  AI_COMPLETION_PUSH_MIN_DURATION_MS,
+  sendAICompletionWebPush,
+} from "../../services/webPush.service.js";
 
 const router = Router();
 router.use(rateLimitKi);
@@ -247,6 +251,7 @@ router.post("/generate", async (req, res) => {
       const bTime = b.dueAt?.getTime() ?? Number.MAX_SAFE_INTEGER;
       return aTime - bTime;
     });
+    const generationStartedAt = Date.now();
 
     const prompt = buildPrompt(oppgaver);
     const result = await chatCompletion({
@@ -277,6 +282,22 @@ router.post("/generate", async (req, res) => {
     }).catch((err) => {
       logger.warn({ err, userId }, "Audit-feil for weekly-plan");
     });
+
+    const generationDurationMs = Date.now() - generationStartedAt;
+    if (generationDurationMs >= AI_COMPLETION_PUSH_MIN_DURATION_MS) {
+      void sendAICompletionWebPush({
+        userId,
+        title: "StudyWise: Ukeplanen er klar",
+        body: "KI har generert en ukeplan for deg i oversikten.",
+        url: "/oversikt",
+        tag: `studywise-ai-weekly-plan-${userId}`,
+      }).catch((err) => {
+        logger.warn(
+          { err, userId },
+          "Kunne ikke sende nettleservarsel for ferdig ukeplan",
+        );
+      });
+    }
 
     return res.json(payload);
   } catch (error) {

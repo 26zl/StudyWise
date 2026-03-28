@@ -19,6 +19,8 @@ import {
 } from "../../services/embedding.service.js";
 import { invalidateCacheByPattern, isRedisReady } from "../../cache/redis.js";
 import { deleteClerkUserById, invalidateTokenCacheByClerkId } from "./clerkAuth.js";
+import { WebPushSubscriptionModel } from "../../database/models/WebPushSubscription.js";
+import { enqueueClerkDeletionRetry } from "../../services/clerkDeletionRetry.service.js";
 
 export interface AccountDeletionResult {
   deleted: {
@@ -73,6 +75,7 @@ export async function deleteAccountData(userId: string): Promise<AccountDeletion
         canvasStructureRes,
         canvasRes,
         arbeidsplanRes,
+        webPushRes,
       ] = await Promise.all([
         ChatHistory.deleteMany({ user: id }, { session }),
         SharedChat.deleteMany({ ownerId: id }, { session }),
@@ -81,6 +84,7 @@ export async function deleteAccountData(userId: string): Promise<AccountDeletion
         CanvasStructureModel.deleteMany({ userId }, { session }),
         CanvasUser.deleteMany({ localUser: id }, { session }),
         Arbeidsplan.deleteMany({ userId }, { session }),
+        WebPushSubscriptionModel.deleteMany({ userId: id }, { session }),
       ]);
 
       result.chatHistory = chatRes.deletedCount ?? 0;
@@ -94,6 +98,13 @@ export async function deleteAccountData(userId: string): Promise<AccountDeletion
         logger.info(
           { userId, deletedCount: canvasStructureRes.deletedCount ?? 0 },
           "Slettet CanvasStructure som del av kontosletting",
+        );
+      }
+
+      if ((webPushRes.deletedCount ?? 0) > 0) {
+        logger.info(
+          { userId, deletedCount: webPushRes.deletedCount ?? 0 },
+          "Slettet web-push-abonnementer som del av kontosletting",
         );
       }
 
@@ -120,6 +131,8 @@ export async function deleteAccountData(userId: string): Promise<AccountDeletion
             canvasContextPreferences: 1,
             varslerState: 1,
             manuellInnleveringState: 1,
+            browserPushPreferences: 1,
+            browserPushSentState: 1,
             uiPreferences: 1,
           },
         },
@@ -166,6 +179,11 @@ export async function deleteAccountData(userId: string): Promise<AccountDeletion
     providerAccountDeleted = await deleteClerkUserById(user.clerkId);
     if (!providerAccountDeleted) {
       logger.warn({ userId, clerkId: user.clerkId }, "Klarte ikke å slette Clerk-konto under kontosletting");
+      await enqueueClerkDeletionRetry({
+        clerkId: user.clerkId,
+        userId,
+        lastError: "Klarte ikke å slette Clerk-konto under kontosletting",
+      });
     }
   } else {
     providerAccountDeleted = true;

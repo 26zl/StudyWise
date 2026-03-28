@@ -194,17 +194,20 @@ export const enMessages = {
       sessionExpired: "Your session has expired. Sign in again.",
     },
   },
-  notifications: {
-    allMarkedAsRead: "All notifications marked as read",
-    deadlineAt: "Deadline: {date}",
-    empty: {
-      all: "No notifications right now.",
-      announcements: "No announcements right now.",
-      deadlines: "No deadlines right now.",
-      events: "No events right now.",
-    },
-    markAllAsRead: "Mark all as read",
-    loadMore: "Load more ({count} left)",
+    notifications: {
+      allMarkedAsRead: "All notifications marked as read",
+      deadlineAt: "Deadline: {date}",
+      empty: {
+        all: "No notifications right now.",
+        announcements: "No announcements right now.",
+        assignments: "No assignments right now.",
+        deadlines: "No deadlines right now.",
+        events: "No events right now.",
+      },
+      feedDescription:
+        "See your full Canvas feed with assignments, announcements, and events gathered in one place.",
+      markAllAsRead: "Mark all as read",
+      loadMore: "Load more ({count} left)",
     missingCanvasToken:
       "You must save a Canvas API token to fetch notifications.",
     partialLoadFallback:
@@ -214,12 +217,13 @@ export const enMessages = {
     manuallySubmitted: "Manually submitted",
     markAsSubmitted: "Mark as submitted",
     unmarkAsSubmitted: "Unmark as submitted",
-    tabs: {
-      all: "All",
-      announcements: "Announcements",
-      deadlines: "Deadlines",
-      events: "Events",
-    },
+      tabs: {
+        all: "All",
+        announcements: "Announcements",
+        assignments: "Assignments",
+        deadlines: "Deadlines",
+        events: "Events",
+      },
     title: "Notifications",
     toast: {
       action: "View notifications",
@@ -315,6 +319,45 @@ export const enMessages = {
       },
       title: "Appearance",
     },
+    browserPush: {
+      title: "Browser notifications",
+      description:
+        "Get browser notifications on mobile and desktop when you have new announcements, upcoming deadlines, events, or AI responses.",
+      unsupported:
+        "Your browser or device does not support browser notifications here, or the VAPID configuration is missing.",
+      status: {
+        enabled: "Notifications are enabled",
+        disabled: "Notifications are disabled",
+      },
+      permissionDenied:
+        "Browser notifications are blocked. Allow notifications in your browser settings to enable this.",
+      permissionHint:
+        "You must allow browser notifications the first time you enable this feature.",
+      enable: "Enable notifications",
+      disable: "Disable notifications",
+      enableSuccessTitle: "Notifications enabled",
+      enableSuccessDescription: "Browser notifications are now enabled for this device.",
+      enableErrorTitle: "Could not enable notifications",
+      disableSuccessTitle: "Notifications disabled",
+      disableSuccessDescription: "Browser notifications are now disabled for this device.",
+      disableErrorTitle: "Could not disable notifications",
+      channels: {
+        announcements: "Announcements",
+        deadlines: "Deadlines",
+        events: "Events",
+        aiResponses: "AI responses",
+      },
+      sendTest: "Send test notification",
+      testSuccessTitle: "Test notification sent",
+      testSuccessDescription:
+        "If browser notifications are allowed on this device, you should receive one shortly.",
+      testMissingTitle: "No active notifications",
+      testMissingDescription:
+        "We could not find an active subscription on this device. Enable notifications first.",
+      testErrorTitle: "Could not send test notification",
+      requiresCanvas:
+        "Connect Canvas to receive notifications based on announcements, deadlines, and events.",
+    },
     canvasContext: {
       description:
         "Choose which Canvas data the AI should have access to while you chat.",
@@ -336,7 +379,7 @@ export const enMessages = {
           },
           events: {
             description: "Calendar and meetings",
-            label: "Events",
+            label: "Calendar",
           },
         },
         title: "Give AI access to:",
@@ -599,6 +642,8 @@ export const enMessages = {
     addToWorkplanError: "Could not add to study plan",
     addToWorkplanErrorDescription: "Try again or contact support if the error persists",
     completedAt: "Completed {date}",
+    collapseAll: "Collapse all",
+    expandAll: "Expand all",
   },
   aiBreakdown: {
     assignmentContext: {

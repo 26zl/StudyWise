@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain,
@@ -720,7 +721,11 @@ interface QuizViewProps {
 
 export function QuizView({ harCanvasToken = false }: QuizViewProps) {
   const { t } = useLanguage();
-  const [studyMode, setStudyMode] = useState<StudyMode>("quiz");
+  const [dashboardView, setDashboardView] = useQueryState(
+    "view",
+    parseAsStringLiteral(["quiz", "flashcards"] as const),
+  );
+  const studyMode: StudyMode = dashboardView === "flashcards" ? "flashcards" : "quiz";
   const [phase, setPhase] = useState<QuizPhase>("setup");
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
@@ -866,7 +871,7 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
   };
 
   const handleChangeMode = (m: StudyMode) => {
-    setStudyMode(m);
+    setDashboardView(m);
     setPhase("setup");
     setSelectedCourseId(null);
     setSelectedModules([]);

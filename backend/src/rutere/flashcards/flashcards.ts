@@ -25,6 +25,10 @@ import { handleAIJsonRouteError } from "../ki/handleAIError.js";
 import { knyttCanvasToken } from "../../middleware/auth.js";
 import { loadCanvasContext } from "../../services/context-loader.service.js";
 import {
+  AI_COMPLETION_PUSH_MIN_DURATION_MS,
+  sendAICompletionWebPush,
+} from "../../services/webPush.service.js";
+import {
   createCourseTargetedQuery,
   extractJsonArray,
 } from "../ki/studyContentUtils.js";
@@ -65,6 +69,7 @@ router.post("/generate", knyttCanvasToken, async (req, res) => {
     }
 
     const { courseId, courseName, moduleNames, cardCount } = parsed.data;
+    const generationStartedAt = Date.now();
 
     // Hent Canvas-kontekst for kurset via context-loader (bruker hybrid søk + Redis/MongoDB)
     const moduleListStr = moduleNames.join(", ");
@@ -113,6 +118,22 @@ Generer nøyaktig ${cardCount} flashcards som JSON-array.`;
       { userId, courseName, moduleNames, cardCount: flashcards.length },
       "Genererte flashcards via KI",
     );
+
+    const generationDurationMs = Date.now() - generationStartedAt;
+    if (generationDurationMs >= AI_COMPLETION_PUSH_MIN_DURATION_MS) {
+      void sendAICompletionWebPush({
+        userId,
+        title: "StudyWise: Flashcards er klare",
+        body: "KI har generert flashcards for deg.",
+        url: "/dashboard?view=quiz",
+        tag: `studywise-ai-flashcards-${userId}-${courseId}`,
+      }).catch((err) => {
+        logger.warn(
+          { err, userId, courseId },
+          "Kunne ikke sende nettleservarsel for ferdige flashcards",
+        );
+      });
+    }
 
     return res.headersSent
       ? undefined

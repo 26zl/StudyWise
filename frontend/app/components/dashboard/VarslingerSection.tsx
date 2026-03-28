@@ -19,9 +19,15 @@ import { LoadingView } from "@/app/components/ui/Loading";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { CanvasTokenNotice } from "@/app/components/canvas/CanvasTokenNotice";
 import { showToast } from "@/app/components/ui/Toaster";
-import { useVarsler, type VarslingTab } from "@/app/hooks/useVarsler";
-import { formaterTid, type FristStatus } from "@/app/lib/varsler";
-import type { FristElement, KunngjoringElement, HendelseElement, VarslingElement } from "@/app/lib/varsler";
+import { useVarslingerSide, type VarslingTab } from "@/app/hooks/useVarsler";
+import { formaterTid, lagVarslingForhandsvisning, type FristStatus } from "@/app/lib/varsler";
+import type {
+    FristElement,
+    OppgaveElement,
+    KunngjoringElement,
+    HendelseElement,
+    VarslingElement,
+} from "@/app/lib/varsler";
 import { CanvasKIHandlinger } from "@/app/components/ki/CanvasKIActions";
 import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { useUIStore } from "@/app/store/uiStore";
@@ -33,8 +39,8 @@ interface VarslingerSectionProps {
     harCanvasToken?: boolean;
 }
 
-const INITIAL_NOTIFICATIONS_VISIBLE = 10;
-const NOTIFICATIONS_VISIBLE_STEP = 10;
+const INITIAL_NOTIFICATIONS_VISIBLE = 12;
+const NOTIFICATIONS_VISIBLE_STEP = 12;
 // Varslinger-seksjonen håndterer visning av frister, kunngjøringer og hendelser, med faner for filtrering.
 function fristFarge(status: FristStatus) {
     if (status === "kritisk") return "border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20";
@@ -56,6 +62,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
 
     const {
         frister,
+        oppgaver,
         kunngjøringer,
         hendelser,
         alleElementer,
@@ -67,7 +74,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
         hasPartialError,
         error,
         isHydrated,
-    } = useVarsler(harCanvasToken);
+    } = useVarslingerSide(harCanvasToken);
     const safeAlle = alleElementer ?? [];
     const harMarkertAlleLestRef = useRef(false);
 
@@ -87,6 +94,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
     const tabs: { id: VarslingTab; label: string; antall: number; uleste: number }[] = [
         { id: "alle", label: t("notifications.tabs.all"), antall: safeAlle.length, uleste: safeAlle.filter((e) => !lestIds.has(e.id)).length },
         { id: "frister", label: t("notifications.tabs.deadlines"), antall: frister.length, uleste: frister.filter((e) => !lestIds.has(e.id)).length },
+        { id: "oppgaver", label: t("notifications.tabs.assignments"), antall: oppgaver.length, uleste: oppgaver.filter((e) => !lestIds.has(e.id)).length },
         { id: "kunngjøringer", label: t("notifications.tabs.announcements"), antall: kunngjøringer.length, uleste: kunngjøringer.filter((e) => !lestIds.has(e.id)).length },
         { id: "hendelser", label: t("notifications.tabs.events"), antall: hendelser.length, uleste: hendelser.filter((e) => !lestIds.has(e.id)).length },
     ];
@@ -94,6 +102,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
     const aktiveListe =
         aktivTab === "alle" ? safeAlle
             : aktivTab === "frister" ? frister
+            : aktivTab === "oppgaver" ? oppgaver
             : aktivTab === "kunngjøringer" ? kunngjøringer
             : hendelser;
     const synligeElementer = useMemo(
@@ -127,9 +136,14 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
             <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
               <div className="flex items-center gap-3">
                 <Bell className="w-6 h-6 text-slate-700 dark:text-slate-300" />
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white">
-                    {t("notifications.title")}
-                </h1>
+                <div>
+                    <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white">
+                        {t("notifications.title")}
+                    </h1>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                        {t("notifications.feedDescription")}
+                    </p>
+                </div>
               </div>
             </div>
           </div>
@@ -190,11 +204,18 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                               }`}
                           >
                               {tab.label}
+                              <span className={`inline-flex items-center justify-center min-w-6 h-5 px-1.5 rounded-full text-xs font-semibold ${
+                                  aktivTab === tab.id
+                                      ? "bg-white/90 text-blue-700 dark:bg-slate-900/80 dark:text-blue-200"
+                                      : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                              }`}>
+                                  {tab.antall}
+                              </span>
                               {tab.uleste > 0 && (
                                   <span className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-xs font-semibold ${
                                       aktivTab === tab.id
                                           ? "bg-blue-600 dark:bg-blue-500 text-white"
-                                          : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                                          : "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
                                   }`}>
                                       {tab.uleste}
                                   </span>
@@ -224,6 +245,8 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                               ? t("notifications.empty.all")
                               : aktivTab === "frister"
                                   ? t("notifications.empty.deadlines")
+                                  : aktivTab === "oppgaver"
+                                      ? t("notifications.empty.assignments")
                                   : aktivTab === "kunngjøringer"
                                       ? t("notifications.empty.announcements")
                                       : t("notifications.empty.events")}
@@ -262,34 +285,44 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
 }
 
 function VarslingKort({ element, language }: { element: VarslingElement; language: "nb" | "en" }) {
-    if (element.type === "frist") return <FristKort frist={element} language={language} />;
+    if (element.type === "frist" || element.type === "oppgave") {
+        return <OppgaveKort oppgave={element} language={language} />;
+    }
     if (element.type === "kunngjoring") return <KunngjoringKort kunngjoring={element} language={language} />;
     return <HendelseKort hendelse={element} language={language} />;
 }
 
-function FristKort({ frist, language }: { frist: FristElement; language: "nb" | "en" }) {
+function OppgaveKort({
+    oppgave,
+    language,
+}: {
+    oppgave: FristElement | OppgaveElement;
+    language: "nb" | "en";
+}) {
     const { t } = useLanguage();
     const { ferdigeIdSet, toggleFerdig } = useManuellInnlevering();
-    const tidTekst = formaterTid(frist.timerIgjen, language);
+    const tidTekst = formaterTid(oppgave.timerIgjen, language);
     const datoLocale = language === "en" ? enUS : nb;
-    const assignmentId = Number(frist.id.replace("frist-", ""));
+    const assignmentId = Number(
+        oppgave.id.replace("frist-", "").replace("oppgave-", ""),
+    );
     const erManueltFerdig = Number.isFinite(assignmentId) && ferdigeIdSet.has(assignmentId);
     const fristTekst = [
-        frist.tittel,
-        `${language === "en" ? "Course" : "Emne"}: ${frist.emne}`,
+        oppgave.tittel,
+        `${language === "en" ? "Course" : "Emne"}: ${oppgave.emne}`,
         `${language === "en" ? "Deadline" : "Frist"}: ${format(
-            frist.dato,
+            oppgave.dato,
             language === "en" ? "MMMM d, yyyy 'at' HH:mm" : "d. MMMM yyyy 'kl.' HH:mm",
             { locale: datoLocale },
         )}`,
         t("notifications.remaining", { time: tidTekst }),
-        frist.erInnlevert ? t("notifications.submitted") : "",
+        oppgave.erInnlevert ? t("notifications.submitted") : "",
     ].filter(Boolean).join(". ");
 
     return (
-        <div className={`p-4 rounded-lg border ${fristFarge(frist.status)} transition-colors`}>
+        <div className={`p-4 rounded-lg border ${fristFarge(oppgave.status)} transition-colors`}>
             <div className="flex items-start gap-3">
-                {!frist.erInnlevert && Number.isFinite(assignmentId) && (
+                {!oppgave.erInnlevert && Number.isFinite(assignmentId) && (
                     <button
                         type="button"
                         role="checkbox"
@@ -310,24 +343,24 @@ function FristKort({ frist, language }: { frist: FristElement; language: "nb" | 
                         )}
                     </button>
                 )}
-                {(frist.erInnlevert || !Number.isFinite(assignmentId)) && (
+                {(oppgave.erInnlevert || !Number.isFinite(assignmentId)) && (
                     <Clock className="w-5 h-5 mt-0.5 shrink-0 text-slate-500 dark:text-slate-400" />
                 )}
                 <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                             <h2 className={`font-medium truncate text-base ${erManueltFerdig ? "line-through text-slate-400 dark:text-slate-500" : "text-slate-900 dark:text-white"}`}>
-                                {frist.tittel}
+                                {oppgave.tittel}
                             </h2>
                             <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                                <span>{frist.emne}</span>
-                                {frist.erInnlevert && (
+                                <span>{oppgave.emne}</span>
+                                {oppgave.erInnlevert && (
                                     <span className="inline-flex items-center gap-1 rounded-md bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 text-xs font-medium text-green-800 dark:text-green-300">
                                         <CheckCircle2 className="w-3 h-3" />
                                         {t("notifications.submitted")}
                                     </span>
                                 )}
-                                {erManueltFerdig && !frist.erInnlevert && (
+                                {erManueltFerdig && !oppgave.erInnlevert && (
                                     <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
                                         <CheckCircle2 className="w-3 h-3" />
                                         {t("notifications.manuallySubmitted")}
@@ -335,11 +368,11 @@ function FristKort({ frist, language }: { frist: FristElement; language: "nb" | 
                                 )}
                             </p>
                         </div>
-                        <span className={`shrink-0 px-2 py-1 rounded-md text-xs font-semibold ${fristBadgeFarge(frist.status)}`}>
+                        <span className={`shrink-0 px-2 py-1 rounded-md text-xs font-semibold ${fristBadgeFarge(oppgave.status)}`}>
                             <span className="sr-only">
-                                {frist.status === "kritisk"
+                                {oppgave.status === "kritisk"
                                     ? (language === "en" ? "Urgent" : "Haster")
-                                    : frist.status === "snart"
+                                    : oppgave.status === "snart"
                                       ? (language === "en" ? "Soon" : "Snart")
                                       : (language === "en" ? "Upcoming" : "Kommende")}
                                 {": "}
@@ -349,15 +382,15 @@ function FristKort({ frist, language }: { frist: FristElement; language: "nb" | 
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                         {t("notifications.deadlineAt", {
-                            date: format(frist.dato, language === "en" ? "MMMM d, yyyy 'at' HH:mm" : "d. MMMM yyyy 'kl.' HH:mm", { locale: datoLocale }),
+                            date: format(oppgave.dato, language === "en" ? "MMMM d, yyyy 'at' HH:mm" : "d. MMMM yyyy 'kl.' HH:mm", { locale: datoLocale }),
                         })}
                     </p>
                     <CanvasKIHandlinger
                         tekst={fristTekst}
                         storrelse="sm"
                         kildetype="assignment"
-                        tittel={frist.tittel}
-                        emne={frist.emne}
+                        tittel={oppgave.tittel}
+                        emne={oppgave.emne}
                     />
                 </div>
             </div>
@@ -367,10 +400,11 @@ function FristKort({ frist, language }: { frist: FristElement; language: "nb" | 
 
 function KunngjoringKort({ kunngjoring, language }: { kunngjoring: KunngjoringElement; language: "nb" | "en" }) {
     const datoLocale = language === "en" ? enUS : nb;
+    const preview = lagVarslingForhandsvisning(kunngjoring.melding);
     const kunngjoringsTekst = [
         kunngjoring.tittel,
         `${language === "en" ? "Course" : "Emne"}: ${kunngjoring.emne}`,
-        kunngjoring.melding,
+        preview,
     ].filter(Boolean).join(". ");
 
     return (
@@ -384,6 +418,11 @@ function KunngjoringKort({ kunngjoring, language }: { kunngjoring: KunngjoringEl
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                         {kunngjoring.emne} &middot; {formatDistanceToNow(kunngjoring.dato, { addSuffix: true, locale: datoLocale })}
                     </p>
+                    {preview && (
+                        <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                            {preview}
+                        </p>
+                    )}
                     <CanvasKIHandlinger
                         tekst={kunngjoringsTekst}
                         storrelse="sm"
@@ -423,6 +462,9 @@ function HendelseKort({ hendelse, language }: { hendelse: HendelseElement; langu
                         {hendelse.tittel}
                     </h2>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-slate-500 dark:text-slate-400">
+                        {hendelse.emne && (
+                            <span>{hendelse.emne}</span>
+                        )}
                         <span className="flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5" />
                             {format(hendelse.dato, language === "en" ? "MMM d HH:mm" : "d. MMM HH:mm", { locale: datoLocale })}

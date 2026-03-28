@@ -1,7 +1,7 @@
 /*
  * PWA Web App Manifest — gjør StudyWise installerbar som app på mobil og desktop.
  *
- * Android: Chrome viser automatisk "Installer app"-prompt.
+ * Android: kompatible nettlesere viser automatisk "Installer app"-prompt.
  * iOS: Safari → Del-knapp → "Legg til på Hjem-skjerm".
  *
  * Appen kjører i standalone-modus (fullskjerm uten adresselinje).

@@ -203,9 +203,12 @@ export const nbMessages = {
     empty: {
       all: "Ingen varslinger for øyeblikket.",
       announcements: "Ingen kunngjøringer for øyeblikket.",
+      assignments: "Ingen oppgaver for øyeblikket.",
       deadlines: "Ingen frister for øyeblikket.",
       events: "Ingen hendelser for øyeblikket.",
     },
+    feedDescription:
+      "Se hele Canvas-feeden din med oppgaver, kunngjøringer og hendelser samlet på ett sted.",
     markAllAsRead: "Marker alle som lest",
     loadMore: "Hent flere ({count} igjen)",
     missingCanvasToken:
@@ -219,6 +222,7 @@ export const nbMessages = {
     tabs: {
       all: "Alle",
       announcements: "Kunngjøringer",
+      assignments: "Oppgaver",
       deadlines: "Frister",
       events: "Hendelser",
     },
@@ -317,16 +321,56 @@ export const nbMessages = {
       },
       title: "Utseende",
     },
-    canvasContext: {
+    browserPush: {
+      title: "Nettleservarsler",
       description:
-        "Velg hvilken Canvas-data AI-en skal ha tilgang til når du chatter.",
+        "Få nettleservarsler på mobil og desktop når du har nye kunngjøringer, kommende frister, hendelser eller KI-svar.",
+      unsupported:
+        "Nettleseren eller enheten din støtter ikke nettleservarsler her, eller VAPID-konfigurasjon mangler.",
+      status: {
+        enabled: "Varsler er aktivert",
+        disabled: "Varsler er ikke aktivert",
+      },
+      permissionDenied:
+        "Nettleservarsler er blokkert. Tillat varsler i nettleserinnstillingene for å aktivere dette.",
+      permissionHint:
+        "Du må godkjenne nettleservarsler første gang du aktiverer funksjonen.",
+      enable: "Aktiver varsler",
+      disable: "Deaktiver varsler",
+      enableSuccessTitle: "Varsler aktivert",
+      enableSuccessDescription:
+        "Nettleservarsler er nå slått på for denne enheten.",
+      enableErrorTitle: "Kunne ikke aktivere varsler",
+      disableSuccessTitle: "Varsler deaktivert",
+      disableSuccessDescription:
+        "Nettleservarsler er slått av for denne enheten.",
+      disableErrorTitle: "Kunne ikke deaktivere varsler",
+      channels: {
+        announcements: "Kunngjøringer",
+        deadlines: "Frister",
+        events: "Hendelser",
+        aiResponses: "KI-svar",
+      },
+      sendTest: "Send testvarsel",
+      testSuccessTitle: "Testvarsel sendt",
+      testSuccessDescription:
+        "Hvis nettleservarsler er tillatt på enheten, skal du motta et varsel straks.",
+      testMissingTitle: "Ingen aktive varsler",
+      testMissingDescription:
+        "Vi fant ikke noe aktivt abonnement på denne enheten. Aktiver varsler først.",
+      testErrorTitle: "Kunne ikke sende testvarsel",
+      requiresCanvas:
+        "Koble til Canvas for å få varsler basert på kunngjøringer, frister og hendelser.",
+    },
+    canvasContext: {
+      description: "Velg hvilken Canvas-data AI-en skal ha tilgang til.",
       selector: {
         emptySelection:
           "Ingen data valgt. AI kan ikke svare på Canvas-spørsmål før du velger minst ett datasett.",
         options: {
           announcements: {
             description: "Kunngjøringer fra forelesere",
-            label: "Nyheter",
+            label: "Kunngjøringer",
           },
           assignments: {
             description: "Frister og innleveringer",
@@ -338,7 +382,7 @@ export const nbMessages = {
           },
           events: {
             description: "Kalender og møter",
-            label: "Hendelser",
+            label: "Kalender",
           },
         },
         title: "Gi AI tilgang til:",
@@ -461,8 +505,7 @@ export const nbMessages = {
       audit: "Revisjonslogg",
     },
     stats: {
-      note:
-        "Tallene under gjelder aktive brukere der det er relevant. Revisjon og datakvalitet vises som plattformdata direkte fra lagringen.",
+      note: "Tallene under gjelder aktive brukere der det er relevant. Revisjon og datakvalitet vises som plattformdata direkte fra lagringen.",
       sections: {
         users: "Brukere",
         conversations: "Samtaler og deling",
@@ -550,7 +593,8 @@ export const nbMessages = {
         "Er du sikker på at du vil slette denne brukeren? All data slettes permanent.",
       roleChanged: "Rolle endret",
       userDeleted: "Bruker slettet",
-      userDeletedPartial: "Brukeren er slettet, men ekstern opprydding kunne ikke fullføres automatisk.",
+      userDeletedPartial:
+        "Brukeren er slettet, men ekstern opprydding kunne ikke fullføres automatisk.",
       cannotChangeSelf: "Du kan ikke endre din egen rolle",
       cannotDeleteSelf: "Du kan ikke slette din egen konto herfra",
       you: "(deg)",
@@ -604,6 +648,8 @@ export const nbMessages = {
     addToWorkplanErrorDescription:
       "Prøv igjen eller kontakt support hvis feilen vedvarer",
     completedAt: "Fullført {date}",
+    collapseAll: "Lukk alle",
+    expandAll: "Utvid alle",
   },
   aiBreakdown: {
     assignmentContext: {
@@ -711,7 +757,8 @@ export const nbMessages = {
       "Kunne ikke koble til KI-assistenten. Prøv igjen senere.",
     loadingGeneric: "Laster...",
     loadingChatHistory: "Laster samtalehistorikk...",
-    documentAnalysisMetadata: "Dokument: {pages} sider, {characters} tegn{truncated}",
+    documentAnalysisMetadata:
+      "Dokument: {pages} sider, {characters} tegn{truncated}",
     documentAnalysisMetadataTruncated: " (forkortet)",
   },
   profil: {

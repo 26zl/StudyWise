@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { MessageSquare, Pin, Search, Trash2, Users } from "lucide-react";
 import { useMeg } from "@/app/auth/auth-api";
 import { skalRedirecteTilAuth, useAuthRedirect } from "@/app/auth/authUtils";
@@ -27,16 +28,12 @@ import { SharedChatListResponseSchema, type SharedChatListItem } from "common/ch
 
 type SamtalerTab = "history" | "shared";
 
-function parseTab(value: string | null): SamtalerTab {
-  if (value === "shared") {
-    return value;
-  }
-  return "history";
-}
-
 export default function SamtalehistorikkPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const [aktivTab, setAktivTab] = useQueryState(
+    "tab",
+    parseAsStringLiteral(["history", "shared"] as const).withDefault("history"),
+  );
   const { isLoaded } = useAuth();
   const megQuery = useMeg({ enabled: isLoaded });
   useAuthRedirect(megQuery);
@@ -50,8 +47,6 @@ export default function SamtalehistorikkPage() {
   const [links, setLinks] = useState<SharedChatListItem[]>([]);
   const [loadingLinks, setLoadingLinks] = useState(false);
   const [deletingAllLinks, setDeletingAllLinks] = useState(false);
-
-  const aktivTab = parseTab(searchParams.get("tab"));
   const brukernavn =
     megQuery.data?.user?.firstName ||
     megQuery.data?.user?.email?.split("@")?.[0];
@@ -110,19 +105,12 @@ export default function SamtalehistorikkPage() {
 
   const byttTab = useCallback(
     (nesteTab: SamtalerTab) => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (nesteTab === "history") {
-        params.delete("tab");
-      } else {
-        params.set("tab", nesteTab);
-      }
-
-      const query = params.toString();
-      router.replace(query ? `/dashboard/samtalehistorikk?${query}` : "/dashboard/samtalehistorikk", {
+      void setAktivTab(nesteTab === "history" ? null : nesteTab, {
+        history: "replace",
         scroll: false,
       });
     },
-    [router, searchParams],
+    [setAktivTab],
   );
 
   const åpneSamtale = useCallback(

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "predev": "pnpm --filter common build",
-    "dev": "concurrently -k \"pnpm dev:backend\" \"wait-on http://localhost:4000/health -t 60000 && pnpm dev:frontend\" \"wait-on http://localhost:4000/health -t 60000 && pnpm dev:docs\"",
+    "dev": "concurrently -k --kill-signal SIGKILL --kill-timeout 0 \"pnpm dev:backend\" \"wait-on http://localhost:4000/health -t 60000 && pnpm dev:frontend\" \"wait-on http://localhost:4000/health -t 60000 && pnpm dev:docs\"",
     "dev:frontend": "pnpm --filter frontend dev",
     "dev:backend": "pnpm --filter backend dev",
     "dev:docs": "pnpm --filter docs dev",

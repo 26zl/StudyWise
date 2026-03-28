@@ -20,6 +20,7 @@ import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { CanvasTokenNotice } from "@/app/components/canvas/CanvasTokenNotice";
 import {
     useCanvasAnnouncements,
+    useCanvasCourseAnnouncements,
     useCanvasCourses,
     useCanvasModules,
     useCanvasFiles,
@@ -165,9 +166,9 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
 function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const { data, isLoading, isError, error } = useCanvasCourses(harCanvasToken);
     const metadataQuery = useCoursesMetadata(harCanvasToken);
-    const { labels } = useCanvasLabels();
+    const { labels, language } = useCanvasLabels();
     const [valgtEmneId, settValgtEmneId] = useState<number | null>(null);
-    const [valgtEmneVisning, settValgtEmneVisning] = useState<"modules" | "files" | "frontpage" | "pages">("frontpage");
+    const [valgtEmneVisning, settValgtEmneVisning] = useState<"modules" | "files" | "frontpage" | "pages" | "announcements">("frontpage");
     const [valgtSide, settValgtSide] = useState<{ pageId: string; courseId: number } | null>(null);
 
     // Hent metadata for et emne (med fallback til "ukjent" hvis ikke lastet)
@@ -187,6 +188,10 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const filerQuery = useCanvasFiles(valgtEmneId, valgtEmneAktivert);
     const siderQuery = useCanvasPages(valgtEmneId, valgtEmneAktivert);
     const frontPageQuery = useCanvasFrontPage(valgtEmneId, valgtEmneAktivert);
+    const emneKunngjoringerQuery = useCanvasCourseAnnouncements(
+        valgtEmneId,
+        valgtEmneAktivert,
+    );
 
     if (!harCanvasToken) {
         return <CanvasTokenNotice />;
@@ -289,9 +294,79 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                     {labels.files}{meta?.filesCount ? ` (${meta.filesCount})` : ""}
                                 </button>
                             )}
+                            <button
+                                type="button"
+                                onClick={() => settValgtEmneVisning("announcements")}
+                                className={`px-3 py-1 rounded-lg text-sm border ${valgtEmneVisning === "announcements" ? "bg-blue-600 text-white border-blue-600" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"}`}
+                            >
+                                {labels.courseAnnouncements}
+                                {emneKunngjoringerQuery.data?.announcements?.length
+                                    ? ` (${emneKunngjoringerQuery.data.announcements.length})`
+                                    : ""}
+                            </button>
                         </div>
                     );
                 })()}
+
+                {valgtEmneVisning === "announcements" && (
+                    <div className="space-y-4">
+                        {emneKunngjoringerQuery.isLoading && (
+                            <LoadingView text={labels.courseAnnouncementsLoading} fullPage={false} />
+                        )}
+                        {emneKunngjoringerQuery.isError && (
+                            <FeilMelding
+                                melding={lagBrukervennligFeilmelding(
+                                    emneKunngjoringerQuery.error instanceof Error
+                                        ? emneKunngjoringerQuery.error
+                                        : null,
+                                    { canvas: true },
+                                    labels.courseAnnouncementsError,
+                                )}
+                            />
+                        )}
+                        {!emneKunngjoringerQuery.isLoading &&
+                            !emneKunngjoringerQuery.isError &&
+                            (emneKunngjoringerQuery.data?.announcements?.length ?? 0) === 0 && (
+                                <p className="text-sm text-slate-500 dark:text-slate-400">
+                                    {labels.courseAnnouncementsEmpty}
+                                </p>
+                            )}
+                        {(emneKunngjoringerQuery.data?.announcements ?? []).map((announcement) => (
+                            <article
+                                key={announcement.id}
+                                className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 transition-colors hover:border-slate-300 dark:hover:border-slate-600"
+                            >
+                                <header className="mb-3">
+                                    <h3 className="font-semibold text-slate-900 dark:text-white mb-1">
+                                        {announcement.title}
+                                    </h3>
+                                    {announcement.posted_at && (
+                                        <time className="text-sm text-slate-500 dark:text-slate-400">
+                                            {formaterDatoMedTid(announcement.posted_at, language)}
+                                        </time>
+                                    )}
+                                </header>
+
+                                {announcement.message && (
+                                    <CanvasHtmlContent
+                                        html={announcement.message}
+                                        className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300"
+                                    />
+                                )}
+
+                                {announcement.message && (
+                                    <CanvasKIHandlinger
+                                        tekst={announcement.message}
+                                        storrelse="md"
+                                        kildetype="announcement"
+                                        tittel={announcement.title}
+                                        emne={course?.name}
+                                    />
+                                )}
+                            </article>
+                        ))}
+                    </div>
+                )}
 
                 {valgtEmneVisning === "frontpage" && (
                     <div className="space-y-3">
@@ -697,8 +772,14 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     const visModulerKnapp = !meta || meta.hasModules || metadataHarIngenData;
                     const visSiderKnapp = !meta || meta.hasPages;
                     const visFilerKnapp = !meta || meta.hasFiles;
-                    const harInnhold = visForsideKnapp || visModulerKnapp || visSiderKnapp || visFilerKnapp;
-                    const åpneEmne = (visning: "frontpage" | "modules" | "files" | "pages") => {
+                    const visEmnekunngjoringerKnapp = true;
+                    const harInnhold =
+                        visForsideKnapp ||
+                        visModulerKnapp ||
+                        visSiderKnapp ||
+                        visFilerKnapp ||
+                        visEmnekunngjoringerKnapp;
+                    const åpneEmne = (visning: "frontpage" | "modules" | "files" | "pages" | "announcements") => {
                         settValgtEmneId(emne.id);
                         settValgtEmneVisning(visning);
                     };
@@ -727,6 +808,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                         <div className="h-6 w-16 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
                                         <div className="h-6 w-20 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
                                         <div className="h-6 w-14 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                                        <div className="h-6 w-28 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
                                     </>
                                 ) : (
                                     <>
@@ -767,6 +849,16 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                                 className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
                                             >
                                                 {labels.files}{meta?.filesCount ? ` (${meta.filesCount})` : ""}
+                                                <ChevronRight size={16} />
+                                            </button>
+                                        )}
+                                        {visEmnekunngjoringerKnapp && (
+                                            <button
+                                                type="button"
+                                                onClick={() => åpneEmne("announcements")}
+                                                className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
+                                            >
+                                                {labels.courseAnnouncements}
                                                 <ChevronRight size={16} />
                                             </button>
                                         )}

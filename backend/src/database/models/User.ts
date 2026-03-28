@@ -15,6 +15,13 @@ import {
     createDefaultManuellInnleveringState,
     createDefaultVarslerState,
 } from "common/auth";
+import {
+    createDefaultBrowserPushPreferences,
+    createDefaultBrowserPushSentState,
+    normalizeBrowserPushPreferences,
+    type BrowserPushPreferences,
+    type BrowserPushSentState,
+} from "common/notifications";
 
 const SHA256_HEX_REGEX = /^[a-f0-9]{64}$/i;
 
@@ -82,6 +89,8 @@ export interface IUser extends Document {
     canvasContextPreferences?: ICanvasContextPreferences;
     varslerState?: IVarslerState;
     manuellInnleveringState?: IManuellInnleveringState;
+    browserPushPreferences?: BrowserPushPreferences;
+    browserPushSentState?: BrowserPushSentState;
     uiPreferences?: {
         language?: "nb" | "en";
         theme?: "light" | "dark" | "system";
@@ -181,6 +190,23 @@ const UserSchema: Schema = new Schema(
                 ferdigeIds: { type: [Number], default: [] },
             },
             default: createDefaultManuellInnleveringState,
+        },
+        browserPushPreferences: {
+            type: {
+                enabled: { type: Boolean, default: false },
+                announcements: { type: Boolean, default: true },
+                deadlines: { type: Boolean, default: true },
+                events: { type: Boolean, default: true },
+                aiResponses: { type: Boolean, default: true },
+            },
+            default: createDefaultBrowserPushPreferences,
+            set: normalizeBrowserPushPreferences,
+        },
+        browserPushSentState: {
+            type: {
+                sentIds: { type: [String], default: [] },
+            },
+            default: createDefaultBrowserPushSentState,
         },
         uiPreferences: {
             type: {

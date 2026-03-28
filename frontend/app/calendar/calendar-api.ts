@@ -218,7 +218,7 @@ export function mapCalendarItems(items: CalendarItem[]): {
 }
 
 // Hjelpefunksjon for å sjekke om et element er en forelesning/kalenderhendelse
-function isLectureOrEvent(a: Assignment): boolean {
+export function isLectureOrEvent(a: Assignment): boolean {
   // Sjekk source
   if (a.source === "event" || a.source === "timetable") return true;
   // Sjekk raw_type (lagret i description) for calendar_events som feilaktig har source=todo

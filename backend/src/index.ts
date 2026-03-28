@@ -63,6 +63,8 @@ import {
 } from "./utils/health.js";
 import { isClientAvailable } from "./rutere/ki/aiClient.js";
 import { isCohereConfigured } from "./services/cohere-rerank.service.js";
+import { startPendingClerkDeletionPolling, processPendingClerkDeletions } from "./services/clerkDeletionRetry.service.js";
+import { startWebPushPolling, processWebPushNotifications } from "./services/webPush.service.js";
 
 // Initialiserer Express app
 const app = express();
@@ -363,6 +365,15 @@ connectToDatabase()
       logger.warn("Cohere ikke tilgjengelig ved oppstart");
     }
     const dependencyHealthInterval = startExternalDependencyHealthPolling();
+    const clerkDeletionRetryInterval = startPendingClerkDeletionPolling();
+    const webPushInterval = startWebPushPolling();
+
+    void processPendingClerkDeletions().catch((error) => {
+      logger.warn({ err: error }, "Initial retry av ventende Clerk-slettinger feilet");
+    });
+    void processWebPushNotifications().catch((error) => {
+      logger.warn({ err: error }, "Initial web-push-sjekk feilet");
+    });
 
     void cleanupExpiredSharedChats({ reason: "scheduled_cleanup" }).catch((error) => {
       logger.warn({ err: error }, "Initial cleanup av utløpte delinger feilet");
@@ -390,6 +401,8 @@ connectToDatabase()
         try {
           clearInterval(dependencyHealthInterval);
           clearInterval(shareCleanupInterval);
+          if (clerkDeletionRetryInterval) clearInterval(clerkDeletionRetryInterval);
+          if (webPushInterval) clearInterval(webPushInterval);
           // Lukk database-tilkobling
           await mongoose.connection.close();
           logger.info("MongoDB-tilkobling lukket");

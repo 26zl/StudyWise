@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { type VarslerState, normalizeVarslerState } from "common/auth";
 import { showToast } from "@/app/components/ui/Toaster";
+import { useCalendarData, isLectureOrEvent } from "../calendar/calendar-api";
 import {
     useCanvasAllAssignments,
     useCanvasAnnouncements,
@@ -14,13 +15,18 @@ import {
 } from "../canvas/canvas-api";
 import {
     buildFrister,
+    buildOppgaver,
     buildKunngjøringer,
     buildHendelser,
+    buildKalenderHendelser,
     buildAlleElementer,
+    buildAlleAktiviteter,
     type FristElement,
+    type OppgaveElement,
     type KunngjoringElement,
     type HendelseElement,
     type VarslingElement,
+    FRIST_VINDU_TIMER,
 } from "../lib/varsler";
 import { useUIStore } from "../store/uiStore";
 import { useManuellInnlevering } from "./useManuellInnlevering";
@@ -33,10 +39,31 @@ function createVarslerStateSignature(state: VarslerState): string {
     return `${lestSignature}::${toastSignature}`;
 }
 
-export type VarslingTab = "alle" | "frister" | "kunngjøringer" | "hendelser";
+export type VarslingTab =
+    | "alle"
+    | "frister"
+    | "oppgaver"
+    | "kunngjøringer"
+    | "hendelser";
 // Hoved-hook for å hente og organisere varsler-data, samt håndtere lest/ulest-status.
 export interface UseVarslerResult {
     frister: FristElement[];
+    kunngjøringer: KunngjoringElement[];
+    hendelser: HendelseElement[];
+    alleElementer: VarslingElement[];
+    ulesteCount: number;
+    lestIds: Set<string>;
+    markAllAsLest: () => void;
+    isLoading: boolean;
+    isError: boolean;
+    hasPartialError: boolean;
+    error: unknown;
+    isHydrated: boolean;
+}
+
+export interface UseVarslingerSideResult {
+    frister: OppgaveElement[];
+    oppgaver: OppgaveElement[];
     kunngjøringer: KunngjoringElement[];
     hendelser: HendelseElement[];
     alleElementer: VarslingElement[];
@@ -197,6 +224,111 @@ export function useVarsler(harCanvasToken: boolean): UseVarslerResult {
         lestIds,
         markAllAsLest,
         isLoading,
+        isError,
+        hasPartialError,
+        error,
+        isHydrated,
+    };
+}
+
+export function useVarslingerSide(
+    harCanvasToken: boolean,
+): UseVarslingerSideResult {
+    const announcementsQuery = useCanvasAnnouncements(harCanvasToken);
+    const coursesQuery = useCanvasCourses(harCanvasToken);
+    const calendarQuery = useCalendarData(harCanvasToken);
+
+    const lestIds = useUIStore((s) => s.varslerLestIds);
+    const markAllAsLestStore = useUIStore((s) => s.markAllVarslerAsLest);
+    const isHydrated = useUIStore((s) => s.varslerStateHydrated);
+
+    const emneNavnMap = useMemo(() => {
+        const courses = coursesQuery.data?.courses ?? [];
+        const map = new Map<string, string>();
+        for (const c of courses) map.set(`course_${c.id}`, c.name);
+        return map;
+    }, [coursesQuery.data]);
+
+    const kalenderElementer = calendarQuery.data?.assignments ?? [];
+    const oppgaveElementer = useMemo(
+        () =>
+            kalenderElementer.filter(
+                (element) => !isLectureOrEvent(element),
+            ),
+        [kalenderElementer],
+    );
+    const hendelsesElementer = useMemo(
+        () =>
+            kalenderElementer.filter((element) => isLectureOrEvent(element)),
+        [kalenderElementer],
+    );
+
+    const oppgaver = useMemo(
+        () => buildOppgaver(oppgaveElementer),
+        [oppgaveElementer],
+    );
+    const frister = useMemo(
+        () =>
+            oppgaver.filter(
+                (oppgave) =>
+                    oppgave.timerIgjen > 0 &&
+                    oppgave.timerIgjen <= FRIST_VINDU_TIMER,
+            ),
+        [oppgaver],
+    );
+    const kunngjøringer = useMemo(
+        () =>
+            buildKunngjøringer(
+                announcementsQuery.data?.announcements ?? [],
+                emneNavnMap,
+            ),
+        [announcementsQuery.data, emneNavnMap],
+    );
+    const hendelser = useMemo(
+        () => buildKalenderHendelser(hendelsesElementer),
+        [hendelsesElementer],
+    );
+    const alleElementer = useMemo(
+        () => buildAlleAktiviteter(oppgaver, kunngjøringer, hendelser),
+        [oppgaver, kunngjøringer, hendelser],
+    );
+
+    const ulesteCount = useMemo(
+        () => alleElementer.filter((e) => !lestIds.has(e.id)).length,
+        [alleElementer, lestIds],
+    );
+
+    const markAllAsLest = useMemo(
+        () => () => markAllAsLestStore(alleElementer.map((e) => e.id)),
+        [markAllAsLestStore, alleElementer],
+    );
+
+    const errors = [
+        announcementsQuery.error,
+        coursesQuery.error,
+        calendarQuery.error,
+    ].filter(Boolean);
+    const hasAnyData =
+        oppgaver.length > 0 ||
+        kunngjøringer.length > 0 ||
+        hendelser.length > 0;
+    const error = errors[0] ?? null;
+    const isError = errors.length > 0 && !hasAnyData;
+    const hasPartialError = errors.length > 0 && hasAnyData;
+
+    return {
+        frister,
+        oppgaver,
+        kunngjøringer,
+        hendelser,
+        alleElementer,
+        ulesteCount,
+        lestIds,
+        markAllAsLest,
+        isLoading:
+            announcementsQuery.isLoading ||
+            coursesQuery.isLoading ||
+            calendarQuery.isLoading,
         isError,
         hasPartialError,
         error,

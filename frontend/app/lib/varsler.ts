@@ -6,6 +6,7 @@
 
 import type { AssignmentMedEmne } from "../canvas/canvas-api";
 import { erInnlevert } from "../canvas/canvasUtils";
+import type { Assignment } from "common/calendar-ui";
 import type { Language } from "@/app/i18n/types";
 
 // —— Frist-terrkler og -typer ——
@@ -72,6 +73,18 @@ export interface FristElement {
     erInnlevert: boolean;
 }
 
+export interface OppgaveElement {
+    type: "oppgave";
+    id: string;
+    tittel: string;
+    emne: string;
+    dato: Date;
+    timerIgjen: number;
+    status: FristStatus;
+    erInnlevert: boolean;
+    url: string | null;
+}
+
 export interface KunngjoringElement {
     type: "kunngjoring";
     id: string;
@@ -88,9 +101,15 @@ export interface HendelseElement {
     dato: Date;
     sluttDato: Date | null;
     lokasjon: string | null;
+    emne?: string;
+    url?: string | null;
 }
 
-export type VarslingElement = FristElement | KunngjoringElement | HendelseElement;
+export type VarslingElement =
+    | FristElement
+    | OppgaveElement
+    | KunngjoringElement
+    | HendelseElement;
 
 // —— Bygg varsler-lister (bruker erInnlevert fra canvasUtils) ——
 
@@ -105,7 +124,7 @@ export function buildFrister(oppgaver: AssignmentMedEmne[]): FristElement[] {
             const timerIgjen = (new Date(o.due_at!).getTime() - nå) / (1000 * 60 * 60);
             return {
                 type: "frist" as const,
-                id: `frist-${o.id}`,
+                id: `oppgave-${o.id}`,
                 tittel: o.name,
                 emne: o.course_name,
                 dato: new Date(o.due_at!),
@@ -115,6 +134,29 @@ export function buildFrister(oppgaver: AssignmentMedEmne[]): FristElement[] {
             };
         })
         .sort((a, b) => a.timerIgjen - b.timerIgjen);
+}
+
+export function buildOppgaver(oppgaver: Assignment[]): OppgaveElement[] {
+    const nå = Date.now();
+    return oppgaver
+        .filter((oppgave) => oppgave.dueDate.getTime() > nå)
+        .map((oppgave) => {
+            const timerIgjen =
+                (oppgave.dueDate.getTime() - nå) / (1000 * 60 * 60);
+
+            return {
+                type: "oppgave" as const,
+                id: `oppgave-${oppgave.id}`,
+                tittel: oppgave.title,
+                emne: oppgave.courseName ?? oppgave.courseCode,
+                dato: oppgave.dueDate,
+                timerIgjen,
+                status: klassifiserFrist(timerIgjen),
+                erInnlevert: oppgave.completed,
+                url: oppgave.url ?? null,
+            };
+        })
+        .sort((a, b) => a.dato.getTime() - b.dato.getTime());
 }
 // Kunngjøringer og hendelser bygges direkte fra API-data, med enkel datoformatering.
 export function buildKunngjøringer(
@@ -147,6 +189,73 @@ export function buildHendelser(
             lokasjon: e.location_name ?? null,
         }))
         .sort((a, b) => b.dato.getTime() - a.dato.getTime());
+}
+
+export function buildKalenderHendelser(hendelser: Assignment[]): HendelseElement[] {
+    const nå = Date.now();
+    return hendelser
+        .filter((hendelse) => hendelse.dueDate.getTime() > nå)
+        .map((hendelse) => ({
+            type: "hendelse" as const,
+            id: `hendelse-${hendelse.id}`,
+            tittel: hendelse.title,
+            dato: hendelse.dueDate,
+            sluttDato: hendelse.endDate ?? null,
+            lokasjon: hendelse.location ?? null,
+            emne: hendelse.courseName ?? hendelse.courseCode,
+            url: hendelse.url ?? null,
+        }))
+        .sort((a, b) => a.dato.getTime() - b.dato.getTime());
+}
+
+export function buildAlleAktiviteter(
+    oppgaver: OppgaveElement[],
+    kunngjøringer: KunngjoringElement[],
+    hendelser: HendelseElement[],
+): VarslingElement[] {
+    const nå = Date.now();
+    const relevans = (element: VarslingElement) => {
+        const tidspunkt = element.dato.getTime();
+        if (element.type === "kunngjoring") {
+            return Math.abs(nå - tidspunkt);
+        }
+        return Math.max(0, tidspunkt - nå);
+    };
+
+    return [...oppgaver, ...kunngjøringer, ...hendelser].sort((a, b) => {
+        const forskjell = relevans(a) - relevans(b);
+        if (forskjell !== 0) return forskjell;
+        return b.dato.getTime() - a.dato.getTime();
+    });
+}
+
+export function lagVarslingForhandsvisning(
+    innhold: string | null | undefined,
+    maxLengde = 220,
+): string {
+    if (!innhold) return "";
+
+    const renset = innhold
+        .replace(/<style[\s\S]*?<\/style>/gi, " ")
+        .replace(/<script[\s\S]*?<\/script>/gi, " ")
+        .replace(/<br\s*\/?>/gi, " ")
+        .replace(/<\/p>/gi, " ")
+        .replace(/<\/div>/gi, " ")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/&amp;/gi, "&")
+        .replace(/&lt;/gi, "<")
+        .replace(/&gt;/gi, ">")
+        .replace(/&quot;/gi, "\"")
+        .replace(/&#39;/gi, "'")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    if (renset.length <= maxLengde) {
+        return renset;
+    }
+
+    return `${renset.slice(0, Math.max(0, maxLengde - 1)).trimEnd()}…`;
 }
 // Bygg en samlet liste av alle varslingselementer, sortert på dato (nyeste først)
 export function buildAlleElementer(

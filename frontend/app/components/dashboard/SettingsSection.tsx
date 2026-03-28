@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Moon, Sun, Key, User, Info, Bot, CheckCircle, Shield, ExternalLink, Languages, Cookie } from "lucide-react";
+import { Moon, Sun, Key, User, Info, Bot, CheckCircle, Shield, ExternalLink, Languages, Cookie, Bell } from "lucide-react";
 import { AUTH_ME_QUERY_KEY, CanvasTokenConflictError, useLagreCanvasToken, useSlettCanvasToken } from "@/app/auth/auth-api";
 import { resetCanvasTokenStatus, useCanvasUser } from "@/app/canvas/canvas-api";
 import { useTheme } from "next-themes";
@@ -20,6 +20,8 @@ import { CANVAS_INSTITUSJONER_NORGE } from "common/canvasInstitutions";
 import { CanvasBaseUrlSchema } from "common/auth";
 import { useCookieConsent } from "@/app/hooks/useCookieConsent";
 import { useLanguage } from "@/app/i18n";
+import { useBrowserPushNotifications } from "@/app/hooks/useBrowserPushNotifications";
+import type { BrowserPushPreferences } from "common/notifications";
 
 // Typer for SettingsSection props
 interface SettingsSectionProps {
@@ -33,6 +35,7 @@ interface SettingsSectionProps {
     etternavn?: string;
     /** Brukerens brukernavn (fra /me). */
     username?: string;
+    browserPushPreferences?: BrowserPushPreferences;
 }
 
 function getAvatarInitialer(value: string | null | undefined): string {
@@ -114,6 +117,7 @@ export function SettingsSection({
     fornavn,
     etternavn,
     username,
+    browserPushPreferences,
 }: SettingsSectionProps) {
     const { language, setLanguage, t } = useLanguage();
     const { setTheme, resolvedTheme } = useTheme();
@@ -199,6 +203,7 @@ export function SettingsSection({
     // Hent Canvas-brukerdata for profil-visning
     const canvasUserQuery = useCanvasUser(harCanvasToken);
     const canvasUser = canvasUserQuery.data;
+    const browserPush = useBrowserPushNotifications(browserPushPreferences);
     const visningsnavn = [fornavn, etternavn].filter(Boolean).join(" ");
     const brukernavn = username?.trim() || null;
 
@@ -420,6 +425,174 @@ export function SettingsSection({
                             {t("settings.accountSecurity.action")}
                             <ExternalLink size={14} />
                         </Link>
+                    </section>
+
+                    <section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
+                                <Bell size={20} className="text-slate-600 dark:text-slate-300" />
+                            </div>
+                            <h3 className="font-semibold text-slate-900 dark:text-white">
+                                {t("settings.browserPush.title")}
+                            </h3>
+                        </div>
+
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                            {t("settings.browserPush.description")}
+                        </p>
+
+                        {!browserPush.supported ? (
+                            <p className="text-sm text-slate-500 dark:text-slate-400">
+                                {t("settings.browserPush.unsupported")}
+                            </p>
+                        ) : (
+                            <div className="space-y-4">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <div>
+                                        <p className="text-sm font-medium text-slate-900 dark:text-white">
+                                            {browserPush.preferences.enabled
+                                                ? t("settings.browserPush.status.enabled")
+                                                : t("settings.browserPush.status.disabled")}
+                                        </p>
+                                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                                            {browserPush.permission === "denied"
+                                                ? t("settings.browserPush.permissionDenied")
+                                                : t("settings.browserPush.permissionHint")}
+                                        </p>
+                                    </div>
+                                    {browserPush.preferences.enabled ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                void browserPush.disable()
+                                                    .then(() => {
+                                                        showToast.success(
+                                                            t("settings.browserPush.disableSuccessTitle"),
+                                                            t("settings.browserPush.disableSuccessDescription"),
+                                                        );
+                                                    })
+                                                    .catch((error) => {
+                                                        showToast.error(
+                                                            t("settings.browserPush.disableErrorTitle"),
+                                                            lagBrukervennligFeilmelding(
+                                                                error instanceof Error ? error : null,
+                                                                {},
+                                                                t("errors.generic.default"),
+                                                                t,
+                                                            ),
+                                                        );
+                                                    });
+                                            }}
+                                            disabled={browserPush.isPending}
+                                            className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                                        >
+                                            {t("settings.browserPush.disable")}
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                void browserPush.enable()
+                                                    .then(() => {
+                                                        showToast.success(
+                                                            t("settings.browserPush.enableSuccessTitle"),
+                                                            t("settings.browserPush.enableSuccessDescription"),
+                                                        );
+                                                    })
+                                                    .catch((error) => {
+                                                        showToast.error(
+                                                            t("settings.browserPush.enableErrorTitle"),
+                                                            lagBrukervennligFeilmelding(
+                                                                error instanceof Error ? error : null,
+                                                                {},
+                                                                t("errors.generic.default"),
+                                                                t,
+                                                            ),
+                                                        );
+                                                    });
+                                            }}
+                                            disabled={browserPush.isPending}
+                                            className="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                                        >
+                                            {t("settings.browserPush.enable")}
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="grid gap-3 sm:grid-cols-3">
+                                    {([
+                                        ["announcements", t("settings.browserPush.channels.announcements")],
+                                        ["deadlines", t("settings.browserPush.channels.deadlines")],
+                                        ["events", t("settings.browserPush.channels.events")],
+                                        ["aiResponses", t("settings.browserPush.channels.aiResponses")],
+                                    ] as const).map(([key, label]) => (
+                                        <label
+                                            key={key}
+                                            className="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:text-slate-200"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={browserPush.preferences[key]}
+                                                onChange={(event) => {
+                                                    void browserPush.updatePreferences({
+                                                        [key]: event.target.checked,
+                                                    });
+                                                }}
+                                                disabled={browserPush.isPending}
+                                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span>{label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+
+                                <div className="flex flex-wrap gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            void browserPush.sendTest()
+                                                .then((delivered) => {
+                                                    if (delivered) {
+                                                        showToast.success(
+                                                            t("settings.browserPush.testSuccessTitle"),
+                                                            t("settings.browserPush.testSuccessDescription"),
+                                                        );
+                                                    } else {
+                                                        showToast.warning(
+                                                            t("settings.browserPush.testMissingTitle"),
+                                                            t("settings.browserPush.testMissingDescription"),
+                                                        );
+                                                    }
+                                                })
+                                                .catch((error) => {
+                                                    showToast.error(
+                                                        t("settings.browserPush.testErrorTitle"),
+                                                        lagBrukervennligFeilmelding(
+                                                            error instanceof Error ? error : null,
+                                                            {},
+                                                            t("errors.generic.default"),
+                                                            t,
+                                                        ),
+                                                    );
+                                                });
+                                        }}
+                                        disabled={
+                                            browserPush.isPending ||
+                                            !browserPush.preferences.enabled
+                                        }
+                                        className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                                    >
+                                        {t("settings.browserPush.sendTest")}
+                                    </button>
+                                </div>
+
+                                {!harCanvasToken && (
+                                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                                        {t("settings.browserPush.requiresCanvas")}
+                                    </p>
+                                )}
+                            </div>
+                        )}
                     </section>
 
                     <section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">

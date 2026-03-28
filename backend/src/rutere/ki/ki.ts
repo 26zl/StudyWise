@@ -37,6 +37,10 @@ import { trimToTokenLimit, countTokens } from "../../utils/tokenCounter.js";
 import { knyttCanvasTokenValgfritt } from "../../middleware/auth.js";
 import { setupSSE, writeSSE } from "../../utils/sseUtils.js";
 import { createLinkedAbortController } from "../../utils/abort.js";
+import {
+  AI_COMPLETION_PUSH_MIN_DURATION_MS,
+  sendAICompletionWebPush,
+} from "../../services/webPush.service.js";
 
 /** Parser JSON sync-status fra Redis. Returnerer statusfeltet, eller null ved ugyldig verdi. */
 function parseSyncStatus(raw: string | null): string | null {
@@ -608,6 +612,7 @@ router.get("/models", (_req, res) => {
 // Hovedendepunkt for chat
 router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
   logger.info("Mottok chat-forespørsel");
+  const chatStartedAt = Date.now();
 
   // Sjekk autentisering
   if (!req.user?.id) {
@@ -1120,6 +1125,20 @@ Rules:
     // writeSSE base64-koder JSON-payloaden før den skrives til event-streamen.
     if (writeSSE(res, payload)) {
       res.end();
+    }
+
+    const responseDurationMs = Date.now() - chatStartedAt;
+    if (responseDurationMs >= AI_COMPLETION_PUSH_MIN_DURATION_MS) {
+      void sendAICompletionWebPush({
+        userId: req.user!.id,
+        url: "/dashboard",
+        tag: `studywise-ai-response-${req.user!.id}`,
+      }).catch((err) => {
+        logger.warn(
+          { err, userId: req.user!.id },
+          "Kunne ikke sende nettleservarsel for ferdig KI-svar",
+        );
+      });
     }
 
     void audit({

@@ -45,6 +45,7 @@ export type VisningType =
     | "varslinger"
     | "settings"
     | "quiz"
+    | "flashcards"
     | "admin";
 
 // Props for Sidebar-komponenten
@@ -445,7 +446,12 @@ export function Sidebar({
                         </Link>
 
                         {/* Quiz med KI */}
-                        <NavElement view="quiz" icon={Brain} label={t("dashboard.sidebar.quiz")} />
+                        <NavElement
+                            view="quiz"
+                            icon={Brain}
+                            label={t("dashboard.sidebar.quiz")}
+                            isActiveOverride={erPåDashboard && (effektivVisning === "quiz" || effektivVisning === "flashcards")}
+                        />
                         
                         <div className={`flex items-center justify-between px-5 ${erBookmarksUtvidet ? "pt-2 pb-3" : "pt-2 pb-1"}`}>
                             <Link

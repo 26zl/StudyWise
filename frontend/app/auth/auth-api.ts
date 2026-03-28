@@ -25,6 +25,7 @@ import {
   type UIPreferences,
   type ManuellInnleveringState,
 } from "common/auth";
+import { type BrowserPushPreferences } from "common/notifications";
 import { CanvasErrorCodeSchema } from "common/canvasErrors";
 import { AppError, CanvasApiError } from "../lib/errors";
 import { fetchApi } from "../lib/apiClient";
@@ -67,6 +68,8 @@ function mergeCachedUserPreferences(
       varslerState: updated.varslerState ?? current.user.varslerState,
       manuellInnleveringState:
         updated.manuellInnleveringState ?? current.user.manuellInnleveringState,
+      browserPushPreferences:
+        updated.browserPushPreferences ?? current.user.browserPushPreferences,
       uiPreferences: updated.uiPreferences ?? current.user.uiPreferences,
     },
   });
@@ -380,6 +383,7 @@ type UserPreferencesUpdate = {
   canvasContextPreferences?: CanvasContextPreferences;
   varslerState?: VarslerState;
   manuellInnleveringState?: ManuellInnleveringState;
+  browserPushPreferences?: BrowserPushPreferences;
   uiPreferences?: UIPreferences;
 };
 
@@ -435,6 +439,14 @@ export function useOppdaterManuellInnleveringState() {
   return useOppdaterBrukerPreferanser(
     (manuellInnleveringState: ManuellInnleveringState) => ({
       manuellInnleveringState,
+    }),
+  );
+}
+
+export function useOppdaterBrowserPushPreferanser() {
+  return useOppdaterBrukerPreferanser(
+    (browserPushPreferences: BrowserPushPreferences) => ({
+      browserPushPreferences,
     }),
   );
 }

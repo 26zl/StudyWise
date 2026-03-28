@@ -269,6 +269,23 @@ export function useCanvasAnnouncements(enabled = true) {
   });
 }
 
+export function useCanvasCourseAnnouncements(
+  courseId: number | null,
+  enabled = true,
+) {
+  const isEnabled = useCanvasEnabled(enabled);
+  return useQuery({
+    queryKey: ["canvas", "course-announcements", courseId],
+    queryFn: () =>
+      fetchCanvas(
+        `/emner/${courseId}/announcements`,
+        AnnouncementsResponseSchema,
+      ),
+    enabled: !!courseId && isEnabled,
+    ...canvasQueryOptions,
+  });
+}
+
 // Hent moduler for et spesifikt emne
 export function useCanvasModules(courseId: number | null, enabled = true) {
   const isEnabled = useCanvasEnabled(enabled);

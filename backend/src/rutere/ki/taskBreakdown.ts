@@ -27,6 +27,10 @@ import {
 import { DEFAULT_MODEL } from "./aiModels.js";
 import { chatCompletion, isClientAvailable } from "./aiClient.js";
 import { handleAIJsonRouteError } from "./handleAIError.js";
+import {
+  AI_COMPLETION_PUSH_MIN_DURATION_MS,
+  sendAICompletionWebPush,
+} from "../../services/webPush.service.js";
 
 const router = Router();
 router.use(rateLimitKi);
@@ -110,6 +114,7 @@ router.post("/:assignmentId/generate", async (req, res) => {
           year: "numeric",
         })
       : "Ikke spesifisert";
+    const generationStartedAt = Date.now();
 
     const userPrompt = `Bryt ned denne oppgaven:
 
@@ -145,6 +150,22 @@ Frist: ${dueDateText}`;
     }).catch((err) => {
       logger.warn({ err, userId, assignmentId }, "Audit-feil for task-breakdown");
     });
+
+    const generationDurationMs = Date.now() - generationStartedAt;
+    if (generationDurationMs >= AI_COMPLETION_PUSH_MIN_DURATION_MS) {
+      void sendAICompletionWebPush({
+        userId,
+        title: "StudyWise: Deloppgavene er klare",
+        body: "KI har generert deloppgaver for oppgaven din i StudyWise.",
+        url: "/ai-breakdown",
+        tag: `studywise-ai-task-breakdown-${userId}-${assignmentId}`,
+      }).catch((err) => {
+        logger.warn(
+          { err, userId, assignmentId },
+          "Kunne ikke sende nettleservarsel for ferdig task-breakdown",
+        );
+      });
+    }
 
     return res.json(TaskBreakdownResponseSchema.parse({ subtasks }));
   } catch (error) {
