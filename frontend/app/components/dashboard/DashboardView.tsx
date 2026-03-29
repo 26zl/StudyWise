@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useEffect, useRef, Suspense, lazy, useCallback } from "react";
+import { useEffect, useRef, Suspense, lazy, useCallback, useState } from "react";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { useQueryClient } from "@tanstack/react-query";
 import { LoadingView } from "@/app/components/ui/Loading";
@@ -25,6 +25,8 @@ import {
   SidebarAppLoadingState,
   SidebarAppShell,
 } from "@/app/components/layout/SidebarAppShell";
+import { ProfileCompletionModal } from "@/app/components/auth/ProfileCompletionModal";
+import { isProfileIncomplete } from "common/auth";
 import { useLanguage } from "@/app/i18n";
 import type { MessageKey } from "@/app/i18n";
 
@@ -128,6 +130,13 @@ export function DashboardView() {
         megQuery.data?.user?.firstName ||
         megQuery.data?.user?.email?.split("@")?.[0];
     const brukerRolle = megQuery.data?.user?.role;
+
+    // Profile completion modal - shown when first/last name is incomplete (e.g., single initial from OAuth)
+    const [profileModalDismissed, setProfileModalDismissed] = useState(false);
+    const showProfileCompletionModal =
+        megQuery.isSuccess &&
+        isProfileIncomplete(megQuery.data?.user) &&
+        !profileModalDismissed;
 
     // Hjelpefunksjon for å bestemme hvilken Canvas-visning som skal vises
     const hentCanvasVisning = () => {
@@ -241,6 +250,14 @@ export function DashboardView() {
             )}
             </>
             )}
+
+            {/* Profile completion modal - prompts user to complete profile if first/last name is incomplete */}
+            <ProfileCompletionModal
+                isOpen={showProfileCompletionModal}
+                onClose={() => setProfileModalDismissed(true)}
+                currentFirstName={megQuery.data?.user?.firstName}
+                currentLastName={megQuery.data?.user?.lastName}
+            />
         </SidebarAppShell>
     );
 }

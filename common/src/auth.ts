@@ -89,6 +89,18 @@ export const AUTH_PROVIDERS = ["google", "microsoft", "email"] as const;
 export type AuthProvider = (typeof AUTH_PROVIDERS)[number];
 export const AuthProviderSchema = z.enum(AUTH_PROVIDERS);
 
+/** OAuth providers that use external account linking (ikke email). */
+export const OAUTH_PROVIDERS = ["google", "microsoft"] as const;
+export type OAuthProvider = (typeof OAUTH_PROVIDERS)[number];
+export const OAuthProviderSchema = z.enum(OAUTH_PROVIDERS);
+
+/** OAuth account linked to a user (stores provider + providerAccountId for uniqueness). */
+export const OAuthAccountSchema = z.object({
+  provider: OAuthProviderSchema,
+  providerAccountId: z.string().min(1, "OAuth provider account ID er påkrevd"),
+});
+export type OAuthAccount = z.infer<typeof OAuthAccountSchema>;
+
 /** RBAC: kun vanlig bruker og admin. */
 export const APP_ROLES = ["user", "admin"] as const;
 export type UserRole = (typeof APP_ROLES)[number];
@@ -221,6 +233,25 @@ export const PreferencesUpdateSchema = z
     }
   });
 
+/** Minimum length for first name to be considered complete (avoids single initials from OAuth). */
+export const MIN_FIRST_NAME_LENGTH = 2;
+
+/** Checks if a first name is valid (not just an initial). */
+export function isValidFirstName(firstName: string | null | undefined): boolean {
+  return typeof firstName === "string" && firstName.trim().length >= MIN_FIRST_NAME_LENGTH;
+}
+
+/** Checks if a last name is valid. */
+export function isValidLastName(lastName: string | null | undefined): boolean {
+  return typeof lastName === "string" && lastName.trim().length >= MIN_FIRST_NAME_LENGTH;
+}
+
+/** Checks if user profile is incomplete (missing or too short first/last name). */
+export function isProfileIncomplete(user: { firstName?: string; lastName?: string } | null | undefined): boolean {
+  if (!user) return true;
+  return !isValidFirstName(user.firstName) || !isValidLastName(user.lastName);
+}
+
 // Auth bruker (lokal)
 export const AuthBrukerSchema = z.object({
   id: z.string(),
@@ -245,8 +276,18 @@ export const AuthBrukerSchema = z.object({
 /** Oppdatering av brukerprofil (fornavn, etternavn). Minst ett felt må oppgis. */
 export const ProfileUpdateSchema = z
   .object({
-    firstName: z.string().trim().max(100, "Fornavn kan maks være 100 tegn").optional(),
-    lastName: z.string().trim().max(100, "Etternavn kan maks være 100 tegn").optional(),
+    firstName: z
+      .string()
+      .trim()
+      .min(MIN_FIRST_NAME_LENGTH, `Fornavn må være minst ${MIN_FIRST_NAME_LENGTH} tegn`)
+      .max(100, "Fornavn kan maks være 100 tegn")
+      .optional(),
+    lastName: z
+      .string()
+      .trim()
+      .min(MIN_FIRST_NAME_LENGTH, `Etternavn må være minst ${MIN_FIRST_NAME_LENGTH} tegn`)
+      .max(100, "Etternavn kan maks være 100 tegn")
+      .optional(),
     /** Hopp over tilbakesynk til Clerk (brukes når endringen allerede kom fra Clerk). */
     skipClerkSync: z.boolean().optional(),
   })
@@ -320,6 +361,36 @@ export const AUTH_CHANNEL_NAME = "studywise_auth_sync";
 export const AUTH_CSRF_HEADER_NAME = "x-studywise-csrf";
 export const AUTH_CSRF_HEADER_VALUE = "1";
 
+/** Username constraints. */
+export const USERNAME_MIN_LENGTH = 3;
+export const USERNAME_MAX_LENGTH = 30;
+export const USERNAME_PATTERN = /^[a-zA-Z0-9_]+$/;
+
+/** Validates username format (length and allowed characters). */
+export function isValidUsernameFormat(username: string): boolean {
+  if (!username || typeof username !== "string") return false;
+  const trimmed = username.trim();
+  return (
+    trimmed.length >= USERNAME_MIN_LENGTH &&
+    trimmed.length <= USERNAME_MAX_LENGTH &&
+    USERNAME_PATTERN.test(trimmed)
+  );
+}
+
+export const UsernameCheckQuerySchema = z.object({
+  username: z
+    .string()
+    .trim()
+    .min(USERNAME_MIN_LENGTH, `Brukernavn må være minst ${USERNAME_MIN_LENGTH} tegn`)
+    .max(USERNAME_MAX_LENGTH, `Brukernavn kan maks være ${USERNAME_MAX_LENGTH} tegn`)
+    .regex(USERNAME_PATTERN, "Brukernavn kan kun inneholde bokstaver, tall og understrek"),
+});
+
+export const UsernameCheckResponseSchema = z.object({
+  available: z.boolean(),
+  username: z.string(),
+});
+
 // TypeScript typer eksportering
 export type CanvasTokenRequest = z.infer<typeof CanvasTokenRequestSchema>;
 export type CanvasTokenResponse = z.infer<typeof CanvasTokenResponseSchema>;
@@ -331,3 +402,5 @@ export type PreferencesResponse = z.infer<typeof PreferencesResponseSchema>;
 export type AccountDeletionResponse = z.infer<typeof AccountDeletionResponseSchema>;
 export type AuthTurnstileVerifyRequest = z.infer<typeof AuthTurnstileVerifyRequestSchema>;
 export type AuthTurnstileVerifyResponse = z.infer<typeof AuthTurnstileVerifyResponseSchema>;
+export type UsernameCheckQuery = z.infer<typeof UsernameCheckQuerySchema>;
+export type UsernameCheckResponse = z.infer<typeof UsernameCheckResponseSchema>;

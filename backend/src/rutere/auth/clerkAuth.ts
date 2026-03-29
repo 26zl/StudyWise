@@ -6,7 +6,7 @@ import { createClerkClient, verifyToken } from "@clerk/backend";
 import { User } from "../../database/models/User.js";
 import { logger } from "../../utils/logger.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
-import type { UserRole, AuthProvider } from "common/auth";
+import type { UserRole, AuthProvider, OAuthAccount, OAuthProvider } from "common/auth";
 import type { IUser } from "../../database/models/User.js";
 import { getConfiguredWebOrigins } from "../../utils/webOrigins.js";
 import { sanitizeUsername } from "../../database/models/User.js";
@@ -27,6 +27,8 @@ type ClerkProfile = {
   firstName?: string;
   lastName?: string;
   authProvider?: AuthProvider;
+  /** OAuth-kontoer fra Clerk (provider + providerAccountId). */
+  oauthAccounts: OAuthAccount[];
 };
 
 // Clerk backend client brukes for å hente brukerinfo og sjekke helse, ikke for auth-verifisering – det gjøres med verifyToken() direkte i getClerkUserIdFromToken() for å unngå overhead ved å opprette klient i auth-flow.
@@ -62,6 +64,59 @@ function isDuplicateKeyError(error: unknown): boolean {
     "code" in error &&
     (error as { code?: number }).code === 11000
   );
+}
+
+/** Sjekker om duplicate key error er for OAuth accounts index. */
+function isOAuthAccountDuplicateKeyError(error: unknown): boolean {
+  if (!isDuplicateKeyError(error)) return false;
+  const keyPattern = (error as { keyPattern?: Record<string, unknown> }).keyPattern;
+  return !!(keyPattern && "oauthAccounts.provider" in keyPattern);
+}
+
+/** OAuth account conflict result type. */
+export type OAuthAccountConflictResult = {
+  __oauthAccountConflict: true;
+  provider: OAuthProvider;
+  conflictingUserId: string;
+};
+
+/** Type-guard for OAuthAccountConflictResult. */
+export function isOAuthAccountConflict(
+  result: IUser | AccountConflictResult | UserDeletedResult | OAuthAccountConflictResult | UsernameConflictResult | null,
+): result is OAuthAccountConflictResult {
+  return result !== null && typeof result === "object" && "__oauthAccountConflict" in result;
+}
+
+/**
+ * Sjekker om noen av OAuth-kontoene allerede er koblet til en annen bruker.
+ * Returnerer konfliktinfo hvis funnet, null hvis ingen konflikt.
+ */
+async function checkOAuthAccountConflicts(
+  oauthAccounts: OAuthAccount[],
+  excludeUserId?: IUser["_id"] | null,
+): Promise<OAuthAccountConflictResult | null> {
+  if (oauthAccounts.length === 0) return null;
+
+  for (const account of oauthAccounts) {
+    const filter: Record<string, unknown> = {
+      "oauthAccounts.provider": account.provider,
+      "oauthAccounts.providerAccountId": account.providerAccountId,
+    };
+    if (excludeUserId) {
+      filter._id = { $ne: excludeUserId };
+    }
+
+    const conflictingUser = await User.findOne(filter).select("_id");
+    if (conflictingUser) {
+      return {
+        __oauthAccountConflict: true,
+        provider: account.provider,
+        conflictingUserId: conflictingUser._id.toString(),
+      };
+    }
+  }
+
+  return null;
 }
 
 /** Normaliserer e-post til lowercase og trim; returnerer null ved tom/manglende. */
@@ -170,20 +225,32 @@ async function getClerkProfile(
     return null;
   }
 
-  // Bestem innloggingsmetode fra Clerk external accounts
+  // Bestem innloggingsmetode og samle OAuth-kontoer fra Clerk external accounts
   let authProvider: AuthProvider | undefined;
+  const oauthAccounts: OAuthAccount[] = [];
   const externalAccounts = clerkUser.externalAccounts ?? [];
+
   for (const account of externalAccounts) {
-    const provider = account.provider?.toLowerCase() ?? "";
-    if (provider.includes("google") || provider === "oauth_google") {
-      authProvider = "google";
-      break;
+    const rawProvider = account.provider?.toLowerCase() ?? "";
+    let mappedProvider: OAuthProvider | null = null;
+
+    if (rawProvider.includes("google") || rawProvider === "oauth_google") {
+      mappedProvider = "google";
+      if (!authProvider) authProvider = "google";
+    } else if (rawProvider.includes("microsoft") || rawProvider === "oauth_microsoft") {
+      mappedProvider = "microsoft";
+      if (!authProvider) authProvider = "microsoft";
     }
-    if (provider.includes("microsoft") || provider === "oauth_microsoft") {
-      authProvider = "microsoft";
-      break;
+
+    // Lagre OAuth-konto med providerAccountId for å forhindre at samme konto brukes på flere brukere
+    if (mappedProvider && account.providerUserId) {
+      oauthAccounts.push({
+        provider: mappedProvider,
+        providerAccountId: account.providerUserId,
+      });
     }
   }
+
   if (!authProvider) {
     authProvider = "email";
   }
@@ -194,6 +261,7 @@ async function getClerkProfile(
     firstName: clerkUser.firstName ?? undefined,
     lastName: clerkUser.lastName ?? undefined,
     authProvider,
+    oauthAccounts,
   };
 }
 
@@ -407,18 +475,31 @@ export interface UserDeletedResult {
   __userDeleted: true;
 }
 
+/** Username conflict result type. */
+export type UsernameConflictResult = {
+  __usernameConflict: true;
+  username: string;
+};
+
 /** Type-guard for AccountConflictResult. */
 export function isAccountConflict(
-  result: IUser | AccountConflictResult | UserDeletedResult | null,
+  result: IUser | AccountConflictResult | UserDeletedResult | OAuthAccountConflictResult | UsernameConflictResult | null,
 ): result is AccountConflictResult {
   return result !== null && typeof result === "object" && "__accountConflict" in result;
 }
 
 /** Type-guard for UserDeletedResult. */
 export function isUserDeleted(
-  result: IUser | AccountConflictResult | UserDeletedResult | null,
+  result: IUser | AccountConflictResult | UserDeletedResult | OAuthAccountConflictResult | UsernameConflictResult | null,
 ): result is UserDeletedResult {
   return result !== null && typeof result === "object" && "__userDeleted" in result;
+}
+
+/** Type-guard for UsernameConflictResult. */
+export function isUsernameConflict(
+  result: IUser | AccountConflictResult | UserDeletedResult | OAuthAccountConflictResult | UsernameConflictResult | null,
+): result is UsernameConflictResult {
+  return result !== null && typeof result === "object" && "__usernameConflict" in result;
 }
 
 /**
@@ -426,10 +507,12 @@ export function isUserDeleted(
  * Eksisterende brukere får lokal profil oppdatert fra Clerk med jevne mellomrom i bakgrunnen.
  * Ved e-postkonflikt med annen Clerk-konto re-linkes brukeren automatisk.
  * Returnerer AccountConflictResult kun hvis re-linking feiler (race condition).
+ * Returnerer OAuthAccountConflictResult hvis OAuth-kontoen allerede er koblet til en annen bruker.
+ * Returnerer UsernameConflictResult hvis brukernavnet allerede er tatt.
  */
 export async function findOrCreateUserByClerkId(
   clerkUserId: string,
-): Promise<IUser | AccountConflictResult | UserDeletedResult | null> {
+): Promise<IUser | AccountConflictResult | UserDeletedResult | OAuthAccountConflictResult | UsernameConflictResult | null> {
   // +canvasApiToken slik at GET /me kan gjenbruke bruker uten ekstra DB-kall
   const existing = await User.findOne({ clerkId: clerkUserId }).select("+canvasApiToken");
   if (existing) {
@@ -453,15 +536,36 @@ export async function findOrCreateUserByClerkId(
     const profile = await getClerkProfile(clerkUserId);
     if (!profile) return null;
 
-    const { email, firstName, lastName } = profile;
+    const { email, firstName, lastName, oauthAccounts } = profile;
     const clerkProfileSyncedAt = new Date();
     const usernameAction = await resolveUsernameSyncAction(profile.username);
 
-    if (usernameAction.mode === "keep") {
-      logger.info(
-        { clerkUserId, conflictingUserId: usernameAction.conflictingUserId },
-        "Clerk-brukernavn allerede i bruk; oppretter bruker uten lokalt brukernavn",
+    // Sjekk om noen av OAuth-kontoene allerede er koblet til en annen bruker
+    if (oauthAccounts.length > 0) {
+      const oauthConflict = await checkOAuthAccountConflicts(oauthAccounts);
+      if (oauthConflict) {
+        logger.warn(
+          {
+            clerkUserId,
+            provider: oauthConflict.provider,
+            conflictingUserId: oauthConflict.conflictingUserId,
+          },
+          "OAuth-konto er allerede koblet til en annen bruker – avviser registrering",
+        );
+        return oauthConflict;
+      }
+    }
+
+    // Sjekk om brukernavnet allerede er tatt – avvis registrering med klar feilmelding
+    if (usernameAction.mode === "keep" && profile.username) {
+      logger.warn(
+        { clerkUserId, username: profile.username, conflictingUserId: usernameAction.conflictingUserId },
+        "Brukernavn er allerede tatt – avviser registrering",
       );
+      return {
+        __usernameConflict: true,
+        username: profile.username,
+      };
     }
 
     const existingByEmail = await User.findOne({ email });
@@ -579,6 +683,7 @@ export async function findOrCreateUserByClerkId(
       firstName,
       lastName,
       authProvider: profile.authProvider,
+      oauthAccounts: oauthAccounts.length > 0 ? oauthAccounts : undefined,
       ...(includeUsername && usernameAction.mode === "set"
         ? {
             username: usernameAction.username,
@@ -595,6 +700,22 @@ export async function findOrCreateUserByClerkId(
       let duplicateError = error;
       if (!isDuplicateKeyError(error)) {
         throw error;
+      }
+
+      // Sjekk om duplikatfeilen er for OAuth-konto (strengt - avvis registrering)
+      if (isOAuthAccountDuplicateKeyError(error)) {
+        const oauthConflict = await checkOAuthAccountConflicts(oauthAccounts);
+        if (oauthConflict) {
+          logger.warn(
+            {
+              clerkUserId,
+              provider: oauthConflict.provider,
+              conflictingUserId: oauthConflict.conflictingUserId,
+            },
+            "OAuth-konto konflikt oppdaget via duplicate key error",
+          );
+          return oauthConflict;
+        }
       }
 
       if (usernameAction.mode === "set") {
@@ -616,6 +737,15 @@ export async function findOrCreateUserByClerkId(
             if (!isDuplicateKeyError(fallbackError)) {
               throw fallbackError;
             }
+
+            // Sjekk igjen for OAuth-konflikt i fallback-forsøket
+            if (isOAuthAccountDuplicateKeyError(fallbackError)) {
+              const oauthConflict = await checkOAuthAccountConflicts(oauthAccounts);
+              if (oauthConflict) {
+                return oauthConflict;
+              }
+            }
+
             duplicateError = fallbackError;
           }
         }

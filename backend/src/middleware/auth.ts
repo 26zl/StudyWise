@@ -11,7 +11,7 @@ import { apiError } from "../utils/apiError.js";
 import { normalizeCanvasBaseUrl, StoredCanvasBaseUrlSchema } from "common/auth";
 import type { UserRole } from "common/auth";
 import type { IUser } from "../database/models/User.js";
-import { getClerkUserIdFromToken, findOrCreateUserByClerkId, isAccountConflict, isUserDeleted } from "../rutere/auth/clerkAuth.js";
+import { getClerkUserIdFromToken, findOrCreateUserByClerkId, isAccountConflict, isUserDeleted, isOAuthAccountConflict, isUsernameConflict } from "../rutere/auth/clerkAuth.js";
 import { audit, AUDIT_ACTIONS } from "../utils/auditLog.js";
 import { checkSecurityThresholds } from "../utils/securityAlert.js";
 
@@ -30,6 +30,8 @@ type AuthResolution =
   | { status: "missing_token" }
   | { status: "invalid_or_expired" }
   | { status: "account_conflict"; clerkUserId: string }
+  | { status: "oauth_account_conflict"; clerkUserId: string; provider: string }
+  | { status: "username_conflict"; clerkUserId: string; username: string }
   | { status: "user_deleted"; clerkUserId: string }
   | { status: "user_sync_failed"; clerkUserId: string };
 
@@ -58,6 +60,14 @@ async function resolveAuthentication(req: Request): Promise<AuthResolution> {
 
   if (isAccountConflict(userResult)) {
     return { status: "account_conflict", clerkUserId };
+  }
+
+  if (isOAuthAccountConflict(userResult)) {
+    return { status: "oauth_account_conflict", clerkUserId, provider: userResult.provider };
+  }
+
+  if (isUsernameConflict(userResult)) {
+    return { status: "username_conflict", clerkUserId, username: userResult.username };
   }
 
   if (isUserDeleted(userResult)) {
@@ -177,6 +187,53 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         "Det finnes allerede en konto med denne e-postadressen koblet til en annen innloggingsmetode. " +
         "Prøv å logge inn med den opprinnelige metoden (f.eks. Microsoft eller Google), eller kontakt support.",
       );
+      return;
+    }
+
+    if (result.status === "oauth_account_conflict") {
+      // OAuth-konto-konflikt: samme Google/Microsoft-konto er allerede koblet til en annen bruker.
+      // Dette er en sikkerhetsfeil — avvis registrering.
+      logger.warn(
+        { clerkUserId: result.clerkUserId, provider: result.provider },
+        "OAuth-konto-konflikt: samme OAuth-konto er allerede koblet til en annen bruker",
+      );
+      await audit({
+        actorUserId: result.clerkUserId,
+        action: AUDIT_ACTIONS.TOKEN_VERIFICATION_FAILURE,
+        category: "auth",
+        outcome: "failure",
+        metadata: { reason: "oauth_account_conflict", provider: result.provider },
+        req,
+      });
+      const providerName = result.provider === "google" ? "Google" : "Microsoft";
+      apiError.conflict(res,
+        `Denne ${providerName}-kontoen er allerede koblet til en annen StudyWise-bruker. ` +
+        "Du kan ikke bruke samme OAuth-konto på flere StudyWise-kontoer. " +
+        "Logg inn med den eksisterende kontoen eller bruk en annen innloggingsmetode.",
+      );
+      return;
+    }
+
+    if (result.status === "username_conflict") {
+      // Brukernavn-konflikt: brukernavnet er allerede tatt av en annen bruker.
+      logger.warn(
+        { clerkUserId: result.clerkUserId, username: result.username },
+        "Brukernavn-konflikt: brukernavnet er allerede tatt",
+      );
+      await audit({
+        actorUserId: result.clerkUserId,
+        action: AUDIT_ACTIONS.TOKEN_VERIFICATION_FAILURE,
+        category: "auth",
+        outcome: "failure",
+        metadata: { reason: "username_conflict", username: result.username },
+        req,
+      });
+      res.status(409).json({
+        error: "username_conflict",
+        melding: `Brukernavnet "${result.username}" er allerede tatt. ` +
+          "Gå tilbake til innloggingssiden og velg et annet brukernavn.",
+        username: result.username,
+      });
       return;
     }
 

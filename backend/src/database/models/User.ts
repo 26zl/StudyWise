@@ -9,8 +9,10 @@ import {
     normalizeCanvasBaseUrl,
     type UserRole,
     type AuthProvider,
+    type OAuthAccount,
     APP_ROLES,
     AUTH_PROVIDERS,
+    OAUTH_PROVIDERS,
     createDefaultCanvasContextPreferences,
     createDefaultManuellInnleveringState,
     createDefaultVarslerState,
@@ -75,6 +77,8 @@ export interface IUser extends Document {
     role: UserRole;
     /** Innloggingsmetode (google, microsoft, email). Settes ved opprettelse/sync fra Clerk. */
     authProvider?: AuthProvider;
+    /** OAuth-kontoer koblet til brukeren (provider + providerAccountId for unikhet). */
+    oauthAccounts?: OAuthAccount[];
     /** Clerk-brukernavn (påkrevd ved registrering). */
     username?: string;
     /** Intern normalisert variant av username for case-insensitiv unikhet. */
@@ -130,6 +134,13 @@ const UserSchema: Schema = new Schema(
             type: String,
             enum: AUTH_PROVIDERS,
             default: undefined,
+        },
+        oauthAccounts: {
+            type: [{
+                provider: { type: String, enum: OAUTH_PROVIDERS, required: true },
+                providerAccountId: { type: String, required: true, trim: true },
+            }],
+            default: [],
         },
         username: {
             type: String,
@@ -227,6 +238,17 @@ UserSchema.index({ clerkId: 1 }, { unique: true, sparse: true, name: "clerk_id_u
 UserSchema.index(
     { usernameNormalized: 1 },
     { unique: true, sparse: true, name: "username_normalized_unique" },
+);
+
+// Samme OAuth-konto (provider + providerAccountId) kan ikke være koblet til flere brukere.
+// Dette forhindrer at samme Google/Microsoft-konto brukes på flere StudyWise-kontoer.
+UserSchema.index(
+    { "oauthAccounts.provider": 1, "oauthAccounts.providerAccountId": 1 },
+    {
+        unique: true,
+        sparse: true,
+        name: "oauth_accounts_provider_account_id_unique",
+    },
 );
 
 // Merk: email har allerede indeks via unique: true.

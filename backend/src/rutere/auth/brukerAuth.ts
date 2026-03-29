@@ -31,12 +31,15 @@ import {
   LogoutResponseSchema,
   ProfileUpdateSchema,
   ProfileUpdateResponseSchema,
+  UsernameCheckQuerySchema,
+  UsernameCheckResponseSchema,
   createDefaultCanvasContextPreferences,
   createDefaultManuellInnleveringState,
   createDefaultVarslerState,
   normalizeManuellInnleveringState,
   normalizeVarslerState,
 } from "common/auth";
+import { sanitizeUsername } from "../../database/models/User.js";
 import {
   BrowserPushPreferencesSchema,
   createDefaultBrowserPushPreferences,
@@ -223,6 +226,40 @@ async function hentAutentisertBruker(
   }
   return bruker;
 }
+
+// GET /username/check — Sjekk om brukernavn er tilgjengelig (public endpoint for sign-up).
+// Rate limited for å unngå enumeration-angrep.
+router.get("/username/check", rateLimitMe, async (req, res) => {
+  try {
+    const parsed = UsernameCheckQuerySchema.safeParse({ username: req.query.username });
+    if (!parsed.success) {
+      return sendZodError(res, parsed.error, "Brukernavnvalidering");
+    }
+
+    const { username } = parsed.data;
+    const sanitized = sanitizeUsername(username);
+    if (!sanitized) {
+      return res.json(UsernameCheckResponseSchema.parse({
+        available: false,
+        username,
+      }));
+    }
+
+    const existingUser = await User.findOne({
+      usernameNormalized: sanitized.usernameNormalized,
+    }).select("_id");
+
+    return res.json(UsernameCheckResponseSchema.parse({
+      available: !existingUser,
+      username,
+    }));
+  } catch (error) {
+    return sendUnknownError(res, error, {
+      kontekst: "sjekk av brukernavn",
+      melding: "Kunne ikke sjekke brukernavn. Prøv igjen.",
+    });
+  }
+});
 
 // POST /token (Beskyttet av global requireAuth)
 // Lagre brukerens personlige Canvas API Token sikkert.
