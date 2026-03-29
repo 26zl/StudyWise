@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Pin, Search } from "lucide-react";
 import { useMeg } from "@/app/auth/auth-api";
-import { skalRedirecteTilAuth, useAuthRedirect } from "@/app/auth/authUtils";
+import {
+  skalRedirecteTilAuth,
+  useAuthRedirect,
+} from "@/app/auth/authUtils";
 import type { VisningType } from "@/app/components/dashboard/Sidebar";
 import { ConversationListItem } from "@/app/components/dashboard/ConversationListItem";
 import {
@@ -14,6 +17,7 @@ import {
   SidebarAppShell,
 } from "@/app/components/layout/SidebarAppShell";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
+import { erFatalUserDataFeilmelding, getBrukerdataFeilmelding } from "@/app/lib/errorUtils";
 import { useChatHistory } from "@/app/hooks/useChatHistory";
 import { lagSamtaleForhandsvisning } from "@/app/components/chat/conversationMessageUtils";
 import { formaterDatoShort } from "@/app/lib/dato";
@@ -24,6 +28,7 @@ import { useUIStore } from "@/app/store/uiStore";
 export default function BokmerkerPage() {
   const router = useRouter();
   const { isLoaded } = useAuth();
+  const clerk = useClerk();
   const megQuery = useMeg({ enabled: isLoaded });
   useAuthRedirect(megQuery);
   const { chats, loading: chatsLoading, setChatPinned } = useChatHistory();
@@ -100,15 +105,18 @@ export default function BokmerkerPage() {
   }
 
   if (megQuery.isError && !megQuery.data?.user) {
+    const feilMsg = megQuery.error?.message ?? "";
+    const erFatalAuthFeil = erFatalUserDataFeilmelding(feilMsg);
     return (
       <SidebarAppErrorState
         aktivVisning="chat"
         byttVisning={byttVisning}
         brukerRolle={brukerRolle}
-        message={t("errors.userData.generic")}
-        onRetry={() => {
-          void megQuery.refetch();
-        }}
+        message={getBrukerdataFeilmelding(megQuery.error, t)}
+        onRetry={erFatalAuthFeil
+          ? () => { void clerk.signOut({ redirectUrl: "/auth/sign-in" }); }
+          : () => { void megQuery.refetch(); }
+        }
       />
     );
   }

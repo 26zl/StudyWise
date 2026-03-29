@@ -32,6 +32,7 @@ export const AUDIT_ACTIONS = {
   TOKEN_VERIFICATION_FAILURE: "token_verification_failure",
   ADMIN_ACTION: "admin_action",
   ACCOUNT_DELETED: "account_deleted",
+  PROFILE_UPDATED: "profile_updated",
   PREFERENCES_UPDATED: "preferences_updated",
   ACCOUNT_RELINKED: "account_relinked",
   SECURITY_ALERT: "security_alert",

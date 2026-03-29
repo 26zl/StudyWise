@@ -25,6 +25,14 @@ export interface ApiErrorPayload {
   canvasKonflikt?: boolean;
 }
 
+/** Auth-/konto-feil som krever tydelig handling (ikke vanlig retry). */
+const FATAL_USERDATA_ERROR_REGEX =
+  /kontoen er slettet|innloggingskonflikt|allerede en konto|brukernavnet .* er allerede tatt|allerede koblet til en annen studywise-bruker|mangler verifiserbar oauth-identifikator/i;
+
+export function erFatalUserDataFeilmelding(message: string): boolean {
+  return FATAL_USERDATA_ERROR_REGEX.test(message);
+}
+
 // Feiltyper som kan identifiseres
 export type FeilType =
   | "auth"
@@ -184,7 +192,7 @@ export function getBrukerdataFeilmelding(
     return hentTekst(t, "errors.userData.sessionExpired", "Sesjonen har utløpt. Logg inn på nytt.");
   }
   // Slettet bruker og kontokonflikter: vis den faktiske meldingen direkte
-  if (/kontoen er slettet|innloggingskonflikt|allerede en konto/i.test(msg)) {
+  if (erFatalUserDataFeilmelding(msg)) {
     return msg;
   }
   return lagBrukervennligFeilmelding(

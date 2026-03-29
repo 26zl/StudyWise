@@ -16,8 +16,8 @@ import {
   type MeResponse,
   type LogoutResponse,
   type AccountDeletionResponse,
-  type ProfileUpdate,
   type ProfileUpdateResponse,
+  type ProfileUpdateWithUsername,
   PreferencesResponseSchema,
   type CanvasContextPreferences,
   type VarslerState,
@@ -35,6 +35,7 @@ import type { ZodType } from "zod";
 import {
   createApiError,
   createAuthStatusError,
+  erFatalUserDataFeilmelding,
   extractApiErrorMessage,
   extractApiErrorPayload,
   parseApiJson,
@@ -133,24 +134,40 @@ async function hentMeg(signal?: AbortSignal): Promise<MeResponse> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), ME_REQUEST_TIMEOUT_MS);
   if (signal) {
-    signal.addEventListener("abort", () => {
-      clearTimeout(timeoutId);
-      controller.abort();
-    }, { once: true });
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timeoutId);
+        controller.abort();
+      },
+      { once: true },
+    );
   }
   try {
-    const res = await fetchApi("/api/user/me", { method: "GET", signal: controller.signal });
+    const res = await fetchApi("/api/user/me", {
+      method: "GET",
+      signal: controller.signal,
+    });
     const json = await parseApiJson(res);
     clearTimeout(timeoutId);
     if (res.ok) {
       return MeResponseSchema.parse(json);
     }
-    if (res.status === 403 && json && typeof json === "object" && "error" in json && json.error === "user_deleted") {
+    if (
+      res.status === 403 &&
+      json &&
+      typeof json === "object" &&
+      "error" in json &&
+      json.error === "user_deleted"
+    ) {
       // Slettet bruker: skal IKKE trigge auth-redirect (ville skapt en uendelig loop).
       // Frontend må logge ut fra Clerk og vise en tydelig melding.
       // Varsle andre faner slik at de også rydder opp.
       broadcastLogout();
-      throw createApiError(json, "Denne kontoen er slettet. Opprett en ny konto for å fortsette.");
+      throw createApiError(
+        json,
+        "Denne kontoen er slettet. Opprett en ny konto for å fortsette.",
+      );
     }
     if (res.status === 401 || res.status === 403) {
       throw createAuthStatusError(res.status, json, "Ikke autentisert");
@@ -158,14 +175,20 @@ async function hentMeg(signal?: AbortSignal): Promise<MeResponse> {
     if (res.status === 409) {
       // Konto-konflikt: bruker er autentisert men app-bruker har ulik Clerk-konto.
       // Skal IKKE trigge auth-redirect (det ville skapt en uendelig loop).
-      throw createApiError(json, "Kontoen din har en innloggingskonflikt. Prøv å logge inn med en annen metode.");
+      throw createApiError(
+        json,
+        "Kontoen din har en innloggingskonflikt. Prøv å logge inn med en annen metode.",
+      );
     }
     throw createApiError(json, "Kunne ikke hente brukerdata");
   } catch (err) {
     clearTimeout(timeoutId);
     if (err instanceof Error && err.name === "AbortError") {
       throw createApiError(
-        { melding: "Forespørselen tok for lang tid. Backend kan være kald – prøv igjen." },
+        {
+          melding:
+            "Forespørselen tok for lang tid. Backend kan være kald – prøv igjen.",
+        },
         "Kunne ikke hente brukerdata",
       );
     }
@@ -185,7 +208,11 @@ async function loggUt(): Promise<LogoutResponse> {
   const res = await fetchApi("/api/user/logout", { method: "POST" });
   const json = await parseApiJson(res);
   if (res.status === 401 || res.status === 403) {
-    throw createAuthStatusError(res.status, json, "Sesjonen er allerede utløpt.");
+    throw createAuthStatusError(
+      res.status,
+      json,
+      "Sesjonen er allerede utløpt.",
+    );
   }
   if (!res.ok) {
     throw createApiError(json, "Kunne ikke logge ut");
@@ -201,12 +228,19 @@ interface SaveCanvasTokenInput {
   canvasBaseUrl: string;
 }
 
-async function lagreCanvasToken(input: SaveCanvasTokenInput): Promise<CanvasTokenResponse> {
-  const url = input.forceRelink ? "/api/user/token?force=true" : "/api/user/token";
+async function lagreCanvasToken(
+  input: SaveCanvasTokenInput,
+): Promise<CanvasTokenResponse> {
+  const url = input.forceRelink
+    ? "/api/user/token?force=true"
+    : "/api/user/token";
   const res = await fetchApi(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token: input.token, canvasBaseUrl: input.canvasBaseUrl }),
+    body: JSON.stringify({
+      token: input.token,
+      canvasBaseUrl: input.canvasBaseUrl,
+    }),
   });
   const json = await parseApiJson(res);
   if (res.status === 401 || res.status === 403) {
@@ -220,7 +254,10 @@ async function lagreCanvasToken(input: SaveCanvasTokenInput): Promise<CanvasToke
 
 // Hook for å hente info om innlogget bruker
 // initialData: kun MeResponse ved bekrevet innlogget – aldri null (unngår at SSR-feil caches som "gjest" i 5 min)
-export function useMeg(options?: { initialData?: MeResponse; enabled?: boolean }) {
+export function useMeg(options?: {
+  initialData?: MeResponse;
+  enabled?: boolean;
+}) {
   return useQuery({
     queryKey: AUTH_ME_QUERY_KEY,
     queryFn: ({ signal }) => hentMeg(signal),
@@ -233,8 +270,14 @@ export function useMeg(options?: { initialData?: MeResponse; enabled?: boolean }
       }
       // Konto-konflikt (409) og slettet bruker (403) er deterministiske — retry hjelper ikke
       const msg = error instanceof Error ? error.message : "";
-      if (msg.includes("innloggingskonflikt") || msg.includes("allerede en konto")) return false;
-      if (msg.includes("kontoen er slettet") || msg.includes("Denne kontoen er slettet")) return false;
+      if (erFatalUserDataFeilmelding(msg)) {
+        return false;
+      }
+      if (
+        msg.includes("kontoen er slettet") ||
+        msg.includes("Denne kontoen er slettet")
+      )
+        return false;
       // Maks 2 retries ved nettverksfeil — unngår lang ventetid
       return failureCount < 2;
     },
@@ -247,8 +290,10 @@ export function useMeg(options?: { initialData?: MeResponse; enabled?: boolean }
     initialData: options?.initialData,
   });
 }
-// Oppdater brukerprofil (fornavn, etternavn)
-async function oppdaterProfil(data: ProfileUpdate): Promise<ProfileUpdateResponse> {
+// Oppdater brukerprofil (fornavn, etternavn, brukernavn)
+async function oppdaterProfil(
+  data: ProfileUpdateWithUsername,
+): Promise<ProfileUpdateResponse> {
   return requestAuthedJson(
     "/api/user/profile",
     ProfileUpdateResponseSchema,
@@ -268,7 +313,9 @@ export function useOppdaterProfil() {
     mutationFn: oppdaterProfil,
     onMutate: async (updates) => {
       await queryClient.cancelQueries({ queryKey: AUTH_ME_QUERY_KEY });
-      const previous = queryClient.getQueryData<MeResponse | undefined>(AUTH_ME_QUERY_KEY);
+      const previous = queryClient.getQueryData<MeResponse | undefined>(
+        AUTH_ME_QUERY_KEY,
+      );
 
       queryClient.setQueryData<MeResponse | undefined>(
         AUTH_ME_QUERY_KEY,
@@ -282,6 +329,9 @@ export function useOppdaterProfil() {
               : {}),
             ...(updates.lastName !== undefined
               ? { lastName: updates.lastName || undefined }
+              : {}),
+            ...("username" in updates && updates.username !== undefined
+              ? { username: updates.username || undefined }
               : {}),
           };
 
@@ -328,7 +378,13 @@ export function useLoggUtWithRedirect() {
   const loggUt = useLoggUt();
   const clerk = useClerk();
   const queryClient = useQueryClient();
+  const logoutInFlightRef = useRef(false);
   return useCallback(async () => {
+    if (logoutInFlightRef.current || loggUt.isPending) {
+      return;
+    }
+    logoutInFlightRef.current = true;
+
     try {
       await loggUt.mutateAsync();
     } catch (error) {
@@ -343,13 +399,20 @@ export function useLoggUtWithRedirect() {
     try {
       await clerk.signOut();
     } catch {
-      showToast.error("Kunne ikke logge ut", "Innloggingssesjonen kunne ikke avsluttes. Prøv igjen.");
+      showToast.error(
+        "Kunne ikke logge ut",
+        "Innloggingssesjonen kunne ikke avsluttes. Prøv igjen.",
+      );
+      logoutInFlightRef.current = false;
       return;
     }
 
-    broadcastLogout();
+    // Når Clerk-signout er bekreftet, rydd lokal state og varsle andre faner.
+    // Dette unngår race der samme fane redirectes av auth-sync før signOut er fullført.
     clearClientAuthState(queryClient);
-    window.location.assign("/");
+    broadcastLogout();
+
+    window.location.replace("/");
   }, [clerk, loggUt, queryClient]);
 }
 // Hook for lagring av Canvas token
@@ -422,9 +485,11 @@ function useOppdaterBrukerPreferanser<TValue>(
 
 // Hook for oppdatering av Canvas-kontekst preferanser
 function useOppdaterPreferanser() {
-  return useOppdaterBrukerPreferanser((canvasContextPreferences: CanvasContextPreferences) => ({
-    canvasContextPreferences,
-  }));
+  return useOppdaterBrukerPreferanser(
+    (canvasContextPreferences: CanvasContextPreferences) => ({
+      canvasContextPreferences,
+    }),
+  );
 }
 
 // Hook for oppdatering av varslingspreferanser
@@ -489,17 +554,14 @@ export function useDebouncedPreferanseOppdater() {
 
   flushRef.current = flush;
 
-  const mutate = useCallback(
-    (value: CanvasContextPreferences) => {
-      pendingRef.current = value;
-      if (timerRef.current) clearTimeout(timerRef.current);
-      // Kaller via ref slik at ingen brukerdata flyter inn i setTimeout-callback (Snyk code-injection).
-      timerRef.current = setTimeout(() => {
-        flushRef.current();
-      }, PREFERENCES_DEBOUNCE_MS);
-    },
-    [],
-  );
+  const mutate = useCallback((value: CanvasContextPreferences) => {
+    pendingRef.current = value;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    // Kaller via ref slik at ingen brukerdata flyter inn i setTimeout-callback (Snyk code-injection).
+    timerRef.current = setTimeout(() => {
+      flushRef.current();
+    }, PREFERENCES_DEBOUNCE_MS);
+  }, []);
 
   return { mutate, isPending, flush };
 }
@@ -520,3 +582,6 @@ export function useSlettKonto() {
     mutationFn: slettKonto,
   });
 }
+
+// Re-eksporter typer fra common for enkel import
+export type { ProfileUpdateWithUsername };

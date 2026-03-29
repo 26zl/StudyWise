@@ -14,6 +14,8 @@ import {
     MapPin,
     CheckCircle2,
     CheckCheck,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-react";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
@@ -39,13 +41,12 @@ interface VarslingerSectionProps {
     harCanvasToken?: boolean;
 }
 
-const INITIAL_NOTIFICATIONS_VISIBLE = 12;
-const NOTIFICATIONS_VISIBLE_STEP = 12;
+const NOTIFICATIONS_PAGE_SIZE = 12;
 // Varslinger-seksjonen håndterer visning av frister, kunngjøringer og hendelser, med faner for filtrering.
 function fristFarge(status: FristStatus) {
     if (status === "kritisk") return "border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20";
     if (status === "snart") return "border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20";
-    return "border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20";
+    return "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50";
 }
 // Fargevalg for frist-kort basert på klassifisering (kritisk/snart/normal).
 function fristBadgeFarge(status: FristStatus) {
@@ -56,7 +57,7 @@ function fristBadgeFarge(status: FristStatus) {
 // VarslingerSection - hovedkomponent for varslinger-siden, med faner og kortvisning. Deler data og lest/ulest-status med popup via useVarsler og uiStore.
 export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionProps) {
     const [aktivTab, settAktivTab] = useState<VarslingTab>("alle");
-    const [visibleCount, setVisibleCount] = useState(INITIAL_NOTIFICATIONS_VISIBLE);
+    const [offset, setOffset] = useState(0);
     const canvasTokenInvalid = useUIStore((state) => state.canvasTokenInvalid);
     const { language, t } = useLanguage();
 
@@ -105,15 +106,31 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
             : aktivTab === "oppgaver" ? oppgaver
             : aktivTab === "kunngjøringer" ? kunngjøringer
             : hendelser;
-    const synligeElementer = useMemo(
-        () => aktiveListe.slice(0, visibleCount),
-        [aktiveListe, visibleCount],
-    );
-    const remainingNotifications = Math.max(aktiveListe.length - visibleCount, 0);
+    const synligeElementer = useMemo(() => {
+        return aktiveListe.slice(offset, offset + NOTIFICATIONS_PAGE_SIZE);
+    }, [aktiveListe, offset]);
+    const totalElementer = aktiveListe.length;
+    const harForrigeSide = offset > 0;
+    const harNesteSide = offset + NOTIFICATIONS_PAGE_SIZE < totalElementer;
+    const fraElement = totalElementer === 0 ? 0 : offset + 1;
+    const tilElement = Math.min(offset + NOTIFICATIONS_PAGE_SIZE, totalElementer);
 
     useEffect(() => {
-        setVisibleCount(INITIAL_NOTIFICATIONS_VISIBLE);
+        setOffset(0);
     }, [aktivTab]);
+
+    useEffect(() => {
+        if (totalElementer === 0) {
+            if (offset !== 0) setOffset(0);
+            return;
+        }
+        if (offset >= totalElementer) {
+            const sisteSideOffset =
+                Math.floor((totalElementer - 1) / NOTIFICATIONS_PAGE_SIZE) *
+                NOTIFICATIONS_PAGE_SIZE;
+            setOffset(sisteSideOffset);
+        }
+    }, [offset, totalElementer]);
 
     if (!harCanvasToken) {
         return (
@@ -130,9 +147,9 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
         );
     }
 
-    return (
-        <div className="h-full flex flex-col">
-          <div className="shrink-0 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        return (
+                <div className="min-h-full bg-slate-50 dark:bg-slate-950">
+                    <div className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
             <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
               <div className="flex items-center gap-3">
                 <Bell className="w-6 h-6 text-slate-700 dark:text-slate-300" />
@@ -148,7 +165,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+                    <div>
             <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
 
               {!isError && safeAlle.length > 0 && (
@@ -257,22 +274,48 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                       {synligeElementer.map((element) => (
                           <VarslingKort key={element.id} element={element} language={language} />
                       ))}
-                      {remainingNotifications > 0 && (
-                          <div className="flex justify-center pt-2">
-                              <button
-                                  type="button"
-                                  onClick={() =>
-                                      setVisibleCount((current) =>
-                                          Math.min(
-                                              current + NOTIFICATIONS_VISIBLE_STEP,
-                                              aktiveListe.length,
-                                          ),
-                                      )
-                                  }
-                                  className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-200 dark:hover:bg-slate-800"
-                              >
-                                  {t("notifications.loadMore", { count: remainingNotifications })}
-                              </button>
+                      {totalElementer > NOTIFICATIONS_PAGE_SIZE && (
+                          <div className="flex items-center justify-between pt-2 text-sm text-slate-500 dark:text-slate-400">
+                              <span>
+                                  {fraElement}–{tilElement} / {totalElementer}
+                              </span>
+                              <div className="flex gap-2">
+                                  <button
+                                      type="button"
+                                      onClick={() =>
+                                          setOffset((current) =>
+                                              Math.max(
+                                                  0,
+                                                  current - NOTIFICATIONS_PAGE_SIZE,
+                                              ),
+                                          )
+                                      }
+                                      disabled={!harForrigeSide}
+                                      aria-label={language === "en" ? "Previous page" : "Forrige side"}
+                                      className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                                  >
+                                      <ChevronLeft size={16} />
+                                  </button>
+                                  <button
+                                      type="button"
+                                      onClick={() =>
+                                          setOffset((current) =>
+                                              Math.min(
+                                                  current + NOTIFICATIONS_PAGE_SIZE,
+                                                  Math.max(
+                                                      0,
+                                                      totalElementer - NOTIFICATIONS_PAGE_SIZE,
+                                                  ),
+                                              ),
+                                          )
+                                      }
+                                      disabled={!harNesteSide}
+                                      aria-label={language === "en" ? "Next page" : "Neste side"}
+                                      className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                                  >
+                                      <ChevronRight size={16} />
+                                  </button>
+                              </div>
                           </div>
                       )}
                   </div>
@@ -300,13 +343,16 @@ function OppgaveKort({
     language: "nb" | "en";
 }) {
     const { t } = useLanguage();
-    const { ferdigeIdSet, toggleFerdig } = useManuellInnlevering();
+    const { ferdigeIdSet } = useManuellInnlevering();
     const tidTekst = formaterTid(oppgave.timerIgjen, language);
     const datoLocale = language === "en" ? enUS : nb;
-    const assignmentId = Number(
-        oppgave.id.replace("frist-", "").replace("oppgave-", ""),
-    );
-    const erManueltFerdig = Number.isFinite(assignmentId) && ferdigeIdSet.has(assignmentId);
+    const assignmentId = "assignmentId" in oppgave
+        ? oppgave.assignmentId
+        : (() => {
+            const match = oppgave.id.match(/(?:oppgave-|frist-)?(\d+)$/);
+            return match ? Number(match[1]) : null;
+        })();
+    const erManueltFerdig = assignmentId !== null && ferdigeIdSet.has(assignmentId);
     const fristTekst = [
         oppgave.tittel,
         `${language === "en" ? "Course" : "Emne"}: ${oppgave.emne}`,
@@ -322,30 +368,7 @@ function OppgaveKort({
     return (
         <div className={`p-4 rounded-lg border ${fristFarge(oppgave.status)} transition-colors`}>
             <div className="flex items-start gap-3">
-                {!oppgave.erInnlevert && Number.isFinite(assignmentId) && (
-                    <button
-                        type="button"
-                        role="checkbox"
-                        aria-checked={erManueltFerdig}
-                        aria-label={erManueltFerdig ? t("notifications.unmarkAsSubmitted") : t("notifications.markAsSubmitted")}
-                        title={erManueltFerdig ? t("notifications.unmarkAsSubmitted") : t("notifications.markAsSubmitted")}
-                        onClick={() => toggleFerdig(assignmentId)}
-                        className={`mt-0.5 shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
-                            erManueltFerdig
-                                ? "bg-green-500 dark:bg-green-600 border-green-500 dark:border-green-600 text-white"
-                                : "border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500"
-                        }`}
-                    >
-                        {erManueltFerdig && (
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                        )}
-                    </button>
-                )}
-                {(oppgave.erInnlevert || !Number.isFinite(assignmentId)) && (
-                    <Clock className="w-5 h-5 mt-0.5 shrink-0 text-slate-500 dark:text-slate-400" />
-                )}
+                <Clock className="w-5 h-5 mt-0.5 shrink-0 text-slate-500 dark:text-slate-400" />
                 <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">

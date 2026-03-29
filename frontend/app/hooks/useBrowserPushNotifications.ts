@@ -11,7 +11,10 @@ import {
   subscribeToBrowserPush,
   supportsBrowserPush,
 } from "@/app/notifications/browserPush-api";
-import type { BrowserPushPreferences } from "common/notifications";
+import type {
+  BrowserPushPreferences,
+  WebPushClientConfigResponse,
+} from "common/notifications";
 
 export interface UseBrowserPushNotificationsResult {
   supported: boolean;
@@ -24,7 +27,10 @@ export interface UseBrowserPushNotificationsResult {
   disable: () => Promise<void>;
   updatePreferences: (
     next: Partial<
-      Pick<BrowserPushPreferences, "announcements" | "deadlines" | "events" | "aiResponses">
+      Pick<
+        BrowserPushPreferences,
+        "announcements" | "deadlines" | "events" | "aiResponses"
+      >
     >,
   ) => Promise<void>;
   sendTest: () => Promise<boolean>;
@@ -38,13 +44,35 @@ const DEFAULT_PREFERENCES: BrowserPushPreferences = {
   aiResponses: true,
 };
 
+let cachedClientConfig: WebPushClientConfigResponse | null = null;
+let clientConfigInFlight: Promise<WebPushClientConfigResponse> | null = null;
+
+async function loadBrowserPushClientConfig(): Promise<WebPushClientConfigResponse> {
+  if (cachedClientConfig) {
+    return cachedClientConfig;
+  }
+
+  if (!clientConfigInFlight) {
+    clientConfigInFlight = getBrowserPushClientConfig()
+      .then((config) => {
+        cachedClientConfig = config;
+        return config;
+      })
+      .finally(() => {
+        clientConfigInFlight = null;
+      });
+  }
+
+  return clientConfigInFlight;
+}
+
 export function useBrowserPushNotifications(
   initialPreferences?: BrowserPushPreferences,
 ): UseBrowserPushNotificationsResult {
   const support = supportsBrowserPush();
-  const [permission, setPermission] = useState<NotificationPermission | "unsupported">(
-    support ? Notification.permission : "unsupported",
-  );
+  const [permission, setPermission] = useState<
+    NotificationPermission | "unsupported"
+  >(support ? Notification.permission : "unsupported");
   const [configured, setConfigured] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
   const [isPending, setIsPending] = useState(false);
@@ -67,7 +95,7 @@ export function useBrowserPushNotifications(
     if (!support) return;
 
     let active = true;
-    void getBrowserPushClientConfig()
+    void loadBrowserPushClientConfig()
       .then((config) => {
         if (!active) return;
         setConfigured(config.configured);
@@ -121,7 +149,9 @@ export function useBrowserPushNotifications(
       const nextPermission = await Notification.requestPermission();
       setPermission(nextPermission);
       if (nextPermission !== "granted") {
-        throw new Error("Du må godkjenne nettleservarsler for å aktivere funksjonen.");
+        throw new Error(
+          "Du må godkjenne nettleservarsler for å aktivere funksjonen.",
+        );
       }
 
       const subscription = await subscribeToBrowserPush(vapidPublicKey);
@@ -141,9 +171,8 @@ export function useBrowserPushNotifications(
   const disable = async () => {
     setIsPending(true);
     try {
-      const registration = support && configured
-        ? await getBrowserPushRegistration()
-        : null;
+      const registration =
+        support && configured ? await getBrowserPushRegistration() : null;
       const subscription = registration
         ? await registration.pushManager.getSubscription()
         : null;
@@ -167,7 +196,10 @@ export function useBrowserPushNotifications(
 
   const updatePreferences = async (
     next: Partial<
-      Pick<BrowserPushPreferences, "announcements" | "deadlines" | "events" | "aiResponses">
+      Pick<
+        BrowserPushPreferences,
+        "announcements" | "deadlines" | "events" | "aiResponses"
+      >
     >,
   ) => {
     setIsPending(true);

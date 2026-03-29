@@ -2,11 +2,17 @@
  * Synkroniserer Clerk-brukere til MongoDB User.
  * Finner eller oppretter bruker på clerkId og oppdaterer lokal profil fra Clerk ved behov.
  */
+import crypto from "crypto";
 import { createClerkClient, verifyToken } from "@clerk/backend";
 import { User } from "../../database/models/User.js";
 import { logger } from "../../utils/logger.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
-import type { UserRole, AuthProvider, OAuthAccount, OAuthProvider } from "common/auth";
+import type {
+  UserRole,
+  AuthProvider,
+  OAuthAccount,
+  OAuthProvider,
+} from "common/auth";
 import type { IUser } from "../../database/models/User.js";
 import { getConfiguredWebOrigins } from "../../utils/webOrigins.js";
 import { sanitizeUsername } from "../../database/models/User.js";
@@ -69,8 +75,27 @@ function isDuplicateKeyError(error: unknown): boolean {
 /** Sjekker om duplicate key error er for OAuth accounts index. */
 function isOAuthAccountDuplicateKeyError(error: unknown): boolean {
   if (!isDuplicateKeyError(error)) return false;
-  const keyPattern = (error as { keyPattern?: Record<string, unknown> }).keyPattern;
+  const keyPattern = (error as { keyPattern?: Record<string, unknown> })
+    .keyPattern;
   return !!(keyPattern && "oauthAccounts.provider" in keyPattern);
+}
+
+/** Sjekker om duplicate key error er for username-indeks. */
+function isUsernameDuplicateKeyError(error: unknown): boolean {
+  if (!isDuplicateKeyError(error)) return false;
+  const keyPattern = (error as { keyPattern?: Record<string, unknown> })
+    .keyPattern;
+  if (
+    keyPattern &&
+    ("usernameNormalized" in keyPattern || "username" in keyPattern)
+  ) {
+    return true;
+  }
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "")
+      : "";
+  return message.includes("username_normalized_unique");
 }
 
 /** OAuth account conflict result type. */
@@ -80,11 +105,113 @@ export type OAuthAccountConflictResult = {
   conflictingUserId: string;
 };
 
+/** Resultat når OAuth-innlogging mangler stabil provider-identifikator fra Clerk. */
+export type OAuthMetadataMissingResult = {
+  __oauthMetadataMissing: true;
+  provider: Extract<AuthProvider, "google" | "microsoft">;
+};
+
 /** Type-guard for OAuthAccountConflictResult. */
 export function isOAuthAccountConflict(
-  result: IUser | AccountConflictResult | UserDeletedResult | OAuthAccountConflictResult | UsernameConflictResult | null,
+  result:
+    | IUser
+    | AccountConflictResult
+    | UserDeletedResult
+    | OAuthAccountConflictResult
+    | OAuthMetadataMissingResult
+    | UsernameConflictResult
+    | null,
 ): result is OAuthAccountConflictResult {
-  return result !== null && typeof result === "object" && "__oauthAccountConflict" in result;
+  return (
+    result !== null &&
+    typeof result === "object" &&
+    "__oauthAccountConflict" in result
+  );
+}
+
+/** Type-guard for OAuthMetadataMissingResult. */
+export function isOAuthMetadataMissing(
+  result:
+    | IUser
+    | AccountConflictResult
+    | UserDeletedResult
+    | OAuthAccountConflictResult
+    | OAuthMetadataMissingResult
+    | UsernameConflictResult
+    | null,
+): result is OAuthMetadataMissingResult {
+  return (
+    result !== null &&
+    typeof result === "object" &&
+    "__oauthMetadataMissing" in result
+  );
+}
+
+function queueDeletedOAuthConflictCleanup(account: OAuthAccount): void {
+  const filter: Record<string, unknown> = {
+    "oauthAccounts.provider": account.provider,
+    "oauthAccounts.providerAccountId": account.providerAccountId,
+    deletedAt: { $exists: true },
+  };
+
+  void User.updateMany(filter, {
+    $unset: {
+      oauthAccounts: 1,
+      authProvider: 1,
+      clerkId: 1,
+    },
+  })
+    .then((result) => {
+      if ((result.modifiedCount ?? 0) > 0) {
+        logger.info(
+          {
+            provider: account.provider,
+            providerAccountId: account.providerAccountId,
+            modifiedCount: result.modifiedCount,
+          },
+          "Asynkron opprydding av stale OAuth-identiteter fullfort",
+        );
+      }
+    })
+    .catch((err) => {
+      logger.warn(
+        {
+          err,
+          provider: account.provider,
+          providerAccountId: account.providerAccountId,
+        },
+        "Asynkron opprydding av stale OAuth-identiteter feilet",
+      );
+    });
+}
+
+function queueDeletedUsernameCleanup(usernameNormalized: string): void {
+  void User.updateMany(
+    {
+      usernameNormalized,
+      deletedAt: { $exists: true },
+    },
+    {
+      $unset: {
+        username: 1,
+        usernameNormalized: 1,
+      },
+    },
+  )
+    .then((result) => {
+      if ((result.modifiedCount ?? 0) > 0) {
+        logger.info(
+          { usernameNormalized, modifiedCount: result.modifiedCount },
+          "Asynkron opprydding av stale brukernavn fullfort",
+        );
+      }
+    })
+    .catch((err) => {
+      logger.warn(
+        { err, usernameNormalized },
+        "Asynkron opprydding av stale brukernavn feilet",
+      );
+    });
 }
 
 /**
@@ -98,21 +225,36 @@ async function checkOAuthAccountConflicts(
   if (oauthAccounts.length === 0) return null;
 
   for (const account of oauthAccounts) {
-    const filter: Record<string, unknown> = {
+    const baseFilter: Record<string, unknown> = {
       "oauthAccounts.provider": account.provider,
       "oauthAccounts.providerAccountId": account.providerAccountId,
     };
     if (excludeUserId) {
-      filter._id = { $ne: excludeUserId };
+      baseFilter._id = { $ne: excludeUserId };
     }
 
-    const conflictingUser = await User.findOne(filter).select("_id");
+    const activeConflictFilter: Record<string, unknown> = {
+      ...baseFilter,
+      deletedAt: { $exists: false },
+    };
+    const conflictingUser =
+      await User.findOne(activeConflictFilter).select("_id");
     if (conflictingUser) {
       return {
         __oauthAccountConflict: true,
         provider: account.provider,
         conflictingUserId: conflictingUser._id.toString(),
       };
+    }
+
+    const deletedConflictFilter: Record<string, unknown> = {
+      ...baseFilter,
+      deletedAt: { $exists: true },
+    };
+    const hasDeletedConflicts = await User.exists(deletedConflictFilter);
+    if (hasDeletedConflicts) {
+      // Ikke blokker innlogging med opprydding av tombstones.
+      queueDeletedOAuthConflictCleanup(account);
     }
   }
 
@@ -143,16 +285,30 @@ async function resolveUsernameSyncAction(
     return { mode: "unset" };
   }
 
-  const filter: Record<string, unknown> = {
+  const baseFilter: Record<string, unknown> = {
     usernameNormalized: sanitized.usernameNormalized,
   };
   if (excludeUserId) {
-    filter._id = { $ne: excludeUserId };
+    baseFilter._id = { $ne: excludeUserId };
   }
 
-  const conflictingUser = await User.findOne(filter).select("_id");
+  const activeFilter: Record<string, unknown> = {
+    ...baseFilter,
+    deletedAt: { $exists: false },
+  };
+  const conflictingUser = await User.findOne(activeFilter).select("_id");
   if (conflictingUser) {
     return { mode: "keep", conflictingUserId: conflictingUser._id.toString() };
+  }
+
+  const deletedFilter: Record<string, unknown> = {
+    ...baseFilter,
+    deletedAt: { $exists: true },
+  };
+  const hasDeletedConflicts = await User.exists(deletedFilter);
+  if (hasDeletedConflicts) {
+    // Ikke blokker innlogging med opprydding av tombstones.
+    queueDeletedUsernameCleanup(sanitized.usernameNormalized);
   }
 
   return {
@@ -176,7 +332,10 @@ function resolveStoredUsername(
   }
 }
 
-async function recordUserCreated(user: IUser, clerkUserId: string): Promise<void> {
+async function recordUserCreated(
+  user: IUser,
+  clerkUserId: string,
+): Promise<void> {
   logger.info(
     { userId: user._id, clerkId: clerkUserId },
     "Clerk-bruker opprettet i MongoDB",
@@ -237,7 +396,10 @@ async function getClerkProfile(
     if (rawProvider.includes("google") || rawProvider === "oauth_google") {
       mappedProvider = "google";
       if (!authProvider) authProvider = "google";
-    } else if (rawProvider.includes("microsoft") || rawProvider === "oauth_microsoft") {
+    } else if (
+      rawProvider.includes("microsoft") ||
+      rawProvider === "oauth_microsoft"
+    ) {
       mappedProvider = "microsoft";
       if (!authProvider) authProvider = "microsoft";
     }
@@ -304,6 +466,12 @@ function buildClerkProfileUpdate(
     setFields.authProvider = profile.authProvider;
   }
 
+  if (profile.oauthAccounts.length > 0) {
+    setFields.oauthAccounts = profile.oauthAccounts;
+  } else {
+    unsetFields.oauthAccounts = 1;
+  }
+
   if (usernameAction.mode === "set") {
     setFields.username = usernameAction.username;
     setFields.usernameNormalized = usernameAction.usernameNormalized;
@@ -341,8 +509,14 @@ async function syncExistingUserWithClerkProfile(
 ): Promise<IUser> {
   const syncedAt = new Date();
   const existingUsername = existing.username ?? undefined;
-  const usernameAction = await resolveUsernameSyncAction(profile.username, existing._id);
+  const usernameAction = await resolveUsernameSyncAction(
+    profile.username,
+    existing._id,
+  );
   const nextUsername = resolveStoredUsername(usernameAction, existingUsername);
+  const existingOauth = JSON.stringify(existing.oauthAccounts ?? []);
+  const nextOauth = JSON.stringify(profile.oauthAccounts ?? []);
+  const oauthAccountsChanged = existingOauth !== nextOauth;
   const emailChanged = existing.email !== profile.email;
   const usernameChanged = existingUsername !== nextUsername;
   const firstNameChanged =
@@ -351,12 +525,22 @@ async function syncExistingUserWithClerkProfile(
 
   if (usernameAction.mode === "keep") {
     logger.info(
-      { clerkUserId, userId: existing._id, conflictingUserId: usernameAction.conflictingUserId },
+      {
+        clerkUserId,
+        userId: existing._id,
+        conflictingUserId: usernameAction.conflictingUserId,
+      },
       "Droppet Clerk-brukernavn fordi det allerede er i bruk",
     );
   }
 
-  if (!emailChanged && !usernameChanged && !firstNameChanged && !lastNameChanged) {
+  if (
+    !emailChanged &&
+    !usernameChanged &&
+    !firstNameChanged &&
+    !lastNameChanged &&
+    !oauthAccountsChanged
+  ) {
     const updated = await User.findByIdAndUpdate(
       existing._id,
       { $set: { clerkProfileSyncedAt: syncedAt } },
@@ -409,6 +593,7 @@ async function syncExistingUserWithClerkProfile(
           clerkUserId,
           emailChanged,
           usernameChanged,
+          oauthAccountsChanged,
           firstNameChanged,
           lastNameChanged,
         },
@@ -419,13 +604,13 @@ async function syncExistingUserWithClerkProfile(
 
     return existing;
   } catch (error) {
-      if (isDuplicateKeyError(error)) {
-        logger.warn(
-          { err: error, clerkUserId, userId: existing._id },
-          "Duplicate-key under Clerk-profilsynk; beholder eksisterende lokal profil",
-        );
-        const latest = await User.findOne({ clerkId: clerkUserId });
-        return latest ?? existing;
+    if (isDuplicateKeyError(error)) {
+      logger.warn(
+        { err: error, clerkUserId, userId: existing._id },
+        "Duplicate-key under Clerk-profilsynk; beholder eksisterende lokal profil",
+      );
+      const latest = await User.findOne({ clerkId: clerkUserId });
+      return latest ?? existing;
     }
 
     throw error;
@@ -483,23 +668,54 @@ export type UsernameConflictResult = {
 
 /** Type-guard for AccountConflictResult. */
 export function isAccountConflict(
-  result: IUser | AccountConflictResult | UserDeletedResult | OAuthAccountConflictResult | UsernameConflictResult | null,
+  result:
+    | IUser
+    | AccountConflictResult
+    | UserDeletedResult
+    | OAuthAccountConflictResult
+    | OAuthMetadataMissingResult
+    | UsernameConflictResult
+    | null,
 ): result is AccountConflictResult {
-  return result !== null && typeof result === "object" && "__accountConflict" in result;
+  return (
+    result !== null &&
+    typeof result === "object" &&
+    "__accountConflict" in result
+  );
 }
 
 /** Type-guard for UserDeletedResult. */
 export function isUserDeleted(
-  result: IUser | AccountConflictResult | UserDeletedResult | OAuthAccountConflictResult | UsernameConflictResult | null,
+  result:
+    | IUser
+    | AccountConflictResult
+    | UserDeletedResult
+    | OAuthAccountConflictResult
+    | OAuthMetadataMissingResult
+    | UsernameConflictResult
+    | null,
 ): result is UserDeletedResult {
-  return result !== null && typeof result === "object" && "__userDeleted" in result;
+  return (
+    result !== null && typeof result === "object" && "__userDeleted" in result
+  );
 }
 
 /** Type-guard for UsernameConflictResult. */
 export function isUsernameConflict(
-  result: IUser | AccountConflictResult | UserDeletedResult | OAuthAccountConflictResult | UsernameConflictResult | null,
+  result:
+    | IUser
+    | AccountConflictResult
+    | UserDeletedResult
+    | OAuthAccountConflictResult
+    | OAuthMetadataMissingResult
+    | UsernameConflictResult
+    | null,
 ): result is UsernameConflictResult {
-  return result !== null && typeof result === "object" && "__usernameConflict" in result;
+  return (
+    result !== null &&
+    typeof result === "object" &&
+    "__usernameConflict" in result
+  );
 }
 
 /**
@@ -512,9 +728,19 @@ export function isUsernameConflict(
  */
 export async function findOrCreateUserByClerkId(
   clerkUserId: string,
-): Promise<IUser | AccountConflictResult | UserDeletedResult | OAuthAccountConflictResult | UsernameConflictResult | null> {
+): Promise<
+  | IUser
+  | AccountConflictResult
+  | UserDeletedResult
+  | OAuthAccountConflictResult
+  | OAuthMetadataMissingResult
+  | UsernameConflictResult
+  | null
+> {
   // +canvasApiToken slik at GET /me kan gjenbruke bruker uten ekstra DB-kall
-  const existing = await User.findOne({ clerkId: clerkUserId }).select("+canvasApiToken");
+  const existing = await User.findOne({ clerkId: clerkUserId }).select(
+    "+canvasApiToken",
+  );
   if (existing) {
     if (existing.deletedAt) {
       logger.warn(
@@ -540,6 +766,21 @@ export async function findOrCreateUserByClerkId(
     const clerkProfileSyncedAt = new Date();
     const usernameAction = await resolveUsernameSyncAction(profile.username);
 
+    if (
+      (profile.authProvider === "google" ||
+        profile.authProvider === "microsoft") &&
+      oauthAccounts.length === 0
+    ) {
+      logger.warn(
+        { clerkUserId, authProvider: profile.authProvider },
+        "OAuth-innlogging mangler providerAccountId fra Clerk; avviser for å unngå duplikatkonto",
+      );
+      return {
+        __oauthMetadataMissing: true,
+        provider: profile.authProvider,
+      };
+    }
+
     // Sjekk om noen av OAuth-kontoene allerede er koblet til en annen bruker
     if (oauthAccounts.length > 0) {
       const oauthConflict = await checkOAuthAccountConflicts(oauthAccounts);
@@ -559,7 +800,11 @@ export async function findOrCreateUserByClerkId(
     // Sjekk om brukernavnet allerede er tatt – avvis registrering med klar feilmelding
     if (usernameAction.mode === "keep" && profile.username) {
       logger.warn(
-        { clerkUserId, username: profile.username, conflictingUserId: usernameAction.conflictingUserId },
+        {
+          clerkUserId,
+          username: profile.username,
+          conflictingUserId: usernameAction.conflictingUserId,
+        },
         "Brukernavn er allerede tatt – avviser registrering",
       );
       return {
@@ -576,7 +821,18 @@ export async function findOrCreateUserByClerkId(
         const anonymizedEmail = `deleted-${existingByEmail._id.toString()}@studywise.invalid`;
         await User.updateOne(
           { _id: existingByEmail._id },
-          { $set: { email: anonymizedEmail }, $unset: { clerkId: 1 } },
+          {
+            $set: { email: anonymizedEmail },
+            $unset: {
+              clerkId: 1,
+              oauthAccounts: 1,
+              authProvider: 1,
+              username: 1,
+              usernameNormalized: 1,
+              firstName: 1,
+              lastName: 1,
+            },
+          },
         );
         logger.info(
           { clerkUserId, deletedUserId: existingByEmail._id },
@@ -584,94 +840,104 @@ export async function findOrCreateUserByClerkId(
         );
         // Fall gjennom til brukeropprettelse nedenfor
       } else {
+        if (
+          existingByEmail.clerkId &&
+          existingByEmail.clerkId !== clerkUserId
+        ) {
+          // Samme e-post, annen Clerk-konto — typisk når bruker bytter OAuth-leverandør
+          // (f.eks. Microsoft → Google). E-posten er verifisert av begge leverandørene,
+          // så vi re-linker eksisterende bruker til den nye Clerk-kontoen.
+          const oldClerkId = existingByEmail.clerkId;
+          logger.info(
+            {
+              clerkUserId,
+              userId: existingByEmail._id,
+              oldClerkId,
+            },
+            "Re-linker eksisterende bruker til ny Clerk-konto (samme e-post, annen OAuth-leverandør)",
+          );
 
-      if (existingByEmail.clerkId && existingByEmail.clerkId !== clerkUserId) {
-        // Samme e-post, annen Clerk-konto — typisk når bruker bytter OAuth-leverandør
-        // (f.eks. Microsoft → Google). E-posten er verifisert av begge leverandørene,
-        // så vi re-linker eksisterende bruker til den nye Clerk-kontoen.
-        const oldClerkId = existingByEmail.clerkId;
-        logger.info(
+          const relinkedUser = await User.findOneAndUpdate(
+            { _id: existingByEmail._id, clerkId: oldClerkId },
+            {
+              $set: {
+                clerkId: clerkUserId,
+                firstName: firstName ?? existingByEmail.firstName,
+                lastName: lastName ?? existingByEmail.lastName,
+                clerkProfileSyncedAt,
+                authProvider: profile.authProvider,
+                ...(oauthAccounts.length > 0 ? { oauthAccounts } : {}),
+              },
+              ...(oauthAccounts.length === 0
+                ? { $unset: { oauthAccounts: 1 } }
+                : {}),
+            },
+            { returnDocument: "after" },
+          ).select("+canvasApiToken");
+
+          if (relinkedUser) {
+            await audit({
+              actorUserId: relinkedUser._id.toString(),
+              action: AUDIT_ACTIONS.ACCOUNT_RELINKED,
+              category: "auth",
+              outcome: "success",
+              metadata: { oldClerkId, newClerkId: clerkUserId },
+            });
+            return relinkedUser;
+          }
+
+          // Atomisk oppdatering feilet (race condition) — returner spesifikk feilmelding
+          logger.error(
+            { clerkUserId, userId: existingByEmail._id, oldClerkId },
+            "Kunne ikke re-linke Clerk-bruker — atomisk oppdatering feilet",
+          );
+          return { __accountConflict: true as const };
+        }
+
+        const linkedUser = await User.findOneAndUpdate(
           {
-            clerkUserId,
-            userId: existingByEmail._id,
-            oldClerkId,
+            _id: existingByEmail._id,
+            $or: [
+              { clerkId: { $exists: false } },
+              { clerkId: null },
+              { clerkId: clerkUserId },
+            ],
           },
-          "Re-linker eksisterende bruker til ny Clerk-konto (samme e-post, annen OAuth-leverandør)",
-        );
-
-        const relinkedUser = await User.findOneAndUpdate(
-          { _id: existingByEmail._id, clerkId: oldClerkId },
           {
             $set: {
               clerkId: clerkUserId,
               firstName: firstName ?? existingByEmail.firstName,
               lastName: lastName ?? existingByEmail.lastName,
               clerkProfileSyncedAt,
+              authProvider: profile.authProvider,
+              ...(oauthAccounts.length > 0 ? { oauthAccounts } : {}),
             },
+            ...(oauthAccounts.length === 0
+              ? { $unset: { oauthAccounts: 1 } }
+              : {}),
           },
           { returnDocument: "after" },
         ).select("+canvasApiToken");
 
-        if (relinkedUser) {
-          await audit({
-            actorUserId: relinkedUser._id.toString(),
-            action: AUDIT_ACTIONS.ACCOUNT_RELINKED,
-            category: "auth",
-            outcome: "success",
-            metadata: { oldClerkId, newClerkId: clerkUserId },
-          });
-          return relinkedUser;
+        if (linkedUser?.deletedAt) {
+          // Linket bruker ble slettet mellom findOne og findOneAndUpdate — rydd opp og opprett ny
+          const anonymizedEmail = `deleted-${linkedUser._id.toString()}@studywise.invalid`;
+          await User.updateOne(
+            { _id: linkedUser._id },
+            { $set: { email: anonymizedEmail }, $unset: { clerkId: 1 } },
+          );
+          logger.info(
+            { clerkUserId, deletedUserId: linkedUser._id },
+            "Fjernet clerkId fra slettet bruker etter linking-race — faller gjennom til ny bruker",
+          );
+          // Fall gjennom til brukeropprettelse nedenfor
+        } else if (linkedUser) {
+          logger.info(
+            { userId: linkedUser._id, clerkUserId },
+            "Eksisterende bruker linket til Clerk",
+          );
+          return linkedUser;
         }
-
-        // Atomisk oppdatering feilet (race condition) — returner spesifikk feilmelding
-        logger.error(
-          { clerkUserId, userId: existingByEmail._id, oldClerkId },
-          "Kunne ikke re-linke Clerk-bruker — atomisk oppdatering feilet",
-        );
-        return { __accountConflict: true as const };
-      }
-
-      const linkedUser = await User.findOneAndUpdate(
-        {
-          _id: existingByEmail._id,
-          $or: [
-            { clerkId: { $exists: false } },
-            { clerkId: null },
-            { clerkId: clerkUserId },
-          ],
-        },
-        {
-          $set: {
-            clerkId: clerkUserId,
-            firstName: firstName ?? existingByEmail.firstName,
-            lastName: lastName ?? existingByEmail.lastName,
-            clerkProfileSyncedAt,
-          },
-        },
-        { returnDocument: "after" },
-      ).select("+canvasApiToken");
-
-      if (linkedUser?.deletedAt) {
-        // Linket bruker ble slettet mellom findOne og findOneAndUpdate — rydd opp og opprett ny
-        const anonymizedEmail = `deleted-${linkedUser._id.toString()}@studywise.invalid`;
-        await User.updateOne(
-          { _id: linkedUser._id },
-          { $set: { email: anonymizedEmail }, $unset: { clerkId: 1 } },
-        );
-        logger.info(
-          { clerkUserId, deletedUserId: linkedUser._id },
-          "Fjernet clerkId fra slettet bruker etter linking-race — faller gjennom til ny bruker",
-        );
-        // Fall gjennom til brukeropprettelse nedenfor
-      } else
-
-      if (linkedUser) {
-        logger.info(
-          { userId: linkedUser._id, clerkUserId },
-          "Eksisterende bruker linket til Clerk",
-        );
-        return linkedUser;
-      }
       }
     }
 
@@ -718,6 +984,17 @@ export async function findOrCreateUserByClerkId(
         }
       }
 
+      if (isUsernameDuplicateKeyError(error) && usernameAction.mode === "set") {
+        logger.warn(
+          { clerkUserId, username: usernameAction.username },
+          "Brukernavn-konflikt oppdaget via duplicate key error",
+        );
+        return {
+          __usernameConflict: true,
+          username: usernameAction.username,
+        };
+      }
+
       if (usernameAction.mode === "set") {
         const conflictingUsernameUser = await User.findOne({
           usernameNormalized: usernameAction.usernameNormalized,
@@ -725,29 +1002,17 @@ export async function findOrCreateUserByClerkId(
 
         if (conflictingUsernameUser) {
           logger.warn(
-            { clerkUserId, conflictingUserId: conflictingUsernameUser._id },
-            "Clerk-brukernavn ble tatt samtidig; prøver opprettelse uten lokalt brukernavn",
+            {
+              clerkUserId,
+              username: usernameAction.username,
+              conflictingUserId: conflictingUsernameUser._id,
+            },
+            "Clerk-brukernavn ble tatt samtidig; avviser registrering",
           );
-
-          try {
-            const fallbackUser = await User.create(buildCreateUserPayload(false));
-            await recordUserCreated(fallbackUser, clerkUserId);
-            return fallbackUser;
-          } catch (fallbackError) {
-            if (!isDuplicateKeyError(fallbackError)) {
-              throw fallbackError;
-            }
-
-            // Sjekk igjen for OAuth-konflikt i fallback-forsøket
-            if (isOAuthAccountDuplicateKeyError(fallbackError)) {
-              const oauthConflict = await checkOAuthAccountConflicts(oauthAccounts);
-              if (oauthConflict) {
-                return oauthConflict;
-              }
-            }
-
-            duplicateError = fallbackError;
-          }
+          return {
+            __usernameConflict: true,
+            username: usernameAction.username,
+          };
         }
       }
 
@@ -795,12 +1060,12 @@ export async function findOrCreateUserByClerkId(
 }
 
 /**
- * Oppdaterer brukerprofil i Clerk (firstName, lastName).
+ * Oppdaterer brukerprofil i Clerk (firstName, lastName, username).
  * Returnerer true ved suksess.
  */
 export async function updateClerkUserProfile(
   clerkUserId: string,
-  updates: { firstName?: string; lastName?: string },
+  updates: { firstName?: string; lastName?: string; username?: string },
 ): Promise<boolean> {
   const clerk = getClerkBackendClient();
   if (!clerk) {
@@ -812,7 +1077,10 @@ export async function updateClerkUserProfile(
     await clerk.users.updateUser(clerkUserId, updates);
     return true;
   } catch (error) {
-    logger.error({ err: error, clerkUserId }, "Kunne ikke oppdatere Clerk-brukerprofil");
+    logger.error(
+      { err: error, clerkUserId },
+      "Kunne ikke oppdatere Clerk-brukerprofil",
+    );
     return false;
   }
 }
@@ -820,7 +1088,9 @@ export async function updateClerkUserProfile(
 /**
  * Sletter bruker i Clerk. Returnerer true ved suksess eller hvis bruker allerede er borte (404).
  */
-export async function deleteClerkUserById(clerkUserId: string): Promise<boolean> {
+export async function deleteClerkUserById(
+  clerkUserId: string,
+): Promise<boolean> {
   const clerk = getClerkBackendClient();
   if (!clerk) {
     return false;
@@ -830,7 +1100,10 @@ export async function deleteClerkUserById(clerkUserId: string): Promise<boolean>
     await clerk.users.deleteUser(clerkUserId);
     return true;
   } catch (error) {
-    const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    const message =
+      error instanceof Error
+        ? error.message.toLowerCase()
+        : String(error).toLowerCase();
     if (message.includes("404") || message.includes("not found")) {
       return true;
     }
@@ -855,10 +1128,16 @@ function getAuthorizedParties(): string[] | undefined {
  * In-memory cache for verifiserte Clerk-tokens.
  * Kort TTL (30s) — samme token brukes gjentatte ganger av browseren i rask rekkefølge.
  * Maks 500 entries for å begrense minnebruk.
+ * Token hashes (SHA256) som nøkler for å unngå lagring av sensitive tokens i klartext.
  */
 const TOKEN_CACHE_TTL_MS = 30_000;
 const TOKEN_CACHE_MAX = 500;
 const tokenCache = new Map<string, { sub: string; exp: number }>();
+
+/** Hasher token med SHA256 for sikker cache-nøkkel. */
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
 
 function resolveTokenCacheExpiry(payload: { exp?: unknown }): number {
   const now = Date.now();
@@ -893,10 +1172,11 @@ function pruneTokenCache(): void {
 /**
  * Fjerner alle cached tokens for en gitt clerkId.
  * Kalles ved kontosletting slik at slettede brukere ikke kan bruke cached tokens i opptil 30s.
+ * Nøklene er nå token-hashes, men vi itererer på entry.sub som fortsatt er clerkId.
  */
 export function invalidateTokenCacheByClerkId(clerkId: string): void {
-  for (const [token, entry] of tokenCache) {
-    if (entry.sub === clerkId) tokenCache.delete(token);
+  for (const [tokenHash, entry] of tokenCache) {
+    if (entry.sub === clerkId) tokenCache.delete(tokenHash);
   }
 }
 
@@ -905,28 +1185,35 @@ export function invalidateTokenCacheByClerkId(clerkId: string): void {
  * Bruker authorizedParties når WEB_ORIGINS er satt.
  * Cacher resultatet i minnet i 30 sekunder for å unngå gjentatte JWKS-kall.
  */
-export async function getClerkUserIdFromToken(bearerToken: string): Promise<string | null> {
+export async function getClerkUserIdFromToken(
+  bearerToken: string,
+): Promise<string | null> {
   const secretKey = process.env.CLERK_SECRET_KEY;
   if (!secretKey) return null;
 
+  // Hash token for sikker cache-nøkkel (unngår å lagre sensitive tokens i klartext)
+  const tokenHash = hashToken(bearerToken);
+
   // Sjekk cache først
-  const cached = tokenCache.get(bearerToken);
+  const cached = tokenCache.get(tokenHash);
   if (cached) {
     if (cached.exp > Date.now()) return cached.sub;
-    tokenCache.delete(bearerToken);
+    tokenCache.delete(tokenHash);
   }
 
   try {
     const authorizedParties = getAuthorizedParties();
     const payload = await verifyToken(bearerToken, {
       secretKey,
-      ...(authorizedParties && authorizedParties.length > 0 ? { authorizedParties } : {}),
+      ...(authorizedParties && authorizedParties.length > 0
+        ? { authorizedParties }
+        : {}),
     });
     const sub = payload?.sub;
     if (typeof sub !== "string") return null;
 
     // Cache aldri lengre enn tokenets faktiske utløpstid.
-    tokenCache.set(bearerToken, {
+    tokenCache.set(tokenHash, {
       sub,
       exp: resolveTokenCacheExpiry(payload),
     });

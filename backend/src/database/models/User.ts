@@ -191,14 +191,35 @@ const UserSchema: Schema = new Schema(
         },
         varslerState: {
             type: {
-                lestIds: { type: [String], default: [] },
-                toastVistIds: { type: [String], default: [] },
+                lestIds: {
+                    type: [String],
+                    default: [],
+                    validate: {
+                        validator: (v: string[]) => v.length <= 1000,
+                        message: "lestIds array cannot exceed 1000 items",
+                    },
+                },
+                toastVistIds: {
+                    type: [String],
+                    default: [],
+                    validate: {
+                        validator: (v: string[]) => v.length <= 500,
+                        message: "toastVistIds array cannot exceed 500 items",
+                    },
+                },
             },
             default: createDefaultVarslerState,
         },
         manuellInnleveringState: {
             type: {
-                ferdigeIds: { type: [Number], default: [] },
+                ferdigeIds: {
+                    type: [Number],
+                    default: [],
+                    validate: {
+                        validator: (v: number[]) => v.length <= 2000,
+                        message: "ferdigeIds array cannot exceed 2000 items",
+                    },
+                },
             },
             default: createDefaultManuellInnleveringState,
         },
@@ -215,7 +236,14 @@ const UserSchema: Schema = new Schema(
         },
         browserPushSentState: {
             type: {
-                sentIds: { type: [String], default: [] },
+                sentIds: {
+                    type: [String],
+                    default: [],
+                    validate: {
+                        validator: (v: string[]) => v.length <= 500,
+                        message: "sentIds array cannot exceed 500 items",
+                    },
+                },
             },
             default: createDefaultBrowserPushSentState,
         },

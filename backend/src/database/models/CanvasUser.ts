@@ -8,23 +8,25 @@ import mongoose, { Schema, Document } from "mongoose";
 import { normalizeCanvasBaseUrl } from "common/auth";
 
 export interface ICanvasUser extends Document {
-    canvasId: number;
-    canvasBaseUrl: string;
-    name: string;
-    sortableName?: string;
-    shortName?: string;
-    avatarUrl?: string;
-    firstName?: string;
-    lastName?: string;
-    locale?: string;
-    effectiveLocale?: string;
-    permissions?: {
-        canUpdateName: boolean;
-        canUpdateAvatar: boolean;
-        limitParentAppWebAccess: boolean;
-    };
-    canvasUserCreatedAt: Date;
-    localUser: mongoose.Types.ObjectId; // Referanse til vår egen User model
+  canvasId: number;
+  canvasBaseUrl: string;
+  name: string;
+  sortableName?: string;
+  shortName?: string;
+  avatarUrl?: string;
+  firstName?: string;
+  lastName?: string;
+  locale?: string;
+  effectiveLocale?: string;
+  permissions?: {
+    canUpdateName: boolean;
+    canUpdateAvatar: boolean;
+    limitParentAppWebAccess: boolean;
+  };
+  canvasUserCreatedAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
+  localUser: mongoose.Types.ObjectId; // Referanse til vår egen User model
 }
 
 const CanvasUserSchema: Schema = new Schema(

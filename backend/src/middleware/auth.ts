@@ -11,7 +11,15 @@ import { apiError } from "../utils/apiError.js";
 import { normalizeCanvasBaseUrl, StoredCanvasBaseUrlSchema } from "common/auth";
 import type { UserRole } from "common/auth";
 import type { IUser } from "../database/models/User.js";
-import { getClerkUserIdFromToken, findOrCreateUserByClerkId, isAccountConflict, isUserDeleted, isOAuthAccountConflict, isUsernameConflict } from "../rutere/auth/clerkAuth.js";
+import {
+  findOrCreateUserByClerkId,
+  getClerkUserIdFromToken,
+  isAccountConflict,
+  isOAuthAccountConflict,
+  isOAuthMetadataMissing,
+  isUserDeleted,
+  isUsernameConflict,
+} from "../rutere/auth/clerkAuth.js";
 import { audit, AUDIT_ACTIONS } from "../utils/auditLog.js";
 import { checkSecurityThresholds } from "../utils/securityAlert.js";
 
@@ -31,6 +39,11 @@ type AuthResolution =
   | { status: "invalid_or_expired" }
   | { status: "account_conflict"; clerkUserId: string }
   | { status: "oauth_account_conflict"; clerkUserId: string; provider: string }
+  | {
+      status: "oauth_metadata_missing";
+      clerkUserId: string;
+      provider: "google" | "microsoft";
+    }
   | { status: "username_conflict"; clerkUserId: string; username: string }
   | { status: "user_deleted"; clerkUserId: string }
   | { status: "user_sync_failed"; clerkUserId: string };
@@ -63,11 +76,27 @@ async function resolveAuthentication(req: Request): Promise<AuthResolution> {
   }
 
   if (isOAuthAccountConflict(userResult)) {
-    return { status: "oauth_account_conflict", clerkUserId, provider: userResult.provider };
+    return {
+      status: "oauth_account_conflict",
+      clerkUserId,
+      provider: userResult.provider,
+    };
+  }
+
+  if (isOAuthMetadataMissing(userResult)) {
+    return {
+      status: "oauth_metadata_missing",
+      clerkUserId,
+      provider: userResult.provider,
+    };
   }
 
   if (isUsernameConflict(userResult)) {
-    return { status: "username_conflict", clerkUserId, username: userResult.username };
+    return {
+      status: "username_conflict",
+      clerkUserId,
+      username: userResult.username,
+    };
   }
 
   if (isUserDeleted(userResult)) {
@@ -79,7 +108,12 @@ async function resolveAuthentication(req: Request): Promise<AuthResolution> {
   }
 
   logger.debug(
-    { clerkMs: tClerk - t0, dbMs: tDb - tClerk, totalAuthMs: tDb - t0, url: req.originalUrl },
+    {
+      clerkMs: tClerk - t0,
+      dbMs: tDb - tClerk,
+      totalAuthMs: tDb - t0,
+      url: req.originalUrl,
+    },
     "auth-timing",
   );
 
@@ -108,9 +142,11 @@ export async function hentCanvasTilkoblingForBruker(
   const normalizedBaseUrl = user.canvasBaseUrl
     ? normalizeCanvasBaseUrl(user.canvasBaseUrl)
     : undefined;
-  const validatedBaseUrl = normalizedBaseUrl && StoredCanvasBaseUrlSchema.safeParse(normalizedBaseUrl).success
-    ? normalizedBaseUrl
-    : undefined;
+  const validatedBaseUrl =
+    normalizedBaseUrl &&
+    StoredCanvasBaseUrlSchema.safeParse(normalizedBaseUrl).success
+      ? normalizedBaseUrl
+      : undefined;
 
   if (normalizedBaseUrl && !validatedBaseUrl) {
     logger.warn(
@@ -130,7 +166,11 @@ export async function hentCanvasTilkoblingForBruker(
  * Verifies token, finds or creates user by clerkId, sets req.user and req.actorRole.
  * On failure: audits token_verification_failure and returns 401.
  */
-export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function requireAuth(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   if (req.method === "OPTIONS") {
     next();
     return;
@@ -183,9 +223,10 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         metadata: { reason: "account_conflict" },
         req,
       });
-      apiError.conflict(res,
+      apiError.conflict(
+        res,
         "Det finnes allerede en konto med denne e-postadressen koblet til en annen innloggingsmetode. " +
-        "Prøv å logge inn med den opprinnelige metoden (f.eks. Microsoft eller Google), eller kontakt support.",
+          "Prøv å logge inn med den opprinnelige metoden (f.eks. Microsoft eller Google), eller kontakt support.",
       );
       return;
     }
@@ -202,14 +243,42 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         action: AUDIT_ACTIONS.TOKEN_VERIFICATION_FAILURE,
         category: "auth",
         outcome: "failure",
-        metadata: { reason: "oauth_account_conflict", provider: result.provider },
+        metadata: {
+          reason: "oauth_account_conflict",
+          provider: result.provider,
+        },
         req,
       });
-      const providerName = result.provider === "google" ? "Google" : "Microsoft";
-      apiError.conflict(res,
+      const providerName =
+        result.provider === "google" ? "Google" : "Microsoft";
+      apiError.conflict(
+        res,
         `Denne ${providerName}-kontoen er allerede koblet til en annen StudyWise-bruker. ` +
-        "Du kan ikke bruke samme OAuth-konto på flere StudyWise-kontoer. " +
-        "Logg inn med den eksisterende kontoen eller bruk en annen innloggingsmetode.",
+          "Du kan ikke bruke samme OAuth-konto på flere StudyWise-kontoer. " +
+          "Logg inn med den eksisterende kontoen eller bruk en annen innloggingsmetode.",
+      );
+      return;
+    }
+
+    if (result.status === "oauth_metadata_missing") {
+      logger.warn(
+        { clerkUserId: result.clerkUserId, provider: result.provider },
+        "OAuth-innlogging manglet stabil identifikator fra Clerk",
+      );
+      await audit({
+        actorUserId: result.clerkUserId,
+        action: AUDIT_ACTIONS.TOKEN_VERIFICATION_FAILURE,
+        category: "auth",
+        outcome: "failure",
+        metadata: {
+          reason: "oauth_metadata_missing",
+          provider: result.provider,
+        },
+        req,
+      });
+      apiError.conflict(
+        res,
+        "Innloggingskonflikt: vi mangler verifiserbar OAuth-identifikator fra innloggingsleverandoren. Prov igjen, eller kontakt support hvis problemet fortsetter.",
       );
       return;
     }
@@ -230,7 +299,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       });
       res.status(409).json({
         error: "username_conflict",
-        melding: `Brukernavnet "${result.username}" er allerede tatt. ` +
+        melding:
+          `Brukernavnet "${result.username}" er allerede tatt. ` +
           "Gå tilbake til innloggingssiden og velg et annet brukernavn.",
         username: result.username,
       });
@@ -252,7 +322,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       });
       res.status(403).json({
         error: "user_deleted",
-        melding: "Denne kontoen er slettet. Opprett en ny konto for å fortsette.",
+        melding:
+          "Denne kontoen er slettet. Opprett en ny konto for å fortsette.",
       });
       return;
     }
@@ -270,7 +341,10 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       return;
     }
   } catch (err) {
-    logger.warn({ err, requestId: (req as Request & { id?: string }).id }, "requireAuth error");
+    logger.warn(
+      { err, requestId: (req as Request & { id?: string }).id },
+      "requireAuth error",
+    );
     await audit({
       actorUserId: "anonymous",
       action: AUDIT_ACTIONS.TOKEN_VERIFICATION_FAILURE,

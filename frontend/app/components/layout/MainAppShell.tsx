@@ -6,6 +6,7 @@
 "use client";
 
 import { lazy, Suspense } from "react";
+import { usePathname } from "next/navigation";
 import { Providers } from "@/app/providers";
 import { Header } from "@/app/components/layout/header";
 import { Toaster } from "@/app/components/ui/Toaster";
@@ -25,6 +26,13 @@ export function MainAppShell({
   clerkPublishableKey?: string | null;
   initialLanguage: Language;
 }) {
+  const pathname = usePathname();
+  const usesSidebarShell =
+    pathname === "/dashboard" ||
+    pathname.startsWith("/dashboard/") ||
+    pathname === "/oversikt" ||
+    pathname === "/ai-breakdown";
+
   return (
     <Providers clerkPublishableKey={clerkPublishableKey} initialLanguage={initialLanguage}>
       <div className="flex flex-col min-h-screen">
@@ -35,7 +43,11 @@ export function MainAppShell({
           Hopp til innhold
         </a>
         <Header />
-        <main id="main-content" tabIndex={-1} className="flex-1 min-h-0 overflow-y-auto relative flex flex-col outline-none">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className={`flex-1 min-h-0 relative flex flex-col outline-none ${usesSidebarShell ? "overflow-y-hidden" : "overflow-y-auto"}`}
+        >
           {children}
         </main>
       </div>

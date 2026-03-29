@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useEffect, useRef, Suspense, lazy, useCallback, useState } from "react";
+import { useEffect, useRef, Suspense, lazy, useCallback } from "react";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { useQueryClient } from "@tanstack/react-query";
 import { LoadingView } from "@/app/components/ui/Loading";
@@ -14,8 +14,11 @@ import { SectionErrorBoundary } from "@/app/components/ui/ErrorBoundary";
 import { useAuth, useClerk } from "@clerk/nextjs";
 import { useCanvasUser } from "@/app/canvas/canvas-api";
 import { useMeg } from "@/app/auth/auth-api";
-import { useAuthRedirect, skalRedirecteTilAuth } from "@/app/auth/authUtils";
-import { getBrukerdataFeilmelding } from "@/app/lib/errorUtils";
+import {
+  useAuthRedirect,
+  skalRedirecteTilAuth,
+} from "@/app/auth/authUtils";
+import { erFatalUserDataFeilmelding, getBrukerdataFeilmelding } from "@/app/lib/errorUtils";
 import { prefetchCanvasData } from "@/app/canvas/canvas-api";
 import { useUIStore } from "@/app/store/uiStore";
 import { useVarslerPopups, useVarslerStateSync } from "@/app/hooks/useVarsler";
@@ -25,8 +28,6 @@ import {
   SidebarAppLoadingState,
   SidebarAppShell,
 } from "@/app/components/layout/SidebarAppShell";
-import { ProfileCompletionModal } from "@/app/components/auth/ProfileCompletionModal";
-import { isProfileIncomplete } from "common/auth";
 import { useLanguage } from "@/app/i18n";
 import type { MessageKey } from "@/app/i18n";
 
@@ -131,13 +132,6 @@ export function DashboardView() {
         megQuery.data?.user?.email?.split("@")?.[0];
     const brukerRolle = megQuery.data?.user?.role;
 
-    // Profile completion modal - shown when first/last name is incomplete (e.g., single initial from OAuth)
-    const [profileModalDismissed, setProfileModalDismissed] = useState(false);
-    const showProfileCompletionModal =
-        megQuery.isSuccess &&
-        isProfileIncomplete(megQuery.data?.user) &&
-        !profileModalDismissed;
-
     // Hjelpefunksjon for å bestemme hvilken Canvas-visning som skal vises
     const hentCanvasVisning = () => {
         if (aktivVisning === "canvas-announcements") return "announcements";
@@ -160,7 +154,7 @@ export function DashboardView() {
     // Feil uten brukerdata (f.eks. nettverksfeil, 429 rate limit): vis feilmelding og retry – useAuthRedirect håndterer auth-feil
     if (megQuery.isError && !megQuery.data?.user) {
         const feilMsg = megQuery.error?.message ?? "";
-        const erFatalAuthFeil = /kontoen er slettet|innloggingskonflikt|allerede en konto/i.test(feilMsg);
+        const erFatalAuthFeil = erFatalUserDataFeilmelding(feilMsg);
         return (
             <SidebarAppErrorState
                 aktivVisning={aktivVisning}
@@ -250,14 +244,6 @@ export function DashboardView() {
             )}
             </>
             )}
-
-            {/* Profile completion modal - prompts user to complete profile if first/last name is incomplete */}
-            <ProfileCompletionModal
-                isOpen={showProfileCompletionModal}
-                onClose={() => setProfileModalDismissed(true)}
-                currentFirstName={megQuery.data?.user?.firstName}
-                currentLastName={megQuery.data?.user?.lastName}
-            />
         </SidebarAppShell>
     );
 }

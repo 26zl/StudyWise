@@ -20,6 +20,7 @@ import {
 import { rateLimitKi } from "../../middleware/rate-limit.js";
 import {
   SubTaskSchema,
+  GeneratedSubTaskSchema,
   TaskBreakdownGenerateRequestSchema,
   TaskBreakdownResponseSchema,
   type SubTask,
@@ -41,13 +42,6 @@ Svar ALLTID med KUN et JSON-array uten ekstra tekst, markdown eller forklaring.
 Hvert objekt i arrayet skal ha: "title" (kort), "description" (1-3 setninger), "estimatedTime" (f.eks. "2t", "1.5t"), "priority" ("high"/"medium"/"low").
 Lag 4-6 deloppgaver i logisk rekkefølge tilpasset studentnivå.`;
 
-const GeneratedSubTaskDraftSchema = z.object({
-  title: z.string().min(1).max(200),
-  description: z.string().max(1000).default(""),
-  estimatedTime: z.string().min(1).max(50),
-  priority: z.enum(["low", "medium", "high"]),
-});
-
 function extractJsonArray(text: string): string {
   const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
   const start = cleaned.indexOf("[");
@@ -59,7 +53,7 @@ function extractJsonArray(text: string): string {
 }
 
 function parseGeneratedSubtasks(responseText: string): SubTask[] {
-  const parsed = z.array(GeneratedSubTaskDraftSchema).min(1).max(8).parse(
+  const parsed = z.array(GeneratedSubTaskSchema).min(1).max(8).parse(
     JSON.parse(extractJsonArray(responseText)),
   );
 

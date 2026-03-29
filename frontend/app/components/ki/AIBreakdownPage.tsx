@@ -29,7 +29,10 @@ import {
 import { StatCard } from "@/app/components/ui/StatCard";
 import { useAuth, useClerk } from "@clerk/nextjs";
 import { useMeg } from "@/app/auth/auth-api";
-import { skalRedirecteTilAuth, useAuthRedirect } from "@/app/auth/authUtils";
+import {
+  skalRedirecteTilAuth,
+  useAuthRedirect,
+} from "@/app/auth/authUtils";
 import {
   useCanvasAllAssignments,
   useCanvasUser,
@@ -39,6 +42,7 @@ import { erInnlevert } from "@/app/canvas/canvasUtils";
 import { useManuellInnlevering } from "@/app/hooks/useManuellInnlevering";
 import { formaterDatoLong } from "@/app/lib/dato";
 import {
+  erFatalUserDataFeilmelding,
   getBrukerdataFeilmelding,
   lagBrukervennligFeilmelding,
 } from "@/app/lib/errorUtils";
@@ -149,7 +153,7 @@ export function AIBreakdownPage() {
   if (megQuery.isError && !megQuery.data?.user) {
     const feilmelding = getBrukerdataFeilmelding(megQuery.error, t);
     const feilMsg = megQuery.error?.message ?? "";
-    const erFatalAuthFeil = /kontoen er slettet|innloggingskonflikt|allerede en konto/i.test(feilMsg);
+    const erFatalAuthFeil = erFatalUserDataFeilmelding(feilMsg);
     return (
       <SidebarAppErrorState
         aktivVisning={SIDEBAR_VISNING}

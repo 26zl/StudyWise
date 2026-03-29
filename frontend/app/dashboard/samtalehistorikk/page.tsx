@@ -1,12 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { MessageSquare, Pin, Search, Trash2, Users } from "lucide-react";
 import { useMeg } from "@/app/auth/auth-api";
-import { skalRedirecteTilAuth, useAuthRedirect } from "@/app/auth/authUtils";
+import {
+  skalRedirecteTilAuth,
+  useAuthRedirect,
+} from "@/app/auth/authUtils";
 import type { VisningType } from "@/app/components/dashboard/Sidebar";
 import {
   SidebarAppErrorState,
@@ -17,7 +20,11 @@ import { useChatHistory } from "@/app/hooks/useChatHistory";
 import { fetchApi } from "@/app/lib/apiClient";
 import { lagSamtaleForhandsvisning } from "@/app/components/chat/conversationMessageUtils";
 import { formaterDatoShort } from "@/app/lib/dato";
-import { parseApiError } from "@/app/lib/errorUtils";
+import {
+  erFatalUserDataFeilmelding,
+  getBrukerdataFeilmelding,
+  parseApiError,
+} from "@/app/lib/errorUtils";
 import { useLanguage } from "@/app/i18n";
 import { ConversationListItem } from "@/app/components/dashboard/ConversationListItem";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
@@ -35,6 +42,7 @@ export default function SamtalehistorikkPage() {
     parseAsStringLiteral(["history", "shared"] as const).withDefault("history"),
   );
   const { isLoaded } = useAuth();
+  const clerk = useClerk();
   const megQuery = useMeg({ enabled: isLoaded });
   useAuthRedirect(megQuery);
   const { chats, loading: chatsLoading, deleteChat, clearAll } = useChatHistory();
@@ -234,15 +242,18 @@ export default function SamtalehistorikkPage() {
   }
 
   if (megQuery.isError && !megQuery.data?.user) {
+    const feilMsg = megQuery.error?.message ?? "";
+    const erFatalAuthFeil = erFatalUserDataFeilmelding(feilMsg);
     return (
       <SidebarAppErrorState
         aktivVisning="chat"
         byttVisning={byttVisning}
         brukerRolle={brukerRolle}
-        message={t("errors.userData.generic")}
-        onRetry={() => {
-          void megQuery.refetch();
-        }}
+        message={getBrukerdataFeilmelding(megQuery.error, t)}
+        onRetry={erFatalAuthFeil
+          ? () => { void clerk.signOut({ redirectUrl: "/auth/sign-in" }); }
+          : () => { void megQuery.refetch(); }
+        }
       />
     );
   }

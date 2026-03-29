@@ -7,6 +7,7 @@
  */
 import { Router, type Request, type Response, type NextFunction } from "express";
 import crypto from "node:crypto";
+import mongoose from "mongoose";
 import { Readable } from "node:stream";
 import { apiError, sendUnknownError } from "../../utils/apiError.js";
 import {
@@ -73,9 +74,11 @@ import {
   classifyHttpStatus,
 } from "./canvasErrors.js";
 
-
 /** Én felles oversetter: Canvas/Zod-feil → strukturert JSON-respons. Brukes av både handleCanvasError og router.use. */
-function sendCanvasErrorResponse(res: import("express").Response, error: unknown): void {
+function sendCanvasErrorResponse(
+  res: import("express").Response,
+  error: unknown,
+): void {
   if (error instanceof ZodError) {
     // Ikke send error.message til klient – kan inneholde interne feltstier (f.eks. courses.0.name)
     res.status(500).json({
@@ -97,7 +100,10 @@ function sendCanvasErrorResponse(res: import("express").Response, error: unknown
     res.status(legacyErr.status).json(getErrorResponse(code));
     return;
   }
-  sendUnknownError(res, error, { kontekst: "Canvas-router", melding: "Kunne ikke hente Canvas-data. Prøv igjen." });
+  sendUnknownError(res, error, {
+    kontekst: "Canvas-router",
+    melding: "Kunne ikke hente Canvas-data. Prøv igjen.",
+  });
 }
 
 function handleCanvasError(
@@ -125,6 +131,8 @@ function parseNumericParam(
   return num;
 }
 
+type CanvasUserSynkResult = unknown;
+
 // Oppretter express router
 const router = Router();
 // Bruk middleware på alle ruter
@@ -136,15 +144,18 @@ router.use(rateLimitCanvas);
 // GET /whoami - Minimal brukerinfo
 router.get("/whoami", async (req, res) => {
   try {
-    // Bedre validering av req.user
-    if (!req.user?.id) {
+    const userId = req.user?.id;
+    if (!userId) {
       return apiError.unauthorized(res);
     }
     const resolvedCanvasBaseUrl = req.canvasBaseUrl;
     if (!resolvedCanvasBaseUrl) {
       return apiError.badRequest(res, "Canvas-institusjon mangler");
     }
-    const { data: canvasUser } = await fetchUserProfile(req.canvasToken, resolvedCanvasBaseUrl);
+    const { data: canvasUser } = await fetchUserProfile(
+      req.canvasToken,
+      resolvedCanvasBaseUrl,
+    );
     // whoami skal aldri stjele eller flytte en eksisterende kobling mellom brukere.
     const eksisterendeKobling = await CanvasUser.findOne({
       canvasId: canvasUser.id,
@@ -153,11 +164,11 @@ router.get("/whoami", async (req, res) => {
     if (
       eksisterendeKobling &&
       eksisterendeKobling.localUser &&
-      eksisterendeKobling.localUser.toString() !== req.user.id.toString()
+      eksisterendeKobling.localUser.toString() !== userId.toString()
     ) {
       logger.warn(
         {
-          userId: req.user.id,
+          userId,
           existingUserId: eksisterendeKobling.localUser.toString(),
           canvasId: canvasUser.id,
           canvasBaseUrl: resolvedCanvasBaseUrl,
@@ -170,31 +181,67 @@ router.get("/whoami", async (req, res) => {
       );
     }
 
-    const oppdatertCanvasBruker = await CanvasUser.findOneAndUpdate(
-      { localUser: req.user.id },
-      buildCanvasUserPayload(canvasUser, resolvedCanvasBaseUrl, req.user.id),
-      {
-        upsert: true,
-        returnDocument: "after",
-        setDefaultsOnInsert: true,
-        runValidators: true,
-      },
-    );
-    if (oppdatertCanvasBruker?._id) {
-      await User.updateOne(
-        { _id: req.user.id },
-        { $set: { canvasUser: oppdatertCanvasBruker._id } },
-      );
+    // Bruk transaksjon for å sikre atomisk oppdatering av CanvasUser og User
+    const session = await mongoose.startSession();
+    let oppdatertCanvasBruker: CanvasUserSynkResult = null;
+    try {
+      await session.withTransaction(async () => {
+        oppdatertCanvasBruker = (await CanvasUser.findOneAndUpdate(
+          { localUser: userId },
+          buildCanvasUserPayload(canvasUser, resolvedCanvasBaseUrl, userId),
+          {
+            upsert: true,
+            returnDocument: "after",
+            setDefaultsOnInsert: true,
+            runValidators: true,
+            session,
+          },
+        )) as CanvasUserSynkResult;
+        const oppdatertCanvasBrukerObj =
+          typeof oppdatertCanvasBruker === "object" &&
+          oppdatertCanvasBruker !== null
+            ? oppdatertCanvasBruker
+            : null;
+        const oppdatertCanvasBrukerId = oppdatertCanvasBrukerObj
+          ? Reflect.get(oppdatertCanvasBrukerObj, "_id")
+          : undefined;
+        if (oppdatertCanvasBrukerId != null) {
+          await User.updateOne(
+            { _id: userId },
+            {
+              $set: {
+                canvasUser: oppdatertCanvasBrukerId as mongoose.Types.ObjectId,
+              },
+            },
+            { session },
+          );
+        }
+      });
+    } finally {
+      await session.endSession();
     }
     logger.info("Canvas bruker synkronisert");
     // Returner Canvas-data med created_at
     // Prioritet: Canvas sin dato > vår lagrede Canvas-dato > når brukeren koblet til StudyWise
+    const oppdatertCanvasBrukerObj =
+      typeof oppdatertCanvasBruker === "object" &&
+      oppdatertCanvasBruker !== null
+        ? oppdatertCanvasBruker
+        : null;
+    const oppdatertCanvasBrukerCanvasUserCreatedAt = oppdatertCanvasBrukerObj
+      ? Reflect.get(oppdatertCanvasBrukerObj, "canvasUserCreatedAt")
+      : undefined;
+    const oppdatertCanvasBrukerCreatedAt = oppdatertCanvasBrukerObj
+      ? Reflect.get(oppdatertCanvasBrukerObj, "createdAt")
+      : undefined;
     const createdAt =
       canvasUser.created_at ||
-      oppdatertCanvasBruker?.canvasUserCreatedAt?.toISOString() ||
-      (
-        oppdatertCanvasBruker as unknown as { createdAt?: Date }
-      )?.createdAt?.toISOString();
+      (oppdatertCanvasBrukerCanvasUserCreatedAt instanceof Date
+        ? oppdatertCanvasBrukerCanvasUserCreatedAt.toISOString()
+        : undefined) ||
+      (oppdatertCanvasBrukerCreatedAt instanceof Date
+        ? oppdatertCanvasBrukerCreatedAt.toISOString()
+        : undefined);
     res.json({
       ...canvasUser,
       created_at: createdAt,

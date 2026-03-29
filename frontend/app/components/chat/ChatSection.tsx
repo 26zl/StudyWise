@@ -157,7 +157,8 @@ export function ChatSection() {
     const filInputRef = useRef<HTMLInputElement>(null);
     const sendMeldingRef = useRef<(options?: SendMeldingOptions) => Promise<void>>(async () => {});
     const meldingerRef = useRef<Melding[]>([]);
-    const oppretterChatRef = useRef(false);
+    /** Promise-basert mutex for chat-opprettelse. Holder Promise mens chat opprettes for å forhindre race conditions. */
+    const oppretterChatPromiseRef = useRef<Promise<string | undefined> | null>(null);
     const isMountedRef = useRef(true);
     const retriedPendingSaveRef = useRef<string | null>(null);
     const brukerErVedBunnRef = useRef(true);
@@ -288,15 +289,24 @@ export function ChatSection() {
             await saveChat(payload, aktivChatId);
             return;
         }
-        if (oppretterChatRef.current) return;
-        oppretterChatRef.current = true;
-        try {
-            const titleFromFirst = title ?? oppdatert.find((m) => m.rolle === "user")?.innhold?.trim().slice(0, 50) ?? "Ny samtale";
-            const nyId = await saveChat(payload, undefined, titleFromFirst);
-            if (nyId) settAktivSamtale(nyId);
-        } finally {
-            oppretterChatRef.current = false;
+        // Hvis en chat-opprettelse allerede pågår, vent på den og bruk resultatet
+        if (oppretterChatPromiseRef.current) {
+            const eksisterendeId = await oppretterChatPromiseRef.current;
+            if (eksisterendeId) {
+                await saveChat(payload, eksisterendeId);
+            }
+            return;
         }
+        // Start ny chat-opprettelse med mutex
+        const titleFromFirst = title ?? oppdatert.find((m) => m.rolle === "user")?.innhold?.trim().slice(0, 50) ?? "Ny samtale";
+        const createPromise = saveChat(payload, undefined, titleFromFirst).then((nyId) => {
+            if (nyId) settAktivSamtale(nyId);
+            return nyId;
+        }).finally(() => {
+            oppretterChatPromiseRef.current = null;
+        });
+        oppretterChatPromiseRef.current = createPromise;
+        await createPromise;
     };
 
     const harSammeMeldinger = (

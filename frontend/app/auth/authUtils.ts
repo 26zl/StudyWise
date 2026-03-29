@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { MeResponse } from "common/auth";
 import { AppError } from "../lib/errors";
+import { erFatalUserDataFeilmelding } from "../lib/errorUtils";
 
 /** MeResponse ved innlogget, undefined før første svar eller når bruker ikke er autentisert. */
 export type MegQueryResult = UseQueryResult<MeResponse, Error>;
@@ -17,7 +18,7 @@ export type MegQueryResult = UseQueryResult<MeResponse, Error>;
 function erAuthFeil(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   // Slettet bruker og kontokonflikter skal IKKE trigge redirect — de trenger spesialhåndtering
-  if (message.includes("kontoen er slettet") || message.includes("innloggingskonflikt") || message.includes("allerede en konto")) {
+  if (erFatalUserDataFeilmelding(message)) {
     return false;
   }
   if (AppError.isAppError(error) && error.requiresReauth()) return true;

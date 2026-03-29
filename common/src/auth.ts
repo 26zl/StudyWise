@@ -297,6 +297,54 @@ export const ProfileUpdateSchema = z
   );
 export type ProfileUpdate = z.infer<typeof ProfileUpdateSchema>;
 
+/** Username constraints. */
+export const USERNAME_MIN_LENGTH = 3;
+export const USERNAME_MAX_LENGTH = 30;
+export const USERNAME_PATTERN = /^[a-zA-Z0-9_]+$/;
+
+/** Validates username format (length and allowed characters). */
+export function isValidUsernameFormat(username: string): boolean {
+  if (!username || typeof username !== "string") return false;
+  const trimmed = username.trim();
+  return (
+    trimmed.length >= USERNAME_MIN_LENGTH &&
+    trimmed.length <= USERNAME_MAX_LENGTH &&
+    USERNAME_PATTERN.test(trimmed)
+  );
+}
+
+/** Oppdatering av brukerprofil med brukernavn. Minst ett felt må oppgis. */
+export const ProfileUpdateWithUsernameSchema = z
+  .object({
+    firstName: z
+      .string()
+      .trim()
+      .min(MIN_FIRST_NAME_LENGTH, `Fornavn må være minst ${MIN_FIRST_NAME_LENGTH} tegn`)
+      .max(100, "Fornavn kan maks være 100 tegn")
+      .optional(),
+    lastName: z
+      .string()
+      .trim()
+      .min(MIN_FIRST_NAME_LENGTH, `Etternavn må være minst ${MIN_FIRST_NAME_LENGTH} tegn`)
+      .max(100, "Etternavn kan maks være 100 tegn")
+      .optional(),
+    username: z
+      .string()
+      .trim()
+      .min(USERNAME_MIN_LENGTH, `Brukernavn må være minst ${USERNAME_MIN_LENGTH} tegn`)
+      .max(USERNAME_MAX_LENGTH, `Brukernavn kan maks være ${USERNAME_MAX_LENGTH} tegn`)
+      .regex(USERNAME_PATTERN, "Brukernavn kan kun inneholde bokstaver, tall og understrek")
+      .optional(),
+    /** Hopp over tilbakesynk til Clerk (brukes når endringen allerede kom fra Clerk). */
+    skipClerkSync: z.boolean().optional(),
+  })
+  .refine(
+    (data) =>
+      data.firstName !== undefined || data.lastName !== undefined || data.username !== undefined,
+    "Minst ett felt må oppgis",
+  );
+export type ProfileUpdateWithUsername = z.infer<typeof ProfileUpdateWithUsernameSchema>;
+
 export const ProfileUpdateResponseSchema = z.object({
   melding: z.string(),
   user: AuthBrukerSchema,
@@ -360,22 +408,6 @@ export const AUTH_CHANNEL_NAME = "studywise_auth_sync";
 // CSRF: frontend sender denne headeren på POST/PUT/PATCH/DELETE; backend krever den for å avvise forespørsler fra tredjepartsider.
 export const AUTH_CSRF_HEADER_NAME = "x-studywise-csrf";
 export const AUTH_CSRF_HEADER_VALUE = "1";
-
-/** Username constraints. */
-export const USERNAME_MIN_LENGTH = 3;
-export const USERNAME_MAX_LENGTH = 30;
-export const USERNAME_PATTERN = /^[a-zA-Z0-9_]+$/;
-
-/** Validates username format (length and allowed characters). */
-export function isValidUsernameFormat(username: string): boolean {
-  if (!username || typeof username !== "string") return false;
-  const trimmed = username.trim();
-  return (
-    trimmed.length >= USERNAME_MIN_LENGTH &&
-    trimmed.length <= USERNAME_MAX_LENGTH &&
-    USERNAME_PATTERN.test(trimmed)
-  );
-}
 
 export const UsernameCheckQuerySchema = z.object({
   username: z

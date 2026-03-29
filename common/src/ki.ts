@@ -156,6 +156,15 @@ export const SubTaskSchema = z.object({
   approved: z.boolean().optional().default(true),
 });
 
+/** AI-generert subtask (uten id, completed, approved - disse legges til ved lagring). */
+export const GeneratedSubTaskSchema = z.object({
+  title: z.string().min(1).max(200),
+  description: z.string().max(1000).default(""),
+  estimatedTime: z.string().min(1).max(50),
+  priority: z.enum(["low", "medium", "high"]),
+});
+export type GeneratedSubTask = z.infer<typeof GeneratedSubTaskSchema>;
+
 // Task breakdown response schema for KI task breakdown API
 export const TaskBreakdownResponseSchema = z.object({
   subtasks: z.array(SubTaskSchema),

@@ -26,7 +26,14 @@ export default async function HomePage() {
             <p className="text-lg md:text-xl text-slate-700 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed">
               {translate(language, "landing.hero.description")}
             </p>
-            <LandingHeroActions initialUser={initialUser} />
+            <LandingHeroActions
+              initialUser={initialUser}
+              labels={{
+                continueToDashboard: translate(language, "landing.actions.continueToDashboard"),
+                goToDashboard: translate(language, "common.actions.goToDashboard"),
+                signInOrRegister: translate(language, "landing.actions.signInOrRegister"),
+              }}
+            />
           </div>
         </section>
         <section className="px-4 sm:px-6 lg:px-8 py-16 bg-slate-50/50 dark:bg-slate-800/20 border-t border-slate-100 dark:border-slate-800" aria-labelledby="funksjoner-heading">

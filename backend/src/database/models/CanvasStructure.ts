@@ -59,15 +59,68 @@ export interface ICanvasStructure extends Document {
   dataHash: string;
 }
 
+// Subschemas for Canvas data med typevalidering
+const CanvasModuleItemSchema = new Schema<ICanvasModuleItem>(
+  {
+    id: { type: Number },
+    title: { type: String },
+    type: { type: String },
+    content_id: { type: Number },
+    external_url: { type: String },
+    contentHash: { type: String },
+    crawledHash: { type: String },
+    crawledAt: { type: Date },
+    crawledPdfs: { type: [String], default: undefined },
+  },
+  { _id: false },
+);
+
+const CanvasModuleSchema = new Schema<ICanvasModule>(
+  {
+    id: { type: Number },
+    name: { type: String },
+    items: { type: [CanvasModuleItemSchema], default: [] },
+  },
+  { _id: false },
+);
+
+const CanvasAssignmentSubmissionSchema = new Schema(
+  {
+    workflow_state: { type: String },
+    submitted_at: { type: String },
+  },
+  { _id: false },
+);
+
+const CanvasAssignmentSchema = new Schema<ICanvasAssignment>(
+  {
+    name: { type: String },
+    due_at: { type: String },
+    description: { type: String },
+    points_possible: { type: Number },
+    submission: { type: CanvasAssignmentSubmissionSchema },
+  },
+  { _id: false },
+);
+
+const CanvasAnnouncementSchema = new Schema<ICanvasAnnouncement>(
+  {
+    title: { type: String },
+    message: { type: String },
+    posted_at: { type: String },
+  },
+  { _id: false },
+);
+
 const CanvasStructureSchema = new Schema<ICanvasStructure>(
   {
     userId: { type: String, required: true },
     courseId: { type: String, required: true },
     courseName: { type: String, required: true },
     course_code: { type: String, default: "" },
-    moduler: { type: Schema.Types.Mixed, default: [] },
-    oppgaver: { type: Schema.Types.Mixed, default: [] },
-    kunngjøringer: { type: Schema.Types.Mixed, default: [] },
+    moduler: { type: [CanvasModuleSchema], default: [] },
+    oppgaver: { type: [CanvasAssignmentSchema], default: [] },
+    kunngjøringer: { type: [CanvasAnnouncementSchema], default: [] },
     syncedAt: { type: Date, default: Date.now },
     dataHash: { type: String, required: true },
   },

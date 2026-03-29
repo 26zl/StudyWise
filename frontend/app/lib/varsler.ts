@@ -74,89 +74,98 @@ export interface FristElement {
 }
 
 export interface OppgaveElement {
-    type: "oppgave";
-    id: string;
-    tittel: string;
-    emne: string;
-    dato: Date;
-    timerIgjen: number;
-    status: FristStatus;
-    erInnlevert: boolean;
-    url: string | null;
+  type: "oppgave";
+  id: string;
+  assignmentId: number | null;
+  tittel: string;
+  emne: string;
+  dato: Date;
+  timerIgjen: number;
+  status: FristStatus;
+  erInnlevert: boolean;
+  url: string | null;
 }
 
 export interface KunngjoringElement {
-    type: "kunngjoring";
-    id: string;
-    tittel: string;
-    emne: string;
-    dato: Date;
-    melding: string;
+  type: "kunngjoring";
+  id: string;
+  tittel: string;
+  emne: string;
+  dato: Date;
+  melding: string;
 }
 
 export interface HendelseElement {
-    type: "hendelse";
-    id: string;
-    tittel: string;
-    dato: Date;
-    sluttDato: Date | null;
-    lokasjon: string | null;
-    emne?: string;
-    url?: string | null;
+  type: "hendelse";
+  id: string;
+  tittel: string;
+  dato: Date;
+  sluttDato: Date | null;
+  lokasjon: string | null;
+  emne?: string;
+  url?: string | null;
 }
 
 export type VarslingElement =
-    | FristElement
-    | OppgaveElement
-    | KunngjoringElement
-    | HendelseElement;
+  | FristElement
+  | OppgaveElement
+  | KunngjoringElement
+  | HendelseElement;
 
 // —— Bygg varsler-lister (bruker erInnlevert fra canvasUtils) ——
 
 export function buildFrister(oppgaver: AssignmentMedEmne[]): FristElement[] {
-    const nå = Date.now();
-    return oppgaver
-        .filter((o) => {
-            if (erInnlevert(o)) return false;
-            return erInnenforFristVindu(o.due_at, nå);
-        })
-        .map((o) => {
-            const timerIgjen = (new Date(o.due_at!).getTime() - nå) / (1000 * 60 * 60);
-            return {
-                type: "frist" as const,
-                id: `oppgave-${o.id}`,
-                tittel: o.name,
-                emne: o.course_name,
-                dato: new Date(o.due_at!),
-                timerIgjen,
-                status: klassifiserFrist(timerIgjen),
-                erInnlevert: false, // Alltid false — innleverte oppgaver er allerede filtrert bort over
-            };
-        })
-        .sort((a, b) => a.timerIgjen - b.timerIgjen);
+  const nå = Date.now();
+  return oppgaver
+    .filter((o) => {
+      if (erInnlevert(o)) return false;
+      return erInnenforFristVindu(o.due_at, nå);
+    })
+    .map((o) => {
+      const timerIgjen =
+        (new Date(o.due_at!).getTime() - nå) / (1000 * 60 * 60);
+      return {
+        type: "frist" as const,
+        id: `oppgave-${o.id}`,
+        tittel: o.name,
+        emne: o.course_name,
+        dato: new Date(o.due_at!),
+        timerIgjen,
+        status: klassifiserFrist(timerIgjen),
+        erInnlevert: false, // Alltid false — innleverte oppgaver er allerede filtrert bort over
+      };
+    })
+    .sort((a, b) => a.timerIgjen - b.timerIgjen);
 }
 
 export function buildOppgaver(oppgaver: Assignment[]): OppgaveElement[] {
-    const nå = Date.now();
-    return oppgaver
-        .filter((oppgave) => oppgave.dueDate.getTime() > nå)
-        .map((oppgave) => {
-            const timerIgjen =
-                (oppgave.dueDate.getTime() - nå) / (1000 * 60 * 60);
+  const nå = Date.now();
+  return oppgaver
+    .filter((oppgave) => oppgave.dueDate.getTime() > nå)
+    .map((oppgave) => {
+      const timerIgjen = (oppgave.dueDate.getTime() - nå) / (1000 * 60 * 60);
+      const assignmentId =
+        oppgave.source === "assignment"
+          ? (() => {
+              const match = oppgave.id.match(/assignment-(\d+)$/);
+              return match ? Number(match[1]) : null;
+            })()
+          : null;
 
-            return {
-                type: "oppgave" as const,
-                id: `oppgave-${oppgave.id}`,
-                tittel: oppgave.title,
-                emne: oppgave.courseName ?? oppgave.courseCode,
-                dato: oppgave.dueDate,
-                timerIgjen,
-                status: klassifiserFrist(timerIgjen),
-                erInnlevert: oppgave.completed,
-                url: oppgave.url ?? null,
-            };
-        })
-        .sort((a, b) => a.dato.getTime() - b.dato.getTime());
+      return {
+        type: "oppgave" as const,
+        id: `oppgave-${oppgave.id}`,
+        assignmentId,
+        tittel: oppgave.title,
+        emne: oppgave.courseName ?? oppgave.courseCode,
+        dato: oppgave.dueDate,
+        timerIgjen,
+        status: klassifiserFrist(timerIgjen),
+        erInnlevert: oppgave.completed,
+        url: oppgave.url ?? null,
+      };
+    })
+    .sort((a, b) => a.dato.getTime() - b.dato.getTime());
 }
 // Kunngjøringer og hendelser bygges direkte fra API-data, med enkel datoformatering.
 export function buildKunngjøringer(

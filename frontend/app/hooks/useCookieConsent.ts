@@ -8,6 +8,7 @@ import type { CookieConsentValue, UIPreferences } from "common/auth";
 export const COOKIE_CONSENT_CHANGED_EVENT = "studywise-cookie-consent-changed";
 export type CookieConsentStatus = CookieConsentValue | null;
 const COOKIE_CONSENT_STORAGE_PREFIX = "studywise_cookie_consent";
+const GUEST_COOKIE_CONSENT_STORAGE_KEY = "studywise_guest_cookie_consent";
 
 let gjesteSamtykke: CookieConsentStatus = null;
 
@@ -30,6 +31,34 @@ function readAuthenticatedConsentFromStorage(userId: string): CookieConsentStatu
     );
   } catch {
     return null;
+  }
+}
+
+function readGuestConsentFromStorage(): CookieConsentStatus {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    return parseCookieConsent(window.localStorage.getItem(GUEST_COOKIE_CONSENT_STORAGE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+function writeGuestConsentToStorage(consent: CookieConsentStatus): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    if (consent === null) {
+      window.localStorage.removeItem(GUEST_COOKIE_CONSENT_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(GUEST_COOKIE_CONSENT_STORAGE_KEY, consent);
+  } catch {
+    // Ignorer localStorage-feil i låste miljøer.
   }
 }
 
@@ -68,12 +97,18 @@ function emitCookieConsentChange(value: CookieConsentStatus): void {
 
 export function resetGjesteSamtykke(): void {
   gjesteSamtykke = null;
+  writeGuestConsentToStorage(null);
   emitCookieConsentChange(null);
 }
 
 export function useCookieConsent() {
   const { isLoaded, userId } = useAuth();
-  const { data: me, isPending: henterMeg } = useMeg({
+  const {
+    data: me,
+    isPending: henterMeg,
+    isSuccess: harBackendBrukerdata,
+    isError: feiletBrukerdata,
+  } = useMeg({
     enabled: isLoaded && !!userId,
   });
   const { mutateAsync: oppdaterUIPreferanser, isPending } =
@@ -89,6 +124,8 @@ export function useCookieConsent() {
     if (typeof window === "undefined") {
       return;
     }
+    gjesteSamtykke = readGuestConsentFromStorage();
+    setGuestConsent(gjesteSamtykke);
 
     const handleConsentChange = (event: Event) => {
       if (event instanceof CustomEvent) {
@@ -149,9 +186,14 @@ export function useCookieConsent() {
     (isAuthenticated
       ? (backendConsent ?? cachedAuthenticatedConsent)
       : guestConsent);
+  const harConsentFraCache = cachedAuthenticatedConsent !== null;
   const isReady =
     isLoaded &&
-    (!isAuthenticated || cachedAuthenticatedConsent !== null || !henterMeg);
+    (!isAuthenticated ||
+      harConsentFraCache ||
+      harBackendBrukerdata ||
+      feiletBrukerdata ||
+      !henterMeg);
 
   useEffect(() => {
     if (!isAuthenticated || !userId || henterMeg) {
@@ -166,6 +208,7 @@ export function useCookieConsent() {
     async (nextConsent: Exclude<CookieConsentStatus, null>) => {
       if (!isAuthenticated) {
         gjesteSamtykke = nextConsent;
+        writeGuestConsentToStorage(nextConsent);
         setGuestConsent(nextConsent);
         emitCookieConsentChange(nextConsent);
         return;

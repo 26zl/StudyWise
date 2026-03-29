@@ -11,7 +11,13 @@ import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { ShieldAlert, Trash2 } from "lucide-react";
 import { Footer } from "@/app/components/layout/footer";
-import { useMeg, useOppdaterProfil, useSlettKonto } from "@/app/auth/auth-api";
+import {
+  useMeg,
+  useOppdaterProfil,
+  useSlettKonto,
+  type ProfileUpdateWithUsername,
+} from "@/app/auth/auth-api";
+import { LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
 import { broadcastLogout, clearClientAuthState } from "@/app/hooks/use-auth-sync";
@@ -30,6 +36,7 @@ export default function ProfilPage() {
   const { mutateAsync: oppdaterProfil, isPending: isProfilOppdateringPending } = useOppdaterProfil();
   const { mutateAsync: slettKonto, isPending: isSlettingKonto } = useSlettKonto();
   const sisteSyncForsokRef = useRef<string | null>(null);
+  const [kontoSlettes, setKontoSlettes] = useState(false);
   const [visKontoSletting, setVisKontoSletting] = useState(false);
   const [kontoSlettBekreftelse, setKontoSlettBekreftelse] = useState("");
   const slettBekreftelsesord = t("settings.deleteAccount.confirmKeyword");
@@ -40,19 +47,24 @@ export default function ProfilPage() {
 
     const clerkFirstName = normalizeName(clerkUser?.firstName);
     const clerkLastName = normalizeName(clerkUser?.lastName);
+    const clerkUsername = normalizeName(clerkUser?.username);
     const localFirstName = normalizeName(meData.user.firstName);
     const localLastName = normalizeName(meData.user.lastName);
+    const localUsername = normalizeName(meData.user.username);
 
-    const profileUpdate: { firstName?: string; lastName?: string } = {};
+    const profileUpdate: ProfileUpdateWithUsername = {};
     if (clerkFirstName !== localFirstName) profileUpdate.firstName = clerkFirstName;
     if (clerkLastName !== localLastName) profileUpdate.lastName = clerkLastName;
+    if (clerkUsername !== localUsername && clerkUsername.length > 0) {
+      profileUpdate.username = clerkUsername;
+    }
 
     if (Object.keys(profileUpdate).length === 0) {
       sisteSyncForsokRef.current = null;
       return;
     }
 
-    const syncNokkel = `${localFirstName}|${localLastName}->${clerkFirstName}|${clerkLastName}`;
+    const syncNokkel = `${localFirstName}|${localLastName}|${localUsername}->${clerkFirstName}|${clerkLastName}|${clerkUsername}`;
     if (sisteSyncForsokRef.current === syncNokkel) return;
     sisteSyncForsokRef.current = syncNokkel;
 
@@ -60,13 +72,14 @@ export default function ProfilPage() {
       showToast.warning(
         language === "en" ? "Profile sync failed" : "Profilsynk feilet",
         language === "en"
-          ? "Name was updated in profile settings, but could not be synced to StudyWise."
-          : "Navn ble oppdatert i profilinnstillinger, men kunne ikke synkes til StudyWise.",
+          ? "Profile was updated in account settings, but could not be synced to StudyWise."
+          : "Profilen ble oppdatert i kontoinnstillinger, men kunne ikke synkes til StudyWise.",
       );
     });
   }, [
     clerkUser?.firstName,
     clerkUser?.lastName,
+    clerkUser?.username,
     clerkUserLoaded,
     isProfilOppdateringPending,
     language,
@@ -75,6 +88,9 @@ export default function ProfilPage() {
   ]);
 
   async function handleSlettKonto() {
+    if (kontoSlettes) return;
+    setKontoSlettes(true);
+
     const fullforLokalUtlogging = () => {
       broadcastLogout();
       clearClientAuthState(queryClient);
@@ -109,6 +125,7 @@ export default function ProfilPage() {
 
       fullforLokalUtlogging();
     } catch (error) {
+      setKontoSlettes(false);
       const fallback =
         language === "en"
           ? "Could not delete the account. Please try again."
@@ -116,6 +133,15 @@ export default function ProfilPage() {
       const message = error instanceof Error && error.message ? error.message : fallback;
       showToast.error(t("settings.deleteAccount.deleteErrorTitle"), message);
     }
+  }
+
+  if (kontoSlettes || isSlettingKonto) {
+    return (
+      <LoadingView
+        text={t("settings.deleteAccount.deleting")}
+        className="min-h-screen"
+      />
+    );
   }
 
   return (
