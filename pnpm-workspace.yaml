@@ -3,6 +3,7 @@ packages:
   - frontend
   - common
   - docs
+  - tests
 
 onlyBuiltDependencies:
   - "@clerk/shared"
