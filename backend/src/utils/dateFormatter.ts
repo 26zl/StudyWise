@@ -1,6 +1,6 @@
 /**
  * Dato-formateringsverktøy for backend (norsk bokmål).
- * Sentraliserer dato-formatering som tidligere var duplisert i kiCanvas.ts og context-loader.
+ * Sentraliserer dato-formatering for context-loader og andre tjenester.
  */
 
 import { getWeekNumber } from "common/dateUtils";
