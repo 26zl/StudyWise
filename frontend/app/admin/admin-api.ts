@@ -8,6 +8,11 @@ import {
   AdminBrukerListeResponseSchema,
   AdminEndreRolleResponseSchema,
   AdminEndreRolleSchema,
+  AdminLangsmithDailyMetricsResponseSchema,
+  AdminLangsmithOverviewResponseSchema,
+  AdminLangsmithRunDetailSchema,
+  AdminLangsmithRunsResponseSchema,
+  AdminLangsmithStatsResponseSchema,
   AdminSlettBrukerResponseSchema,
   AdminStatsResponseSchema,
 } from "common/admin";
@@ -17,6 +22,11 @@ import type {
   AdminBruker,
   AdminBrukerListeResponse,
   AdminEndreRollePayload,
+  AdminLangsmithDailyMetricsResponse,
+  AdminLangsmithOverviewResponse,
+  AdminLangsmithRunDetail,
+  AdminLangsmithRunsResponse,
+  AdminLangsmithStatsResponse,
   AdminStatsResponse,
 } from "common/admin";
 import { fetchApi } from "../lib/apiClient";
@@ -31,6 +41,72 @@ export function useAdminStats() {
       if (!res.ok) throw new Error("Kunne ikke hente statistikk");
       return AdminStatsResponseSchema.parse(await res.json());
     },
+    staleTime: 30_000,
+  });
+}
+
+export function useAdminLangsmithStats() {
+  return useQuery({
+    queryKey: ["admin", "langsmith", "stats"],
+    queryFn: async (): Promise<AdminLangsmithStatsResponse> => {
+      const res = await fetchApi("/api/admin/langsmith/stats");
+      if (!res.ok) throw new Error("Kunne ikke hente LangSmith-statistikk");
+      return AdminLangsmithStatsResponseSchema.parse(await res.json());
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useLangsmithOverview() {
+  return useQuery({
+    queryKey: ["admin", "langsmith", "overview"],
+    queryFn: async (): Promise<AdminLangsmithOverviewResponse> => {
+      const res = await fetchApi("/api/admin/langsmith/overview");
+      if (!res.ok) throw new Error("Kunne ikke hente LangSmith-overview");
+      return AdminLangsmithOverviewResponseSchema.parse(await res.json());
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useDailyMetrics(days = 30) {
+  return useQuery({
+    queryKey: ["admin", "langsmith", "daily-metrics", days],
+    queryFn: async (): Promise<AdminLangsmithDailyMetricsResponse["data"]> => {
+      const res = await fetchApi(`/api/admin/langsmith/daily-metrics?days=${days}`);
+      if (!res.ok) throw new Error("Kunne ikke hente daglige LangSmith-målinger");
+      const parsed = AdminLangsmithDailyMetricsResponseSchema.parse(await res.json());
+      return parsed.data;
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useRuns(page = 1, status = "all", intent = "") {
+  return useQuery({
+    queryKey: ["admin", "langsmith", "runs", page, status, intent],
+    queryFn: async (): Promise<AdminLangsmithRunsResponse> => {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("status", status);
+      if (intent.trim().length > 0) params.set("intent", intent.trim());
+      const res = await fetchApi(`/api/admin/langsmith/runs?${params.toString()}`);
+      if (!res.ok) throw new Error("Kunne ikke hente LangSmith-runs");
+      return AdminLangsmithRunsResponseSchema.parse(await res.json());
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useRunDetail(runId: string | null) {
+  return useQuery({
+    queryKey: ["admin", "langsmith", "run-detail", runId],
+    queryFn: async (): Promise<AdminLangsmithRunDetail> => {
+      const res = await fetchApi(`/api/admin/langsmith/runs/${runId}`);
+      if (!res.ok) throw new Error("Kunne ikke hente LangSmith run-detaljer");
+      return AdminLangsmithRunDetailSchema.parse(await res.json());
+    },
+    enabled: Boolean(runId),
     staleTime: 30_000,
   });
 }
@@ -112,4 +188,12 @@ export function useSlettBruker() {
   });
 }
 
-export type { AdminBruker, AdminStatsResponse, AdminAuditItem };
+export type {
+  AdminBruker,
+  AdminStatsResponse,
+  AdminAuditItem,
+  AdminLangsmithStatsResponse,
+  AdminLangsmithOverviewResponse,
+  AdminLangsmithRunsResponse,
+  AdminLangsmithRunDetail,
+};

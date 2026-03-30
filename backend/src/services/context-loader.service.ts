@@ -11,7 +11,7 @@
  *   1. Prøv lagret KI-innhold i MongoDB for semantisk/keyword-basert søk
  *   2. Bruk Redis for lett strukturkontekst og metadata når det finnes
  *   3. Hvis Redis mangler → bruk MongoDB CanvasStructure (permanent, ~10-30ms)
- *   4. Hvis lokal lagring mangler → trigger bakgrunns-sync og bruk kiCanvas-fallback
+ *   4. Hvis lokal lagring mangler → trigger bakgrunns-sync
  *
  * Opprettholder kompatibilitet med eksisterende intent-nivåer:
  *   - general_chat:   ingen kontekst

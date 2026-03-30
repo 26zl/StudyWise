@@ -723,6 +723,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     let hasCanvasData = false;
     let fullDocumentModeActive = false;
     let fullDocumentStrictPrefix = "";
+    let traceCourseIdHint: number | null = null;
 
     if (intent !== "general_chat" && req.canvasToken && req.user?.id) {
       const baseUrl = req.canvasBaseUrl;
@@ -850,6 +851,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       if (target.courseHint && target.courseIdHint == null) {
         target = await resolveTargetAgainstKnownCourses(req.user.id, target, lastUserMsg);
       }
+      traceCourseIdHint = target.courseIdHint;
 
       logger.info(
         { intent, target, messagePreview: lastUserMsg.substring(0, 100) },
@@ -1088,6 +1090,13 @@ Rules:
         max_tokens: maxTokens,
         temperature: Math.min(Math.max(temperature, 0), 1),
         signal: abortController.signal,
+        traceName: "chat",
+        traceMeta: {
+          userId: req.user?.id,
+          courseId: traceCourseIdHint ?? undefined,
+          intent,
+          mode: hasCanvasData ? "canvas_context" : "chat",
+        },
       }),
       timeoutPromise,
     ]);

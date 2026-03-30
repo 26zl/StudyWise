@@ -125,6 +125,12 @@ Frist: ${dueDateText}`;
       max_tokens: 1024,
       temperature: 0.3,
       signal: req.timeoutSignal,
+      traceName: "task-breakdown",
+      traceMeta: {
+        userId,
+        intent: "general_chat",
+        mode: "task_breakdown",
+      },
     });
 
     const subtasks = parseGeneratedSubtasks(result.text);

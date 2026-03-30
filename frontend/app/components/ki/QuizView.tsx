@@ -496,8 +496,48 @@ function QuizActive({
   const [selected, setSelected] = useState<number | null>(null);
   const [showExplanation, setShowExplanation] = useState(false);
   const [score, setScore] = useState(0);
+  const scoreRef = useRef(0);
+
+  if (questions.length === 0) {
+    return (
+      <div className="max-w-3xl mx-auto">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-base text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          Quizen mangler spørsmål. Gå tilbake og generer på nytt.
+        </div>
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Tilbake til oppsett
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const q = questions[current];
+  if (!q) {
+    return (
+      <div className="max-w-3xl mx-auto">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-base text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          Kunne ikke laste aktivt spørsmål. Gå tilbake og prøv igjen.
+        </div>
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Tilbake til oppsett
+          </button>
+        </div>
+      </div>
+    );
+  }
   const isLast = current === questions.length - 1;
 
   const handleSelect = (idx: number) => {
@@ -505,13 +545,14 @@ function QuizActive({
     setSelected(idx);
     setShowExplanation(true);
     if (idx === q.correctIndex) setScore((s) => s + 1);
+    if (idx === q.correctIndex) {
+      scoreRef.current += 1;
+    }
   };
 
   const handleNext = () => {
     if (isLast) {
-      // Beregn endelig score direkte for å unngå race condition med asynkron setState
-      const finalScore = selected === q.correctIndex ? score + 1 : score;
-      onFinish(finalScore, questions.length);
+      onFinish(scoreRef.current, questions.length);
     } else {
       setCurrent((c) => c + 1);
       setSelected(null);
