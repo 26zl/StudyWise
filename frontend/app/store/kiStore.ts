@@ -4,8 +4,26 @@
  * mens brukeren navigerer mellom visninger i dashboardet.
  */
 import { create } from "zustand";
-import type { TaskBreakdownGenerateRequest, TaskBreakdownResponse, WeeklyPlanAssignment, WeeklyPlanSuggestionResponse, KIOppsummeringResponse } from "common/ki";
-import { generateTaskBreakdownApi, saveTaskBreakdownApi, generateWeeklyPlanApi, generateOppsummeringApi } from "@/app/ki/ki-api";
+import { persist, createJSONStorage } from "zustand/middleware";
+import type {
+  TaskBreakdownGenerateRequest,
+  TaskBreakdownResponse,
+  WeeklyPlanAssignment,
+  WeeklyPlanSuggestionResponse,
+  KIOppsummeringResponse,
+  QuizGenerateRequest,
+  QuizGenerateResponse,
+  FlashcardsGenerateRequest,
+  FlashcardsGenerateResponse,
+} from "common/ki";
+import {
+  generateTaskBreakdownApi,
+  saveTaskBreakdownApi,
+  generateWeeklyPlanApi,
+  generateOppsummeringApi,
+  generateQuizApi,
+  generateFlashcardsApi,
+} from "@/app/ki/ki-api";
 import { simpleHash } from "@/app/lib/utils";
 
 type GenerationStatus = "idle" | "pending" | "success" | "error";
@@ -29,6 +47,13 @@ interface OppsummeringJob {
   error?: string;
 }
 
+interface QuizJob {
+  status: GenerationStatus;
+  mode: "quiz" | "flashcards";
+  result?: QuizGenerateResponse | FlashcardsGenerateResponse;
+  error?: string;
+}
+
 interface KIState {
   // Chat — markerer hvilken chat som kjører (brukes av ChatSection + sidebar)
   runningChatId: string | null;
@@ -48,9 +73,64 @@ interface KIState {
   oppsummeringJobs: Record<string, OppsummeringJob>;
   startOppsummering: (tekst: string) => string;
   clearOppsummering: (key: string) => void;
+
+  // Quiz/Flashcards
+  quizJob: QuizJob | null;
+  startQuizGeneration: (request: QuizGenerateRequest) => void;
+  startFlashcardGeneration: (request: FlashcardsGenerateRequest) => void;
+  clearQuizJob: () => void;
+  resumeQuizJob: () => void;
+
+  // Sist kjente quiz/flashcard-forespørsel (brukes for å gjenoppta ved navigasjon)
+  lastQuizRequest?: {
+    mode: QuizJob["mode"];
+    payload: QuizGenerateRequest | FlashcardsGenerateRequest;
+  };
 }
 
-export const useKIStore = create<KIState>()((set) => ({
+// Global peker til aktiv quiz/flashcard-forespørsel slik at den ikke avbrytes ved navigasjon.
+let activeQuizJob: Promise<void> | null = null;
+
+function kjørQuizJob(
+  mode: QuizJob["mode"],
+  payload: QuizGenerateRequest | FlashcardsGenerateRequest,
+  set: (partial: Partial<KIState> | ((state: KIState) => Partial<KIState>)) => void,
+): void {
+  // Hindre dobbeltkall når en forespørsel allerede er i gang.
+  if (activeQuizJob) return;
+
+  activeQuizJob = (async () => {
+    try {
+      if (mode === "quiz") {
+        const data = await generateQuizApi(payload as QuizGenerateRequest);
+        set(() => ({
+          quizJob: { status: "success", mode: "quiz", result: data },
+          lastQuizRequest: undefined,
+        }));
+      } else {
+        const data = await generateFlashcardsApi(payload as FlashcardsGenerateRequest);
+        set(() => ({
+          quizJob: { status: "success", mode: "flashcards", result: data },
+          lastQuizRequest: undefined,
+        }));
+      }
+    } catch (error) {
+      set(() => ({
+        quizJob: {
+          status: "error",
+          mode,
+          error: error instanceof Error ? error.message : "KI-generering feilet. Prøv igjen.",
+        },
+      }));
+    } finally {
+      activeQuizJob = null;
+    }
+  })();
+}
+
+export const useKIStore = create<KIState>()(
+  persist(
+    (set, get) => ({
   // --- Chat ---
   runningChatId: null,
   setRunningChatId: (id) => set({ runningChatId: id }),
@@ -174,4 +254,55 @@ export const useKIStore = create<KIState>()((set) => ({
       return { oppsummeringJobs: rest };
     });
   },
-}));
+
+  // --- Quiz/Flashcards ---
+  quizJob: null,
+
+  startQuizGeneration: (request) => {
+    const { quizJob } = get();
+    if (quizJob?.status === "pending") return;
+
+    // Lagre forespørsel slik at den kan fullføres i bakgrunnen selv om brukeren navigerer.
+    set({
+      quizJob: { status: "pending", mode: "quiz" },
+      lastQuizRequest: { mode: "quiz", payload: request },
+    });
+
+    kjørQuizJob("quiz", request, set);
+  },
+
+  startFlashcardGeneration: (request) => {
+    const { quizJob } = get();
+    if (quizJob?.status === "pending") return;
+
+    set({
+      quizJob: { status: "pending", mode: "flashcards" },
+      lastQuizRequest: { mode: "flashcards", payload: request },
+    });
+
+    kjørQuizJob("flashcards", request, set);
+  },
+
+  clearQuizJob: () => {
+    set({ quizJob: null, lastQuizRequest: undefined });
+  },
+
+  resumeQuizJob: () => {
+    const { quizJob, lastQuizRequest } = get();
+    if (activeQuizJob) return;
+    if (!lastQuizRequest) return;
+    if (quizJob?.status === "pending") {
+      kjørQuizJob(lastQuizRequest.mode, lastQuizRequest.payload, set);
+    }
+  },
+}),
+    {
+      name: "ki-store-quiz-cache",
+      storage: createJSONStorage(() => sessionStorage),
+      partialize: (state) => ({
+        quizJob: state.quizJob,
+        lastQuizRequest: state.lastQuizRequest,
+      }),
+    },
+  ),
+);

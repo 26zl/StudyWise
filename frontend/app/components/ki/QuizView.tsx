@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -26,8 +26,7 @@ import { CanvasTokenNotice } from "@/app/components/canvas/CanvasTokenNotice";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
-import { fetchApi } from "@/app/lib/apiClient";
-import { parseApiError } from "@/app/lib/errorUtils";
+import { useKIStore } from "@/app/store/kiStore";
 import {
   FlashcardsGenerateRequestSchema,
   FlashcardsGenerateResponseSchema,
@@ -263,9 +262,11 @@ function ModeToggle({
 function FlashcardActive({
   cards,
   onFinish,
+  onBack,
 }: {
   cards: Flashcard[];
   onFinish: (known: number, unknown: number) => void;
+  onBack: () => void;
 }) {
   const [current, setCurrent] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -293,6 +294,18 @@ function FlashcardActive({
 
   return (
     <div className="max-w-3xl mx-auto">
+      {/* Tilbake-knapp */}
+      <div className="mb-6">
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Tilbake
+        </button>
+      </div>
+
       {/* Progress */}
       <div className="mb-10">
         <div className="flex items-center justify-between mb-3">
@@ -473,9 +486,11 @@ function FlashcardResults({
 function QuizActive({
   questions,
   onFinish,
+  onBack,
 }: {
   questions: QuizQuestion[];
   onFinish: (score: number, total: number) => void;
+  onBack: () => void;
 }) {
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
@@ -508,6 +523,18 @@ function QuizActive({
 
   return (
     <div className="max-w-3xl mx-auto">
+      {/* Tilbake-knapp */}
+      <div className="mb-6">
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Tilbake til oppsett
+        </button>
+      </div>
+
       <div className="mb-10">
         <div className="flex items-center justify-between mb-3">
           <span className="text-base font-medium text-slate-500 dark:text-slate-400">
@@ -719,6 +746,8 @@ interface QuizViewProps {
   harCanvasToken?: boolean;
 }
 
+const uiStateStorageKey = "quiz-view-ui-state";
+
 export function QuizView({ harCanvasToken = false }: QuizViewProps) {
   const { t } = useLanguage();
   const [dashboardView, setDashboardView] = useQueryState(
@@ -734,8 +763,78 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [finalScore, setFinalScore] = useState({ score: 0, total: 0 });
   const [flashcardScore, setFlashcardScore] = useState({ known: 0, total: 0 });
-  const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Bakgrunnsjobb fra store — for navigering mens generering pågår
+  const quizJob = useKIStore((s) => s.quizJob);
+  const startQuizGeneration = useKIStore((s) => s.startQuizGeneration);
+  const startFlashcardGeneration = useKIStore((s) => s.startFlashcardGeneration);
+  const clearQuizJob = useKIStore((s) => s.clearQuizJob);
+  const resumeQuizJob = useKIStore((s) => s.resumeQuizJob);
+
+  // Forhindrer doble kall
+  const hasHandledResult = useRef(false);
+
+  const isGenerating = quizJob?.status === "pending";
+
+  // Last inn lagret UI-tilstand slik at siden ikke føles nullstilt etter navigasjon.
+  const hasHydratedUiState = useRef(false);
+  useEffect(() => {
+    if (hasHydratedUiState.current) return;
+    hasHydratedUiState.current = true;
+    try {
+      const raw = sessionStorage.getItem(uiStateStorageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as {
+        phase?: QuizPhase;
+        selectedCourseId?: string | null;
+        selectedModules?: string[];
+        questionCount?: number;
+      };
+      if (parsed.phase) setPhase(parsed.phase);
+      if (parsed.selectedCourseId !== undefined) setSelectedCourseId(parsed.selectedCourseId);
+      if (parsed.selectedModules) setSelectedModules(parsed.selectedModules);
+      if (typeof parsed.questionCount === "number") setQuestionCount(parsed.questionCount);
+    } catch {
+      // Ignorer korrupt storage
+    }
+  }, []);
+
+  // Persister UI-tilstand for å beholde valg/phase på tvers av navigasjon.
+  useEffect(() => {
+    const payload = {
+      phase,
+      selectedCourseId,
+      selectedModules,
+      questionCount,
+    };
+    try {
+      sessionStorage.setItem(uiStateStorageKey, JSON.stringify(payload));
+    } catch {
+      // Ignorer lagringsfeil
+    }
+  }, [phase, selectedCourseId, selectedModules, questionCount]);
+
+  // Sørger for at pågående jobber gjenopptas etter navigasjon.
+  useEffect(() => {
+    resumeQuizJob();
+  }, [resumeQuizJob]);
+
+  // Sikrer at vi også gjenopptar etter at Zustand-persist er ferdig hydrert.
+  useEffect(() => {
+    const persistApi = (useKIStore as typeof useKIStore & { persist?: any }).persist;
+    if (!persistApi) return;
+
+    if (persistApi.hasHydrated?.()) {
+      resumeQuizJob();
+    }
+    const unsub = persistApi.onFinishHydration?.(() => {
+      resumeQuizJob();
+    });
+    return () => {
+      unsub?.();
+    };
+  }, [resumeQuizJob]);
 
   // Hent ekte Canvas-data
   const { data: coursesData, isLoading: coursesLoading } = useCanvasCourses(harCanvasToken);
@@ -769,84 +868,75 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
 
   const canGenerate = selectedCourseId && selectedModules.length > 0;
 
-  const handleGenerate = async () => {
-    if (!selectedCourse || selectedModules.length === 0) return;
-    setIsGenerating(true);
+  // Start generering via store
+  const handleGenerate = () => {
+    if (!selectedCourse || selectedModules.length === 0 || isGenerating) return;
     setError(null);
+    hasHandledResult.current = false;
 
     const moduleNames = moduleOptions
       .filter((m) => selectedModules.includes(m.id))
       .map((m) => m.name);
 
-    // Generering kan ta opptil 2 minutter
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120_000);
-
-    const endpoint = studyMode === "quiz" ? "/api/quiz/generate" : "/api/flashcards/generate";
-    const requestPayload = studyMode === "quiz"
-      ? QuizGenerateRequestSchema.parse({
+    if (studyMode === "quiz") {
+      startQuizGeneration(
+        QuizGenerateRequestSchema.parse({
           courseId: selectedCourse.numericId,
           courseName: selectedCourse.name,
           moduleNames,
           questionCount,
-        })
-      : FlashcardsGenerateRequestSchema.parse({
+        }),
+      );
+    } else {
+      startFlashcardGeneration(
+        FlashcardsGenerateRequestSchema.parse({
           courseId: selectedCourse.numericId,
           courseName: selectedCourse.name,
           moduleNames,
           cardCount: questionCount,
-        });
+        }),
+      );
+    }
+    // Marker at vi er midt i generering slik at UI vises konsekvent etter navigasjon.
+    setPhase("setup");
+  };
 
-    try {
-      const res = await fetchApi(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestPayload),
-        signal: controller.signal,
-      });
+  // Håndter bakgrunnsjobb-resultat
+  useEffect(() => {
+    if (!quizJob || hasHandledResult.current) return;
 
-      clearTimeout(timeoutId);
-
-      if (!res.ok) {
-        throw new Error(
-          await parseApiError(
-            res,
-            studyMode === "quiz"
-              ? t("quiz.couldNotGenerateQuiz")
-              : t("quiz.couldNotGenerateFlashcards"),
-          ),
-        );
-      }
-
-      const raw = await res.json();
-
-      if (studyMode === "quiz") {
-        const parsed = QuizGenerateResponseSchema.parse(raw);
+    if (quizJob.status === "success" && quizJob.result) {
+      hasHandledResult.current = true;
+      if (quizJob.mode === "quiz") {
+        const parsed = QuizGenerateResponseSchema.parse(quizJob.result);
         if (parsed.questions.length === 0) {
-          throw new Error(t("quiz.noQuestionsGenerated"));
+          setError(t("quiz.noQuestionsGenerated"));
+          showToast.error(t("quiz.noQuestionsGenerated"));
+        } else {
+          setQuizQuestions(parsed.questions);
+          setPhase("active");
         }
-        setQuizQuestions(parsed.questions);
       } else {
-        const parsed = FlashcardsGenerateResponseSchema.parse(raw);
+        const parsed = FlashcardsGenerateResponseSchema.parse(quizJob.result);
         if (parsed.flashcards.length === 0) {
-          throw new Error(t("quiz.noFlashcardsGenerated"));
+          setError(t("quiz.noFlashcardsGenerated"));
+          showToast.error(t("quiz.noFlashcardsGenerated"));
+        } else {
+          setFlashcards(parsed.flashcards);
+          setPhase("active");
         }
-        setFlashcards(parsed.flashcards);
       }
+      clearQuizJob();
+    }
 
-      setPhase("active");
-    } catch (err) {
-      clearTimeout(timeoutId);
-      const contentType = studyMode === "quiz" ? "quiz" : "flashcards";
-      const msg = err instanceof Error 
-        ? (err.name === "AbortError" ? t("quiz.requestTimeout") : err.message)
-        : t("quiz.couldNotGenerate", { contentType });
+    if (quizJob.status === "error") {
+      hasHandledResult.current = true;
+      const msg = quizJob.error ?? t("quiz.couldNotGenerate", { contentType: quizJob.mode });
       setError(msg);
       showToast.error(msg);
-    } finally {
-      setIsGenerating(false);
+      clearQuizJob();
     }
-  };
+  }, [quizJob, clearQuizJob, t]);
 
   const handleFinishQuiz = (score: number, total: number) => {
     setFinalScore({ score, total });
@@ -1063,9 +1153,9 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                 exit={{ opacity: 0 }}
               >
                 {studyMode === "quiz" ? (
-                  <QuizActive questions={quizQuestions} onFinish={handleFinishQuiz} />
+                  <QuizActive questions={quizQuestions} onFinish={handleFinishQuiz} onBack={handleBackToSetup} />
                 ) : (
-                  <FlashcardActive cards={flashcards} onFinish={handleFinishFlashcards} />
+                  <FlashcardActive cards={flashcards} onFinish={handleFinishFlashcards} onBack={handleBackToSetup} />
                 )}
               </motion.div>
             )}

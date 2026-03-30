@@ -573,6 +573,46 @@ async function deleteKI<T>(endpoint: string, schema: ZodType<T>): Promise<T> {
   });
 }
 
+// Enkel POST-hjelper for ikke-KI endepunkter (quiz/flashcards) slik at vi treffer riktig backend-rute.
+async function postGeneriskApi<T>(
+  path: string,
+  body: unknown,
+  schema: ZodType<T>,
+): Promise<T> {
+  const res = await fetchApi(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (res.status === 401 || res.status === 403) {
+    throw new ForbiddenError(
+      await parseApiError(res, "Du har ikke tilgang til denne handlingen."),
+    );
+  }
+
+  if (res.status === 429) {
+    throw new Error(
+      await parseApiError(
+        res,
+        "For mange forespørsler. Vent litt og prøv igjen.",
+      ),
+    );
+  }
+
+  if (!res.ok) {
+    throw new Error(
+      await parseApiError(
+        res,
+        "Noe gikk galt med genereringen. Prøv igjen om et øyeblikk.",
+      ),
+    );
+  }
+
+  const data = await res.json();
+  return schema.parse(data);
+}
+
 function asError(error: unknown): Error {
   return error instanceof Error ? error : new Error("Uventet feil");
 }
@@ -890,4 +930,32 @@ export async function generateOppsummeringApi(
   type: "tldr" | "handlinger" | "begge" = "begge",
 ) {
   return postKI("/oppsummering", { tekst, type }, KIOppsummeringResponseSchema);
+}
+
+// --- Quiz/Flashcards API ---
+import {
+  QuizGenerateRequestSchema,
+  QuizGenerateResponseSchema,
+  FlashcardsGenerateRequestSchema,
+  FlashcardsGenerateResponseSchema,
+  type QuizGenerateRequest,
+  type QuizGenerateResponse,
+  type FlashcardsGenerateRequest,
+  type FlashcardsGenerateResponse,
+} from "common/ki";
+
+export type { QuizGenerateRequest, QuizGenerateResponse, FlashcardsGenerateRequest, FlashcardsGenerateResponse };
+
+/** Rå API-funksjon for quiz-generering. */
+export async function generateQuizApi(request: QuizGenerateRequest): Promise<QuizGenerateResponse> {
+  const validated = QuizGenerateRequestSchema.parse(request);
+  // Bruker direkte /api/quiz endepunkt (ikke /api/ki) for å unngå feil-ruting og unødvendige 429-feil.
+  return postGeneriskApi("/api/quiz/generate", validated, QuizGenerateResponseSchema);
+}
+
+/** Rå API-funksjon for flashcard-generering. */
+export async function generateFlashcardsApi(request: FlashcardsGenerateRequest): Promise<FlashcardsGenerateResponse> {
+  const validated = FlashcardsGenerateRequestSchema.parse(request);
+  // Bruker direkte /api/flashcards endepunkt (ikke /api/ki) for å unngå feil-ruting og unødvendige 429-feil.
+  return postGeneriskApi("/api/flashcards/generate", validated, FlashcardsGenerateResponseSchema);
 }
