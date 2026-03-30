@@ -103,6 +103,13 @@ Generer nøyaktig ${questionCount} spørsmål som JSON-array.`;
       max_tokens: 4096,
       temperature: 0.7,
       signal: req.timeoutSignal,
+      traceName: "quiz-generate",
+      traceMeta: {
+        userId,
+        courseId,
+        intent: "canvas_full",
+        mode: "quiz",
+      },
     });
 
     const rawQuestions = z

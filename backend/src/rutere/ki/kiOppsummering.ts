@@ -126,6 +126,12 @@ Hvis det ikke er noen handlingspunkter, skriv "HANDLINGER: Ingen handlingspunkte
           max_tokens: 2048,
           temperature: 0.3,
           signal: req.timeoutSignal,
+          traceName: "oppsummering",
+          traceMeta: {
+            userId: req.user?.id,
+            intent: "general_chat",
+            mode: type,
+          },
         }),
         timeoutPromise,
       ]);

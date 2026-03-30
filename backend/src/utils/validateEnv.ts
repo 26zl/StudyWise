@@ -27,6 +27,10 @@ interface EnvConfig {
   WEB_PUSH_VAPID_PUBLIC_KEY?: string;
   WEB_PUSH_VAPID_PRIVATE_KEY?: string;
   WEB_PUSH_SUBJECT?: string;
+  LANGCHAIN_TRACING_V2?: string;
+  LANGCHAIN_ENDPOINT?: string;
+  LANGCHAIN_API_KEY?: string;
+  LANGCHAIN_PROJECT?: string;
 }
 
 const requiredEnvVars: (keyof EnvConfig)[] = [
@@ -122,6 +126,7 @@ export const validateEnv = (): void => {
     }
   };
   validateUrl("REDIS_URL");
+  validateUrl("LANGCHAIN_ENDPOINT");
 
   for (const origin of webOrigins) {
     try {

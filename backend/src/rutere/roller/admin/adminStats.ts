@@ -6,7 +6,14 @@
  *   GET /statistikk – Aggregerte nøkkeltall for plattformen
  */
 import { Router } from "express";
-import { AdminStatsResponseSchema } from "common/admin";
+import {
+  AdminLangsmithDailyMetricsResponseSchema,
+  AdminLangsmithOverviewResponseSchema,
+  AdminLangsmithRunDetailSchema,
+  AdminLangsmithRunsResponseSchema,
+  AdminLangsmithStatsResponseSchema,
+  AdminStatsResponseSchema,
+} from "common/admin";
 import { User } from "../../../database/models/User.js";
 import { ChatHistory } from "../../../database/models/ChatHistory.js";
 import { SharedChat } from "../../../database/models/SharedChat.js";
@@ -20,15 +27,584 @@ import { backfillMissingFullText } from "../../../services/embedding.service.js"
 import { apiError, requireUserId } from "../../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../../utils/auditLog.js";
 import { logger } from "../../../utils/logger.js";
+import { getCache, setCache } from "../../../cache/redis.js";
+import { langsmithClient } from "../../../lib/langsmith.js";
+import type { Run } from "langsmith/schemas";
 
 const router = Router();
 
 const ACTIVE_FILTER = { deletedAt: { $exists: false } };
 const DAY_MS = 24 * 60 * 60 * 1000;
+const LANGSMITH_STATS_CACHE_TTL_SECONDS = 60;
+const LANGSMITH_STATS_CACHE_KEY = "admin:langsmith:stats:v1";
+const LANGSMITH_PROJECT = process.env.LANGCHAIN_PROJECT || "studywise";
+
+interface LangsmithRunSnapshot {
+  id?: string;
+  start_time?: unknown;
+  end_time?: unknown;
+  inputs?: Record<string, unknown>;
+  outputs?: Record<string, unknown>;
+  prompt_tokens?: number | null;
+  completion_tokens?: number | null;
+  total_tokens?: number | null;
+  error?: unknown;
+  extra?: unknown;
+}
 
 function avrundEnDesimal(verdi: number): number {
   return Math.round(verdi * 10) / 10;
 }
+
+function asTimestamp(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function isoDateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function lagTomPeriode() {
+  return {
+    runs: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+  };
+}
+
+function lagTomLangsmithStats() {
+  return AdminLangsmithStatsResponseSchema.parse({
+    period: { days7: lagTomPeriode(), days30: lagTomPeriode() },
+    dailyTokens: [],
+    avgLatencyMs: 0,
+    errorRate: 0,
+    byIntent: {},
+  });
+}
+
+function trimText(value: unknown, max = 6000): string {
+  const text = typeof value === "string" ? value : value == null ? "" : JSON.stringify(value);
+  if (text.length <= max) return text;
+  return `${text.slice(0, max)}…`;
+}
+
+function hentMetadata(run: LangsmithRunSnapshot): Record<string, unknown> {
+  const extra = (run.extra ?? {}) as Record<string, unknown>;
+  const metadata = extra.metadata;
+  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
+    return metadata as Record<string, unknown>;
+  }
+  return {};
+}
+
+function hentIntent(run: LangsmithRunSnapshot): string {
+  const extra = (run.extra ?? {}) as Record<string, unknown>;
+  if (typeof extra.intent === "string" && extra.intent.trim().length > 0) return extra.intent.trim();
+  if (typeof extra.mode === "string" && extra.mode.trim().length > 0) return extra.mode.trim();
+
+  const metadata = hentMetadata(run);
+  if (typeof metadata.intent === "string" && metadata.intent.trim().length > 0) {
+    return metadata.intent.trim();
+  }
+  if (typeof metadata.mode === "string" && metadata.mode.trim().length > 0) {
+    return metadata.mode.trim();
+  }
+
+  return "ukjent";
+}
+
+function hentModel(run: LangsmithRunSnapshot): string {
+  const inputs = (run.inputs ?? {}) as Record<string, unknown>;
+  if (typeof inputs.model === "string" && inputs.model.trim().length > 0) return inputs.model.trim();
+
+  const extra = (run.extra ?? {}) as Record<string, unknown>;
+  if (typeof extra.model === "string" && extra.model.trim().length > 0) return extra.model.trim();
+  return "ukjent";
+}
+
+function hentBruker(run: LangsmithRunSnapshot): string {
+  const extra = (run.extra ?? {}) as Record<string, unknown>;
+  if (typeof extra.userId === "string" && extra.userId.trim().length > 0) return extra.userId.trim();
+
+  const metadata = hentMetadata(run);
+  if (typeof metadata.userId === "string" && metadata.userId.trim().length > 0) {
+    return metadata.userId.trim();
+  }
+  return "ukjent";
+}
+
+function hentCourse(run: LangsmithRunSnapshot): string {
+  const extra = (run.extra ?? {}) as Record<string, unknown>;
+  const candidate = extra.courseId;
+  if (typeof candidate === "string" && candidate.trim().length > 0) return candidate.trim();
+  if (typeof candidate === "number" && Number.isFinite(candidate)) return String(candidate);
+
+  const metadata = hentMetadata(run);
+  const metaCourseId = metadata.courseId;
+  if (typeof metaCourseId === "string" && metaCourseId.trim().length > 0) return metaCourseId.trim();
+  if (typeof metaCourseId === "number" && Number.isFinite(metaCourseId)) return String(metaCourseId);
+  return "ukjent";
+}
+
+function hentPromptPreview(run: LangsmithRunSnapshot): string {
+  const inputs = (run.inputs ?? {}) as Record<string, unknown>;
+  const messages = Array.isArray(inputs.messages) ? inputs.messages : [];
+  const userMessages = messages
+    .filter((message) => {
+      if (!message || typeof message !== "object") return false;
+      const role = (message as Record<string, unknown>).role;
+      return role === "user";
+    })
+    .map((message) => {
+      if (!message || typeof message !== "object") return "";
+      const content = (message as Record<string, unknown>).content;
+      return trimText(content, 300);
+    })
+    .filter(Boolean);
+
+  if (userMessages.length > 0) {
+    return trimText(userMessages.join("\n\n"), 1200);
+  }
+
+  return trimText(inputs.input, 1200);
+}
+
+function hentSystemPromptPreview(run: LangsmithRunSnapshot): string {
+  const inputs = (run.inputs ?? {}) as Record<string, unknown>;
+  return trimText(inputs.systemPrompt, 1200);
+}
+
+function hentOutputPreview(run: LangsmithRunSnapshot): string {
+  const outputs = (run.outputs ?? {}) as Record<string, unknown>;
+  if (typeof outputs.response === "string") return trimText(outputs.response, 1200);
+  return trimText(outputs, 1200);
+}
+
+function hentRagSources(run: LangsmithRunSnapshot): Array<{ fileName: string; score?: number }> {
+  const metadata = hentMetadata(run);
+  const rawSources = metadata.ragSources;
+  if (!Array.isArray(rawSources)) return [];
+
+  const sources: Array<{ fileName: string; score?: number }> = [];
+  for (const source of rawSources) {
+    if (!source || typeof source !== "object") continue;
+    const entry = source as Record<string, unknown>;
+    const fileNameCandidate = entry.fileName ?? entry.filename ?? entry.name;
+    const fileName =
+      typeof fileNameCandidate === "string" && fileNameCandidate.trim().length > 0
+        ? fileNameCandidate.trim()
+        : null;
+    if (!fileName) continue;
+    const score = typeof entry.score === "number" && Number.isFinite(entry.score) ? entry.score : undefined;
+    sources.push(score === undefined ? { fileName } : { fileName, score });
+  }
+
+  return sources;
+}
+
+function hentTokens(run: LangsmithRunSnapshot): {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+} {
+  const extra = (run.extra ?? {}) as Record<string, unknown>;
+  const extraTokenUsage = extra.token_usage as
+    | { input_tokens?: number; output_tokens?: number; total_tokens?: number }
+    | undefined;
+  const metadata = hentMetadata(run);
+  const metadataTokenUsage = metadata.token_usage as
+    | { input_tokens?: number; output_tokens?: number; total_tokens?: number }
+    | undefined;
+
+  const inputTokens =
+    run.prompt_tokens ??
+    extraTokenUsage?.input_tokens ??
+    metadataTokenUsage?.input_tokens ??
+    0;
+  const outputTokens =
+    run.completion_tokens ??
+    extraTokenUsage?.output_tokens ??
+    metadataTokenUsage?.output_tokens ??
+    0;
+  const totalTokens =
+    run.total_tokens ??
+    extraTokenUsage?.total_tokens ??
+    metadataTokenUsage?.total_tokens ??
+    inputTokens + outputTokens;
+
+  return { inputTokens, outputTokens, totalTokens };
+}
+
+async function hentLangsmithRuns(options: {
+  days: number;
+  limit?: number;
+  runType?: string;
+}): Promise<LangsmithRunSnapshot[]> {
+  if (!langsmithClient) {
+    logger.warn("LangSmith-klient mangler, kan ikke hente observability-data");
+    return [];
+  }
+
+  const client = langsmithClient;
+  const startTime = new Date(Date.now() - options.days * DAY_MS);
+  const limit = Math.min(options.limit ?? 100, 100);
+
+  const runs: LangsmithRunSnapshot[] = [];
+  const runWithProject = async () => {
+    for await (const run of client.listRuns({
+      projectName: LANGSMITH_PROJECT,
+      runType: options.runType,
+      startTime,
+      limit,
+      order: "desc",
+    })) {
+      runs.push(run as LangsmithRunSnapshot);
+    }
+  };
+
+  try {
+    await runWithProject();
+    logger.info(
+      { antall: runs.length, dager: options.days, runType: options.runType ?? "alle" },
+      "LangSmith-runs hentet med prosjektfilter",
+    );
+    return runs;
+  } catch (projectError) {
+    logger.warn(
+      { err: projectError, project: LANGSMITH_PROJECT },
+      "LangSmith listRuns med prosjekt feilet, prøver uten prosjektfilter",
+    );
+  }
+
+  runs.length = 0;
+  try {
+    for await (const run of client.listRuns({
+      runType: options.runType,
+      startTime,
+      limit,
+      order: "desc",
+    })) {
+      runs.push(run as LangsmithRunSnapshot);
+    }
+    logger.info(
+      { antall: runs.length, dager: options.days, runType: options.runType ?? "alle" },
+      "LangSmith-runs hentet uten prosjektfilter",
+    );
+  } catch (fallbackError) {
+    logger.warn(
+      { err: fallbackError },
+      "LangSmith listRuns uten prosjekt feilet, returnerer tom liste",
+    );
+    return [];
+  }
+
+  return runs;
+}
+
+async function hentLangsmithStatsMedCache() {
+  const cached = await getCache(LANGSMITH_STATS_CACHE_KEY);
+  if (cached) {
+    return AdminLangsmithStatsResponseSchema.parse(JSON.parse(cached));
+  }
+
+  if (!langsmithClient) {
+    const tomtSvar = lagTomLangsmithStats();
+    await setCache(
+      LANGSMITH_STATS_CACHE_KEY,
+      JSON.stringify(tomtSvar),
+      LANGSMITH_STATS_CACHE_TTL_SECONDS,
+    );
+    return tomtSvar;
+  }
+
+  const nå = Date.now();
+  const grense7 = nå - 7 * DAY_MS;
+  const grense30 = nå - 30 * DAY_MS;
+  const dailyMap = new Map<string, { inputTokens: number; outputTokens: number }>();
+  for (let i = 29; i >= 0; i -= 1) {
+    const dayDate = new Date(nå - i * DAY_MS);
+    dailyMap.set(isoDateKey(dayDate), { inputTokens: 0, outputTokens: 0 });
+  }
+
+  const byIntent: Record<string, { runs: number; tokens: number }> = {};
+  const period7 = lagTomPeriode();
+  const period30 = lagTomPeriode();
+  let latencySum = 0;
+  let latencyCount = 0;
+  let errorCount = 0;
+
+  const runs = await hentLangsmithRuns({ days: 30, limit: 100, runType: "llm" });
+  if (runs.length === 0) {
+    const alleRuns = await hentLangsmithRuns({ days: 30, limit: 100, runType: undefined });
+    runs.push(...alleRuns);
+  }
+  for (const run of runs) {
+    const startTs = asTimestamp(run.start_time);
+    if (!startTs || startTs < grense30) continue;
+
+    const { inputTokens, outputTokens, totalTokens } = hentTokens(run);
+
+    period30.runs += 1;
+    period30.inputTokens += inputTokens;
+    period30.outputTokens += outputTokens;
+    period30.totalTokens += totalTokens;
+
+    if (startTs >= grense7) {
+      period7.runs += 1;
+      period7.inputTokens += inputTokens;
+      period7.outputTokens += outputTokens;
+      period7.totalTokens += totalTokens;
+    }
+
+    const dateKey = isoDateKey(new Date(startTs));
+    const currentDaily = dailyMap.get(dateKey);
+    if (currentDaily) {
+      currentDaily.inputTokens += inputTokens;
+      currentDaily.outputTokens += outputTokens;
+    }
+
+    const endTs = asTimestamp(run.end_time);
+    if (endTs && endTs >= startTs) {
+      latencySum += endTs - startTs;
+      latencyCount += 1;
+    }
+
+    if (run.error) {
+      errorCount += 1;
+    }
+
+    const intentValue = hentIntent(run);
+    if (!byIntent[intentValue]) {
+      byIntent[intentValue] = { runs: 0, tokens: 0 };
+    }
+    byIntent[intentValue].runs += 1;
+    byIntent[intentValue].tokens += totalTokens;
+  }
+
+  const response = AdminLangsmithStatsResponseSchema.parse({
+    period: { days7: period7, days30: period30 },
+    dailyTokens: Array.from(dailyMap.entries()).map(([date, values]) => ({
+      date,
+      inputTokens: values.inputTokens,
+      outputTokens: values.outputTokens,
+    })),
+    avgLatencyMs: latencyCount > 0 ? Math.round(latencySum / latencyCount) : 0,
+    errorRate: period30.runs > 0 ? errorCount / period30.runs : 0,
+    byIntent,
+  });
+
+  await setCache(
+    LANGSMITH_STATS_CACHE_KEY,
+    JSON.stringify(response),
+    LANGSMITH_STATS_CACHE_TTL_SECONDS,
+  );
+  return response;
+}
+
+router.get("/langsmith/stats", async (_req, res) => {
+  try {
+    const response = await hentLangsmithStatsMedCache();
+    return res.json(response);
+  } catch (err) {
+    logger.error({ err }, "Admin LangSmith-statistikk feilet");
+    return apiError.serverError(res);
+  }
+});
+
+router.get("/langsmith/overview", async (_req, res) => {
+  try {
+    const stats = await hentLangsmithStatsMedCache();
+    const totalTokens24h =
+      stats.dailyTokens.at(-1) != null
+        ? stats.dailyTokens.at(-1)!.inputTokens + stats.dailyTokens.at(-1)!.outputTokens
+        : 0;
+    const totalTokens7d = stats.period.days7.totalTokens;
+    const runs7d = await hentLangsmithRuns({ days: 7, limit: 3000 });
+    const last24hThreshold = Date.now() - DAY_MS;
+    const totalRuns24h = runs7d.filter((run) => {
+      const startTs = asTimestamp(run.start_time);
+      return startTs != null && startTs >= last24hThreshold;
+    }).length;
+
+    const overview = AdminLangsmithOverviewResponseSchema.parse({
+      totalRuns24h,
+      totalRuns7d: stats.period.days7.runs,
+      totalTokens24h,
+      totalTokens7d,
+      avgLatencyMs: stats.avgLatencyMs,
+      errorRatePercent: Math.round(stats.errorRate * 1000) / 10,
+    });
+
+    return res.json(overview);
+  } catch (err) {
+    logger.error({ err }, "Admin LangSmith overview feilet");
+    if (!res.headersSent) {
+      return apiError.serverError(res);
+    }
+    return;
+  }
+});
+
+router.get("/langsmith/daily-metrics", async (req, res) => {
+  try {
+    const daysRaw = typeof req.query.days === "string" ? Number.parseInt(req.query.days, 10) : 30;
+    const days = Number.isInteger(daysRaw) ? Math.min(Math.max(daysRaw, 1), 90) : 30;
+    const now = Date.now();
+    const map = new Map<string, { inputTokens: number; outputTokens: number; latencySum: number; latencyCount: number }>();
+    for (let i = days - 1; i >= 0; i -= 1) {
+      map.set(isoDateKey(new Date(now - i * DAY_MS)), {
+        inputTokens: 0,
+        outputTokens: 0,
+        latencySum: 0,
+        latencyCount: 0,
+      });
+    }
+
+    const runs = await hentLangsmithRuns({ days, limit: 100, runType: "llm" });
+    const runsMedFallback =
+      runs.length === 0 ? await hentLangsmithRuns({ days, limit: 100 }) : runs;
+    for (const run of runsMedFallback) {
+      const startTs = asTimestamp(run.start_time);
+      if (!startTs) continue;
+
+      const { inputTokens, outputTokens } = hentTokens(run);
+
+      const dateKey = isoDateKey(new Date(startTs));
+      const current = map.get(dateKey);
+      if (!current) continue;
+
+      current.inputTokens += inputTokens;
+      current.outputTokens += outputTokens;
+
+      const endTs = asTimestamp(run.end_time);
+      if (endTs && endTs >= startTs) {
+        current.latencySum += endTs - startTs;
+        current.latencyCount += 1;
+      }
+    }
+
+    const response = AdminLangsmithDailyMetricsResponseSchema.parse({
+      days,
+      data: Array.from(map.entries()).map(([date, values]) => ({
+        date,
+        inputTokens: values.inputTokens,
+        outputTokens: values.outputTokens,
+        avgLatencyMs: values.latencyCount > 0 ? Math.round(values.latencySum / values.latencyCount) : 0,
+      })),
+    });
+
+    return res.json(response);
+  } catch (err) {
+    logger.error({ err }, "Admin LangSmith daily metrics feilet");
+    return apiError.serverError(res);
+  }
+});
+
+router.get("/langsmith/runs", async (req, res) => {
+  try {
+    if (!langsmithClient) {
+      return res.json(
+        AdminLangsmithRunsResponseSchema.parse({ runs: [], total: 0, page: 1, pageSize: 20 }),
+      );
+    }
+
+    const pageRaw = typeof req.query.page === "string" ? Number.parseInt(req.query.page, 10) : 1;
+    const page = Number.isInteger(pageRaw) && pageRaw > 0 ? pageRaw : 1;
+    const status = typeof req.query.status === "string" ? req.query.status.trim() : "all";
+    const intentFilter = typeof req.query.intent === "string" ? req.query.intent.trim().toLowerCase() : "";
+    const pageSize = 20;
+    const skip = (page - 1) * pageSize;
+    const allRuns = await hentLangsmithRuns({ days: 30, limit: 100, runType: "llm" });
+    const allRunsMedFallback =
+      allRuns.length === 0 ? await hentLangsmithRuns({ days: 30, limit: 100 }) : allRuns;
+
+    const filtered = allRunsMedFallback.filter((run) => {
+      const intent = hentIntent(run).toLowerCase();
+      const matchesIntent = intentFilter.length === 0 || intent.includes(intentFilter);
+      if (!matchesIntent) return false;
+      if (status === "success") return !run.error;
+      if (status === "error") return Boolean(run.error);
+      return true;
+    });
+
+    const paged = filtered.slice(skip, skip + pageSize).map((run) => {
+      const startTs = asTimestamp(run.start_time) ?? Date.now();
+      const endTs = asTimestamp(run.end_time);
+      const latencyMs = endTs && endTs >= startTs ? endTs - startTs : 0;
+      const { inputTokens, outputTokens, totalTokens } = hentTokens(run);
+      return {
+        id: run.id ?? `${startTs}`,
+        timestamp: new Date(startTs).toISOString(),
+        model: hentModel(run),
+        intent: hentIntent(run),
+        user: hentBruker(run),
+        course: hentCourse(run),
+        inputTokens,
+        outputTokens,
+        totalTokens,
+        latencyMs,
+        status: run.error ? "error" : "success",
+      };
+    });
+
+    return res.json(
+      AdminLangsmithRunsResponseSchema.parse({
+        runs: paged,
+        total: filtered.length,
+        page,
+        pageSize,
+      }),
+    );
+  } catch (err) {
+    logger.error({ err }, "Admin LangSmith runs feilet");
+    return apiError.serverError(res);
+  }
+});
+
+router.get("/langsmith/runs/:runId", async (req, res) => {
+  try {
+    if (!langsmithClient) {
+      return apiError.notFound(res, "LangSmith-run");
+    }
+
+    const runId = req.params.runId;
+    const run = (await langsmithClient.readRun(runId)) as Run & LangsmithRunSnapshot;
+    const startTs = asTimestamp(run.start_time) ?? Date.now();
+    const endTs = asTimestamp(run.end_time);
+    const latencyMs = endTs && endTs >= startTs ? endTs - startTs : 0;
+    const { inputTokens, outputTokens, totalTokens } = hentTokens(run);
+
+    return res.json(
+      AdminLangsmithRunDetailSchema.parse({
+        id: run.id,
+        timestamp: new Date(startTs).toISOString(),
+        model: hentModel(run),
+        intent: hentIntent(run),
+        user: hentBruker(run),
+        course: hentCourse(run),
+        inputTokens,
+        outputTokens,
+        totalTokens,
+        latencyMs,
+        status: run.error ? "error" : "success",
+        promptPreview: hentPromptPreview(run),
+        systemPromptPreview: hentSystemPromptPreview(run),
+        ragSources: hentRagSources(run),
+        outputPreview: hentOutputPreview(run),
+        errorMessage: run.error ? trimText(run.error, 1200) : undefined,
+      }),
+    );
+  } catch (err) {
+    logger.error({ err }, "Admin LangSmith run detail feilet");
+    return apiError.serverError(res);
+  }
+});
 
 router.get("/statistikk", async (req, res) => {
   const actorUserId = requireUserId(req, res);

@@ -263,6 +263,12 @@ router.post("/generate", async (req, res) => {
       max_tokens: 2048,
       temperature: 0.3,
       signal: req.timeoutSignal,
+      traceName: "weekly-plan",
+      traceMeta: {
+        userId,
+        intent: "general_chat",
+        mode: "weekly_plan",
+      },
     });
 
     const payload = parseGeneratedWeeklyPlan(result.text, oppgaver);

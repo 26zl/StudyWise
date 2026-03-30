@@ -101,6 +101,13 @@ Generer nøyaktig ${cardCount} flashcards som JSON-array.`;
       max_tokens: 4096,
       temperature: 0.7,
       signal: req.timeoutSignal,
+      traceName: "flashcards-generate",
+      traceMeta: {
+        userId,
+        courseId,
+        intent: "canvas_full",
+        mode: "flashcards",
+      },
     });
 
     const rawFlashcards = z

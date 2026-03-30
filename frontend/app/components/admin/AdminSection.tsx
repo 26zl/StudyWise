@@ -33,6 +33,7 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
 } from "lucide-react";
 import { useLanguage } from "@/app/i18n";
 import { useMeg } from "@/app/auth/auth-api";
@@ -44,12 +45,17 @@ import {
   useAdminStats,
   useAdminBrukere,
   useAdminAudit,
+  useDailyMetrics,
+  useLangsmithOverview,
+  useRunDetail,
+  useRuns,
   useEndreRolle,
   useSlettBruker,
 } from "@/app/admin/admin-api";
 import type { AdminBruker } from "@/app/admin/admin-api";
 
-type AdminFane = "stats" | "users" | "audit";
+type AdminFane = "stats" | "observability" | "users" | "audit";
+type LangsmithStatusFilter = "all" | "success" | "error";
 
 // ── Statistikk-fane ─────────────────────────────────────────────────────────
 
@@ -227,6 +233,318 @@ function StatistikkFane() {
       <StatSeksjon title={t("admin.stats.sections.audit")} stats={revisjonsStats} language={language} />
       <StatSeksjon title={t("admin.stats.sections.quality")} stats={kvalitetsStats} language={language} />
     </div>
+  );
+}
+
+// ── Observability-fane ───────────────────────────────────────────────────────
+
+function ObservabilityFane() {
+  const { language, t } = useLanguage();
+  const [statusFilter, setStatusFilter] = useState<LangsmithStatusFilter>("all");
+  const [intentFilter, setIntentFilter] = useState("");
+  const [runPage, setRunPage] = useState(1);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const limit = 20;
+
+  const dailyQuery = useDailyMetrics();
+  const dailyLoading = dailyQuery.isLoading;
+  const dailyError = !!dailyQuery.error;
+  const dailyMetrics = dailyQuery.data ?? [];
+  const sisteDognLatency = dailyMetrics.at(-1)?.avgLatencyMs ?? null;
+  const hoyesteLatency = dailyMetrics.length > 0 ? Math.max(...dailyMetrics.map((entry) => entry.avgLatencyMs)) : null;
+
+  const overviewQuery = useLangsmithOverview();
+  const overviewLoading = overviewQuery.isLoading;
+  const overviewError = !!overviewQuery.error;
+  const overviewData = overviewQuery.data;
+  const observabilityStats: StatKortData[] = [
+    { label: t("admin.stats.aiObservability.totalRuns24h"), verdi: overviewData?.totalRuns24h ?? 0, ikon: Activity },
+    { label: t("admin.stats.aiObservability.totalRuns7d"), verdi: overviewData?.totalRuns7d ?? 0, ikon: Activity },
+  ];
+
+  const runsQuery = useRuns(runPage, statusFilter, intentFilter);
+  const runsLoading = runsQuery.isLoading;
+  const runsError = !!runsQuery.error;
+  const runsData = runsQuery.data;
+  const runsTotalPages = runsData ? Math.max(1, Math.ceil(runsData.total / limit)) : 1;
+
+  const runDetailQuery = useRunDetail(selectedRunId ?? null);
+  const runDetailLoading = runDetailQuery.isLoading;
+  const runDetailError = !!runDetailQuery.error;
+  const runDetail = runDetailQuery.data;
+
+  if (overviewLoading && !overviewData) {
+    return <LoadingSpinner />;
+  }
+
+  if (overviewError && !overviewData) {
+    return <FeilMelding melding={t("admin.stats.aiObservability.loadFailed")} />;
+  }
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+          {t("admin.stats.sections.observability")}
+        </h2>
+        <a
+          href="https://smith.langchain.com"
+          target="_blank"
+          rel="noreferrer noopener"
+          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+        >
+          {t("admin.stats.aiObservability.openLangsmith")}
+          <ExternalLink size={14} />
+        </a>
+      </div>
+
+      <div className="space-y-4">
+        <StatSeksjon title={t("admin.stats.aiObservability.cardsTitle")} stats={observabilityStats} language={language} />
+
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          {t("admin.stats.aiObservability.overviewLineRuns", {
+            runs24h: formaterTall(overviewData?.totalRuns24h ?? 0, language),
+            runs7d: formaterTall(overviewData?.totalRuns7d ?? 0, language),
+          })}
+        </p>
+
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+          <p className="mb-3 text-sm font-medium text-slate-700 dark:text-slate-200">
+            {t("admin.stats.aiObservability.latencySummaryTitle")}
+          </p>
+          {dailyLoading || overviewLoading ? (
+            <LoadingSpinner />
+          ) : dailyError || overviewError ? (
+            <FeilMelding melding={t("admin.stats.aiObservability.loadFailed")} />
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg bg-slate-50 dark:bg-slate-900 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {t("admin.stats.aiObservability.latencyAverageLabel")}
+                </p>
+                <p className="text-lg font-semibold text-slate-900 dark:text-white">
+                  {formaterTall(overviewData?.avgLatencyMs ?? 0, language)} ms
+                </p>
+              </div>
+              <div className="rounded-lg bg-slate-50 dark:bg-slate-900 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {t("admin.stats.aiObservability.latencyLatestLabel")}
+                </p>
+                <p className="text-lg font-semibold text-slate-900 dark:text-white">
+                  {sisteDognLatency != null ? `${formaterTall(sisteDognLatency, language)} ms` : "–"}
+                </p>
+              </div>
+              <div className="rounded-lg bg-slate-50 dark:bg-slate-900 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {t("admin.stats.aiObservability.latencyPeakLabel")}
+                </p>
+                <p className="text-lg font-semibold text-slate-900 dark:text-white">
+                  {hoyesteLatency != null ? `${formaterTall(hoyesteLatency, language)} ms` : "–"}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 space-y-3">
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+            {t("admin.stats.aiObservability.tracingTableTitle")}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={statusFilter}
+              onChange={(event) => {
+                const value = event.target.value as LangsmithStatusFilter;
+                setStatusFilter(value);
+                setRunPage(1);
+              }}
+              className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200"
+            >
+              <option value="all">{t("admin.stats.aiObservability.filters.statusAll")}</option>
+              <option value="success">{t("admin.stats.aiObservability.filters.statusSuccess")}</option>
+              <option value="error">{t("admin.stats.aiObservability.filters.statusError")}</option>
+            </select>
+            <input
+              type="text"
+              value={intentFilter}
+              onChange={(event) => {
+                setIntentFilter(event.target.value);
+                setRunPage(1);
+              }}
+              placeholder={t("admin.stats.aiObservability.filters.intentPlaceholder")}
+              className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200"
+            />
+          </div>
+
+          {runsLoading ? (
+            <LoadingSpinner />
+          ) : runsError ? (
+            <FeilMelding melding={t("admin.stats.aiObservability.runsLoadFailed")} />
+          ) : (
+            <>
+              <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                    <tr>
+                      <th className="px-3 py-2 text-left">{t("admin.stats.aiObservability.table.timestamp")}</th>
+                      <th className="px-3 py-2 text-left">{t("admin.stats.aiObservability.table.model")}</th>
+                      <th className="px-3 py-2 text-left">{t("admin.stats.aiObservability.table.intent")}</th>
+                      <th className="px-3 py-2 text-right">{t("admin.stats.aiObservability.table.tokens")}</th>
+                      <th className="px-3 py-2 text-right">{t("admin.stats.aiObservability.table.latency")}</th>
+                      <th className="px-3 py-2 text-left">{t("admin.stats.aiObservability.table.status")}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                    {runsData && runsData.runs.length > 0 ? (
+                      runsData.runs.map((run) => (
+                        <tr
+                          key={run.id}
+                          onClick={() => setSelectedRunId(run.id)}
+                          className="cursor-pointer bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                        >
+                          <td className="px-3 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                            {formaterDatoOgTid(run.timestamp, language)}
+                          </td>
+                          <td className="px-3 py-2 text-slate-700 dark:text-slate-200">{run.model}</td>
+                          <td className="px-3 py-2 text-slate-700 dark:text-slate-200">{run.intent}</td>
+                          <td className="px-3 py-2 text-right text-slate-700 dark:text-slate-200">
+                            {formaterTall(run.totalTokens, language)}
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-700 dark:text-slate-200">
+                            {formaterTall(run.latencyMs, language)} ms
+                          </td>
+                          <td className="px-3 py-2">
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                                run.status === "success"
+                                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                  : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                              }`}
+                            >
+                              {run.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="px-3 py-6 text-center text-slate-500 dark:text-slate-400">
+                          {t("admin.stats.aiObservability.table.noRuns")}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {runsData && runsData.total > 0 && (
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                  <span>
+                    {t("admin.stats.aiObservability.table.totalRuns", { total: formaterTall(runsData.total, language) })}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRunPage((prev) => Math.max(1, prev - 1))}
+                      disabled={runPage <= 1}
+                      className="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1 disabled:opacity-50"
+                    >
+                      <ChevronLeft size={14} />
+                    </button>
+                    <span>
+                      {t("admin.stats.aiObservability.table.pageLabel", {
+                        page: formaterTall(runPage, language),
+                        totalPages: formaterTall(runsTotalPages, language),
+                      })}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setRunPage((prev) => Math.min(runsTotalPages, prev + 1))}
+                      disabled={runPage >= runsTotalPages}
+                      className="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1 disabled:opacity-50"
+                    >
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 space-y-4">
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+            {t("admin.stats.aiObservability.detailsTitle")}
+          </p>
+          {!selectedRunId && (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {t("admin.stats.aiObservability.detailsHint")}
+            </p>
+          )}
+          {selectedRunId && runDetailLoading && <LoadingSpinner />}
+          {selectedRunId && runDetailError && <FeilMelding melding={t("admin.stats.aiObservability.runDetailLoadFailed")} />}
+          {selectedRunId && runDetail && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                <div className="rounded-lg bg-slate-50 dark:bg-slate-900 p-2">
+                  <p className="text-slate-500 dark:text-slate-400">{t("admin.stats.aiObservability.detail.input")}</p>
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">
+                    {formaterTall(runDetail.inputTokens, language)}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 dark:bg-slate-900 p-2">
+                  <p className="text-slate-500 dark:text-slate-400">{t("admin.stats.aiObservability.detail.output")}</p>
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">
+                    {formaterTall(runDetail.outputTokens, language)}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 dark:bg-slate-900 p-2">
+                  <p className="text-slate-500 dark:text-slate-400">{t("admin.stats.aiObservability.detail.total")}</p>
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">
+                    {formaterTall(runDetail.totalTokens, language)}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 dark:bg-slate-900 p-2">
+                  <p className="text-slate-500 dark:text-slate-400">{t("admin.stats.aiObservability.detail.latency")}</p>
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">
+                    {formaterTall(runDetail.latencyMs, language)} ms
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  {t("admin.stats.aiObservability.detail.systemPrompt")}
+                </p>
+                <pre className="max-h-96 overflow-auto rounded-lg bg-slate-50 dark:bg-slate-900 p-3 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                  {runDetail.systemPromptPreview || "—"}
+                </pre>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  {t("admin.stats.aiObservability.detail.userPrompt")}
+                </p>
+                <pre className="max-h-96 overflow-auto rounded-lg bg-slate-50 dark:bg-slate-900 p-3 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                  {runDetail.promptPreview || "—"}
+                </pre>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  {t("admin.stats.aiObservability.detail.outputPreview")}
+                </p>
+                <pre className="max-h-96 overflow-auto rounded-lg bg-slate-50 dark:bg-slate-900 p-3 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                  {runDetail.outputPreview || "—"}
+                </pre>
+              </div>
+              {runDetail.errorMessage && (
+                <div className="rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/20 p-3 text-xs text-red-700 dark:text-red-300">
+                  {runDetail.errorMessage}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -579,8 +897,13 @@ function RevisjonsloggFane() {
 
 // ── Hovedkomponent ──────────────────────────────────────────────────────────
 
-const FANER: { id: AdminFane; ikon: React.ElementType; labelKey: "admin.tabs.stats" | "admin.tabs.users" | "admin.tabs.audit" }[] = [
+const FANER: {
+  id: AdminFane;
+  ikon: React.ElementType;
+  labelKey: "admin.tabs.stats" | "admin.tabs.observability" | "admin.tabs.users" | "admin.tabs.audit";
+}[] = [
   { id: "stats", ikon: BarChart3, labelKey: "admin.tabs.stats" },
+  { id: "observability", ikon: Activity, labelKey: "admin.tabs.observability" },
   { id: "users", ikon: Users, labelKey: "admin.tabs.users" },
   { id: "audit", ikon: ScrollText, labelKey: "admin.tabs.audit" },
 ];
@@ -627,6 +950,7 @@ export function AdminSection() {
       {/* Innhold */}
       <div role="tabpanel" id={`admin-tabpanel-${aktivFane}`} aria-labelledby={`admin-tab-${aktivFane}`}>
         {aktivFane === "stats" && <StatistikkFane />}
+        {aktivFane === "observability" && <ObservabilityFane />}
         {aktivFane === "users" && <BrukereFane />}
         {aktivFane === "audit" && <RevisjonsloggFane />}
       </div>

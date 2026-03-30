@@ -11,6 +11,11 @@ import { streamText } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { logger } from "../../utils/logger.js";
 import { anthropicCircuit } from "../../utils/circuitBreaker.js";
+import {
+    finishLangsmithRun,
+    startLangsmithRun,
+    type LangsmithTraceMeta,
+} from "../../lib/langsmith.js";
 
 // --- Klient-initialisering (én gang ved oppstart) ---
 
@@ -83,16 +88,37 @@ export async function chatCompletion(options: {
     max_tokens: number;
     temperature: number;
     signal?: AbortSignal;
+    traceName?: string;
+    traceMeta?: LangsmithTraceMeta;
 }): Promise<ChatCompletionResult> {
-    const { model, messages, max_tokens, temperature, signal } = options;
+    const { model, messages, max_tokens, temperature, signal, traceName, traceMeta } = options;
+    const runId = await startLangsmithRun({
+        name: traceName ?? "chat",
+        model,
+        messages,
+        systemPrompt: messages.find((message) => message.role === "system")?.content,
+        meta: traceMeta,
+    });
 
-    const result = await anthropicCircuit.execute(() =>
-        callAnthropic({ model, messages, max_tokens, temperature, signal }),
-    );
+    try {
+        const result = await anthropicCircuit.execute(() =>
+            callAnthropic({ model, messages, max_tokens, temperature, signal }),
+        );
 
-    // Strip <analyse>/<svar>-tagger slik at brukeren kun ser det rene svaret
-    result.text = stripAnalyseTags(result.text);
-    return result;
+        // Strip <analyse>/<svar>-tagger slik at brukeren kun ser det rene svaret
+        result.text = stripAnalyseTags(result.text);
+
+        await finishLangsmithRun({
+            runId,
+            response: result.text,
+            usage: result.usage,
+        });
+
+        return result;
+    } catch (error) {
+        await finishLangsmithRun({ runId, error });
+        throw error;
+    }
 }
 
 /**
@@ -129,23 +155,44 @@ export async function chatCompletionWithVision(options: {
     max_tokens: number;
     temperature: number;
     signal?: AbortSignal;
+    traceName?: string;
+    traceMeta?: LangsmithTraceMeta;
 }): Promise<ChatCompletionResult> {
-    const { model, messages, images, max_tokens, temperature, signal } = options;
+    const { model, messages, images, max_tokens, temperature, signal, traceName, traceMeta } = options;
 
     if (!anthropicClient) {
         throw new Error("Vision er ikke tilgjengelig. Kall kun chatCompletionWithVision når isVisionAvailable(model) er sann.");
     }
 
-    let result = await anthropicCircuit.execute(() => callAnthropicWithVision({
+    const runId = await startLangsmithRun({
+        name: traceName ?? "document-analyse",
         model,
         messages,
-        images,
-        max_tokens,
-        temperature,
-        signal,
-    }));
-    result.text = stripAnalyseTags(result.text);
-    return result;
+        systemPrompt: messages.find((message) => message.role === "system")?.content,
+        meta: traceMeta,
+    });
+
+    try {
+        let result = await anthropicCircuit.execute(() => callAnthropicWithVision({
+            model,
+            messages,
+            images,
+            max_tokens,
+            temperature,
+            signal,
+        }));
+        result.text = stripAnalyseTags(result.text);
+
+        await finishLangsmithRun({
+            runId,
+            response: result.text,
+            usage: result.usage,
+        });
+        return result;
+    } catch (error) {
+        await finishLangsmithRun({ runId, error });
+        throw error;
+    }
 }
 
 // --- Private hjelpefunksjoner ---

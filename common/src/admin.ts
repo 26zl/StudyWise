@@ -158,6 +158,90 @@ export const AdminAuditResponseSchema = z.object({
   offset: z.number().int().min(0),
 });
 
+export const AdminLangsmithPeriodSchema = z.object({
+  runs: CountSchema,
+  inputTokens: CountSchema,
+  outputTokens: CountSchema,
+  totalTokens: CountSchema,
+});
+
+export const AdminLangsmithDailyTokensSchema = z.object({
+  date: z.string().min(1),
+  inputTokens: CountSchema,
+  outputTokens: CountSchema,
+});
+
+export const AdminLangsmithIntentSchema = z.object({
+  runs: CountSchema,
+  tokens: CountSchema,
+});
+
+export const AdminLangsmithStatsResponseSchema = z.object({
+  period: z.object({
+    days7: AdminLangsmithPeriodSchema,
+    days30: AdminLangsmithPeriodSchema,
+  }),
+  dailyTokens: z.array(AdminLangsmithDailyTokensSchema),
+  avgLatencyMs: z.number().min(0),
+  errorRate: z.number().min(0).max(1),
+  byIntent: z.record(z.string(), AdminLangsmithIntentSchema),
+});
+
+export const AdminLangsmithOverviewResponseSchema = z.object({
+  totalRuns24h: CountSchema,
+  totalRuns7d: CountSchema,
+  totalTokens24h: CountSchema,
+  totalTokens7d: CountSchema,
+  avgLatencyMs: MetricSchema,
+  errorRatePercent: MetricSchema,
+});
+
+export const AdminLangsmithDailyMetricSchema = z.object({
+  date: z.string().min(1),
+  inputTokens: CountSchema,
+  outputTokens: CountSchema,
+  avgLatencyMs: MetricSchema,
+});
+
+export const AdminLangsmithDailyMetricsResponseSchema = z.object({
+  days: z.number().int().min(1),
+  data: z.array(AdminLangsmithDailyMetricSchema),
+});
+
+export const AdminLangsmithRunSchema = z.object({
+  id: z.string(),
+  timestamp: z.string().min(1),
+  model: z.string(),
+  intent: z.string(),
+  user: z.string(),
+  course: z.string(),
+  inputTokens: CountSchema,
+  outputTokens: CountSchema,
+  totalTokens: CountSchema,
+  latencyMs: CountSchema,
+  status: z.enum(["success", "error"]),
+});
+
+export const AdminLangsmithRunsResponseSchema = z.object({
+  runs: z.array(AdminLangsmithRunSchema),
+  total: CountSchema,
+  page: z.number().int().min(1),
+  pageSize: z.number().int().min(1),
+});
+
+export const AdminLangsmithRagSourceSchema = z.object({
+  fileName: z.string(),
+  score: z.number().min(0).optional(),
+});
+
+export const AdminLangsmithRunDetailSchema = AdminLangsmithRunSchema.extend({
+  promptPreview: z.string(),
+  systemPromptPreview: z.string(),
+  ragSources: z.array(AdminLangsmithRagSourceSchema),
+  outputPreview: z.string(),
+  errorMessage: z.string().optional(),
+});
+
 export type AdminBrukereQuery = z.infer<typeof AdminBrukereQuerySchema>;
 export type AdminBruker = z.infer<typeof AdminBrukerSchema>;
 export type AdminBrukerListeResponse = z.infer<typeof AdminBrukerListeResponseSchema>;
@@ -168,3 +252,12 @@ export type AdminStatsResponse = z.infer<typeof AdminStatsResponseSchema>;
 export type AdminAuditQuery = z.infer<typeof AdminAuditQuerySchema>;
 export type AdminAuditItem = z.infer<typeof AdminAuditItemSchema>;
 export type AdminAuditResponse = z.infer<typeof AdminAuditResponseSchema>;
+export type AdminLangsmithStatsResponse = z.infer<typeof AdminLangsmithStatsResponseSchema>;
+export type AdminLangsmithOverviewResponse = z.infer<typeof AdminLangsmithOverviewResponseSchema>;
+export type AdminLangsmithDailyMetric = z.infer<typeof AdminLangsmithDailyMetricSchema>;
+export type AdminLangsmithDailyMetricsResponse = z.infer<
+  typeof AdminLangsmithDailyMetricsResponseSchema
+>;
+export type AdminLangsmithRun = z.infer<typeof AdminLangsmithRunSchema>;
+export type AdminLangsmithRunsResponse = z.infer<typeof AdminLangsmithRunsResponseSchema>;
+export type AdminLangsmithRunDetail = z.infer<typeof AdminLangsmithRunDetailSchema>;
