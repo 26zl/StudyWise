@@ -10,6 +10,8 @@ const KEEPALIVE_INTERVAL_MS = 10_000;
 interface SSESetupResult {
   /** Rydd opp keepalive-intervallet manuelt (gjøres også automatisk ved stream-slutt). */
   clearKeepalive: () => void;
+  /** AbortSignal som utløses når total request-deadline er nådd. */
+  deadlineSignal: AbortSignal;
 }
 
 /**
@@ -50,6 +52,16 @@ export function setupSSE(req: Request, res: Response, socketTimeoutMs = 120_000)
     }
   }, KEEPALIVE_INTERVAL_MS);
 
+  // Total request-deadline: avbryter hele SSE-requesten etter socketTimeoutMs
+  const deadlineController = new AbortController();
+  const deadlineTimer = setTimeout(() => {
+    deadlineController.abort();
+    clearKeepalive();
+    if (!res.writableEnded) {
+      try { res.end(); } catch { /* allerede lukket */ }
+    }
+  }, socketTimeoutMs);
+
   function clearKeepalive() {
     if (interval) {
       clearInterval(interval);
@@ -57,7 +69,11 @@ export function setupSSE(req: Request, res: Response, socketTimeoutMs = 120_000)
     }
   }
 
-  return { clearKeepalive };
+  // Rydd opp deadline-timer når response avsluttes normalt
+  res.once("finish", () => clearTimeout(deadlineTimer));
+  res.once("close", () => clearTimeout(deadlineTimer));
+
+  return { clearKeepalive, deadlineSignal: deadlineController.signal };
 }
 
 /**

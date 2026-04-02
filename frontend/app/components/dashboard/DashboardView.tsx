@@ -63,6 +63,14 @@ function SectionLoader({
   return <LoadingView text={text} translationKey={translationKey} fullPage={false} />;
 }
 
+/** Redirect-komponent: sender ikke-admin-brukere fra ?view=admin tilbake til chat. */
+function AdminRedirectToChat({ settAktivVisning }: { settAktivVisning: (v: VisningType) => void }) {
+    useEffect(() => {
+        settAktivVisning("chat");
+    }, [settAktivVisning]);
+    return null;
+}
+
 // Hovedkomponent for dashboard-visningen
 export function DashboardView() {
     const queryClient = useQueryClient();
@@ -235,12 +243,17 @@ export function DashboardView() {
                     </Suspense>
                 </SectionErrorBoundary>
             )}
-            {aktivVisning === "admin" && megQuery.data?.user?.role === "admin" && (
+            {aktivVisning === "admin" && (
+                megQuery.data?.user?.role === "admin" ? (
                 <SectionErrorBoundary sectionName={t("dashboard.sections.admin")}>
                     <Suspense fallback={<SectionLoader text={t("admin.loading")} />}>
                         <AdminSection />
                     </Suspense>
                 </SectionErrorBoundary>
+                ) : (
+                // Ikke-admin med ?view=admin → redirect til chat
+                <AdminRedirectToChat settAktivVisning={settAktivVisning} />
+                )
             )}
             </>
             )}

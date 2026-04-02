@@ -18,8 +18,8 @@ import {
   ChatTopicUpdateResponseSchema,
 } from "common/chat";
 import { fetchApi } from "../lib/apiClient";
-import { extractApiErrorMessage } from "../lib/errorUtils";
-import { ForbiddenError, SessionExpiredError } from "../lib/errors";
+import { createApiError, createAuthStatusError, parseApiJson } from "../lib/errorUtils";
+import { SessionExpiredError } from "../lib/errors";
 
 /** Representasjon av en lagret samtale (id, tittel, meldinger, tidsstempel). */
 export interface SavedChat {
@@ -42,32 +42,21 @@ type SaveChatOptions = {
   retryCount?: number;
 };
 
-/** Felles fetch via fetchApi, med konsistent Clerk-auth og CSRF der det trengs. */
+/** Felles fetch via fetchApi — delegerer feilhåndtering til delte utilities i errorUtils. */
 async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
   const res = await fetchApi(input, init);
   if (res.status === 204) {
     return undefined as T;
   }
-  let data: unknown;
-  try {
-    data = await res.json();
-  } catch (e) {
-    throw new Error("Ugyldig JSON i svar fra server", { cause: e });
-  }
-  if (res.status === 401) {
-    const err = new SessionExpiredError(extractApiErrorMessage(data, "Ikke autentisert")) as ApiError;
-    err.status = res.status;
-    err.body = data;
-    throw err;
-  }
-  if (res.status === 403) {
-    const err = new ForbiddenError(extractApiErrorMessage(data, "Du har ikke tilgang til denne ressursen.")) as ApiError;
+  const data = await parseApiJson(res);
+  if (res.status === 401 || res.status === 403) {
+    const err = createAuthStatusError(res.status, data, "Ikke autentisert") as ApiError;
     err.status = res.status;
     err.body = data;
     throw err;
   }
   if (!res.ok) {
-    const err = new Error(extractApiErrorMessage(data, "Uventet feil")) as ApiError;
+    const err = createApiError(data, "Uventet feil") as ApiError;
     err.status = res.status;
     err.body = data;
     throw err;
@@ -194,11 +183,11 @@ export function useChatHistory() {
       return true;
     } catch (error) {
       if (!erIkkeAutentisert(error)) {
-        showToast.error("Kunne ikke oppdatere tema");
+        showToast.error(t("chatHistory.topicUpdateError"));
       }
       return false;
     }
-  }, [queryClient]);
+  }, [queryClient, t]);
 
   const setChatPinned = useCallback(async (id: string, pinned: boolean) => {
     try {
@@ -216,11 +205,11 @@ export function useChatHistory() {
       return true;
     } catch (error) {
       if (!erIkkeAutentisert(error)) {
-        showToast.error("Kunne ikke oppdatere bokmerke");
+        showToast.error(t("chatHistory.pinUpdateError"));
       }
       return false;
     }
-  }, [queryClient]);
+  }, [queryClient, t]);
 
   const setChatTitle = useCallback(async (id: string, title: string) => {
     try {
@@ -238,11 +227,11 @@ export function useChatHistory() {
       return true;
     } catch (error) {
       if (!erIkkeAutentisert(error)) {
-        showToast.error("Kunne ikke oppdatere chat-navn");
+        showToast.error(t("chatHistory.titleUpdateError"));
       }
       return false;
     }
-  }, [queryClient]);
+  }, [queryClient, t]);
 
   /** Returnerer én lagret samtale fra cache etter id, eller undefined. */
   const loadChat = useCallback((id: string) => chats.find((c) => c.id === id), [chats]);

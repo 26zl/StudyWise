@@ -27,6 +27,9 @@ export const enMessages = {
       start: "Start",
       verifyCode: "Verify code",
     },
+    accessibility: {
+      skipToContent: "Skip to content",
+    },
     labels: {
       canvasUser: "Canvas user",
       notSignedIn: "Not signed in",
@@ -88,6 +91,9 @@ export const enMessages = {
     deleteError: "Could not delete the conversation",
     deleteSuccess: "Conversation deleted",
     saveError: "Could not save the conversation",
+    topicUpdateError: "Could not update topic",
+    pinUpdateError: "Could not update bookmark",
+    titleUpdateError: "Could not update chat name",
   },
   auth: {
     forgotPassword: {
@@ -974,6 +980,7 @@ export const enMessages = {
     checkingAuth: "Checking sign-in...",
     couldNotStartConversation: "Could not start the conversation",
     conversationCopied: "The conversation was copied to StudyWise",
+    copyingConversation: "Copying conversation...",
   },
   omOss: {
     title: "About StudyWise",

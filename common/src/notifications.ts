@@ -1,14 +1,5 @@
 import { z } from "zod";
 
-export const BROWSER_PUSH_CHANNELS = [
-  "announcements",
-  "deadlines",
-  "events",
-  "aiResponses",
-] as const;
-
-export type BrowserPushChannel = (typeof BROWSER_PUSH_CHANNELS)[number];
-
 export const BROWSER_PUSH_SENT_IDS_MAX = 500;
 
 export const BrowserPushPreferencesSchema = z.object({
@@ -69,7 +60,7 @@ export const WebPushSubscriptionKeysSchema = z.object({
 });
 
 export const WebPushSubscriptionSchema = z.object({
-  endpoint: z.string().url("Ugyldig endpoint"),
+  endpoint: z.string().url("Ugyldig endpoint").refine((v) => v.startsWith("https://"), "Endpoint må bruke HTTPS"),
   expirationTime: z.number().int().nullable().optional(),
   keys: WebPushSubscriptionKeysSchema,
 });
@@ -81,7 +72,7 @@ export const SaveWebPushSubscriptionRequestSchema = z.object({
 });
 
 export const DeleteWebPushSubscriptionRequestSchema = z.object({
-  endpoint: z.string().url("Ugyldig endpoint"),
+  endpoint: z.string().url("Ugyldig endpoint").refine((v) => v.startsWith("https://"), "Endpoint må bruke HTTPS"),
 });
 
 export const WebPushSubscriptionResponseSchema = z.object({

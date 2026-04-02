@@ -61,6 +61,7 @@ import {
   CanvasPermissionError,
   CanvasResourceError,
   CanvasApiError,
+  SessionExpiredError,
 } from "../lib/errors";
 import { parseApiErrorBody, erTokenFeilmelding } from "../lib/errorUtils";
 
@@ -111,10 +112,17 @@ async function håndterFeilRespons(
   res: Response,
 ): Promise<void> {
   if (res.status === 401) {
-    markTokenInvalid();
-    throw new CanvasTokenInvalidError(
-      "Ikke autentisert eller token utløpt. Logg inn på nytt.",
-    );
+    const { errorMessage } = await parseApiErrorBody(res, "Ikke autentisert");
+    // Skiller Clerk-sesjonsutløp fra Canvas-token-feil:
+    // Canvas-token-meldinger nevner "canvas" eller "tilknyttet et" — alt annet er Clerk-sesjon.
+    const erCanvasTokenFeil =
+      /canvas.token/i.test(errorMessage) ||
+      /tilknyttet et.*token/i.test(errorMessage);
+    if (erCanvasTokenFeil) {
+      markTokenInvalid();
+      throw new CanvasTokenInvalidError(errorMessage);
+    }
+    throw new SessionExpiredError(errorMessage);
   }
 
   // Hjelpefunksjon: parse feilrespons-body til melding + kode (delegerer til delt parser)

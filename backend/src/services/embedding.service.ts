@@ -20,6 +20,7 @@ import {
   pineconeQuery,
   pineconeDeleteByFilter,
 } from "./pinecone.service.js";
+import { escapeRegex } from "../utils/regexUtils.js";
 
 export { EMBEDDING_DIMENSIONS };
 
@@ -45,10 +46,6 @@ export interface StoredCourseCatalogEntry {
   courseName: string;
   moduleTitles: string[];
   fileNames: string[];
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export function isEmbeddingAvailable(): boolean {
@@ -119,8 +116,8 @@ export async function updateStoredFileMetadata(
 }
 
 /**
- * Henter lagret fileHash per fil i et kurs.
- * Når Pinecone er aktiv brukes vektorer der; vi regner da alle lagrede chunks som vectorisert.
+ * Henter lagret fileHash og faktisk Pinecone-synkstatus per fil i et kurs.
+ * `hasEmbedding` er true kun når minst én chunk i filen har `pineconesynced: true`.
  */
 export async function getStoredFileStatusForCourse(
   userId: string,
@@ -129,16 +126,23 @@ export async function getStoredFileStatusForCourse(
   const docs = await ContentEmbedding.aggregate<{
     fileId: number;
     fileHash: string;
+    hasEmbedding: boolean;
   }>([
-    { $match: { userId, courseId } },
-    { $group: { _id: "$fileId", fileHash: { $first: "$fileHash" } } },
-    { $project: { _id: 0, fileId: "$_id", fileHash: 1 } },
+    { $match: { userId, courseId, chunkIndex: { $gte: 0 } } },
+    {
+      $group: {
+        _id: "$fileId",
+        fileHash: { $first: "$fileHash" },
+        // True hvis minst én chunk er synkronisert til Pinecone
+        hasEmbedding: { $max: { $ifNull: ["$pineconesynced", false] } },
+      },
+    },
+    { $project: { _id: 0, fileId: "$_id", fileHash: 1, hasEmbedding: 1 } },
   ]);
-  const hasVector = isEmbeddingAvailable();
   return new Map(
     docs.map((doc) => [
       doc.fileId,
-      { fileHash: doc.fileHash, hasEmbedding: hasVector },
+      { fileHash: doc.fileHash, hasEmbedding: doc.hasEmbedding },
     ]),
   );
 }
@@ -321,7 +325,7 @@ export async function upsertStoredFileContent(options: {
   // Retry med enkel backoff for Pinecone upsert (MongoDB er allerede lagret)
   const MAX_UPSERT_RETRIES = 2;
   let upsertSuccess = false;
-  if (pineconeRecords.length > 0) {
+  if (pineconeRecords.length > 0 && isPineconeConfigured()) {
     for (let attempt = 0; attempt <= MAX_UPSERT_RETRIES; attempt++) {
       try {
         await pineconeUpsert(pineconeRecords);
@@ -344,6 +348,12 @@ export async function upsertStoredFileContent(options: {
       }
     }
   }
+
+  // Oppdater pineconesynced-flagg på alle chunks for denne filen
+  await ContentEmbedding.updateMany(
+    { userId, courseId, fileId, chunkIndex: { $gte: 0 } },
+    { $set: { pineconesynced: upsertSuccess } },
+  );
 
   logger.info(
     {
@@ -418,7 +428,7 @@ export async function getStoredChunksForCourses(
     limit?: number;
   },
 ): Promise<ContentChunk[]> {
-  const query: Record<string, unknown> = { userId };
+  const query: Record<string, unknown> = { userId, chunkIndex: { $gte: 0 } };
 
   if (options?.courseIds && options.courseIds.length > 0) {
     query.courseId = { $in: options.courseIds };
@@ -711,6 +721,16 @@ export async function deleteMissingFilesForCourse(
   // GDPR: Pinecone først — feiler dette, slettes ikke MongoDB heller
   await pineconeDeleteByFilter({ userId, courseId });
   const result = await ContentEmbedding.deleteMany({ userId, courseId });
+  return result.deletedCount;
+}
+
+export async function deleteStoredFileContent(
+  userId: string,
+  courseId: string,
+  fileId: number,
+): Promise<number> {
+  await pineconeDeleteByFilter({ userId, courseId, fileId });
+  const result = await ContentEmbedding.deleteMany({ userId, courseId, fileId });
   return result.deletedCount;
 }
 

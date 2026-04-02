@@ -26,16 +26,13 @@ import {
 import { logger } from "../../utils/logger.js";
 import { isValidMongoObjectId } from "../../utils/mongoId.js";
 import { deleteAccountData } from "../auth/kontoSlett.js";
+import { escapeRegex } from "../../utils/regexUtils.js";
 
 const router = Router();
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 const MAX_OFFSET = 10_000;
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
 
 // ── GET /brukere ────────────────────────────────────────────────────────────
 router.get("/brukere", async (req, res) => {

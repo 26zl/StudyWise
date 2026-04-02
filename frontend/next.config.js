@@ -73,6 +73,9 @@ function buildCspValue() {
   const clerkFrontendApiOrigin = getClerkFrontendApiOrigin();
   const scriptSrc = [
     "'self'",
+    // TODO: Bytt til nonce-basert CSP for å fjerne unsafe-inline i prod.
+    // Clerk og Datadog RUM krever inline scripts; nonce må genereres per request
+    // i Next.js middleware og propageres til alle Script-komponenter.
     "'unsafe-inline'",
     // unsafe-eval kun i dev (Turbopack source maps) — aldri i prod
     ...(process.env.NODE_ENV !== "production" ? ["'unsafe-eval'"] : []),

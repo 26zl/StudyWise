@@ -120,7 +120,18 @@ async function loadSharedChatForRead(req: Request, res: Response, shareId: strin
 
   const chatDoc = chat as Pick<ChatHistoryDocument, "_id" | "title" | "encryptedMessages">;
 
-  const messages = await parseStoredChatMessages(chatDoc);
+  let messages: z.infer<typeof ChatMessageSchema>[];
+  try {
+    messages = await parseStoredChatMessages(chatDoc);
+  } catch (error) {
+    logger.warn(
+      { err: error, shareId, chatId: shared.chatId.toString() },
+      "Korrupt delt samtale — deaktiverer share-lenke",
+    );
+    await deactivateSharedChat(sharedDoc);
+    apiError.notFound(res, "Den delte samtalen");
+    return null;
+  }
   if (messages.length === 0) {
     await deactivateSharedChat(sharedDoc);
     apiError.notFound(res, "Den delte samtalen");

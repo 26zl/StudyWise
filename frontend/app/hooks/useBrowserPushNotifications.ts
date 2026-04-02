@@ -197,16 +197,20 @@ export function useBrowserPushNotifications(
       >
     >,
   ) => {
+    const previousPreferences = preferences;
     setIsPending(true);
     try {
       const nextPreferences = {
         ...preferences,
         ...next,
       };
-      // Optimistic: update UI immediately
+      // Optimistisk oppdatering — rulles tilbake ved feil
       setPreferences(nextPreferences);
       const updated = await savePreferences(nextPreferences);
       setPreferences(updated.browserPushPreferences ?? nextPreferences);
+    } catch {
+      // Rull tilbake til forrige state ved lagringsfeil
+      setPreferences(previousPreferences);
     } finally {
       setIsPending(false);
     }

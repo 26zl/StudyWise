@@ -29,6 +29,7 @@ import { createChunksFromContent } from "./chunk.service.js";
 import {
   upsertStoredFileContent,
   isEmbeddingAvailable,
+  deleteStoredFileContent,
 } from "./embedding.service.js";
 import { parseDocument } from "./document.js";
 
@@ -962,8 +963,32 @@ async function processPdfLinks(
     }
   }
 
+  // Rydd opp PDF-er som har forsvunnet fra kildesiden
+  const currentPdfUrls = new Set(pdfLinks.map((p) => p.url));
+  const removedPdfUrls = [...previouslyIndexedPdfs].filter((url) => !currentPdfUrls.has(url));
+  for (const removedUrl of removedPdfUrls) {
+    try {
+      const removedFileId = createStableFileId(removedUrl);
+      await deleteStoredFileContent(userId, courseId, removedFileId);
+      // Fjern fra listen
+      const idx = newlyIndexedPdfs.indexOf(removedUrl);
+      if (idx !== -1) newlyIndexedPdfs.splice(idx, 1);
+      logger.info(
+        { url: removedUrl, parentUrl: item.externalUrl },
+        "Fjernet PDF-chunks for PDF som ikke lenger finnes på kildesiden",
+      );
+    } catch (error) {
+      logger.warn(
+        { err: error, url: removedUrl },
+        "Feil ved opprydding av fjernet PDF",
+      );
+    }
+  }
+
   // Oppdater listen over indekserte PDF-er
-  if (newlyIndexedPdfs.length > previouslyIndexedPdfs.size) {
+  const listChanged = newlyIndexedPdfs.length !== previouslyIndexedPdfs.size ||
+    !newlyIndexedPdfs.every((url) => previouslyIndexedPdfs.has(url));
+  if (listChanged) {
     await updateItemCrawledPdfs(
       userId,
       courseId,
@@ -1035,22 +1060,3 @@ async function updateItemCrawledPdfs(
   }
 }
 
-/**
- * Convenience-funksjon for å crawle ExternalUrl-items basert på courseId.
- */
-export async function crawlExternalUrlsByCourseId(
-  userId: string,
-  courseId: string,
-  options?: CrawlExternalUrlOptions,
-): Promise<CrawlResult> {
-  const courseDoc = await CanvasStructureModel.findOne({ userId, courseId }).lean();
-  if (!courseDoc) {
-    logger.warn(
-      { userId, courseId },
-      "Kunne ikke finne kurs for ExternalUrl-crawling",
-    );
-    return { crawled: 0, skipped: 0, failed: 0, pdfsIndexed: 0 };
-  }
-
-  return crawlCourseExternalUrls(courseDoc as ICanvasStructure, options);
-}

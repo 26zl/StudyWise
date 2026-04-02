@@ -32,16 +32,6 @@ export interface TransportResult {
 }
 
 /**
- * Sjekker om kontakttransport er konfigurert
- */
-export function isContactTransportConfigured(): boolean {
-  return !!(
-    process.env.CONTACT_WORKER_URL?.trim() &&
-    process.env.CONTACT_WORKER_SECRET?.trim()
-  );
-}
-
-/**
  * Henter konfigurasjon for kontakttransport
  */
 function getTransportConfig() {

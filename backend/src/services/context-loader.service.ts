@@ -20,6 +20,7 @@
  */
 
 import { logger } from "../utils/logger.js";
+import { escapeRegex } from "../utils/regexUtils.js";
 import { getCache, isRedisReady } from "../cache/redis.js";
 import { syncCanvasDataForUser, hasCanvasSyncData, userKey, isSyncing, waitForSync } from "./canvas-sync.service.js";
 import type { TargetedQuery } from "../rutere/ki/ki.js";
@@ -83,10 +84,6 @@ const COURSE_MATCH_STOPWORDS = new Set([
   "høst", "host", "vår", "var", "semester", "kull", "bø", "bo",
   "campus", "gruppe", "klasse", "studie", "studiet", "innføring",
 ]);
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
 
 const FULL_DOCUMENT_TRIGGER_WORDS = [
   "oppsummere",

@@ -25,6 +25,9 @@ export const nbMessages = {
       start: "Start",
       verifyCode: "Bekreft kode",
     },
+    accessibility: {
+      skipToContent: "Hopp til innhold",
+    },
     labels: {
       canvasUser: "Canvas bruker",
       notSignedIn: "Ikke innlogget",
@@ -86,6 +89,9 @@ export const nbMessages = {
     deleteError: "Kunne ikke slette samtalen",
     deleteSuccess: "Samtale slettet",
     saveError: "Kunne ikke lagre samtalen",
+    topicUpdateError: "Kunne ikke oppdatere tema",
+    pinUpdateError: "Kunne ikke oppdatere bokmerke",
+    titleUpdateError: "Kunne ikke oppdatere chat-navn",
   },
   auth: {
     forgotPassword: {
@@ -966,6 +972,7 @@ export const nbMessages = {
     checkingAuth: "Sjekker innlogging...",
     couldNotStartConversation: "Kunne ikke starte samtalen",
     conversationCopied: "Samtalen ble kopiert til StudyWise",
+    copyingConversation: "Kopierer samtalen...",
   },
   omOss: {
     title: "Om StudyWise",

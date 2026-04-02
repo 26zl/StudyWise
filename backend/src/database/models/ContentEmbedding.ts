@@ -33,6 +33,8 @@ export interface IContentEmbedding extends Document {
   charCount?: number;
   /** Marker om posten er full-dokument-lagring */
   isFullDocument?: boolean;
+  /** Hvorvidt chunken er synkronisert til Pinecone */
+  pineconesynced?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -54,6 +56,7 @@ const ContentEmbeddingSchema = new Schema<IContentEmbedding>(
     fullText: { type: String, required: false },
     charCount: { type: Number, required: false },
     isFullDocument: { type: Boolean, required: false, default: false },
+    pineconesynced: { type: Boolean, required: false, default: false },
   },
   { timestamps: true },
 );

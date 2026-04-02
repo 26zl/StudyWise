@@ -47,9 +47,10 @@ export function parseTimerStreng(tid: string): number {
     if (clockMatch) {
         const hours = Number.parseInt(clockMatch[1], 10);
         const minutes = Number.parseInt(clockMatch[2], 10);
-        if (Number.isFinite(hours) && Number.isFinite(minutes)) {
+        if (Number.isFinite(hours) && Number.isFinite(minutes) && hours <= 23 && minutes <= 59) {
             return hours + minutes / 60;
         }
+        return 0;
     }
 
     const hourRangeMatch = normalized.match(

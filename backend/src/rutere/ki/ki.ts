@@ -39,6 +39,7 @@ import { User } from "../../database/models/User.js";
 import { createDefaultCanvasContextPreferences } from "common/auth";
 import { setupSSE, writeSSE } from "../../utils/sseUtils.js";
 import { createLinkedAbortController } from "../../utils/abort.js";
+import { escapeRegex } from "../../utils/regexUtils.js";
 import {
   AI_COMPLETION_PUSH_MIN_DURATION_MS,
   sendAICompletionWebPush,
@@ -196,10 +197,6 @@ function sanitizeCourseHintValue(courseHint: string): string {
     );
   }
   return sanitized;
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function includesWholeKeyword(text: string, keyword: string): boolean {

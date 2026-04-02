@@ -11,7 +11,10 @@ const IkkeTomTekstSchema = z.string().trim().min(1, "Feltet kan ikke være tomt"
 const IsoDateStringSchema = z
   .string()
   .trim()
-  .refine((value) => !Number.isNaN(Date.parse(value)), "Ugyldig dato");
+  .refine(
+    (value) => /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/.test(value) && !Number.isNaN(Date.parse(value)),
+    "Ugyldig dato — må være ISO 8601-format (YYYY-MM-DD)",
+  );
 
 /** Zod-skjema for en enkelt studieblokk */
 export const StudyBlockSchema = z.object({

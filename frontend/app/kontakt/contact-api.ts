@@ -13,6 +13,8 @@ export interface SendKontaktResult {
 }
 
 interface ApiErrorResponse {
+  melding?: string;
+  feil?: string;
   message?: string;
   error?: string;
 }
@@ -57,7 +59,7 @@ export async function sendKontakt(
       const errorData: ApiErrorResponse = await response.json().catch(() => ({}));
       return {
         success: false,
-        error: errorData.message || errorData.error || "Noe gikk galt. Prøv igjen senere.",
+        error: errorData.melding || errorData.feil || errorData.message || errorData.error || "Noe gikk galt. Prøv igjen senere.",
       };
     }
 

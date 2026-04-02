@@ -150,8 +150,8 @@ export async function bm25Search(
   const limit = options?.limit ?? 15;
 
   try {
-    // Bygg MongoDB-filter
-    const filter: Record<string, unknown> = { userId };
+    // Bygg MongoDB-filter (ekskluder syntetiske fulltekst-rader med chunkIndex=-1)
+    const filter: Record<string, unknown> = { userId, chunkIndex: { $gte: 0 } };
     if (options?.courseIds && options.courseIds.length > 0) {
       filter.courseId = { $in: options.courseIds };
     }

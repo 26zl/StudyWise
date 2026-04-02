@@ -253,53 +253,27 @@ async function hentLangsmithRuns(options: {
 
   const client = langsmithClient;
   const startTime = new Date(Date.now() - options.days * DAY_MS);
-  const limit = Math.min(options.limit ?? 100, 100);
+  const effectiveLimit = options.limit ?? 100;
 
   const runs: LangsmithRunSnapshot[] = [];
-  const runWithProject = async () => {
+  try {
     for await (const run of client.listRuns({
       projectName: LANGSMITH_PROJECT,
       runType: options.runType,
       startTime,
-      limit,
+      limit: effectiveLimit,
       order: "desc",
     })) {
       runs.push(run as LangsmithRunSnapshot);
     }
-  };
-
-  try {
-    await runWithProject();
     logger.info(
       { antall: runs.length, dager: options.days, runType: options.runType ?? "alle" },
       "LangSmith-runs hentet med prosjektfilter",
     );
-    return runs;
-  } catch (projectError) {
+  } catch (error) {
     logger.warn(
-      { err: projectError, project: LANGSMITH_PROJECT },
-      "LangSmith listRuns med prosjekt feilet, prøver uten prosjektfilter",
-    );
-  }
-
-  runs.length = 0;
-  try {
-    for await (const run of client.listRuns({
-      runType: options.runType,
-      startTime,
-      limit,
-      order: "desc",
-    })) {
-      runs.push(run as LangsmithRunSnapshot);
-    }
-    logger.info(
-      { antall: runs.length, dager: options.days, runType: options.runType ?? "alle" },
-      "LangSmith-runs hentet uten prosjektfilter",
-    );
-  } catch (fallbackError) {
-    logger.warn(
-      { err: fallbackError },
-      "LangSmith listRuns uten prosjekt feilet, returnerer tom liste",
+      { err: error, project: LANGSMITH_PROJECT },
+      "LangSmith listRuns feilet — returnerer tom liste (faller IKKE tilbake til uten prosjektfilter)",
     );
     return [];
   }
@@ -614,6 +588,14 @@ router.get("/langsmith/runs/:runId", async (req, res) => {
       return apiError.badRequest(res, "Ugyldig run-ID format");
     }
     const run = (await langsmithClient.readRun(runId)) as Run & LangsmithRunSnapshot;
+
+    // Verifiser at run tilhører riktig prosjekt — hindrer eksponering av data fra andre prosjekter
+    const runSession = (run as unknown as { session_name?: string }).session_name
+      ?? (run as unknown as { project_name?: string }).project_name;
+    if (runSession && runSession !== LANGSMITH_PROJECT) {
+      return apiError.notFound(res, "LangSmith-run");
+    }
+
     const startTs = asTimestamp(run.start_time) ?? Date.now();
     const endTs = asTimestamp(run.end_time);
     const latencyMs = endTs && endTs >= startTs ? endTs - startTs : 0;

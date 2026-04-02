@@ -153,7 +153,7 @@ export const SubTaskSchema = z.object({
   estimatedTime: z.string().min(1, "Tidsestimat kan ikke være tomt"),
   priority: z.enum(["low", "medium", "high"]),
   completed: z.boolean(),
-  approved: z.boolean().optional().default(true),
+  approved: z.boolean().optional().default(false),
 });
 
 /** AI-generert subtask (uten id, completed, approved - disse legges til ved lagring). */

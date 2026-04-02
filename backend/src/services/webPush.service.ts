@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import pLimit from "p-limit";
 import * as webpush from "web-push";
 import { isCanvasAssignmentSubmitted } from "common/canvas";
+import { isMongoDuplicateKeyError } from "../utils/canvasUserSync.js";
 import {
   BROWSER_PUSH_SENT_IDS_MAX,
   createDefaultBrowserPushPreferences,
@@ -44,15 +45,6 @@ export class WebPushSubscriptionConflictError extends Error {
     super("Web-push-abonnementet er allerede registrert for en annen bruker.");
     this.name = "WebPushSubscriptionConflictError";
   }
-}
-
-function isMongoDuplicateKeyError(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: number }).code === 11000
-  );
 }
 
 type PushCandidate = {

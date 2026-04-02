@@ -61,6 +61,7 @@ export const KontaktRequestSchema = z.object({
     .string()
     .url()
     .max(2000)
+    .refine((v) => /^https?:\/\//i.test(v), "Kun HTTP(S)-URLer er tillatt")
     .optional(),
 });
 

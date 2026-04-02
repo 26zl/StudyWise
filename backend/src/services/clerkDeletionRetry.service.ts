@@ -1,6 +1,7 @@
 import { PendingClerkDeletionModel } from "../database/models/PendingClerkDeletion.js";
 import { deleteClerkUserById } from "../rutere/auth/clerkAuth.js";
 import { logger } from "../utils/logger.js";
+import { audit, AUDIT_ACTIONS, getDeletedAuditActorId } from "../utils/auditLog.js";
 
 export const CLERK_DELETION_RETRY_INTERVAL_MS = 5 * 60 * 1000;
 const CLERK_DELETION_BATCH_SIZE = 20;
@@ -52,6 +53,15 @@ export async function processPendingClerkDeletions(): Promise<void> {
           { clerkId: item.clerkId, userId: item.userId, attempts },
           "Retry-slettet Clerk-konto med suksess",
         );
+        if (item.userId) {
+          await audit({
+            actorUserId: getDeletedAuditActorId(item.userId),
+            action: AUDIT_ACTIONS.ACCOUNT_DELETED,
+            category: "privacy",
+            outcome: "success",
+            metadata: { phase: "clerk_retry", attempts: attempts + 1 },
+          });
+        }
         continue;
       }
     } catch (error) {

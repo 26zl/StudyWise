@@ -26,6 +26,7 @@ export default function SharePage() {
   const [data, setData] = useState<SharedChatPublicResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isCopying, setIsCopying] = useState(false);
   const { setSelectedChatId, setCurrentChatId } = useUIStore();
   const { isLoaded: authLoaded, isSignedIn } = useAuth();
   const { t } = useLanguage();
@@ -111,7 +112,7 @@ export default function SharePage() {
           <button
             type="button"
             onClick={async () => {
-              if (!data) return;
+              if (!data || isCopying) return;
               if (!authLoaded) {
                 return;
               }
@@ -119,40 +120,47 @@ export default function SharePage() {
                 router.push(signInHref);
                 return;
               }
-              const res = await fetchApi("/api/ki/chat/history", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  messages: data.messages.map((m) => ({ rolle: m.rolle, innhold: m.innhold })),
-                  title: data.chatTitle,
-                }),
-              });
-              if (!res.ok) {
-                showToast.error(t("sharePage.couldNotStartConversation"));
-                return;
-              }
-              const json = await res.json().catch(() => null);
-              const chatId =
-                json &&
-                typeof json === "object" &&
-                "chat" in json &&
-                json.chat &&
-                typeof json.chat === "object" &&
-                "id" in json.chat &&
-                typeof json.chat.id === "string"
-                  ? json.chat.id
-                  : null;
-              if (chatId) {
+              setIsCopying(true);
+              try {
+                const res = await fetchApi("/api/ki/chat/history", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    messages: data.messages.map((m) => ({ rolle: m.rolle, innhold: m.innhold })),
+                    title: data.chatTitle,
+                  }),
+                });
+                if (!res.ok) {
+                  showToast.error(t("sharePage.couldNotStartConversation"));
+                  return;
+                }
+                const json = await res.json().catch(() => null);
+                const chatId =
+                  json &&
+                  typeof json === "object" &&
+                  "chat" in json &&
+                  json.chat &&
+                  typeof json.chat === "object" &&
+                  "id" in json.chat &&
+                  typeof json.chat.id === "string"
+                    ? json.chat.id
+                    : null;
+                if (!chatId) {
+                  showToast.error(t("sharePage.couldNotStartConversation"));
+                  return;
+                }
                 setSelectedChatId(chatId);
                 setCurrentChatId(chatId);
+                showToast.success(t("sharePage.conversationCopied"));
+                router.push("/dashboard");
+              } finally {
+                setIsCopying(false);
               }
-              showToast.success(t("sharePage.conversationCopied"));
-              router.push("/dashboard");
             }}
-            disabled={!authLoaded}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            disabled={!authLoaded || isCopying}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
-            {authLoaded ? t("sharePage.continueConversation") : t("sharePage.checkingAuth")}
+            {isCopying ? t("sharePage.copyingConversation") : authLoaded ? t("sharePage.continueConversation") : t("sharePage.checkingAuth")}
           </button>
         </div>
       </div>

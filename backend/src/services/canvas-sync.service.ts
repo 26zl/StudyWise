@@ -645,8 +645,6 @@ async function _doSync(
               if (!fileData) continue; // metadata-henting feilet — skip denne filen
 
               try {
-                const legacyFileKey = userKey(userId, "file", String(contentId), "content");
-
                 if (!isSupportedFileType(fileData.filename)) {
                   continue;
                 }
@@ -674,7 +672,7 @@ async function _doSync(
                           .map((chunk) => chunk.text)
                           .join("\n\n"),
                       });
-                      await deleteCacheKeys([legacyFileKey]);
+
                       continue;
                     }
                   }
@@ -685,7 +683,6 @@ async function _doSync(
                     fileName: fileData.filename,
                     fileHash: metaHash,
                   });
-                  await deleteCacheKeys([legacyFileKey]);
                   continue;
                 }
 
@@ -753,7 +750,6 @@ async function _doSync(
                   chunks,
                   fullText: content,
                 });
-                await deleteCacheKeys([legacyFileKey]);
                 fileCount++;
               } catch (error) {
                 logger.warn(
