@@ -2,7 +2,7 @@
  * Auth API: Clerk-only. Hooks for /me, logout, Canvas token, preferences.
  */
 
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useClerk } from "@clerk/nextjs";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { AUTH_QUERY_OPTIONS } from "../lib/queryConfig";
@@ -24,10 +24,12 @@ import {
   type PreferencesResponse,
   type UIPreferences,
   type ManuellInnleveringState,
+  type HiddenCourseIds,
+  type SyncConflictType,
 } from "common/auth";
 import { type BrowserPushPreferences } from "common/notifications";
 import { CanvasErrorCodeSchema } from "common/canvasErrors";
-import { AppError, CanvasApiError } from "../lib/errors";
+import { AppError, CanvasApiError, UsernameConflictError } from "../lib/errors";
 import { fetchApi } from "../lib/apiClient";
 import { broadcastLogout, clearClientAuthState } from "../hooks/use-auth-sync";
 import { showToast } from "@/app/components/ui/Toaster";
@@ -72,6 +74,8 @@ function mergeCachedUserPreferences(
       browserPushPreferences:
         updated.browserPushPreferences ?? current.user.browserPushPreferences,
       uiPreferences: updated.uiPreferences ?? current.user.uiPreferences,
+      hiddenCourseIds:
+        updated.hiddenCourseIds ?? current.user.hiddenCourseIds,
     },
   });
 }
@@ -130,7 +134,7 @@ const ME_REQUEST_TIMEOUT_MS = 10_000;
 
 // Hent info om innlogget bruker (Clerk token i Authorization header).
 // Signal fra React Query brukes; 25s timeout unngår evig venting ved kald backend i prod.
-async function hentMeg(signal?: AbortSignal): Promise<MeResponse> {
+async function hentMeg(signal?: AbortSignal, options?: { forceSync?: boolean }): Promise<MeResponse> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), ME_REQUEST_TIMEOUT_MS);
   if (signal) {
@@ -144,7 +148,8 @@ async function hentMeg(signal?: AbortSignal): Promise<MeResponse> {
     );
   }
   try {
-    const res = await fetchApi("/api/user/me", {
+    const url = options?.forceSync ? "/api/user/me?forceSync=true" : "/api/user/me";
+    const res = await fetchApi(url, {
       method: "GET",
       signal: controller.signal,
     });
@@ -173,11 +178,38 @@ async function hentMeg(signal?: AbortSignal): Promise<MeResponse> {
       throw createAuthStatusError(res.status, json, "Ikke autentisert");
     }
     if (res.status === 409) {
-      // Konto-konflikt: bruker er autentisert men app-bruker har ulik Clerk-konto.
-      // Skal IKKE trigge auth-redirect (det ville skapt en uendelig loop).
+      const payload = json && typeof json === "object" ? json : {};
+      const errorType =
+        "error" in payload
+          ? (payload as Record<string, unknown>).error
+          : undefined;
+
+      // Alle konflikter: logg ut og vis melding.
+      broadcastLogout();
+
+      if (errorType === "username_conflict") {
+        const username =
+          typeof (payload as Record<string, unknown>).username === "string"
+            ? ((payload as Record<string, unknown>).username as string)
+            : "";
+        throw createApiError(
+          json,
+          `Brukernavnet «${username}» er allerede tatt. Velg et annet brukernavn og prøv igjen.`,
+        );
+      }
+      if (
+        errorType === "oauth_account_conflict" ||
+        errorType === "oauth_metadata_missing"
+      ) {
+        throw createApiError(
+          json,
+          "Denne innloggingskontoen er allerede koblet til en annen StudyWise-bruker. " +
+            "Den eksisterende kontoen må slettes først. Du blir logget ut.",
+        );
+      }
       throw createApiError(
         json,
-        "Kontoen din har en innloggingskonflikt. Prøv å logge inn med en annen metode.",
+        "Kontoen din har en innloggingskonflikt. Du blir logget ut. Prøv å logge inn med en annen metode.",
       );
     }
     throw createApiError(json, "Kunne ikke hente brukerdata");
@@ -203,6 +235,27 @@ export function prefetchMe(queryClient: QueryClient): void {
     queryFn: ({ signal }) => hentMeg(signal),
   });
 }
+
+/** Tving en full profilsynk fra Clerk til MongoDB og oppdater /me-cache. */
+export async function forceSyncMe(queryClient: QueryClient): Promise<void> {
+  const data = await hentMeg(undefined, { forceSync: true });
+  queryClient.setQueryData(AUTH_ME_QUERY_KEY, data);
+}
+
+/** Avvis en synkroniseringskonflikt (bruker har sett og bekreftet). */
+export async function dismissSyncConflict(
+  type: SyncConflictType,
+): Promise<void> {
+  const res = await fetchApi("/api/user/sync-conflicts/dismiss", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type }),
+  });
+  if (!res.ok) {
+    throw new Error("Kunne ikke fjerne synkroniseringskonflikten");
+  }
+}
+
 // Utlogging rydder backend-state; Clerk-session avsluttes i useLoggUtWithRedirect.
 async function loggUt(): Promise<LogoutResponse> {
   const res = await fetchApi("/api/user/logout", { method: "POST" });
@@ -294,16 +347,39 @@ export function useMeg(options?: {
 async function oppdaterProfil(
   data: ProfileUpdateWithUsername,
 ): Promise<ProfileUpdateResponse> {
-  return requestAuthedJson(
-    "/api/user/profile",
-    ProfileUpdateResponseSchema,
-    "Kunne ikke oppdatere profil",
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    },
-  );
+  const res = await fetchApi("/api/user/profile", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  const json = await parseApiJson(res);
+
+  if (res.status === 401 || res.status === 403) {
+    throw createAuthStatusError(res.status, json, "Ikke autentisert");
+  }
+
+  // Strukturert håndtering av brukernavn-konflikt (409)
+  if (res.status === 409) {
+    const payload = json && typeof json === "object" ? json : {};
+    const errorType =
+      "error" in payload
+        ? (payload as Record<string, unknown>).error
+        : undefined;
+    if (errorType === "username_conflict") {
+      const username =
+        typeof (payload as Record<string, unknown>).username === "string"
+          ? ((payload as Record<string, unknown>).username as string)
+          : (data.username ?? "");
+      throw new UsernameConflictError(username);
+    }
+    throw createApiError(json, "Kunne ikke oppdatere profil");
+  }
+
+  if (!res.ok) {
+    throw createApiError(json, "Kunne ikke oppdatere profil");
+  }
+
+  return ProfileUpdateResponseSchema.parse(json);
 }
 
 // Hook for oppdatering av brukerprofil
@@ -448,6 +524,7 @@ type UserPreferencesUpdate = {
   manuellInnleveringState?: ManuellInnleveringState;
   browserPushPreferences?: BrowserPushPreferences;
   uiPreferences?: UIPreferences;
+  hiddenCourseIds?: HiddenCourseIds;
 };
 
 // Hjelpefunksjon for å oppdatere brukerpreferanser. Returnerer oppdatert preferanse-objekt.
@@ -521,6 +598,20 @@ export function useOppdaterUIPreferanser() {
   return useOppdaterBrukerPreferanser((uiPreferences: UIPreferences) => ({
     uiPreferences,
   }));
+}
+
+// Hook for oppdatering av skjulte emner
+export function useOppdaterHiddenCourses() {
+  return useOppdaterBrukerPreferanser((hiddenCourseIds: HiddenCourseIds) => ({
+    hiddenCourseIds,
+  }));
+}
+
+/** Set av skjulte emne-IDer fra /me-data. Brukes for å filtrere Canvas-data overalt. */
+export function useHiddenCourseIds(): Set<number> {
+  const megQuery = useMeg();
+  const hiddenIds = megQuery.data?.user?.hiddenCourseIds?.courseIds ?? [];
+  return useMemo(() => new Set(hiddenIds), [hiddenIds]);
 }
 
 /** Debounce-intervall før preferanseoppdatering sendes til backend (ms). */

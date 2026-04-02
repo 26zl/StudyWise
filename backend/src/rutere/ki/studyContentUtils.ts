@@ -22,6 +22,21 @@ export function extractJsonArray(text: string): string {
 }
 
 /**
+ * Ekstraherer et JSON-objekt fra et modell-svar.
+ *
+ * Kaster `AI_RESPONSE_NOT_JSON_OBJECT` hvis teksten ikke inneholder en gyldig `{...}`-seksjon.
+ */
+export function extractJsonObject(text: string): string {
+  const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error("AI_RESPONSE_NOT_JSON_OBJECT");
+  }
+  return cleaned.slice(start, end + 1);
+}
+
+/**
  * Lager et TargetedQuery-hint for et bestemt kurs.
  * Brukes for å styre KI-søk/kontekst til riktig kurs/modul.
  */

@@ -5,12 +5,12 @@
 import type { Request } from "express";
 import { Router } from "express";
 import { AdminAuditItemSchema, AdminAuditQuerySchema, AdminAuditResponseSchema } from "common/admin";
-import { AuditLog } from "../../../database/models/AuditLog.js";
-import { apiError, sendZodError } from "../../../utils/apiError.js";
-import { audit, AUDIT_ACTIONS } from "../../../utils/auditLog.js";
-import { logger } from "../../../utils/logger.js";
-import type { AuditCategory } from "../../../database/models/AuditLog.js";
-import { AUDIT_CATEGORIES } from "../../../database/models/AuditLog.js";
+import { AuditLog } from "../../database/models/AuditLog.js";
+import { apiError, sendZodError } from "../../utils/apiError.js";
+import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
+import { logger } from "../../utils/logger.js";
+import type { AuditCategory } from "../../database/models/AuditLog.js";
+import { AUDIT_CATEGORIES } from "../../database/models/AuditLog.js";
 
 const router = Router();
 const DEFAULT_LIMIT = 50;
@@ -74,7 +74,7 @@ router.get("/audit", async (req, res) => {
   }
 
   const limit = Math.min(
-    Math.max(0, parseInt(parsedQuery.data.limit ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT),
+    Math.max(1, parseInt(parsedQuery.data.limit ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT),
     MAX_LIMIT,
   );
   const offset = Math.min(

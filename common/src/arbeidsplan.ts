@@ -77,7 +77,7 @@ export const ArbeidsplanDeleteResponseSchema = z.object({
   melding: z.string(),
 });
 
-// Type exports
+// Typeeksporter
 export type StudyBlock = z.infer<typeof StudyBlockSchema>;
 export type CreateArbeidsplan = z.infer<typeof CreateArbeidsplanSchema>;
 export type UpdateBlock = z.infer<typeof UpdateBlockSchema>;

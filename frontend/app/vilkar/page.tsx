@@ -6,7 +6,7 @@ import { InfoPageLayout, InfoSection } from "@/app/components/layout/InfoPageLay
 
 export default function VilkarPage() {
   return (
-    <InfoPageLayout title="Brukervilkår" updatedAt="Januar 2026">
+    <InfoPageLayout title="Brukervilkår" updatedAt="April 2026">
       <InfoSection title="1. Aksept av vilkår">
         <p>
           Ved å opprette en konto og bruke StudyWise aksepterer du disse
@@ -55,7 +55,7 @@ export default function VilkarPage() {
         <ul className="space-y-2">
           <li>• Bruke tjenesten til ulovlige formål</li>
           <li>• Forsøke å få uautorisert tilgang til systemer</li>
-          <li>• Overbelaste tjenesten med unødvendige forspørsler</li>
+          <li>• Overbelaste tjenesten med unødvendige forespørsler</li>
           <li>• Dele innhold som krenker andres rettigheter</li>
         </ul>
       </InfoSection>
@@ -79,7 +79,7 @@ export default function VilkarPage() {
       <InfoSection title="9. Kontakt">
         <p>
           Spørsmål om vilkårene kan rettes til oss via{" "}
-          <Link href="/kontakt" prefetch={false} className="text-blue-500 hover:underline">
+          <Link href="/kontakt" prefetch={false} className="text-blue-500 dark:text-blue-400 hover:underline">
             kontaktskjemaet
           </Link>
           .

@@ -5,11 +5,13 @@
  */
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
     ArrowLeft,
     ChevronRight,
+    Eye,
+    EyeOff,
     ExternalLink,
     FileText,
     Download,
@@ -43,6 +45,7 @@ import { CanvasHtmlContent } from "@/app/components/canvas/CanvasHtmlContent";
 import { useCanvasLabels, type CanvasVisning } from "@/app/components/canvas/canvasLabels";
 import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { formaterDatoLong, formaterDatoMedTid, dagerFraIdag, formaterDagerRelativtFrist } from "@/app/lib/dato";
+import { useMeg, useOppdaterHiddenCourses, useHiddenCourseIds } from "@/app/auth/auth-api";
 
 // Props for CanvasSection komponent
 interface CanvasSectionProps {
@@ -72,8 +75,17 @@ function LasteSkjelett({ linjer = 3 }: { linjer?: number }) {
 function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const { data, isLoading, isError, error } = useCanvasAnnouncements(harCanvasToken);
     const { labels, dateLocale } = useCanvasLabels();
+    const hiddenSet = useHiddenCourseIds();
     const [visibleCount, setVisibleCount] = useState(INITIAL_ANNOUNCEMENTS_VISIBLE);
-    const announcements = data?.announcements ?? [];
+    const announcements = useMemo(() => {
+        const alle = data?.announcements ?? [];
+        if (hiddenSet.size === 0) return alle;
+        return alle.filter((a) => {
+            const match = a.context_code?.match(/^course_(\d+)$/);
+            if (!match) return true;
+            return !hiddenSet.has(Number(match[1]));
+        });
+    }, [data?.announcements, hiddenSet]);
     const visibleAnnouncements = useMemo(
         () => announcements.slice(0, visibleCount),
         [announcements, visibleCount],
@@ -163,6 +175,8 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
 }
 
 // Emne-visning
+type EmneTab = "courses" | "hidden";
+
 function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const { data, isLoading, isError, error } = useCanvasCourses(harCanvasToken);
     const metadataQuery = useCoursesMetadata(harCanvasToken);
@@ -170,6 +184,50 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const [valgtEmneId, settValgtEmneId] = useState<number | null>(null);
     const [valgtEmneVisning, settValgtEmneVisning] = useState<"modules" | "files" | "frontpage" | "pages" | "announcements">("frontpage");
     const [valgtSide, settValgtSide] = useState<{ pageId: string; courseId: number } | null>(null);
+    const [aktivTab, settAktivTab] = useState<EmneTab>("courses");
+
+    // Skjulte emner
+    const megQuery = useMeg();
+    const oppdaterHiddenCourses = useOppdaterHiddenCourses();
+    const hiddenIds = megQuery.data?.user?.hiddenCourseIds?.courseIds ?? [];
+    const hiddenSet = useMemo(() => new Set(hiddenIds), [hiddenIds]);
+
+    const skjulEmne = useCallback((courseId: number) => {
+        const nyeIds = Array.from(new Set([...hiddenIds, courseId]));
+        oppdaterHiddenCourses.mutate({ courseIds: nyeIds }, {
+            onSuccess: () => showToast.success(labels.courseHidden),
+            onError: (err) => {
+                console.error("Hide course failed:", err);
+                showToast.error(labels.hideCourse, err instanceof Error ? err.message : "");
+            },
+        });
+    }, [hiddenIds, oppdaterHiddenCourses, labels.courseHidden, labels.hideCourse]);
+
+    const visEmne = useCallback((courseId: number) => {
+        const nyeIds = hiddenIds.filter((id) => id !== courseId);
+        oppdaterHiddenCourses.mutate({ courseIds: nyeIds }, {
+            onSuccess: () => {
+                showToast.success(labels.courseShown);
+                // Bytt tilbake til courses-tab hvis dette var siste skjulte emne
+                if (nyeIds.length === 0) {
+                    settAktivTab("courses");
+                }
+            },
+            onError: (err) => {
+                console.error("Show course failed:", err);
+                showToast.error(labels.showCourse, err instanceof Error ? err.message : "");
+            },
+        });
+    }, [hiddenIds, oppdaterHiddenCourses, labels.courseShown, labels.showCourse]);
+
+    const synligeEmner = useMemo(
+        () => data?.courses?.filter((c) => !hiddenSet.has(c.id)) ?? [],
+        [data?.courses, hiddenSet],
+    );
+    const skjulteEmner = useMemo(
+        () => data?.courses?.filter((c) => hiddenSet.has(c.id)) ?? [],
+        [data?.courses, hiddenSet],
+    );
 
     // Hent metadata for et emne (med fallback til "ukjent" hvis ikke lastet)
     const getMetadata = (courseId: number): CourseContentMetadata | null => {
@@ -740,7 +798,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     }
 
     // Vis emner liste
-    if (!data?.courses?.length) {
+    if (!synligeEmner.length && !skjulteEmner.length) {
         return (
             <div className="text-center py-12">
                 <p className="text-slate-500 dark:text-slate-400">{labels.noCourses}</p>
@@ -748,10 +806,90 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
         );
     }
 
-    // Render emner
+    // Render emner med tabs
         return (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {data.courses.map((emne) => {
+            <div className="space-y-4">
+                {/* Tabs: Emner / Skjulte */}
+                <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-700">
+                    <button
+                        type="button"
+                        onClick={() => settAktivTab("courses")}
+                        className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                            aktivTab === "courses"
+                                ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
+                                : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                        }`}
+                    >
+                        <BookOpen size={16} />
+                        {labels.sectionTitles.courses}
+                    </button>
+                    {skjulteEmner.length > 0 && (
+                        <button
+                            type="button"
+                            onClick={() => settAktivTab("hidden")}
+                            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                                aktivTab === "hidden"
+                                    ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
+                                    : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                            }`}
+                        >
+                            <EyeOff size={16} />
+                            {labels.hiddenCourses} ({skjulteEmner.length})
+                        </button>
+                    )}
+                </div>
+
+                {/* Skjulte emner tab */}
+                {aktivTab === "hidden" && (
+                    <>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">{labels.hiddenCoursesDescription}</p>
+                        {skjulteEmner.length === 0 ? (
+                            <div className="text-center py-12">
+                                <p className="text-slate-500 dark:text-slate-400">{labels.hiddenCoursesEmpty}</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {skjulteEmner.map((emne) => (
+                                    <article
+                                        key={emne.id}
+                                        className="rounded-xl border border-slate-200 bg-white p-5 text-left transition-all dark:border-slate-700 dark:bg-slate-800/50 opacity-70"
+                                    >
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="min-w-0 flex-1">
+                                                <h3 className="mb-1 font-semibold text-slate-900 dark:text-white">
+                                                    {emne.name}
+                                                </h3>
+                                                <p className="text-sm text-slate-500 dark:text-slate-400">
+                                                    {emne.course_code}
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => visEmne(emne.id)}
+                                                title={labels.showCourse}
+                                                className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-blue-600 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-blue-400 transition-colors"
+                                            >
+                                                <Eye size={18} />
+                                            </button>
+                                        </div>
+                                    </article>
+                                ))}
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {/* Synlige emner tab */}
+                {aktivTab === "courses" && (
+                    <>
+
+                {synligeEmner.length === 0 ? (
+                    <div className="text-center py-12">
+                        <p className="text-slate-500 dark:text-slate-400">{labels.noCourses}</p>
+                    </div>
+                ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {synligeEmner.map((emne) => {
                     const meta = getMetadata(emne.id);
                     const metadataLaster = metadataQuery.isLoading;
 
@@ -789,19 +927,29 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                             key={emne.id}
                             className="rounded-xl border border-slate-200 bg-white p-5 text-left transition-all hover:border-slate-300 hover:shadow-sm dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-slate-600"
                         >
-                            <button
-                                type="button"
-                                onClick={() => åpneEmne(velgDefaultVisning())}
-                                className="group block w-full rounded-lg text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
-                                aria-label={`Åpne emnet ${emne.name}`}
-                            >
-                                <h3 className="mb-1 font-semibold text-slate-900 transition-colors group-hover:text-blue-600 dark:text-white dark:group-hover:text-blue-400">
-                                    {emne.name}
-                                </h3>
-                                <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
-                                    {emne.course_code}
-                                </p>
-                            </button>
+                            <div className="flex items-start gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => åpneEmne(velgDefaultVisning())}
+                                    className="group block flex-1 min-w-0 rounded-lg text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+                                    aria-label={`Åpne emnet ${emne.name}`}
+                                >
+                                    <h3 className="mb-1 font-semibold text-slate-900 transition-colors group-hover:text-blue-600 dark:text-white dark:group-hover:text-blue-400">
+                                        {emne.name}
+                                    </h3>
+                                    <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+                                        {emne.course_code}
+                                    </p>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => skjulEmne(emne.id)}
+                                    title={labels.hideCourse}
+                                    className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-slate-300 transition-colors"
+                                >
+                                    <EyeOff size={16} />
+                                </button>
+                            </div>
                             <div className="flex flex-wrap gap-2" aria-label={`Tilgjengelig innhold i ${emne.name}`}>
                                 {metadataLaster ? (
                                     <>
@@ -879,6 +1027,10 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     );
                 })}
             </div>
+                )}
+                    </>
+                )}
+            </div>
         );
     }
 
@@ -929,7 +1081,12 @@ export function CanvasSection({ startVisning = "announcements", harCanvasToken =
 // Oppgave-visning - alle oppgaver på tvers av emner
 function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const assignmentsQuery = useCanvasAllAssignments({ enabled: harCanvasToken });
-    const allAssignments: AssignmentMedEmne[] = assignmentsQuery.data || [];
+    const hiddenSet = useHiddenCourseIds();
+    const allAssignments: AssignmentMedEmne[] = useMemo(() => {
+        const alle = assignmentsQuery.data || [];
+        if (hiddenSet.size === 0) return alle;
+        return alle.filter((a) => a.course_id == null || !hiddenSet.has(a.course_id));
+    }, [assignmentsQuery.data, hiddenSet]);
     const { language, labels } = useCanvasLabels();
     const { ferdigeIdSet, toggleFerdig } = useManuellInnlevering();
 

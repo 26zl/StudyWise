@@ -166,6 +166,8 @@ Common inneholder data-definisjoner og valideringsregler som deles mellom backen
 - `dateUtils.ts` - Dato-hjelpefunksjoner (`getWeekNumber()`)
 - `arbeidsplan.ts` - Arbeidsplan-konstanter (`UKEDAGER`)
 - `admin.ts` - Admin-paginering og spørringstyper
+- `contact.ts` - Kontaktskjema-schemas og -konstanter
+- `notifications.ts` - Web push-preferanser og abonnementer
 
 ### Docs-pakken
 

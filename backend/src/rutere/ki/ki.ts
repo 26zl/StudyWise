@@ -35,6 +35,8 @@ import { isSyncing, waitForSync } from "../../services/canvas-sync.service.js";
 import { isStructuredCanvasQuery } from "../../services/canvasStructuredQueries.js";
 import { trimToTokenLimit, countTokens } from "../../utils/tokenCounter.js";
 import { knyttCanvasTokenValgfritt } from "../../middleware/auth.js";
+import { User } from "../../database/models/User.js";
+import { createDefaultCanvasContextPreferences } from "common/auth";
 import { setupSSE, writeSSE } from "../../utils/sseUtils.js";
 import { createLinkedAbortController } from "../../utils/abort.js";
 import {
@@ -728,6 +730,11 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     if (intent !== "general_chat" && req.canvasToken && req.user?.id) {
       const baseUrl = req.canvasBaseUrl;
 
+      // Hent brukerens Canvas-kontekstpreferanser og skjulte emner
+      const bruker = await User.findOne({ _id: req.user.id, deletedAt: { $exists: false } }).select("canvasContextPreferences hiddenCourseIds").lean();
+      const contextPrefs = bruker?.canvasContextPreferences ?? createDefaultCanvasContextPreferences();
+      const hiddenCourseIds = new Set<number>(bruker?.hiddenCourseIds?.courseIds ?? []);
+
       // Sync-venting er best-effort — feil her skal IKKE stoppe KI-flyten
       try {
         // Sikre at bakgrunns-sync er igangsatt
@@ -918,6 +925,8 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
             lastUserMsg,
             baseUrl,
             abortController.signal,
+            contextPrefs,
+            hiddenCourseIds,
           ),
           new Promise<ContextResult>((resolve) =>
             setTimeout(
@@ -1168,7 +1177,7 @@ Rules:
     // Respons allerede avsluttet — ingenting mer å gjøre
     if (res.writableEnded) return;
 
-    // If SSE headers were already sent, send error via SSE
+    // Hvis SSE-headere allerede er sendt, send feil via SSE
     if (sseStarted) {
       const errorMessage = error instanceof Error && error.message === "CHAT_TIMEOUT"
         ? "Chat-forespørselen tok for lang tid. Prøv igjen eller forenkle spørsmålet."

@@ -229,3 +229,18 @@ export class SessionExpiredError extends AppError {
     super(message, { httpStatus: 401 });
   }
 }
+
+/**
+ * Brukernavn-konflikt — brukernavnet er allerede tatt.
+ * Brukeren må velge et nytt brukernavn for å fullføre registreringen.
+ * Ikke en AppError — er en spesifikk konflikttilstand som resolver-UI håndterer.
+ */
+export class UsernameConflictError extends Error {
+  readonly username: string;
+  readonly name = "UsernameConflictError";
+
+  constructor(username: string) {
+    super(`Brukernavnet «${username}» er allerede tatt. Velg et annet brukernavn.`);
+    this.username = username;
+  }
+}

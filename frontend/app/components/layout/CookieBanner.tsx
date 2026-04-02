@@ -6,12 +6,15 @@
  */
 "use client";
 
-import { useState, useEffect, useId } from "react";
+import { useState, useEffect, useId, useCallback } from "react";
 import Link from "next/link";
-import { useCookieConsent } from "@/app/hooks/useCookieConsent";
+import { useCookieConsent, type CookieConsentStatus } from "@/app/hooks/useCookieConsent";
+import { useLanguage } from "@/app/i18n";
+import { showToast } from "@/app/components/ui/Toaster";
 
 export function CookieBanner() {
-  const { consent, isReady, setConsent } = useCookieConsent();
+  const { t } = useLanguage();
+  const { consent, isReady, isPending, setConsent } = useCookieConsent();
   const [mounted, setMounted] = useState(false);
   const titleId = useId();
 
@@ -19,8 +22,19 @@ export function CookieBanner() {
     setMounted(true);
   }, []);
 
-  const handleAccept = () => void setConsent("accepted");
-  const handleDecline = () => void setConsent("declined");
+  const handleChoice = useCallback(
+    async (choice: Exclude<CookieConsentStatus, null>) => {
+      try {
+        await setConsent(choice);
+      } catch {
+        showToast.error(
+          t("cookies.banner.errorTitle"),
+          t("cookies.banner.errorDescription"),
+        );
+      }
+    },
+    [setConsent, t],
+  );
 
   if (!mounted || !isReady || consent !== null) return null;
 
@@ -33,33 +47,35 @@ export function CookieBanner() {
       <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="space-y-2">
           <h2 id={titleId} className="text-sm font-semibold text-slate-900 dark:text-white">
-            Informasjon om bruk av informasjonskapsler
+            {t("cookies.banner.title")}
           </h2>
           <p className="text-sm text-slate-600 dark:text-slate-300">
-          Vi bruker nødvendige cookies og driftsmonitorering for innlogging, sikkerhet og feilsporing (berettiget interesse, GDPR Art. 6(1)(f)). «Godta alle» aktiverer i tillegg valgfrie ytelsesmålinger basert på ditt samtykke (Art. 6(1)(a)).{" "}
+          {t("cookies.banner.description")}{" "}
           <Link
             href="/personvern"
             prefetch={false}
             className="underline text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
           >
-            Les mer i personvernerklæringen
+            {t("cookies.banner.learnMore")}
           </Link>
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3 shrink-0">
           <button
             type="button"
-            onClick={handleDecline}
-            className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            onClick={() => void handleChoice("declined")}
+            disabled={isPending}
+            className="px-4 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Kun nødvendige
+            {t("cookies.banner.declineButton")}
           </button>
           <button
             type="button"
-            onClick={handleAccept}
-            className="px-4 py-2 text-sm font-medium text-white bg-slate-900 dark:bg-white dark:text-slate-900 rounded-lg hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors"
+            onClick={() => void handleChoice("accepted")}
+            disabled={isPending}
+            className="px-4 py-2.5 text-sm font-medium text-white bg-slate-900 dark:bg-white dark:text-slate-900 rounded-lg hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Godta alle
+            {t("cookies.banner.acceptButton")}
           </button>
         </div>
       </div>

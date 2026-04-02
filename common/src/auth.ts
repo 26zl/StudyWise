@@ -94,17 +94,33 @@ export const OAUTH_PROVIDERS = ["google", "microsoft"] as const;
 export type OAuthProvider = (typeof OAUTH_PROVIDERS)[number];
 export const OAuthProviderSchema = z.enum(OAUTH_PROVIDERS);
 
-/** OAuth account linked to a user (stores provider + providerAccountId for uniqueness). */
+/** OAuth account linked to a user (stores provider + providerAccountId for uniqueness, and email for cross-check). */
 export const OAuthAccountSchema = z.object({
   provider: OAuthProviderSchema,
   providerAccountId: z.string().min(1, "OAuth provider account ID er påkrevd"),
+  /** E-postadressen knyttet til OAuth-kontoen (brukes for kryssvalidering mot primær-e-post). */
+  email: z.string().email().optional(),
 });
 export type OAuthAccount = z.infer<typeof OAuthAccountSchema>;
+
+/** Typer Clerk↔lokal synkroniseringskonflikt som må vises til bruker. */
+export const SYNC_CONFLICT_TYPES = ["email_mismatch", "oauth_link_rejected"] as const;
+export type SyncConflictType = (typeof SYNC_CONFLICT_TYPES)[number];
+
+export const SyncConflictSchema = z.object({
+  type: z.enum(SYNC_CONFLICT_TYPES),
+  melding: z.string(),
+  clerkVerdi: z.string().optional(),
+  lokalVerdi: z.string().optional(),
+  oppdagetVed: z.string().datetime(),
+});
+export type SyncConflict = z.infer<typeof SyncConflictSchema>;
 
 /** RBAC: kun vanlig bruker og admin. */
 export const APP_ROLES = ["user", "admin"] as const;
 export type UserRole = (typeof APP_ROLES)[number];
 export const RoleSchema = z.enum(APP_ROLES);
+export const DEFAULT_ROLE: UserRole = "user";
 
 /** Maks antall varsel-IDs per liste (lestIds / toastVistIds) – brukes i schema, frontend og backend. */
 export const VARSLER_MAX_IDS = 500;
@@ -198,6 +214,23 @@ export function normalizeManuellInnleveringState(
   });
 }
 
+/** Maks antall skjulte emner per bruker. */
+export const HIDDEN_COURSES_MAX = 200;
+
+export const HiddenCourseIdsSchema = z.object({
+  courseIds: z.array(z.number().int()).max(HIDDEN_COURSES_MAX),
+});
+export type HiddenCourseIds = z.infer<typeof HiddenCourseIdsSchema>;
+
+export function normalizeHiddenCourseIds(
+  hiddenCourseIds?: { courseIds?: readonly number[] } | null,
+): HiddenCourseIds {
+  const ids = hiddenCourseIds?.courseIds ?? [];
+  return HiddenCourseIdsSchema.parse({
+    courseIds: Array.from(new Set(ids)).slice(-HIDDEN_COURSES_MAX),
+  });
+}
+
 export const PreferencesUpdateSchema = z
   .object({
     canvasContextPreferences: CanvasContextPreferencesSchema.optional(),
@@ -205,6 +238,7 @@ export const PreferencesUpdateSchema = z
     manuellInnleveringState: ManuellInnleveringStateSchema.optional(),
     browserPushPreferences: BrowserPushPreferencesSchema.optional(),
     uiPreferences: UIPreferencesSchema.optional(),
+    hiddenCourseIds: HiddenCourseIdsSchema.optional(),
   })
   .superRefine((data, ctx) => {
     const hasUiPreferences =
@@ -224,6 +258,7 @@ export const PreferencesUpdateSchema = z
       data.varslerState === undefined &&
       data.manuellInnleveringState === undefined &&
       data.browserPushPreferences === undefined &&
+      data.hiddenCourseIds === undefined &&
       !hasUiPreferences
     ) {
       ctx.addIssue({
@@ -233,20 +268,20 @@ export const PreferencesUpdateSchema = z
     }
   });
 
-/** Minimum length for first name to be considered complete (avoids single initials from OAuth). */
-export const MIN_FIRST_NAME_LENGTH = 2;
+/** Minimumslengde for for-/etternavn for å regnes som komplett (unngår enkle initialer fra OAuth). */
+export const MIN_NAME_LENGTH = 2;
 
-/** Checks if a first name is valid (not just an initial). */
+/** Sjekker om fornavn er gyldig (ikke bare en initial). */
 export function isValidFirstName(firstName: string | null | undefined): boolean {
-  return typeof firstName === "string" && firstName.trim().length >= MIN_FIRST_NAME_LENGTH;
+  return typeof firstName === "string" && firstName.trim().length >= MIN_NAME_LENGTH;
 }
 
-/** Checks if a last name is valid. */
+/** Sjekker om etternavn er gyldig. */
 export function isValidLastName(lastName: string | null | undefined): boolean {
-  return typeof lastName === "string" && lastName.trim().length >= MIN_FIRST_NAME_LENGTH;
+  return typeof lastName === "string" && lastName.trim().length >= MIN_NAME_LENGTH;
 }
 
-/** Checks if user profile is incomplete (missing or too short first/last name). */
+/** Sjekker om brukerprofilen er ufullstendig (manglende eller for kort for-/etternavn). */
 export function isProfileIncomplete(user: { firstName?: string; lastName?: string } | null | undefined): boolean {
   if (!user) return true;
   return !isValidFirstName(user.firstName) || !isValidLastName(user.lastName);
@@ -267,10 +302,13 @@ export const AuthBrukerSchema = z.object({
   manuellInnleveringState: ManuellInnleveringStateSchema.optional(),
   browserPushPreferences: BrowserPushPreferencesSchema.optional(),
   uiPreferences: UIPreferencesSchema.optional(),
+  hiddenCourseIds: HiddenCourseIdsSchema.optional(),
   /** RBAC-rolle (user, admin). */
   role: RoleSchema.optional(),
   /** Innloggingsmetode (google, microsoft, email). */
   authProvider: AuthProviderSchema.optional(),
+  /** Aktive Clerk↔lokal synkroniseringskonflikter som bruker må se. */
+  syncConflicts: z.array(SyncConflictSchema).optional(),
 });
 
 /** Oppdatering av brukerprofil (fornavn, etternavn). Minst ett felt må oppgis. */
@@ -279,13 +317,13 @@ export const ProfileUpdateSchema = z
     firstName: z
       .string()
       .trim()
-      .min(MIN_FIRST_NAME_LENGTH, `Fornavn må være minst ${MIN_FIRST_NAME_LENGTH} tegn`)
+      .min(MIN_NAME_LENGTH, `Fornavn må være minst ${MIN_NAME_LENGTH} tegn`)
       .max(100, "Fornavn kan maks være 100 tegn")
       .optional(),
     lastName: z
       .string()
       .trim()
-      .min(MIN_FIRST_NAME_LENGTH, `Etternavn må være minst ${MIN_FIRST_NAME_LENGTH} tegn`)
+      .min(MIN_NAME_LENGTH, `Etternavn må være minst ${MIN_NAME_LENGTH} tegn`)
       .max(100, "Etternavn kan maks være 100 tegn")
       .optional(),
     /** Hopp over tilbakesynk til Clerk (brukes når endringen allerede kom fra Clerk). */
@@ -297,12 +335,12 @@ export const ProfileUpdateSchema = z
   );
 export type ProfileUpdate = z.infer<typeof ProfileUpdateSchema>;
 
-/** Username constraints. */
+/** Brukernavn-begrensninger. */
 export const USERNAME_MIN_LENGTH = 3;
 export const USERNAME_MAX_LENGTH = 30;
 export const USERNAME_PATTERN = /^[a-zA-Z0-9_]+$/;
 
-/** Validates username format (length and allowed characters). */
+/** Validerer brukernavnformat (lengde og tillatte tegn). */
 export function isValidUsernameFormat(username: string): boolean {
   if (!username || typeof username !== "string") return false;
   const trimmed = username.trim();
@@ -319,13 +357,13 @@ export const ProfileUpdateWithUsernameSchema = z
     firstName: z
       .string()
       .trim()
-      .min(MIN_FIRST_NAME_LENGTH, `Fornavn må være minst ${MIN_FIRST_NAME_LENGTH} tegn`)
+      .min(MIN_NAME_LENGTH, `Fornavn må være minst ${MIN_NAME_LENGTH} tegn`)
       .max(100, "Fornavn kan maks være 100 tegn")
       .optional(),
     lastName: z
       .string()
       .trim()
-      .min(MIN_FIRST_NAME_LENGTH, `Etternavn må være minst ${MIN_FIRST_NAME_LENGTH} tegn`)
+      .min(MIN_NAME_LENGTH, `Etternavn må være minst ${MIN_NAME_LENGTH} tegn`)
       .max(100, "Etternavn kan maks være 100 tegn")
       .optional(),
     username: z
@@ -367,6 +405,7 @@ export const PreferencesResponseSchema = z.object({
   manuellInnleveringState: ManuellInnleveringStateSchema.optional(),
   browserPushPreferences: BrowserPushPreferencesSchema.optional(),
   uiPreferences: UIPreferencesSchema.optional(),
+  hiddenCourseIds: HiddenCourseIdsSchema.optional(),
 });
 
 export const AccountDeletionDeletedSchema = z.object({

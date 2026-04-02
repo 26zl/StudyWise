@@ -28,7 +28,7 @@ import {
 } from "@/app/components/layout/SidebarAppShell";
 import { StatCard } from "@/app/components/ui/StatCard";
 import { useAuth, useClerk } from "@clerk/nextjs";
-import { useMeg } from "@/app/auth/auth-api";
+import { useMeg, useHiddenCourseIds } from "@/app/auth/auth-api";
 import {
   skalRedirecteTilAuth,
   useAuthRedirect,
@@ -79,6 +79,7 @@ export function AIBreakdownPage() {
   const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
   const userQuery = useCanvasUser(megQuery.isSuccess && harCanvasToken);
   const assignmentsQuery = useCanvasAllAssignments({ enabled: harCanvasToken });
+  const hiddenSet = useHiddenCourseIds();
   const { ferdigeIdSet } = useManuellInnlevering();
 
   const brukernavn =
@@ -98,8 +99,10 @@ export function AIBreakdownPage() {
 
   const aktiveOppgaver = useMemo(
     () =>
-      sorterOppgaver((assignmentsQuery.data ?? []).filter((assignment) => !erInnlevert(assignment) && !ferdigeIdSet.has(assignment.id))),
-    [assignmentsQuery.data, ferdigeIdSet],
+      sorterOppgaver((assignmentsQuery.data ?? []).filter((assignment) =>
+        !erInnlevert(assignment) && !ferdigeIdSet.has(assignment.id) && (!assignment.course_id || !hiddenSet.has(assignment.course_id))
+      )),
+    [assignmentsQuery.data, ferdigeIdSet, hiddenSet],
   );
 
   useEffect(() => {

@@ -10,9 +10,11 @@ import {
     type UserRole,
     type AuthProvider,
     type OAuthAccount,
+    type SyncConflict,
     APP_ROLES,
     AUTH_PROVIDERS,
     OAUTH_PROVIDERS,
+    SYNC_CONFLICT_TYPES,
     createDefaultCanvasContextPreferences,
     createDefaultManuellInnleveringState,
     createDefaultVarslerState,
@@ -24,8 +26,7 @@ import {
     type BrowserPushPreferences,
     type BrowserPushSentState,
 } from "common/notifications";
-
-const SHA256_HEX_REGEX = /^[a-f0-9]{64}$/i;
+import { SHA256_HEX_REGEX } from "../../utils/cryptoUtils.js";
 
 // Type for Canvas-kontekst preferanser
 export interface ICanvasContextPreferences {
@@ -89,6 +90,8 @@ export interface IUser extends Document {
     canvasBaseUrl?: string; // Canvas-instans for brukerens institusjon (multi-tenant, f.eks. https://ntnu.instructure.com)
     canvasTokenHash?: string; // Hash av token for rask sammenligning
     canvasUser?: mongoose.Types.ObjectId;
+    // Skjulte Canvas-emne-IDer
+    hiddenCourseIds?: { courseIds: number[] };
     // Brukerpreferanser for AI Canvas-kontekst
     canvasContextPreferences?: ICanvasContextPreferences;
     varslerState?: IVarslerState;
@@ -100,6 +103,8 @@ export interface IUser extends Document {
         theme?: "light" | "dark" | "system";
         cookieConsent?: "accepted" | "declined";
     };
+    /** Aktive Clerk↔lokal synkroniseringskonflikter som vises til bruker. */
+    syncConflicts?: SyncConflict[];
     createdAt: Date;
     updatedAt: Date;
 }
@@ -139,6 +144,7 @@ const UserSchema: Schema = new Schema(
             type: [{
                 provider: { type: String, enum: OAUTH_PROVIDERS, required: true },
                 providerAccountId: { type: String, required: true, trim: true },
+                email: { type: String, trim: true, lowercase: true },
             }],
             default: [],
         },
@@ -180,6 +186,19 @@ const UserSchema: Schema = new Schema(
             ref: 'CanvasUser',
             required: false,
         },
+        hiddenCourseIds: {
+            type: {
+                courseIds: {
+                    type: [Number],
+                    default: [],
+                    validate: {
+                        validator: (v: number[]) => v.length <= 200,
+                        message: "hiddenCourseIds cannot exceed 200 items",
+                    },
+                },
+            },
+            default: undefined,
+        },
         canvasContextPreferences: {
             type: {
                 announcements: { type: Boolean, default: true },
@@ -195,8 +214,8 @@ const UserSchema: Schema = new Schema(
                     type: [String],
                     default: [],
                     validate: {
-                        validator: (v: string[]) => v.length <= 1000,
-                        message: "lestIds array cannot exceed 1000 items",
+                        validator: (v: string[]) => v.length <= 500,
+                        message: "lestIds array cannot exceed 500 items",
                     },
                 },
                 toastVistIds: {
@@ -255,6 +274,16 @@ const UserSchema: Schema = new Schema(
             },
             default: undefined,
         },
+        syncConflicts: {
+            type: [{
+                type: { type: String, enum: SYNC_CONFLICT_TYPES, required: true },
+                melding: { type: String, required: true },
+                clerkVerdi: { type: String },
+                lokalVerdi: { type: String },
+                oppdagetVed: { type: String, required: true },
+            }],
+            default: [],
+        },
     },
     {
         timestamps: true,
@@ -279,6 +308,12 @@ UserSchema.index(
     },
 );
 
+// OAuth-e-post brukes for kryssvalidering (forhindre registrering med e-post som allerede er linket via OAuth).
+UserSchema.index(
+    { "oauthAccounts.email": 1 },
+    { sparse: true, name: "oauth_accounts_email" },
+);
+
 // Merk: email har allerede indeks via unique: true.
 // Canvas-token må være tenant-aware, så vi bruker sammensatt indeks.
 UserSchema.index(
@@ -296,6 +331,12 @@ UserSchema.index(
         sparse: true,
         name: "canvas_user_unique",
     },
+);
+
+// Compound index for queries som filtrerer på email + deletedAt (f.eks. i findOrCreateUserByClerkId)
+UserSchema.index(
+    { email: 1, deletedAt: 1 },
+    { name: "email_deleted_at" },
 );
 
 export const User = mongoose.model<IUser>('User', UserSchema);

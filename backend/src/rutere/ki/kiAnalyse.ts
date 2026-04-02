@@ -78,7 +78,7 @@ const upload = multer({
  * Analyser dokument (PDF, Word, TXT, etc.)
  */
 router.post("/analyze-document", upload.single('document'), async (req: Request, res: Response) => {
-  // Set SSE headers FIRST — prevents proxy buffering timeout
+  // Sett SSE-headere FØRST — forhindrer proxy buffering-timeout
   const { clearKeepalive } = setupSSE(req, res, 120_000);
   const abortController = createLinkedAbortController(req.timeoutSignal);
   let analyseTimeoutHandle: ReturnType<typeof setTimeout> | undefined;

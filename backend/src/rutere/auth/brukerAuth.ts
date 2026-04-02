@@ -10,6 +10,7 @@ import { CanvasUser } from "../../database/models/CanvasUser.js";
 import { decrypt, encrypt } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
 import { z, ZodError } from "zod";
+import { hashSha256, timingSafeHexEqual } from "../../utils/cryptoUtils.js";
 import { apiError, requireUserId, sendError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
 import { warmCanvasCache, fetchUserProfile } from "../canvas/canvasService.js";
 import { invalidateCacheByPattern } from "../../cache/redis.js";
@@ -33,11 +34,14 @@ import {
   ProfileUpdateWithUsernameSchema,
   UsernameCheckQuerySchema,
   UsernameCheckResponseSchema,
+  SYNC_CONFLICT_TYPES,
   createDefaultCanvasContextPreferences,
   createDefaultManuellInnleveringState,
   createDefaultVarslerState,
   normalizeManuellInnleveringState,
   normalizeVarslerState,
+  normalizeHiddenCourseIds,
+  HiddenCourseIdsSchema,
 } from "common/auth";
 import { sanitizeUsername } from "../../database/models/User.js";
 import {
@@ -78,7 +82,6 @@ import {
 } from "../../services/webPush.service.js";
 
 const router = Router();
-const SHA256_HEX_REGEX = /^[a-f0-9]{64}$/i;
 
 type CanvasTokenConflictType = "token" | "account";
 
@@ -99,31 +102,8 @@ class CanvasTokenConflictError extends Error {
 // Ikke cache auth-responser i browser eller mellomlagring
 router.use(noCache);
 
-// Hash funksjon for tokens
-const hashToken = (token: string) => {
-  return crypto.createHash("sha256").update(token).digest("hex");
-};
-
-function isValidSha256Hex(value: string | null | undefined): value is string {
-  return typeof value === "string" && SHA256_HEX_REGEX.test(value);
-}
-
-function timingSafeHexEqual(
-  storedHash: string | null | undefined,
-  candidateHash: string,
-): boolean {
-  // Sjekk gyldighet først, men gjør alltid timing-safe sammenligning for å unngå lekkasje
-  const aValid = isValidSha256Hex(storedHash);
-  const bValid = isValidSha256Hex(candidateHash);
-  const a = aValid ? storedHash : "0".repeat(64);
-  const b = bValid ? candidateHash : "1".repeat(64);
-
-  const equal = crypto.timingSafeEqual(
-    Buffer.from(a, "hex"),
-    Buffer.from(b, "hex"),
-  );
-  return equal && aValid && bValid;
-}
+// Hash funksjon for tokens — bruker delt utility fra cryptoUtils
+const hashToken = hashSha256;
 
 function handleCanvasVerificationError(res: Response, error: unknown) {
   const canvasError = error as Partial<CanvasApiError>;
@@ -213,7 +193,9 @@ async function invalidateCanvasCacheForToken(
       .update(gammeltToken)
       .digest("hex")
       .slice(0, 12);
-    await invalidateCacheByPattern(`canvas:*:${prefix}:*`).catch(() => {});
+    await invalidateCacheByPattern(`canvas:*:${prefix}:*`).catch((err) => {
+      logger.debug({ err }, "Cache-invalidering feilet (ikke-kritisk)");
+    });
   } catch {
     // Ignorer dekrypteringsfeil – tokenet kan være korrupt
   }
@@ -233,6 +215,44 @@ async function invalidateStoredCanvasDataForUser(
 }
 
 /**
+ * Serialiserer en IUser til AuthBrukerSchema-format med riktige defaults.
+ * Delt hjelpefunksjon for GET /me og PUT /profile.
+ */
+function serializeAuthBruker(bruker: IUser) {
+  const harCanvasToken = !!bruker.canvasApiToken;
+  return AuthBrukerSchema.parse({
+    id: bruker._id.toString(),
+    email: bruker.email,
+    username: bruker.username,
+    firstName: bruker.firstName,
+    lastName: bruker.lastName,
+    hasCanvasToken: harCanvasToken,
+    canvasBaseUrl: bruker.canvasBaseUrl ?? null,
+    canvasContextPreferences:
+      bruker.canvasContextPreferences || createDefaultCanvasContextPreferences(),
+    varslerState: normalizeVarslerState(
+      bruker.varslerState || createDefaultVarslerState(),
+    ),
+    manuellInnleveringState: normalizeManuellInnleveringState(
+      bruker.manuellInnleveringState || createDefaultManuellInnleveringState(),
+    ),
+    browserPushPreferences: normalizeBrowserPushPreferences(
+      bruker.browserPushPreferences ?? createDefaultBrowserPushPreferences(),
+    ),
+    uiPreferences: bruker.uiPreferences ?? undefined,
+    hiddenCourseIds: bruker.hiddenCourseIds
+      ? normalizeHiddenCourseIds(bruker.hiddenCourseIds)
+      : undefined,
+    role: bruker.role ?? "user",
+    authProvider: bruker.authProvider,
+    syncConflicts:
+      bruker.syncConflicts && bruker.syncConflicts.length > 0
+        ? bruker.syncConflicts
+        : undefined,
+  });
+}
+
+/**
  * Henter autentisert bruker fra DB. Returnerer bruker eller sender 401 og null.
  */
 async function hentAutentisertBruker(
@@ -244,7 +264,7 @@ async function hentAutentisertBruker(
     apiError.unauthorized(res);
     return null;
   }
-  const query = User.findById(userId);
+  const query = User.findOne({ _id: userId, deletedAt: { $exists: false } });
   if (selectFields) query.select(selectFields);
   const bruker = await query;
   if (!bruker) {
@@ -278,6 +298,7 @@ router.get("/username/check", rateLimitMe, async (req, res) => {
 
     const existingUser = await User.findOne({
       usernameNormalized: sanitized.usernameNormalized,
+      deletedAt: { $exists: false },
     }).select("_id");
 
     return res.json(
@@ -329,6 +350,7 @@ router.post("/token", rateLimitToken, async (req, res) => {
       canvasBaseUrl,
       canvasTokenHash: nyTokenHash,
       _id: { $ne: userId },
+      deletedAt: { $exists: false },
     });
     if (eksisterendeTokenBruker) {
       logger.warn(
@@ -346,7 +368,9 @@ router.post("/token", rateLimitToken, async (req, res) => {
     ) {
       // Token er uendret — Canvas-data er fortsatt gyldig, ikke invalider
       // Varm cache i bakgrunnen i tilfelle Redis har utløpt
-      warmCanvasCache(cleanToken, canvasBaseUrl).catch(() => {});
+      warmCanvasCache(cleanToken, canvasBaseUrl).catch((err) => {
+        logger.debug({ err }, "Bakgrunns cache-warming feilet (ikke-kritisk)");
+      });
       logger.info(
         { userId },
         "Canvas token identisk (hash match) — ingen invalidering",
@@ -415,7 +439,7 @@ router.post("/token", rateLimitToken, async (req, res) => {
         if (!canvasProfile) {
           throw new Error("Canvas-profil mangler etter verifisering");
         }
-        const brukerTx = await User.findById(userId)
+        const brukerTx = await User.findOne({ _id: userId, deletedAt: { $exists: false } })
           .select("+canvasApiToken +canvasTokenHash")
           .session(session);
         if (!brukerTx) {
@@ -456,6 +480,7 @@ router.post("/token", rateLimitToken, async (req, res) => {
           canvasBaseUrl,
           canvasTokenHash: nyTokenHash,
           _id: { $ne: brukerTx._id },
+          deletedAt: { $exists: false },
         }).session(session);
         if (freshTokenBruker) {
           if (!forceRelink) {
@@ -640,55 +665,72 @@ router.delete("/token", rateLimitToken, async (req, res) => {
 router.get("/me", rateLimitMe, async (req, res) => {
   try {
     const userId = req.user?.id;
+    const flowId =
+      typeof req.headers["x-debug-flow-id"] === "string"
+        ? req.headers["x-debug-flow-id"].slice(0, 64)
+        : undefined;
     const authenticatedUser = (req as Request & { authenticatedUser?: IUser })
       .authenticatedUser;
     const bruker =
       authenticatedUser ??
       (await hentAutentisertBruker(userId, res, "+canvasApiToken"));
     if (!bruker) return;
-    const harCanvasToken = !!bruker.canvasApiToken;
-    if (harCanvasToken && !bruker.canvasBaseUrl) {
+
+    if (flowId) {
+      logger.info(
+        {
+          flowId,
+          userId: bruker._id,
+          email: bruker.email,
+          username: bruker.username,
+        },
+        "authFlow: /me responding with user data",
+      );
+    }
+    if (bruker.canvasApiToken && !bruker.canvasBaseUrl) {
       logger.warn(
         { userId: bruker._id },
         "Bruker har Canvas-token uten canvasBaseUrl (gammel konto – må velge institusjon ved neste token-oppdatering)",
       );
     }
-    const preferences =
-      bruker.canvasContextPreferences ||
-      createDefaultCanvasContextPreferences();
-    const varslerState = normalizeVarslerState(
-      bruker.varslerState || createDefaultVarslerState(),
-    );
-    const manuellInnleveringState = normalizeManuellInnleveringState(
-      bruker.manuellInnleveringState || createDefaultManuellInnleveringState(),
-    );
     return res.json(
-      MeResponseSchema.parse({
-        user: AuthBrukerSchema.parse({
-          id: bruker._id.toString(),
-          email: bruker.email,
-          username: bruker.username,
-          firstName: bruker.firstName,
-          lastName: bruker.lastName,
-          hasCanvasToken: harCanvasToken,
-          canvasBaseUrl: bruker.canvasBaseUrl ?? null,
-          canvasContextPreferences: preferences,
-          varslerState,
-          manuellInnleveringState,
-          browserPushPreferences: normalizeBrowserPushPreferences(
-            bruker.browserPushPreferences ??
-              createDefaultBrowserPushPreferences(),
-          ),
-          uiPreferences: bruker.uiPreferences ?? undefined,
-          role: bruker.role ?? "user",
-          authProvider: bruker.authProvider,
-        }),
-      }),
+      MeResponseSchema.parse({ user: serializeAuthBruker(bruker) }),
     );
   } catch (error) {
     return sendUnknownError(res, error, {
       kontekst: "henting av brukerprofil",
       melding: "Kunne ikke laste brukerdata. Prøv igjen.",
+    });
+  }
+});
+
+// POST /sync-conflicts/dismiss — avvis/bekreft en synkroniseringskonflikt (brukeren har sett den).
+router.post("/sync-conflicts/dismiss", rateLimitMe, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return apiError.unauthorized(res);
+    }
+
+    const { type } = req.body ?? {};
+    if (!type || typeof type !== "string" || !(SYNC_CONFLICT_TYPES as readonly string[]).includes(type)) {
+      return apiError.badRequest(res, "Ugyldig eller manglende konflikttype");
+    }
+
+    await User.updateOne(
+      { _id: userId },
+      { $pull: { syncConflicts: { type } } },
+    );
+
+    logger.info(
+      { userId, conflictType: type },
+      "Synkroniseringskonflikt avvist av bruker",
+    );
+    return res.json({ melding: "Konflikt fjernet" });
+  } catch (error) {
+    return sendUnknownError(res, error, {
+      kontekst: "fjerning av synkroniseringskonflikt",
+      melding: "Kunne ikke fjerne konflikten. Prøv igjen.",
     });
   }
 });
@@ -723,11 +765,13 @@ router.put("/profile", rateLimitMe, async (req, res) => {
         updateFields.lastName = parsed.lastName;
       }
     }
+    let usernameConflictPayload: { username: string } | null = null;
     if (parsed.username !== undefined) {
       const sanitizedUsername = sanitizeUsername(parsed.username);
       if (sanitizedUsername) {
         updateFields.username = sanitizedUsername.username;
         updateFields.usernameNormalized = sanitizedUsername.usernameNormalized;
+        usernameConflictPayload = { username: parsed.username };
       } else {
         return apiError.badRequest(res, "Ugyldig brukernavn", {
           felt: "username",
@@ -745,13 +789,13 @@ router.put("/profile", rateLimitMe, async (req, res) => {
         returnDocument: "after",
       }).select("+canvasApiToken");
     } catch (error) {
-      if (isMongoDuplicateKeyError(error) && parsed.username !== undefined) {
+      if (isMongoDuplicateKeyError(error) && usernameConflictPayload) {
         return res.status(409).json({
           error: "username_conflict",
           melding:
-            `Brukernavnet "${parsed.username}" er allerede tatt. ` +
+            `Brukernavnet "${usernameConflictPayload.username}" er allerede tatt. ` +
             "Velg et annet brukernavn og prøv igjen.",
-          username: parsed.username,
+          username: usernameConflictPayload.username,
         });
       }
       throw error;
@@ -797,40 +841,10 @@ router.put("/profile", rateLimitMe, async (req, res) => {
       req,
     });
 
-    const harCanvasToken = !!oppdatertBruker.canvasApiToken;
-    const preferences =
-      oppdatertBruker.canvasContextPreferences ||
-      createDefaultCanvasContextPreferences();
-    const varslerState = normalizeVarslerState(
-      oppdatertBruker.varslerState || createDefaultVarslerState(),
-    );
-    const manuellInnleveringState = normalizeManuellInnleveringState(
-      oppdatertBruker.manuellInnleveringState ||
-        createDefaultManuellInnleveringState(),
-    );
-
     return res.json(
       ProfileUpdateResponseSchema.parse({
         melding: "Profil oppdatert",
-        user: AuthBrukerSchema.parse({
-          id: oppdatertBruker._id.toString(),
-          email: oppdatertBruker.email,
-          username: oppdatertBruker.username,
-          firstName: oppdatertBruker.firstName,
-          lastName: oppdatertBruker.lastName,
-          hasCanvasToken: harCanvasToken,
-          canvasBaseUrl: oppdatertBruker.canvasBaseUrl ?? null,
-          canvasContextPreferences: preferences,
-          varslerState,
-          manuellInnleveringState,
-          browserPushPreferences: normalizeBrowserPushPreferences(
-            oppdatertBruker.browserPushPreferences ??
-              createDefaultBrowserPushPreferences(),
-          ),
-          uiPreferences: oppdatertBruker.uiPreferences ?? undefined,
-          role: oppdatertBruker.role ?? "user",
-          authProvider: oppdatertBruker.authProvider,
-        }),
+        user: serializeAuthBruker(oppdatertBruker),
       }),
     );
   } catch (error) {
@@ -846,188 +860,210 @@ router.put("/profile", rateLimitMe, async (req, res) => {
 
 // PUT /preferences
 router.put("/preferences", rateLimitMe, async (req, res) => {
-    try {
-        const userId = req.user?.id;
-        if (!userId) {
-            return apiError.unauthorized(res);
-        }
-
-        const bruker = await hentAutentisertBruker(userId, res);
-        if (!bruker) return;
-
-        const {
-            canvasContextPreferences,
-            varslerState,
-            manuellInnleveringState,
-            browserPushPreferences,
-            uiPreferences,
-        } = PreferencesUpdateSchema.parse(req.body);
-        const updateFields: {
-            canvasContextPreferences?: ReturnType<typeof createDefaultCanvasContextPreferences>;
-            varslerState?: ReturnType<typeof normalizeVarslerState>;
-            manuellInnleveringState?: ReturnType<typeof normalizeManuellInnleveringState>;
-            browserPushPreferences?: z.infer<typeof BrowserPushPreferencesSchema>;
-            uiPreferences?: z.infer<typeof UIPreferencesSchema>;
-        } = {};
-        if (canvasContextPreferences !== undefined) {
-            updateFields.canvasContextPreferences = CanvasContextPreferencesSchema.parse(canvasContextPreferences);
-        }
-        if (varslerState !== undefined) {
-            updateFields.varslerState = normalizeVarslerState(varslerState);
-        }
-        if (manuellInnleveringState !== undefined) {
-            updateFields.manuellInnleveringState = normalizeManuellInnleveringState(manuellInnleveringState);
-        }
-        if (browserPushPreferences !== undefined) {
-            updateFields.browserPushPreferences = normalizeBrowserPushPreferences(
-                browserPushPreferences,
-            );
-        }
-        if (uiPreferences !== undefined) {
-            updateFields.uiPreferences = UIPreferencesSchema.parse({
-                ...(bruker.uiPreferences ?? {}),
-                ...uiPreferences,
-            });
-        }
-
-        const oppdatertBruker = await User.findByIdAndUpdate(
-          userId,
-          { $set: updateFields },
-          { returnDocument: "after" },
-        );
-
-        if (!oppdatertBruker) {
-            return apiError.notFound(res, "Bruker");
-        }
-
-        logger.info({ userId }, "Brukerpreferanser oppdatert");
-        await audit({
-          actorUserId: userId,
-          action: AUDIT_ACTIONS.PREFERENCES_UPDATED,
-          category: "profile",
-          outcome: "success",
-          role: req.actorRole,
-          req,
-        });
-
-        return res.json(
-          PreferencesResponseSchema.parse({
-            melding: "Preferanser oppdatert",
-            canvasContextPreferences:
-                oppdatertBruker.canvasContextPreferences || createDefaultCanvasContextPreferences(),
-            varslerState: normalizeVarslerState(
-                oppdatertBruker.varslerState || createDefaultVarslerState(),
-            ),
-            manuellInnleveringState: normalizeManuellInnleveringState(
-                oppdatertBruker.manuellInnleveringState || createDefaultManuellInnleveringState(),
-            ),
-            browserPushPreferences:
-                normalizeBrowserPushPreferences(
-                    oppdatertBruker.browserPushPreferences ?? createDefaultBrowserPushPreferences(),
-                ),
-            uiPreferences: oppdatertBruker.uiPreferences ?? undefined,
-          }),
-        );
-    } catch (error) {
-        if (error instanceof ZodError) {
-            return sendZodError(res, error, "Preferanser");
-        }
-        return sendUnknownError(res, error, { kontekst: "oppdatering av preferanser", melding: "Kunne ikke lagre preferanser. Prøv igjen." });
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return apiError.unauthorized(res);
     }
+
+    const bruker = await hentAutentisertBruker(userId, res);
+    if (!bruker) return;
+
+    const {
+      canvasContextPreferences,
+      varslerState,
+      manuellInnleveringState,
+      browserPushPreferences,
+      uiPreferences,
+      hiddenCourseIds,
+    } = PreferencesUpdateSchema.parse(req.body);
+    const updateFields: {
+      canvasContextPreferences?: ReturnType<
+        typeof createDefaultCanvasContextPreferences
+      >;
+      varslerState?: ReturnType<typeof normalizeVarslerState>;
+      manuellInnleveringState?: ReturnType<
+        typeof normalizeManuellInnleveringState
+      >;
+      browserPushPreferences?: z.infer<typeof BrowserPushPreferencesSchema>;
+      uiPreferences?: z.infer<typeof UIPreferencesSchema>;
+      hiddenCourseIds?: z.infer<typeof HiddenCourseIdsSchema>;
+    } = {};
+    if (canvasContextPreferences !== undefined) {
+      updateFields.canvasContextPreferences =
+        CanvasContextPreferencesSchema.parse(canvasContextPreferences);
+    }
+    if (varslerState !== undefined) {
+      updateFields.varslerState = normalizeVarslerState(varslerState);
+    }
+    if (manuellInnleveringState !== undefined) {
+      updateFields.manuellInnleveringState = normalizeManuellInnleveringState(
+        manuellInnleveringState,
+      );
+    }
+    if (browserPushPreferences !== undefined) {
+      updateFields.browserPushPreferences = normalizeBrowserPushPreferences(
+        browserPushPreferences,
+      );
+    }
+    if (uiPreferences !== undefined) {
+      updateFields.uiPreferences = UIPreferencesSchema.parse({
+        ...(bruker.uiPreferences ?? {}),
+        ...uiPreferences,
+      });
+    }
+    if (hiddenCourseIds !== undefined) {
+      updateFields.hiddenCourseIds = normalizeHiddenCourseIds(hiddenCourseIds);
+    }
+
+    const oppdatertBruker = await User.findByIdAndUpdate(
+      userId,
+      { $set: updateFields },
+      { returnDocument: "after" },
+    );
+
+    if (!oppdatertBruker) {
+      return apiError.notFound(res, "Bruker");
+    }
+
+    logger.info({ userId }, "Brukerpreferanser oppdatert");
+    await audit({
+      actorUserId: userId,
+      action: AUDIT_ACTIONS.PREFERENCES_UPDATED,
+      category: "profile",
+      outcome: "success",
+      role: req.actorRole,
+      req,
+    });
+
+    return res.json(
+      PreferencesResponseSchema.parse({
+        melding: "Preferanser oppdatert",
+        canvasContextPreferences:
+          oppdatertBruker.canvasContextPreferences ||
+          createDefaultCanvasContextPreferences(),
+        varslerState: normalizeVarslerState(
+          oppdatertBruker.varslerState || createDefaultVarslerState(),
+        ),
+        manuellInnleveringState: normalizeManuellInnleveringState(
+          oppdatertBruker.manuellInnleveringState ||
+            createDefaultManuellInnleveringState(),
+        ),
+        browserPushPreferences: normalizeBrowserPushPreferences(
+          oppdatertBruker.browserPushPreferences ??
+            createDefaultBrowserPushPreferences(),
+        ),
+        uiPreferences: oppdatertBruker.uiPreferences ?? undefined,
+        hiddenCourseIds: oppdatertBruker.hiddenCourseIds
+          ? normalizeHiddenCourseIds(oppdatertBruker.hiddenCourseIds)
+          : undefined,
+      }),
+    );
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return sendZodError(res, error, "Preferanser");
+    }
+    return sendUnknownError(res, error, {
+      kontekst: "oppdatering av preferanser",
+      melding: "Kunne ikke lagre preferanser. Prøv igjen.",
+    });
+  }
 });
 
 router.post("/push-subscriptions", rateLimitMe, async (req, res) => {
-    try {
-        const userId = requireUserId(req, res);
-        if (!userId) return;
+  try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
 
-        if (!isWebPushConfigured()) {
-            return apiError.serviceUnavailable(res, "Nettleservarsler");
-        }
-
-        const parsed = SaveWebPushSubscriptionRequestSchema.parse(req.body);
-        await upsertWebPushSubscription(
-            userId,
-            parsed.subscription,
-            req.get("user-agent") ?? undefined,
-        );
-
-        return res.json(
-            WebPushSubscriptionResponseSchema.parse({
-                success: true,
-                subscribed: true,
-            }),
-        );
-    } catch (error) {
-        if (error instanceof ZodError) {
-            return sendZodError(res, error, "Web-push abonnement");
-        }
-        if (error instanceof WebPushSubscriptionConflictError) {
-            return apiError.conflict(res, error.message);
-        }
-        return sendUnknownError(res, error, {
-            kontekst: "lagring av web-push abonnement",
-            melding: "Kunne ikke aktivere nettleservarsler. Prøv igjen.",
-        });
+    if (!isWebPushConfigured()) {
+      return apiError.serviceUnavailable(res, "Nettleservarsler");
     }
+
+    const parsed = SaveWebPushSubscriptionRequestSchema.parse(req.body);
+    await upsertWebPushSubscription(
+      userId,
+      parsed.subscription,
+      req.get("user-agent") ?? undefined,
+    );
+
+    return res.json(
+      WebPushSubscriptionResponseSchema.parse({
+        success: true,
+        subscribed: true,
+      }),
+    );
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return sendZodError(res, error, "Web-push abonnement");
+    }
+    if (error instanceof WebPushSubscriptionConflictError) {
+      return apiError.conflict(res, error.message);
+    }
+    return sendUnknownError(res, error, {
+      kontekst: "lagring av web-push abonnement",
+      melding: "Kunne ikke aktivere nettleservarsler. Prøv igjen.",
+    });
+  }
 });
 
 router.get("/push-client-config", rateLimitMe, async (_req, res) => {
-    const payload = WebPushClientConfigResponseSchema.parse(getWebPushClientConfig());
-    return res.json(payload);
+  const payload = WebPushClientConfigResponseSchema.parse(
+    getWebPushClientConfig(),
+  );
+  return res.json(payload);
 });
 
 router.delete("/push-subscriptions", rateLimitMe, async (req, res) => {
-    try {
-        const userId = requireUserId(req, res);
-        if (!userId) return;
+  try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
 
-        const parsed = DeleteWebPushSubscriptionRequestSchema.parse(req.body);
-        await removeWebPushSubscription(userId, parsed.endpoint);
+    const parsed = DeleteWebPushSubscriptionRequestSchema.parse(req.body);
+    await removeWebPushSubscription(userId, parsed.endpoint);
 
-        return res.json(
-            WebPushSubscriptionResponseSchema.parse({
-                success: true,
-                subscribed: false,
-            }),
-        );
-    } catch (error) {
-        if (error instanceof ZodError) {
-            return sendZodError(res, error, "Sletting av web-push abonnement");
-        }
-        return sendUnknownError(res, error, {
-            kontekst: "sletting av web-push abonnement",
-            melding: "Kunne ikke deaktivere nettleservarsler. Prøv igjen.",
-        });
+    return res.json(
+      WebPushSubscriptionResponseSchema.parse({
+        success: true,
+        subscribed: false,
+      }),
+    );
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return sendZodError(res, error, "Sletting av web-push abonnement");
     }
+    return sendUnknownError(res, error, {
+      kontekst: "sletting av web-push abonnement",
+      melding: "Kunne ikke deaktivere nettleservarsler. Prøv igjen.",
+    });
+  }
 });
 
 router.post("/push-subscriptions/test", rateLimitMe, async (req, res) => {
-    try {
-        const userId = requireUserId(req, res);
-        if (!userId) return;
+  try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
 
-        if (!isWebPushConfigured()) {
-            return apiError.serviceUnavailable(res, "Nettleservarsler");
-        }
-
-        const delivered = await sendTestWebPush(userId);
-        return res.json(
-            SendTestWebPushResponseSchema.parse({
-                success: true,
-                delivered,
-            }),
-        );
-    } catch (error) {
-        return sendUnknownError(res, error, {
-            kontekst: "test av web-push",
-            melding: "Kunne ikke sende testvarsel. Prøv igjen.",
-        });
+    if (!isWebPushConfigured()) {
+      return apiError.serviceUnavailable(res, "Nettleservarsler");
     }
+
+    const delivered = await sendTestWebPush(userId);
+    return res.json(
+      SendTestWebPushResponseSchema.parse({
+        success: true,
+        delivered,
+      }),
+    );
+  } catch (error) {
+    return sendUnknownError(res, error, {
+      kontekst: "test av web-push",
+      melding: "Kunne ikke sende testvarsel. Prøv igjen.",
+    });
+  }
 });
 
 // POST /logout (Clerk session cleared on frontend; backend clears Canvas runtime cache)
-router.post("/logout", async (req, res) => {
+router.post("/logout", rateLimitMe, async (req, res) => {
   const userId = req.user?.id;
   try {
     if (userId) {

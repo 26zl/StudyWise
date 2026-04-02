@@ -92,7 +92,7 @@ export const ChatShareResponseSchema = z.object({
   shareId: z.string(),
   shareUrl: z.string(),
   expiresAt: z.coerce.date().nullable(),
-  accessType: z.enum(["public", "private"]).default("public"),
+  accessType: ChatShareAccessTypeSchema.default("public"),
 });
 
 export const SharedChatListItemSchema = z.object({

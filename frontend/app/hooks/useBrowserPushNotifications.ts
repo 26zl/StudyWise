@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useOppdaterBrowserPushPreferanser } from "@/app/auth/auth-api";
 import {
   deleteBrowserPushSubscription,
@@ -82,15 +82,6 @@ export function useBrowserPushNotifications(
   );
   const { mutateAsync: savePreferences } = useOppdaterBrowserPushPreferanser();
 
-  const normalizedInitialPreferences = useMemo(
-    () => initialPreferences ?? DEFAULT_PREFERENCES,
-    [initialPreferences],
-  );
-
-  useEffect(() => {
-    setPreferences(normalizedInitialPreferences);
-  }, [normalizedInitialPreferences]);
-
   useEffect(() => {
     if (!support) return;
 
@@ -160,6 +151,8 @@ export function useBrowserPushNotifications(
         ...preferences,
         enabled: true,
       };
+      // Optimistic: update UI immediately
+      setPreferences(nextPreferences);
       const updated = await savePreferences(nextPreferences);
       setPreferences(updated.browserPushPreferences ?? nextPreferences);
       setSubscribed(true);
@@ -186,6 +179,8 @@ export function useBrowserPushNotifications(
         ...preferences,
         enabled: false,
       };
+      // Optimistic: update UI immediately
+      setPreferences(nextPreferences);
       const updated = await savePreferences(nextPreferences);
       setPreferences(updated.browserPushPreferences ?? nextPreferences);
       setSubscribed(false);
@@ -208,6 +203,8 @@ export function useBrowserPushNotifications(
         ...preferences,
         ...next,
       };
+      // Optimistic: update UI immediately
+      setPreferences(nextPreferences);
       const updated = await savePreferences(nextPreferences);
       setPreferences(updated.browserPushPreferences ?? nextPreferences);
     } finally {

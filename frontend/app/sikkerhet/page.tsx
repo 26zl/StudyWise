@@ -3,8 +3,11 @@
  */
 import Link from "next/link";
 import {
+  Code2,
   Cookie,
+  ExternalLink,
   Eye,
+  Github,
   Key,
   Lock,
   RefreshCw,
@@ -63,7 +66,7 @@ export default function SikkerhetPage() {
       icon: Server,
       title: "Sikker infrastruktur",
       description:
-        "Applikasjonen kjører på sikre plattformer (Vercel, Heroku) med brannmur og tilgangskontroll. Cloudflare brukes for DDoS-beskyttelse og SSL/TLS.",
+        "Applikasjonen kjører på sikre plattformer (Vercel, Heroku) med brannmur og tilgangskontroll. Cloudflare brukes som CDN med bot-beskyttelse (Turnstile) og DNS-sikkerhet.",
     },
     {
       icon: RefreshCw,
@@ -101,8 +104,7 @@ export default function SikkerhetPage() {
           Når du kobler til Canvas, bruker vi ditt personlige API-token:
         </p>
         <ul className="space-y-2 text-sm">
-          <li>• Tokenet gir kun lesetilgang til dine egne data</li>
-          <li>• Vi kan ikke endre noe i Canvas på dine vegne</li>
+          <li>• Vi bruker tokenet kun til å lese dine Canvas-data — vi utfører ingen skriveoperasjoner</li>
           <li>• Du kan tilbakekalle tokenet i Canvas når som helst</li>
           <li>• Tokenet lagres kryptert og sendes aldri til tredjeparter</li>
         </ul>
@@ -136,10 +138,48 @@ export default function SikkerhetPage() {
         </ul>
         <p className="mt-4 text-sm">
           Mer om behandling av personopplysninger finner du i vår{" "}
-          <Link href="/personvern" prefetch={false} className="text-blue-500 hover:underline">
+          <Link href="/personvern" prefetch={false} className="text-blue-500 dark:text-blue-400 hover:underline">
             personvernerklæring
           </Link>
           .
+        </p>
+      </InfoSection>
+
+      <InfoSection title="Åpen kildekode og transparens">
+        <div className="mb-4 flex items-start gap-3">
+          <Code2 className="mt-0.5 h-5 w-5 shrink-0 text-slate-600 dark:text-slate-400" />
+          <p>
+            StudyWise er et åpen kildekode-prosjekt. Vi tror på transparens som
+            grunnlag for tillit — all kildekode er offentlig tilgjengelig slik at
+            hvem som helst kan verifisere hvordan vi behandler data, hvilke
+            sikkerhetsmekanismer vi bruker, og at vi holder det vi lover.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <a
+            href="https://github.com/26zl/StudyWise"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+          >
+            <Github className="h-4 w-4" />
+            Se kildekoden på GitHub
+            <ExternalLink className="h-3 w-3 opacity-50" />
+          </a>
+          <a
+            href="https://www.virustotal.com/gui/domain/studwize.page"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-medium text-green-800 transition-colors hover:bg-green-100 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300 dark:hover:bg-green-900/50"
+          >
+            <ShieldCheck className="h-4 w-4" />
+            VirusTotal-rapport
+            <ExternalLink className="h-3 w-3 opacity-50" />
+          </a>
+        </div>
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+          Vi kjører automatisk CI/CD med sikkerhetsskanning (TruffleHog, OWASP,
+          SAST), avhengighetsrevisjoner og SBOM-generering ved hver utrulling.
         </p>
       </InfoSection>
 

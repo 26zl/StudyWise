@@ -22,6 +22,7 @@ import {
 import { cn } from "@/app/lib/utils";
 import { useLanguage } from "@/app/i18n";
 import { useCanvasCourses, useCanvasModules } from "@/app/canvas/canvas-api";
+import { useHiddenCourseIds } from "@/app/auth/auth-api";
 import { CanvasTokenNotice } from "@/app/components/canvas/CanvasTokenNotice";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
@@ -48,6 +49,11 @@ interface CourseOption {
 interface ModuleOption {
   id: string;
   name: string;
+}
+
+interface PersistApiLike {
+  hasHydrated?: () => boolean;
+  onFinishHydration?: (callback: () => void) => (() => void) | void;
 }
 
 type StudyMode = "quiz" | "flashcards";
@@ -863,7 +869,7 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
 
   // Sikrer at vi også gjenopptar etter at Zustand-persist er ferdig hydrert.
   useEffect(() => {
-    const persistApi = (useKIStore as typeof useKIStore & { persist?: any }).persist;
+    const persistApi = (useKIStore as typeof useKIStore & { persist?: PersistApiLike }).persist;
     if (!persistApi) return;
 
     if (persistApi.hasHydrated?.()) {
@@ -879,19 +885,24 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
 
   // Hent ekte Canvas-data
   const { data: coursesData, isLoading: coursesLoading } = useCanvasCourses(harCanvasToken);
+  const hiddenSet = useHiddenCourseIds();
   const selectedNumericId = selectedCourseId ? Number(selectedCourseId) : null;
   const { data: modulesData, isLoading: modulesLoading } = useCanvasModules(
     selectedNumericId,
     harCanvasToken,
   );
 
-  // Transformer Canvas-kurs til dropdown-options
-  const courseOptions: CourseOption[] = (coursesData?.courses ?? []).map((c) => ({
-    id: String(c.id),
-    numericId: c.id,
-    name: c.name,
-    emoji: "📚",
-  }));
+  // Transformer Canvas-kurs til dropdown-options (ekskluder skjulte emner)
+  const allCourses = coursesData?.courses ?? [];
+  const courseOptions: CourseOption[] = allCourses
+    .filter((c) => !hiddenSet.has(c.id))
+    .map((c) => ({
+      id: String(c.id),
+      numericId: c.id,
+      name: c.name,
+      emoji: "📚",
+    }));
+  const allCoursesHidden = allCourses.length > 0 && courseOptions.length === 0;
 
   const selectedCourse = courseOptions.find((c) => c.id === selectedCourseId);
 
@@ -1066,7 +1077,7 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                       <LoadingView text={t("quiz.loadingCourses")} fullPage={false} />
                     </div>
                   ) : courseOptions.length === 0 ? (
-                    <FeilMelding melding={t("quiz.noCoursesFound")} />
+                    <FeilMelding melding={allCoursesHidden ? t("quiz.allCoursesHidden") : t("quiz.noCoursesFound")} />
                   ) : (
                     <Dropdown
                       label={t("quiz.selectCourse")}

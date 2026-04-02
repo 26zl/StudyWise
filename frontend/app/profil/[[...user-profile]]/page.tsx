@@ -17,6 +17,7 @@ import {
   useSlettKonto,
   type ProfileUpdateWithUsername,
 } from "@/app/auth/auth-api";
+import { UsernameConflictError } from "@/app/lib/errors";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
@@ -68,14 +69,37 @@ export default function ProfilPage() {
     if (sisteSyncForsokRef.current === syncNokkel) return;
     sisteSyncForsokRef.current = syncNokkel;
 
-    void oppdaterProfil({ ...profileUpdate, skipClerkSync: true }).catch(() => {
-      showToast.warning(
-        language === "en" ? "Profile sync failed" : "Profilsynk feilet",
-        language === "en"
-          ? "Profile was updated in account settings, but could not be synced to StudyWise."
-          : "Profilen ble oppdatert i kontoinnstillinger, men kunne ikke synkes til StudyWise.",
-      );
-    });
+    void oppdaterProfil({ ...profileUpdate, skipClerkSync: true }).catch(
+      async (error: unknown) => {
+        if (error instanceof UsernameConflictError) {
+          // Tilbakestill Clerk-brukernavnet til det lokale for å unngå divergens
+          if (clerkUser && localUsername) {
+            try {
+              await clerkUser.update({ username: localUsername });
+            } catch {
+              // Ignorer — Clerk kan avvise hvis brukernavnet er uendret
+            }
+          }
+          showToast.warning(
+            language === "en"
+              ? `Username "${clerkUsername}" is already taken`
+              : `Brukernavnet «${clerkUsername}» er allerede tatt`,
+            language === "en"
+              ? "Choose a different username in your account settings."
+              : "Velg et annet brukernavn i kontoinnstillingene.",
+          );
+        } else {
+          showToast.warning(
+            language === "en"
+              ? "Profile sync failed"
+              : "Profilsynk feilet",
+            language === "en"
+              ? "Profile was updated in account settings, but could not be synced to StudyWise."
+              : "Profilen ble oppdatert i kontoinnstillinger, men kunne ikke synkes til StudyWise.",
+          );
+        }
+      },
+    );
   }, [
     clerkUser?.firstName,
     clerkUser?.lastName,
@@ -180,78 +204,89 @@ export default function ProfilPage() {
                   card: "w-full max-w-full border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800/95",
                   navbar: "max-sm:w-full",
                   scrollBox: "max-w-full",
+                  // Skjul e-post- og tilkoblede kontoer-seksjoner i Clerk UI.
+                  // E-postendring og provider-kobling/-avkobling styres av lokal backend-policy
+                  // og kan ikke utføres trygt via Clerk-managed UI (Clerk godtar endringer
+                  // som lokal DB kan avvise, noe som skaper Clerk/lokal-state-divergens).
+                  profileSection__emailAddresses: "hidden",
+                  profileSection__connectedAccounts: "hidden",
                 },
               }}
-            />
-          </div>
-          <div className="mt-6 rounded-2xl border border-red-200 bg-red-50/70 p-5 shadow-sm dark:border-red-900 dark:bg-red-950/20">
-            <div className="flex items-start gap-3">
-              <div className="rounded-xl bg-red-100 p-2 dark:bg-red-900/40">
-                <ShieldAlert className="h-5 w-5 text-red-600 dark:text-red-300" />
-              </div>
-              <div className="min-w-0 flex-1 space-y-4">
-                <div className="space-y-1">
-                  <h2 className="text-base font-semibold text-slate-900 dark:text-white">
-                    {t("settings.deleteAccount.title")}
-                  </h2>
-                  <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
-                    {t("settings.deleteAccount.description")}
-                  </p>
-                </div>
-
-                {!visKontoSletting ? (
-                  <button
-                    type="button"
-                    onClick={() => setVisKontoSletting(true)}
-                    className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    {t("settings.deleteAccount.start")}
-                  </button>
-                ) : (
-                  <div className="space-y-3 rounded-xl border border-red-200 bg-white/80 p-4 dark:border-red-900 dark:bg-slate-900/40">
-                    <p className="text-sm text-slate-700 dark:text-slate-300">
-                      {t("settings.deleteAccount.confirmInstruction", {
-                        keyword: slettBekreftelsesord,
-                      })}
-                    </p>
-                    <input
-                      type="text"
-                      value={kontoSlettBekreftelse}
-                      onChange={(event) => setKontoSlettBekreftelse(event.target.value)}
-                      placeholder={t("settings.deleteAccount.confirmPlaceholder")}
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
-                    />
-                    <div className="flex flex-wrap items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => void handleSlettKonto()}
-                        disabled={
-                          kontoSlettBekreftelse.trim().toUpperCase() !==
-                            slettBekreftelsesord.toUpperCase() || isSlettingKonto
-                        }
-                        className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {isSlettingKonto
-                          ? t("settings.deleteAccount.deleting")
-                          : t("settings.deleteAccount.deletePermanent")}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setVisKontoSletting(false);
-                          setKontoSlettBekreftelse("");
-                        }}
-                        disabled={isSlettingKonto}
-                        className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                      >
-                        {t("settings.deleteAccount.cancel")}
-                      </button>
+            >
+              <UserProfile.Page
+                label={t("settings.deleteAccount.tabLabel")}
+                labelIcon={<Trash2 className="h-4 w-4" />}
+                url="delete-account"
+              >
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-xl bg-red-100 p-2 dark:bg-red-900/40">
+                      <ShieldAlert className="h-5 w-5 text-red-600 dark:text-red-300" />
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+                        {t("settings.deleteAccount.title")}
+                      </h2>
+                      <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
+                        {t("settings.deleteAccount.description")}
+                      </p>
                     </div>
                   </div>
-                )}
-              </div>
-            </div>
+
+                  {!visKontoSletting ? (
+                    <button
+                      type="button"
+                      onClick={() => setVisKontoSletting(true)}
+                      className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {t("settings.deleteAccount.start")}
+                    </button>
+                  ) : (
+                    <div className="space-y-3 rounded-xl border border-red-200 bg-red-50/70 p-4 dark:border-red-900 dark:bg-red-950/20">
+                      <p className="text-sm text-slate-700 dark:text-slate-300">
+                        {t("settings.deleteAccount.confirmInstruction", {
+                          keyword: slettBekreftelsesord,
+                        })}
+                      </p>
+                      <input
+                        type="text"
+                        value={kontoSlettBekreftelse}
+                        onChange={(event) => setKontoSlettBekreftelse(event.target.value)}
+                        placeholder={t("settings.deleteAccount.confirmPlaceholder")}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
+                      />
+                      <div className="flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => void handleSlettKonto()}
+                          disabled={
+                            kontoSlettBekreftelse.trim().toUpperCase() !==
+                              slettBekreftelsesord.toUpperCase() || isSlettingKonto
+                          }
+                          className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {isSlettingKonto
+                            ? t("settings.deleteAccount.deleting")
+                            : t("settings.deleteAccount.deletePermanent")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVisKontoSletting(false);
+                            setKontoSlettBekreftelse("");
+                          }}
+                          disabled={isSlettingKonto}
+                          className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                        >
+                          {t("settings.deleteAccount.cancel")}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </UserProfile.Page>
+            </UserProfile>
           </div>
         </div>
       </div>

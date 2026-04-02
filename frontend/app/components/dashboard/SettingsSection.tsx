@@ -441,7 +441,7 @@ export function SettingsSection({
                             {t("settings.browserPush.description")}
                         </p>
 
-                        {!browserPush.supported ? (
+                        {!browserPush.supported || !browserPush.configured ? (
                             <p className="text-sm text-slate-500 dark:text-slate-400">
                                 {t("settings.browserPush.unsupported")}
                             </p>

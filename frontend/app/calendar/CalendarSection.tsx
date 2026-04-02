@@ -22,6 +22,7 @@ import { cn } from "../lib/utils";
 import type { Assignment, CalendarFilterType } from "common/calendar-ui";
 import { COURSE_COLOR_CLASSES } from "common/calendar-ui";
 import { useLanguage } from "@/app/i18n";
+import { useHiddenCourseIds } from "@/app/auth/auth-api";
 
 const COURSE_CODE_REGEX = /^([A-ZÆØÅ]{2,5}\d{4,5}[A-Z]?|\d{4,5}[A-Z])/i;
 
@@ -121,8 +122,15 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
     filter,
     harCanvasToken
   );
-  const assignmentsRaw = data?.assignments ?? [];
-  const courses = data?.courses ?? [];
+  const hiddenSet = useHiddenCourseIds();
+  const assignmentsRaw = useMemo(
+    () => (data?.assignments ?? []).filter((a) => !a.courseId || !hiddenSet.has(a.courseId)),
+    [data?.assignments, hiddenSet],
+  );
+  const courses = useMemo(
+    () => (data?.courses ?? []).filter((c) => c.id == null || !hiddenSet.has(c.id)),
+    [data?.courses, hiddenSet],
+  );
   // Reset fullførte innleveringer når data endres
   useEffect(() => {
     setCompletedIds(new Set());

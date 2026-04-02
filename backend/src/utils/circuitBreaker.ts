@@ -112,11 +112,12 @@ export class CircuitBreakerError extends Error {
 export const canvasCircuit = new CircuitBreaker("Canvas API", {
     failureThreshold: 5,
     resetTimeoutMs: 30_000,
-    // Kun server-feil og timeouts teller — 4xx (auth, not found) er forventet
+    // Kun server-feil, rate limits og timeouts teller — 4xx (auth, not found) er forventet
     isFailure: (error) => {
         const status = (error as { httpStatus?: number }).httpStatus
             ?? (error as { status?: number }).status;
-        if (status && status >= 400 && status < 500) return false; // 4xx er ikke circuit-feil
+        if (status === 429) return true; // Rate limited — teller som circuit-feil
+        if (status && status >= 400 && status < 500) return false; // Andre 4xx er ikke circuit-feil
         return true; // 5xx, timeout, network error
     },
 });

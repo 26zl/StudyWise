@@ -3,7 +3,7 @@
 # Base image holdes på tag-nivå i lokal dev slik at `docker pull` får siste sikkerhetsfikser
 # uten at repoet må oppdateres for hver nye digest.
 
-FROM node:22-alpine AS deps
+FROM node:24-alpine AS deps
 
 RUN npm install -g pnpm@10.33.0
 
@@ -52,7 +52,7 @@ ENV INTERNAL_API_URL=$INTERNAL_API_URL
 RUN pnpm --filter frontend build
 
 # --- Backend production ---
-FROM node:22-alpine AS backend
+FROM node:24-alpine AS backend
 
 RUN npm install -g pnpm@10.33.0
 
@@ -76,7 +76,7 @@ EXPOSE 4000
 CMD ["node", "backend/dist/index.js"]
 
 # --- Frontend production ---
-FROM node:22-alpine AS frontend
+FROM node:24-alpine AS frontend
 
 WORKDIR /app
 

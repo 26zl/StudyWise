@@ -57,6 +57,16 @@ import type { AdminBruker } from "@/app/admin/admin-api";
 type AdminFane = "stats" | "observability" | "users" | "audit";
 type LangsmithStatusFilter = "all" | "success" | "error";
 
+type LangsmithRunRow = {
+  id: string;
+  timestamp: string;
+  model: string;
+  intent: string;
+  totalTokens: number;
+  latencyMs: number;
+  status: "success" | "error";
+};
+
 // ── Statistikk-fane ─────────────────────────────────────────────────────────
 
 type StatKortData = {
@@ -251,7 +261,10 @@ function ObservabilityFane() {
   const dailyError = !!dailyQuery.error;
   const dailyMetrics = dailyQuery.data ?? [];
   const sisteDognLatency = dailyMetrics.at(-1)?.avgLatencyMs ?? null;
-  const hoyesteLatency = dailyMetrics.length > 0 ? Math.max(...dailyMetrics.map((entry) => entry.avgLatencyMs)) : null;
+  const hoyesteLatency =
+    dailyMetrics.length > 0
+      ? Math.max(...dailyMetrics.map((entry: { avgLatencyMs: number }) => entry.avgLatencyMs))
+      : null;
 
   const overviewQuery = useLangsmithOverview();
   const overviewLoading = overviewQuery.isLoading;
@@ -287,15 +300,35 @@ function ObservabilityFane() {
         <h2 className="text-base font-semibold text-slate-900 dark:text-white">
           {t("admin.stats.sections.observability")}
         </h2>
-        <a
-          href="https://smith.langchain.com"
-          target="_blank"
-          rel="noreferrer noopener"
-          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-        >
-          {t("admin.stats.aiObservability.openLangsmith")}
-          <ExternalLink size={14} />
-        </a>
+        <div className="flex flex-wrap items-center gap-3">
+          <a
+            href="https://fb26zl.grafana.net/d/fbrdskw/studywize-observability?orgId=1&from=now-24h&to=now&timezone=browser"
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+          >
+            Grafana
+            <ExternalLink size={14} />
+          </a>
+          <a
+            href="https://us5.datadoghq.com/help/quick_start?tab=infrastructure"
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+          >
+            Datadog
+            <ExternalLink size={14} />
+          </a>
+          <a
+            href="https://smith.langchain.com"
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+          >
+            LangSmith
+            <ExternalLink size={14} />
+          </a>
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -396,7 +429,7 @@ function ObservabilityFane() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                     {runsData && runsData.runs.length > 0 ? (
-                      runsData.runs.map((run) => (
+                      runsData.runs.map((run: LangsmithRunRow) => (
                         <tr
                           key={run.id}
                           onClick={() => setSelectedRunId(run.id)}
@@ -596,7 +629,7 @@ function BrukereFane() {
       { brukerId: bruker.id, rolle: nyRolle },
       {
         onSuccess: () => showToast.success(t("admin.users.roleChanged")),
-        onError: (err) => showToast.error(err instanceof Error ? err.message : "Feil"),
+        onError: (err) => showToast.error(err instanceof Error ? err.message : t("admin.errors.roleChangeFailed")),
       },
     );
   };
@@ -618,7 +651,7 @@ function BrukereFane() {
         }
         setBekreftSlett(null);
       },
-      onError: (err) => showToast.error(err instanceof Error ? err.message : "Feil"),
+      onError: (err) => showToast.error(err instanceof Error ? err.message : t("admin.errors.deleteFailed")),
     });
   };
 
@@ -724,11 +757,15 @@ function BrukereFane() {
                                   <ShieldCheck size={16} />
                                 </button>
                                 {bekreftSlett === bruker.id ? (
-                                  <div className="flex items-center gap-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs font-medium text-red-600 dark:text-red-400">
+                                      {t("admin.users.deleteConfirm")}
+                                    </span>
                                     <button
                                       type="button"
                                       onClick={() => handleSlett(bruker.id)}
                                       disabled={slettBruker.isPending}
+                                      aria-label={t("admin.users.deleteUser")}
                                       className="rounded-lg p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
                                     >
                                       <Check size={16} />
@@ -736,6 +773,7 @@ function BrukereFane() {
                                     <button
                                       type="button"
                                       onClick={() => setBekreftSlett(null)}
+                                      aria-label={t("common.actions.cancel")}
                                       className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                                     >
                                       <X size={16} />

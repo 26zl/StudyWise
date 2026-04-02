@@ -14,21 +14,21 @@ import {
   AdminLangsmithStatsResponseSchema,
   AdminStatsResponseSchema,
 } from "common/admin";
-import { User } from "../../../database/models/User.js";
-import { ChatHistory } from "../../../database/models/ChatHistory.js";
-import { SharedChat } from "../../../database/models/SharedChat.js";
-import { TaskBreakdown } from "../../../database/models/TaskBreakdown.js";
-import { Arbeidsplan } from "../../../database/models/arbeidsplan.js";
-import { CanvasStructureModel } from "../../../database/models/CanvasStructure.js";
-import { CanvasUser } from "../../../database/models/CanvasUser.js";
-import { ContentEmbedding } from "../../../database/models/ContentEmbedding.js";
-import { AuditLog } from "../../../database/models/AuditLog.js";
-import { backfillMissingFullText } from "../../../services/embedding.service.js";
-import { apiError, requireUserId } from "../../../utils/apiError.js";
-import { audit, AUDIT_ACTIONS } from "../../../utils/auditLog.js";
-import { logger } from "../../../utils/logger.js";
-import { getCache, setCache } from "../../../cache/redis.js";
-import { langsmithClient } from "../../../lib/langsmith.js";
+import { User } from "../../database/models/User.js";
+import { ChatHistory } from "../../database/models/ChatHistory.js";
+import { SharedChat } from "../../database/models/SharedChat.js";
+import { TaskBreakdown } from "../../database/models/TaskBreakdown.js";
+import { Arbeidsplan } from "../../database/models/arbeidsplan.js";
+import { CanvasStructureModel } from "../../database/models/CanvasStructure.js";
+import { CanvasUser } from "../../database/models/CanvasUser.js";
+import { ContentEmbedding } from "../../database/models/ContentEmbedding.js";
+import { AuditLog } from "../../database/models/AuditLog.js";
+import { backfillMissingFullText } from "../../services/embedding.service.js";
+import { apiError, requireUserId } from "../../utils/apiError.js";
+import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
+import { logger } from "../../utils/logger.js";
+import { getCache, setCache } from "../../cache/redis.js";
+import { langsmithClient } from "../../lib/langsmith.js";
 import type { Run } from "langsmith/schemas";
 
 const router = Router();
@@ -407,9 +407,18 @@ async function hentLangsmithStatsMedCache() {
   return response;
 }
 
-router.get("/langsmith/stats", async (_req, res) => {
+router.get("/langsmith/stats", async (req, res) => {
   try {
     const response = await hentLangsmithStatsMedCache();
+    void audit({
+      actorUserId: req.user?.id ?? "unknown",
+      action: AUDIT_ACTIONS.ADMIN_ACTION,
+      category: "admin",
+      outcome: "success",
+      role: req.actorRole,
+      metadata: { subAction: "langsmith.stats" },
+      req,
+    });
     return res.json(response);
   } catch (err) {
     logger.error({ err }, "Admin LangSmith-statistikk feilet");
@@ -417,7 +426,7 @@ router.get("/langsmith/stats", async (_req, res) => {
   }
 });
 
-router.get("/langsmith/overview", async (_req, res) => {
+router.get("/langsmith/overview", async (req, res) => {
   try {
     const stats = await hentLangsmithStatsMedCache();
     const totalTokens24h =
@@ -441,6 +450,15 @@ router.get("/langsmith/overview", async (_req, res) => {
       errorRatePercent: Math.round(stats.errorRate * 1000) / 10,
     });
 
+    void audit({
+      actorUserId: req.user?.id ?? "unknown",
+      action: AUDIT_ACTIONS.ADMIN_ACTION,
+      category: "admin",
+      outcome: "success",
+      role: req.actorRole,
+      metadata: { subAction: "langsmith.overview" },
+      req,
+    });
     return res.json(overview);
   } catch (err) {
     logger.error({ err }, "Admin LangSmith overview feilet");
@@ -499,6 +517,15 @@ router.get("/langsmith/daily-metrics", async (req, res) => {
       })),
     });
 
+    void audit({
+      actorUserId: req.user?.id ?? "unknown",
+      action: AUDIT_ACTIONS.ADMIN_ACTION,
+      category: "admin",
+      outcome: "success",
+      role: req.actorRole,
+      metadata: { subAction: "langsmith.dailyMetrics", days },
+      req,
+    });
     return res.json(response);
   } catch (err) {
     logger.error({ err }, "Admin LangSmith daily metrics feilet");
@@ -553,6 +580,15 @@ router.get("/langsmith/runs", async (req, res) => {
       };
     });
 
+    void audit({
+      actorUserId: req.user?.id ?? "unknown",
+      action: AUDIT_ACTIONS.ADMIN_ACTION,
+      category: "admin",
+      outcome: "success",
+      role: req.actorRole,
+      metadata: { subAction: "langsmith.runs", page, pageSize },
+      req,
+    });
     return res.json(
       AdminLangsmithRunsResponseSchema.parse({
         runs: paged,
@@ -574,12 +610,24 @@ router.get("/langsmith/runs/:runId", async (req, res) => {
     }
 
     const runId = req.params.runId;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(runId)) {
+      return apiError.badRequest(res, "Ugyldig run-ID format");
+    }
     const run = (await langsmithClient.readRun(runId)) as Run & LangsmithRunSnapshot;
     const startTs = asTimestamp(run.start_time) ?? Date.now();
     const endTs = asTimestamp(run.end_time);
     const latencyMs = endTs && endTs >= startTs ? endTs - startTs : 0;
     const { inputTokens, outputTokens, totalTokens } = hentTokens(run);
 
+    void audit({
+      actorUserId: req.user?.id ?? "unknown",
+      action: AUDIT_ACTIONS.ADMIN_ACTION,
+      category: "admin",
+      outcome: "success",
+      role: req.actorRole,
+      metadata: { subAction: "langsmith.runDetail", runId },
+      req,
+    });
     return res.json(
       AdminLangsmithRunDetailSchema.parse({
         id: run.id,

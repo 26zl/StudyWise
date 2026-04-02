@@ -27,6 +27,7 @@ import { logger } from "../../utils/logger.js";
 import { DEFAULT_MODEL } from "./aiModels.js";
 import { chatCompletion, isClientAvailable } from "./aiClient.js";
 import { handleAIJsonRouteError } from "./handleAIError.js";
+import { extractJsonObject } from "./studyContentUtils.js";
 import {
   AI_COMPLETION_PUSH_MIN_DURATION_MS,
   sendAICompletionWebPush,
@@ -55,15 +56,6 @@ const DEFAULT_TIPS = [
   "Bruk de siste øktene i uken til oppsummering og finpuss før frister.",
 ] as const;
 
-function extractJsonObject(text: string): string {
-  const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  const start = cleaned.indexOf("{");
-  const end = cleaned.lastIndexOf("}");
-  if (start === -1 || end === -1 || end < start) {
-    throw new Error("AI_RESPONSE_NOT_JSON_OBJECT");
-  }
-  return cleaned.slice(start, end + 1);
-}
 
 function formatFrist(dueAt?: Date): string {
   if (!dueAt) return "Ikke spesifisert";

@@ -74,7 +74,7 @@ function inferTag(filePath: string): string {
   if (normalized.includes("/rutere/arbeidsplan/")) return "Arbeidsplan";
   if (normalized.includes("/rutere/quiz/")) return "Quiz";
   if (normalized.includes("/rutere/flashcards/")) return "Flashcards";
-  if (normalized.includes("/rutere/roller/admin/")) return "Admin";
+  if (normalized.includes("/rutere/admin/")) return "Admin";
   if (normalized.includes("/rutere/debug/")) return "Debug";
   return "API";
 }

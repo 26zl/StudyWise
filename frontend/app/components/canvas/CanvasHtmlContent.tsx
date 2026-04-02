@@ -42,6 +42,7 @@ function TilpassetBilde({
 }: ImgHTMLAttributes<HTMLImageElement> & { class?: string }): JSX.Element {
     const originalSrc = typeof src === "string" ? src : undefined;
     const [laster, settLaster] = useState(true);
+    const [bildeFeilet, settBildeFeilet] = useState(false);
     const [resolvedSrc, setResolvedSrc] = useState<string | undefined>(() =>
         erBeskyttetCanvasBildeUrl(originalSrc) ? undefined : originalSrc,
     );
@@ -52,6 +53,7 @@ function TilpassetBilde({
         let objectUrl: string | null = null;
 
         settLaster(true);
+        settBildeFeilet(false);
         setResolvedSrc(erBeskyttetCanvasBildeUrl(originalSrc) ? undefined : originalSrc);
 
         if (!originalSrc || !erBeskyttetCanvasBildeUrl(originalSrc)) {
@@ -78,6 +80,7 @@ function TilpassetBilde({
             } catch {
                 if (!isCancelled) {
                     setResolvedSrc(undefined);
+                    settBildeFeilet(true);
                     settLaster(false);
                 }
             }
@@ -110,8 +113,8 @@ function TilpassetBilde({
                     loading="lazy"
                 />
             ) : (
-                <span className="inline-flex min-h-24 min-w-32 items-center justify-center px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
-                    {alt || "Canvas bilde"}
+                <span className={`inline-flex min-h-24 min-w-32 items-center justify-center px-4 py-3 text-sm ${bildeFeilet ? "text-red-500 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}>
+                    {bildeFeilet ? "Kunne ikke laste bilde" : (alt || "Canvas bilde")}
                 </span>
             )}
         </span>

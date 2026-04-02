@@ -6,8 +6,8 @@ import { z } from "zod";
 import { UKEDAGER } from "./arbeidsplan.js";
 
 // Meldingslengde-grenser
-export const KI_MAX_MESSAGE_LENGTH_BACKEND = 50000; // Backend hard limit
-export const KI_MAX_MESSAGE_LENGTH_FRONTEND = 45000; // Frontend limit (buffer under backend)
+export const KI_MAX_MESSAGE_LENGTH_BACKEND = 50000; // Absolutt grense i backend
+export const KI_MAX_MESSAGE_LENGTH_FRONTEND = 45000; // Frontend-grense (buffer under backend)
 
 const KIClientContentSchema = z
   .string()
@@ -271,7 +271,7 @@ export const KIOppsummeringResponseSchema = z
     }
   });
 
-// Type exports
+// Typeeksporter
 export type KIOppsummeringRequest = z.infer<typeof KIOppsummeringRequestSchema>;
 export type KIOppsummeringResponse = z.infer<
   typeof KIOppsummeringResponseSchema

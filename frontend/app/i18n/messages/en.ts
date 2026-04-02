@@ -80,7 +80,8 @@ export const enMessages = {
     },
   },
   chatHistory: {
-    clearConfirmDescription: "All saved conversations will be removed. This cannot be undone.",
+    clearConfirmDescription:
+      "All saved conversations will be removed. This cannot be undone.",
     clearConfirmTitle: "Delete the entire conversation history?",
     clearError: "Could not delete the history",
     clearSuccess: "Conversation history deleted",
@@ -91,7 +92,8 @@ export const enMessages = {
   auth: {
     forgotPassword: {
       complete: {
-        description: "Your password has been updated, and you are being redirected to the dashboard.",
+        description:
+          "Your password has been updated, and you are being redirected to the dashboard.",
         title: "Password updated",
       },
       code: {
@@ -139,11 +141,78 @@ export const enMessages = {
       title: "Forgot password?",
     },
     signIn: {
+      title: "Sign in",
+      subtitle: "Welcome back! Sign in to continue.",
+      identifierLabel: "Email or username",
+      identifierPlaceholder: "name@example.com",
+      passwordLabel: "Password",
+      passwordPlaceholder: "Your password",
+      submitButton: "Sign in",
+      submitting: "Signing in...",
+      orContinueWith: "or continue with",
+      allFieldsRequired: "All fields are required.",
+      incomplete: "Sign-in incomplete. Please try again.",
+      sessionFailed: "Sign-in succeeded, but the session could not be created. Please try again.",
+      mfaNotSupported:
+        "Two-factor authentication is not yet supported in this form. Contact support.",
+      noAccount: "Don't have an account?",
+      signUpLink: "Sign up",
       forgotPasswordAction: "Recover access",
       forgotPasswordDescription:
         "For email sign-in. If you use Microsoft or Google, continue with the same provider instead.",
       forgotPasswordTitle: "Forgot password?",
     },
+    signUp: {
+      title: "Create account",
+      subtitle: "Fill out the form to get started.",
+      firstNameLabel: "First name",
+      firstNamePlaceholder: "John",
+      lastNameLabel: "Last name",
+      lastNamePlaceholder: "Doe",
+      usernameLabel: "Username",
+      usernamePlaceholder: "Username",
+      usernameHint: "3–30 characters. Letters, numbers, and underscores.",
+      usernameChecking: "Checking...",
+      usernameAvailable: "Available",
+      usernameTaken: "Already taken",
+      usernameInvalid: "Only letters, numbers, and underscores (3–30 chars)",
+      usernameWait: "Please wait while username is being checked.",
+      allFieldsRequired: "All fields are required.",
+      chooseUsernameFirst: "Please choose a username first.",
+      oauthUsernameError: "Could not save username. Please try again.",
+      oauthUsername: {
+        title: "Choose a username",
+        subtitle: "Last step! Pick a username for your account.",
+        submitButton: "Complete sign-up",
+        submitting: "Saving...",
+      },
+      emailLabel: "Email address",
+      emailPlaceholder: "name@example.com",
+      passwordLabel: "Password",
+      passwordPlaceholder: "Choose a password",
+      submitButton: "Create account",
+      submitting: "Creating...",
+      orContinueWith: "or continue with",
+      alreadyHaveAccount: "Already have an account?",
+      signInLink: "Sign in",
+      verify: {
+        title: "Verify your email",
+        description: "We sent a verification code to {email}.",
+        codeLabel: "Verification code",
+        codePlaceholder: "123456",
+        submitButton: "Verify",
+        submitting: "Verifying...",
+        resend: "Resend code",
+        incomplete: "Verification incomplete. Please try again.",
+        sessionFailed: "Verification succeeded, but the session could not be created. Please try signing in.",
+        alreadyVerified: "Your email is already verified. Your account has been created — please sign in instead.",
+        codeSentTitle: "Code sent",
+        codeSentDescription:
+          "A new verification code has been sent to your email.",
+        codeSendFailedTitle: "Failed to send",
+      },
+    },
+    genericError: "Something went wrong. Please try again.",
     humanCheck: {
       eyebrow: "Cloudflare Turnstile",
       title: "Extra bot protection",
@@ -164,13 +233,15 @@ export const enMessages = {
       network: "Could not connect to Canvas. Check your internet connection.",
       notFound: "The resource was not found in Canvas.",
       permissionDenied: "You do not have access to this resource in Canvas.",
-      rateLimit: "Too many requests to Canvas. Wait a few seconds and try again.",
+      rateLimit:
+        "Too many requests to Canvas. Wait a few seconds and try again.",
       tokenInvalid:
         "Your Canvas API token is invalid, expired, or deleted in Canvas. Go to Settings to add a new token.",
       tokenMissing:
         "You must connect a Canvas API token to use this feature. Go to Settings to add a token.",
       timeout: "Fetching Canvas data took too long. Try again.",
-      validation: "Check that your Canvas institution and URL are correct, then try again.",
+      validation:
+        "Check that your Canvas institution and URL are correct, then try again.",
     },
     generic: {
       auth: "You need to sign in again.",
@@ -183,7 +254,8 @@ export const enMessages = {
       retry: "Try again.",
       server: "Server error. Try again shortly.",
       timeout: "The request took too long. Try again.",
-      validation: "Invalid data. Check that all fields are filled out correctly.",
+      validation:
+        "Invalid data. Check that all fields are filled out correctly.",
     },
     section: {
       load: "Could not load {section}. Try reloading the page.",
@@ -194,20 +266,20 @@ export const enMessages = {
       sessionExpired: "Your session has expired. Sign in again.",
     },
   },
-    notifications: {
-      allMarkedAsRead: "All notifications marked as read",
-      deadlineAt: "Deadline: {date}",
-      empty: {
-        all: "No notifications right now.",
-        announcements: "No announcements right now.",
-        assignments: "No assignments right now.",
-        deadlines: "No deadlines right now.",
-        events: "No events right now.",
-      },
-      feedDescription:
-        "See your full Canvas feed with assignments, announcements, and events gathered in one place.",
-      markAllAsRead: "Mark all as read",
-      loadMore: "Load more ({count} left)",
+  notifications: {
+    allMarkedAsRead: "All notifications marked as read",
+    deadlineAt: "Deadline: {date}",
+    empty: {
+      all: "No notifications right now.",
+      announcements: "No announcements right now.",
+      assignments: "No assignments right now.",
+      deadlines: "No deadlines right now.",
+      events: "No events right now.",
+    },
+    feedDescription:
+      "See your full Canvas feed with assignments, announcements, and events gathered in one place.",
+    markAllAsRead: "Mark all as read",
+    loadMore: "Load more ({count} left)",
     missingCanvasToken:
       "You must save a Canvas API token to fetch notifications.",
     partialLoadFallback:
@@ -217,13 +289,13 @@ export const enMessages = {
     manuallySubmitted: "Manually submitted",
     markAsSubmitted: "Mark as submitted",
     unmarkAsSubmitted: "Unmark as submitted",
-      tabs: {
-        all: "All",
-        announcements: "Announcements",
-        assignments: "Assignments",
-        deadlines: "Deadlines",
-        events: "Events",
-      },
+    tabs: {
+      all: "All",
+      announcements: "Announcements",
+      assignments: "Assignments",
+      deadlines: "Deadlines",
+      events: "Events",
+    },
     title: "Notifications",
     toast: {
       action: "View notifications",
@@ -336,10 +408,12 @@ export const enMessages = {
       enable: "Enable notifications",
       disable: "Disable notifications",
       enableSuccessTitle: "Notifications enabled",
-      enableSuccessDescription: "Browser notifications are now enabled for this device.",
+      enableSuccessDescription:
+        "Browser notifications are now enabled for this device.",
       enableErrorTitle: "Could not enable notifications",
       disableSuccessTitle: "Notifications disabled",
-      disableSuccessDescription: "Browser notifications are now disabled for this device.",
+      disableSuccessDescription:
+        "Browser notifications are now disabled for this device.",
       disableErrorTitle: "Could not disable notifications",
       channels: {
         announcements: "Announcements",
@@ -414,8 +488,7 @@ export const enMessages = {
       },
       institutionLabel: "Institution (Canvas)",
       institutionPlaceholder: "Choose institution",
-      institutionRequired:
-        "Choose an institution before saving the token.",
+      institutionRequired: "Choose an institution before saving the token.",
       invalidUrlDescription: "Enter a valid Canvas instance.",
       invalidUrlTitle: "Invalid Canvas URL",
       placeholder: "Paste your Canvas API token",
@@ -433,7 +506,8 @@ export const enMessages = {
       clearAll: "Delete all conversations",
       countOne: "{count} conversation",
       countOther: "{count} conversations",
-      description: "Conversations are stored encrypted. You can delete all of them here.",
+      description:
+        "Conversations are stored encrypted. You can delete all of them here.",
       loading: "Loading...",
       savedChats: "Saved conversations",
       title: "Conversation history",
@@ -458,12 +532,14 @@ export const enMessages = {
         "Your StudyWise data has been deleted, but we could not end the sign-in session automatically.",
       manualSignOutTitle: "Manual sign-out required",
       start: "Start account deletion",
+      tabLabel: "Delete account",
       title: "Delete account",
     },
     cookies: {
       accepted: "Accepted",
       declined: "Essential only",
-      description: "Essential cookies are always active. Optional performance analytics (Vercel Speed Insights) require your consent.",
+      description:
+        "Essential cookies are always active. Optional performance analytics (Vercel Speed Insights) require your consent.",
       status: {
         accepted: "You have accepted optional performance analytics.",
         declined: "You are using essential cookies only.",
@@ -503,8 +579,7 @@ export const enMessages = {
       audit: "Audit log",
     },
     stats: {
-      note:
-        "The metrics below are based on active users where relevant. Audit and data quality are shown as direct platform-level storage data.",
+      note: "The metrics below are based on active users where relevant. Audit and data quality are shown as direct platform-level storage data.",
       sections: {
         users: "Users",
         conversations: "Conversations and sharing",
@@ -530,7 +605,8 @@ export const enMessages = {
         tracingTableTitle: "Tracing runs",
         detailsTitle: "Run details",
         detailsHint: "Select a run in the table to view details.",
-        overviewLineRuns: "Last 24h: {runs24h} runs · Last 7 days: {runs7d} runs",
+        overviewLineRuns:
+          "Last 24h: {runs24h} runs · Last 7 days: {runs7d} runs",
         filters: {
           statusAll: "All statuses",
           statusSuccess: "Success only",
@@ -632,10 +708,12 @@ export const enMessages = {
       noUsers: "No users found.",
       changeRole: "Change role",
       deleteUser: "Delete user",
-      deleteConfirm: "Are you sure you want to delete this user? All data will be permanently removed.",
+      deleteConfirm:
+        "Are you sure you want to delete this user? All data will be permanently removed.",
       roleChanged: "Role changed",
       userDeleted: "User deleted",
-      userDeletedPartial: "The user was deleted, but external cleanup could not be completed automatically.",
+      userDeletedPartial:
+        "The user was deleted, but external cleanup could not be completed automatically.",
       cannotChangeSelf: "You cannot change your own role",
       cannotDeleteSelf: "You cannot delete your own account from here",
       you: "(you)",
@@ -653,12 +731,16 @@ export const enMessages = {
       statsFailed: "Could not load statistics",
       usersFailed: "Could not load users",
       auditFailed: "Could not load audit log",
+      roleChangeFailed: "Could not change role",
+      deleteFailed: "Could not delete user",
     },
   },
   quiz: {
     title: "Quiz / Flashcards",
-    subtitle: "Practice your Canvas content with AI-generated questions and cards.",
+    subtitle:
+      "Practice your Canvas content with AI-generated questions and cards.",
     noCoursesFound: "No Canvas courses found. Connect to Canvas first.",
+    allCoursesHidden: "All courses are hidden. Show courses on the Courses page to use Quiz/Flashcards.",
     noModulesFound: "No modules found for this course.",
     loadingCourses: "Loading courses...",
     loadingModules: "Loading modules...",
@@ -685,7 +767,8 @@ export const enMessages = {
     planSaveError: "Could not save study plan. Try again.",
     selectAtLeastOneDay: "Select at least one day",
     addToWorkplanError: "Could not add to study plan",
-    addToWorkplanErrorDescription: "Try again or contact support if the error persists",
+    addToWorkplanErrorDescription:
+      "Try again or contact support if the error persists",
     completedAt: "Completed {date}",
     collapseAll: "Collapse all",
     expandAll: "Expand all",
@@ -703,7 +786,8 @@ export const enMessages = {
     },
     collapseAll: "Collapse all",
     empty: {
-      description: "We could not find any unsubmitted Canvas assignments to break down right now.",
+      description:
+        "We could not find any unsubmitted Canvas assignments to break down right now.",
       title: "No active assignments found",
     },
     errors: {
@@ -728,7 +812,8 @@ export const enMessages = {
     },
     approval: {
       approveAll: "Approve all",
-      description: "Review the suggestions and approve, reject, or edit them to match your workflow.",
+      description:
+        "Review the suggestions and approve, reject, or edit them to match your workflow.",
       rejectAll: "Reject all",
       reviewManually: "Review manually",
       title: "The AI assistant generated {count} subtasks for you",
@@ -770,16 +855,19 @@ export const enMessages = {
     },
   },
   chat: {
-    saveBeforeNewError: "Could not save conversation before new chat was created. You can continue with a new chat.",
+    saveBeforeNewError:
+      "Could not save conversation before new chat was created. You can continue with a new chat.",
     oneAttachmentOnly: "Only one attachment at a time",
     oneAttachmentOnlyDescription: "I will only use the first attachment.",
     documentAnalysisFailed: "Document analysis failed",
-    documentAnalysisEmpty: "The document analysis returned an empty response. Try again.",
+    documentAnalysisEmpty:
+      "The document analysis returned an empty response. Try again.",
     aiResponseFailed: "AI response failed",
     aiResponseEmpty: "The AI assistant returned an empty response. Try again.",
     saveBeforeShare: "Save the conversation first to share it.",
     shareLinkCopied: "Share link copied",
-    shareLinkDescription: "The link shows the entire conversation as it looks now. Anyone with the link can read user and AI messages.",
+    shareLinkDescription:
+      "The link shows the entire conversation as it looks now. Anyone with the link can read user and AI messages.",
     couldNotShareChat: "Could not share the chat.",
     couldNotShareChatFallback: "Could not share the chat",
     answerDownloaded: "Answer downloaded",
@@ -787,13 +875,27 @@ export const enMessages = {
     couldNotCopy: "Could not copy",
     conversationDownloaded: "Conversation downloaded as Markdown",
     analyzingDocument: "Analyzing document...",
-    aiConnectionError: "Could not connect to the AI assistant. Try again later.",
+    aiConnectionError:
+      "Could not connect to the AI assistant. Try again later.",
     loadingGeneric: "Loading...",
     loadingChatHistory: "Loading conversation history...",
-    documentAnalysisMetadata: "Document: {pages} pages, {characters} characters{truncated}",
+    documentAnalysisMetadata:
+      "Document: {pages} pages, {characters} characters{truncated}",
     documentAnalysisMetadataTruncated: " (truncated)",
   },
   profil: {
     loading: "Loading profile...",
+  },
+  cookies: {
+    banner: {
+      title: "Cookies",
+      description:
+        "We use essential cookies to make the site work. Optional performance analytics require your consent.",
+      learnMore: "Learn more about privacy",
+      acceptButton: "Accept all",
+      declineButton: "Essential only",
+      errorTitle: "Could not save your choice",
+      errorDescription: "Please try again later.",
+    },
   },
 } as const satisfies PartialMessages;

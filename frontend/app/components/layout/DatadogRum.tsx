@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { datadogRum, type RumPlugin } from "@datadog/browser-rum";
-import { reactPlugin } from "@datadog/browser-rum-react";
 
 type DatadogUser = {
     id: string;
@@ -12,18 +10,42 @@ type DatadogUser = {
 let pendingDatadogUser: DatadogUser | null = null;
 let pendingClearUser = false;
 
+// Lazy-referanse til datadogRum — settes ved første dynamiske import.
+// Unngår at @datadog/browser-rum evalueres flere ganger av Turbopack/Strict Mode
+// som forårsaker "SDK is loaded more than once"-advarsel.
+let ddRum: typeof import("@datadog/browser-rum").datadogRum | null = null;
+let ddReactPlugin: typeof import("@datadog/browser-rum-react").reactPlugin | null = null;
+let ddImportPromise: Promise<void> | null = null;
+
+async function loadDatadogModules() {
+    if (ddRum) return;
+    if (ddImportPromise) {
+        await ddImportPromise;
+        return;
+    }
+    ddImportPromise = (async () => {
+        const [rumModule, reactModule] = await Promise.all([
+            import("@datadog/browser-rum"),
+            import("@datadog/browser-rum-react"),
+        ]);
+        ddRum = rumModule.datadogRum;
+        ddReactPlugin = reactModule.reactPlugin;
+    })();
+    await ddImportPromise;
+}
+
 function flushPendingDatadogUser() {
-    if (!datadogRum.getInitConfiguration()) return;
+    if (!ddRum?.getInitConfiguration()) return;
 
     if (pendingClearUser) {
-        datadogRum.clearUser();
+        ddRum.clearUser();
         pendingClearUser = false;
         pendingDatadogUser = null;
         return;
     }
 
     if (pendingDatadogUser) {
-        datadogRum.setUser(pendingDatadogUser);
+        ddRum.setUser(pendingDatadogUser);
         pendingDatadogUser = null;
     }
 }
@@ -48,44 +70,49 @@ export function DatadogRum() {
             return;
         }
 
-        // Én init per window – unngår "SDK is loaded more than once" (Strict Mode / dobbel mount / Turbopack)
+        // Én init per window — unngår dobbel init i Strict Mode / Turbopack
         if (typeof window !== "undefined" && window.__DD_RUM_INIT_DONE__) {
             flushPendingDatadogUser();
             return;
         }
-        if (datadogRum.getInitConfiguration()) {
-            if (typeof window !== "undefined") window.__DD_RUM_INIT_DONE__ = true;
-            flushPendingDatadogUser();
-            return;
-        }
 
-        if (typeof window !== "undefined") window.__DD_RUM_INIT_DONE__ = true;
-        try {
-            datadogRum.init({
-                applicationId,
-                clientToken,
-                site,
-                service: "studywise-frontend",
-                env: process.env.NODE_ENV ?? "development",
-                version: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ?? "0.0.0",
-                sessionSampleRate: 100,
-                sessionReplaySampleRate: 50,
-                defaultPrivacyLevel: "mask-user-input",
-                trackUserInteractions: true,
-                trackResources: true,
-                trackLongTasks: true,
-                // Distribuert tracing: kobler frontend RUM-traces til backend APM-traces
-                allowedTracingUrls: [
-                    { match: /\/api\//, propagatorTypes: ["tracecontext"] },
-                ],
-                plugins: [reactPlugin({ router: false }) as RumPlugin],
-            });
-            flushPendingDatadogUser();
-        } catch {
-            if (typeof window !== "undefined") {
-                window.__DD_RUM_INIT_DONE__ = false;
+        void loadDatadogModules().then(() => {
+            if (!ddRum || !ddReactPlugin) return;
+
+            if (ddRum.getInitConfiguration()) {
+                if (typeof window !== "undefined") window.__DD_RUM_INIT_DONE__ = true;
+                flushPendingDatadogUser();
+                return;
             }
-        }
+
+            if (typeof window !== "undefined") window.__DD_RUM_INIT_DONE__ = true;
+            try {
+                ddRum.init({
+                    applicationId,
+                    clientToken,
+                    site,
+                    service: "studywise-frontend",
+                    env: process.env.NODE_ENV ?? "development",
+                    version: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ?? "0.0.0",
+                    sessionSampleRate: 100,
+                    sessionReplaySampleRate: 50,
+                    defaultPrivacyLevel: "mask-user-input",
+                    trackUserInteractions: true,
+                    trackResources: true,
+                    trackLongTasks: true,
+                    // Distribuert tracing: kobler frontend RUM-traces til backend APM-traces
+                    allowedTracingUrls: [
+                        { match: /\/api\//, propagatorTypes: ["tracecontext"] },
+                    ],
+                    plugins: [ddReactPlugin({ router: false }) as import("@datadog/browser-rum").RumPlugin],
+                });
+                flushPendingDatadogUser();
+            } catch {
+                if (typeof window !== "undefined") {
+                    window.__DD_RUM_INIT_DONE__ = false;
+                }
+            }
+        });
     }, []);
 
     return null;
@@ -96,22 +123,22 @@ export function DatadogRum() {
  * Kall denne etter innlogging (f.eks. i auth-provider eller dashboard).
  */
 export function setDatadogUser(user: DatadogUser) {
-    if (!datadogRum.getInitConfiguration()) {
+    if (!ddRum?.getInitConfiguration()) {
         pendingDatadogUser = user;
         pendingClearUser = false;
         return;
     }
-    datadogRum.setUser(user);
+    ddRum.setUser(user);
 }
 
 /**
  * Fjerner bruker-ID fra Datadog RUM ved utlogging.
  */
 export function clearDatadogUser() {
-    if (!datadogRum.getInitConfiguration()) {
+    if (!ddRum?.getInitConfiguration()) {
         pendingDatadogUser = null;
         pendingClearUser = true;
         return;
     }
-    datadogRum.clearUser();
+    ddRum.clearUser();
 }

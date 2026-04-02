@@ -12,7 +12,6 @@ out/
 # Environment variables
 .env
 .env.*
-.env*.local
 
 # IDE
 .vscode/
@@ -35,6 +34,11 @@ pnpm-debug.log*
 # Testing
 coverage/
 .nyc_output/
+playwright-report/
+test-results/
+tests/report/
+tests/results/
+tests/auth/results/
 
 # Misc
 *.bak

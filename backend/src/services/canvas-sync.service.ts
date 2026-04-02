@@ -266,8 +266,8 @@ async function _doSync(
         );
         return { synced: false, courses: { total: 0, updated: 0, unchanged: 0, failed: 0 }, durationMs: 0 };
       }
-    } catch {
-      // Ugyldig meta — fortsett med sync
+    } catch (err) {
+      logger.warn({ err, userId }, "Ugyldig sync-meta i cache — fortsetter med full sync");
     }
   }
 

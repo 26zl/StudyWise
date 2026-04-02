@@ -366,7 +366,11 @@ router.get("/emner", async (req, res) => {
     logger.info({ count: courses.length }, "Hentet aktive emner");
     if (req.user?.id && req.canvasToken && req.canvasBaseUrl) {
       const { ensureCanvasSync } = await import("../../services/context-loader.service.js");
-      ensureCanvasSync(req.user.id, req.canvasToken, req.canvasBaseUrl).catch(() => {});
+      ensureCanvasSync(req.user.id, req.canvasToken, req.canvasBaseUrl).catch(
+        (err) => {
+          logger.debug({ err }, "Bakgrunns Canvas-sync feilet (ikke-kritisk)");
+        },
+      );
     }
     res.json({
       courses,
@@ -396,8 +400,12 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
     if (!forceRefresh) {
       const cached = await getCache(cacheKey);
       if (cached) {
-        logger.info({ cacheKey }, "Emner metadata cache HIT");
-        return res.json(JSON.parse(cached));
+        try {
+          logger.info({ cacheKey }, "Emner metadata cache HIT");
+          return res.json(JSON.parse(cached));
+        } catch {
+          logger.warn({ cacheKey }, "Korrupt cache-data for emner metadata, henter på nytt");
+        }
       }
     } else {
       logger.info({ cacheKey }, "Emner metadata force refresh");
@@ -660,7 +668,14 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
     cached: string,
     cacheAge?: number,
   ) => {
-    const parsed = JSON.parse(cached);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let parsed: any;
+    try {
+      parsed = JSON.parse(cached);
+    } catch {
+      logger.warn("Korrupt cache-data for kalender, ignorerer cache");
+      return null;
+    }
     const allItems: CalendarItem[] = parsed.items || [];
     const paginatedItems = allItems.slice(
       (page - 1) * limit,
@@ -698,7 +713,8 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
           { cacheAge },
           "Canvas API feilet - returnerer cached data som fallback",
         );
-        return res.json(buildCachedCalendarResponse(cached, cacheAge));
+        const cachedResponse = buildCachedCalendarResponse(cached, cacheAge);
+        if (cachedResponse) return res.json(cachedResponse);
       }
     } catch {
       // Cache også feilet - send feil til klient
@@ -716,7 +732,8 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
             ? Math.floor((Date.now() - parseInt(cachedTimestamp, 10)) / 1000)
             : undefined;
           logger.info({ cacheKey, cacheAge }, "Kalender cache HIT");
-          return res.json(buildCachedCalendarResponse(cached, cacheAge));
+          const cachedResponse = buildCachedCalendarResponse(cached, cacheAge);
+          if (cachedResponse) return res.json(cachedResponse);
         }
         logger.info({ cacheKey }, "Kalender cache MISS");
       } catch (cacheErr) {
@@ -1242,7 +1259,9 @@ router.get("/emner/:courseId/frontpage", async (req, res) => {
     if (isNotFound) {
       try {
         const fallbackId = parseInt(String(req.params.courseId), 10);
-        if (Number.isNaN(fallbackId)) return;
+        if (Number.isNaN(fallbackId)) {
+          return res.status(204).end();
+        }
         // Hent kurs med syllabus_body som fallback
         const { data: course } = await fetchCourse(
           req.canvasToken,

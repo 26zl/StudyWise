@@ -12,26 +12,30 @@
  * Migrasjoner kjøres i rekkefølge og er idempotente (kjøres kun én gang).
  */
 
-import mongoose, { type AnyBulkWriteOperation } from "mongoose";
+import mongoose from "mongoose";
 import crypto from "crypto";
 import { logger } from "../utils/logger.js";
-import { sanitizeUsername, type IUser } from "./models/User.js";
+import { sanitizeUsername } from "./models/User.js";
 
 // Schema for å spore hvilke migrasjoner som er kjørt
 const migrationSchema = new mongoose.Schema({
-    migrationId: { type: String, required: true, unique: true },
-    appliedAt: { type: Date, default: Date.now },
+  migrationId: { type: String, required: true, unique: true },
+  appliedAt: { type: Date, default: Date.now },
 });
 
 const MigrationRecord = mongoose.model("MigrationRecord", migrationSchema);
 
 export interface Migration {
-    /** Unikt ID, f.eks. "2026-03-10-add-user-language" */
-    id: string;
-    /** Kort beskrivelse av hva migrasjonen gjør */
-    description: string;
-    /** Funksjonen som utfører endringen */
-    up: () => Promise<void | { applied: boolean; reason?: string; skipFutureRuns?: boolean }>;
+  /** Unikt ID, f.eks. "2026-03-10-add-user-language" */
+  id: string;
+  /** Kort beskrivelse av hva migrasjonen gjør */
+  description: string;
+  /** Funksjonen som utfører endringen */
+  up: () => Promise<void | {
+    applied: boolean;
+    reason?: string;
+    skipFutureRuns?: boolean;
+  }>;
 }
 
 // ============================================================
@@ -40,13 +44,19 @@ export interface Migration {
 const migrations: Migration[] = [
   {
     id: "2026-03-12-content-embedding-add-moduleId-tokenCount-contentHash",
-    description: "Legg til moduleId, tokenCount og contentHash på eksisterende ContentEmbedding-dokumenter",
+    description:
+      "Legg til moduleId, tokenCount og contentHash på eksisterende ContentEmbedding-dokumenter",
     up: async () => {
       const col = mongoose.connection.collection("contentembeddings");
-      const count = await col.countDocuments({ contentHash: { $exists: false } });
+      const count = await col.countDocuments({
+        contentHash: { $exists: false },
+      });
       if (count === 0) return;
 
-      logger.info({ count }, "Migrerer ContentEmbedding-dokumenter (legger til nye felt)");
+      logger.info(
+        { count },
+        "Migrerer ContentEmbedding-dokumenter (legger til nye felt)",
+      );
 
       const cursor = col.find({ contentHash: { $exists: false } });
       let updated = 0;
@@ -56,14 +66,19 @@ const migrations: Migration[] = [
 
       for await (const doc of cursor) {
         const text = (doc.text as string) ?? "";
-        const contentHash = crypto.createHash("sha256").update(text, "utf8").digest("hex");
+        const contentHash = crypto
+          .createHash("sha256")
+          .update(text, "utf8")
+          .digest("hex");
         // Grovt token-estimat uten å laste tiktoken under migrering
         const tokenCount = Math.ceil(text.length / 4);
 
         batch.push({
           updateOne: {
             filter: { _id: doc._id },
-            update: { $set: { contentHash, tokenCount, moduleId: doc.moduleId ?? 0 } },
+            update: {
+              $set: { contentHash, tokenCount, moduleId: doc.moduleId ?? 0 },
+            },
           },
         });
 
@@ -91,24 +106,32 @@ const migrations: Migration[] = [
         { $or: [{ role: { $exists: false } }, { role: null }] },
         { $set: { role: "user" } },
       );
-      logger.info({ modifiedCount: result.modifiedCount }, "Migrasjon: brukere oppdatert med role");
+      logger.info(
+        { modifiedCount: result.modifiedCount },
+        "Migrasjon: brukere oppdatert med role",
+      );
     },
   },
   {
     id: "2026-03-12-remove-support-role",
-    description: "Fjern support-rollen: sett brukere med role 'support' til 'user'",
+    description:
+      "Fjern support-rollen: sett brukere med role 'support' til 'user'",
     up: async () => {
       const { User } = await import("./models/User.js");
       const result = await User.updateMany(
         { role: "support" },
         { $set: { role: "user" } },
       );
-      logger.info({ modifiedCount: result.modifiedCount }, "Migrasjon: support-brukere satt til user");
+      logger.info(
+        { modifiedCount: result.modifiedCount },
+        "Migrasjon: support-brukere satt til user",
+      );
     },
   },
   {
     id: "2026-03-12-remove-legacy-refresh-token-fields",
-    description: "Fjern gamle refresh-token-felt etter overgang til Clerk-only auth",
+    description:
+      "Fjern gamle refresh-token-felt etter overgang til Clerk-only auth",
     up: async () => {
       const col = mongoose.connection.collection("users");
       const result = await col.updateMany(
@@ -133,7 +156,8 @@ const migrations: Migration[] = [
   },
   {
     id: "2026-03-13-remove-legacy-password-hashes",
-    description: "Fjern gamle passwordHash-felt etter overgang til Clerk-only auth",
+    description:
+      "Fjern gamle passwordHash-felt etter overgang til Clerk-only auth",
     up: async () => {
       const col = mongoose.connection.collection("users");
       const result = await col.updateMany(
@@ -152,7 +176,8 @@ const migrations: Migration[] = [
   },
   {
     id: "2026-03-13-revoke-legacy-chat-share-links",
-    description: "Trekk tilbake gamle chat-delingslenker og rydd legacy share-felt",
+    description:
+      "Trekk tilbake gamle chat-delingslenker og rydd legacy share-felt",
     up: async () => {
       const { ChatHistory } = await import("./models/ChatHistory.js");
       const result = await ChatHistory.updateMany(
@@ -181,31 +206,39 @@ const migrations: Migration[] = [
   },
   {
     id: "2026-03-13-auditlog-drop-requestid-index",
-    description: "Dropp gammel requestId_1-indeks på AuditLog for å erstatte med sparse variant",
+    description:
+      "Dropp gammel requestId_1-indeks på AuditLog for å erstatte med sparse variant",
     up: async () => {
       const col = mongoose.connection.collection("auditlogs");
       const indexes = await col.indexes();
       const hasRequestId = indexes.some((idx) => idx.name === "requestId_1");
       if (!hasRequestId) return;
       await col.dropIndex("requestId_1");
-      logger.info("Migrasjon: requestId_1 droppet på auditlogs (erstattes av sparse ved createIndexes)");
+      logger.info(
+        "Migrasjon: requestId_1 droppet på auditlogs (erstattes av sparse ved createIndexes)",
+      );
     },
   },
   {
     id: "2026-03-13-rename-student-role-to-user",
-    description: "Bytt RBAC-rolle fra 'student' til 'user' for eksisterende brukere",
+    description:
+      "Bytt RBAC-rolle fra 'student' til 'user' for eksisterende brukere",
     up: async () => {
       const { User } = await import("./models/User.js");
       const result = await User.updateMany(
         { role: "student" },
         { $set: { role: "user" } },
       );
-      logger.info({ modifiedCount: result.modifiedCount }, "Migrasjon: student-brukere satt til user");
+      logger.info(
+        { modifiedCount: result.modifiedCount },
+        "Migrasjon: student-brukere satt til user",
+      );
     },
   },
   {
     id: "2026-03-27-normalize-usernames-and-remove-duplicates",
-    description: "Normaliser brukernavn, fjern duplikater og forbered unik indeks",
+    description:
+      "Normaliser brukernavn, fjern duplikater og forbered unik indeks",
     up: async () => {
       const col = mongoose.connection.collection("users");
       const cursor = col
@@ -235,7 +268,10 @@ const migrations: Migration[] = [
         );
 
         if (!sanitized) {
-          if (doc.username !== undefined || doc.usernameNormalized !== undefined) {
+          if (
+            doc.username !== undefined ||
+            doc.usernameNormalized !== undefined
+          ) {
             batch.push({
               updateOne: {
                 filter: { _id: doc._id },
@@ -302,7 +338,8 @@ const migrations: Migration[] = [
   },
   {
     id: "2026-03-28-enforce-canvas-user-one-to-one-and-shared-chat-uniqueness",
-    description: "Rydd CanvasUser 1:1-koblinger og deaktiver dupliserte aktive delingslenker",
+    description:
+      "Rydd CanvasUser 1:1-koblinger og deaktiver dupliserte aktive delingslenker",
     up: async () => {
       const { User } = await import("./models/User.js");
       const { CanvasUser } = await import("./models/CanvasUser.js");
@@ -322,7 +359,11 @@ const migrations: Migration[] = [
         },
       ).lean();
 
-      const getDocTimestamp = (doc: { updatedAt?: Date; createdAt?: Date; _id: unknown }) => {
+      const getDocTimestamp = (doc: {
+        updatedAt?: Date;
+        createdAt?: Date;
+        _id: unknown;
+      }) => {
         return doc.updatedAt?.getTime() ?? doc.createdAt?.getTime() ?? 0;
       };
 
@@ -362,7 +403,11 @@ const migrations: Migration[] = [
         await CanvasUser.deleteMany({ _id: { $in: canvasUserDeleteIds } });
       }
 
-      const userBulkOps: AnyBulkWriteOperation<IUser>[] = [];
+      const usersToSetCanvas: Array<{
+        userId: mongoose.Types.ObjectId;
+        canvasUserId: string;
+      }> = [];
+      const usersToUnsetCanvas: mongoose.Types.ObjectId[] = [];
       for (const user of users) {
         const ownerId = String(user._id);
         const expectedCanvasUserId = keptCanvasUserByOwner.get(ownerId);
@@ -371,32 +416,39 @@ const migrations: Migration[] = [
 
         if (expectedCanvasUserId) {
           if (currentCanvasUserId !== expectedCanvasUserId) {
-            userBulkOps.push({
-              updateOne: {
-                filter: { _id: user._id },
-                update: {
-                  $set: {
-                    canvasUser: new mongoose.Types.ObjectId(expectedCanvasUserId),
-                  },
-                },
-              },
+            usersToSetCanvas.push({
+              userId: user._id,
+              canvasUserId: expectedCanvasUserId,
             });
           }
           continue;
         }
 
         if (currentCanvasUserId) {
-          userBulkOps.push({
-            updateOne: {
-              filter: { _id: user._id },
-              update: { $unset: { canvasUser: 1 } },
-            },
-          });
+          usersToUnsetCanvas.push(user._id);
         }
       }
 
-      if (userBulkOps.length > 0) {
-        await User.bulkWrite(userBulkOps, { ordered: false });
+      if (usersToSetCanvas.length > 0) {
+        await Promise.all(
+          usersToSetCanvas.map(({ userId, canvasUserId }) =>
+            User.updateOne(
+              { _id: userId },
+              {
+                $set: {
+                  canvasUser: new mongoose.Types.ObjectId(canvasUserId),
+                },
+              },
+            ),
+          ),
+        );
+      }
+
+      if (usersToUnsetCanvas.length > 0) {
+        await User.updateMany(
+          { _id: { $in: usersToUnsetCanvas } },
+          { $unset: { canvasUser: 1 } },
+        );
       }
 
       const activeSharedChats = await SharedChat.find(
@@ -432,10 +484,137 @@ const migrations: Migration[] = [
       logger.info(
         {
           deletedCanvasUsers: canvasUserDeleteIds.length,
-          rewiredUsers: userBulkOps.length,
+          rewiredUsers: usersToSetCanvas.length + usersToUnsetCanvas.length,
           deactivatedSharedChats: sharedChatDeactivateIds.length,
         },
         "Migrasjon: CanvasUser/SharedChat-relasjoner ryddet",
+      );
+    },
+  },
+  {
+    id: "2026-06-05-clean-tombstone-identity-fields",
+    description:
+      "Fjern identitetsfelt fra slettede brukere (tombstone-opprydding etter partial failures)",
+    up: async () => {
+      const col = mongoose.connection.collection("users");
+      const result = await col.updateMany(
+        {
+          deletedAt: { $exists: true },
+          $or: [
+            { clerkId: { $exists: true } },
+            { oauthAccounts: { $exists: true } },
+            { username: { $exists: true } },
+            { usernameNormalized: { $exists: true } },
+            { authProvider: { $exists: true } },
+            { firstName: { $exists: true } },
+            { lastName: { $exists: true } },
+            { canvasApiToken: { $exists: true } },
+            { canvasBaseUrl: { $exists: true } },
+            { canvasTokenHash: { $exists: true } },
+          ],
+        },
+        {
+          $unset: {
+            clerkId: 1,
+            oauthAccounts: 1,
+            username: 1,
+            usernameNormalized: 1,
+            authProvider: 1,
+            firstName: 1,
+            lastName: 1,
+            canvasApiToken: 1,
+            canvasBaseUrl: 1,
+            canvasTokenHash: 1,
+            canvasUser: 1,
+            clerkProfileSyncedAt: 1,
+            canvasContextPreferences: 1,
+            varslerState: 1,
+            manuellInnleveringState: 1,
+            browserPushPreferences: 1,
+            browserPushSentState: 1,
+            uiPreferences: 1,
+          },
+        },
+      );
+      logger.info(
+        { modifiedCount: result.modifiedCount },
+        "Migrasjon: identitetsfelt fjernet fra slettede brukere (tombstone-opprydding)",
+      );
+    },
+  },
+  {
+    id: "2026-06-06-hard-delete-soft-deleted-users",
+    description:
+      "Flytt legacy soft-deleted users til tombstones og slett dem fra users-samlingen",
+    up: async () => {
+      const usersCol = mongoose.connection.collection("users");
+      const tombstonesCol = mongoose.connection.collection(
+        "deleteduserTombstones",
+      );
+
+      const deletedUsers = await usersCol
+        .find(
+          { deletedAt: { $exists: true } },
+          {
+            projection: {
+              _id: 1,
+              clerkId: 1,
+              oauthAccounts: 1,
+              usernameNormalized: 1,
+              deletedAt: 1,
+            },
+          },
+        )
+        .toArray();
+
+      if (deletedUsers.length === 0) {
+        return;
+      }
+
+      const tombstoneOps = deletedUsers.map((doc) => {
+        const setDoc: Record<string, unknown> = {
+          originalUserId: doc._id,
+          deletedAt: doc.deletedAt instanceof Date ? doc.deletedAt : new Date(),
+        };
+
+        if (typeof doc.clerkId === "string" && doc.clerkId.length > 0) {
+          setDoc.clerkId = doc.clerkId;
+        }
+
+        if (Array.isArray(doc.oauthAccounts) && doc.oauthAccounts.length > 0) {
+          setDoc.oauthAccounts = doc.oauthAccounts;
+        }
+
+        if (
+          typeof doc.usernameNormalized === "string" &&
+          doc.usernameNormalized.length > 0
+        ) {
+          setDoc.usernameNormalized = doc.usernameNormalized;
+        }
+
+        return {
+          updateOne: {
+            filter: { originalUserId: doc._id },
+            update: { $set: setDoc },
+            upsert: true,
+          },
+        };
+      });
+
+      if (tombstoneOps.length > 0) {
+        await tombstonesCol.bulkWrite(tombstoneOps, { ordered: false });
+      }
+
+      const deleteResult = await usersCol.deleteMany({
+        deletedAt: { $exists: true },
+      });
+
+      logger.info(
+        {
+          movedToTombstones: tombstoneOps.length,
+          deletedFromUsers: deleteResult.deletedCount ?? 0,
+        },
+        "Migrasjon: legacy soft-deleted users flyttet til tombstones og hard-slettet",
       );
     },
   },

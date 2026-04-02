@@ -14,8 +14,8 @@ if (!ArrayBuffer.prototype.transfer) {
         const len = newByteLength ?? this.byteLength;
         const newBuf = new ArrayBuffer(len);
         new Uint8Array(newBuf).set(new Uint8Array(this, 0, Math.min(this.byteLength, len)));
-        // Detach the original buffer by transferring a zero-length slice through structuredClone
-        try { structuredClone(this, { transfer: [this] }); } catch { /* already detached or unsupported */ }
+        // Frigjør den opprinnelige bufferen ved å overføre via structuredClone
+        try { structuredClone(this, { transfer: [this] }); } catch { /* allerede frigjort eller ustøttet */ }
         return newBuf;
     };
 }

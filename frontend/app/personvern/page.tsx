@@ -6,7 +6,7 @@ import { InfoPageLayout, InfoSection } from "@/app/components/layout/InfoPageLay
 
 export default function PersonvernPage() {
   return (
-    <InfoPageLayout title="Personvernerklæring" updatedAt="Mars 2026">
+    <InfoPageLayout title="Personvernerklæring" updatedAt="April 2026">
       <InfoSection title="Hvilke data samler vi inn?">
         <ul className="space-y-3">
           <li>
@@ -146,6 +146,18 @@ export default function PersonvernPage() {
             oss og sendes ikke til andre tredjeparter.
           </li>
           <li>
+            <strong>Vektorsøk (Pinecone):</strong> Når du bruker AI-funksjoner med
+            Canvas-innhold, sendes tekstbiter (uten navn, e-post eller andre
+            personidentifiserende data) til Pinecone for indeksering og semantisk
+            søk. Pinecone lagrer kun vektorrepresentasjoner og anonymisert tekst
+            knyttet til din bruker-ID.
+          </li>
+          <li>
+            <strong>Reranking (Cohere):</strong> For å forbedre relevansen i
+            AI-svar brukes Cohere til å rangere søkeresultater. Kun anonymiserte
+            tekstutdrag sendes — ingen personopplysninger.
+          </li>
+          <li>
             <strong>Monitorering (Datadog):</strong> Tekniske drifts- og
             feilsporingsdata kan behandles av Datadog for å knytte frontend-feil,
             backend-spor og ytelsesavvik sammen. Dette omfatter tekniske metadata,
@@ -204,7 +216,7 @@ export default function PersonvernPage() {
           </li>
           <li>
             Data lagres på sikre servere med tilgangskontroll. Se også vår{" "}
-            <Link href="/sikkerhet" prefetch={false} className="text-blue-500 hover:underline">
+            <Link href="/sikkerhet" prefetch={false} className="text-blue-500 dark:text-blue-400 hover:underline">
               sikkerhetsside
             </Link>
             .
@@ -218,7 +230,7 @@ export default function PersonvernPage() {
         <p>
           Har du spørsmål om personvern eller vil utøve rettighetene dine? Kontakt
           oss via{" "}
-          <Link href="/kontakt" prefetch={false} className="text-blue-500 hover:underline">
+          <Link href="/kontakt" prefetch={false} className="text-blue-500 dark:text-blue-400 hover:underline">
             kontaktskjemaet
           </Link>
           .

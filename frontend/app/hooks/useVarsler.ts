@@ -30,7 +30,7 @@ import {
 } from "../lib/varsler";
 import { useUIStore } from "../store/uiStore";
 import { useManuellInnlevering } from "./useManuellInnlevering";
-import { useOppdaterVarslerState } from "../auth/auth-api";
+import { useOppdaterVarslerState, useHiddenCourseIds } from "../auth/auth-api";
 import { useLanguage } from "../i18n";
 
 function createVarslerStateSignature(state: VarslerState): string {
@@ -164,6 +164,7 @@ export function useVarsler(harCanvasToken: boolean): UseVarslerResult {
         enabled: harCanvasToken,
         courses: coursesQuery.data?.courses,
     });
+    const hiddenSet = useHiddenCourseIds();
 
     const lestIds = useUIStore((s) => s.varslerLestIds);
     const markAllAsLestStore = useUIStore((s) => s.markAllVarslerAsLest);
@@ -179,15 +180,31 @@ export function useVarsler(harCanvasToken: boolean): UseVarslerResult {
     }, [coursesQuery.data]);
 
     const ikkeManuelleOppgaver = useMemo(
-        () => (assignmentsQuery.data ?? []).filter((o) => !ferdigeIdSet.has(o.id)),
-        [assignmentsQuery.data, ferdigeIdSet],
+        () => (assignmentsQuery.data ?? []).filter((o) => !ferdigeIdSet.has(o.id) && (!o.course_id || !hiddenSet.has(o.course_id))),
+        [assignmentsQuery.data, ferdigeIdSet, hiddenSet],
     );
     const frister = useMemo(() => buildFrister(ikkeManuelleOppgaver), [ikkeManuelleOppgaver]);
-    const kunngjøringer = useMemo(
-        () => buildKunngjøringer(announcementsQuery.data?.announcements ?? [], emneNavnMap),
-        [announcementsQuery.data, emneNavnMap],
+    const filtrerteAnnouncements = useMemo(
+        () => (announcementsQuery.data?.announcements ?? []).filter((a) => {
+            if (!a.context_code) return true;
+            const match = a.context_code.match(/^course_(\d+)$/);
+            return !match || !hiddenSet.has(Number(match[1]));
+        }),
+        [announcementsQuery.data, hiddenSet],
     );
-    const hendelser = useMemo(() => buildHendelser(eventsQuery.data?.events ?? []), [eventsQuery.data]);
+    const kunngjøringer = useMemo(
+        () => buildKunngjøringer(filtrerteAnnouncements, emneNavnMap),
+        [filtrerteAnnouncements, emneNavnMap],
+    );
+    const filtrerteEvents = useMemo(
+        () => (eventsQuery.data?.events ?? []).filter((e) => {
+            if (!e.context_code) return true;
+            const match = e.context_code.match(/^course_(\d+)$/);
+            return !match || !hiddenSet.has(Number(match[1]));
+        }),
+        [eventsQuery.data, hiddenSet],
+    );
+    const hendelser = useMemo(() => buildHendelser(filtrerteEvents), [filtrerteEvents]);
     const alleElementer = useMemo(
         () => buildAlleElementer(frister, kunngjøringer, hendelser),
         [frister, kunngjøringer, hendelser],
@@ -237,6 +254,7 @@ export function useVarslingerSide(
     const announcementsQuery = useCanvasAnnouncements(harCanvasToken);
     const coursesQuery = useCanvasCourses(harCanvasToken);
     const calendarQuery = useCalendarData(harCanvasToken);
+    const hiddenSet = useHiddenCourseIds();
 
     const lestIds = useUIStore((s) => s.varslerLestIds);
     const markAllAsLestStore = useUIStore((s) => s.markAllVarslerAsLest);
@@ -249,7 +267,10 @@ export function useVarslingerSide(
         return map;
     }, [coursesQuery.data]);
 
-    const kalenderElementer = calendarQuery.data?.assignments ?? [];
+    const kalenderElementer = useMemo(
+        () => (calendarQuery.data?.assignments ?? []).filter((a) => !a.courseId || !hiddenSet.has(a.courseId)),
+        [calendarQuery.data, hiddenSet],
+    );
     const oppgaveElementer = useMemo(
         () =>
             kalenderElementer.filter(
@@ -276,13 +297,21 @@ export function useVarslingerSide(
             ),
         [oppgaver],
     );
+    const filtrerteAnnouncementsSide = useMemo(
+        () => (announcementsQuery.data?.announcements ?? []).filter((a) => {
+            if (!a.context_code) return true;
+            const match = a.context_code.match(/^course_(\d+)$/);
+            return !match || !hiddenSet.has(Number(match[1]));
+        }),
+        [announcementsQuery.data, hiddenSet],
+    );
     const kunngjøringer = useMemo(
         () =>
             buildKunngjøringer(
-                announcementsQuery.data?.announcements ?? [],
+                filtrerteAnnouncementsSide,
                 emneNavnMap,
             ),
-        [announcementsQuery.data, emneNavnMap],
+        [filtrerteAnnouncementsSide, emneNavnMap],
     );
     const hendelser = useMemo(
         () => buildKalenderHendelser(hendelsesElementer),

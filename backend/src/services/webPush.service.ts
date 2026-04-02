@@ -317,9 +317,10 @@ async function markPushIdsAsSent(
   existingIds: readonly string[],
   newIds: readonly string[],
 ): Promise<void> {
-  const cappedExistingIds = existingIds.slice(
-    -Math.max(0, BROWSER_PUSH_SENT_IDS_MAX - newIds.length),
-  );
+  const keepFromExisting = Math.max(0, BROWSER_PUSH_SENT_IDS_MAX - newIds.length);
+  const cappedExistingIds = keepFromExisting > 0
+    ? existingIds.slice(-keepFromExisting)
+    : [];
   const nextState = normalizeBrowserPushSentState({
     sentIds: [...cappedExistingIds, ...newIds],
   });
@@ -497,7 +498,7 @@ export async function sendAICompletionWebPush(input: {
     return false;
   }
 
-  const user = await User.findById(input.userId)
+  const user = await User.findOne({ _id: input.userId, deletedAt: { $exists: false } })
     .select("browserPushPreferences")
     .lean<{ browserPushPreferences?: Partial<BrowserPushPreferences> } | null>();
 

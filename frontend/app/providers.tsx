@@ -6,19 +6,21 @@
 // Dette er nødvendig for biblioteker som bruker React Context (som React Query).
 "use client";
 
-import { ClerkProvider, useAuth, useUser } from "@clerk/nextjs";
+import { ClerkProvider, useAuth, useClerk, useUser } from "@clerk/nextjs";
 import { enUS, nbNO } from "@clerk/localizations";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
-import { useAuthSync } from "./hooks/use-auth-sync";
+import { useAuthSync, clearClientAuthState } from "./hooks/use-auth-sync";
 import { setClerkGetToken } from "./lib/clerkTokenForApi";
 import { setDatadogUser, clearDatadogUser } from "@/app/components/layout/DatadogRum";
-import { AUTH_ME_QUERY_KEY, prefetchMe } from "./auth/auth-api";
+import { AUTH_ME_QUERY_KEY, prefetchMe, forceSyncMe, dismissSyncConflict } from "./auth/auth-api";
 import { usePreferencesSync } from "./hooks/usePreferencesSync";
-import { MeResponseSchema, type MeResponse } from "common/auth";
+import { MeResponseSchema, type MeResponse, type SyncConflict } from "common/auth";
 import { LanguageProvider, useLanguage } from "@/app/i18n";
 import type { Language } from "@/app/i18n/types";
+import { erFatalUserDataFeilmelding } from "./lib/errorUtils";
+import { showToast } from "@/app/components/ui/Toaster";
 
 function normalizeProfileField(value: string | null | undefined): string | undefined {
   const trimmed = value?.trim();
@@ -120,11 +122,60 @@ function DatadogUserSync() {
   return null;
 }
 
+/**
+ * Overvåker /me-query for fatale kontokonflikter (OAuth-konto allerede koblet til en annen bruker,
+ * slettet konto, etc.) og trigger automatisk Clerk sign-out for å unngå stuck-state der bruker
+ * er autentisert i Clerk men avvist av backend.
+ */
+function AuthConflictGuard() {
+  const queryClient = useQueryClient();
+  const clerk = useClerk();
+  const signOutTriggeredRef = useRef(false);
+
+  useEffect(() => {
+    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+      if (signOutTriggeredRef.current) return;
+      if (
+        event?.type === "updated" &&
+        event.query.queryKey[0] === AUTH_ME_QUERY_KEY[0] &&
+        event.query.queryKey[1] === AUTH_ME_QUERY_KEY[1] &&
+        event.query.state.status === "error"
+      ) {
+        const error = event.query.state.error;
+        const msg = error instanceof Error ? error.message : "";
+        if (
+          erFatalUserDataFeilmelding(msg) &&
+          !msg.includes("kontoen er slettet")
+        ) {
+          signOutTriggeredRef.current = true;
+          showToast.error(
+            "Innloggingskonflikt",
+            msg || "Kontoen din har en innloggingskonflikt. Du blir logget ut.",
+          );
+          void clerk.signOut().catch(() => {}).finally(() => {
+            clearClientAuthState(queryClient);
+            window.location.replace("/auth/sign-in");
+          });
+        }
+      }
+    });
+    return unsubscribe;
+  }, [clerk, queryClient]);
+
+  return null;
+}
+
 function ClerkProfileCacheSync() {
   const queryClient = useQueryClient();
   const { isLoaded: authLoaded, userId } = useAuth();
   const { isLoaded: clerkUserLoaded, user } = useUser();
 
+  // Synkroniser firstName og lastName fra Clerk til React Query-cache.
+  // Brukernavn synkes IKKE her — server er autoritativ for brukernavn
+  // fordi backend kan avvise Clerk-brukernavnet ved konflikt.
+  // E-post synkes IKKE her — lokal DB er autoritativ for e-post.
+  // Clerk-managed e-postendring er deaktivert i UserProfile UI, og backend
+  // kan avvise e-postendringer som konflikter med andre brukere.
   useEffect(() => {
     if (!authLoaded || !userId || !clerkUserLoaded) {
       return;
@@ -132,8 +183,6 @@ function ClerkProfileCacheSync() {
 
     const nextFirstName = normalizeProfileField(user?.firstName);
     const nextLastName = normalizeProfileField(user?.lastName);
-    const nextUsername = normalizeProfileField(user?.username);
-    const nextEmail = normalizeProfileField(user?.primaryEmailAddress?.emailAddress)?.toLowerCase();
 
     queryClient.setQueryData<MeResponse | undefined>(
       AUTH_ME_QUERY_KEY,
@@ -145,9 +194,7 @@ function ClerkProfileCacheSync() {
         const currentUser = current.user;
         const hasChanges =
           currentUser.firstName !== nextFirstName ||
-          currentUser.lastName !== nextLastName ||
-          currentUser.username !== nextUsername ||
-          (nextEmail !== undefined && currentUser.email !== nextEmail);
+          currentUser.lastName !== nextLastName;
 
         if (!hasChanges) {
           return current;
@@ -158,8 +205,6 @@ function ClerkProfileCacheSync() {
             ...currentUser,
             firstName: nextFirstName,
             lastName: nextLastName,
-            username: nextUsername,
-            email: nextEmail ?? currentUser.email,
           },
         });
       },
@@ -170,12 +215,113 @@ function ClerkProfileCacheSync() {
     queryClient,
     user?.firstName,
     user?.lastName,
-    user?.primaryEmailAddress?.emailAddress,
-    user?.username,
     userId,
   ]);
 
+  // Spor externalAccounts (Google/Microsoft-koblinger) og tving backend-sync
+  // når bruker kobler til/fra en OAuth-provider via Clerk UserProfile.
+  const externalAccountsKey = user?.externalAccounts
+    ?.map((a) => `${a.provider}:${a.id}`)
+    .sort()
+    .join(",") ?? "";
+  const prevExternalAccountsRef = useRef(externalAccountsKey);
+
+  useEffect(() => {
+    if (!authLoaded || !userId || !clerkUserLoaded) return;
+
+    const prev = prevExternalAccountsRef.current;
+    prevExternalAccountsRef.current = externalAccountsKey;
+
+    // Ignorer første render (initial load) — kun reager på endringer
+    if (prev === externalAccountsKey || prev === "") return;
+
+    void forceSyncMe(queryClient);
+  }, [authLoaded, clerkUserLoaded, userId, externalAccountsKey, queryClient]);
+
   return null;
+}
+
+
+/**
+ * Viser en advarselsbanner når det finnes aktive Clerk↔lokal synkroniseringskonflikter
+ * (f.eks. e-post eller OAuth-kobling som backend avviste).
+ */
+function SyncConflictBanner() {
+  const queryClient = useQueryClient();
+  const { isLoaded, userId } = useAuth();
+  const [conflicts, setConflicts] = useState<SyncConflict[]>([]);
+  const [dismissing, setDismissing] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isLoaded || !userId) return;
+
+    function syncFromCache() {
+      const meData = queryClient.getQueryData<MeResponse>(AUTH_ME_QUERY_KEY);
+      setConflicts(meData?.user?.syncConflicts ?? []);
+    }
+
+    syncFromCache();
+
+    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+      if (
+        event?.type === "updated" &&
+        event.query.queryKey[0] === AUTH_ME_QUERY_KEY[0] &&
+        event.query.queryKey[1] === AUTH_ME_QUERY_KEY[1] &&
+        event.query.state.status === "success"
+      ) {
+        syncFromCache();
+      }
+    });
+    return unsubscribe;
+  }, [isLoaded, userId, queryClient]);
+
+  const handleDismiss = useCallback(async (type: SyncConflict["type"]) => {
+    setDismissing(type);
+    try {
+      await dismissSyncConflict(type);
+      setConflicts((prev) => prev.filter((c) => c.type !== type));
+      queryClient.setQueryData<MeResponse | undefined>(AUTH_ME_QUERY_KEY, (current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          user: {
+            ...current.user,
+            syncConflicts: (current.user.syncConflicts ?? []).filter((c) => c.type !== type),
+          },
+        };
+      });
+    } catch {
+      showToast.error("Feil", "Kunne ikke fjerne konflikten. Prøv igjen.");
+    } finally {
+      setDismissing(null);
+    }
+  }, [queryClient]);
+
+  if (conflicts.length === 0) return null;
+
+  return (
+    <div className="fixed bottom-4 right-4 z-50 flex max-w-md flex-col gap-2">
+      {conflicts.map((c) => (
+        <div
+          key={c.type}
+          className="rounded-lg border border-amber-300 bg-amber-50 p-4 shadow-lg dark:border-amber-700 dark:bg-amber-950/90"
+        >
+          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+            {c.type === "email_mismatch" ? "E-postkonflikt" : "Kontokoblingskonflikt"}
+          </p>
+          <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">{c.melding}</p>
+          <button
+            type="button"
+            onClick={() => void handleDismiss(c.type)}
+            disabled={dismissing === c.type}
+            className="mt-2 rounded-md bg-amber-200 px-3 py-1 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-300 disabled:opacity-50 dark:bg-amber-800 dark:text-amber-100 dark:hover:bg-amber-700"
+          >
+            {dismissing === c.type ? "Fjerner…" : "Jeg forstår"}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 // Synkroniserer UI-preferanser (sprak, tema, cookie-samtykke) med backend
@@ -219,9 +365,11 @@ export function Providers({
           <NuqsAdapter>
             <ClerkTokenSync />
             <AuthSyncListener />
+            <AuthConflictGuard />
             <PrefetchMeOnMount />
             <DatadogUserSync />
             <ClerkProfileCacheSync />
+            <SyncConflictBanner />
             <PreferencesSync />
             {children}
           </NuqsAdapter>

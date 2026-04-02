@@ -2,23 +2,22 @@
  * Synkroniserer Clerk-brukere til MongoDB User.
  * Finner eller oppretter bruker på clerkId og oppdaterer lokal profil fra Clerk ved behov.
  */
-import crypto from "crypto";
 import { createClerkClient, verifyToken } from "@clerk/backend";
+import { hashSha256 } from "../../utils/cryptoUtils.js";
 import { User } from "../../database/models/User.js";
+import { DeletedUserTombstone } from "../../database/models/DeletedUserTombstone.js";
 import { logger } from "../../utils/logger.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
-import type {
-  UserRole,
-  AuthProvider,
-  OAuthAccount,
-  OAuthProvider,
+import {
+  DEFAULT_ROLE,
+  type AuthProvider,
+  type OAuthAccount,
+  type OAuthProvider,
+  type SyncConflictType,
 } from "common/auth";
 import type { IUser } from "../../database/models/User.js";
 import { getConfiguredWebOrigins } from "../../utils/webOrigins.js";
 import { sanitizeUsername } from "../../database/models/User.js";
-
-/** Standard rolle for nye brukere. */
-const DEFAULT_ROLE: UserRole = "user";
 
 /** Minste intervall (ms) mellom profiloppdateringer fra Clerk for samme bruker (5 min). */
 const CLERK_PROFILE_SYNC_INTERVAL_MS = 5 * 60 * 1000;
@@ -38,13 +37,22 @@ type ClerkProfile = {
 };
 
 // Clerk backend client brukes for å hente brukerinfo og sjekke helse, ikke for auth-verifisering – det gjøres med verifyToken() direkte i getClerkUserIdFromToken() for å unngå overhead ved å opprette klient i auth-flow.
+let cachedClerkClient: ReturnType<typeof createClerkClient> | null = null;
+let cachedClerkSecretKey: string | null = null;
+
 function getClerkBackendClient() {
   const secretKey = process.env.CLERK_SECRET_KEY;
   if (!secretKey) {
     logger.warn("CLERK_SECRET_KEY mangler – kan ikke bruke Clerk Backend API");
     return null;
   }
-  return createClerkClient({ secretKey });
+  // Gjenbruk eksisterende klient hvis secret key er uendret
+  if (cachedClerkClient && cachedClerkSecretKey === secretKey) {
+    return cachedClerkClient;
+  }
+  cachedClerkClient = createClerkClient({ secretKey });
+  cachedClerkSecretKey = secretKey;
+  return cachedClerkClient;
 }
 
 /**
@@ -151,14 +159,11 @@ function queueDeletedOAuthConflictCleanup(account: OAuthAccount): void {
   const filter: Record<string, unknown> = {
     "oauthAccounts.provider": account.provider,
     "oauthAccounts.providerAccountId": account.providerAccountId,
-    deletedAt: { $exists: true },
   };
 
-  void User.updateMany(filter, {
+  void DeletedUserTombstone.updateMany(filter, {
     $unset: {
       oauthAccounts: 1,
-      authProvider: 1,
-      clerkId: 1,
     },
   })
     .then((result) => {
@@ -169,7 +174,7 @@ function queueDeletedOAuthConflictCleanup(account: OAuthAccount): void {
             providerAccountId: account.providerAccountId,
             modifiedCount: result.modifiedCount,
           },
-          "Asynkron opprydding av stale OAuth-identiteter fullfort",
+          "Asynkron opprydding av stale OAuth-identiteter i tombstones fullfort",
         );
       }
     })
@@ -180,20 +185,18 @@ function queueDeletedOAuthConflictCleanup(account: OAuthAccount): void {
           provider: account.provider,
           providerAccountId: account.providerAccountId,
         },
-        "Asynkron opprydding av stale OAuth-identiteter feilet",
+        "Asynkron opprydding av stale OAuth-identiteter i tombstones feilet",
       );
     });
 }
 
 function queueDeletedUsernameCleanup(usernameNormalized: string): void {
-  void User.updateMany(
+  void DeletedUserTombstone.updateMany(
     {
       usernameNormalized,
-      deletedAt: { $exists: true },
     },
     {
       $unset: {
-        username: 1,
         usernameNormalized: 1,
       },
     },
@@ -202,14 +205,14 @@ function queueDeletedUsernameCleanup(usernameNormalized: string): void {
       if ((result.modifiedCount ?? 0) > 0) {
         logger.info(
           { usernameNormalized, modifiedCount: result.modifiedCount },
-          "Asynkron opprydding av stale brukernavn fullfort",
+          "Asynkron opprydding av stale brukernavn i tombstones fullfort",
         );
       }
     })
     .catch((err) => {
       logger.warn(
         { err, usernameNormalized },
-        "Asynkron opprydding av stale brukernavn feilet",
+        "Asynkron opprydding av stale brukernavn i tombstones feilet",
       );
     });
 }
@@ -221,6 +224,7 @@ function queueDeletedUsernameCleanup(usernameNormalized: string): void {
 async function checkOAuthAccountConflicts(
   oauthAccounts: OAuthAccount[],
   excludeUserId?: IUser["_id"] | null,
+  excludeClerkId?: string | null,
 ): Promise<OAuthAccountConflictResult | null> {
   if (oauthAccounts.length === 0) return null;
 
@@ -231,6 +235,9 @@ async function checkOAuthAccountConflicts(
     };
     if (excludeUserId) {
       baseFilter._id = { $ne: excludeUserId };
+    }
+    if (excludeClerkId) {
+      baseFilter.clerkId = { $ne: excludeClerkId };
     }
 
     const activeConflictFilter: Record<string, unknown> = {
@@ -247,11 +254,10 @@ async function checkOAuthAccountConflicts(
       };
     }
 
-    const deletedConflictFilter: Record<string, unknown> = {
-      ...baseFilter,
-      deletedAt: { $exists: true },
-    };
-    const hasDeletedConflicts = await User.exists(deletedConflictFilter);
+    const hasDeletedConflicts = await DeletedUserTombstone.exists({
+      "oauthAccounts.provider": account.provider,
+      "oauthAccounts.providerAccountId": account.providerAccountId,
+    });
     if (hasDeletedConflicts) {
       // Ikke blokker innlogging med opprydding av tombstones.
       queueDeletedOAuthConflictCleanup(account);
@@ -301,11 +307,9 @@ async function resolveUsernameSyncAction(
     return { mode: "keep", conflictingUserId: conflictingUser._id.toString() };
   }
 
-  const deletedFilter: Record<string, unknown> = {
-    ...baseFilter,
-    deletedAt: { $exists: true },
-  };
-  const hasDeletedConflicts = await User.exists(deletedFilter);
+  const hasDeletedConflicts = await DeletedUserTombstone.exists({
+    usernameNormalized: sanitized.usernameNormalized,
+  });
   if (hasDeletedConflicts) {
     // Ikke blokker innlogging med opprydding av tombstones.
     queueDeletedUsernameCleanup(sanitized.usernameNormalized);
@@ -404,11 +408,22 @@ async function getClerkProfile(
       if (!authProvider) authProvider = "microsoft";
     }
 
-    // Lagre OAuth-konto med providerAccountId for å forhindre at samme konto brukes på flere brukere
+    // Lagre OAuth-konto med providerAccountId og e-post for å forhindre at samme konto brukes på flere brukere
     if (mappedProvider && account.providerUserId) {
+      const oauthEmail = (account as unknown as Record<string, unknown>).emailAddress;
+      const hasValidEmail = typeof oauthEmail === "string" && oauthEmail.includes("@");
+      if (!hasValidEmail) {
+        logger.warn(
+          { provider: mappedProvider, clerkUserId },
+          "OAuth-konto fra Clerk mangler e-postadresse — kryssvalidering av e-post vil ikke fungere for denne kontoen",
+        );
+      }
       oauthAccounts.push({
         provider: mappedProvider,
         providerAccountId: account.providerUserId,
+        ...(hasValidEmail
+          ? { email: (oauthEmail as string).toLowerCase().trim() }
+          : {}),
       });
     }
   }
@@ -437,10 +452,10 @@ function shouldSyncExistingUserProfile(user: IUser): boolean {
     return true;
   }
 
-  return (
-    Date.now() - user.clerkProfileSyncedAt.getTime() >=
-    CLERK_PROFILE_SYNC_INTERVAL_MS
-  );
+  const elapsed = Date.now() - user.clerkProfileSyncedAt.getTime();
+  // Håndter NTP-drift: hvis synctidspunktet er i fremtiden, tving re-synk
+  if (elapsed < 0) return true;
+  return elapsed >= CLERK_PROFILE_SYNC_INTERVAL_MS;
 }
 
 /** Bygger MongoDB $set/$unset-objekt for å oppdatere User med Clerk-profil; includeEmail=false brukes ved e-postkonflikt. */
@@ -499,7 +514,60 @@ function buildClerkProfileUpdate(
 }
 
 /**
- * Oppdaterer eksisterende User med Clerk-profil. Ved e-postkonflikt (annen bruker har samme e-post) oppdateres ikke e-post.
+ * Legger til en synkroniseringskonflikt på bruker-dokumentet slik at frontend kan vise den.
+ * Erstatter eksisterende konflikt av samme type (unngår duplikater).
+ */
+async function recordSyncConflict(
+  userId: IUser["_id"],
+  conflict: {
+    type: SyncConflictType;
+    melding: string;
+    clerkVerdi?: string;
+    lokalVerdi?: string;
+  },
+): Promise<void> {
+  const entry = {
+    ...conflict,
+    oppdagetVed: new Date().toISOString(),
+  };
+
+  // Atomisk: fjern eksisterende konflikt av samme type og legg til ny i én operasjon
+  await User.updateOne(
+    { _id: userId },
+    [
+      {
+        $set: {
+          syncConflicts: {
+            $concatArrays: [
+              {
+                $filter: {
+                  input: { $ifNull: ["$syncConflicts", []] },
+                  cond: { $ne: ["$$this.type", conflict.type] },
+                },
+              },
+              [entry],
+            ],
+          },
+        },
+      },
+    ],
+  );
+
+  logger.warn(
+    {
+      userId,
+      conflictType: conflict.type,
+      clerkVerdi: conflict.clerkVerdi,
+      lokalVerdi: conflict.lokalVerdi,
+    },
+    `Synkroniseringskonflikt registrert: ${conflict.type}`,
+  );
+}
+
+/**
+ * Oppdaterer eksisterende User med Clerk-profil.
+ * Ved e-postkonflikt: setter syncConflict og beholder lokal e-post.
+ * Ved OAuth-konflikt: setter syncConflict og beholder lokale oauthAccounts.
  * Ved duplicate key (race) returneres siste lagrede bruker.
  */
 async function syncExistingUserWithClerkProfile(
@@ -553,6 +621,7 @@ async function syncExistingUserWithClerkProfile(
     const conflictingUser = await User.findOne({
       email: profile.email,
       _id: { $ne: existing._id },
+      deletedAt: { $exists: false },
     });
 
     if (conflictingUser) {
@@ -564,6 +633,17 @@ async function syncExistingUserWithClerkProfile(
         },
         "Kunne ikke oppdatere lokal e-post fra Clerk fordi adressen allerede er i bruk",
       );
+
+      // Registrer synkroniseringskonflikt slik at frontend kan vise den til brukeren.
+      await recordSyncConflict(existing._id, {
+        type: "email_mismatch",
+        melding:
+          `E-postadressen «${profile.email}» som er registrert i innloggingskontoen din er allerede i bruk ` +
+          "av en annen StudyWise-bruker. Kontoen din bruker fortsatt den opprinnelige e-posten. " +
+          "Endre e-posten tilbake i kontoinnstillingene, eller kontakt support.",
+        clerkVerdi: profile.email,
+        lokalVerdi: existing.email,
+      });
 
       const updatedWithoutEmail = await User.findByIdAndUpdate(
         existing._id,
@@ -605,11 +685,63 @@ async function syncExistingUserWithClerkProfile(
     return existing;
   } catch (error) {
     if (isDuplicateKeyError(error)) {
-      logger.warn(
-        { err: error, clerkUserId, userId: existing._id },
-        "Duplicate-key under Clerk-profilsynk; beholder eksisterende lokal profil",
-      );
-      const latest = await User.findOne({ clerkId: clerkUserId });
+      // Hvis duplicate key er fra OAuth-indeksen, registrer en synkroniseringskonflikt
+      // og synkroniser andre feltendringer (navn, e-post) uten oauthAccounts-endring.
+      if (isOAuthAccountDuplicateKeyError(error) && oauthAccountsChanged) {
+        logger.warn(
+          { err: error, clerkUserId, userId: existing._id },
+          "OAuth-konto-konflikt under Clerk-profilsynk; registrerer syncConflict og synkroniserer andre felt",
+        );
+
+        // Registrer synkroniseringskonflikt slik at frontend viser en advarsel.
+        const conflictProvider = profile.oauthAccounts.find(
+          (a) =>
+            !existing.oauthAccounts?.some(
+              (e) =>
+                e.provider === a.provider &&
+                e.providerAccountId === a.providerAccountId,
+            ),
+        );
+        await recordSyncConflict(existing._id, {
+          type: "oauth_link_rejected",
+          melding:
+            `${conflictProvider?.provider === "google" ? "Google" : "Microsoft"}-kontoen du koblet til i kontoinnstillingene ` +
+            "er allerede knyttet til en annen StudyWise-bruker. Koblingen ble ikke lagret lokalt. " +
+            "Fjern koblingen i kontoinnstillingene, eller kontakt support.",
+          clerkVerdi: conflictProvider?.provider ?? "unknown",
+        });
+
+        try {
+          const profileWithoutOauth: ClerkProfile = {
+            ...profile,
+            oauthAccounts: existing.oauthAccounts ?? [],
+          };
+          const retryUpdate = buildClerkProfileUpdate(
+            profileWithoutOauth,
+            syncedAt,
+            {
+              usernameAction,
+            },
+          );
+          const retried = await User.findOneAndUpdate(
+            { _id: existing._id, clerkId: clerkUserId },
+            retryUpdate,
+            { returnDocument: "after" },
+          );
+          return retried ?? existing;
+        } catch (retryError) {
+          logger.warn(
+            { err: retryError, clerkUserId, userId: existing._id },
+            "Retry av Clerk-profilsynk uten oauthAccounts feilet også",
+          );
+        }
+      } else {
+        logger.warn(
+          { err: error, clerkUserId, userId: existing._id },
+          "Duplicate-key under Clerk-profilsynk; beholder eksisterende lokal profil",
+        );
+      }
+      const latest = await User.findOne({ clerkId: clerkUserId, deletedAt: { $exists: false } });
       return latest ?? existing;
     }
 
@@ -632,13 +764,24 @@ function queueExistingUserProfileSync(
   existingUserProfileSyncs.add(syncKey);
 
   void (async () => {
+    const PROFILE_SYNC_TIMEOUT_MS = 15_000;
     try {
-      const profile = await getClerkProfile(clerkUserId);
-      if (!profile) {
-        return;
+      const result = await Promise.race([
+        (async () => {
+          const profile = await getClerkProfile(clerkUserId);
+          if (!profile) return;
+          await syncExistingUserWithClerkProfile(existing, clerkUserId, profile);
+        })(),
+        new Promise<"timeout">((resolve) =>
+          setTimeout(() => resolve("timeout"), PROFILE_SYNC_TIMEOUT_MS),
+        ),
+      ]);
+      if (result === "timeout") {
+        logger.warn(
+          { clerkUserId, userId: existing._id, timeoutMs: PROFILE_SYNC_TIMEOUT_MS },
+          "Bakgrunnssynk av Clerk-profil timet ut",
+        );
       }
-
-      await syncExistingUserWithClerkProfile(existing, clerkUserId, profile);
     } catch (err) {
       logger.warn(
         { err, clerkUserId, userId: existing._id },
@@ -721,13 +864,14 @@ export function isUsernameConflict(
 /**
  * Henter eller oppretter StudyWise-bruker for en Clerk user id.
  * Eksisterende brukere får lokal profil oppdatert fra Clerk med jevne mellomrom i bakgrunnen.
- * Ved e-postkonflikt med annen Clerk-konto re-linkes brukeren automatisk.
- * Returnerer AccountConflictResult kun hvis re-linking feiler (race condition).
+ * Ved e-postkonflikt med annen Clerk-konto avvises registrering.
+ * Returnerer AccountConflictResult hvis e-posten allerede er i bruk av annen konto.
  * Returnerer OAuthAccountConflictResult hvis OAuth-kontoen allerede er koblet til en annen bruker.
  * Returnerer UsernameConflictResult hvis brukernavnet allerede er tatt.
  */
 export async function findOrCreateUserByClerkId(
   clerkUserId: string,
+  options?: { flowId?: string; forceSync?: boolean },
 ): Promise<
   | IUser
   | AccountConflictResult
@@ -737,6 +881,18 @@ export async function findOrCreateUserByClerkId(
   | UsernameConflictResult
   | null
 > {
+  const fid = options?.flowId;
+  const isDeletedByClerkId = await DeletedUserTombstone.exists({
+    clerkId: clerkUserId,
+  });
+  if (isDeletedByClerkId) {
+    logger.warn(
+      { clerkUserId, flowId: fid },
+      "authFlow: clerkId matches deleted tombstone — returning userDeleted",
+    );
+    return { __userDeleted: true };
+  }
+
   // +canvasApiToken slik at GET /me kan gjenbruke bruker uten ekstra DB-kall
   const existing = await User.findOne({ clerkId: clerkUserId }).select(
     "+canvasApiToken",
@@ -744,13 +900,22 @@ export async function findOrCreateUserByClerkId(
   if (existing) {
     if (existing.deletedAt) {
       logger.warn(
-        { clerkUserId, userId: existing._id },
-        "Avviser innlogging for slettet StudyWise-bruker",
+        { clerkUserId, userId: existing._id, flowId: fid },
+        "authFlow: existing-by-clerkId is DELETED — returning userDeleted",
       );
       return { __userDeleted: true };
     }
 
-    if (!shouldSyncExistingUserProfile(existing)) {
+    logger.info(
+      {
+        clerkUserId,
+        userId: existing._id,
+        flowId: fid,
+      },
+      "authFlow: found existing user by clerkId — returning existing",
+    );
+
+    if (!options?.forceSync && !shouldSyncExistingUserProfile(existing)) {
       return existing;
     }
 
@@ -760,11 +925,30 @@ export async function findOrCreateUserByClerkId(
 
   try {
     const profile = await getClerkProfile(clerkUserId);
-    if (!profile) return null;
+    if (!profile) {
+      logger.warn(
+        { clerkUserId, flowId: fid },
+        "authFlow: getClerkProfile returned null — aborting",
+      );
+      return null;
+    }
 
     const { email, firstName, lastName, oauthAccounts } = profile;
     const clerkProfileSyncedAt = new Date();
     const usernameAction = await resolveUsernameSyncAction(profile.username);
+
+    logger.info(
+      {
+        clerkUserId,
+        email,
+        username: profile.username,
+        authProvider: profile.authProvider,
+        oauthAccountCount: oauthAccounts.length,
+        usernameAction: usernameAction.mode,
+        flowId: fid,
+      },
+      "authFlow: Clerk profile fetched — proceeding with conflict checks",
+    );
 
     if (
       (profile.authProvider === "google" ||
@@ -783,29 +967,105 @@ export async function findOrCreateUserByClerkId(
 
     // Sjekk om noen av OAuth-kontoene allerede er koblet til en annen bruker
     if (oauthAccounts.length > 0) {
-      const oauthConflict = await checkOAuthAccountConflicts(oauthAccounts);
+      const oauthConflict = await checkOAuthAccountConflicts(
+        oauthAccounts,
+        null,
+        clerkUserId,
+      );
       if (oauthConflict) {
         logger.warn(
           {
             clerkUserId,
             provider: oauthConflict.provider,
             conflictingUserId: oauthConflict.conflictingUserId,
+            flowId: fid,
           },
-          "OAuth-konto er allerede koblet til en annen bruker – avviser registrering",
+          "authFlow: OAuth account conflict — blocking registration",
         );
         return oauthConflict;
       }
     }
 
-    // Sjekk om brukernavnet allerede er tatt – avvis registrering med klar feilmelding
+    // Kryssvalidering: sjekk om ny brukers e-post matcher en eksisterende brukers OAuth-e-post
+    // (f.eks. bruker A har primær-e-post X og linket Google med e-post Y; bruker B prøver å registrere med e-post Y)
+    const existingByOAuthEmail = await User.findOne({
+      "oauthAccounts.email": email,
+      deletedAt: { $exists: false },
+    }).select("_id clerkId");
+    if (
+      existingByOAuthEmail &&
+      existingByOAuthEmail.clerkId !== clerkUserId
+    ) {
+      logger.warn(
+        {
+          clerkUserId,
+          email,
+          conflictingUserId: existingByOAuthEmail._id.toString(),
+          flowId: fid,
+        },
+        "authFlow: email matches existing user's OAuth email — blocking registration",
+      );
+      return { __accountConflict: true as const };
+    }
+
+    // Kryssvalidering: sjekk om ny brukers OAuth-e-poster matcher en eksisterende brukers primær-e-post
+    // (f.eks. bruker A har primær-e-post Y; bruker B prøver å registrere med Google (e-post Y))
+    const oauthEmails = oauthAccounts
+      .map((a) => a.email)
+      .filter((e): e is string => !!e);
+    if (oauthEmails.length > 0) {
+      const existingByPrimaryEmail = await User.findOne({
+        email: { $in: oauthEmails },
+        deletedAt: { $exists: false },
+      }).select("_id clerkId");
+      if (
+        existingByPrimaryEmail &&
+        existingByPrimaryEmail.clerkId !== clerkUserId
+      ) {
+        logger.warn(
+          {
+            clerkUserId,
+            oauthEmailCount: oauthEmails.length,
+            conflictingUserId: existingByPrimaryEmail._id.toString(),
+            flowId: fid,
+          },
+          "authFlow: OAuth email matches existing user's primary email — blocking registration",
+        );
+        return { __accountConflict: true as const };
+      }
+
+      // Kryssvalidering: ny brukers OAuth-emails mot eksisterende brukeres OAuth-emails
+      const existingByOAuthEmailArray = await User.findOne({
+        "oauthAccounts.email": { $in: oauthEmails },
+        clerkId: { $ne: clerkUserId },
+        deletedAt: { $exists: false },
+      }).select("_id clerkId");
+      if (existingByOAuthEmailArray) {
+        logger.warn(
+          {
+            clerkUserId,
+            oauthEmailCount: oauthEmails.length,
+            conflictingUserId: existingByOAuthEmailArray._id.toString(),
+            flowId: fid,
+          },
+          "authFlow: OAuth email matches existing user's OAuth email — blocking registration",
+        );
+        return { __accountConflict: true as const };
+      }
+    }
+
+    // Brukernavn allerede tatt – avvis registrering.
+    // Frontend viser en resolver-dialog der brukeren velger nytt brukernavn i Clerk,
+    // deretter re-henter /me som kjører findOrCreateUserByClerkId på nytt.
     if (usernameAction.mode === "keep" && profile.username) {
       logger.warn(
         {
           clerkUserId,
           username: profile.username,
           conflictingUserId: usernameAction.conflictingUserId,
+          flowId: fid,
         },
-        "Brukernavn er allerede tatt – avviser registrering",
+        "authFlow: username conflict — blocking registration",
       );
       return {
         __usernameConflict: true,
@@ -814,13 +1074,26 @@ export async function findOrCreateUserByClerkId(
     }
 
     const existingByEmail = await User.findOne({ email });
+    logger.info(
+      {
+        clerkUserId,
+        email,
+        existingByEmailId: existingByEmail?._id?.toString() ?? null,
+        existingByEmailClerkId: existingByEmail?.clerkId ?? null,
+        existingByEmailDeleted: !!existingByEmail?.deletedAt,
+        flowId: fid,
+      },
+      "authFlow: email lookup result",
+    );
     if (existingByEmail) {
       if (existingByEmail.deletedAt) {
         // Slettet bruker har fortsatt original e-post (ufullstendig opprydding).
         // Anonymiser e-posten slik at ny bruker kan opprettes med samme e-post.
-        const anonymizedEmail = `deleted-${existingByEmail._id.toString()}@studywise.invalid`;
-        await User.updateOne(
-          { _id: existingByEmail._id },
+        // Bruk findOneAndUpdate med deletedAt-guard og timestamp i e-post for å unngå
+        // race conditions og pattern-kollisjoner.
+        const anonymizedEmail = `deleted-${existingByEmail._id.toString()}-${Date.now()}@studywise.invalid`;
+        const anonymized = await User.findOneAndUpdate(
+          { _id: existingByEmail._id, deletedAt: { $exists: true } },
           {
             $set: { email: anonymizedEmail },
             $unset: {
@@ -834,6 +1107,14 @@ export async function findOrCreateUserByClerkId(
             },
           },
         );
+        if (!anonymized) {
+          // Brukeren ble gjenopprettet av en annen request mellom findOne og update — avvis
+          logger.warn(
+            { clerkUserId, existingUserId: existingByEmail._id, flowId: fid },
+            "authFlow: deleted user revived during email anonymization race — blocking",
+          );
+          return { __accountConflict: true as const };
+        }
         logger.info(
           { clerkUserId, deletedUserId: existingByEmail._id },
           "Anonymiserte e-post for slettet bruker — tillater ny kontoopprettelse",
@@ -844,52 +1125,17 @@ export async function findOrCreateUserByClerkId(
           existingByEmail.clerkId &&
           existingByEmail.clerkId !== clerkUserId
         ) {
-          // Samme e-post, annen Clerk-konto — typisk når bruker bytter OAuth-leverandør
-          // (f.eks. Microsoft → Google). E-posten er verifisert av begge leverandørene,
-          // så vi re-linker eksisterende bruker til den nye Clerk-kontoen.
-          const oldClerkId = existingByEmail.clerkId;
-          logger.info(
+          // Samme e-post, annen Clerk-konto. Automatisk re-linking er fjernet
+          // fordi det er en usikker antakelse at "samme verifiserte e-post = samme person".
+          // Brukeren må slette den eksisterende kontoen først, eller kontakte support.
+          logger.warn(
             {
               clerkUserId,
+              existingClerkId: existingByEmail.clerkId,
               userId: existingByEmail._id,
-              oldClerkId,
+              flowId: fid,
             },
-            "Re-linker eksisterende bruker til ny Clerk-konto (samme e-post, annen OAuth-leverandør)",
-          );
-
-          const relinkedUser = await User.findOneAndUpdate(
-            { _id: existingByEmail._id, clerkId: oldClerkId },
-            {
-              $set: {
-                clerkId: clerkUserId,
-                firstName: firstName ?? existingByEmail.firstName,
-                lastName: lastName ?? existingByEmail.lastName,
-                clerkProfileSyncedAt,
-                authProvider: profile.authProvider,
-                ...(oauthAccounts.length > 0 ? { oauthAccounts } : {}),
-              },
-              ...(oauthAccounts.length === 0
-                ? { $unset: { oauthAccounts: 1 } }
-                : {}),
-            },
-            { returnDocument: "after" },
-          ).select("+canvasApiToken");
-
-          if (relinkedUser) {
-            await audit({
-              actorUserId: relinkedUser._id.toString(),
-              action: AUDIT_ACTIONS.ACCOUNT_RELINKED,
-              category: "auth",
-              outcome: "success",
-              metadata: { oldClerkId, newClerkId: clerkUserId },
-            });
-            return relinkedUser;
-          }
-
-          // Atomisk oppdatering feilet (race condition) — returner spesifikk feilmelding
-          logger.error(
-            { clerkUserId, userId: existingByEmail._id, oldClerkId },
-            "Kunne ikke re-linke Clerk-bruker — atomisk oppdatering feilet",
+            "authFlow: email conflict — different clerkId owns this email — blocking",
           );
           return { __accountConflict: true as const };
         }
@@ -921,11 +1167,19 @@ export async function findOrCreateUserByClerkId(
 
         if (linkedUser?.deletedAt) {
           // Linket bruker ble slettet mellom findOne og findOneAndUpdate — rydd opp og opprett ny
-          const anonymizedEmail = `deleted-${linkedUser._id.toString()}@studywise.invalid`;
-          await User.updateOne(
-            { _id: linkedUser._id },
+          const anonymizedEmail = `deleted-${linkedUser._id.toString()}-${Date.now()}@studywise.invalid`;
+          const anonymizeResult = await User.updateOne(
+            { _id: linkedUser._id, deletedAt: { $exists: true } },
             { $set: { email: anonymizedEmail }, $unset: { clerkId: 1 } },
           );
+          if (anonymizeResult.modifiedCount === 0) {
+            // Brukeren ble gjenopprettet (deletedAt fjernet) mellom sjekk og oppdatering — avbryt
+            logger.warn(
+              { clerkUserId, deletedUserId: linkedUser._id },
+              "authFlow: slettet bruker ble gjenopprettet under anonymisering — returnerer conflict",
+            );
+            return { __accountConflict: true as const };
+          }
           logger.info(
             { clerkUserId, deletedUserId: linkedUser._id },
             "Fjernet clerkId fra slettet bruker etter linking-race — faller gjennom til ny bruker",
@@ -959,7 +1213,15 @@ export async function findOrCreateUserByClerkId(
     });
 
     try {
+      logger.info(
+        { clerkUserId, email, username: profile.username, flowId: fid },
+        "authFlow: attempting User.create()",
+      );
       const user = await User.create(buildCreateUserPayload(true));
+      logger.info(
+        { clerkUserId, userId: user._id, email, flowId: fid },
+        "authFlow: User.create() succeeded — new user created",
+      );
       await recordUserCreated(user, clerkUserId);
       return user;
     } catch (error) {
@@ -968,17 +1230,32 @@ export async function findOrCreateUserByClerkId(
         throw error;
       }
 
+      logger.warn(
+        {
+          clerkUserId,
+          email,
+          flowId: fid,
+          keyPattern: (error as { keyPattern?: unknown }).keyPattern,
+        },
+        "authFlow: duplicate key error caught during User.create()",
+      );
+
       // Sjekk om duplikatfeilen er for OAuth-konto (strengt - avvis registrering)
       if (isOAuthAccountDuplicateKeyError(error)) {
-        const oauthConflict = await checkOAuthAccountConflicts(oauthAccounts);
+        const oauthConflict = await checkOAuthAccountConflicts(
+          oauthAccounts,
+          null,
+          clerkUserId,
+        );
         if (oauthConflict) {
           logger.warn(
             {
               clerkUserId,
               provider: oauthConflict.provider,
               conflictingUserId: oauthConflict.conflictingUserId,
+              flowId: fid,
             },
-            "OAuth-konto konflikt oppdaget via duplicate key error",
+            "authFlow: OAuth conflict via duplicate key error",
           );
           return oauthConflict;
         }
@@ -986,8 +1263,8 @@ export async function findOrCreateUserByClerkId(
 
       if (isUsernameDuplicateKeyError(error) && usernameAction.mode === "set") {
         logger.warn(
-          { clerkUserId, username: usernameAction.username },
-          "Brukernavn-konflikt oppdaget via duplicate key error",
+          { clerkUserId, username: usernameAction.username, flowId: fid },
+          "authFlow: username conflict via duplicate key error",
         );
         return {
           __usernameConflict: true,
@@ -998,6 +1275,8 @@ export async function findOrCreateUserByClerkId(
       if (usernameAction.mode === "set") {
         const conflictingUsernameUser = await User.findOne({
           usernameNormalized: usernameAction.usernameNormalized,
+          clerkId: { $ne: clerkUserId },
+          deletedAt: { $exists: false },
         }).select("_id");
 
         if (conflictingUsernameUser) {
@@ -1006,8 +1285,9 @@ export async function findOrCreateUserByClerkId(
               clerkUserId,
               username: usernameAction.username,
               conflictingUserId: conflictingUsernameUser._id,
+              flowId: fid,
             },
-            "Clerk-brukernavn ble tatt samtidig; avviser registrering",
+            "authFlow: concurrent username conflict",
           );
           return {
             __usernameConflict: true,
@@ -1022,8 +1302,8 @@ export async function findOrCreateUserByClerkId(
 
       if (concurrentUser?.deletedAt) {
         logger.warn(
-          { clerkUserId, userId: concurrentUser._id },
-          "Race-condition traff slettet bruker; avviser automatisk gjenoppretting",
+          { clerkUserId, userId: concurrentUser._id, flowId: fid },
+          "authFlow: race hit deleted user — rejecting",
         );
         return { __userDeleted: true };
       }
@@ -1034,16 +1314,17 @@ export async function findOrCreateUserByClerkId(
             clerkUserId,
             userId: concurrentUser._id,
             existingClerkId: concurrentUser.clerkId,
+            flowId: fid,
           },
-          "Duplicate-key recovery fant bruker knyttet til annen Clerk-konto",
+          "authFlow: duplicate-key recovery found user with different clerkId",
         );
         return { __accountConflict: true as const };
       }
 
       if (concurrentUser) {
         logger.info(
-          { userId: concurrentUser._id, clerkUserId },
-          "Gjenbruker bruker etter duplicate-key race",
+          { userId: concurrentUser._id, clerkUserId, flowId: fid },
+          "authFlow: reusing user after duplicate-key race",
         );
         return concurrentUser;
       }
@@ -1052,8 +1333,8 @@ export async function findOrCreateUserByClerkId(
     }
   } catch (err) {
     logger.error(
-      { err, clerkUserId },
-      "Kunne ikke synce Clerk-bruker til MongoDB",
+      { err, clerkUserId, flowId: fid },
+      "authFlow: FAILED to sync Clerk user to MongoDB",
     );
     return null;
   }
@@ -1135,9 +1416,7 @@ const TOKEN_CACHE_MAX = 500;
 const tokenCache = new Map<string, { sub: string; exp: number }>();
 
 /** Hasher token med SHA256 for sikker cache-nøkkel. */
-function hashToken(token: string): string {
-  return crypto.createHash("sha256").update(token).digest("hex");
-}
+const hashToken = hashSha256;
 
 function resolveTokenCacheExpiry(payload: { exp?: unknown }): number {
   const now = Date.now();
@@ -1197,7 +1476,7 @@ export async function getClerkUserIdFromToken(
   // Sjekk cache først
   const cached = tokenCache.get(tokenHash);
   if (cached) {
-    if (cached.exp > Date.now()) return cached.sub;
+    if (cached.exp >= Date.now()) return cached.sub;
     tokenCache.delete(tokenHash);
   }
 

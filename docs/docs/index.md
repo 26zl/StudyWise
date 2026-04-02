@@ -50,8 +50,8 @@ Komplett oversikt over teknologier og tjenester som brukes i StudyWise:
 ## Nåværende funksjonalitet
 
 - **Canvas**: Emner, oppgaver, frister, moduler, kunngjøringer, kalender, filer og ressurser (hentes via backend, cache i Redis).
-- **KI**: Generell chat, Canvas-kontekst-chat, dokumentanalyse (PDF/Word/bilder), oppsummering, task breakdown; chat-historikk kryptert i MongoDB.
-- **Bruker**: Clerk-innlogging, profil, preferanser, kryptert Canvas-token, kontosletting; audit logging for sensitive handlinger.
+- **KI**: Generell chat, Canvas-kontekst-chat, dokumentanalyse (PDF/Word/bilder), oppsummering, task breakdown, quiz, flashcards, ukentlig studieplan; chat-historikk kryptert i MongoDB. Valgbar Canvas-kontekst per KI-samtale.
+- **Bruker**: Custom Clerk signup/sign-in flow, SSO (Google/Microsoft), profil, preferanser, kryptert Canvas-token, kontosletting med GDPR-tombstone; audit logging for sensitive handlinger. Mulighet for å skjule emner.
 - **Deploy**: Produksjon på [studwize.page](https://www.studwize.page); backend (Heroku), frontend (Vercel), dokumentasjon (GitHub Pages fra denne mappen).
 
 ## Teamet

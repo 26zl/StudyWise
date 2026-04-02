@@ -157,8 +157,7 @@ export function Sidebar({
     const effektivPathname = pendingPathname ?? pathname;
     const erPåDashboard = effektivPathname === "/dashboard";
     const effektivVisning = pendingVisning ?? aktivVisning;
-    const skalViseAdmin =
-        brukerRolle === "admin" || (brukerRolle == null && erPåDashboard && effektivVisning === "admin");
+    const skalViseAdmin = brukerRolle === "admin";
 
     // KI Assistent er kun «aktiv» når dashboardet faktisk er aktivt
     const erChatAktiv = erPåDashboard && effektivVisning === "chat";

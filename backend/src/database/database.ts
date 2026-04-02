@@ -14,6 +14,9 @@ import { ContentEmbedding } from "./models/ContentEmbedding.js";
 import { SharedChat } from "./models/SharedChat.js";
 import { TaskBreakdown } from "./models/TaskBreakdown.js";
 import { User } from "./models/User.js";
+import { DeletedUserTombstone } from "./models/DeletedUserTombstone.js";
+import { PendingClerkDeletionModel } from "./models/PendingClerkDeletion.js";
+import { WebPushSubscriptionModel } from "./models/WebPushSubscription.js";
 
 import { isProd } from "../utils/env.js";
 import { runMigrations } from "./migrations.js";
@@ -37,6 +40,14 @@ const clientOptions: mongoose.ConnectOptions = {
     autoIndex: false,
 };
 
+/** Indeksnavn som MÅ eksistere på User-samlingen for dataintegritet. */
+const REQUIRED_USER_INDEXES = [
+    "email_1",                                       // unique (non-sparse) via schema field
+    "clerk_id_unique",                               // unique sparse
+    "username_normalized_unique",                     // unique sparse
+    "oauth_accounts_provider_account_id_unique",     // unique sparse compound
+] as const;
+
 async function ensureDatabaseIndexes() {
     await Promise.all([
         User.createIndexes(),
@@ -48,8 +59,26 @@ async function ensureDatabaseIndexes() {
         ContentEmbedding.createIndexes(),
         SharedChat.createIndexes(),
         TaskBreakdown.createIndexes(),
+        DeletedUserTombstone.createIndexes(),
+        PendingClerkDeletionModel.createIndexes(),
+        WebPushSubscriptionModel.createIndexes(),
     ]);
-    logger.info("MongoDB-indekser verifisert");
+
+    // Verifiser at alle påkrevde unike indekser faktisk finnes på User-samlingen.
+    // Fanger opp stille createIndexes-feil, manuelle index-slettinger eller migreringsproblemer.
+    const userIndexes = await User.collection.indexes();
+    const existingNames = new Set(userIndexes.map((idx) => idx.name));
+    const missing = REQUIRED_USER_INDEXES.filter((name) => !existingNames.has(name));
+
+    if (missing.length > 0) {
+        logger.fatal(
+            { missing, existing: [...existingNames] },
+            "KRITISK: Påkrevde unike indekser mangler på User-collection — serveren kan ikke starte trygt",
+        );
+        throw new Error(`Missing required User indexes: ${missing.join(", ")}`);
+    }
+
+    logger.info("MongoDB-indekser verifisert (inkl. unike User-indekser)");
 }
 
 // Funksjon for å koble til databasen

@@ -33,6 +33,9 @@ import taskBreakdownRouter from "./rutere/ki/taskBreakdown.js";
 import weeklyPlanRouter from "./rutere/ki/weeklyPlan.js";
 import { kiOppsummeringRouter } from "./rutere/ki/kiOppsummering.js";
 import debugRouter from "./rutere/debug/canvasDiagnostic.js";
+import authDiagnosticRouter, {
+  testAuthFlowRouter,
+} from "./rutere/debug/authDiagnostic.js";
 import quizRouter from "./rutere/quiz/quiz.js";
 import flashcardsRouter from "./rutere/flashcards/flashcards.js";
 import {
@@ -43,15 +46,18 @@ import {
 import { requestIdMiddleware } from "./middleware/request-id.js";
 import { requireAuth, knyttCanvasToken } from "./middleware/auth.js";
 import { requireRole } from "./middleware/require-role.js";
-import adminAuditRouter from "./rutere/roller/admin/adminAudit.js";
-import adminBrukereRouter from "./rutere/roller/admin/adminBrukere.js";
-import adminStatsRouter from "./rutere/roller/admin/adminStats.js";
+import adminAuditRouter from "./rutere/admin/adminAudit.js";
+import adminBrukereRouter from "./rutere/admin/adminBrukere.js";
+import adminStatsRouter from "./rutere/admin/adminStats.js";
 import { beskytteMotCsrf } from "./middleware/csrf.js";
 import { noCache } from "./middleware/no-cache.js";
 import { rateLimitMe } from "./middleware/rate-limit.js";
 import { apiError, sendError } from "./utils/apiError.js";
 import { requestTimeout } from "./middleware/request-timeout.js";
-import { getConfiguredWebOriginSet, normalizeWebOrigin } from "./utils/webOrigins.js";
+import {
+  getConfiguredWebOriginSet,
+  normalizeWebOrigin,
+} from "./utils/webOrigins.js";
 import { isPublicApiPath } from "./utils/publicApiPaths.js";
 import { authTurnstileRouter } from "./rutere/auth/authTurnstile.js";
 import {
@@ -63,8 +69,14 @@ import {
 } from "./utils/health.js";
 import { isClientAvailable } from "./rutere/ki/aiClient.js";
 import { isCohereConfigured } from "./services/cohere-rerank.service.js";
-import { startPendingClerkDeletionPolling, processPendingClerkDeletions } from "./services/clerkDeletionRetry.service.js";
-import { startWebPushPolling, processWebPushNotifications } from "./services/webPush.service.js";
+import {
+  startPendingClerkDeletionPolling,
+  processPendingClerkDeletions,
+} from "./services/clerkDeletionRetry.service.js";
+import {
+  startWebPushPolling,
+  processWebPushNotifications,
+} from "./services/webPush.service.js";
 
 // Initialiserer Express app
 const app = express();
@@ -110,13 +122,21 @@ if (isProd) {
       .map((h) => h.trim().toLowerCase())
       .filter(Boolean),
   );
-  const publicHealthPaths = new Set(["/health", "/ready", "/health/dependencies"]);
+  const publicHealthPaths = new Set([
+    "/health",
+    "/ready",
+    "/health/dependencies",
+  ]);
   app.use((req, res, next) => {
     const host = req.get("host");
     const requestHost = host?.split(":")[0]?.trim().toLowerCase();
     // Tillat health checks fra Heroku (ingen host header eller intern IP)
     if (publicHealthPaths.has(req.path)) return next();
-    if (requestHost && requestHost !== tillattHost && !internalHosts.has(requestHost)) {
+    if (
+      requestHost &&
+      requestHost !== tillattHost &&
+      !internalHosts.has(requestHost)
+    ) {
       logger.warn(
         { host, requestHost, path: req.path },
         "Blokkert forespørsel fra ugyldig host",
@@ -132,6 +152,7 @@ if (isProd) {
 // I development: Mer liberal, men fortsatt aktiv, CSP for å støtte Swagger UI
 app.use(
   helmet({
+    hsts: isProd ? { maxAge: 31536000, includeSubDomains: true } : false,
     contentSecurityPolicy: isProd
       ? {
           directives: {
@@ -159,22 +180,23 @@ app.use(
     crossOriginEmbedderPolicy: false,
     crossOriginResourcePolicy: { policy: "cross-origin" },
   }),
-); 
+);
 
 // Body parsers
 app.use(express.urlencoded({ extended: true }));
 
 // Deaktiverer "X-Powered-By" header for sikkerhet
-app.disable("x-powered-by"); 
+app.disable("x-powered-by");
 
 // Request ID for correlation (logs + audit)
 app.use(requestIdMiddleware);
 
-// Logger middleware (uses req.id from requestIdMiddleware for correlation)
+// Logger-middleware (bruker req.id fra requestIdMiddleware for korrelasjon)
 app.use(
   pinoHttp({
     logger,
-    genReqId: (req) => (req as express.Request & { id?: string }).id ?? crypto.randomUUID(),
+    genReqId: (req) =>
+      (req as express.Request & { id?: string }).id ?? crypto.randomUUID(),
   }),
 );
 
@@ -246,7 +268,10 @@ app.use(
       // Forespørsler uten origin (curl, same-origin, health checks) tillates
       if (!origin) return cb(null, true);
       const normalizedOrigin = normalizeWebOrigin(origin);
-      return cb(null, normalizedOrigin !== null && allowedOrigins.has(normalizedOrigin));
+      return cb(
+        null,
+        normalizedOrigin !== null && allowedOrigins.has(normalizedOrigin),
+      );
     },
     credentials: true,
   }),
@@ -264,6 +289,12 @@ app.use("/api/kontakt", noCache, contactRouter);
 app.use("/api/auth-turnstile", noCache, authTurnstileRouter);
 
 app.use("/api", noCache, sharedChatRouter);
+
+// Debug test-auth-flow: montert før global auth (endepunktet sjekker selv isDiagnosticsEnabled)
+if (!isProd) {
+  app.use("/api/debug", noCache, testAuthFlowRouter);
+}
+
 app.use((req, res, next) => {
   if (offentligSti.has(req.path)) return next();
   if (isPublicApiPath(req.path, req.method)) return next();
@@ -317,6 +348,7 @@ app.use("/api/admin", rateLimitMe, requireRole("admin"), adminStatsRouter);
 // Debug-ruter (kun development, krever auth)
 if (!isProd) {
   app.use("/api/debug", noCache, knyttCanvasToken, debugRouter);
+  app.use("/api/debug", noCache, authDiagnosticRouter);
 }
 
 // Feil håndtering globalt
@@ -420,10 +452,11 @@ connectToDatabase()
         }
       });
       // Force exit etter 10 sekunder hvis graceful shutdown tar for lang tid
-      setTimeout(() => {
+      const shutdownTimeout = setTimeout(() => {
         logger.warn("Graceful shutdown tok for lang tid, tvinger avslutning");
         process.exit(1);
       }, 10000);
+      shutdownTimeout.unref();
     };
     // Håndterer SIGTERM og SIGINT for graceful shutdown
     process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));

@@ -53,6 +53,8 @@ import { AUTH_CHANNEL_NAME } from "common/auth";                // Auth constant
 import { getWeekNumber } from "common/dateUtils";               // Date utilities
 import { UKEDAGER } from "common/arbeidsplan";                  // Work plan constants
 import { PaginationQueryValueSchema } from "common/admin";      // Admin pagination/query types
+import { KONTAKT_MAX_ATTACHMENTS } from "common/contact";       // Contact form constants
+import { BrowserPushPreferencesSchema } from "common/notifications"; // Web push types
 ```
 
 When adding a new schema to common, add a subpath export in `common/package.json` `"exports"` map.
@@ -83,6 +85,7 @@ pnpm --filter backend add <pkg>    # Add package to backend
 pnpm typecheck:frontend     # Type-check only frontend
 pnpm typecheck:backend      # Type-check only backend
 pnpm typecheck:common       # Type-check only common
+pnpm typecheck:tests        # Type-check only tests (Playwright E2E)
 pnpm lint:frontend          # Lint only frontend
 pnpm lint:backend           # Lint only backend
 
@@ -111,6 +114,22 @@ Vitest is configured for both `frontend` and `backend` (with `supertest`). No te
 pnpm --filter backend test   # Run backend tests (vitest)
 pnpm --filter frontend test  # Run frontend tests (vitest + @testing-library/react)
 ```
+
+### E2E / Functional Tests (Playwright)
+
+The `tests/` workspace package contains Playwright E2E specs and custom test runners. Requires backend + frontend running.
+
+```bash
+pnpm test                          # Run all test suites (auth, ki, canvas) via unified runner
+pnpm test:auth                     # Auth suite only (DB check, HTTP smoke, API repro)
+pnpm test:auth:e2e                 # Playwright E2E auth tests (all browsers)
+pnpm test:ki                       # KI/AI smoke tests
+pnpm test:canvas                   # Canvas smoke tests
+pnpm test:auth:matrix              # Full auth scenario matrix
+pnpm test:auth:matrix:basic        # Basic auth matrix only
+```
+
+The `func-testing.yml` workflow runs Playwright E2E in CI (manual trigger or after deploy). Uploads HTML report and trace artifacts.
 
 ### Docker (kun lokal utvikling)
 
@@ -170,12 +189,17 @@ Location: `frontend/app/dashboard/page.tsx` (page) and `frontend/app/components/
 
 ### Database Models
 
-- **User**: Local StudyWise user that mirrors Clerk identity and stores app data (unique email, `clerkId`, role, encrypted `canvasApiToken`, preferences)
+- **User**: Local StudyWise user that mirrors Clerk identity and stores app data (unique email, `clerkId`, role, encrypted `canvasApiToken`, preferences). **Soft-delete pattern**: User has a `deletedAt` field — all queries MUST filter with `deletedAt: { $exists: false }` unless intentionally checking deleted users
 - **CanvasUser**: Cache of Canvas profile info, links to User via `localUser`
 - **ChatHistory**: Encrypted chat history per user (AES-256-GCM)
 - **TaskBreakdown**: AI-generated task breakdowns with editable subtasks
 - **Arbeidsplan**: Weekly work plans (study blocks); collection name is `arbeidsplan` (not `arbeidsplans`)
-- **ContentEmbedding**: Chunk text and metadata per user/course/file (MongoDB). Source of truth for content; vector index lives in Pinecone (integrated embedding). No vector index in Atlas.
+- **ContentEmbedding**: Chunk text and metadata per user/course/file (MongoDB). Source of truth for content; vector index lives in Pinecone (integrated embedding). No vector index in Atlas
+- **DeletedUserTombstone**: GDPR tombstone for deleted users (prevents re-registration within TTL)
+- **PendingClerkDeletion**: Tracks async Clerk user deletion requests
+- **WebPushSubscription**: Browser push notification subscriptions per user
+- **SharedChat**: Public share links for chat conversations (with expiry)
+- **CanvasStructure**: Cached Canvas course structure (modules, items)
 
 ### Key Configuration Files
 
@@ -239,7 +263,7 @@ The backend accepts file uploads via `multer` and processes them with:
 - **Zod validation** - At all package boundaries
 - **Relative URLs** - Frontend uses `/api/...`, Next.js rewrites to backend
 - **Config protection** - Don't modify tsconfig/eslint/next.config without asking
-- **Norwegian naming** - Routes, components, variables in Norwegian; filenames in English
+- **Norwegian naming** - Routes, components, variables in Norwegian; filenames in English. **All code comments must be in Norwegian** — no English helper comments
 - **Rate limiting** - Apply `rate-limiter-flexible` middleware for new sensitive endpoints (see `backend/src/middleware/rate-limit.ts`)
 - **Security linting** - `pnpm lint` includes `eslint-plugin-security` (SAST) in both frontend and backend. Runs automatically in CI.
 - **Toast notifications** - Frontend must use `sonner` for user-facing notifications. Never use `alert()` or `confirm()`
@@ -338,6 +362,8 @@ onSave(subtasks.map(({ approved: _approved, ...task }) => task));
 - Define schemas in `backend/src/database/models/`
 - Use Zod in `common` to validate data before it hits the database
 - Use Mongoose models as intended (`.find()`, `.create()`, etc.)
+- **Soft-delete**: When querying `User`, always add `deletedAt: { $exists: false }` unless you intentionally need deleted users (e.g. admin stats, conflict detection with explicit `deletedAt` check)
+- **New models**: Register in `ensureDatabaseIndexes()` in `backend/src/database/database.ts` so indexes are created at startup
 - **Migrations**: `backend/src/database/migrations.ts` — runs automatically at startup. Add new migrations to the `migrations` array. Applied migrations are recorded in `migrationrecords` collection.
 
 ---
@@ -347,7 +373,7 @@ onSave(subtasks.map(({ approved: _approved, ...task }) => task));
 Follow this pattern: **Common → Backend → Frontend**
 
 1. **Common**: Define Zod schema in `common/src/<feature>.ts`, add subpath export in `common/package.json` `"exports"`, run `pnpm build:common`
-2. **Backend**: Create route file in `backend/src/rutere/<feature>/`, register router in `backend/src/index.ts`
+2. **Backend**: Create route file in `backend/src/rutere/<feature>/`, register router in `backend/src/index.ts`. Admin routes are in `backend/src/rutere/admin/`
 3. **Frontend**: Create data-fetching hook with `@tanstack/react-query` in `frontend/app/<feature>/<feature>-api.ts`
 4. **Component**: Use the hook in a component under `frontend/app/components/`
 
@@ -384,6 +410,7 @@ All jobs have `permissions: contents: read` and `actions: read` (workflow-level 
 ### Other Workflows
 
 - **deploy.docs.yml** — deploys VitePress docs to GitHub Pages on changes to `docs/`
+- **func-testing.yml** — Playwright E2E tests; runs after deploy or manual trigger. Uploads HTML report + trace artifacts
 - **owasp-dependency-check.yml** — weekly OWASP dependency scan (Mondays) + manual trigger; uses `dependency-check/Dependency-Check_Action@1.1.0` with input `others` (not `args`)
 - **update-dependencies.yml** — weekly automated dependency update PRs
 

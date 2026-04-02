@@ -65,20 +65,18 @@ export function ContactForm() {
     resolver: zodResolver(KontaktFormSchema),
   });
 
-  // Callback for Turnstile success
+  // Callback ved Turnstile-suksess
   const onTurnstileSuccess = useCallback((token: string) => {
     setTurnstileToken(token);
   }, []);
 
-  // Callback for Turnstile error/expired
+  // Callback ved Turnstile-feil/utløpt
   const onTurnstileError = useCallback(() => {
     setTurnstileToken(null);
   }, []);
 
-  // Load Turnstile script and render widget
+  // Last inn Turnstile-script og render widget
   useEffect(() => {
-    if (!TURNSTILE_SITE_KEY || typeof window === "undefined") return;
-
     if (!TURNSTILE_SITE_KEY || typeof window === "undefined") return;
 
     const renderWidget = () => {
@@ -99,25 +97,25 @@ export function ContactForm() {
       }
     };
 
-    // Check if script already loaded
+    // Sjekk om script allerede er lastet
     if ((window as unknown as { turnstile?: object }).turnstile) {
       renderWidget();
       return;
     }
 
-    // Load Turnstile script
+    // Last inn Turnstile-script
     const script = document.createElement("script");
     script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
     script.async = true;
     script.defer = true;
     script.onload = () => {
-      // Small delay to ensure Turnstile is fully initialized
+      // Liten forsinkelse for å sikre at Turnstile er ferdig initialisert
       setTimeout(renderWidget, 100);
     };
     document.head.appendChild(script);
   }, [onTurnstileSuccess, onTurnstileError]);
 
-  // Reset Turnstile after submission
+  // Tilbakestill Turnstile etter innsending
   const resetTurnstile = useCallback(() => {
     setTurnstileToken(null);
     if (
@@ -143,8 +141,7 @@ export function ContactForm() {
     try {
       const result = await sendKontakt({
         ...data,
-        // Bruk "dev-bypass" token i dev når Turnstile ikke er konfigurert
-        turnstileToken: turnstileToken ?? "dev-bypass",
+        turnstileToken: turnstileToken ?? "",
         // Honeypot: les faktisk verdi fra skjult felt (bots fyller ofte ut alle felt)
         nettsted: honeypotRef.current?.value ?? "",
         sideUrl: typeof window !== "undefined" ? window.location.href : undefined,
@@ -314,12 +311,9 @@ export function ContactForm() {
       </div>
 
       <div>
-        <label
-          htmlFor="attachments"
-          className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300"
-        >
+        <p className="mb-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
           Bilder ved behov
-        </label>
+        </p>
         <label
           htmlFor="attachments"
           className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600 transition-colors hover:border-blue-400 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:bg-slate-800"

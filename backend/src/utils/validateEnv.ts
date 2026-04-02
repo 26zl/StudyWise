@@ -314,8 +314,13 @@ export const validateEnv = (): void => {
   if (!process.env.AUTH_TURNSTILE_SECRET_KEY?.trim()) {
     manglende.push("AUTH_TURNSTILE_SECRET_KEY (påkrevd for auth Turnstile)");
   }
-  if (!process.env.AUTH_TURNSTILE_GATE_SECRET?.trim()) {
+  const gateSecret = process.env.AUTH_TURNSTILE_GATE_SECRET?.trim();
+  if (!gateSecret) {
     manglende.push("AUTH_TURNSTILE_GATE_SECRET (påkrevd for auth-gate cookie-signering)");
+  } else if (gateSecret.length < 32) {
+    manglende.push(
+      "AUTH_TURNSTILE_GATE_SECRET må være minst 32 tegn (brukes til HMAC-signering). Generer med: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
+    );
   }
   if (!process.env.CONTACT_WORKER_URL?.trim()) {
     manglende.push("CONTACT_WORKER_URL (påkrevd for kontaktskjema)");

@@ -63,6 +63,15 @@ pnpm typecheck        # Type-check alle pakker
 pnpm lint             # Lint alle pakker
 pnpm build            # Bygg alt (common → backend → frontend → docs)
 
+# Testing
+pnpm test             # Kjør alle testkategorier (auth, KI, canvas)
+pnpm test:auth        # Auth-tester
+pnpm test:auth:e2e    # Playwright E2E (Chromium, Firefox, WebKit)
+pnpm test:auth:matrix # Full 120-scenario auth identitetsmatrix
+pnpm test:auth:db     # DB invariant-sjekk
+pnpm test:ki          # KI-tester
+pnpm test:canvas      # Canvas API-tester
+
 # Installere pakker (VIKTIG: Bruk --filter)
 pnpm --filter frontend add <pakkenavn>
 pnpm --filter backend add <pakkenavn>
@@ -73,6 +82,31 @@ pnpm run clean:all        # Fjerner alt: node_modules, dist, .next, pnpm-lock.ya
 pnpm run clean:install    # Full reinstall (clean + install + update + build)
 pnpm kill:dev             # Stopp alle Node prosesser (Windows)
 ```
+
+## Testing
+
+```bash
+# Hovedkommandoer
+pnpm test                     # Alle kategorier
+pnpm test:auth                # Auth-tester
+pnpm test:ki                  # KI-tester
+pnpm test:canvas              # Canvas-tester
+
+# Auth Matrix (120 scenarier)
+pnpm test:auth:matrix         # Kjør alle executable scenarier
+pnpm test:auth:matrix:basic   # Gruppe A: Signup uniqueness
+pnpm test:auth:matrix:update  # Gruppe G: Username updates
+pnpm test:auth:matrix:delete  # Gruppe I: Deletion/reuse
+pnpm test:auth:matrix:race    # Gruppe L: Race conditions
+
+# E2E (Playwright)
+pnpm test:auth:e2e                        # Alle nettlesere
+pnpm test:auth:e2e --project=chromium     # Kun Chromium
+pnpm test:auth:e2e --project=firefox      # Kun Firefox
+pnpm test:auth:e2e --project=webkit       # Kun WebKit
+```
+
+Detaljert testdokumentasjon finnes i [tests/README.md](./tests/README.md).
 
 ## Utviklingsservere
 

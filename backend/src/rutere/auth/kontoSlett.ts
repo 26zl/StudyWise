@@ -21,6 +21,7 @@ import { invalidateCacheByPattern, isRedisReady } from "../../cache/redis.js";
 import { deleteClerkUserById, invalidateTokenCacheByClerkId } from "./clerkAuth.js";
 import { WebPushSubscriptionModel } from "../../database/models/WebPushSubscription.js";
 import { enqueueClerkDeletionRetry } from "../../services/clerkDeletionRetry.service.js";
+import { DeletedUserTombstone } from "../../database/models/DeletedUserTombstone.js";
 
 export interface AccountDeletionResult {
   deleted: {
@@ -40,7 +41,9 @@ export interface AccountDeletionResult {
  * Sletter all data tilknyttet brukeren.
  * AuditLog slettes ikke her; kalleren må eventuelt anonymisere revisjonssporet separat.
  */
-export async function deleteAccountData(userId: string): Promise<AccountDeletionResult> {
+export async function deleteAccountData(
+  userId: string,
+): Promise<AccountDeletionResult> {
   const id = new mongoose.Types.ObjectId(userId);
   const result: AccountDeletionResult["deleted"] = {
     user: false,
@@ -54,13 +57,23 @@ export async function deleteAccountData(userId: string): Promise<AccountDeletion
   let providerAccountDeleted = false;
   let vectorCleanupSucceeded = true;
 
-  const user = await User.findById(id).select("+canvasApiToken +canvasTokenHash");
+  const user = await User.findById(id).select(
+    "+canvasApiToken +canvasTokenHash",
+  );
   if (!user) {
-    logger.warn({ userId }, "Account deletion: User document not found or already deleted");
+    // Sjekk om brukeren allerede er slettet (idempotency)
+    const alreadyDeleted = await DeletedUserTombstone.exists({
+      originalUserId: id,
+    });
+    logger.warn(
+      { userId, alreadyDeleted: !!alreadyDeleted },
+      "Account deletion: User document not found or already deleted",
+    );
     return {
       deleted: result,
-      providerAccountDeleted: false,
-      vectorCleanupSucceeded: false,
+      // Hvis tombstone finnes, ble slettingen fullført tidligere
+      providerAccountDeleted: !!alreadyDeleted,
+      vectorCleanupSucceeded: !!alreadyDeleted,
     };
   }
 
@@ -108,38 +121,24 @@ export async function deleteAccountData(userId: string): Promise<AccountDeletion
         );
       }
 
-      const anonymizedEmail = `deleted-${user._id.toString()}@studywise.invalid`;
-      const userRes = await User.updateOne(
-        { _id: id, deletedAt: { $exists: false } },
-        {
-          $set: {
-            email: anonymizedEmail,
+      // Opprett minimal tombstone for å håndtere OAuth/brukernavn-konflikter
+      // Tombstones har 90-dagers TTL og slettes automatisk av MongoDB
+      await DeletedUserTombstone.create(
+        [
+          {
+            originalUserId: id,
+            clerkId: user.clerkId,
+            oauthAccounts: user.oauthAccounts ?? [],
+            usernameNormalized: user.usernameNormalized,
             deletedAt: new Date(),
           },
-            $unset: {
-              clerkId: 1,
-              oauthAccounts: 1,
-              canvasApiToken: 1,
-              canvasBaseUrl: 1,
-              canvasTokenHash: 1,
-              canvasUser: 1,
-            username: 1,
-            usernameNormalized: 1,
-            firstName: 1,
-            lastName: 1,
-            clerkProfileSyncedAt: 1,
-            authProvider: 1,
-            canvasContextPreferences: 1,
-            varslerState: 1,
-            manuellInnleveringState: 1,
-            browserPushPreferences: 1,
-            browserPushSentState: 1,
-            uiPreferences: 1,
-          },
-        },
+        ],
         { session },
       );
-      result.user = (userRes.modifiedCount ?? 0) > 0;
+
+      // Hard delete bruker - alle data fjernes permanent fra users-samlingen
+      const userRes = await User.deleteOne({ _id: id }, { session });
+      result.user = (userRes.deletedCount ?? 0) > 0;
     });
   } catch (txError) {
     logger.error(
@@ -161,9 +160,13 @@ export async function deleteAccountData(userId: string): Promise<AccountDeletion
     );
   }
 
-  const runtimeCleanupTasks: Array<Promise<unknown>> = [invalidateUserKISessionCache(userId)];
+  const runtimeCleanupTasks: Array<Promise<unknown>> = [
+    invalidateUserKISessionCache(userId),
+  ];
   if (isRedisReady()) {
-    runtimeCleanupTasks.push(invalidateCacheByPattern(`canvas:user:${userId}:*`));
+    runtimeCleanupTasks.push(
+      invalidateCacheByPattern(`canvas:user:${userId}:*`),
+    );
   }
   const runtimeCleanupResults = await Promise.allSettled(runtimeCleanupTasks);
   for (const cleanupResult of runtimeCleanupResults) {
@@ -179,7 +182,10 @@ export async function deleteAccountData(userId: string): Promise<AccountDeletion
     invalidateTokenCacheByClerkId(user.clerkId);
     providerAccountDeleted = await deleteClerkUserById(user.clerkId);
     if (!providerAccountDeleted) {
-      logger.warn({ userId, clerkId: user.clerkId }, "Klarte ikke å slette Clerk-konto under kontosletting");
+      logger.warn(
+        { userId, clerkId: user.clerkId },
+        "Klarte ikke å slette Clerk-konto under kontosletting",
+      );
       await enqueueClerkDeletionRetry({
         clerkId: user.clerkId,
         userId,
@@ -191,7 +197,10 @@ export async function deleteAccountData(userId: string): Promise<AccountDeletion
   }
 
   if (!result.user) {
-    logger.warn({ userId }, "Account deletion: User tombstone could not be written");
+    logger.warn(
+      { userId },
+      "Account deletion: User tombstone could not be written",
+    );
   }
 
   return { deleted: result, providerAccountDeleted, vectorCleanupSucceeded };

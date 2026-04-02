@@ -15,17 +15,17 @@ import {
   AdminEndreRolleSchema,
   AdminSlettBrukerResponseSchema,
 } from "common/admin";
-import { User } from "../../../database/models/User.js";
-import { apiError, requireUserId, sendZodError } from "../../../utils/apiError.js";
+import { User } from "../../database/models/User.js";
+import { apiError, requireUserId, sendZodError } from "../../utils/apiError.js";
 import {
   anonymizeAuditTrailForDeletedUser,
   audit,
   AUDIT_ACTIONS,
   getDeletedAuditActorId,
-} from "../../../utils/auditLog.js";
-import { logger } from "../../../utils/logger.js";
-import { isValidMongoObjectId } from "../../../utils/mongoId.js";
-import { deleteAccountData } from "../../auth/kontoSlett.js";
+} from "../../utils/auditLog.js";
+import { logger } from "../../utils/logger.js";
+import { isValidMongoObjectId } from "../../utils/mongoId.js";
+import { deleteAccountData } from "../auth/kontoSlett.js";
 
 const router = Router();
 
@@ -48,7 +48,7 @@ router.get("/brukere", async (req, res) => {
   }
 
   const limit = Math.min(
-    Math.max(0, parseInt(parsedQuery.data.limit ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT),
+    Math.max(1, parseInt(parsedQuery.data.limit ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT),
     MAX_LIMIT,
   );
   const offset = Math.min(

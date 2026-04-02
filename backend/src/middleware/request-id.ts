@@ -19,7 +19,7 @@ const MAX_REQUEST_ID_LENGTH = 128;
 export function requestIdMiddleware(req: Request, res: Response, next: NextFunction): void {
   const incoming = req.get(HEADER_REQUEST_ID);
   const trimmed = typeof incoming === "string" ? incoming.trim() : "";
-  // Accept only reasonable-length IDs with safe characters (no newlines/control chars for log safety)
+  // Godta kun IDer med rimelig lengde og sikre tegn (ingen linjeskift/kontrolltegn for loggsikkerhet)
   const isValid = trimmed.length > 0
     && trimmed.length <= MAX_REQUEST_ID_LENGTH
     && (UUID_PATTERN.test(trimmed) || /^[\w.:-]+$/.test(trimmed));

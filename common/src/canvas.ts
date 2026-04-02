@@ -300,11 +300,6 @@ export const TodoResponseSchema = z.object({
   meta: MetaSchema.optional(),
 });
 
-// Svar-schema for detaljerte modul-items
-export const ModuleItemDetailsResponseSchema = z.object({
-  items: z.array(CanvasModuleItemDetailSchema),
-  meta: MetaSchema.optional(),
-});
 
 // Svar-schema for filer i et kurs
 export const FilesResponseSchema = z.object({

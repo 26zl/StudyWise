@@ -9,7 +9,7 @@ import { decrypt } from "../utils/kryptering.js";
 import { logger } from "../utils/logger.js";
 import { apiError } from "../utils/apiError.js";
 import { normalizeCanvasBaseUrl, StoredCanvasBaseUrlSchema } from "common/auth";
-import type { UserRole } from "common/auth";
+import { APP_ROLES, DEFAULT_ROLE, type UserRole } from "common/auth";
 import type { IUser } from "../database/models/User.js";
 import {
   findOrCreateUserByClerkId,
@@ -31,7 +31,6 @@ const hentBearerToken = (req: Request): string | null => {
   return token;
 };
 
-const DEFAULT_ROLE: UserRole = "user";
 
 type AuthResolution =
   | { status: "authenticated"; clerkUserId: string }
@@ -49,7 +48,10 @@ type AuthResolution =
   | { status: "user_sync_failed"; clerkUserId: string };
 
 function settAutentisertBrukerPåRequest(req: Request, user: IUser): void {
-  const role = (user.role ?? DEFAULT_ROLE) as UserRole;
+  const rawRole = user.role ?? DEFAULT_ROLE;
+  const role: UserRole = (APP_ROLES as readonly string[]).includes(rawRole)
+    ? (rawRole as UserRole)
+    : DEFAULT_ROLE;
   req.user = { id: user._id.toString() };
   (req as Request & { actorRole: UserRole }).actorRole = role;
   (req as Request & { authenticatedUser?: IUser }).authenticatedUser = user;
@@ -61,6 +63,12 @@ async function resolveAuthentication(req: Request): Promise<AuthResolution> {
     return { status: "missing_token" };
   }
 
+  // Les valgfri debug flow-korrelasjons-ID (kun dev-header)
+  const flowId =
+    typeof req.headers["x-debug-flow-id"] === "string"
+      ? req.headers["x-debug-flow-id"].slice(0, 64)
+      : undefined;
+
   const t0 = Date.now();
   const clerkUserId = await getClerkUserIdFromToken(token);
   const tClerk = Date.now();
@@ -68,7 +76,8 @@ async function resolveAuthentication(req: Request): Promise<AuthResolution> {
     return { status: "invalid_or_expired" };
   }
 
-  const userResult = await findOrCreateUserByClerkId(clerkUserId);
+  const forceSync = req.query.forceSync === "true";
+  const userResult = await findOrCreateUserByClerkId(clerkUserId, { flowId, forceSync });
   const tDb = Date.now();
 
   if (isAccountConflict(userResult)) {
@@ -113,6 +122,9 @@ async function resolveAuthentication(req: Request): Promise<AuthResolution> {
       dbMs: tDb - tClerk,
       totalAuthMs: tDb - t0,
       url: req.originalUrl,
+      flowId,
+      clerkUserId,
+      localUserId: userResult?._id?.toString(),
     },
     "auth-timing",
   );
@@ -134,7 +146,7 @@ export interface CanvasTilkobling {
 export async function hentCanvasTilkoblingForBruker(
   userId: string,
 ): Promise<CanvasTilkobling | null> {
-  const user = await User.findById(userId).select("+canvasApiToken");
+  const user = await User.findOne({ _id: userId, deletedAt: { $exists: false } }).select("+canvasApiToken");
   if (!user) {
     return null;
   }
@@ -155,8 +167,20 @@ export async function hentCanvasTilkoblingForBruker(
     );
   }
 
+  let canvasToken: string | undefined;
+  if (user.canvasApiToken) {
+    try {
+      canvasToken = decrypt(user.canvasApiToken);
+    } catch (err) {
+      logger.error(
+        { userId, error: err instanceof Error ? err.message : "unknown" },
+        "Kunne ikke dekryptere Canvas API-token — ignorerer verdien",
+      );
+    }
+  }
+
   return {
-    canvasToken: user.canvasApiToken ? decrypt(user.canvasApiToken) : undefined,
+    canvasToken,
     canvasBaseUrl: validatedBaseUrl,
   };
 }
@@ -254,8 +278,8 @@ export async function requireAuth(
       apiError.conflict(
         res,
         `Denne ${providerName}-kontoen er allerede koblet til en annen StudyWise-bruker. ` +
-          "Du kan ikke bruke samme OAuth-konto på flere StudyWise-kontoer. " +
-          "Logg inn med den eksisterende kontoen eller bruk en annen innloggingsmetode.",
+          "Den eksisterende kontoen må slettes først før denne kontoen kan brukes. " +
+          "Logg inn med den eksisterende kontoen og slett den, eller bruk en annen innloggingsmetode.",
       );
       return;
     }

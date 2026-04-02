@@ -17,9 +17,13 @@ type RateLimitOptions = {
     keyPrefix?: string;
     keyGenerator?: (req: Request) => string;
 };
-// Hent klientens IP-adresse
-const getClientIp = (req: Request) => {
-    return req.ip || req.socket?.remoteAddress || "unknown";
+// Hent klientens IP-adresse — avvis requests uten identifiserbar klient
+const getClientIp = (req: Request): string => {
+    const ip = req.ip || req.socket?.remoteAddress;
+    if (!ip) {
+        return `no-ip:${req.get("x-forwarded-for")?.slice(0, 45) ?? "none"}`;
+    }
+    return ip;
 };
 // Sett rate limit headers i responsen
 const setRateLimitHeaders = (res: Response, rateRes: RateLimiterRes, limit: number) => {

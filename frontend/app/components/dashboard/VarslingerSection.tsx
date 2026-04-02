@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import {
     Bell,
@@ -74,23 +74,8 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
         isError,
         hasPartialError,
         error,
-        isHydrated,
     } = useVarslingerSide(harCanvasToken);
     const safeAlle = alleElementer ?? [];
-    const harMarkertAlleLestRef = useRef(false);
-
-    // Når bruker åpner varslinger-siden og det finnes data, markér alle som lest én gang (synk med popup; unngår gjentatte PUT ved refetch)
-    useEffect(() => {
-        if (!harCanvasToken || !isHydrated || isError || safeAlle.length === 0) return;
-        if (harMarkertAlleLestRef.current) return;
-        harMarkertAlleLestRef.current = true;
-        markAllAsLest();
-    }, [harCanvasToken, isHydrated, isError, safeAlle.length, markAllAsLest]);
-
-    // Nullstill ved unmount slik at neste gang bruker åpner fanen kjøres markering på nytt
-    useEffect(() => () => {
-        harMarkertAlleLestRef.current = false;
-    }, []);
 
     const tabs: { id: VarslingTab; label: string; antall: number; uleste: number }[] = [
         { id: "alle", label: t("notifications.tabs.all"), antall: safeAlle.length, uleste: safeAlle.filter((e) => !lestIds.has(e.id)).length },
@@ -168,25 +153,18 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                     <div>
             <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
 
-              {!isError && safeAlle.length > 0 && (
+              {!isError && safeAlle.length > 0 && ulesteCount > 0 && (
                   <div>
                       <button
                           type="button"
                           onClick={() => {
                               markAllAsLest();
-                              if (ulesteCount > 0) showToast.success(t("notifications.allMarkedAsRead"));
+                              showToast.success(t("notifications.allMarkedAsRead"));
                           }}
-                          disabled={ulesteCount === 0}
-                          className={`
-                              inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors
-                              ${ulesteCount === 0
-                                  ? "text-slate-400 dark:text-slate-500 cursor-default"
-                                  : "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50"
-                              }
-                          `}
+                          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50"
                       >
                           <CheckCheck className="w-4 h-4 shrink-0" />
-                          {ulesteCount === 0 ? t("notifications.allMarkedAsRead") : t("notifications.markAllAsRead")}
+                          {t("notifications.markAllAsRead")}
                       </button>
                   </div>
               )}

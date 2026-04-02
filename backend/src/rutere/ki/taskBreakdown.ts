@@ -28,6 +28,7 @@ import {
 import { DEFAULT_MODEL } from "./aiModels.js";
 import { chatCompletion, isClientAvailable } from "./aiClient.js";
 import { handleAIJsonRouteError } from "./handleAIError.js";
+import { extractJsonArray } from "./studyContentUtils.js";
 import {
   AI_COMPLETION_PUSH_MIN_DURATION_MS,
   sendAICompletionWebPush,
@@ -41,16 +42,6 @@ const TASK_BREAKDOWN_SYSTEM_PROMPT = `Du er en ekspert studieveileder som bryter
 Svar ALLTID med KUN et JSON-array uten ekstra tekst, markdown eller forklaring.
 Hvert objekt i arrayet skal ha: "title" (kort), "description" (1-3 setninger), "estimatedTime" (f.eks. "2t", "1.5t"), "priority" ("high"/"medium"/"low").
 Lag 4-6 deloppgaver i logisk rekkefølge tilpasset studentnivå.`;
-
-function extractJsonArray(text: string): string {
-  const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  const start = cleaned.indexOf("[");
-  const end = cleaned.lastIndexOf("]");
-  if (start === -1 || end === -1 || end < start) {
-    throw new Error("AI_RESPONSE_NOT_JSON_ARRAY");
-  }
-  return cleaned.slice(start, end + 1);
-}
 
 function parseGeneratedSubtasks(responseText: string): SubTask[] {
   const parsed = z.array(GeneratedSubTaskSchema).min(1).max(8).parse(

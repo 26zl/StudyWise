@@ -30,7 +30,7 @@ import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { StatCard } from "@/app/components/ui/StatCard";
 import { useAuth, useClerk } from "@clerk/nextjs";
-import { useMeg } from "@/app/auth/auth-api";
+import { useMeg, useHiddenCourseIds } from "@/app/auth/auth-api";
 import {
   skalRedirecteTilAuth,
   useAuthRedirect,
@@ -107,6 +107,7 @@ export function OversiktPage() {
   useAuthRedirect(megQuery);
 
   const coursesQuery = useCanvasCourses(harCanvasToken);
+  const hiddenSet = useHiddenCourseIds();
   const assignmentsQuery = useCanvasAllAssignments({
     enabled: harCanvasToken,
     courses: coursesQuery.data?.courses,
@@ -114,14 +115,15 @@ export function OversiktPage() {
 
   const { ferdigeIdSet, toggleFerdig } = useManuellInnlevering();
 
-  const allAssignments: AssignmentMedEmne[] = assignmentsQuery.isError
+  const allAssignments: AssignmentMedEmne[] = (assignmentsQuery.isError
     ? []
-    : assignmentsQuery.data ?? [];
+    : assignmentsQuery.data ?? []
+  ).filter((a) => !a.course_id || !hiddenSet.has(a.course_id));
   const ikkeInnleverteAssignments = allAssignments.filter(
     (assignment) => !erInnlevert(assignment) && !ferdigeIdSet.has(assignment.id),
   );
 
-  const totalCourses = coursesQuery.data?.courses?.length || 0;
+  const totalCourses = (coursesQuery.data?.courses ?? []).filter((c) => !hiddenSet.has(c.id)).length;
   const totalAssignments = allAssignments.length;
 
   const upcomingAssignments = ikkeInnleverteAssignments.filter((assignment) =>

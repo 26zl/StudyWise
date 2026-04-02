@@ -29,7 +29,7 @@ const sporsmal = [
         a: (
           <>
             Ja, alle sensitive data krypteres med AES-256-GCM. Les mer på vår{" "}
-            <Link href="/sikkerhet" prefetch={false} className="text-blue-500 hover:underline">
+            <Link href="/sikkerhet" prefetch={false} className="text-blue-500 dark:text-blue-400 hover:underline">
               sikkerhetsside
             </Link>
             .
@@ -42,7 +42,7 @@ const sporsmal = [
           <>
             Samtaler sendes til Anthropic (Claude) for AI-svar. Canvas-data hentes kun fra din
             institusjon. Les vår{" "}
-            <Link href="/personvern" prefetch={false} className="text-blue-500 hover:underline">
+            <Link href="/personvern" prefetch={false} className="text-blue-500 dark:text-blue-400 hover:underline">
               personvernerklæring
             </Link>{" "}
             for detaljer.
@@ -59,7 +59,7 @@ const sporsmal = [
         a: (
           <>
             Gå til Innstillinger eller{" "}
-            <Link href="/kontakt" prefetch={false} className="text-blue-500 hover:underline">
+            <Link href="/kontakt" prefetch={false} className="text-blue-500 dark:text-blue-400 hover:underline">
               kontakt oss
             </Link>{" "}
             for å be om kontosletting. Kontoopplysninger og tilknyttede data slettes eller
@@ -110,7 +110,7 @@ export default function FaqPage() {
 
       <p className="text-center text-sm text-slate-500 dark:text-slate-400">
         Fant du ikke svaret?{" "}
-        <Link href="/kontakt" prefetch={false} className="text-blue-500 hover:underline">
+        <Link href="/kontakt" prefetch={false} className="text-blue-500 dark:text-blue-400 hover:underline">
           Kontakt oss
         </Link>
         .

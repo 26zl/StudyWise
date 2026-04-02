@@ -24,6 +24,7 @@ import { getCache, isRedisReady } from "../cache/redis.js";
 import { syncCanvasDataForUser, hasCanvasSyncData, userKey, isSyncing, waitForSync } from "./canvas-sync.service.js";
 import type { TargetedQuery } from "../rutere/ki/ki.js";
 import { TWO_WEEKS_MS } from "common/dateUtils";
+import type { CanvasContextPreferences } from "common/auth";
 import { isCanvasAssignmentSubmitted } from "common/canvas";
 import { stripHtml } from "../utils/htmlUtils.js";
 import { normaliserFilnavnHint } from "../utils/dateFormatter.js";
@@ -275,38 +276,43 @@ interface LettKontekstEmne {
  * Felles formatter for lett kontekst — brukes av både Redis og MongoDB-fallback.
  * Eliminerer duplikat kontekst-byggingslogikk.
  */
-function formaterLettKontekst(emner: LettKontekstEmne[]): string {
+function formaterLettKontekst(emner: LettKontekstEmne[], prefs?: CanvasContextPreferences): string {
   const now = new Date();
   const twoWeeksFromNow = new Date(now.getTime() + TWO_WEEKS_MS);
 
   let kontekst = "[CANVAS-DATA START]\n";
-  kontekst += `EMNER (${emner.length} aktive):\n`;
-  for (const emne of emner) {
-    kontekst += `- ${formatCourseLabel(emne.name, emne.course_code)}\n`;
-  }
 
-  const fristLinjer: Array<{ dueAt: number; line: string }> = [];
-  for (const emne of emner) {
-    for (const oppg of emne.oppgaver) {
-      if (!oppg.due_at) continue;
-      const frist = new Date(oppg.due_at);
-      if (frist >= now && frist <= twoWeeksFromNow) {
-        const dagerIgjen = Math.ceil((frist.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        const status = isCanvasAssignmentSubmitted(oppg) ? "✓ levert" : "⏳ ikke levert";
-        fristLinjer.push({
-          dueAt: frist.getTime(),
-          line: `- ${oppg.name}${emne.course_code ? ` (${emne.course_code})` : ""} — frist: ${frist.toLocaleDateString("nb-NO")} (${dagerIgjen}d) [${status}]`,
-        });
-      }
+  if (!prefs || prefs.courses) {
+    kontekst += `EMNER (${emner.length} aktive):\n`;
+    for (const emne of emner) {
+      kontekst += `- ${formatCourseLabel(emne.name, emne.course_code)}\n`;
     }
   }
 
-  if (fristLinjer.length > 0) {
-    fristLinjer.sort((a, b) => a.dueAt - b.dueAt);
-    kontekst += `\nKOMMANDE FRISTER (neste 14 dager):\n`;
-    kontekst += fristLinjer.map((item) => item.line).join("\n") + "\n";
-  } else {
-    kontekst += "\nINGEN FRISTER de neste 14 dagene.\n";
+  if (!prefs || prefs.assignments) {
+    const fristLinjer: Array<{ dueAt: number; line: string }> = [];
+    for (const emne of emner) {
+      for (const oppg of emne.oppgaver) {
+        if (!oppg.due_at) continue;
+        const frist = new Date(oppg.due_at);
+        if (frist >= now && frist <= twoWeeksFromNow) {
+          const dagerIgjen = Math.ceil((frist.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          const status = isCanvasAssignmentSubmitted(oppg) ? "✓ levert" : "⏳ ikke levert";
+          fristLinjer.push({
+            dueAt: frist.getTime(),
+            line: `- ${oppg.name}${emne.course_code ? ` (${emne.course_code})` : ""} — frist: ${frist.toLocaleDateString("nb-NO")} (${dagerIgjen}d) [${status}]`,
+          });
+        }
+      }
+    }
+
+    if (fristLinjer.length > 0) {
+      fristLinjer.sort((a, b) => a.dueAt - b.dueAt);
+      kontekst += `\nKOMMANDE FRISTER (neste 14 dager):\n`;
+      kontekst += fristLinjer.map((item) => item.line).join("\n") + "\n";
+    } else {
+      kontekst += "\nINGEN FRISTER de neste 14 dagene.\n";
+    }
   }
 
   kontekst += "[CANVAS-DATA SLUTT]";
@@ -365,7 +371,7 @@ async function hentSynkroniserteEmnerFraRedis(userId: string): Promise<SyncedCou
   }
 }
 
-async function hentKjentEmnekatalog(userId: string): Promise<SyncedCourse[]> {
+async function hentKjentEmnekatalog(userId: string, hiddenCourseIds?: Set<number>): Promise<SyncedCourse[]> {
   const [redisEmner, lagredeEmner] = await Promise.all([
     hentSynkroniserteEmnerFraRedis(userId),
     getStoredCourseCatalog(userId),
@@ -450,14 +456,19 @@ async function hentKjentEmnekatalog(userId: string): Promise<SyncedCourse[]> {
     });
   }
 
+  if (hiddenCourseIds && hiddenCourseIds.size > 0) {
+    return merged.filter((emne) => !hiddenCourseIds.has(Number(emne.id)));
+  }
+
   return merged;
 }
 
 async function finnRelevanteEmner(
   userId: string,
   target?: TargetedQuery,
+  hiddenCourseIds?: Set<number>,
 ): Promise<SyncedCourse[]> {
-  const emner = await hentKjentEmnekatalog(userId);
+  const emner = await hentKjentEmnekatalog(userId, hiddenCourseIds);
   if (emner.length === 0) return [];
 
   if (!hasCourseTarget(target) && !target?.moduleHint && !target?.fileHint) {
@@ -644,7 +655,7 @@ function formaterKunngjøringerKontekst(announcements: AnnouncementEntry[]): str
 /**
  * Bygger lett kontekst fra MongoDB CanvasStructure (permanent fallback når Redis TTL utløper).
  */
-async function byggLettKontekstFraMongo(userId: string): Promise<string | null> {
+async function byggLettKontekstFraMongo(userId: string, prefs?: CanvasContextPreferences): Promise<string | null> {
   try {
     const structures = await CanvasStructureModel.find({ userId }).lean<ICanvasStructure[]>();
     if (!structures || structures.length === 0) return null;
@@ -655,7 +666,7 @@ async function byggLettKontekstFraMongo(userId: string): Promise<string | null> 
       oppgaver: s.oppgaver,
     }));
 
-    return formaterLettKontekst(emner);
+    return formaterLettKontekst(emner, prefs);
   } catch (error) {
     logger.warn({ err: error, userId }, "Feil ved bygging av lett kontekst fra MongoDB");
     return null;
@@ -669,6 +680,7 @@ async function byggLettKontekstFraMongo(userId: string): Promise<string | null> 
 async function byggMålrettetKontekstFraMongo(
   userId: string,
   target: TargetedQuery,
+  prefs?: CanvasContextPreferences,
 ): Promise<string | null> {
   try {
     const structures = await CanvasStructureModel.find({ userId }).lean<ICanvasStructure[]>();
@@ -775,7 +787,7 @@ async function byggMålrettetKontekstFraMongo(
     }
 
     // Oppgaver
-    if (matchedStructure.oppgaver.length > 0) {
+    if (matchedStructure.oppgaver.length > 0 && (!prefs || prefs.assignments)) {
       kontekst += `OPPGAVER (${matchedStructure.oppgaver.length}):\n`;
       for (const oppg of matchedStructure.oppgaver) {
         const frist = oppg.due_at ? new Date(oppg.due_at).toLocaleDateString("nb-NO") : "ingen frist";
@@ -794,7 +806,7 @@ async function byggMålrettetKontekstFraMongo(
     }
 
     // Kunngjøringer
-    if (matchedStructure.kunngjøringer.length > 0) {
+    if (matchedStructure.kunngjøringer.length > 0 && (!prefs || prefs.announcements)) {
       kontekst += `KUNNGJØRINGER (${Math.min(matchedStructure.kunngjøringer.length, 5)} nyeste):\n`;
       for (const k of matchedStructure.kunngjøringer.slice(0, 5)) {
         const dato = k.posted_at ? new Date(k.posted_at).toLocaleDateString("nb-NO") : "";
@@ -830,7 +842,7 @@ async function byggMålrettetKontekstFraMongo(
  * Bygger lett kontekst fra Redis-data.
  * Inkluderer: emneliste + oppgaver med frister (neste 14 dager).
  */
-async function byggLettKontekstFraRedis(userId: string): Promise<string | null> {
+async function byggLettKontekstFraRedis(userId: string, prefs?: CanvasContextPreferences): Promise<string | null> {
   try {
     const emnerRaw = await getCache(userKey(userId, "emner"));
     if (!emnerRaw) return null;
@@ -863,7 +875,7 @@ async function byggLettKontekstFraRedis(userId: string): Promise<string | null> 
       return { name: emne.name, course_code: emne.course_code, oppgaver };
     });
 
-    return formaterLettKontekst(lettEmner);
+    return formaterLettKontekst(lettEmner, prefs);
   } catch (error) {
     logger.warn({ err: error }, "Feil ved bygging av lett kontekst fra Redis");
     return null;
@@ -877,9 +889,11 @@ async function byggLettKontekstFraRedis(userId: string): Promise<string | null> 
 async function byggMålrettetKontekstFraRedis(
   userId: string,
   target: TargetedQuery,
+  prefs?: CanvasContextPreferences,
+  hiddenCourseIds?: Set<number>,
 ): Promise<string | null> {
   try {
-    const matchedCourses = await finnRelevanteEmner(userId, target);
+    const matchedCourses = await finnRelevanteEmner(userId, target, hiddenCourseIds);
     if (matchedCourses.length === 0) {
       logger.info({ userId, target }, "byggMålrettet: Fant ingen relevante emner i Redis");
       return null;
@@ -977,7 +991,7 @@ async function byggMålrettetKontekstFraRedis(
     }
 
     // Oppgaver
-    if (oppgaverRaw) {
+    if (oppgaverRaw && (!prefs || prefs.assignments)) {
       try {
         const oppgaver = JSON.parse(oppgaverRaw) as Array<{
           name: string;
@@ -1009,7 +1023,7 @@ async function byggMålrettetKontekstFraRedis(
     }
 
     // Kunngjøringer
-    if (kunngjøringerRaw) {
+    if (kunngjøringerRaw && (!prefs || prefs.announcements)) {
       try {
         const kunngjøringer = JSON.parse(kunngjøringerRaw) as Array<{
           title: string;
@@ -1062,9 +1076,10 @@ async function byggKontekstFraChunks(
   userId: string,
   message: string,
   target?: TargetedQuery,
+  hiddenCourseIds?: Set<number>,
 ): Promise<string | null> {
   try {
-    const relevantCourses = await finnRelevanteEmner(userId, target);
+    const relevantCourses = await finnRelevanteEmner(userId, target, hiddenCourseIds);
     const courseIds = relevantCourses.map((course) => String(course.id));
     // Blokkér kun når courseHint er eksplisitt satt men ingen kurs matchet
     if (hasCourseTarget(target) && courseIds.length === 0) {
@@ -1232,9 +1247,10 @@ async function byggKontekstFraHybridSearch(
   userId: string,
   message: string,
   target?: TargetedQuery,
+  hiddenCourseIds?: Set<number>,
 ): Promise<{ kontekst: string; hasSparseChunks: boolean; fullDocumentMode: boolean } | null> {
   try {
-    const relevantCourses = await finnRelevanteEmner(userId, target);
+    const relevantCourses = await finnRelevanteEmner(userId, target, hiddenCourseIds);
     const courseIds = relevantCourses.map((course) => String(course.id));
     // Blokkér kun når courseHint er eksplisitt satt men ingen kurs matchet.
     // Når courseHint er null, søker vi på tvers av alle kurs —
@@ -1531,10 +1547,17 @@ export async function loadCanvasContext(
   message?: string,
   baseUrl?: string,
   signal?: AbortSignal,
+  contextPrefs?: CanvasContextPreferences,
+  hiddenCourseIds?: Set<number>,
 ): Promise<ContextResult> {
 
   // general_chat trenger ingen kontekst
   if (intent === "general_chat") {
+    return { kontekst: "", hasCanvasData: false, source: "none" };
+  }
+
+  // Alle Canvas-datatyper deaktivert av bruker — hopp over kontekstlasting
+  if (contextPrefs && !contextPrefs.courses && !contextPrefs.assignments && !contextPrefs.announcements && !contextPrefs.events) {
     return { kontekst: "", hasCanvasData: false, source: "none" };
   }
 
@@ -1574,7 +1597,7 @@ export async function loadCanvasContext(
   const hasStoredAIContent = await hasStoredContentForUser(userId);
   const wantsCourseOverview = Boolean(message && isCourseOverviewQuery(message));
   const shouldPreferStructuredContext = Boolean(message && isStructuredCanvasQuery(message));
-  const wantsAnnouncements = Boolean(message && isAnnouncementQuery(message));
+  const wantsAnnouncements = Boolean(message && isAnnouncementQuery(message)) && (!contextPrefs || contextPrefs.announcements);
   const hasSpecificTarget = !!(
     hasCourseTarget(target) ||
     target?.moduleHint ||
@@ -1632,7 +1655,7 @@ export async function loadCanvasContext(
   // chunkHint indikerer at brukeren spør om spesifikt faginnhold, selv om
   // intent er canvas_light (f.eks. "forklar kvantitativ metode").
   if (!shouldPreferStructuredContext && hasStoredAIContent && message && target?.chunkHint) {
-    const hybridResult = await byggKontekstFraHybridSearch(userId, message, target);
+    const hybridResult = await byggKontekstFraHybridSearch(userId, message, target, hiddenCourseIds);
     if (hybridResult) {
       logger.info(
         { userId, intent, chunkHint: target.chunkHint, source: "vector", contextLength: hybridResult.kontekst.length },
@@ -1669,7 +1692,7 @@ export async function loadCanvasContext(
 
     if (hasSpecificTarget && target) {
       if (hasRedisSyncData) {
-        const redisKontekst = await byggMålrettetKontekstFraRedis(userId, target);
+        const redisKontekst = await byggMålrettetKontekstFraRedis(userId, target, contextPrefs, hiddenCourseIds);
         if (redisKontekst) {
           logger.info(
             { userId, intent, target, source: "redis", contextLength: redisKontekst.length },
@@ -1679,7 +1702,7 @@ export async function loadCanvasContext(
         }
       }
 
-      const mongoKontekst = await byggMålrettetKontekstFraMongo(userId, target);
+      const mongoKontekst = await byggMålrettetKontekstFraMongo(userId, target, contextPrefs);
       if (mongoKontekst) {
         logger.info(
           { userId, intent, target, source: "mongodb", contextLength: mongoKontekst.length },
@@ -1708,7 +1731,7 @@ export async function loadCanvasContext(
 
     // Prøv Redis først
     if (hasRedisSyncData) {
-      const redisKontekst = await byggLettKontekstFraRedis(userId);
+      const redisKontekst = await byggLettKontekstFraRedis(userId, contextPrefs);
       if (redisKontekst) {
         logger.info(
           { userId, intent, source: "redis", contextLength: redisKontekst.length },
@@ -1723,7 +1746,7 @@ export async function loadCanvasContext(
     }
 
     // MongoDB fallback (permanent lagring, ~10-30ms)
-    const mongoKontekst = await byggLettKontekstFraMongo(userId);
+    const mongoKontekst = await byggLettKontekstFraMongo(userId, contextPrefs);
     if (mongoKontekst) {
       logger.info(
         { userId, intent, source: "mongodb", contextLength: mongoKontekst.length },
@@ -1773,7 +1796,7 @@ export async function loadCanvasContext(
 
   // Trinn 0: Hybrid søk (Pinecone + BM25 → RRF → Cohere Rerank)
   if (!shouldPreferStructuredContext && hasStoredAIContent && message) {
-    const hybridResult = await byggKontekstFraHybridSearch(userId, message, target);
+    const hybridResult = await byggKontekstFraHybridSearch(userId, message, target, hiddenCourseIds);
     if (hybridResult) {
       const kontekstMedKunngjøringer = announcementBlock
         ? hybridResult.kontekst.replace("[CANVAS-DATA SLUTT]", announcementBlock + "\n[CANVAS-DATA SLUTT]")
@@ -1801,7 +1824,7 @@ export async function loadCanvasContext(
 
   // Trinn 1: Chunk-basert søk (keyword fallback når hybrid søk ikke ga treff)
   if (!shouldPreferStructuredContext && hasStoredAIContent && message) {
-    const chunkKontekst = await byggKontekstFraChunks(userId, message, target);
+    const chunkKontekst = await byggKontekstFraChunks(userId, message, target, hiddenCourseIds);
     if (chunkKontekst) {
       logger.info(
         { userId, intent, source: "chunks", contextLength: chunkKontekst.length },
@@ -1815,7 +1838,7 @@ export async function loadCanvasContext(
   if (hasSpecificTarget && target) {
     // Prøv Redis først for målrettet kontekst
     if (hasRedisSyncData) {
-      const redisKontekst = await byggMålrettetKontekstFraRedis(userId, target);
+      const redisKontekst = await byggMålrettetKontekstFraRedis(userId, target, contextPrefs, hiddenCourseIds);
       if (redisKontekst) {
         logger.info(
           { userId, intent, target, source: "redis", contextLength: redisKontekst.length },
@@ -1826,7 +1849,7 @@ export async function loadCanvasContext(
     }
 
     // MongoDB fallback for målrettet kontekst
-    const mongoKontekst = await byggMålrettetKontekstFraMongo(userId, target);
+    const mongoKontekst = await byggMålrettetKontekstFraMongo(userId, target, contextPrefs);
     if (mongoKontekst) {
       logger.info(
         { userId, intent, target, source: "mongodb", contextLength: mongoKontekst.length },
@@ -1855,7 +1878,7 @@ export async function loadCanvasContext(
 
   // canvas_full uten spesifikt mål → bruk lett kontekst (som eksisterende logikk)
   if (hasRedisSyncData) {
-    const redisKontekst = await byggLettKontekstFraRedis(userId);
+    const redisKontekst = await byggLettKontekstFraRedis(userId, contextPrefs);
     if (redisKontekst) {
       logger.info(
         { userId, intent, source: "redis", contextLength: redisKontekst.length },
@@ -1866,7 +1889,7 @@ export async function loadCanvasContext(
   }
 
   // MongoDB fallback
-  const mongoFallback = await byggLettKontekstFraMongo(userId);
+  const mongoFallback = await byggLettKontekstFraMongo(userId, contextPrefs);
   if (mongoFallback) {
     logger.info(
       { userId, intent, source: "mongodb", contextLength: mongoFallback.length },
