@@ -32,9 +32,15 @@ function parseLocalizedNumber(value: string): number {
     return Number.isFinite(parsed) ? parsed : 0;
 }
 
+/** Maks inputlengde for tidsstreng-parsing (beskyttelse mot ReDoS). */
+const MAX_TIME_STRING_LENGTH = 200;
+
+/** Tall med valgfri desimal (begrenset repetisjoner for å unngå ReDoS). */
+const NUM = String.raw`(\d{1,10}(?:[.,]\d{1,5})?)`;
+
 /** Parse tidsstreng til antall timer (f.eks. "2 timer" → 2, "1.5 timer" → 1.5). Ekstraherer kun det numeriske tallet. */
 export function parseTimerStreng(tid: string): number {
-    const normalized = tid.trim().toLowerCase();
+    const normalized = tid.trim().toLowerCase().slice(0, MAX_TIME_STRING_LENGTH);
     if (!normalized) return 0;
 
     const clockMatch = normalized.match(/\b(\d{1,2}):(\d{2})\b/);
@@ -47,7 +53,7 @@ export function parseTimerStreng(tid: string): number {
     }
 
     const hourRangeMatch = normalized.match(
-        /(\d+(?:[.,]\d+)?)\s*(?:-|til)\s*(\d+(?:[.,]\d+)?)\s*(?:t|time|timer|h|hr|hrs|hour|hours)\b/,
+        new RegExp(`${NUM} {0,5}(?:-|til) {0,5}${NUM} {0,5}(?:t|time|timer|h|hr|hrs|hour|hours)\\b`),
     );
     if (hourRangeMatch) {
         return (
@@ -57,7 +63,7 @@ export function parseTimerStreng(tid: string): number {
     }
 
     const minuteRangeMatch = normalized.match(
-        /(\d+(?:[.,]\d+)?)\s*(?:-|til)\s*(\d+(?:[.,]\d+)?)\s*(?:min|mins|minute|minutes|minutt|minutter)\b/,
+        new RegExp(`${NUM} {0,5}(?:-|til) {0,5}${NUM} {0,5}(?:min|mins|minute|minutes|minutt|minutter)\\b`),
     );
     if (minuteRangeMatch) {
         return (
@@ -70,7 +76,7 @@ export function parseTimerStreng(tid: string): number {
     let foundUnit = false;
 
     const hourMatches = normalized.matchAll(
-        /(\d+(?:[.,]\d+)?)\s*(?:t|time|timer|h|hr|hrs|hour|hours)\b/g,
+        new RegExp(`${NUM} {0,5}(?:t|time|timer|h|hr|hrs|hour|hours)\\b`, "g"),
     );
     for (const match of hourMatches) {
         totalHours += parseLocalizedNumber(match[1]);
@@ -78,7 +84,7 @@ export function parseTimerStreng(tid: string): number {
     }
 
     const minuteMatches = normalized.matchAll(
-        /(\d+(?:[.,]\d+)?)\s*(?:min|mins|minute|minutes|minutt|minutter)\b/g,
+        new RegExp(`${NUM} {0,5}(?:min|mins|minute|minutes|minutt|minutter)\\b`, "g"),
     );
     for (const match of minuteMatches) {
         totalHours += parseLocalizedNumber(match[1]) / 60;
@@ -89,7 +95,7 @@ export function parseTimerStreng(tid: string): number {
         return totalHours;
     }
 
-    const numericMatch = normalized.match(/(\d+(?:[.,]\d+)?)/);
+    const numericMatch = normalized.match(/(\d{1,10}(?:[.,]\d{1,5})?)/);
     if (!numericMatch) return 0;
 
     return parseLocalizedNumber(numericMatch[1]);
