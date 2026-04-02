@@ -3,7 +3,7 @@ name: Functional Testing
 on:
   workflow_dispatch:
   workflow_run:
-    workflows: ["Deploy"]
+    workflows: ["CI"]
     types: [completed]
     branches: ["main"]
 
@@ -25,7 +25,7 @@ jobs:
     timeout-minutes: 30
     if: >
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
 
     steps:
       - name: Harden Runner
