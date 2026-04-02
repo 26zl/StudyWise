@@ -644,7 +644,7 @@ export async function vectorSearch(
       .map((id) => new mongoose.Types.ObjectId(id));
     if (objectIds.length === 0) return { results: [], degraded: false };
     const docs = await ContentEmbedding.find(
-      { _id: { $in: objectIds } },
+      { _id: { $in: objectIds }, userId },
       { text: 1, courseId: 1, courseName: 1, moduleTitle: 1, fileName: 1, fileId: 1, chunkIndex: 1 },
     ).lean();
     const byId = new Map(docs.map((d) => [d._id.toString(), d]));

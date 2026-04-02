@@ -122,7 +122,10 @@ export function handleAIError(
         return true;
     }
 
-    return false;
+    // Generisk fallback — hindrer at interne SDK-feilmeldinger lekker til klienten
+    logger.warn({ errorMessage }, "Uhåndtert AI-feil — sender generisk feilmelding");
+    res.status(500).json(parseErrorResponse(schema, "Kunne ikke få svar fra KI-assistenten. Prøv igjen senere."));
+    return true;
 }
 
 /**

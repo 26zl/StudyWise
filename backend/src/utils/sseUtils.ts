@@ -77,7 +77,12 @@ function serializeSSEFrame(payload: unknown): string {
  */
 export function writeSSE(res: Response, payload: unknown): boolean {
   if (res.writableEnded) return false;
-  const frame = serializeSSEFrame(payload);
-  res.write(frame);
-  return true;
+  try {
+    const frame = serializeSSEFrame(payload);
+    res.write(frame);
+    return true;
+  } catch {
+    // Klient frakoblet mellom writableEnded-sjekk og write — ignorér
+    return false;
+  }
 }

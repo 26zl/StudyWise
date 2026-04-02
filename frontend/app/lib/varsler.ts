@@ -8,6 +8,7 @@ import type { AssignmentMedEmne } from "../canvas/canvas-api";
 import { erInnlevert } from "../canvas/canvasUtils";
 import type { Assignment } from "common/calendar-ui";
 import type { Language } from "@/app/i18n/types";
+import DOMPurify from "isomorphic-dompurify";
 
 // —— Frist-terrkler og -typer ——
 
@@ -244,20 +245,10 @@ export function lagVarslingForhandsvisning(
 ): string {
     if (!innhold) return "";
 
-    // Fjern style/script-blokker, deretter alle HTML-tagger, og dekod entiteter
-    const renset = innhold
-        .replace(/<style[^>]*>[^]*?<\/style\s*>/gi, " ")
-        .replace(/<script[^>]*>[^]*?<\/script\s*>/gi, " ")
-        .replace(/<br\s*\/?>/gi, " ")
-        .replace(/<\/p\s*>/gi, " ")
-        .replace(/<\/div\s*>/gi, " ")
-        .replace(/<[^>]{0,500}>/g, " ")
+    // Bruk DOMPurify til å fjerne all HTML (inkl. script/style), deretter dekod entiteter
+    const stripped = DOMPurify.sanitize(innhold, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+    const renset = stripped
         .replace(/&nbsp;/gi, " ")
-        .replace(/&lt;/gi, "<")
-        .replace(/&gt;/gi, ">")
-        .replace(/&quot;/gi, "\"")
-        .replace(/&#39;/gi, "'")
-        .replace(/&amp;/gi, "&")
         .replace(/\s+/g, " ")
         .trim();
 

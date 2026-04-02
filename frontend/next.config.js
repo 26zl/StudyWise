@@ -195,7 +195,8 @@ const nextConfig = {
 
     if (process.env.NODE_ENV === "development" && !rewritesLogged) {
       rewritesLogged = true;
-      console.log(`[next.config] API rewrites peker til: ${apiUrl}`);
+      // Logges kun i dev — unngå console.log i produksjon
+      process.stdout.write(`[next.config] API rewrites peker til: ${apiUrl}\n`);
     }
 
     return [

@@ -136,7 +136,7 @@ async function loadSharedChatForRead(req: Request, res: Response, shareId: strin
 }
 
 const PUBLIC_SHARE_RATE_LIMIT = createRateLimiter({
-  points: 120,
+  points: 30,
   duration: 60,
   keyPrefix: "rlflx:share-public",
 });

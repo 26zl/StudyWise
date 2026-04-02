@@ -1039,7 +1039,7 @@ Rules:
     }> = [
       { role: "system", content: fullDocumentStrictPrefix + enhancedSystemPrompt, cache_control: { type: "ephemeral" } },
       ...(hasCanvasData
-        ? [{ role: "system" as const, content: canvasKontekst, cache_control: { type: "ephemeral" as const } }]
+        ? [{ role: "system" as const, content: "<retrieved_course_data>\n" + canvasKontekst + "\n</retrieved_course_data>", cache_control: { type: "ephemeral" as const } }]
         : []),
       ...trimmedMessages.map((m: { role: string; content: string }) => ({
         role: m.role as "user" | "assistant",

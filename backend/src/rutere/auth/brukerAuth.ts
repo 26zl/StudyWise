@@ -58,6 +58,7 @@ import {
   rateLimitToken,
   rateLimitMe,
   rateLimitAccountDeletion,
+  createRateLimiter,
 } from "../../middleware/rate-limit.js";
 import { noCache } from "../../middleware/no-cache.js";
 import {
@@ -82,6 +83,14 @@ import {
 } from "../../services/webPush.service.js";
 
 const router = Router();
+
+// Strengere rate limit for force-relink av Canvas-konto (maks 3 per time per bruker)
+const rateLimitForceRelink = createRateLimiter({
+  points: 3,
+  duration: 3600,
+  keyPrefix: "rlflx:force-relink",
+  keyGenerator: (req) => req.user?.id ?? req.ip ?? "unknown",
+});
 
 type CanvasTokenConflictType = "token" | "account";
 
@@ -326,6 +335,17 @@ router.post("/token", rateLimitToken, async (req, res) => {
     const userId = req.user?.id;
     const forceRelink = req.query.force === "true";
     const usersToInvalidate = new Set<string>();
+
+    // Strengere rate limit for force-relink (3 per time per bruker)
+    if (forceRelink) {
+      await new Promise<void>((resolve, reject) => {
+        rateLimitForceRelink(req, res, (err?: unknown) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+      if (res.headersSent) return;
+    }
 
     if (!token) {
       return apiError.badRequest(res, "Token mangler");

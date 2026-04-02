@@ -337,6 +337,7 @@ async function _doSync(
     }
   }, Math.floor(SYNC_STATUS_TTL * 1000 * 0.5)); // Forny ved halveis TTL
 
+  try {
   // Synkroniser hvert emne med begrenset concurrency
   const limit = pLimit(SYNC_CONCURRENCY);
 
@@ -831,7 +832,9 @@ async function _doSync(
     ),
   );
 
-  clearInterval(syncStatusRefreshInterval);
+  } finally {
+    clearInterval(syncStatusRefreshInterval);
+  }
 
   if (signal?.aborted) {
     logger.info({ userId }, "Canvas sync avbrutt (forespørsel ferdig)");
