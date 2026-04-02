@@ -56,9 +56,23 @@ jobs:
       - name: Build common
         run: pnpm --filter common build
 
+      - name: Verify required secrets
+        run: |
+          missing=""
+          [ -z "${{ secrets.MONGO_URI }}" ] && missing="$missing MONGO_URI"
+          [ -z "${{ secrets.REDIS_URL }}" ] && missing="$missing REDIS_URL"
+          [ -z "${{ secrets.CLERK_SECRET_KEY }}" ] && missing="$missing CLERK_SECRET_KEY"
+          [ -z "${{ secrets.ENCRYPTION_KEY }}" ] && missing="$missing ENCRYPTION_KEY"
+          [ -z "${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}" ] && missing="$missing NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required secrets:$missing"
+            exit 1
+          fi
+          echo "All required secrets are configured"
+
       - name: Create backend .env from secrets
         run: |
-          cat > backend/.env << 'ENVEOF'
+          cat > backend/.env <<'ENVEOF'
           MONGO_URI=${{ secrets.MONGO_URI }}
           REDIS_URL=${{ secrets.REDIS_URL }}
           CLERK_SECRET_KEY=${{ secrets.CLERK_SECRET_KEY }}
@@ -71,12 +85,15 @@ jobs:
           WEB_ORIGINS=http://localhost:3000
           NODE_ENV=test
           ENVEOF
+          echo "Backend .env created with $(wc -l < backend/.env) lines"
+          echo "Keys found: $(grep -c '=' backend/.env)"
 
       - name: Create frontend .env from secrets
         run: |
-          cat > frontend/.env << 'ENVEOF'
+          cat > frontend/.env <<'ENVEOF'
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
           ENVEOF
+          echo "Frontend .env created with $(wc -l < frontend/.env) lines"
 
       - name: Run Playwright E2E tests
         run: pnpm --filter tests test:e2e -- --project=chromium

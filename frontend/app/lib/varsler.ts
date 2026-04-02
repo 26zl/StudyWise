@@ -244,20 +244,20 @@ export function lagVarslingForhandsvisning(
 ): string {
     if (!innhold) return "";
 
-    // Fjern style/script-blokker med begrensede tegn-klasser (unngår ReDoS med [\s\S]*?)
+    // Fjern style/script-blokker, deretter alle HTML-tagger, og dekod entiteter
     const renset = innhold
-        .replace(/<style[^>]*>[^]*?<\/style>/gi, " ")
-        .replace(/<script[^>]*>[^]*?<\/script>/gi, " ")
+        .replace(/<style[^>]*>[^]*?<\/style\s*>/gi, " ")
+        .replace(/<script[^>]*>[^]*?<\/script\s*>/gi, " ")
         .replace(/<br\s*\/?>/gi, " ")
-        .replace(/<\/p>/gi, " ")
-        .replace(/<\/div>/gi, " ")
+        .replace(/<\/p\s*>/gi, " ")
+        .replace(/<\/div\s*>/gi, " ")
         .replace(/<[^>]{0,500}>/g, " ")
         .replace(/&nbsp;/gi, " ")
-        .replace(/&amp;/gi, "&")
         .replace(/&lt;/gi, "<")
         .replace(/&gt;/gi, ">")
         .replace(/&quot;/gi, "\"")
         .replace(/&#39;/gi, "'")
+        .replace(/&amp;/gi, "&")
         .replace(/\s+/g, " ")
         .trim();
 
