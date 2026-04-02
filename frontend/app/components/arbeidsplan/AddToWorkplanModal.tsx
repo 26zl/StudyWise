@@ -130,8 +130,8 @@ export function AddToWorkplanModal({
       {
         onSuccess: () => {
           showToast.success(
-            `${subtasks.length} oppgaver lagt til i ${weekText}!`,
-            "Gå til Oversikt for å se din arbeidsplan"
+            t("addToWorkplanModal.addedSuccess", { count: subtasks.length, week: weekText }),
+            t("addToWorkplanModal.addedSuccessSubtitle")
           );
           onClose();
         },
@@ -186,7 +186,7 @@ export function AddToWorkplanModal({
   const nextWeekDate = new Date(now);
   nextWeekDate.setDate(nextWeekDate.getDate() + 7);
   const { weekNumber: nextWeekNumber, weekYear: nextWeekYear } = getIsoWeekInfo(nextWeekDate);
-  const weekText = `Uke ${weekNumber}, ${weekYear}`;
+  const weekText = t("addToWorkplanModal.weekFormat", { weekNumber, weekYear });
 
   return (
     <div
@@ -210,7 +210,7 @@ export function AddToWorkplanModal({
             </div>
             <div>
               <h2 id={titleId} className="text-xl font-bold text-slate-900 dark:text-white">
-                Legg til i arbeidsplan
+                {t("addToWorkplanModal.title")}
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 {subtasks.length} deloppgaver fra {assignmentTitle}
@@ -223,7 +223,7 @@ export function AddToWorkplanModal({
             onClick={handleClose}
             disabled={isPending}
             className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            aria-label="Lukk dialogen"
+            aria-label={t("addToWorkplanModal.closeLabel")}
           >
             <X className="w-5 h-5 text-slate-500 dark:text-slate-400" />
           </button>
@@ -234,7 +234,7 @@ export function AddToWorkplanModal({
           {/* Velg uke */}
           <div>
             <label className="block text-sm font-semibold text-slate-900 dark:text-white mb-3">
-              Velg uke
+              {t("addToWorkplanModal.weekLabel")}
             </label>
             <div className="grid grid-cols-2 gap-3">
               <button
@@ -249,7 +249,7 @@ export function AddToWorkplanModal({
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-slate-900 dark:text-white">
-                    Denne uken
+                    {t("addToWorkplanModal.currentWeek")}
                   </span>
                   {selectedWeek === "current" && (
                     <CheckCircle2 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
@@ -272,7 +272,7 @@ export function AddToWorkplanModal({
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-slate-900 dark:text-white">
-                    Neste uke
+                    {t("addToWorkplanModal.nextWeek")}
                   </span>
                   {selectedWeek === "next" && (
                     <CheckCircle2 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
@@ -288,7 +288,7 @@ export function AddToWorkplanModal({
           {/* Velg starttid */}
           <div>
             <label className="block text-sm font-semibold text-slate-900 dark:text-white mb-3">
-              Standard starttid
+              {t("addToWorkplanModal.startTimeLabel")}
             </label>
             <select
               value={startTime}
@@ -307,7 +307,7 @@ export function AddToWorkplanModal({
           <div>
             <div className="flex items-center justify-between mb-3">
               <label className="text-sm font-semibold text-slate-900 dark:text-white">
-                Velg dager å fordele over
+                {t("addToWorkplanModal.daysLabel")}
               </label>
               <div className="flex gap-2">
                 <button
@@ -315,28 +315,28 @@ export function AddToWorkplanModal({
                   onClick={selectWeekdays}
                   className="text-xs px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
-                  Ukedager
+                  {t("addToWorkplanModal.weekdaysButton")}
                 </button>
                 <button
                   type="button"
                   onClick={selectWeekend}
                   className="text-xs px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
-                  Helg
+                  {t("addToWorkplanModal.weekendButton")}
                 </button>
                 <button
                   type="button"
                   onClick={selectAll}
                   className="text-xs px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
-                  Alle
+                  {t("addToWorkplanModal.allButton")}
                 </button>
                 <button
                   type="button"
                   onClick={clearAll}
                   className="text-xs px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
-                  Ingen
+                  {t("addToWorkplanModal.noneButton")}
                 </button>
               </div>
             </div>
@@ -389,10 +389,10 @@ export function AddToWorkplanModal({
                 <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                 <div className="flex-1">
                   <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">
-                    {conflicts.length === 1 ? "1 tidskonflikt oppdaget" : `${conflicts.length} tidskonflikter oppdaget`}
+                    {conflicts.length === 1 ? t("addToWorkplanModal.conflictSingular") : t("addToWorkplanModal.conflictPlural", { count: conflicts.length })}
                   </h4>
                   <p className="text-xs text-amber-700 dark:text-amber-300 mb-2">
-                    Noen tidsluker overlapper med eksisterende oppgaver. Vurder å velge et annet tidspunkt.
+                    {t("addToWorkplanModal.conflictDescription")}
                   </p>
                   <div className="space-y-1">
                     {conflicts.map((c, i) => (
@@ -413,10 +413,10 @@ export function AddToWorkplanModal({
                 <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
                 <div className="flex-1">
                   <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1">
-                    Automatisk fordeling
+                    {t("addToWorkplanModal.previewTitle")}
                   </h4>
                   <p className="text-xs text-blue-700 dark:text-blue-300 mb-2">
-                    Dine {subtasks.length} deloppgaver vil bli fordelt jevnt over {selectedDays.length} valgte dager.
+                    {t("addToWorkplanModal.previewDescription", { subtasks: subtasks.length, days: selectedDays.length })}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {selectedDays.map((day) => {
@@ -446,7 +446,7 @@ export function AddToWorkplanModal({
             disabled={isPending}
             className="px-4 py-2 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
           >
-            Avbryt
+            {t("addToWorkplanModal.cancelButton")}
           </button>
           <button
             type="button"
@@ -457,12 +457,12 @@ export function AddToWorkplanModal({
             {isPending ? (
               <>
                 <Clock className="w-4 h-4 animate-spin" />
-                Legger til...
+                {t("addToWorkplanModal.addingButton")}
               </>
             ) : (
               <>
                 <CheckCircle2 className="w-4 h-4" />
-                Legg til i {weekText}
+                {t("addToWorkplanModal.addButton", { week: weekText })}
               </>
             )}
           </button> 

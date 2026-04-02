@@ -36,13 +36,6 @@ interface Melding {
     feilet?: boolean;
 }
 
-/** Forslag som vises når chatten er tom. */
-const forslag = [
-    "Hvilke oppgaver og frister bør jeg prioritere denne uken?",
-    "Hvilke emner er jeg registrert på akkurat nå?",
-    "Oppsummer nye kunngjøringer og viktige endringer fra emnene mine",
-    "Forklar det viktigste fra siste modul eller forelesning i et av emnene mine",
-];
 
 /** Serialisert melding (tidsstempel som ISO-streng) for lagring i modulstate. */
 type PendingMeldingSnapshot = {
@@ -138,6 +131,12 @@ function lagTilkoblingsBanner(error: Error | null | undefined): { melding: strin
 
 export function ChatSection() {
     const { language, t } = useLanguage();
+    const forslag = [
+        t("chatSection.weekPriorities"),
+        t("chatSection.registeredCourses"),
+        t("chatSection.summarizeAnnouncements"),
+        t("chatSection.latestModule"),
+    ];
     const [mounted, setMounted] = useState(false);
     const [meldinger, settMeldinger] = useState<Melding[]>([]);
     const [tekstInput, settTekstInput] = useState("");

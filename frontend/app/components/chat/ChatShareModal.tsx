@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Copy, ExternalLink, Link2, MessageSquare, ShieldAlert, X } from "lucide-react";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useDialogAccessibility } from "@/app/hooks/useDialogAccessibility";
+import { useLanguage } from "@/app/i18n";
 
 interface ChatShareModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export function ChatShareModal({
   chatTitle,
   messageCount,
 }: ChatShareModalProps) {
+  const { t } = useLanguage();
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -67,9 +69,9 @@ export function ChatShareModal({
     if (!shareUrl) return;
     try {
       await navigator.clipboard.writeText(shareUrl);
-      showToast.success("Delingslenke kopiert");
+      showToast.success(t("shareModal.copiedToast"));
     } catch {
-      showToast.error("Kunne ikke kopiere delingslenken");
+      showToast.error(t("shareModal.copyErrorToast"));
     }
   }, [shareUrl]);
 
@@ -85,10 +87,10 @@ export function ChatShareModal({
             </div>
             <div>
               <h2 id="share-modal-title" className="text-xl font-semibold text-slate-900 dark:text-white">
-                Del hele samtalen
+                {t("shareModal.title")}
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Opprett en offentlig leselenke til denne samtalen.
+                {t("shareModal.subtitle")}
               </p>
             </div>
           </div>
@@ -99,7 +101,7 @@ export function ChatShareModal({
             onClick={handleClose}
             disabled={isPending}
             className="rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-            aria-label="Lukk delingsdialog"
+            aria-label={t("shareModal.closeLabel")}
           >
             <X className="h-5 w-5" />
           </button>
@@ -111,10 +113,10 @@ export function ChatShareModal({
               <MessageSquare className="mt-0.5 h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" />
               <div>
                 <p className="text-sm font-medium text-slate-900 dark:text-white">
-                  {chatTitle || "Samtale"}
+                  {chatTitle || t("shareModal.defaultChatTitle")}
                 </p>
                 <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                  Denne lenken vil vise hele samtalen med {messageCount} meldinger, inkludert dine egne meldinger og KI-svar.
+                  {t("shareModal.messageInfo", { messageCount })}
                 </p>
               </div>
             </div>
@@ -124,25 +126,21 @@ export function ChatShareModal({
             <div className="flex items-start gap-3">
               <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300" />
               <div className="space-y-2 text-sm text-amber-900 dark:text-amber-100">
-                <p className="font-medium">Del bare hvis du er trygg på innholdet.</p>
-                <p>
-                  Alle med lenken kan lese hele samtalen. Dette kan inkludere kursnavn, oppgavenavn, filnavn, egne notater og annen tekst du selv har skrevet i samtalen.
-                </p>
-                <p>Lenken utløper automatisk etter 30 dager.</p>
+                <p className="font-medium">{t("shareModal.warningTitle")}</p>
+                <p>{t("shareModal.warningBody")}</p>
+                <p>{t("shareModal.expiryInfo")}</p>
               </div>
             </div>
           </div>
 
           <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-100 px-4 py-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" />
-            <p>
-              StudyWise fjerner ikke automatisk innhold fra samtalen ved deling. Gå gjennom samtalen med personvern-briller før du oppretter lenken.
-            </p>
+            <p>{t("shareModal.privacyNotice")}</p>
           </div>
 
           {shareUrl ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-800 dark:bg-slate-900">
-              <p className="mb-2 text-sm font-medium text-slate-900 dark:text-white">Delingslenke</p>
+              <p className="mb-2 text-sm font-medium text-slate-900 dark:text-white">{t("shareModal.linkLabel")}</p>
               <div className="flex flex-col gap-2 md:flex-row md:items-center">
                 <input
                   value={shareUrl}
@@ -156,7 +154,7 @@ export function ChatShareModal({
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     <Copy className="h-3.5 w-3.5" />
-                    Kopier
+                    {t("shareModal.copyButton")}
                   </button>
                   <a
                     href={shareUrl}
@@ -165,7 +163,7 @@ export function ChatShareModal({
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
-                    Åpne
+                    {t("shareModal.openButton")}
                   </a>
                 </div>
               </div>
@@ -180,7 +178,7 @@ export function ChatShareModal({
             disabled={isPending}
             className="rounded-xl px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-200 dark:hover:bg-slate-900"
           >
-            Avbryt
+            {t("shareModal.cancelButton")}
           </button>
 
           <button
@@ -189,7 +187,7 @@ export function ChatShareModal({
             disabled={isPending}
             className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
           >
-            {isPending ? "Lagrer..." : (shareUrl ? "Opprett ny lenke" : "Opprett delingslenke")}
+            {isPending ? t("shareModal.savingButton") : (shareUrl ? t("shareModal.createNewButton") : t("shareModal.createButton"))}
           </button>
         </div>
       </div>

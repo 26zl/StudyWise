@@ -59,50 +59,10 @@ export default function SamtalehistorikkPage() {
     megQuery.data?.user?.firstName ||
     megQuery.data?.user?.email?.split("@")?.[0];
   const brukerRolle = megQuery.data?.user?.role;
-  const erEngelsk = language === "en";
-  const tekster = {
-    title: t("dashboard.sidebar.chatHistory"),
-    clearAll: t("common.actions.clearAll"),
-    historyTab: erEngelsk ? "History" : "Historikk",
-    sharedTab: erEngelsk ? "Shared conversations" : "Delte samtaler",
-    searchLabel: erEngelsk ? "Search all conversations" : "Søk i alle samtaler",
-    searchPlaceholder: erEngelsk ? "Search all conversations..." : "Søk i alle samtaler...",
-    sortLabel: erEngelsk ? "Sort conversations" : "Sorter samtaler",
-    newestFirst: erEngelsk ? "Newest first" : "Nyeste først",
-    oldestFirst: erEngelsk ? "Oldest first" : "Eldste først",
-    select: erEngelsk ? "Select" : "Velg",
-    cancelSelection: erEngelsk ? "Cancel selection" : "Avbryt valg",
-    deleteSelected: (count: number) =>
-      erEngelsk ? `Delete selected (${count})` : `Slett valgte (${count})`,
-    noSearchMatches: erEngelsk
-      ? "No conversations match your search."
-      : "Ingen samtaler matcher søket.",
-    bookmarked: erEngelsk ? "Bookmarked" : "Bokmerket",
-    loadSharedError: erEngelsk ? "Could not load shared conversations" : "Kunne ikke hente delte samtaler",
-    deleteAllSharedTitle: erEngelsk ? "Delete all shared conversations?" : "Slett alle delte samtaler?",
-    deleteAllSharedDescription: erEngelsk
-      ? "All active share links will be removed. This cannot be undone."
-      : "Alle aktive delingslenker fjernes. Dette kan ikke angres.",
-    deleteAllSharedSuccess: erEngelsk
-      ? "All shared conversations deleted"
-      : "Alle delte samtaler slettet",
-    deleteAllSharedError: erEngelsk
-      ? "Could not delete shared conversations"
-      : "Kunne ikke slette delte samtaler",
-    loadingShared: erEngelsk ? "Loading shared conversations..." : "Laster delte samtaler...",
-    noSharedChats: erEngelsk ? "No shared conversations yet." : "Ingen delte samtaler ennå.",
-    copyLink: erEngelsk ? "Copy link" : "Kopier lenke",
-    linkCopied: erEngelsk ? "Link copied" : "Lenke kopiert",
-    copyLinkError: erEngelsk ? "Could not copy the link" : "Kunne ikke kopiere lenken",
-    deleteShareError: erEngelsk
-      ? "Could not delete share link"
-      : "Kunne ikke slette delingslenke",
-    deleteShareSuccess: erEngelsk ? "Share link deleted" : "Delingslenke slettet",
-    sharedViews: (count: number) =>
-      erEngelsk
-        ? `${count} ${count === 1 ? "view" : "views"}`
-        : `${count} ${count === 1 ? "visning" : "visninger"}`,
-  };
+  const sharedViews = (count: number) =>
+    count === 1
+      ? t("samtalehistorikk.sharedViewsSingular", { count })
+      : t("samtalehistorikk.sharedViewsPlural", { count });
 
   const byttVisning = useCallback(
     (visning: VisningType) => {
@@ -135,17 +95,17 @@ export default function SamtalehistorikkPage() {
     try {
       const res = await fetchApi("/api/ki/chat/shared");
       if (!res.ok) {
-        throw new Error(await parseApiError(res, tekster.loadSharedError));
+        throw new Error(await parseApiError(res, t("samtalehistorikk.loadSharedError")));
       }
       const parsed = SharedChatListResponseSchema.parse(await res.json());
       setLinks(parsed.links);
     } catch (error) {
-      showToast.error(error instanceof Error ? error.message : tekster.loadSharedError);
+      showToast.error(error instanceof Error ? error.message : t("samtalehistorikk.loadSharedError"));
       setLinks([]);
     } finally {
       setLoadingLinks(false);
     }
-  }, [tekster.loadSharedError]);
+  }, [t]);
 
   useEffect(() => {
     if (isLoaded && aktivTab === "shared") {
@@ -178,8 +138,8 @@ export default function SamtalehistorikkPage() {
   }, [chats, historyQuery, sortOrder]);
 
   const handleDeleteAllSharedChats = useCallback(() => {
-    toast(tekster.deleteAllSharedTitle, {
-      description: tekster.deleteAllSharedDescription,
+    toast(t("samtalehistorikk.deleteAllSharedTitle"), {
+      description: t("samtalehistorikk.deleteAllSharedDescription"),
       position: "top-center",
       action: {
         label: t("common.actions.delete"),
@@ -192,15 +152,15 @@ export default function SamtalehistorikkPage() {
           try {
             const res = await fetchApi("/api/ki/chat/shared", { method: "DELETE" });
             if (!res.ok) {
-              showToast.error(await parseApiError(res, tekster.deleteAllSharedError));
+              showToast.error(await parseApiError(res, t("samtalehistorikk.deleteAllSharedError")));
               return;
             }
 
             setLinks([]);
-            showToast.success(tekster.deleteAllSharedSuccess);
+            showToast.success(t("samtalehistorikk.deleteAllSharedSuccess"));
           } catch (error) {
             showToast.error(
-              error instanceof Error ? error.message : tekster.deleteAllSharedError,
+              error instanceof Error ? error.message : t("samtalehistorikk.deleteAllSharedError"),
             );
           } finally {
             setDeletingAllLinks(false);
@@ -209,14 +169,7 @@ export default function SamtalehistorikkPage() {
       },
       cancel: { label: t("common.actions.cancel"), onClick: () => {} },
     });
-  }, [
-    deletingAllLinks,
-    t,
-    tekster.deleteAllSharedDescription,
-    tekster.deleteAllSharedError,
-    tekster.deleteAllSharedSuccess,
-    tekster.deleteAllSharedTitle,
-  ]);
+  }, [deletingAllLinks, t]);
 
   if (megQuery.isPending || !isLoaded || chatsLoading) {
     return (
@@ -268,7 +221,7 @@ export default function SamtalehistorikkPage() {
       <div className="min-h-full bg-white px-4 py-6 text-slate-900 dark:bg-slate-900 dark:text-slate-100 md:px-8">
         <div className="mx-auto w-full max-w-5xl">
           <div className="mb-4 flex items-center justify-between">
-            <h1 className="text-2xl font-semibold">{tekster.title}</h1>
+            <h1 className="text-2xl font-semibold">{t("dashboard.sidebar.chatHistory")}</h1>
             {aktivTab === "history" && chats.length > 0 ? (
               <button
                 type="button"
@@ -276,7 +229,7 @@ export default function SamtalehistorikkPage() {
                 className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
               >
                 <Trash2 className="h-4 w-4" />
-                {tekster.clearAll}
+                {t("common.actions.clearAll")}
               </button>
             ) : null}
             {aktivTab === "shared" && links.length > 0 ? (
@@ -287,7 +240,7 @@ export default function SamtalehistorikkPage() {
                 className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
               >
                 <Trash2 className="h-4 w-4" />
-                {tekster.clearAll}
+                {t("common.actions.clearAll")}
               </button>
             ) : null}
           </div>
@@ -303,7 +256,7 @@ export default function SamtalehistorikkPage() {
               }`}
             >
               <MessageSquare className="h-4 w-4" />
-              {tekster.historyTab}
+              {t("samtalehistorikk.historyTab")}
             </button>
             <button
               type="button"
@@ -315,7 +268,7 @@ export default function SamtalehistorikkPage() {
               }`}
             >
               <Users className="h-4 w-4" />
-              {tekster.sharedTab}
+              {t("samtalehistorikk.sharedTab")}
             </button>
           </div>
 
@@ -323,7 +276,7 @@ export default function SamtalehistorikkPage() {
             <>
               <div className="mb-4">
                 <label htmlFor="samtalehistorikk-search" className="sr-only">
-                  {tekster.searchLabel}
+                  {t("samtalehistorikk.searchLabel")}
                 </label>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -331,25 +284,25 @@ export default function SamtalehistorikkPage() {
                     id="samtalehistorikk-search"
                     value={historyQuery}
                     onChange={(event) => setHistoryQuery(event.target.value)}
-                    placeholder={tekster.searchPlaceholder}
-                    aria-label={tekster.searchLabel}
+                    placeholder={t("samtalehistorikk.searchPlaceholder")}
+                    aria-label={t("samtalehistorikk.searchLabel")}
                     className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm dark:border-slate-700 dark:bg-slate-950"
                   />
                 </div>
               </div>
               <div className="mb-4 flex flex-wrap items-center gap-2">
                 <label htmlFor="samtalehistorikk-sort" className="sr-only">
-                  {tekster.sortLabel}
+                  {t("samtalehistorikk.sortLabel")}
                 </label>
                 <select
                   id="samtalehistorikk-sort"
                   value={sortOrder}
                   onChange={(event) => setSortOrder(event.target.value as "newest" | "oldest")}
-                  aria-label={tekster.sortLabel}
+                  aria-label={t("samtalehistorikk.sortLabel")}
                   className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
                 >
-                  <option value="newest">{tekster.newestFirst}</option>
-                  <option value="oldest">{tekster.oldestFirst}</option>
+                  <option value="newest">{t("samtalehistorikk.newestFirst")}</option>
+                  <option value="oldest">{t("samtalehistorikk.oldestFirst")}</option>
                 </select>
                 <button
                   type="button"
@@ -359,7 +312,7 @@ export default function SamtalehistorikkPage() {
                   }}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
                 >
-                  {selectMode ? tekster.cancelSelection : tekster.select}
+                  {selectMode ? t("samtalehistorikk.cancelSelection") : t("samtalehistorikk.select")}
                 </button>
                 {selectMode ? (
                   <button
@@ -384,7 +337,7 @@ export default function SamtalehistorikkPage() {
                     className="inline-flex items-center gap-2 rounded-lg border border-red-300 px-3 py-2 text-sm text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-800 dark:text-red-400"
                   >
                     <Trash2 className="h-4 w-4" />
-                    {tekster.deleteSelected(selectedIds.size)}
+                    {t("samtalehistorikk.deleteSelected", { count: selectedIds.size })}
                   </button>
                 ) : null}
               </div>
@@ -393,7 +346,7 @@ export default function SamtalehistorikkPage() {
                 <FeilMelding
                   melding={
                     historyQuery.trim().length > 0
-                      ? tekster.noSearchMatches
+                      ? t("samtalehistorikk.noSearchMatches")
                       : t("dashboard.sidebar.noChatsYet")
                   }
                   type="info"
@@ -438,7 +391,7 @@ export default function SamtalehistorikkPage() {
                       titleBadge={chat.pinned ? (
                         <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                           <Pin className="h-3 w-3" />
-                          {tekster.bookmarked}
+                          {t("samtalehistorikk.bookmarked")}
                         </span>
                       ) : null}
                     />
@@ -451,16 +404,16 @@ export default function SamtalehistorikkPage() {
           {aktivTab === "shared" ? (
             <>
               {loadingLinks ? (
-                <LoadingView text={tekster.loadingShared} fullPage={false} />
+                <LoadingView text={t("samtalehistorikk.loadingShared")} fullPage={false} />
               ) : links.length === 0 ? (
-                <FeilMelding melding={tekster.noSharedChats} type="info" />
+                <FeilMelding melding={t("samtalehistorikk.noSharedChats")} type="info" />
               ) : (
                 <div className="space-y-1">
                   {links.map((item) => (
                     <ConversationListItem
                       key={item.shareId}
                       title={item.chatTitle}
-                      meta={`${formaterDatoShort(item.createdAt, language)} · ${tekster.sharedViews(item.viewCount)}`}
+                      meta={`${formaterDatoShort(item.createdAt, language)} · ${sharedViews(item.viewCount)}`}
                       onOpen={() => åpneSamtale(item.chatId)}
                       footer={(
                         <>
@@ -470,14 +423,14 @@ export default function SamtalehistorikkPage() {
                               try {
                                 const fullUrl = `${window.location.origin}${item.shareUrl}`;
                                 await navigator.clipboard.writeText(fullUrl);
-                                toast(tekster.linkCopied);
+                                toast(t("samtalehistorikk.linkCopied"));
                               } catch {
-                                showToast.error(tekster.copyLinkError);
+                                showToast.error(t("samtalehistorikk.copyLinkError"));
                               }
                             }}
                             className="rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
                           >
-                            {tekster.copyLink}
+                            {t("samtalehistorikk.copyLink")}
                           </button>
                           <button
                             type="button"
@@ -487,14 +440,14 @@ export default function SamtalehistorikkPage() {
                               });
                               if (!res.ok) {
                                 showToast.error(
-                                  await parseApiError(res, tekster.deleteShareError),
+                                  await parseApiError(res, t("samtalehistorikk.deleteShareError")),
                                 );
                                 return;
                               }
                               setLinks((prev) =>
                                 prev.filter((link) => link.shareId !== item.shareId),
                               );
-                              showToast.success(tekster.deleteShareSuccess);
+                              showToast.success(t("samtalehistorikk.deleteShareSuccess"));
                             }}
                             className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 text-xs text-red-600 dark:border-red-800 dark:text-red-400"
                           >

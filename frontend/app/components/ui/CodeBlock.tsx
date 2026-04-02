@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { Check, Copy } from "lucide-react";
 import hljs from "highlight.js";
 import DOMPurify from "isomorphic-dompurify";
+import { useLanguage } from "@/app/i18n";
 
 interface CodeBlockProps {
   className?: string;
@@ -16,6 +17,7 @@ interface CodeBlockProps {
  * Bruker hljs.highlight() + dangerouslySetInnerHTML slik at fargene overlever React re-render.
  */
 export function CodeBlock({ className, children }: CodeBlockProps) {
+  const { t } = useLanguage();
   const [kopiert, setKopiert] = useState(false);
 
   // Detekter språk fra markdown className ("language-java" → "java")
@@ -76,18 +78,18 @@ export function CodeBlock({ className, children }: CodeBlockProps) {
           type="button"
           onClick={kopierKode}
           className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
-          title="Kopier kode"
-          aria-label="Kopier kode"
+          title={t("codeBlock.copyTitle")}
+          aria-label={t("codeBlock.copyTitle")}
         >
           {kopiert ? (
             <>
               <Check className="w-3.5 h-3.5" />
-              <span>Kopiert</span>
+              <span>{t("codeBlock.copiedLabel")}</span>
             </>
           ) : (
             <>
               <Copy className="w-3.5 h-3.5" />
-              <span>Kopier</span>
+              <span>{t("codeBlock.copyLabel")}</span>
             </>
           )}
         </button>
@@ -106,7 +108,7 @@ export function CodeBlock({ className, children }: CodeBlockProps) {
       {/* Linje-teller footer */}
       <div className="flex justify-end px-4 py-1.5 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700">
         <span className="text-[10px] text-slate-400 dark:text-slate-500">
-          {kodeTekst.split("\n").length} linjer
+          {t("codeBlock.linesLabel", { count: kodeTekst.split("\n").length })}
         </span>
       </div>
     </div>

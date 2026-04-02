@@ -40,18 +40,6 @@ export default function BokmerkerPage() {
     megQuery.data?.user?.firstName ||
     megQuery.data?.user?.email?.split("@")?.[0];
   const brukerRolle = megQuery.data?.user?.role;
-  const erEngelsk = language === "en";
-  const tekster = {
-    title: erEngelsk ? "My bookmarks" : "Mine bokmerker",
-    loading: erEngelsk ? "Loading bookmarks..." : "Laster bokmerker...",
-    searchLabel: erEngelsk ? "Search bookmarked conversations" : "Søk i bokmerkede samtaler",
-    searchPlaceholder: erEngelsk ? "Search conversations..." : "Søk i samtaler...",
-    noSearchMatches: erEngelsk
-      ? "No bookmarked conversations match your search."
-      : "Ingen bokmerkede samtaler matcher søket.",
-    removedFromBookmarks: erEngelsk ? "Removed from bookmarks" : "Fjernet fra bokmerker",
-    unpin: erEngelsk ? "Remove bookmark" : "Fjern bokmerke",
-  };
 
   const byttVisning = useCallback(
     (visning: VisningType) => {
@@ -88,7 +76,7 @@ export default function BokmerkerPage() {
         byttVisning={byttVisning}
         brukernavn={brukernavn}
         brukerRolle={brukerRolle}
-        label={tekster.loading}
+        label={t("bokmerker.loading")}
       />
     );
   }
@@ -131,12 +119,12 @@ export default function BokmerkerPage() {
       <div className="min-h-full bg-white px-4 py-6 text-slate-900 dark:bg-slate-900 dark:text-slate-100 md:px-8">
         <div className="mx-auto w-full max-w-5xl">
           <div className="mb-4 flex items-center justify-between">
-            <h1 className="text-2xl font-semibold">{tekster.title}</h1>
+            <h1 className="text-2xl font-semibold">{t("bokmerker.title")}</h1>
           </div>
 
           <div className="mb-4">
             <label htmlFor="bookmarks-search" className="sr-only">
-              {tekster.searchLabel}
+              {t("bokmerker.searchLabel")}
             </label>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -144,8 +132,8 @@ export default function BokmerkerPage() {
                 id="bookmarks-search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder={tekster.searchPlaceholder}
-                aria-label={tekster.searchLabel}
+                placeholder={t("bokmerker.searchPlaceholder")}
+                aria-label={t("bokmerker.searchLabel")}
                 className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm dark:border-slate-700 dark:bg-slate-950"
               />
             </div>
@@ -155,7 +143,7 @@ export default function BokmerkerPage() {
             <FeilMelding
               melding={
                 query.trim().length > 0
-                  ? tekster.noSearchMatches
+                  ? t("bokmerker.noSearchMatches")
                   : t("dashboard.sidebar.noBookmarksYet")
               }
               type="info"
@@ -175,13 +163,13 @@ export default function BokmerkerPage() {
                       onClick={async () => {
                         const ok = await setChatPinned(chat.id, false);
                         if (ok) {
-                          showToast.success(tekster.removedFromBookmarks);
+                          showToast.success(t("bokmerker.removedFromBookmarks"));
                         }
                       }}
                       className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
                     >
                       <Pin className="h-3.5 w-3.5" />
-                      {tekster.unpin}
+                      {t("bokmerker.unpin")}
                     </button>
                   )}
                 />

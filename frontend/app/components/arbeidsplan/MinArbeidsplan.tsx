@@ -32,20 +32,20 @@ import { useLanguage } from "@/app/i18n";
 import { formaterDatoMedTid } from "@/app/lib/dato";
 
 /** Forklaring for hvorfor en oppgave har en gitt prioritet */
-function getPriorityExplanation(priority: string, task: string): string {
+function getPriorityExplanation(priority: string, task: string, t: (key: "minArbeidsplan.priorityHighDeadline" | "minArbeidsplan.priorityHigh" | "minArbeidsplan.priorityMedium" | "minArbeidsplan.priorityLowRepetition" | "minArbeidsplan.priorityLow") => string): string {
   const lower = task.toLowerCase();
   const harFrist = /frist|deadline|innlevering|eksamen/.test(lower);
   const harRepetisjon = /repeter|gjennomgå|les igjen|oppsummer/.test(lower);
 
   switch (priority) {
     case "high":
-      if (harFrist) return "Nær forestående frist eller eksamen";
-      return "Viktig oppgave som bør gjøres først";
+      if (harFrist) return t("minArbeidsplan.priorityHighDeadline");
+      return t("minArbeidsplan.priorityHigh");
     case "medium":
-      return "Bør gjøres denne uken";
+      return t("minArbeidsplan.priorityMedium");
     case "low":
-      if (harRepetisjon) return "Repetisjon – gjør når du har tid til overs";
-      return "Kan utsettes om nødvendig";
+      if (harRepetisjon) return t("minArbeidsplan.priorityLowRepetition");
+      return t("minArbeidsplan.priorityLow");
     default:
       return "";
   }
@@ -115,7 +115,7 @@ export function MinArbeidsplan() {
           onClick={() => void refetch()}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
         >
-          Prøv igjen
+          {t("minArbeidsplan.retryButton")}
         </button>
       </div>
     );
@@ -130,11 +130,10 @@ export function MinArbeidsplan() {
           </div>
           <div>
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-              Ingen arbeidsplan enda
+              {t("minArbeidsplan.emptyTitle")}
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-              Generer en ukeplan med KI og godkjenn studieblokker for å se dem her. 
-              Du vil kunne følge fremdriften din gjennom uken.
+              {t("minArbeidsplan.emptyDescription")}
             </p>
           </div>
         </div>
@@ -188,7 +187,7 @@ export function MinArbeidsplan() {
               {plan.week}
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              Din personlige arbeidsplan
+              {t("minArbeidsplan.personalPlanLabel")}
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -218,9 +217,9 @@ export function MinArbeidsplan() {
                   ? "bg-red-600 text-white hover:bg-red-700"
                   : "text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30"
               }`}
-              title="Slett arbeidsplan"
+              title={t("minArbeidsplan.deleteTitle")}
             >
-              {bekreftSlett ? "Bekreft sletting" : <Trash2 className="w-5 h-5" />}
+              {bekreftSlett ? t("minArbeidsplan.deleteConfirm") : <Trash2 className="w-5 h-5" />}
             </button>
           </div>
         </div>
@@ -232,11 +231,11 @@ export function MinArbeidsplan() {
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                 <span className="font-medium text-slate-700 dark:text-slate-300">
-                  Fremdrift
+                  {t("minArbeidsplan.progressLabel")}
                 </span>
               </div>
               <span className="text-slate-600 dark:text-slate-400">
-                {stats.completedBlocks} / {stats.totalBlocks} oppgaver
+                {t("minArbeidsplan.tasksCount", { completed: stats.completedBlocks, total: stats.totalBlocks })}
               </span>
             </div>
             
@@ -248,8 +247,8 @@ export function MinArbeidsplan() {
             </div>
             
             <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
-              <span>{stats.percentage}% fullført</span>
-              <span>{stats.completedHours} / {stats.totalHours} timer</span>
+              <span>{t("minArbeidsplan.percentComplete", { percent: stats.percentage })}</span>
+              <span>{t("minArbeidsplan.hoursCount", { completed: stats.completedHours, total: stats.totalHours })}</span>
             </div>
           </div>
         )}
@@ -281,7 +280,7 @@ export function MinArbeidsplan() {
                       {day}
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {completed} / {total} fullført
+                      {t("minArbeidsplan.completedCount", { completed, total })}
                     </p>
                   </div>
                 </div>
@@ -349,7 +348,7 @@ export function MinArbeidsplan() {
                               </span>
                               <Info className="w-3.5 h-3.5 text-slate-400 cursor-help" />
                               <div className="absolute right-0 top-full mt-1 z-20 w-52 p-2 rounded-lg bg-slate-900 dark:bg-slate-700 text-white text-xs shadow-lg opacity-0 pointer-events-none group-hover/prio:opacity-100 transition-opacity">
-                                {getPriorityExplanation(block.priority, block.task)}
+                                {getPriorityExplanation(block.priority, block.task, t)}
                               </div>
                             </div>
                           </div>

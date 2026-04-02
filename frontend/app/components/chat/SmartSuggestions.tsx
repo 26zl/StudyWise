@@ -7,6 +7,7 @@
  */
 import { useState, useEffect, useMemo } from "react";
 import { Sparkles, BookOpen, Lightbulb } from "lucide-react";
+import { useLanguage } from "@/app/i18n";
 
 interface SmartSuggestionsProps {
   lastAIMessage: string;
@@ -28,17 +29,7 @@ function categorizeResponse(text: string): ResponseCategory {
   return "generelt";
 }
 
-// --- Kategoribaserte oppfølgingsforslag (#35) ---
-
-const FOLLOW_UPS: Record<ResponseCategory, string[]> = {
-  kode: ["Forklar koden steg for steg", "Vis en alternativ løsning", "Hva kan gå galt med denne koden?"],
-  liste: ["Forklar punkt 1 mer detaljert", "Gi meg eksempler på hvert punkt", "Hvilke er viktigst?"],
-  forklaring: ["Gi meg et praktisk eksempel", "Forklar det enda enklere", "Test meg på dette"],
-  oppgave: ["Hjelp meg lage en plan for oppgaven", "Hva bør jeg starte med?", "Hvor lang tid bør jeg sette av?"],
-  planlegging: ["Juster planen for kortere økter", "Legg til pauser", "Hva om jeg har mindre tid?"],
-  oppsummering: ["Utdyp det viktigste punktet", "Lag flashcards basert på dette", "Test meg på innholdet"],
-  generelt: ["Fortsett...", "Forklar enklere", "Gi meg et eksempel"],
-};
+// --- Kategoribaserte oppfølgingsforslag (#35) — bygges via i18n inne i komponenten ---
 
 // --- Modulspørsmål (#12) ---
 
@@ -72,7 +63,18 @@ export function SmartSuggestions({
   onSelectSuggestion,
   disabled = false,
 }: SmartSuggestionsProps) {
+  const { t } = useLanguage();
   const [suggestions, setSuggestions] = useState<{ text: string; type: SuggestionType }[]>([]);
+
+  const FOLLOW_UPS = useMemo((): Record<ResponseCategory, string[]> => ({
+    kode: [t("smartSuggestions.kode0"), t("smartSuggestions.kode1"), t("smartSuggestions.kode2")],
+    liste: [t("smartSuggestions.liste0"), t("smartSuggestions.liste1"), t("smartSuggestions.liste2")],
+    forklaring: [t("smartSuggestions.forklaring0"), t("smartSuggestions.forklaring1"), t("smartSuggestions.forklaring2")],
+    oppgave: [t("smartSuggestions.oppgave0"), t("smartSuggestions.oppgave1"), t("smartSuggestions.oppgave2")],
+    planlegging: [t("smartSuggestions.planlegging0"), t("smartSuggestions.planlegging1"), t("smartSuggestions.planlegging2")],
+    oppsummering: [t("smartSuggestions.oppsummering0"), t("smartSuggestions.oppsummering1"), t("smartSuggestions.oppsummering2")],
+    generelt: [t("smartSuggestions.generelt0"), t("smartSuggestions.generelt1"), t("smartSuggestions.generelt2")],
+  }), [t]);
 
   const analysis = useMemo(() => {
     if (!lastAIMessage?.trim()) return null;
@@ -107,18 +109,18 @@ export function SmartSuggestions({
 
     // 2. Modulspørsmål (#12) — 1 stk hvis emnekode eller fagområde nevnt
     if (modules.length > 0) {
-      add(`Gi meg øvingsoppgaver for ${modules[0]}`, "module");
+      add(t("smartSuggestions.moduleExercises", { module: modules[0] }), "module");
     } else if (topic) {
-      add(`Forklar de viktigste konseptene innen ${topic}`, "module");
+      add(t("smartSuggestions.topicConcepts", { topic }), "module");
     }
 
     // 3. Fyll opp med generiske hints
-    for (const g of ["Fortsett...", "Forklar enklere"]) {
+    for (const g of [t("smartSuggestions.genericHint0"), t("smartSuggestions.genericHint1")]) {
       add(g, "hint");
     }
 
     setSuggestions(result.slice(0, 3));
-  }, [analysis]);
+  }, [analysis, FOLLOW_UPS, t]);
 
   if (suggestions.length === 0) return null;
 
@@ -134,7 +136,7 @@ export function SmartSuggestions({
         <Sparkles className="w-4 h-4 text-purple-500 mt-1 shrink-0" />
         <div className="flex-1">
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
-            Forslag til oppfølging:
+            {t("smartSuggestions.followupLabel")}
           </p>
           <div className="flex flex-wrap gap-2">
             {suggestions.map((s, i) => (

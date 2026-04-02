@@ -43,9 +43,9 @@ export function InfoPageLayout({
   contentClassName,
   children,
 }: InfoPageLayoutProps) {
-  const { language } = useLanguage();
-  const resolvedBackLabel = backLabel ?? (language === "en" ? "← Back to home" : "← Tilbake til forsiden");
-  const updatedAtLabel = language === "en" ? "Last updated" : "Sist oppdatert";
+  const { t } = useLanguage();
+  const resolvedBackLabel = backLabel ?? t("infoPageLayout.backToHome");
+  const updatedAtLabel = t("infoPageLayout.lastUpdated");
 
   return (
     <div className={cn("min-h-full flex flex-col bg-slate-50 dark:bg-slate-950", className)}>

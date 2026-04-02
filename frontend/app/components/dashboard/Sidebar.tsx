@@ -168,17 +168,17 @@ export function Sidebar({
     const hasHiddenHistoryChats = allHistoryChats.length > historyVisibleCount;
     const erPåChatSide = pathname === "/dashboard" && aktivVisning === "chat";
     const chatHandlingTekster = {
-        closeMenu: "Lukk meny",
-        actions: "Handlinger",
-        rename: "Gi nytt navn",
-        removeBookmark: "Fjern festet samtale",
-        addBookmark: "Fest samtale",
-        delete: "Slett",
-        hideBookmarks: "Skjul festede samtaler",
-        showBookmarks: "Vis festede samtaler",
-        hideHistory: "Skjul samtalehistorikk",
-        showHistory: "Vis samtalehistorikk",
-        showMore: "Vis flere",
+        closeMenu: t("chatActions.closeMenu"),
+        actions: t("chatActions.actionsMenu"),
+        rename: t("chatActions.rename"),
+        removeBookmark: t("chatActions.removeBookmark"),
+        addBookmark: t("chatActions.addBookmark"),
+        delete: t("chatActions.delete"),
+        hideBookmarks: t("chatActions.hideBookmarks"),
+        showBookmarks: t("chatActions.showBookmarks"),
+        hideHistory: t("chatActions.hideHistory"),
+        showHistory: t("chatActions.showHistory"),
+        showMore: t("chatActions.showMore"),
     };
     type SidebarChat = (typeof chats)[number];
 
@@ -631,22 +631,22 @@ export function Sidebar({
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="mb-4 flex items-center justify-between">
-                            <h3 id={renameTitleId} className="text-3xl font-semibold text-slate-900 dark:text-slate-100">Endre samtalenavn</h3>
+                            <h3 id={renameTitleId} className="text-3xl font-semibold text-slate-900 dark:text-slate-100">{t("chatActions.renameChatTitle")}</h3>
                             <button
                                 ref={renameCloseButtonRef}
                                 type="button"
                                 onClick={handleCloseRenameModal}
                                 className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                                aria-label="Lukk"
+                                aria-label={t("chatActions.renameChatClose")}
                             >
                                 <X size={18} />
                             </button>
                         </div>
                         <p id={renameDescriptionId} className="mb-4 text-sm text-slate-600 dark:text-slate-400">
-                            Gi samtalen et kort og tydelig navn.
+                            {t("chatActions.renameChatDescription")}
                         </p>
                         <label htmlFor={renameInputId} className="sr-only">
-                            Nytt samtalenavn
+                            {t("chatActions.renameChatLabel")}
                         </label>
                         <textarea
                             ref={renameInputRef}
@@ -670,7 +670,7 @@ export function Sidebar({
                                 disabled={!renameValue.trim()}
                                 className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
                             >
-                                Lagre
+                                {t("chatActions.renameChatSave")}
                             </button>
                         </div>
                     </div>

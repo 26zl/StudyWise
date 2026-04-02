@@ -1,83 +1,49 @@
 /*
  * Om oss - Informasjon om StudyWise
  */
+"use client";
+
+import { useLanguage } from "@/app/i18n";
 import { InfoPageLayout, InfoSection } from "@/app/components/layout/InfoPageLayout";
 
 export default function OmOssPage() {
+  const { t } = useLanguage();
+
+  const features = [
+    { label: t("omOss.featureCanvasLabel"), body: t("omOss.featureCanvasBody") },
+    { label: t("omOss.featureAILabel"), body: t("omOss.featureAIBody") },
+    { label: t("omOss.featureCalendarLabel"), body: t("omOss.featureCalendarBody") },
+    { label: t("omOss.featureDocumentsLabel"), body: t("omOss.featureDocumentsBody") },
+    { label: t("omOss.featureTaskBreakdownLabel"), body: t("omOss.featureTaskBreakdownBody") },
+    { label: t("omOss.featureWorkplanLabel"), body: t("omOss.featureWorkplanBody") },
+    { label: t("omOss.featureChatHistoryLabel"), body: t("omOss.featureChatHistoryBody") },
+  ];
+
   return (
-    <InfoPageLayout title="Om StudyWise">
-      <InfoSection title="Hva er StudyWise?">
-        <p>
-          StudyWise er en AI-drevet studieassistent utviklet som et bachelorprosjekt
-          ved Universitetet i Sør-Øst-Norge (USN). Applikasjonen integrerer med
-          Canvas LMS for å gi studenter en sentralisert plattform for å holde
-          oversikt over studiene sine.
-        </p>
+    <InfoPageLayout title={t("omOss.title")}>
+      <InfoSection title={t("omOss.whatTitle")}>
+        <p>{t("omOss.whatBody")}</p>
       </InfoSection>
 
-      <InfoSection title="Funksjoner">
+      <InfoSection title={t("omOss.featuresTitle")}>
         <ul className="space-y-3">
-          <li className="flex gap-2">
-            <span className="text-blue-500 dark:text-blue-400">•</span>
-            <span>
-              <strong>Canvas-integrasjon:</strong> Se kunngjøringer, emner, frister og
-              kalender fra Canvas
-            </span>
-          </li>
-          <li className="flex gap-2">
-            <span className="text-blue-500 dark:text-blue-400">•</span>
-            <span>
-              <strong>AI-assistent:</strong> Få hjelp med studier, oppgaver og spørsmål
-              om Canvas-innhold
-            </span>
-          </li>
-          <li className="flex gap-2">
-            <span className="text-blue-500 dark:text-blue-400">•</span>
-            <span>
-              <strong>Kalender:</strong> Oversikt over alle frister og hendelser på ett
-              sted
-            </span>
-          </li>
-          <li className="flex gap-2">
-            <span className="text-blue-500 dark:text-blue-400">•</span>
-            <span>
-              <strong>Dokumentanalyse:</strong> Last opp PDF, Word, bilder og andre filer
-              for AI-analyse og oppsummering
-            </span>
-          </li>
-          <li className="flex gap-2">
-            <span className="text-blue-500 dark:text-blue-400">•</span>
-            <span>
-              <strong>Oppgavenedbrytning:</strong> AI bryter ned store oppgaver i
-              håndterbare deloppgaver
-            </span>
-          </li>
-          <li className="flex gap-2">
-            <span className="text-blue-500 dark:text-blue-400">•</span>
-            <span>
-              <strong>Arbeidsplan:</strong> Generer ukentlige studieplaner tilpasset
-              dine frister
-            </span>
-          </li>
-          <li className="flex gap-2">
-            <span className="text-blue-500 dark:text-blue-400">•</span>
-            <span>
-              <strong>Samtalehistorikk:</strong> Lagre og fortsett samtaler med AI-en
-            </span>
-          </li>
+          {features.map(({ label, body }) => (
+            <li key={label} className="flex gap-2">
+              <span className="text-blue-500 dark:text-blue-400">•</span>
+              <span>
+                <strong>{label}</strong> {body}
+              </span>
+            </li>
+          ))}
         </ul>
       </InfoSection>
 
-      <InfoSection title="Teamet">
-        <p>
-          StudyWise er utviklet av studenter ved USN som en del av deres
-          bacheloroppgave i IT og informasjonssystemer. Prosjektet fokuserer på å
-          utforske hvordan AI kan forbedre studieopplevelsen for studenter.
-        </p>
+      <InfoSection title={t("omOss.teamTitle")}>
+        <p>{t("omOss.teamBody")}</p>
       </InfoSection>
 
-      <InfoSection title="Teknologi">
-        <p className="mb-4">Applikasjonen er bygget med moderne teknologier:</p>
+      <InfoSection title={t("omOss.techTitle")}>
+        <p className="mb-4">{t("omOss.techBody")}</p>
         <div className="flex flex-wrap gap-2">
           {["Next.js", "React", "TypeScript", "Tailwind CSS", "Express", "MongoDB", "Redis", "Clerk", "Claude (Anthropic)", "Pinecone", "Cohere", "Datadog", "Cloudflare"].map((tech) => (
             <span
