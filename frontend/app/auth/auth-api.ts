@@ -108,25 +108,16 @@ function lagCanvasTokenFeil(
   return new Error(melding);
 }
 
-// Alle autentiserte kall går via fetchApi slik at Clerk-header og CSRF er konsistent på tvers av klientene.
+// Alle autentiserte kall går via fetchAuthedJson for konsistent auth/CSRF/feilhåndtering.
 async function requestAuthedJson<T>(
   url: string,
   schema: ZodType<T>,
   defaultErrorMessage: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const res = await fetchApi(url, init);
-  const json = await parseApiJson(res);
-
-  if (res.status === 401 || res.status === 403) {
-    throw createAuthStatusError(res.status, json, "Ikke autentisert");
-  }
-
-  if (!res.ok) {
-    throw createApiError(json, defaultErrorMessage);
-  }
-
-  return schema.parse(json);
+  const { fetchAuthedJson } = await import("../lib/apiClient");
+  const { data } = await fetchAuthedJson(url, init, { defaultErrorMessage });
+  return schema.parse(data);
 }
 
 // Timeout for /me – Professional dyno sover ikke, 10s er nok

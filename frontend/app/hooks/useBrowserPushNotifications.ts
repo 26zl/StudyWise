@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useOppdaterBrowserPushPreferanser } from "@/app/auth/auth-api";
+import { showToast } from "@/app/components/ui/Toaster";
+import { useLanguage } from "@/app/i18n";
 import {
   deleteBrowserPushSubscription,
   getBrowserPushClientConfig,
@@ -81,6 +83,7 @@ export function useBrowserPushNotifications(
     initialPreferences ?? DEFAULT_PREFERENCES,
   );
   const { mutateAsync: savePreferences } = useOppdaterBrowserPushPreferanser();
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (!support) return;
@@ -209,8 +212,9 @@ export function useBrowserPushNotifications(
       const updated = await savePreferences(nextPreferences);
       setPreferences(updated.browserPushPreferences ?? nextPreferences);
     } catch {
-      // Rull tilbake til forrige state ved lagringsfeil
+      // Rull tilbake til forrige state og vis feilmelding
       setPreferences(previousPreferences);
+      showToast.error(t("settings.browserPush.preferenceSaveError"));
     } finally {
       setIsPending(false);
     }

@@ -54,3 +54,29 @@ export async function fetchApi(
 ): Promise<Response> {
   return fetch(input, await buildApiRequestInit(init, options));
 }
+
+/**
+ * Autentisert JSON-fetch med felles feilhåndtering.
+ * Håndterer 204, JSON-parsing, 401/403 (auth-feil) og !ok (API-feil).
+ * Brukes av auth-api og useChatHistory for å unngå duplisert logikk.
+ */
+export async function fetchAuthedJson(
+  input: RequestInfo,
+  init?: RequestInit,
+  options?: { defaultErrorMessage?: string },
+): Promise<{ data: unknown; status: number }> {
+  // Lazy import for å unngå sirkulær avhengighet (apiClient → errorUtils → errors)
+  const { parseApiJson, createAuthStatusError, createApiError } = await import("./errorUtils");
+  const res = await fetchApi(input, init ?? {});
+  if (res.status === 204) {
+    return { data: undefined, status: 204 };
+  }
+  const data = await parseApiJson(res);
+  if (res.status === 401 || res.status === 403) {
+    throw createAuthStatusError(res.status, data, "Ikke autentisert");
+  }
+  if (!res.ok) {
+    throw createApiError(data, options?.defaultErrorMessage ?? "Uventet feil");
+  }
+  return { data, status: res.status };
+}

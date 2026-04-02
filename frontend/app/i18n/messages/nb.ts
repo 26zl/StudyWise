@@ -429,6 +429,7 @@ export const nbMessages = {
       testMissingTitle: "Ingen aktive varsler",
       testMissingDescription:
         "Vi fant ikke noe aktivt abonnement på denne enheten. Aktiver varsler først.",
+      preferenceSaveError: "Kunne ikke lagre varslingsvalg",
       testErrorTitle: "Kunne ikke sende testvarsel",
       requiresCanvas:
         "Koble til Canvas for å få varsler basert på kunngjøringer, frister og hendelser.",

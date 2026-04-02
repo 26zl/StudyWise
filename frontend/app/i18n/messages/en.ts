@@ -434,6 +434,7 @@ export const enMessages = {
       testMissingTitle: "No active notifications",
       testMissingDescription:
         "We could not find an active subscription on this device. Enable notifications first.",
+      preferenceSaveError: "Could not save notification preferences",
       testErrorTitle: "Could not send test notification",
       requiresCanvas:
         "Connect Canvas to receive notifications based on announcements, deadlines, and events.",

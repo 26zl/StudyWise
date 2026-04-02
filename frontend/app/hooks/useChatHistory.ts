@@ -17,8 +17,7 @@ import {
   ChatTitleUpdateResponseSchema,
   ChatTopicUpdateResponseSchema,
 } from "common/chat";
-import { fetchApi } from "../lib/apiClient";
-import { createApiError, createAuthStatusError, parseApiJson } from "../lib/errorUtils";
+import { fetchAuthedJson } from "../lib/apiClient";
 import { SessionExpiredError } from "../lib/errors";
 
 /** Representasjon av en lagret samtale (id, tittel, meldinger, tidsstempel). */
@@ -42,26 +41,21 @@ type SaveChatOptions = {
   retryCount?: number;
 };
 
-/** Felles fetch via fetchApi — delegerer feilhåndtering til delte utilities i errorUtils. */
+/** Tynt lag over fetchAuthedJson som beriker feil med status/body for retry-logikk. */
 async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
-  const res = await fetchApi(input, init);
-  if (res.status === 204) {
-    return undefined as T;
+  try {
+    const { data } = await fetchAuthedJson(input, init);
+    return data as T;
+  } catch (error) {
+    // Berik feil med status/body slik at erIkkeAutentisert() og shouldRetrySave() fungerer
+    if (error instanceof Error && !("status" in error)) {
+      const apiErr = error as ApiError;
+      if (error instanceof SessionExpiredError) {
+        apiErr.status = 401;
+      }
+    }
+    throw error;
   }
-  const data = await parseApiJson(res);
-  if (res.status === 401 || res.status === 403) {
-    const err = createAuthStatusError(res.status, data, "Ikke autentisert") as ApiError;
-    err.status = res.status;
-    err.body = data;
-    throw err;
-  }
-  if (!res.ok) {
-    const err = createApiError(data, "Uventet feil") as ApiError;
-    err.status = res.status;
-    err.body = data;
-    throw err;
-  }
-  return data as T;
 }
 
 function erIkkeAutentisert(error: unknown) {
