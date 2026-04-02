@@ -662,7 +662,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
             href="/auth/sign-in"
           />
 
-          {/* Required for Clerk's bot sign-up protection */}
+          {/* Påkrevd for Clerks bot-registreringsbeskyttelse */}
           <div id="clerk-captcha" />
         </AuthCard>
       )}

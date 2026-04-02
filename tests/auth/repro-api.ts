@@ -1,33 +1,33 @@
 #!/usr/bin/env tsx
 /// <reference types="node" />
 /**
- * Auth Duplicate Reproduction — Pure API Test
+ * Auth duplikat-reproduksjon — Ren API-test
  *
- * Tests findOrCreateUserByClerkId directly via the debug endpoint.
- * Creates real Clerk test users via Backend API, then calls
- * POST /api/debug/test-auth-flow to trigger the same code path
- * that runs on every /me request.
+ * Tester findOrCreateUserByClerkId direkte via debug-endepunktet.
+ * Oppretter ekte Clerk-testbrukere via Backend API, deretter kaller
+ * POST /api/debug/test-auth-flow for å trigge samme kodebane
+ * som kjører ved hver /me-forespørsel.
  *
- * Flow:
- *   1. Create Clerk user A (email + username)
- *   2. Call test-auth-flow with user A's clerkId → creates local user
- *   3. Create Clerk user B (DIFFERENT email, SAME username)
- *   4. Call test-auth-flow with user B's clerkId → should hit username conflict
- *   5. Classify result
- *   6. Clean up: delete Clerk test users
+ * Flyt:
+ *   1. Opprett Clerk-bruker A (e-post + brukernavn)
+ *   2. Kall test-auth-flow med bruker A sin clerkId → oppretter lokal bruker
+ *   3. Opprett Clerk-bruker B (ANNEN e-post, SAMME brukernavn)
+ *   4. Kall test-auth-flow med bruker B sin clerkId → skal treffe brukernavnkonflikt
+ *   5. Klassifiser resultat
+ *   6. Rydd opp: slett Clerk-testbrukere
  *
- * Usage: pnpm test:auth:repro
- * Requires:
- *   - Backend running on localhost:4000
- *   - ENABLE_AUTH_DIAGNOSTICS=true in backend/.env
- *   - CLERK_SECRET_KEY in backend/.env
+ * Bruk: pnpm test:auth:repro
+ * Krever:
+ *   - Backend kjørende på localhost:4000
+ *   - ENABLE_AUTH_DIAGNOSTICS=true i backend/.env
+ *   - CLERK_SECRET_KEY i backend/.env
  */
 import "../helpers/env.js";
 import { BACKEND_URL } from "../helpers/env.js";
 import { log, header } from "../helpers/log.js";
 import { createClerkClient } from "@clerk/backend";
 
-// ---------- Config ----------
+// ---------- Konfigurasjon ----------
 const TIMESTAMP = Date.now();
 const TEST_EMAIL_A = `test-repro-a-${TIMESTAMP}@example.com`;
 const TEST_EMAIL_B = `test-repro-b-${TIMESTAMP}@example.com`;
@@ -52,7 +52,7 @@ interface Evidence {
   clerkBlockedDuplicateUsername: boolean;
 }
 
-// ---------- Clerk Client ----------
+// ---------- Clerk-klient ----------
 const secretKey = process.env.CLERK_SECRET_KEY;
 if (!secretKey) {
   log("ERROR: CLERK_SECRET_KEY not set. Add it to backend/.env");
@@ -61,7 +61,7 @@ if (!secretKey) {
 
 const clerk = createClerkClient({ secretKey });
 
-// ---------- Helpers ----------
+// ---------- Hjelpefunksjoner ----------
 
 async function callTestAuthFlow(
   clerkId: string,
@@ -90,7 +90,7 @@ async function deleteClerkUser(userId: string): Promise<boolean> {
   }
 }
 
-// ---------- Main ----------
+// ---------- Hovedfunksjon ----------
 async function main() {
   const evidence: Evidence = {
     timestamp: new Date().toISOString(),
@@ -108,7 +108,7 @@ async function main() {
   };
 
   try {
-    // ---- Step 0: Verify backend is reachable ----
+    // ---- Steg 0: Verifiser at backend er tilgjengelig ----
     header("STEP 0: Verify backend");
     try {
       const healthRes = await fetch(`${BACKEND_URL}/health`);
@@ -120,7 +120,7 @@ async function main() {
       process.exit(1);
     }
 
-    // ---- Step 1: Create Clerk user A ----
+    // ---- Steg 1: Opprett Clerk-bruker A ----
     header("STEP 1: Create Clerk user A");
     log(`  Email: ${TEST_EMAIL_A}`);
     log(`  Username: ${TEST_USERNAME}`);
@@ -156,7 +156,7 @@ async function main() {
       return;
     }
 
-    // ---- Step 2: Call test-auth-flow for user A ----
+    // ---- Steg 2: Kall test-auth-flow for bruker A ----
     header("STEP 2: Call findOrCreateUserByClerkId for user A");
     log(`  ClerkId: ${evidence.clerkUserA.id}`);
     log(`  FlowId: ${FLOW_ID_A}`);
@@ -172,7 +172,7 @@ async function main() {
       return;
     }
 
-    // ---- Step 3: Create Clerk user B (different email, try SAME username then fallback) ----
+    // ---- Steg 3: Opprett Clerk-bruker B (annen e-post, prøv SAMME brukernavn, deretter fallback) ----
     header("STEP 3: Create Clerk user B (same username, different email)");
     log(`  Email: ${TEST_EMAIL_B}`);
     log(`  Username: ${TEST_USERNAME} (SAME as user A)`);
@@ -204,7 +204,7 @@ async function main() {
       log(`  Clerk BLOCKED creating user B with same username: ${msg}`);
       evidence.clerkBlockedDuplicateUsername = true;
 
-      // Fall back: create user B with a DIFFERENT username
+      // Fallback: opprett bruker B med et ANNET brukernavn
       log(`\n  Creating user B with DIFFERENT username (${TEST_USERNAME_B}) to test parallel flow...`);
       try {
         const userB2 = await clerk.users.createUser({
@@ -239,7 +239,7 @@ async function main() {
       }
     }
 
-    // ---- Step 4: Call test-auth-flow for user B ----
+    // ---- Steg 4: Kall test-auth-flow for bruker B ----
     header("STEP 4: Call findOrCreateUserByClerkId for user B");
     log(`  ClerkId: ${evidence.clerkUserB!.id}`);
     log(`  FlowId: ${FLOW_ID_B}`);
@@ -248,13 +248,13 @@ async function main() {
     log(`  Response: ${JSON.stringify(resultB.body, null, 2)}`);
     evidence.flowResultB = resultB.body as Evidence["flowResultB"];
 
-    // ---- Step 5: Classify ----
+    // ---- Steg 5: Klassifiser ----
     header("STEP 5: Classification");
     evidence.classification = classify(evidence);
     log(`  ${evidence.classification}`);
 
   } finally {
-    // ---- Cleanup: Delete test Clerk users ----
+    // ---- Opprydding: Slett test-Clerk-brukere ----
     header("CLEANUP: Deleting test Clerk users");
     if (evidence.clerkUserA) {
       evidence.cleanup.userADeleted = await deleteClerkUser(evidence.clerkUserA.id);

@@ -310,7 +310,7 @@ export function MinArbeidsplan() {
                       }`}
                     >
                       <div className="flex items-start gap-3">
-                        {/* Checkbox */}
+                        {/* Avkryssingsboks */}
                         <button
                           type="button"
                           onClick={() => handleToggleComplete(block.index, block.completed)}

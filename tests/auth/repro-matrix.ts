@@ -4,11 +4,11 @@
 /**
  * Auth Identity Matrix Runner
  *
- * Produces machine-readable evidence for duplicate identity scenarios:
- * - Executable scenarios (email/password via Clerk Backend API + /api/debug/test-auth-flow)
- * - Manual-required scenarios (cross-provider OAuth flows)
+ * Produserer maskinlesbart bevis for scenarier med duplikat identitet:
+ * - Kjørbare scenarier (e-post/passord via Clerk Backend API + /api/debug/test-auth-flow)
+ * - Scenarier som krever manuell kjøring (OAuth-flyter på tvers av leverandører)
  *
- * Usage:
+ * Bruk:
  *   pnpm --filter tests exec tsx auth/repro-matrix.ts email
  *   pnpm --filter tests exec tsx auth/repro-matrix.ts google-email
  *   pnpm --filter tests exec tsx auth/repro-matrix.ts email-google
@@ -481,7 +481,7 @@ async function collectDbSnapshot(
   if (!usersCollection) {
     return {
       available: false,
-      reason: "MongoDB connection not available (MONGO_URI missing or connect failed)",
+      reason: "MongoDB-tilkobling ikke tilgjengelig (MONGO_URI mangler eller tilkobling feilet)",
       emailMatches: [],
       usernameMatches: [],
       clerkIdMatches: [],
@@ -560,7 +560,7 @@ async function createEmailUser(
       requestedUsername: identity.username,
       error: {
         message:
-          "Only email/password users are executable in this automated runner",
+          "Kun e-post/passord-brukere kan kjøres automatisk i denne testkjøreren",
         codes: ["unsupported_provider"],
         longMessages: [],
       },
@@ -664,7 +664,7 @@ async function runExecutableScenario(
         flowB: null,
         dbSnapshot: {
           available: false,
-          reason: "First identity could not be created",
+          reason: "Første identitet kunne ikke opprettes",
           emailMatches: [],
           usernameMatches: [],
           clerkIdMatches: [],
@@ -683,7 +683,7 @@ async function runExecutableScenario(
       const flowBResponse = await callTestAuthFlow(secondCreate.user.id, flowIdB);
       flowB = parseFlowResponse(flowBResponse.status, flowBResponse.body);
     } else {
-      notes.push("Second identity could not be created in Clerk");
+      notes.push("Andre identitet kunne ikke opprettes i Clerk");
     }
 
     const createdIds = [firstCreate.user.id];
@@ -760,7 +760,7 @@ function buildScenarios(mode: ModeArg): ScenarioDefinition[] {
       kind: "executable",
       id: "A1-email-diff-email-diff-username",
       group: "A-email",
-      description: "Control: first and second signup use different email + different username",
+      description: "Kontroll: første og andre registrering bruker ulik e-post + ulikt brukernavn",
       first: {
         provider: "email",
         email: makeEmail("a1-first"),
@@ -776,7 +776,7 @@ function buildScenarios(mode: ModeArg): ScenarioDefinition[] {
       kind: "executable",
       id: "A2-email-same-email-diff-username",
       group: "A-email",
-      description: "Second signup reuses first email but different username",
+      description: "Andre registrering gjenbruker første e-post men ulikt brukernavn",
       first: {
         provider: "email",
         email: makeEmail("a2-shared"),
@@ -792,7 +792,7 @@ function buildScenarios(mode: ModeArg): ScenarioDefinition[] {
       kind: "executable",
       id: "A3-email-diff-email-same-username",
       group: "A-email",
-      description: "Second signup reuses first username but different email",
+      description: "Andre registrering gjenbruker første brukernavn men ulik e-post",
       first: {
         provider: "email",
         email: makeEmail("a3-first"),
@@ -808,7 +808,7 @@ function buildScenarios(mode: ModeArg): ScenarioDefinition[] {
       kind: "executable",
       id: "A4-email-same-email-same-username",
       group: "A-email",
-      description: "Second signup reuses first email and first username",
+      description: "Andre registrering gjenbruker første e-post og første brukernavn",
       first: {
         provider: "email",
         email: makeEmail("a4-shared"),
@@ -828,15 +828,15 @@ function buildScenarios(mode: ModeArg): ScenarioDefinition[] {
       id: "B1-google-email-same-email",
       group: "B-google-email",
       description:
-        "Cross-provider: first signup via Google, second signup via email/password with same email",
+        "Kryssleverandør: første registrering via Google, andre registrering via e-post/passord med samme e-post",
       blocker:
-        "Automated creation/linking of Clerk external OAuth accounts is not exposed in Clerk Backend API for test scripts.",
+        "Automatisert opprettelse/kobling av eksterne Clerk OAuth-kontoer er ikke tilgjengelig i Clerk Backend API for testskript.",
       manualSteps: [
-        "Start frontend and backend in development mode with auth diagnostics enabled.",
-        "Sign up user A with Google using a real Google test account.",
-        "Capture /api/user/me and /api/debug/auth-diagnostic evidence for user A.",
-        "Sign out and attempt signup via email/password with the same email address.",
-        "Capture /api/user/me status, UI conflict state, and backend logs with x-debug-flow-id.",
+        "Start frontend og backend i utviklingsmodus med auth-diagnostikk aktivert.",
+        "Registrer bruker A med Google ved hjelp av en ekte Google-testkonto.",
+        "Fang opp /api/user/me og /api/debug/auth-diagnostic bevis for bruker A.",
+        "Logg ut og forsøk registrering via e-post/passord med samme e-postadresse.",
+        "Fang opp /api/user/me status, UI-konflikttilstand og backend-logger med x-debug-flow-id.",
       ],
     },
     {
@@ -844,15 +844,15 @@ function buildScenarios(mode: ModeArg): ScenarioDefinition[] {
       id: "C1-email-google-same-email",
       group: "C-email-google",
       description:
-        "Cross-provider: first signup via email/password, second signup via Google with same email",
+        "Kryssleverandør: første registrering via e-post/passord, andre registrering via Google med samme e-post",
       blocker:
-        "OAuth browser provider authentication requires real provider credentials and interactive consent flows.",
+        "OAuth-autentisering i nettleseren krever ekte leverandørlegitimasjon og interaktive samtykkeflyter.",
       manualSteps: [
-        "Start frontend and backend in development mode with auth diagnostics enabled.",
-        "Sign up user A with email/password.",
-        "Capture /api/user/me and /api/debug/auth-diagnostic evidence for user A.",
-        "Sign out and attempt signup/sign-in via Google with the same email address.",
-        "Capture /api/user/me status, any conflict modal, and backend debug logs.",
+        "Start frontend og backend i utviklingsmodus med auth-diagnostikk aktivert.",
+        "Registrer bruker A med e-post/passord.",
+        "Fang opp /api/user/me og /api/debug/auth-diagnostic bevis for bruker A.",
+        "Logg ut og forsøk registrering/innlogging via Google med samme e-postadresse.",
+        "Fang opp /api/user/me status, eventuell konfliktmodal og backend-feilsøkingslogger.",
       ],
     },
     {
@@ -860,15 +860,15 @@ function buildScenarios(mode: ModeArg): ScenarioDefinition[] {
       id: "D1-microsoft-email-same-email",
       group: "D-microsoft",
       description:
-        "Cross-provider: first signup via Microsoft, second signup via email/password with same email",
+        "Kryssleverandør: første registrering via Microsoft, andre registrering via e-post/passord med samme e-post",
       blocker:
-        "Automated Microsoft OAuth signups require external credentials and cannot be fully simulated via Clerk Backend API.",
+        "Automatiserte Microsoft OAuth-registreringer krever ekstern legitimasjon og kan ikke fullstendig simuleres via Clerk Backend API.",
       manualSteps: [
-        "Start frontend and backend in development mode with auth diagnostics enabled.",
-        "Sign up user A with Microsoft using a real Microsoft test account.",
-        "Capture /api/user/me and /api/debug/auth-diagnostic evidence for user A.",
-        "Sign out and attempt signup via email/password with the same email.",
-        "Capture /api/user/me status and backend debug logs for both attempts.",
+        "Start frontend og backend i utviklingsmodus med auth-diagnostikk aktivert.",
+        "Registrer bruker A med Microsoft ved hjelp av en ekte Microsoft-testkonto.",
+        "Fang opp /api/user/me og /api/debug/auth-diagnostic bevis for bruker A.",
+        "Logg ut og forsøk registrering via e-post/passord med samme e-post.",
+        "Fang opp /api/user/me status og backend-feilsøkingslogger for begge forsøk.",
       ],
     },
     {
@@ -876,15 +876,15 @@ function buildScenarios(mode: ModeArg): ScenarioDefinition[] {
       id: "D2-email-microsoft-same-email",
       group: "D-microsoft",
       description:
-        "Cross-provider: first signup via email/password, second signup via Microsoft with same email",
+        "Kryssleverandør: første registrering via e-post/passord, andre registrering via Microsoft med samme e-post",
       blocker:
-        "Automated Microsoft OAuth sign-ins require provider-managed credentials and consent screens.",
+        "Automatiserte Microsoft OAuth-innlogginger krever leverandørstyrte legitimasjoner og samtykkeskjermer.",
       manualSteps: [
-        "Start frontend and backend in development mode with auth diagnostics enabled.",
-        "Sign up user A with email/password.",
-        "Capture /api/user/me and /api/debug/auth-diagnostic evidence for user A.",
-        "Sign out and attempt signup/sign-in via Microsoft with the same email.",
-        "Capture /api/user/me status, UI conflict state, and backend logs.",
+        "Start frontend og backend i utviklingsmodus med auth-diagnostikk aktivert.",
+        "Registrer bruker A med e-post/passord.",
+        "Fang opp /api/user/me og /api/debug/auth-diagnostic bevis for bruker A.",
+        "Logg ut og forsøk registrering/innlogging via Microsoft med samme e-post.",
+        "Fang opp /api/user/me status, UI-konflikttilstand og backend-logger.",
       ],
     },
   ];
@@ -921,21 +921,21 @@ async function verifyBackendReady(): Promise<boolean> {
     body: JSON.stringify({}),
   }).catch(() => null);
 
-  // Diagnostics endpoint enabled should return 400 for missing clerkId.
+  // Diagnostikk-endepunktet skal returnere 400 ved manglende clerkId.
   return !!probe && probe.status === 400;
 }
 
 async function connectMongoIfAvailable(): Promise<string | null> {
   const mongoUri = process.env.MONGO_URI;
   if (!mongoUri) {
-    return "MONGO_URI missing";
+    return "MONGO_URI mangler";
   }
 
   try {
     await mongoose.connect(mongoUri, MONGO_OPTIONS);
     usersCollection = mongoose.connection.db?.collection("users") ?? null;
     if (!usersCollection) {
-      return "Mongo connection established but users collection unavailable";
+      return "Mongo-tilkobling opprettet, men users-samlingen er utilgjengelig";
     }
     return null;
   } catch (error) {
@@ -985,7 +985,7 @@ async function main(): Promise<void> {
     },
     oauthAutomationSupported: false,
     oauthAutomationBlocker:
-      "Cross-provider OAuth scenarios require real provider authentication. Clerk Backend API exposes deleteUserExternalAccount but not create/link external OAuth accounts for test seeding.",
+      "OAuth-scenarier på tvers av leverandører krever ekte leverandørautentisering. Clerk Backend API eksponerer deleteUserExternalAccount men ikke opprett/koble eksterne OAuth-kontoer for testseeding.",
   };
 
   const scenarios = buildScenarios(mode);

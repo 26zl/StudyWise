@@ -1,7 +1,7 @@
 /**
- * Shared env loader for test scripts.
- * Loads backend/.env (for MONGO_URI, CLERK_SECRET_KEY, etc.)
- * and frontend/.env (for NEXT_PUBLIC_* keys).
+ * Delt miljøvariabel-laster for testskript.
+ * Laster backend/.env (for MONGO_URI, CLERK_SECRET_KEY osv.)
+ * og frontend/.env (for NEXT_PUBLIC_*-nøkler).
  */
 import { config } from "dotenv";
 import { resolve, dirname } from "node:path";

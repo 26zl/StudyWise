@@ -9,7 +9,7 @@ const HEADER_REQUEST_ID = "x-request-id";
 
 /** UUID v4 format: 8-4-4-4-12 hex chars */
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** Max length for accepted request IDs (generous limit to allow non-UUID formats) */
+/** Maks lengde for aksepterte request-ID-er (romslig grense for å tillate ikke-UUID-formater) */
 const MAX_REQUEST_ID_LENGTH = 128;
 
 /**

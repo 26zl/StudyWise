@@ -1,4 +1,4 @@
-/** Shared logging utilities for test scripts. */
+/** Delte loggverktøy for testskript. */
 export function log(msg: string) {
   process.stdout.write(`${msg}\n`);
 }

@@ -1,6 +1,6 @@
 /**
- * Clerk-only auth middleware.
- * Verifies Bearer token with Clerk, syncs user to MongoDB, sets req.user and req.actorRole.
+ * Clerk-only auth-middleware.
+ * Verifiserer Bearer-token med Clerk, synkroniserer bruker til MongoDB, setter req.user og req.actorRole.
  */
 
 import { Request, Response, NextFunction } from "express";
@@ -186,9 +186,9 @@ export async function hentCanvasTilkoblingForBruker(
 }
 
 /**
- * Clerk-only auth: requires Authorization: Bearer <clerk_session_token>.
- * Verifies token, finds or creates user by clerkId, sets req.user and req.actorRole.
- * On failure: audits token_verification_failure and returns 401.
+ * Clerk-only auth: krever Authorization: Bearer <clerk_session_token>.
+ * Verifiserer token, finner eller oppretter bruker via clerkId, setter req.user og req.actorRole.
+ * Ved feil: loggfører token_verification_failure og returnerer 401.
  */
 export async function requireAuth(
   req: Request,

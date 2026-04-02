@@ -7,26 +7,7 @@ import Link from "next/link";
 import { useLanguage } from "@/app/i18n";
 
 export function Footer() {
-    const { language } = useLanguage();
-    const labels = language === "en"
-        ? {
-            about: "About us",
-            privacy: "Privacy",
-            security: "Security",
-            terms: "Terms",
-            faq: "FAQ",
-            contact: "Contact",
-            copyright: "© 2026 StudyWise - USN bachelor project. All rights reserved.",
-        }
-        : {
-            about: "Om oss",
-            privacy: "Personvern",
-            security: "Sikkerhet",
-            terms: "Vilkår",
-            faq: "FAQ",
-            contact: "Kontakt",
-            copyright: "© 2026 StudyWise - USN Bachelorprosjekt. Alle rettigheter reservert.",
-        };
+    const { t } = useLanguage();
 
     return (
         <footer className="shrink-0 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -37,46 +18,46 @@ export function Footer() {
                         prefetch={false}
                         className="text-xs text-slate-700 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
                     >
-                        {labels.about}
+                        {t("footer.about")}
                     </Link>
                     <Link
                         href="/personvern"
                         prefetch={false}
                         className="text-xs text-slate-700 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
                     >
-                        {labels.privacy}
+                        {t("footer.privacy")}
                     </Link>
                     <Link
                         href="/sikkerhet"
                         prefetch={false}
                         className="text-xs text-slate-700 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
                     >
-                        {labels.security}
+                        {t("footer.security")}
                     </Link>
                     <Link
                         href="/vilkar"
                         prefetch={false}
                         className="text-xs text-slate-700 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
                     >
-                        {labels.terms}
+                        {t("footer.terms")}
                     </Link>
                     <Link
                         href="/faq"
                         prefetch={false}
                         className="text-xs text-slate-700 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
                     >
-                        {labels.faq}
+                        {t("footer.faq")}
                     </Link>
                     <Link
                         href="/kontakt"
                         prefetch={false}
                         className="text-xs text-slate-700 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 transition-colors py-2 min-h-11 inline-flex items-center justify-center touch-manipulation"
                     >
-                        {labels.contact}
+                        {t("footer.contact")}
                     </Link>
                 </div>
                 <p className="text-xs text-slate-700 dark:text-slate-300 text-center leading-tight">
-                    {labels.copyright}
+                    {t("footer.copyright")}
                 </p>
             </div>
         </footer>

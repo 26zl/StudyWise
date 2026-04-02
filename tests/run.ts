@@ -1,15 +1,15 @@
 #!/usr/bin/env tsx
 /// <reference types="node" />
 /**
- * Unified Test Runner
+ * Samlet testkjører
  *
- * Runs test suites by category. Each category has one or more scripts.
+ * Kjører testsuiter etter kategori. Hver kategori har ett eller flere skript.
  *
- * Usage:
- *   tsx run.ts              # Run ALL categories
- *   tsx run.ts auth         # Run only auth tests
- *   tsx run.ts ki           # Run only KI tests
- *   tsx run.ts canvas       # Run only Canvas tests
+ * Bruk:
+ *   tsx run.ts              # Kjør ALLE kategorier
+ *   tsx run.ts auth         # Kjør kun auth-tester
+ *   tsx run.ts ki           # Kjør kun KI-tester
+ *   tsx run.ts canvas       # Kjør kun Canvas-tester
  */
 import { execSync } from "node:child_process";
 import { dirname } from "node:path";
@@ -26,7 +26,7 @@ interface TestSuite {
 const SUITES: TestSuite[] = [
   {
     name: "auth",
-    description: "Authentication & user identity tests",
+    description: "Autentisering og brukeridentitetstester",
     scripts: [
       {
         name: "DB invariant check",
@@ -46,7 +46,7 @@ const SUITES: TestSuite[] = [
   },
   {
     name: "ki",
-    description: "KI/AI feature tests",
+    description: "KI/AI-funksjonstester",
     scripts: [
       {
         name: "KI HTTP smoke",
@@ -57,7 +57,7 @@ const SUITES: TestSuite[] = [
   },
   {
     name: "canvas",
-    description: "Canvas LMS integration tests",
+    description: "Canvas LMS-integrasjonstester",
     scripts: [
       {
         name: "Canvas HTTP smoke",
@@ -68,7 +68,7 @@ const SUITES: TestSuite[] = [
   },
 ];
 
-// ---------- Helpers ----------
+// ---------- Hjelpefunksjoner ----------
 function log(msg: string) {
   process.stdout.write(`${msg}\n`);
 }
@@ -102,7 +102,7 @@ function runScript(command: string): boolean {
   }
 }
 
-// ---------- Main ----------
+// ---------- Hoveddel ----------
 async function main() {
   const requestedCategory = process.argv[2]?.toLowerCase();
   const suitesToRun = requestedCategory
@@ -150,7 +150,7 @@ async function main() {
     }
   }
 
-  // ---------- Summary ----------
+  // ---------- Oppsummering ----------
   banner("TEST RESULTS");
   for (const r of results) {
     const icon = r.status === "pass" ? "✓" : r.status === "fail" ? "✗" : "○";

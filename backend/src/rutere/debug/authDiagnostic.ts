@@ -15,16 +15,16 @@ import { findOrCreateUserByClerkId } from "../auth/clerkAuth.js";
 import { isMongoDuplicateKeyError } from "../../utils/canvasUserSync.js";
 
 const router = Router();
-/** Separate router for unauthenticated test endpoints (mounted before global requireAuth). */
+/** Egen ruter for uautentiserte test-endepunkter (monteres før global requireAuth). */
 const testAuthFlowRouter = Router();
 
-/** Double gate: non-prod AND explicit env flag. */
+/** Dobbel sjekk: ikke-prod OG eksplisitt miljøvariabel-flagg. */
 function isDiagnosticsEnabled(): boolean {
   if (isProd) return false;
   return process.env.ENABLE_AUTH_DIAGNOSTICS === "true";
 }
 
-/** Safe user projection — never expose tokens, only identity + metadata fields. */
+/** Trygg brukerprojeksjon — eksponerer aldri tokens, kun identitet og metadata-felt. */
 function safeUserProjection(u: {
   _id: unknown;
   clerkId?: string;
@@ -145,7 +145,7 @@ router.get("/auth-diagnostic", async (req: Request, res: Response) => {
     }
 
     // Current user — include usernameNormalized (hidden by select:false)
-    // Explicitly do NOT select +canvasApiToken — not needed for diagnostics
+    // Velger IKKE +canvasApiToken — ikke nødvendig for diagnostikk
     const currentUser = await User.findById(userId).select("+usernameNormalized");
     if (!currentUser) {
       return res.status(404).json({ error: "Bruker ikke funnet" });

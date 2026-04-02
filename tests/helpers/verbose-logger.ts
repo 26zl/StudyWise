@@ -1,11 +1,11 @@
 /**
- * Verbose Logger for Auth Matrix Tests
+ * Detaljert logger for autentiseringsmatrise-tester
  *
- * Provides:
- * - Live terminal output with colors and timestamps
- * - File logging with session-based log files
- * - Structured JSON event logging
- * - Step-by-step visibility into scenario execution
+ * Tilbyr:
+ * - Sanntids terminalutskrift med farger og tidsstempler
+ * - Fillogging med sesjonsbaserte loggfiler
+ * - Strukturert JSON-hendelseslogging
+ * - Steg-for-steg synlighet i scenariokjøring
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -17,7 +17,7 @@ const LOGS_DIR = path.join(RESULTS_DIR, "logs");
 const JSON_DIR = path.join(RESULTS_DIR, "json");
 const SCREENSHOTS_DIR = path.join(RESULTS_DIR, "screenshots");
 
-// ANSI color codes
+// ANSI-fargekoder
 const COLORS = {
   reset: "\x1b[0m",
   bold: "\x1b[1m",
@@ -240,7 +240,7 @@ export class VerboseLogger {
     this.recordEvent(level, message, data);
   }
 
-  // Detailed evidence logging for scenario steps
+  // Detaljert bevislogging for scenariosteg
   logClerkCreate(label: string, result: { ok: boolean; user?: { id: string; email: string; username: string | null }; error?: unknown }): void {
     if (result.ok && result.user) {
       this.success(`Clerk ${label} created`, {
@@ -297,14 +297,14 @@ export class VerboseLogger {
     }
   }
 
-  // Write combined JSON events
+  // Skriv kombinerte JSON-hendelser
   writeJsonEvents(): string {
     const jsonPath = path.join(JSON_DIR, `events-${this.runId}.json`);
     fs.writeFileSync(jsonPath, JSON.stringify(this.jsonEvents, null, 2), "utf8");
     return jsonPath;
   }
 
-  // Summary methods
+  // Oppsummeringsmetoder
   printSummary(totals: { total: number; executed: number; manualRequired: number; setupFailed: number; classifications: Record<string, number> }): void {
     this.header("MATRIX SUMMARY");
     this.info(`Total scenarios: ${totals.total}`);

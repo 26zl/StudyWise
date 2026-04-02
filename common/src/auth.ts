@@ -89,12 +89,12 @@ export const AUTH_PROVIDERS = ["google", "microsoft", "email"] as const;
 export type AuthProvider = (typeof AUTH_PROVIDERS)[number];
 export const AuthProviderSchema = z.enum(AUTH_PROVIDERS);
 
-/** OAuth providers that use external account linking (ikke email). */
+/** OAuth-leverandører som bruker ekstern kontotilknytning (ikke e-post). */
 export const OAUTH_PROVIDERS = ["google", "microsoft"] as const;
 export type OAuthProvider = (typeof OAUTH_PROVIDERS)[number];
 export const OAuthProviderSchema = z.enum(OAUTH_PROVIDERS);
 
-/** OAuth account linked to a user (stores provider + providerAccountId for uniqueness, and email for cross-check). */
+/** OAuth-konto tilknyttet en bruker (lagrer provider + providerAccountId for unikhet, og e-post for kryssvalidering). */
 export const OAuthAccountSchema = z.object({
   provider: OAuthProviderSchema,
   providerAccountId: z.string().min(1, "OAuth provider account ID er påkrevd"),

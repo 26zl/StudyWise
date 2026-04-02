@@ -1,41 +1,41 @@
 /**
- * Auth Matrix Scenario Definitions
+ * Scenariodefinisjoner for auth-matrise
  *
- * Comprehensive scenario coverage for auth identity testing:
- * - Group A: Basic signup uniqueness (12 scenarios)
- * - Group B: Login vs signup confusion (4 scenarios)
- * - Group C: Google/OAuth vs email (7 scenarios)
- * - Group D: Email vs Google/OAuth (6 scenarios)
- * - Group E: Microsoft/OAuth (7 scenarios)
- * - Group F: SSO linking / provider reuse (7 scenarios)
- * - Group G: Username update scenarios (6 scenarios)
- * - Group H: Email update scenarios (5 scenarios)
- * - Group I: Duplicate detection after deletion (8 scenarios)
- * - Group J: Logout / session / cross-tab (8 scenarios)
- * - Group K: Late-conflict / frontend-illusion (8 scenarios)
- * - Group L: Race / concurrency (7 scenarios)
- * - Group M: Normalization and data-integrity (9 scenarios)
- * - Group N: Clerk/local consistency (9 scenarios)
- * - Group O: Recovery / failed-state (10 scenarios)
- * - Group P: Security and abuse-adjacent (7 scenarios)
+ * Omfattende scenariodekning for testing av autentiseringsidentitet:
+ * - Gruppe A: Grunnleggende registreringsunikkhet (12 scenarioer)
+ * - Gruppe B: Innlogging vs registreringsforvirring (4 scenarioer)
+ * - Gruppe C: Google/OAuth vs e-post (7 scenarioer)
+ * - Gruppe D: E-post vs Google/OAuth (6 scenarioer)
+ * - Gruppe E: Microsoft/OAuth (7 scenarioer)
+ * - Gruppe F: SSO-kobling / leverandørgjenbruk (7 scenarioer)
+ * - Gruppe G: Brukernavn-oppdateringsscenarioer (6 scenarioer)
+ * - Gruppe H: E-post-oppdateringsscenarioer (5 scenarioer)
+ * - Gruppe I: Duplikatdeteksjon etter sletting (8 scenarioer)
+ * - Gruppe J: Utlogging / sesjon / kryss-fane (8 scenarioer)
+ * - Gruppe K: Sen-konflikt / frontend-illusjon (8 scenarioer)
+ * - Gruppe L: Kappløp / samtidighet (7 scenarioer)
+ * - Gruppe M: Normalisering og dataintegritet (9 scenarioer)
+ * - Gruppe N: Clerk/lokal konsistens (9 scenarioer)
+ * - Gruppe O: Gjenoppretting / feilstatus (10 scenarioer)
+ * - Gruppe P: Sikkerhet og misbruksnært (7 scenarioer)
  *
- * Total: 120 scenarios
+ * Totalt: 120 scenarioer
  */
 
 // ============================================================================
-// Types
+// Typer
 // ============================================================================
 
 export type Provider = "email" | "google" | "microsoft";
 
 export type ScenarioKind =
-  | "executable"      // Can be fully automated via Clerk Backend API
-  | "api_manual"      // API automation possible but requires manual identity setup
-  | "e2e_browser"     // Requires browser automation (Playwright)
-  | "e2e_oauth"       // Requires real OAuth provider interaction
-  | "manual"          // Fully manual
-  | "race_condition"  // Requires concurrent execution
-  | "admin_only";     // Requires Clerk dashboard admin action
+  | "executable"      // Kan automatiseres fullt via Clerk Backend API
+  | "api_manual"      // API-automatisering mulig, men krever manuelt identitetsoppsett
+  | "e2e_browser"     // Krever nettleserautomatisering (Playwright)
+  | "e2e_oauth"       // Krever ekte OAuth-leverandørinteraksjon
+  | "manual"          // Fullstendig manuelt
+  | "race_condition"  // Krever samtidig kjøring
+  | "admin_only";     // Krever Clerk-dashbord administratorhandling
 
 export type ScenarioStatus =
   | "executed"
@@ -103,7 +103,7 @@ export interface RaceScenario extends BaseScenario {
 export type ScenarioDefinition = ExecutableScenario | E2eScenario | ManualScenario | RaceScenario;
 
 // ============================================================================
-// Scenario Builder Helpers
+// Hjelpefunksjoner for scenariobygging
 // ============================================================================
 
 let runSeed = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -158,7 +158,7 @@ export function makeUsername(label: string, options?: {
 }
 
 // ============================================================================
-// Group A: Basic Signup Uniqueness (12 scenarios)
+// Gruppe A: Grunnleggende registreringsunikkhet (12 scenarioer)
 // ============================================================================
 
 export function buildGroupA(): ScenarioDefinition[] {
@@ -166,9 +166,9 @@ export function buildGroupA(): ScenarioDefinition[] {
     {
       id: "A01-signup-control-different-all",
       group: "A",
-      groupName: "Basic Signup Uniqueness",
+      groupName: "Grunnleggende registreringsunikkhet",
       scenarioNumber: 1,
-      description: "Control: Signup A with email E1, username U1; Signup B with email E2, username U2",
+      description: "Kontroll: Registrering A med e-post E1, brukernavn U1; Registrering B med e-post E2, brukernavn U2",
       kind: "executable",
       automatable: true,
       requiresE2e: false,
@@ -182,9 +182,9 @@ export function buildGroupA(): ScenarioDefinition[] {
     {
       id: "A02-signup-same-email-same-username",
       group: "A",
-      groupName: "Basic Signup Uniqueness",
+      groupName: "Grunnleggende registreringsunikkhet",
       scenarioNumber: 2,
-      description: "Signup B with same email E1, same username U1",
+      description: "Registrering B med samme e-post E1, samme brukernavn U1",
       kind: "executable",
       automatable: true,
       requiresE2e: false,
@@ -198,9 +198,9 @@ export function buildGroupA(): ScenarioDefinition[] {
     {
       id: "A03-signup-same-email-diff-username",
       group: "A",
-      groupName: "Basic Signup Uniqueness",
+      groupName: "Grunnleggende registreringsunikkhet",
       scenarioNumber: 3,
-      description: "Signup B with same email E1, different username U2",
+      description: "Registrering B med samme e-post E1, ulikt brukernavn U2",
       kind: "executable",
       automatable: true,
       requiresE2e: false,
@@ -214,9 +214,9 @@ export function buildGroupA(): ScenarioDefinition[] {
     {
       id: "A04-signup-diff-email-same-username",
       group: "A",
-      groupName: "Basic Signup Uniqueness",
+      groupName: "Grunnleggende registreringsunikkhet",
       scenarioNumber: 4,
-      description: "Signup B with different email E2, same username U1",
+      description: "Registrering B med ulik e-post E2, samme brukernavn U1",
       kind: "executable",
       automatable: true,
       requiresE2e: false,
@@ -230,9 +230,9 @@ export function buildGroupA(): ScenarioDefinition[] {
     {
       id: "A05-signup-same-email-diff-casing",
       group: "A",
-      groupName: "Basic Signup Uniqueness",
+      groupName: "Grunnleggende registreringsunikkhet",
       scenarioNumber: 5,
-      description: "Signup B with same email but UPPERCASE casing",
+      description: "Registrering B med samme e-post men STORE bokstaver",
       kind: "executable",
       automatable: true,
       requiresE2e: false,
@@ -246,9 +246,9 @@ export function buildGroupA(): ScenarioDefinition[] {
     {
       id: "A06-signup-same-username-diff-casing",
       group: "A",
-      groupName: "Basic Signup Uniqueness",
+      groupName: "Grunnleggende registreringsunikkhet",
       scenarioNumber: 6,
-      description: "Signup B with same username but different casing",
+      description: "Registrering B med samme brukernavn men ulik bokstavstørrelse",
       kind: "executable",
       automatable: true,
       requiresE2e: false,
@@ -262,9 +262,9 @@ export function buildGroupA(): ScenarioDefinition[] {
     {
       id: "A07-signup-email-leading-whitespace",
       group: "A",
-      groupName: "Basic Signup Uniqueness",
+      groupName: "Grunnleggende registreringsunikkhet",
       scenarioNumber: 7,
-      description: "Signup B with leading/trailing whitespace in email",
+      description: "Registrering B med ledende/etterfølgende mellomrom i e-post",
       kind: "executable",
       automatable: true,
       requiresE2e: false,
@@ -278,9 +278,9 @@ export function buildGroupA(): ScenarioDefinition[] {
     {
       id: "A08-signup-username-leading-whitespace",
       group: "A",
-      groupName: "Basic Signup Uniqueness",
+      groupName: "Grunnleggende registreringsunikkhet",
       scenarioNumber: 8,
-      description: "Signup B with leading/trailing whitespace in username",
+      description: "Registrering B med ledende/etterfølgende mellomrom i brukernavn",
       kind: "executable",
       automatable: true,
       requiresE2e: false,
@@ -294,9 +294,9 @@ export function buildGroupA(): ScenarioDefinition[] {
     {
       id: "A09-signup-invalid-username-special-chars",
       group: "A",
-      groupName: "Basic Signup Uniqueness",
+      groupName: "Grunnleggende registreringsunikkhet",
       scenarioNumber: 9,
-      description: "Signup B with invalid username characters (@#$%)",
+      description: "Registrering B med ugyldige brukernavn-tegn (@#$%)",
       kind: "executable",
       automatable: true,
       requiresE2e: false,
@@ -310,9 +310,9 @@ export function buildGroupA(): ScenarioDefinition[] {
     {
       id: "A10-signup-invalid-username-too-short",
       group: "A",
-      groupName: "Basic Signup Uniqueness",
+      groupName: "Grunnleggende registreringsunikkhet",
       scenarioNumber: 10,
-      description: "Signup B with too-short username (2 chars)",
+      description: "Registrering B med for kort brukernavn (2 tegn)",
       kind: "executable",
       automatable: true,
       requiresE2e: false,
@@ -326,9 +326,9 @@ export function buildGroupA(): ScenarioDefinition[] {
     {
       id: "A11-signup-invalid-username-too-long",
       group: "A",
-      groupName: "Basic Signup Uniqueness",
+      groupName: "Grunnleggende registreringsunikkhet",
       scenarioNumber: 11,
-      description: "Signup B with too-long username (100 chars)",
+      description: "Registrering B med for langt brukernavn (100 tegn)",
       kind: "executable",
       automatable: true,
       requiresE2e: false,
@@ -342,9 +342,9 @@ export function buildGroupA(): ScenarioDefinition[] {
     {
       id: "A12-signup-mixed-casing-email-username",
       group: "A",
-      groupName: "Basic Signup Uniqueness",
+      groupName: "Grunnleggende registreringsunikkhet",
       scenarioNumber: 12,
-      description: "Signup B with mixed casing in both email and username",
+      description: "Registrering B med blandet bokstavstørrelse i både e-post og brukernavn",
       kind: "executable",
       automatable: true,
       requiresE2e: false,
@@ -359,7 +359,7 @@ export function buildGroupA(): ScenarioDefinition[] {
 }
 
 // ============================================================================
-// Group B: Login vs Signup Confusion (4 scenarios)
+// Gruppe B: Innlogging vs registreringsforvirring (4 scenarioer)
 // ============================================================================
 
 export function buildGroupB(): ScenarioDefinition[] {
@@ -367,9 +367,9 @@ export function buildGroupB(): ScenarioDefinition[] {
     {
       id: "B01-login-after-signup",
       group: "B",
-      groupName: "Login vs Signup Confusion",
+      groupName: "Innlogging vs registreringsforvirring",
       scenarioNumber: 1,
-      description: "Signup A with email/password, logout, then sign-in with same account",
+      description: "Registrering A med e-post/passord, logg ut, deretter innlogging med samme konto",
       kind: "e2e_browser",
       automatable: true,
       requiresE2e: true,
@@ -378,27 +378,27 @@ export function buildGroupB(): ScenarioDefinition[] {
       expectedOutcome: "LOGIN_SUCCESS_SAME_USER",
       tags: ["login", "session"],
       setupSteps: [
-        "Create Clerk user via API",
-        "Call test-auth-flow to create local user",
+        "Opprett Clerk-bruker via API",
+        "Kall test-auth-flow for å opprette lokal bruker",
       ],
       executionSteps: [
-        "Navigate to /sign-in",
-        "Enter credentials",
-        "Submit form",
-        "Verify redirect to dashboard",
+        "Naviger til /sign-in",
+        "Skriv inn påloggingsdata",
+        "Send skjema",
+        "Verifiser omdirigering til dashbord",
       ],
       capturePoints: [
-        "/api/user/me response",
-        "Local user ID matches",
-        "Session token present",
+        "/api/user/me-respons",
+        "Lokal bruker-ID stemmer",
+        "Sesjonstoken er til stede",
       ],
     },
     {
       id: "B02-signup-again-same-identity",
       group: "B",
-      groupName: "Login vs Signup Confusion",
+      groupName: "Innlogging vs registreringsforvirring",
       scenarioNumber: 2,
-      description: "After signup A, logout, try sign-up again with same email/username",
+      description: "Etter registrering A, logg ut, prøv registrering igjen med samme e-post/brukernavn",
       kind: "e2e_browser",
       automatable: true,
       requiresE2e: true,
@@ -407,27 +407,27 @@ export function buildGroupB(): ScenarioDefinition[] {
       expectedOutcome: "CLERK_BLOCKED_AT_SIGNUP_FORM",
       tags: ["signup", "duplicate"],
       setupSteps: [
-        "Create Clerk user A via API",
-        "Establish local user via test-auth-flow",
+        "Opprett Clerk-bruker A via API",
+        "Etabler lokal bruker via test-auth-flow",
       ],
       executionSteps: [
-        "Navigate to /sign-up",
-        "Enter same email and username",
-        "Submit form",
-        "Capture error state",
+        "Naviger til /sign-up",
+        "Skriv inn samme e-post og brukernavn",
+        "Send skjema",
+        "Fang opp feiltilstand",
       ],
       capturePoints: [
-        "Clerk error message in UI",
-        "No redirect to dashboard",
-        "No second local user created",
+        "Clerk-feilmelding i UI",
+        "Ingen omdirigering til dashbord",
+        "Ingen andre lokal bruker opprettet",
       ],
     },
     {
       id: "B03-signup-redirected-to-login",
       group: "B",
-      groupName: "Login vs Signup Confusion",
+      groupName: "Innlogging vs registreringsforvirring",
       scenarioNumber: 3,
-      description: "Verify whether existing user signup redirects to login or shows error",
+      description: "Verifiser om registrering med eksisterende bruker omdirigerer til innlogging eller viser feil",
       kind: "e2e_browser",
       automatable: true,
       requiresE2e: true,
@@ -436,26 +436,26 @@ export function buildGroupB(): ScenarioDefinition[] {
       expectedOutcome: "REDIRECT_OR_CLEAR_ERROR",
       tags: ["signup", "ux"],
       setupSteps: [
-        "Create Clerk user A",
-        "Establish local user",
+        "Opprett Clerk-bruker A",
+        "Etabler lokal bruker",
       ],
       executionSteps: [
-        "Navigate to /sign-up",
-        "Enter existing email",
-        "Observe whether redirected or shown error",
+        "Naviger til /sign-up",
+        "Skriv inn eksisterende e-post",
+        "Observer om omdirigert eller vist feil",
       ],
       capturePoints: [
-        "Current URL after submit",
-        "Error message if any",
-        "Whether user perceives success vs failure",
+        "Nåværende URL etter innsending",
+        "Feilmelding hvis noen",
+        "Om bruker oppfatter suksess vs feil",
       ],
     },
     {
       id: "B04-signup-silent-reuse-check",
       group: "B",
-      groupName: "Login vs Signup Confusion",
+      groupName: "Innlogging vs registreringsforvirring",
       scenarioNumber: 4,
-      description: "Verify signup doesn't silently reuse existing account creating frontend illusion",
+      description: "Verifiser at registrering ikke stille gjenbruker eksisterende konto og skaper frontend-illusjon",
       kind: "e2e_browser",
       automatable: true,
       requiresE2e: true,
@@ -464,25 +464,25 @@ export function buildGroupB(): ScenarioDefinition[] {
       expectedOutcome: "NO_SILENT_REUSE",
       tags: ["signup", "security"],
       setupSteps: [
-        "Create Clerk user A with email/username",
-        "Establish local user",
+        "Opprett Clerk-bruker A med e-post/brukernavn",
+        "Etabler lokal bruker",
       ],
       executionSteps: [
-        "Navigate to /sign-up",
-        "Fill form with existing email",
-        "Check whether user is logged in as A without clear indication",
+        "Naviger til /sign-up",
+        "Fyll inn skjema med eksisterende e-post",
+        "Sjekk om bruker er logget inn som A uten tydelig indikasjon",
       ],
       capturePoints: [
-        "/api/user/me user ID",
-        "Whether user was informed about existing account",
-        "Whether dashboard access happened",
+        "/api/user/me bruker-ID",
+        "Om bruker ble informert om eksisterende konto",
+        "Om dashbord-tilgang skjedde",
       ],
     },
   ];
 }
 
 // ============================================================================
-// Group C: Google/OAuth vs Email/Password (7 scenarios)
+// Gruppe C: Google/OAuth vs e-post/passord (7 scenarioer)
 // ============================================================================
 
 export function buildGroupC(): ScenarioDefinition[] {
@@ -490,9 +490,9 @@ export function buildGroupC(): ScenarioDefinition[] {
     {
       id: "C01-google-then-email-same-email-same-username",
       group: "C",
-      groupName: "Google/OAuth vs Email",
+      groupName: "Google/OAuth vs e-post",
       scenarioNumber: 1,
-      description: "Signup A with Google (E1, U1), then signup B with email/password (E1, U1)",
+      description: "Registrering A med Google (E1, U1), deretter registrering B med e-post/passord (E1, U1)",
       kind: "e2e_oauth",
       automatable: false,
       requiresE2e: true,
@@ -501,27 +501,27 @@ export function buildGroupC(): ScenarioDefinition[] {
       expectedOutcome: "CLERK_BLOCKED_OR_MERGED",
       tags: ["oauth", "google", "duplicate-email"],
       setupSteps: [
-        "Sign up with real Google account",
-        "Capture Clerk user state",
-        "Capture local user state",
+        "Registrer deg med ekte Google-konto",
+        "Fang opp Clerk-brukertilstand",
+        "Fang opp lokal brukertilstand",
       ],
       executionSteps: [
-        "Sign out",
-        "Navigate to /sign-up",
-        "Try email/password signup with same email",
+        "Logg ut",
+        "Naviger til /sign-up",
+        "Prøv e-post/passord-registrering med samme e-post",
       ],
       capturePoints: [
-        "Clerk user IDs (same or different?)",
-        "Local user IDs (same or different?)",
-        "Error message or merge behavior",
+        "Clerk bruker-IDer (samme eller ulike?)",
+        "Lokale bruker-IDer (samme eller ulike?)",
+        "Feilmelding eller sammenslåingsatferd",
       ],
     },
     {
       id: "C02-google-then-email-same-email-diff-username",
       group: "C",
-      groupName: "Google/OAuth vs Email",
+      groupName: "Google/OAuth vs e-post",
       scenarioNumber: 2,
-      description: "Signup A with Google (E1, U1), then signup B with email/password (E1, U2)",
+      description: "Registrering A med Google (E1, U1), deretter registrering B med e-post/passord (E1, U2)",
       kind: "e2e_oauth",
       automatable: false,
       requiresE2e: true,
@@ -530,24 +530,24 @@ export function buildGroupC(): ScenarioDefinition[] {
       expectedOutcome: "CLERK_BLOCKED_DUPLICATE_EMAIL",
       tags: ["oauth", "google", "duplicate-email"],
       setupSteps: [
-        "Sign up with real Google account",
-        "Complete username selection",
+        "Registrer deg med ekte Google-konto",
+        "Fullfør brukernavnvalg",
       ],
       executionSteps: [
-        "Sign out",
-        "Try email/password signup with same email, different username",
+        "Logg ut",
+        "Prøv e-post/passord-registrering med samme e-post, ulikt brukernavn",
       ],
       capturePoints: [
-        "Whether Clerk blocks at email",
-        "Whether different username is attempted",
+        "Om Clerk blokkerer ved e-post",
+        "Om ulikt brukernavn ble forsøkt",
       ],
     },
     {
       id: "C03-google-then-email-diff-email-same-username",
       group: "C",
-      groupName: "Google/OAuth vs Email",
+      groupName: "Google/OAuth vs e-post",
       scenarioNumber: 3,
-      description: "Signup A with Google (E1, U1), then signup B with email/password (E2, U1)",
+      description: "Registrering A med Google (E1, U1), deretter registrering B med e-post/passord (E2, U1)",
       kind: "e2e_oauth",
       automatable: false,
       requiresE2e: true,
@@ -556,23 +556,23 @@ export function buildGroupC(): ScenarioDefinition[] {
       expectedOutcome: "CLERK_BLOCKED_DUPLICATE_USERNAME",
       tags: ["oauth", "google", "duplicate-username"],
       setupSteps: [
-        "Sign up with Google, set username U1",
+        "Registrer deg med Google, sett brukernavn U1",
       ],
       executionSteps: [
-        "Sign out",
-        "Try email/password signup with different email, same username",
+        "Logg ut",
+        "Prøv e-post/passord-registrering med ulik e-post, samme brukernavn",
       ],
       capturePoints: [
-        "Whether username collision is caught",
-        "At what stage (Clerk or backend)",
+        "Om brukernavn-kollisjon fanges opp",
+        "I hvilket steg (Clerk eller backend)",
       ],
     },
     {
       id: "C04-google-clerk-user-state",
       group: "C",
-      groupName: "Google/OAuth vs Email",
+      groupName: "Google/OAuth vs e-post",
       scenarioNumber: 4,
-      description: "Capture whether Clerk reuses same user or creates new for Google+email collision",
+      description: "Fang opp om Clerk gjenbruker samme bruker eller oppretter ny ved Google+e-post-kollisjon",
       kind: "manual",
       automatable: false,
       requiresE2e: true,
@@ -580,21 +580,21 @@ export function buildGroupC(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "DOCUMENT_CLERK_BEHAVIOR",
       tags: ["oauth", "google", "clerk-investigation"],
-      blocker: "Requires real Google OAuth flow",
+      blocker: "Krever ekte Google OAuth-flyt",
       manualSteps: [
-        "Sign up with Google",
-        "Record Clerk user ID",
-        "Sign out",
-        "Sign up with email/password using same email",
-        "Record whether new Clerk user or same",
+        "Registrer deg med Google",
+        "Noter Clerk bruker-ID",
+        "Logg ut",
+        "Registrer deg med e-post/passord med samme e-post",
+        "Noter om ny Clerk-bruker eller samme",
       ],
     },
     {
       id: "C05-google-local-db-state",
       group: "C",
-      groupName: "Google/OAuth vs Email",
+      groupName: "Google/OAuth vs e-post",
       scenarioNumber: 5,
-      description: "Capture whether local backend reuses same user or creates duplicate for Google+email",
+      description: "Fang opp om lokal backend gjenbruker samme bruker eller oppretter duplikat ved Google+e-post",
       kind: "manual",
       automatable: false,
       requiresE2e: true,
@@ -602,22 +602,22 @@ export function buildGroupC(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "DOCUMENT_LOCAL_BEHAVIOR",
       tags: ["oauth", "google", "db-investigation"],
-      blocker: "Requires real Google OAuth flow",
+      blocker: "Krever ekte Google OAuth-flyt",
       manualSteps: [
-        "Sign up with Google",
-        "Query Users collection for this email",
-        "Sign out",
-        "Attempt email/password signup",
-        "Query Users collection again",
-        "Compare user document count and IDs",
+        "Registrer deg med Google",
+        "Spør Users-samlingen for denne e-posten",
+        "Logg ut",
+        "Forsøk e-post/passord-registrering",
+        "Spør Users-samlingen igjen",
+        "Sammenlign antall brukerdokumenter og IDer",
       ],
     },
     {
       id: "C06-google-external-account-link",
       group: "C",
-      groupName: "Google/OAuth vs Email",
+      groupName: "Google/OAuth vs e-post",
       scenarioNumber: 6,
-      description: "Test linking Google to existing email/password account",
+      description: "Test kobling av Google til eksisterende e-post/passord-konto",
       kind: "e2e_oauth",
       automatable: false,
       requiresE2e: true,
@@ -626,23 +626,23 @@ export function buildGroupC(): ScenarioDefinition[] {
       expectedOutcome: "LINK_SUCCESS_OR_BLOCKED",
       tags: ["oauth", "google", "linking"],
       setupSteps: [
-        "Create email/password account",
+        "Opprett e-post/passord-konto",
       ],
       executionSteps: [
-        "Navigate to profile/connected accounts",
-        "Attempt to link Google with same email",
+        "Naviger til profil/tilkoblede kontoer",
+        "Forsøk å koble Google med samme e-post",
       ],
       capturePoints: [
-        "Whether link succeeds",
-        "Whether oauthAccounts array updated",
+        "Om koblingen lykkes",
+        "Om oauthAccounts-arrayet ble oppdatert",
       ],
     },
     {
       id: "C07-google-multiple-accounts-same-email",
       group: "C",
-      groupName: "Google/OAuth vs Email",
+      groupName: "Google/OAuth vs e-post",
       scenarioNumber: 7,
-      description: "Test edge case: multiple Google accounts with same email domain patterns",
+      description: "Test kanttilfelle: flere Google-kontoer med samme e-postdomene-mønstre",
       kind: "manual",
       automatable: false,
       requiresE2e: true,
@@ -650,19 +650,19 @@ export function buildGroupC(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "DOCUMENT_EDGE_CASE",
       tags: ["oauth", "google", "edge-case"],
-      blocker: "Requires multiple Google accounts",
+      blocker: "Krever flere Google-kontoer",
       manualSteps: [
-        "Sign up with Google account A (e.g., user@gmail.com)",
-        "Sign out",
-        "Sign up with Google account B (e.g., user+alias@gmail.com)",
-        "Observe whether treated as same or different",
+        "Registrer deg med Google-konto A (f.eks. bruker@gmail.com)",
+        "Logg ut",
+        "Registrer deg med Google-konto B (f.eks. bruker+alias@gmail.com)",
+        "Observer om de behandles som samme eller ulike",
       ],
     },
   ];
 }
 
 // ============================================================================
-// Group D: Email/Password vs Google/OAuth (6 scenarios)
+// Gruppe D: E-post/passord vs Google/OAuth (6 scenarioer)
 // ============================================================================
 
 export function buildGroupD(): ScenarioDefinition[] {
@@ -670,9 +670,9 @@ export function buildGroupD(): ScenarioDefinition[] {
     {
       id: "D01-email-then-google-same-email",
       group: "D",
-      groupName: "Email vs Google/OAuth",
+      groupName: "E-post vs Google/OAuth",
       scenarioNumber: 1,
-      description: "Signup A with email/password (E1, U1), then signup B with Google (same email)",
+      description: "Registrering A med e-post/passord (E1, U1), deretter registrering B med Google (samme e-post)",
       kind: "e2e_oauth",
       automatable: false,
       requiresE2e: true,
@@ -681,26 +681,26 @@ export function buildGroupD(): ScenarioDefinition[] {
       expectedOutcome: "CLERK_MERGE_OR_BLOCK",
       tags: ["oauth", "google", "cross-provider"],
       setupSteps: [
-        "Create Clerk user via API with email/password",
-        "Establish local user",
+        "Opprett Clerk-bruker via API med e-post/passord",
+        "Etabler lokal bruker",
       ],
       executionSteps: [
-        "Sign out",
-        "Click 'Sign up with Google' using same email",
-        "Complete OAuth flow",
+        "Logg ut",
+        "Klikk 'Registrer med Google' med samme e-post",
+        "Fullfør OAuth-flyten",
       ],
       capturePoints: [
-        "Whether Clerk merges accounts",
-        "Whether local user is reused",
-        "externalAccounts array state",
+        "Om Clerk slår sammen kontoer",
+        "Om lokal bruker gjenbrukes",
+        "externalAccounts array-tilstand",
       ],
     },
     {
       id: "D02-email-then-google-same-username",
       group: "D",
-      groupName: "Email vs Google/OAuth",
+      groupName: "E-post vs Google/OAuth",
       scenarioNumber: 2,
-      description: "Signup A with email/password (E1, U1), then signup B with Google (E2, U1 if possible)",
+      description: "Registrering A med e-post/passord (E1, U1), deretter registrering B med Google (E2, U1 hvis mulig)",
       kind: "e2e_oauth",
       automatable: false,
       requiresE2e: true,
@@ -709,24 +709,24 @@ export function buildGroupD(): ScenarioDefinition[] {
       expectedOutcome: "USERNAME_CONFLICT_IF_REACHABLE",
       tags: ["oauth", "google", "duplicate-username"],
       setupSteps: [
-        "Create email/password user with username U1",
+        "Opprett e-post/passord-bruker med brukernavn U1",
       ],
       executionSteps: [
-        "Sign out",
-        "Sign up with Google (different email)",
-        "Attempt to set username to U1",
+        "Logg ut",
+        "Registrer deg med Google (ulik e-post)",
+        "Forsøk å sette brukernavn til U1",
       ],
       capturePoints: [
-        "Whether username conflict caught",
-        "At what stage",
+        "Om brukernavn-konflikt fanges opp",
+        "I hvilket steg",
       ],
     },
     {
       id: "D03-email-then-google-clerk-reuse",
       group: "D",
-      groupName: "Email vs Google/OAuth",
+      groupName: "E-post vs Google/OAuth",
       scenarioNumber: 3,
-      description: "Capture Clerk reuse vs new user when adding Google to email account",
+      description: "Fang opp Clerk-gjenbruk vs ny bruker ved tillegg av Google til e-postkonto",
       kind: "manual",
       automatable: false,
       requiresE2e: true,
@@ -734,20 +734,20 @@ export function buildGroupD(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "DOCUMENT_CLERK_BEHAVIOR",
       tags: ["oauth", "google", "clerk-investigation"],
-      blocker: "Requires real Google OAuth",
+      blocker: "Krever ekte Google OAuth",
       manualSteps: [
-        "Create email/password user, record Clerk ID",
-        "Sign out",
-        "Sign up/in with Google using same email",
-        "Record whether new Clerk ID or same",
+        "Opprett e-post/passord-bruker, noter Clerk-ID",
+        "Logg ut",
+        "Registrer/logg inn med Google med samme e-post",
+        "Noter om ny Clerk-ID eller samme",
       ],
     },
     {
       id: "D04-email-then-google-local-db-reuse",
       group: "D",
-      groupName: "Email vs Google/OAuth",
+      groupName: "E-post vs Google/OAuth",
       scenarioNumber: 4,
-      description: "Capture local DB reuse vs duplicate when adding Google to email account",
+      description: "Fang opp lokal DB-gjenbruk vs duplikat ved tillegg av Google til e-postkonto",
       kind: "manual",
       automatable: false,
       requiresE2e: true,
@@ -755,21 +755,21 @@ export function buildGroupD(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "DOCUMENT_LOCAL_BEHAVIOR",
       tags: ["oauth", "google", "db-investigation"],
-      blocker: "Requires real Google OAuth",
+      blocker: "Krever ekte Google OAuth",
       manualSteps: [
-        "Create email/password user, record local _id",
-        "Sign out",
-        "Sign up/in with Google using same email",
-        "Query DB for this email",
-        "Compare user count and IDs",
+        "Opprett e-post/passord-bruker, noter lokal _id",
+        "Logg ut",
+        "Registrer/logg inn med Google med samme e-post",
+        "Spør DB for denne e-posten",
+        "Sammenlign antall brukere og IDer",
       ],
     },
     {
       id: "D05-email-password-google-link-existing",
       group: "D",
-      groupName: "Email vs Google/OAuth",
+      groupName: "E-post vs Google/OAuth",
       scenarioNumber: 5,
-      description: "Link Google to existing email/password from profile page",
+      description: "Koble Google til eksisterende e-post/passord fra profilsiden",
       kind: "e2e_oauth",
       automatable: false,
       requiresE2e: true,
@@ -778,24 +778,24 @@ export function buildGroupD(): ScenarioDefinition[] {
       expectedOutcome: "LINK_SUCCESS_OAUTH_ARRAY_UPDATED",
       tags: ["oauth", "google", "linking"],
       setupSteps: [
-        "Create email/password account, log in",
+        "Opprett e-post/passord-konto, logg inn",
       ],
       executionSteps: [
-        "Navigate to profile",
-        "Click 'Connect Google'",
-        "Complete OAuth",
+        "Naviger til profil",
+        "Klikk 'Koble til Google'",
+        "Fullfør OAuth",
       ],
       capturePoints: [
-        "User.oauthAccounts after link",
-        "Whether provider synced",
+        "User.oauthAccounts etter kobling",
+        "Om leverandør ble synkronisert",
       ],
     },
     {
       id: "D06-email-password-google-link-conflict",
       group: "D",
-      groupName: "Email vs Google/OAuth",
+      groupName: "E-post vs Google/OAuth",
       scenarioNumber: 6,
-      description: "Link Google that is already linked to another local account",
+      description: "Koble Google som allerede er koblet til en annen lokal konto",
       kind: "e2e_oauth",
       automatable: false,
       requiresE2e: true,
@@ -804,23 +804,23 @@ export function buildGroupD(): ScenarioDefinition[] {
       expectedOutcome: "OAUTH_CONFLICT_BLOCKED",
       tags: ["oauth", "google", "linking", "conflict"],
       setupSteps: [
-        "Create account A, link Google",
-        "Create account B",
+        "Opprett konto A, koble Google",
+        "Opprett konto B",
       ],
       executionSteps: [
-        "Log in as B",
-        "Try to link same Google account",
+        "Logg inn som B",
+        "Prøv å koble samme Google-konto",
       ],
       capturePoints: [
-        "Error message",
-        "Whether oauthAccountConflict returned",
+        "Feilmelding",
+        "Om oauthAccountConflict returneres",
       ],
     },
   ];
 }
 
 // ============================================================================
-// Group E: Microsoft/OAuth (7 scenarios)
+// Gruppe E: Microsoft/OAuth (7 scenarioer)
 // ============================================================================
 
 export function buildGroupE(): ScenarioDefinition[] {
@@ -830,7 +830,7 @@ export function buildGroupE(): ScenarioDefinition[] {
       group: "E",
       groupName: "Microsoft/OAuth",
       scenarioNumber: 1,
-      description: "Microsoft signup A (E1, U1), then email/password signup B (E1)",
+      description: "Microsoft-registrering A (E1, U1), deretter e-post/passord-registrering B (E1)",
       kind: "e2e_oauth",
       automatable: false,
       requiresE2e: true,
@@ -838,16 +838,16 @@ export function buildGroupE(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "CLERK_BLOCKED_OR_MERGED",
       tags: ["oauth", "microsoft", "duplicate-email"],
-      setupSteps: ["Sign up with Microsoft"],
-      executionSteps: ["Sign out", "Try email/password signup with same email"],
-      capturePoints: ["Clerk behavior", "Local DB state"],
+      setupSteps: ["Registrer deg med Microsoft"],
+      executionSteps: ["Logg ut", "Prøv e-post/passord-registrering med samme e-post"],
+      capturePoints: ["Clerk-atferd", "Lokal DB-tilstand"],
     },
     {
       id: "E02-microsoft-then-email-same-username",
       group: "E",
       groupName: "Microsoft/OAuth",
       scenarioNumber: 2,
-      description: "Microsoft signup A (E1, U1), then email/password signup B (E2, U1)",
+      description: "Microsoft-registrering A (E1, U1), deretter e-post/passord-registrering B (E2, U1)",
       kind: "e2e_oauth",
       automatable: false,
       requiresE2e: true,
@@ -855,16 +855,16 @@ export function buildGroupE(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "CLERK_BLOCKED_DUPLICATE_USERNAME",
       tags: ["oauth", "microsoft", "duplicate-username"],
-      setupSteps: ["Sign up with Microsoft, set username U1"],
-      executionSteps: ["Sign out", "Try email/password signup with U1"],
-      capturePoints: ["Username conflict detection"],
+      setupSteps: ["Registrer deg med Microsoft, sett brukernavn U1"],
+      executionSteps: ["Logg ut", "Prøv e-post/passord-registrering med U1"],
+      capturePoints: ["Deteksjon av brukernavn-konflikt"],
     },
     {
       id: "E03-email-then-microsoft-same-email",
       group: "E",
       groupName: "Microsoft/OAuth",
       scenarioNumber: 3,
-      description: "Email/password signup A (E1, U1), then Microsoft signup B (E1)",
+      description: "E-post/passord-registrering A (E1, U1), deretter Microsoft-registrering B (E1)",
       kind: "e2e_oauth",
       automatable: false,
       requiresE2e: true,
@@ -872,16 +872,16 @@ export function buildGroupE(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "CLERK_MERGE_OR_BLOCK",
       tags: ["oauth", "microsoft", "cross-provider"],
-      setupSteps: ["Create email/password user"],
-      executionSteps: ["Sign out", "Sign up with Microsoft using same email"],
-      capturePoints: ["Whether accounts merge", "Local DB state"],
+      setupSteps: ["Opprett e-post/passord-bruker"],
+      executionSteps: ["Logg ut", "Registrer deg med Microsoft med samme e-post"],
+      capturePoints: ["Om kontoer slås sammen", "Lokal DB-tilstand"],
     },
     {
       id: "E04-google-then-microsoft-same-email",
       group: "E",
       groupName: "Microsoft/OAuth",
       scenarioNumber: 4,
-      description: "Google signup A (E1), then Microsoft signup B (E1)",
+      description: "Google-registrering A (E1), deretter Microsoft-registrering B (E1)",
       kind: "e2e_oauth",
       automatable: false,
       requiresE2e: true,
@@ -889,16 +889,16 @@ export function buildGroupE(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "MULTI_PROVIDER_HANDLING",
       tags: ["oauth", "google", "microsoft", "multi-provider"],
-      setupSteps: ["Sign up with Google"],
-      executionSteps: ["Sign out", "Sign up with Microsoft using same email"],
-      capturePoints: ["Whether providers coexist", "externalAccounts array"],
+      setupSteps: ["Registrer deg med Google"],
+      executionSteps: ["Logg ut", "Registrer deg med Microsoft med samme e-post"],
+      capturePoints: ["Om leverandører sameksisterer", "externalAccounts-array"],
     },
     {
       id: "E05-microsoft-then-google-same-email",
       group: "E",
       groupName: "Microsoft/OAuth",
       scenarioNumber: 5,
-      description: "Microsoft signup A (E1), then Google signup B (E1)",
+      description: "Microsoft-registrering A (E1), deretter Google-registrering B (E1)",
       kind: "e2e_oauth",
       automatable: false,
       requiresE2e: true,
@@ -906,16 +906,16 @@ export function buildGroupE(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "MULTI_PROVIDER_HANDLING",
       tags: ["oauth", "google", "microsoft", "multi-provider"],
-      setupSteps: ["Sign up with Microsoft"],
-      executionSteps: ["Sign out", "Sign up with Google using same email"],
-      capturePoints: ["Whether providers coexist", "Local user state"],
+      setupSteps: ["Registrer deg med Microsoft"],
+      executionSteps: ["Logg ut", "Registrer deg med Google med samme e-post"],
+      capturePoints: ["Om leverandører sameksisterer", "Lokal brukertilstand"],
     },
     {
       id: "E06-microsoft-link-to-existing",
       group: "E",
       groupName: "Microsoft/OAuth",
       scenarioNumber: 6,
-      description: "Link Microsoft to existing email/password account",
+      description: "Koble Microsoft til eksisterende e-post/passord-konto",
       kind: "e2e_oauth",
       automatable: false,
       requiresE2e: true,
@@ -923,16 +923,16 @@ export function buildGroupE(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "LINK_SUCCESS_OR_BLOCKED",
       tags: ["oauth", "microsoft", "linking"],
-      setupSteps: ["Create email/password account"],
-      executionSteps: ["Navigate to profile", "Link Microsoft"],
-      capturePoints: ["oauthAccounts after link"],
+      setupSteps: ["Opprett e-post/passord-konto"],
+      executionSteps: ["Naviger til profil", "Koble Microsoft"],
+      capturePoints: ["oauthAccounts etter kobling"],
     },
     {
       id: "E07-microsoft-link-conflict",
       group: "E",
       groupName: "Microsoft/OAuth",
       scenarioNumber: 7,
-      description: "Link Microsoft already linked to another account",
+      description: "Koble Microsoft som allerede er koblet til en annen konto",
       kind: "e2e_oauth",
       automatable: false,
       requiresE2e: true,
@@ -940,15 +940,15 @@ export function buildGroupE(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "OAUTH_CONFLICT_BLOCKED",
       tags: ["oauth", "microsoft", "linking", "conflict"],
-      setupSteps: ["Account A links Microsoft", "Create account B"],
-      executionSteps: ["Log in as B", "Try linking same Microsoft"],
-      capturePoints: ["Error response", "oauthAccountConflict"],
+      setupSteps: ["Konto A kobler Microsoft", "Opprett konto B"],
+      executionSteps: ["Logg inn som B", "Prøv å koble samme Microsoft"],
+      capturePoints: ["Feilrespons", "oauthAccountConflict"],
     },
   ];
 }
 
 // ============================================================================
-// Group F: SSO Linking / Provider Reuse (7 scenarios)
+// Gruppe F: SSO-kobling / leverandørgjenbruk (7 scenarioer)
 // ============================================================================
 
 export function buildGroupF(): ScenarioDefinition[] {
@@ -956,9 +956,9 @@ export function buildGroupF(): ScenarioDefinition[] {
     {
       id: "F01-link-google-already-linked-to-other",
       group: "F",
-      groupName: "SSO Linking / Provider Reuse",
+      groupName: "SSO-kobling / leverandørgjenbruk",
       scenarioNumber: 1,
-      description: "Account A tries to link Google already belonging to account B",
+      description: "Konto A prøver å koble Google som allerede tilhører konto B",
       kind: "e2e_oauth",
       automatable: false,
       requiresE2e: true,
@@ -966,16 +966,16 @@ export function buildGroupF(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "OAUTH_ACCOUNT_CONFLICT",
       tags: ["sso", "linking", "conflict"],
-      setupSteps: ["Create A, link Google", "Create B"],
-      executionSteps: ["Log in as B", "Try linking same Google"],
-      capturePoints: ["oauthAccountConflict response"],
+      setupSteps: ["Opprett A, koble Google", "Opprett B"],
+      executionSteps: ["Logg inn som B", "Prøv å koble samme Google"],
+      capturePoints: ["oauthAccountConflict-respons"],
     },
     {
       id: "F02-link-microsoft-already-linked-to-other",
       group: "F",
-      groupName: "SSO Linking / Provider Reuse",
+      groupName: "SSO-kobling / leverandørgjenbruk",
       scenarioNumber: 2,
-      description: "Account A tries to link Microsoft already belonging to account B",
+      description: "Konto A prøver å koble Microsoft som allerede tilhører konto B",
       kind: "e2e_oauth",
       automatable: false,
       requiresE2e: true,
@@ -983,16 +983,16 @@ export function buildGroupF(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "OAUTH_ACCOUNT_CONFLICT",
       tags: ["sso", "linking", "conflict"],
-      setupSteps: ["Create A, link Microsoft", "Create B"],
-      executionSteps: ["Log in as B", "Try linking same Microsoft"],
-      capturePoints: ["oauthAccountConflict response"],
+      setupSteps: ["Opprett A, koble Microsoft", "Opprett B"],
+      executionSteps: ["Logg inn som B", "Prøv å koble samme Microsoft"],
+      capturePoints: ["oauthAccountConflict-respons"],
     },
     {
       id: "F03-provider-reuse-after-deletion",
       group: "F",
-      groupName: "SSO Linking / Provider Reuse",
+      groupName: "SSO-kobling / leverandørgjenbruk",
       scenarioNumber: 3,
-      description: "Try provider reuse after account deletion",
+      description: "Prøv leverandørgjenbruk etter kontosletting",
       kind: "e2e_oauth",
       automatable: false,
       requiresE2e: true,
@@ -1000,16 +1000,16 @@ export function buildGroupF(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "PROVIDER_REUSABLE_AFTER_DELETE",
       tags: ["sso", "deletion", "reuse"],
-      setupSteps: ["Create A, link Google", "Delete A"],
-      executionSteps: ["Create B", "Try linking same Google"],
-      capturePoints: ["Whether link succeeds", "tombstone state"],
+      setupSteps: ["Opprett A, koble Google", "Slett A"],
+      executionSteps: ["Opprett B", "Prøv å koble samme Google"],
+      capturePoints: ["Om kobling lykkes", "tombstone-tilstand"],
     },
     {
       id: "F04-provider-reuse-after-soft-delete",
       group: "F",
-      groupName: "SSO Linking / Provider Reuse",
+      groupName: "SSO-kobling / leverandørgjenbruk",
       scenarioNumber: 4,
-      description: "Try provider reuse after soft-delete/tombstone state",
+      description: "Prøv leverandørgjenbruk etter myk-sletting/tombstone-tilstand",
       kind: "manual",
       automatable: false,
       requiresE2e: true,
@@ -1017,20 +1017,20 @@ export function buildGroupF(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "DOCUMENT_TOMBSTONE_BEHAVIOR",
       tags: ["sso", "deletion", "tombstone"],
-      blocker: "Requires DB manipulation to create tombstone",
+      blocker: "Krever DB-manipulering for å opprette tombstone",
       manualSteps: [
-        "Create account with Google",
-        "Soft-delete (set deletedAt but keep identity fields)",
-        "Create new account",
-        "Try linking same Google",
+        "Opprett konto med Google",
+        "Myk-slett (sett deletedAt men behold identitetsfelt)",
+        "Opprett ny konto",
+        "Prøv å koble samme Google",
       ],
     },
     {
       id: "F05-provider-reuse-after-failed-cleanup",
       group: "F",
-      groupName: "SSO Linking / Provider Reuse",
+      groupName: "SSO-kobling / leverandørgjenbruk",
       scenarioNumber: 5,
-      description: "Try provider reuse after failed cleanup",
+      description: "Prøv leverandørgjenbruk etter mislykket opprydding",
       kind: "manual",
       automatable: false,
       requiresE2e: true,
@@ -1038,20 +1038,20 @@ export function buildGroupF(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "DOCUMENT_CLEANUP_FAILURE_BEHAVIOR",
       tags: ["sso", "cleanup", "failure"],
-      blocker: "Requires simulating cleanup failure",
+      blocker: "Krever simulering av oppryddingsfeil",
       manualSteps: [
-        "Create account with Google",
-        "Delete account but interrupt cleanup",
-        "Verify lingering oauthAccounts entry",
-        "Try reusing same Google",
+        "Opprett konto med Google",
+        "Slett konto men avbryt opprydding",
+        "Verifiser gjenværende oauthAccounts-oppføring",
+        "Prøv å gjenbruke samme Google",
       ],
     },
     {
       id: "F06-clerk-ui-provider-linking",
       group: "F",
-      groupName: "SSO Linking / Provider Reuse",
+      groupName: "SSO-kobling / leverandørgjenbruk",
       scenarioNumber: 6,
-      description: "Try provider linking from Clerk UI path if reachable",
+      description: "Prøv leverandørkobling fra Clerk UI-sti hvis tilgjengelig",
       kind: "e2e_browser",
       automatable: true,
       requiresE2e: true,
@@ -1059,20 +1059,20 @@ export function buildGroupF(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "DOCUMENT_UI_PATH",
       tags: ["sso", "linking", "ui"],
-      setupSteps: ["Create email/password account"],
+      setupSteps: ["Opprett e-post/passord-konto"],
       executionSteps: [
-        "Navigate to user profile",
-        "Find connected accounts section",
-        "Document available link options",
+        "Naviger til brukerprofil",
+        "Finn seksjonen for tilkoblede kontoer",
+        "Dokumenter tilgjengelige koblingsalternativer",
       ],
-      capturePoints: ["Available UI paths", "Link flow behavior"],
+      capturePoints: ["Tilgjengelige UI-stier", "Koblingsflytatferd"],
     },
     {
       id: "F07-app-controlled-provider-linking",
       group: "F",
-      groupName: "SSO Linking / Provider Reuse",
+      groupName: "SSO-kobling / leverandørgjenbruk",
       scenarioNumber: 7,
-      description: "Try provider linking from app-controlled path",
+      description: "Prøv leverandørkobling fra app-kontrollert sti",
       kind: "e2e_browser",
       automatable: true,
       requiresE2e: true,
@@ -1080,19 +1080,19 @@ export function buildGroupF(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "DOCUMENT_APP_PATH",
       tags: ["sso", "linking", "app-controlled"],
-      setupSteps: ["Log in"],
+      setupSteps: ["Logg inn"],
       executionSteps: [
-        "Navigate to /profil",
-        "Find any provider link buttons",
-        "Document the flow",
+        "Naviger til /profil",
+        "Finn eventuelle leverandørkoblingsknapper",
+        "Dokumenter flyten",
       ],
-      capturePoints: ["App-controlled linking paths", "Success/failure"],
+      capturePoints: ["App-kontrollerte koblingsstier", "Suksess/feil"],
     },
   ];
 }
 
 // ============================================================================
-// Group G: Username Update Scenarios (6 scenarios)
+// Gruppe G: Brukernavn-oppdateringsscenarioer (6 scenarioer)
 // ============================================================================
 
 export function buildGroupG(): ScenarioDefinition[] {
@@ -1100,9 +1100,9 @@ export function buildGroupG(): ScenarioDefinition[] {
     {
       id: "G01-update-username-to-existing",
       group: "G",
-      groupName: "Username Update",
+      groupName: "Brukernavn-oppdatering",
       scenarioNumber: 1,
-      description: "Logged-in user changes username to an existing username",
+      description: "Innlogget bruker endrer brukernavn til et eksisterende brukernavn",
       kind: "executable",
       automatable: true,
       requiresE2e: false,
@@ -1117,9 +1117,9 @@ export function buildGroupG(): ScenarioDefinition[] {
     {
       id: "G02-update-username-same-casing",
       group: "G",
-      groupName: "Username Update",
+      groupName: "Brukernavn-oppdatering",
       scenarioNumber: 2,
-      description: "Logged-in user changes username to same value with different casing",
+      description: "Innlogget bruker endrer brukernavn til samme verdi med ulik bokstavstørrelse",
       kind: "executable",
       automatable: true,
       requiresE2e: false,
@@ -1133,9 +1133,9 @@ export function buildGroupG(): ScenarioDefinition[] {
     {
       id: "G03-update-username-whitespace",
       group: "G",
-      groupName: "Username Update",
+      groupName: "Brukernavn-oppdatering",
       scenarioNumber: 3,
-      description: "Logged-in user changes username with leading/trailing whitespace",
+      description: "Innlogget bruker endrer brukernavn med ledende/etterfølgende mellomrom",
       kind: "executable",
       automatable: true,
       requiresE2e: false,
@@ -1149,9 +1149,9 @@ export function buildGroupG(): ScenarioDefinition[] {
     {
       id: "G04-update-username-invalid-format",
       group: "G",
-      groupName: "Username Update",
+      groupName: "Brukernavn-oppdatering",
       scenarioNumber: 4,
-      description: "Logged-in user changes username to invalid format",
+      description: "Innlogget bruker endrer brukernavn til ugyldig format",
       kind: "executable",
       automatable: true,
       requiresE2e: false,
@@ -1165,9 +1165,9 @@ export function buildGroupG(): ScenarioDefinition[] {
     {
       id: "G05-update-username-concurrent-conflict",
       group: "G",
-      groupName: "Username Update",
+      groupName: "Brukernavn-oppdatering",
       scenarioNumber: 5,
-      description: "Username change while another conflicting account being created concurrently",
+      description: "Brukernavnendring mens en annen konflikterende konto opprettes samtidig",
       kind: "race_condition",
       automatable: true,
       requiresE2e: false,
@@ -1176,17 +1176,17 @@ export function buildGroupG(): ScenarioDefinition[] {
       expectedOutcome: "ONE_SUCCEEDS_ONE_FAILS",
       tags: ["update", "username", "race", "concurrency"],
       concurrentActions: [
-        "User A updates username to U",
-        "User B signs up with username U",
+        "Bruker A oppdaterer brukernavn til U",
+        "Bruker B registrerer seg med brukernavn U",
       ],
-      expectedRace: "DB unique index blocks one",
+      expectedRace: "DB unik indeks blokkerer en",
     },
     {
       id: "G06-update-username-conflict-timing",
       group: "G",
-      groupName: "Username Update",
+      groupName: "Brukernavn-oppdatering",
       scenarioNumber: 6,
-      description: "Verify whether conflict is blocked early or only by DB write failure",
+      description: "Verifiser om konflikt blokkeres tidlig eller kun ved DB-skrivefeil",
       kind: "executable",
       automatable: true,
       requiresE2e: false,
@@ -1202,7 +1202,7 @@ export function buildGroupG(): ScenarioDefinition[] {
 }
 
 // ============================================================================
-// Group H: Email Update Scenarios (5 scenarios)
+// Gruppe H: E-post-oppdateringsscenarioer (5 scenarioer)
 // ============================================================================
 
 export function buildGroupH(): ScenarioDefinition[] {
@@ -1210,9 +1210,9 @@ export function buildGroupH(): ScenarioDefinition[] {
     {
       id: "H01-update-email-to-existing",
       group: "H",
-      groupName: "Email Update",
+      groupName: "E-post-oppdatering",
       scenarioNumber: 1,
-      description: "Logged-in user changes email to an existing email",
+      description: "Innlogget bruker endrer e-post til en eksisterende e-post",
       kind: "e2e_browser",
       automatable: true,
       requiresE2e: true,
@@ -1220,16 +1220,16 @@ export function buildGroupH(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "EMAIL_UPDATE_BLOCKED",
       tags: ["update", "email", "conflict"],
-      setupSteps: ["Create user A with E1", "Create user B with E2"],
-      executionSteps: ["Log in as B", "Try changing email to E1"],
-      capturePoints: ["Error message", "Whether blocked at Clerk or backend"],
+      setupSteps: ["Opprett bruker A med E1", "Opprett bruker B med E2"],
+      executionSteps: ["Logg inn som B", "Prøv å endre e-post til E1"],
+      capturePoints: ["Feilmelding", "Om blokkert hos Clerk eller backend"],
     },
     {
       id: "H02-update-email-same-casing",
       group: "H",
-      groupName: "Email Update",
+      groupName: "E-post-oppdatering",
       scenarioNumber: 2,
-      description: "Logged-in user changes email to same value with different casing",
+      description: "Innlogget bruker endrer e-post til samme verdi med ulik bokstavstørrelse",
       kind: "e2e_browser",
       automatable: true,
       requiresE2e: true,
@@ -1237,16 +1237,16 @@ export function buildGroupH(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "ALLOWED_OR_NORMALIZED",
       tags: ["update", "email", "casing"],
-      setupSteps: ["Create user with lowercase email"],
-      executionSteps: ["Try changing to uppercase version"],
-      capturePoints: ["Whether allowed", "Stored form"],
+      setupSteps: ["Opprett bruker med e-post i små bokstaver"],
+      executionSteps: ["Prøv å endre til versjon med store bokstaver"],
+      capturePoints: ["Om tillatt", "Lagret form"],
     },
     {
       id: "H03-update-email-clerk-ui",
       group: "H",
-      groupName: "Email Update",
+      groupName: "E-post-oppdatering",
       scenarioNumber: 3,
-      description: "Logged-in user changes email through Clerk UI if reachable",
+      description: "Innlogget bruker endrer e-post gjennom Clerk UI hvis tilgjengelig",
       kind: "e2e_browser",
       automatable: true,
       requiresE2e: true,
@@ -1254,16 +1254,16 @@ export function buildGroupH(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "DOCUMENT_CLERK_UI_PATH",
       tags: ["update", "email", "clerk-ui"],
-      setupSteps: ["Log in"],
-      executionSteps: ["Navigate to Clerk user profile component", "Find email change option"],
-      capturePoints: ["Whether email change is exposed", "Flow behavior"],
+      setupSteps: ["Logg inn"],
+      executionSteps: ["Naviger til Clerk-brukerprofilkomponent", "Finn alternativ for e-postendring"],
+      capturePoints: ["Om e-postendring er eksponert", "Flytatferd"],
     },
     {
       id: "H04-update-email-app-controlled",
       group: "H",
-      groupName: "Email Update",
+      groupName: "E-post-oppdatering",
       scenarioNumber: 4,
-      description: "Logged-in user changes email through app-controlled flow",
+      description: "Innlogget bruker endrer e-post gjennom app-kontrollert flyt",
       kind: "e2e_browser",
       automatable: true,
       requiresE2e: true,
@@ -1271,16 +1271,16 @@ export function buildGroupH(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "DOCUMENT_APP_PATH",
       tags: ["update", "email", "app-controlled"],
-      setupSteps: ["Log in"],
-      executionSteps: ["Navigate to /profil", "Find email change option"],
-      capturePoints: ["App-controlled paths", "Sync with Clerk"],
+      setupSteps: ["Logg inn"],
+      executionSteps: ["Naviger til /profil", "Finn alternativ for e-postendring"],
+      capturePoints: ["App-kontrollerte stier", "Synkronisering med Clerk"],
     },
     {
       id: "H05-update-email-consistency",
       group: "H",
-      groupName: "Email Update",
+      groupName: "E-post-oppdatering",
       scenarioNumber: 5,
-      description: "Verify frontend, Clerk, and local backend stay consistent after email change",
+      description: "Verifiser at frontend, Clerk og lokal backend forblir konsistente etter e-postendring",
       kind: "e2e_browser",
       automatable: true,
       requiresE2e: true,
@@ -1288,133 +1288,133 @@ export function buildGroupH(): ScenarioDefinition[] {
       requiresAdmin: false,
       expectedOutcome: "ALL_CONSISTENT",
       tags: ["update", "email", "consistency"],
-      setupSteps: ["Create user"],
-      executionSteps: ["Change email via available path", "Query all three sources"],
-      capturePoints: ["Frontend /me email", "Clerk user email", "MongoDB email"],
+      setupSteps: ["Opprett bruker"],
+      executionSteps: ["Endre e-post via tilgjengelig sti", "Spør alle tre kilder"],
+      capturePoints: ["Frontend /me e-post", "Clerk-bruker e-post", "MongoDB e-post"],
     },
   ];
 }
 
 // ============================================================================
-// Build All Groups
+// Bygg alle grupper
 // ============================================================================
 
 export function buildGroupI(): ScenarioDefinition[] {
-  // Deletion/reuse scenarios - abbreviated for space
+  // Sletting/gjenbruk-scenarioer - forkortet for plass
   return [
-    { id: "I01-delete-then-reuse-username", group: "I", groupName: "Deletion/Reuse", scenarioNumber: 1, description: "Delete account A, reuse old username on new account B", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "USERNAME_REUSABLE_AFTER_DELETE", tags: ["deletion", "reuse", "username"], first: { provider: "email", email: makeEmail("i01-first"), username: makeUsername("i01shared") }, second: { provider: "email", email: makeEmail("i01-second"), username: makeUsername("i01shared") }, action: "delete" },
-    { id: "I02-delete-then-reuse-email", group: "I", groupName: "Deletion/Reuse", scenarioNumber: 2, description: "Delete account A, reuse old email on new account B", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "EMAIL_REUSABLE_AFTER_DELETE", tags: ["deletion", "reuse", "email"], first: { provider: "email", email: makeEmail("i02-shared"), username: makeUsername("i02first") }, second: { provider: "email", email: makeEmail("i02-shared"), username: makeUsername("i02second") }, action: "delete" },
-    { id: "I03-delete-reuse-google", group: "I", groupName: "Deletion/Reuse", scenarioNumber: 3, description: "Reuse old Google identity on new account B", kind: "e2e_oauth", automatable: false, requiresE2e: true, requiresOAuth: true, requiresAdmin: false, expectedOutcome: "GOOGLE_REUSABLE_AFTER_DELETE", tags: ["deletion", "reuse", "oauth"], setupSteps: ["Create A with Google", "Delete A"], executionSteps: ["Create B", "Link same Google"], capturePoints: ["Whether link succeeds"] },
-    { id: "I04-delete-reuse-microsoft", group: "I", groupName: "Deletion/Reuse", scenarioNumber: 4, description: "Reuse old Microsoft identity on new account B", kind: "e2e_oauth", automatable: false, requiresE2e: true, requiresOAuth: true, requiresAdmin: false, expectedOutcome: "MICROSOFT_REUSABLE_AFTER_DELETE", tags: ["deletion", "reuse", "oauth"], setupSteps: ["Create A with Microsoft", "Delete A"], executionSteps: ["Create B", "Link same Microsoft"], capturePoints: ["Whether link succeeds"] },
-    { id: "I05-verify-tombstone-fields", group: "I", groupName: "Deletion/Reuse", scenarioNumber: 5, description: "Verify tombstone fields are unset/anonymized correctly", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "TOMBSTONE_CORRECT", tags: ["deletion", "tombstone"], first: { provider: "email", email: makeEmail("i05-user"), username: makeUsername("i05user") }, action: "delete" },
-    { id: "I06-deleted-cannot-auth", group: "I", groupName: "Deletion/Reuse", scenarioNumber: 6, description: "Verify deleted account cannot still authenticate", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "AUTH_REJECTED", tags: ["deletion", "auth"], first: { provider: "email", email: makeEmail("i06-user"), username: makeUsername("i06user") }, action: "delete" },
-    { id: "I07-deleted-sessions-die", group: "I", groupName: "Deletion/Reuse", scenarioNumber: 7, description: "Verify deleted account sessions die correctly", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "SESSIONS_INVALIDATED", tags: ["deletion", "session"], setupSteps: ["Create user", "Log in"], executionSteps: ["Delete account", "Try accessing protected route"], capturePoints: ["Session rejection"] },
-    { id: "I08-deleted-data-cleanup", group: "I", groupName: "Deletion/Reuse", scenarioNumber: 8, description: "Verify all user data properly cleaned up after deletion", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "DATA_CLEANED", tags: ["deletion", "cleanup"], first: { provider: "email", email: makeEmail("i08-user"), username: makeUsername("i08user") }, action: "delete" },
+    { id: "I01-delete-then-reuse-username", group: "I", groupName: "Sletting/gjenbruk", scenarioNumber: 1, description: "Slett konto A, gjenbruk gammelt brukernavn på ny konto B", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "USERNAME_REUSABLE_AFTER_DELETE", tags: ["deletion", "reuse", "username"], first: { provider: "email", email: makeEmail("i01-first"), username: makeUsername("i01shared") }, second: { provider: "email", email: makeEmail("i01-second"), username: makeUsername("i01shared") }, action: "delete" },
+    { id: "I02-delete-then-reuse-email", group: "I", groupName: "Sletting/gjenbruk", scenarioNumber: 2, description: "Slett konto A, gjenbruk gammel e-post på ny konto B", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "EMAIL_REUSABLE_AFTER_DELETE", tags: ["deletion", "reuse", "email"], first: { provider: "email", email: makeEmail("i02-shared"), username: makeUsername("i02first") }, second: { provider: "email", email: makeEmail("i02-shared"), username: makeUsername("i02second") }, action: "delete" },
+    { id: "I03-delete-reuse-google", group: "I", groupName: "Sletting/gjenbruk", scenarioNumber: 3, description: "Gjenbruk gammel Google-identitet på ny konto B", kind: "e2e_oauth", automatable: false, requiresE2e: true, requiresOAuth: true, requiresAdmin: false, expectedOutcome: "GOOGLE_REUSABLE_AFTER_DELETE", tags: ["deletion", "reuse", "oauth"], setupSteps: ["Opprett A med Google", "Slett A"], executionSteps: ["Opprett B", "Koble samme Google"], capturePoints: ["Om kobling lykkes"] },
+    { id: "I04-delete-reuse-microsoft", group: "I", groupName: "Sletting/gjenbruk", scenarioNumber: 4, description: "Gjenbruk gammel Microsoft-identitet på ny konto B", kind: "e2e_oauth", automatable: false, requiresE2e: true, requiresOAuth: true, requiresAdmin: false, expectedOutcome: "MICROSOFT_REUSABLE_AFTER_DELETE", tags: ["deletion", "reuse", "oauth"], setupSteps: ["Opprett A med Microsoft", "Slett A"], executionSteps: ["Opprett B", "Koble samme Microsoft"], capturePoints: ["Om kobling lykkes"] },
+    { id: "I05-verify-tombstone-fields", group: "I", groupName: "Sletting/gjenbruk", scenarioNumber: 5, description: "Verifiser at tombstone-felt er nullstilt/anonymisert korrekt", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "TOMBSTONE_CORRECT", tags: ["deletion", "tombstone"], first: { provider: "email", email: makeEmail("i05-user"), username: makeUsername("i05user") }, action: "delete" },
+    { id: "I06-deleted-cannot-auth", group: "I", groupName: "Sletting/gjenbruk", scenarioNumber: 6, description: "Verifiser at slettet konto ikke fortsatt kan autentisere", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "AUTH_REJECTED", tags: ["deletion", "auth"], first: { provider: "email", email: makeEmail("i06-user"), username: makeUsername("i06user") }, action: "delete" },
+    { id: "I07-deleted-sessions-die", group: "I", groupName: "Sletting/gjenbruk", scenarioNumber: 7, description: "Verifiser at sesjoner for slettet konto avsluttes korrekt", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "SESSIONS_INVALIDATED", tags: ["deletion", "session"], setupSteps: ["Opprett bruker", "Logg inn"], executionSteps: ["Slett konto", "Prøv å aksessere beskyttet rute"], capturePoints: ["Sesjonsavvisning"] },
+    { id: "I08-deleted-data-cleanup", group: "I", groupName: "Sletting/gjenbruk", scenarioNumber: 8, description: "Verifiser at alle brukerdata ryddes opp korrekt etter sletting", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "DATA_CLEANED", tags: ["deletion", "cleanup"], first: { provider: "email", email: makeEmail("i08-user"), username: makeUsername("i08user") }, action: "delete" },
   ] as ScenarioDefinition[];
 }
 
 export function buildGroupJ(): ScenarioDefinition[] {
-  // Session/cross-tab scenarios
+  // Sesjon/kryss-fane-scenarioer
   return [
-    { id: "J01-logout-other-tab", group: "J", groupName: "Session/Cross-Tab", scenarioNumber: 1, description: "Logout in one tab while another protected tab is open", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "OTHER_TAB_UPDATED", tags: ["session", "cross-tab", "logout"], setupSteps: ["Log in", "Open two tabs"], executionSteps: ["Logout in tab 1", "Check tab 2"], capturePoints: ["Tab 2 auth state"] },
-    { id: "J02-delete-other-tab", group: "J", groupName: "Session/Cross-Tab", scenarioNumber: 2, description: "Delete account in one tab while another protected tab is open", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "OTHER_TAB_SIGNED_OUT", tags: ["session", "cross-tab", "deletion"], setupSteps: ["Log in", "Open two tabs"], executionSteps: ["Delete in tab 1", "Check tab 2"], capturePoints: ["Tab 2 redirect"] },
-    { id: "J03-inflight-during-logout", group: "J", groupName: "Session/Cross-Tab", scenarioNumber: 3, description: "In-flight request during logout", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "REQUEST_HANDLED_GRACEFULLY", tags: ["session", "race", "logout"], setupSteps: ["Log in"], executionSteps: ["Start long request", "Logout mid-request"], capturePoints: ["Request outcome"] },
-    { id: "J04-inflight-during-deletion", group: "J", groupName: "Session/Cross-Tab", scenarioNumber: 4, description: "In-flight request during deletion", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "REQUEST_HANDLED_GRACEFULLY", tags: ["session", "race", "deletion"], setupSteps: ["Log in"], executionSteps: ["Start long request", "Delete mid-request"], capturePoints: ["Request outcome"] },
-    { id: "J05-expired-clerk-token", group: "J", groupName: "Session/Cross-Tab", scenarioNumber: 5, description: "Expired Clerk token during active app session", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "TOKEN_REFRESH_OR_SIGNOUT", tags: ["session", "token", "expiry"], setupSteps: ["Log in"], executionSteps: ["Wait for token expiry", "Make request"], capturePoints: ["Refresh or signout behavior"] },
-    { id: "J06-auth-conflict-other-tab", group: "J", groupName: "Session/Cross-Tab", scenarioNumber: 6, description: "Auth conflict in one tab while another tab is open", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "CONFLICT_PROPAGATES", tags: ["session", "cross-tab", "conflict"], setupSteps: ["Log in", "Open two tabs"], executionSteps: ["Trigger conflict in tab 1", "Check tab 2"], capturePoints: ["Tab 2 conflict state"] },
-    { id: "J07-broadcast-channel-logout", group: "J", groupName: "Session/Cross-Tab", scenarioNumber: 7, description: "Verify cross-tab logout broadcast still works", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "BROADCAST_WORKS", tags: ["session", "broadcast", "logout"], setupSteps: ["Log in multiple tabs"], executionSteps: ["Logout in one", "Check others"], capturePoints: ["BroadcastChannel events"] },
-    { id: "J08-stale-me-cache-cleared", group: "J", groupName: "Session/Cross-Tab", scenarioNumber: 8, description: "Verify stale cached /me data is cleared correctly", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "CACHE_CLEARED", tags: ["session", "cache", "me"], setupSteps: ["Log in"], executionSteps: ["Logout", "Check react-query cache"], capturePoints: ["Cache state after logout"] },
+    { id: "J01-logout-other-tab", group: "J", groupName: "Sesjon/kryss-fane", scenarioNumber: 1, description: "Utlogging i en fane mens en annen beskyttet fane er åpen", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "OTHER_TAB_UPDATED", tags: ["session", "cross-tab", "logout"], setupSteps: ["Logg inn", "Åpne to faner"], executionSteps: ["Logg ut i fane 1", "Sjekk fane 2"], capturePoints: ["Fane 2 auth-tilstand"] },
+    { id: "J02-delete-other-tab", group: "J", groupName: "Sesjon/kryss-fane", scenarioNumber: 2, description: "Slett konto i en fane mens en annen beskyttet fane er åpen", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "OTHER_TAB_SIGNED_OUT", tags: ["session", "cross-tab", "deletion"], setupSteps: ["Logg inn", "Åpne to faner"], executionSteps: ["Slett i fane 1", "Sjekk fane 2"], capturePoints: ["Fane 2 omdirigering"] },
+    { id: "J03-inflight-during-logout", group: "J", groupName: "Sesjon/kryss-fane", scenarioNumber: 3, description: "Pågående forespørsel under utlogging", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "REQUEST_HANDLED_GRACEFULLY", tags: ["session", "race", "logout"], setupSteps: ["Logg inn"], executionSteps: ["Start lang forespørsel", "Logg ut midt i forespørselen"], capturePoints: ["Forespørselsresultat"] },
+    { id: "J04-inflight-during-deletion", group: "J", groupName: "Sesjon/kryss-fane", scenarioNumber: 4, description: "Pågående forespørsel under sletting", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "REQUEST_HANDLED_GRACEFULLY", tags: ["session", "race", "deletion"], setupSteps: ["Logg inn"], executionSteps: ["Start lang forespørsel", "Slett midt i forespørselen"], capturePoints: ["Forespørselsresultat"] },
+    { id: "J05-expired-clerk-token", group: "J", groupName: "Sesjon/kryss-fane", scenarioNumber: 5, description: "Utløpt Clerk-token under aktiv app-sesjon", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "TOKEN_REFRESH_OR_SIGNOUT", tags: ["session", "token", "expiry"], setupSteps: ["Logg inn"], executionSteps: ["Vent på tokenutløp", "Gjør forespørsel"], capturePoints: ["Oppdaterings- eller utloggingsatferd"] },
+    { id: "J06-auth-conflict-other-tab", group: "J", groupName: "Sesjon/kryss-fane", scenarioNumber: 6, description: "Auth-konflikt i en fane mens en annen fane er åpen", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "CONFLICT_PROPAGATES", tags: ["session", "cross-tab", "conflict"], setupSteps: ["Logg inn", "Åpne to faner"], executionSteps: ["Utløs konflikt i fane 1", "Sjekk fane 2"], capturePoints: ["Fane 2 konflikttilstand"] },
+    { id: "J07-broadcast-channel-logout", group: "J", groupName: "Sesjon/kryss-fane", scenarioNumber: 7, description: "Verifiser at kryss-fane utloggingskringkasting fortsatt fungerer", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "BROADCAST_WORKS", tags: ["session", "broadcast", "logout"], setupSteps: ["Logg inn i flere faner"], executionSteps: ["Logg ut i en", "Sjekk de andre"], capturePoints: ["BroadcastChannel-hendelser"] },
+    { id: "J08-stale-me-cache-cleared", group: "J", groupName: "Sesjon/kryss-fane", scenarioNumber: 8, description: "Verifiser at utdatert cachet /me-data tømmes korrekt", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "CACHE_CLEARED", tags: ["session", "cache", "me"], setupSteps: ["Logg inn"], executionSteps: ["Logg ut", "Sjekk react-query cache"], capturePoints: ["Cache-tilstand etter utlogging"] },
   ] as ScenarioDefinition[];
 }
 
 export function buildGroupK(): ScenarioDefinition[] {
-  // Late-conflict / frontend-illusion scenarios
+  // Sen-konflikt / frontend-illusjon-scenarioer
   return [
-    { id: "K01-clerk-success-me-409", group: "K", groupName: "Late-Conflict", scenarioNumber: 1, description: "Clerk signup appears successful but /me returns 409", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "CONFLICT_SHOWN_TO_USER", tags: ["late-conflict", "409"], setupSteps: ["Create conflicting state"], executionSteps: ["Sign up", "Call /me"], capturePoints: ["/me response", "UI state"] },
-    { id: "K02-clerk-success-me-403", group: "K", groupName: "Late-Conflict", scenarioNumber: 2, description: "Clerk signup appears successful but /me returns 403", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "AUTH_ERROR_SHOWN", tags: ["late-conflict", "403"], setupSteps: ["Create blocked state"], executionSteps: ["Sign up", "Call /me"], capturePoints: ["/me response", "UI state"] },
-    { id: "K03-dashboard-but-invalid-identity", group: "K", groupName: "Late-Conflict", scenarioNumber: 3, description: "Frontend lands on dashboard but backend identity is invalid", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "REDIRECT_OR_ERROR", tags: ["late-conflict", "illusion"], setupSteps: ["Create edge state"], executionSteps: ["Navigate to dashboard"], capturePoints: ["Whether protected content shown"] },
-    { id: "K04-username-conflict-resolver", group: "K", groupName: "Late-Conflict", scenarioNumber: 4, description: "Username conflict resolver appears after signup", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "RESOLVER_SHOWN", tags: ["late-conflict", "username", "resolver"], setupSteps: ["Create username conflict"], executionSteps: ["Sign up", "Check UI"], capturePoints: ["Conflict modal appearance"] },
-    { id: "K05-auth-conflict-guard-signout", group: "K", groupName: "Late-Conflict", scenarioNumber: 5, description: "AuthConflictGuard signs user out after signup", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "AUTO_SIGNOUT", tags: ["late-conflict", "guard", "signout"], setupSteps: ["Create conflict state"], executionSteps: ["Sign up", "Observe guard behavior"], capturePoints: ["Signout trigger"] },
-    { id: "K06-same-account-perceived-new", group: "K", groupName: "Late-Conflict", scenarioNumber: 6, description: "Same account reused but user perceives it as new registration", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "UX_CONFUSION_DETECTED", tags: ["late-conflict", "ux", "illusion"], setupSteps: ["Create reuse scenario"], executionSteps: ["Sign up", "Check messaging"], capturePoints: ["Whether user informed"] },
-    { id: "K07-new-clerk-no-local", group: "K", groupName: "Late-Conflict", scenarioNumber: 7, description: "New Clerk user created but no local DB user created", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "ORPHANED_CLERK_USER", tags: ["late-conflict", "orphan"], first: { provider: "email", email: makeEmail("k07-user"), username: makeUsername("k07user") } },
-    { id: "K08-new-clerk-backend-blocks-local", group: "K", groupName: "Late-Conflict", scenarioNumber: 8, description: "New Clerk user created and backend correctly blocks local creation", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "BACKEND_BLOCKED_LOCAL", tags: ["late-conflict", "block"], first: { provider: "email", email: makeEmail("k08-first"), username: makeUsername("k08shared") }, second: { provider: "email", email: makeEmail("k08-second"), username: makeUsername("k08shared") } },
+    { id: "K01-clerk-success-me-409", group: "K", groupName: "Sen-konflikt", scenarioNumber: 1, description: "Clerk-registrering ser vellykket ut, men /me returnerer 409", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "CONFLICT_SHOWN_TO_USER", tags: ["late-conflict", "409"], setupSteps: ["Opprett konflikttilstand"], executionSteps: ["Registrer deg", "Kall /me"], capturePoints: ["/me-respons", "UI-tilstand"] },
+    { id: "K02-clerk-success-me-403", group: "K", groupName: "Sen-konflikt", scenarioNumber: 2, description: "Clerk-registrering ser vellykket ut, men /me returnerer 403", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "AUTH_ERROR_SHOWN", tags: ["late-conflict", "403"], setupSteps: ["Opprett blokkert tilstand"], executionSteps: ["Registrer deg", "Kall /me"], capturePoints: ["/me-respons", "UI-tilstand"] },
+    { id: "K03-dashboard-but-invalid-identity", group: "K", groupName: "Sen-konflikt", scenarioNumber: 3, description: "Frontend lander på dashbord, men backend-identitet er ugyldig", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "REDIRECT_OR_ERROR", tags: ["late-conflict", "illusion"], setupSteps: ["Opprett kanttilstand"], executionSteps: ["Naviger til dashbord"], capturePoints: ["Om beskyttet innhold vises"] },
+    { id: "K04-username-conflict-resolver", group: "K", groupName: "Sen-konflikt", scenarioNumber: 4, description: "Brukernavn-konfliktløser vises etter registrering", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "RESOLVER_SHOWN", tags: ["late-conflict", "username", "resolver"], setupSteps: ["Opprett brukernavn-konflikt"], executionSteps: ["Registrer deg", "Sjekk UI"], capturePoints: ["Visning av konfliktmodal"] },
+    { id: "K05-auth-conflict-guard-signout", group: "K", groupName: "Sen-konflikt", scenarioNumber: 5, description: "AuthConflictGuard logger ut bruker etter registrering", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "AUTO_SIGNOUT", tags: ["late-conflict", "guard", "signout"], setupSteps: ["Opprett konflikttilstand"], executionSteps: ["Registrer deg", "Observer vaktens atferd"], capturePoints: ["Utloggingsutløser"] },
+    { id: "K06-same-account-perceived-new", group: "K", groupName: "Sen-konflikt", scenarioNumber: 6, description: "Samme konto gjenbrukt, men bruker oppfatter det som ny registrering", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "UX_CONFUSION_DETECTED", tags: ["late-conflict", "ux", "illusion"], setupSteps: ["Opprett gjenbruksscenario"], executionSteps: ["Registrer deg", "Sjekk meldinger"], capturePoints: ["Om bruker informeres"] },
+    { id: "K07-new-clerk-no-local", group: "K", groupName: "Sen-konflikt", scenarioNumber: 7, description: "Ny Clerk-bruker opprettet, men ingen lokal DB-bruker opprettet", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "ORPHANED_CLERK_USER", tags: ["late-conflict", "orphan"], first: { provider: "email", email: makeEmail("k07-user"), username: makeUsername("k07user") } },
+    { id: "K08-new-clerk-backend-blocks-local", group: "K", groupName: "Sen-konflikt", scenarioNumber: 8, description: "Ny Clerk-bruker opprettet og backend blokkerer korrekt lokal opprettelse", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "BACKEND_BLOCKED_LOCAL", tags: ["late-conflict", "block"], first: { provider: "email", email: makeEmail("k08-first"), username: makeUsername("k08shared") }, second: { provider: "email", email: makeEmail("k08-second"), username: makeUsername("k08shared") } },
   ] as ScenarioDefinition[];
 }
 
 export function buildGroupL(): ScenarioDefinition[] {
-  // Race/concurrency scenarios
+  // Kappløp/samtidighets-scenarioer
   return [
-    { id: "L01-concurrent-signup-same-email", group: "L", groupName: "Race/Concurrency", scenarioNumber: 1, description: "Two concurrent signups with same email", kind: "race_condition", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "ONE_WINS_ONE_FAILS", tags: ["race", "signup", "email"], concurrentActions: ["Signup A with E1", "Signup B with E1"], expectedRace: "Clerk blocks one" },
-    { id: "L02-concurrent-signup-same-username", group: "L", groupName: "Race/Concurrency", scenarioNumber: 2, description: "Two concurrent signups with same username", kind: "race_condition", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "ONE_WINS_ONE_FAILS", tags: ["race", "signup", "username"], concurrentActions: ["Signup A with U1", "Signup B with U1"], expectedRace: "Clerk or DB blocks one" },
-    { id: "L03-concurrent-me-calls", group: "L", groupName: "Race/Concurrency", scenarioNumber: 3, description: "Two concurrent /me calls for same fresh Clerk user", kind: "race_condition", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "LOCAL_USER_CREATED_ONCE", tags: ["race", "me", "create"], concurrentActions: ["Call /me", "Call /me"], expectedRace: "findOrCreate dedupes" },
-    { id: "L04-concurrent-username-update", group: "L", groupName: "Race/Concurrency", scenarioNumber: 4, description: "Concurrent username update conflicts", kind: "race_condition", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "ONE_WINS_ONE_FAILS", tags: ["race", "update", "username"], concurrentActions: ["User A updates to U", "User B updates to U"], expectedRace: "DB unique index blocks one" },
-    { id: "L05-concurrent-delete-auth", group: "L", groupName: "Race/Concurrency", scenarioNumber: 5, description: "Concurrent deletion + auth request", kind: "race_condition", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "GRACEFUL_HANDLING", tags: ["race", "delete", "auth"], concurrentActions: ["Delete account", "Make auth request"], expectedRace: "Request fails gracefully" },
-    { id: "L06-concurrent-provider-link", group: "L", groupName: "Race/Concurrency", scenarioNumber: 6, description: "Concurrent provider-link attempts", kind: "race_condition", automatable: false, requiresE2e: true, requiresOAuth: true, requiresAdmin: false, expectedOutcome: "ONE_WINS_ONE_FAILS", tags: ["race", "link", "oauth"], concurrentActions: ["User A links Google", "User B links same Google"], expectedRace: "First wins" },
-    { id: "L07-db-unique-indexes-fallback", group: "L", groupName: "Race/Concurrency", scenarioNumber: 7, description: "Verify DB unique indexes are the final fallback", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "DB_PREVENTS_DUPLICATE", tags: ["race", "db", "index"], first: { provider: "email", email: makeEmail("l07-first"), username: makeUsername("l07shared") }, second: { provider: "email", email: makeEmail("l07-second"), username: makeUsername("l07shared") } },
+    { id: "L01-concurrent-signup-same-email", group: "L", groupName: "Kappløp/samtidighet", scenarioNumber: 1, description: "To samtidige registreringer med samme e-post", kind: "race_condition", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "ONE_WINS_ONE_FAILS", tags: ["race", "signup", "email"], concurrentActions: ["Registrering A med E1", "Registrering B med E1"], expectedRace: "Clerk blokkerer en" },
+    { id: "L02-concurrent-signup-same-username", group: "L", groupName: "Kappløp/samtidighet", scenarioNumber: 2, description: "To samtidige registreringer med samme brukernavn", kind: "race_condition", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "ONE_WINS_ONE_FAILS", tags: ["race", "signup", "username"], concurrentActions: ["Registrering A med U1", "Registrering B med U1"], expectedRace: "Clerk eller DB blokkerer en" },
+    { id: "L03-concurrent-me-calls", group: "L", groupName: "Kappløp/samtidighet", scenarioNumber: 3, description: "To samtidige /me-kall for samme ferske Clerk-bruker", kind: "race_condition", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "LOCAL_USER_CREATED_ONCE", tags: ["race", "me", "create"], concurrentActions: ["Kall /me", "Kall /me"], expectedRace: "findOrCreate dedupliserer" },
+    { id: "L04-concurrent-username-update", group: "L", groupName: "Kappløp/samtidighet", scenarioNumber: 4, description: "Samtidige brukernavn-oppdateringskonflikter", kind: "race_condition", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "ONE_WINS_ONE_FAILS", tags: ["race", "update", "username"], concurrentActions: ["Bruker A oppdaterer til U", "Bruker B oppdaterer til U"], expectedRace: "DB unik indeks blokkerer en" },
+    { id: "L05-concurrent-delete-auth", group: "L", groupName: "Kappløp/samtidighet", scenarioNumber: 5, description: "Samtidig sletting + auth-forespørsel", kind: "race_condition", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "GRACEFUL_HANDLING", tags: ["race", "delete", "auth"], concurrentActions: ["Slett konto", "Gjør auth-forespørsel"], expectedRace: "Forespørsel feiler elegant" },
+    { id: "L06-concurrent-provider-link", group: "L", groupName: "Kappløp/samtidighet", scenarioNumber: 6, description: "Samtidige leverandørkoblingsforsøk", kind: "race_condition", automatable: false, requiresE2e: true, requiresOAuth: true, requiresAdmin: false, expectedOutcome: "ONE_WINS_ONE_FAILS", tags: ["race", "link", "oauth"], concurrentActions: ["Bruker A kobler Google", "Bruker B kobler samme Google"], expectedRace: "Første vinner" },
+    { id: "L07-db-unique-indexes-fallback", group: "L", groupName: "Kappløp/samtidighet", scenarioNumber: 7, description: "Verifiser at DB unike indekser er den endelige reserveløsningen", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "DB_PREVENTS_DUPLICATE", tags: ["race", "db", "index"], first: { provider: "email", email: makeEmail("l07-first"), username: makeUsername("l07shared") }, second: { provider: "email", email: makeEmail("l07-second"), username: makeUsername("l07shared") } },
   ] as ScenarioDefinition[];
 }
 
 export function buildGroupM(): ScenarioDefinition[] {
-  // Normalization and data-integrity scenarios
+  // Normalisering og dataintegritet-scenarioer
   return [
-    { id: "M01-email-normalization-variants", group: "M", groupName: "Normalization", scenarioNumber: 1, description: "Email normalization with uppercase/lowercase variants", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "NORMALIZED_CORRECTLY", tags: ["normalization", "email"], first: { provider: "email", email: makeEmail("m01-shared").toLowerCase(), username: makeUsername("m01first") }, second: { provider: "email", email: makeEmail("m01-shared").toUpperCase(), username: makeUsername("m01second") } },
-    { id: "M02-username-normalization-variants", group: "M", groupName: "Normalization", scenarioNumber: 2, description: "Username normalization with casing variants", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "NORMALIZED_CORRECTLY", tags: ["normalization", "username"], first: { provider: "email", email: makeEmail("m02-first"), username: makeUsername("m02shared").toLowerCase() }, second: { provider: "email", email: makeEmail("m02-second"), username: makeUsername("m02shared").toUpperCase() } },
-    { id: "M03-empty-username", group: "M", groupName: "Normalization", scenarioNumber: 3, description: "Empty username / null username paths", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "VALIDATION_ERROR", tags: ["normalization", "username", "empty"], first: { provider: "email", email: makeEmail("m03-user"), username: "" } },
-    { id: "M04-missing-usernameNormalized", group: "M", groupName: "Normalization", scenarioNumber: 4, description: "Users with username present but missing usernameNormalized", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "DOCUMENT_STATE", tags: ["data-integrity", "migration"], blocker: "Requires DB query", manualSteps: ["Query DB for users where username exists but usernameNormalized is null"] },
-    { id: "M05-deleted-lingering-identity", group: "M", groupName: "Normalization", scenarioNumber: 5, description: "Deleted users with lingering identity fields", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "IDENTITY_CLEARED", tags: ["data-integrity", "deletion"], first: { provider: "email", email: makeEmail("m05-user"), username: makeUsername("m05user") }, action: "delete" },
-    { id: "M06-duplicate-providerAccountId", group: "M", groupName: "Normalization", scenarioNumber: 6, description: "Duplicate providerAccountId in oauthAccounts", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "DOCUMENT_STATE", tags: ["data-integrity", "oauth"], blocker: "Requires DB query", manualSteps: ["Query DB for duplicate providerAccountId entries"] },
-    { id: "M07-stale-syncConflict", group: "M", groupName: "Normalization", scenarioNumber: 7, description: "Stale or malformed syncConflict entries", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "DOCUMENT_STATE", tags: ["data-integrity", "sync"], blocker: "Requires DB query", manualSteps: ["Query DB for users with non-null syncConflict"] },
-    { id: "M08-inconsistent-clerk-local", group: "M", groupName: "Normalization", scenarioNumber: 8, description: "Inconsistent local row where Clerk fields and app fields disagree", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "DOCUMENT_STATE", tags: ["data-integrity", "consistency"], blocker: "Requires Clerk API + DB comparison", manualSteps: ["Compare Clerk user data with local DB for sample users"] },
-    { id: "M09-unicode-edge-cases", group: "M", groupName: "Normalization", scenarioNumber: 9, description: "Unicode-like edge cases if supported by username rules", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "VALIDATION_OR_NORMALIZED", tags: ["normalization", "unicode"], first: { provider: "email", email: makeEmail("m09-user"), username: "user_émoji_🎉" } },
+    { id: "M01-email-normalization-variants", group: "M", groupName: "Normalisering", scenarioNumber: 1, description: "E-postnormalisering med store/små bokstav-varianter", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "NORMALIZED_CORRECTLY", tags: ["normalization", "email"], first: { provider: "email", email: makeEmail("m01-shared").toLowerCase(), username: makeUsername("m01first") }, second: { provider: "email", email: makeEmail("m01-shared").toUpperCase(), username: makeUsername("m01second") } },
+    { id: "M02-username-normalization-variants", group: "M", groupName: "Normalisering", scenarioNumber: 2, description: "Brukernavn-normalisering med bokstavstørrelse-varianter", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "NORMALIZED_CORRECTLY", tags: ["normalization", "username"], first: { provider: "email", email: makeEmail("m02-first"), username: makeUsername("m02shared").toLowerCase() }, second: { provider: "email", email: makeEmail("m02-second"), username: makeUsername("m02shared").toUpperCase() } },
+    { id: "M03-empty-username", group: "M", groupName: "Normalisering", scenarioNumber: 3, description: "Tomt brukernavn / null brukernavn-stier", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "VALIDATION_ERROR", tags: ["normalization", "username", "empty"], first: { provider: "email", email: makeEmail("m03-user"), username: "" } },
+    { id: "M04-missing-usernameNormalized", group: "M", groupName: "Normalisering", scenarioNumber: 4, description: "Brukere med brukernavn til stede men manglende usernameNormalized", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "DOCUMENT_STATE", tags: ["data-integrity", "migration"], blocker: "Krever DB-spørring", manualSteps: ["Spør DB for brukere der brukernavn eksisterer men usernameNormalized er null"] },
+    { id: "M05-deleted-lingering-identity", group: "M", groupName: "Normalisering", scenarioNumber: 5, description: "Slettede brukere med gjenværende identitetsfelt", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "IDENTITY_CLEARED", tags: ["data-integrity", "deletion"], first: { provider: "email", email: makeEmail("m05-user"), username: makeUsername("m05user") }, action: "delete" },
+    { id: "M06-duplicate-providerAccountId", group: "M", groupName: "Normalisering", scenarioNumber: 6, description: "Duplikat providerAccountId i oauthAccounts", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "DOCUMENT_STATE", tags: ["data-integrity", "oauth"], blocker: "Krever DB-spørring", manualSteps: ["Spør DB for duplikate providerAccountId-oppføringer"] },
+    { id: "M07-stale-syncConflict", group: "M", groupName: "Normalisering", scenarioNumber: 7, description: "Utdaterte eller misformede syncConflict-oppføringer", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "DOCUMENT_STATE", tags: ["data-integrity", "sync"], blocker: "Krever DB-spørring", manualSteps: ["Spør DB for brukere med ikke-null syncConflict"] },
+    { id: "M08-inconsistent-clerk-local", group: "M", groupName: "Normalisering", scenarioNumber: 8, description: "Inkonsistent lokal rad der Clerk-felt og app-felt ikke stemmer overens", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "DOCUMENT_STATE", tags: ["data-integrity", "consistency"], blocker: "Krever Clerk API + DB-sammenligning", manualSteps: ["Sammenlign Clerk-brukerdata med lokal DB for eksempelbrukere"] },
+    { id: "M09-unicode-edge-cases", group: "M", groupName: "Normalisering", scenarioNumber: 9, description: "Unicode-lignende kanttilfeller hvis støttet av brukernavnregler", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "VALIDATION_OR_NORMALIZED", tags: ["normalization", "unicode"], first: { provider: "email", email: makeEmail("m09-user"), username: "user_émoji_🎉" } },
   ] as ScenarioDefinition[];
 }
 
 export function buildGroupN(): ScenarioDefinition[] {
-  // Clerk/local consistency scenarios
+  // Clerk/lokal konsistens-scenarioer
   return [
-    { id: "N01-clerk-admin-email-change", group: "N", groupName: "Clerk/Local Consistency", scenarioNumber: 1, description: "Clerk dashboard/admin changes email directly", kind: "admin_only", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "SYNC_ON_NEXT_AUTH", tags: ["consistency", "admin", "email"], blocker: "Requires Clerk Dashboard access", manualSteps: ["Log in to Clerk Dashboard", "Change user email", "User logs in again", "Check local DB sync"] },
-    { id: "N02-clerk-admin-provider-link", group: "N", groupName: "Clerk/Local Consistency", scenarioNumber: 2, description: "Clerk dashboard/admin links provider directly", kind: "admin_only", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "SYNC_ON_NEXT_AUTH", tags: ["consistency", "admin", "oauth"], blocker: "Requires Clerk Dashboard access", manualSteps: ["Link provider via Clerk Dashboard", "User logs in", "Check local oauthAccounts sync"] },
-    { id: "N03-clerk-admin-username-change", group: "N", groupName: "Clerk/Local Consistency", scenarioNumber: 3, description: "Clerk dashboard/admin changes username directly", kind: "admin_only", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "SYNC_ON_NEXT_AUTH", tags: ["consistency", "admin", "username"], blocker: "Requires Clerk Dashboard access", manualSteps: ["Change username via Clerk Dashboard", "User logs in", "Check local DB sync"] },
-    { id: "N04-background-sync-after-admin-change", group: "N", groupName: "Clerk/Local Consistency", scenarioNumber: 4, description: "Background sync after admin change", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "SYNC_CONFLICT_RECORDED", tags: ["consistency", "sync"], blocker: "Requires admin change + sync trigger", manualSteps: ["Make admin change", "Trigger background sync", "Check syncConflict field"] },
-    { id: "N05-sync-conflict-recorded", group: "N", groupName: "Clerk/Local Consistency", scenarioNumber: 5, description: "Verify whether syncConflict is recorded on mismatch", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "DOCUMENT_BEHAVIOR", tags: ["consistency", "sync", "conflict"], blocker: "Requires creating mismatch", manualSteps: ["Create Clerk/local mismatch", "Check syncConflict"] },
-    { id: "N06-sync-banner-appears", group: "N", groupName: "Clerk/Local Consistency", scenarioNumber: 6, description: "Verify whether banner/warning appears on sync conflict", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "BANNER_SHOWN", tags: ["consistency", "ui", "banner"], setupSteps: ["Create sync conflict state"], executionSteps: ["Log in", "Navigate to dashboard"], capturePoints: ["Banner visibility"] },
-    { id: "N07-sync-banner-dismiss", group: "N", groupName: "Clerk/Local Consistency", scenarioNumber: 7, description: "Verify whether user can dismiss sync conflict banner", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "DISMISS_BEHAVIOR", tags: ["consistency", "ui", "dismiss"], setupSteps: ["Create sync conflict"], executionSteps: ["Show banner", "Click dismiss"], capturePoints: ["Whether dismissed persists"] },
-    { id: "N08-dismiss-hides-or-resolves", group: "N", groupName: "Clerk/Local Consistency", scenarioNumber: 8, description: "Verify whether dismiss hides only UI or actually resolves state", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "UI_HIDE_VS_RESOLUTION", tags: ["consistency", "dismiss", "state"], setupSteps: ["Create conflict", "Dismiss"], executionSteps: ["Check DB syncConflict field"], capturePoints: ["Field state after dismiss"] },
-    { id: "N09-conflict-reappear-on-sync", group: "N", groupName: "Clerk/Local Consistency", scenarioNumber: 9, description: "Verify whether same conflict immediately reappears on next sync", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "REAPPEAR_OR_STAY_DISMISSED", tags: ["consistency", "sync", "reappear"], setupSteps: ["Create conflict", "Dismiss", "Trigger sync"], executionSteps: ["Check banner state"], capturePoints: ["Whether conflict returns"] },
+    { id: "N01-clerk-admin-email-change", group: "N", groupName: "Clerk/lokal konsistens", scenarioNumber: 1, description: "Clerk-dashbord/admin endrer e-post direkte", kind: "admin_only", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "SYNC_ON_NEXT_AUTH", tags: ["consistency", "admin", "email"], blocker: "Krever tilgang til Clerk-dashbord", manualSteps: ["Logg inn på Clerk-dashbord", "Endre brukerens e-post", "Bruker logger inn igjen", "Sjekk lokal DB-synkronisering"] },
+    { id: "N02-clerk-admin-provider-link", group: "N", groupName: "Clerk/lokal konsistens", scenarioNumber: 2, description: "Clerk-dashbord/admin kobler leverandør direkte", kind: "admin_only", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "SYNC_ON_NEXT_AUTH", tags: ["consistency", "admin", "oauth"], blocker: "Krever tilgang til Clerk-dashbord", manualSteps: ["Koble leverandør via Clerk-dashbord", "Bruker logger inn", "Sjekk lokal oauthAccounts-synkronisering"] },
+    { id: "N03-clerk-admin-username-change", group: "N", groupName: "Clerk/lokal konsistens", scenarioNumber: 3, description: "Clerk-dashbord/admin endrer brukernavn direkte", kind: "admin_only", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "SYNC_ON_NEXT_AUTH", tags: ["consistency", "admin", "username"], blocker: "Krever tilgang til Clerk-dashbord", manualSteps: ["Endre brukernavn via Clerk-dashbord", "Bruker logger inn", "Sjekk lokal DB-synkronisering"] },
+    { id: "N04-background-sync-after-admin-change", group: "N", groupName: "Clerk/lokal konsistens", scenarioNumber: 4, description: "Bakgrunnssynkronisering etter admin-endring", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "SYNC_CONFLICT_RECORDED", tags: ["consistency", "sync"], blocker: "Krever admin-endring + synkroniseringsutløser", manualSteps: ["Gjør admin-endring", "Utløs bakgrunnssynkronisering", "Sjekk syncConflict-felt"] },
+    { id: "N05-sync-conflict-recorded", group: "N", groupName: "Clerk/lokal konsistens", scenarioNumber: 5, description: "Verifiser om syncConflict registreres ved misforhold", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "DOCUMENT_BEHAVIOR", tags: ["consistency", "sync", "conflict"], blocker: "Krever opprettelse av misforhold", manualSteps: ["Opprett Clerk/lokal misforhold", "Sjekk syncConflict"] },
+    { id: "N06-sync-banner-appears", group: "N", groupName: "Clerk/lokal konsistens", scenarioNumber: 6, description: "Verifiser om banner/advarsel vises ved synkroniseringskonflikt", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "BANNER_SHOWN", tags: ["consistency", "ui", "banner"], setupSteps: ["Opprett synkroniseringskonflikt-tilstand"], executionSteps: ["Logg inn", "Naviger til dashbord"], capturePoints: ["Banner-synlighet"] },
+    { id: "N07-sync-banner-dismiss", group: "N", groupName: "Clerk/lokal konsistens", scenarioNumber: 7, description: "Verifiser om bruker kan avvise synkroniseringskonflikt-banner", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "DISMISS_BEHAVIOR", tags: ["consistency", "ui", "dismiss"], setupSteps: ["Opprett synkroniseringskonflikt"], executionSteps: ["Vis banner", "Klikk avvis"], capturePoints: ["Om avvisning vedvarer"] },
+    { id: "N08-dismiss-hides-or-resolves", group: "N", groupName: "Clerk/lokal konsistens", scenarioNumber: 8, description: "Verifiser om avvisning kun skjuler UI eller faktisk løser tilstanden", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "UI_HIDE_VS_RESOLUTION", tags: ["consistency", "dismiss", "state"], setupSteps: ["Opprett konflikt", "Avvis"], executionSteps: ["Sjekk DB syncConflict-felt"], capturePoints: ["Felt-tilstand etter avvisning"] },
+    { id: "N09-conflict-reappear-on-sync", group: "N", groupName: "Clerk/lokal konsistens", scenarioNumber: 9, description: "Verifiser om samme konflikt umiddelbart dukker opp igjen ved neste synkronisering", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "REAPPEAR_OR_STAY_DISMISSED", tags: ["consistency", "sync", "reappear"], setupSteps: ["Opprett konflikt", "Avvis", "Utløs synkronisering"], executionSteps: ["Sjekk banner-tilstand"], capturePoints: ["Om konflikten returnerer"] },
   ] as ScenarioDefinition[];
 }
 
 export function buildGroupO(): ScenarioDefinition[] {
-  // Recovery / failed-state scenarios
+  // Gjenoppretting / feilstatus-scenarioer
   return [
-    { id: "O01-failed-signup-midway", group: "O", groupName: "Recovery", scenarioNumber: 1, description: "Failed signup midway", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "NO_ORPHAN_STATE", tags: ["recovery", "signup", "failure"], setupSteps: [], executionSteps: ["Start signup", "Interrupt mid-form", "Check state"], capturePoints: ["Clerk user state", "Local DB state"] },
-    { id: "O02-failed-google-callback", group: "O", groupName: "Recovery", scenarioNumber: 2, description: "Failed Google callback midway", kind: "e2e_oauth", automatable: false, requiresE2e: true, requiresOAuth: true, requiresAdmin: false, expectedOutcome: "NO_ORPHAN_STATE", tags: ["recovery", "oauth", "failure"], setupSteps: ["Start Google signup"], executionSteps: ["Cancel at Google consent"], capturePoints: ["State after cancel"] },
-    { id: "O03-failed-microsoft-callback", group: "O", groupName: "Recovery", scenarioNumber: 3, description: "Failed Microsoft callback midway", kind: "e2e_oauth", automatable: false, requiresE2e: true, requiresOAuth: true, requiresAdmin: false, expectedOutcome: "NO_ORPHAN_STATE", tags: ["recovery", "oauth", "failure"], setupSteps: ["Start Microsoft signup"], executionSteps: ["Cancel at Microsoft consent"], capturePoints: ["State after cancel"] },
-    { id: "O04-failed-local-sync-after-clerk", group: "O", groupName: "Recovery", scenarioNumber: 4, description: "Failed local sync after Clerk success", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "CLERK_USER_ORPHANED", tags: ["recovery", "sync", "orphan"], first: { provider: "email", email: makeEmail("o04-user"), username: makeUsername("o04user") } },
-    { id: "O05-failed-clerk-sync-after-local", group: "O", groupName: "Recovery", scenarioNumber: 5, description: "Failed Clerk sync after local success", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "LOCAL_USER_ORPHANED", tags: ["recovery", "sync", "orphan"], blocker: "Requires simulating Clerk API failure", manualSteps: ["Create local user", "Fail Clerk sync", "Check state"] },
-    { id: "O06-failed-delete-cleanup", group: "O", groupName: "Recovery", scenarioNumber: 6, description: "Failed delete cleanup", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "PARTIAL_CLEANUP", tags: ["recovery", "delete", "cleanup"], first: { provider: "email", email: makeEmail("o06-user"), username: makeUsername("o06user") }, action: "delete" },
-    { id: "O07-failed-signout-cleanup", group: "O", groupName: "Recovery", scenarioNumber: 7, description: "Failed signOut cleanup", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "SESSION_STATE_CLEAN", tags: ["recovery", "signout", "cleanup"], setupSteps: ["Log in"], executionSteps: ["Interrupt signout"], capturePoints: ["Session state"] },
-    { id: "O08-cleanup-retry-behavior", group: "O", groupName: "Recovery", scenarioNumber: 8, description: "Cleanup retry behavior", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "RETRY_WORKS", tags: ["recovery", "cleanup", "retry"], blocker: "Requires cleanup failure simulation", manualSteps: ["Fail cleanup", "Trigger retry", "Check outcome"] },
-    { id: "O09-orphaned-clerk-user", group: "O", groupName: "Recovery", scenarioNumber: 9, description: "Orphaned Clerk user (no local)", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "DOCUMENT_ORPHANS", tags: ["recovery", "orphan", "clerk"], blocker: "Requires Clerk/DB comparison", manualSteps: ["Query Clerk users", "Query local users", "Find orphans"] },
-    { id: "O10-orphaned-local-user", group: "O", groupName: "Recovery", scenarioNumber: 10, description: "Orphaned local DB user (Clerk deleted)", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "DOCUMENT_ORPHANS", tags: ["recovery", "orphan", "local"], blocker: "Requires Clerk/DB comparison", manualSteps: ["Query local users", "Check Clerk for each clerkId", "Find orphans"] },
+    { id: "O01-failed-signup-midway", group: "O", groupName: "Gjenoppretting", scenarioNumber: 1, description: "Mislykket registrering midtveis", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "NO_ORPHAN_STATE", tags: ["recovery", "signup", "failure"], setupSteps: [], executionSteps: ["Start registrering", "Avbryt midt i skjema", "Sjekk tilstand"], capturePoints: ["Clerk-brukertilstand", "Lokal DB-tilstand"] },
+    { id: "O02-failed-google-callback", group: "O", groupName: "Gjenoppretting", scenarioNumber: 2, description: "Mislykket Google-tilbakekalling midtveis", kind: "e2e_oauth", automatable: false, requiresE2e: true, requiresOAuth: true, requiresAdmin: false, expectedOutcome: "NO_ORPHAN_STATE", tags: ["recovery", "oauth", "failure"], setupSteps: ["Start Google-registrering"], executionSteps: ["Avbryt ved Google-samtykke"], capturePoints: ["Tilstand etter avbrytelse"] },
+    { id: "O03-failed-microsoft-callback", group: "O", groupName: "Gjenoppretting", scenarioNumber: 3, description: "Mislykket Microsoft-tilbakekalling midtveis", kind: "e2e_oauth", automatable: false, requiresE2e: true, requiresOAuth: true, requiresAdmin: false, expectedOutcome: "NO_ORPHAN_STATE", tags: ["recovery", "oauth", "failure"], setupSteps: ["Start Microsoft-registrering"], executionSteps: ["Avbryt ved Microsoft-samtykke"], capturePoints: ["Tilstand etter avbrytelse"] },
+    { id: "O04-failed-local-sync-after-clerk", group: "O", groupName: "Gjenoppretting", scenarioNumber: 4, description: "Mislykket lokal synkronisering etter Clerk-suksess", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "CLERK_USER_ORPHANED", tags: ["recovery", "sync", "orphan"], first: { provider: "email", email: makeEmail("o04-user"), username: makeUsername("o04user") } },
+    { id: "O05-failed-clerk-sync-after-local", group: "O", groupName: "Gjenoppretting", scenarioNumber: 5, description: "Mislykket Clerk-synkronisering etter lokal suksess", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "LOCAL_USER_ORPHANED", tags: ["recovery", "sync", "orphan"], blocker: "Krever simulering av Clerk API-feil", manualSteps: ["Opprett lokal bruker", "Feil Clerk-synkronisering", "Sjekk tilstand"] },
+    { id: "O06-failed-delete-cleanup", group: "O", groupName: "Gjenoppretting", scenarioNumber: 6, description: "Mislykket slettingsopprydding", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "PARTIAL_CLEANUP", tags: ["recovery", "delete", "cleanup"], first: { provider: "email", email: makeEmail("o06-user"), username: makeUsername("o06user") }, action: "delete" },
+    { id: "O07-failed-signout-cleanup", group: "O", groupName: "Gjenoppretting", scenarioNumber: 7, description: "Mislykket utloggingsopprydding", kind: "e2e_browser", automatable: true, requiresE2e: true, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "SESSION_STATE_CLEAN", tags: ["recovery", "signout", "cleanup"], setupSteps: ["Logg inn"], executionSteps: ["Avbryt utlogging"], capturePoints: ["Sesjonstilstand"] },
+    { id: "O08-cleanup-retry-behavior", group: "O", groupName: "Gjenoppretting", scenarioNumber: 8, description: "Oppryddingsforsøk-atferd", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "RETRY_WORKS", tags: ["recovery", "cleanup", "retry"], blocker: "Krever simulering av oppryddingsfeil", manualSteps: ["Mislykk opprydding", "Utløs nytt forsøk", "Sjekk resultat"] },
+    { id: "O09-orphaned-clerk-user", group: "O", groupName: "Gjenoppretting", scenarioNumber: 9, description: "Foreldreløs Clerk-bruker (ingen lokal)", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "DOCUMENT_ORPHANS", tags: ["recovery", "orphan", "clerk"], blocker: "Krever Clerk/DB-sammenligning", manualSteps: ["Spør Clerk-brukere", "Spør lokale brukere", "Finn foreldreløse"] },
+    { id: "O10-orphaned-local-user", group: "O", groupName: "Gjenoppretting", scenarioNumber: 10, description: "Foreldreløs lokal DB-bruker (Clerk slettet)", kind: "manual", automatable: false, requiresE2e: false, requiresOAuth: false, requiresAdmin: true, expectedOutcome: "DOCUMENT_ORPHANS", tags: ["recovery", "orphan", "local"], blocker: "Krever Clerk/DB-sammenligning", manualSteps: ["Spør lokale brukere", "Sjekk Clerk for hver clerkId", "Finn foreldreløse"] },
   ] as ScenarioDefinition[];
 }
 
 export function buildGroupP(): ScenarioDefinition[] {
-  // Security and abuse-adjacent scenarios
+  // Sikkerhets- og misbruksnære scenarioer
   return [
-    { id: "P01-rapid-signup-collisions", group: "P", groupName: "Security", scenarioNumber: 1, description: "Attempt repeated signup collisions rapidly", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "RATE_LIMITED", tags: ["security", "rate-limit", "signup"], first: { provider: "email", email: makeEmail("p01-target"), username: makeUsername("p01target") } },
-    { id: "P02-rapid-username-collisions", group: "P", groupName: "Security", scenarioNumber: 2, description: "Attempt repeated username change collisions rapidly", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "RATE_LIMITED", tags: ["security", "rate-limit", "username"], first: { provider: "email", email: makeEmail("p02-user"), username: makeUsername("p02user") }, action: "update" },
-    { id: "P03-rapid-provider-link-collisions", group: "P", groupName: "Security", scenarioNumber: 3, description: "Attempt repeated provider-link collisions rapidly", kind: "e2e_oauth", automatable: false, requiresE2e: true, requiresOAuth: true, requiresAdmin: false, expectedOutcome: "RATE_LIMITED", tags: ["security", "rate-limit", "oauth"], setupSteps: [], executionSteps: ["Rapidly attempt link same provider"], capturePoints: ["Rate limit response"] },
-    { id: "P04-rate-limiting-endpoints", group: "P", groupName: "Security", scenarioNumber: 4, description: "Verify rate limiting behavior on relevant endpoints", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "RATE_LIMITS_ENFORCED", tags: ["security", "rate-limit"], first: { provider: "email", email: makeEmail("p04-user"), username: makeUsername("p04user") } },
-    { id: "P05-diagnostics-dev-only", group: "P", groupName: "Security", scenarioNumber: 5, description: "Verify diagnostics are truly dev-only", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "DIAGNOSTICS_BLOCKED_PROD", tags: ["security", "diagnostics"], first: { provider: "email", email: makeEmail("p05-user"), username: makeUsername("p05user") } },
-    { id: "P06-debug-endpoint-info-leak", group: "P", groupName: "Security", scenarioNumber: 6, description: "Verify debug endpoints do not leak too much", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "NO_SENSITIVE_LEAK", tags: ["security", "info-leak"], first: { provider: "email", email: makeEmail("p06-user"), username: makeUsername("p06user") } },
-    { id: "P07-flowid-correlation", group: "P", groupName: "Security", scenarioNumber: 7, description: "Verify flowId correlation works across the whole chain", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "FLOWID_CORRELATES", tags: ["security", "logging", "correlation"], first: { provider: "email", email: makeEmail("p07-user"), username: makeUsername("p07user") } },
+    { id: "P01-rapid-signup-collisions", group: "P", groupName: "Sikkerhet", scenarioNumber: 1, description: "Forsøk gjentatte registreringskollisjoner raskt", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "RATE_LIMITED", tags: ["security", "rate-limit", "signup"], first: { provider: "email", email: makeEmail("p01-target"), username: makeUsername("p01target") } },
+    { id: "P02-rapid-username-collisions", group: "P", groupName: "Sikkerhet", scenarioNumber: 2, description: "Forsøk gjentatte brukernavn-endringskollisjoner raskt", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "RATE_LIMITED", tags: ["security", "rate-limit", "username"], first: { provider: "email", email: makeEmail("p02-user"), username: makeUsername("p02user") }, action: "update" },
+    { id: "P03-rapid-provider-link-collisions", group: "P", groupName: "Sikkerhet", scenarioNumber: 3, description: "Forsøk gjentatte leverandørkoblingskollisjoner raskt", kind: "e2e_oauth", automatable: false, requiresE2e: true, requiresOAuth: true, requiresAdmin: false, expectedOutcome: "RATE_LIMITED", tags: ["security", "rate-limit", "oauth"], setupSteps: [], executionSteps: ["Forsøk raskt å koble samme leverandør gjentatte ganger"], capturePoints: ["Hastighetsbegrensnings-respons"] },
+    { id: "P04-rate-limiting-endpoints", group: "P", groupName: "Sikkerhet", scenarioNumber: 4, description: "Verifiser hastighetsbegrensningsatferd på relevante endepunkter", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "RATE_LIMITS_ENFORCED", tags: ["security", "rate-limit"], first: { provider: "email", email: makeEmail("p04-user"), username: makeUsername("p04user") } },
+    { id: "P05-diagnostics-dev-only", group: "P", groupName: "Sikkerhet", scenarioNumber: 5, description: "Verifiser at diagnostikk virkelig er kun for utvikling", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "DIAGNOSTICS_BLOCKED_PROD", tags: ["security", "diagnostics"], first: { provider: "email", email: makeEmail("p05-user"), username: makeUsername("p05user") } },
+    { id: "P06-debug-endpoint-info-leak", group: "P", groupName: "Sikkerhet", scenarioNumber: 6, description: "Verifiser at debug-endepunkter ikke lekker for mye informasjon", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "NO_SENSITIVE_LEAK", tags: ["security", "info-leak"], first: { provider: "email", email: makeEmail("p06-user"), username: makeUsername("p06user") } },
+    { id: "P07-flowid-correlation", group: "P", groupName: "Sikkerhet", scenarioNumber: 7, description: "Verifiser at flowId-korrelasjon fungerer gjennom hele kjeden", kind: "executable", automatable: true, requiresE2e: false, requiresOAuth: false, requiresAdmin: false, expectedOutcome: "FLOWID_CORRELATES", tags: ["security", "logging", "correlation"], first: { provider: "email", email: makeEmail("p07-user"), username: makeUsername("p07user") } },
   ] as ScenarioDefinition[];
 }
 
 // ============================================================================
-// Build Complete Matrix
+// Bygg komplett matrise
 // ============================================================================
 
 export function buildFullMatrix(): ScenarioDefinition[] {

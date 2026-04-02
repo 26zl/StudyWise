@@ -1,20 +1,20 @@
 #!/usr/bin/env tsx
 /// <reference types="node" />
 /**
- * Auth Database Invariant Checker
+ * Auth-databaseinvariantkontroll
  *
- * Connects to MongoDB, verifies User collection indexes and data integrity.
- * Detects duplicate emails, usernames, clerkIds, OAuth identities, and
- * inconsistent/lingering fields on deleted users.
+ * Kobler til MongoDB, verifiserer User-samlingens indekser og dataintegritet.
+ * Oppdager dupliserte e-poster, brukernavn, clerkId-er, OAuth-identiteter og
+ * inkonsekvente/gjenværende felt på slettede brukere.
  *
- * Usage: pnpm test:auth:db
- * Exit code 0 = all invariants pass, 1 = violations found.
+ * Bruk: pnpm test:auth:db
+ * Avslutningskode 0 = alle invarianter bestått, 1 = brudd funnet.
  */
 import "../helpers/env.js";
 import mongoose, { type ConnectOptions } from "mongoose";
 import { log, header } from "../helpers/log.js";
 
-// ---------- Types for report ----------
+// ---------- Typer for rapport ----------
 interface IndexInfo {
   name: string;
   key: Record<string, unknown>;
@@ -57,7 +57,7 @@ interface Report {
   passed: boolean;
 }
 
-// ---------- Constants ----------
+// ---------- Konstanter ----------
 const REQUIRED_INDEXES: Record<string, { key: Record<string, number>; unique: boolean; sparse: boolean }> = {
   email_1: { key: { email: 1 }, unique: true, sparse: false },
   clerk_id_unique: { key: { clerkId: 1 }, unique: true, sparse: true },
@@ -79,7 +79,7 @@ const IDENTITY_FIELDS_SHOULD_BE_UNSET = [
   "authProvider",
 ];
 
-// ---------- Helpers ----------
+// ---------- Hjelpefunksjoner ----------
 function keysMatch(actual: Record<string, unknown>, expected: Record<string, number>): boolean {
   const actualKeys = Object.keys(actual).sort();
   const expectedKeys = Object.keys(expected).sort();
@@ -87,7 +87,7 @@ function keysMatch(actual: Record<string, unknown>, expected: Record<string, num
   return actualKeys.every((k, i) => k === expectedKeys[i] && Number(actual[k]) === expected[k]);
 }
 
-// ---------- Main ----------
+// ---------- Hovedfunksjon ----------
 async function main(): Promise<Report> {
   const mongoUri = process.env.MONGO_URI;
   if (!mongoUri) {
@@ -125,7 +125,7 @@ async function main(): Promise<Report> {
     passed: true,
   };
 
-  // ---- 1. Indexes ----
+  // ---- 1. Indekser ----
   header("INDEX VERIFICATION");
   const rawIndexes = await collection.indexes();
   report.indexesFound = rawIndexes.map((idx) => ({
@@ -152,7 +152,7 @@ async function main(): Promise<Report> {
     }
   }
 
-  // ---- 2. Stats ----
+  // ---- 2. Statistikk ----
   header("COLLECTION STATS");
   report.stats.total = await collection.countDocuments();
   report.stats.active = await collection.countDocuments({ deletedAt: { $exists: false } });
@@ -161,7 +161,7 @@ async function main(): Promise<Report> {
   log(`  Active users:  ${report.stats.active}`);
   log(`  Deleted users: ${report.stats.deleted}`);
 
-  // ---- 3. Duplicate emails ----
+  // ---- 3. Dupliserte e-poster ----
   header("DUPLICATE EMAILS (active)");
   const emailDupes: DuplicateGroup[] = await collection.aggregate([
     { $match: { deletedAt: { $exists: false } } },
@@ -177,7 +177,7 @@ async function main(): Promise<Report> {
     log("  OK: No duplicate emails");
   }
 
-  // ---- 4. Duplicate usernames ----
+  // ---- 4. Dupliserte brukernavn ----
   header("DUPLICATE USERNAME_NORMALIZED (active)");
   const usernameDupes: DuplicateGroup[] = await collection.aggregate([
     { $match: { deletedAt: { $exists: false }, usernameNormalized: { $exists: true, $ne: null } } },
@@ -193,7 +193,7 @@ async function main(): Promise<Report> {
     log("  OK: No duplicate usernames");
   }
 
-  // ---- 5. Duplicate clerkIds ----
+  // ---- 5. Dupliserte clerkId-er ----
   header("DUPLICATE CLERK IDS (active)");
   const clerkIdDupes: DuplicateGroup[] = await collection.aggregate([
     { $match: { deletedAt: { $exists: false }, clerkId: { $exists: true, $ne: null } } },
@@ -209,7 +209,7 @@ async function main(): Promise<Report> {
     log("  OK: No duplicate clerkIds");
   }
 
-  // ---- 6. Duplicate OAuth identities ----
+  // ---- 6. Dupliserte OAuth-identiteter ----
   header("DUPLICATE OAUTH IDENTITIES (active)");
   const oauthDupes: DuplicateGroup[] = await collection.aggregate([
     { $match: { deletedAt: { $exists: false }, "oauthAccounts.0": { $exists: true } } },
@@ -233,7 +233,7 @@ async function main(): Promise<Report> {
     log("  OK: No duplicate OAuth identities");
   }
 
-  // ---- 7. Malformed username normalization ----
+  // ---- 7. Feilformatert brukernavn-normalisering ----
   header("USERNAME NORMALIZATION CONSISTENCY");
   const allWithUsername = await collection.find(
     { deletedAt: { $exists: false }, username: { $exists: true, $ne: null } },
@@ -274,7 +274,7 @@ async function main(): Promise<Report> {
     log("  OK: All usernames consistently normalized");
   }
 
-  // ---- 8. Deleted users with lingering identity fields ----
+  // ---- 8. Slettede brukere med gjenværende identitetsfelt ----
   header("DELETED USERS WITH LINGERING IDENTITY FIELDS");
   const deletedUsers = await collection.find(
     { deletedAt: { $exists: true } },
@@ -306,7 +306,7 @@ async function main(): Promise<Report> {
     log("  OK: No deleted users with lingering identity fields");
   }
 
-  // ---- Summary ----
+  // ---- Oppsummering ----
   header("SUMMARY");
   log(`  Passed: ${report.passed ? "YES" : "NO"}`);
   log(`  Missing indexes:              ${report.missingIndexes.length}`);

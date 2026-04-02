@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
 
 /**
- * Deterministic auth E2E smoke tests.
- * These tests should be stable and suitable for CI gating.
+ * Deterministiske auth E2E røyktester.
+ * Disse testene bør være stabile og egnet for CI-portvakt.
  */
 
 test.describe("Auth E2E smoke", () => {

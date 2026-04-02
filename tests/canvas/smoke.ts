@@ -1,8 +1,8 @@
 #!/usr/bin/env tsx
 /// <reference types="node" />
 /**
- * Canvas smoke tests (HTTP-level).
- * Verifies route protection and baseline status codes.
+ * Canvas røyktester (HTTP-nivå).
+ * Verifiserer rutebeskyttelse og grunnleggende statuskoder.
  */
 import "../helpers/env.js";
 import { BACKEND_URL } from "../helpers/env.js";

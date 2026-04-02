@@ -1,10 +1,10 @@
 /**
- * Utility functions for the frontend
+ * Hjelpefunksjoner for frontend
  */
 import { clsx, type ClassValue } from "clsx";
 
 /**
- * Merge class names with clsx
+ * Slå sammen klassenavn med clsx
  * Forenklet versjon uten tailwind-merge (ikke installert)
  */
 export function cn(...inputs: ClassValue[]) {

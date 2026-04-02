@@ -5,7 +5,7 @@
  * Bruker react-hook-form, Zod-validering og Cloudflare Turnstile
  */
 
-import { useState, useEffect, useRef, useCallback, type ChangeEvent } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, type ChangeEvent } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -16,37 +16,20 @@ import {
   KONTAKT_MAX_ATTACHMENTS,
   KONTAKT_MAX_ATTACHMENT_SIZE_BYTES,
 } from "common/contact";
+import { useLanguage } from "@/app/i18n";
 import { sendKontakt } from "./contact-api";
-
-// Client-side validation schema (uten turnstileToken - legges til ved submit)
-const KontaktFormSchema = z.object({
-  navn: z
-    .string()
-    .trim()
-    .min(2, "Navn må være minst 2 tegn")
-    .max(100, "Navn kan ikke være mer enn 100 tegn"),
-  epost: z
-    .string()
-    .trim()
-    .email("Ugyldig e-postadresse")
-    .max(320, "E-post kan ikke være mer enn 320 tegn"),
-  emne: z
-    .string()
-    .trim()
-    .min(3, "Emne må være minst 3 tegn")
-    .max(140, "Emne kan ikke være mer enn 140 tegn"),
-  melding: z
-    .string()
-    .trim()
-    .min(10, "Meldingen må være minst 10 tegn")
-    .max(5000, "Meldingen kan ikke være mer enn 5000 tegn"),
-});
-
-type KontaktFormData = z.infer<typeof KontaktFormSchema>;
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
+type KontaktFormData = {
+  navn: string;
+  epost: string;
+  emne: string;
+  melding: string;
+};
+
 export function ContactForm() {
+  const { t } = useLanguage();
   const [isSending, setIsSending] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
@@ -55,6 +38,30 @@ export function ContactForm() {
   const widgetIdRef = useRef<string | null>(null);
   const honeypotRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Zod-schema med oversatte feilmeldinger
+  const KontaktFormSchema = useMemo(() => z.object({
+    navn: z
+      .string()
+      .trim()
+      .min(2, t("contactForm.nameMinError"))
+      .max(100, t("contactForm.nameMaxError")),
+    epost: z
+      .string()
+      .trim()
+      .email(t("contactForm.emailError"))
+      .max(320, t("contactForm.emailMaxError")),
+    emne: z
+      .string()
+      .trim()
+      .min(3, t("contactForm.subjectMinError"))
+      .max(140, t("contactForm.subjectMaxError")),
+    melding: z
+      .string()
+      .trim()
+      .min(10, t("contactForm.messageMinError"))
+      .max(5000, t("contactForm.messageMaxError")),
+  }), [t]);
 
   const {
     register,
@@ -132,7 +139,7 @@ export function ContactForm() {
   const onSubmit = async (data: KontaktFormData) => {
     // Krev Turnstile-token kun hvis Turnstile er konfigurert
     if (isTurnstileRequired && !turnstileToken) {
-      toast.error("Vennligst fullfør verifiseringen");
+      toast.error(t("contactForm.turnstileError"));
       return;
     }
 
@@ -149,7 +156,7 @@ export function ContactForm() {
       });
 
       if (result.success) {
-        toast.success(result.melding ?? "Takk for din henvendelse!");
+        toast.success(result.melding ?? t("contactForm.successDefault"));
         reset();
         setAttachments([]);
         if (fileInputRef.current) {
@@ -157,11 +164,11 @@ export function ContactForm() {
         }
         resetTurnstile();
       } else {
-        toast.error(result.error ?? "Noe gikk galt. Prøv igjen senere.");
+        toast.error(result.error ?? t("contactForm.errorDefault"));
         resetTurnstile();
       }
     } catch {
-      toast.error("Kunne ikke sende meldingen. Prøv igjen senere.");
+      toast.error(t("contactForm.networkError"));
       resetTurnstile();
     } finally {
       setIsSending(false);
@@ -194,18 +201,18 @@ export function ContactForm() {
       if (!KONTAKT_ALLOWED_ATTACHMENT_TYPES.includes(
         file.type as (typeof KONTAKT_ALLOWED_ATTACHMENT_TYPES)[number],
       )) {
-        toast.error("Kun JPG, PNG og WebP-bilder er tillatt");
+        toast.error(t("contactForm.imageTypeError"));
         continue;
       }
       if (file.size > KONTAKT_MAX_ATTACHMENT_SIZE_BYTES) {
-        toast.error(`Hvert bilde må være mindre enn ${maxAttachmentSizeMb} MB`);
+        toast.error(t("contactForm.imageSizeError").replace("{size}", String(maxAttachmentSizeMb)));
         continue;
       }
       nextFiles.push(file);
     }
 
     if (nextFiles.length > KONTAKT_MAX_ATTACHMENTS) {
-      toast.error(`Du kan laste opp maks ${KONTAKT_MAX_ATTACHMENTS} bilder`);
+      toast.error(t("contactForm.imageCountError").replace("{count}", String(KONTAKT_MAX_ATTACHMENTS)));
       setAttachments(nextFiles.slice(0, KONTAKT_MAX_ATTACHMENTS));
       return;
     }
@@ -243,12 +250,12 @@ export function ContactForm() {
           htmlFor="navn"
           className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300"
         >
-          Navn
+          {t("contactForm.nameLabel")}
         </label>
         <input
           type="text"
           id="navn"
-          placeholder="Ditt navn"
+          placeholder={t("contactForm.namePlaceholder")}
           className={inputClassName}
           disabled={isSending}
           {...register("navn")}
@@ -261,12 +268,12 @@ export function ContactForm() {
           htmlFor="epost"
           className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300"
         >
-          E-post
+          {t("contactForm.emailLabel")}
         </label>
         <input
           type="email"
           id="epost"
-          placeholder="din@epost.no"
+          placeholder={t("contactForm.emailPlaceholder")}
           className={inputClassName}
           disabled={isSending}
           {...register("epost")}
@@ -279,12 +286,12 @@ export function ContactForm() {
           htmlFor="emne"
           className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300"
         >
-          Emne
+          {t("contactForm.subjectLabel")}
         </label>
         <input
           type="text"
           id="emne"
-          placeholder="Hva gjelder henvendelsen?"
+          placeholder={t("contactForm.subjectPlaceholder")}
           className={inputClassName}
           disabled={isSending}
           {...register("emne")}
@@ -297,11 +304,11 @@ export function ContactForm() {
           htmlFor="melding"
           className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300"
         >
-          Melding
+          {t("contactForm.messageLabel")}
         </label>
         <textarea
           id="melding"
-          placeholder="Skriv din melding her..."
+          placeholder={t("contactForm.messagePlaceholder")}
           rows={5}
           className={`${inputClassName} resize-none`}
           disabled={isSending}
@@ -312,14 +319,14 @@ export function ContactForm() {
 
       <div>
         <p className="mb-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-          Bilder ved behov
+          {t("contactForm.imagesLabel")}
         </p>
         <label
           htmlFor="attachments"
           className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600 transition-colors hover:border-blue-400 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:bg-slate-800"
         >
           <ImagePlus className="h-4 w-4" />
-          Velg opptil {KONTAKT_MAX_ATTACHMENTS} bilder
+          {t("contactForm.imagesSelect").replace("{count}", String(KONTAKT_MAX_ATTACHMENTS))}
         </label>
         <input
           ref={fileInputRef}
@@ -332,7 +339,7 @@ export function ContactForm() {
           onChange={handleAttachmentsChange}
         />
         <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-          JPG, PNG eller WebP. Maks {KONTAKT_MAX_ATTACHMENTS} bilder, {maxAttachmentSizeMb} MB per bilde.
+          {t("contactForm.imagesHint").replace("{count}", String(KONTAKT_MAX_ATTACHMENTS)).replace("{size}", String(maxAttachmentSizeMb))}
         </p>
         {attachments.length > 0 && (
           <ul className="mt-3 space-y-2">
@@ -353,7 +360,7 @@ export function ContactForm() {
                   type="button"
                   onClick={() => removeAttachment(index)}
                   className="ml-3 rounded p-1 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
-                  aria-label={`Fjern ${file.name}`}
+                  aria-label={t("contactForm.removeImage").replace("{name}", file.name)}
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -383,20 +390,20 @@ export function ContactForm() {
         {isSending ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            Sender...
+            {t("contactForm.sending")}
           </>
         ) : (
           <>
             <Send className="h-4 w-4" />
-            Send melding
+            {t("contactForm.send")}
           </>
         )}
       </button>
 
       <p className="text-center text-xs text-slate-500 dark:text-slate-400">
-        Din henvendelse brukes kun til å besvare deg.{" "}
+        {t("contactForm.disclaimer")}{" "}
         <span className="block sm:inline">
-          Unngå å sende sensitive personopplysninger.
+          {t("contactForm.disclaimerSensitive")}
         </span>
       </p>
     </form>

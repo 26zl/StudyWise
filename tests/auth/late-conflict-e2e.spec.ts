@@ -96,7 +96,7 @@ async function signOut(page: Page): Promise<void> {
     });
     await page.waitForTimeout(2000);
   } catch {
-    // Ignore
+    // Ignorer
   }
 }
 
@@ -125,7 +125,7 @@ async function fillSignupForm(page: Page, email: string, username: string, passw
 }
 
 async function checkForConflictModal(page: Page): Promise<boolean> {
-  // Look for username conflict modal or similar
+  // Sjekk for brukernavn-konfliktmodal eller lignende
   const modalVisible = await page.locator('[role="dialog"]:has-text("brukernavn"), [role="dialog"]:has-text("username"), [role="dialog"]:has-text("conflict"), [role="alertdialog"]')
     .first()
     .isVisible({ timeout: 5000 })
@@ -135,7 +135,7 @@ async function checkForConflictModal(page: Page): Promise<boolean> {
 }
 
 async function checkForAuthGuardSignout(page: Page): Promise<boolean> {
-  // Check if we got redirected to auth pages or signed out
+  // Sjekk om vi ble omdirigert til autentiseringssider eller logget ut
   const url = page.url();
   return url.includes("sign-in") || url.includes("sign-up") || url.includes("/auth/");
 }
@@ -161,7 +161,7 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
 
     await setupClerkTestingToken({ page });
 
-    // Create first user with the shared username
+    // Opprett første bruker med delt brukernavn
     const email1 = `k01-first-${testId}@example.com`;
     await page.goto("/auth/sign-up");
     await fillSignupForm(page, email1, sharedUsername, TEST_PASSWORD);
@@ -176,7 +176,7 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
 
     await signOut(page);
 
-    // Create second user - Clerk should block at username level
+    // Opprett andre bruker — Clerk bør blokkere på brukernavnnivå
     const email2 = `k01-second-${testId}@example.com`;
     evidence.testEmail = email2;
 
@@ -187,7 +187,7 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
     evidence.clerkUserId = await getClerkUserId(page);
     evidence.clerkSignupSuccess = !!evidence.clerkUserId;
 
-    // Check /me response
+    // Sjekk /me-respons
     if (evidence.clerkUserId) {
       const meResult = await callMeEndpoint(page);
       evidence.meStatus = meResult.status;
@@ -198,7 +198,7 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
     evidence.authGuardSignout = await checkForAuthGuardSignout(page);
     evidence.finalUrl = page.url();
 
-    // Classification
+    // Klassifisering
     if (!evidence.clerkSignupSuccess) {
       evidence.classification = "CLERK_BLOCKED_DUPLICATE_USERNAME";
     } else if (evidence.meStatus === 409) {
@@ -215,7 +215,7 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
 
     saveEvidence(evidence);
 
-    // We expect either Clerk to block or backend to return 409 or show conflict modal
+    // Vi forventer at enten Clerk blokkerer, backend returnerer 409, eller konfliktmodal vises
     const handled = !evidence.clerkSignupSuccess || 
                     evidence.meStatus === 409 || 
                     evidence.conflictModalShown || 
@@ -230,34 +230,31 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
 
     await setupClerkTestingToken({ page });
 
-    // Sign up normally
+    // Registrer deg normalt
     await page.goto("/auth/sign-up");
     await fillSignupForm(page, testEmail, testUsername, TEST_PASSWORD);
     await page.waitForTimeout(5000);
 
     const clerkUserId = await getClerkUserId(page);
 
-    // Navigate to dashboard
+    // Naviger til dashbordet
     await page.goto("/dashboard");
     await page.waitForTimeout(3000);
 
     const onDashboard = page.url().includes("dashboard");
     const meResult = await callMeEndpoint(page);
 
-    // If on dashboard, /me should return 200 with valid user
-    // OR if signup didn't complete, /me may fail
+    // Hvis på dashbordet, bør /me returnere 200 med gyldig bruker
+    // ELLER hvis registrering ikke fullførte, kan /me feile
     if (onDashboard) {
-      // If we're on dashboard but /me fails, Clerk testing token didn't work
-      if (meResult.status !== 200) {
-        expect(true).toBeTruthy(); // Clerk testing token limitation
-        return;
-      }
+      // Hopp over hvis /me feiler på dashboard (Clerk testing token-begrensning)
+      test.skip(meResult.status !== 200, "Signup fullførte ikke — Clerk testing token-begrensning");
       const user = typeof meResult.body === "object" && meResult.body !== null
         ? (meResult.body as { user?: { id?: string } }).user
         : null;
       expect(user?.id).toBeTruthy();
     } else {
-      // Redirected away - also acceptable
+      // Omdirigert bort — også akseptabelt
       expect(page.url()).toMatch(/sign-in|sign-up|auth/);
     }
   });
@@ -268,28 +265,28 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
 
     await setupClerkTestingToken({ page });
 
-    // Create first user
+    // Opprett første bruker
     const email1 = `k04-first-${testId}@example.com`;
     await page.goto("/auth/sign-up");
     await fillSignupForm(page, email1, sharedUsername, TEST_PASSWORD);
     await page.waitForTimeout(5000);
     await signOut(page);
 
-    // Attempt second user with same username
+    // Forsøk andre bruker med samme brukernavn
     const email2 = `k04-second-${testId}@example.com`;
     await page.goto("/auth/sign-up");
     await fillSignupForm(page, email2, sharedUsername, TEST_PASSWORD);
     await page.waitForTimeout(5000);
 
-    // Check for any conflict UI
+    // Sjekk for konflikt-UI
     const conflictIndicators = await Promise.all([
-      // Clerk-level error
+      // Clerk-nivå feil
       page.locator('[data-clerk-field-error], .cl-formFieldErrorText')
         .allTextContents()
         .catch(() => []),
-      // Modal dialog
+      // Modal-dialog
       checkForConflictModal(page),
-      // Error text on page
+      // Feiltekst på siden
       page.locator('text=/username.*taken|brukernavn.*brukt|conflict|already exists/i')
         .first()
         .isVisible({ timeout: 3000 })
@@ -300,7 +297,7 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
     const hasModal = conflictIndicators[1] as boolean;
     const hasErrorText = conflictIndicators[2] as boolean;
 
-    // At least one conflict indicator should be present
+    // Minst én konfliktindikator bør være til stede
     expect(hasClerkError || hasModal || hasErrorText || !page.url().includes("dashboard")).toBeTruthy();
   });
 
@@ -311,25 +308,25 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
 
     await setupClerkTestingToken({ page });
 
-    // Sign up
+    // Registrer deg
     await page.goto("/auth/sign-up");
     await fillSignupForm(page, testEmail, testUsername, TEST_PASSWORD);
     await page.waitForTimeout(5000);
 
-    // Try to access dashboard
+    // Forsøk å åpne dashbordet
     await page.goto("/dashboard");
     await page.waitForTimeout(3000);
 
     const currentUrl = page.url();
 
-    // If we're on dashboard, there should be no conflict guard active
-    // If redirected to auth, guard may have triggered or signup didn't complete
+    // Hvis vi er på dashbordet, bør ingen konfliktvakt være aktiv
+    // Hvis omdirigert til autentisering, kan vakten ha utløst eller registrering fullførte ikke
     if (currentUrl.includes("dashboard")) {
       const meResult = await callMeEndpoint(page);
-      // Should be 200 for normal user, or 0 if Clerk testing token didn't complete signup
+      // Bør være 200 for vanlig bruker, eller 0 hvis Clerk testing token ikke fullførte registrering
       expect(meResult.status === 200 || meResult.status === 0).toBeTruthy();
     } else {
-      // Redirect happened - expected if no valid session
+      // Omdirigering skjedde — forventet uten gyldig sesjon
       expect(currentUrl).toMatch(/sign-in|sign-up|auth|\//);
     }
   });
@@ -341,7 +338,7 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
 
     await setupClerkTestingToken({ page });
 
-    // First signup
+    // Første registrering
     await page.goto("/auth/sign-up");
     await fillSignupForm(page, testEmail, testUsername, TEST_PASSWORD);
     await page.waitForTimeout(5000);
@@ -354,7 +351,7 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
 
     await signOut(page);
 
-    // Navigate back to sign-in (not sign-up) with same email
+    // Naviger tilbake til innlogging (ikke registrering) med samme e-post
     await page.goto("/auth/sign-in");
 
     const emailInput = page.locator('input[name="identifier"], input[type="email"]').first();
@@ -386,7 +383,7 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
       ? ((secondMe.body as { user?: { id?: string } }).user?.id ?? null)
       : null;
 
-    // Should be same Clerk user and same local user
+    // Bør være samme Clerk-bruker og samme lokal bruker
     expect(firstClerkId).toBe(secondClerkId);
     expect(firstLocalId).toBe(secondLocalId);
   });
@@ -397,7 +394,7 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
 
     await setupClerkTestingToken({ page });
 
-    // Create first user
+    // Opprett første bruker
     const email1 = `k08-first-${testId}@example.com`;
     await page.goto("/auth/sign-up");
     await fillSignupForm(page, email1, sharedUsername, TEST_PASSWORD);
@@ -410,7 +407,7 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
 
     await signOut(page);
 
-    // Try to create second user with same username
+    // Forsøk å opprette andre bruker med samme brukernavn
     const email2 = `k08-second-${testId}@example.com`;
     await page.goto("/auth/sign-up");
     await fillSignupForm(page, email2, sharedUsername, TEST_PASSWORD);
@@ -418,14 +415,14 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
 
     const secondClerkId = await getClerkUserId(page);
 
-    // If Clerk allowed signup, check backend response
+    // Hvis Clerk tillot registrering, sjekk backend-respons
     if (secondClerkId) {
       const secondMe = await callMeEndpoint(page);
 
-      // Backend should either:
-      // 1. Return 409 conflict
-      // 2. Return usernameConflict marker
-      // 3. Create user with different username
+      // Backend bør enten:
+      // 1. Returnere 409-konflikt
+      // 2. Returnere usernameConflict-markør
+      // 3. Opprette bruker med annet brukernavn
       const conflict = secondMe.status === 409 ||
         (typeof secondMe.body === "object" && secondMe.body !== null && "__usernameConflict" in secondMe.body);
 
@@ -433,11 +430,11 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
         ? ((secondMe.body as { user?: { id?: string } }).user?.id ?? null)
         : null;
 
-      // Either conflict detected OR different local user created (not same as first)
+      // Enten konflikt oppdaget ELLER annen lokal bruker opprettet (ikke samme som første)
       expect(conflict || (secondLocalId !== firstLocalId)).toBeTruthy();
     } else {
-      // Clerk blocked - this is the expected behavior
-      expect(true).toBeTruthy();
+      // Clerk blokkerte — forventet oppførsel
+      expect(secondClerkId).toBeNull();
     }
   });
 });

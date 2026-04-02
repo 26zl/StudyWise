@@ -68,7 +68,7 @@ export default function SSOCallbackPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
-      {/* Required for Clerk's bot sign-up protection */}
+      {/* Påkrevd for Clerks bot-registreringsbeskyttelse */}
       <div id="clerk-captcha" />
       <div className="w-full max-w-md space-y-4">
         <AuthCard>

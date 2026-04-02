@@ -1,8 +1,8 @@
 #!/usr/bin/env tsx
 /// <reference types="node" />
 /**
- * Auth smoke tests (HTTP-level).
- * Verifies auth guard behavior and public username check endpoint.
+ * Auth røyktester (HTTP-nivå).
+ * Verifiserer auth-vaktoppførsel og offentlig brukernavn-sjekk-endepunkt.
  */
 import "../helpers/env.js";
 import { BACKEND_URL } from "../helpers/env.js";

@@ -1,40 +1,42 @@
 /*
  * Kontakt - Kontaktinformasjon og kontaktskjema for StudyWise
  */
+"use client";
+
 import { Github, Mail, MessageSquare, School, MapPin } from "lucide-react";
+import { useLanguage } from "@/app/i18n";
 import { InfoCard, InfoPageLayout } from "@/app/components/layout/InfoPageLayout";
 import { ContactForm } from "./ContactForm";
 
 export default function KontaktPage() {
+  const { t } = useLanguage();
+
   const kontaktpunkter = [
     {
       icon: MessageSquare,
-      title: "Tilbakemeldinger",
-      description:
-        "Vi setter pris på alle tilbakemeldinger som kan hjelpe oss å forbedre StudyWise. Del gjerne dine tanker og forslag.",
+      title: t("kontakt.feedbackTitle"),
+      description: t("kontakt.feedbackBody"),
       accent:
         "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400",
     },
     {
       icon: Github,
-      title: "Feilrapportering",
-      description:
-        "Har du funnet en feil? Rapporter den slik at vi kan fikse den. Inkluder gjerne skjermbilder og steg for å reprodusere feilen.",
+      title: t("kontakt.bugReportTitle"),
+      description: t("kontakt.bugReportBody"),
       accent: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
     },
     {
       icon: School,
-      title: "Universitetet i Sør-Øst-Norge",
-      description:
-        "StudyWise er et bachelorprosjekt ved USN, Institutt for IT og informasjonssystemer.",
+      title: t("kontakt.universityTitle"),
+      description: t("kontakt.universityBody"),
       accent: "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400",
     },
   ];
 
   return (
     <InfoPageLayout
-      title="Kontakt oss"
-      description="Har du spørsmål, tilbakemeldinger eller trenger hjelp? Send oss en melding."
+      title={t("kontakt.title")}
+      description={t("kontakt.description")}
     >
       {/* Kontaktskjema */}
       <InfoCard className="mb-6">
@@ -44,10 +46,10 @@ export default function KontaktPage() {
           </div>
           <div>
             <h2 className="font-semibold text-slate-900 dark:text-white">
-              Send oss en melding
+              {t("kontakt.sendMessage")}
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              E-post: kontakt@studwize.page
+              {t("kontakt.email")}
             </p>
           </div>
         </div>
@@ -81,10 +83,10 @@ export default function KontaktPage() {
           </div>
           <div>
             <h2 className="font-semibold text-slate-900 dark:text-white">
-              Her finner du oss
+              {t("kontakt.mapTitle")}
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              Universitetet i Sørøst-Norge, Campus Bø
+              {t("kontakt.mapLocation")}
             </p>
           </div>
         </div>
@@ -97,7 +99,7 @@ export default function KontaktPage() {
             allowFullScreen={false}
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
-            title="Kart USN Campus Bø"
+            title={t("kontakt.mapIframeTitle")}
           ></iframe>
         </div>
       </InfoCard>

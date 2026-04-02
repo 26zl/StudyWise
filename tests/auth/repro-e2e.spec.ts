@@ -5,27 +5,27 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * Auth Duplicate Signup Reproduction Test
+ * Auth duplikat-registrering reproduksjonstest
  *
- * Automates the duplicate-signup scenario to capture runtime evidence.
+ * Automatiserer duplikat-registrering-scenariet for å fange kjøretidsbevis.
  *
- * What it does:
- * 1. Sign up with email/password (Account A)
- * 2. Capture /me response + dashboard state
- * 3. Sign out
- * 4. Attempt second signup with same email and/or username
- * 5. Capture what happens: redirect, /me status, errors, conflict modals
- * 6. Call diagnostic endpoint before/after
- * 7. Save evidence summary
+ * Hva den gjør:
+ * 1. Registrer med e-post/passord (Konto A)
+ * 2. Fang /me-respons + dashboard-tilstand
+ * 3. Logg ut
+ * 4. Forsøk andre registrering med samme e-post og/eller brukernavn
+ * 5. Fang hva som skjer: omdirigering, /me-status, feil, konflikt-modaler
+ * 6. Kall diagnostikk-endepunkt før/etter
+ * 7. Lagre bevisoppsummering
  *
- * NOTE: This test uses Clerk's email/password flow (not OAuth) because
- * OAuth (Google/Microsoft) cannot be automated without real credentials.
- * The test is designed to be extended for OAuth later.
+ * MERK: Denne testen bruker Clerks e-post/passord-flyt (ikke OAuth) fordi
+ * OAuth (Google/Microsoft) ikke kan automatiseres uten ekte legitimasjon.
+ * Testen er designet for å utvides med OAuth senere.
  *
- * Prerequisites:
- * - Backend running with ENABLE_AUTH_DIAGNOSTICS=true
- * - Frontend running on localhost:3000
- * - Clerk dev instance (pk_test_) allows email/password signup
+ * Forutsetninger:
+ * - Backend kjører med ENABLE_AUTH_DIAGNOSTICS=true
+ * - Frontend kjører på localhost:3000
+ * - Clerk dev-instans (pk_test_) tillater e-post/passord-registrering
  */
 
 const FLOW_ID_A = `repro-A-${Date.now()}`;
@@ -82,7 +82,7 @@ function createEmptySignupEvidence(flowId: string): SignupEvidence {
 }
 
 /**
- * Capture console logs and errors from the page.
+ * Fanger opp konsoll-logger og feil fra siden.
  */
 function attachConsoleCapture(page: Page, evidence: SignupEvidence) {
   page.on("console", (msg) => {
@@ -95,8 +95,8 @@ function attachConsoleCapture(page: Page, evidence: SignupEvidence) {
 }
 
 /**
- * Attempt to call the diagnostic endpoint.
- * Returns parsed JSON or null if not available.
+ * Forsøker å kalle diagnostikk-endepunktet.
+ * Returnerer parset JSON eller null hvis ikke tilgjengelig.
  */
 async function callDiagnostic(page: Page): Promise<unknown> {
   try {
@@ -119,7 +119,7 @@ async function callDiagnostic(page: Page): Promise<unknown> {
 }
 
 /**
- * Wait for Clerk to be loaded and extract the current Clerk user ID.
+ * Vent på at Clerk lastes og hent ut gjeldende Clerk bruker-ID.
  */
 async function getClerkUserId(page: Page): Promise<string | null> {
   try {
@@ -127,7 +127,7 @@ async function getClerkUserId(page: Page): Promise<string | null> {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const clerk = (window as any).Clerk;
       if (!clerk) return null;
-      // Wait for Clerk to load
+      // Vent på at Clerk lastes
       for (let i = 0; i < 50; i++) {
         if (clerk.user) return clerk.user.id as string;
         await new Promise((r) => setTimeout(r, 200));
@@ -140,7 +140,7 @@ async function getClerkUserId(page: Page): Promise<string | null> {
 }
 
 /**
- * Call /me with the debug flow-id header.
+ * Kall /me med debug flow-id-headeren.
  */
 async function callMeWithFlowId(page: Page, flowId: string): Promise<{ status: number; body: unknown }> {
   try {
@@ -167,34 +167,34 @@ async function callMeWithFlowId(page: Page, flowId: string): Promise<{ status: n
 }
 
 /**
- * Fill the Clerk signup form with email/password.
- * This handles the standard Clerk dev-mode signup widget.
+ * Fyll ut Clerk-registreringsskjemaet med e-post/passord.
+ * Håndterer standard Clerk dev-modus registreringswidget.
  */
 async function fillClerkSignupForm(page: Page, email: string, username: string, password: string) {
-  // Wait for Clerk signup form to appear
+  // Vent på at Clerk-registreringsskjemaet vises
   await page.waitForSelector('[data-clerk-element="signUp"]', { timeout: 15000 }).catch(() => {
-    // Clerk may use different selectors in different versions
+    // Clerk kan bruke ulike selektorer i forskjellige versjoner
   });
 
-  // Try to find and fill the email field
+  // Prøv å finne og fylle ut e-postfeltet
   const emailInput = page.locator('input[name="emailAddress"], input[type="email"]').first();
   if (await emailInput.isVisible({ timeout: 5000 }).catch(() => false)) {
     await emailInput.fill(email);
   }
 
-  // Try to find and fill username field
+  // Prøv å finne og fylle ut brukernavnfeltet
   const usernameInput = page.locator('input[name="username"]').first();
   if (await usernameInput.isVisible({ timeout: 3000 }).catch(() => false)) {
     await usernameInput.fill(username);
   }
 
-  // Fill password
+  // Fyll ut passord
   const passwordInput = page.locator('input[name="password"], input[type="password"]').first();
   if (await passwordInput.isVisible({ timeout: 3000 }).catch(() => false)) {
     await passwordInput.fill(password);
   }
 
-  // Click the submit / continue button
+  // Klikk send/fortsett-knappen
   const submitButton = page.locator('button[data-clerk-form-action="submit"], button:has-text("Continue"), button:has-text("Sign up"), button:has-text("Registrer")').first();
   if (await submitButton.isVisible({ timeout: 3000 }).catch(() => false)) {
     await submitButton.click();
@@ -202,23 +202,23 @@ async function fillClerkSignupForm(page: Page, email: string, username: string, 
 }
 
 /**
- * Check for Clerk verification code step (email OTP in dev mode).
- * In Clerk dev mode, the OTP may be auto-filled or a specific code may work.
+ * Sjekk for Clerk-verifiseringskode-steg (e-post OTP i dev-modus).
+ * I Clerk dev-modus kan OTP-en bli automatisk utfylt eller en spesifikk kode kan fungere.
  */
 async function handleVerificationStep(page: Page) {
-  // In Clerk dev mode, look for the OTP/verification code input
+  // I Clerk dev-modus, se etter OTP/verifiseringskode-inputen
   const otpInput = page.locator('input[name="code"], input[data-clerk-element="otpInput"]').first();
   const isOtpStep = await otpInput.isVisible({ timeout: 5000 }).catch(() => false);
 
   if (isOtpStep) {
-    // In dev mode, Clerk often shows a banner with the verification code
-    // or uses the code "424242" — try the page text for a code
+    // I dev-modus viser Clerk ofte et banner med verifiseringskoden
+    // eller bruker koden "424242" — prøv sideteksten for en kode
     const pageText = await page.textContent("body") ?? "";
     const codeMatch = pageText.match(/(?:verification|code)[^\d]*(\d{6})/i);
     if (codeMatch) {
       await otpInput.fill(codeMatch[1]);
     } else {
-      // Clerk dev instances often auto-complete; wait and see
+      // Clerk dev-instanser fullfører ofte automatisk; vent og se
       await page.waitForTimeout(3000);
     }
   }
@@ -239,7 +239,7 @@ function classify(evidence: Evidence): string {
 
   if (!a || !b) return "incomplete — one or both signups did not complete";
 
-  // Check if same Clerk user
+  // Sjekk om samme Clerk-bruker
   const sameClerkUser = a.clerkUserId && b.clerkUserId && a.clerkUserId === b.clerkUserId;
   const sameLocalUser = a.localUserId && b.localUserId && a.localUserId === b.localUserId;
 
@@ -320,7 +320,7 @@ function printSummary(evidence: Evidence) {
 }
 
 // ============================================================
-// TEST
+// TEST-SUITE
 // ============================================================
 
 test.describe("Duplicate Signup Reproduction", () => {
@@ -350,19 +350,19 @@ test.describe("Duplicate Signup Reproduction", () => {
     const ev = createEmptySignupEvidence(FLOW_ID_A);
     attachConsoleCapture(page, ev);
 
-    // Inject Clerk testing token to bypass Turnstile bot protection
+    // Injiser Clerk testing token for å omgå Turnstile bot-beskyttelse
     await setupClerkTestingToken({ page });
 
     await page.goto("/auth/sign-up");
     await page.waitForLoadState("domcontentloaded");
 
-    // Fill the Clerk signup form
+    // Fyll ut Clerk-registreringsskjemaet
     await fillClerkSignupForm(page, TEST_EMAIL, TEST_USERNAME, TEST_PASSWORD);
 
-    // Handle potential verification step
+    // Håndter potensielt verifiseringssteg
     await handleVerificationStep(page);
 
-    // Wait for redirect to dashboard (up to 30s)
+    // Vent på omdirigering til dashboard (opptil 30s)
     try {
       await page.waitForURL("**/dashboard**", { timeout: 30000 });
       ev.signupCompleted = true;
@@ -372,14 +372,14 @@ test.describe("Duplicate Signup Reproduction", () => {
       ev.errors.push(`Signup did not redirect to dashboard, stuck at: ${page.url()}`);
     }
 
-    // If we made it to dashboard, capture evidence
+    // Hvis vi kom til dashboard, samle inn bevis
     if (ev.signupCompleted) {
-      // Wait for Clerk to fully initialize
+      // Vent på at Clerk fullstendig initialiseres
       await page.waitForTimeout(3000);
 
       ev.clerkUserId = await getClerkUserId(page);
 
-      // Call /me with flow id
+      // Kall /me med flow-id
       const meResult = await callMeWithFlowId(page, FLOW_ID_A);
       ev.meStatus = meResult.status;
       ev.meBody = meResult.body;
@@ -395,7 +395,7 @@ test.describe("Duplicate Signup Reproduction", () => {
     evidence.firstSignup = ev;
     console.log(`\nFirst signup: clerkId=${ev.clerkUserId}, localId=${ev.localUserId}, meStatus=${ev.meStatus}`);
 
-    // Sign out
+    // Logg ut
     try {
       await page.evaluate(async () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -412,25 +412,25 @@ test.describe("Duplicate Signup Reproduction", () => {
     const ev = createEmptySignupEvidence(FLOW_ID_B);
     attachConsoleCapture(page, ev);
 
-    // Inject Clerk testing token to bypass Turnstile bot protection
+    // Injiser Clerk testing token for å omgå Turnstile bot-beskyttelse
     await setupClerkTestingToken({ page });
 
     await page.goto("/auth/sign-up");
     await page.waitForLoadState("domcontentloaded");
 
-    // Fill the same email and username
+    // Fyll ut samme e-post og brukernavn
     await fillClerkSignupForm(page, TEST_EMAIL, TEST_USERNAME, TEST_PASSWORD);
 
-    // Wait to see what happens — could be:
-    // 1. Clerk blocks it (error in signup form)
-    // 2. Clerk creates new user and redirects
-    // 3. Clerk merges and redirects
+    // Vent for å se hva som skjer — kan være:
+    // 1. Clerk blokkerer det (feil i registreringsskjemaet)
+    // 2. Clerk oppretter ny bruker og omdirigerer
+    // 3. Clerk slår sammen og omdirigerer
 
-    // Check for Clerk-level errors first
+    // Sjekk for Clerk-nivå-feil først
     await page.waitForTimeout(3000);
     const currentUrl = page.url();
 
-    // Check if Clerk showed an error (email already taken, etc.)
+    // Sjekk om Clerk viste en feil (e-post allerede tatt, osv.)
     const clerkError = await page.locator('[data-clerk-field-error], .cl-formFieldErrorText, [role="alert"]')
       .allTextContents()
       .catch(() => []);
@@ -443,10 +443,10 @@ test.describe("Duplicate Signup Reproduction", () => {
       return;
     }
 
-    // Handle verification step if present
+    // Håndter verifiseringssteg hvis det finnes
     await handleVerificationStep(page);
 
-    // Wait for redirect or error
+    // Vent på omdirigering eller feil
     try {
       await page.waitForURL("**/dashboard**", { timeout: 30000 });
       ev.signupCompleted = true;
@@ -455,25 +455,25 @@ test.describe("Duplicate Signup Reproduction", () => {
       ev.redirectedTo = page.url();
     }
 
-    // Wait for page to settle
+    // Vent på at siden stabiliseres
     await page.waitForTimeout(3000);
 
-    // Check for username conflict modal
+    // Sjekk for brukernavn-konflikt-modal
     const usernameModal = await page.locator('[role="dialog"]:has-text("brukernavn"), [role="dialog"]:has-text("username")')
       .isVisible({ timeout: 3000 })
       .catch(() => false);
     ev.usernameConflictModalShown = usernameModal;
 
-    // Check if we got signed out (account conflict)
+    // Sjekk om vi ble logget ut (konto-konflikt)
     const signInPageVisible = page.url().includes("/auth/sign-in") || page.url().includes("/auth/sign-up");
     if (signInPageVisible && !page.url().includes("/auth/sign-up")) {
       ev.accountConflictSignout = true;
     }
 
-    // Capture Clerk user ID
+    // Hent Clerk bruker-ID
     ev.clerkUserId = await getClerkUserId(page);
 
-    // Try to call /me
+    // Prøv å kalle /me
     if (ev.clerkUserId) {
       const meResult = await callMeWithFlowId(page, FLOW_ID_B);
       ev.meStatus = meResult.status;
@@ -487,7 +487,7 @@ test.describe("Duplicate Signup Reproduction", () => {
       }
     }
 
-    // Call diagnostic endpoint
+    // Kall diagnostikk-endepunktet
     evidence.diagnosticAfter = await callDiagnostic(page);
 
     evidence.secondSignup = ev;

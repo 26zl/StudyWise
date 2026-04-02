@@ -96,7 +96,7 @@ async function signOut(page: Page): Promise<void> {
     });
     await page.waitForTimeout(2000);
   } catch {
-    // Ignore
+    // Ignorer
   }
 }
 
@@ -145,7 +145,7 @@ test.describe("Group J: Session / Cross-Tab Consistency", () => {
       classification: "pending",
     };
 
-    // Create user and get to dashboard in tab 1
+    // Opprett bruker og naviger til dashboard i fane 1
     const tab1 = await createTestUser(context, testEmail, testUsername);
     const tab1AuthBefore = await isAuthenticated(tab1);
     evidence.steps.push({
@@ -157,7 +157,7 @@ test.describe("Group J: Session / Cross-Tab Consistency", () => {
       notes: "Tab 1 after signup",
     });
 
-    // Open tab 2 on dashboard
+    // Åpne fane 2 på dashboard
     const tab2 = await context.newPage();
     await tab2.goto("/dashboard");
     await tab2.waitForTimeout(3000);
@@ -171,7 +171,7 @@ test.describe("Group J: Session / Cross-Tab Consistency", () => {
       notes: "Tab 2 opened dashboard",
     });
 
-    // Logout in tab 1
+    // Logg ut i fane 1
     await signOut(tab1);
     evidence.steps.push({
       step: "tab1_logout",
@@ -182,14 +182,14 @@ test.describe("Group J: Session / Cross-Tab Consistency", () => {
       notes: "Logged out in tab 1",
     });
 
-    // Wait for BroadcastChannel to propagate
+    // Vent på BroadcastChannel-propagering
     await tab2.waitForTimeout(3000);
 
-    // Check tab 2 state - it should detect the logout
+    // Sjekk tilstanden til fane 2 — den bør oppdage utloggingen
     const tab2AuthAfter = await isAuthenticated(tab2);
     const tab2Url = tab2.url();
 
-    // Tab 2 might redirect to login or show signed-out state
+    // Fane 2 kan omdirigeres til innlogging eller vise utlogget tilstand
     const tab2Redirected = tab2Url.includes("sign-in") || tab2Url.includes("sign-up") || !tab2Url.includes("dashboard");
 
     evidence.steps.push({
@@ -209,12 +209,12 @@ test.describe("Group J: Session / Cross-Tab Consistency", () => {
 
     saveEvidence(evidence);
 
-    // The test passes if tab 2 eventually detects the logout
-    // We're lenient here as BroadcastChannel timing varies
+    // Fane 2 bør oppdage utloggingen (BroadcastChannel eller Clerk-synk)
     await tab1.close();
     await tab2.close();
 
-    expect(true).toBeTruthy(); // Evidence captured
+    // Verifiser at cross-tab logout ble oppdaget eller at fane 2 ble omdirigert
+    expect(!tab2AuthAfter || tab2Redirected).toBeTruthy();
   });
 
   test("J05: Stale session detects need for re-auth", async ({ page }) => {
@@ -224,29 +224,25 @@ test.describe("Group J: Session / Cross-Tab Consistency", () => {
 
     await setupClerkTestingToken({ page });
 
-    // Sign up
+    // Registrering
     await page.goto("/auth/sign-up");
     await fillSignupForm(page, testEmail, testUsername, TEST_PASSWORD);
     await page.waitForTimeout(5000);
 
-    // Check if signup completed (testing tokens may not complete actual signup)
+    // Sjekk om registreringen fullførte (testing-tokens fullfører ikke alltid faktisk registrering)
     const initialAuth = await isAuthenticated(page);
     const me1 = await callMeEndpoint(page);
 
-    // Skip assertions if signup didn't complete (Clerk testing token limitation)
-    if (!initialAuth || me1.status !== 200) {
-      // Test passes - we detected the limitation
-      expect(true).toBeTruthy();
-      return;
-    }
+    // Hopp over hvis signup ikke fullførte (Clerk testing token-begrensning)
+    test.skip(!initialAuth || me1.status !== 200, "Signup fullførte ikke — Clerk testing token-begrensning");
 
-    // Sign out
+    // Logg ut
     await signOut(page);
 
-    // Try to call /me again - should fail
+    // Prøv å kalle /me igjen — skal feile
     const me2 = await callMeEndpoint(page);
 
-    // After signout, /me should fail (no session)
+    // Etter utlogging skal /me feile (ingen sesjon)
     expect(me2.status).not.toBe(200);
   });
 
@@ -255,11 +251,11 @@ test.describe("Group J: Session / Cross-Tab Consistency", () => {
     const testEmail = `j07-${testId}@example.com`;
     const testUsername = `j07user${testId.replace(/-/g, "")}`.slice(0, 30);
 
-    // Create user in tab 1
+    // Opprett bruker i fane 1
     const tab1 = await createTestUser(context, testEmail, testUsername);
     await tab1.waitForURL("**/dashboard**", { timeout: 30000 }).catch(() => {});
 
-    // Open tab 2 and tab 3 on protected pages
+    // Åpne fane 2 og fane 3 på beskyttede sider
     const tab2 = await context.newPage();
     await tab2.goto("/dashboard");
     await tab2.waitForTimeout(2000);
@@ -268,20 +264,20 @@ test.describe("Group J: Session / Cross-Tab Consistency", () => {
     await tab3.goto("/profil");
     await tab3.waitForTimeout(2000);
 
-    // All tabs should be authenticated
+    // Alle faner skal være autentisert
     const authStates = await Promise.all([
       isAuthenticated(tab1),
       isAuthenticated(tab2),
       isAuthenticated(tab3),
     ]);
 
-    // Logout from tab 1
+    // Logg ut fra fane 1
     await signOut(tab1);
 
-    // Wait for broadcast
+    // Vent på broadcast
     await tab1.waitForTimeout(3000);
 
-    // Refresh other tabs and check
+    // Oppdater andre faner og sjekk
     await tab2.reload();
     await tab3.reload();
     await Promise.all([
@@ -294,8 +290,8 @@ test.describe("Group J: Session / Cross-Tab Consistency", () => {
       isAuthenticated(tab3),
     ]);
 
-    // After logout + refresh, other tabs should not be authenticated
-    // (or should redirect to login)
+    // Etter utlogging + oppdatering skal andre faner ikke være autentisert
+    // (eller bli omdirigert til innlogging)
     const allLoggedOut = afterLogoutStates.every((state) => !state);
     const tab2Redirected = tab2.url().includes("sign-in");
     const tab3Redirected = tab3.url().includes("sign-in");
@@ -304,7 +300,7 @@ test.describe("Group J: Session / Cross-Tab Consistency", () => {
     await tab2.close();
     await tab3.close();
 
-    // At least after refresh, the other tabs should be logged out
+    // Etter oppdatering skal de andre fanene i det minste være logget ut
     expect(allLoggedOut || tab2Redirected || tab3Redirected).toBeTruthy();
   });
 
@@ -315,28 +311,25 @@ test.describe("Group J: Session / Cross-Tab Consistency", () => {
 
     await setupClerkTestingToken({ page });
 
-    // Sign up and get to dashboard
+    // Registrer og naviger til dashboard
     await page.goto("/auth/sign-up");
     await fillSignupForm(page, testEmail, testUsername, TEST_PASSWORD);
     await page.waitForTimeout(5000);
 
-    // Call /me to populate cache
+    // Kall /me for å populere cache
     const me1 = await callMeEndpoint(page);
 
-    // Skip if signup didn't complete (Clerk testing token limitation)
-    if (me1.status !== 200) {
-      expect(true).toBeTruthy();
-      return;
-    }
+    // Hopp over hvis signup ikke fullførte
+    test.skip(me1.status !== 200, "Signup fullførte ikke — Clerk testing token-begrensning");
 
-    // Sign out
+    // Logg ut
     await signOut(page);
 
-    // Navigate to home (not protected)
+    // Naviger til forsiden (ikke beskyttet)
     await page.goto("/");
     await page.waitForTimeout(1000);
 
-    // Check if react-query cache for user data is cleared
+    // Sjekk om react-query-cache for brukerdata er tømt
     const cacheState = await page.evaluate(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const queryClient = (window as any).__REACT_QUERY_DEVTOOLS_GLOBAL_HOOK__?.queryClient;
@@ -351,8 +344,8 @@ test.describe("Group J: Session / Cross-Tab Consistency", () => {
       return userQueries.length > 0 ? "cache_present" : "cache_cleared";
     });
 
-    // This is informational - cache behavior depends on implementation
-    // The important thing is /me fails after logout
+    // Dette er informativt — cache-oppførsel avhenger av implementasjonen
+    // Det viktige er at /me feiler etter utlogging
     const me2 = await callMeEndpoint(page);
     expect(me2.status).not.toBe(200);
   });

@@ -40,17 +40,20 @@ StudyWise – AI-drevet studieveileder med Canvas LMS-integrasjon. pnpm-monorepo
 Delte Zod-skjemaer og TypeScript-typer mellom frontend og backend. **Bruk subpath-imports** (ikke `common/src/...`):
 
 ```typescript
-import { CanvasCourseSchema } from "common/canvas";       // Canvas API-typer
-import { classifyHttpStatus } from "common/canvasErrors";  // Feilkoder og hjelpere
-import { SubTaskSchema } from "common/ki";                 // KI/AI-typer
-import { ChatMessageSchema } from "common/chat";           // Chat-historikk-typer
-import { CalendarItemSchema } from "common/calendar";      // Kalender API-typer
+import { CanvasCourseSchema } from "common/canvas";             // Canvas API-typer
+import { classifyHttpStatus } from "common/canvasErrors";       // Feilkoder og hjelpere
+import { CANVAS_INSTITUTIONS } from "common/canvasInstitutions"; // Canvas-institusjonsliste
+import { SubTaskSchema } from "common/ki";                      // KI/AI-typer
+import { ChatMessageSchema } from "common/chat";                // Chat-historikk-typer
+import { CalendarItemSchema } from "common/calendar";           // Kalender API-typer
 import { Assignment, COURSE_COLOR_CLASSES } from "common/calendar-ui"; // Kalender UI-typer
-import { DocumentParseResultSchema } from "common/document";   // Dokumentbehandling
-import { AUTH_CHANNEL_NAME } from "common/auth"; // Auth-konstanter (f.eks. BroadcastChannel sync)
-import { getWeekNumber } from "common/dateUtils";          // Dato-hjelpefunksjoner
-import { UKEDAGER } from "common/arbeidsplan";             // Arbeidsplan-konstanter
-import { PaginationQueryValueSchema } from "common/admin"; // Admin-paginering og -typer
+import { DocumentParseResultSchema } from "common/document";    // Dokumentbehandling
+import { AUTH_CHANNEL_NAME } from "common/auth";                // Auth-konstanter (f.eks. BroadcastChannel sync)
+import { getWeekNumber } from "common/dateUtils";               // Dato-hjelpefunksjoner
+import { UKEDAGER } from "common/arbeidsplan";                  // Arbeidsplan-konstanter
+import { PaginationQueryValueSchema } from "common/admin";      // Admin-paginering og -typer
+import { KONTAKT_MAX_ATTACHMENTS } from "common/contact";       // Kontaktskjema-konstanter
+import { BrowserPushPreferencesSchema } from "common/notifications"; // Web push-typer
 ```
 
 Når du legger til et nytt skjema i common, legg til en subpath-eksport i `common/package.json` sitt `"exports"`-kart.
@@ -103,6 +106,25 @@ pnpm --filter backend test   # Kjør backend-tester (vitest)
 pnpm --filter frontend test  # Kjør frontend-tester (vitest + @testing-library/react)
 ```
 
+### E2E / Funksjonelle tester (Playwright)
+
+Workspace-pakken `tests/` inneholder Playwright E2E-spesifikasjoner og egne test-runnere. Krever at backend + frontend kjører.
+
+```bash
+pnpm test                          # Kjør alle testsuiter (auth, ki, canvas) via samlet runner
+pnpm test:auth                     # Auth-suite (DB-sjekk, HTTP-smoke, API-repro)
+pnpm test:auth:e2e                 # Playwright E2E auth-tester (alle nettlesere)
+pnpm test:ki                       # KI/AI-smoketester
+pnpm test:canvas                   # Canvas-smoketester
+pnpm test:auth:matrix              # Full auth-scenariomatrise (120 scenarier)
+pnpm test:auth:matrix:basic        # Gruppe A: Signup uniqueness
+pnpm test:auth:matrix:update       # Gruppe G: Username updates
+pnpm test:auth:matrix:delete       # Gruppe I: Deletion/reuse
+pnpm test:auth:matrix:race         # Gruppe L: Race conditions
+```
+
+`func-testing.yml`-workflowen kjører Playwright E2E i CI (manuell trigger eller etter CI). Laster opp HTML-rapport og trace-artefakter.
+
 ### Docker (kun lokal utvikling)
 
 ```bash
@@ -113,9 +135,10 @@ Docker brukes **kun for lokal utvikling** — ikke i produksjon. Alle tjenester 
 
 ### Deploy
 
-- **Backend**: Heroku (Professional dyno + Datadog buildpack)
-- **Frontend**: Vercel
+- **Backend**: Heroku (Professional dyno + Datadog buildpack) — auto-deploy fra `main` via Heroku Automatic Deploys
+- **Frontend**: Vercel — deployes via `deploy.yml` etter at Functional Testing er grønn
 - **Sikkerhet/CDN**: Cloudflare (DDoS, SSL/TLS, caching)
+- **Docs**: GitHub Pages — deployes via `deploy.docs.yml` ved endringer i `docs/`
 
 ---
 
@@ -149,7 +172,7 @@ Typisk rute-oppsett: `router.use(requireAuth)`, deretter `knyttCanvasToken` per 
 
 ### Audit-logging
 
-`backend/src/utils/auditLog.ts` — `audit()` skriver strukturerte hendelser til MongoDB (`AuditLog`-modell) med aktør, handling, kategori, utfall og request-metadata. Brukes for auth-feil, admin-handlinger og kontosletting. Importer `AUDIT_ACTIONS` for forhåndsdefinerte handlingskonstanter.
+`backend/src/utils/auditLog.ts` — `audit()` skriver strukturerte hendelser til MongoDB (`AuditLog`-modell) med aktør, handling, kategori, utfall og request-metadata. Kategorier: `auth`, `profile`, `integration`, `admin`, `security`, `privacy`, `ki`. Dekker auth-feil, admin-handlinger, kontosletting, Canvas-token-ops, chat-deling, RBAC/CSRF/rate-limit-brudd, sikkerhetsvarsler og alle KI-operasjoner (chat, dokumentanalyse, oppsummering, oppgavedeling, ukeplan, historikk-sletting). Importer `AUDIT_ACTIONS` for forhåndsdefinerte handlingskonstanter. AuditLog har 2-års TTL og automatisk GDPR-anonymisering ved brukersletting.
 
 ### Dashboard (SPA-container)
 
@@ -160,12 +183,17 @@ Lokasjon: `frontend/app/dashboard/page.tsx` (side) og `frontend/app/components/D
 
 ### Database-modeller
 
-- **User**: Lokal StudyWise-bruker som speiler Clerk-identitet og lagrer appdata (unik epost, `clerkId`, rolle, kryptert `canvasApiToken`, preferanser)
+- **User**: Lokal StudyWise-bruker som speiler Clerk-identitet og lagrer appdata (unik epost, `clerkId`, rolle, kryptert `canvasApiToken`, preferanser). **Soft-delete-mønster**: User har et `deletedAt`-felt — alle spørringer MÅ filtrere med `deletedAt: { $exists: false }` med mindre du bevisst sjekker slettede brukere
 - **CanvasUser**: Cache av Canvas-profilinfo, koblet til User via `localUser`
 - **ChatHistory**: Kryptert chat-historikk per bruker (AES-256-GCM)
 - **TaskBreakdown**: KI-genererte oppgavedelinger med redigerbare deloppgaver
 - **Arbeidsplan**: Ukeplaner (studieblokker); collection-navn er `arbeidsplan` (ikke `arbeidsplans`)
-- **ContentEmbedding**: Chunk-tekst og metadata per bruker/kurs/fil (MongoDB). Sannhetskilde for innhold; vektorindeks ligger i Pinecone (integrated embedding). Ingen vektorindeks i Atlas.
+- **ContentEmbedding**: Chunk-tekst og metadata per bruker/kurs/fil (MongoDB). Sannhetskilde for innhold; vektorindeks ligger i Pinecone (integrated embedding). Ingen vektorindeks i Atlas
+- **DeletedUserTombstone**: GDPR-tombstone for slettede brukere (forhindrer re-registrering innen TTL)
+- **PendingClerkDeletion**: Sporer asynkrone Clerk-brukerslettingsforespørsler
+- **WebPushSubscription**: Browser push-varsling-abonnementer per bruker
+- **SharedChat**: Offentlige delelenker for chat-samtaler (med utløpstid)
+- **CanvasStructure**: Cachet Canvas-kursstruktur (moduler, elementer)
 
 ### Viktige konfigurasjonsfiler
 
@@ -178,19 +206,23 @@ Lokasjon: `frontend/app/dashboard/page.tsx` (side) og `frontend/app/components/D
 - **Tillatte frontend-origins**: `WEB_ORIGINS` (kommaseparert liste) brukes av CORS, CSRF og Clerk `authorizedParties`
 - **Cookie-navn**: `common/src/auth.ts`
 - **Meldingsgrenser**: `common/src/ki.ts`
+- **Kontaktskjema**: Drevet av Cloudflare Turnstile (`TURNSTILE_SECRET_KEY`) og en transport som videresender til en Cloudflare Worker (`CONTACT_WORKER_URL`, `CONTACT_WORKER_SECRET`, `CONTACT_TO_EMAIL`, `CONTACT_FROM_EMAIL`). Disse variablene er påkrevd i produksjon.
 
 ### KI-ruter (`backend/src/rutere/ki/`)
 
 Hver fil håndterer ett KI-område:
 
 - `ki.ts` – Generell chat-endepunkt
-- `kiCanvas.ts` – Canvas-kontekst-KI-spørringer
-- `kiAnalyse.ts` – Oppgaveanalyse (bruker `analyzeDocumentCore()` delt av begge endepunkter)
+- `kiAnalyse.ts` – Dokumentanalyse (PDF, Word, bilder via Vision)
 - `kiOppsummering.ts` – Tekstoppsummering
 - `kiHistory.ts` – Chat-historikk
 - `kiShare.ts` – Chat-deling (offentlige delelenker med utløpstid)
 - `taskBreakdown.ts` – Oppgavedeling
 - `weeklyPlan.ts` – KI-genererte ukeplaner
+
+Andre ruter:
+
+- `contact/contact.ts` – Håndterer kontaktskjema med Turnstile-verifisering og videresender til Cloudflare Worker
 
 Delt infrastruktur (gjenbruk disse, ikke dupliser):
 
@@ -201,7 +233,7 @@ Delt infrastruktur (gjenbruk disse, ikke dupliser):
 - `systemPrompt.ts` – Én kilde for `STUDYWISE_SYSTEM_PROMPT`
 - `studyContentUtils.ts` – Delte hjelpefunksjoner for studieinnhold (JSON-ekstraksjon, målrettede spørringer)
 
-SSE-endepunkter må sjekke `res.writableEnded` før de skriver keepalive-pings.
+SSE-endepunkter må sjekke `res.writableEnded` før de skriver keepalive-pings. SSE-responser hopper over gzip-komprimering (`text/event-stream`-filter i `backend/src/index.ts`).
 
 **KI-kontekstlasting**: Ved lasting av Canvas-kontekst for chat opprettes en `AbortController` og dens `signal` sendes til `loadCanvasContext` → `syncCanvasDataForUser`. Ved `res.once('finish')` / `res.once('close')` aborteres kontrolleren slik at bakgrunnssynk stoppes når responsen er ferdig.
 
@@ -224,7 +256,7 @@ Backend tar imot filopplasting via `multer` og prosesserer med:
 - **Zod-validering** – på alle pakkegrenser
 - **Relative URLer** – frontend bruker `/api/...`, Next.js rewriter til backend
 - **Konfigurasjon**: Ikke endre tsconfig/eslint/next.config uten å spørre
-- **Norsk naming** – ruter, komponenter og variabler på norsk; filnavn på engelsk
+- **Norsk naming** – ruter, komponenter og variabler på norsk; filnavn på engelsk. **Alle kodekommentarer skal være på norsk** — ingen engelske hjelpekommentarer
 - **Host-validering** – I produksjon er `API_HOST` påkrevd og styrer hvilket hostname som er tillatt (f.eks. `api.studwize.page`). Direkte tilgang via `herokuapp.com` returnerer 403. `/health` er unntatt. `TRUST_PROXY_HOPS` må settes riktig for faktisk proxy-kjede slik at klient-IP og rate limiting blir korrekt.
 - **CORS pre-check** – Origin-validering skjer før `cors()`-middleware for å unngå generiske 500-feil fra ugyldige origins
 - **Trust proxy** – Satt til `1` i Express for korrekt IP-håndtering bak Cloudflare/Heroku-proxyer
@@ -323,7 +355,9 @@ onSave(subtasks.map(({ approved: _approved, ...task }) => task));
 - Definer schema i `backend/src/database/models/`
 - Bruk Zod i `common` for å validere data før det treffer databasen
 - Bruk Mongoose-modeller som tiltenkt (`.find()`, `.create()`, osv.)
-- **Migrations**: `backend/src/database/migrations.ts` — kjøres automatisk ved oppstart. Legg nye migrasjoner til i `migrations`-arrayet
+- **Soft-delete**: Ved spørring mot `User`, legg alltid til `deletedAt: { $exists: false }` med mindre du bevisst trenger slettede brukere (f.eks. admin-statistikk, konfliktdeteksjon med eksplisitt `deletedAt`-sjekk)
+- **Nye modeller**: Registrer i `ensureDatabaseIndexes()` i `backend/src/database/database.ts` slik at indekser opprettes ved oppstart
+- **Migrations**: `backend/src/database/migrations.ts` — kjøres automatisk ved oppstart. Legg nye migrasjoner til i `migrations`-arrayet. Utførte migrasjoner registreres i `migrationrecords`-collection
 
 ---
 
@@ -352,7 +386,7 @@ pnpm install
 pnpm build   # Bygger common først!
 ```
 
-**Miljøvariabler**: Kopier `backend/.env.example` → `backend/.env` og fyll ut. Påkrevd: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`. Datadog: `DD_*` (APM i produksjon).
+**Miljøvariabler**: Kopier `backend/.env.example` → `backend/.env` og fyll ut. Påkrevd for dev: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, `AUTH_TURNSTILE_GATE_SECRET`. Produksjon krever i tillegg `API_HOST`, `TRUST_PROXY_HOPS`, `WEB_ORIGINS` og valgfritt `INTERNAL_HOSTS` (kommaseparerte hostnames for intern trafikk, f.eks. Vercel → Heroku direkte), Datadog APM (`DD_*`), samt kontaktskjema-variabler (`TURNSTILE_SECRET_KEY`, `CONTACT_WORKER_URL`, `CONTACT_WORKER_SECRET`, `CONTACT_TO_EMAIL`, `CONTACT_FROM_EMAIL`).
 
 ### CI (`.github/workflows/ci.yml`)
 
@@ -364,14 +398,23 @@ Kjøres ved push og PR mot `main`. **Actionlint må være grønn før de andre j
 - **secret-scan** – TruffleHog (`trufflesecurity/trufflehog@v3.93.8`) skanner etter lekkede hemmeligheter
 - **sbom** – genererer CycloneDX SBOM (Software Bill of Materials), lastes opp som artefakt
 
-Alle jobber har `permissions: contents: read` og `actions: read` (på workflow-nivå eller per jobb). Timeout på alle jobber. Deploy (`deploy.yml`) utløses automatisk når hele CI er grønn ved push til `main`.
+Alle jobber har `permissions: contents: read` og `actions: read` (på workflow-nivå eller per jobb). Timeout på alle jobber.
+
+### Pipeline-kjede
+
+```text
+CI (push/PR) → Functional Testing (Playwright E2E) → Deploy (Vercel frontend)
+```
+
+Deploy (`deploy.yml`) utløses automatisk når Functional Testing er grønn ved push til `main`. Backend deployes via Heroku Automatic Deploys (uavhengig av workflow-kjeden).
 
 ### Andre workflows
 
-- **deploy.yml** – trigger når CI er ferdig på `main` (push): frontend deployes via Vercel CLI; backend deployes automatisk via Heroku Automatic Deploys
-- **deploy.docs.yml** – ved push til `docs/**`: bygger VitePress og deployer til GitHub Pages
-- **owasp-dependency-check.yml** – ukentlig (mandager) + workflow_dispatch; bruker `dependency-check/Dependency-Check_Action@1.1.0` med input `others` (ikke `args`)
-- **update-dependencies.yml** – ukentlig (mandager) + workflow_dispatch, oppretter PR med `pnpm -r update`
+- **func-testing.yml** — Playwright E2E-tester; kjøres etter CI er grønn (push til `main`) eller manuelt (workflow_dispatch). Laster opp HTML-rapport og trace-artefakter
+- **deploy.yml** — trigger når Functional Testing er ferdig på `main` (push): frontend deployes via Vercel CLI; backend deployes automatisk via Heroku Automatic Deploys
+- **deploy.docs.yml** — ved endringer i `docs/`: bygger VitePress og deployer til GitHub Pages
+- **owasp-dependency-check.yml** — ukentlig (mandager) + workflow_dispatch; bruker `dependency-check/Dependency-Check_Action@1.1.0` med input `others` (ikke `args`)
+- **update-dependencies.yml** — ukentlig (mandager) + workflow_dispatch, oppretter PR med `pnpm -r update`
 
 ---
 

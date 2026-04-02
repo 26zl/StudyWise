@@ -2,23 +2,23 @@
 /// <reference types="node" />
 
 /**
- * Expanded Auth Matrix Runner
+ * Utvidet Auth Matrix-kjører
  *
- * Comprehensive auth identity testing with:
- * - Live verbose logging during execution
- * - Per-scenario evidence files
- * - DB snapshots before/after each scenario
- * - Detailed classification and correlation
- * - Support for all 120 scenarios (Groups A-P)
+ * Omfattende auth-identitetstesting med:
+ * - Sanntids verbose-logging under kjøring
+ * - Evidensfiler per scenario
+ * - DB-snapshot før/etter hvert scenario
+ * - Detaljert klassifisering og korrelasjon
+ * - Støtte for alle 120 scenarioer (Grupper A-P)
  *
- * Usage:
- *   pnpm auth:matrix                    # Run all executable scenarios
- *   pnpm auth:matrix:group A            # Run only Group A
- *   pnpm auth:matrix:verbose            # Run with maximum verbosity
- *   pnpm auth:matrix:basic              # Run basic signup scenarios
- *   pnpm auth:matrix:update             # Run update scenarios
- *   pnpm auth:matrix:delete             # Run deletion scenarios
- *   pnpm auth:matrix:race               # Run race condition scenarios
+ * Bruk:
+ *   pnpm auth:matrix                    # Kjør alle kjørbare scenarioer
+ *   pnpm auth:matrix:group A            # Kjør kun Gruppe A
+ *   pnpm auth:matrix:verbose            # Kjør med maksimal detaljeringsgrad
+ *   pnpm auth:matrix:basic              # Kjør grunnleggende registreringsscenarioer
+ *   pnpm auth:matrix:update             # Kjør oppdateringsscenarioer
+ *   pnpm auth:matrix:delete             # Kjør slettingsscenarioer
+ *   pnpm auth:matrix:race              # Kjør kappløpstilstand-scenarioer
  */
 
 import "../helpers/env.js";
@@ -27,7 +27,7 @@ import { createClerkClient, type User as ClerkUser } from "@clerk/backend";
 import mongoose, { type ConnectOptions } from "mongoose";
 import * as fs from "node:fs";
 
-// Use mongoose's internal mongodb types to avoid version conflicts
+// Bruk mongoose sine interne mongodb-typer for å unngå versjonskonflikter
 type MongoCollection = ReturnType<NonNullable<typeof mongoose.connection.db>["collection"]>;
 type MongoDocument = Record<string, unknown>;
 import * as path from "node:path";
@@ -47,7 +47,7 @@ import {
 } from "./scenario-definitions.js";
 
 // ============================================================================
-// Types
+// Typer
 // ============================================================================
 
 interface ClerkCreateErrorInfo {
@@ -180,7 +180,7 @@ interface MatrixEvidence {
 }
 
 // ============================================================================
-// Constants
+// Konstanter
 // ============================================================================
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -194,14 +194,14 @@ const MONGO_OPTIONS: ConnectOptions = {
 };
 
 // ============================================================================
-// Globals
+// Globale variabler
 // ============================================================================
 
 let usersCollection: MongoCollection | null = null;
 let logger: VerboseLogger;
 
 // ============================================================================
-// Utilities
+// Hjelpefunksjoner
 // ============================================================================
 
 function nowIso(): string {
@@ -226,7 +226,7 @@ function writeJson(fileName: string, payload: unknown): string {
 }
 
 // ============================================================================
-// Clerk Error Parsing
+// Clerk-feilparsing
 // ============================================================================
 
 function parseClerkCreateError(error: unknown): ClerkCreateErrorInfo {
@@ -263,7 +263,7 @@ function hasValidationError(error: ClerkCreateErrorInfo): boolean {
 }
 
 // ============================================================================
-// Flow Response Parsing
+// Flow-responsparsing
 // ============================================================================
 
 function detectConflictType(result: unknown): string | null {
@@ -356,7 +356,7 @@ function parseFlowResponse(status: number, body: unknown): FlowResponseEvidence 
 }
 
 // ============================================================================
-// DB Operations
+// DB-operasjoner
 // ============================================================================
 
 function normalizeDbUserRow(doc: Record<string, unknown>): DbUserRow {
@@ -446,7 +446,7 @@ async function collectDbSnapshot(emails: string[], usernames: string[], clerkIds
 }
 
 // ============================================================================
-// Clerk Operations
+// Clerk-operasjoner
 // ============================================================================
 
 async function createEmailUser(
@@ -503,7 +503,7 @@ async function deleteUserSafe(clerk: ReturnType<typeof createClerkClient>, userI
     return true;
   } catch (error) {
     const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-    // Already deleted is OK
+    // Allerede slettet er OK
     if (msg.includes("404") || msg.includes("not found")) return true;
     return false;
   }
@@ -569,7 +569,7 @@ async function callTestUpdateProfile(
 }
 
 // ============================================================================
-// Classification
+// Klassifisering
 // ============================================================================
 
 function classifyScenario(
@@ -582,7 +582,7 @@ function classifyScenario(
   const [firstCreate, secondCreate] = createAttempts;
   const [flowA, flowB] = flowResponses;
 
-  // First creation failed
+  // Første opprettelse feilet
   if (!firstCreate?.ok) {
     if (firstCreate?.error && hasValidationError(firstCreate.error)) {
       return "CLERK_VALIDATION_ERROR_FIRST";
@@ -590,44 +590,44 @@ function classifyScenario(
     return "SCENARIO_SETUP_FAILED_FIRST_IDENTITY";
   }
 
-  // First flow failed
+  // Første flow feilet
   if (!flowA || flowA.outcome === "http_error") {
     return `FLOW_A_FAILED_HTTP_${flowA?.httpStatus ?? "UNKNOWN"}`;
   }
 
-  // No second identity in scenario
+  // Ingen andre identitet i scenariet
   if (!scenario.second) {
-    // Check for single-user update scenarios (G02-G04)
+    // Sjekk for enkeltbruker-oppdateringsscenarioer (G02-G04)
     if (scenario.action === "update" && updateResults && updateResults.length > 0) {
       const updateResult = updateResults[0];
       if (updateResult.success) {
-        // Update was allowed (casing/whitespace normalized or same username accepted)
+        // Oppdatering ble tillatt (store/små bokstaver/mellomrom normalisert eller samme brukernavn akseptert)
         return "USERNAME_UPDATE_ALLOWED";
       }
       if (updateResult.httpStatus === 400) {
-        // Validation error (invalid format rejected)
+        // Valideringsfeil (ugyldig format avvist)
         return "USERNAME_UPDATE_VALIDATION_ERROR";
       }
       if (updateResult.conflict) {
-        // Self-conflict (shouldn't happen for single-user)
+        // Selvkonflikt (bør ikke skje for enkeltbruker)
         return "USERNAME_UPDATE_SELF_CONFLICT";
       }
       return `USERNAME_UPDATE_FAILED_HTTP_${updateResult.httpStatus}`;
     }
     
-    // Single identity scenario (e.g., validation test)
+    // Enkeltidentitet-scenario (f.eks. valideringstest)
     if (flowA.outcome === "success") {
       return "SINGLE_USER_SUCCESS";
     }
     return "SINGLE_USER_FLOW_UNEXPECTED";
   }
 
-  // Second creation not attempted
+  // Andre opprettelse ikke forsøkt
   if (!secondCreate) {
     return "SCENARIO_SETUP_FAILED_SECOND_IDENTITY_NOT_ATTEMPTED";
   }
 
-  // Second creation blocked by Clerk
+  // Andre opprettelse blokkert av Clerk
   if (!secondCreate.ok && secondCreate.error) {
     if (hasDuplicateEmailSignal(secondCreate.error)) {
       return "CLERK_BLOCKED_DUPLICATE_EMAIL";
@@ -641,7 +641,7 @@ function classifyScenario(
     return "CLERK_BLOCKED_SECOND_IDENTITY_UNKNOWN";
   }
 
-  // Second flow had conflict
+  // Andre flow hadde konflikt
   if (flowB?.outcome === "conflict") {
     if (flowB.conflictType === "usernameConflict") return "BACKEND_BLOCKED_USERNAME_CONFLICT";
     if (flowB.conflictType === "accountConflict") return "BACKEND_BLOCKED_ACCOUNT_CONFLICT";
@@ -659,17 +659,17 @@ function classifyScenario(
     return `FLOW_B_HTTP_${flowB.httpStatus}`;
   }
 
-  // Handle two-user update action scenarios (e.g., G01, G06 - update to existing username)
+  // Håndter to-bruker oppdateringsscenarioer (f.eks. G01, G06 - oppdatering til eksisterende brukernavn)
   if (scenario.action === "update" && updateResults && updateResults.length > 0 && scenario.second) {
     const updateResult = updateResults[0];
     if (updateResult.conflict) {
-      // Username update was correctly blocked
+      // Brukernavn-oppdatering ble korrekt blokkert
       const phase = updateResult.detectionPhase === "early_check" ? "EARLY_CHECK" : 
                     updateResult.detectionPhase === "db_fallback" ? "DB_FALLBACK" : "UNKNOWN";
       return `USERNAME_UPDATE_BLOCKED_${phase}`;
     }
     if (updateResult.success) {
-      // This is a BUG - the update should have been blocked
+      // Dette er en FEIL - oppdateringen burde ha blitt blokkert
       return "BUG_USERNAME_UPDATE_ALLOWED";
     }
     if (updateResult.httpStatus === 400) {
@@ -681,13 +681,13 @@ function classifyScenario(
     return `USERNAME_UPDATE_FAILED_HTTP_${updateResult.httpStatus}`;
   }
 
-  // Both succeeded
+  // Begge lyktes
   if (flowA?.outcome === "success" && flowB?.outcome === "success") {
     const sameLocal = flowA.localUserId && flowB.localUserId && flowA.localUserId === flowB.localUserId;
     if (sameLocal) {
       return "SAME_LOCAL_USER_REUSED";
     }
-    // Check for DB duplicates
+    // Sjekk for DB-duplikater
     if (dbSnapshot.duplicateEmails.length > 0) {
       return "REAL_LOCAL_DUPLICATE_EMAIL";
     }
@@ -701,7 +701,7 @@ function classifyScenario(
 }
 
 // ============================================================================
-// Scenario Runners
+// Scenariokjørere
 // ============================================================================
 
 async function runExecutableScenario(
@@ -725,7 +725,7 @@ async function runExecutableScenario(
   const usersBefore = await countUsers();
   logger.step("DB snapshot before", `users=${usersBefore}`);
 
-  // Create first identity
+  // Opprett første identitet
   const flowIdA = `${scenario.id}-A-${Date.now()}`;
   flowIds.push(flowIdA);
 
@@ -769,12 +769,12 @@ async function runExecutableScenario(
       };
     }
 
-    // Call auth flow for first user
+    // Kall auth-flow for første bruker
     const flowAResponse = await callTestAuthFlow(firstCreate.user.id, flowIdA);
     flowA = parseFlowResponse(flowAResponse.status, flowAResponse.body);
     flowResponses.push(flowA);
 
-    // Create second identity if defined
+    // Opprett andre identitet hvis definert
     if (scenario.second) {
       const flowIdB = `${scenario.id}-B-${Date.now()}`;
       flowIds.push(flowIdB);
@@ -785,7 +785,7 @@ async function runExecutableScenario(
       if (secondCreate.ok && secondCreate.user) {
         clerkUsers.push(secondCreate.user);
 
-        // Call auth flow for second user
+        // Kall auth-flow for andre bruker
         const flowBResponse = await callTestAuthFlow(secondCreate.user.id, flowIdB);
         flowB = parseFlowResponse(flowBResponse.status, flowBResponse.body);
         flowResponses.push(flowB);
@@ -794,10 +794,10 @@ async function runExecutableScenario(
       }
     }
 
-    // Handle update action scenarios (e.g., update username to existing)
+    // Håndter oppdateringsscenarioer (f.eks. oppdater brukernavn til eksisterende)
     const updateResults: UpdateResultEvidence[] = [];
     if (scenario.action === "update" && scenario.second && secondCreate?.ok && secondCreate?.user) {
-      // For update scenarios with two users, try to update the second user's username to the first user's username
+      // For oppdateringsscenarioer med to brukere, prøv å oppdatere den andre brukerens brukernavn til den første brukerens brukernavn
       const updateFlowId = `${scenario.id}-UPDATE-${Date.now()}`;
       flowIds.push(updateFlowId);
       
@@ -805,7 +805,7 @@ async function runExecutableScenario(
       
       const updateResult = await callTestUpdateProfile(
         secondCreate.user.id,
-        scenario.first.username, // Try to use the first user's username
+        scenario.first.username, // Prøv å bruke den første brukerens brukernavn
         updateFlowId,
       );
       
@@ -828,28 +828,28 @@ async function runExecutableScenario(
         notes.push(`Username update failed with status ${updateResult.status}`);
       }
     } else if (scenario.action === "update" && !scenario.second && firstCreate.ok && firstCreate.user) {
-      // Single-user update scenarios (G02-G04): test casing, whitespace, or invalid format
+      // Enkeltbruker-oppdateringsscenarioer (G02-G04): test store/små bokstaver, mellomrom eller ugyldig format
       const updateFlowId = `${scenario.id}-UPDATE-${Date.now()}`;
       flowIds.push(updateFlowId);
       
-      // Determine what username to test based on scenario ID
+      // Bestem hvilket brukernavn som skal testes basert på scenario-ID
       let testUsername: string;
       const baseUsername = scenario.first.username;
       
       if (scenario.id.includes("same-casing")) {
-        // G02: Test casing - convert to uppercase
+        // G02: Test store/små bokstaver - konverter til store bokstaver
         testUsername = baseUsername.toUpperCase();
         logger.step("Username update test (casing)", `${baseUsername} → ${testUsername}`);
       } else if (scenario.id.includes("whitespace")) {
-        // G03: Test whitespace - add leading/trailing spaces
+        // G03: Test mellomrom - legg til ledende/etterfølgende mellomrom
         testUsername = `  ${baseUsername}  `;
         logger.step("Username update test (whitespace)", `"${baseUsername}" → "  ${baseUsername}  "`);
       } else if (scenario.id.includes("invalid-format")) {
-        // G04: Test invalid format
+        // G04: Test ugyldig format
         testUsername = "@#$%!";
         logger.step("Username update test (invalid)", `${baseUsername} → ${testUsername}`);
       } else {
-        // Fallback: just use the same username
+        // Fallback: bruk bare det samme brukernavnet
         testUsername = baseUsername;
         logger.step("Username update test", `${baseUsername} → ${testUsername}`);
       }
@@ -882,7 +882,7 @@ async function runExecutableScenario(
       }
     }
 
-    // Collect DB snapshot
+    // Samle DB-snapshot
     const emails = [scenario.first.email];
     const usernames = [scenario.first.username];
     const clerkIdList = clerkUsers.map((u) => u.id);
@@ -895,24 +895,24 @@ async function runExecutableScenario(
     const dbSnapshot = await collectDbSnapshot(emails, usernames, clerkIdList, usersBefore);
     logger.logDbSnapshot(dbSnapshot);
 
-    // Classify
+    // Klassifiser
     const classification = classifyScenario(scenario, createAttempts, flowResponses, dbSnapshot, updateResults);
     logger.logClassification(classification);
 
     const outcomeMatch = classification === scenario.expectedOutcome || 
       (scenario.expectedOutcome.includes("OR") && scenario.expectedOutcome.split("_OR_").some(exp => classification.includes(exp))) ||
-      // Handle USERNAME_UPDATE_BLOCKED with any detection phase
+      // Håndter USERNAME_UPDATE_BLOCKED med vilkårlig deteksjonsfase
       (scenario.expectedOutcome === "USERNAME_UPDATE_BLOCKED" && classification.startsWith("USERNAME_UPDATE_BLOCKED")) ||
-      // Handle EARLY_BLOCK_OR_DB_FALLBACK matching either
+      // Håndter EARLY_BLOCK_OR_DB_FALLBACK som matcher begge
       (scenario.expectedOutcome === "EARLY_BLOCK_OR_DB_FALLBACK" && 
        (classification === "USERNAME_UPDATE_BLOCKED_EARLY_CHECK" || classification === "USERNAME_UPDATE_BLOCKED_DB_FALLBACK")) ||
-      // Handle ALLOWED_OR_NORMALIZED (G02: casing change)
+      // Håndter ALLOWED_OR_NORMALIZED (G02: endring av store/små bokstaver)
       (scenario.expectedOutcome === "ALLOWED_OR_NORMALIZED" && classification === "USERNAME_UPDATE_ALLOWED") ||
-      // Handle VALIDATION_ERROR_OR_TRIMMED (G03: whitespace - either allowed+trimmed or validation error)
+      // Håndter VALIDATION_ERROR_OR_TRIMMED (G03: mellomrom - enten tillatt+trimmet eller valideringsfeil)
       (scenario.expectedOutcome === "VALIDATION_ERROR_OR_TRIMMED" && 
        (classification === "USERNAME_UPDATE_ALLOWED" || classification === "USERNAME_UPDATE_VALIDATION_ERROR")) ||
-      // Handle VALIDATION_ERROR (G04: invalid format - backend doesn't validate chars, so may allow or collision)
-      // NOTE: sanitizeUsername() only trims whitespace, doesn't validate chars. Real validation happens at Clerk signup.
+      // Håndter VALIDATION_ERROR (G04: ugyldig format - backend validerer ikke tegn, så kan tillate eller kollidere)
+      // MERK: sanitizeUsername() trimmer bare mellomrom, validerer ikke tegn. Reell validering skjer ved Clerk-registrering.
       (scenario.expectedOutcome === "VALIDATION_ERROR" && 
        (classification === "USERNAME_UPDATE_VALIDATION_ERROR" || 
         classification === "USERNAME_UPDATE_ALLOWED" || 
@@ -1027,13 +1027,13 @@ type ModeArg = "full" | "basic" | "update" | "delete" | "race" | "session" | "oa
 function parseMode(arg: string | undefined): { mode: ModeArg; scenarios: ScenarioDefinition[] } {
   const value = (arg ?? "full").toUpperCase();
 
-  // Single group
+  // Enkeltgruppe
   const groups: ScenarioGroup[] = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P"];
   if (groups.includes(value as ScenarioGroup)) {
     return { mode: value as ScenarioGroup, scenarios: buildGroupByName(value as ScenarioGroup) };
   }
 
-  // Preset modes
+  // Forhåndsdefinerte moduser
   const fullMatrix = buildFullMatrix();
 
   switch (value.toLowerCase()) {
@@ -1071,7 +1071,7 @@ async function main(): Promise<void> {
   const stats = getScenarioStats(scenarios);
   logger.info(`Stats: executable=${stats.executable}, e2e=${stats.e2e}, oauth=${stats.oauth}, manual=${stats.manual}, race=${stats.race}`);
 
-  // Verify environment
+  // Verifiser miljø
   const secretKey = process.env.CLERK_SECRET_KEY;
   if (!secretKey) {
     logger.error("CLERK_SECRET_KEY missing");
@@ -1101,14 +1101,14 @@ async function main(): Promise<void> {
   const scenarioEvidence: ScenarioEvidence[] = [];
   const classifications: Record<string, number> = {};
 
-  // Run scenarios
+  // Kjør scenarioer
   for (const scenario of scenarios) {
     let evidence: ScenarioEvidence;
 
     if (scenario.kind === "executable" || scenario.kind === "api_manual") {
       evidence = await runExecutableScenario(clerk, scenario as ExecutableScenario);
     } else {
-      // Manual/E2E/OAuth/Admin scenarios
+      // Manuelle/E2E/OAuth/Admin-scenarioer
       logger.setScenario(scenario.id);
       logger.header(`SCENARIO ${scenario.id} (${scenario.kind})`);
       logger.info(scenario.description);
@@ -1123,7 +1123,7 @@ async function main(): Promise<void> {
     scenarioEvidence.push(evidence);
     classifications[evidence.classification] = (classifications[evidence.classification] ?? 0) + 1;
 
-    // Save per-scenario evidence
+    // Lagre bevis per scenario
     const scenarioFile = writeJson(`scenario-${scenario.id}-${slugTime()}.json`, evidence);
     logger.debug(`Evidence saved: ${scenarioFile}`);
   }
@@ -1131,7 +1131,7 @@ async function main(): Promise<void> {
   const finishedAt = nowIso();
   const durationMs = Date.now() - startMs;
 
-  // Calculate stats
+  // Beregn statistikk
   const executed = scenarioEvidence.filter((e) => e.status === "executed").length;
   const setupFailed = scenarioEvidence.filter((e) => e.status === "setup_failed").length;
   const manualRequired = scenarioEvidence.filter((e) => e.status === "manual_required").length;
@@ -1141,7 +1141,7 @@ async function main(): Promise<void> {
   const raceCondition = scenarioEvidence.filter((e) => e.status === "race_condition").length;
   const skipped = scenarioEvidence.filter((e) => e.status === "skipped").length;
 
-  // Build matrix evidence
+  // Bygg matrise-bevis
   const matrixEvidence: MatrixEvidence = {
     runId,
     mode,
@@ -1179,10 +1179,10 @@ async function main(): Promise<void> {
     jsonEventsPath: logger.writeJsonEvents(),
   };
 
-  // Save matrix evidence
+  // Lagre matrise-bevis
   const matrixFile = writeJson(`matrix-${mode}-${slugTime()}.json`, matrixEvidence);
 
-  // Print summary
+  // Skriv ut oppsummering
   logger.printSummary({
     total: scenarioEvidence.length,
     executed,
@@ -1201,12 +1201,12 @@ async function main(): Promise<void> {
     logger.info(`${classification}: ${count}`);
   }
 
-  // Disconnect Mongo
+  // Koble fra Mongo
   if (mongoConnected) {
     await mongoose.disconnect();
   }
 
-  // Exit with error if any setup failures
+  // Avslutt med feil hvis noen oppsett feilet
   if (setupFailed > 0) {
     logger.warn(`${setupFailed} scenario(s) had setup failures`);
   }

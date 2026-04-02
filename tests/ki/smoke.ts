@@ -1,8 +1,8 @@
 #!/usr/bin/env tsx
 /// <reference types="node" />
 /**
- * KI smoke tests (HTTP-level).
- * Verifies auth guards and public shared-chat route behavior.
+ * KI røyktester (HTTP-nivå).
+ * Verifiserer auth-vakter og offentlig delt-chat ruteoppførsel.
  */
 import "../helpers/env.js";
 import { BACKEND_URL } from "../helpers/env.js";

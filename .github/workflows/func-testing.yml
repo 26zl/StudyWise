@@ -56,6 +56,28 @@ jobs:
       - name: Build common
         run: pnpm --filter common build
 
+      - name: Create backend .env from secrets
+        run: |
+          cat > backend/.env << 'ENVEOF'
+          MONGO_URI=${{ secrets.MONGO_URI }}
+          REDIS_URL=${{ secrets.REDIS_URL }}
+          CLERK_SECRET_KEY=${{ secrets.CLERK_SECRET_KEY }}
+          ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          COHERE_API_KEY=${{ secrets.COHERE_API_KEY }}
+          PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }}
+          PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }}
+          AUTH_TURNSTILE_GATE_SECRET=${{ secrets.AUTH_TURNSTILE_GATE_SECRET }}
+          WEB_ORIGINS=http://localhost:3000
+          NODE_ENV=test
+          ENVEOF
+
+      - name: Create frontend .env from secrets
+        run: |
+          cat > frontend/.env << 'ENVEOF'
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          ENVEOF
+
       - name: Run Playwright E2E tests
         run: pnpm --filter tests test:e2e -- --project=chromium
         env:

@@ -108,7 +108,7 @@ async function signOut(page: Page): Promise<void> {
     });
     await page.waitForTimeout(2000);
   } catch {
-    // Ignore
+    // Ignorer
   }
 }
 
@@ -140,7 +140,7 @@ test.describe("Group H: Email Update/Conflict", () => {
   test("H01: Update email to existing user's email - blocked", async ({ page }) => {
     const testId = generateTestId();
 
-    // Create first user
+    // Opprett første bruker
     const email1 = `h01-first-${testId}@example.com`;
     const username1 = `h01first${testId.replace(/-/g, "")}`.slice(0, 30);
 
@@ -150,7 +150,7 @@ test.describe("Group H: Email Update/Conflict", () => {
     await page.waitForTimeout(5000);
     await signOut(page);
 
-    // Create second user
+    // Opprett andre bruker
     const email2 = `h01-second-${testId}@example.com`;
     const username2 = `h01second${testId.replace(/-/g, "")}`.slice(0, 30);
 
@@ -162,7 +162,7 @@ test.describe("Group H: Email Update/Conflict", () => {
       scenarioId: "H01",
       timestamp: new Date().toISOString(),
       originalEmail: email2,
-      newEmail: email1, // Try to change to first user's email
+      newEmail: email1, // Prøv å endre til første brukers e-post
       clerkUserId: await getClerkUserId(page),
       meStatusBefore: null,
       meStatusAfter: null,
@@ -172,23 +172,23 @@ test.describe("Group H: Email Update/Conflict", () => {
       classification: "pending",
     };
 
-    // Navigate to profile settings
+    // Naviger til profilinnstillinger
     await page.goto("/profil");
     await page.waitForTimeout(2000);
 
-    // Try to find email update UI
+    // Prøv å finne e-postoppdaterings-UI
     const profileContent = await page.content();
     const hasProfilePage = page.url().includes("profil") && !page.url().includes("sign-in");
 
     if (hasProfilePage) {
-      // Check if we can see current email
+      // Sjekk om vi kan se gjeldende e-post
       const emailVisible = profileContent.includes(email2.split("@")[0]) || 
                           await page.locator(`text=${email2}`).isVisible({ timeout: 3000 }).catch(() => false);
 
       evidence.meStatusBefore = emailVisible ? 200 : 0;
 
-      // Note: Actually changing email in Clerk requires email verification
-      // We mainly verify the profile page shows correct email
+      // Merk: Å faktisk endre e-post i Clerk krever e-postverifisering
+      // Vi verifiserer hovedsakelig at profilsiden viser riktig e-post
       evidence.classification = emailVisible ? "PROFILE_SHOWS_CORRECT_EMAIL" : "EMAIL_NOT_VISIBLE";
     } else {
       evidence.classification = "PROFILE_PAGE_NOT_ACCESSIBLE";
@@ -196,12 +196,8 @@ test.describe("Group H: Email Update/Conflict", () => {
 
     saveEvidence(evidence);
 
-    // Profile page should be accessible if signup completed
-    // If signup didn't complete (Clerk testing token limitation), skip strict assertion
-    if (evidence.classification === "PROFILE_PAGE_NOT_ACCESSIBLE") {
-      expect(true).toBeTruthy(); // Evidence captured
-      return;
-    }
+    // Hopp over hvis profilsiden ikke er tilgjengelig (signup fullførte ikke)
+    test.skip(evidence.classification === "PROFILE_PAGE_NOT_ACCESSIBLE", "Signup fullførte ikke — Clerk testing token-begrensning");
     expect(hasProfilePage).toBeTruthy();
   });
 
@@ -215,7 +211,7 @@ test.describe("Group H: Email Update/Conflict", () => {
     await fillSignupForm(page, testEmail, testUsername, TEST_PASSWORD);
     await page.waitForTimeout(5000);
 
-    // Get initial backend state
+    // Hent initial backend-tilstand
     const meBefore = await callMeEndpoint(page);
     const userBefore = meBefore.status === 200 && typeof meBefore.body === "object" && meBefore.body !== null
       ? (meBefore.body as { user?: { email?: string; brukernavn?: string } }).user
@@ -224,18 +220,18 @@ test.describe("Group H: Email Update/Conflict", () => {
     const emailBefore = userBefore?.email;
     const usernameBefore = userBefore?.brukernavn;
 
-    // Navigate to profile and verify backend state matches
+    // Naviger til profil og verifiser at backend-tilstand stemmer
     await page.goto("/profil");
     await page.waitForTimeout(2000);
 
     const clerkEmail = await getClerkUserEmail(page);
 
-    // Backend email should match Clerk email
+    // Backend-e-post skal matche Clerk-e-post
     if (emailBefore && clerkEmail) {
       expect(emailBefore).toBe(clerkEmail);
     }
 
-    // Verify consistency after page navigation
+    // Verifiser konsistens etter sidenavigasjon
     await page.goto("/dashboard");
     await page.waitForTimeout(2000);
 
@@ -244,7 +240,7 @@ test.describe("Group H: Email Update/Conflict", () => {
       ? (meAfterNav.body as { user?: { email?: string; brukernavn?: string } }).user
       : null;
 
-    // Should still be same user with same data
+    // Skal fortsatt være samme bruker med samme data
     expect(userAfterNav?.email).toBe(emailBefore);
     expect(userAfterNav?.brukernavn).toBe(usernameBefore);
   });
@@ -259,28 +255,25 @@ test.describe("Group H: Email Update/Conflict", () => {
     await fillSignupForm(page, testEmail, testUsername, TEST_PASSWORD);
     await page.waitForTimeout(5000);
 
-    // Get user data on tab 1
+    // Hent brukerdata i fane 1
     const meResult1 = await callMeEndpoint(page);
 
-    // Skip if signup didn't complete (Clerk testing token limitation)
-    if (meResult1.status !== 200) {
-      expect(true).toBeTruthy();
-      return;
-    }
+    // Hopp over hvis signup ikke fullførte
+    test.skip(meResult1.status !== 200, "Signup fullførte ikke — Clerk testing token-begrensning");
 
-    // Open second tab
+    // Åpne ny fane
     const page2 = await context.newPage();
     await setupClerkTestingToken({ page: page2 });
     await page2.goto("/profil");
     await page2.waitForTimeout(3000);
 
-    // Both tabs should show same user
+    // Begge faner skal vise samme bruker
     const meResult2 = await callMeEndpoint(page2);
 
-    // Tab 2 might not have session if testing tokens don't share state
+    // Fane 2 har kanskje ikke sesjon med testing tokens
     if (meResult2.status !== 200) {
       await page2.close();
-      expect(true).toBeTruthy();
+      test.skip(true, "Fane 2 fikk ikke sesjon — testing tokens deler ikke tilstand");
       return;
     }
 
@@ -306,29 +299,23 @@ test.describe("Group H: Email Update/Conflict", () => {
     await fillSignupForm(page, testEmail, testUsername, TEST_PASSWORD);
     await page.waitForTimeout(5000);
 
-    // First call - should cache
+    // Første kall — skal cache
     const meResult1 = await callMeEndpoint(page);
 
-    // Skip if signup didn't complete (Clerk testing token limitation)
-    if (meResult1.status !== 200) {
-      expect(true).toBeTruthy();
-      return;
-    }
+    // Hopp over hvis signup ikke fullførte
+    test.skip(meResult1.status !== 200, "Signup fullførte ikke — Clerk testing token-begrensning");
 
-    // Navigate away and back
+    // Naviger bort og tilbake
     await page.goto("/");
     await page.waitForTimeout(1000);
     await page.goto("/dashboard");
     await page.waitForTimeout(2000);
 
-    // Second call - might use cache
+    // Andre kall — kan bruke cache
     const meResult2 = await callMeEndpoint(page);
 
-    // If meResult2 failed, session might have expired
-    if (meResult2.status !== 200) {
-      expect(true).toBeTruthy();
-      return;
-    }
+    // Hopp over hvis sesjonen utløp
+    test.skip(meResult2.status !== 200, "Sesjonen utløp under navigasjon");
 
     const user1 = typeof meResult1.body === "object" && meResult1.body !== null
       ? (meResult1.body as { user?: { id?: string; brukernavn?: string } }).user
@@ -337,13 +324,13 @@ test.describe("Group H: Email Update/Conflict", () => {
       ? (meResult2.body as { user?: { id?: string; brukernavn?: string } }).user
       : null;
 
-    // Data should be consistent
+    // Data skal være konsistent
     expect(user1?.id).toBe(user2?.id);
     expect(user1?.brukernavn).toBe(user2?.brukernavn);
 
-    // Force refetch by using react-query invalidation (via window)
+    // Tving refetch ved å bruke react-query-invalidering (via window)
     await page.evaluate(async () => {
-      // Try to invalidate queries if react-query is accessible
+      // Prøv å invalidere spørringer hvis react-query er tilgjengelig
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const queryClient = (window as any).__REACT_QUERY_DEVTOOLS__?.queryClient;
       if (queryClient) {
@@ -353,20 +340,17 @@ test.describe("Group H: Email Update/Conflict", () => {
 
     await page.waitForTimeout(500);
 
-    // Third call after potential invalidation
+    // Tredje kall etter potensiell invalidering
     const meResult3 = await callMeEndpoint(page);
 
-    // If meResult3 failed, session might have expired
-    if (meResult3.status !== 200) {
-      expect(true).toBeTruthy();
-      return;
-    }
+    // Hopp over hvis sesjonen utløp
+    test.skip(meResult3.status !== 200, "Sesjonen utløp etter cache-invalidering");
 
     const user3 = typeof meResult3.body === "object" && meResult3.body !== null
       ? (meResult3.body as { user?: { id?: string } }).user
       : null;
 
-    // Still same user
+    // Fortsatt samme bruker
     expect(user1?.id).toBe(user3?.id);
   });
 });

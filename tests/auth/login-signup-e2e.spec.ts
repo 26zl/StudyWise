@@ -101,12 +101,12 @@ async function signOut(page: Page): Promise<void> {
     });
     await page.waitForTimeout(2000);
   } catch {
-    // Ignore signout errors
+    // Ignorer utloggingsfeil
   }
 }
 
 async function fillSignupForm(page: Page, email: string, username: string, password: string): Promise<void> {
-  // Wait for Clerk form
+  // Vent på Clerk-skjema
   await page.waitForSelector('input[name="emailAddress"], input[type="email"]', { timeout: 15000 }).catch(() => {});
 
   const emailInput = page.locator('input[name="emailAddress"], input[type="email"]').first();
@@ -138,7 +138,7 @@ async function fillSigninForm(page: Page, email: string, password: string): Prom
     await emailInput.fill(email);
   }
 
-  // Click continue to get to password step
+  // Klikk fortsett for å komme til passord-steget
   const continueButton = page.locator('button:has-text("Continue"), button:has-text("Fortsett")').first();
   if (await continueButton.isVisible({ timeout: 3000 }).catch(() => false)) {
     await continueButton.click();
@@ -172,11 +172,11 @@ test.describe("Group B: Login vs Signup Confusion", () => {
 
     await setupClerkTestingToken({ page });
 
-    // Step 1: Sign up
+    // Steg 1: Registrering
     await page.goto("/auth/sign-up");
     await fillSignupForm(page, testEmail, testUsername, TEST_PASSWORD);
 
-    // Wait for redirect or stay on page
+    // Vent på omdirigering eller forbli på siden
     await page.waitForTimeout(5000);
     const afterSignupUrl = page.url();
 
@@ -196,7 +196,7 @@ test.describe("Group B: Login vs Signup Confusion", () => {
       uiState: afterSignupUrl.includes("dashboard") ? "dashboard" : "other",
     });
 
-    // Step 2: Sign out
+    // Steg 2: Logg ut
     await signOut(page);
     evidence.steps.push({
       step: "signout",
@@ -208,7 +208,7 @@ test.describe("Group B: Login vs Signup Confusion", () => {
       uiState: "signed_out",
     });
 
-    // Step 3: Sign in with same credentials
+    // Steg 3: Logg inn med samme legitimasjon
     await page.goto("/auth/sign-in");
     await fillSigninForm(page, testEmail, TEST_PASSWORD);
     await page.waitForTimeout(5000);
@@ -230,7 +230,7 @@ test.describe("Group B: Login vs Signup Confusion", () => {
       uiState: afterSigninUrl.includes("dashboard") ? "dashboard" : "other",
     });
 
-    // Classification
+    // Klassifisering
     const sameClerkUser = clerkUserIdAfterSignup && clerkUserIdAfterSignin && clerkUserIdAfterSignup === clerkUserIdAfterSignin;
     const sameLocalUser = localUserIdAfterSignup && localUserIdAfterSignin && localUserIdAfterSignup === localUserIdAfterSignin;
 
@@ -246,13 +246,10 @@ test.describe("Group B: Login vs Signup Confusion", () => {
 
     saveEvidence(evidence);
 
-    // If signup didn't complete (Clerk testing token limitation), skip strict assertions
-    if (!clerkUserIdAfterSignup) {
-      expect(true).toBeTruthy(); // Evidence captured
-      return;
-    }
+    // Hopp over hvis signup ikke fullførte (Clerk testing token-begrensning)
+    test.skip(!clerkUserIdAfterSignup, "Signup fullførte ikke — Clerk testing token-begrensning");
 
-    // Assertions for when signup completed
+    // Assertions når registreringen fullførte
     expect(sameClerkUser).toBeTruthy();
     expect(sameLocalUser).toBeTruthy();
     expect(afterSigninUrl).toContain("dashboard");
@@ -273,7 +270,7 @@ test.describe("Group B: Login vs Signup Confusion", () => {
 
     await setupClerkTestingToken({ page });
 
-    // Step 1: Sign up first time
+    // Steg 1: Registrer for første gang
     await page.goto("/auth/sign-up");
     await fillSignupForm(page, testEmail, testUsername, TEST_PASSWORD);
     await page.waitForTimeout(5000);
@@ -289,15 +286,15 @@ test.describe("Group B: Login vs Signup Confusion", () => {
       uiState: page.url().includes("dashboard") ? "dashboard" : "signup",
     });
 
-    // Step 2: Sign out
+    // Steg 2: Logg ut
     await signOut(page);
 
-    // Step 3: Try to sign up again with same email
+    // Steg 3: Forsøk å registrere igjen med samme e-post
     await page.goto("/auth/sign-up");
     await fillSignupForm(page, testEmail, `${testUsername}2`, TEST_PASSWORD);
     await page.waitForTimeout(3000);
 
-    // Check for error messages
+    // Sjekk for feilmeldinger
     const errorTexts = await page.locator('[data-clerk-field-error], .cl-formFieldErrorText, [role="alert"]')
       .allTextContents()
       .catch(() => []);
@@ -323,7 +320,7 @@ test.describe("Group B: Login vs Signup Confusion", () => {
 
     saveEvidence(evidence);
 
-    // Assertions - we expect signup to be blocked
+    // Assertions — vi forventer at registreringen blokkeres
     expect(blocked).toBeTruthy();
   });
 
@@ -334,18 +331,18 @@ test.describe("Group B: Login vs Signup Confusion", () => {
 
     await setupClerkTestingToken({ page });
 
-    // Create initial account
+    // Opprett første konto
     await page.goto("/auth/sign-up");
     await fillSignupForm(page, testEmail, testUsername, TEST_PASSWORD);
     await page.waitForTimeout(5000);
     await signOut(page);
 
-    // Try signup with same email
+    // Forsøk registrering med samme e-post
     await page.goto("/auth/sign-up");
     await fillSignupForm(page, testEmail, `${testUsername}new`, TEST_PASSWORD);
     await page.waitForTimeout(3000);
 
-    // Check for clear error or redirect
+    // Sjekk for tydelig feilmelding eller omdirigering
     const errorVisible = await page.locator('[data-clerk-field-error], .cl-formFieldErrorText, [role="alert"]')
       .first()
       .isVisible({ timeout: 5000 })
@@ -353,7 +350,7 @@ test.describe("Group B: Login vs Signup Confusion", () => {
 
     const redirectedToSignin = page.url().includes("sign-in");
 
-    // Either error is shown OR user is redirected to sign-in
+    // Enten vises feilmelding ELLER bruker omdirigeres til innlogging
     expect(errorVisible || redirectedToSignin).toBeTruthy();
   });
 
@@ -364,7 +361,7 @@ test.describe("Group B: Login vs Signup Confusion", () => {
 
     await setupClerkTestingToken({ page });
 
-    // Create account
+    // Opprett konto
     await page.goto("/auth/sign-up");
     await fillSignupForm(page, testEmail, testUsername, TEST_PASSWORD);
     await page.waitForTimeout(5000);
@@ -377,29 +374,26 @@ test.describe("Group B: Login vs Signup Confusion", () => {
 
     await signOut(page);
 
-    // Attempt signup with same email
+    // Forsøk registrering med samme e-post
     await page.goto("/auth/sign-up");
     await fillSignupForm(page, testEmail, `${testUsername}diff`, TEST_PASSWORD);
     await page.waitForTimeout(5000);
 
     const secondClerkId = await getClerkUserId(page);
 
-    // If we got silently logged in as the same user without clear indication, that's a problem
+    // Hvis vi ble stille logget inn som samme bruker uten tydelig indikasjon, er det et problem
     const silentReuse = secondClerkId && secondClerkId === firstClerkId && page.url().includes("dashboard");
 
-    // Check if there's any indication to user about existing account
+    // Sjekk om det finnes noen indikasjon til bruker om eksisterende konto
     const hasAccountExistsWarning = await page.locator('text=/already|existing|exist|bruk|allerede/i')
       .first()
       .isVisible({ timeout: 3000 })
       .catch(() => false);
 
-    // Silent reuse without warning is bad
-    if (silentReuse && !hasAccountExistsWarning) {
-      // This would be a UX issue - user thinks they registered but actually logged in
+    // Stille gjenbruk uten advarsel er et UX-problem
+    if (silentReuse) {
       expect(hasAccountExistsWarning).toBeTruthy();
-    } else {
-      // Either blocked or has warning - both are OK
-      expect(true).toBeTruthy();
     }
+    // Blokkert eller har advarsel — begge er OK
   });
 });

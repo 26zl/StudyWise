@@ -106,7 +106,7 @@ function isUsernameDuplicateKeyError(error: unknown): boolean {
   return message.includes("username_normalized_unique");
 }
 
-/** OAuth account conflict result type. */
+/** Resultattype for OAuth-kontokonflikt. */
 export type OAuthAccountConflictResult = {
   __oauthAccountConflict: true;
   provider: OAuthProvider;
@@ -119,7 +119,7 @@ export type OAuthMetadataMissingResult = {
   provider: Extract<AuthProvider, "google" | "microsoft">;
 };
 
-/** Type-guard for OAuthAccountConflictResult. */
+/** Typevakt for OAuthAccountConflictResult. */
 export function isOAuthAccountConflict(
   result:
     | IUser
@@ -137,7 +137,7 @@ export function isOAuthAccountConflict(
   );
 }
 
-/** Type-guard for OAuthMetadataMissingResult. */
+/** Typevakt for OAuthMetadataMissingResult. */
 export function isOAuthMetadataMissing(
   result:
     | IUser
@@ -803,13 +803,13 @@ export interface UserDeletedResult {
   __userDeleted: true;
 }
 
-/** Username conflict result type. */
+/** Resultattype for brukernavn-konflikt. */
 export type UsernameConflictResult = {
   __usernameConflict: true;
   username: string;
 };
 
-/** Type-guard for AccountConflictResult. */
+/** Typevakt for AccountConflictResult. */
 export function isAccountConflict(
   result:
     | IUser
@@ -827,7 +827,7 @@ export function isAccountConflict(
   );
 }
 
-/** Type-guard for UserDeletedResult. */
+/** Typevakt for UserDeletedResult. */
 export function isUserDeleted(
   result:
     | IUser
@@ -843,7 +843,7 @@ export function isUserDeleted(
   );
 }
 
-/** Type-guard for UsernameConflictResult. */
+/** Typevakt for UsernameConflictResult. */
 export function isUsernameConflict(
   result:
     | IUser

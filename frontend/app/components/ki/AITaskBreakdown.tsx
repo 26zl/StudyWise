@@ -544,9 +544,9 @@ export function AITaskBreakdown({
                     </div>
                   </div>
                 ) : (
-                  // View Mode
+                  // Visningsmodus
                   <div className="flex items-start gap-3">
-                    {/* Checkbox */}
+                    {/* Avkryssingsboks */}
                     {task.approved && (
                       <button
                         type="button"
