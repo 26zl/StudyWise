@@ -64,6 +64,17 @@ jobs:
           [ -z "${{ secrets.CLERK_SECRET_KEY }}" ] && missing="$missing CLERK_SECRET_KEY"
           [ -z "${{ secrets.ENCRYPTION_KEY }}" ] && missing="$missing ENCRYPTION_KEY"
           [ -z "${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}" ] && missing="$missing NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"
+          [ -z "${{ secrets.ANTHROPIC_API_KEY }}" ] && missing="$missing ANTHROPIC_API_KEY"
+          [ -z "${{ secrets.COHERE_API_KEY }}" ] && missing="$missing COHERE_API_KEY"
+          [ -z "${{ secrets.PINECONE_API_KEY }}" ] && missing="$missing PINECONE_API_KEY"
+          [ -z "${{ secrets.PINECONE_INDEX_NAME }}" ] && missing="$missing PINECONE_INDEX_NAME"
+          [ -z "${{ secrets.AUTH_TURNSTILE_GATE_SECRET }}" ] && missing="$missing AUTH_TURNSTILE_GATE_SECRET"
+          [ -z "${{ secrets.TURNSTILE_SECRET_KEY }}" ] && missing="$missing TURNSTILE_SECRET_KEY"
+          [ -z "${{ secrets.AUTH_TURNSTILE_SECRET_KEY }}" ] && missing="$missing AUTH_TURNSTILE_SECRET_KEY"
+          [ -z "${{ secrets.CONTACT_WORKER_URL }}" ] && missing="$missing CONTACT_WORKER_URL"
+          [ -z "${{ secrets.CONTACT_WORKER_SECRET }}" ] && missing="$missing CONTACT_WORKER_SECRET"
+          [ -z "${{ secrets.CONTACT_TO_EMAIL }}" ] && missing="$missing CONTACT_TO_EMAIL"
+          [ -z "${{ secrets.CONTACT_FROM_EMAIL }}" ] && missing="$missing CONTACT_FROM_EMAIL"
           if [ -n "$missing" ]; then
             echo "::error::Missing required secrets:$missing"
             exit 1
@@ -73,6 +84,9 @@ jobs:
       - name: Create backend .env from secrets
         run: |
           cat > backend/.env <<ENVEOF
+          PORT=4000
+          NODE_ENV=test
+          LOG_LEVEL=info
           MONGO_URI=${{ secrets.MONGO_URI }}
           REDIS_URL=${{ secrets.REDIS_URL }}
           CLERK_SECRET_KEY=${{ secrets.CLERK_SECRET_KEY }}
@@ -82,11 +96,15 @@ jobs:
           PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }}
           PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }}
           AUTH_TURNSTILE_GATE_SECRET=${{ secrets.AUTH_TURNSTILE_GATE_SECRET }}
+          TURNSTILE_SECRET_KEY=${{ secrets.TURNSTILE_SECRET_KEY }}
+          AUTH_TURNSTILE_SECRET_KEY=${{ secrets.AUTH_TURNSTILE_SECRET_KEY }}
+          CONTACT_WORKER_URL=${{ secrets.CONTACT_WORKER_URL }}
+          CONTACT_WORKER_SECRET=${{ secrets.CONTACT_WORKER_SECRET }}
+          CONTACT_TO_EMAIL=${{ secrets.CONTACT_TO_EMAIL }}
+          CONTACT_FROM_EMAIL=${{ secrets.CONTACT_FROM_EMAIL }}
           WEB_ORIGINS=http://localhost:3000
           ENABLE_DIAGNOSTICS=true
-          NODE_ENV=test
           ENVEOF
-          # Fjern innrykk fra heredoc-linjer
           sed -i 's/^[[:space:]]*//' backend/.env
           echo "Backend .env created with $(wc -l < backend/.env) lines"
           echo "Keys found: $(grep -c '=' backend/.env)"
