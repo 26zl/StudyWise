@@ -82,45 +82,64 @@ jobs:
           echo "All required secrets are configured"
 
       - name: Create backend .env from secrets
+        env:
+          S_MONGO_URI: ${{ secrets.MONGO_URI }}
+          S_REDIS_URL: ${{ secrets.REDIS_URL }}
+          S_CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          S_ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          S_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          S_COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+          S_PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          S_PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
+          S_AUTH_TURNSTILE_GATE_SECRET: ${{ secrets.AUTH_TURNSTILE_GATE_SECRET }}
+          S_TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          S_AUTH_TURNSTILE_SECRET_KEY: ${{ secrets.AUTH_TURNSTILE_SECRET_KEY }}
+          S_CONTACT_WORKER_URL: ${{ secrets.CONTACT_WORKER_URL }}
+          S_CONTACT_WORKER_SECRET: ${{ secrets.CONTACT_WORKER_SECRET }}
+          S_CONTACT_TO_EMAIL: ${{ secrets.CONTACT_TO_EMAIL }}
+          S_CONTACT_FROM_EMAIL: ${{ secrets.CONTACT_FROM_EMAIL }}
         run: |
-          cat > backend/.env <<ENVEOF
-          PORT=4000
-          NODE_ENV=test
-          LOG_LEVEL=info
-          MONGO_URI=${{ secrets.MONGO_URI }}
-          REDIS_URL=${{ secrets.REDIS_URL }}
-          CLERK_SECRET_KEY=${{ secrets.CLERK_SECRET_KEY }}
-          ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}
-          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
-          COHERE_API_KEY=${{ secrets.COHERE_API_KEY }}
-          PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }}
-          PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }}
-          AUTH_TURNSTILE_GATE_SECRET=${{ secrets.AUTH_TURNSTILE_GATE_SECRET }}
-          TURNSTILE_SECRET_KEY=${{ secrets.TURNSTILE_SECRET_KEY }}
-          AUTH_TURNSTILE_SECRET_KEY=${{ secrets.AUTH_TURNSTILE_SECRET_KEY }}
-          CONTACT_WORKER_URL=${{ secrets.CONTACT_WORKER_URL }}
-          CONTACT_WORKER_SECRET=${{ secrets.CONTACT_WORKER_SECRET }}
-          CONTACT_TO_EMAIL=${{ secrets.CONTACT_TO_EMAIL }}
-          CONTACT_FROM_EMAIL=${{ secrets.CONTACT_FROM_EMAIL }}
-          WEB_ORIGINS=http://localhost:3000
-          ENABLE_DIAGNOSTICS=true
-          ENVEOF
-          sed -i 's/^[[:space:]]*//' backend/.env
+          {
+            printf '%s\n' "PORT=4000"
+            printf '%s\n' "NODE_ENV=test"
+            printf '%s\n' "LOG_LEVEL=info"
+            printf '%s\n' "WEB_ORIGINS=http://localhost:3000"
+            printf '%s\n' "ENABLE_DIAGNOSTICS=true"
+            printf 'MONGO_URI=%s\n' "$S_MONGO_URI"
+            printf 'REDIS_URL=%s\n' "$S_REDIS_URL"
+            printf 'CLERK_SECRET_KEY=%s\n' "$S_CLERK_SECRET_KEY"
+            printf 'ENCRYPTION_KEY=%s\n' "$S_ENCRYPTION_KEY"
+            printf 'ANTHROPIC_API_KEY=%s\n' "$S_ANTHROPIC_API_KEY"
+            printf 'COHERE_API_KEY=%s\n' "$S_COHERE_API_KEY"
+            printf 'PINECONE_API_KEY=%s\n' "$S_PINECONE_API_KEY"
+            printf 'PINECONE_INDEX_NAME=%s\n' "$S_PINECONE_INDEX_NAME"
+            printf 'AUTH_TURNSTILE_GATE_SECRET=%s\n' "$S_AUTH_TURNSTILE_GATE_SECRET"
+            printf 'TURNSTILE_SECRET_KEY=%s\n' "$S_TURNSTILE_SECRET_KEY"
+            printf 'AUTH_TURNSTILE_SECRET_KEY=%s\n' "$S_AUTH_TURNSTILE_SECRET_KEY"
+            printf 'CONTACT_WORKER_URL=%s\n' "$S_CONTACT_WORKER_URL"
+            printf 'CONTACT_WORKER_SECRET=%s\n' "$S_CONTACT_WORKER_SECRET"
+            printf 'CONTACT_TO_EMAIL=%s\n' "$S_CONTACT_TO_EMAIL"
+            printf 'CONTACT_FROM_EMAIL=%s\n' "$S_CONTACT_FROM_EMAIL"
+          } > backend/.env
           echo "Backend .env created with $(wc -l < backend/.env) lines"
           echo "Keys found: $(grep -c '=' backend/.env)"
 
       - name: Create frontend .env from secrets
+        env:
+          S_CLERK_PK: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
         run: |
-          cat > frontend/.env <<ENVEOF
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
-          ENVEOF
-          sed -i 's/^[[:space:]]*//' frontend/.env
+          printf 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=%s\n' "$S_CLERK_PK" > frontend/.env
           echo "Frontend .env created with $(wc -l < frontend/.env) lines"
 
       - name: Run Playwright E2E tests
         run: pnpm --filter tests test:e2e -- --project=chromium
         env:
           CI: "true"
+          PORT: "4000"
+          NODE_ENV: "test"
+          LOG_LEVEL: "info"
+          WEB_ORIGINS: "http://localhost:3000"
+          ENABLE_DIAGNOSTICS: "true"
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
           CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
@@ -132,6 +151,12 @@ jobs:
           PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
           PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
           AUTH_TURNSTILE_GATE_SECRET: ${{ secrets.AUTH_TURNSTILE_GATE_SECRET }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          AUTH_TURNSTILE_SECRET_KEY: ${{ secrets.AUTH_TURNSTILE_SECRET_KEY }}
+          CONTACT_WORKER_URL: ${{ secrets.CONTACT_WORKER_URL }}
+          CONTACT_WORKER_SECRET: ${{ secrets.CONTACT_WORKER_SECRET }}
+          CONTACT_TO_EMAIL: ${{ secrets.CONTACT_TO_EMAIL }}
+          CONTACT_FROM_EMAIL: ${{ secrets.CONTACT_FROM_EMAIL }}
 
       - name: Upload Playwright report
         if: always()
