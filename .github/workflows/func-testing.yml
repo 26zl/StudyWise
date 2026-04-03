@@ -131,6 +131,36 @@ jobs:
           printf 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=%s\n' "$S_CLERK_PK" > frontend/.env
           echo "Frontend .env created with $(wc -l < frontend/.env) lines"
 
+      - name: Debug backend startup
+        run: |
+          echo "=== Backend .env nøkler ==="
+          grep -oP '^[A-Z_]+(?==)' backend/.env | sort
+          echo ""
+          echo "=== Forsøker backend-oppstart (30s timeout) ==="
+          cd backend
+          timeout 30 npx tsx src/index.ts 2>&1 || echo "Backend avsluttet med kode $?"
+        env:
+          PORT: "4000"
+          NODE_ENV: "test"
+          LOG_LEVEL: "info"
+          WEB_ORIGINS: "http://localhost:3000"
+          ENABLE_DIAGNOSTICS: "true"
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
+          AUTH_TURNSTILE_GATE_SECRET: ${{ secrets.AUTH_TURNSTILE_GATE_SECRET }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          AUTH_TURNSTILE_SECRET_KEY: ${{ secrets.AUTH_TURNSTILE_SECRET_KEY }}
+          CONTACT_WORKER_URL: ${{ secrets.CONTACT_WORKER_URL }}
+          CONTACT_WORKER_SECRET: ${{ secrets.CONTACT_WORKER_SECRET }}
+          CONTACT_TO_EMAIL: ${{ secrets.CONTACT_TO_EMAIL }}
+          CONTACT_FROM_EMAIL: ${{ secrets.CONTACT_FROM_EMAIL }}
+
       - name: Run Playwright E2E tests
         run: pnpm --filter tests test:e2e -- --project=chromium
         env:
