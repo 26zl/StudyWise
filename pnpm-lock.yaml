@@ -28,8 +28,8 @@ importers:
         specifier: ^9.2.1
         version: 9.2.1
       dotenv:
-        specifier: 17.3.1
-        version: 17.3.1
+        specifier: ^17.4.0
+        version: 17.4.0
       kill-port:
         specifier: ^2.0.1
         version: 2.0.1
@@ -82,8 +82,8 @@ importers:
         specifier: ^5.94.0
         version: 5.94.0(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)
       dotenv:
-        specifier: 17.3.1
-        version: 17.3.1
+        specifier: ^17.4.0
+        version: 17.4.0
       express:
         specifier: ^5.2.1
         version: 5.2.1
@@ -2679,10 +2679,6 @@ packages:
 
   dotenv@17.2.2:
     resolution: {integrity: sha512-Sf2LSQP+bOlhKWWyhFsn0UsfdK/kCWRv1iuA2gXAwt3dyNabr6QSj00I2V10pidqz69soatm9ZwZvpQMTIOd5Q==}
-    engines: {node: '>=12'}
-
-  dotenv@17.3.1:
-    resolution: {integrity: sha512-IO8C/dzEb6O3F9/twg6ZLXz164a2fhTnEWb95H23Dm4OuN+92NmEAlTrupP9VW6Jm3sO26tQlqyvyi4CsnY9GA==}
     engines: {node: '>=12'}
 
   dotenv@17.4.0:
@@ -7175,8 +7171,6 @@ snapshots:
       domhandler: 5.0.3
 
   dotenv@17.2.2: {}
-
-  dotenv@17.3.1: {}
 
   dotenv@17.4.0: {}
 
