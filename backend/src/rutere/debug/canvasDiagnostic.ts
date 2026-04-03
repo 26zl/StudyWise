@@ -3,7 +3,7 @@
  *
  * GET /api/debug/canvas-content?q=<søkeord>
  * Viser lagrede chunks i MongoDB, søkeresultater og filtilgjengelighet for en bruker.
- * Kun tilgjengelig i utvikling (ikke prod).
+ * Krever: NODE_ENV !== "production" OG ENABLE_DIAGNOSTICS=true
  */
 
 import { Router, type Request, type Response } from "express";
@@ -18,8 +18,8 @@ import { isProd } from "../../utils/env.js";
 const router = Router();
 
 router.get("/canvas-content", async (req: Request, res: Response) => {
-  if (isProd) {
-    return res.status(404).json({ error: "Not available in production" });
+  if (isProd || process.env.ENABLE_DIAGNOSTICS !== "true") {
+    return res.status(404).json({ error: "Not available" });
   }
 
   if (!req.user?.id) {

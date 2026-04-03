@@ -961,7 +961,7 @@ async function main(): Promise<void> {
   const diagnosticsEnabled = await verifyBackendReady();
   if (!diagnosticsEnabled) {
     throw new Error(
-      "Backend not ready or auth diagnostics disabled. Ensure backend runs on localhost:4000 with ENABLE_AUTH_DIAGNOSTICS=true.",
+      "Backend not ready or auth diagnostics disabled. Ensure backend runs on localhost:4000 with ENABLE_DIAGNOSTICS=true.",
     );
   }
 

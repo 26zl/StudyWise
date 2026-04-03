@@ -19,7 +19,7 @@
  * Bruk: pnpm test:auth:repro
  * Krever:
  *   - Backend kjørende på localhost:4000
- *   - ENABLE_AUTH_DIAGNOSTICS=true i backend/.env
+ *   - ENABLE_DIAGNOSTICS=true i backend/.env
  *   - CLERK_SECRET_KEY i backend/.env
  */
 import "../helpers/env.js";
@@ -116,7 +116,7 @@ async function main() {
       log("  Backend is healthy");
     } catch {
       log(`  ERROR: Backend not reachable at ${BACKEND_URL}`);
-      log(`  Make sure backend is running with ENABLE_AUTH_DIAGNOSTICS=true`);
+      log(`  Make sure backend is running with ENABLE_DIAGNOSTICS=true`);
       process.exit(1);
     }
 
@@ -166,7 +166,7 @@ async function main() {
     evidence.flowResultA = resultA.body as Evidence["flowResultA"];
 
     if (resultA.status === 404) {
-      log("\n  ERROR: Endpoint returned 404. Is ENABLE_AUTH_DIAGNOSTICS=true set in backend/.env?");
+      log("\n  ERROR: Endpoint returned 404. Is ENABLE_DIAGNOSTICS=true set in backend/.env?");
       evidence.classification = "ENDPOINT_NOT_ENABLED";
       printSummary(evidence);
       return;

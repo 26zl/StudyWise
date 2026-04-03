@@ -23,7 +23,7 @@ import { fileURLToPath } from "node:url";
  * Testen er designet for å utvides med OAuth senere.
  *
  * Forutsetninger:
- * - Backend kjører med ENABLE_AUTH_DIAGNOSTICS=true
+ * - Backend kjører med ENABLE_DIAGNOSTICS=true
  * - Frontend kjører på localhost:3000
  * - Clerk dev-instans (pk_test_) tillater e-post/passord-registrering
  */

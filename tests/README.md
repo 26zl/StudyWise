@@ -64,7 +64,7 @@ tests/
 
 - **DB-sjekk** (`check-db.ts`): Krever `MONGO_URI` i `backend/.env`
 - **Auth/KI/Canvas smoke**: Krever backend kjørende på `http://localhost:4000`
-- **API-repro** (`repro-api.ts`): Krever backend kjørende med `ENABLE_AUTH_DIAGNOSTICS=true` + `CLERK_SECRET_KEY`
+- **API-repro** (`repro-api.ts`): Krever backend kjørende med `ENABLE_DIAGNOSTICS=true` + `CLERK_SECRET_KEY`
 - **E2E** (`repro-e2e.spec.ts`): Krever backend + frontend kjørende + Clerk publishable key
 - **Valgfritt for KI dypere test**: Sett `TEST_AUTH_BEARER` for å teste `GET /api/ki/models` autentisert
 

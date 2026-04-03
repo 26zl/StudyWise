@@ -1081,7 +1081,7 @@ async function main(): Promise<void> {
   const diagnosticsEnabled = await verifyBackendReady();
   if (!diagnosticsEnabled) {
     logger.error("Backend not ready or diagnostics disabled");
-    throw new Error("Backend must run with ENABLE_AUTH_DIAGNOSTICS=true");
+    throw new Error("Backend must run with ENABLE_DIAGNOSTICS=true");
   }
   logger.success("Backend ready with diagnostics enabled");
 

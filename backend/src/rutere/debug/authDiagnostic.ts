@@ -4,7 +4,7 @@
  * GET /api/debug/auth-diagnostic
  * Returnerer diagnostikkdata om gjeldende autentisert bruker, indekser og potensielle duplikater.
  *
- * Krever: NODE_ENV !== "production" OG ENABLE_AUTH_DIAGNOSTICS=true
+ * Krever: NODE_ENV !== "production" OG ENABLE_DIAGNOSTICS=true
  */
 
 import { Router, type Request, type Response } from "express";
@@ -21,7 +21,7 @@ const testAuthFlowRouter = Router();
 /** Dobbel sjekk: ikke-prod OG eksplisitt miljøvariabel-flagg. */
 function isDiagnosticsEnabled(): boolean {
   if (isProd) return false;
-  return process.env.ENABLE_AUTH_DIAGNOSTICS === "true";
+  return process.env.ENABLE_DIAGNOSTICS === "true";
 }
 
 /** Trygg brukerprojeksjon — eksponerer aldri tokens, kun identitet og metadata-felt. */
@@ -250,7 +250,7 @@ router.get("/auth-diagnostic", async (req: Request, res: Response) => {
  * For testing av auth-flyt uten en ekte Clerk JWT-sesjon.
  *
  * Body: { clerkId: string, flowId?: string }
- * Dobbelt-sikret: kun dev + ENABLE_AUTH_DIAGNOSTICS=true
+ * Dobbelt-sikret: kun dev + ENABLE_DIAGNOSTICS=true
  */
 testAuthFlowRouter.post("/test-auth-flow", async (req: Request, res: Response) => {
   if (!isDiagnosticsEnabled()) {
@@ -302,7 +302,7 @@ testAuthFlowRouter.post("/test-auth-flow", async (req: Request, res: Response) =
  * Brukes av auth matrix-testene for å verifisere 409 Conflict-håndtering.
  *
  * Body: { clerkId: string, newUsername: string, flowId?: string }
- * Dobbelt-sikret: kun dev + ENABLE_AUTH_DIAGNOSTICS=true
+ * Dobbelt-sikret: kun dev + ENABLE_DIAGNOSTICS=true
  *
  * Returnerer:
  * - 200 { success: true, user: {...} } ved vellykket oppdatering
