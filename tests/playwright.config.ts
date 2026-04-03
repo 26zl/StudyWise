@@ -41,10 +41,14 @@ export default defineConfig({
   globalSetup: "./auth/global.setup.ts",
   webServer: [
     {
-      command: "pnpm dev:backend",
+      command: process.env.CI
+        ? "pnpm --filter backend tsx src/index.ts"
+        : "pnpm dev:backend",
       url: "http://localhost:4000/health",
       reuseExistingServer: true,
       timeout: 180_000,
+      stdout: "pipe",
+      stderr: "pipe",
       cwd: path.resolve(__dirname, ".."),
     },
     {
@@ -52,6 +56,8 @@ export default defineConfig({
       url: "http://localhost:3000",
       reuseExistingServer: true,
       timeout: 180_000,
+      stdout: "pipe",
+      stderr: "pipe",
       cwd: path.resolve(__dirname, ".."),
     },
   ],

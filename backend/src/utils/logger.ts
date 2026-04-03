@@ -5,6 +5,7 @@
 import pino from "pino";
 
 const isDev = process.env.NODE_ENV !== "production";
+const isCI = !!process.env.CI;
 const ddEnabled = !!process.env.DD_API_KEY;
 
 // Påkrevd av validateEnv ved serverstart; ingen fallback (én sannhetskilde).
@@ -52,7 +53,7 @@ export const logger = pino({
         ],
         remove: true,
     },
-    transport: isDev
+    transport: isDev && !isCI
         ? {
             target: "pino-pretty",
             options: {
