@@ -10,7 +10,7 @@
 STUDYWISE - En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas Instructure.
 **Produksjonsnettside:** <https://www.studwize.page>
 
-> **Utvikling?** Les [CONTRIBUTING.md](./CONTRIBUTING.md) (veileder for bidragsytere) og [AGENTS.md](./AGENTS.md) (arkitektur og teknisk "lovverk").
+> **Utvikling?** Les [CONTRIBUTING.md](./CONTRIBUTING.md) (veileder for bidragsytere).
 
 ## Teknologi & Arkitektur (Monorepo)
 

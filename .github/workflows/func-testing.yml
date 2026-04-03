@@ -72,7 +72,7 @@ jobs:
 
       - name: Create backend .env from secrets
         run: |
-          cat > backend/.env <<'ENVEOF'
+          cat > backend/.env <<ENVEOF
           MONGO_URI=${{ secrets.MONGO_URI }}
           REDIS_URL=${{ secrets.REDIS_URL }}
           CLERK_SECRET_KEY=${{ secrets.CLERK_SECRET_KEY }}
@@ -83,16 +83,20 @@ jobs:
           PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }}
           AUTH_TURNSTILE_GATE_SECRET=${{ secrets.AUTH_TURNSTILE_GATE_SECRET }}
           WEB_ORIGINS=http://localhost:3000
+          ENABLE_DIAGNOSTICS=true
           NODE_ENV=test
           ENVEOF
+          # Fjern innrykk fra heredoc-linjer
+          sed -i 's/^[[:space:]]*//' backend/.env
           echo "Backend .env created with $(wc -l < backend/.env) lines"
           echo "Keys found: $(grep -c '=' backend/.env)"
 
       - name: Create frontend .env from secrets
         run: |
-          cat > frontend/.env <<'ENVEOF'
+          cat > frontend/.env <<ENVEOF
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
           ENVEOF
+          sed -i 's/^[[:space:]]*//' frontend/.env
           echo "Frontend .env created with $(wc -l < frontend/.env) lines"
 
       - name: Run Playwright E2E tests
