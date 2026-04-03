@@ -63,11 +63,17 @@ jobs:
           node-version: 24
           cache: "pnpm"
 
+      - name: Install safe-chain
+        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build common
         run: pnpm --filter common build
+
+      - name: Unit tests
+        run: pnpm test:unit
 
       - name: Typecheck
         run: pnpm typecheck
@@ -111,6 +117,9 @@ jobs:
         with:
           node-version: 24
           cache: "pnpm"
+
+      - name: Install safe-chain
+        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -167,6 +176,9 @@ jobs:
         with:
           node-version: 24
           cache: "pnpm"
+
+      - name: Install safe-chain
+        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/latest/download/install-safe-chain.sh | sh -s -- --ci
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

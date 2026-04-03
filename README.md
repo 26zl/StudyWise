@@ -64,7 +64,13 @@ pnpm typecheck        # Type-check alle pakker
 pnpm lint             # Lint alle pakker
 pnpm build            # Bygg alt (common → backend → frontend → docs)
 
-# Testing
+# Enhetstester (Vitest)
+pnpm test:unit        # Kjør alle enhetstester (common + backend + frontend)
+pnpm test:unit:common    # Kun common
+pnpm test:unit:backend   # Kun backend
+pnpm test:unit:frontend  # Kun frontend
+
+# E2E / Funksjonelle tester (Playwright)
 pnpm test             # Kjør alle testkategorier (auth, KI, canvas)
 pnpm test:auth        # Auth-tester
 pnpm test:auth:e2e    # Playwright E2E (Chromium, Firefox, WebKit)
@@ -85,6 +91,19 @@ pnpm kill:dev             # Stopp alle Node prosesser (Windows)
 ```
 
 ## Testing
+
+### Enhetstester (Vitest)
+
+23 testfiler med ~712 tester fordelt på `common`, `backend` og `frontend`. Testfiler ligger i `__tests__/`-mapper.
+
+```bash
+pnpm test:unit                # Alle enhetstester
+pnpm test:unit:common         # Kun common
+pnpm test:unit:backend        # Kun backend
+pnpm test:unit:frontend       # Kun frontend
+```
+
+### E2E / Funksjonelle tester (Playwright)
 
 ```bash
 # Hovedkommandoer

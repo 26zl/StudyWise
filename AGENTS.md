@@ -99,11 +99,16 @@ pnpm clean:install          # Full reinstall (clean + install + update + build)
 
 ### Tester
 
-Vitest er satt opp for både `frontend` og `backend` (med `supertest`). Det finnes ingen testfiler ennå.
+Vitest er satt opp for `common`, `frontend` og `backend` med 23 testfiler (~712 tester). Testfiler ligger i `__tests__/`-mapper i hver pakke.
 
 ```bash
+pnpm test:unit               # Kjør alle enhetstester (common + backend + frontend)
+pnpm test:unit:common        # Kjør kun common-tester
+pnpm test:unit:backend       # Kjør kun backend-tester
+pnpm test:unit:frontend      # Kjør kun frontend-tester
 pnpm --filter backend test   # Kjør backend-tester (vitest)
 pnpm --filter frontend test  # Kjør frontend-tester (vitest + @testing-library/react)
+pnpm --filter common test    # Kjør common-tester (vitest)
 ```
 
 ### E2E / Funksjonelle tester (Playwright)
@@ -393,7 +398,7 @@ pnpm build   # Bygger common først!
 Kjøres ved push og PR mot `main`. **Actionlint må være grønn før de andre jobbene kjører** (`needs: [actionlint]`):
 
 - **actionlint** – workflow-lint (rask, ingen avhengigheter). Må passere først.
-- **quality** – typecheck, lint, lint:md, verify build
+- **quality** – enhetstester, typecheck, lint, lint:md, verify build (inkluderer safe-chain malware-deteksjon ved `pnpm install`)
 - **dependency-scan** – `pnpm audit --audit-level=high`
 - **secret-scan** – TruffleHog (`trufflesecurity/trufflehog@v3.93.8`) skanner etter lekkede hemmeligheter
 - **sbom** – genererer CycloneDX SBOM (Software Bill of Materials), lastes opp som artefakt
@@ -419,6 +424,10 @@ Deploy (`deploy.yml`) utløses automatisk når Functional Testing er grønn ved 
 ---
 
 ## 7. Sikkerhet og personvern (nulltoleranse)
+
+### CSP (Content Security Policy)
+
+Nonce-basert CSP håndheves per request i `frontend/proxy.ts`. `buildCspValue(nonce)` fra `next.config.js` genererer policyen: produksjon bruker `'nonce-<verdi>'` + `'strict-dynamic'` for script-src, dev faller tilbake til `'unsafe-inline'`. Nonce sendes til layout via `x-nonce` request-header.
 
 ### Ingen hardkoding av hemmeligheter
 

@@ -43,6 +43,7 @@ type SidebarAppErrorStateProps = Pick<
 > & {
   message: string;
   onRetry?: () => void;
+  retryLabel?: string;
 };
 
 export function SidebarAppShell({
@@ -130,6 +131,7 @@ export function SidebarAppErrorState({
   footer,
   message,
   onRetry,
+  retryLabel,
 }: SidebarAppErrorStateProps) {
   const { t } = useLanguage();
   return (
@@ -150,7 +152,7 @@ export function SidebarAppErrorState({
           onClick={onRetry}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
         >
-          {t("common.actions.retry")}
+          {retryLabel ?? t("common.actions.retry")}
         </button>
       ) : null}
     </SidebarAppState>

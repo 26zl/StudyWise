@@ -207,6 +207,7 @@ export default function SamtalehistorikkPage() {
           ? () => { void clerk.signOut({ redirectUrl: "/auth/sign-in" }); }
           : () => { void megQuery.refetch(); }
         }
+        retryLabel={erFatalAuthFeil ? t("common.actions.signOut") : undefined}
       />
     );
   }

@@ -108,11 +108,16 @@ pnpm clean:install          # Full reinstall (clean + install + update + build)
 
 ### Tests
 
-Vitest is configured for both `frontend` and `backend` (with `supertest`). No test files exist yet.
+Vitest is configured for `common`, `frontend`, and `backend` with 23 test files (~712 tests). Test files live in `__tests__/` directories within each package.
 
 ```bash
+pnpm test:unit               # Run all unit tests (common + backend + frontend)
+pnpm test:unit:common        # Run common tests only
+pnpm test:unit:backend       # Run backend tests only
+pnpm test:unit:frontend      # Run frontend tests only
 pnpm --filter backend test   # Run backend tests (vitest)
 pnpm --filter frontend test  # Run frontend tests (vitest + @testing-library/react)
+pnpm --filter common test    # Run common tests (vitest)
 ```
 
 ### E2E / Functional Tests (Playwright)
@@ -384,7 +389,7 @@ No changes to `next.config.js` needed — all `/api/*` routes automatically prox
 ## 6. Git & CI/CD
 
 1. **Stay updated**: Run `git pull origin main` often
-2. **Quality check**: Run `pnpm typecheck`, `pnpm lint`, and `pnpm build` regularly
+2. **Quality check**: Run `pnpm test:unit`, `pnpm typecheck`, `pnpm lint`, and `pnpm build` regularly
 3. NEVER use `npm`. This is a `pnpm` project.
 
 ```bash
@@ -400,7 +405,7 @@ pnpm build  # Builds common package first!
 Runs on push and PRs to `main`. **Actionlint must be green before other jobs run** (`needs: [actionlint]`):
 
 - **actionlint** – workflow lint (fast, no deps). Must pass first.
-- **quality** – typecheck, lint, lint:md, verify build
+- **quality** – unit tests, typecheck, lint, lint:md, verify build (includes safe-chain malware detection on `pnpm install`)
 - **dependency-scan** – `pnpm audit --audit-level=high`
 - **secret-scan** – TruffleHog (`trufflesecurity/trufflehog@v3.93.8`) scans for leaked secrets
 - **sbom** – generates CycloneDX SBOM (Software Bill of Materials), uploaded as artifact
@@ -417,6 +422,10 @@ All jobs have `permissions: contents: read` and `actions: read` (workflow-level 
 ---
 
 ## 7. Security and Privacy (Zero Tolerance)
+
+### CSP (Content Security Policy)
+
+Nonce-based CSP is enforced per request in `frontend/proxy.ts`. `buildCspValue(nonce)` from `next.config.js` generates the policy: production uses `'nonce-<value>'` + `'strict-dynamic'` for script-src, dev falls back to `'unsafe-inline'`. The nonce is passed to layout via the `x-nonce` request header.
 
 ### No Hardcoding of Secrets
 

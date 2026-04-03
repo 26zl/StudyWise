@@ -69,14 +69,16 @@ function getClerkFrontendApiOrigin() {
   }
 }
 
-function buildCspValue() {
+/**
+ * Bygger CSP-verdi med valgfri nonce for script-src.
+ * Kalles fra proxy.ts (per-request nonce) og som fallback i headers() (uten nonce = unsafe-inline).
+ */
+function buildCspValue(nonce) {
   const clerkFrontendApiOrigin = getClerkFrontendApiOrigin();
   const scriptSrc = [
     "'self'",
-    // TODO: Bytt til nonce-basert CSP for å fjerne unsafe-inline i prod.
-    // Clerk og Datadog RUM krever inline scripts; nonce må genereres per request
-    // i Next.js middleware og propageres til alle Script-komponenter.
-    "'unsafe-inline'",
+    // Nonce-basert CSP i prod; unsafe-inline som fallback kun i dev
+    ...(nonce ? [`'nonce-${nonce}'`, "'strict-dynamic'"] : ["'unsafe-inline'"]),
     // unsafe-eval kun i dev (Turbopack source maps) — aldri i prod
     ...(process.env.NODE_ENV !== "production" ? ["'unsafe-eval'"] : []),
     "https://*.clerk.accounts.dev",
@@ -133,6 +135,9 @@ function buildCspValue() {
   ].join("; ");
 }
 
+// Eksporteres for bruk i proxy.ts (nonce-basert CSP per request)
+export { buildCspValue, CLERK_CUSTOM_ORIGINS, getClerkFrontendApiOrigin };
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Datadog RUM: mapper DD_RUM_* (Vercel runtime) til NEXT_PUBLIC_DD_RUM_* (build-time inline).
@@ -155,16 +160,12 @@ const nextConfig = {
   turbopack: {
     root: path.resolve(__dirname, ".."),
   },
-  // Sikkerhetshoder for alle sider
+  // Sikkerhetshoder for alle sider (CSP settes i proxy.ts med per-request nonce)
   async headers() {
     return [
       {
         source: "/:path*",
         headers: [
-          {
-            key: "Content-Security-Policy",
-            value: buildCspValue(),
-          },
           {
             key: "X-Content-Type-Options",
             value: "nosniff",

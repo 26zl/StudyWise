@@ -337,7 +337,7 @@ pnpm kill:dev
 ### Før du committer
 
 ```bash
-pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build
+pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build
 ```
 
 ### Git workflow
