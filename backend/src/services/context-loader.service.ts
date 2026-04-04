@@ -1366,9 +1366,9 @@ async function byggKontekstFraHybridSearch(
 
     // ── File-aware context expansion ──
     // Hent full innhold fra matchede filer (ikke bare oppsummering)
-    const MAX_EXPANDED_CHARS = 23000; // topFile opptil 20k + sekundære opptil 3k
-    const MAX_TOPFILE_EXPANDED_CHARS = 20000;
-    const MAX_SECONDARY_EXPANDED_CHARS = 3000;
+    const MAX_EXPANDED_CHARS = 14000; // topFile opptil 11k + sekundære opptil 1.5k
+    const MAX_TOPFILE_EXPANDED_CHARS = 11000;
+    const MAX_SECONDARY_EXPANDED_CHARS = 1500;
     const expandedChunks: Array<{ text: string; source: typeof filteredResults[0]["source"]; index: number }> = [];
     let totalExpandedChars = 0;
     let filesExpanded = 0;
