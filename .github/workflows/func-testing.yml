@@ -181,16 +181,9 @@ jobs:
         run: pnpm --filter tests test:e2e -- --project=chromium
         env:
           CI: "true"
-          PORT: "4000"
-          NODE_ENV: "test"
-          LOG_LEVEL: "info"
-          WEB_ORIGINS: "http://localhost:3000"
-          ENABLE_DIAGNOSTICS: "true"
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
           CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
-          MONGO_URI: "mongodb://127.0.0.1:27017/studywise?replicaSet=rs0&directConnection=true"
-          REDIS_URL: "redis://127.0.0.1:6379"
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
