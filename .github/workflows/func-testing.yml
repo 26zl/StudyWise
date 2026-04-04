@@ -47,6 +47,56 @@ jobs:
           node-version: 24
           cache: "pnpm"
 
+      - name: Start local test infrastructure
+        run: |
+          docker run -d --name studywise-redis -p 6379:6379 redis:7-alpine --save "" --appendonly no
+          docker run -d --name studywise-mongo -p 27017:27017 mongo:8.0 --replSet rs0 --bind_ip_all
+
+      - name: Initialize local MongoDB replica set
+        run: |
+          redis_ready=""
+          for i in {1..30}; do
+            if docker exec studywise-redis redis-cli ping | grep -q PONG; then
+              redis_ready="1"
+              break
+            fi
+            sleep 2
+          done
+
+          if [ -z "$redis_ready" ]; then
+            echo "::error::Redis ble ikke klar i tide"
+            docker logs studywise-redis
+            exit 1
+          fi
+
+          mongo_ready=""
+          for i in {1..30}; do
+            if docker exec studywise-mongo mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok' | grep -q 1; then
+              mongo_ready="1"
+              break
+            fi
+            sleep 2
+          done
+
+          if [ -z "$mongo_ready" ]; then
+            echo "::error::Mongo ble ikke klar for replika-sett-initiering"
+            docker logs studywise-mongo
+            exit 1
+          fi
+
+          docker exec studywise-mongo mongosh --quiet --eval 'rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "127.0.0.1:27017" }] })'
+
+          for i in {1..30}; do
+            if docker exec studywise-mongo mongosh --quiet --eval 'db.hello().isWritablePrimary ? 1 : 0' | grep -q 1; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "::error::Mongo replica set ble ikke klar i tide"
+          docker logs studywise-mongo
+          exit 1
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -59,8 +109,6 @@ jobs:
       - name: Verify required secrets
         run: |
           missing=""
-          [ -z "${{ secrets.MONGO_URI }}" ] && missing="$missing MONGO_URI"
-          [ -z "${{ secrets.REDIS_URL }}" ] && missing="$missing REDIS_URL"
           [ -z "${{ secrets.CLERK_SECRET_KEY }}" ] && missing="$missing CLERK_SECRET_KEY"
           [ -z "${{ secrets.ENCRYPTION_KEY }}" ] && missing="$missing ENCRYPTION_KEY"
           [ -z "${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}" ] && missing="$missing NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"
@@ -83,8 +131,6 @@ jobs:
 
       - name: Create backend .env from secrets
         env:
-          S_MONGO_URI: ${{ secrets.MONGO_URI }}
-          S_REDIS_URL: ${{ secrets.REDIS_URL }}
           S_CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           S_ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           S_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -105,8 +151,8 @@ jobs:
             printf '%s\n' "LOG_LEVEL=info"
             printf '%s\n' "WEB_ORIGINS=http://localhost:3000"
             printf '%s\n' "ENABLE_DIAGNOSTICS=true"
-            printf 'MONGO_URI=%s\n' "$S_MONGO_URI"
-            printf 'REDIS_URL=%s\n' "$S_REDIS_URL"
+            printf '%s\n' "MONGO_URI=mongodb://127.0.0.1:27017/studywise?replicaSet=rs0&directConnection=true"
+            printf '%s\n' "REDIS_URL=redis://127.0.0.1:6379"
             printf 'CLERK_SECRET_KEY=%s\n' "$S_CLERK_SECRET_KEY"
             printf 'ENCRYPTION_KEY=%s\n' "$S_ENCRYPTION_KEY"
             printf 'ANTHROPIC_API_KEY=%s\n' "$S_ANTHROPIC_API_KEY"
@@ -143,8 +189,8 @@ jobs:
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
           CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
-          MONGO_URI: ${{ secrets.MONGO_URI }}
-          REDIS_URL: ${{ secrets.REDIS_URL }}
+          MONGO_URI: "mongodb://127.0.0.1:27017/studywise?replicaSet=rs0&directConnection=true"
+          REDIS_URL: "redis://127.0.0.1:6379"
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
@@ -157,6 +203,12 @@ jobs:
           CONTACT_WORKER_SECRET: ${{ secrets.CONTACT_WORKER_SECRET }}
           CONTACT_TO_EMAIL: ${{ secrets.CONTACT_TO_EMAIL }}
           CONTACT_FROM_EMAIL: ${{ secrets.CONTACT_FROM_EMAIL }}
+
+      - name: Show local infrastructure logs on failure
+        if: failure()
+        run: |
+          docker logs studywise-mongo || true
+          docker logs studywise-redis || true
 
       - name: Upload Playwright report
         if: always()
