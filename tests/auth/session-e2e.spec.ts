@@ -54,7 +54,7 @@ async function isAuthenticated(page: Page): Promise<boolean> {
       if (!clerk) return false;
       for (let i = 0; i < 20; i++) {
         if (clerk.user) return true;
-        if (clerk.loaded && !clerk.user) return false;
+        if (clerk.loaded) return false;
         await new Promise((r) => setTimeout(r, 200));
       }
       return false;

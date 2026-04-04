@@ -184,7 +184,7 @@ export default function ProfilPage() {
     }
   }
 
-  if (kontoSlettes || isSlettingKonto) {
+  if (kontoSlettes) {
     return (
       <SidebarAppLoadingState
         aktivVisning={SIDEBAR_VISNING}

@@ -10,7 +10,12 @@ import {
   type WebPushSubscription,
 } from "common/notifications";
 
-function base64UrlToArrayBuffer(base64UrlString: string): ArrayBuffer {
+export interface BrowserPushSubscribeResult {
+  subscription: PushSubscription;
+  replacedEndpoint?: string;
+}
+
+function base64UrlToUint8Array(base64UrlString: string): Uint8Array {
   const padding = "=".repeat((4 - (base64UrlString.length % 4)) % 4);
   const base64 = (base64UrlString + padding)
     .replace(/-/g, "+")
@@ -21,7 +26,41 @@ function base64UrlToArrayBuffer(base64UrlString: string): ArrayBuffer {
   for (let i = 0; i < rawData.length; i += 1) {
     bytes[i] = rawData.charCodeAt(i);
   }
-  return buffer;
+  return bytes;
+}
+
+function asUint8Array(
+  value: ArrayBuffer | ArrayBufferView | null | undefined,
+): Uint8Array | null {
+  if (!value) {
+    return null;
+  }
+
+  if (ArrayBuffer.isView(value)) {
+    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  }
+
+  return new Uint8Array(value);
+}
+
+function matchesApplicationServerKey(
+  subscription: PushSubscription,
+  vapidPublicKey: string,
+): boolean {
+  const expectedKey = base64UrlToUint8Array(vapidPublicKey);
+  const actualKey = asUint8Array(subscription.options?.applicationServerKey);
+
+  if (!actualKey || actualKey.length !== expectedKey.length) {
+    return false;
+  }
+
+  for (let i = 0; i < expectedKey.length; i += 1) {
+    if (actualKey[i] !== expectedKey[i]) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 export function supportsBrowserPush(): boolean {
@@ -80,7 +119,7 @@ export async function getBrowserPushRegistration(): Promise<ServiceWorkerRegistr
 
 export async function subscribeToBrowserPush(
   vapidPublicKey: string,
-): Promise<PushSubscription> {
+): Promise<BrowserPushSubscribeResult> {
   const trimmedPublicKey = vapidPublicKey.trim();
   if (!trimmedPublicKey) {
     throw new Error("Nettleservarsler er ikke konfigurert.");
@@ -89,13 +128,29 @@ export async function subscribeToBrowserPush(
   const registration = await getBrowserPushRegistration();
   const existing = await registration.pushManager.getSubscription();
   if (existing) {
-    return existing;
+    if (matchesApplicationServerKey(existing, trimmedPublicKey)) {
+      return { subscription: existing };
+    }
+
+    const replacedEndpoint = existing.endpoint;
+    await existing.unsubscribe();
+    return {
+      subscription: await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey:
+          base64UrlToUint8Array(trimmedPublicKey) as BufferSource,
+      }),
+      replacedEndpoint,
+    };
   }
 
-  return registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: base64UrlToArrayBuffer(trimmedPublicKey),
-  });
+  return {
+    subscription: await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey:
+        base64UrlToUint8Array(trimmedPublicKey) as BufferSource,
+    }),
+  };
 }
 
 export async function saveBrowserPushSubscription(

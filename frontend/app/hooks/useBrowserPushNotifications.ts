@@ -148,7 +148,13 @@ export function useBrowserPushNotifications(
         );
       }
 
-      const subscription = await subscribeToBrowserPush(vapidPublicKey);
+      const { subscription, replacedEndpoint } =
+        await subscribeToBrowserPush(vapidPublicKey);
+      if (replacedEndpoint) {
+        await deleteBrowserPushSubscription(replacedEndpoint).catch(() => {
+          // Gammelt abonnement kan allerede være fjernet server-side
+        });
+      }
       await saveBrowserPushSubscription(subscription);
       const nextPreferences = {
         ...preferences,

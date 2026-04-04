@@ -936,12 +936,6 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     const visSiderKnapp = !meta || meta.hasPages;
                     const visFilerKnapp = !meta || meta.hasFiles;
                     const visEmnekunngjoringerKnapp = true;
-                    const harInnhold =
-                        visForsideKnapp ||
-                        visModulerKnapp ||
-                        visSiderKnapp ||
-                        visFilerKnapp ||
-                        visEmnekunngjoringerKnapp;
                     const åpneEmne = (visning: "frontpage" | "modules" | "files" | "pages" | "announcements") => {
                         settValgtEmneId(emne.id);
                         settValgtEmneVisning(visning);
@@ -1032,16 +1026,6 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                                 className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
                                             >
                                                 {labels.courseAnnouncements}
-                                                <ChevronRight size={16} />
-                                            </button>
-                                        )}
-                                        {!harInnhold && (
-                                            <button
-                                                type="button"
-                                                onClick={() => åpneEmne(velgDefaultVisning())}
-                                                className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
-                                            >
-                                                {labels.openCourse}
                                                 <ChevronRight size={16} />
                                             </button>
                                         )}

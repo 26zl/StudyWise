@@ -14,12 +14,10 @@ const LANGCHAIN_API_KEY =
 const LANGCHAIN_PROJECT =
   process.env.LANGCHAIN_PROJECT || process.env.LANGSMITH_PROJECT || "studywise";
 
-let langsmithWarnedMissingKey = false;
-if (!LANGCHAIN_API_KEY && !langsmithWarnedMissingKey) {
+if (!LANGCHAIN_API_KEY) {
   logger.warn(
     "LANGCHAIN_API_KEY mangler. Hopper over LangSmith-tracing uten å stoppe backend.",
   );
-  langsmithWarnedMissingKey = true;
 }
 
 export const langsmithClient = LANGCHAIN_API_KEY

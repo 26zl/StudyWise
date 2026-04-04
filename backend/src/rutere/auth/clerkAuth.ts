@@ -99,8 +99,9 @@ function isUsernameDuplicateKeyError(error: unknown): boolean {
   ) {
     return true;
   }
+  // error er allerede validert som objekt av isDuplicateKeyError()
   const message =
-    typeof error === "object" && error !== null && "message" in error
+    "message" in (error as object)
       ? String((error as { message?: unknown }).message ?? "")
       : "";
   return message.includes("username_normalized_unique");

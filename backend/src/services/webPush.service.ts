@@ -38,6 +38,7 @@ const ANNOUNCEMENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const DEADLINE_WINDOW_MS = 24 * 60 * 60 * 1000;
 const EVENT_WINDOW_MS = 2 * 60 * 60 * 1000;
 export const AI_COMPLETION_PUSH_MIN_DURATION_MS = 15 * 1000;
+const NOTIFICATIONS_DASHBOARD_URL = "/dashboard?view=varslinger";
 let webPushBatchRunning = false;
 
 export class WebPushSubscriptionConflictError extends Error {
@@ -185,7 +186,7 @@ function buildAnnouncementCandidates(
         id: `kunngjoring-${announcement.id}`,
         title: `${courseName}: ${announcement.title}`,
         body: preview || "Ny kunngjøring i Canvas.",
-        url: "/dashboard?view=notifications",
+        url: NOTIFICATIONS_DASHBOARD_URL,
         tag: `announcement-${announcement.id}`,
         createdAt: announcement.posted_at ? Date.parse(announcement.posted_at) : now,
       };
@@ -215,7 +216,7 @@ function buildDeadlineCandidates(
       id: `frist-${assignment.id}`,
       title: `${assignment.course_name}: ${assignment.name}`,
       body: "Fristen er innen 24 timer.",
-      url: "/dashboard?view=notifications",
+      url: NOTIFICATIONS_DASHBOARD_URL,
       tag: `deadline-${assignment.id}`,
       createdAt: Date.parse(assignment.due_at ?? new Date().toISOString()),
     }));
@@ -243,7 +244,7 @@ function buildEventCandidates(
       body: event.location_name
         ? `Starter snart. Sted: ${event.location_name}`
         : "Starter snart.",
-      url: "/dashboard?view=notifications",
+      url: NOTIFICATIONS_DASHBOARD_URL,
       tag: `event-${event.id}`,
       createdAt: Date.parse(event.start_at ?? new Date().toISOString()),
     }));
@@ -473,7 +474,7 @@ export async function sendTestWebPush(userId: string): Promise<boolean> {
     id: `test-${Date.now()}`,
     title: "StudyWise-varsler er aktivert",
     body: "Du vil nå få nettleservarsler for hendelser og KI-svar du har slått på.",
-    url: "/dashboard?view=notifications",
+    url: NOTIFICATIONS_DASHBOARD_URL,
     tag: "studywise-test-push",
     createdAt: Date.now(),
   });

@@ -1,5 +1,7 @@
 /* global self */
 
+const NOTIFICATIONS_URL = "/dashboard?view=varslinger";
+
 self.addEventListener("push", (event) => {
   if (!event.data) {
     return;
@@ -22,7 +24,7 @@ self.addEventListener("push", (event) => {
     badge: payload.badge || "/icons/icon-192x192.png",
     tag: payload.tag || "studywise-notification",
     data: {
-      url: payload.url || "/dashboard?view=notifications",
+      url: payload.url || NOTIFICATIONS_URL,
     },
   };
 
@@ -31,7 +33,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || "/dashboard?view=notifications";
+  const targetUrl = event.notification.data?.url || NOTIFICATIONS_URL;
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {

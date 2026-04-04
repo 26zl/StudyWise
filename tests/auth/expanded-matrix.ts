@@ -23,7 +23,7 @@
 
 import "../helpers/env.js";
 import { BACKEND_URL } from "../helpers/env.js";
-import { createClerkClient, type User as ClerkUser } from "@clerk/backend";
+import { createClerkClient } from "@clerk/backend";
 import mongoose, { type ConnectOptions } from "mongoose";
 import * as fs from "node:fs";
 
@@ -660,7 +660,7 @@ function classifyScenario(
   }
 
   // Håndter to-bruker oppdateringsscenarioer (f.eks. G01, G06 - oppdatering til eksisterende brukernavn)
-  if (scenario.action === "update" && updateResults && updateResults.length > 0 && scenario.second) {
+  if (scenario.action === "update" && updateResults && updateResults.length > 0) {
     const updateResult = updateResults[0];
     if (updateResult.conflict) {
       // Brukernavn-oppdatering ble korrekt blokkert
