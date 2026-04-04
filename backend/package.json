@@ -19,7 +19,7 @@
     "@napi-rs/canvas": "^0.1.97",
     "@pinecone-database/pinecone": "^7.1.0",
     "adm-zip": "^0.5.17",
-    "ai": "^6.0.145",
+    "ai": "^6.0.146",
     "cheerio": "^1.2.0",
     "common": "workspace:*",
     "compression": "^1.8.1",

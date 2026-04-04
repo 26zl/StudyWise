@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   workflow_run:
-    workflows: ["Functional Testing"]
+    workflows: ["CI"]
     types: [completed]
     branches: ["main"]
 
@@ -24,7 +24,7 @@ jobs:
     name: Deploy frontend to Vercel
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    # Only deploy when all CI jobs pass (inkl. actionlint) and the trigger was a push (not a PR)
+    # Deploy når CI passerer — Playwright E2E kjører parallelt og blokkerer ikke deploy
     if: >
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push'

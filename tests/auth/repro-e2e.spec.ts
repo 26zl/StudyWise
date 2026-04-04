@@ -171,19 +171,23 @@ async function callMeWithFlowId(page: Page, flowId: string): Promise<{ status: n
  * Håndterer standard Clerk dev-modus registreringswidget.
  */
 async function fillClerkSignupForm(page: Page, email: string, username: string, password: string) {
-  const emailInput = page.locator('input[name="emailAddress"], input[type="email"]').first();
-  await emailInput.waitFor({ state: "visible", timeout: 30_000 });
-  await emailInput.fill(email);
+  const firstNameInput = page.locator("#signup-firstname");
+  await firstNameInput.waitFor({ state: "visible", timeout: 30_000 });
+  await firstNameInput.fill("Test");
 
-  const usernameInput = page.locator('input[name="username"]').first();
-  await usernameInput.waitFor({ state: "visible", timeout: 10_000 });
+  const lastNameInput = page.locator("#signup-lastname");
+  await lastNameInput.fill("User");
+
+  const usernameInput = page.locator("#signup-username");
   await usernameInput.fill(username);
 
-  const passwordInput = page.locator('input[name="password"], input[type="password"]').first();
-  await passwordInput.waitFor({ state: "visible", timeout: 10_000 });
+  const emailInput = page.locator("#signup-email");
+  await emailInput.fill(email);
+
+  const passwordInput = page.locator("#signup-password");
   await passwordInput.fill(password);
 
-  const submitButton = page.locator('button[data-clerk-form-action="submit"], button:has-text("Continue"), button:has-text("Sign up"), button:has-text("Registrer")').first();
+  const submitButton = page.locator('form button[type="submit"]').first();
   await submitButton.waitFor({ state: "visible", timeout: 10_000 });
   await submitButton.click();
 }
@@ -193,19 +197,20 @@ async function fillClerkSignupForm(page: Page, email: string, username: string, 
  * I Clerk dev-modus kan OTP-en bli automatisk utfylt eller en spesifikk kode kan fungere.
  */
 async function handleVerificationStep(page: Page) {
-  // I Clerk dev-modus, se etter OTP/verifiseringskode-inputen
-  const otpInput = page.locator('input[name="code"], input[data-clerk-element="otpInput"]').first();
-  const isOtpStep = await otpInput.waitFor({ state: "visible", timeout: 5_000 }).then(() => true).catch(() => false);
+  // Egendefinert verifiseringsskjema bruker #verify-code
+  const verifyInput = page.locator("#verify-code");
+  const isVerifyStep = await verifyInput.waitFor({ state: "visible", timeout: 5_000 }).then(() => true).catch(() => false);
 
-  if (isOtpStep) {
-    // I dev-modus viser Clerk ofte et banner med verifiseringskoden
-    // eller bruker koden "424242" — prøv sideteksten for en kode
+  if (isVerifyStep) {
+    // I Clerk dev-modus viser siden ofte verifiseringskoden i teksten
     const pageText = await page.textContent("body") ?? "";
-    const codeMatch = pageText.match(/(?:verification|code)[^\d]*(\d{6})/i);
+    const codeMatch = pageText.match(/(?:verification|code|kode)[^\d]*(\d{6})/i);
     if (codeMatch) {
-      await otpInput.fill(codeMatch[1]);
+      await verifyInput.fill(codeMatch[1]);
+      const submitButton = page.locator('form button[type="submit"]').first();
+      await submitButton.click();
     } else {
-      // Clerk dev-instanser fullfører ofte automatisk; vent og se
+      // Clerk dev-instanser kan fullføre automatisk; vent og se
       await page.waitForTimeout(3000);
     }
   }

@@ -101,19 +101,23 @@ async function signOut(page: Page): Promise<void> {
 }
 
 async function fillSignupForm(page: Page, email: string, username: string, password: string): Promise<void> {
-  const emailInput = page.locator('input[name="emailAddress"], input[type="email"]').first();
-  await emailInput.waitFor({ state: "visible", timeout: 30_000 });
-  await emailInput.fill(email);
+  const firstNameInput = page.locator("#signup-firstname");
+  await firstNameInput.waitFor({ state: "visible", timeout: 30_000 });
+  await firstNameInput.fill("Test");
 
-  const usernameInput = page.locator('input[name="username"]').first();
-  await usernameInput.waitFor({ state: "visible", timeout: 10_000 });
+  const lastNameInput = page.locator("#signup-lastname");
+  await lastNameInput.fill("User");
+
+  const usernameInput = page.locator("#signup-username");
   await usernameInput.fill(username);
 
-  const passwordInput = page.locator('input[name="password"], input[type="password"]').first();
-  await passwordInput.waitFor({ state: "visible", timeout: 10_000 });
+  const emailInput = page.locator("#signup-email");
+  await emailInput.fill(email);
+
+  const passwordInput = page.locator("#signup-password");
   await passwordInput.fill(password);
 
-  const submitButton = page.locator('button[data-clerk-form-action="submit"], button:has-text("Continue"), button:has-text("Sign up"), button:has-text("Registrer")').first();
+  const submitButton = page.locator('form button[type="submit"]').first();
   await submitButton.waitFor({ state: "visible", timeout: 10_000 });
   await submitButton.click();
 }
@@ -351,19 +355,14 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
     // Naviger tilbake til innlogging (ikke registrering) med samme e-post
     await page.goto("/auth/sign-in");
 
-    const emailInput = page.locator('input[name="identifier"], input[type="email"]').first();
-    await emailInput.waitFor({ state: "visible", timeout: 30_000 });
-    await emailInput.fill(testEmail);
+    const identifierInput = page.locator("#signin-identifier");
+    await identifierInput.waitFor({ state: "visible", timeout: 30_000 });
+    await identifierInput.fill(testEmail);
 
-    const continueButton = page.locator('button:has-text("Continue"), button:has-text("Fortsett")').first();
-    await continueButton.waitFor({ state: "visible", timeout: 10_000 });
-    await continueButton.click();
-
-    const passwordInput = page.locator('input[name="password"], input[type="password"]').first();
-    await passwordInput.waitFor({ state: "visible", timeout: 10_000 });
+    const passwordInput = page.locator("#signin-password");
     await passwordInput.fill(TEST_PASSWORD);
 
-    const submitButton = page.locator('button[data-clerk-form-action="submit"], button:has-text("Sign in"), button:has-text("Logg inn")').first();
+    const submitButton = page.locator('form button[type="submit"]').first();
     await submitButton.waitFor({ state: "visible", timeout: 10_000 });
     await submitButton.click();
 

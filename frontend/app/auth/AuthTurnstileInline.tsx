@@ -37,6 +37,13 @@ export function AuthTurnstileInline({
   const turnstileRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
 
+  // Når Turnstile ikke er konfigurert, hopp over verifisering
+  useEffect(() => {
+    if (!isVerified && !AUTH_TURNSTILE_SITE_KEY) {
+      onVerified();
+    }
+  }, [isVerified, onVerified]);
+
   const resetTurnstile = useCallback(() => {
     setErrorMessage(null);
 

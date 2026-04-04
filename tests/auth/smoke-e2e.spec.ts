@@ -16,8 +16,9 @@ test.describe("Auth E2E smoke", () => {
     await page.goto("/auth/sign-up");
     await page.waitForLoadState("domcontentloaded");
 
-    // Clerk-komponenten lastes fra CDN og kan ta tid i CI — vent opptil 30s
-    const emailInput = page.locator('input[name="emailAddress"], input[type="email"]').first();
+    // Egendefinert registreringsskjema — vent på at e-postfeltet vises
+    // Turnstile-gaten hoppes over i CI (NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY ikke satt)
+    const emailInput = page.locator("#signup-email");
     const signUpText = page.locator('text=/sign up|registrer|opprett/i').first();
 
     await expect(emailInput.or(signUpText)).toBeVisible({ timeout: 30_000 });
