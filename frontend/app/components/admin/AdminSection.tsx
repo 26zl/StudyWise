@@ -51,6 +51,7 @@ import {
   useRuns,
   useEndreRolle,
   useSlettBruker,
+  useClearLangsmithCache,
 } from "@/app/admin/admin-api";
 import type { AdminBruker } from "@/app/admin/admin-api";
 
@@ -232,9 +233,31 @@ function StatistikkFane() {
 
   return (
     <div className="space-y-8">
-      <p className="text-sm text-slate-500 dark:text-slate-400">
-        {t("admin.stats.note")}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          {t("admin.stats.note")}
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <a
+            href="https://fb26zl.grafana.net/d/fbrdskw/studywize-observability?orgId=1&from=now-24h&to=now&timezone=browser"
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+          >
+            Grafana
+            <ExternalLink size={14} />
+          </a>
+          <a
+            href="https://us5.datadoghq.com/help/quick_start?tab=infrastructure"
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+          >
+            Datadog
+            <ExternalLink size={14} />
+          </a>
+        </div>
+      </div>
       <StatSeksjon title={t("admin.stats.sections.users")} stats={brukerStats} language={language} />
       <StatSeksjon title={t("admin.stats.sections.conversations")} stats={samtaleStats} language={language} />
       <StatSeksjon title={t("admin.stats.sections.planning")} stats={planStats} language={language} />
@@ -286,6 +309,8 @@ function ObservabilityFane() {
   const runDetailError = !!runDetailQuery.error;
   const runDetail = runDetailQuery.data;
 
+  const clearCacheMutation = useClearLangsmithCache();
+
   if (overviewLoading && !overviewData) {
     return <LoadingSpinner />;
   }
@@ -301,24 +326,15 @@ function ObservabilityFane() {
           {t("admin.stats.sections.observability")}
         </h2>
         <div className="flex flex-wrap items-center gap-3">
-          <a
-            href="https://fb26zl.grafana.net/d/fbrdskw/studywize-observability?orgId=1&from=now-24h&to=now&timezone=browser"
-            target="_blank"
-            rel="noreferrer noopener"
-            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+          <button
+            type="button"
+            onClick={() => clearCacheMutation.mutate()}
+            disabled={clearCacheMutation.isPending}
+            className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors disabled:opacity-50"
           >
-            Grafana
-            <ExternalLink size={14} />
-          </a>
-          <a
-            href="https://us5.datadoghq.com/help/quick_start?tab=infrastructure"
-            target="_blank"
-            rel="noreferrer noopener"
-            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-          >
-            Datadog
-            <ExternalLink size={14} />
-          </a>
+            <RefreshCcw size={14} className={clearCacheMutation.isPending ? "animate-spin" : ""} />
+            {t("admin.stats.aiObservability.clearCache")}
+          </button>
           <a
             href="https://smith.langchain.com"
             target="_blank"

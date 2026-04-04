@@ -39,8 +39,10 @@ import {
   fetchPdfContent,
   fetchFileContent,
   fetchFileMetadata,
+  fetchPage,
 } from "../rutere/canvas/canvasService.js";
 import { isSupportedFileType, extractTextFromFile } from "./fileExtractor.js";
+import { stripHtml } from "../utils/htmlUtils.js";
 import {
   createChunksFromContent,
   type ContentChunk,
@@ -72,8 +74,8 @@ const MIN_SYNC_INTERVAL_S = 300; // 5 minutter
 /** TTL for sync-status flagg i Redis */
 const SYNC_STATUS_TTL = 300;
 
-/** Maks antall filer å ekstrahere per synkronisering */
-const MAX_FILES_PER_SYNC = 20;
+/** Maks antall filer/sider å ekstrahere per synkronisering */
+const MAX_FILES_PER_SYNC = 50;
 
 // ─── Typer ─────────────────────────────────────────────────
 
@@ -159,12 +161,14 @@ function computeModuleItemHash(item: {
   title?: string;
   updated_at?: string | null;
   external_url?: string;
+  page_url?: string;
 }): string {
   const parts = [
     String(item.id ?? ""),
     item.title ?? "",
     item.updated_at ?? "",
     item.external_url ?? "",
+    item.page_url ?? "",
   ];
   return sha256(parts.join("|"));
 }
@@ -426,6 +430,7 @@ async function _doSync(
                 type: item.type,
                 content_id: item.content_id,
                 external_url: item.external_url,
+                page_url: item.page_url,
                 contentHash: newContentHash,
                 // Behold crawledHash fra forrige sync (oppdateres kun ved ExternalUrl-crawling)
                 crawledHash: prev?.crawledHash,
@@ -434,13 +439,13 @@ async function _doSync(
                 crawledPdfs: prev?.crawledPdfs,
               };
               if (prev?.contentHash && prev.contentHash === newContentHash) {
-                logger.info(
-                  { userId, courseId, itemId: item.id, type: item.type },
+                logger.debug(
+                  { courseId, itemId: item.id, type: item.type },
                   "Canvas item uendret, hopper over",
                 );
               } else {
-                logger.info(
-                  { userId, courseId, itemId: item.id, type: item.type },
+                logger.debug(
+                  { courseId, itemId: item.id, type: item.type },
                   "Canvas item endret, oppdaterer",
                 );
               }
@@ -781,6 +786,100 @@ async function _doSync(
 
           await deleteCacheKeys([userKey(userId, "emne", courseId, "chunks")]);
 
+          // ── Page-ekstraksjon for Page-type module items ──
+          // Canvas Pages (wiki-sider) inneholder ofte pensum som HTML.
+          // Henter page body, stripper HTML og lagrer som chunks.
+          if (isEmbeddingAvailable()) {
+            const PAGE_CONCURRENCY = 3;
+            const pageLimit = pLimit(PAGE_CONCURRENCY);
+            const pageItems: Array<{
+              mod: (typeof moduler)[number];
+              item: NonNullable<(typeof moduler)[number]["items"]>[number];
+            }> = [];
+
+            for (const mod of moduler) {
+              if (!mod.items) continue;
+              for (const item of mod.items) {
+                if (item.type === "Page" && item.page_url) {
+                  pageItems.push({ mod, item });
+                }
+              }
+            }
+
+            if (pageItems.length > 0) {
+              await Promise.allSettled(
+                pageItems.map(({ mod, item }) =>
+                  pageLimit(async () => {
+                    if (signal?.aborted) return;
+                    if (fileCount >= maxFilesPerSync) return;
+
+                    // Bruk item.id som fileId for Pages (unik innenfor kurset)
+                    const pageItemId = item.id;
+                    if (!pageItemId) return;
+
+                    // Sjekk om siden allerede er lagret og uendret
+                    const itemKey = `${mod.id}:${pageItemId}`;
+                    const prev = previousItemHashes.get(itemKey);
+                    const currentHash = computeModuleItemHash(item);
+                    if (prev?.contentHash && prev.contentHash === currentHash) {
+                      keepFileIds.add(pageItemId);
+                      return;
+                    }
+
+                    try {
+                      const { data: page } = await fetchPage(
+                        canvasToken,
+                        course.id,
+                        item.page_url!,
+                        baseUrl,
+                      );
+
+                      if (!page.body) return;
+
+                      const textContent = stripHtml(page.body, { removeStyles: true }).trim();
+                      if (textContent.length < 50) return; // For kort innhold — ignorer
+
+                      const chunks: ContentChunk[] = createChunksFromContent(textContent, {
+                        courseId,
+                        courseName: course.name,
+                        moduleTitle: mod.name,
+                        fileName: `${page.title}.page`,
+                        fileId: pageItemId,
+                      });
+
+                      if (chunks.length === 0) return;
+
+                      keepFileIds.add(pageItemId);
+                      await upsertStoredFileContent({
+                        userId,
+                        courseId,
+                        courseName: course.name,
+                        moduleId: mod.id,
+                        moduleTitle: mod.name,
+                        fileName: `${page.title}.page`,
+                        fileId: pageItemId,
+                        fileHash: currentHash,
+                        chunks,
+                        fullText: textContent,
+                      });
+                      fileCount++;
+
+                      logger.info(
+                        { userId, courseId, pageTitle: page.title, chunks: chunks.length },
+                        "Canvas Page ekstrahert og indeksert",
+                      );
+                    } catch (error) {
+                      logger.warn(
+                        { err: error, userId, courseId, pageUrl: item.page_url, title: item.title },
+                        "Feil ved ekstraksjon av Canvas Page",
+                      );
+                    }
+                  }),
+                ),
+              );
+            }
+          }
+
           // ── ExternalUrl crawling og indeksering ──
           // Kaller den avanserte crawleren som parser HTML med cheerio og oppdager PDF-er
           if (isEmbeddingAvailable()) {
@@ -812,6 +911,66 @@ async function _doSync(
                   "ExternalUrl-crawling feilet",
                 );
               });
+            }
+          }
+
+          // ── Oppgavebeskrivelse-indeksering ──
+          // Indekserer fulle oppgavebeskrivelser som chunks slik at vektorsøk kan finne dem.
+          // Bruker negative fileId-er (-(oppgave-index+1)) for å unngå kollisjon med ekte filer.
+          if (isEmbeddingAvailable() && oppgaver.length > 0) {
+            let assignmentCount = 0;
+            for (const [index, oppg] of oppgaver.entries()) {
+              if (signal?.aborted) break;
+              if (!oppg.description) continue;
+
+              const desc = stripHtml(oppg.description).trim();
+              if (desc.length < 100) continue; // For kort — ikke verdt å indeksere
+
+              // Stabil fileId basert på oppgave-index (negativ for å skille fra filer)
+              const assignmentFileId = -(index + 1);
+              const assignmentHash = sha256(`assignment:${oppg.name}:${desc.length}:${oppg.due_at ?? ""}`);
+
+              // Sjekk om oppgaven allerede er lagret uendret
+              const existingStatus = storedFileStatus.get(assignmentFileId);
+              if (existingStatus?.fileHash === assignmentHash) {
+                keepFileIds.add(assignmentFileId);
+                continue;
+              }
+
+              const chunks: ContentChunk[] = createChunksFromContent(
+                `Oppgave: ${oppg.name}\n${oppg.due_at ? `Frist: ${new Date(oppg.due_at).toLocaleDateString("nb-NO")}\n` : ""}${oppg.points_possible != null ? `Poeng: ${oppg.points_possible}\n` : ""}\n${desc}`,
+                {
+                  courseId,
+                  courseName: course.name,
+                  moduleTitle: "Oppgaver",
+                  fileName: `${oppg.name}.assignment`,
+                  fileId: assignmentFileId,
+                },
+              );
+
+              if (chunks.length === 0) continue;
+
+              keepFileIds.add(assignmentFileId);
+              await upsertStoredFileContent({
+                userId,
+                courseId,
+                courseName: course.name,
+                moduleId: 0,
+                moduleTitle: "Oppgaver",
+                fileName: `${oppg.name}.assignment`,
+                fileId: assignmentFileId,
+                fileHash: assignmentHash,
+                chunks,
+                fullText: desc,
+              });
+              assignmentCount++;
+            }
+
+            if (assignmentCount > 0) {
+              logger.info(
+                { userId, courseId, assignmentCount },
+                "Oppgavebeskrivelser indeksert",
+              );
             }
           }
         } catch (error) {

@@ -20,6 +20,7 @@ import {
 import { invalidateCacheByPattern, isRedisReady } from "../../cache/redis.js";
 import { deleteClerkUserById, invalidateTokenCacheByClerkId } from "./clerkAuth.js";
 import { WebPushSubscriptionModel } from "../../database/models/WebPushSubscription.js";
+import { StudyContext } from "../../database/models/StudyContext.js";
 import { enqueueClerkDeletionRetry } from "../../services/clerkDeletionRetry.service.js";
 import { DeletedUserTombstone } from "../../database/models/DeletedUserTombstone.js";
 
@@ -89,6 +90,7 @@ export async function deleteAccountData(
         canvasRes,
         arbeidsplanRes,
         webPushRes,
+        studyContextRes,
       ] = await Promise.all([
         ChatHistory.deleteMany({ user: id }, { session }),
         SharedChat.deleteMany({ ownerId: id }, { session }),
@@ -98,6 +100,7 @@ export async function deleteAccountData(
         CanvasUser.deleteMany({ localUser: id }, { session }),
         Arbeidsplan.deleteMany({ userId }, { session }),
         WebPushSubscriptionModel.deleteMany({ userId: id }, { session }),
+        StudyContext.deleteMany({ userId }, { session }),
       ]);
 
       result.chatHistory = chatRes.deletedCount ?? 0;
@@ -118,6 +121,13 @@ export async function deleteAccountData(
         logger.info(
           { userId, deletedCount: webPushRes.deletedCount ?? 0 },
           "Slettet web-push-abonnementer som del av kontosletting",
+        );
+      }
+
+      if ((studyContextRes.deletedCount ?? 0) > 0) {
+        logger.info(
+          { userId, deletedCount: studyContextRes.deletedCount ?? 0 },
+          "Slettet StudyContext som del av kontosletting",
         );
       }
 

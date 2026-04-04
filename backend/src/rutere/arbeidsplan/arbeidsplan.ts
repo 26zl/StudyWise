@@ -73,9 +73,13 @@ router.post("/", async (req: Request, res: Response) => {
 
     let plan;
     if (existing) {
+      // Slå sammen nye blokker med eksisterende i stedet for å erstatte
+      const mergedBlocks = [...existing.blocks, ...data.blocks as IStudyBlock[]];
       existing.week = data.week;
-      existing.blocks = data.blocks as IStudyBlock[];
-      existing.totalHours = data.totalHours;
+      existing.blocks = mergedBlocks;
+      existing.totalHours = Math.round(
+        mergedBlocks.reduce((sum, b) => sum + parseTimerStreng(b.duration), 0) * 10,
+      ) / 10;
       plan = await existing.save();
     } else {
       plan = await Arbeidsplan.create({

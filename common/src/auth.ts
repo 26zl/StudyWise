@@ -270,6 +270,7 @@ export const PreferencesUpdateSchema = z
 
 /** Minimumslengde for for-/etternavn for å regnes som komplett (unngår enkle initialer fra OAuth). */
 export const MIN_NAME_LENGTH = 2;
+export const MAX_NAME_LENGTH = 256;
 
 /** Sjekker om fornavn er gyldig (ikke bare en initial). */
 export function isValidFirstName(firstName: string | null | undefined): boolean {
@@ -311,21 +312,22 @@ export const AuthBrukerSchema = z.object({
   syncConflicts: z.array(SyncConflictSchema).optional(),
 });
 
+/** Navnefelt: tillater enten gyldig navn (≥ MIN_NAME_LENGTH etter trim) eller tom streng (unset). */
+const NameFieldSchema = z
+  .string()
+  .trim()
+  .max(MAX_NAME_LENGTH, `Navn kan maks være ${MAX_NAME_LENGTH} tegn`)
+  .refine(
+    (v) => v.length === 0 || v.length >= MIN_NAME_LENGTH,
+    `Navn må være tomt eller minst ${MIN_NAME_LENGTH} tegn`,
+  )
+  .optional();
+
 /** Oppdatering av brukerprofil (fornavn, etternavn). Minst ett felt må oppgis. */
 export const ProfileUpdateSchema = z
   .object({
-    firstName: z
-      .string()
-      .trim()
-      .min(MIN_NAME_LENGTH, `Fornavn må være minst ${MIN_NAME_LENGTH} tegn`)
-      .max(100, "Fornavn kan maks være 100 tegn")
-      .optional(),
-    lastName: z
-      .string()
-      .trim()
-      .min(MIN_NAME_LENGTH, `Etternavn må være minst ${MIN_NAME_LENGTH} tegn`)
-      .max(100, "Etternavn kan maks være 100 tegn")
-      .optional(),
+    firstName: NameFieldSchema,
+    lastName: NameFieldSchema,
     /** Hopp over tilbakesynk til Clerk (brukes når endringen allerede kom fra Clerk). */
     skipClerkSync: z.boolean().optional(),
   })
@@ -336,7 +338,7 @@ export const ProfileUpdateSchema = z
 export type ProfileUpdate = z.infer<typeof ProfileUpdateSchema>;
 
 /** Brukernavn-begrensninger. */
-export const USERNAME_MIN_LENGTH = 3;
+export const USERNAME_MIN_LENGTH = 4;
 export const USERNAME_MAX_LENGTH = 30;
 export const USERNAME_PATTERN = /^[a-zA-Z0-9_]+$/;
 
@@ -354,18 +356,8 @@ export function isValidUsernameFormat(username: string): boolean {
 /** Oppdatering av brukerprofil med brukernavn. Minst ett felt må oppgis. */
 export const ProfileUpdateWithUsernameSchema = z
   .object({
-    firstName: z
-      .string()
-      .trim()
-      .min(MIN_NAME_LENGTH, `Fornavn må være minst ${MIN_NAME_LENGTH} tegn`)
-      .max(100, "Fornavn kan maks være 100 tegn")
-      .optional(),
-    lastName: z
-      .string()
-      .trim()
-      .min(MIN_NAME_LENGTH, `Etternavn må være minst ${MIN_NAME_LENGTH} tegn`)
-      .max(100, "Etternavn kan maks være 100 tegn")
-      .optional(),
+    firstName: NameFieldSchema,
+    lastName: NameFieldSchema,
     username: z
       .string()
       .trim()

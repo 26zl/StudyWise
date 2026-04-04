@@ -48,11 +48,15 @@ tests/
     log.ts                # Felles logg-hjelpere
   auth/
     smoke.ts              # Auth-ruter (public + guard) smoke
-    smoke-e2e.spec.ts     # Stabil Playwright smoke for auth-sider
+    smoke-e2e.spec.ts     # Stabil Playwright smoke for auth-sider (CI-gate)
+    login-signup-e2e.spec.ts  # Innlogging/registrering E2E (CI-gate)
+    session-e2e.spec.ts       # Sesjons-håndtering E2E (CI-gate)
+    late-conflict-e2e.spec.ts # Sen konfliktdeteksjon E2E (diagnostisk)
+    email-update-e2e.spec.ts  # E-post-oppdatering E2E (diagnostisk)
+    repro-e2e.spec.ts     # Diagnostisk Playwright repro for duplicate-signup
     check-db.ts           # DB-invariantsjekk (indekser, duplikater, normalisering)
     repro-api.ts          # API-basert auth duplicate reproduksjon
     repro-matrix.ts       # Matrix-runner (A/B/C/D + evidence JSON)
-    repro-e2e.spec.ts     # Diagnostisk Playwright repro for duplicate-signup
     global.setup.ts       # Clerk Playwright setup (Turnstile bypass)
   ki/
     smoke.ts              # KI auth/public endpoint smoke
@@ -73,7 +77,8 @@ tests/
 - Playwright er konfigurert med `trace/video/screenshot` kun ved feil.
 - `headless: true` er default for mer stabil automatisk kjøring.
 - `retries` aktiveres i CI (`CI=true`) for å redusere flaky kjøringer.
-- `smoke-e2e.spec.ts` er ment som gate i CI; `repro-e2e.spec.ts` er diagnostisk/evidence-test.
+- **CI-gate**: `smoke-e2e.spec.ts`, `login-signup-e2e.spec.ts` og `session-e2e.spec.ts` kjøres i CI (kun Chromium). Diagnostiske spesifikasjoner (`repro-e2e.spec.ts`, `late-conflict-e2e.spec.ts`, `email-update-e2e.spec.ts`) er ekskludert fra CI.
+- **Firefox/WebKit**: Definert i playwright.config.ts men kjøres kun lokalt. CI installerer bare Chromium for raskere pipeline.
 
 ## Legge til nye tester
 

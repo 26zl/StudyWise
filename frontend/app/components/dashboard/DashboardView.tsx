@@ -252,7 +252,6 @@ export function DashboardView() {
                     </Suspense>
                 </SectionErrorBoundary>
                 ) : (
-                // Ikke-admin med ?view=admin → redirect til chat
                 <AdminRedirectToChat settAktivVisning={settAktivVisning} />
                 )
             )}

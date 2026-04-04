@@ -42,7 +42,7 @@ export function ConversationListItem({
               {preview}
             </p>
           ) : null}
-          {meta ? <div className="mt-1 text-xs text-slate-500">{meta}</div> : null}
+          {meta ? <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{meta}</div> : null}
         </button>
       </div>
       {footer ? <div className="flex items-center justify-end gap-2 px-1 pb-4 pt-3">{footer}</div> : null}

@@ -645,6 +645,7 @@ export async function streamKIChat(
     model?: string;
     temperature?: number;
     signal?: AbortSignal;
+    explanationLevel?: string;
   } = {},
 ): Promise<z.infer<typeof KIChatResponseSchema>> {
   const trimmedMessages = trimMessages(messages).filter(
@@ -656,6 +657,7 @@ export async function streamKIChat(
     messages: trimmedMessages,
     model: options.model,
     temperature: options.temperature,
+    ...(options.explanationLevel && { explanationLevel: options.explanationLevel as KIChatRequest["explanationLevel"] }),
   };
 
   const requestInit: RequestInit = {

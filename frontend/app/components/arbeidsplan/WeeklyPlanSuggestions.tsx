@@ -55,7 +55,7 @@ export function WeeklyPlanSuggestions({
   const { t } = useLanguage();
   const [plan, setPlan] = useState<WeeklyPlanSuggestionResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [expandedDay, setExpandedDay] = useState<string | null>(null);
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [selectedBlocks, setSelectedBlocks] = useState<Set<number>>(new Set());
   const hydratedFromStoreRef = useRef(false);
 
@@ -75,12 +75,12 @@ export function WeeklyPlanSuggestions({
       setPlan(bgJob.result);
       setError(null);
       showToast.success(
-        `KI-assistenten genererte en ukeplan med ${bgJob.result.blocks.length} studieøkter!`,
+        t("weeklyPlan.generatedToast", { count: bgJob.result.blocks.length }),
       );
       clearWeeklyPlan();
     } else if (bgJob.status === "error") {
       hydratedFromStoreRef.current = true;
-      setError(bgJob.error ?? "KI-generering feilet. Prøv igjen.");
+      setError(bgJob.error ?? t("arbeidsplan.planSaveError"));
       clearWeeklyPlan();
     }
   }, [bgJob, clearWeeklyPlan]);
@@ -93,7 +93,7 @@ export function WeeklyPlanSuggestions({
 
     const hasAssignmentsWithDue = assignments.some((a) => !!a.dueAt);
     if (!hasAssignmentsWithDue) {
-      setError("Ingen oppgaver med frister funnet. Legg til oppgaver i Canvas først.");
+      setError(t("weeklyPlan.noAssignmentsWithDue"));
       return;
     }
 
@@ -153,11 +153,10 @@ export function WeeklyPlanSuggestions({
           </div>
           <div>
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-              KI Ukeplangenerator
+              {t("weeklyPlan.title")}
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 max-w-md mx-auto">
-              La KI-assistenten analysere dine Canvas-oppgaver og lage en optimal studieukeplan.
-              Du kan deretter velge hvilke studieblokker du vil legge til i din arbeidsplan.
+              {t("weeklyPlan.description")}
             </p>
             <button
               type="button"
@@ -166,11 +165,11 @@ export function WeeklyPlanSuggestions({
               className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed inline-flex items-center gap-2"
             >
               <Sparkles className="w-5 h-5" />
-              Generer ukeplan med AI
+              {t("weeklyPlan.generateButton")}
             </button>
             {assignments.length === 0 && (
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
-                Ingen oppgaver funnet. Legg til oppgaver i Canvas først.
+                {t("weeklyPlan.noAssignments")}
               </p>
             )}
           </div>
@@ -183,7 +182,7 @@ export function WeeklyPlanSuggestions({
     return (
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-12">
         <LoadingView
-          text="KI-assistenten genererer ukeplan... Analyserer oppgaver, frister og kompleksitet."
+          text={t("weeklyPlan.generating")}
           fullPage={false}
         />
       </div>
@@ -199,7 +198,7 @@ export function WeeklyPlanSuggestions({
           onClick={generatePlan}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
         >
-          Prøv igjen
+          {t("weeklyPlan.retryButton")}
         </button>
       </div>
     );
@@ -217,6 +216,9 @@ export function WeeklyPlanSuggestions({
     (a, b) => DAYS_ORDER.indexOf(a) - DAYS_ORDER.indexOf(b),
   );
 
+  const allDaysExpanded = sortedDays.length > 0 && sortedDays.every((d) => expandedDays.has(d));
+  const anyDayExpanded = expandedDays.size > 0;
+
   const allSelected = selectedBlocks.size === plan.blocks.length;
   const someSelected =
     selectedBlocks.size > 0 && selectedBlocks.size < plan.blocks.length;
@@ -229,20 +231,38 @@ export function WeeklyPlanSuggestions({
             <div className="flex items-center gap-2 mb-2">
               <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                KI-generert ukeplan
+                {t("weeklyPlan.generatedTitle")}
               </h2>
             </div>
             <p className="text-sm text-slate-600 dark:text-slate-400">
               {plan.week} • {plan.totalHours.toFixed(1)} timer totalt
             </p>
           </div>
-          <button
-            type="button"
-            onClick={generatePlan}
-            className="px-4 py-2 text-sm font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition-colors"
-          >
-            Regenerer
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setExpandedDays(new Set(sortedDays))}
+              disabled={allDaysExpanded}
+              className="px-3 py-2 text-sm rounded-lg bg-white/50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {t("arbeidsplan.expandAll")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setExpandedDays(new Set())}
+              disabled={!anyDayExpanded}
+              className="px-3 py-2 text-sm rounded-lg bg-white/50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {t("arbeidsplan.collapseAll")}
+            </button>
+            <button
+              type="button"
+              onClick={generatePlan}
+              className="px-4 py-2 text-sm font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition-colors"
+            >
+              {t("weeklyPlan.regenerateButton")}
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
@@ -267,8 +287,8 @@ export function WeeklyPlanSuggestions({
             </button>
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
               {selectedBlocks.size === 0
-                ? "Velg studieblokker å legge til"
-                : `${selectedBlocks.size} valgt`}
+                ? t("weeklyPlan.selectPrompt")
+                : t("weeklyPlan.selectedCount", { count: selectedBlocks.size })}
             </span>
           </div>
 
@@ -281,12 +301,12 @@ export function WeeklyPlanSuggestions({
             {createMutation.isPending ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Lagrer...
+                {t("weeklyPlan.saving")}
               </>
             ) : (
               <>
                 <CheckCircle className="w-4 h-4" />
-                Legg til i min plan ({selectedBlocks.size})
+                {t("weeklyPlan.addToPlan", { count: selectedBlocks.size })}
               </>
             )}
           </button>
@@ -296,7 +316,7 @@ export function WeeklyPlanSuggestions({
       <div className="space-y-3">
         {sortedDays.map((day) => {
           const dayBlocks = blocksByDay[day];
-          const isExpanded = expandedDay === day;
+          const isExpanded = expandedDays.has(day);
 
           return (
             <div
@@ -305,7 +325,11 @@ export function WeeklyPlanSuggestions({
             >
               <button
                 type="button"
-                onClick={() => setExpandedDay(isExpanded ? null : day)}
+                onClick={() => setExpandedDays((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(day)) next.delete(day); else next.add(day);
+                  return next;
+                })}
                 className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
               >
                 <div className="flex items-center gap-3">
@@ -314,7 +338,9 @@ export function WeeklyPlanSuggestions({
                     {day}
                   </span>
                   <span className="text-sm text-slate-500 dark:text-slate-400">
-                    {dayBlocks.length} {dayBlocks.length === 1 ? "oppgave" : "oppgaver"}
+                    {dayBlocks.length === 1
+                      ? t("weeklyPlan.taskCount", { count: dayBlocks.length })
+                      : t("weeklyPlan.tasksCount", { count: dayBlocks.length })}
                   </span>
                 </div>
                 {isExpanded ? (
@@ -387,7 +413,7 @@ export function WeeklyPlanSuggestions({
             <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
             <div>
               <h4 className="font-semibold text-sm text-blue-900 dark:text-blue-300 mb-2">
-                Studietips fra KI-assistenten
+                {t("weeklyPlan.tipsTitle")}
               </h4>
               <ul className="space-y-1 text-sm text-blue-700 dark:text-blue-300">
                 {plan.tips.map((tip, index) => (

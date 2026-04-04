@@ -323,10 +323,10 @@ async function hentCanvasDataImpl<T>(
                     );
                     throw error;
                 }
-                logger.info({ cacheKey: cacheNokkel }, "Redis Cache HIT");
+                logger.debug({ cacheKey: cacheNokkel }, "Redis Cache HIT");
                 return parsed;
             }
-            logger.info({ cacheKey: cacheNokkel }, "Redis Cache MISS");
+            logger.debug({ cacheKey: cacheNokkel }, "Redis Cache MISS");
         } catch (err) {
             // Re-throw Canvas errors (inkludert cached negative responses)
             if (err instanceof Error && err.name === "CanvasApiError") {

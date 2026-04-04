@@ -79,6 +79,7 @@ export const enMessages = {
       navigationTitle: "Dashboard navigation",
       quiz: "Quiz / Flashcards",
       settings: "Settings",
+      profile: "Account",
       taskBreakdown: "AI Task Breakdown",
     },
   },
@@ -177,11 +178,11 @@ export const enMessages = {
       lastNamePlaceholder: "Doe",
       usernameLabel: "Username",
       usernamePlaceholder: "Username",
-      usernameHint: "3–30 characters. Letters, numbers, and underscores.",
+      usernameHint: "4–30 characters. Letters, numbers, and underscores.",
       usernameChecking: "Checking...",
       usernameAvailable: "Available",
       usernameTaken: "Already taken",
-      usernameInvalid: "Only letters, numbers, and underscores (3–30 chars)",
+      usernameInvalid: "Only letters, numbers, and underscores (4–30 chars)",
       usernameWait: "Please wait while username is being checked.",
       allFieldsRequired: "All fields are required.",
       chooseUsernameFirst: "Please choose a username first.",
@@ -607,6 +608,7 @@ export const enMessages = {
         latencyPeakLabel: "Peak (30 days)",
         openLangsmith: "Open LangSmith project",
         loadFailed: "Could not load LangSmith statistics",
+        clearCache: "Clear cache",
         runsLoadFailed: "Could not load LangSmith runs",
         runDetailLoadFailed: "Could not load run details",
         tracingTableTitle: "Tracing runs",
@@ -780,6 +782,29 @@ export const enMessages = {
     collapseAll: "Collapse all",
     expandAll: "Expand all",
   },
+  weeklyPlan: {
+    title: "AI Weekly Planner",
+    description:
+      "Let the AI assistant analyze your Canvas assignments and create an optimal weekly study plan. You can then choose which study blocks to add to your plan.",
+    generateButton: "Generate weekly plan with AI",
+    noAssignments: "No assignments found. Add assignments in Canvas first.",
+    noAssignmentsWithDue:
+      "No assignments with deadlines found. Add assignments in Canvas first.",
+    generating:
+      "AI assistant is generating a weekly plan... Analyzing assignments, deadlines and complexity.",
+    retryButton: "Try again",
+    generatedTitle: "AI-generated weekly plan",
+    generatedToast:
+      "AI assistant generated a weekly plan with {count} study sessions!",
+    regenerateButton: "Regenerate",
+    selectPrompt: "Select study blocks to add",
+    selectedCount: "{count} selected",
+    saving: "Saving...",
+    addToPlan: "Add to my plan ({count})",
+    taskCount: "{count} task",
+    tasksCount: "{count} tasks",
+    tipsTitle: "Study tips from the AI assistant",
+  },
   aiBreakdown: {
     assignmentContext: {
       course: "Course: {course}.",
@@ -889,9 +914,23 @@ export const enMessages = {
     documentAnalysisMetadata:
       "Document: {pages} pages, {characters} characters{truncated}",
     documentAnalysisMetadataTruncated: " (truncated)",
+    explanationLevel: {
+      simple: "Simple",
+      standard: "Standard",
+      detailed: "Detailed",
+      expert: "Expert",
+      tooltip: "Explanation level: {level}",
+    },
+    inputHint: "Enter to send · Shift+Enter for new line",
+    placeholderDefault: "Write a message...",
+    placeholderAttachment: "Ask a question about the attachment...",
+    newConversationFallback: "New conversation",
+    conversationFallback: "Conversation",
+    uploadDocumentLabel: "Upload document (PDF, Word, PowerPoint, Excel, code files, images)",
+    uploadDocumentAriaLabel: "Upload document",
   },
   profil: {
-    loading: "Loading profile...",
+    loading: "Loading account...",
   },
   cookies: {
     banner: {
@@ -966,6 +1005,8 @@ export const enMessages = {
     weekFormat: "Week {weekNumber}, {weekYear}",
     addedSuccess: "{count} tasks added to {week}!",
     addedSuccessSubtitle: "Go to Overview to see your study plan",
+    subtitle: "{count} subtasks from {assignment}",
+    taskPreview: "{day}: {count} tasks",
   },
   sharePage: {
     missingShareLink: "Missing share link.",
@@ -1228,7 +1269,7 @@ export const enMessages = {
     nameLabel: "Name",
     namePlaceholder: "Your name",
     nameMinError: "Name must be at least 2 characters",
-    nameMaxError: "Name cannot be more than 100 characters",
+    nameMaxError: "Name cannot be more than 256 characters",
     emailLabel: "Email",
     emailPlaceholder: "your@email.com",
     emailError: "Invalid email address",

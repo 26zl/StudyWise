@@ -40,7 +40,8 @@ function readGuestConsentFromStorage(): CookieConsentStatus {
   }
 
   try {
-    return parseCookieConsent(window.localStorage.getItem(GUEST_COOKIE_CONSENT_STORAGE_KEY));
+    // Gjestesamtykke lagres i sessionStorage (kun gjeldende økt, i tråd med personvernpolicy)
+    return parseCookieConsent(window.sessionStorage.getItem(GUEST_COOKIE_CONSENT_STORAGE_KEY));
   } catch {
     return null;
   }
@@ -53,12 +54,13 @@ function writeGuestConsentToStorage(consent: CookieConsentStatus): void {
 
   try {
     if (consent === null) {
-      window.localStorage.removeItem(GUEST_COOKIE_CONSENT_STORAGE_KEY);
+      window.sessionStorage.removeItem(GUEST_COOKIE_CONSENT_STORAGE_KEY);
       return;
     }
-    window.localStorage.setItem(GUEST_COOKIE_CONSENT_STORAGE_KEY, consent);
+    // Gjestesamtykke lagres i sessionStorage (kun gjeldende økt, i tråd med personvernpolicy)
+    window.sessionStorage.setItem(GUEST_COOKIE_CONSENT_STORAGE_KEY, consent);
   } catch {
-    // Ignorer localStorage-feil i låste miljøer.
+    // Ignorer lagringsfeil i låste miljøer.
   }
 }
 
@@ -221,14 +223,16 @@ export function useCookieConsent() {
         cookieConsent: nextConsent,
       };
 
+      // Lagre i localStorage umiddelbart slik at banneret forsvinner selv ved API-feil
+      if (userId) {
+        writeAuthenticatedConsentToStorage(userId, nextConsent);
+        setCachedAuthenticatedConsent(nextConsent);
+      }
+      emitCookieConsentChange(nextConsent);
+
       setPendingConsent(nextConsent);
       try {
         await oppdaterUIPreferanser(nextPrefs);
-        if (userId) {
-          writeAuthenticatedConsentToStorage(userId, nextConsent);
-          setCachedAuthenticatedConsent(nextConsent);
-        }
-        emitCookieConsentChange(nextConsent);
       } finally {
         setPendingConsent(null);
       }

@@ -155,8 +155,12 @@ export async function finishLangsmithRun(input: {
     });
 
     try {
-      const { deleteCacheKeys } = await import("../cache/redis.js");
-      await deleteCacheKeys(["admin:langsmith:stats:v1"]);
+      const { deleteCacheKeys, invalidateCacheByPattern } = await import("../cache/redis.js");
+      await Promise.all([
+        deleteCacheKeys(["admin:langsmith:stats:v2"]),
+        invalidateCacheByPattern("admin:langsmith:runs:v2:*"),
+        invalidateCacheByPattern("admin:langsmith:daily:v1:*"),
+      ]);
     } catch (cacheError) {
       logger.warn({ err: cacheError }, "LangSmith cache invalidation feilet");
     }

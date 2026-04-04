@@ -17,6 +17,7 @@ import { User } from "./models/User.js";
 import { DeletedUserTombstone } from "./models/DeletedUserTombstone.js";
 import { PendingClerkDeletionModel } from "./models/PendingClerkDeletion.js";
 import { WebPushSubscriptionModel } from "./models/WebPushSubscription.js";
+import { StudyContext } from "./models/StudyContext.js";
 
 import { isProd } from "../utils/env.js";
 import { runMigrations } from "./migrations.js";
@@ -62,6 +63,7 @@ async function ensureDatabaseIndexes() {
         DeletedUserTombstone.createIndexes(),
         PendingClerkDeletionModel.createIndexes(),
         WebPushSubscriptionModel.createIndexes(),
+        StudyContext.createIndexes(),
     ]);
 
     // Verifiser at alle påkrevde unike indekser faktisk finnes på User-samlingen.

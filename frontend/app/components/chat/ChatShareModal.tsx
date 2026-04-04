@@ -73,7 +73,7 @@ export function ChatShareModal({
     } catch {
       showToast.error(t("shareModal.copyErrorToast"));
     }
-  }, [shareUrl]);
+  }, [shareUrl, t]);
 
   if (!isOpen) return null;
 

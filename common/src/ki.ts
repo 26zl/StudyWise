@@ -28,11 +28,23 @@ export const KIChatClientMessageSchema = z.object({
   timestamp: z.string().optional(),
 });
 
+/** Forklaringsnivå for KI-svar — styrer dybde og kompleksitet */
+export const ExplanationLevelSchema = z.enum(["simple", "standard", "detailed", "expert"]);
+export type ExplanationLevel = z.infer<typeof ExplanationLevelSchema>;
+
+export const EXPLANATION_LEVEL_LABELS: Record<ExplanationLevel, string> = {
+  simple: "Enkelt",
+  standard: "Standard",
+  detailed: "Detaljert",
+  expert: "Ekspert",
+};
+
 // Request-schema for KI chat API
 export const KIChatRequestSchema = z.object({
   messages: z.array(KIChatClientMessageSchema).min(1, "Minst én melding må sendes inn").max(200, "Maks 200 meldinger kan sendes inn"),
   model: z.string().trim().min(1).max(100).optional(),
   temperature: z.number().min(0).max(1).optional(),
+  explanationLevel: ExplanationLevelSchema.optional(),
 });
 
 // Felles token-bruk schema (delt mellom chat og dokumentanalyse)
@@ -153,7 +165,7 @@ export const SubTaskSchema = z.object({
   estimatedTime: z.string().min(1, "Tidsestimat kan ikke være tomt"),
   priority: z.enum(["low", "medium", "high"]),
   completed: z.boolean(),
-  approved: z.boolean().optional().default(false),
+  approved: z.boolean().default(false),
 });
 
 /** AI-generert subtask (uten id, completed, approved - disse legges til ved lagring). */
@@ -192,7 +204,7 @@ export const WeeklyPlanAssignmentSchema = z.object({
     .min(1, "Oppgavenavn kan ikke være tomt")
     .max(200, "Oppgavenavn må være maks 200 tegn"),
   dueAt: optionalNullableDateSchema,
-  courseName: z.string().max(200, "Emnenavn må være maks 200 tegn").optional(),
+  courseName: z.string().trim().max(200, "Emnenavn må være maks 200 tegn").optional(),
   description: z
     .string()
     .max(5000, "Oppgavebeskrivelse må være maks 5000 tegn")
@@ -209,12 +221,12 @@ export const WeeklyPlanGenerateRequestSchema = z.object({
 
 export const WeeklyPlanSuggestionBlockSchema = z.object({
   day: z.enum(UKEDAGER),
-  timeSlot: z.string().min(1).max(50),
-  task: z.string().min(1).max(200),
-  duration: z.string().min(1).max(50),
+  timeSlot: z.string().trim().min(1).max(50),
+  task: z.string().trim().min(1).max(300),
+  duration: z.string().trim().min(1).max(50),
   priority: z.enum(["high", "medium", "low"]),
-  courseName: z.string().min(1).max(200),
-  assignmentId: z.string().min(1).max(200).optional(),
+  courseName: z.string().trim().min(1).max(200),
+  assignmentId: z.string().trim().min(1).max(200).optional(),
   completed: z.boolean(),
 });
 
@@ -240,7 +252,7 @@ export const KIOppsummeringRequestSchema = z.object({
     .trim()
     .min(1, "Tekst kan ikke være tom")
     .max(50000, "Tekst kan være maks 50 000 tegn"),
-  type: z.enum(["tldr", "handlinger", "begge"]).optional().default("begge"),
+  type: z.enum(["tldr", "handlinger", "begge"]).default("begge"),
 });
 
 // Respons-schema for KI oppsummering

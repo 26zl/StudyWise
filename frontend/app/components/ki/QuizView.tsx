@@ -837,11 +837,22 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
         selectedCourseId?: string | null;
         selectedModules?: string[];
         questionCount?: number;
+        quizQuestions?: QuizQuestion[];
+        flashcards?: Flashcard[];
       };
-      if (parsed.phase) setPhase(parsed.phase);
       if (parsed.selectedCourseId !== undefined) setSelectedCourseId(parsed.selectedCourseId);
       if (parsed.selectedModules) setSelectedModules(parsed.selectedModules);
       if (typeof parsed.questionCount === "number") setQuestionCount(parsed.questionCount);
+      // Gjenopprett spørsmål/kort-data før phase settes
+      if (parsed.quizQuestions?.length) setQuizQuestions(parsed.quizQuestions);
+      if (parsed.flashcards?.length) setFlashcards(parsed.flashcards);
+      // Fall tilbake til setup dersom active/results men data mangler
+      if (parsed.phase === "active" || parsed.phase === "results") {
+        const harData = (parsed.quizQuestions?.length ?? 0) > 0 || (parsed.flashcards?.length ?? 0) > 0;
+        setPhase(harData ? parsed.phase : "setup");
+      } else if (parsed.phase) {
+        setPhase(parsed.phase);
+      }
     } catch {
       // Ignorer korrupt storage
     }
@@ -854,13 +865,15 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
       selectedCourseId,
       selectedModules,
       questionCount,
+      quizQuestions,
+      flashcards,
     };
     try {
       sessionStorage.setItem(uiStateStorageKey, JSON.stringify(payload));
     } catch {
       // Ignorer lagringsfeil
     }
-  }, [phase, selectedCourseId, selectedModules, questionCount]);
+  }, [phase, selectedCourseId, selectedModules, questionCount, quizQuestions, flashcards]);
 
   // Sørger for at pågående jobber gjenopptas etter navigasjon.
   useEffect(() => {

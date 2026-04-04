@@ -77,6 +77,7 @@ export const nbMessages = {
       navigationTitle: "Dashboard-navigasjon",
       quiz: "Quiz / Flashcards",
       settings: "Innstillinger",
+      profile: "Konto",
       taskBreakdown: "Oppgavedeling med KI",
     },
   },
@@ -157,8 +158,10 @@ export const nbMessages = {
       orContinueWith: "eller fortsett med",
       allFieldsRequired: "Alle felt er påkrevd.",
       incomplete: "Innlogging ufullstendig. Prøv igjen.",
-      sessionFailed: "Innlogging fullført, men økten kunne ikke opprettes. Prøv igjen.",
-      mfaNotSupported: "Tofaktorautentisering støttes ikke ennå i dette skjemaet. Kontakt support.",
+      sessionFailed:
+        "Innlogging fullført, men økten kunne ikke opprettes. Prøv igjen.",
+      mfaNotSupported:
+        "Tofaktorautentisering støttes ikke ennå i dette skjemaet. Kontakt support.",
       noAccount: "Har du ikke en konto?",
       signUpLink: "Registrer deg",
       forgotPasswordAction: "Gjenopprett tilgang",
@@ -174,12 +177,12 @@ export const nbMessages = {
       lastNameLabel: "Etternavn",
       lastNamePlaceholder: "Nordmann",
       usernameLabel: "Brukernavn",
-      usernamePlaceholder: "mitt_brukernavn",
-      usernameHint: "3–30 tegn. Bokstaver, tall og understrek.",
+      usernamePlaceholder: "Brukernavn",
+      usernameHint: "4–30 tegn. Bokstaver, tall og understrek.",
       usernameChecking: "Sjekker...",
       usernameAvailable: "Tilgjengelig",
       usernameTaken: "Allerede tatt",
-      usernameInvalid: "Kun bokstaver, tall og understrek (3–30 tegn)",
+      usernameInvalid: "Kun bokstaver, tall og understrek (4–30 tegn)",
       usernameWait: "Vent mens brukernavnet sjekkes.",
       allFieldsRequired: "Alle felt er påkrevd.",
       chooseUsernameFirst: "Velg et brukernavn først.",
@@ -208,10 +211,13 @@ export const nbMessages = {
         submitting: "Bekrefter...",
         resend: "Send kode på nytt",
         incomplete: "Verifisering ufullstendig. Prøv igjen.",
-        sessionFailed: "Verifisering fullført, men økten kunne ikke opprettes. Prøv å logge inn.",
-        alreadyVerified: "E-posten din er allerede verifisert. Kontoen er opprettet — logg inn i stedet.",
+        sessionFailed:
+          "Verifisering fullført, men økten kunne ikke opprettes. Prøv å logge inn.",
+        alreadyVerified:
+          "E-posten din er allerede verifisert. Kontoen er opprettet — logg inn i stedet.",
         codeSentTitle: "Kode sendt",
-        codeSentDescription: "En ny bekreftelseskode er sendt til e-posten din.",
+        codeSentDescription:
+          "En ny bekreftelseskode er sendt til e-posten din.",
         codeSendFailedTitle: "Kunne ikke sende",
       },
     },
@@ -600,12 +606,14 @@ export const nbMessages = {
         latencyPeakLabel: "Høyeste (30 dager)",
         openLangsmith: "Åpne LangSmith-prosjekt",
         loadFailed: "Kunne ikke hente LangSmith-statistikk",
+        clearCache: "Tøm cache",
         runsLoadFailed: "Kunne ikke hente LangSmith-runs",
         runDetailLoadFailed: "Kunne ikke hente run-detaljer",
         tracingTableTitle: "Tracing-runs",
         detailsTitle: "Run-detaljer",
         detailsHint: "Velg en run i tabellen for å se detaljer.",
-        overviewLineRuns: "Siste 24 t: {runs24h} runs · Siste 7 dager: {runs7d} runs",
+        overviewLineRuns:
+          "Siste 24 t: {runs24h} runs · Siste 7 dager: {runs7d} runs",
         filters: {
           statusAll: "Alle statuser",
           statusSuccess: "Kun suksess",
@@ -739,7 +747,8 @@ export const nbMessages = {
     subtitle:
       "Tren på Canvas-innholdet ditt med KI-genererte spørsmål og kort.",
     noCoursesFound: "Ingen Canvas-emner funnet. Koble til Canvas først.",
-    allCoursesHidden: "Alle emner er skjult. Vis emner under Emner-siden for å bruke Quiz/Flashcards.",
+    allCoursesHidden:
+      "Alle emner er skjult. Vis emner under Emner-siden for å bruke Quiz/Flashcards.",
     noModulesFound: "Ingen moduler funnet for dette emnet.",
     loadingCourses: "Laster emner...",
     loadingModules: "Laster moduler...",
@@ -771,6 +780,29 @@ export const nbMessages = {
     completedAt: "Fullført {date}",
     collapseAll: "Lukk alle",
     expandAll: "Utvid alle",
+  },
+  weeklyPlan: {
+    title: "KI Ukeplangenerator",
+    description:
+      "La KI-assistenten analysere dine Canvas-oppgaver og lage en optimal studieukeplan. Du kan deretter velge hvilke studieblokker du vil legge til i din arbeidsplan.",
+    generateButton: "Generer ukeplan med AI",
+    noAssignments: "Ingen oppgaver funnet. Legg til oppgaver i Canvas først.",
+    noAssignmentsWithDue:
+      "Ingen oppgaver med frister funnet. Legg til oppgaver i Canvas først.",
+    generating:
+      "KI-assistenten genererer ukeplan... Analyserer oppgaver, frister og kompleksitet.",
+    retryButton: "Prøv igjen",
+    generatedTitle: "KI-generert ukeplan",
+    generatedToast:
+      "KI-assistenten genererte en ukeplan med {count} studieøkter!",
+    regenerateButton: "Regenerer",
+    selectPrompt: "Velg studieblokker å legge til",
+    selectedCount: "{count} valgt",
+    saving: "Lagrer...",
+    addToPlan: "Legg til i min plan ({count})",
+    taskCount: "{count} oppgave",
+    tasksCount: "{count} oppgaver",
+    tipsTitle: "Studietips fra KI-assistenten",
   },
   aiBreakdown: {
     assignmentContext: {
@@ -881,9 +913,23 @@ export const nbMessages = {
     documentAnalysisMetadata:
       "Dokument: {pages} sider, {characters} tegn{truncated}",
     documentAnalysisMetadataTruncated: " (forkortet)",
+    explanationLevel: {
+      simple: "Enkelt",
+      standard: "Standard",
+      detailed: "Detaljert",
+      expert: "Ekspert",
+      tooltip: "Forklaringsnivå: {level}",
+    },
+    inputHint: "Enter for å sende · Shift+Enter for ny linje",
+    placeholderDefault: "Skriv en melding...",
+    placeholderAttachment: "Skriv et spørsmål om vedlegget...",
+    newConversationFallback: "Ny samtale",
+    conversationFallback: "Samtale",
+    uploadDocumentLabel: "Last opp dokument (PDF, Word, PowerPoint, Excel, kodefiler, bilder)",
+    uploadDocumentAriaLabel: "Last opp dokument",
   },
   profil: {
-    loading: "Laster profil...",
+    loading: "Laster konto...",
   },
   cookies: {
     banner: {
@@ -920,11 +966,14 @@ export const nbMessages = {
     subtitle: "Opprett en offentlig leselenke til denne samtalen.",
     closeLabel: "Lukk delingsdialog",
     defaultChatTitle: "Samtale",
-    messageInfo: "Denne lenken vil vise hele samtalen med {messageCount} meldinger, inkludert dine egne meldinger og KI-svar.",
+    messageInfo:
+      "Denne lenken vil vise hele samtalen med {messageCount} meldinger, inkludert dine egne meldinger og KI-svar.",
     warningTitle: "Del bare hvis du er trygg på innholdet.",
-    warningBody: "Alle med lenken kan lese hele samtalen. Dette kan inkludere kursnavn, oppgavenavn, filnavn, egne notater og annen tekst du selv har skrevet i samtalen.",
+    warningBody:
+      "Alle med lenken kan lese hele samtalen. Dette kan inkludere kursnavn, oppgavenavn, filnavn, egne notater og annen tekst du selv har skrevet i samtalen.",
     expiryInfo: "Lenken utløper automatisk etter 30 dager.",
-    privacyNotice: "StudyWise fjerner ikke automatisk innhold fra samtalen ved deling. Gå gjennom samtalen med personvern-briller før du oppretter lenken.",
+    privacyNotice:
+      "StudyWise fjerner ikke automatisk innhold fra samtalen ved deling. Gå gjennom samtalen med personvern-briller før du oppretter lenken.",
     linkLabel: "Delingslenke",
     copyButton: "Kopier",
     openButton: "Åpne",
@@ -949,15 +998,19 @@ export const nbMessages = {
     noneButton: "Ingen",
     conflictSingular: "1 tidskonflikt oppdaget",
     conflictPlural: "{count} tidskonflikter oppdaget",
-    conflictDescription: "Noen tidsluker overlapper med eksisterende oppgaver. Vurder å velge et annet tidspunkt.",
+    conflictDescription:
+      "Noen tidsluker overlapper med eksisterende oppgaver. Vurder å velge et annet tidspunkt.",
     previewTitle: "Automatisk fordeling",
-    previewDescription: "Dine {subtasks} deloppgaver vil bli fordelt jevnt over {days} valgte dager.",
+    previewDescription:
+      "Dine {subtasks} deloppgaver vil bli fordelt jevnt over {days} valgte dager.",
     cancelButton: "Avbryt",
     addingButton: "Legger til...",
     addButton: "Legg til i {week}",
     weekFormat: "Uke {weekNumber}, {weekYear}",
     addedSuccess: "{count} oppgaver lagt til i {week}!",
     addedSuccessSubtitle: "Gå til Oversikt for å se din arbeidsplan",
+    subtitle: "{count} deloppgaver fra {assignment}",
+    taskPreview: "{day}: {count} oppg.",
   },
   sharePage: {
     missingShareLink: "Mangler delingslenke.",
@@ -978,24 +1031,31 @@ export const nbMessages = {
   omOss: {
     title: "Om StudyWise",
     whatTitle: "Hva er StudyWise?",
-    whatBody: "StudyWise er en AI-drevet studieassistent utviklet som et bachelorprosjekt ved Universitetet i Sør-Øst-Norge (USN). Applikasjonen integrerer med Canvas LMS for å gi studenter en sentralisert plattform for å holde oversikt over studiene sine.",
+    whatBody:
+      "StudyWise er en AI-drevet studieassistent utviklet som et bachelorprosjekt ved Universitetet i Sør-Øst-Norge (USN). Applikasjonen integrerer med Canvas LMS for å gi studenter en sentralisert plattform for å holde oversikt over studiene sine.",
     featuresTitle: "Funksjoner",
     featureCanvasLabel: "Canvas-integrasjon:",
-    featureCanvasBody: "Se kunngjøringer, emner, frister og kalender fra Canvas",
+    featureCanvasBody:
+      "Se kunngjøringer, emner, frister og kalender fra Canvas",
     featureAILabel: "AI-assistent:",
-    featureAIBody: "Få hjelp med studier, oppgaver og spørsmål om Canvas-innhold",
+    featureAIBody:
+      "Få hjelp med studier, oppgaver og spørsmål om Canvas-innhold",
     featureCalendarLabel: "Kalender:",
     featureCalendarBody: "Oversikt over alle frister og hendelser på ett sted",
     featureDocumentsLabel: "Dokumentanalyse:",
-    featureDocumentsBody: "Last opp PDF, Word, bilder og andre filer for AI-analyse og oppsummering",
+    featureDocumentsBody:
+      "Last opp PDF, Word, bilder og andre filer for AI-analyse og oppsummering",
     featureTaskBreakdownLabel: "Oppgavenedbrytning:",
-    featureTaskBreakdownBody: "AI bryter ned store oppgaver i håndterbare deloppgaver",
+    featureTaskBreakdownBody:
+      "AI bryter ned store oppgaver i håndterbare deloppgaver",
     featureWorkplanLabel: "Arbeidsplan:",
-    featureWorkplanBody: "Generer ukentlige studieplaner tilpasset dine frister",
+    featureWorkplanBody:
+      "Generer ukentlige studieplaner tilpasset dine frister",
     featureChatHistoryLabel: "Samtalehistorikk:",
     featureChatHistoryBody: "Lagre og fortsett samtaler med AI-en",
     teamTitle: "Teamet",
-    teamBody: "StudyWise er utviklet av studenter ved USN som en del av deres bacheloroppgave i IT og informasjonssystemer. Prosjektet fokuserer på å utforske hvordan AI kan forbedre studieopplevelsen for studenter.",
+    teamBody:
+      "StudyWise er utviklet av studenter ved USN som en del av deres bacheloroppgave i IT og informasjonssystemer. Prosjektet fokuserer på å utforske hvordan AI kan forbedre studieopplevelsen for studenter.",
     techTitle: "Teknologi",
     techBody: "Applikasjonen er bygget med moderne teknologier:",
   },
@@ -1006,129 +1066,185 @@ export const nbMessages = {
     terms: "Vilkår",
     faq: "FAQ",
     contact: "Kontakt",
-    copyright: "© 2026 StudyWise - USN Bachelorprosjekt. Alle rettigheter reservert.",
+    copyright:
+      "© 2026 StudyWise - USN Bachelorprosjekt. Alle rettigheter reservert.",
   },
   personvern: {
     title: "Personvernerklæring",
     updatedAt: "April 2026",
     dataCollectionTitle: "Hvilke data samler vi inn?",
     accountInfoLabel: "Kontoinformasjon og innlogging:",
-    accountInfoBody: "Innlogging håndteres av Clerk (e-post, passord og valgfri to-faktor). Du kan koble til Google, eller Microsoft hvis det er aktivert. Vi lagrer ikke passord selv; Clerk håndterer sikkerhet og 2FA.",
+    accountInfoBody:
+      "Innlogging håndteres av Clerk (e-post, passord og valgfri to-faktor). Du kan koble til Google, eller Microsoft hvis det er aktivert. Vi lagrer ikke passord selv; Clerk håndterer sikkerhet og 2FA.",
     cookiesLabel: "Informasjonskapsler (cookies) og monitorering:",
-    cookiesBody: "Vi bruker nødvendige cookies for innlogging og preferanser. I tillegg bruker vi driftsmonitorering og feilsporing for å kunne knytte feil til backend/APM og følge stabiliteten i løsningen. Hvis du godtar det, aktiverer vi også valgfrie ytelsesmålinger. Valget for valgfrie målinger lagres på brukerprofilen din når du er innlogget, og caches også lokalt i nettleseren for å unngå at banneret vises på nytt.",
+    cookiesBody:
+      "Vi bruker nødvendige cookies for innlogging og preferanser. I tillegg bruker vi driftsmonitorering og feilsporing for å kunne knytte feil til backend/APM og følge stabiliteten i løsningen. Hvis du godtar det, aktiverer vi også valgfrie ytelsesmålinger. Valget for valgfrie målinger lagres på brukerprofilen din når du er innlogget, og caches også lokalt i nettleseren for å unngå at banneret vises på nytt.",
     canvasTokenLabel: "Canvas API-token:",
-    canvasTokenBody: "Lagres kryptert (AES-256-GCM) for å hente dine Canvas-data på dine vegne.",
+    canvasTokenBody:
+      "Lagres kryptert (AES-256-GCM) for å hente dine Canvas-data på dine vegne.",
     chatHistoryLabel: "Samtalehistorikk:",
-    chatHistoryBody: "AI-samtaler lagres kryptert på din konto. Vi lagrer en kort tittel basert på første spørsmål (f.eks. første 50 tegn) for å vise samtalen i listen.",
+    chatHistoryBody:
+      "AI-samtaler lagres kryptert på din konto. Vi lagrer en kort tittel basert på første spørsmål (f.eks. første 50 tegn) for å vise samtalen i listen.",
     preferencesLabel: "Preferanser og varsler:",
-    preferencesBody: "Dine valg for Canvas-kontekst og varsler (f.eks. lest/kunngjøringer) lagres knyttet til kontoen din.",
+    preferencesBody:
+      "Dine valg for Canvas-kontekst og varsler (f.eks. lest/kunngjøringer) lagres knyttet til kontoen din.",
     canvasCacheLabel: "Canvas-cache:",
-    canvasCacheBody: "Vi cacher midlertidig data fra Canvas (emner, oppgaver, kalender) for bedre ytelse. Cache lagres kun kort tid (minutter til timer).",
+    canvasCacheBody:
+      "Vi cacher midlertidig data fra Canvas (emner, oppgaver, kalender) for bedre ytelse. Cache lagres kun kort tid (minutter til timer).",
     legalBasisTitle: "Behandlingsgrunnlag (GDPR Art. 6)",
-    legalBasisIntro: "Vi behandler personopplysninger på følgende rettslige grunnlag:",
+    legalBasisIntro:
+      "Vi behandler personopplysninger på følgende rettslige grunnlag:",
     legalBasisContractLabel: "Avtale — Art. 6(1)(b):",
-    legalBasisContractBody: "Kontoinformasjon (e-post, innlogging via Clerk), Canvas API-token, samtalehistorikk, preferanser og arbeidsplaner behandles fordi det er nødvendig for å levere tjenesten du har registrert deg for.",
+    legalBasisContractBody:
+      "Kontoinformasjon (e-post, innlogging via Clerk), Canvas API-token, samtalehistorikk, preferanser og arbeidsplaner behandles fordi det er nødvendig for å levere tjenesten du har registrert deg for.",
     legalBasisInterestLabel: "Berettiget interesse — Art. 6(1)(f):",
-    legalBasisInterestBody: "Sikkerhetslogging, revisjonslogg, driftsmonitorering (Datadog APM/RUM) og misbruksdeteksjon behandles på grunnlag av vår berettigede interesse i sikker og stabil drift. Disse dataene er minimert og pseudonymisert der det er mulig.",
+    legalBasisInterestBody:
+      "Sikkerhetslogging, revisjonslogg, driftsmonitorering (Datadog APM/RUM) og misbruksdeteksjon behandles på grunnlag av vår berettigede interesse i sikker og stabil drift. Disse dataene er minimert og pseudonymisert der det er mulig.",
     legalBasisConsentLabel: "Samtykke — Art. 6(1)(a):",
-    legalBasisConsentBody: "Valgfrie ytelsesmålinger (f.eks. Speed Insights) aktiveres kun dersom du eksplisitt godtar dette via cookie-banneret. Du kan når som helst trekke tilbake samtykket ved å endre valget i innstillingene dine. Hvis du ikke er innlogget, gjelder valget bare for den åpne økten.",
+    legalBasisConsentBody:
+      "Valgfrie ytelsesmålinger (f.eks. Speed Insights) aktiveres kun dersom du eksplisitt godtar dette via cookie-banneret. Du kan når som helst trekke tilbake samtykket ved å endre valget i innstillingene dine. Hvis du ikke er innlogget, gjelder valget bare for den åpne økten.",
     purposeTitle: "Formål med behandlingen",
     purposeIntro: "Vi bruker dataene for å:",
-    purpose1: "Gi deg tilgang til Canvas-informasjon (emner, oppgaver, kunngjøringer, kalender) i appen.",
-    purpose2: "La AI-assistenten svare på spørsmål om dine emner og oppgaver (med anonymisert/redusert kontekst der det er mulig).",
-    purpose3: "Lagre samtalehistorikk slik at du kan fortsette tidligere samtaler.",
-    purpose4: "Huske dine preferanser og varsler-innstillinger på tvers av enheter.",
+    purpose1:
+      "Gi deg tilgang til Canvas-informasjon (emner, oppgaver, kunngjøringer, kalender) i appen.",
+    purpose2:
+      "La AI-assistenten svare på spørsmål om dine emner og oppgaver (med anonymisert/redusert kontekst der det er mulig).",
+    purpose3:
+      "Lagre samtalehistorikk slik at du kan fortsette tidligere samtaler.",
+    purpose4:
+      "Huske dine preferanser og varsler-innstillinger på tvers av enheter.",
     retentionTitle: "Lagringstid",
     retentionAccountLabel: "Konto og profil:",
-    retentionAccountBody: "Inntil du sletter kontoen. Ved kontosletting slettes eller anonymiseres kontoopplysninger, Canvas-token, samtalehistorikk, preferanser og arbeidsplaner. Begrensede sikkerhets- og revisjonslogger kan beholdes i pseudonymisert eller minimert form i opptil 24 måneder.",
+    retentionAccountBody:
+      "Inntil du sletter kontoen. Ved kontosletting slettes eller anonymiseres kontoopplysninger, Canvas-token, samtalehistorikk, preferanser og arbeidsplaner. Begrensede sikkerhets- og revisjonslogger kan beholdes i pseudonymisert eller minimert form i opptil 24 måneder.",
     retentionChatLabel: "Samtalehistorikk:",
-    retentionChatBody: "Lagres til du sletter en samtale eller hele historikken, eller til du sletter kontoen.",
+    retentionChatBody:
+      "Lagres til du sletter en samtale eller hele historikken, eller til du sletter kontoen.",
     retentionCacheLabel: "Canvas-cache:",
-    retentionCacheBody: "Kortvarig (typisk 5–30 minutter). Cachen slettes eller overskrives automatisk og inneholder ikke persistert personidentifiserbar data utover det som trengs for å vise dine sider.",
+    retentionCacheBody:
+      "Kortvarig (typisk 5–30 minutter). Cachen slettes eller overskrives automatisk og inneholder ikke persistert personidentifiserbar data utover det som trengs for å vise dine sider.",
     retentionSessionLabel: "Sesjoner:",
-    retentionSessionBody: "Innlogging og sesjoner håndteres av Clerk. Session-token utløper etter Clerk sin konfigurasjon og oppdateres av innloggingsleverandøren ved behov.",
+    retentionSessionBody:
+      "Innlogging og sesjoner håndteres av Clerk. Session-token utløper etter Clerk sin konfigurasjon og oppdateres av innloggingsleverandøren ved behov.",
     cookiesSectionTitle: "Informasjonskapsler (cookies)",
-    cookiesSectionBody: "Vi bruker nødvendige informasjonskapsler for innlogging (Clerk), for å huske tema og preferanser, og for at appen skal fungere korrekt. Vi bruker også nødvendig driftsmonitorering og feilsporing for å kunne koble frontend-feil til monitorering og backend-spor. Hvis du godtar det, aktiverer vi i tillegg valgfrie ytelsesmålinger (for eksempel Speed Insights). Ved første besøk vises en melding nederst på siden der du kan velge Kun nødvendige eller Godta alle. For innloggede brukere lagres valget på brukerprofilen din i databasen og caches også i nettleserens localStorage for å unngå at banneret vises på nytt mellom besøk. Dette brukes ikke til markedsføring. Hvis du ikke er innlogget, huskes valget bare for den åpne nettleserøkten.",
+    cookiesSectionBody:
+      "Vi bruker nødvendige informasjonskapsler for innlogging (Clerk), for å huske tema og preferanser, og for at appen skal fungere korrekt. Vi bruker også nødvendig driftsmonitorering og feilsporing for å kunne koble frontend-feil til monitorering og backend-spor. Hvis du godtar det, aktiverer vi i tillegg valgfrie ytelsesmålinger (for eksempel Speed Insights). Ved første besøk vises en melding nederst på siden der du kan velge Kun nødvendige eller Godta alle. For innloggede brukere lagres valget på brukerprofilen din i databasen og caches også i nettleserens localStorage for å unngå at banneret vises på nytt mellom besøk. Dette brukes ikke til markedsføring. Hvis du ikke er innlogget, huskes valget bare for den åpne nettleserøkten.",
     cookiesSectionNecessary: "Kun nødvendige",
     cookiesSectionAcceptAll: "Godta alle",
     thirdPartyTitle: "Deling med tredjeparter",
     thirdPartyIntro: "Vi deler minimalt med tredjeparter:",
     thirdPartyAILabel: "AI-tjenester (Anthropic):",
-    thirdPartyAIBody: "Innhold du skriver og kontekst (f.eks. oppgavetekst) sendes til AI for å generere svar. Vi unngår å sende personidentifiserbar informasjon (navn, e-post) til AI; Canvas-innhold anonymiseres der det er mulig.",
+    thirdPartyAIBody:
+      "Innhold du skriver og kontekst (f.eks. oppgavetekst) sendes til AI for å generere svar. Vi unngår å sende personidentifiserbar informasjon (navn, e-post) til AI; Canvas-innhold anonymiseres der det er mulig.",
     thirdPartyCanvasLabel: "Canvas LMS:",
-    thirdPartyCanvasBody: "Vi bruker kun ditt API-token for å hente data på dine vegne mot din institusjons Canvas. Tokenet lagres kryptert hos oss og sendes ikke til andre tredjeparter.",
+    thirdPartyCanvasBody:
+      "Vi bruker kun ditt API-token for å hente data på dine vegne mot din institusjons Canvas. Tokenet lagres kryptert hos oss og sendes ikke til andre tredjeparter.",
     thirdPartyPineconeLabel: "Vektorsøk (Pinecone):",
-    thirdPartyPineconeBody: "Når du bruker AI-funksjoner med Canvas-innhold, sendes tekstbiter (uten navn, e-post eller andre personidentifiserende data) til Pinecone for indeksering og semantisk søk. Pinecone lagrer kun vektorrepresentasjoner og anonymisert tekst knyttet til din bruker-ID.",
+    thirdPartyPineconeBody:
+      "Når du bruker AI-funksjoner med Canvas-innhold, sendes tekstbiter (uten navn, e-post eller andre personidentifiserende data) til Pinecone for indeksering og semantisk søk. Pinecone lagrer kun vektorrepresentasjoner og anonymisert tekst knyttet til din bruker-ID.",
     thirdPartyCohereLabel: "Reranking (Cohere):",
-    thirdPartyCohereBody: "For å forbedre relevansen i AI-svar brukes Cohere til å rangere søkeresultater. Kun anonymiserte tekstutdrag sendes — ingen personopplysninger.",
+    thirdPartyCohereBody:
+      "For å forbedre relevansen i AI-svar brukes Cohere til å rangere søkeresultater. Kun anonymiserte tekstutdrag sendes — ingen personopplysninger.",
     thirdPartyDatadogLabel: "Monitorering (Datadog):",
-    thirdPartyDatadogBody: "Tekniske drifts- og feilsporingsdata kan behandles av Datadog for å knytte frontend-feil, backend-spor og ytelsesavvik sammen. Dette omfatter tekniske metadata, ikke innholdet i Canvas-token eller chat-meldinger.",
+    thirdPartyDatadogBody:
+      "Tekniske drifts- og feilsporingsdata kan behandles av Datadog for å knytte frontend-feil, backend-spor og ytelsesavvik sammen. Dette omfatter tekniske metadata, ikke innholdet i Canvas-token eller chat-meldinger.",
     rightsTitle: "Dine rettigheter (GDPR)",
-    rightsIntro: "Du har rett til innsyn, retting, sletting og dataportabilitet:",
+    rightsIntro:
+      "Du har rett til innsyn, retting, sletting og dataportabilitet:",
     rightsAccessLabel: "Innsyn:",
-    rightsAccessBody: "Du kan be om oversikt over hvilke data vi har lagret om deg. Kontakt oss via kontaktskjemaet.",
+    rightsAccessBody:
+      "Du kan be om oversikt over hvilke data vi har lagret om deg. Kontakt oss via kontaktskjemaet.",
     rightsCorrectionLabel: "Retting:",
-    rightsCorrectionBody: "Du kan oppdatere e-post, passord og to-faktor under Innstillinger → Konto og sikkerhet (rediger profil). Canvas-token og preferanser kan du endre eller fjerne under innstillinger.",
+    rightsCorrectionBody:
+      "Du kan oppdatere e-post, passord og to-faktor under Innstillinger → Konto og sikkerhet (rediger profil). Canvas-token og preferanser kan du endre eller fjerne under innstillinger.",
     rightsDeletionLabel: "Sletting:",
-    rightsDeletionBody: "Du kan slette enkelt samtaler eller hele chat-historikken i appen, og slette Canvas-token under innstillinger. Full kontosletting kan gjøres under innstillinger eller ved å kontakte oss. Da slettes eller anonymiseres kontoopplysninger og tilknyttede data, mens begrensede sikkerhets- og revisjonslogger kan beholdes i pseudonymisert form i en begrenset periode.",
+    rightsDeletionBody:
+      "Du kan slette enkelt samtaler eller hele chat-historikken i appen, og slette Canvas-token under innstillinger. Full kontosletting kan gjøres under innstillinger eller ved å kontakte oss. Da slettes eller anonymiseres kontoopplysninger og tilknyttede data, mens begrensede sikkerhets- og revisjonslogger kan beholdes i pseudonymisert form i en begrenset periode.",
     rightsPortabilityLabel: "Dataportabilitet:",
-    rightsPortabilityBody: "Du kan be om eksport av dine data (f.eks. samtalehistorikk). Kontakt oss via kontaktskjemaet.",
-    rightsComplaint: "Du kan også klage til Datatilsynet dersom du mener behandlingen bryter personvernlovgivningen.",
+    rightsPortabilityBody:
+      "Du kan be om eksport av dine data (f.eks. samtalehistorikk). Kontakt oss via kontaktskjemaet.",
+    rightsComplaint:
+      "Du kan også klage til Datatilsynet dersom du mener behandlingen bryter personvernlovgivningen.",
     storageTitle: "Lagring og sikkerhet",
-    storageCrypto: "Sensitive data (Canvas-token, samtalehistorikk) krypteres med AES-256-GCM før lagring.",
-    storageClerk: "Innlogging og passord håndteres av Clerk; vi lagrer ikke passord selv. Clerk støtter to-faktor (2FA) og tilkobling til Google og Microsoft.",
-    storageAudit: "Sikkerhets- og revisjonslogger minimeres og pseudonymiseres ved kontosletting der det er praktisk mulig, men enkelte tekniske metadata kan beholdes i begrenset tid for sikkerhet, misbruksdeteksjon og etterlevelse.",
-    storageServers: "Data lagres på sikre servere med tilgangskontroll. Se også vår",
+    storageCrypto:
+      "Sensitive data (Canvas-token, samtalehistorikk) krypteres med AES-256-GCM før lagring.",
+    storageClerk:
+      "Innlogging og passord håndteres av Clerk; vi lagrer ikke passord selv. Clerk støtter to-faktor (2FA) og tilkobling til Google og Microsoft.",
+    storageAudit:
+      "Sikkerhets- og revisjonslogger minimeres og pseudonymiseres ved kontosletting der det er praktisk mulig, men enkelte tekniske metadata kan beholdes i begrenset tid for sikkerhet, misbruksdeteksjon og etterlevelse.",
+    storageServers:
+      "Data lagres på sikre servere med tilgangskontroll. Se også vår",
     storageServersLink: "sikkerhetsside",
-    storageHTTPS: "All kommunikasjon mellom nettleser og servere skjer over HTTPS.",
-    storageCache: "Canvas-cache har kort levetid og slettes/roteres automatisk.",
+    storageHTTPS:
+      "All kommunikasjon mellom nettleser og servere skjer over HTTPS.",
+    storageCache:
+      "Canvas-cache har kort levetid og slettes/roteres automatisk.",
     contactTitle: "Kontakt",
-    contactBody: "Har du spørsmål om personvern eller vil utøve rettighetene dine? Kontakt oss via",
+    contactBody:
+      "Har du spørsmål om personvern eller vil utøve rettighetene dine? Kontakt oss via",
     contactLink: "kontaktskjemaet",
   },
   sikkerhet: {
     title: "Sikkerhet",
     description: "Sikkerheten til dine data er vår høyeste prioritet.",
     encryptionTitle: "Kryptering",
-    encryptionBody: "Alle sensitive data krypteres med AES-256-GCM for lagring. Innlogging og passord håndteres av Clerk; vi lagrer ikke passord selv. Clerk støtter 2FA og sikker lagring.",
+    encryptionBody:
+      "Alle sensitive data krypteres med AES-256-GCM for lagring. Innlogging og passord håndteres av Clerk; vi lagrer ikke passord selv. Clerk støtter 2FA og sikker lagring.",
     tokenTitle: "Sikker tokenhandtering",
-    tokenBody: "Canvas API-tokens lagres kryptert og brukes kun server-side. De eksponeres aldri til nettleseren eller tredjeparter.",
+    tokenBody:
+      "Canvas API-tokens lagres kryptert og brukes kun server-side. De eksponeres aldri til nettleseren eller tredjeparter.",
     httpsTitle: "HTTPS og sikkerhetsheadere",
-    httpsBody: "All kommunikasjon skjer over TLS. Vi bruker Helmet for sikkerhetsheadere (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy i produksjon).",
+    httpsBody:
+      "All kommunikasjon skjer over TLS. Vi bruker Helmet for sikkerhetsheadere (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy i produksjon).",
     csrfTitle: "CSRF-beskyttelse",
-    csrfBody: "State-endrende forespørsler (POST, PUT, PATCH, DELETE) krever en gyldig CSRF-header og at forespørselen kommer fra vår egen nettside, for å forhindre tredjepartsider i å utføre handlinger på dine vegne.",
+    csrfBody:
+      "State-endrende forespørsler (POST, PUT, PATCH, DELETE) krever en gyldig CSRF-header og at forespørselen kommer fra vår egen nettside, for å forhindre tredjepartsider i å utføre handlinger på dine vegne.",
     rateLimitTitle: "Rate limiting",
-    rateLimitBody: "Vi begrenser antall forespørsler per IP og per tjeneste (innlogging, KI, Canvas, API-token). Det reduserer risiko for misbruk og brute-force-angrep.",
+    rateLimitBody:
+      "Vi begrenser antall forespørsler per IP og per tjeneste (innlogging, KI, Canvas, API-token). Det reduserer risiko for misbruk og brute-force-angrep.",
     sessionsTitle: "Sikre sesjoner (Clerk)",
-    sessionsBody: "Innlogging og sesjoner håndteres av Clerk med sikre cookies (httpOnly, secure, sameSite). Clerk støtter to-faktor (2FA) og innlogging med Google og Microsoft. Tilgangstoken har kort levetid og sendes kun over HTTPS.",
+    sessionsBody:
+      "Innlogging og sesjoner håndteres av Clerk med sikre cookies (httpOnly, secure, sameSite). Clerk støtter to-faktor (2FA) og innlogging med Google og Microsoft. Tilgangstoken har kort levetid og sendes kun over HTTPS.",
     minimalAccessTitle: "Minimalt datainnsyn",
-    minimalAccessBody: "Vi henter kun data fra Canvas som er nødvendig for funksjonaliteten du bruker. Se vår personvernerklæring for hvordan vi behandler data.",
+    minimalAccessBody:
+      "Vi henter kun data fra Canvas som er nødvendig for funksjonaliteten du bruker. Se vår personvernerklæring for hvordan vi behandler data.",
     infrastructureTitle: "Sikker infrastruktur",
-    infrastructureBody: "Applikasjonen kjører på sikre plattformer (Vercel, Heroku) med brannmur og tilgangskontroll. Cloudflare brukes som CDN med bot-beskyttelse (Turnstile) og DNS-sikkerhet.",
+    infrastructureBody:
+      "Applikasjonen kjører på sikre plattformer (Vercel, Heroku) med brannmur og tilgangskontroll. Cloudflare brukes som CDN med bot-beskyttelse (Turnstile) og DNS-sikkerhet.",
     autoLogoutTitle: "Automatisk utlogging",
-    autoLogoutBody: "Sesjoner utløper automatisk. Ved inaktivitet eller utløpt sesjon må du logge inn på nytt. Clerk håndterer sesjon og valgfri to-faktor.",
+    autoLogoutBody:
+      "Sesjoner utløper automatisk. Ved inaktivitet eller utløpt sesjon må du logge inn på nytt. Clerk håndterer sesjon og valgfri to-faktor.",
     canvasApiTitle: "Canvas API-sikkerhet",
-    canvasApiIntro: "Når du kobler til Canvas, bruker vi ditt personlige API-token:",
-    canvasApi1: "Vi bruker tokenet kun til å lese dine Canvas-data — vi utfører ingen skriveoperasjoner",
+    canvasApiIntro:
+      "Når du kobler til Canvas, bruker vi ditt personlige API-token:",
+    canvasApi1:
+      "Vi bruker tokenet kun til å lese dine Canvas-data — vi utfører ingen skriveoperasjoner",
     canvasApi2: "Du kan tilbakekalle tokenet i Canvas når som helst",
     canvasApi3: "Tokenet lagres kryptert og sendes aldri til tredjeparter",
     loggingTitle: "Logging og personvern",
-    loggingBody: "På serveren logger vi feil og sikkerhetshendelser for drift og feilsøking. Vi logger ikke e-post, navn, passord, Canvas-token eller brukerinnhold (f.eks. chat-meldinger og søketekst) i produksjon. Vi kan lagre begrenset teknisk metadata som pseudonymisert bruker-ID, IP-adresse, user-agent og request-id for sikkerhet, misbruksdeteksjon og hendelseshåndtering. Revisjonslogger har begrenset lagringstid og anonymiseres ved kontosletting der det er mulig.",
+    loggingBody:
+      "På serveren logger vi feil og sikkerhetshendelser for drift og feilsøking. Vi logger ikke e-post, navn, passord, Canvas-token eller brukerinnhold (f.eks. chat-meldinger og søketekst) i produksjon. Vi kan lagre begrenset teknisk metadata som pseudonymisert bruker-ID, IP-adresse, user-agent og request-id for sikkerhet, misbruksdeteksjon og hendelseshåndtering. Revisjonslogger har begrenset lagringstid og anonymiseres ved kontosletting der det er mulig.",
     aiPrivacyTitle: "AI og personvern",
     aiPrivacyIntro: "Når du bruker AI-assistenten:",
-    aiPrivacy1: "Personlig identifiserbar informasjon unngås eller fjernes før sending til AI-tjenesten",
+    aiPrivacy1:
+      "Personlig identifiserbar informasjon unngås eller fjernes før sending til AI-tjenesten",
     aiPrivacy2: "Canvas-innhold anonymiseres der det er mulig",
-    aiPrivacy3: "Samtaler lagres kryptert på din konto; en kort tittel fra første spørsmål lagres for visning i listen",
-    aiPrivacy4: "Du kan slette samtalehistorikken eller enkelt samtaler når som helst",
+    aiPrivacy3:
+      "Samtaler lagres kryptert på din konto; en kort tittel fra første spørsmål lagres for visning i listen",
+    aiPrivacy4:
+      "Du kan slette samtalehistorikken eller enkelt samtaler når som helst",
     aiPrivacyMore: "Mer om behandling av personopplysninger finner du i vår",
     aiPrivacyLink: "personvernerklæring",
     openSourceTitle: "Åpen kildekode og transparens",
-    openSourceBody: "StudyWise er et åpen kildekode-prosjekt. Vi tror på transparens som grunnlag for tillit — all kildekode er offentlig tilgjengelig slik at hvem som helst kan verifisere hvordan vi behandler data, hvilke sikkerhetsmekanismer vi bruker, og at vi holder det vi lover.",
+    openSourceBody:
+      "StudyWise er et åpen kildekode-prosjekt. Vi tror på transparens som grunnlag for tillit — all kildekode er offentlig tilgjengelig slik at hvem som helst kan verifisere hvordan vi behandler data, hvilke sikkerhetsmekanismer vi bruker, og at vi holder det vi lover.",
     openSourceGithub: "Se kildekoden på GitHub",
     openSourceVirusTotal: "VirusTotal-rapport",
-    openSourceCI: "Vi kjører automatisk CI/CD med sikkerhetsskanning (TruffleHog, OWASP, SAST), avhengighetsrevisjoner og SBOM-generering ved hver utrulling.",
+    openSourceCI:
+      "Vi kjører automatisk CI/CD med sikkerhetsskanning (TruffleHog, OWASP, SAST), avhengighetsrevisjoner og SBOM-generering ved hver utrulling.",
     reportTitle: "Rapporter sikkerhetsproblemer",
-    reportBody: "Har du oppdaget en sikkerhetssvakhet? Kontakt oss umiddelbart via",
+    reportBody:
+      "Har du oppdaget en sikkerhetssvakhet? Kontakt oss umiddelbart via",
     reportLink: "kontaktskjemaet",
     reportSuffix: ". Vi tar alle rapporter på alvor og vil respondere raskt.",
   },
@@ -1136,17 +1252,21 @@ export const nbMessages = {
     title: "Brukervilkår",
     updatedAt: "April 2026",
     acceptTitle: "1. Aksept av vilkår",
-    acceptBody: "Ved å opprette en konto og bruke StudyWise aksepterer du disse brukervilkårene. Hvis du ikke aksepterer vilkårene, må du ikke bruke tjenesten.",
+    acceptBody:
+      "Ved å opprette en konto og bruke StudyWise aksepterer du disse brukervilkårene. Hvis du ikke aksepterer vilkårene, må du ikke bruke tjenesten.",
     serviceTitle: "2. Beskrivelse av tjenesten",
-    serviceBody: "StudyWise er en studieassistent som integrerer med Canvas LMS og tilbyr AI-basert hjelp. Tjenesten er utviklet som et bachelorprosjekt ved USN og tilbys gratis til studenter.",
+    serviceBody:
+      "StudyWise er en studieassistent som integrerer med Canvas LMS og tilbyr AI-basert hjelp. Tjenesten er utviklet som et bachelorprosjekt ved USN og tilbys gratis til studenter.",
     accountTitle: "3. Brukerkonto",
     account1: "Du er ansvarlig for å holde passordet ditt hemmelig",
     account2: "Du må ikke dele kontoen din med andre",
-    account3: "Du må varsle oss umiddelbart ved mistanke om uautorisert tilgang",
+    account3:
+      "Du må varsle oss umiddelbart ved mistanke om uautorisert tilgang",
     account4: "Vi kan suspendere kontoer som bryter vilkårene",
     canvasTitle: "4. Canvas-integrasjon",
     canvas1: "Du gir oss tillatelse til å hente data fra Canvas på dine vegne",
-    canvas2: "Vi henter kun data som er nødvendig for tjenestens funksjonalitet",
+    canvas2:
+      "Vi henter kun data som er nødvendig for tjenestens funksjonalitet",
     canvas3: "Du kan tilbakekalle tilgangen når som helst via Canvas",
     canvas4: "Vi er ikke ansvarlige for innhold i Canvas",
     aiTitle: "5. AI-assistenten",
@@ -1161,9 +1281,11 @@ export const nbMessages = {
     use3: "Overbelaste tjenesten med unødvendige forespørsler",
     use4: "Dele innhold som krenker andres rettigheter",
     disclaimerTitle: "7. Ansvarsfraskrivelse",
-    disclaimerBody: "Tjenesten tilbys \"som den er\" uten garantier. Vi er ikke ansvarlige for tap eller skade som følge av bruk av tjenesten. Dette inkluderer, men er ikke begrenset til, tap av data, feil i AI-svar, eller nedetid.",
+    disclaimerBody:
+      'Tjenesten tilbys "som den er" uten garantier. Vi er ikke ansvarlige for tap eller skade som følge av bruk av tjenesten. Dette inkluderer, men er ikke begrenset til, tap av data, feil i AI-svar, eller nedetid.',
     changesTitle: "8. Endringer i vilkårene",
-    changesBody: "Vi kan oppdatere disse vilkårene. Vesentlige endringer vil varsles via e-post eller i appen. Fortsatt bruk etter endringer innebærer aksept av de nye vilkårene.",
+    changesBody:
+      "Vi kan oppdatere disse vilkårene. Vesentlige endringer vil varsles via e-post eller i appen. Fortsatt bruk etter endringer innebærer aksept av de nye vilkårene.",
     contactTitle: "9. Kontakt",
     contactBody: "Spørsmål om vilkårene kan rettes til oss via",
     contactLink: "kontaktskjemaet",
@@ -1176,42 +1298,54 @@ export const nbMessages = {
     categoryAccount: "Konto",
     categoryFeatures: "Funksjoner",
     canvasTokenQ: "Hvordan får jeg Canvas API-token?",
-    canvasTokenA: "Logg inn på Canvas, gå til Innstillinger → Godkjente integrasjoner, og klikk \"Ny tilgangstoken\". Kopier tokenet og lim det inn i StudyWise under Innstillinger.",
+    canvasTokenA:
+      'Logg inn på Canvas, gå til Innstillinger → Godkjente integrasjoner, og klikk "Ny tilgangstoken". Kopier tokenet og lim det inn i StudyWise under Innstillinger.',
     canvasTokenSettings: "Innstillinger → Godkjente integrasjoner",
     canvasTokenButton: "Ny tilgangstoken",
     canvasInstitutionsQ: "Hvilke Canvas-institusjoner støttes?",
-    canvasInstitutionsA: "StudyWise støtter Canvas-installasjoner ved norske universiteter og høgskoler. Velg institusjonen din når du kobler til Canvas.",
+    canvasInstitutionsA:
+      "StudyWise støtter Canvas-installasjoner ved norske universiteter og høgskoler. Velg institusjonen din når du kobler til Canvas.",
     dataSecureQ: "Er dataene mine trygge?",
-    dataSecureA: "Ja, alle sensitive data krypteres med AES-256-GCM. Les mer på vår",
+    dataSecureA:
+      "Ja, alle sensitive data krypteres med AES-256-GCM. Les mer på vår",
     dataSecureLink: "sikkerhetsside",
     thirdPartyQ: "Sender StudyWise data til tredjepart?",
-    thirdPartyA1: "Samtaler sendes til Anthropic (Claude) for AI-svar. Canvas-data hentes kun fra din institusjon. Les vår",
+    thirdPartyA1:
+      "Samtaler sendes til Anthropic (Claude) for AI-svar. Canvas-data hentes kun fra din institusjon. Les vår",
     thirdPartyLink: "personvernerklæring",
     thirdPartyA2: "for detaljer.",
     deleteAccountQ: "Hvordan sletter jeg kontoen min?",
     deleteAccountA1: "Gå til Innstillinger eller",
     deleteAccountLink: "kontakt oss",
-    deleteAccountA2: "for å be om kontosletting. Kontoopplysninger og tilknyttede data slettes eller anonymiseres, mens begrensede sikkerhets- og revisjonslogger kan beholdes i pseudonymisert form i en begrenset periode.",
+    deleteAccountA2:
+      "for å be om kontosletting. Kontoopplysninger og tilknyttede data slettes eller anonymiseres, mens begrensede sikkerhets- og revisjonslogger kan beholdes i pseudonymisert form i en begrenset periode.",
     withoutCanvasQ: "Kan jeg bruke StudyWise uten Canvas-token?",
-    withoutCanvasA: "Ja, du kan bruke KI-chatten og dokumentanalyse uten å koble til Canvas. Canvas-token er kun nødvendig for å hente kursdata, oppgaver og kalender.",
+    withoutCanvasA:
+      "Ja, du kan bruke KI-chatten og dokumentanalyse uten å koble til Canvas. Canvas-token er kun nødvendig for å hente kursdata, oppgaver og kalender.",
     fileTypesQ: "Hvilke filtyper støttes for dokumentanalyse?",
-    fileTypesA: "StudyWise støtter PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), bilder (PNG, JPG, WEBP) og vanlige kodefiler.",
+    fileTypesA:
+      "StudyWise støtter PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), bilder (PNG, JPG, WEBP) og vanlige kodefiler.",
     sharedChatsQ: "Hvor lenge lagres delte samtaler?",
-    sharedChatsA: "Delte samtalelenker er gyldige i 30 dager. Etter det slettes den delte lenken automatisk.",
+    sharedChatsA:
+      "Delte samtalelenker er gyldige i 30 dager. Etter det slettes den delte lenken automatisk.",
     notFound: "Fant du ikke svaret?",
     contactUs: "Kontakt oss",
   },
   kontakt: {
     title: "Kontakt oss",
-    description: "Har du spørsmål, tilbakemeldinger eller trenger hjelp? Send oss en melding.",
+    description:
+      "Har du spørsmål, tilbakemeldinger eller trenger hjelp? Send oss en melding.",
     sendMessage: "Send oss en melding",
     email: "E-post: kontakt@studwize.page",
     feedbackTitle: "Tilbakemeldinger",
-    feedbackBody: "Vi setter pris på alle tilbakemeldinger som kan hjelpe oss å forbedre StudyWise. Del gjerne dine tanker og forslag.",
+    feedbackBody:
+      "Vi setter pris på alle tilbakemeldinger som kan hjelpe oss å forbedre StudyWise. Del gjerne dine tanker og forslag.",
     bugReportTitle: "Feilrapportering",
-    bugReportBody: "Har du funnet en feil? Rapporter den slik at vi kan fikse den. Inkluder gjerne skjermbilder og steg for å reprodusere feilen.",
+    bugReportBody:
+      "Har du funnet en feil? Rapporter den slik at vi kan fikse den. Inkluder gjerne skjermbilder og steg for å reprodusere feilen.",
     universityTitle: "Universitetet i Sør-Øst-Norge",
-    universityBody: "StudyWise er et bachelorprosjekt ved USN, Institutt for IT og informasjonssystemer.",
+    universityBody:
+      "StudyWise er et bachelorprosjekt ved USN, Institutt for IT og informasjonssystemer.",
     mapTitle: "Her finner du oss",
     mapLocation: "Universitetet i Sørøst-Norge, Campus Bø",
     mapIframeTitle: "Kart USN Campus Bø",
@@ -1220,7 +1354,7 @@ export const nbMessages = {
     nameLabel: "Navn",
     namePlaceholder: "Ditt navn",
     nameMinError: "Navn må være minst 2 tegn",
-    nameMaxError: "Navn kan ikke være mer enn 100 tegn",
+    nameMaxError: "Navn kan ikke være mer enn 256 tegn",
     emailLabel: "E-post",
     emailPlaceholder: "din@epost.no",
     emailError: "Ugyldig e-postadresse",
@@ -1235,7 +1369,8 @@ export const nbMessages = {
     messageMaxError: "Meldingen kan ikke være mer enn 5000 tegn",
     imagesLabel: "Bilder ved behov",
     imagesSelect: "Velg opptil {count} bilder",
-    imagesHint: "JPG, PNG eller WebP. Maks {count} bilder, {size} MB per bilde.",
+    imagesHint:
+      "JPG, PNG eller WebP. Maks {count} bilder, {size} MB per bilde.",
     imageTypeError: "Kun JPG, PNG og WebP-bilder er tillatt",
     imageSizeError: "Hvert bilde må være mindre enn {size} MB",
     imageCountError: "Du kan laste opp maks {count} bilder",
@@ -1262,7 +1397,8 @@ export const nbMessages = {
   minArbeidsplan: {
     retryButton: "Prøv igjen",
     emptyTitle: "Ingen arbeidsplan enda",
-    emptyDescription: "Generer en ukeplan med KI og godkjenn studieblokker for å se dem her. Du vil kunne følge fremdriften din gjennom uken.",
+    emptyDescription:
+      "Generer en ukeplan med KI og godkjenn studieblokker for å se dem her. Du vil kunne følge fremdriften din gjennom uken.",
     personalPlanLabel: "Din personlige arbeidsplan",
     deleteTitle: "Slett arbeidsplan",
     deleteConfirm: "Bekreft sletting",
@@ -1280,8 +1416,10 @@ export const nbMessages = {
   chatSection: {
     weekPriorities: "Hvilke oppgaver og frister bør jeg prioritere denne uken?",
     registeredCourses: "Hvilke emner er jeg registrert på akkurat nå?",
-    summarizeAnnouncements: "Oppsummer nye kunngjøringer og viktige endringer fra emnene mine",
-    latestModule: "Forklar det viktigste fra siste modul eller forelesning i et av emnene mine",
+    summarizeAnnouncements:
+      "Oppsummer nye kunngjøringer og viktige endringer fra emnene mine",
+    latestModule:
+      "Forklar det viktigste fra siste modul eller forelesning i et av emnene mine",
   },
   smartSuggestions: {
     followupLabel: "Forslag til oppfølging:",
@@ -1335,7 +1473,8 @@ export const nbMessages = {
     bookmarked: "Bokmerket",
     loadSharedError: "Kunne ikke hente delte samtaler",
     deleteAllSharedTitle: "Slett alle delte samtaler?",
-    deleteAllSharedDescription: "Alle aktive delingslenker fjernes. Dette kan ikke angres.",
+    deleteAllSharedDescription:
+      "Alle aktive delingslenker fjernes. Dette kan ikke angres.",
     deleteAllSharedSuccess: "Alle delte samtaler slettet",
     deleteAllSharedError: "Kunne ikke slette delte samtaler",
     loadingShared: "Laster delte samtaler...",

@@ -146,19 +146,26 @@ kiHistoryRouter.put("/chat/history/:id", async (req, res) => {
     }
     const parsed = ChatSaveSchema.parse(req.body);
     const encryptedMessages = encrypt(JSON.stringify(parsed.messages));
-    const update: { encryptedMessages: string; title?: string; topic?: string; pinned?: boolean } = { encryptedMessages };
+    const setFields: Record<string, unknown> = { encryptedMessages };
+    const unsetFields: Record<string, 1> = {};
     if (parsed.title != null && parsed.title !== "") {
-      update.title = parsed.title.trim().slice(0, 120) || "Samtale";
+      setFields.title = parsed.title.trim().slice(0, 120) || "Samtale";
     }
     if (parsed.topic !== undefined) {
-      update.topic = parsed.topic?.trim() || undefined;
+      if (parsed.topic === null) {
+        unsetFields.topic = 1;
+      } else {
+        setFields.topic = parsed.topic.trim();
+      }
     }
     if (parsed.pinned !== undefined) {
-      update.pinned = parsed.pinned;
+      setFields.pinned = parsed.pinned;
     }
+    const mongoUpdate: Record<string, unknown> = { $set: setFields };
+    if (Object.keys(unsetFields).length > 0) mongoUpdate.$unset = unsetFields;
     const doc = await ChatHistory.findOneAndUpdate(
       { _id: id, user: userId },
-      update,
+      mongoUpdate,
       { returnDocument: "after" },
     );
     if (!doc) return apiError.notFound(res, "Samtalen");
@@ -221,9 +228,13 @@ kiHistoryRouter.patch("/chat/history/:id/topic", async (req, res) => {
       return apiError.badRequest(res, "Ugyldig samtale-ID");
     }
     const parsed = ChatTopicUpdateSchema.parse(req.body);
+    const topicValue = parsed.topic === null ? null : parsed.topic?.trim();
+    const topicUpdate = topicValue === null
+      ? { $unset: { topic: 1 as const } }
+      : { $set: { topic: topicValue } };
     const doc = await ChatHistory.findOneAndUpdate(
       { _id: id, user: userId },
-      { topic: parsed.topic?.trim() || undefined },
+      topicUpdate,
       { returnDocument: "after" },
     ).select("_id topic");
     if (!doc) return apiError.notFound(res, "Samtalen");

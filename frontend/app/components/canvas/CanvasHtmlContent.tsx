@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties, type ImgHTMLAttributes, type JSX } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ImgHTMLAttributes, type JSX } from "react";
 import { createCanvasHtmlParser, parseCanvasHtml } from "@/app/canvas/canvasHtml";
 import { fetchApi } from "@/app/lib/apiClient";
 
@@ -121,23 +121,30 @@ function TilpassetBilde({
     );
 }
 
-const htmlParser = createCanvasHtmlParser((domNode) => (
+const renderImage = (domNode: import("html-react-parser").Element) => (
     <TilpassetBilde
         src={domNode.attribs?.src ?? ""}
         alt={domNode.attribs?.alt || "Canvas bilde"}
         {...domNode.attribs}
     />
-));
+);
 
 interface CanvasHtmlContentProps {
     html: string | null | undefined;
     className?: string;
+    /** Canvas-instansens base-URL (f.eks. https://ntnu.instructure.com) for å løse relative lenker */
+    canvasBaseUrl?: string;
 }
 
-export function CanvasHtmlContent({ html, className }: CanvasHtmlContentProps): JSX.Element {
+export function CanvasHtmlContent({ html, className, canvasBaseUrl }: CanvasHtmlContentProps): JSX.Element {
+    const parser = useMemo(
+        () => createCanvasHtmlParser(renderImage, canvasBaseUrl),
+        [canvasBaseUrl],
+    );
+
     return (
         <div className={className}>
-            {parseCanvasHtml(html, htmlParser)}
+            {parseCanvasHtml(html, parser)}
         </div>
     );
 }

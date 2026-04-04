@@ -58,7 +58,7 @@ Komplett oversikt over teknologier og tjenester som brukes i StudyWise:
 
 | Medlem | GitHub | Rolle |
 | ------ | ------ | ----- |
-| **Laurent Zogaj** | [26zl](https://github.com/26zl) | Prosjektleder / Fullstack / Canvas-integrasjon / Arkitekt / UI/UX / CI/CD |
+| **Laurent Zogaj** | [26zl](https://github.com/26zl) | Prosjektleder / Fullstack / KI & Canvas-integrasjon / Arkitekt / UI/UX / CI/CD |
 | **Abdinasir** | [Abdinasir909](https://github.com/Abdinasir909) | Fullstack / KI-integrasjon og tjenester / UI/UX |
 | **Anwar** | [Hersino](https://github.com/Hersino) | Fullstack / KI-integrasjon og tjenester / UI/UX |
 | **Ylli Ujkani** | [yujk7](https://github.com/yujk7) | Dokumentasjon / Oversettelse |

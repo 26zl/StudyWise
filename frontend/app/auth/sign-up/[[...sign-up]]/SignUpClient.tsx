@@ -51,9 +51,9 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
     isOAuthReturn && signUp?.status === "missing_requirements";
   const isRedirectingToDashboard = isLoaded && isSignedIn && !isOAuthReturn;
 
-  // Sjekk om OAuth-provider ga fornavn/etternavn
-  const oauthMissingFirstName = isOAuthReturn && !signUp?.firstName;
-  const oauthMissingLastName = isOAuthReturn && !signUp?.lastName;
+  // Sjekk om OAuth-provider ga fornavn/etternavn (sjekk både signUp og clerkUser)
+  const oauthMissingFirstName = isOAuthReturn && !signUp?.firstName && !clerkUser?.firstName;
+  const oauthMissingLastName = isOAuthReturn && !signUp?.lastName && !clerkUser?.lastName;
 
   // Form state
   const [firstName, setFirstName] = useState("");

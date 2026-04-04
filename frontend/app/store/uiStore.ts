@@ -5,6 +5,7 @@ import {
     createDefaultCanvasContextPreferences,
     normalizeVarslerState,
 } from "common/auth";
+import type { ExplanationLevel } from "common/ki";
 
 /**
  * UI Store - Global tilstand for brukergrensesnitt
@@ -57,6 +58,9 @@ interface UIState {
     setVarslerState: (state?: VarslerState | null) => void;
     markAllVarslerAsLest: (ids: string[]) => void;
     addVarslerToastVist: (ids: string[]) => void;
+    // Forklaringsnivå for KI-svar
+    explanationLevel: ExplanationLevel;
+    setExplanationLevel: (level: ExplanationLevel) => void;
     // Nullstiller all UI-tilstand (brukes ved utlogging)
     reset: () => void;
 }
@@ -89,6 +93,8 @@ export const useUIStore = create<UIState>()((set) => ({
     setCanvasContextSelection: (selection) => set({ canvasContextSelection: selection }),
     canvasTokenInvalid: false,
     setCanvasTokenInvalid: (invalid) => set({ canvasTokenInvalid: invalid }),
+    explanationLevel: "standard" as ExplanationLevel,
+    setExplanationLevel: (level) => set({ explanationLevel: level }),
     varslerLestIds: new Set(),
     varslerToastVistIds: new Set(),
     varslerStateHydrated: false,
@@ -129,6 +135,7 @@ export const useUIStore = create<UIState>()((set) => ({
             pendingKIMelding: null,
             canvasContextSelection: createDefaultCanvasContextPreferences(),
             canvasTokenInvalid: false,
+            explanationLevel: "standard" as ExplanationLevel,
             varslerLestIds: new Set(),
             varslerToastVistIds: new Set(),
             varslerStateHydrated: false,

@@ -76,15 +76,6 @@ export function OversiktPage() {
       "mine-oppgaver",
     ),
   );
-  const activeTabId =
-    activeTab === "mine-oppgaver"
-      ? "overview-tab-my-workplan"
-      : "overview-tab-ai-weekplan";
-  const activePanelId =
-    activeTab === "mine-oppgaver"
-      ? "overview-panel-my-workplan"
-      : "overview-panel-ai-weekplan";
-
   const { isLoaded: clerkLoaded } = useAuth();
   const clerk = useClerk();
   const megQuery = useMeg({ enabled: clerkLoaded });
@@ -311,64 +302,69 @@ export function OversiktPage() {
           </div>
 
           <div
-            id={activePanelId}
+            id="overview-panel-my-workplan"
             role="tabpanel"
-            aria-labelledby={activeTabId}
-            className="outline-none"
+            aria-labelledby="overview-tab-my-workplan"
+            className={activeTab === "mine-oppgaver" ? "outline-none" : "hidden"}
           >
-            {activeTab === "mine-oppgaver" ? <MinArbeidsplan /> : null}
+            <MinArbeidsplan />
+          </div>
 
-            {activeTab === "ki-forslag" ? (
-              <div className="space-y-2">
-                {!harCanvasToken ? (
-                  <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
-                    <CanvasTokenNotice message={t("overview.missingCanvasPlanner")} />
-                  </div>
-                ) : assignmentsQuery.isLoading ? (
-                  <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/50 p-8">
-                    <LoadingView translationKey="common.loading.assignments" fullPage={false} />
-                  </div>
-                ) : assignmentsQuery.isError ? (
-                  <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
-                    <FeilMelding melding={oppgaveFeilmelding} />
-                  </div>
-                ) : ikkeInnleverteAssignments.length > 0 ? (
-                  <WeeklyPlanSuggestions
-                    assignments={ikkeInnleverteAssignments.map((assignment) => ({
-                      id: assignment.id.toString(),
-                      name: assignment.name,
-                      dueAt: assignment.due_at
-                        ? new Date(assignment.due_at)
-                        : undefined,
-                      courseName: assignment.course_name,
-                      pointsPossible: assignment.points_possible || undefined,
-                    }))}
-                    onPlanCreated={handlePlanCreated}
-                  />
-                ) : (
-                  <div className="rounded-xl border border-slate-200 bg-white p-8 dark:border-slate-700 dark:bg-slate-800/50">
-                    <div className="flex flex-col items-center justify-center space-y-3 text-center">
-                      <AlertCircle className="h-12 w-12 text-slate-400 dark:text-slate-500" />
-                      <div>
-                        <h3 className="mb-1 font-semibold text-slate-900 dark:text-white">
-                          {t("overview.noAssignments.title")}
-                        </h3>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                          {t("overview.noAssignments.description")}
-                        </p>
-                      </div>
-                      <Link
-                        href="/dashboard?view=settings"
-                        prefetch={false}
-                        className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
-                      >
-                        {t("common.actions.goToSettings")}
-                      </Link>
+          <div
+            id="overview-panel-ai-weekplan"
+            role="tabpanel"
+            aria-labelledby="overview-tab-ai-weekplan"
+            className={activeTab === "ki-forslag" ? "outline-none" : "hidden"}
+          >
+            <div className="space-y-2">
+              {!harCanvasToken ? (
+                <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
+                  <CanvasTokenNotice message={t("overview.missingCanvasPlanner")} />
+                </div>
+              ) : assignmentsQuery.isLoading ? (
+                <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/50 p-8">
+                  <LoadingView translationKey="common.loading.assignments" fullPage={false} />
+                </div>
+              ) : assignmentsQuery.isError ? (
+                <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
+                  <FeilMelding melding={oppgaveFeilmelding} />
+                </div>
+              ) : ikkeInnleverteAssignments.length > 0 ? (
+                <WeeklyPlanSuggestions
+                  assignments={ikkeInnleverteAssignments.map((assignment) => ({
+                    id: assignment.id.toString(),
+                    name: assignment.name,
+                    dueAt: assignment.due_at
+                      ? new Date(assignment.due_at)
+                      : undefined,
+                    courseName: assignment.course_name,
+                    pointsPossible: assignment.points_possible || undefined,
+                  }))}
+                  onPlanCreated={handlePlanCreated}
+                />
+              ) : (
+                <div className="rounded-xl border border-slate-200 bg-white p-8 dark:border-slate-700 dark:bg-slate-800/50">
+                  <div className="flex flex-col items-center justify-center space-y-3 text-center">
+                    <AlertCircle className="h-12 w-12 text-slate-400 dark:text-slate-500" />
+                    <div>
+                      <h3 className="mb-1 font-semibold text-slate-900 dark:text-white">
+                        {t("overview.noAssignments.title")}
+                      </h3>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        {t("overview.noAssignments.description")}
+                      </p>
                     </div>
+                    <Link
+                      href="/dashboard?view=settings"
+                      prefetch={false}
+                      className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                    >
+                      {t("common.actions.goToSettings")}
+                    </Link>
                   </div>
-                )}
-              </div>
-            ) : null}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="space-y-2">

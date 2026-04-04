@@ -158,7 +158,7 @@ export function useChatHistory() {
       }
     }
     return undefined;
-  }, [queryClient]);
+  }, [queryClient, t]);
 
   const setChatTopic = useCallback(async (id: string, topic: string) => {
     try {

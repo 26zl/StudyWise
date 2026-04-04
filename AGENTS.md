@@ -408,15 +408,16 @@ Alle jobber har `permissions: contents: read` og `actions: read` (på workflow-n
 ### Pipeline-kjede
 
 ```text
-CI (push/PR) → Functional Testing (Playwright E2E) → Deploy (Vercel frontend)
+CI (push/PR) ─┬─→ Deploy (Vercel frontend)
+               └─→ Functional Testing (Playwright E2E)  [parallelt, blokkerer ikke deploy]
 ```
 
-Deploy (`deploy.yml`) utløses automatisk når Functional Testing er grønn ved push til `main`. Backend deployes via Heroku Automatic Deploys (uavhengig av workflow-kjeden).
+Deploy (`deploy.yml`) og Functional Testing (`func-testing.yml`) utløses begge automatisk når CI er grønn ved push til `main`. De kjører parallelt — Playwright E2E blokkerer ikke deploy. Backend deployes via Heroku Automatic Deploys (uavhengig av workflow-kjeden).
 
 ### Andre workflows
 
-- **func-testing.yml** — Playwright E2E-tester; kjøres etter CI er grønn (push til `main`) eller manuelt (workflow_dispatch). Laster opp HTML-rapport og trace-artefakter
-- **deploy.yml** — trigger når Functional Testing er ferdig på `main` (push): frontend deployes via Vercel CLI; backend deployes automatisk via Heroku Automatic Deploys
+- **func-testing.yml** — Playwright E2E-tester; kjøres parallelt med deploy etter CI er grønn (push til `main`) eller manuelt (workflow_dispatch). Laster opp HTML-rapport og trace-artefakter
+- **deploy.yml** — trigger når CI er grønn på `main` (push): frontend deployes via Vercel CLI; backend deployes automatisk via Heroku Automatic Deploys
 - **deploy.docs.yml** — ved endringer i `docs/`: bygger VitePress og deployer til GitHub Pages
 - **owasp-dependency-check.yml** — ukentlig (mandager) + workflow_dispatch; bruker `dependency-check/Dependency-Check_Action@1.1.0` med input `others` (ikke `args`)
 - **update-dependencies.yml** — ukentlig (mandager) + workflow_dispatch, oppretter PR med `pnpm -r update`

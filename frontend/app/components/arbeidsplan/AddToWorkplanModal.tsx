@@ -213,7 +213,7 @@ export function AddToWorkplanModal({
                 {t("addToWorkplanModal.title")}
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                {subtasks.length} deloppgaver fra {assignmentTitle}
+                {t("addToWorkplanModal.subtitle", { count: subtasks.length, assignment: assignmentTitle })}
               </p>
             </div>
           </div>
@@ -427,7 +427,7 @@ export function AddToWorkplanModal({
                           key={day}
                           className="px-2 py-1 rounded bg-white dark:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300"
                         >
-                          {day}: {count} oppg.
+                          {t("addToWorkplanModal.taskPreview", { day, count })}
                         </div>
                       );
                     })}

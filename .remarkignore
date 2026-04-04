@@ -6,5 +6,7 @@ dist
 .changeset
 CHANGELOG.md
 pnpm-lock.yaml
-# VitePress forsideside med YAML frontmatter (features-listen) – ikke ren markdown
+# VitePress forsideside med YAML frontmatter (features-listen) – remark tolker
+# frontmatter-blokkens features-array som markdown-lister og genererer falske feil.
+# Denne filen lintes manuelt ved endring. Se docs/docs/index.md.
 docs/docs/index.md

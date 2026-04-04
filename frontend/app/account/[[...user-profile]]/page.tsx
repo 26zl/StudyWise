@@ -2,26 +2,34 @@
  * Clerk UserProfile – redigering av brukernavn/profil, 2FA og tilkoblede kontoer (Google, Microsoft).
  * Krever innlogging; Clerk håndterer redirect til sign-in ved behov.
  * Kontrast og farger følger globals.css (--clerk-*) for lys/dark; layout er mobilvennlig.
+ * Integrert i SidebarAppShell slik at sidebar alltid er synlig.
  */
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { UserProfile, useAuth, useClerk, useUser } from "@clerk/nextjs";
-import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { ShieldAlert, Trash2 } from "lucide-react";
-import { Footer } from "@/app/components/layout/footer";
+import { useRouter } from "next/navigation";
 import {
   useMeg,
   useOppdaterProfil,
   useSlettKonto,
   type ProfileUpdateWithUsername,
 } from "@/app/auth/auth-api";
-import { UsernameConflictError } from "@/app/lib/errors";
-import { LoadingView } from "@/app/components/ui/Loading";
+import { useAuthRedirect } from "@/app/auth/authUtils";
+import { useCanvasUser } from "@/app/canvas/canvas-api";
+import type { VisningType } from "@/app/components/dashboard/Sidebar";
+import {
+  SidebarAppLoadingState,
+  SidebarAppShell,
+} from "@/app/components/layout/SidebarAppShell";
 import { showToast } from "@/app/components/ui/Toaster";
+import { UsernameConflictError } from "@/app/lib/errors";
 import { useLanguage } from "@/app/i18n";
 import { broadcastLogout, clearClientAuthState } from "@/app/hooks/use-auth-sync";
+
+const SIDEBAR_VISNING: VisningType = "settings";
 
 function normalizeName(value: string | null | undefined): string {
   return (value ?? "").trim();
@@ -30,10 +38,12 @@ function normalizeName(value: string | null | undefined): string {
 export default function ProfilPage() {
   const { language, t } = useLanguage();
   const clerk = useClerk();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { isLoaded: authLoaded, userId } = useAuth();
   const { isLoaded: clerkUserLoaded, user: clerkUser } = useUser();
   const { data: meData } = useMeg({ enabled: authLoaded && !!userId });
+  const megQuery = useMeg({ enabled: authLoaded && !!userId });
   const { mutateAsync: oppdaterProfil, isPending: isProfilOppdateringPending } = useOppdaterProfil();
   const { mutateAsync: slettKonto, isPending: isSlettingKonto } = useSlettKonto();
   const sisteSyncForsokRef = useRef<string | null>(null);
@@ -41,7 +51,23 @@ export default function ProfilPage() {
   const [visKontoSletting, setVisKontoSletting] = useState(false);
   const [kontoSlettBekreftelse, setKontoSlettBekreftelse] = useState("");
   const slettBekreftelsesord = t("settings.deleteAccount.confirmKeyword");
-  const backLabel = language === "en" ? "Back to dashboard" : "Tilbake til dashboard";
+
+  const harCanvasToken = meData?.user?.hasCanvasToken ?? false;
+  const userQuery = useCanvasUser(megQuery.isSuccess && harCanvasToken);
+  const brukernavn =
+    userQuery.data?.name?.split(" ")[0] ||
+    meData?.user?.firstName ||
+    meData?.user?.email?.split("@")?.[0];
+  const brukerRolle = meData?.user?.role;
+
+  const byttVisning = useCallback(
+    (visning: VisningType) => {
+      router.push(visning === "chat" ? "/dashboard" : `/dashboard?view=${visning}`);
+    },
+    [router],
+  );
+
+  useAuthRedirect(megQuery);
 
   useEffect(() => {
     if (!clerkUserLoaded || !meData?.user || isProfilOppdateringPending) return;
@@ -72,7 +98,6 @@ export default function ProfilPage() {
     void oppdaterProfil({ ...profileUpdate, skipClerkSync: true }).catch(
       async (error: unknown) => {
         if (error instanceof UsernameConflictError) {
-          // Tilbakestill Clerk-brukernavnet til det lokale for å unngå divergens
           if (clerkUser && localUsername) {
             try {
               await clerkUser.update({ username: localUsername });
@@ -161,31 +186,32 @@ export default function ProfilPage() {
 
   if (kontoSlettes || isSlettingKonto) {
     return (
-      <LoadingView
-        text={t("settings.deleteAccount.deleting")}
-        className="min-h-screen"
+      <SidebarAppLoadingState
+        aktivVisning={SIDEBAR_VISNING}
+        byttVisning={byttVisning}
+        brukernavn={brukernavn}
+        brukerRolle={brukerRolle}
+        label={t("settings.deleteAccount.deleting")}
       />
     );
   }
 
   return (
-    <div className="min-h-full flex flex-col bg-slate-50 dark:bg-slate-950">
-      <div className="flex-1 px-3 py-4 pb-12 sm:px-4 sm:py-6">
+    <SidebarAppShell
+      aktivVisning={SIDEBAR_VISNING}
+      byttVisning={byttVisning}
+      brukernavn={brukernavn}
+      brukerRolle={brukerRolle}
+    >
+      <div className="px-3 py-8 pb-12 sm:px-6 sm:py-16">
         <div className="mx-auto w-full max-w-4xl min-w-0">
-          <Link
-            href="/dashboard"
-            prefetch={false}
-            className="inline-flex min-h-11 min-w-11 items-center rounded-lg py-2 text-sm text-slate-700 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:text-slate-300 dark:hover:text-white"
-          >
-            ← {backLabel}
-          </Link>
-          <p className="mt-4 text-sm leading-6 text-slate-500 dark:text-slate-400">
+          <p className="text-sm leading-6 text-slate-500 dark:text-slate-400">
             {t("settings.accountSecurity.connectionHint")}
           </p>
           <div className="mt-3 w-full overflow-x-hidden">
             <UserProfile
               key={language}
-              path="/profil"
+              path="/account"
               routing="path"
               appearance={{
                 variables: {
@@ -290,7 +316,6 @@ export default function ProfilPage() {
           </div>
         </div>
       </div>
-      <Footer />
-    </div>
+    </SidebarAppShell>
   );
 }

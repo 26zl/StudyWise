@@ -23,6 +23,7 @@ import { CanvasStructureModel } from "../../database/models/CanvasStructure.js";
 import { CanvasUser } from "../../database/models/CanvasUser.js";
 import { ContentEmbedding } from "../../database/models/ContentEmbedding.js";
 import { AuditLog } from "../../database/models/AuditLog.js";
+import { DeletedUserTombstone } from "../../database/models/DeletedUserTombstone.js";
 import { backfillMissingFullText } from "../../services/embedding.service.js";
 import { apiError, requireUserId } from "../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
@@ -35,8 +36,9 @@ const router = Router();
 
 const ACTIVE_FILTER = { deletedAt: { $exists: false } };
 const DAY_MS = 24 * 60 * 60 * 1000;
-const LANGSMITH_STATS_CACHE_TTL_SECONDS = 60;
-const LANGSMITH_STATS_CACHE_KEY = "admin:langsmith:stats:v1";
+const LANGSMITH_CACHE_TTL = 300; // 5 minutter — admin-stats trenger ikke sanntid
+const LANGSMITH_STATS_CACHE_KEY = "admin:langsmith:stats:v2";
+const LANGSMITH_RUNS_CACHE_KEY = "admin:langsmith:runs:v2";
 const LANGSMITH_PROJECT = process.env.LANGCHAIN_PROJECT || "studywise";
 
 interface LangsmithRunSnapshot {
@@ -241,43 +243,57 @@ function hentTokens(run: LangsmithRunSnapshot): {
   return { inputTokens, outputTokens, totalTokens };
 }
 
-async function hentLangsmithRuns(options: {
-  days: number;
-  limit?: number;
-  runType?: string;
-}): Promise<LangsmithRunSnapshot[]> {
+/**
+ * Henter LangSmith-runs med Redis-cache.
+ * Alle endepunkter deler samme cachede runs-liste for å unngå gjentatte API-kall.
+ */
+async function hentLangsmithRunsCached(days: number): Promise<LangsmithRunSnapshot[]> {
   if (!langsmithClient) {
     logger.warn("LangSmith-klient mangler, kan ikke hente observability-data");
     return [];
   }
 
+  const cacheKey = `${LANGSMITH_RUNS_CACHE_KEY}:${days}d`;
+  const cached = await getCache(cacheKey);
+  if (cached) {
+    try {
+      return JSON.parse(cached) as LangsmithRunSnapshot[];
+    } catch {
+      // Korrupt cache — hent på nytt
+    }
+  }
+
   const client = langsmithClient;
-  const startTime = new Date(Date.now() - options.days * DAY_MS);
-  const effectiveLimit = options.limit ?? 100;
+  const startTime = new Date(Date.now() - days * DAY_MS);
 
   const runs: LangsmithRunSnapshot[] = [];
   try {
     for await (const run of client.listRuns({
       projectName: LANGSMITH_PROJECT,
-      runType: options.runType,
       startTime,
-      limit: effectiveLimit,
+      limit: 100,
       order: "desc",
     })) {
       runs.push(run as LangsmithRunSnapshot);
     }
     logger.info(
-      { antall: runs.length, dager: options.days, runType: options.runType ?? "alle" },
-      "LangSmith-runs hentet med prosjektfilter",
+      { antall: runs.length, dager: days },
+      "LangSmith-runs hentet",
     );
   } catch (error) {
     logger.warn(
       { err: error, project: LANGSMITH_PROJECT },
-      "LangSmith listRuns feilet — returnerer tom liste (faller IKKE tilbake til uten prosjektfilter)",
+      "LangSmith listRuns feilet — returnerer tom liste",
     );
     return [];
   }
 
+  // Cacher kun ikke-tomme resultater — tomme kan skyldes midlertidige feil.
+  // Strip inputs/outputs før caching — brukerprompter og AI-svar skal ikke i Redis.
+  if (runs.length > 0) {
+    const strippedRuns = runs.map(({ inputs: _i, outputs: _o, ...rest }) => rest);
+    await setCache(cacheKey, JSON.stringify(strippedRuns), LANGSMITH_CACHE_TTL);
+  }
   return runs;
 }
 
@@ -292,7 +308,7 @@ async function hentLangsmithStatsMedCache() {
     await setCache(
       LANGSMITH_STATS_CACHE_KEY,
       JSON.stringify(tomtSvar),
-      LANGSMITH_STATS_CACHE_TTL_SECONDS,
+      LANGSMITH_CACHE_TTL,
     );
     return tomtSvar;
   }
@@ -306,18 +322,14 @@ async function hentLangsmithStatsMedCache() {
     dailyMap.set(isoDateKey(dayDate), { inputTokens: 0, outputTokens: 0 });
   }
 
-  const byIntent: Record<string, { runs: number; tokens: number }> = {};
+  const byIntent: Record<string, { runs: number; tokens: number }> = Object.create(null) as Record<string, { runs: number; tokens: number }>;
   const period7 = lagTomPeriode();
   const period30 = lagTomPeriode();
   let latencySum = 0;
   let latencyCount = 0;
   let errorCount = 0;
 
-  const runs = await hentLangsmithRuns({ days: 30, limit: 100, runType: "llm" });
-  if (runs.length === 0) {
-    const alleRuns = await hentLangsmithRuns({ days: 30, limit: 100, runType: undefined });
-    runs.push(...alleRuns);
-  }
+  const runs = await hentLangsmithRunsCached(30);
   for (const run of runs) {
     const startTs = asTimestamp(run.start_time);
     if (!startTs || startTs < grense30) continue;
@@ -373,11 +385,14 @@ async function hentLangsmithStatsMedCache() {
     byIntent,
   });
 
-  await setCache(
-    LANGSMITH_STATS_CACHE_KEY,
-    JSON.stringify(response),
-    LANGSMITH_STATS_CACHE_TTL_SECONDS,
-  );
+  // Cacher kun resultater med faktiske runs — tomme kan skyldes midlertidige feil
+  if (period30.runs > 0) {
+    await setCache(
+      LANGSMITH_STATS_CACHE_KEY,
+      JSON.stringify(response),
+      LANGSMITH_CACHE_TTL,
+    );
+  }
   return response;
 }
 
@@ -408,7 +423,7 @@ router.get("/langsmith/overview", async (req, res) => {
         ? stats.dailyTokens.at(-1)!.inputTokens + stats.dailyTokens.at(-1)!.outputTokens
         : 0;
     const totalTokens7d = stats.period.days7.totalTokens;
-    const runs7d = await hentLangsmithRuns({ days: 7, limit: 3000 });
+    const runs7d = await hentLangsmithRunsCached(7);
     const last24hThreshold = Date.now() - DAY_MS;
     const totalRuns24h = runs7d.filter((run) => {
       const startTs = asTimestamp(run.start_time);
@@ -458,9 +473,7 @@ router.get("/langsmith/daily-metrics", async (req, res) => {
       });
     }
 
-    const runs = await hentLangsmithRuns({ days, limit: 100, runType: "llm" });
-    const runsMedFallback =
-      runs.length === 0 ? await hentLangsmithRuns({ days, limit: 100 }) : runs;
+    const runsMedFallback = await hentLangsmithRunsCached(days);
     for (const run of runsMedFallback) {
       const startTs = asTimestamp(run.start_time);
       if (!startTs) continue;
@@ -521,11 +534,9 @@ router.get("/langsmith/runs", async (req, res) => {
     const intentFilter = typeof req.query.intent === "string" ? req.query.intent.trim().toLowerCase() : "";
     const pageSize = 20;
     const skip = (page - 1) * pageSize;
-    const allRuns = await hentLangsmithRuns({ days: 30, limit: 100, runType: "llm" });
-    const allRunsMedFallback =
-      allRuns.length === 0 ? await hentLangsmithRuns({ days: 30, limit: 100 }) : allRuns;
+    const allRuns = await hentLangsmithRunsCached(30);
 
-    const filtered = allRunsMedFallback.filter((run) => {
+    const filtered = allRuns.filter((run) => {
       const intent = hentIntent(run).toLowerCase();
       const matchesIntent = intentFilter.length === 0 || intent.includes(intentFilter);
       if (!matchesIntent) return false;
@@ -636,25 +647,50 @@ router.get("/langsmith/runs/:runId", async (req, res) => {
   }
 });
 
+router.post("/langsmith/clear-cache", async (req, res) => {
+  try {
+    const { deleteCacheKeys, invalidateCacheByPattern } = await import("../../cache/redis.js");
+    await Promise.all([
+      deleteCacheKeys([LANGSMITH_STATS_CACHE_KEY, "admin:langsmith:stats:v1"]),
+      invalidateCacheByPattern("admin:langsmith:runs:*"),
+      invalidateCacheByPattern("admin:langsmith:daily:*"),
+    ]);
+
+    void audit({
+      actorUserId: req.user?.id ?? "unknown",
+      action: AUDIT_ACTIONS.ADMIN_ACTION,
+      category: "admin",
+      outcome: "success",
+      role: req.actorRole,
+      metadata: { subAction: "langsmith.clearCache" },
+      req,
+    });
+    return res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "Admin LangSmith cache-clear feilet");
+    return apiError.serverError(res);
+  }
+});
+
 router.get("/statistikk", async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
 
   try {
-    const [aktiveBrukere, alleBrukere] = await Promise.all([
+    const [aktiveBrukere, antallSlettede] = await Promise.all([
       User.find(ACTIVE_FILTER, { _id: 1, role: 1, canvasBaseUrl: 1, authProvider: 1 }).lean(),
-      User.find({}, { _id: 1 }).lean(),
+      DeletedUserTombstone.countDocuments(),
     ]);
 
     const aktiveBrukerObjectIds = aktiveBrukere.map((bruker) => bruker._id);
     const aktiveBrukerIds = aktiveBrukerObjectIds.map((id) => id.toString());
-    const alleBrukerObjectIds = alleBrukere.map((bruker) => bruker._id);
-    const alleBrukerIds = alleBrukerObjectIds.map((id) => id.toString());
+    // alleBrukerIds inkluderer kun aktive (hard-delete fjerner slettede fra User-samlingen)
+    const alleBrukerObjectIds = aktiveBrukerObjectIds;
+    const alleBrukerIds = aktiveBrukerIds;
     const totalBrukere = aktiveBrukere.length;
     const antallAdmin = aktiveBrukere.filter((bruker) => bruker.role === "admin").length;
     const antallMedCanvas = aktiveBrukere.filter((bruker) => Boolean(bruker.canvasBaseUrl)).length;
     const antallUtenCanvas = totalBrukere - antallMedCanvas;
-    const antallSlettede = Math.max(alleBrukere.length - totalBrukere, 0);
     const antallGoogle = aktiveBrukere.filter((bruker) => bruker.authProvider === "google").length;
     const antallMicrosoft = aktiveBrukere.filter((bruker) => bruker.authProvider === "microsoft").length;
     const antallEmail = aktiveBrukere.filter((bruker) => bruker.authProvider === "email").length;

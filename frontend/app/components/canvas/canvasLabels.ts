@@ -74,7 +74,8 @@ export function getCanvasLabels(language: Language) {
                 kommende: "Upcoming",
                 forfalt: "Overdue",
                 "uten-frist": "No due date",
-            } as Record<"alle" | "kommende" | "forfalt" | "uten-frist", string>,
+                innlevert: "Submitted",
+            } as Record<"alle" | "kommende" | "forfalt" | "uten-frist" | "innlevert", string>,
             sortByDue: "Sorted by due date",
             sortByCourse: "Sorted by course",
             assignmentCourse: "Course",
@@ -88,6 +89,8 @@ export function getCanvasLabels(language: Language) {
             noDueDate: "No due date",
             showLessAssignments: "Show fewer assignments",
             showAllAssignments: (count: number) => `Show all ${count} assignments`,
+            previousPage: "Previous page",
+            nextPage: "Next page",
         };
     }
 
@@ -158,7 +161,8 @@ export function getCanvasLabels(language: Language) {
             kommende: "Kommende",
             forfalt: "Forfalt",
             "uten-frist": "Uten frist",
-        } as Record<"alle" | "kommende" | "forfalt" | "uten-frist", string>,
+            innlevert: "Innlevert",
+        } as Record<"alle" | "kommende" | "forfalt" | "uten-frist" | "innlevert", string>,
         sortByDue: "Sortert etter frist",
         sortByCourse: "Sortert etter emne",
         assignmentCourse: "Emne",
@@ -172,6 +176,8 @@ export function getCanvasLabels(language: Language) {
         noDueDate: "Ingen frist",
         showLessAssignments: "Vis færre oppgaver",
         showAllAssignments: (count: number) => `Vis alle ${count} oppgaver`,
+        previousPage: "Forrige side",
+        nextPage: "Neste side",
     };
 }
 

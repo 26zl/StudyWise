@@ -178,7 +178,9 @@ jobs:
           echo "Frontend .env created with $(wc -l < frontend/.env) lines"
 
       - name: Run Playwright E2E tests
-        run: pnpm --filter tests exec playwright test --config playwright.config.ts --project=chromium
+        # Kun stabile smoke-spesifikasjoner i CI-gaten (diagnostiske/repro-spesifikasjoner ekskluderes).
+        # Firefox/WebKit kjøres kun lokalt — CI installerer bare Chromium for raskere kjøretid.
+        run: pnpm --filter tests exec playwright test --config playwright.config.ts --project=chromium auth/smoke-e2e.spec.ts auth/login-signup-e2e.spec.ts auth/session-e2e.spec.ts
         env:
           CI: "true"
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}

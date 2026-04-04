@@ -32,11 +32,16 @@ import { validateFileMagicBytes } from "../../services/document.js";
 const router = Router();
 const INVALID_ATTACHMENT_TYPE_ERROR = "INVALID_ATTACHMENT_TYPE";
 
+// Maks total body-størrelse for kontaktskjema (alle filer + felter).
+// Begrenser minne-bruk *før* honeypot/Turnstile valideres.
+const KONTAKT_MAX_TOTAL_BODY_BYTES = KONTAKT_MAX_ATTACHMENTS * KONTAKT_MAX_ATTACHMENT_SIZE_BYTES + 50_000; // ~15.05 MB
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     files: KONTAKT_MAX_ATTACHMENTS,
     fileSize: KONTAKT_MAX_ATTACHMENT_SIZE_BYTES,
+    fieldSize: 10_000,
   },
   fileFilter: (_req, file, callback) => {
     if (
@@ -95,6 +100,14 @@ function validateKontaktAttachments(files: Express.Multer.File[] | undefined): s
 router.post(
   "/",
   rateLimitContact,
+  // Avvis store payloads tidlig — før multer leser hele body inn i minne
+  (req: Request, res: Response, next) => {
+    const contentLength = Number(req.headers["content-length"]);
+    if (contentLength > KONTAKT_MAX_TOTAL_BODY_BYTES) {
+      return apiError.badRequest(res, `Maks total størrelse er ${Math.floor(KONTAKT_MAX_TOTAL_BODY_BYTES / (1024 * 1024))} MB`);
+    }
+    next();
+  },
   (req, res, next) => {
     upload.array("attachments", KONTAKT_MAX_ATTACHMENTS)(req, res, (error) => {
       if (!error) {

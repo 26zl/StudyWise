@@ -111,6 +111,20 @@ export function useRunDetail(runId: string | null) {
   });
 }
 
+export function useClearLangsmithCache() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetchApi("/api/admin/langsmith/clear-cache", { method: "POST" });
+      if (!res.ok) throw new Error("Kunne ikke tømme LangSmith-cache");
+      return res.json();
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "langsmith"] });
+    },
+  });
+}
+
 export function useAdminBrukere(params: { limit?: number; offset?: number; search?: string } = {}) {
   const { limit = 50, offset = 0, search } = params;
   return useQuery({

@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryState, parseAsArrayOf, parseAsString } from "nuqs";
 import {
@@ -67,6 +67,8 @@ export function AIBreakdownPage() {
     "expanded",
     parseAsArrayOf(parseAsString).withDefault([]),
   );
+  const expandedRef = useRef(expandedAssignmentIdsInUrl);
+  expandedRef.current = expandedAssignmentIdsInUrl;
   const expandedAssignmentIds = useMemo(
     () => new Set(expandedAssignmentIdsInUrl),
     [expandedAssignmentIdsInUrl],
@@ -107,14 +109,18 @@ export function AIBreakdownPage() {
 
   useEffect(() => {
     const gyldigeIds = new Set(aktiveOppgaver.map((assignment) => assignment.id.toString()));
-    setExpandedAssignmentIdsInUrl((current) => {
-      const nåværende = current ?? [];
-      const neste = [...new Set(nåværende.filter((id) => gyldigeIds.has(id)))];
-      if (neste.length === 0 && aktiveOppgaver.length > 0) {
-        neste.push(aktiveOppgaver[0].id.toString());
-      }
-      return neste.length > 0 ? neste : null;
-    });
+    const nåværende = expandedRef.current ?? [];
+    const neste = [...new Set(nåværende.filter((id) => gyldigeIds.has(id)))];
+    if (neste.length === 0 && aktiveOppgaver.length > 0) {
+      neste.push(aktiveOppgaver[0].id.toString());
+    }
+    const nesteVerdi = neste.length > 0 ? neste : null;
+    const erLik =
+      (nesteVerdi === null && nåværende.length === 0) ||
+      (nesteVerdi !== null && nesteVerdi.length === nåværende.length && nesteVerdi.every((id, i) => id === nåværende[i]));
+    if (!erLik) {
+      void setExpandedAssignmentIdsInUrl(nesteVerdi);
+    }
   }, [aktiveOppgaver, setExpandedAssignmentIdsInUrl]);
 
   const oppgaverMedFrist = useMemo(

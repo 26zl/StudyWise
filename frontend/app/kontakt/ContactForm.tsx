@@ -21,6 +21,17 @@ import { sendKontakt } from "./contact-api";
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
+/** Cloudflare Turnstile widget-API (lastes via eksternt script) */
+interface TurnstileWidget {
+  render: (el: HTMLElement, opts: object) => string;
+  reset: (id: string) => void;
+}
+
+/** Henter Turnstile-widget fra window (undefined hvis scriptet ikke er lastet) */
+function getTurnstile(): TurnstileWidget | undefined {
+  return (window as unknown as { turnstile?: TurnstileWidget }).turnstile;
+}
+
 type KontaktFormData = {
   navn: string;
   epost: string;
@@ -87,12 +98,12 @@ export function ContactForm() {
     if (!TURNSTILE_SITE_KEY || typeof window === "undefined") return;
 
     const renderWidget = () => {
+      const turnstile = getTurnstile();
       if (
         turnstileRef.current &&
         !widgetIdRef.current &&
-        (window as unknown as { turnstile?: { render: (el: HTMLElement, opts: object) => string } }).turnstile
+        turnstile
       ) {
-        const turnstile = (window as unknown as { turnstile: { render: (el: HTMLElement, opts: object) => string } }).turnstile;
         widgetIdRef.current = turnstile.render(turnstileRef.current, {
           sitekey: TURNSTILE_SITE_KEY,
           callback: (token: string) => onTurnstileSuccess(token),
@@ -105,7 +116,7 @@ export function ContactForm() {
     };
 
     // Sjekk om script allerede er lastet
-    if ((window as unknown as { turnstile?: object }).turnstile) {
+    if (getTurnstile()) {
       renderWidget();
       return;
     }
@@ -125,11 +136,9 @@ export function ContactForm() {
   // Tilbakestill Turnstile etter innsending
   const resetTurnstile = useCallback(() => {
     setTurnstileToken(null);
-    if (
-      widgetIdRef.current &&
-      (window as unknown as { turnstile?: { reset: (id: string) => void } }).turnstile
-    ) {
-      (window as unknown as { turnstile: { reset: (id: string) => void } }).turnstile.reset(widgetIdRef.current);
+    const turnstile = getTurnstile();
+    if (widgetIdRef.current && turnstile) {
+      turnstile.reset(widgetIdRef.current);
     }
   }, []);
 
@@ -375,7 +384,7 @@ export function ContactForm() {
         <div className="flex justify-center">
           <div ref={turnstileRef} />
           {!turnstileLoaded && (
-            <div className="flex h-[65px] w-[300px] items-center justify-center rounded border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
+            <div className="flex h-16.25 w-75 items-center justify-center rounded border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
               <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
             </div>
           )}

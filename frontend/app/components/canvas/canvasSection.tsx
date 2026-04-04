@@ -9,6 +9,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
     ArrowLeft,
+    ChevronLeft,
     ChevronRight,
     Eye,
     EyeOff,
@@ -16,6 +17,8 @@ import {
     FileText,
     Download,
     BookOpen,
+    Megaphone,
+    ClipboardList,
 } from "lucide-react";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
@@ -53,8 +56,7 @@ interface CanvasSectionProps {
     harCanvasToken?: boolean;
 }
 
-const INITIAL_ANNOUNCEMENTS_VISIBLE = 10;
-const ANNOUNCEMENTS_VISIBLE_STEP = 10;
+const PAGE_SIZE = 12;
 
 // Laste-skjelett
 function LasteSkjelett({ linjer = 3 }: { linjer?: number }) {
@@ -76,7 +78,9 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const { data, isLoading, isError, error } = useCanvasAnnouncements(harCanvasToken);
     const { labels, dateLocale } = useCanvasLabels();
     const hiddenSet = useHiddenCourseIds();
-    const [visibleCount, setVisibleCount] = useState(INITIAL_ANNOUNCEMENTS_VISIBLE);
+    const megKunngjoring = useMeg();
+    const canvasBaseUrl = megKunngjoring.data?.user?.canvasBaseUrl ?? undefined;
+    const [offset, setOffset] = useState(0);
     const announcements = useMemo(() => {
         const alle = data?.announcements ?? [];
         if (hiddenSet.size === 0) return alle;
@@ -86,14 +90,19 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
             return !hiddenSet.has(Number(match[1]));
         });
     }, [data?.announcements, hiddenSet]);
-    const visibleAnnouncements = useMemo(
-        () => announcements.slice(0, visibleCount),
-        [announcements, visibleCount],
+
+    const totalElementer = announcements.length;
+    const synligeElementer = useMemo(
+        () => announcements.slice(offset, offset + PAGE_SIZE),
+        [announcements, offset],
     );
-    const remainingAnnouncements = Math.max(announcements.length - visibleCount, 0);
+    const harForrigeSide = offset > 0;
+    const harNesteSide = offset + PAGE_SIZE < totalElementer;
+    const fraElement = totalElementer === 0 ? 0 : offset + 1;
+    const tilElement = Math.min(offset + PAGE_SIZE, totalElementer);
 
     useEffect(() => {
-        setVisibleCount(INITIAL_ANNOUNCEMENTS_VISIBLE);
+        setOffset(0);
     }, [announcements.length]);
 
     if (!harCanvasToken) {
@@ -116,10 +125,9 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
         );
     }
 
-    // Vis kunngjøringer
     return (
         <div className="space-y-4">
-            {visibleAnnouncements.map((announcement) => (
+            {synligeElementer.map((announcement) => (
                 <article
                     key={announcement.id}
                     className="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 transition-colors hover:border-slate-300 dark:hover:border-slate-600"
@@ -142,6 +150,7 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                         <CanvasHtmlContent
                             html={announcement.message}
                             className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300"
+                            canvasBaseUrl={canvasBaseUrl}
                         />
                     )}
 
@@ -155,19 +164,31 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                     )}
                 </article>
             ))}
-            {remainingAnnouncements > 0 && (
-                <div className="flex justify-center pt-2">
-                    <button
-                        type="button"
-                        onClick={() =>
-                            setVisibleCount((current) =>
-                                Math.min(current + ANNOUNCEMENTS_VISIBLE_STEP, announcements.length),
-                            )
-                        }
-                        className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-200 dark:hover:bg-slate-800"
-                    >
-                        {labels.loadMoreAnnouncements(remainingAnnouncements)}
-                    </button>
+            {totalElementer > PAGE_SIZE && (
+                <div className="flex items-center justify-between pt-4 text-sm text-slate-500 dark:text-slate-400">
+                    <span>
+                        {fraElement}–{tilElement} / {totalElementer}
+                    </span>
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setOffset((c) => Math.max(0, c - PAGE_SIZE))}
+                            disabled={!harForrigeSide}
+                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                            <ChevronLeft size={16} />
+                            {labels.previousPage}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setOffset((c) => Math.min(c + PAGE_SIZE, Math.max(0, totalElementer - PAGE_SIZE)))}
+                            disabled={!harNesteSide}
+                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                            {labels.nextPage}
+                            <ChevronRight size={16} />
+                        </button>
+                    </div>
                 </div>
             )}
         </div>
@@ -191,6 +212,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const oppdaterHiddenCourses = useOppdaterHiddenCourses();
     const hiddenIds = megQuery.data?.user?.hiddenCourseIds?.courseIds ?? [];
     const hiddenSet = useMemo(() => new Set(hiddenIds), [hiddenIds]);
+    const canvasBaseUrl = megQuery.data?.user?.canvasBaseUrl ?? undefined;
 
     const skjulEmne = useCallback((courseId: number) => {
         const nyeIds = Array.from(new Set([...hiddenIds, courseId]));
@@ -409,6 +431,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                     <CanvasHtmlContent
                                         html={announcement.message}
                                         className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300"
+                                        canvasBaseUrl={canvasBaseUrl}
                                     />
                                 )}
 
@@ -443,6 +466,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                     <CanvasHtmlContent
                                         html={frontPageQuery.data.body}
                                         className="min-w-0 overflow-x-auto prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-200 prose-table:block prose-table:overflow-x-auto prose-img:max-w-full prose-img:h-auto [&_iframe]:max-w-full"
+                                        canvasBaseUrl={canvasBaseUrl}
                                     />
                                 ) : (
                                     <p className="text-slate-500 dark:text-slate-400 text-sm">{labels.frontPageEmpty}</p>
@@ -656,6 +680,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                     <CanvasHtmlContent
                                         html={frontPageQuery.data.body}
                                         className="min-w-0 overflow-x-auto prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-200 prose-img:max-w-full prose-img:h-auto [&_iframe]:max-w-full"
+                                        canvasBaseUrl={canvasBaseUrl}
                                     />
                                 ) : (
                                     <p className="text-slate-500 dark:text-slate-400 text-sm">{labels.frontPageEmpty}</p>
@@ -1052,6 +1077,41 @@ export function CanvasSection({ startVisning = "announcements", harCanvasToken =
         settVisning(startVisning);
     }, [startVisning]);
 
+    const erSentrert = visning === "announcements" || visning === "assignments";
+    const visningIkon = visning === "announcements"
+        ? <Megaphone className="w-6 h-6 text-slate-700 dark:text-slate-300" />
+        : visning === "assignments"
+            ? <ClipboardList className="w-6 h-6 text-slate-700 dark:text-slate-300" />
+            : null;
+
+    if (erSentrert) {
+        return (
+            <div className="min-h-full bg-slate-50 dark:bg-slate-950">
+                <div className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+                    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+                        <div className="flex items-center gap-3">
+                            {visningIkon}
+                            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white">
+                                {labels.sectionTitles[visning]}
+                            </h1>
+                        </div>
+                    </div>
+                </div>
+
+                {canvasTokenInvalid && <TokenUgyldigAdvarsel />}
+
+                <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+                    {canvasTokenInvalid ? null : (
+                        <>
+                            {visning === "announcements" && <KunngjoringVisning harCanvasToken={harCanvasToken} />}
+                            {visning === "assignments" && <OppgaverVisning harCanvasToken={harCanvasToken} />}
+                        </>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="h-full flex flex-col">
             {/* Header */}
@@ -1061,17 +1121,11 @@ export function CanvasSection({ startVisning = "announcements", harCanvasToken =
                 </h2>
             </div>
 
-            {/* Advarsel ved ugyldig token – vis kun én melding, ikke også seksjonsspesifikk "må lagre token" */}
             {canvasTokenInvalid && <TokenUgyldigAdvarsel />}
 
-            {/* Innhold: når token er ugyldig vises bare advarselen over, ikke dobbel feilmelding */}
             <div className="flex-1 overflow-y-auto p-4 md:p-6">
                 {canvasTokenInvalid ? null : (
-                    <>
-                        {visning === "announcements" && <KunngjoringVisning harCanvasToken={harCanvasToken} />}
-                        {visning === "courses" && <EmneVisning harCanvasToken={harCanvasToken} />}
-                        {visning === "assignments" && <OppgaverVisning harCanvasToken={harCanvasToken} />}
-                    </>
+                    <>{visning === "courses" && <EmneVisning harCanvasToken={harCanvasToken} />}</>
                 )}
             </div>
         </div>
@@ -1090,9 +1144,9 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const { language, labels } = useCanvasLabels();
     const { ferdigeIdSet, toggleFerdig } = useManuellInnlevering();
 
-    const [filter, settFilter] = useState<"alle" | "kommende" | "forfalt" | "uten-frist">("kommende");
+    const [filter, settFilter] = useState<"alle" | "kommende" | "forfalt" | "uten-frist" | "innlevert">("kommende");
     const [sortering, settSortering] = useState<"frist" | "emne">("frist");
-    const [visAlle, settVisAlle] = useState(false);
+    const [offset, setOffset] = useState(0);
 
     const filtrerteOppgaver = useMemo(() => {
         const nå = new Date();
@@ -1104,21 +1158,49 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
             filtrert = filtrert.filter((a) => a.due_at && new Date(a.due_at) < nå);
         } else if (filter === "uten-frist") {
             filtrert = filtrert.filter((a) => !a.due_at);
+        } else if (filter === "innlevert") {
+            filtrert = filtrert.filter((a) => erInnlevertOppgave(a) || ferdigeIdSet.has(a.id));
         }
 
         if (sortering === "frist") {
+            const nyestFørst = filter === "innlevert" || filter === "forfalt";
             filtrert.sort((a, b) => {
                 if (!a.due_at && !b.due_at) return 0;
                 if (!a.due_at) return 1;
                 if (!b.due_at) return -1;
-                return new Date(a.due_at).getTime() - new Date(b.due_at).getTime();
+                const diff = new Date(a.due_at).getTime() - new Date(b.due_at).getTime();
+                return nyestFørst ? -diff : diff;
             });
         } else {
             filtrert.sort((a, b) => a.course_name.localeCompare(b.course_name, language === "en" ? "en" : "nb"));
         }
 
         return filtrert;
-    }, [allAssignments, filter, language, sortering]);
+    }, [allAssignments, filter, ferdigeIdSet, language, sortering]);
+
+    const totalElementer = filtrerteOppgaver.length;
+    const synligeOppgaver = useMemo(
+        () => filtrerteOppgaver.slice(offset, offset + PAGE_SIZE),
+        [filtrerteOppgaver, offset],
+    );
+    const harForrigeSide = offset > 0;
+    const harNesteSide = offset + PAGE_SIZE < totalElementer;
+    const fraElement = totalElementer === 0 ? 0 : offset + 1;
+    const tilElement = Math.min(offset + PAGE_SIZE, totalElementer);
+
+    useEffect(() => {
+        setOffset(0);
+    }, [filter, sortering]);
+
+    useEffect(() => {
+        if (totalElementer === 0) {
+            if (offset !== 0) setOffset(0);
+            return;
+        }
+        if (offset >= totalElementer) {
+            setOffset(Math.floor((totalElementer - 1) / PAGE_SIZE) * PAGE_SIZE);
+        }
+    }, [offset, totalElementer]);
 
     if (!harCanvasToken) {
         return <CanvasTokenNotice />;
@@ -1162,7 +1244,7 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                 </span>
                 <div className="flex-1" />
                 <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
-                    {(["alle", "kommende", "forfalt", "uten-frist"] as const).map((f) => {
+                    {(["alle", "kommende", "forfalt", "uten-frist", "innlevert"] as const).map((f) => {
                         return (
                             <button
                                 key={f}
@@ -1189,7 +1271,7 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
             </div>
 
             <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 divide-y divide-slate-200 dark:divide-slate-700">
-                {(visAlle ? filtrerteOppgaver : filtrerteOppgaver.slice(0, 15)).map((assignment) => {
+                {synligeOppgaver.map((assignment) => {
                     const nå = new Date();
                     const harFrist = !!assignment.due_at;
                     const fristDato = harFrist ? new Date(assignment.due_at!) : null;
@@ -1294,16 +1376,32 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                 })}
             </div>
 
-            {filtrerteOppgaver.length > 15 && (
-                <button
-                    type="button"
-                    onClick={() => settVisAlle((v) => !v)}
-                    className="w-full text-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 py-2"
-                >
-                    {visAlle
-                        ? labels.showLessAssignments
-                        : labels.showAllAssignments(filtrerteOppgaver.length)}
-                </button>
+            {totalElementer > PAGE_SIZE && (
+                <div className="flex items-center justify-between pt-4 text-sm text-slate-500 dark:text-slate-400">
+                    <span>
+                        {fraElement}–{tilElement} / {totalElementer}
+                    </span>
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setOffset((c) => Math.max(0, c - PAGE_SIZE))}
+                            disabled={!harForrigeSide}
+                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                            <ChevronLeft size={16} />
+                            {labels.previousPage}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setOffset((c) => Math.min(c + PAGE_SIZE, Math.max(0, totalElementer - PAGE_SIZE)))}
+                            disabled={!harNesteSide}
+                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                            {labels.nextPage}
+                            <ChevronRight size={16} />
+                        </button>
+                    </div>
+                </div>
             )}
         </div>
     );

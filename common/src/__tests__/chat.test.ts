@@ -128,26 +128,14 @@ describe("ChatSaveSchema", () => {
 // ─── ChatShareCreateSchema ──────────────────────────────────────────────────
 
 describe("ChatShareCreateSchema", () => {
-  it("bruker 'full_chat' som standard shareMode", () => {
+  it("godtar tomt objekt", () => {
     const resultat = ChatShareCreateSchema.safeParse({});
     expect(resultat.success).toBe(true);
-    if (resultat.success) expect(resultat.data.shareMode).toBe("full_chat");
-  });
-
-  it("godtar eksplisitt shareMode 'full_chat'", () => {
-    const resultat = ChatShareCreateSchema.safeParse({ shareMode: "full_chat" });
-    expect(resultat.success).toBe(true);
-  });
-
-  it("avviser ugyldig shareMode", () => {
-    expect(
-      ChatShareCreateSchema.safeParse({ shareMode: "partial" }).success,
-    ).toBe(false);
   });
 
   it("avviser ekstra felter (strict)", () => {
     expect(
-      ChatShareCreateSchema.safeParse({ shareMode: "full_chat", extra: true }).success,
+      ChatShareCreateSchema.safeParse({ extra: true }).success,
     ).toBe(false);
   });
 });

@@ -317,7 +317,7 @@ export function SettingsSection({
                                 </h3>
                             </div>
                             <Link
-                                href="/profil"
+                                href="/account"
                                 prefetch={false}
                                 className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
                             >
@@ -418,7 +418,7 @@ export function SettingsSection({
                             {t("settings.accountSecurity.description")}
                         </p>
                         <Link
-                            href="/profil"
+                            href="/account"
                             prefetch={false}
                             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors"
                         >
@@ -539,7 +539,7 @@ export function SettingsSection({
                                                     });
                                                 }}
                                                 disabled={browserPush.isPending}
-                                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500"
                                             />
                                             <span>{label}</span>
                                         </label>

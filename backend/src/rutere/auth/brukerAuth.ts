@@ -228,7 +228,16 @@ async function invalidateStoredCanvasDataForUser(
  * Delt hjelpefunksjon for GET /me og PUT /profile.
  */
 function serializeAuthBruker(bruker: IUser) {
-  const harCanvasToken = !!bruker.canvasApiToken;
+  let harCanvasToken = false;
+  if (bruker.canvasApiToken) {
+    try {
+      decrypt(bruker.canvasApiToken);
+      harCanvasToken = true;
+    } catch {
+      // Token finnes men kan ikke dekrypteres (feil ENCRYPTION_KEY) — rapporter som manglende
+      harCanvasToken = false;
+    }
+  }
   return AuthBrukerSchema.parse({
     id: bruker._id.toString(),
     email: bruker.email,

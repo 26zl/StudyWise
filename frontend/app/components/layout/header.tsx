@@ -6,7 +6,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { Menu, Moon, Sun, X, MoreVertical, LogOut, UserCircle2 } from "lucide-react";
+import { Menu, Moon, Sun, X, MoreVertical, LogOut } from "lucide-react";
 import { SignInButton, SignUpButton, useAuth } from "@clerk/nextjs";
 import { useUIStore } from "@/app/store/uiStore";
 import { useTheme } from "next-themes";
@@ -34,7 +34,6 @@ function getHeaderLabels(language: Language) {
       commonNavigation: [{ href: "/", label: "Home" }] satisfies NavigationItem[],
       signedInNavigation: [
         { href: "/dashboard", label: "Dashboard" },
-        { href: "/profil", label: "Account", icon: UserCircle2 },
       ] satisfies NavigationItem[],
       authActions: [
         { kind: "sign-in", label: "Sign in" },
@@ -55,7 +54,6 @@ function getHeaderLabels(language: Language) {
     commonNavigation: [{ href: "/", label: "Hjem" }] satisfies NavigationItem[],
     signedInNavigation: [
       { href: "/dashboard", label: "Dashboard" },
-      { href: "/profil", label: "Konto", icon: UserCircle2 },
     ] satisfies NavigationItem[],
     authActions: [
       { kind: "sign-in", label: "Logg inn" },
@@ -176,7 +174,7 @@ export function Header() {
   const pathname = usePathname();
   const { toggleVenstreMeny, isVenstreMenyOpen } = useUIStore();
   const harSidebar =
-    pathname.startsWith("/dashboard") || pathname === "/oversikt" || pathname === "/ai-breakdown";
+    pathname.startsWith("/dashboard") || pathname === "/oversikt" || pathname === "/ai-breakdown" || pathname.startsWith("/account");
   const [mobilMenyOpen, setMobilMenyOpen] = useState(false);
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);

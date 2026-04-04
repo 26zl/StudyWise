@@ -322,6 +322,7 @@ export async function fetchAllAnnouncements(canvasToken?: string | null, baseUrl
     baseUrl,
     queryParams: { context_codes: contextCodes, active_only: true, per_page: PAGE_SIZE.ANNOUNCEMENTS },
     cacheTtl: CACHE_TTL.ANNOUNCEMENTS,
+    maxPages: 10,
   });
   return {
     data: parseCanvasAnnouncements(response.data, { scope: "all" }),

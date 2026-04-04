@@ -15,12 +15,13 @@ import {
     KIChatResponseSchema,
     KIModelsResponseSchema,
     KI_MAX_MESSAGE_LENGTH_BACKEND,
+    type ExplanationLevel,
 } from "common/ki";
 import { kiHistoryRouter } from "./kiHistory.js";
 import { kiAnalyseRouter } from "./kiAnalyse.js";
 import { kiShareRouter } from "./kiShare.js";
 import { SUPPORTED_MODELS, DEFAULT_MODEL, resolveModel } from "./aiModels.js";
-import { STUDYWISE_SYSTEM_PROMPT } from "./systemPrompt.js";
+import { STUDYWISE_SYSTEM_PROMPT, STUDYWISE_COMPARISON_PROMPT } from "./systemPrompt.js";
 import { chatCompletion } from "./aiClient.js";
 import { handleAIError, checkAIClientUnavailable } from "./handleAIError.js";
 import {
@@ -39,6 +40,7 @@ import { User } from "../../database/models/User.js";
 import { createDefaultCanvasContextPreferences } from "common/auth";
 import { setupSSE, writeSSE } from "../../utils/sseUtils.js";
 import { createLinkedAbortController } from "../../utils/abort.js";
+import { loadStudyContextForUser, updateStudyContext } from "../../services/studyContext.service.js";
 import { escapeRegex } from "../../utils/regexUtils.js";
 import {
   AI_COMPLETION_PUSH_MIN_DURATION_MS,
@@ -72,6 +74,23 @@ const CANVAS_FULL_KEYWORDS = [
   "hvordan fungerer", "hvordan virker", "hva skjer med",
   "definer", "definisjon", "konsept", "teori",
   "forskjell mellom", "forskjellen",
+  // Sammenligninger — krever fullt innhold fra flere kilder
+  "sammenlign", "sammenligne", "sammenligning",
+  "ulikhet mellom", "ulikheter mellom",
+  "fordeler og ulemper", "likheter og forskjeller",
+  // Engelske handlingsverb og innholdsord
+  "summarize", "summarise", "summary",
+  "explain", "explanation", "describe", "description",
+  "what is", "what does", "what means", "tell me about",
+  "give me", "show me", "create a",
+  "how does", "how works", "what happens",
+  "define", "definition", "concept", "theory",
+  "difference between", "differences",
+  "compare", "comparison",
+  "pros and cons", "similarities and differences",
+  // Engelske innholdstyper
+  "file", "download", "lesson", "module", "lecture", "syllabus", "chapter",
+  "document", "page content",
 ];
 
 /**
@@ -81,14 +100,45 @@ const CANVAS_FULL_KEYWORDS = [
 const TOPIC_KEYWORDS = [
   // Algoritmer og datastrukturer
   "avl", "tree", "binary", "heap", "graf", "graph", "stack", "queue",
-  "linked list", "hashtabell", "hash", "sortering", "søk", "rekursjon",
-  "kompleksitet", "big-o", "big o", "traversering", "dfs", "bfs",
+  "linked list", "hashtabell", "hash", "sortering", "sorting", "søk", "search",
+  "rekursjon", "recursion", "kompleksitet", "complexity",
+  "big-o", "big o", "traversering", "traversal", "dfs", "bfs",
   "dijkstra", "dynamic programming", "dynamisk programmering",
   // Generelle CS-begreper
-  "design pattern", "objektorientert", "arv", "polymorfisme",
-  "interface", "abstraksjon", "innkapsling", "tråd", "mutex",
-  "sql", "normalisering", "relasjon", "kryptering", "protokoll",
+  "design pattern", "objektorientert", "object-oriented", "arv", "inheritance",
+  "polymorfisme", "polymorphism", "interface", "abstraksjon", "abstraction",
+  "innkapsling", "encapsulation", "tråd", "thread", "mutex",
+  "sql", "normalisering", "normalization", "relasjon", "relation",
+  "kryptering", "encryption", "protokoll", "protocol",
 ];
+
+/** Nøkkelord som indikerer at brukeren ber om en sammenligning */
+const COMPARISON_KEYWORDS = [
+  // Norsk
+  "sammenlign", "sammenligne", "sammenligning",
+  "forskjell mellom", "forskjellen mellom", "forskjeller mellom",
+  "ulikhet mellom", "ulikheter mellom",
+  "vs", "versus", "kontra", "mot",
+  "hva skiller", "hva er forskjellen",
+  "fordeler og ulemper",
+  "når bør jeg bruke", "når velger man",
+  "likheter og forskjeller",
+  // Engelsk
+  "compare", "comparison", "comparing",
+  "difference between", "differences between",
+  "pros and cons", "advantages and disadvantages",
+  "what distinguishes", "what is the difference",
+  "when should i use", "when to use",
+  "similarities and differences",
+];
+
+/**
+ * Sjekker om en melding er et sammenligningsspørsmål.
+ */
+function isComparisonQuery(message: string): boolean {
+  const lower = message.toLowerCase();
+  return COMPARISON_KEYWORDS.some((kw) => lower.includes(kw));
+}
 
 /** Nøkkelord som kun trenger lett kontekst (emner + frister) */
 const CANVAS_LIGHT_KEYWORDS = [
@@ -102,6 +152,9 @@ const CANVAS_LIGHT_KEYWORDS = [
   // Tidsspørsmål
   "hva har jeg", "neste frist", "denne uken", "denne uka",
   "hva skjer", "kommende", "kalender", "timeplan", "når er",
+  // Engelske nøkkelord
+  "course", "courses", "enrolled", "assignment", "assignments",
+  "submission", "schedule", "announcement", "upcoming",
 ];
 
 /** Vanlige skrivefeil/forkortelser og deres normaliserte form */
@@ -400,6 +453,11 @@ const CHUNK_STOPWORDS = new Set([
   "forklare", "forklaring", "oppsummer", "oppsummere", "oppsummering",
   "beskriv", "beskrive", "beskrivelse",
   "dekker", "dekke", "handler", "handle", "menes", "mener", "betyr", "betydning",
+  // Forklaringsnivå-modifikatorer (ikke fagbegreper)
+  "enkelt", "enkel", "enklere", "detaljert", "detaljerte", "dypere", "dypt", "dyp",
+  "grundig", "grundigere", "kortfattet", "kort", "simpelt", "simpel",
+  "utdypende", "utdyp", "utdype", "ekspert", "avansert", "avanserte",
+  "standard", "overordnet", "overordna", "bred", "bredt", "bredere",
   "alt", "alle", "noe", "noen", "denne", "dette", "disse", "sin", "sitt", "sine",
   "siste", "forrige", "neste", "første", "viktig", "viktige", "viktigste",
   "uke", "uken", "ukes", "dag", "dagen", "dagens", "idag", "nå", "akkurat",
@@ -472,6 +530,14 @@ function extractQueryTarget(message: string): TargetedQuery {
     "organisasjon", "sosiologi", "psykologi", "filosofi", "historie",
     "biologi", "kjemi", "geografi", "engelsk", "norsk", "spansk", "tysk",
     "finans", "investering", "revisjon", "skatt", "forretning",
+    // Engelske varianter
+    "algorithms", "data structures", "security", "object", "network",
+    "method", "mobile", "operating system", "mathematics", "statistics",
+    "economics", "management", "project", "communication", "innovation",
+    "programming", "electronics", "physics", "analysis", "logistics",
+    "accounting", "marketing", "law", "ethics", "organization",
+    "sociology", "psychology", "philosophy", "history", "biology",
+    "chemistry", "geography", "finance", "investment", "business",
   ];
 
   // Vanlige emnekode-prefikser (2-4 bokstaver som ofte starter emnekoder)
@@ -485,11 +551,17 @@ function extractQueryTarget(message: string): TargetedQuery {
   const compoundKeywords: Record<string, string> = {
     "algoritmer og datastrukturer": "algoritmer",
     "algoritmer og data strukturer": "algoritmer",
+    "algorithms and data structures": "algoritmer",
     "data structures": "datastrukturer",
     "it-sikkerhet": "sikkerhet",
     "it sikkerhet": "sikkerhet",
+    "it security": "sikkerhet",
+    "cyber security": "sikkerhet",
     "machine learning": "maskinlæring",
     "diskret matematikk": "diskret",
+    "discrete mathematics": "diskret",
+    "operating system": "operativsystem",
+    "operating systems": "operativsystem",
   };
 
   // Fjern filnavn-mønstre fra søketeksten for å unngå falske positive
@@ -575,6 +647,68 @@ function extractQueryTarget(message: string): TargetedQuery {
   return { courseIdHint: null, courseHint, moduleHint, fileHint, chunkHint };
 }
 
+/**
+ * Ekstraherer kurs-ID fra Canvas-kontekststrengen.
+ * Brukes for å koble studiekontekst til riktig kurs.
+ */
+function extractCourseIdFromContext(kontekst: string): string | null {
+  // Prøv EMNE-formatet først (Canvas-kontekst bruker dette)
+  const emneMatch = kontekst.match(/EMNE:\s*(?:\[([A-Z]+-?\d+)\]|([A-Z]+-?\d+))/);
+  if (emneMatch) return emneMatch[1] ?? emneMatch[2] ?? null;
+
+  return null;
+}
+
+/**
+ * Bygger tilleggsinstruksjoner for forklaringsnivå.
+ * Injiseres i systemprompt basert på brukerens valg.
+ */
+function buildExplanationLevelPrompt(level: ExplanationLevel): string {
+  switch (level) {
+    case "simple":
+      return `
+
+## Forklaringsnivå: Enkelt
+
+Brukeren ønsker enkle forklaringer. Tilpass svarene dine:
+- Bruk dagligdagse ord og unngå fagtermer der det er mulig
+- Forklar fagtermer i parentes første gang de brukes, f.eks. "variabel (en boks som lagrer en verdi)"
+- Bruk hverdagslige analogier og konkrete eksempler
+- Hold avsnitt korte (2-3 setninger)
+- Prioriter "hva det gjør" over "hvordan det fungerer internt"
+- Svar kortere enn vanlig — gå rett på sak`;
+
+    case "detailed":
+      return `
+
+## Forklaringsnivå: Detaljert
+
+Brukeren ønsker grundige forklaringer. Tilpass svarene dine:
+- Forklar hvert steg i detalj med begrunnelse for hvorfor det fungerer slik
+- Inkluder flere eksempler — minst ett enkelt og ett mer komplekst
+- Vis sammenhenger mellom konsepter og relaterte temaer
+- Ta med vanlige feil og misforståelser studenter har
+- Inkluder kompleksitetsanalyse og edge cases der relevant
+- Bruk tabeller for å sammenligne relaterte konsepter`;
+
+    case "expert":
+      return `
+
+## Forklaringsnivå: Ekspert
+
+Brukeren har god forståelse og ønsker ekspertnivå-forklaringer. Tilpass svarene dine:
+- Bruk presis fagterminologi uten å forklare grunnleggende begreper
+- Fokuser på implementasjonsdetaljer, trade-offs og designvalg
+- Inkluder asymptotisk analyse, bevis-skisser og formelle definisjoner der relevant
+- Diskuter begrensninger, alternative tilnærminger og state-of-the-art
+- Referer til akademiske konsepter og relevante forskningsområder
+- Skriv kodeeksempler med optimalisert kode, ikke bare grunnversjonen`;
+
+    default:
+      return "";
+  }
+}
+
 /** Definerer express router */
 const router = Router();
 // Rate limiting for KI-endepunkter
@@ -633,6 +767,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     messages,
     model: requestedModel,
     temperature = 0.7,
+    explanationLevel,
   } = parseResult.data;
 
   // Valider meldingsarray
@@ -694,6 +829,19 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     // Start med base system prompt
     let enhancedSystemPrompt = STUDYWISE_SYSTEM_PROMPT;
 
+    // ——— Forklaringsnivå-tilpasning ———
+    if (explanationLevel && explanationLevel !== "standard") {
+      enhancedSystemPrompt += buildExplanationLevelPrompt(explanationLevel);
+    }
+
+    // ——— Sammenligningsverktøy ———
+    const lastUserMessage = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+    const isComparison = isComparisonQuery(lastUserMessage);
+    if (isComparison) {
+      enhancedSystemPrompt += STUDYWISE_COMPARISON_PROMPT;
+      logger.info({ userId: req.user.id }, "Sammenligningsspørsmål detektert — injiserer sammenligningsinstruksjoner");
+    }
+
     // ——— Intent-deteksjon: Trenger denne meldingen Canvas-data? ———
     const intent = detectIntent(messages);
 
@@ -723,6 +871,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     let fullDocumentModeActive = false;
     let fullDocumentStrictPrefix = "";
     let traceCourseIdHint: number | null = null;
+    let traceCourseHint: string | null = null;
 
     if (intent !== "general_chat" && req.canvasToken && req.user?.id) {
       const baseUrl = req.canvasBaseUrl;
@@ -856,6 +1005,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
         target = await resolveTargetAgainstKnownCourses(req.user.id, target, lastUserMsg);
       }
       traceCourseIdHint = target.courseIdHint;
+      traceCourseHint = target.courseHint;
 
       logger.info(
         { intent, target, messagePreview: lastUserMsg.substring(0, 100) },
@@ -943,13 +1093,18 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
             !!target.moduleHint ||
             !!target.fileHint);
 
-        if (sessionCacheKey && contextResult.hasCanvasData) {
+        // Fil-/PDF-innhold skal aldri lagres i Redis (kun i MongoDB) — cache kun strukturell kontekst
+        const kontekstHarFilInnhold =
+          contextResult.kontekst.includes("--- PDF-INNHOLD:") ||
+          contextResult.kontekst.includes("--- FIL-INNHOLD:");
+
+        if (sessionCacheKey && contextResult.hasCanvasData && !kontekstHarFilInnhold) {
           await setCache(sessionCacheKey, JSON.stringify(contextResult), SESSION_CONTEXT_TTL);
         }
         // lastCourseSessionKey og sessionCacheKey kan peke på samme nøkkel når followUpWithoutCourseHint=true.
         // Skriv kun til lastCourseSessionKey separat når de er forskjellige, og kun ved rikt innhold —
         // unngår at svakt innhold fra follow-up forgifter last-course-cachen.
-        if (lastCourseSessionKey && hasRichCanvasContent && lastCourseSessionKey !== sessionCacheKey) {
+        if (lastCourseSessionKey && hasRichCanvasContent && !kontekstHarFilInnhold && lastCourseSessionKey !== sessionCacheKey) {
           await setCache(lastCourseSessionKey, JSON.stringify(contextResult), SESSION_CONTEXT_TTL);
         }
       }
@@ -1027,6 +1182,15 @@ Rules:
     const historyBudget = Math.max(MAX_CONTEXT_TOKENS - systemPromptTokens - maxTokens, 1000);
     const tokenTrimmedMessages = trimToTokenLimit(messages, historyBudget);
     const trimmedMessages = tokenTrimmedMessages.slice(-8);
+
+    // ——— Studiekontekst fra tidligere samtaler ———
+    const studyContextCourseId = hasCanvasData && canvasKontekst.length > 0
+      ? extractCourseIdFromContext(canvasKontekst)
+      : null;
+    const studyContext = await loadStudyContextForUser(req.user!.id, studyContextCourseId);
+    if (studyContext) {
+      enhancedSystemPrompt += studyContext;
+    }
 
     // System-prompt styres kun av backend (KIChatClientMessageSchema tillater ikke "system" fra klient — prompt-injection-sikring).
     const fullMessages: Array<{
@@ -1166,6 +1330,19 @@ Rules:
     }).catch((err) => {
       logger.warn({ err, userId: req.user!.id }, "Audit-feil for KI chat");
     });
+
+    // Oppdater studiekontekst for hukommelse på tvers av samtaler (fire-and-forget)
+    if (hasCanvasData && lastUserMessage) {
+      void updateStudyContext(
+        req.user!.id,
+        traceCourseIdHint != null ? String(traceCourseIdHint) : null,
+        traceCourseHint,
+        lastUserMessage,
+        responseText,
+      ).catch((err) => {
+        logger.warn({ err, userId: req.user!.id }, "Feil ved oppdatering av studiekontekst");
+      });
+    }
 
     return;
   } catch (error) {

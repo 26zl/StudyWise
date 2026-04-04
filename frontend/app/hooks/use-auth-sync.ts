@@ -15,7 +15,7 @@ import { useUIStore } from "../store/uiStore";
 
 // Konstantverdier for BroadcastChannel (same-origin per spec )
 const LOGOUT_MESSAGE = "logout";
-const AUTH_PATH_PREFIXES = ["/dashboard", "/oversikt", "/ai-breakdown", "/profil"] as const;
+const AUTH_PATH_PREFIXES = ["/dashboard", "/oversikt", "/ai-breakdown", "/account"] as const;
 
 export function clearClientAuthState(queryClient: QueryClient): void {
     clearDatadogUser();

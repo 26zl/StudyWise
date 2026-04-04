@@ -36,10 +36,10 @@ export const SHARE_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 const SHARE_OPPORTUNISTIC_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 
 let lastOpportunisticCleanupAt = 0;
-const SHARE_ID_REGEX = /^[A-Za-z0-9_-]{12}$/;
+const SHARE_ID_REGEX = /^[A-Za-z0-9_-]{16}$/;
 
 function createShareId(): string {
-  return randomBytes(18).toString("base64url").slice(0, 12);
+  return randomBytes(18).toString("base64url").slice(0, 16);
 }
 
 function triggerOpportunisticCleanup(): void {
@@ -264,10 +264,10 @@ kiShareRouter.post("/chat/:chatId/share", async (req, res) => {
           ownerId: ownerObjectId,
           expiresAt: new Date(Date.now() + DEFAULT_SHARE_TTL_DAYS * 24 * 60 * 60 * 1000),
           isActive: true,
+          accessType: "public",
         },
         $setOnInsert: {
           shareId,
-          accessType: "public",
           viewCount: 0,
         },
       },
@@ -305,10 +305,11 @@ kiShareRouter.get("/chat/shared", async (req, res) => {
     const userId = requireUserId(req, res);
     if (!userId) return;
 
-    await deactivateExpiredSharedChats({ ownerId: userId });
+    const ownerObjId = new mongoose.Types.ObjectId(userId);
+    await deactivateExpiredSharedChats({ ownerId: ownerObjId });
 
     const docs = await SharedChat.find({
-      ownerId: userId,
+      ownerId: ownerObjId,
       isActive: true,
     })
       .sort({ createdAt: -1 })
@@ -323,7 +324,7 @@ kiShareRouter.get("/chat/shared", async (req, res) => {
           "title" in doc.chatId &&
           typeof doc.chatId.title === "string" &&
           doc.chatId.title.trim().length > 0
-            ? doc.chatId.title
+            ? doc.chatId.title.trim()
             : "Samtale";
 
         return {
@@ -364,11 +365,12 @@ kiShareRouter.delete("/chat/shared", async (req, res) => {
     const userId = requireUserId(req, res);
     if (!userId) return;
 
-    await deactivateExpiredSharedChats({ ownerId: userId });
+    const ownerObjId = new mongoose.Types.ObjectId(userId);
+    await deactivateExpiredSharedChats({ ownerId: ownerObjId });
 
     const result = await SharedChat.updateMany(
       {
-        ownerId: userId,
+        ownerId: ownerObjId,
         isActive: true,
       },
       {
@@ -403,9 +405,10 @@ kiShareRouter.patch("/chat/shared/:shareId", async (req, res) => {
       return sendZodError(res, parsed.error, "chat shared update");
     }
 
+    const ownerObjId = new mongoose.Types.ObjectId(userId);
     const doc = await SharedChat.findOne({
       shareId: req.params.shareId,
-      ownerId: userId,
+      ownerId: ownerObjId,
     });
 
     if (!doc) {
@@ -452,9 +455,10 @@ kiShareRouter.delete("/chat/shared/:shareId", async (req, res) => {
     const userId = requireUserId(req, res);
     if (!userId) return;
 
+    const ownerObjId = new mongoose.Types.ObjectId(userId);
     const doc = await SharedChat.findOne({
       shareId: req.params.shareId,
-      ownerId: userId,
+      ownerId: ownerObjId,
     });
     if (!doc) {
       return apiError.notFound(res, "Delt lenke");

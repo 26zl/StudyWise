@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useCookieConsent } from "@/app/hooks/useCookieConsent";
 
 type DatadogUser = {
     id: string;
@@ -62,7 +63,14 @@ declare global {
 }
 
 export function DatadogRum() {
+    const { consent, isReady } = useCookieConsent();
+
     useEffect(() => {
+        // Ikke initialiser RUM før samtykke er avklart og akseptert (GDPR)
+        if (!isReady || consent !== "accepted") {
+            return;
+        }
+
         const applicationId = process.env.NEXT_PUBLIC_DD_RUM_APPLICATION_ID;
         const clientToken = process.env.NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN;
         const site = process.env.NEXT_PUBLIC_DD_SITE ?? "us5.datadoghq.com";
@@ -113,7 +121,7 @@ export function DatadogRum() {
                 }
             }
         });
-    }, []);
+    }, [consent, isReady]);
 
     return null;
 }

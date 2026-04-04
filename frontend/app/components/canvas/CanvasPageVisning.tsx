@@ -14,6 +14,7 @@ import { CanvasKIHandlinger } from "@/app/components/ki/CanvasKIActions";
 import { CanvasHtmlContent } from "@/app/components/canvas/CanvasHtmlContent";
 import { useCanvasLabels } from "@/app/components/canvas/canvasLabels";
 import { formaterDatoLong } from "@/app/lib/dato";
+import { useMeg } from "@/app/auth/auth-api";
 
 // Props for CanvasPageVisning komponenten
 interface CanvasPageVisningProps {
@@ -26,6 +27,8 @@ interface CanvasPageVisningProps {
 export function CanvasPageVisning({ courseId, pageId, onBack }: CanvasPageVisningProps): JSX.Element | null {
     const { data: page, isLoading, isError, error } = useCanvasPage(courseId, pageId);
     const { labels, language } = useCanvasLabels();
+    const megQuery = useMeg();
+    const canvasBaseUrl = megQuery.data?.user?.canvasBaseUrl ?? undefined;
 
     if (isLoading) {
         return (
@@ -98,6 +101,7 @@ export function CanvasPageVisning({ courseId, pageId, onBack }: CanvasPageVisnin
                 <CanvasHtmlContent
                     html={page.body}
                     className="p-8 prose prose-slate dark:prose-invert max-w-none"
+                    canvasBaseUrl={canvasBaseUrl}
                 />
             </article>
         </div>

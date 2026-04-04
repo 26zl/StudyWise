@@ -14,6 +14,8 @@ export interface ICanvasModuleItem {
   type: string;
   content_id?: number;
   external_url?: string;
+  /** Canvas page slug (brukes til å hente Page-innhold via API) */
+  page_url?: string;
   /** Per-item hash for endringsdeteksjon: hash(id + title + external_url) */
   contentHash?: string;
   /** Hash av hentet ExternalUrl-innhold (for å unngå re-indeksering av uendrede sider) */
@@ -67,6 +69,7 @@ const CanvasModuleItemSchema = new Schema<ICanvasModuleItem>(
     type: { type: String },
     content_id: { type: Number },
     external_url: { type: String },
+    page_url: { type: String },
     contentHash: { type: String },
     crawledHash: { type: String },
     crawledAt: { type: Date },

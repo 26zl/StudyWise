@@ -6,7 +6,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Bot, Download, Copy, Share2, RefreshCw, Plus, User } from "lucide-react";
+import { Send, Bot, Download, Copy, Share2, RefreshCw, Plus, User, GraduationCap } from "lucide-react";
 import { LoadingSpinner, LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
@@ -183,6 +183,7 @@ export function ChatSection() {
         pendingKIMelding,
         clearPendingKIMelding,
         canvasContextSelection,
+        explanationLevel,
     } = useUIStore();
     const { setRunningChatId } = useKIStore();
 
@@ -297,7 +298,7 @@ export function ChatSection() {
             return;
         }
         // Start ny chat-opprettelse med mutex
-        const titleFromFirst = title ?? oppdatert.find((m) => m.rolle === "user")?.innhold?.trim().slice(0, 50) ?? "Ny samtale";
+        const titleFromFirst = title ?? oppdatert.find((m) => m.rolle === "user")?.innhold?.trim().slice(0, 50) ?? t("chat.newConversationFallback");
         const createPromise = saveChat(payload, undefined, titleFromFirst).then((nyId) => {
             if (nyId) settAktivSamtale(nyId);
             return nyId;
@@ -484,8 +485,9 @@ export function ChatSection() {
 
     /** Nullstiller state for ny samtale; lagrer gjeldende meldinger først og tømmer sessionStorage. */
     const nySamtale = async () => {
-        if (meldinger.length > 0) {
-            void lagreSamtale(meldinger).catch(() => {
+        const gjeldendeMeldinger = meldingerRef.current;
+        if (gjeldendeMeldinger.length > 0) {
+            void lagreSamtale(gjeldendeMeldinger).catch(() => {
                 showToast.error(t("chat.saveBeforeNewError"));
             });
         }
@@ -663,14 +665,14 @@ export function ChatSection() {
         };
 
         settMeldinger((tidligere) => [...tidligere, brukerMelding]);
-        meldingerRef.current = [...meldinger, brukerMelding];
+        meldingerRef.current = [...meldingerRef.current, brukerMelding];
 
         /* Vedlegg: opprett chat om nødvendig, sett pending (document), kjør dokumentanalyse og lagre i onSuccess/onError. */
         if (harVedlegg) {
             settAnalysererDokument(true);
             const filTilAnalyse = vedlegg[0];
             settVedlegg([]);
-            const titleFromFirst = brukerMeldingInnhold.trim().slice(0, 50) || "Ny samtale";
+            const titleFromFirst = brukerMeldingInnhold.trim().slice(0, 50) || t("chat.newConversationFallback");
             const requestId = createPendingRequestId();
             docAnalysisChatIdRef.current = aktivChatId;
             const messagesBeforeForSave = [...meldinger, brukerMelding].map((m) => ({
@@ -874,7 +876,7 @@ export function ChatSection() {
         // Canvas-validering passert — nå kan vi sette pending state og opprette chat
         settSkriver(true);
 
-        const titleFromFirst = brukerMeldingInnhold.trim().slice(0, 50) || "Ny samtale";
+        const titleFromFirst = brukerMeldingInnhold.trim().slice(0, 50) || t("chat.newConversationFallback");
         const requestId = createPendingRequestId();
         pendingConversationState = {
             requestId,
@@ -955,7 +957,7 @@ export function ChatSection() {
         const assistantId = (Date.now() + 1).toString();
         brukerErVedBunnRef.current = true;
 
-        void streamKIChat(apiMeldinger)
+        void streamKIChat(apiMeldinger, { explanationLevel })
             .then((data) => {
                 const responseText = data.response.trim();
                 if (!responseText) {
@@ -1204,7 +1206,7 @@ export function ChatSection() {
     const delingsTittel =
         aktivChat?.title?.trim() ||
         meldinger.find((melding) => melding.rolle === "user")?.innhold?.trim().slice(0, 50) ||
-        "Samtale";
+        t("chat.conversationFallback");
 
     const opprettDelingslenke = useCallback(async () => {
         if (oppretterDeling) return null;
@@ -1215,7 +1217,7 @@ export function ChatSection() {
             if (!chatId && meldingerRef.current.length > 0) {
                 const titleFromFirst =
                     meldingerRef.current.find((melding) => melding.rolle === "user")?.innhold?.trim().slice(0, 50) ||
-                    "Ny samtale";
+                    t("chat.newConversationFallback");
                 const savedChatId = await saveChat(
                     meldingerRef.current.map((melding) => ({
                         rolle: melding.rolle,
@@ -1240,9 +1242,7 @@ export function ChatSection() {
             const res = await fetchApi(`/api/ki/chat/${chatId}/share`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    shareMode: "full_chat",
-                }),
+                body: JSON.stringify({}),
             });
 
             if (!res.ok) {
@@ -1537,18 +1537,18 @@ export function ChatSection() {
                             onClick={() => filInputRef.current?.click()}
                             disabled={skriver || analyserarDokument}
                             className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-                            title="Last opp dokument (PDF, Word, PowerPoint, Excel, kodefiler, bilder)"
-                            aria-label="Last opp dokument"
+                            title={t("chat.uploadDocumentLabel")}
+                            aria-label={t("chat.uploadDocumentAriaLabel")}
                         >
                             <Plus className="w-5 h-5 text-slate-400 dark:text-slate-500" />
                         </button>
-                        
+
                         <textarea
                             ref={tekstInputRef}
                             value={tekstInput}
                             onChange={(e) => settTekstInput(e.target.value)}
                             onKeyDown={handterTastetrykk}
-                            placeholder={vedlegg.length > 0 ? "Skriv et spørsmål om vedlegget..." : "Skriv en melding..."}
+                            placeholder={vedlegg.length > 0 ? t("chat.placeholderAttachment") : t("chat.placeholderDefault")}
                             disabled={skriver || analyserarDokument}
                             rows={1}
                             className="flex-1 resize-none bg-transparent py-2 text-[15px] text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:outline-none focus:ring-0 border-none shadow-none disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
@@ -1570,9 +1570,34 @@ export function ChatSection() {
                             )}
                         </button>
                     </div>
-                    <p className="text-xs text-center text-slate-400 dark:text-slate-500 mt-2">
-                        Trykk Enter for å sende · Shift+Enter for ny linje
-                    </p>
+                    <div className="flex items-center justify-between mt-2 px-1">
+                        <div className="flex items-center gap-1">
+                            <GraduationCap className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                            <div className="flex gap-0.5">
+                                {(["simple", "standard", "detailed", "expert"] as const).map((level) => {
+                                    const label = t(`chat.explanationLevel.${level}`);
+                                    return (
+                                        <button
+                                            key={level}
+                                            type="button"
+                                            onClick={() => useUIStore.getState().setExplanationLevel(level)}
+                                            className={`px-2 py-0.5 text-xs rounded-full transition-colors ${
+                                                explanationLevel === level
+                                                    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 font-medium"
+                                                    : "text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+                                            }`}
+                                            title={t("chat.explanationLevel.tooltip", { level: label })}
+                                        >
+                                            {label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">
+                            {t("chat.inputHint")}
+                        </p>
+                    </div>
                   </div>
                 </div>
             </div>

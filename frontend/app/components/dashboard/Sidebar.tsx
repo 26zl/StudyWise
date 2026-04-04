@@ -26,6 +26,7 @@ import {
     MoreHorizontal,
     X,
     ArrowRight,
+    UserRound,
 } from "lucide-react";
 import { useLoggUtWithRedirect } from "@/app/auth/auth-api";
 import { useChatHistory } from "@/app/hooks/useChatHistory";
@@ -123,6 +124,7 @@ export function Sidebar({
         router.prefetch("/dashboard");
         router.prefetch("/oversikt");
         router.prefetch("/ai-breakdown");
+        router.prefetch("/account");
     }, [router]);
 
     useEffect(() => {
@@ -371,9 +373,9 @@ export function Sidebar({
                     </div>
                 )}
 
-                <nav aria-label={t("dashboard.sidebar.navigationTitle")} className="relative flex-1 overflow-y-auto p-5 sm:p-6 space-y-3">
+                <nav aria-label={t("dashboard.sidebar.navigationTitle")} className="relative flex-1 overflow-y-auto px-5 py-5 space-y-2">
                     {/* Hovednavigasjon */}
-                    <div className="mb-4">
+                    <div className="mb-1">
                         <Link
                             href="/oversikt"
                             prefetch={false}
@@ -408,16 +410,14 @@ export function Sidebar({
                         }}
                         className="w-full flex items-center justify-center gap-2 px-5 py-3.5 mb-8 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
                     >
-                        <Plus size={18} />
+                        <Plus size={16} />
                         <span>{t("common.actions.newConversation")}</span>
                     </button>
 
                     {/* Chat-historikk */}
                     <div className="mb-8">
-                        <div className="mb-4">
-                            <NavElement view="chat" icon={MessageSquare} label={t("dashboard.sidebar.aiAssistant")} isActiveOverride={erChatAktiv} />
-                        </div>
-                        
+                        <NavElement view="chat" icon={MessageSquare} label={t("dashboard.sidebar.aiAssistant")} isActiveOverride={erChatAktiv} />
+
                         {/* Oppgavedeling med KI */}
                         <Link
                             href="/ai-breakdown"
@@ -451,8 +451,8 @@ export function Sidebar({
                             label={t("dashboard.sidebar.quiz")}
                             isActiveOverride={erPåDashboard && (effektivVisning === "quiz" || effektivVisning === "flashcards")}
                         />
-                        
-                        <div className={`flex items-center justify-between px-5 ${erBookmarksUtvidet ? "pt-2 pb-3" : "pt-2 pb-1"}`}>
+
+                        <div className={`flex items-center justify-between px-5 ${erBookmarksUtvidet ? "pt-3 pb-2" : "pt-2 pb-1"}`}>
                             <Link
                                 href="/dashboard/bokmerker"
                                 prefetch={false}
@@ -474,14 +474,14 @@ export function Sidebar({
                             </button>
                         </div>
                         {!erBookmarksUtvidet ? null : bookmarkedChats.length === 0 ? (
-                            <div className="px-5 pb-3 text-xs text-slate-500 dark:text-slate-400">
+                            <div className="px-5 pb-2 text-xs text-slate-500 dark:text-slate-400">
                                 {t("dashboard.sidebar.noBookmarksYet")}
                             </div>
                         ) : (
                             bookmarkedChats.map((chat) => renderChatRad(chat, "bookmarks"))
                         )}
 
-                        <div className={`flex items-center justify-between px-5 ${erBookmarksUtvidet ? "pt-5 pb-3" : "pt-2 pb-2"}`}>
+                        <div className={`flex items-center justify-between px-5 ${erBookmarksUtvidet ? "pt-4 pb-2" : "pt-2 pb-1"}`}>
                             <Link
                                 href="/dashboard/samtalehistorikk"
                                 prefetch={false}
@@ -503,7 +503,7 @@ export function Sidebar({
                             </button>
                         </div>
                         {!erHistorikkUtvidet ? null : historyChats.length === 0 ? (
-                            <div className="px-5 py-4 text-xs text-slate-500 dark:text-slate-400">
+                            <div className="px-5 py-2 text-xs text-slate-500 dark:text-slate-400">
                                 {t("dashboard.sidebar.noChatsYet")}
                             </div>
                         ) : (
@@ -516,7 +516,7 @@ export function Sidebar({
                                 onClick={() => {
                                     if (window.innerWidth < 768) lukkVenstreMeny();
                                 }}
-                                className="mt-2 block px-3 py-2 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                                className="mt-1 block px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                             >
                                 {chatHandlingTekster.showMore}
                             </Link>
@@ -524,7 +524,7 @@ export function Sidebar({
                     </div>
 
                     {/* Canvas-seksjon */}
-                    <div className="border-t border-slate-200 dark:border-slate-800 pt-8 pb-3">
+                    <div className="border-t border-slate-200 dark:border-slate-800 pt-8">
                         <button
                             type="button"
                             onClick={() => settErCanvasUtvidet(!erCanvasUtvidet)}
@@ -534,14 +534,14 @@ export function Sidebar({
                         >
                             <span>{t("dashboard.sidebar.canvas")}</span>
                             {erCanvasUtvidet ? (
-                                <ChevronDown size={16} />
+                                <ChevronDown size={14} />
                             ) : (
-                                <ChevronRight size={16} />
+                                <ChevronRight size={14} />
                             )}
                         </button>
 
                         {erCanvasUtvidet && (
-                            <div id="sidebar-canvas-menu" className="mt-4 space-y-2">
+                            <div id="sidebar-canvas-menu" className="mt-2 space-y-1">
                                 <NavElement
                                     view="varslinger"
                                     icon={Bell}
@@ -575,23 +575,41 @@ export function Sidebar({
                             </div>
                         )}
                     </div>
-
-                    {/* Innstillinger + Admin */}
-                    <div className="border-t border-slate-200 dark:border-slate-800 pt-8 space-y-2">
-                        <NavElement view="settings" icon={Settings} label={t("dashboard.sidebar.settings")} />
-                        {skalViseAdmin && (
-                            <NavElement view="admin" icon={Shield} label={t("dashboard.sidebar.admin")} />
-                        )}
-                    </div>
                 </nav>
-                {erHistorikkUtvidet && hasHiddenHistoryChats && (
-                    <div className="pointer-events-none h-8 bg-linear-to-t from-white to-transparent dark:from-slate-900 dark:to-transparent" />
-                )}
+
+                {/* Innstillinger + Profil + Admin (fast i bunn) */}
+                <div className="shrink-0 border-t border-slate-200 dark:border-slate-800 px-5 py-3 space-y-1">
+                    <NavElement view="settings" icon={Settings} label={t("dashboard.sidebar.settings")} />
+                    <Link
+                        href="/account"
+                        prefetch={false}
+                        aria-current={effektivPathname === "/account" || effektivPathname.startsWith("/account/") ? "page" : undefined}
+                        onClick={() => {
+                            setPendingVisning(null);
+                            if (window.innerWidth < 768) lukkVenstreMeny();
+                        }}
+                        className={`
+                            w-full flex items-center gap-3 px-5 py-3.5 rounded-xl text-left text-sm
+                            transition-colors duration-150
+                            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
+                            ${pathname === "/account" || pathname.startsWith("/account/")
+                                ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
+                                : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
+                            }
+                        `}
+                    >
+                        <UserRound size={18} className="shrink-0" />
+                        <span className="truncate">{t("dashboard.sidebar.profile")}</span>
+                    </Link>
+                    {skalViseAdmin && (
+                        <NavElement view="admin" icon={Shield} label={t("dashboard.sidebar.admin")} />
+                    )}
+                </div>
 
                 {/* Bruker-seksjon */}
-                <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-800">
-                    <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-medium text-sm">
+                <div className="shrink-0 px-5 py-2.5 border-t border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-medium text-xs">
                             {brukernavn ? brukernavn.charAt(0).toUpperCase() : "?"}
                         </div>
                         <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
@@ -609,7 +627,7 @@ export function Sidebar({
                             aria-label={t("common.actions.signOut")}
                             title={t("common.actions.signOut")}
                         >
-                            <LogOut size={20} />
+                            <LogOut size={18} />
                         </button>
                     </div>
                 </div>

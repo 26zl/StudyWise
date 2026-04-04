@@ -225,12 +225,13 @@ describe("isValidUsernameFormat", () => {
     expect(isValidUsernameFormat("bruker_123")).toBe(true);
   });
 
-  it("avviser for kort brukernavn (under 3 tegn)", () => {
+  it("avviser for kort brukernavn (under 4 tegn)", () => {
     expect(isValidUsernameFormat("ab")).toBe(false);
+    expect(isValidUsernameFormat("abc")).toBe(false);
   });
 
-  it("godtar nøyaktig 3 tegn (minimumslengde)", () => {
-    expect(isValidUsernameFormat("abc")).toBe(true);
+  it("godtar nøyaktig 4 tegn (minimumslengde)", () => {
+    expect(isValidUsernameFormat("abcd")).toBe(true);
   });
 
   it("godtar nøyaktig 30 tegn (maksimumslengde)", () => {
@@ -445,8 +446,8 @@ describe("Konstanter", () => {
     expect(MIN_NAME_LENGTH).toBe(2);
   });
 
-  it("USERNAME_MIN_LENGTH er 3", () => {
-    expect(USERNAME_MIN_LENGTH).toBe(3);
+  it("USERNAME_MIN_LENGTH er 4", () => {
+    expect(USERNAME_MIN_LENGTH).toBe(4);
   });
 
   it("USERNAME_MAX_LENGTH er 30", () => {

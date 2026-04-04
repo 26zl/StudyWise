@@ -30,9 +30,6 @@ const OptionalNullableChatTopicSchema = z.preprocess(
 export const CHAT_SHARE_ACCESS_TYPES = ["public", "private"] as const;
 export const ChatShareAccessTypeSchema = z.enum(CHAT_SHARE_ACCESS_TYPES);
 
-export const CHAT_SHARE_MODES = ["full_chat"] as const;
-export const ChatShareTypeSchema = z.enum(CHAT_SHARE_MODES);
-
 // Maks antall chat-samtaler som skal vises i historikken
 export const ChatMessageSchema = z.object({
   rolle: z.enum(["user", "assistant"]),
@@ -53,11 +50,7 @@ export const ChatSaveSchema = z.object({
   pinned: z.boolean().optional(),
 });
 
-export const ChatShareCreateSchema = z
-  .object({
-    shareMode: ChatShareTypeSchema.default("full_chat"),
-  })
-  .strict();
+export const ChatShareCreateSchema = z.object({}).strict();
 
 // Felles schema for en enkelt chat-samtale (delt mellom save og historikk)
 const ChatEntrySchema = z.object({
@@ -92,7 +85,7 @@ export const ChatShareResponseSchema = z.object({
   shareId: z.string(),
   shareUrl: z.string(),
   expiresAt: z.coerce.date().nullable(),
-  accessType: ChatShareAccessTypeSchema.default("public"),
+  accessType: ChatShareAccessTypeSchema,
 });
 
 export const SharedChatListItemSchema = z.object({

@@ -168,15 +168,43 @@ export const canvasBildeProxyUrl = (src: string | undefined): string | undefined
     return undefined;
 };
 
+/**
+ * html-react-parser sin replace-funksjon forventer DOMNode-retur, men JSX gir JSX.Element.
+ * Denne hjelperen utfører den nødvendige type-broen én gang.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const asReplacement = (jsx: ReactNode): any => jsx;
+
+/**
+ * Canvas-relative stier som skal omdirigeres til brukerens Canvas-instans
+ * i stedet for å peke til StudyWise-domenet (som gir 404).
+ */
+const CANVAS_RELATIVE_PATH_PREFIXES = [
+    "/courses/", "/files/", "/users/", "/groups/",
+    "/assignments/", "/modules/", "/pages/", "/announcements/",
+    "/discussion_topics/", "/quizzes/", "/grades/", "/calendar",
+];
+
+function resolveCanvasRelativeHref(href: string, canvasBaseUrl?: string): string {
+    if (!canvasBaseUrl || !href) return sikkerHref(href);
+    const trimmed = href.trim();
+    if (!trimmed.startsWith("/")) return sikkerHref(href);
+    if (CANVAS_RELATIVE_PATH_PREFIXES.some((prefix) => trimmed.startsWith(prefix))) {
+        const base = canvasBaseUrl.replace(/\/+$/, "");
+        return `${base}${trimmed}`;
+    }
+    return sikkerHref(href);
+}
+
 // Lager parser-opsjoner. Kan utvides med custom bilde-rendering fra konsument
-export const createCanvasHtmlParser = (renderImage?: (el: Element) => ReactNode): HTMLReactParserOptions => {
+export const createCanvasHtmlParser = (renderImage?: (el: Element) => ReactNode, canvasBaseUrl?: string): HTMLReactParserOptions => {
     const replace: HTMLReactParserOptions["replace"] = (domNode) => {
         if (domNode instanceof Element) {
             if (domNode.tagName === "a") {
                 const href = domNode.attribs?.href;
-                const resolvedHref = canvasBildeProxyUrl(href) ?? sikkerHref(href);
+                const resolvedHref = canvasBildeProxyUrl(href) ?? resolveCanvasRelativeHref(href ?? "", canvasBaseUrl);
                 const children = domToReact(domNode.children as DOMNode[], { replace });
-                return (
+                return asReplacement(
                     <a
                         href={resolvedHref}
                         target="_blank"
@@ -186,7 +214,7 @@ export const createCanvasHtmlParser = (renderImage?: (el: Element) => ReactNode)
                         {children}
                         <ExternalLink size={12} className="opacity-50" />
                     </a>
-                ) as unknown as Element;
+                );
             }
             if (domNode.tagName === "img") {
                 const rawSrc = domNode.attribs?.src;
@@ -195,9 +223,9 @@ export const createCanvasHtmlParser = (renderImage?: (el: Element) => ReactNode)
                 if (renderImage) {
                     const cloned = { ...domNode, attribs } as unknown as Element;
                     const rendered = renderImage(cloned);
-                    if (rendered) return rendered as unknown as Element;
+                    if (rendered) return asReplacement(rendered);
                 }
-                return (
+                return asReplacement(
                     <img
                         src={proxiedSrc ?? ""}
                         alt={domNode.attribs?.alt ?? ""}
@@ -207,7 +235,7 @@ export const createCanvasHtmlParser = (renderImage?: (el: Element) => ReactNode)
                         className={domNode.attribs?.class}
                         loading="lazy"
                     />
-                ) as unknown as Element;
+                );
             }
         }
         return null;
