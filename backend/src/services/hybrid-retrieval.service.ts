@@ -27,10 +27,10 @@ import {
 const RRF_K = 60;
 
 /** Antall resultater fra hvert søkesystem (overhent for bedre RRF-fusjon) */
-const PER_SOURCE_LIMIT = 15;
+const PER_SOURCE_LIMIT = 10;
 
 /** Endelig antall resultater etter reranking */
-const FINAL_TOP_N = 8;
+const FINAL_TOP_N = 6;
 
 /** Maks antall parallelle begrep-søk ved multi-concept splitting */
 const MAX_CONCEPT_SPLITS = 3;

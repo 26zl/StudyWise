@@ -589,7 +589,7 @@ router.use(kiAnalyseRouter);
 import { KI_TIMEOUT_MS, SESSION_CONTEXT_TTL } from "./kiConstants.js";
 
 /** Maks ventetid på Canvas-sync før vi fortsetter med API/vector — kortere = raskere første svar, sync fortsetter i bakgrunn */
-const SYNC_WAIT_MAX_MS = 8_000;
+const SYNC_WAIT_MAX_MS = 1_500;
 
 // Endepunkt for å liste støttede modeller
 router.get("/models", (_req, res) => {
@@ -1016,14 +1016,14 @@ Rules:
     }
 
     // Dynamisk timeout og max_tokens basert på intent
-    const maxTokens = 2000;
+    const maxTokens = 1400;
     const TIMEOUT_MS = intent === "canvas_full" ? 120000 : intent === "canvas_light" ? 60000 : 30000;
 
     // Token-basert trimming av samtalehistorikk.
     // Reserverer plass til system-prompt + AI-respons, bruker resten til historikk.
     // Claude Sonnet har 200k kontekst, men vi begrenser for kostnads- og latens-kontroll.
     const systemPromptTokens = countTokens(enhancedSystemPrompt) + (hasCanvasData ? countTokens(canvasKontekst) : 0);
-    const MAX_CONTEXT_TOKENS = intent === "canvas_full" ? 13000 : 8000;
+    const MAX_CONTEXT_TOKENS = intent === "canvas_full" ? 10000 : 6000;
     const historyBudget = Math.max(MAX_CONTEXT_TOKENS - systemPromptTokens - maxTokens, 1000);
     const tokenTrimmedMessages = trimToTokenLimit(messages, historyBudget);
     const trimmedMessages = tokenTrimmedMessages.slice(-8);
