@@ -59,6 +59,8 @@ export default defineConfig({
       stdout: "pipe",
       stderr: "pipe",
       cwd: path.resolve(__dirname, ".."),
+      // Backend .env setter PORT=4000 via dotenv — overstyrer for frontend slik at Next.js bruker port 3000
+      env: { ...process.env, PORT: "3000" },
     },
   ],
   use: {
