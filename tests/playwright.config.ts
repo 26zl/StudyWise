@@ -42,7 +42,7 @@ export default defineConfig({
   webServer: [
     {
       command: process.env.CI
-        ? "pnpm --filter backend tsx src/index.ts"
+        ? "pnpm --filter backend exec tsx src/index.ts"
         : "pnpm dev:backend",
       url: "http://localhost:4000/health",
       reuseExistingServer: true,
