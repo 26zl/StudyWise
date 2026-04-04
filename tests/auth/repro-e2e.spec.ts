@@ -171,34 +171,21 @@ async function callMeWithFlowId(page: Page, flowId: string): Promise<{ status: n
  * Håndterer standard Clerk dev-modus registreringswidget.
  */
 async function fillClerkSignupForm(page: Page, email: string, username: string, password: string) {
-  // Vent på at Clerk-registreringsskjemaet vises
-  await page.waitForSelector('[data-clerk-element="signUp"]', { timeout: 15000 }).catch(() => {
-    // Clerk kan bruke ulike selektorer i forskjellige versjoner
-  });
-
-  // Prøv å finne og fylle ut e-postfeltet
   const emailInput = page.locator('input[name="emailAddress"], input[type="email"]').first();
-  if (await emailInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-    await emailInput.fill(email);
-  }
+  await emailInput.waitFor({ state: "visible", timeout: 30_000 });
+  await emailInput.fill(email);
 
-  // Prøv å finne og fylle ut brukernavnfeltet
   const usernameInput = page.locator('input[name="username"]').first();
-  if (await usernameInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await usernameInput.fill(username);
-  }
+  await usernameInput.waitFor({ state: "visible", timeout: 10_000 });
+  await usernameInput.fill(username);
 
-  // Fyll ut passord
   const passwordInput = page.locator('input[name="password"], input[type="password"]').first();
-  if (await passwordInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await passwordInput.fill(password);
-  }
+  await passwordInput.waitFor({ state: "visible", timeout: 10_000 });
+  await passwordInput.fill(password);
 
-  // Klikk send/fortsett-knappen
   const submitButton = page.locator('button[data-clerk-form-action="submit"], button:has-text("Continue"), button:has-text("Sign up"), button:has-text("Registrer")').first();
-  if (await submitButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await submitButton.click();
-  }
+  await submitButton.waitFor({ state: "visible", timeout: 10_000 });
+  await submitButton.click();
 }
 
 /**
@@ -208,7 +195,7 @@ async function fillClerkSignupForm(page: Page, email: string, username: string, 
 async function handleVerificationStep(page: Page) {
   // I Clerk dev-modus, se etter OTP/verifiseringskode-inputen
   const otpInput = page.locator('input[name="code"], input[data-clerk-element="otpInput"]').first();
-  const isOtpStep = await otpInput.isVisible({ timeout: 5000 }).catch(() => false);
+  const isOtpStep = await otpInput.waitFor({ state: "visible", timeout: 5_000 }).then(() => true).catch(() => false);
 
   if (isOtpStep) {
     // I dev-modus viser Clerk ofte et banner med verifiseringskoden
@@ -460,7 +447,8 @@ test.describe("Duplicate Signup Reproduction", () => {
 
     // Sjekk for brukernavn-konflikt-modal
     const usernameModal = await page.locator('[role="dialog"]:has-text("brukernavn"), [role="dialog"]:has-text("username")')
-      .isVisible({ timeout: 3000 })
+      .waitFor({ state: "visible", timeout: 5_000 })
+      .then(() => true)
       .catch(() => false);
     ev.usernameConflictModalShown = usernameModal;
 

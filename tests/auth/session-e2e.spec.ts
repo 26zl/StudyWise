@@ -101,27 +101,21 @@ async function signOut(page: Page): Promise<void> {
 }
 
 async function fillSignupForm(page: Page, email: string, username: string, password: string): Promise<void> {
-  await page.waitForSelector('input[name="emailAddress"], input[type="email"]', { timeout: 15000 }).catch(() => {});
-
   const emailInput = page.locator('input[name="emailAddress"], input[type="email"]').first();
-  if (await emailInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-    await emailInput.fill(email);
-  }
+  await emailInput.waitFor({ state: "visible", timeout: 30_000 });
+  await emailInput.fill(email);
 
   const usernameInput = page.locator('input[name="username"]').first();
-  if (await usernameInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await usernameInput.fill(username);
-  }
+  await usernameInput.waitFor({ state: "visible", timeout: 10_000 });
+  await usernameInput.fill(username);
 
   const passwordInput = page.locator('input[name="password"], input[type="password"]').first();
-  if (await passwordInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await passwordInput.fill(password);
-  }
+  await passwordInput.waitFor({ state: "visible", timeout: 10_000 });
+  await passwordInput.fill(password);
 
   const submitButton = page.locator('button[data-clerk-form-action="submit"], button:has-text("Continue"), button:has-text("Sign up"), button:has-text("Registrer")').first();
-  if (await submitButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await submitButton.click();
-  }
+  await submitButton.waitFor({ state: "visible", timeout: 10_000 });
+  await submitButton.click();
 }
 
 async function createTestUser(context: BrowserContext, email: string, username: string): Promise<Page> {

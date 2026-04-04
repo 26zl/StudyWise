@@ -16,18 +16,10 @@ test.describe("Auth E2E smoke", () => {
     await page.goto("/auth/sign-up");
     await page.waitForLoadState("domcontentloaded");
 
-    const hasEmailInput = await page
-      .locator('input[name="emailAddress"], input[type="email"]')
-      .first()
-      .isVisible({ timeout: 10000 })
-      .catch(() => false);
+    // Clerk-komponenten lastes fra CDN og kan ta tid i CI — vent opptil 30s
+    const emailInput = page.locator('input[name="emailAddress"], input[type="email"]').first();
+    const signUpText = page.locator('text=/sign up|registrer|opprett/i').first();
 
-    const hasSignUpText = await page
-      .locator('text=/sign up|registrer|opprett/i')
-      .first()
-      .isVisible({ timeout: 5000 })
-      .catch(() => false);
-
-    expect(hasEmailInput || hasSignUpText).toBeTruthy();
+    await expect(emailInput.or(signUpText)).toBeVisible({ timeout: 30_000 });
   });
 });

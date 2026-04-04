@@ -101,37 +101,33 @@ async function signOut(page: Page): Promise<void> {
 }
 
 async function fillSignupForm(page: Page, email: string, username: string, password: string): Promise<void> {
-  await page.waitForSelector('input[name="emailAddress"], input[type="email"]', { timeout: 15000 }).catch(() => {});
-
   const emailInput = page.locator('input[name="emailAddress"], input[type="email"]').first();
-  if (await emailInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-    await emailInput.fill(email);
-  }
+  await emailInput.waitFor({ state: "visible", timeout: 30_000 });
+  await emailInput.fill(email);
 
   const usernameInput = page.locator('input[name="username"]').first();
-  if (await usernameInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await usernameInput.fill(username);
-  }
+  await usernameInput.waitFor({ state: "visible", timeout: 10_000 });
+  await usernameInput.fill(username);
 
   const passwordInput = page.locator('input[name="password"], input[type="password"]').first();
-  if (await passwordInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await passwordInput.fill(password);
-  }
+  await passwordInput.waitFor({ state: "visible", timeout: 10_000 });
+  await passwordInput.fill(password);
 
   const submitButton = page.locator('button[data-clerk-form-action="submit"], button:has-text("Continue"), button:has-text("Sign up"), button:has-text("Registrer")').first();
-  if (await submitButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await submitButton.click();
-  }
+  await submitButton.waitFor({ state: "visible", timeout: 10_000 });
+  await submitButton.click();
 }
 
 async function checkForConflictModal(page: Page): Promise<boolean> {
-  // Sjekk for brukernavn-konfliktmodal eller lignende
-  const modalVisible = await page.locator('[role="dialog"]:has-text("brukernavn"), [role="dialog"]:has-text("username"), [role="dialog"]:has-text("conflict"), [role="alertdialog"]')
-    .first()
-    .isVisible({ timeout: 5000 })
-    .catch(() => false);
-
-  return modalVisible;
+  // Sjekk for brukernavn-konfliktmodal eller lignende — bruker kort timeout, dette er en sjekk, ikke en vent
+  try {
+    await page.locator('[role="dialog"]:has-text("brukernavn"), [role="dialog"]:has-text("username"), [role="dialog"]:has-text("conflict"), [role="alertdialog"]')
+      .first()
+      .waitFor({ state: "visible", timeout: 5_000 });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function checkForAuthGuardSignout(page: Page): Promise<boolean> {
@@ -289,7 +285,8 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
       // Feiltekst på siden
       page.locator('text=/username.*taken|brukernavn.*brukt|conflict|already exists/i')
         .first()
-        .isVisible({ timeout: 3000 })
+        .waitFor({ state: "visible", timeout: 5_000 })
+        .then(() => true)
         .catch(() => false),
     ]);
 
@@ -355,25 +352,20 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
     await page.goto("/auth/sign-in");
 
     const emailInput = page.locator('input[name="identifier"], input[type="email"]').first();
-    if (await emailInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await emailInput.fill(testEmail);
-    }
+    await emailInput.waitFor({ state: "visible", timeout: 30_000 });
+    await emailInput.fill(testEmail);
 
     const continueButton = page.locator('button:has-text("Continue"), button:has-text("Fortsett")').first();
-    if (await continueButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await continueButton.click();
-      await page.waitForTimeout(1000);
-    }
+    await continueButton.waitFor({ state: "visible", timeout: 10_000 });
+    await continueButton.click();
 
     const passwordInput = page.locator('input[name="password"], input[type="password"]').first();
-    if (await passwordInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await passwordInput.fill(TEST_PASSWORD);
-    }
+    await passwordInput.waitFor({ state: "visible", timeout: 10_000 });
+    await passwordInput.fill(TEST_PASSWORD);
 
     const submitButton = page.locator('button[data-clerk-form-action="submit"], button:has-text("Sign in"), button:has-text("Logg inn")').first();
-    if (await submitButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await submitButton.click();
-    }
+    await submitButton.waitFor({ state: "visible", timeout: 10_000 });
+    await submitButton.click();
 
     await page.waitForTimeout(5000);
 
