@@ -23,6 +23,7 @@ import { WebPushSubscriptionModel } from "../../database/models/WebPushSubscript
 import { StudyContext } from "../../database/models/StudyContext.js";
 import { enqueueClerkDeletionRetry } from "../../services/clerkDeletionRetry.service.js";
 import { DeletedUserTombstone } from "../../database/models/DeletedUserTombstone.js";
+import { PendingClerkDeletionModel } from "../../database/models/PendingClerkDeletion.js";
 
 export interface AccountDeletionResult {
   deleted: {
@@ -44,6 +45,7 @@ export interface AccountDeletionResult {
  */
 export async function deleteAccountData(
   userId: string,
+  options?: { skipClerkDeletion?: boolean },
 ): Promise<AccountDeletionResult> {
   const id = new mongoose.Types.ObjectId(userId);
   const result: AccountDeletionResult["deleted"] = {
@@ -131,6 +133,14 @@ export async function deleteAccountData(
         );
       }
 
+      // Fjern eventuelle stale retry-oppføringer for Clerk-sletting
+      if (user.clerkId) {
+        await PendingClerkDeletionModel.deleteMany(
+          { clerkId: user.clerkId },
+          { session },
+        );
+      }
+
       // Opprett minimal tombstone for å håndtere OAuth/brukernavn-konflikter
       // Tombstones har 90-dagers TTL og slettes automatisk av MongoDB
       await DeletedUserTombstone.create(
@@ -190,17 +200,22 @@ export async function deleteAccountData(
 
   if (user.clerkId) {
     invalidateTokenCacheByClerkId(user.clerkId);
-    providerAccountDeleted = await deleteClerkUserById(user.clerkId);
-    if (!providerAccountDeleted) {
-      logger.warn(
-        { userId, clerkId: user.clerkId },
-        "Klarte ikke å slette Clerk-konto under kontosletting",
-      );
-      await enqueueClerkDeletionRetry({
-        clerkId: user.clerkId,
-        userId,
-        lastError: "Klarte ikke å slette Clerk-konto under kontosletting",
-      });
+    if (options?.skipClerkDeletion) {
+      // Clerk-brukeren er allerede slettet (f.eks. via Clerk webhook) — hopp over
+      providerAccountDeleted = true;
+    } else {
+      providerAccountDeleted = await deleteClerkUserById(user.clerkId);
+      if (!providerAccountDeleted) {
+        logger.warn(
+          { userId, clerkId: user.clerkId },
+          "Klarte ikke å slette Clerk-konto under kontosletting",
+        );
+        await enqueueClerkDeletionRetry({
+          clerkId: user.clerkId,
+          userId,
+          lastError: "Klarte ikke å slette Clerk-konto under kontosletting",
+        });
+      }
     }
   } else {
     providerAccountDeleted = true;

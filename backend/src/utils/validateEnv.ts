@@ -341,6 +341,14 @@ export const validateEnv = (): void => {
     manglende.push("CONTACT_FROM_EMAIL (påkrevd for kontaktskjema)");
   }
 
+  // Advarsel for valgfrie sikkerhetsrelaterte variabler
+  if (!process.env.CLERK_WEBHOOK_SECRET?.trim()) {
+    logger.warn(
+      "CLERK_WEBHOOK_SECRET er ikke satt — Clerk webhook for user.deleted vil ikke fungere. " +
+      "Sett variabelen og registrer webhook-URL i Clerk Dashboard.",
+    );
+  }
+
   // Avslutt hvis påkrevde variabler mangler
   if (manglende.length > 0) {
     const liste = manglende.join(", ");

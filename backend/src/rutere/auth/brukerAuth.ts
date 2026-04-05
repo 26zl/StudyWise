@@ -58,9 +58,11 @@ import {
   rateLimitToken,
   rateLimitMe,
   rateLimitAccountDeletion,
+  rateLimitUsernameCheck,
   createRateLimiter,
 } from "../../middleware/rate-limit.js";
 import { noCache } from "../../middleware/no-cache.js";
+import { requireRecentAuth } from "../../middleware/auth.js";
 import {
   audit,
   AUDIT_ACTIONS,
@@ -263,6 +265,7 @@ function serializeAuthBruker(bruker: IUser) {
       : undefined,
     role: bruker.role ?? "user",
     authProvider: bruker.authProvider,
+    mfaEnabled: bruker.mfaEnabled ?? false,
     syncConflicts:
       bruker.syncConflicts && bruker.syncConflicts.length > 0
         ? bruker.syncConflicts
@@ -293,8 +296,10 @@ async function hentAutentisertBruker(
 }
 
 // GET /username/check — Sjekk om brukernavn er tilgjengelig (public endpoint for sign-up).
-// Rate limited for å unngå enumeration-angrep.
-router.get("/username/check", rateLimitMe, async (req, res) => {
+// Rate limited + konstant forsinkelse for å begrense enumeration- og timing-angrep.
+const USERNAME_CHECK_MIN_DELAY_MS = 200;
+router.get("/username/check", rateLimitUsernameCheck, async (req, res) => {
+  const start = Date.now();
   try {
     const parsed = UsernameCheckQuerySchema.safeParse({
       username: req.query.username,
@@ -306,6 +311,10 @@ router.get("/username/check", rateLimitMe, async (req, res) => {
     const { username } = parsed.data;
     const sanitized = sanitizeUsername(username);
     if (!sanitized) {
+      const elapsed = Date.now() - start;
+      if (elapsed < USERNAME_CHECK_MIN_DELAY_MS) {
+        await new Promise((r) => setTimeout(r, USERNAME_CHECK_MIN_DELAY_MS - elapsed));
+      }
       return res.json(
         UsernameCheckResponseSchema.parse({
           available: false,
@@ -318,6 +327,13 @@ router.get("/username/check", rateLimitMe, async (req, res) => {
       usernameNormalized: sanitized.usernameNormalized,
       deletedAt: { $exists: false },
     }).select("_id");
+
+    // Konstant forsinkelse: sørg for at alle svar tar minst USERNAME_CHECK_MIN_DELAY_MS
+    // for å forhindre timing-basert brukernavn-enumeration.
+    const elapsed = Date.now() - start;
+    if (elapsed < USERNAME_CHECK_MIN_DELAY_MS) {
+      await new Promise((r) => setTimeout(r, USERNAME_CHECK_MIN_DELAY_MS - elapsed));
+    }
 
     return res.json(
       UsernameCheckResponseSchema.parse({
@@ -1114,8 +1130,9 @@ router.post("/logout", rateLimitMe, async (req, res) => {
   return res.json(LogoutResponseSchema.parse({ melding: "Logget ut" }));
 });
 
-// DELETE /account — slett egen konto og all tilknyttet data (GDPR). Krever auth.
-router.delete("/account", rateLimitAccountDeletion, async (req, res) => {
+// DELETE /account — slett egen konto og all tilknyttet data (GDPR).
+// Krever auth + nylig sesjon (step-up) for å forhindre misbruk ved stjålet session.
+router.delete("/account", rateLimitAccountDeletion, requireRecentAuth, async (req, res) => {
   const userId = req.user?.id;
   if (!userId) {
     return apiError.unauthorized(res);

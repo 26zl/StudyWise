@@ -76,6 +76,8 @@ export interface IUser extends Document {
     deletedAt?: Date;
     /** RBAC-rolle. Standard user. */
     role: UserRole;
+    /** Om brukeren har aktivert tofaktorautentisering (MFA/TOTP) i Clerk. */
+    mfaEnabled?: boolean;
     /** Innloggingsmetode (google, microsoft, email). Settes ved opprettelse/sync fra Clerk. */
     authProvider?: AuthProvider;
     /** OAuth-kontoer koblet til brukeren (provider + providerAccountId for unikhet). */
@@ -134,6 +136,10 @@ const UserSchema: Schema = new Schema(
             type: String,
             enum: APP_ROLES,
             default: "user",
+        },
+        mfaEnabled: {
+            type: Boolean,
+            default: false,
         },
         authProvider: {
             type: String,

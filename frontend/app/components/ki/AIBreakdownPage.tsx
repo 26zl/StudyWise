@@ -99,6 +99,13 @@ export function AIBreakdownPage() {
 
   useAuthRedirect(megQuery);
 
+  const _fatalMsg = megQuery.isError ? (megQuery.error?.message ?? "") : "";
+  const _erFatalAuthFeil = megQuery.isError && erFatalUserDataFeilmelding(_fatalMsg);
+  useEffect(() => {
+    if (!_erFatalAuthFeil) return;
+    void clerk.signOut({ redirectUrl: "/auth/sign-in" });
+  }, [_erFatalAuthFeil, clerk]);
+
   const aktiveOppgaver = useMemo(
     () =>
       sorterOppgaver((assignmentsQuery.data ?? []).filter((assignment) =>
@@ -159,21 +166,25 @@ export function AIBreakdownPage() {
     );
   }
 
+  if (_erFatalAuthFeil) {
+    return (
+      <SidebarAppLoadingState
+        aktivVisning={SIDEBAR_VISNING}
+        byttVisning={byttVisning}
+        brukerRolle={brukerRolle}
+        label={t("common.loading.generic")}
+      />
+    );
+  }
+
   if (megQuery.isError && !megQuery.data?.user) {
-    const feilmelding = getBrukerdataFeilmelding(megQuery.error, t);
-    const feilMsg = megQuery.error?.message ?? "";
-    const erFatalAuthFeil = erFatalUserDataFeilmelding(feilMsg);
     return (
       <SidebarAppErrorState
         aktivVisning={SIDEBAR_VISNING}
         byttVisning={byttVisning}
         brukerRolle={brukerRolle}
-        message={feilmelding}
-        onRetry={erFatalAuthFeil
-          ? () => { void clerk.signOut({ redirectUrl: "/auth/sign-in" }); }
-          : () => { void megQuery.refetch(); }
-        }
-        retryLabel={erFatalAuthFeil ? t("common.actions.signOut") : undefined}
+        message={getBrukerdataFeilmelding(megQuery.error, t)}
+        onRetry={() => { void megQuery.refetch(); }}
       />
     );
   }

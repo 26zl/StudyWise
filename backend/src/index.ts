@@ -212,6 +212,15 @@ app.use(
   }),
 );
 
+// Clerk Webhook — monteres FØR JSON body parser fordi signaturverifisering krever rå body.
+// Også før CSRF og auth da Clerk ikke sender disse headerne.
+import { clerkWebhookRouter } from "./rutere/auth/clerkWebhook.js";
+app.use(
+  "/api/clerk-webhook",
+  express.raw({ type: "application/json" }),
+  clerkWebhookRouter,
+);
+
 // JSON body parser med økt størrelse på 10mb
 app.use(express.json({ limit: "10mb" }));
 

@@ -160,8 +160,17 @@ export const enMessages = {
       allFieldsRequired: "All fields are required.",
       incomplete: "Sign-in incomplete. Please try again.",
       sessionFailed: "Sign-in succeeded, but the session could not be created. Please try again.",
-      mfaNotSupported:
-        "Two-factor authentication is not yet supported in this form. Contact support.",
+      mfa: {
+        title: "Two-factor authentication",
+        subtitle: "Enter the code from your authenticator app.",
+        codeLabel: "Verification code",
+        codePlaceholder: "123456",
+        codeRequired: "Verification code is required.",
+        verifyButton: "Verify",
+        verifying: "Verifying...",
+        verificationFailed: "Invalid code. Please try again.",
+        backToSignIn: "Back to sign in",
+      },
       noAccount: "Don't have an account?",
       signUpLink: "Sign up",
       forgotPasswordAction: "Recover access",
@@ -187,6 +196,12 @@ export const enMessages = {
       allFieldsRequired: "All fields are required.",
       chooseUsernameFirst: "Please choose a username first.",
       oauthUsernameError: "Could not save username. Please try again.",
+      oauthConflict: {
+        title: "Account already in use",
+        description:
+          "This login account is already linked to another StudyWise user. You must delete the existing account first, or sign in with a different method.",
+        backToSignIn: "Back to sign in",
+      },
       oauthUsername: {
         title: "Choose a username",
         subtitle: "Last step! Pick a username for your account.",
@@ -220,6 +235,13 @@ export const enMessages = {
       },
     },
     genericError: "Something went wrong. Please try again.",
+    syncConflict: {
+      emailMismatchTitle: "Email conflict",
+      oauthLinkRejectedTitle: "Account linking conflict",
+      dismiss: "I understand",
+      dismissing: "Removing…",
+      dismissError: "Could not remove the conflict. Please try again.",
+    },
     humanCheck: {
       eyebrow: "Cloudflare Turnstile",
       title: "Extra bot protection",
@@ -228,6 +250,8 @@ export const enMessages = {
       verifying: "Verifying...",
       widgetError:
         "We could not load Cloudflare Turnstile. Reload the page and try again.",
+      gateError:
+        "Security verification expired. Reload the page and complete the Turnstile check.",
     },
   },
   errors: {
@@ -526,6 +550,8 @@ export const enMessages = {
       confirmKeyword: "DELETE",
       confirmPlaceholder: "DELETE",
       deleteErrorTitle: "Could not delete account",
+      sessionTooOld:
+        "You must sign in again before deleting your account. Sign out, sign back in, and try again.",
       deletePartialDescription:
         "Your StudyWise data has been deleted, but external cleanup could not be completed automatically. We will sign you out now.",
       deletePartialTitle: "StudyWise account deleted",

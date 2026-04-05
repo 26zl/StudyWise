@@ -5,6 +5,7 @@ import { useState, type SubmitEvent } from "react";
 import { useSignIn } from "@clerk/nextjs";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { AuthTurnstileInline } from "@/app/auth/AuthTurnstileInline";
+import { checkAuthTurnstileGate } from "@/app/auth/auth-turnstile-api";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
@@ -55,6 +56,16 @@ export function ForgotPasswordClient({
 
     const identifikator = epostadresse.trim();
     if (!identifikator) {
+      return;
+    }
+
+    // Server-side Turnstile-gate: verifiser at human-check er bestått før Clerk-kall
+    const gateOk = await checkAuthTurnstileGate();
+    if (!gateOk) {
+      showToast.error(
+        t("auth.humanCheck.title"),
+        t("auth.humanCheck.gateError"),
+      );
       return;
     }
 

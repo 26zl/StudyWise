@@ -143,18 +143,18 @@ function AuthConflictGuard() {
       ) {
         const error = event.query.state.error;
         const msg = error instanceof Error ? error.message : "";
-        if (
-          erFatalUserDataFeilmelding(msg) &&
-          !msg.includes("kontoen er slettet")
-        ) {
+        if (erFatalUserDataFeilmelding(msg)) {
           signOutTriggeredRef.current = true;
+          const erSlettet = msg.includes("kontoen er slettet");
           showToast.error(
-            "Innloggingskonflikt",
-            msg || "Kontoen din har en innloggingskonflikt. Du blir logget ut.",
+            erSlettet ? "Konto slettet" : "Innloggingskonflikt",
+            erSlettet
+              ? "Kontoen din er slettet. Opprett en ny konto for å fortsette."
+              : msg || "Kontoen din har en innloggingskonflikt. Du blir logget ut.",
           );
           void clerk.signOut().catch(() => {}).finally(() => {
             clearClientAuthState(queryClient);
-            window.location.replace("/auth/sign-in");
+            window.location.replace(erSlettet ? "/auth/sign-up" : "/auth/sign-in");
           });
         }
       }
@@ -247,6 +247,7 @@ function ClerkProfileCacheSync() {
  * (f.eks. e-post eller OAuth-kobling som backend avviste).
  */
 function SyncConflictBanner() {
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const { isLoaded, userId } = useAuth();
   const [conflicts, setConflicts] = useState<SyncConflict[]>([]);
@@ -291,7 +292,7 @@ function SyncConflictBanner() {
         };
       });
     } catch {
-      showToast.error("Feil", "Kunne ikke fjerne konflikten. Prøv igjen.");
+      showToast.error("Feil", t("auth.syncConflict.dismissError"));
     } finally {
       setDismissing(null);
     }
@@ -307,7 +308,9 @@ function SyncConflictBanner() {
           className="rounded-lg border border-amber-300 bg-amber-50 p-4 shadow-lg dark:border-amber-700 dark:bg-amber-950/90"
         >
           <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
-            {c.type === "email_mismatch" ? "E-postkonflikt" : "Kontokoblingskonflikt"}
+            {c.type === "email_mismatch"
+              ? t("auth.syncConflict.emailMismatchTitle")
+              : t("auth.syncConflict.oauthLinkRejectedTitle")}
           </p>
           <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">{c.melding}</p>
           <button
@@ -316,7 +319,9 @@ function SyncConflictBanner() {
             disabled={dismissing === c.type}
             className="mt-2 rounded-md bg-amber-200 px-3 py-1 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-300 disabled:opacity-50 dark:bg-amber-800 dark:text-amber-100 dark:hover:bg-amber-700"
           >
-            {dismissing === c.type ? "Fjerner…" : "Jeg forstår"}
+            {dismissing === c.type
+              ? t("auth.syncConflict.dismissing")
+              : t("auth.syncConflict.dismiss")}
           </button>
         </div>
       ))}

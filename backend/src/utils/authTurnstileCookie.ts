@@ -1,10 +1,14 @@
 import crypto from "crypto";
 import type { Response, CookieOptions } from "express";
-import { AUTH_TURNSTILE_COOKIE_NAME } from "common/auth";
+import {
+  AUTH_TURNSTILE_COOKIE_NAME,
+  AUTH_TURNSTILE_COOKIE_VERSION,
+  validateAuthTurnstileCookieValue,
+} from "common/auth";
 import { isProd } from "./env.js";
 
-const AUTH_TURNSTILE_COOKIE_VERSION = "v1";
-const AUTH_TURNSTILE_COOKIE_PATH = "/auth";
+// Path "/" slik at cookien sendes til alle backend-ruter (brukes for server-side Turnstile-gate ved brukeropprettelse)
+const AUTH_TURNSTILE_COOKIE_PATH = "/";
 const AUTH_TURNSTILE_COOKIE_TTL_MS = 5 * 60 * 1000;
 
 function getAuthTurnstileGateSecret(): string {
@@ -44,4 +48,14 @@ export function clearAuthTurnstileCookie(res: Response): void {
     ...getAuthTurnstileCookieOptions(),
     maxAge: undefined,
   });
+}
+
+/**
+ * Validerer en rå Turnstile-cookie-verdi (server-side gate).
+ * Delegerer til felles implementasjon i common/auth.
+ */
+export async function isValidAuthTurnstileCookieValue(rawValue: string | undefined): Promise<boolean> {
+  const secret = process.env.AUTH_TURNSTILE_GATE_SECRET?.trim();
+  if (!secret) return false;
+  return validateAuthTurnstileCookieValue(rawValue, secret);
 }

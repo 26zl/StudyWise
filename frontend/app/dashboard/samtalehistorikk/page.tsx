@@ -45,6 +45,15 @@ export default function SamtalehistorikkPage() {
   const clerk = useClerk();
   const megQuery = useMeg({ enabled: isLoaded });
   useAuthRedirect(megQuery);
+
+  // Fatale auth-feil (OAuth-konflikt, slettet konto): logg ut automatisk
+  const _fatalMsg = megQuery.isError ? (megQuery.error?.message ?? "") : "";
+  const _erFatalAuthFeil = megQuery.isError && erFatalUserDataFeilmelding(_fatalMsg);
+  useEffect(() => {
+    if (!_erFatalAuthFeil) return;
+    void clerk.signOut({ redirectUrl: "/auth/sign-in" });
+  }, [_erFatalAuthFeil, clerk]);
+
   const { chats, loading: chatsLoading, deleteChat, clearAll } = useChatHistory();
   const { setSelectedChatId, setCurrentChatId } = useUIStore();
   const { language, t } = useLanguage();
@@ -194,20 +203,25 @@ export default function SamtalehistorikkPage() {
     );
   }
 
+  if (_erFatalAuthFeil) {
+    return (
+      <SidebarAppLoadingState
+        aktivVisning="chat"
+        byttVisning={byttVisning}
+        brukerRolle={brukerRolle}
+        label={t("common.loading.generic")}
+      />
+    );
+  }
+
   if (megQuery.isError && !megQuery.data?.user) {
-    const feilMsg = megQuery.error?.message ?? "";
-    const erFatalAuthFeil = erFatalUserDataFeilmelding(feilMsg);
     return (
       <SidebarAppErrorState
         aktivVisning="chat"
         byttVisning={byttVisning}
         brukerRolle={brukerRolle}
         message={getBrukerdataFeilmelding(megQuery.error, t)}
-        onRetry={erFatalAuthFeil
-          ? () => { void clerk.signOut({ redirectUrl: "/auth/sign-in" }); }
-          : () => { void megQuery.refetch(); }
-        }
-        retryLabel={erFatalAuthFeil ? t("common.actions.signOut") : undefined}
+        onRetry={() => { void megQuery.refetch(); }}
       />
     );
   }

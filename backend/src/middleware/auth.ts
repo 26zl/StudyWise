@@ -14,14 +14,21 @@ import type { IUser } from "../database/models/User.js";
 import {
   findOrCreateUserByClerkId,
   getClerkUserIdFromToken,
+  getClerkSessionCreatedAt,
   isAccountConflict,
+  isTurnstileRequired,
   isOAuthAccountConflict,
   isOAuthMetadataMissing,
   isUserDeleted,
   isUsernameConflict,
+  getSessionIdFromTokenCache,
 } from "../rutere/auth/clerkAuth.js";
+import { AUTH_TURNSTILE_COOKIE_NAME } from "common/auth";
 import { audit, AUDIT_ACTIONS } from "../utils/auditLog.js";
 import { checkSecurityThresholds } from "../utils/securityAlert.js";
+
+// Maks alder for sesjon ved sensitive operasjoner (kontosletting)
+const SENSITIVE_OP_MAX_SESSION_AGE_SEC = 600; // 10 minutter
 
 const hentBearerToken = (req: Request): string | null => {
   const authHeader = req.headers.authorization;
@@ -31,12 +38,21 @@ const hentBearerToken = (req: Request): string | null => {
   return token;
 };
 
+/** Henter en navngitt cookie fra rå Cookie-header (unngår cookie-parser-avhengighet). */
+function getCookieValue(req: Request, name: string): string | undefined {
+  const raw = req.headers.cookie;
+  if (!raw) return undefined;
+  const match = raw.split(";").find((c) => c.trim().startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.split("=").slice(1).join("=").trim()) : undefined;
+}
+
 
 type AuthResolution =
   | { status: "authenticated"; clerkUserId: string }
   | { status: "missing_token" }
   | { status: "invalid_or_expired" }
   | { status: "account_conflict"; clerkUserId: string }
+  | { status: "turnstile_required"; clerkUserId: string }
   | { status: "oauth_account_conflict"; clerkUserId: string; provider: string }
   | {
       status: "oauth_metadata_missing";
@@ -77,11 +93,17 @@ async function resolveAuthentication(req: Request): Promise<AuthResolution> {
   }
 
   const forceSync = req.query.forceSync === "true";
-  const userResult = await findOrCreateUserByClerkId(clerkUserId, { flowId, forceSync });
+  const authTurnstileCookie = getCookieValue(req, AUTH_TURNSTILE_COOKIE_NAME);
+  const sessionId = getSessionIdFromTokenCache(token) ?? undefined;
+  const userResult = await findOrCreateUserByClerkId(clerkUserId, { flowId, forceSync, authTurnstileCookie, sessionId });
   const tDb = Date.now();
 
   if (isAccountConflict(userResult)) {
     return { status: "account_conflict", clerkUserId };
+  }
+
+  if (isTurnstileRequired(userResult)) {
+    return { status: "turnstile_required", clerkUserId };
   }
 
   if (isOAuthAccountConflict(userResult)) {
@@ -252,6 +274,20 @@ export async function requireAuth(
         "Det finnes allerede en konto med denne e-postadressen koblet til en annen innloggingsmetode. " +
           "Prøv å logge inn med den opprinnelige metoden (f.eks. Microsoft eller Google), eller kontakt support.",
       );
+      return;
+    }
+
+    if (result.status === "turnstile_required") {
+      // Manglende Turnstile-verifisering: bruker har gyldig Clerk-sesjon men har ikke bestått
+      // human-check. Returner 403 med eksplisitt feiltype slik at frontend kan vise Turnstile.
+      logger.warn(
+        { clerkUserId: result.clerkUserId },
+        "Turnstile-verifisering mangler for ny/fersk sesjon",
+      );
+      res.status(403).json({
+        error: "turnstile_required",
+        melding: "Sikkerhetsverifisering kreves. Gå tilbake til innloggingssiden og prøv igjen.",
+      });
       return;
     }
 
@@ -452,3 +488,34 @@ export const knyttCanvasTokenValgfritt = async (req: Request, res: Response, nex
 
     next();
 };
+
+/**
+ * Middleware som krever at Clerk-sesjonen ble opprettet nylig (siste 10 min).
+ * Brukes for irreversible operasjoner (kontosletting) som step-up-sikkerhet.
+ * Må monteres ETTER requireAuth.
+ */
+export async function requireRecentAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const token = hentBearerToken(req);
+  if (!token) {
+    apiError.forbidden(res, "Sesjonen er ugyldig. Logg inn på nytt.");
+    return;
+  }
+
+  const sessionCreatedAt = await getClerkSessionCreatedAt(token);
+  if (sessionCreatedAt === null) {
+    apiError.forbidden(res, "Sesjonen er ugyldig. Logg inn på nytt.");
+    return;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  if (now - sessionCreatedAt > SENSITIVE_OP_MAX_SESSION_AGE_SEC) {
+    res.status(403).json({
+      error: "session_too_old",
+      melding: "Du må logge inn på nytt før du kan utføre denne handlingen.",
+      maxAgeSec: SENSITIVE_OP_MAX_SESSION_AGE_SEC,
+    });
+    return;
+  }
+
+  next();
+}

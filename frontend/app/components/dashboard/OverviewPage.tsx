@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
@@ -97,6 +97,13 @@ export function OversiktPage() {
 
   useAuthRedirect(megQuery);
 
+  const _fatalMsg = megQuery.isError ? (megQuery.error?.message ?? "") : "";
+  const _erFatalAuthFeil = megQuery.isError && erFatalUserDataFeilmelding(_fatalMsg);
+  useEffect(() => {
+    if (!_erFatalAuthFeil) return;
+    void clerk.signOut({ redirectUrl: "/auth/sign-in" });
+  }, [_erFatalAuthFeil, clerk]);
+
   const coursesQuery = useCanvasCourses(harCanvasToken);
   const hiddenSet = useHiddenCourseIds();
   const assignmentsQuery = useCanvasAllAssignments({
@@ -173,20 +180,25 @@ export function OversiktPage() {
     );
   }
 
+  if (_erFatalAuthFeil) {
+    return (
+      <SidebarAppLoadingState
+        aktivVisning={SIDEBAR_VISNING}
+        byttVisning={byttVisning}
+        brukerRolle={brukerRolle}
+        label={t("common.loading.generic")}
+      />
+    );
+  }
+
   if (megQuery.isError && !megQuery.data?.user) {
-    const feilMsg = megQuery.error?.message ?? "";
-    const erFatalAuthFeil = erFatalUserDataFeilmelding(feilMsg);
     return (
       <SidebarAppErrorState
         aktivVisning={SIDEBAR_VISNING}
         byttVisning={byttVisning}
         brukerRolle={brukerRolle}
         message={brukerdataFeilmelding}
-        onRetry={erFatalAuthFeil
-          ? () => { void clerk.signOut({ redirectUrl: "/auth/sign-in" }); }
-          : () => { void megQuery.refetch(); }
-        }
-        retryLabel={erFatalAuthFeil ? t("common.actions.signOut") : undefined}
+        onRetry={() => { void megQuery.refetch(); }}
       />
     );
   }

@@ -308,6 +308,8 @@ export const AuthBrukerSchema = z.object({
   role: RoleSchema.optional(),
   /** Innloggingsmetode (google, microsoft, email). */
   authProvider: AuthProviderSchema.optional(),
+  /** Om brukeren har aktivert tofaktorautentisering (MFA/TOTP). */
+  mfaEnabled: z.boolean().optional(),
   /** Aktive Clerk↔lokal synkroniseringskonflikter som bruker må se. */
   syncConflicts: z.array(SyncConflictSchema).optional(),
 });
@@ -420,6 +422,44 @@ export const AccountDeletionResponseSchema = z.object({
 /** Kortlivet cookie som markerer at bruker nylig har passert auth-Turnstile. */
 export const AUTH_TURNSTILE_COOKIE_NAME = "studywise_auth_turnstile";
 export const AUTH_TURNSTILE_ACTION = "studywise-auth";
+export const AUTH_TURNSTILE_COOKIE_VERSION = "v1";
+
+/**
+ * Validerer en rå Turnstile-cookie-verdi mot en HMAC-signatur.
+ * Felles implementasjon som brukes av både frontend (SSR) og backend
+ * for å unngå duplisert sikkerhetskritisk logikk.
+ *
+ * Bruker dynamisk import av crypto for å unngå top-level import
+ * som kan feile i edge-runtimes.
+ */
+export async function validateAuthTurnstileCookieValue(
+  rawValue: string | undefined,
+  secret: string,
+): Promise<boolean> {
+  if (!rawValue || !secret) return false;
+
+  const [version, expiresAt, signature] = rawValue.split(".");
+  if (version !== AUTH_TURNSTILE_COOKIE_VERSION || !expiresAt || !signature) {
+    return false;
+  }
+
+  if (!/^\d+$/.test(expiresAt) || !/^[a-f0-9]{64}$/i.test(signature)) {
+    return false;
+  }
+
+  const crypto = await import("node:crypto");
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(`${AUTH_TURNSTILE_COOKIE_VERSION}:${expiresAt}`)
+    .digest("hex");
+
+  const isValid = crypto.timingSafeEqual(
+    Buffer.from(signature, "hex"),
+    Buffer.from(expected, "hex"),
+  );
+
+  return isValid && Number(expiresAt) > Date.now();
+}
 
 export const AuthTurnstileVerifyRequestSchema = z.object({
   turnstileToken: z

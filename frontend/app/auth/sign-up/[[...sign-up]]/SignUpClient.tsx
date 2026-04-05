@@ -1,15 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAuth, useUser } from "@clerk/nextjs";
+import { useAuth, useClerk, useUser } from "@clerk/nextjs";
 import { useSignUp } from "@clerk/nextjs/legacy";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { AuthTurnstileInline } from "@/app/auth/AuthTurnstileInline";
+import { checkAuthTurnstileGate } from "@/app/auth/auth-turnstile-api";
 import { useLanguage } from "@/app/i18n";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
+import { fetchApi } from "@/app/lib/apiClient";
 import {
   isValidUsernameFormat,
   USERNAME_MIN_LENGTH,
@@ -38,6 +40,7 @@ type SignUpStep = "form" | "verify" | "oauth-username";
 export function SignUpClient({ initialVerified }: SignUpClientProps) {
   const { t } = useLanguage();
   const { isLoaded, isSignedIn } = useAuth();
+  const clerk = useClerk();
   const { isLoaded: userLoaded, user: clerkUser } = useUser();
   const { signUp, setActive } = useSignUp();
   const searchParams = useSearchParams();
@@ -69,6 +72,10 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
   const usernameDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const usernameAbortRef = useRef<AbortController | null>(null);
 
+  // OAuth-konflikt: blokkerer registrering tidlig
+  const [oauthConflict, setOauthConflict] = useState(false);
+  const [oauthConflictChecking, setOauthConflictChecking] = useState(false);
+
   // Email verification state
   const [step, setStep] = useState<SignUpStep>(
     (isOAuthReturn && isSignedIn) || isOAuthMissingRequirements
@@ -99,6 +106,43 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
       setStep("oauth-username");
     }
   }, [isOAuthReturn, isSignedIn, isOAuthMissingRequirements, clerkUser, step]);
+
+  // Pre-check for OAuth-konto-konflikt: kall /api/user/me tidlig for å oppdage om
+  // samme OAuth-konto allerede er tilknyttet en annen bruker (f.eks. dev vs. prod).
+  // Vises som feilmelding istedenfor brukernavn-skjemaet.
+  useEffect(() => {
+    if (step !== "oauth-username" || !isSignedIn || oauthConflict) return;
+
+    let cancelled = false;
+    setOauthConflictChecking(true);
+
+    fetchApi("/api/user/me", { method: "GET" })
+      .then(async (res) => {
+        if (cancelled) return;
+        if (res.status === 409) {
+          const json = await res.json().catch(() => ({}));
+          const errorType = json?.error;
+          if (
+            errorType === "oauth_account_conflict" ||
+            errorType === "oauth_metadata_missing"
+          ) {
+            await clerk.signOut().catch(() => {});
+            setOauthConflict(true);
+            return;
+          }
+        }
+      })
+      .catch(() => {
+        // Nettverksfeil — la brukeren fortsette normalt
+      })
+      .finally(() => {
+        if (!cancelled) setOauthConflictChecking(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [step, isSignedIn, oauthConflict]);
 
   // Gjenopprett session hvis sign-up allerede er fullført (f.eks. etter reload på verify-steget)
   useEffect(() => {
@@ -194,6 +238,14 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
       setFormError(null);
 
       try {
+        // Server-side Turnstile-gate: verifiser at human-check er bestått før Clerk-kall
+        const gateOk = await checkAuthTurnstileGate();
+        if (!gateOk) {
+          setFormError(t("auth.humanCheck.gateError"));
+          setIsSubmitting(false);
+          return;
+        }
+
         const checkRes = await fetch(
           `/api/user/username/check?username=${encodeURIComponent(trimmedUsername)}`,
         );
@@ -483,8 +535,39 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
         onVerified={() => setIsVerified(true)}
       />
 
+      {/* Post-OAuth: OAuth-konto-konflikt — blokker tidlig */}
+      {isVerified && step === "oauth-username" && oauthConflict && (
+        <AuthCard>
+          <div className="flex flex-col items-center gap-4 py-2 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+              <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+            </div>
+            <AuthHeader
+              title={t("auth.signUp.oauthConflict.title")}
+              subtitle={t("auth.signUp.oauthConflict.description")}
+            />
+            <Link
+              href="/auth/sign-in"
+              className="inline-flex w-full items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+            >
+              {t("auth.signUp.oauthConflict.backToSignIn")}
+            </Link>
+          </div>
+        </AuthCard>
+      )}
+
+      {/* Post-OAuth: sjekker for konflikter... */}
+      {isVerified && step === "oauth-username" && oauthConflictChecking && !oauthConflict && (
+        <AuthCard>
+          <LoadingView
+            fullPage={false}
+            translationKey="common.loading.generic"
+          />
+        </AuthCard>
+      )}
+
       {/* Post-OAuth: velg brukernavn (og evt. navn hvis OAuth-provider ikke ga det) */}
-      {isVerified && step === "oauth-username" && (
+      {isVerified && step === "oauth-username" && !oauthConflict && !oauthConflictChecking && (
         <AuthCard>
           <AuthHeader
             title={t("auth.signUp.oauthUsername.title")}

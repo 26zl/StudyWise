@@ -149,6 +149,16 @@ export function DashboardView() {
         return "announcements";
     };
     const brukerdataFeilmelding = getBrukerdataFeilmelding(megQuery.error, t);
+
+    // Fatale auth-feil (OAuth-konflikt, slettet konto): logg ut automatisk uten å vise feilmelding
+    const feilMsg = megQuery.isError ? (megQuery.error?.message ?? "") : "";
+    const erFatalAuthFeil = megQuery.isError && erFatalUserDataFeilmelding(feilMsg);
+
+    useEffect(() => {
+        if (!erFatalAuthFeil) return;
+        void clerk.signOut({ redirectUrl: "/auth/sign-in" });
+    }, [erFatalAuthFeil, clerk]);
+
     // Pågående utlogging: vis lastespinner for å unngå flash av feilmeldinger
     if (isLoggingOut) {
         return (
@@ -171,21 +181,26 @@ export function DashboardView() {
             />
         );
     }
+    if (erFatalAuthFeil) {
+        return (
+            <SidebarAppLoadingState
+                aktivVisning={aktivVisning}
+                byttVisning={settAktivVisning}
+                brukerRolle={brukerRolle}
+                label={t("common.loading.generic")}
+            />
+        );
+    }
+
     // Feil uten brukerdata (f.eks. nettverksfeil, 429 rate limit): vis feilmelding og retry – useAuthRedirect håndterer auth-feil
     if (megQuery.isError && !megQuery.data?.user) {
-        const feilMsg = megQuery.error?.message ?? "";
-        const erFatalAuthFeil = erFatalUserDataFeilmelding(feilMsg);
         return (
             <SidebarAppErrorState
                 aktivVisning={aktivVisning}
                 byttVisning={settAktivVisning}
                 brukerRolle={brukerRolle}
                 message={brukerdataFeilmelding}
-                onRetry={erFatalAuthFeil
-                    ? () => { void clerk.signOut({ redirectUrl: "/auth/sign-in" }); }
-                    : () => { void megQuery.refetch(); }
-                }
-                retryLabel={erFatalAuthFeil ? t("common.actions.signOut") : undefined}
+                onRetry={() => { void megQuery.refetch(); }}
             />
         );
     }

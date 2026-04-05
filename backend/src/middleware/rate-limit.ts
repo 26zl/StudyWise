@@ -133,6 +133,11 @@ export const rateLimitMe = isProd
     ? createRateLimiter({ points: 50, duration: 60, keyPrefix: "rlflx:me" })
     : createRateLimiter(devMeLimit);
 
+// Brukernavn-sjekk: streng for å begrense enumeration-angrep (10 per minutt per IP)
+export const rateLimitUsernameCheck = isProd
+  ? createRateLimiter({ points: 10, duration: 60, keyPrefix: "rlflx:username-check" })
+  : createRateLimiter(devMeLimit);
+
 // Account deletion: maks 2 forsøk per time per bruker (sensitiv operasjon)
 export const rateLimitAccountDeletion = createRateLimiter({
   points: 2,
@@ -156,6 +161,14 @@ export const rateLimitContact = isProd
       keyPrefix: "rlflx:contact:dev",
       keyGenerator: getClientIp,
     });
+
+// Clerk Webhook: begrenset for å forhindre brute-force mot signatur
+export const rateLimitClerkWebhook = createRateLimiter({
+  points: 20,
+  duration: 60,
+  keyPrefix: "rlflx:clerk-webhook",
+  keyGenerator: getClientIp,
+});
 
 // Auth Turnstile: moderat grense på offentlig verifisering foran Clerk
 export const rateLimitAuthTurnstile = isProd

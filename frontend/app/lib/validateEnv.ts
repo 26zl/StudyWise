@@ -6,6 +6,8 @@
  * localhost i next dev via next.config.js.
  */
 
+// CLERK_SECRET_KEY brukes server-side av Clerk Next.js middleware (clerkMiddleware i proxy.ts)
+// og er aldri eksponert til klienten. AUTH_TURNSTILE_GATE_SECRET brukes i auth-turnstile-server.ts.
 const ALWAYS_REQUIRED_FRONTEND_ENV_VARS = [
   "CLERK_SECRET_KEY",
   "AUTH_TURNSTILE_GATE_SECRET",

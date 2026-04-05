@@ -5,6 +5,24 @@ import {
 import { fetchApi } from "@/app/lib/apiClient";
 import { createApiError, parseApiJson } from "@/app/lib/errorUtils";
 
+/**
+ * Pre-flight sjekk av Turnstile-cookie. Returnerer true hvis gyldig.
+ * Brukes av forgot-password-flyten for å sikre at human-check er bestått
+ * før klient-side auth-operasjoner sendes til Clerk.
+ */
+export async function checkAuthTurnstileGate(): Promise<boolean> {
+  try {
+    const res = await fetchApi(
+      "/api/auth-turnstile/gate",
+      { method: "GET" },
+      { auth: false },
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function verifyAuthTurnstile(
   turnstileToken: string,
 ): Promise<AuthTurnstileVerifyResponse> {

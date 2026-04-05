@@ -79,11 +79,20 @@ function SlettKontoSeksjon() {
       void clerk.signOut().catch(() => {});
     } catch (error) {
       setKontoSlettes(false);
+      const msg = error instanceof Error ? error.message : "";
+      // Backend krever nylig innlogging for kontosletting (step-up)
+      if (msg.includes("logge inn på nytt") || msg.includes("session_too_old")) {
+        showToast.error(
+          t("settings.deleteAccount.deleteErrorTitle"),
+          t("settings.deleteAccount.sessionTooOld"),
+        );
+        return;
+      }
       const fallback =
         language === "en"
           ? "Could not delete the account. Please try again."
           : "Kunne ikke slette kontoen. Prøv igjen.";
-      const message = error instanceof Error && error.message ? error.message : fallback;
+      const message = msg || fallback;
       showToast.error(t("settings.deleteAccount.deleteErrorTitle"), message);
     }
   }
@@ -280,7 +289,7 @@ export default function ProfilPage() {
           <p className="text-sm leading-6 text-slate-500 dark:text-slate-400">
             {t("settings.accountSecurity.connectionHint")}
           </p>
-          <div className="mt-3 w-full overflow-x-hidden">
+          <div className="mt-3 w-full overflow-x-clip">
             <UserProfile
               key={language}
               path="/account"
@@ -302,12 +311,14 @@ export default function ProfilPage() {
                   card: "w-full max-w-full border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800/95",
                   navbar: "max-sm:w-full",
                   scrollBox: "max-w-full",
-                  // Skjul e-post- og tilkoblede kontoer-seksjoner i Clerk UI.
-                  // E-postendring og provider-kobling/-avkobling styres av lokal backend-policy
-                  // og kan ikke utføres trygt via Clerk-managed UI (Clerk godtar endringer
-                  // som lokal DB kan avvise, noe som skaper Clerk/lokal-state-divergens).
+                  // Skjul e-post, tilkoblede kontoer og delete-seksjoner i Clerk UI.
+                  // E-postendring og provider-kobling styres av lokal backend-policy.
+                  // Delete account håndteres av vår egen implementering som sletter
+                  // både Clerk-konto og all StudyWise-data.
                   profileSection__emailAddresses: "hidden",
                   profileSection__connectedAccounts: "hidden",
+                  profileSection__deleteAccount: { display: "none" },
+                  profileSection__danger: { display: "none" },
                 },
               }}
             >

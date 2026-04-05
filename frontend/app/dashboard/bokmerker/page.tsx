@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth, useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Pin, Search } from "lucide-react";
@@ -31,6 +31,14 @@ export default function BokmerkerPage() {
   const clerk = useClerk();
   const megQuery = useMeg({ enabled: isLoaded });
   useAuthRedirect(megQuery);
+
+  const _fatalMsg = megQuery.isError ? (megQuery.error?.message ?? "") : "";
+  const _erFatalAuthFeil = megQuery.isError && erFatalUserDataFeilmelding(_fatalMsg);
+  useEffect(() => {
+    if (!_erFatalAuthFeil) return;
+    void clerk.signOut({ redirectUrl: "/auth/sign-in" });
+  }, [_erFatalAuthFeil, clerk]);
+
   const { chats, loading: chatsLoading, setChatPinned } = useChatHistory();
   const { setSelectedChatId, setCurrentChatId } = useUIStore();
   const { language, t } = useLanguage();
@@ -92,20 +100,25 @@ export default function BokmerkerPage() {
     );
   }
 
+  if (_erFatalAuthFeil) {
+    return (
+      <SidebarAppLoadingState
+        aktivVisning="chat"
+        byttVisning={byttVisning}
+        brukerRolle={brukerRolle}
+        label={t("common.loading.generic")}
+      />
+    );
+  }
+
   if (megQuery.isError && !megQuery.data?.user) {
-    const feilMsg = megQuery.error?.message ?? "";
-    const erFatalAuthFeil = erFatalUserDataFeilmelding(feilMsg);
     return (
       <SidebarAppErrorState
         aktivVisning="chat"
         byttVisning={byttVisning}
         brukerRolle={brukerRolle}
         message={getBrukerdataFeilmelding(megQuery.error, t)}
-        onRetry={erFatalAuthFeil
-          ? () => { void clerk.signOut({ redirectUrl: "/auth/sign-in" }); }
-          : () => { void megQuery.refetch(); }
-        }
-        retryLabel={erFatalAuthFeil ? t("common.actions.signOut") : undefined}
+        onRetry={() => { void megQuery.refetch(); }}
       />
     );
   }

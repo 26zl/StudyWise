@@ -160,8 +160,17 @@ export const nbMessages = {
       incomplete: "Innlogging ufullstendig. Prøv igjen.",
       sessionFailed:
         "Innlogging fullført, men økten kunne ikke opprettes. Prøv igjen.",
-      mfaNotSupported:
-        "Tofaktorautentisering støttes ikke ennå i dette skjemaet. Kontakt support.",
+      mfa: {
+        title: "Tofaktorautentisering",
+        subtitle: "Skriv inn koden fra autentiseringsappen din.",
+        codeLabel: "Verifiseringskode",
+        codePlaceholder: "123456",
+        codeRequired: "Verifiseringskode er påkrevd.",
+        verifyButton: "Verifiser",
+        verifying: "Verifiserer...",
+        verificationFailed: "Ugyldig kode. Prøv igjen.",
+        backToSignIn: "Tilbake til innlogging",
+      },
       noAccount: "Har du ikke en konto?",
       signUpLink: "Registrer deg",
       forgotPasswordAction: "Gjenopprett tilgang",
@@ -187,6 +196,12 @@ export const nbMessages = {
       allFieldsRequired: "Alle felt er påkrevd.",
       chooseUsernameFirst: "Velg et brukernavn først.",
       oauthUsernameError: "Kunne ikke lagre brukernavn. Prøv igjen.",
+      oauthConflict: {
+        title: "Konto allerede i bruk",
+        description:
+          "Denne innloggingskontoen er allerede tilknyttet en annen StudyWise-bruker. Du må slette den eksisterende kontoen først, eller logge inn med en annen metode.",
+        backToSignIn: "Tilbake til innlogging",
+      },
       oauthUsername: {
         title: "Velg brukernavn",
         subtitle: "Siste steg! Velg et brukernavn for kontoen din.",
@@ -222,6 +237,13 @@ export const nbMessages = {
       },
     },
     genericError: "Noe gikk galt. Prøv igjen.",
+    syncConflict: {
+      emailMismatchTitle: "E-postkonflikt",
+      oauthLinkRejectedTitle: "Kontokoblingskonflikt",
+      dismiss: "Jeg forstår",
+      dismissing: "Fjerner…",
+      dismissError: "Kunne ikke fjerne konflikten. Prøv igjen.",
+    },
     humanCheck: {
       eyebrow: "Cloudflare Turnstile",
       title: "Botbeskyttelse",
@@ -230,6 +252,8 @@ export const nbMessages = {
       verifying: "Verifiserer...",
       widgetError:
         "Vi klarte ikke å laste Cloudflare Turnstile. Last siden på nytt og prøv igjen.",
+      gateError:
+        "Sikkerhetsverifisering utløpt. Last siden på nytt og fullfør Turnstile-sjekken.",
     },
   },
   errors: {
@@ -524,6 +548,8 @@ export const nbMessages = {
       confirmKeyword: "SLETT",
       confirmPlaceholder: "SLETT",
       deleteErrorTitle: "Kunne ikke slette konto",
+      sessionTooOld:
+        "Du må logge inn på nytt før du kan slette kontoen. Logg ut og inn igjen, og prøv deretter på nytt.",
       deletePartialDescription:
         "StudyWise-dataene er slettet, men ekstern opprydding kunne ikke fullføres automatisk. Vi logger deg ut nå.",
       deletePartialTitle: "StudyWise-konto slettet",

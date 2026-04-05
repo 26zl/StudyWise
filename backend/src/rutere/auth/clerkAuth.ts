@@ -18,6 +18,9 @@ import {
 import type { IUser } from "../../database/models/User.js";
 import { getConfiguredWebOrigins } from "../../utils/webOrigins.js";
 import { sanitizeUsername } from "../../database/models/User.js";
+import { isValidAuthTurnstileCookieValue } from "../../utils/authTurnstileCookie.js";
+import { isProd } from "../../utils/env.js";
+import { getCache, setCache } from "../../cache/redis.js";
 
 /** Minste intervall (ms) mellom profiloppdateringer fra Clerk for samme bruker (5 min). */
 const CLERK_PROFILE_SYNC_INTERVAL_MS = 5 * 60 * 1000;
@@ -34,6 +37,8 @@ type ClerkProfile = {
   authProvider?: AuthProvider;
   /** OAuth-kontoer fra Clerk (provider + providerAccountId). */
   oauthAccounts: OAuthAccount[];
+  /** Om brukeren har aktivert tofaktorautentisering (MFA/TOTP). */
+  mfaEnabled: boolean;
 };
 
 // Clerk backend client brukes for å hente brukerinfo og sjekke helse, ikke for auth-verifisering – det gjøres med verifyToken() direkte i getClerkUserIdFromToken() for å unngå overhead ved å opprette klient i auth-flow.
@@ -121,39 +126,13 @@ export type OAuthMetadataMissingResult = {
 };
 
 /** Typevakt for OAuthAccountConflictResult. */
-export function isOAuthAccountConflict(
-  result:
-    | IUser
-    | AccountConflictResult
-    | UserDeletedResult
-    | OAuthAccountConflictResult
-    | OAuthMetadataMissingResult
-    | UsernameConflictResult
-    | null,
-): result is OAuthAccountConflictResult {
-  return (
-    result !== null &&
-    typeof result === "object" &&
-    "__oauthAccountConflict" in result
-  );
+export function isOAuthAccountConflict(result: AuthFlowResult): result is OAuthAccountConflictResult {
+  return result !== null && typeof result === "object" && "__oauthAccountConflict" in result;
 }
 
 /** Typevakt for OAuthMetadataMissingResult. */
-export function isOAuthMetadataMissing(
-  result:
-    | IUser
-    | AccountConflictResult
-    | UserDeletedResult
-    | OAuthAccountConflictResult
-    | OAuthMetadataMissingResult
-    | UsernameConflictResult
-    | null,
-): result is OAuthMetadataMissingResult {
-  return (
-    result !== null &&
-    typeof result === "object" &&
-    "__oauthMetadataMissing" in result
-  );
+export function isOAuthMetadataMissing(result: AuthFlowResult): result is OAuthMetadataMissingResult {
+  return result !== null && typeof result === "object" && "__oauthMetadataMissing" in result;
 }
 
 function queueDeletedOAuthConflictCleanup(account: OAuthAccount): void {
@@ -433,6 +412,9 @@ async function getClerkProfile(
     authProvider = "email";
   }
 
+  // Clerk markerer MFA som aktivert når brukeren har minst én TOTP-faktor
+  const mfaEnabled = clerkUser.twoFactorEnabled === true;
+
   return {
     email,
     username: clerkUser.username ?? undefined,
@@ -440,6 +422,7 @@ async function getClerkProfile(
     lastName: clerkUser.lastName ?? undefined,
     authProvider,
     oauthAccounts,
+    mfaEnabled,
   };
 }
 
@@ -477,6 +460,8 @@ function buildClerkProfileUpdate(
   if (includeEmail) {
     setFields.email = profile.email;
   }
+
+  setFields.mfaEnabled = profile.mfaEnabled;
 
   if (profile.authProvider) {
     setFields.authProvider = profile.authProvider;
@@ -658,6 +643,66 @@ async function syncExistingUserWithClerkProfile(
     }
   }
 
+  // Kryssvalidering: sjekk om nylig tilkoblede OAuth-kontoers e-post matcher en annen brukers primær-e-post
+  if (oauthAccountsChanged) {
+    const newOauthEmails = profile.oauthAccounts
+      .filter(
+        (a) =>
+          !existing.oauthAccounts?.some(
+            (e) =>
+              e.provider === a.provider &&
+              e.providerAccountId === a.providerAccountId,
+          ),
+      )
+      .map((a) => a.email)
+      .filter((e): e is string => !!e);
+
+    if (newOauthEmails.length > 0) {
+      // Sjekk mot andre brukeres primær-e-post OG oauthAccounts.email (speiler registreringslogikk)
+      const conflictByOauthEmail = await User.findOne({
+        $or: [
+          { email: { $in: newOauthEmails } },
+          { "oauthAccounts.email": { $in: newOauthEmails } },
+        ],
+        _id: { $ne: existing._id },
+        deletedAt: { $exists: false },
+      }).select("_id");
+
+      if (conflictByOauthEmail) {
+        logger.warn(
+          {
+            clerkUserId,
+            userId: existing._id,
+            conflictingUserId: conflictByOauthEmail._id,
+            oauthEmails: newOauthEmails,
+          },
+          "OAuth e-post matcher en annen brukers primær-e-post under synk; beholder lokale oauthAccounts",
+        );
+
+        await recordSyncConflict(existing._id, {
+          type: "oauth_link_rejected",
+          melding:
+            "OAuth-kontoen du koblet til har en e-postadresse som allerede er knyttet til en annen StudyWise-bruker. " +
+            "Koblingen ble ikke lagret lokalt. Fjern koblingen i kontoinnstillingene, eller kontakt support.",
+          clerkVerdi: newOauthEmails.join(", "),
+        });
+
+        const profileWithoutOauth: ClerkProfile = {
+          ...profile,
+          oauthAccounts: existing.oauthAccounts ?? [],
+        };
+        const updatedWithoutOauth = await User.findOneAndUpdate(
+          { _id: existing._id, clerkId: clerkUserId },
+          buildClerkProfileUpdate(profileWithoutOauth, syncedAt, {
+            usernameAction,
+          }),
+          { returnDocument: "after" },
+        );
+        return updatedWithoutOauth ?? existing;
+      }
+    }
+  }
+
   try {
     const updated = await User.findOneAndUpdate(
       { _id: existing._id, clerkId: clerkUserId },
@@ -769,9 +814,12 @@ function queueExistingUserProfileSync(
     try {
       const result = await Promise.race([
         (async () => {
+          // Hent fersk bruker fra DB i stedet for å bruke stale objekt fra auth-flyten
+          const freshUser = await User.findById(existing._id);
+          if (!freshUser || freshUser.deletedAt) return;
           const profile = await getClerkProfile(clerkUserId);
           if (!profile) return;
-          await syncExistingUserWithClerkProfile(existing, clerkUserId, profile);
+          await syncExistingUserWithClerkProfile(freshUser, clerkUserId, profile);
         })(),
         new Promise<"timeout">((resolve) =>
           setTimeout(() => resolve("timeout"), PROFILE_SYNC_TIMEOUT_MS),
@@ -799,6 +847,11 @@ export interface AccountConflictResult {
   __accountConflict: true;
 }
 
+/** Spesialresultat når server-side Turnstile-verifisering mangler. */
+export interface TurnstileRequiredResult {
+  __turnstileRequired: true;
+}
+
 /** Spesialresultat for slettet bruker som prøver å logge inn. */
 export interface UserDeletedResult {
   __userDeleted: true;
@@ -810,56 +863,35 @@ export type UsernameConflictResult = {
   username: string;
 };
 
+/** Felles union-type for alle mulige resultater fra findOrCreateUserByClerkId. */
+type AuthFlowResult =
+  | IUser
+  | AccountConflictResult
+  | TurnstileRequiredResult
+  | UserDeletedResult
+  | OAuthAccountConflictResult
+  | OAuthMetadataMissingResult
+  | UsernameConflictResult
+  | null;
+
 /** Typevakt for AccountConflictResult. */
-export function isAccountConflict(
-  result:
-    | IUser
-    | AccountConflictResult
-    | UserDeletedResult
-    | OAuthAccountConflictResult
-    | OAuthMetadataMissingResult
-    | UsernameConflictResult
-    | null,
-): result is AccountConflictResult {
-  return (
-    result !== null &&
-    typeof result === "object" &&
-    "__accountConflict" in result
-  );
+export function isAccountConflict(result: AuthFlowResult): result is AccountConflictResult {
+  return result !== null && typeof result === "object" && "__accountConflict" in result;
+}
+
+/** Typevakt for TurnstileRequiredResult. */
+export function isTurnstileRequired(result: AuthFlowResult): result is TurnstileRequiredResult {
+  return result !== null && typeof result === "object" && "__turnstileRequired" in result;
 }
 
 /** Typevakt for UserDeletedResult. */
-export function isUserDeleted(
-  result:
-    | IUser
-    | AccountConflictResult
-    | UserDeletedResult
-    | OAuthAccountConflictResult
-    | OAuthMetadataMissingResult
-    | UsernameConflictResult
-    | null,
-): result is UserDeletedResult {
-  return (
-    result !== null && typeof result === "object" && "__userDeleted" in result
-  );
+export function isUserDeleted(result: AuthFlowResult): result is UserDeletedResult {
+  return result !== null && typeof result === "object" && "__userDeleted" in result;
 }
 
 /** Typevakt for UsernameConflictResult. */
-export function isUsernameConflict(
-  result:
-    | IUser
-    | AccountConflictResult
-    | UserDeletedResult
-    | OAuthAccountConflictResult
-    | OAuthMetadataMissingResult
-    | UsernameConflictResult
-    | null,
-): result is UsernameConflictResult {
-  return (
-    result !== null &&
-    typeof result === "object" &&
-    "__usernameConflict" in result
-  );
+export function isUsernameConflict(result: AuthFlowResult): result is UsernameConflictResult {
+  return result !== null && typeof result === "object" && "__usernameConflict" in result;
 }
 
 /**
@@ -872,16 +904,8 @@ export function isUsernameConflict(
  */
 export async function findOrCreateUserByClerkId(
   clerkUserId: string,
-  options?: { flowId?: string; forceSync?: boolean },
-): Promise<
-  | IUser
-  | AccountConflictResult
-  | UserDeletedResult
-  | OAuthAccountConflictResult
-  | OAuthMetadataMissingResult
-  | UsernameConflictResult
-  | null
-> {
+  options?: { flowId?: string; forceSync?: boolean; authTurnstileCookie?: string; sessionId?: string },
+): Promise<AuthFlowResult> {
   const fid = options?.flowId;
   const isDeletedByClerkId = await DeletedUserTombstone.exists({
     clerkId: clerkUserId,
@@ -916,11 +940,25 @@ export async function findOrCreateUserByClerkId(
       "authFlow: found existing user by clerkId — returning existing",
     );
 
-    if (!options?.forceSync && !shouldSyncExistingUserProfile(existing)) {
-      return existing;
+    // Sesjonsbasert Turnstile-gate: krev Turnstile-cookie for nye sesjoner (ikke tidligere verifiserte).
+    // Sjekker ved HVER fersk sesjon, uavhengig av profilsync-intervall.
+    const sid = options?.sessionId;
+    if (isProd && !(await isSessionTurnstileVerified(sid))) {
+      if (await isValidAuthTurnstileCookieValue(options?.authTurnstileCookie)) {
+        // Gyldig cookie → marker sesjonen som verifisert for påfølgende kall
+        if (sid) markSessionTurnstileVerified(sid);
+      } else {
+        logger.warn(
+          { clerkUserId, userId: existing._id, flowId: fid, sid },
+          "authFlow: sesjon mangler Turnstile-verifisering — blokkerer",
+        );
+        return { __turnstileRequired: true };
+      }
     }
 
-    queueExistingUserProfileSync(existing, clerkUserId);
+    if (options?.forceSync || shouldSyncExistingUserProfile(existing)) {
+      queueExistingUserProfileSync(existing, clerkUserId);
+    }
     return existing;
   }
 
@@ -1105,6 +1143,11 @@ export async function findOrCreateUserByClerkId(
               usernameNormalized: 1,
               firstName: 1,
               lastName: 1,
+              canvasApiToken: 1,
+              canvasTokenHash: 1,
+              canvasBaseUrl: 1,
+              role: 1,
+              mfaEnabled: 1,
             },
           },
         );
@@ -1141,14 +1184,20 @@ export async function findOrCreateUserByClerkId(
           return { __accountConflict: true as const };
         }
 
+        // Sikkerhet: krev at clerkId allerede matcher — auto-linking av brukere
+        // uten clerkId er fjernet for å forhindre kontoovertakelse via e-post.
+        if (!existingByEmail.clerkId) {
+          logger.warn(
+            { clerkUserId, userId: existingByEmail._id, flowId: fid },
+            "authFlow: refusing auto-link — existing user has no clerkId (legacy account)",
+          );
+          return { __accountConflict: true as const };
+        }
+
         const linkedUser = await User.findOneAndUpdate(
           {
             _id: existingByEmail._id,
-            $or: [
-              { clerkId: { $exists: false } },
-              { clerkId: null },
-              { clerkId: clerkUserId },
-            ],
+            clerkId: clerkUserId,
           },
           {
             $set: {
@@ -1204,6 +1253,7 @@ export async function findOrCreateUserByClerkId(
       firstName,
       lastName,
       authProvider: profile.authProvider,
+      mfaEnabled: profile.mfaEnabled,
       oauthAccounts: oauthAccounts.length > 0 ? oauthAccounts : undefined,
       ...(includeUsername && usernameAction.mode === "set"
         ? {
@@ -1212,6 +1262,20 @@ export async function findOrCreateUserByClerkId(
           }
         : {}),
     });
+
+    // Server-side Turnstile-gate: krev gyldig Turnstile-cookie for nye brukerregistreringer i produksjon.
+    // Forhindrer bot-registrering selv om Turnstile-widget-sjekken på klienten blir omgått.
+    if (isProd && !(await isValidAuthTurnstileCookieValue(options?.authTurnstileCookie))) {
+      logger.warn(
+        { clerkUserId, email, flowId: fid },
+        "authFlow: mangler gyldig Turnstile-cookie ved brukeropprettelse — blokkerer",
+      );
+      return { __turnstileRequired: true };
+    }
+
+    // Turnstile-sjekk bestått — marker sesjonen som verifisert
+    const newUserSid = options?.sessionId;
+    if (newUserSid) markSessionTurnstileVerified(newUserSid);
 
     try {
       logger.info(
@@ -1414,7 +1478,60 @@ function getAuthorizedParties(): string[] | undefined {
  */
 const TOKEN_CACHE_TTL_MS = 30_000;
 const TOKEN_CACHE_MAX = 500;
-const tokenCache = new Map<string, { sub: string; exp: number }>();
+const tokenCache = new Map<string, { sub: string; sid?: string; exp: number }>();
+
+/**
+ * Sesjonsbasert Turnstile-verifisering: holder styr på Clerk-sesjoner (sid)
+ * som har bestått Turnstile-sjekk. Forhindrer at en fersk sesjon bruker API
+ * uten å ha passert human-check, uavhengig av profilsync-intervall.
+ *
+ * Bruker Redis for deling mellom dynos, med lokal Map som fallback
+ * og read-through cache for å redusere Redis-kall.
+ * TTL: 1 time — lengre enn Turnstile-cookiens 5 min, men kort nok til å rydde opp.
+ */
+const TURNSTILE_VERIFIED_SESSION_TTL_S = 3600; // 1 time
+const TURNSTILE_SESSION_PREFIX = "auth:turnstile-session:";
+
+// Lokal in-memory cache: brukes som read-through for Redis (unngår Redis-kall per request)
+const turnstileLocalCache = new Map<string, number>();
+
+/** Marker en Clerk-sesjon som Turnstile-verifisert. */
+export function markSessionTurnstileVerified(sid: string): void {
+  const expiry = Date.now() + TURNSTILE_VERIFIED_SESSION_TTL_S * 1000;
+  turnstileLocalCache.set(sid, expiry);
+  // Rydd opp utløpte entries periodisk
+  if (turnstileLocalCache.size > 500) {
+    const now = Date.now();
+    for (const [key, exp] of turnstileLocalCache) {
+      if (exp <= now) turnstileLocalCache.delete(key);
+    }
+  }
+  // Skriv til Redis asynkront slik at andre dynos også ser verifiseringen
+  void setCache(`${TURNSTILE_SESSION_PREFIX}${sid}`, "1", TURNSTILE_VERIFIED_SESSION_TTL_S).catch(() => {});
+}
+
+/** Sjekk om en Clerk-sesjon allerede er Turnstile-verifisert. */
+export async function isSessionTurnstileVerified(sid: string | undefined): Promise<boolean> {
+  if (!sid) return false;
+  // Sjekk lokal cache først (rask path)
+  const localExp = turnstileLocalCache.get(sid);
+  if (localExp) {
+    if (localExp > Date.now()) return true;
+    turnstileLocalCache.delete(sid);
+  }
+  // Fallback: sjekk Redis (cross-dyno)
+  try {
+    const val = await getCache(`${TURNSTILE_SESSION_PREFIX}${sid}`);
+    if (val !== null) {
+      // Populer lokal cache for fremtidige kall
+      turnstileLocalCache.set(sid, Date.now() + TURNSTILE_VERIFIED_SESSION_TTL_S * 1000);
+      return true;
+    }
+  } catch {
+    // Redis nede — lokal cache har allerede svart negativt
+  }
+  return false;
+}
 
 /** Hasher token med SHA256 for sikker cache-nøkkel. */
 const hashToken = hashSha256;
@@ -1454,9 +1571,40 @@ function pruneTokenCache(): void {
  * Kalles ved kontosletting slik at slettede brukere ikke kan bruke cached tokens i opptil 30s.
  * Nøklene er nå token-hashes, men vi itererer på entry.sub som fortsatt er clerkId.
  */
+/** Henter Clerk session ID (sid) fra token-cachen (etter at getClerkUserIdFromToken har verifisert). */
+export function getSessionIdFromTokenCache(bearerToken: string): string | undefined {
+  const tokenHash = hashToken(bearerToken);
+  const cached = tokenCache.get(tokenHash);
+  return cached?.sid;
+}
+
 export function invalidateTokenCacheByClerkId(clerkId: string): void {
   for (const [tokenHash, entry] of tokenCache) {
     if (entry.sub === clerkId) tokenCache.delete(tokenHash);
+  }
+  // Marker clerkId som slettet i Redis slik at andre dynos også avviser tokenet
+  void markClerkIdDeleted(clerkId);
+}
+
+/** Redis-nøkkel-prefix for slettede clerkIds (cross-dyno invalidering). */
+const DELETED_CLERK_PREFIX = "auth:deleted-clerk:";
+/** TTL for slettet-markør: litt lengre enn token-cache TTL for sikker dekning. */
+const DELETED_CLERK_TTL_S = 60;
+
+async function markClerkIdDeleted(clerkId: string): Promise<void> {
+  try {
+    await setCache(`${DELETED_CLERK_PREFIX}${clerkId}`, "1", DELETED_CLERK_TTL_S);
+  } catch {
+    // Ikke-kritisk — lokal cache er allerede invalidert
+  }
+}
+
+async function isClerkIdDeleted(clerkId: string): Promise<boolean> {
+  try {
+    const val = await getCache(`${DELETED_CLERK_PREFIX}${clerkId}`);
+    return val !== null;
+  } catch {
+    return false;
   }
 }
 
@@ -1465,6 +1613,51 @@ export function invalidateTokenCacheByClerkId(clerkId: string): void {
  * Bruker authorizedParties når WEB_ORIGINS er satt.
  * Cacher resultatet i minnet i 30 sekunder for å unngå gjentatte JWKS-kall.
  */
+/**
+ * Henter opprettelsestidspunkt for Clerk-sesjonen via Backend API.
+ * Bruker `sessions.getSession(sid)` som returnerer autoritativt `createdAt`-tidspunkt
+ * for når brukeren faktisk logget inn (ikke token-fornyelse).
+ * Returnerer Unix-tidsstempel i sekunder, eller null hvis sesjon ikke kan hentes.
+ */
+export async function getClerkSessionCreatedAt(
+  bearerToken: string,
+): Promise<number | null> {
+  const secretKey = process.env.CLERK_SECRET_KEY;
+  if (!secretKey) return null;
+
+  try {
+    // Hent sid fra JWT-payload
+    const authorizedParties = getAuthorizedParties();
+    const payload = await verifyToken(bearerToken, {
+      secretKey,
+      ...(authorizedParties && authorizedParties.length > 0
+        ? { authorizedParties }
+        : {}),
+    });
+    const sid = typeof payload?.sid === "string" ? payload.sid : null;
+    if (!sid) {
+      // Fallback til iat hvis sid mangler (bør ikke skje med Clerk)
+      return typeof payload?.iat === "number" ? payload.iat : null;
+    }
+
+    // Hent sesjonens opprettelsestidspunkt fra Clerk Backend API
+    const clerk = getClerkBackendClient();
+    if (!clerk) {
+      return typeof payload?.iat === "number" ? payload.iat : null;
+    }
+
+    const session = await clerk.sessions.getSession(sid);
+    if (session?.createdAt) {
+      // createdAt er millisekunder — konverter til sekunder
+      return Math.floor(session.createdAt / 1000);
+    }
+
+    return typeof payload?.iat === "number" ? payload.iat : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getClerkUserIdFromToken(
   bearerToken: string,
 ): Promise<string | null> {
@@ -1492,9 +1685,15 @@ export async function getClerkUserIdFromToken(
     const sub = payload?.sub;
     if (typeof sub !== "string") return null;
 
+    // Cross-dyno sjekk: avvis token hvis clerkId er markert som slettet i Redis
+    if (await isClerkIdDeleted(sub)) return null;
+
+    const sid = typeof payload?.sid === "string" ? payload.sid : undefined;
+
     // Cache aldri lengre enn tokenets faktiske utløpstid.
     tokenCache.set(tokenHash, {
       sub,
+      sid,
       exp: resolveTokenCacheExpiry(payload),
     });
     pruneTokenCache();

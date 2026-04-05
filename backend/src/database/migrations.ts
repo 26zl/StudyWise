@@ -618,6 +618,25 @@ const migrations: Migration[] = [
       );
     },
   },
+  {
+    id: "2026-04-05-block-orphaned-users-without-clerkid",
+    description:
+      "Slett orphaned brukere uten clerkId for å forhindre auto-linking-overtakelse",
+    up: async () => {
+      const col = mongoose.connection.collection("users");
+      const result = await col.deleteMany({
+        $or: [
+          { clerkId: { $exists: false } },
+          { clerkId: null },
+          { clerkId: "" },
+        ],
+      });
+      logger.info(
+        { deletedCount: result.deletedCount },
+        "Migrasjon: orphaned brukere uten clerkId slettet",
+      );
+    },
+  },
 ];
 
 /**

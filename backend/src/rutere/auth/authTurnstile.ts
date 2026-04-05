@@ -14,6 +14,7 @@ import {
   clearAuthTurnstileCookie,
   createAuthTurnstileCookieValue,
   getAuthTurnstileCookieOptions,
+  isValidAuthTurnstileCookieValue,
 } from "../../utils/authTurnstileCookie.js";
 
 const router = Router();
@@ -120,6 +121,27 @@ router.post("/verify", rateLimitAuthTurnstile, async (req: Request, res: Respons
       success: true,
     }),
   );
+});
+
+/**
+ * GET /gate — Pre-flight sjekk av Turnstile-cookie.
+ * Frontend kaller dette før sensitive klient-side auth-operasjoner (forgot-password)
+ * for å sikre at bruker har bestått human-check.
+ */
+router.get("/gate", rateLimitAuthTurnstile, async (req: Request, res: Response) => {
+  const rawCookie = req.headers.cookie;
+  let cookieValue: string | undefined;
+  if (rawCookie) {
+    const match = rawCookie.split(";").find((c) => c.trim().startsWith(`${AUTH_TURNSTILE_COOKIE_NAME}=`));
+    cookieValue = match ? decodeURIComponent(match.split("=").slice(1).join("=").trim()) : undefined;
+  }
+
+  if (!(await isValidAuthTurnstileCookieValue(cookieValue))) {
+    apiError.forbidden(res, "Sikkerhetsverifisering kreves. Fullfør Turnstile-sjekken først.");
+    return;
+  }
+
+  res.json({ verified: true });
 });
 
 export const authTurnstileRouter = router;

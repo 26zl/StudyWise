@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useCallback, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useSignIn } from "@clerk/nextjs/legacy";
-import { ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, ShieldCheck } from "lucide-react";
 import { AuthTurnstileInline } from "@/app/auth/AuthTurnstileInline";
+import { checkAuthTurnstileGate } from "@/app/auth/auth-turnstile-api";
 import { useLanguage } from "@/app/i18n";
 import { LoadingView } from "@/app/components/ui/Loading";
 import {
@@ -38,6 +39,12 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOAuthSubmitting, setIsOAuthSubmitting] = useState(false);
 
+  // MFA (TOTP) — aktiveres når Clerk returnerer needs_second_factor
+  const [mfaStep, setMfaStep] = useState(false);
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaError, setMfaError] = useState<string | null>(null);
+  const [mfaSubmitting, setMfaSubmitting] = useState(false);
+
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -53,6 +60,13 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
       setFormError(null);
 
       try {
+        // Server-side Turnstile-gate: verifiser at human-check er bestått før Clerk-kall
+        const gateOk = await checkAuthTurnstileGate();
+        if (!gateOk) {
+          setFormError(t("auth.humanCheck.gateError"));
+          return;
+        }
+
         const result = await signIn.create({
           identifier: trimmedId,
           password,
@@ -62,7 +76,8 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
           await setActive({ session: result.createdSessionId });
           window.location.replace("/dashboard");
         } else if (result.status === "needs_second_factor") {
-          setFormError(t("auth.signIn.mfaNotSupported"));
+          setMfaStep(true);
+          setFormError(null);
         } else if (result.status === "complete") {
           setFormError(t("auth.signIn.sessionFailed"));
         } else {
@@ -75,6 +90,42 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
       }
     },
     [signIn, setActive, identifier, password, isSubmitting, t],
+  );
+
+  // MFA: verifiser TOTP-kode
+  const handleMfa = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!signIn || mfaSubmitting) return;
+
+      const code = mfaCode.trim();
+      if (!code) {
+        setMfaError(t("auth.signIn.mfa.codeRequired"));
+        return;
+      }
+
+      setMfaSubmitting(true);
+      setMfaError(null);
+
+      try {
+        const result = await signIn.attemptSecondFactor({
+          strategy: "totp",
+          code,
+        });
+
+        if (result.status === "complete" && result.createdSessionId) {
+          await setActive({ session: result.createdSessionId });
+          window.location.replace("/dashboard");
+        } else {
+          setMfaError(t("auth.signIn.mfa.verificationFailed"));
+        }
+      } catch (err) {
+        setMfaError(parseClerkError(err, t("auth.signIn.mfa.verificationFailed")));
+      } finally {
+        setMfaSubmitting(false);
+      }
+    },
+    [signIn, setActive, mfaCode, mfaSubmitting, t],
   );
 
   const handleOAuth = useCallback(
@@ -117,7 +168,64 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
         onVerified={() => setIsVerified(true)}
       />
 
-      {isVerified && (
+      {isVerified && mfaStep && (
+        <AuthCard>
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-blue-100 p-2 dark:bg-blue-900/40">
+              <ShieldCheck className="h-5 w-5 text-blue-600 dark:text-blue-300" />
+            </div>
+            <AuthHeader
+              title={t("auth.signIn.mfa.title")}
+              subtitle={t("auth.signIn.mfa.subtitle")}
+            />
+          </div>
+
+          <form onSubmit={handleMfa} className="mt-4 space-y-4" noValidate>
+            <div>
+              <label htmlFor="mfa-code" className={AUTH_LABEL_CLASSES}>
+                {t("auth.signIn.mfa.codeLabel")}
+              </label>
+              <input
+                id="mfa-code"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={mfaCode}
+                onChange={(e) => setMfaCode(e.target.value)}
+                placeholder={t("auth.signIn.mfa.codePlaceholder")}
+                className={`mt-1 ${AUTH_INPUT_CLASSES}`}
+                autoFocus
+                disabled={mfaSubmitting}
+                maxLength={6}
+              />
+            </div>
+
+            <AuthError message={mfaError} />
+
+            <AuthPrimaryButton
+              isLoading={mfaSubmitting}
+              loadingText={t("auth.signIn.mfa.verifying")}
+            >
+              {t("auth.signIn.mfa.verifyButton")}
+            </AuthPrimaryButton>
+          </form>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMfaStep(false);
+              setMfaCode("");
+              setMfaError(null);
+            }}
+            className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            {t("auth.signIn.mfa.backToSignIn")}
+          </button>
+        </AuthCard>
+      )}
+
+      {isVerified && !mfaStep && (
         <>
           <AuthCard>
             <AuthHeader
