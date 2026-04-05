@@ -3,6 +3,7 @@
 # Base image holdes på tag-nivå i lokal dev slik at `docker pull` får siste sikkerhetsfikser
 # uten at repoet må oppdateres for hver nye digest.
 
+# syntax=docker/dockerfile:1
 FROM node:24-alpine AS deps
 
 RUN npm install -g pnpm@10.33.0
@@ -19,7 +20,7 @@ RUN pnpm install --frozen-lockfile
 
 FROM deps AS sources
 
-# Kopier kildekode én gang, og bygg deretter hver target i egne stages
+# Kopier kildekode en gang, og bygg deretter hver target i egne stages
 COPY common/ common/
 COPY backend/ backend/
 COPY frontend/ frontend/
@@ -35,23 +36,33 @@ RUN pnpm --filter backend exec tsc -p tsconfig.json
 
 FROM common-build AS frontend-build
 
+# Offentlige variabler (ikke hemmeligheter — bakes inn i klient-JS ved build)
 ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-ARG CLERK_SECRET_KEY
 ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY
 ARG NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY
-ARG AUTH_TURNSTILE_GATE_SECRET
 ARG INTERNAL_API_URL=http://backend:4000
+ARG NEXT_PUBLIC_CLERK_SIGN_IN_URL=/auth/sign-in
+ARG NEXT_PUBLIC_CLERK_SIGN_UP_URL=/auth/sign-up
+ARG NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/dashboard
+ARG NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/dashboard
 
 ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-ENV CLERK_SECRET_KEY=$CLERK_SECRET_KEY
 ENV NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY
 ENV NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY
-ENV AUTH_TURNSTILE_GATE_SECRET=$AUTH_TURNSTILE_GATE_SECRET
 ENV INTERNAL_API_URL=$INTERNAL_API_URL
+ENV NEXT_PUBLIC_CLERK_SIGN_IN_URL=$NEXT_PUBLIC_CLERK_SIGN_IN_URL
+ENV NEXT_PUBLIC_CLERK_SIGN_UP_URL=$NEXT_PUBLIC_CLERK_SIGN_UP_URL
+ENV NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=$NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL
+ENV NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=$NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL
 
-RUN pnpm --filter frontend build
+# Hemmeligheter mountes som filer under build — havner aldri i image-laget
+RUN --mount=type=secret,id=CLERK_SECRET_KEY \
+    --mount=type=secret,id=AUTH_TURNSTILE_GATE_SECRET \
+    CLERK_SECRET_KEY="$(cat /run/secrets/CLERK_SECRET_KEY)" \
+    AUTH_TURNSTILE_GATE_SECRET="$(cat /run/secrets/AUTH_TURNSTILE_GATE_SECRET)" \
+    pnpm --filter frontend build
 
-# --- Backend production ---
+# --- Backend runtime ---
 FROM node:24-alpine AS backend
 
 RUN npm install -g pnpm@10.33.0
@@ -75,7 +86,7 @@ EXPOSE 4000
 
 CMD ["node", "backend/dist/index.js"]
 
-# --- Frontend production ---
+# --- Frontend runtime ---
 FROM node:24-alpine AS frontend
 
 WORKDIR /app

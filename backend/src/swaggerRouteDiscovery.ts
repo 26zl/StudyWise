@@ -314,6 +314,10 @@ function dedupeRoutes(routes: DiscoveredRoute[]): DiscoveredRoute[] {
  */
 export function discoverSwaggerPaths(): SwaggerPaths {
   const indexFilePath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "index.ts");
+
+  // Kildefiler (.ts) finnes kun i dev — i Docker/kompilert modus returnerer vi tomt
+  if (!fs.existsSync(indexFilePath)) return {};
+
   const discoveredRoutes = dedupeRoutes(
     discoverRoutesFromRouter(indexFilePath, "app", "", new Set<string>()),
   );

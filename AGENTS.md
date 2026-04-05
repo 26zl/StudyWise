@@ -17,7 +17,8 @@ StudyWise – AI-drevet studieveileder med Canvas LMS-integrasjon. pnpm-monorepo
 - **State/Data**: `@tanstack/react-query` v5 for server-state, `zustand` for client-state, **nuqs** for URL-synkronisert state (f.eks. dashboard `?view=`)
 - **Forms**: `react-hook-form` + `@hookform/resolvers` + `zod`
 - **Routing**: Next.js App Router (Server Components default)
-- **Feilhåndtering**: Delte error-klasser i `frontend/app/lib/errors.ts`
+- **Feilhåndtering**: Delte error-klasser i `frontend/app/lib/errors.ts`. Bruk `FeilMelding` for feil-UI og `LoadingView`/`LoadingSpinner` fra `frontend/app/components/ui/Loading.tsx` for lastetilstander (én fil; ingen separat LoadingSpinner.tsx).
+- **i18n**: Norsk (bokmål) og engelsk via `useLanguage()`-hook fra `frontend/app/i18n`. Meldinger i `frontend/app/i18n/messages/nb.ts` og `en.ts`. Bruk `t("key.path")` for all brukertekst — aldri hardkod norske strenger i komponenter. Nye labels legges i begge filer.
 - **Varsler**: `sonner` for toast-meldinger. Bruk ALDRI `alert()` eller `confirm()` i frontend.
 
 ### Backend
@@ -32,7 +33,7 @@ StudyWise – AI-drevet studieveileder med Canvas LMS-integrasjon. pnpm-monorepo
 - **Vektorsøk**: Pinecone (serverless-indeks med **integrated embedding**). Embeddings genereres av Pinecone; chunk-tekst lagres i MongoDB (`ContentEmbedding`) som sannhetskilde og sendes til Pinecone for indeksering.
 - **AI**: `@anthropic-ai/sdk` for Claude, `cohere-ai` for hybrid søk-reranking (rerank-v3.5)
 - **Feilhåndtering**: Standardisert via `backend/src/utils/apiError.ts`
-- **APM**: Datadog (`dd-trace`) — kreves i produksjon via `validateEnv()` og initialiseres i `backend/src/datadog.ts`; init er wrappet i try/catch slik at serveren fortsatt kan håndtere feil hvis tracer-oppsettet selv svikter. Frontend: RUM kjøres via `DatadogRum` når `DD_RUM_APPLICATION_ID`/`DD_RUM_CLIENT_TOKEN` eller `NEXT_PUBLIC_DD_RUM_APPLICATION_ID`/`NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN` er satt.
+- **APM**: Datadog (`dd-trace`) — kreves i produksjon via `validateEnv()` og initialiseres i `backend/src/datadog.ts`; init er wrappet i try/catch slik at serveren fortsatt kan håndtere feil hvis tracer-oppsettet selv svikter. Frontend: RUM kjøres via `DatadogRum` når `NEXT_PUBLIC_DD_RUM_APPLICATION_ID`/`NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN` er satt **og** brukeren har godtatt cookie-samtykke (GDPR-gated via `useCookieConsent`).
 - **Resiliens**: Circuit breakers for Canvas og Anthropic API (`backend/src/utils/circuitBreaker.ts`), request timeout-middleware (`backend/src/middleware/request-timeout.ts`)
 
 ### Common
@@ -99,7 +100,7 @@ pnpm clean:install          # Full reinstall (clean + install + update + build)
 
 ### Tester
 
-Vitest er satt opp for `common`, `frontend` og `backend` med 23 testfiler (~712 tester). Testfiler ligger i `__tests__/`-mapper i hver pakke.
+Vitest er satt opp for `common`, `frontend` og `backend` med 24 testfiler (~712 tester). Testfiler ligger i `__tests__/`-mapper i hver pakke.
 
 ```bash
 pnpm test:unit               # Kjør alle enhetstester (common + backend + frontend)
@@ -128,7 +129,7 @@ pnpm test:auth:matrix:delete       # Gruppe I: Deletion/reuse
 pnpm test:auth:matrix:race         # Gruppe L: Race conditions
 ```
 
-`func-testing.yml`-workflowen kjører Playwright E2E i CI (manuell trigger eller etter CI). Laster opp HTML-rapport og trace-artefakter.
+`func-testing.yml`-workflowen kjører Playwright E2E (Chromium i CI; manuell trigger eller automatisk etter CI er grønn på `main`). Laster opp HTML-rapport og trace-artefakter.
 
 ### Docker (kun lokal utvikling)
 
@@ -141,7 +142,7 @@ Docker brukes **kun for lokal utvikling** — ikke i produksjon. Alle tjenester 
 ### Deploy
 
 - **Backend**: Heroku (Professional dyno + Datadog buildpack) — auto-deploy fra `main` via Heroku Automatic Deploys
-- **Frontend**: Vercel — deployes via `deploy.yml` etter at Functional Testing er grønn
+- **Frontend**: Vercel — deployes via `deploy.yml` etter at CI er grønn (parallelt med Functional Testing)
 - **Sikkerhet/CDN**: Cloudflare (DDoS, SSL/TLS, caching)
 - **Docs**: GitHub Pages — deployes via `deploy.docs.yml` ved endringer i `docs/`
 
@@ -199,6 +200,25 @@ Lokasjon: `frontend/app/dashboard/page.tsx` (side) og `frontend/app/components/D
 - **WebPushSubscription**: Browser push-varsling-abonnementer per bruker
 - **SharedChat**: Offentlige delelenker for chat-samtaler (med utløpstid)
 - **CanvasStructure**: Cachet Canvas-kursstruktur (moduler, elementer)
+- **StudyContext**: Bruker-spesifikk studiekontekst for KI-personalisering
+- **AuditLog**: Strukturerte audit-hendelser (2-års TTL, GDPR-anonymisering ved brukersletting)
+
+### Kontosletting
+
+`backend/src/rutere/auth/kontoSlett.ts` — `deleteAccountData(userId, options?)` håndterer full opprydding:
+
+- MongoDB-transaksjon: sletter ChatHistory, SharedChat, TaskBreakdown, ContentEmbedding, CanvasUser, Arbeidsplan, CanvasStructure, WebPushSubscription, StudyContext, PendingClerkDeletion, User — oppretter `DeletedUserTombstone` (90-dagers TTL)
+- Etter transaksjon: Pinecone-vektorer, Redis/runtime-cache-invalidering, Clerk-brukersletting
+- `{ skipClerkDeletion: true }` — hopper over Clerk API-kall (brukes av webhook når Clerk-brukeren allerede er slettet)
+- Idempotent: hvis bruker ikke finnes, sjekker tombstone og returnerer tidlig
+
+### Clerk Webhook
+
+`backend/src/rutere/auth/clerkWebhook.ts` — sikkerhetsnett for `user.deleted`-hendelser fra Clerk. Montert **før** `express.json()` i `index.ts` med `express.raw()` for signaturverifisering. Bruker Svix HMAC-SHA256, timestamp-validering (5 min vindu) og best-effort Redis-basert replay/dedupe-beskyttelse. Krever `CLERK_WEBHOOK_SECRET` env var (valgfri — logger advarsel ved oppstart hvis mangler).
+
+### Auth Turnstile
+
+Turnstile-verifiseringsstate deles mellom dynos via Redis (`auth:turnstile-session:<sid>`) med lokal in-memory read-through cache. Cookie-valideringslogikk i `common/src/auth.ts` (`validateAuthTurnstileCookieValue`) — deles mellom frontend SSR og backend for å unngå duplisert HMAC-verifisering.
 
 ### Viktige konfigurasjonsfiler
 
@@ -391,7 +411,7 @@ pnpm install
 pnpm build   # Bygger common først!
 ```
 
-**Miljøvariabler**: Kopier `backend/.env.example` → `backend/.env` og fyll ut. Påkrevd for dev: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, `AUTH_TURNSTILE_GATE_SECRET`. Produksjon krever i tillegg `API_HOST`, `TRUST_PROXY_HOPS`, `WEB_ORIGINS` og valgfritt `INTERNAL_HOSTS` (kommaseparerte hostnames for intern trafikk, f.eks. Vercel → Heroku direkte), Datadog APM (`DD_*`), samt kontaktskjema-variabler (`TURNSTILE_SECRET_KEY`, `CONTACT_WORKER_URL`, `CONTACT_WORKER_SECRET`, `CONTACT_TO_EMAIL`, `CONTACT_FROM_EMAIL`).
+**Miljøvariabler**: Kopier `backend/.env.example` → `backend/.env` og `frontend/.env.example` → `frontend/.env`, fyll ut. Påkrevd for dev: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, Turnstile/kontakt-variabler. Valgfri: `CLERK_WEBHOOK_SECRET` (for Clerk user.deleted webhook — logger advarsel ved oppstart hvis mangler). Produksjon krever i tillegg `API_HOST`, `TRUST_PROXY_HOPS`, `WEB_ORIGINS` og valgfritt `INTERNAL_HOSTS` (kommaseparerte hostnames for intern trafikk, f.eks. Vercel → Heroku direkte), Datadog APM (`DD_*`), samt kontaktskjema-variabler (`TURNSTILE_SECRET_KEY`, `CONTACT_WORKER_URL`, `CONTACT_WORKER_SECRET`, `CONTACT_TO_EMAIL`, `CONTACT_FROM_EMAIL`).
 
 ### CI (`.github/workflows/ci.yml`)
 

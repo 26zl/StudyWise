@@ -8,6 +8,17 @@ const isDev = process.env.NODE_ENV !== "production";
 const isCI = !!process.env.CI;
 const ddEnabled = !!process.env.DD_API_KEY;
 
+// Sjekk om pino-pretty er installert (mangler i prod-install / Docker med --prod)
+let hasPinoPretty = false;
+if (isDev && !isCI) {
+    try {
+        await import("pino-pretty");
+        hasPinoPretty = true;
+    } catch {
+        // pino-pretty ikke tilgjengelig — bruker standard JSON-logging
+    }
+}
+
 // Påkrevd av validateEnv ved serverstart; ingen fallback (én sannhetskilde).
 export const logger = pino({
     level: process.env.LOG_LEVEL || "info",
@@ -53,7 +64,7 @@ export const logger = pino({
         ],
         remove: true,
     },
-    transport: isDev && !isCI
+    transport: hasPinoPretty
         ? {
             target: "pino-pretty",
             options: {

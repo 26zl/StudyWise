@@ -41,7 +41,12 @@ pnpm install
 
 ### Konfigurer miljøvariabler
 
-Kopier `backend/.env.example` til `backend/.env` og fyll ut påkrevde verdier som `MONGO_URI`, `REDIS_URL`, og div. API-nøkler (AI, Pinecone m.m.).
+```bash
+cp backend/.env.example backend/.env    # Backend: MONGO_URI, REDIS_URL, API-nøkler m.m.
+cp frontend/.env.example frontend/.env  # Frontend: Clerk, Turnstile, ruting
+```
+
+Fyll ut påkrevde verdier i begge filer.
 
 ### Bygg og Start
 
@@ -94,7 +99,7 @@ pnpm kill:dev             # Stopp alle Node prosesser (Windows)
 
 ### Enhetstester (Vitest)
 
-23 testfiler med ~712 tester fordelt på `common`, `backend` og `frontend`. Testfiler ligger i `__tests__/`-mapper.
+24 testfiler med ~712 tester fordelt på `common`, `backend` og `frontend`. Testfiler ligger i `__tests__/`-mapper.
 
 ```bash
 pnpm test:unit                # Alle enhetstester
@@ -136,6 +141,47 @@ Detaljert testdokumentasjon finnes i [tests/README.md](./tests/README.md).
 | Backend API  | <http://localhost:4000>          |
 | Swagger UI   | <http://localhost:4000/api-docs> |
 | Docs         | <http://localhost:5173>          |
+
+## Docker (lokal utvikling)
+
+Hele stacken kan kjores lokalt via Docker Compose uten a installere Node, MongoDB eller Redis pa maskinen.
+
+### Forutsetninger
+
+- Docker Desktop (eller Docker Engine + Compose plugin)
+- `backend/.env` (kopier fra `backend/.env.example` og fyll inn verdier)
+
+### Oppsett
+
+```bash
+# 1. Opprett rot-env fra malen
+cp docker.env.example .env
+# Fyll inn Clerk- og Turnstile-verdier i .env
+
+# 2. Bygg og start
+docker compose up --build
+```
+
+### Tjenester
+
+| Tjeneste | Container-URL             | Lokal port |
+| -------- | ------------------------- | ---------- |
+| MongoDB  | `mongodb://mongo:27017`   | 27017      |
+| Redis    | `redis://redis:6379`      | 6379       |
+| Backend  | `http://backend:4000`     | 4000       |
+| Frontend | `http://frontend:3000`    | 3000       |
+
+Backend kobler seg automatisk til MongoDB og Redis inne i Docker-nettverket (`MONGO_URI` og `REDIS_URL` overstyres i `docker-compose.yml`).
+
+### Nyttige kommandoer
+
+```bash
+docker compose up --build       # Bygg og start alt
+docker compose up -d            # Start i bakgrunnen
+docker compose logs backend -f  # Folg backend-logger
+docker compose down             # Stopp og fjern containere
+docker compose down -v          # Stopp + slett MongoDB-data
+```
 
 ## Lisens
 

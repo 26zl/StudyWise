@@ -2,8 +2,8 @@
 # Bruk: docker compose up --build
 #
 # Forutsetninger:
-#   - backend/.env må finnes (kopier fra backend/.env.example, fyll inn alle påkrevde variabler)
-#   - .env i prosjektrot må sette Clerk- og frontend-variablene som brukes som build args
+#   - backend/.env ma finnes (kopier fra backend/.env.example, fyll inn alle pakrevde variabler)
+#   - .env i prosjektrot ma settes (kopier fra docker.env.example, fyll inn verdier)
 #   - MongoDB og Redis startes av compose; backend/frontend bruker dem i nettverket
 
 services:
@@ -52,11 +52,16 @@ services:
       target: frontend
       args:
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-        CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
         NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY}
         NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY}
-        AUTH_TURNSTILE_GATE_SECRET: ${AUTH_TURNSTILE_GATE_SECRET}
         INTERNAL_API_URL: ${INTERNAL_API_URL:-http://backend:4000}
+        NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/auth/sign-in}
+        NEXT_PUBLIC_CLERK_SIGN_UP_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_URL:-/auth/sign-up}
+        NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL:-/dashboard}
+        NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL:-/dashboard}
+      secrets:
+        - CLERK_SECRET_KEY
+        - AUTH_TURNSTILE_GATE_SECRET
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -71,9 +76,19 @@ services:
       - NEXT_PUBLIC_TURNSTILE_SITE_KEY=${NEXT_PUBLIC_TURNSTILE_SITE_KEY}
       - NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY=${NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY}
       - AUTH_TURNSTILE_GATE_SECRET=${AUTH_TURNSTILE_GATE_SECRET}
+      - NEXT_PUBLIC_CLERK_SIGN_IN_URL=${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/auth/sign-in}
+      - NEXT_PUBLIC_CLERK_SIGN_UP_URL=${NEXT_PUBLIC_CLERK_SIGN_UP_URL:-/auth/sign-up}
+      - NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=${NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL:-/dashboard}
+      - NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=${NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL:-/dashboard}
       - HOSTNAME=0.0.0.0
     depends_on:
       - backend
+
+secrets:
+  CLERK_SECRET_KEY:
+    environment: CLERK_SECRET_KEY
+  AUTH_TURNSTILE_GATE_SECRET:
+    environment: AUTH_TURNSTILE_GATE_SECRET
 
 volumes:
   mongo-data:

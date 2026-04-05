@@ -109,7 +109,7 @@ pnpm clean:install          # Full reinstall (clean + install + update + build)
 
 ### Tests
 
-Vitest is configured for `common`, `frontend`, and `backend` with 23 test files (~712 tests). Test files live in `__tests__/` directories within each package.
+Vitest is configured for `common`, `frontend`, and `backend` with 24 test files (~712 tests). Test files live in `__tests__/` directories within each package.
 
 ```bash
 pnpm test:unit               # Run all unit tests (common + backend + frontend)
@@ -143,7 +143,7 @@ The `func-testing.yml` workflow runs stable Playwright E2E specs in CI (Chromium
 docker compose up --build   # Run full stack locally (MongoDB, Redis, backend, frontend)
 ```
 
-Docker brukes **kun for lokal utvikling** — ikke i produksjon. All services use `security_opt: no-new-privileges:true`. Note: `INTERNAL_API_URL=http://backend:4000` is set in `docker-compose.yml` for container-to-container routing.
+Docker brukes **kun for lokal utvikling** — ikke i produksjon. Requires `backend/.env` and a root `.env` (copy from `docker.env.example`). All services use `security_opt: no-new-privileges:true`. Build secrets (`CLERK_SECRET_KEY`, `AUTH_TURNSTILE_GATE_SECRET`) are mounted via `--mount=type=secret` (never baked into image layers). Note: `INTERNAL_API_URL=http://backend:4000` is set in `docker-compose.yml` for container-to-container routing.
 
 ### Deployment
 
@@ -243,8 +243,7 @@ Location: `frontend/app/dashboard/page.tsx` (page) and `frontend/app/components/
 
 Each file handles a distinct AI feature:
 
-- `ki.ts` - General chat endpoint
-- `kiCanvas.ts` - Canvas-context AI queries
+- `ki.ts` - General chat endpoint (includes Canvas-context AI queries)
 - `kiAnalyse.ts` - Document analysis (PDF, Word, images via Vision)
 - `kiOppsummering.ts` - Text summarization
 - `kiHistory.ts` - Chat history management
@@ -254,7 +253,7 @@ Each file handles a distinct AI feature:
 
 Other routes:
 
-- `kontakt/kontakt.ts` - Handles contact form submissions with Turnstile verification and forwards to Cloudflare Worker.
+- `contact/contact.ts` - Handles contact form submissions with Turnstile verification and forwards to Cloudflare Worker.
 
 Shared infrastructure (reuse these, don't duplicate):
 
@@ -418,7 +417,7 @@ pnpm install
 pnpm build  # Builds common package first!
 ```
 
-**Environment**: Copy `backend/.env.example` → `backend/.env` and fill in required values. Required for dev: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, Turnstile/contact vars. Optional: `CLERK_WEBHOOK_SECRET` (for Clerk user.deleted webhook — logs warning if missing). Production additionally requires `API_HOST`, `TRUST_PROXY_HOPS`, `WEB_ORIGINS` and optional `INTERNAL_HOSTS` (comma-separated hostnames for internal traffic, e.g. Vercel → Heroku direct), plus Datadog APM (`DD_*`).
+**Environment**: Copy `backend/.env.example` → `backend/.env` and `frontend/.env.example` → `frontend/.env`, fill in required values. Required for dev: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, Turnstile/contact vars. Optional: `CLERK_WEBHOOK_SECRET` (for Clerk user.deleted webhook — logs warning if missing). Production additionally requires `API_HOST`, `TRUST_PROXY_HOPS`, `WEB_ORIGINS` and optional `INTERNAL_HOSTS` (comma-separated hostnames for internal traffic, e.g. Vercel → Heroku direct), plus Datadog APM (`DD_*`). For Docker: copy `docker.env.example` → `.env` in project root (see Docker section above).
 
 ### CI Pipeline (`.github/workflows/ci.yml`)
 
