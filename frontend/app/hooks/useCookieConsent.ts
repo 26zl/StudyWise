@@ -186,7 +186,7 @@ export function useCookieConsent() {
   const consent =
     pendingConsent ??
     (isAuthenticated
-      ? (backendConsent ?? cachedAuthenticatedConsent)
+      ? (backendConsent ?? cachedAuthenticatedConsent ?? guestConsent)
       : guestConsent);
   const harConsentFraCache = cachedAuthenticatedConsent !== null;
   const isReady =
@@ -205,6 +205,31 @@ export function useCookieConsent() {
     writeAuthenticatedConsentToStorage(userId, backendConsent);
     setCachedAuthenticatedConsent(backendConsent);
   }, [backendConsent, henterMeg, isAuthenticated, userId]);
+
+  // Promoter gjestesamtykke til backend når bruker logger inn og backend ikke har samtykke
+  useEffect(() => {
+    if (!isAuthenticated || !harBackendBrukerdata || backendConsent !== null) {
+      return;
+    }
+
+    // Sjekk om det finnes et gjestesamtykke som kan promoteres
+    const gjesteVerdi = gjesteSamtykke ?? readGuestConsentFromStorage();
+    if (!gjesteVerdi) {
+      return;
+    }
+
+    // Synk gjestesamtykke til backend
+    void oppdaterUIPreferanser({
+      language: me?.user?.uiPreferences?.language,
+      theme: me?.user?.uiPreferences?.theme,
+      cookieConsent: gjesteVerdi,
+    }).then(() => {
+      // Rydd opp gjestesamtykke etter vellykket synk
+      resetGjesteSamtykke();
+    }).catch(() => {
+      // Ignorer feil — bruker blir spurt på nytt neste gang
+    });
+  }, [isAuthenticated, harBackendBrukerdata, backendConsent, me?.user?.uiPreferences, oppdaterUIPreferanser]);
 
   const setConsent = useCallback(
     async (nextConsent: Exclude<CookieConsentStatus, null>) => {

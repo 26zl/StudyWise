@@ -314,7 +314,7 @@ export const nbMessages = {
   landing: {
     actions: {
       continueToDashboard: "Fortsett til dashboard",
-      signInOrRegister: "Logg inn / Registrer",
+      signInOrRegister: "Logg inn / Registrer deg",
     },
     features: {
       aiPartner: {

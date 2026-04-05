@@ -314,7 +314,7 @@ export const enMessages = {
   landing: {
     actions: {
       continueToDashboard: "Continue to Dashboard",
-      signInOrRegister: "Sign in / Register",
+      signInOrRegister: "Sign in / Sign up",
     },
     features: {
       aiPartner: {

@@ -78,7 +78,7 @@ export function DashboardView() {
 
     const [aktivVisning, setView] = useQueryState(
         "view",
-        parseAsStringLiteral(GYLDIGE_VISNINGER).withDefault("chat"),
+        parseAsStringLiteral(GYLDIGE_VISNINGER).withDefault("chat").withOptions({ scroll: false }),
     );
     const settAktivVisning = useCallback(
         (nyVisning: VisningType) => {
@@ -95,7 +95,7 @@ export function DashboardView() {
             return;
         }
         const main = document.getElementById("main-content");
-        main?.focus();
+        main?.focus({ preventScroll: true });
     }, [aktivVisning]);
 
     // Hent brukerdata og Canvas-token status – vent til Clerk er klar for å unngå 401 race
@@ -106,6 +106,7 @@ export function DashboardView() {
     const brukerQueryAktiv = megQuery.isSuccess && harCanvasToken;
     const userQuery = useCanvasUser(brukerQueryAktiv);
     const setCanvasContextSelection = useUIStore((state) => state.setCanvasContextSelection);
+    const isLoggingOut = useUIStore((state) => state.isLoggingOut);
 
     useVarslerStateSync(megQuery.isSuccess, megQuery.data?.user?.varslerState);
 
@@ -148,6 +149,17 @@ export function DashboardView() {
         return "announcements";
     };
     const brukerdataFeilmelding = getBrukerdataFeilmelding(megQuery.error, t);
+    // Pågående utlogging: vis lastespinner for å unngå flash av feilmeldinger
+    if (isLoggingOut) {
+        return (
+            <SidebarAppLoadingState
+                aktivVisning={aktivVisning}
+                byttVisning={settAktivVisning}
+                brukerRolle={brukerRolle}
+                label={t("common.loading.generic")}
+            />
+        );
+    }
     // Skal redirecte til innlogging: vis spinner i stedet for feilmelding så bruker ikke ser rød boks i et splitt sekund
     if (skalRedirecteTilAuth(megQuery)) {
         return (

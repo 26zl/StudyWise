@@ -57,7 +57,7 @@
 /* Mørk modus farger */
 .dark {
     color-scheme: dark;
-    --background: #020617;
+    --background: #0f172a;
     --foreground: #f1f5f9;
     --muted: #94a3b8;
     /* Clerk – høy kontrast i mørk modus (tydelig sekundærtekst og handlingslenker) */
@@ -74,7 +74,7 @@
 /* Automatisk mørk modus basert på systeminnstillinger hos bruker */
 @media (prefers-color-scheme: dark) {
     :root:not(.light) {
-        --background: #020617;
+        --background: #0f172a;
         --foreground: #f1f5f9;
         --muted: #94a3b8;
         --clerk-color-primary: #60a5fa;

@@ -427,6 +427,7 @@ export function SettingsSection({
                         </Link>
                     </section>
 
+                    {harCanvasToken && (
                     <section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
@@ -586,19 +587,16 @@ export function SettingsSection({
                                     </button>
                                 </div>
 
-                                {!harCanvasToken && (
-                                    <p className="text-sm text-amber-700 dark:text-amber-300">
-                                        {t("settings.browserPush.requiresCanvas")}
-                                    </p>
-                                )}
                             </div>
                         )}
                     </section>
+                    )}
 
                     <section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
                                 <Languages size={20} className="text-slate-600 dark:text-slate-300" />
+
                             </div>
                             <h3 className="font-semibold text-slate-900 dark:text-white">
                                 {t("settings.language.title")}

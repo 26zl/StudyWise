@@ -37,7 +37,7 @@ function getHeaderLabels(language: Language) {
       ] satisfies NavigationItem[],
       authActions: [
         { kind: "sign-in", label: "Sign in" },
-        { kind: "sign-up", label: "Register" },
+        { kind: "sign-up", label: "Sign up" },
       ] satisfies AuthAction[],
       toggleTheme: "Toggle theme",
       lightTheme: "Light theme",
@@ -57,7 +57,7 @@ function getHeaderLabels(language: Language) {
     ] satisfies NavigationItem[],
     authActions: [
       { kind: "sign-in", label: "Logg inn" },
-      { kind: "sign-up", label: "Registrer" },
+      { kind: "sign-up", label: "Registrer deg" },
     ] satisfies AuthAction[],
     toggleTheme: "Bytt tema",
     lightTheme: "Lyst tema",
@@ -236,9 +236,7 @@ export function Header() {
         {labels.commonNavigation.map((item) => (
           <NavigationLink key={item.href} {...item} />
         ))}
-        {!authLoaded ? (
-          <AuthStatusPlaceholder />
-        ) : isSignedIn ? (
+        {authLoaded && isSignedIn ? (
           <>
             {labels.signedInNavigation.map((item) => (
               <NavigationLink key={item.href} {...item} />
@@ -274,7 +272,7 @@ export function Header() {
         aria-controls={mobilMenuId}
         aria-haspopup="dialog"
       >
-        {mobilMenyOpen ? <X size={24} /> : <MoreVertical size={24} />}
+        <MoreVertical size={24} />
       </button>
       </div>
       {mobilMenyOpen && (
@@ -318,9 +316,7 @@ export function Header() {
                 onClick={handleMobilNavigation}
               />
             ))}
-            {!authLoaded ? (
-              <AuthStatusPlaceholder mobile />
-            ) : isSignedIn ? (
+            {authLoaded && isSignedIn ? (
               <>
                 {labels.signedInNavigation.map((item) => (
                   <NavigationLink
@@ -359,20 +355,3 @@ export function Header() {
   );
 }
 
-function AuthStatusPlaceholder({ mobile = false }: { mobile?: boolean }) {
-  if (mobile) {
-    return (
-      <div className="space-y-2 py-2" aria-hidden="true">
-        <div className="h-11 rounded-lg bg-slate-100 animate-pulse dark:bg-slate-800" />
-        <div className="h-11 rounded-lg bg-slate-100 animate-pulse dark:bg-slate-800" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-3" aria-hidden="true">
-      <div className="h-11 w-24 rounded-lg bg-slate-100 animate-pulse dark:bg-slate-800" />
-      <div className="h-11 w-24 rounded-lg bg-slate-100 animate-pulse dark:bg-slate-800" />
-    </div>
-  );
-}

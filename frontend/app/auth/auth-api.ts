@@ -33,6 +33,7 @@ import { AppError, CanvasApiError, UsernameConflictError } from "../lib/errors";
 import { fetchApi } from "../lib/apiClient";
 import { broadcastLogout, clearClientAuthState } from "../hooks/use-auth-sync";
 import { showToast } from "@/app/components/ui/Toaster";
+import { useUIStore } from "../store/uiStore";
 import type { ZodType } from "zod";
 import {
   createApiError,
@@ -463,9 +464,14 @@ export function useLoggUtWithRedirect() {
       }
     }
 
+    // Sett utloggingsflagg FØR signOut slik at komponenter viser lastespinner
+    // i stedet for feilmeldinger mens Clerk-sesjonen invalideres.
+    useUIStore.getState().setIsLoggingOut(true);
+
     try {
       await clerk.signOut();
     } catch {
+      useUIStore.getState().setIsLoggingOut(false);
       showToast.error(
         "Kunne ikke logge ut",
         "Innloggingssesjonen kunne ikke avsluttes. Prøv igjen.",
@@ -474,8 +480,6 @@ export function useLoggUtWithRedirect() {
       return;
     }
 
-    // Når Clerk-signout er bekreftet, rydd lokal state og varsle andre faner.
-    // Dette unngår race der samme fane redirectes av auth-sync før signOut er fullført.
     clearClientAuthState(queryClient);
     broadcastLogout();
 

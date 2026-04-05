@@ -20,14 +20,13 @@ import {
 import { useAuthRedirect } from "@/app/auth/authUtils";
 import { useCanvasUser } from "@/app/canvas/canvas-api";
 import type { VisningType } from "@/app/components/dashboard/Sidebar";
-import {
-  SidebarAppLoadingState,
-  SidebarAppShell,
-} from "@/app/components/layout/SidebarAppShell";
+import { SidebarAppShell } from "@/app/components/layout/SidebarAppShell";
 import { showToast } from "@/app/components/ui/Toaster";
 import { UsernameConflictError } from "@/app/lib/errors";
 import { useLanguage } from "@/app/i18n";
 import { broadcastLogout, clearClientAuthState } from "@/app/hooks/use-auth-sync";
+import { useUIStore } from "@/app/store/uiStore";
+import { LoadingView } from "@/app/components/ui/Loading";
 
 const SIDEBAR_VISNING: VisningType = "settings";
 
@@ -35,22 +34,141 @@ function normalizeName(value: string | null | undefined): string {
   return (value ?? "").trim();
 }
 
-export default function ProfilPage() {
+/**
+ * Separat komponent for kontosletting — isolerer lokal state
+ * slik at tastetrykk i bekreftelsesfeltet ikke utløser re-render av Clerk UserProfile.
+ */
+function SlettKontoSeksjon() {
   const { language, t } = useLanguage();
   const clerk = useClerk();
-  const router = useRouter();
   const queryClient = useQueryClient();
+  const { mutateAsync: slettKonto, isPending: isSlettingKonto } = useSlettKonto();
+  const [visKontoSletting, setVisKontoSletting] = useState(false);
+  const [kontoSlettBekreftelse, setKontoSlettBekreftelse] = useState("");
+  const [kontoSlettes, setKontoSlettes] = useState(false);
+  const slettBekreftelsesord = t("settings.deleteAccount.confirmKeyword");
+
+  async function handleSlettKonto() {
+    if (kontoSlettes) return;
+    setKontoSlettes(true);
+
+    try {
+      const result = await slettKonto();
+      const harFullstendigEksternOpprydding =
+        result.providerAccountDeleted && result.vectorCleanupSucceeded;
+
+      if (harFullstendigEksternOpprydding) {
+        showToast.success(
+          t("settings.deleteAccount.deleteSuccessTitle"),
+          t("settings.deleteAccount.deleteSuccessDescription"),
+        );
+      } else {
+        showToast.warning(
+          t("settings.deleteAccount.deletePartialTitle"),
+          t("settings.deleteAccount.deletePartialDescription"),
+        );
+      }
+
+      // Sett utloggingsflagg og naviger umiddelbart for å unngå flash av feilmeldinger
+      useUIStore.getState().setIsLoggingOut(true);
+      broadcastLogout();
+      clearClientAuthState(queryClient);
+      window.location.assign("/");
+
+      // Logg ut fra Clerk i bakgrunnen — kontoen er allerede slettet
+      void clerk.signOut().catch(() => {});
+    } catch (error) {
+      setKontoSlettes(false);
+      const fallback =
+        language === "en"
+          ? "Could not delete the account. Please try again."
+          : "Kunne ikke slette kontoen. Prøv igjen.";
+      const message = error instanceof Error && error.message ? error.message : fallback;
+      showToast.error(t("settings.deleteAccount.deleteErrorTitle"), message);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start gap-3">
+        <div className="rounded-xl bg-red-100 p-2 dark:bg-red-900/40">
+          <ShieldAlert className="h-5 w-5 text-red-600 dark:text-red-300" />
+        </div>
+        <div className="min-w-0 flex-1 space-y-1">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+            {t("settings.deleteAccount.title")}
+          </h2>
+          <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
+            {t("settings.deleteAccount.description")}
+          </p>
+        </div>
+      </div>
+
+      {!visKontoSletting ? (
+        <button
+          type="button"
+          onClick={() => setVisKontoSletting(true)}
+          className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700"
+        >
+          <Trash2 className="h-4 w-4" />
+          {t("settings.deleteAccount.start")}
+        </button>
+      ) : (
+        <div className="space-y-3 rounded-xl border border-red-200 bg-red-50/70 p-4 dark:border-red-900 dark:bg-red-950/20">
+          <p className="text-sm text-slate-700 dark:text-slate-300">
+            {t("settings.deleteAccount.confirmInstruction", {
+              keyword: slettBekreftelsesord,
+            })}
+          </p>
+          <input
+            type="text"
+            value={kontoSlettBekreftelse}
+            onChange={(event) => setKontoSlettBekreftelse(event.target.value)}
+            onKeyDown={(event) => event.stopPropagation()}
+            placeholder={t("settings.deleteAccount.confirmPlaceholder")}
+            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void handleSlettKonto()}
+              disabled={
+                kontoSlettBekreftelse.trim().toUpperCase() !==
+                  slettBekreftelsesord.toUpperCase() || isSlettingKonto
+              }
+              className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSlettingKonto
+                ? t("settings.deleteAccount.deleting")
+                : t("settings.deleteAccount.deletePermanent")}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setVisKontoSletting(false);
+                setKontoSlettBekreftelse("");
+              }}
+              disabled={isSlettingKonto}
+              className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              {t("settings.deleteAccount.cancel")}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function ProfilPage() {
+  const { language, t } = useLanguage();
+  const router = useRouter();
   const { isLoaded: authLoaded, userId } = useAuth();
   const { isLoaded: clerkUserLoaded, user: clerkUser } = useUser();
   const { data: meData } = useMeg({ enabled: authLoaded && !!userId });
   const megQuery = useMeg({ enabled: authLoaded && !!userId });
   const { mutateAsync: oppdaterProfil, isPending: isProfilOppdateringPending } = useOppdaterProfil();
-  const { mutateAsync: slettKonto, isPending: isSlettingKonto } = useSlettKonto();
   const sisteSyncForsokRef = useRef<string | null>(null);
-  const [kontoSlettes, setKontoSlettes] = useState(false);
-  const [visKontoSletting, setVisKontoSletting] = useState(false);
-  const [kontoSlettBekreftelse, setKontoSlettBekreftelse] = useState("");
-  const slettBekreftelsesord = t("settings.deleteAccount.confirmKeyword");
 
   const harCanvasToken = meData?.user?.hasCanvasToken ?? false;
   const userQuery = useCanvasUser(megQuery.isSuccess && harCanvasToken);
@@ -67,6 +185,7 @@ export default function ProfilPage() {
     [router],
   );
 
+  const isLoggingOut = useUIStore((state) => state.isLoggingOut);
   useAuthRedirect(megQuery);
 
   useEffect(() => {
@@ -136,63 +255,16 @@ export default function ProfilPage() {
     oppdaterProfil,
   ]);
 
-  async function handleSlettKonto() {
-    if (kontoSlettes) return;
-    setKontoSlettes(true);
-
-    const fullforLokalUtlogging = () => {
-      broadcastLogout();
-      clearClientAuthState(queryClient);
-      window.location.assign("/");
-    };
-
-    try {
-      const result = await slettKonto();
-      const harFullstendigEksternOpprydding =
-        result.providerAccountDeleted && result.vectorCleanupSucceeded;
-
-      if (harFullstendigEksternOpprydding) {
-        showToast.success(
-          t("settings.deleteAccount.deleteSuccessTitle"),
-          t("settings.deleteAccount.deleteSuccessDescription"),
-        );
-      } else {
-        showToast.warning(
-          t("settings.deleteAccount.deletePartialTitle"),
-          t("settings.deleteAccount.deletePartialDescription"),
-        );
-      }
-
-      try {
-        await clerk.signOut();
-      } catch {
-        showToast.warning(
-          t("settings.deleteAccount.manualSignOutTitle"),
-          t("settings.deleteAccount.manualSignOutDescription"),
-        );
-      }
-
-      fullforLokalUtlogging();
-    } catch (error) {
-      setKontoSlettes(false);
-      const fallback =
-        language === "en"
-          ? "Could not delete the account. Please try again."
-          : "Kunne ikke slette kontoen. Prøv igjen.";
-      const message = error instanceof Error && error.message ? error.message : fallback;
-      showToast.error(t("settings.deleteAccount.deleteErrorTitle"), message);
-    }
-  }
-
-  if (kontoSlettes) {
+  if (isLoggingOut) {
     return (
-      <SidebarAppLoadingState
+      <SidebarAppShell
         aktivVisning={SIDEBAR_VISNING}
         byttVisning={byttVisning}
         brukernavn={brukernavn}
         brukerRolle={brukerRolle}
-        label={t("settings.deleteAccount.deleting")}
-      />
+      >
+        <LoadingView fullPage={false} translationKey="common.loading.generic" />
+      </SidebarAppShell>
     );
   }
 
@@ -244,73 +316,7 @@ export default function ProfilPage() {
                 labelIcon={<Trash2 className="h-4 w-4" />}
                 url="delete-account"
               >
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <div className="rounded-xl bg-red-100 p-2 dark:bg-red-900/40">
-                      <ShieldAlert className="h-5 w-5 text-red-600 dark:text-red-300" />
-                    </div>
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <h2 className="text-base font-semibold text-slate-900 dark:text-white">
-                        {t("settings.deleteAccount.title")}
-                      </h2>
-                      <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
-                        {t("settings.deleteAccount.description")}
-                      </p>
-                    </div>
-                  </div>
-
-                  {!visKontoSletting ? (
-                    <button
-                      type="button"
-                      onClick={() => setVisKontoSletting(true)}
-                      className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      {t("settings.deleteAccount.start")}
-                    </button>
-                  ) : (
-                    <div className="space-y-3 rounded-xl border border-red-200 bg-red-50/70 p-4 dark:border-red-900 dark:bg-red-950/20">
-                      <p className="text-sm text-slate-700 dark:text-slate-300">
-                        {t("settings.deleteAccount.confirmInstruction", {
-                          keyword: slettBekreftelsesord,
-                        })}
-                      </p>
-                      <input
-                        type="text"
-                        value={kontoSlettBekreftelse}
-                        onChange={(event) => setKontoSlettBekreftelse(event.target.value)}
-                        placeholder={t("settings.deleteAccount.confirmPlaceholder")}
-                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
-                      />
-                      <div className="flex flex-wrap items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => void handleSlettKonto()}
-                          disabled={
-                            kontoSlettBekreftelse.trim().toUpperCase() !==
-                              slettBekreftelsesord.toUpperCase() || isSlettingKonto
-                          }
-                          className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {isSlettingKonto
-                            ? t("settings.deleteAccount.deleting")
-                            : t("settings.deleteAccount.deletePermanent")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setVisKontoSletting(false);
-                            setKontoSlettBekreftelse("");
-                          }}
-                          disabled={isSlettingKonto}
-                          className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                        >
-                          {t("settings.deleteAccount.cancel")}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <SlettKontoSeksjon />
               </UserProfile.Page>
             </UserProfile>
           </div>

@@ -10,7 +10,6 @@ import { AuthTurnstileInline } from "@/app/auth/AuthTurnstileInline";
 import { useLanguage } from "@/app/i18n";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
-import { fetchApi } from "@/app/lib/apiClient";
 import {
   isValidUsernameFormat,
   USERNAME_MIN_LENGTH,
@@ -39,7 +38,7 @@ type SignUpStep = "form" | "verify" | "oauth-username";
 export function SignUpClient({ initialVerified }: SignUpClientProps) {
   const { t } = useLanguage();
   const { isLoaded, isSignedIn } = useAuth();
-  const { user: clerkUser } = useUser();
+  const { isLoaded: userLoaded, user: clerkUser } = useUser();
   const { signUp, setActive } = useSignUp();
   const searchParams = useSearchParams();
   const [isVerified, setIsVerified] = useState(initialVerified);
@@ -51,9 +50,9 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
     isOAuthReturn && signUp?.status === "missing_requirements";
   const isRedirectingToDashboard = isLoaded && isSignedIn && !isOAuthReturn;
 
-  // Sjekk om OAuth-provider ga fornavn/etternavn (sjekk både signUp og clerkUser)
-  const oauthMissingFirstName = isOAuthReturn && !signUp?.firstName && !clerkUser?.firstName;
-  const oauthMissingLastName = isOAuthReturn && !signUp?.lastName && !clerkUser?.lastName;
+  // Sjekk om OAuth-provider ga fornavn/etternavn (vent til Clerk er lastet)
+  const oauthMissingFirstName = isOAuthReturn && isLoaded && userLoaded && !signUp?.firstName && !clerkUser?.firstName;
+  const oauthMissingLastName = isOAuthReturn && isLoaded && userLoaded && !signUp?.lastName && !clerkUser?.lastName;
 
   // Form state
   const [firstName, setFirstName] = useState("");
@@ -309,24 +308,21 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
           return;
         }
 
-        // Case 2: Bruker er allerede innlogget — oppdater brukernavn via API
-        const res = await fetchApi("/api/user/profile", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: trimmedUsername }),
-        });
-
-        if (!res.ok) {
-          const data = await res.json().catch(() => null);
-          if (data?.error === "username_conflict") {
-            setUsernameStatus("taken");
-            setFormError(t("auth.signUp.usernameTaken"));
-          } else {
-            setFormError(data?.melding ?? t("auth.signUp.oauthUsernameError"));
-          }
+        // Case 2: Bruker er allerede innlogget — oppdater brukernavn via Clerk SDK
+        if (!clerkUser) {
+          setFormError(t("auth.signUp.oauthUsernameError"));
           return;
         }
 
+        const updatePayload: Record<string, string> = { username: trimmedUsername };
+        if (oauthMissingFirstName && trimmedFirstName) {
+          updatePayload.firstName = trimmedFirstName;
+        }
+        if (oauthMissingLastName && trimmedLastName) {
+          updatePayload.lastName = trimmedLastName;
+        }
+
+        await clerkUser.update(updatePayload);
         window.location.replace("/dashboard");
       } catch (err) {
         const msg = parseClerkError(err, t("auth.signUp.oauthUsernameError"));
@@ -339,7 +335,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
         setIsSubmitting(false);
       }
     },
-    [signUp, setActive, username, firstName, lastName, oauthMissingFirstName, oauthMissingLastName, usernameStatus, t],
+    [signUp, setActive, clerkUser, username, firstName, lastName, oauthMissingFirstName, oauthMissingLastName, usernameStatus, t],
   );
 
   // Verifiser e-postkode

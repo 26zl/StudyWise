@@ -61,6 +61,9 @@ interface UIState {
     // Forklaringsnivå for KI-svar
     explanationLevel: ExplanationLevel;
     setExplanationLevel: (level: ExplanationLevel) => void;
+    // Flagg for pågående utlogging — komponenter viser lastespinner i stedet for feilmeldinger
+    isLoggingOut: boolean;
+    setIsLoggingOut: (value: boolean) => void;
     // Nullstiller all UI-tilstand (brukes ved utlogging)
     reset: () => void;
 }
@@ -95,6 +98,8 @@ export const useUIStore = create<UIState>()((set) => ({
     setCanvasTokenInvalid: (invalid) => set({ canvasTokenInvalid: invalid }),
     explanationLevel: "standard" as ExplanationLevel,
     setExplanationLevel: (level) => set({ explanationLevel: level }),
+    isLoggingOut: false,
+    setIsLoggingOut: (value) => set({ isLoggingOut: value }),
     varslerLestIds: new Set(),
     varslerToastVistIds: new Set(),
     varslerStateHydrated: false,
@@ -139,6 +144,7 @@ export const useUIStore = create<UIState>()((set) => ({
             varslerLestIds: new Set(),
             varslerToastVistIds: new Set(),
             varslerStateHydrated: false,
+            isLoggingOut: false,
         });
     },
 }));
