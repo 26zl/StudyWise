@@ -1634,16 +1634,16 @@ export async function getClerkSessionCreatedAt(
         ? { authorizedParties }
         : {}),
     });
-    const sid = typeof payload?.sid === "string" ? payload.sid : null;
+    const sid = typeof payload.sid === "string" ? payload.sid : null;
     if (!sid) {
       // Fallback til iat hvis sid mangler (bør ikke skje med Clerk)
-      return typeof payload?.iat === "number" ? payload.iat : null;
+      return typeof payload.iat === "number" ? payload.iat : null;
     }
 
     // Hent sesjonens opprettelsestidspunkt fra Clerk Backend API
     const clerk = getClerkBackendClient();
     if (!clerk) {
-      return typeof payload?.iat === "number" ? payload.iat : null;
+      return typeof payload.iat === "number" ? payload.iat : null;
     }
 
     const session = await clerk.sessions.getSession(sid);
@@ -1682,13 +1682,13 @@ export async function getClerkUserIdFromToken(
         ? { authorizedParties }
         : {}),
     });
-    const sub = payload?.sub;
+    const sub = payload.sub;
     if (typeof sub !== "string") return null;
 
     // Cross-dyno sjekk: avvis token hvis clerkId er markert som slettet i Redis
     if (await isClerkIdDeleted(sub)) return null;
 
-    const sid = typeof payload?.sid === "string" ? payload.sid : undefined;
+    const sid = typeof payload.sid === "string" ? payload.sid : undefined;
 
     // Cache aldri lengre enn tokenets faktiske utløpstid.
     tokenCache.set(tokenHash, {
