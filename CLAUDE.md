@@ -193,7 +193,7 @@ Typical route setup: `router.use(requireAuth)` then per-route `knyttCanvasToken`
 
 ### Clerk Webhook
 
-`backend/src/rutere/auth/clerkWebhook.ts` — safety net for `user.deleted` events from Clerk (e.g. admin deletes user via Clerk Dashboard). Mounted **before** `express.json()` in `index.ts` with `express.raw()` for signature verification. Uses Svix HMAC-SHA256 signature verification, timestamp validation (5 min window), and Redis-based replay/dedupe protection. Requires `CLERK_WEBHOOK_SECRET` env var (optional — logs warning at startup if missing).
+`backend/src/rutere/auth/clerkWebhook.ts` — safety net for `user.deleted` events from Clerk (e.g. admin deletes user via Clerk Dashboard). Mounted **before** `express.json()` in `index.ts` with `express.raw()` for signature verification. Uses Svix HMAC-SHA256 signature verification, timestamp validation (5 min window), and best-effort Redis-based replay/dedupe protection when Redis is available; if Redis is unavailable/not ready, dedupe is bypassed and the webhook still proceeds after signature/timestamp validation. Requires `CLERK_WEBHOOK_SECRET` env var (optional — logs warning at startup if missing).
 
 ### Auth Turnstile
 
