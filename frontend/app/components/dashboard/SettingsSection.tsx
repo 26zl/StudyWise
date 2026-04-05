@@ -76,6 +76,28 @@ function getSafeAvatarUrl(url: string | undefined): string | null {
     }
 }
 
+function normalizeNotionPageIdInput(raw: string): string {
+    const value = raw.trim();
+    if (!value) return "";
+
+    const directMatch = value.match(
+        /^([0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$/,
+    );
+    if (directMatch?.[1]) {
+        return directMatch[1].replace(/-/g, "").toLowerCase();
+    }
+
+    const fromUrlMatch = value.match(
+        /[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/,
+    );
+    if (fromUrlMatch?.[0]) {
+        return fromUrlMatch[0].replace(/-/g, "").toLowerCase();
+    }
+
+    // Behold original input ved ugyldig format; backend gir tydelig valideringsfeil ved lagring.
+    return value;
+}
+
 function ProfileAvatar({
     imageUrl,
     label,
@@ -246,12 +268,13 @@ export function SettingsSection({
         if (!notionApiKey.trim() && !notionDefaultPageId.trim()) return;
         setIsSavingNotion(true);
         try {
+            const normalizedNotionPageId = normalizeNotionPageIdInput(notionDefaultPageId);
             const res = await fetchApi("/api/user/notion", withCsrfProtection({
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     apiKey: notionApiKey.trim() || undefined,
-                    defaultPageId: notionDefaultPageId.trim() || undefined,
+                    defaultPageId: normalizedNotionPageId || undefined,
                 }),
             }));
             if (!res.ok) {
@@ -1106,7 +1129,7 @@ export function SettingsSection({
                                             type="text"
                                             value={notionDefaultPageId}
                                             aria-label={t("settings.notionIntegration.defaultPageLabel")}
-                                            onChange={(e) => setNotionDefaultPageId(e.target.value)}
+                                            onChange={(e) => setNotionDefaultPageId(normalizeNotionPageIdInput(e.target.value))}
                                             placeholder={t("settings.notionIntegration.defaultPagePlaceholder")}
                                             className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                         />

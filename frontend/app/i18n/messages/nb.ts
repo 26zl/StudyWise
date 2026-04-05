@@ -571,7 +571,7 @@ export const nbMessages = {
       apiKeyPlaceholder: "secret_xxxxxxxx...",
       defaultPageLabel: "Standard side-ID (valgfritt)",
       defaultPagePlaceholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-      defaultPageHelp: "Side-ID der nye eksporter legges til som undersider. La stå tom for å velge ved eksport.",
+      defaultPageHelp: "Du kan lime inn full Notion-lenke eller page ID. Vi henter ut side-ID automatisk. La stå tom for å velge ved eksport.",
       hide: "Skjul",
       show: "Vis",
       save: "Lagre",

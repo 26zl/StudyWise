@@ -572,7 +572,7 @@ export const enMessages = {
       apiKeyPlaceholder: "secret_xxxxxxxx...",
       defaultPageLabel: "Default Page ID (optional)",
       defaultPagePlaceholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-      defaultPageHelp: "Page ID where new exports will be added as subpages. Leave empty to choose at export time.",
+      defaultPageHelp: "You can paste a full Notion link or a page ID. We auto-extract the page ID. Leave empty to choose at export time.",
       hide: "Hide",
       show: "Show",
       save: "Save",
