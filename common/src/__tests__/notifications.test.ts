@@ -138,6 +138,7 @@ describe("createDefaultBrowserPushPreferences", () => {
       enabled: false,
       announcements: true,
       deadlines: true,
+      earlyDeadlines: true,
       events: true,
       aiResponses: true,
     });

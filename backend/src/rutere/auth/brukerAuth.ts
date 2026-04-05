@@ -1196,4 +1196,80 @@ router.delete("/account", rateLimitAccountDeletion, requireRecentAuth, async (re
   }
 });
 
+// ─── Studiestatistikk ───────────────────────────────────────────────
+
+/**
+ * GET /api/user/study-stats/today
+ * Aggregerer dagens studieaktivitet fra ChatHistory, TaskBreakdown, Arbeidsplan og StudyContext.
+ */
+router.get("/study-stats/today", rateLimitMe, async (req: Request, res: Response) => {
+  try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const { ChatHistory } = await import("../../database/models/ChatHistory.js");
+    const { Arbeidsplan } = await import("../../database/models/arbeidsplan.js");
+    const { TaskBreakdown } = await import("../../database/models/TaskBreakdown.js");
+    const { StudyContext } = await import("../../database/models/StudyContext.js");
+    const { getIsoWeekInfo, parseTimerStreng } = await import("common/dateUtils");
+
+    // Kjør alle queries parallelt for best ytelse
+    const [chatCount, taskResult, studyContextResult, arbeidsplan] = await Promise.all([
+      // Antall KI-samtaler opprettet eller oppdatert i dag
+      ChatHistory.countDocuments({
+        user: new mongoose.Types.ObjectId(userId),
+        updatedAt: { $gte: todayStart },
+      }),
+
+      // Antall fullførte subtasks oppdatert i dag
+      TaskBreakdown.aggregate([
+        { $match: { userId: new mongoose.Types.ObjectId(userId), updatedAt: { $gte: todayStart } } },
+        { $unwind: "$subtasks" },
+        { $match: { "subtasks.completed": true } },
+        { $count: "total" },
+      ]),
+
+      // Antall unike emner med topics oppdatert i dag
+      StudyContext.aggregate([
+        { $match: { userId } },
+        { $unwind: "$topics" },
+        { $match: { "topics.lastAskedAt": { $gte: todayStart } } },
+        { $count: "total" },
+      ]),
+
+      // Denne ukens arbeidsplan for studieblokker
+      (async () => {
+        const { weekNumber, weekYear } = getIsoWeekInfo(now);
+        return Arbeidsplan.findOne({ userId, year: weekYear, weekNumber });
+      })(),
+    ]);
+
+    // Beregn fullførte studieblokker og timer i dag
+    let studyBlocksCompleted = 0;
+    let studyHoursCompleted = 0;
+    if (arbeidsplan) {
+      const todayBlocks = arbeidsplan.blocks.filter(
+        (b) => b.completed && b.completedAt && b.completedAt >= todayStart,
+      );
+      studyBlocksCompleted = todayBlocks.length;
+      studyHoursCompleted = Math.round(
+        todayBlocks.reduce((sum, b) => sum + parseTimerStreng(b.duration), 0) * 10,
+      ) / 10;
+    }
+
+    return res.json({
+      chatSessions: chatCount,
+      tasksCompleted: taskResult[0]?.total ?? 0,
+      studyBlocksCompleted,
+      studyHoursCompleted,
+      topicsStudied: studyContextResult[0]?.total ?? 0,
+    });
+  } catch (error) {
+    sendUnknownError(res, error, { kontekst: "studiestatistikk" });
+  }
+});
+
 export default router;

@@ -1869,7 +1869,7 @@ export async function getClerkSessionCreatedAt(
       return Math.floor(session.createdAt / 1000);
     }
 
-    return typeof payload?.iat === "number" ? payload.iat : null;
+    return typeof payload.iat === "number" ? payload.iat : null;
   } catch {
     return null;
   }

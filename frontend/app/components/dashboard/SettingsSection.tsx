@@ -524,6 +524,7 @@ export function SettingsSection({
                                     {([
                                         ["announcements", t("settings.browserPush.channels.announcements")],
                                         ["deadlines", t("settings.browserPush.channels.deadlines")],
+                                        ["earlyDeadlines", t("settings.browserPush.channels.earlyDeadlines")],
                                         ["events", t("settings.browserPush.channels.events")],
                                         ["aiResponses", t("settings.browserPush.channels.aiResponses")],
                                     ] as const).map(([key, label]) => (

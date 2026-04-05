@@ -42,6 +42,7 @@ const DEFAULT_PREFERENCES: BrowserPushPreferences = {
   enabled: false,
   announcements: true,
   deadlines: true,
+  earlyDeadlines: true,
   events: true,
   aiResponses: true,
 };

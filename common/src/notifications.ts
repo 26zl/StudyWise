@@ -6,6 +6,7 @@ export const BrowserPushPreferencesSchema = z.object({
   enabled: z.boolean().default(false),
   announcements: z.boolean().default(true),
   deadlines: z.boolean().default(true),
+  earlyDeadlines: z.boolean().default(true),
   events: z.boolean().default(true),
   aiResponses: z.boolean().default(true),
 });
@@ -24,6 +25,7 @@ export const DEFAULT_BROWSER_PUSH_PREFERENCES: BrowserPushPreferences = {
   enabled: false,
   announcements: true,
   deadlines: true,
+  earlyDeadlines: true,
   events: true,
   aiResponses: true,
 };

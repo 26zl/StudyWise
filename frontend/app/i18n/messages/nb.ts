@@ -414,6 +414,16 @@ export const nbMessages = {
       totalCourses: "Emner totalt",
       upcomingAssignments: "Kommende oppgaver",
     },
+    studyActivity: {
+      title: "Dagens studieaktivitet",
+      chatSessions: "KI-samtaler",
+      tasksCompleted: "Oppgaver fullført",
+      studyBlocks: "Studieøkter",
+      hoursStudied: "Timer studert",
+      topicsExplored: "Emner utforsket",
+      planProgress: "av ukeplanen fullført",
+      noActivity: "Ingen studieaktivitet registrert i dag ennå.",
+    },
     tabs: {
       ariaLabel: "Oversikt: Min arbeidsplan eller KI-ukeplangenerator",
       aiWeekPlan: "KI Ukeplangenerator",
@@ -467,6 +477,7 @@ export const nbMessages = {
       channels: {
         announcements: "Kunngjøringer",
         deadlines: "Frister",
+        earlyDeadlines: "Tidlige fristvarsler (3-5 dager)",
         events: "Hendelser",
         aiResponses: "KI-svar",
       },

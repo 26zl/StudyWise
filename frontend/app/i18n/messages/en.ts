@@ -414,6 +414,16 @@ export const enMessages = {
       totalCourses: "Total courses",
       upcomingAssignments: "Upcoming assignments",
     },
+    studyActivity: {
+      title: "Today's study activity",
+      chatSessions: "AI conversations",
+      tasksCompleted: "Tasks completed",
+      studyBlocks: "Study sessions",
+      hoursStudied: "Hours studied",
+      topicsExplored: "Topics explored",
+      planProgress: "of weekly plan completed",
+      noActivity: "No study activity recorded today yet.",
+    },
     tabs: {
       ariaLabel: "Overview: My study plan or AI study planner",
       aiWeekPlan: "AI Study Planner",
@@ -467,6 +477,7 @@ export const enMessages = {
       channels: {
         announcements: "Announcements",
         deadlines: "Deadlines",
+        earlyDeadlines: "Early deadline alerts (3-5 days)",
         events: "Events",
         aiResponses: "AI responses",
       },

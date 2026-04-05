@@ -8,13 +8,17 @@ import { useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
+import { useQuery } from "@tanstack/react-query";
 import {
   AlertCircle,
+  BarChart3,
   BookOpen,
   Calendar,
+  CheckCircle2,
   Clock,
   MessageSquare,
   Sparkles,
+  Target,
   TrendingUp,
 } from "lucide-react";
 import { MinArbeidsplan } from "@/app/components/arbeidsplan/MinArbeidsplan";
@@ -55,9 +59,37 @@ import {
   lagBrukervennligFeilmelding,
 } from "@/app/lib/errorUtils";
 import { erInnenforFristVindu, FRIST_VINDU_DAGER } from "@/app/lib/varsler";
-import { useLanguage } from "@/app/i18n";
+import { useLanguage, type Translator } from "@/app/i18n";
+import { fetchApi } from "@/app/lib/apiClient";
+import { useProgressStats } from "@/app/arbeidsplan/arbeidsplan-api";
 
 const SIDEBAR_VISNING: VisningType = "chat";
+
+// ─── Studiestatistikk ───────────────────────────────────────────────
+
+interface StudyStatsToday {
+  chatSessions: number;
+  tasksCompleted: number;
+  studyBlocksCompleted: number;
+  studyHoursCompleted: number;
+  topicsStudied: number;
+}
+
+async function fetchStudyStatsToday(): Promise<StudyStatsToday> {
+  const res = await fetchApi("/api/user/study-stats/today", { method: "GET" });
+  if (!res.ok) throw new Error("Kunne ikke hente studiestatistikk");
+  return res.json();
+}
+
+function useStudyStatsToday(enabled: boolean) {
+  return useQuery({
+    queryKey: ["study-stats", "today"],
+    queryFn: fetchStudyStatsToday,
+    enabled,
+    staleTime: 1000 * 60 * 2,
+    refetchInterval: 1000 * 60 * 5,
+  });
+}
 
 interface QuickActionCardProps {
   title: string;
@@ -110,6 +142,9 @@ export function OversiktPage() {
     enabled: harCanvasToken,
     courses: coursesQuery.data?.courses,
   });
+
+  const studyStatsQuery = useStudyStatsToday(megQuery.isSuccess);
+  const progressQuery = useProgressStats();
 
   const { ferdigeIdSet, toggleFerdig } = useManuellInnlevering();
 
@@ -267,6 +302,13 @@ export function OversiktPage() {
               color="purple"
             />
           </div>
+
+          <StudyActivityCard
+            stats={studyStatsQuery.data}
+            progress={progressQuery.data}
+            isLoading={studyStatsQuery.isLoading}
+            t={t}
+          />
 
           <div className="rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-800/50">
             <div className="flex gap-1" role="tablist" aria-label={t("overview.tabs.ariaLabel")}>
@@ -501,5 +543,124 @@ function QuickActionCard({
       <h3 className="mb-1 font-semibold text-slate-900 dark:text-white">{title}</h3>
       <p className="text-sm text-slate-600 dark:text-slate-400">{description}</p>
     </Link>
+  );
+}
+
+// ─── Studieaktivitetskort ───────────────────────────────────────────
+
+interface ActivityItemProps {
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  label: string;
+  value: number | string;
+  color: string;
+}
+
+function ActivityItem({ icon: Icon, label, value, color }: ActivityItemProps) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${color}`}>
+        <Icon size={16} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-lg font-semibold text-slate-900 dark:text-white">{value}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+function StudyActivityCard({
+  stats,
+  progress,
+  isLoading,
+  t,
+}: {
+  stats: StudyStatsToday | undefined;
+  progress: import("common/arbeidsplan").ArbeidsplanProgress | undefined;
+  isLoading: boolean;
+  t: Translator;
+}) {
+  const hasAnyActivity = stats && (
+    stats.chatSessions > 0 ||
+    stats.tasksCompleted > 0 ||
+    stats.studyBlocksCompleted > 0 ||
+    stats.topicsStudied > 0
+  );
+
+  const percentage = progress?.percentage ?? 0;
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
+      <div className="mb-4 flex items-center gap-2">
+        <BarChart3 size={20} className="text-purple-600 dark:text-purple-400" />
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+          {t("overview.studyActivity.title")}
+        </h2>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-6">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-purple-600" />
+        </div>
+      ) : !hasAnyActivity ? (
+        <p className="py-4 text-center text-sm text-slate-500 dark:text-slate-400">
+          {t("overview.studyActivity.noActivity")}
+        </p>
+      ) : (
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            <ActivityItem
+              icon={MessageSquare}
+              label={t("overview.studyActivity.chatSessions")}
+              value={stats?.chatSessions ?? 0}
+              color="bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
+            />
+            <ActivityItem
+              icon={CheckCircle2}
+              label={t("overview.studyActivity.tasksCompleted")}
+              value={stats?.tasksCompleted ?? 0}
+              color="bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400"
+            />
+            <ActivityItem
+              icon={BookOpen}
+              label={t("overview.studyActivity.studyBlocks")}
+              value={stats?.studyBlocksCompleted ?? 0}
+              color="bg-yellow-100 text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400"
+            />
+            <ActivityItem
+              icon={Clock}
+              label={t("overview.studyActivity.hoursStudied")}
+              value={stats?.studyHoursCompleted ?? 0}
+              color="bg-indigo-100 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400"
+            />
+            <ActivityItem
+              icon={Target}
+              label={t("overview.studyActivity.topicsExplored")}
+              value={stats?.topicsStudied ?? 0}
+              color="bg-purple-100 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400"
+            />
+          </div>
+
+          {progress && progress.totalBlocks > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600 dark:text-slate-300">
+                  {percentage}% {t("overview.studyActivity.planProgress")}
+                </span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  {progress.completedBlocks}/{progress.totalBlocks}
+                </span>
+              </div>
+              <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                <div
+                  className="h-full rounded-full bg-purple-600 transition-all duration-500 dark:bg-purple-500"
+                  style={{ width: `${Math.min(percentage, 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

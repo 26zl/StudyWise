@@ -36,6 +36,12 @@ const WEB_PUSH_USER_BATCH_LIMIT = 50;
 const WEB_PUSH_NOTIFICATION_LIMIT = 3;
 const ANNOUNCEMENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const DEADLINE_WINDOW_MS = 24 * 60 * 60 * 1000;
+/** Tidlig varsel-vindu: 3-5 dager før frist (for komplekse oppgaver). */
+const EARLY_DEADLINE_MIN_MS = 3 * 24 * 60 * 60 * 1000;
+const EARLY_DEADLINE_MAX_MS = 5 * 24 * 60 * 60 * 1000;
+/** Poenggrenser for kompleksitetsvurdering. */
+const POINTS_THRESHOLD_HIGH = 70;
+const POINTS_THRESHOLD_MEDIUM = 30;
 const EVENT_WINDOW_MS = 2 * 60 * 60 * 1000;
 export const AI_COMPLETION_PUSH_MIN_DURATION_MS = 15 * 1000;
 const NOTIFICATIONS_DASHBOARD_URL = "/dashboard?view=varslinger";
@@ -193,14 +199,34 @@ function buildAnnouncementCandidates(
     });
 }
 
+type DeadlineAssignment = {
+  id: number;
+  name: string;
+  due_at: string | null;
+  points_possible?: number | null;
+  submission?: { workflow_state?: string | null; submitted_at?: string | null } | null;
+  course_name: string;
+};
+
+/** Beregn kompleksitetsbeskrivelse basert på poeng. */
+function formaterKompleksitet(points: number | null | undefined): string {
+  if (points == null || points <= 0) return "";
+  if (points > POINTS_THRESHOLD_HIGH) return `Stor oppgave (${points} poeng)`;
+  if (points > POINTS_THRESHOLD_MEDIUM) return `Middels oppgave (${points} poeng)`;
+  return "";
+}
+
+/** Formater antall timer/dager til lesbar tekst. */
+function formaterTidIgjen(ms: number): string {
+  const timer = ms / (1000 * 60 * 60);
+  if (timer < 1) return "under 1 time";
+  if (timer < 24) return `${Math.round(timer)} timer`;
+  const dager = Math.round(timer / 24);
+  return dager === 1 ? "1 dag" : `${dager} dager`;
+}
+
 function buildDeadlineCandidates(
-  assignments: Array<{
-    id: number;
-    name: string;
-    due_at: string | null;
-    submission?: { workflow_state?: string | null; submitted_at?: string | null } | null;
-    course_name: string;
-  }>,
+  assignments: DeadlineAssignment[],
 ): PushCandidate[] {
   const now = Date.now();
 
@@ -212,14 +238,60 @@ function buildDeadlineCandidates(
       const dueAt = Date.parse(assignment.due_at);
       return !Number.isNaN(dueAt) && dueAt > now && dueAt - now <= DEADLINE_WINDOW_MS;
     })
-    .map((assignment) => ({
-      id: `frist-${assignment.id}`,
-      title: `${assignment.course_name}: ${assignment.name}`,
-      body: "Fristen er innen 24 timer.",
-      url: NOTIFICATIONS_DASHBOARD_URL,
-      tag: `deadline-${assignment.id}`,
-      createdAt: Date.parse(assignment.due_at ?? new Date().toISOString()),
-    }));
+    .map((assignment) => {
+      const dueAt = Date.parse(assignment.due_at!);
+      const tidIgjen = formaterTidIgjen(dueAt - now);
+      const kompleksitet = formaterKompleksitet(assignment.points_possible);
+      const body = kompleksitet
+        ? `Frist om ${tidIgjen}. ${kompleksitet}.`
+        : `Frist om ${tidIgjen}.`;
+
+      return {
+        id: `frist-${assignment.id}`,
+        title: `${assignment.course_name}: ${assignment.name}`,
+        body,
+        url: NOTIFICATIONS_DASHBOARD_URL,
+        tag: `deadline-${assignment.id}`,
+        createdAt: dueAt,
+      };
+    });
+}
+
+/**
+ * Bygger tidlige fristvarsler (3-5 dager før frist).
+ * Inkluderer kompleksitetsvurdering basert på poeng for å hjelpe brukeren prioritere.
+ */
+function buildEarlyDeadlineCandidates(
+  assignments: DeadlineAssignment[],
+): PushCandidate[] {
+  const now = Date.now();
+
+  return assignments
+    .filter((assignment) => {
+      if (!assignment.due_at) return false;
+      if (isCanvasAssignmentSubmitted(assignment)) return false;
+
+      const dueAt = Date.parse(assignment.due_at);
+      const remaining = dueAt - now;
+      return !Number.isNaN(dueAt) && remaining > EARLY_DEADLINE_MIN_MS && remaining <= EARLY_DEADLINE_MAX_MS;
+    })
+    .map((assignment) => {
+      const dueAt = Date.parse(assignment.due_at!);
+      const tidIgjen = formaterTidIgjen(dueAt - now);
+      const kompleksitet = formaterKompleksitet(assignment.points_possible);
+      const body = kompleksitet
+        ? `Frist om ${tidIgjen}. ${kompleksitet} — vurder å begynne snart.`
+        : `Frist om ${tidIgjen} — vurder å begynne snart.`;
+
+      return {
+        id: `tidlig-frist-${assignment.id}`,
+        title: `${assignment.course_name}: ${assignment.name}`,
+        body,
+        url: NOTIFICATIONS_DASHBOARD_URL,
+        tag: `early-deadline-${assignment.id}`,
+        createdAt: dueAt,
+      };
+    });
 }
 
 function buildEventCandidates(
@@ -272,7 +344,7 @@ async function buildUserPushCandidates(input: {
     );
   }
 
-  if (preferences.deadlines && courses.length > 0) {
+  if ((preferences.deadlines || preferences.earlyDeadlines) && courses.length > 0) {
     const limit = pLimit(4);
     const assignmentResults = await Promise.allSettled(
       courses.map((course) =>
@@ -292,7 +364,13 @@ async function buildUserPushCandidates(input: {
     const assignments = assignmentResults.flatMap((result) =>
       result.status === "fulfilled" ? result.value : [],
     );
-    candidates.push(...buildDeadlineCandidates(assignments));
+
+    if (preferences.deadlines) {
+      candidates.push(...buildDeadlineCandidates(assignments));
+    }
+    if (preferences.earlyDeadlines) {
+      candidates.push(...buildEarlyDeadlineCandidates(assignments));
+    }
   }
 
   if (preferences.events) {
