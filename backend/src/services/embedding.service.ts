@@ -512,7 +512,7 @@ export async function upsertStoredFullText(options: {
   fileHash: string;
   fullText: string;
 }): Promise<void> {
-  const normalizedFullText = options.fullText.slice(0, 30000);
+  const normalizedFullText = options.fullText.slice(0, 50000);
   const fullTextHash = crypto.createHash("sha256").update(normalizedFullText, "utf8").digest("hex");
   await ContentEmbedding.updateOne(
     { userId: options.userId, courseId: options.courseId, fileId: options.fileId, chunkIndex: -1 },

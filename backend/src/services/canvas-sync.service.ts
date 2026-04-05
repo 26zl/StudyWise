@@ -58,7 +58,7 @@ import {
   upsertStoredFileContent,
 } from "./embedding.service.js";
 import { CanvasStructureModel, type ICanvasModuleItem } from "../database/models/CanvasStructure.js";
-import { crawlCourseExternalUrls } from "./externalUrlCrawler.js";
+import { crawlCourseExternalUrls } from "./crawler.js";
 
 // ─── Konstanter ────────────────────────────────────────────
 
@@ -75,7 +75,7 @@ const MIN_SYNC_INTERVAL_S = 300; // 5 minutter
 const SYNC_STATUS_TTL = 300;
 
 /** Maks antall filer/sider å ekstrahere per synkronisering */
-const MAX_FILES_PER_SYNC = 50;
+const MAX_FILES_PER_SYNC = 200;
 
 // ─── Typer ─────────────────────────────────────────────────
 

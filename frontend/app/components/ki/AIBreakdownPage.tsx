@@ -22,8 +22,6 @@ import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { type VisningType } from "@/app/components/dashboard/Sidebar";
 import {
-  SidebarAppErrorState,
-  SidebarAppLoadingState,
   SidebarAppShell,
 } from "@/app/components/layout/SidebarAppShell";
 import { StatCard } from "@/app/components/ui/StatCard";
@@ -144,48 +142,28 @@ export function AIBreakdownPage() {
   const oppgaverUtenFrist = aktiveOppgaver.length - oppgaverMedFrist.length;
 
   if (megQuery.isPending) {
-    return (
-      <SidebarAppLoadingState
-        aktivVisning={SIDEBAR_VISNING}
-        byttVisning={byttVisning}
-        brukernavn={brukernavn}
-        brukerRolle={brukerRolle}
-        label={t("common.loading.assignments")}
-      />
-    );
+    return <LoadingView text={t("common.loading.assignments")} />;
   }
 
-  if (skalRedirecteTilAuth(megQuery)) {
-    return (
-      <SidebarAppLoadingState
-        aktivVisning={SIDEBAR_VISNING}
-        byttVisning={byttVisning}
-        brukerRolle={brukerRolle}
-        label={t("common.loading.redirectingToSignIn")}
-      />
-    );
-  }
-
-  if (_erFatalAuthFeil) {
-    return (
-      <SidebarAppLoadingState
-        aktivVisning={SIDEBAR_VISNING}
-        byttVisning={byttVisning}
-        brukerRolle={brukerRolle}
-        label={t("common.loading.generic")}
-      />
-    );
+  if (skalRedirecteTilAuth(megQuery) || _erFatalAuthFeil) {
+    const label = skalRedirecteTilAuth(megQuery)
+      ? t("common.loading.redirectingToSignIn")
+      : t("common.loading.generic");
+    return <LoadingView text={label} />;
   }
 
   if (megQuery.isError && !megQuery.data?.user) {
     return (
-      <SidebarAppErrorState
-        aktivVisning={SIDEBAR_VISNING}
-        byttVisning={byttVisning}
-        brukerRolle={brukerRolle}
-        message={getBrukerdataFeilmelding(megQuery.error, t)}
-        onRetry={() => { void megQuery.refetch(); }}
-      />
+      <div className="flex min-h-screen flex-col items-center justify-center gap-5 p-4">
+        <FeilMelding melding={getBrukerdataFeilmelding(megQuery.error, t)} />
+        <button
+          type="button"
+          onClick={() => { void megQuery.refetch(); }}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+        >
+          {t("common.actions.retry")}
+        </button>
+      </div>
     );
   }
 

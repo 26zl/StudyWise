@@ -12,11 +12,10 @@ import {
 import type { VisningType } from "@/app/components/dashboard/Sidebar";
 import { ConversationListItem } from "@/app/components/dashboard/ConversationListItem";
 import {
-  SidebarAppErrorState,
-  SidebarAppLoadingState,
   SidebarAppShell,
 } from "@/app/components/layout/SidebarAppShell";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
+import { LoadingView } from "@/app/components/ui/Loading";
 import { erFatalUserDataFeilmelding, getBrukerdataFeilmelding } from "@/app/lib/errorUtils";
 import { useChatHistory } from "@/app/hooks/useChatHistory";
 import { lagSamtaleForhandsvisning } from "@/app/components/chat/conversationMessageUtils";
@@ -78,48 +77,28 @@ export default function BokmerkerPage() {
   }, [chats, query]);
 
   if (megQuery.isPending || !isLoaded || chatsLoading) {
-    return (
-      <SidebarAppLoadingState
-        aktivVisning="chat"
-        byttVisning={byttVisning}
-        brukernavn={brukernavn}
-        brukerRolle={brukerRolle}
-        label={t("bokmerker.loading")}
-      />
-    );
+    return <LoadingView text={t("bokmerker.loading")} />;
   }
 
-  if (skalRedirecteTilAuth(megQuery)) {
-    return (
-      <SidebarAppLoadingState
-        aktivVisning="chat"
-        byttVisning={byttVisning}
-        brukerRolle={brukerRolle}
-        label={t("common.loading.redirectingToSignIn")}
-      />
-    );
-  }
-
-  if (_erFatalAuthFeil) {
-    return (
-      <SidebarAppLoadingState
-        aktivVisning="chat"
-        byttVisning={byttVisning}
-        brukerRolle={brukerRolle}
-        label={t("common.loading.generic")}
-      />
-    );
+  if (skalRedirecteTilAuth(megQuery) || _erFatalAuthFeil) {
+    const label = skalRedirecteTilAuth(megQuery)
+      ? t("common.loading.redirectingToSignIn")
+      : t("common.loading.generic");
+    return <LoadingView text={label} />;
   }
 
   if (megQuery.isError && !megQuery.data?.user) {
     return (
-      <SidebarAppErrorState
-        aktivVisning="chat"
-        byttVisning={byttVisning}
-        brukerRolle={brukerRolle}
-        message={getBrukerdataFeilmelding(megQuery.error, t)}
-        onRetry={() => { void megQuery.refetch(); }}
-      />
+      <div className="flex min-h-screen flex-col items-center justify-center gap-5 p-4">
+        <FeilMelding melding={getBrukerdataFeilmelding(megQuery.error, t)} />
+        <button
+          type="button"
+          onClick={() => { void megQuery.refetch(); }}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+        >
+          {t("common.actions.retry")}
+        </button>
+      </div>
     );
   }
 

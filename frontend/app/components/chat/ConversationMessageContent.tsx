@@ -1,20 +1,67 @@
 "use client";
 
 import { FileText, Image } from "lucide-react";
-import ReactMarkdown, { type Components } from "react-markdown";
-import rehypeSanitize from "rehype-sanitize";
+import ReactMarkdown from "react-markdown";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
-import { CodeBlock } from "@/app/components/ui/CodeBlock";
+import remarkMath from "remark-math";
+import { contentRendererComponents } from "@/app/components/ui/ContentRenderer";
 import {
   erBildefil,
   hentSamtaleinnhold,
   type ConversationDisplayMessage,
 } from "@/app/components/chat/conversationMessageUtils";
 
-const markdownKomponenter: Components = {
-  code: CodeBlock,
-  pre: ({ children }) => <>{children}</>,
+// Utvid sanitize-schema for å tillate KaTeX-genererte elementer (math, annotation, semantics, etc.)
+const sanitizeSchema = {
+  ...defaultSchema,
+  tagNames: [
+    ...(defaultSchema.tagNames ?? []),
+    "math",
+    "annotation",
+    "semantics",
+    "mrow",
+    "mi",
+    "mo",
+    "mn",
+    "msup",
+    "msub",
+    "mfrac",
+    "mover",
+    "munder",
+    "msqrt",
+    "mroot",
+    "mtable",
+    "mtr",
+    "mtd",
+    "mtext",
+    "mspace",
+    "mpadded",
+    "menclose",
+    "mstyle",
+    "msubsup",
+    "mmultiscripts",
+    "mprescripts",
+  ],
+  attributes: {
+    ...defaultSchema.attributes,
+    div: [
+      ...(defaultSchema.attributes?.div ?? []),
+      ["className", /^(math|katex|callout)/],
+    ],
+    span: [
+      ...(defaultSchema.attributes?.span ?? []),
+      ["className", /^(katex|mord|mbin|mrel|mopen|mclose|mpunct|minner|mop|mfrac|msqrt|vlist|strut|frac-line|overline|underline|accent|base|sup|sub|delimsizing|nulldelimiter|sizing|reset-size|fontsize|text|math)/],
+      "style",
+      "aria-hidden",
+    ],
+    math: ["xmlns", "display"],
+    annotation: ["encoding"],
+    section: [["className", /^footnotes/], "dataFootnotes"],
+  },
 };
+
 
 export function ConversationMessageContent({
   message,
@@ -25,9 +72,9 @@ export function ConversationMessageContent({
     return (
       <div className="prose prose-base max-w-none prose-p:my-2 prose-p:leading-relaxed prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-pre:my-0 prose-code:before:content-none prose-code:after:content-none dark:prose-invert">
         <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          rehypePlugins={[rehypeSanitize]}
-          components={markdownKomponenter}
+          remarkPlugins={[remarkGfm, remarkMath]}
+          rehypePlugins={[rehypeKatex, [rehypeSanitize, sanitizeSchema]]}
+          components={contentRendererComponents}
         >
           {message.innhold}
         </ReactMarkdown>

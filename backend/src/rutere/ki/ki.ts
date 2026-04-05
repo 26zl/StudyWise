@@ -668,41 +668,41 @@ function buildExplanationLevelPrompt(level: ExplanationLevel): string {
     case "simple":
       return `
 
-## Forklaringsnivå: Enkelt
+## Explanation Level: Simple
 
-Brukeren ønsker enkle forklaringer. Tilpass svarene dine:
-- Bruk dagligdagse ord og unngå fagtermer der det er mulig
-- Forklar fagtermer i parentes første gang de brukes, f.eks. "variabel (en boks som lagrer en verdi)"
-- Bruk hverdagslige analogier og konkrete eksempler
-- Hold avsnitt korte (2-3 setninger)
-- Prioriter "hva det gjør" over "hvordan det fungerer internt"
-- Svar kortere enn vanlig — gå rett på sak`;
+The student wants simple explanations. Adapt your responses:
+- Use everyday words and avoid jargon where possible
+- Explain technical terms in parentheses the first time, e.g. "variable (a box that stores a value)"
+- Use everyday analogies and concrete examples
+- Keep paragraphs short (2-3 sentences)
+- Prioritize "what it does" over "how it works internally"
+- Answer more briefly than usual — get straight to the point`;
 
     case "detailed":
       return `
 
-## Forklaringsnivå: Detaljert
+## Explanation Level: Detailed
 
-Brukeren ønsker grundige forklaringer. Tilpass svarene dine:
-- Forklar hvert steg i detalj med begrunnelse for hvorfor det fungerer slik
-- Inkluder flere eksempler — minst ett enkelt og ett mer komplekst
-- Vis sammenhenger mellom konsepter og relaterte temaer
-- Ta med vanlige feil og misforståelser studenter har
-- Inkluder kompleksitetsanalyse og edge cases der relevant
-- Bruk tabeller for å sammenligne relaterte konsepter`;
+The student wants thorough explanations. Adapt your responses:
+- Explain each step in detail with reasoning for why it works that way
+- Include multiple examples — at least one simple and one more complex
+- Show connections between concepts and related topics
+- Include common mistakes and misconceptions students have
+- Include complexity analysis and edge cases where relevant
+- Use tables to compare related concepts`;
 
     case "expert":
       return `
 
-## Forklaringsnivå: Ekspert
+## Explanation Level: Expert
 
-Brukeren har god forståelse og ønsker ekspertnivå-forklaringer. Tilpass svarene dine:
-- Bruk presis fagterminologi uten å forklare grunnleggende begreper
-- Fokuser på implementasjonsdetaljer, trade-offs og designvalg
-- Inkluder asymptotisk analyse, bevis-skisser og formelle definisjoner der relevant
-- Diskuter begrensninger, alternative tilnærminger og state-of-the-art
-- Referer til akademiske konsepter og relevante forskningsområder
-- Skriv kodeeksempler med optimalisert kode, ikke bare grunnversjonen`;
+The student has strong understanding and wants expert-level explanations. Adapt your responses:
+- Use precise technical terminology without explaining basic concepts
+- Focus on implementation details, trade-offs and design choices
+- Include asymptotic analysis, proof sketches and formal definitions where relevant
+- Discuss limitations, alternative approaches and state-of-the-art
+- Reference academic concepts and relevant research areas
+- Write code examples with optimized code, not just the basic version`;
 
     default:
       return "";

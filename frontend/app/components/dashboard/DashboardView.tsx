@@ -9,6 +9,7 @@ import { useEffect, useRef, Suspense, lazy, useCallback } from "react";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { useQueryClient } from "@tanstack/react-query";
 import { LoadingView } from "@/app/components/ui/Loading";
+import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { type VisningType } from "@/app/components/dashboard/Sidebar";
 import { SectionErrorBoundary } from "@/app/components/ui/ErrorBoundary";
 import { useAuth, useClerk } from "@clerk/nextjs";
@@ -24,8 +25,6 @@ import { useUIStore } from "@/app/store/uiStore";
 import { useVarslerPopups, useVarslerStateSync } from "@/app/hooks/useVarsler";
 import { useChatHistoryPrefetch } from "@/app/hooks/useChatHistory";
 import {
-  SidebarAppErrorState,
-  SidebarAppLoadingState,
   SidebarAppShell,
 } from "@/app/components/layout/SidebarAppShell";
 import { useLanguage } from "@/app/i18n";
@@ -159,49 +158,28 @@ export function DashboardView() {
         void clerk.signOut({ redirectUrl: "/auth/sign-in" });
     }, [erFatalAuthFeil, clerk]);
 
-    // Pågående utlogging: vis lastespinner for å unngå flash av feilmeldinger
-    if (isLoggingOut) {
-        return (
-            <SidebarAppLoadingState
-                aktivVisning={aktivVisning}
-                byttVisning={settAktivVisning}
-                brukerRolle={brukerRolle}
-                label={t("common.loading.generic")}
-            />
-        );
-    }
-    // Skal redirecte til innlogging: vis spinner i stedet for feilmelding så bruker ikke ser rød boks i et splitt sekund
-    if (skalRedirecteTilAuth(megQuery)) {
-        return (
-            <SidebarAppLoadingState
-                aktivVisning={aktivVisning}
-                byttVisning={settAktivVisning}
-                brukerRolle={brukerRolle}
-                label={t("common.loading.redirectingToSignIn")}
-            />
-        );
-    }
-    if (erFatalAuthFeil) {
-        return (
-            <SidebarAppLoadingState
-                aktivVisning={aktivVisning}
-                byttVisning={settAktivVisning}
-                brukerRolle={brukerRolle}
-                label={t("common.loading.generic")}
-            />
-        );
+    // Auth-/brukerhåndteringsfeil: vis ren lastespinner UTEN dashboard-innhold (sidebar, meny osv.)
+    // Brukeren skal aldri se dashboard-rammen ved auth-feil.
+    if (isLoggingOut || skalRedirecteTilAuth(megQuery) || erFatalAuthFeil) {
+        const label = skalRedirecteTilAuth(megQuery)
+            ? t("common.loading.redirectingToSignIn")
+            : t("common.loading.generic");
+        return <LoadingView text={label} />;
     }
 
-    // Feil uten brukerdata (f.eks. nettverksfeil, 429 rate limit): vis feilmelding og retry – useAuthRedirect håndterer auth-feil
+    // Feil uten brukerdata (f.eks. nettverksfeil, 429 rate limit): vis feilmelding og retry uten dashboard-ramme
     if (megQuery.isError && !megQuery.data?.user) {
         return (
-            <SidebarAppErrorState
-                aktivVisning={aktivVisning}
-                byttVisning={settAktivVisning}
-                brukerRolle={brukerRolle}
-                message={brukerdataFeilmelding}
-                onRetry={() => { void megQuery.refetch(); }}
-            />
+            <div className="flex min-h-screen flex-col items-center justify-center gap-5 p-4">
+                <FeilMelding melding={brukerdataFeilmelding} />
+                <button
+                    type="button"
+                    onClick={() => { void megQuery.refetch(); }}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                >
+                    {t("common.actions.retry")}
+                </button>
+            </div>
         );
     }
     // Vent på brukerdata før dashboard-skallet vises — forhindrer flash av dashboard ved auth-feil

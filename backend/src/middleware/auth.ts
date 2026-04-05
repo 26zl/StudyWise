@@ -23,9 +23,12 @@ import {
   isUsernameConflict,
   getSessionIdFromTokenCache,
   deleteClerkUserById,
+  markSessionTurnstileVerified,
+  isSessionTurnstileVerified,
 } from "../rutere/auth/clerkAuth.js";
 import { AUTH_TURNSTILE_COOKIE_NAME } from "common/auth";
-import { clearAuthTurnstileCookie } from "../utils/authTurnstileCookie.js";
+import { clearAuthTurnstileCookie, isValidAuthTurnstileCookieValue } from "../utils/authTurnstileCookie.js";
+import { isProd } from "../utils/env.js";
 import { audit, AUDIT_ACTIONS } from "../utils/auditLog.js";
 import { checkSecurityThresholds } from "../utils/securityAlert.js";
 
@@ -154,6 +157,14 @@ async function resolveAuthentication(req: Request): Promise<AuthResolution> {
     },
     "auth-timing",
   );
+
+  // Sikkerhetsnett: marker sesjonen som Turnstile-verifisert hvis den ikke allerede er det.
+  // Dekker re-link-flyt og andre auth-stier som returnerer bruker uten egen Turnstile-sjekk.
+  if (isProd && sessionId && hadTurnstileCookie && !(await isSessionTurnstileVerified(sessionId))) {
+    if (await isValidAuthTurnstileCookieValue(authTurnstileCookie)) {
+      markSessionTurnstileVerified(sessionId);
+    }
+  }
 
   settAutentisertBrukerPåRequest(req, userResult);
   // Flagg at Turnstile-cookie ble konsumert og bør slettes (engangsbruk)

@@ -68,7 +68,7 @@ export const CODE_EXTENSIONS: Record<string, string> = {
 };
 
 /** Tekst-endelser (leses direkte) */
-const TEXT_EXTENSIONS = new Set([".txt", ".md"]);
+const TEXT_EXTENSIONS = new Set([".txt", ".md", ".csv"]);
 
 /** Office-endelser med spesialbehandling */
 const OFFICE_EXTENSIONS = new Set([".docx", ".pptx", ".xlsx"]);

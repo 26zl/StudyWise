@@ -79,6 +79,14 @@ function writeAuthenticatedConsentToStorage(
       return;
     }
 
+    // Rydd opp gamle consent-entries fra tidligere bruker-IDer (f.eks. etter kontosletting + re-registrering)
+    for (let i = window.localStorage.length - 1; i >= 0; i--) {
+      const key = window.localStorage.key(i);
+      if (key && key.startsWith(COOKIE_CONSENT_STORAGE_PREFIX + ":") && key !== storageKey) {
+        window.localStorage.removeItem(key);
+      }
+    }
+
     window.localStorage.setItem(storageKey, consent);
   } catch {
     // Ignorer lagringsfeil i browser-miljøer der localStorage er utilgjengelig.

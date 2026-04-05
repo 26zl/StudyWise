@@ -48,8 +48,11 @@ export function createCourseTargetedQuery(
   return {
     courseIdHint: courseId,
     courseHint: courseName,
-    moduleHint: moduleNames[0] ?? null,
+    // Bruk null når flere moduler er valgt — lar hybrid søk finne innhold på tvers av alle moduler
+    // uten å filtrere bort resultater fra andre moduler enn den første.
+    // Søkequeryen inneholder allerede alle modulnavn, som gir BM25/semantisk matching.
+    moduleHint: moduleNames.length === 1 ? moduleNames[0] : null,
     fileHint: null,
-    chunkHint: null,
+    chunkHint: moduleNames.join(", "),
   };
 }

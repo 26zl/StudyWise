@@ -1,12 +1,14 @@
 /**
- * ExternalUrl Crawler Service
+ * Crawler Service
  *
  * Henter innhold fra eksterne URL-er i Canvas-kurs og indekserer til Pinecone.
  * Kjøres etter Canvas sync har oppdatert MongoDB.
  *
  * Funksjoner:
  * - Henter HTML med timeout og User-Agent
- * - Parser med cheerio for ren tekst (fjerner nav, footer, scripts, styles)
+ * - Bruker @mozilla/readability for intelligent innholdsekstraksjon
+ * - Domene-spesifikke selektorer for kjente norske rettskilder
+ * - Blokkerer sider som krever innlogging (Lovdata Pro, Rettsdata, osv.)
  * - Oppdager PDF-lenker og indekserer dem
  * - Bruker eksisterende chunking og Pinecone upsert
  * - Hopper over uendret innhold basert på hash-sammenligning
@@ -19,6 +21,8 @@ import { request as httpRequest, type IncomingHttpHeaders, type IncomingMessage 
 import { request as httpsRequest } from "node:https";
 import net from "net";
 import * as cheerio from "cheerio";
+import { Readability } from "@mozilla/readability";
+import { parseHTML } from "linkedom";
 import pLimit from "p-limit";
 import { logger } from "../utils/logger.js";
 import {
@@ -56,7 +60,98 @@ const MAX_REDIRECTS = 3;
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 
 /** User-Agent for crawler-forespørsler */
-const CRAWLER_USER_AGENT = "StudyWise/1.0 ExternalUrl-Crawler";
+const CRAWLER_USER_AGENT = "StudyWise/1.0 Crawler";
+
+// ─── Domene-basert crawling-logikk ───────────────────────
+
+/**
+ * URL-mønstre som krever innlogging — hopp over for å unngå 403/login-sider.
+ * Matcher på hostname (og evt. sti-prefiks).
+ */
+const LOGIN_REQUIRED_PATTERNS: Array<{ hostname: string; pathPrefix?: string }> = [
+  // Lovdata Pro (betalingsversjon) — /pro-stier krever abonnement
+  { hostname: "lovdata.no", pathPrefix: "/pro" },
+  { hostname: "www.lovdata.no", pathPrefix: "/pro" },
+  // Rettsdata (Gyldendal) — krever universitetsinnlogging
+  { hostname: "rettsdata.no" },
+  { hostname: "www.rettsdata.no" },
+  // Idunn (Universitetsforlaget) — krever institusjonstilgang
+  { hostname: "idunn.no" },
+  { hostname: "www.idunn.no" },
+  // Juridika (Universitetsforlaget) — krever abonnement
+  { hostname: "juridika.no" },
+  { hostname: "www.juridika.no" },
+];
+
+/**
+ * Domene-spesifikke CSS-selektorer for bedre innholdsekstraksjon
+ * fra kjente åpne norske rettskilder og offentlige kilder.
+ */
+const DOMAIN_CONTENT_SELECTORS: Record<string, string[]> = {
+  // Lovdata (gratis/åpen del) — lovtekst, forskrifter, dommer
+  "lovdata.no": [".444markup", ".444markup-markup", "#LovtekstDiv", "#markup", "article", ".markup"],
+  // Regjeringen.no — proposisjoner, NOUer, meldinger
+  "regjeringen.no": [".article-body", ".rich-text", "article .content", "article"],
+  // Stortinget.no — innstillinger, debatter, vedtak
+  "stortinget.no": [".article-body", ".rich-text", "article", ".document-content"],
+  // SSB (Statistisk sentralbyrå) — statistikk, analyser
+  "ssb.no": [".article-body", ".ssb-article", "article", ".content-area"],
+  // Universitetet i Oslo — juridisk fakultet, åpne ressurser
+  "uio.no": [".vrtx-article-body", "article", ".content"],
+  // DUO (UiO digitale utgivelser) — åpne masteroppgaver/avhandlinger
+  "duo.uio.no": [".item-page", ".simple-item-view", "article"],
+  // Norsk Lovtidend
+  "lovtidend.no": ["article", ".content", "main"],
+  // Sivilombudet
+  "sivilombudet.no": [".article-body", "article", ".content"],
+  // Datatilsynet
+  "datatilsynet.no": [".article-body", "article", ".content"],
+  // Barneombudet
+  "barneombudet.no": [".article-body", "article", ".content"],
+  // Likestillings- og diskrimineringsombudet
+  "ldo.no": [".article-body", "article", ".content"],
+};
+
+/**
+ * Sjekker om en URL krever innlogging og skal hoppes over.
+ */
+function isLoginRequiredUrl(urlStr: string): boolean {
+  try {
+    const url = new URL(urlStr);
+    const hostname = url.hostname.toLowerCase();
+    const pathname = url.pathname.toLowerCase();
+
+    return LOGIN_REQUIRED_PATTERNS.some((pattern) => {
+      if (hostname !== pattern.hostname) return false;
+      if (pattern.pathPrefix && !pathname.startsWith(pattern.pathPrefix)) return false;
+      return true;
+    });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Henter domene-spesifikke selektorer for en URL, eller null.
+ */
+function getDomainSelectors(urlStr: string): string[] | null {
+  try {
+    const url = new URL(urlStr);
+    const hostname = url.hostname.toLowerCase().replace(/^www\./, "");
+    // Sjekk eksakt match og subdomener (f.eks. duo.uio.no → uio.no)
+    if (DOMAIN_CONTENT_SELECTORS[hostname]) {
+      return DOMAIN_CONTENT_SELECTORS[hostname];
+    }
+    for (const [domain, selectors] of Object.entries(DOMAIN_CONTENT_SELECTORS)) {
+      if (hostname.endsWith(`.${domain}`)) {
+        return selectors;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 // ─── Typer ─────────────────────────────────────────────────
 
@@ -552,20 +647,47 @@ async function fetchExternalContent(url: string): Promise<FetchExternalResult> {
 
 /**
  * Parser HTML og ekstraherer ren tekst.
- * Fjerner nav, footer, header, scripts, styles og andre uønskede elementer.
+ *
+ * Strategi (i prioritert rekkefølge):
+ * 1. Domene-spesifikke selektorer for kjente rettskilder (lovdata.no, regjeringen.no, osv.)
+ * 2. @mozilla/readability — intelligent artikkelekstraksjon som fungerer på de fleste sider
+ * 3. Cheerio-fallback — manuell seleksjon av hovedinnhold
  */
-function extractTextFromHtml(html: string): string {
-  const $ = cheerio.load(html);
+function extractTextFromHtml(html: string, domainSelectors?: string[] | null): string {
+  // 1. Prøv domene-spesifikke selektorer (f.eks. lovdata.no, regjeringen.no)
+  if (domainSelectors) {
+    const $ = cheerio.load(html);
+    for (const selector of domainSelectors) {
+      const el = $(selector);
+      if (el.length > 0) {
+        const text = el.text();
+        if (text.trim().length > 50) {
+          return cleanExtractedText(text);
+        }
+      }
+    }
+  }
 
-  // Fjern uønskede elementer
+  // 2. Bruk Readability for intelligent innholdsekstraksjon
+  try {
+    const { document } = parseHTML(html);
+    const reader = new Readability(document);
+    const article = reader.parse();
+    if (article?.textContent && article.textContent.trim().length > 50) {
+      return cleanExtractedText(article.textContent);
+    }
+  } catch {
+    // Readability feilet — fall tilbake til cheerio
+  }
+
+  // 3. Cheerio-fallback for sider Readability ikke klarer
+  const $ = cheerio.load(html);
   $("script, style, noscript, nav, footer, header, aside, iframe, form").remove();
   $('[role="navigation"], [role="banner"], [role="contentinfo"]').remove();
   $(".nav, .navbar, .footer, .header, .sidebar, .menu, .advertisement, .ad").remove();
 
-  // Hent hovedinnholdet
   let content = "";
   const mainSelectors = ["main", "article", '[role="main"]', ".content", "#content", ".main"];
-
   for (const selector of mainSelectors) {
     const main = $(selector);
     if (main.length > 0) {
@@ -574,13 +696,18 @@ function extractTextFromHtml(html: string): string {
     }
   }
 
-  // Fallback til body hvis ingen hovedinnhold ble funnet
   if (!content.trim()) {
     content = $("body").text();
   }
 
-  // Rens teksten
-  return content
+  return cleanExtractedText(content);
+}
+
+/**
+ * Renser ekstrahert tekst — fjerner overflødig whitespace.
+ */
+function cleanExtractedText(text: string): string {
+  return text
     .replace(/\s+/g, " ")
     .replace(/\n\s*\n/g, "\n")
     .trim();
@@ -813,6 +940,16 @@ async function crawlExternalUrlItem(
     pdfsIndexed: 0,
   };
 
+  // Hopp over URL-er som krever innlogging (Lovdata Pro, Rettsdata, Idunn, Juridika)
+  if (isLoginRequiredUrl(item.externalUrl)) {
+    logger.info(
+      { url: item.externalUrl, title: item.title },
+      "ExternalUrl krever innlogging — hopper over",
+    );
+    result.skipped++;
+    return result;
+  }
+
   const externalContent = await fetchExternalContent(item.externalUrl);
   if (externalContent.kind === "failed") {
     result.failed++;
@@ -858,8 +995,9 @@ async function crawlExternalUrlItem(
 
   const html = externalContent.html;
 
-  // Ekstraher tekst
-  const text = extractTextFromHtml(html);
+  // Ekstraher tekst — bruk domene-spesifikke selektorer for kjente rettskilder
+  const domainSelectors = getDomainSelectors(item.externalUrl);
+  const text = extractTextFromHtml(html, domainSelectors);
   if (!text.trim()) {
     logger.info(
       { url: item.externalUrl },

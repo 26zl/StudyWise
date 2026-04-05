@@ -75,7 +75,7 @@ export const PAGE_SIZE = {
 
 // Paginering: maks antall sider å hente (forhindrer uendelige loops)
 export const MAX_PAGES = {
-    DEFAULT: 5,         // Standard for de fleste endepunkter
+    DEFAULT: 10,        // Standard for de fleste endepunkter
     CALENDAR: 10,       // Kalenderhendelser kan spenne over mange sider
     LECTURES: 15,       // Forelesninger over lengre periode trenger mer data
 } as const;

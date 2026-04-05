@@ -81,29 +81,31 @@ router.post(
       // Cache-feil ignoreres
     }
 
-    // Bygg system prompt basert på type
+    // Bygg system prompt basert på type — språknøytral (KI matcher språket i teksten)
     let instruksjon: string;
     if (type === "tldr") {
       instruksjon =
-        "Gi en detaljert TL;DR-oppsummering (3-5 setninger) som forklarer hovedinnholdet, hva studenten lærer eller får ut av det, og eventuelle nøkkelbegreper eller viktige poeng. Skriv på norsk bokmål.";
+        "Provide a detailed TL;DR summary (3-5 sentences) explaining the main content, what the student learns or gains from it, and any key concepts or important points. Respond in the same language as the input text.";
     } else if (type === "handlinger") {
       instruksjon =
-        "List opp hovedpunkter eller handlingspunkter med en kort forklaring for hvert punkt (f.eks. «Gjennomfør leksjon X – den dekker tema Y»). Gi gjerne 2-3 setninger per punkt der det er nyttig. Returner som en nummerert liste. Hvis det ikke er noen handlingspunkter, si det. Skriv på norsk bokmål.";
+        "List the main points or action items with a brief explanation for each (e.g. 'Complete lesson X — it covers topic Y'). Give 2-3 sentences per point where useful. Return as a numbered list. If there are no action items, say so. Respond in the same language as the input text.";
     } else {
-      instruksjon = `Analyser teksten (kunngjøring, modul, kalenderhendelse eller annet innhold) og gi en detaljert og oppfyllende oppsummering.
+      instruksjon = `Analyze the text (announcement, module, calendar event or other content) and provide a detailed summary.
 
-1. TL;DR (3-5 setninger): Beskriv hva innholdet handler om, hva studenten lærer eller får ut av det, og eventuelle nøkkelbegreper eller viktige poeng. Vær konkret og læringsorientert.
+1. TL;DR (3-5 sentences): Describe what the content is about, what the student learns or gains, and any key concepts. Be specific and learning-oriented.
 
-2. Hovedpunkter: List opp de viktigste punktene eller handlingene. For hvert punkt kan du gjerne legge til en kort forklaring (f.eks. etter bindestrek) som sier hva det innebærer eller hvorfor det er viktig. Vær presis og nyttig for en student.
+2. Action items: List the most important points or actions. For each, add a brief explanation of what it entails or why it matters.
 
-Format svaret ditt NØYAKTIG slik:
-OPPSUMMERING: <din detaljerte oppsummering>
+Format your response EXACTLY like this:
+OPPSUMMERING: <your detailed summary>
 HANDLINGER:
-- <punkt 1, gjerne med kort forklaring>
-- <punkt 2>
+- <point 1, with brief explanation>
+- <point 2>
 - ...
 
-Hvis det ikke er noen handlingspunkter, skriv "HANDLINGER: Ingen handlingspunkter." Skriv på norsk bokmål.`;
+If there are no action items, write "HANDLINGER: Ingen handlingspunkter."
+
+Respond in the same language as the input text.`;
     }
 
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;

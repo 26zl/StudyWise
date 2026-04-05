@@ -39,7 +39,7 @@ router.use(rateLimitKi);
 const QUIZ_SYSTEM_PROMPT = `Du er en ekspert studieveileder som lager quiz-spørsmål basert på kursmateriell.
 Svar ALLTID med KUN et JSON-array uten ekstra tekst, markdown eller forklaring.
 Hvert objekt i arrayet skal ha:
-- "question": spørsmålet (norsk)
+- "question": spørsmålet
 - "options": nøyaktig 4 svaralternativer (array med 4 strenger)
 - "correctIndex": indeks (0-3) til riktig svar
 - "explanation": kort forklaring på hvorfor svaret er riktig (1-3 setninger)
@@ -47,9 +47,11 @@ Hvert objekt i arrayet skal ha:
 Regler:
 - Spørsmålene skal variere i vanskelighetsgrad (lett, middels, vanskelig)
 - Alternativene skal være plausible — unngå åpenbart feil distraktorer
-- Bruk norsk språk
-- Basér spørsmålene UTELUKKENDE på det medfølgende kursmateriellet
-- Shuffle riktig svar-posisjon — IKKE sett correctIndex til 0 for alle spørsmål`;
+- Bruk samme språk som kursmateriellet (norsk hvis materiellet er norsk, engelsk hvis engelsk)
+- Basér spørsmålene UTELUKKENDE på det medfølgende kursmateriellet — ikke bruk ekstern kunnskap
+- Shuffle riktig svar-posisjon — IKKE sett correctIndex til 0 for alle spørsmål
+- Dekk ulike deler av materiellet — ikke still flere spørsmål om samme konsept
+- Bruk fagterminologi fra kursmateriellet`;
 
 // POST /api/quiz/generate
 router.post("/generate", knyttCanvasToken, async (req, res) => {
@@ -84,13 +86,15 @@ router.post("/generate", knyttCanvasToken, async (req, res) => {
       req.canvasBaseUrl,
     );
 
-    const contextBlock = contextResult.hasCanvasData
-      ? `\n\nKURSMATERIELL:\n${contextResult.kontekst}`
-      : "";
+    if (!contextResult.hasCanvasData) {
+      return apiError.badRequest(res, "Ingen kursinnhold funnet for valgte moduler. Prøv å åpne KI-chatten først slik at Canvas-data synkroniseres.");
+    }
 
     const userPrompt = `Lag ${questionCount} quiz-spørsmål om følgende moduler i emnet "${courseName}":
 ${moduleNames.map((m) => `- ${m}`).join("\n")}
-${contextBlock}
+
+KURSMATERIELL:
+${contextResult.kontekst}
 
 Generer nøyaktig ${questionCount} spørsmål som JSON-array.`;
 

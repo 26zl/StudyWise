@@ -12,10 +12,10 @@ import {
 } from "@/app/auth/authUtils";
 import type { VisningType } from "@/app/components/dashboard/Sidebar";
 import {
-  SidebarAppErrorState,
-  SidebarAppLoadingState,
   SidebarAppShell,
 } from "@/app/components/layout/SidebarAppShell";
+import { FeilMelding } from "@/app/components/ui/FeilMelding";
+import { LoadingView } from "@/app/components/ui/Loading";
 import { useChatHistory } from "@/app/hooks/useChatHistory";
 import { fetchApi } from "@/app/lib/apiClient";
 import { lagSamtaleForhandsvisning } from "@/app/components/chat/conversationMessageUtils";
@@ -27,8 +27,6 @@ import {
 } from "@/app/lib/errorUtils";
 import { useLanguage } from "@/app/i18n";
 import { ConversationListItem } from "@/app/components/dashboard/ConversationListItem";
-import { FeilMelding } from "@/app/components/ui/FeilMelding";
-import { LoadingView } from "@/app/components/ui/Loading";
 import { showToast, toast } from "@/app/components/ui/Toaster";
 import { useUIStore } from "@/app/store/uiStore";
 import { SharedChatListResponseSchema, type SharedChatListItem } from "common/chat";
@@ -181,48 +179,28 @@ export default function SamtalehistorikkPage() {
   }, [deletingAllLinks, t]);
 
   if (megQuery.isPending || !isLoaded || chatsLoading) {
-    return (
-      <SidebarAppLoadingState
-        aktivVisning="chat"
-        byttVisning={byttVisning}
-        brukernavn={brukernavn}
-        brukerRolle={brukerRolle}
-        label={t("common.loading.chatHistory")}
-      />
-    );
+    return <LoadingView text={t("common.loading.chatHistory")} />;
   }
 
-  if (skalRedirecteTilAuth(megQuery)) {
-    return (
-      <SidebarAppLoadingState
-        aktivVisning="chat"
-        byttVisning={byttVisning}
-        brukerRolle={brukerRolle}
-        label={t("common.loading.redirectingToSignIn")}
-      />
-    );
-  }
-
-  if (_erFatalAuthFeil) {
-    return (
-      <SidebarAppLoadingState
-        aktivVisning="chat"
-        byttVisning={byttVisning}
-        brukerRolle={brukerRolle}
-        label={t("common.loading.generic")}
-      />
-    );
+  if (skalRedirecteTilAuth(megQuery) || _erFatalAuthFeil) {
+    const label = skalRedirecteTilAuth(megQuery)
+      ? t("common.loading.redirectingToSignIn")
+      : t("common.loading.generic");
+    return <LoadingView text={label} />;
   }
 
   if (megQuery.isError && !megQuery.data?.user) {
     return (
-      <SidebarAppErrorState
-        aktivVisning="chat"
-        byttVisning={byttVisning}
-        brukerRolle={brukerRolle}
-        message={getBrukerdataFeilmelding(megQuery.error, t)}
-        onRetry={() => { void megQuery.refetch(); }}
-      />
+      <div className="flex min-h-screen flex-col items-center justify-center gap-5 p-4">
+        <FeilMelding melding={getBrukerdataFeilmelding(megQuery.error, t)} />
+        <button
+          type="button"
+          onClick={() => { void megQuery.refetch(); }}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+        >
+          {t("common.actions.retry")}
+        </button>
+      </div>
     );
   }
 

@@ -39,15 +39,17 @@ router.use(rateLimitKi);
 const FLASHCARDS_SYSTEM_PROMPT = `Du er en ekspert studieveileder som lager flashcards basert på kursmateriell.
 Svar ALLTID med KUN et JSON-array uten ekstra tekst, markdown eller forklaring.
 Hvert objekt i arrayet skal ha:
-- "front": spørsmålet eller begrepet som skal læres (norsk)
-- "back": svaret eller forklaringen (norsk, 1-3 setninger)
+- "front": spørsmålet eller begrepet som skal læres
+- "back": svaret eller forklaringen (1-3 setninger)
 
 Regler:
 - Flashcards skal dekke viktige konsepter, definisjoner og sammenhenger
 - Varier mellom enkle definisjoner og mer komplekse forståelsesspørsmål
-- Bruk norsk språk
-- Basér flashcards UTELUKKENDE på det medfølgende kursmateriellet
-- Hold svarene konsise men fullstendige`;
+- Bruk samme språk som kursmateriellet (norsk hvis materiellet er norsk, engelsk hvis engelsk)
+- Basér flashcards UTELUKKENDE på det medfølgende kursmateriellet — ikke bruk ekstern kunnskap
+- Hold svarene konsise men fullstendige
+- Dekk ulike deler av materiellet — ikke lag flere kort om samme konsept
+- Bruk fagterminologi fra kursmateriellet`;
 
 // POST /api/flashcards/generate
 router.post("/generate", knyttCanvasToken, async (req, res) => {
@@ -82,13 +84,15 @@ router.post("/generate", knyttCanvasToken, async (req, res) => {
       req.canvasBaseUrl,
     );
 
-    const contextBlock = contextResult.hasCanvasData
-      ? `\n\nKURSMATERIELL:\n${contextResult.kontekst}`
-      : "";
+    if (!contextResult.hasCanvasData) {
+      return apiError.badRequest(res, "Ingen kursinnhold funnet for valgte moduler. Prøv å åpne KI-chatten først slik at Canvas-data synkroniseres.");
+    }
 
     const userPrompt = `Lag ${cardCount} flashcards om følgende moduler i emnet "${courseName}":
 ${moduleNames.map((m) => `- ${m}`).join("\n")}
-${contextBlock}
+
+KURSMATERIELL:
+${contextResult.kontekst}
 
 Generer nøyaktig ${cardCount} flashcards som JSON-array.`;
 
