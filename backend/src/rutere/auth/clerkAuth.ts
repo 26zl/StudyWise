@@ -1472,17 +1472,19 @@ export async function findOrCreateUserByClerkId(
 
     // Server-side Turnstile-gate: krev gyldig Turnstile-cookie for nye brukerregistreringer i produksjon.
     // Forhindrer bot-registrering selv om Turnstile-widget-sjekken på klienten blir omgått.
-    if (isProd && !(await isValidAuthTurnstileCookieValue(options?.authTurnstileCookie))) {
-      logger.warn(
-        { clerkUserId, email, flowId: fid },
-        "authFlow: mangler gyldig Turnstile-cookie ved brukeropprettelse — blokkerer",
-      );
-      return { __turnstileRequired: true };
-    }
-
-    // Turnstile-sjekk bestått — marker sesjonen som verifisert
+    // Sjekk sesjonsbasert verifisering først — parallelle kall kan ha allerede verifisert sesjonen.
     const newUserSid = options?.sessionId;
-    if (newUserSid) markSessionTurnstileVerified(newUserSid);
+    if (isProd && !(await isSessionTurnstileVerified(newUserSid))) {
+      if (!(await isValidAuthTurnstileCookieValue(options?.authTurnstileCookie))) {
+        logger.warn(
+          { clerkUserId, email, flowId: fid },
+          "authFlow: mangler gyldig Turnstile-cookie ved brukeropprettelse — blokkerer",
+        );
+        return { __turnstileRequired: true };
+      }
+      // Turnstile-sjekk bestått — marker sesjonen som verifisert for parallelle kall
+      if (newUserSid) markSessionTurnstileVerified(newUserSid);
+    }
 
     try {
       logger.info(

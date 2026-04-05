@@ -146,7 +146,7 @@ Detaljert testdokumentasjon finnes i [tests/README.md](./tests/README.md).
 
 Hele stacken kan kjores lokalt via Docker Compose uten a installere Node, MongoDB eller Redis pa maskinen.
 
-### Forutsetninger
+### Docker-forutsetninger
 
 - Docker Desktop (eller Docker Engine + Compose plugin)
 - `backend/.env` (kopier fra `backend/.env.example` og fyll inn verdier)
@@ -178,7 +178,7 @@ Backend kobler seg automatisk til MongoDB og Redis inne i Docker-nettverket (`MO
 ```bash
 docker compose up --build       # Bygg og start alt
 docker compose up -d            # Start i bakgrunnen
-docker compose logs backend -f  # Folg backend-logger
+docker compose logs backend -f  # Følg backend-logger
 docker compose down             # Stopp og fjern containere
 docker compose down -v          # Stopp + slett MongoDB-data
 ```

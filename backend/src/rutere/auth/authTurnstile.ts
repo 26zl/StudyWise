@@ -4,6 +4,7 @@ import {
   AuthTurnstileVerifyRequestSchema,
   AuthTurnstileVerifyResponseSchema,
   AUTH_TURNSTILE_COOKIE_NAME,
+  validateAuthTurnstileCookieValue,
 } from "common/auth";
 import { rateLimitAuthTurnstile } from "../../middleware/rate-limit.js";
 import { apiError, sendZodError } from "../../utils/apiError.js";
@@ -14,7 +15,6 @@ import {
   clearAuthTurnstileCookie,
   createAuthTurnstileCookieValue,
   getAuthTurnstileCookieOptions,
-  isValidAuthTurnstileCookieValue,
 } from "../../utils/authTurnstileCookie.js";
 
 const router = Router();
@@ -124,8 +124,9 @@ router.post("/verify", rateLimitAuthTurnstile, async (req: Request, res: Respons
 });
 
 /**
- * GET /gate — Pre-flight sjekk av Turnstile-cookie.
- * Frontend kaller dette før sensitive klient-side auth-operasjoner (forgot-password)
+ * GET /gate — Pre-flight sjekk av Turnstile-cookie (HMAC + utløp).
+ * Forbruker IKKE nonce — det gjøres først i requireAuth ved brukeropprettelse/sesjon.
+ * Frontend kaller dette før sensitive klient-side auth-operasjoner (OAuth, forgot-password)
  * for å sikre at bruker har bestått human-check.
  */
 router.get("/gate", rateLimitAuthTurnstile, async (req: Request, res: Response) => {
@@ -136,7 +137,8 @@ router.get("/gate", rateLimitAuthTurnstile, async (req: Request, res: Response) 
     cookieValue = match ? decodeURIComponent(match.split("=").slice(1).join("=").trim()) : undefined;
   }
 
-  if (!(await isValidAuthTurnstileCookieValue(cookieValue))) {
+  const secret = process.env.AUTH_TURNSTILE_GATE_SECRET?.trim();
+  if (!secret || !(await validateAuthTurnstileCookieValue(cookieValue, secret))) {
     apiError.forbidden(res, "Sikkerhetsverifisering kreves. Fullfør Turnstile-sjekken først.");
     return;
   }
