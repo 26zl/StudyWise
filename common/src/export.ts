@@ -1,0 +1,183 @@
+/*
+ * Skjemaer og typer for eksportfunksjonalitet.
+ * Definerer eksportmål, request/response-format og internt dokumentformat.
+ */
+
+import { z } from "zod";
+
+// Støttede eksportmål
+export const EXPORT_TARGETS = [
+  "markdown",
+  "pdf",
+  "text",
+  "word",
+  "notion",
+] as const;
+
+export const ExportTargetSchema = z.enum(EXPORT_TARGETS);
+export type ExportTarget = z.infer<typeof ExportTargetSchema>;
+
+// Serialiserbare mål (returnerer fil/binærdata direkte)
+export const SERIALIZABLE_TARGETS = ["markdown", "pdf", "text", "word"] as const;
+
+// Eksterne mål (krever API-kall til tredjepartstjenester)
+export const EXTERNAL_TARGETS = ["notion"] as const;
+
+export function isSerializableTarget(target: ExportTarget): boolean {
+  return (SERIALIZABLE_TARGETS as readonly string[]).includes(target);
+}
+
+// --- Internt dokumentformat (mellomformat) ---
+
+export const InlineStyleSchema = z.enum(["bold", "italic", "code", "link"]);
+export type InlineStyle = z.infer<typeof InlineStyleSchema>;
+
+/** Tekstsegment med valgfri inline-formatering */
+export const TextSegmentSchema = z.object({
+  text: z.string(),
+  styles: z.array(InlineStyleSchema).optional(),
+  href: z.string().optional(),
+});
+export type TextSegment = z.infer<typeof TextSegmentSchema>;
+
+/** Listelement — kan inneholde rik tekst */
+export const ListItemSchema = z.object({
+  segments: z.array(TextSegmentSchema),
+  checked: z.boolean().optional(),
+});
+export type ListItem = z.infer<typeof ListItemSchema>;
+
+/** Tabellcelle */
+export const TableCellSchema = z.object({
+  segments: z.array(TextSegmentSchema),
+});
+export type TableCell = z.infer<typeof TableCellSchema>;
+
+export const ExportBlockTypeSchema = z.enum([
+  "heading",
+  "paragraph",
+  "bullet_list",
+  "numbered_list",
+  "checklist",
+  "quote",
+  "code_block",
+  "divider",
+  "callout",
+  "table",
+]);
+export type ExportBlockType = z.infer<typeof ExportBlockTypeSchema>;
+
+/** Enkeltblokk i eksportdokumentet */
+export const ExportBlockSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("heading"),
+    level: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+    segments: z.array(TextSegmentSchema),
+  }),
+  z.object({
+    type: z.literal("paragraph"),
+    segments: z.array(TextSegmentSchema),
+  }),
+  z.object({
+    type: z.literal("bullet_list"),
+    items: z.array(ListItemSchema),
+  }),
+  z.object({
+    type: z.literal("numbered_list"),
+    items: z.array(ListItemSchema),
+  }),
+  z.object({
+    type: z.literal("checklist"),
+    items: z.array(ListItemSchema),
+  }),
+  z.object({
+    type: z.literal("quote"),
+    segments: z.array(TextSegmentSchema),
+  }),
+  z.object({
+    type: z.literal("code_block"),
+    language: z.string().optional(),
+    code: z.string(),
+  }),
+  z.object({
+    type: z.literal("divider"),
+  }),
+  z.object({
+    type: z.literal("callout"),
+    emoji: z.string().optional(),
+    segments: z.array(TextSegmentSchema),
+  }),
+  z.object({
+    type: z.literal("table"),
+    headers: z.array(TableCellSchema).optional(),
+    rows: z.array(z.array(TableCellSchema)),
+  }),
+]);
+export type ExportBlock = z.infer<typeof ExportBlockSchema>;
+
+/** Komplett eksportdokument */
+export const ExportDocumentSchema = z.object({
+  title: z.string(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  blocks: z.array(ExportBlockSchema),
+});
+export type ExportDocument = z.infer<typeof ExportDocumentSchema>;
+
+// --- API Request / Response ---
+
+const EXPORT_TITLE_MAX_LENGTH = 200;
+const EXPORT_CONTENT_MAX_LENGTH = 500_000;
+
+/** Notion-spesifikke alternativer */
+export const NotionExportOptionsSchema = z.object({
+  parentPageId: z.string().min(1, "Notion parent page ID er påkrevd"),
+});
+export type NotionExportOptions = z.infer<typeof NotionExportOptionsSchema>;
+
+/** Provider-alternativer (kun Notion nå) */
+export const ExportProviderOptionsSchema = z.object({
+  notion: NotionExportOptionsSchema.optional(),
+});
+
+/** Eksport-request */
+export const ExportRequestSchema = z.object({
+  target: ExportTargetSchema,
+  title: z.string().min(1, "Tittel er påkrevd").max(EXPORT_TITLE_MAX_LENGTH),
+  content: z.string().min(1, "Innhold er påkrevd").max(EXPORT_CONTENT_MAX_LENGTH),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  options: ExportProviderOptionsSchema.optional(),
+});
+export type ExportRequest = z.infer<typeof ExportRequestSchema>;
+
+/** Respons for serialiserbare mål (markdown/pdf/text/word) */
+export const SerializedExportResponseSchema = z.object({
+  target: ExportTargetSchema,
+  content: z.string(),
+  mimeType: z.string(),
+  filename: z.string().optional(),
+  /** Base64-kodet binærdata for PDF/Word */
+  base64: z.string().optional(),
+});
+export type SerializedExportResponse = z.infer<typeof SerializedExportResponseSchema>;
+
+/** Respons for eksterne mål (notion) */
+export const ExternalExportResponseSchema = z.object({
+  target: ExportTargetSchema,
+  resourceId: z.string(),
+  url: z.string().optional(),
+  title: z.string(),
+});
+export type ExternalExportResponse = z.infer<typeof ExternalExportResponseSchema>;
+
+/** Samlet eksport-respons */
+export const ExportResponseSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("serialized"),
+    data: SerializedExportResponseSchema,
+  }),
+  z.object({
+    kind: z.literal("external"),
+    data: ExternalExportResponseSchema,
+  }),
+]);
+export type ExportResponse = z.infer<typeof ExportResponseSchema>;

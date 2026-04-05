@@ -12,6 +12,7 @@ import { showToast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
 import { AttachmentStrip } from "@/app/components/chat/AttachmentStrip";
 import { ChatShareModal } from "@/app/components/chat/ChatShareModal";
+import { ChatExportModal } from "@/app/components/chat/ChatExportModal";
 import { ConversationMessageContent } from "@/app/components/chat/ConversationMessageContent";
 import { SmartSuggestions } from "@/app/components/chat/SmartSuggestions";
 import { ChatShareResponseSchema } from "common/chat";
@@ -20,7 +21,6 @@ import { useChatHistory } from "@/app/hooks/useChatHistory";
 import { FeilMelding, type FeilMeldingType } from "@/app/components/ui/FeilMelding";
 import { useUIStore } from "@/app/store/uiStore";
 import { useKIStore } from "@/app/store/kiStore";
-import { exportToMarkdown } from "@/app/utils/exportChat";
 import { fetchApi } from "@/app/lib/apiClient";
 import { formaterTall } from "@/app/lib/dato";
 import { parseApiError } from "@/app/lib/errorUtils";
@@ -146,6 +146,7 @@ export function ChatSection() {
     const [aktivChatId, setAktivChatId] = useState<string | null>(null);
     const [animerendeMeldingId, settAnimerendeMeldingId] = useState<string | null>(null);
     const [viserShareModal, setViserShareModal] = useState(false);
+    const [viserExportModal, setViserExportModal] = useState(false);
     const [oppretterDeling, setOppretterDeling] = useState(false);
     /** KI-feil fra reelt kall (chat/dokumentanalyse) – vises som banner; erstatter tidligere test-connection. */
     const [kiError, settKiError] = useState<Error | null>(null);
@@ -1277,6 +1278,16 @@ export function ChatSection() {
                 chatTitle={delingsTittel}
                 messageCount={meldinger.length}
             />
+            <ChatExportModal
+                isOpen={viserExportModal}
+                onClose={() => setViserExportModal(false)}
+                chatTitle={delingsTittel}
+                messageCount={meldinger.length}
+                content={meldinger.map((m) => {
+                    const rolle = m.rolle === "user" ? "**Deg**" : "🤖 **KI-Assistent**";
+                    return `### ${rolle}\n\n${m.innhold}`;
+                }).join("\n\n---\n\n")}
+            />
             {/* Main Chat Area */}
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Meldinger */}
@@ -1507,26 +1518,14 @@ export function ChatSection() {
                             <Share2 className="w-5 h-5 text-slate-400 dark:text-slate-500" />
                         </button>
 
-                        {/* Eksporter samtale som Markdown */}
+                        {/* Eksporter samtale */}
                         <button
                             type="button"
-                            onClick={() => {
-                                if (meldinger.length === 0) return;
-                                exportToMarkdown(
-                                    meldinger.map((m) => ({
-                                        rolle: m.rolle,
-                                        innhold: m.innhold,
-                                        tidsstempel: m.tidsstempel,
-                                    })),
-                                    undefined,
-                                    "studywise-samtale",
-                                );
-                                showToast.success(t("chat.conversationDownloaded"));
-                            }}
+                            onClick={() => setViserExportModal(true)}
                             disabled={meldinger.length === 0 || skriver || analyserarDokument}
                             className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-                            title={t("chat.exportMarkdownTitle")}
-                            aria-label={t("chat.exportMarkdown")}
+                            title={t("exportModal.title")}
+                            aria-label={t("exportModal.title")}
                         >
                             <Download className="w-5 h-5 text-slate-400 dark:text-slate-500" />
                         </button>

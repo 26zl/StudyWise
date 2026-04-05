@@ -29,6 +29,7 @@ import arbeidsplanRuter from "./rutere/arbeidsplan/arbeidsplan.js";
 import canvasRuter from "./rutere/canvas/canvas.js";  
 import kiRuter from "./rutere/ki/ki.js";
 import brukerAuthRuter from "./rutere/auth/brukerAuth.js";
+import { notionSettingsRouter } from "./rutere/auth/notionSettings.js";
 import taskBreakdownRouter from "./rutere/ki/taskBreakdown.js";
 import weeklyPlanRouter from "./rutere/ki/weeklyPlan.js";
 import { kiOppsummeringRouter } from "./rutere/ki/kiOppsummering.js";
@@ -38,6 +39,7 @@ import authDiagnosticRouter, {
 } from "./rutere/debug/authDiagnostic.js";
 import quizRouter from "./rutere/quiz/quiz.js";
 import flashcardsRouter from "./rutere/flashcards/flashcards.js";
+import { kiExportRouter } from "./rutere/ki/kiExport.js";
 import {
   cleanupExpiredSharedChats,
   SHARE_CLEANUP_INTERVAL_MS,
@@ -348,7 +350,9 @@ app.use("/api/ki", noCache, kiRuter);
 app.use("/api/ki", noCache, kiOppsummeringRouter);
 app.use("/api/ki/task-breakdown", noCache, taskBreakdownRouter);
 app.use("/api/ki/weekly-plan", noCache, weeklyPlanRouter);
+app.use("/api/ki", noCache, kiExportRouter);
 app.use("/api/user", brukerAuthRuter);
+app.use("/api/user", notionSettingsRouter);
 app.use("/api/arbeidsplan", noCache, arbeidsplanRuter);
 app.use("/api/quiz", noCache, quizRouter);
 app.use("/api/flashcards", noCache, flashcardsRouter);

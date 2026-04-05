@@ -92,6 +92,10 @@ export interface IUser extends Document {
     canvasBaseUrl?: string; // Canvas-instans for brukerens institusjon (multi-tenant, f.eks. https://ntnu.instructure.com)
     canvasTokenHash?: string; // Hash av token for rask sammenligning
     canvasUser?: mongoose.Types.ObjectId;
+    /** Notion API-token for eksport (kryptert) */
+    notionApiKey?: string;
+    /** Standard Notion-side for eksport (page ID) */
+    notionDefaultPageId?: string;
     // Skjulte Canvas-emne-IDer
     hiddenCourseIds?: { courseIds: number[] };
     // Brukerpreferanser for AI Canvas-kontekst
@@ -191,6 +195,15 @@ const UserSchema: Schema = new Schema(
             type: Schema.Types.ObjectId,
             ref: 'CanvasUser',
             required: false,
+        },
+        notionApiKey: {
+            type: String, // Kryptert. Brukes for Notion-eksport.
+            select: false, // Hentes ikke som standard (sikkerhet).
+        },
+        notionDefaultPageId: {
+            type: String,
+            trim: true,
+            default: undefined,
         },
         hiddenCourseIds: {
             type: {

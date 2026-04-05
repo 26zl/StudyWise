@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Moon, Sun, Key, User, Info, Bot, CheckCircle, Shield, ExternalLink, Languages, Cookie, Bell } from "lucide-react";
+import { Moon, Sun, Key, User, Info, Bot, CheckCircle, Shield, ExternalLink, Languages, Cookie, Bell, FileUp } from "lucide-react";
 import { AUTH_ME_QUERY_KEY, CanvasTokenConflictError, useLagreCanvasToken, useSlettCanvasToken } from "@/app/auth/auth-api";
 import { resetCanvasTokenStatus, useCanvasUser } from "@/app/canvas/canvas-api";
 import { useTheme } from "next-themes";
@@ -21,6 +21,8 @@ import { CanvasBaseUrlSchema } from "common/auth";
 import { useCookieConsent } from "@/app/hooks/useCookieConsent";
 import { useLanguage } from "@/app/i18n";
 import { useBrowserPushNotifications } from "@/app/hooks/useBrowserPushNotifications";
+import { withCsrfProtection } from "@/app/lib/csrf";
+import { fetchApi } from "@/app/lib/apiClient";
 import type { BrowserPushPreferences } from "common/notifications";
 
 // Typer for SettingsSection props
@@ -206,6 +208,111 @@ export function SettingsSection({
     const browserPush = useBrowserPushNotifications(browserPushPreferences);
     const visningsnavn = [fornavn, etternavn].filter(Boolean).join(" ");
     const brukernavn = username?.trim() || null;
+
+    // --- Notion integration state ---
+    const [notionApiKey, setNotionApiKey] = useState("");
+    const [notionDefaultPageId, setNotionDefaultPageId] = useState("");
+    const [harNotionApiKey, setHarNotionApiKey] = useState(false);
+    const [visNotionKey, setVisNotionKey] = useState(false);
+    const [isLoadingNotion, setIsLoadingNotion] = useState(true);
+    const [isSavingNotion, setIsSavingNotion] = useState(false);
+    const [isDeletingNotion, setIsDeletingNotion] = useState(false);
+    const [visNotionSlettBekreftelse, setVisNotionSlettBekreftelse] = useState(false);
+
+    // Hent Notion-status ved oppstart
+    useEffect(() => {
+        const fetchNotionStatus = async () => {
+            try {
+                const res = await fetchApi("/api/user/notion", { method: "GET" });
+                if (res.ok) {
+                    const data = await res.json() as {
+                        hasApiKey: boolean;
+                        defaultPageId: string | null;
+                    };
+                    setHarNotionApiKey(data.hasApiKey);
+                    setNotionDefaultPageId(data.defaultPageId ?? "");
+                }
+            } catch {
+                // Ignore errors, just show as not configured
+            } finally {
+                setIsLoadingNotion(false);
+            }
+        };
+        void fetchNotionStatus();
+    }, []);
+
+    // Lagre Notion-innstillinger
+    const handleSaveNotion = async () => {
+        if (!notionApiKey.trim() && !notionDefaultPageId.trim()) return;
+        setIsSavingNotion(true);
+        try {
+            const res = await fetchApi("/api/user/notion", withCsrfProtection({
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    apiKey: notionApiKey.trim() || undefined,
+                    defaultPageId: notionDefaultPageId.trim() || undefined,
+                }),
+            }));
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({})) as { melding?: string };
+                throw new Error(errData.melding || "Kunne ikke lagre");
+            }
+            const data = await res.json() as { hasApiKey: boolean; defaultPageId: string | null };
+            setHarNotionApiKey(data.hasApiKey);
+            setNotionDefaultPageId(data.defaultPageId ?? "");
+            setNotionApiKey(""); // Clear input after save
+            showToast.success(
+                t("settings.notionIntegration.saveSuccess.title"),
+                t("settings.notionIntegration.saveSuccess.description"),
+            );
+        } catch (error) {
+            showToast.error(
+                t("settings.notionIntegration.saveError.title"),
+                lagBrukervennligFeilmelding(
+                    error instanceof Error ? error : null,
+                    {},
+                    t("errors.generic.default"),
+                    t,
+                ),
+            );
+        } finally {
+            setIsSavingNotion(false);
+        }
+    };
+
+    // Slett Notion-tilkobling
+    const handleDeleteNotion = async () => {
+        setIsDeletingNotion(true);
+        try {
+            const res = await fetchApi("/api/user/notion", withCsrfProtection({
+                method: "DELETE",
+            }));
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({})) as { melding?: string };
+                throw new Error(errData.melding || "Kunne ikke slette");
+            }
+            setHarNotionApiKey(false);
+            setNotionDefaultPageId("");
+            setVisNotionSlettBekreftelse(false);
+            showToast.success(
+                t("settings.notionIntegration.deleteSuccess.title"),
+                t("settings.notionIntegration.deleteSuccess.description"),
+            );
+        } catch (error) {
+            showToast.error(
+                t("settings.notionIntegration.deleteError.title"),
+                lagBrukervennligFeilmelding(
+                    error instanceof Error ? error : null,
+                    {},
+                    t("errors.generic.default"),
+                    t,
+                ),
+            );
+        } finally {
+            setIsDeletingNotion(false);
+        }
+    };
 
     // Formater opprettelsesdato hvis tilgjengelig
     const opprettetDato = canvasUser?.created_at
@@ -902,6 +1009,141 @@ export function SettingsSection({
                             <CanvasContextSelector />
                         </section>
                     )}
+
+                    {/* Notion-integrasjon */}
+                    <section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
+                                <FileUp size={20} className="text-slate-600 dark:text-slate-300" />
+                            </div>
+                            <h3 className="font-semibold text-slate-900 dark:text-white">
+                                {t("settings.notionIntegration.title")}
+                            </h3>
+                        </div>
+
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                            {t("settings.notionIntegration.description")}
+                        </p>
+
+                        {isLoadingNotion ? (
+                            <div className="animate-pulse h-10 bg-slate-200 dark:bg-slate-700 rounded-lg" />
+                        ) : (
+                            <>
+                                {harNotionApiKey && (
+                                    <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="flex gap-2">
+                                                <CheckCircle size={16} className="text-green-600 shrink-0 mt-0.5" />
+                                                <p className="text-sm text-green-700 dark:text-green-300">
+                                                    {t("settings.notionIntegration.connected")}
+                                                </p>
+                                            </div>
+                                            {!visNotionSlettBekreftelse ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setVisNotionSlettBekreftelse(true)}
+                                                    className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                                                >
+                                                    {t("settings.notionIntegration.deleteConnection")}
+                                                </button>
+                                            ) : (
+                                                <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
+                                                    <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+                                                        {t("settings.notionIntegration.deleteConfirm")}
+                                                    </span>
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void handleDeleteNotion()}
+                                                            disabled={isDeletingNotion}
+                                                            className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            {isDeletingNotion ? t("settings.notionIntegration.deleting") : t("settings.notionIntegration.deleteConfirmYes")}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setVisNotionSlettBekreftelse(false)}
+                                                            className="px-2 py-1 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs rounded transition-colors"
+                                                        >
+                                                            {t("common.actions.cancel")}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <fieldset className="space-y-3">
+                                    <div className="relative">
+                                        <label htmlFor="notion-api-key" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                            {t("settings.notionIntegration.apiKeyLabel")}
+                                        </label>
+                                        <input
+                                            id="notion-api-key"
+                                            type={visNotionKey ? "text" : "password"}
+                                            value={notionApiKey}
+                                            aria-label={t("settings.notionIntegration.apiKeyLabel")}
+                                            onChange={(e) => setNotionApiKey(e.target.value)}
+                                            placeholder={harNotionApiKey ? "••••••••••••••••" : t("settings.notionIntegration.apiKeyPlaceholder")}
+                                            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setVisNotionKey(!visNotionKey)}
+                                            className="absolute right-3 top-8 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                                        >
+                                            {visNotionKey ? t("settings.notionIntegration.hide") : t("settings.notionIntegration.show")}
+                                        </button>
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="notion-page-id" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                            {t("settings.notionIntegration.defaultPageLabel")}
+                                        </label>
+                                        <input
+                                            id="notion-page-id"
+                                            type="text"
+                                            value={notionDefaultPageId}
+                                            aria-label={t("settings.notionIntegration.defaultPageLabel")}
+                                            onChange={(e) => setNotionDefaultPageId(e.target.value)}
+                                            placeholder={t("settings.notionIntegration.defaultPagePlaceholder")}
+                                            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                        />
+                                        <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                                            {t("settings.notionIntegration.defaultPageHelp")}
+                                        </p>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleSaveNotion()}
+                                        disabled={(!notionApiKey.trim() && !notionDefaultPageId.trim()) || isSavingNotion}
+                                        className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        {isSavingNotion ? t("settings.notionIntegration.saving") : t("settings.notionIntegration.save")}
+                                    </button>
+                                </fieldset>
+
+                                {/* Infoboks */}
+                                <div className="mt-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                                    <div className="flex gap-2">
+                                        <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />
+                                        <div className="text-sm text-blue-700 dark:text-blue-300">
+                                            <p className="font-medium mb-1">{t("settings.notionIntegration.howTo.title")}</p>
+                                            <ol className="list-decimal list-inside space-y-1 text-blue-600 dark:text-blue-400">
+                                                <li>{t("settings.notionIntegration.howTo.step1")}</li>
+                                                <li>{t("settings.notionIntegration.howTo.step2")}</li>
+                                                <li>{t("settings.notionIntegration.howTo.step3")}</li>
+                                                <li>{t("settings.notionIntegration.howTo.step4")}</li>
+                                                <li>{t("settings.notionIntegration.howTo.step5")}</li>
+                                            </ol>
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </section>
 
                 </div>
             </div>
