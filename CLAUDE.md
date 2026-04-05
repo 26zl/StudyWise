@@ -182,6 +182,23 @@ Request authentication flows through middleware in `backend/src/middleware/`:
 
 Typical route setup: `router.use(requireAuth)` then per-route `knyttCanvasToken` where Canvas access is needed.
 
+### Account Deletion
+
+`backend/src/rutere/auth/kontoSlett.ts` — `deleteAccountData(userId, options?)` handles full cleanup:
+
+- MongoDB transaction: deletes ChatHistory, SharedChat, TaskBreakdown, ContentEmbedding, CanvasUser, Arbeidsplan, CanvasStructure, WebPushSubscription, StudyContext, PendingClerkDeletion, User — creates `DeletedUserTombstone` (90-day TTL)
+- Post-transaction: Pinecone vector cleanup, Redis/runtime cache invalidation, Clerk user deletion
+- `{ skipClerkDeletion: true }` — skips Clerk API call (used by webhook when Clerk user is already deleted)
+- Idempotent: if user not found, checks tombstone and returns early
+
+### Clerk Webhook
+
+`backend/src/rutere/auth/clerkWebhook.ts` — safety net for `user.deleted` events from Clerk (e.g. admin deletes user via Clerk Dashboard). Mounted **before** `express.json()` in `index.ts` with `express.raw()` for signature verification. Uses Svix HMAC-SHA256 signature verification, timestamp validation (5 min window), and Redis-based replay/dedupe protection. Requires `CLERK_WEBHOOK_SECRET` env var (optional — logs warning at startup if missing).
+
+### Auth Turnstile
+
+Turnstile verification state is shared across dynos via Redis (`auth:turnstile-session:<sid>`) with a local in-memory read-through cache. Cookie validation logic lives in `common/src/auth.ts` (`validateAuthTurnstileCookieValue`) — shared between frontend SSR and backend to avoid duplicating HMAC verification.
+
 ### Audit Logging
 
 `backend/src/utils/auditLog.ts` — `audit()` writes structured events to MongoDB (`AuditLog` model) with actor, action, category, outcome, and request metadata. Categories: `auth`, `profile`, `integration`, `admin`, `security`, `privacy`, `ki`. Covers auth failures, admin actions, account deletion, Canvas token ops, chat sharing, RBAC/CSRF/rate-limit violations, security alerts, and all KI operations (chat, document analysis, summarization, task breakdown, weekly plan, history deletion). Import `AUDIT_ACTIONS` for predefined action constants. AuditLog has a 2-year TTL and automatic GDPR anonymization on user deletion.
@@ -401,7 +418,7 @@ pnpm install
 pnpm build  # Builds common package first!
 ```
 
-**Environment**: Copy `backend/.env.example` → `backend/.env` and fill in required values. Required for dev: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, Turnstile/contact vars. Production additionally requires `API_HOST`, `TRUST_PROXY_HOPS`, `WEB_ORIGINS` and optional `INTERNAL_HOSTS` (comma-separated hostnames for internal traffic, e.g. Vercel → Heroku direct), plus Datadog APM (`DD_*`).
+**Environment**: Copy `backend/.env.example` → `backend/.env` and fill in required values. Required for dev: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, Turnstile/contact vars. Optional: `CLERK_WEBHOOK_SECRET` (for Clerk user.deleted webhook — logs warning if missing). Production additionally requires `API_HOST`, `TRUST_PROXY_HOPS`, `WEB_ORIGINS` and optional `INTERNAL_HOSTS` (comma-separated hostnames for internal traffic, e.g. Vercel → Heroku direct), plus Datadog APM (`DD_*`).
 
 ### CI Pipeline (`.github/workflows/ci.yml`)
 
@@ -447,6 +464,10 @@ Nonce-based CSP is enforced per request in `frontend/proxy.ts`. `buildCspValue(n
 - **M6 (BroadcastChannel validation)**: BroadcastChannel is same-origin only per browser spec — risk is minimal; extra validation not required.
 - **H3 (multer MIME-type)**: Magic-byte validation happens in `parseDocument()`. Multer `fileFilter` cannot inspect buffer in memory storage mode.
 - **H5 (ErrorBoundary for lazy chunks)**: `SectionErrorBoundary` already wraps all lazy-loaded sections in `DashboardView`.
+
+### Clerk UserProfile Appearance
+
+When hiding Clerk UI sections via `appearance.elements`, Tailwind class `"hidden"` works for most sections (`profileSection__emailAddresses`, `profileSection__connectedAccounts`) but **does not work** for `profileSection__deleteAccount` and `profileSection__danger` — use inline style `{ display: "none" }` for those.
 
 ---
 
