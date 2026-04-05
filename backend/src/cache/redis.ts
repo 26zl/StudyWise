@@ -128,6 +128,34 @@ export const setCache = async (key: string, value: string, ttlSeconds: number = 
     }
 };
 
+/**
+ * Atomisk SET NX (set-if-not-exists) med TTL.
+ * Returnerer true hvis nøkkelen ble satt (dvs. den fantes ikke fra før), false ellers.
+ * Brukes for single-use nonce-forbruk der GET+SET har et race-vindu.
+ */
+export const setCacheNX = async (key: string, value: string, ttlSeconds: number): Promise<boolean> => {
+    if (!client.isOpen) {
+        logger.warn({ key }, "Redis setCacheNX: klient ikke åpen");
+        return false;
+    }
+    const keyToUse = typeof key === "string" ? key.trim() : key;
+    if (!isValidCacheKey(keyToUse)) {
+        logger.warn({ key: keyToUse.slice(0, 50) }, "Redis setCacheNX: ugyldig nøkkel avvist");
+        return false;
+    }
+    try {
+        const result = await client.set(keyToUse, value, {
+            EX: ttlSeconds,
+            NX: true,
+        });
+        // Redis returnerer "OK" ved suksess, null hvis nøkkelen allerede finnes
+        return result === "OK";
+    } catch (error) {
+        logger.error({ err: error, key }, "Redis setCacheNX feilet");
+        return false;
+    }
+};
+
 // Sletter spesifikke cache-nøkler (brukes til opprydding av legacy-nøkler)
 export const deleteCacheKeys = async (keys: string[]): Promise<number> => {
     if (!client.isOpen || keys.length === 0) {

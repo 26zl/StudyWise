@@ -36,10 +36,10 @@ export const SHARE_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 const SHARE_OPPORTUNISTIC_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 
 let lastOpportunisticCleanupAt = 0;
-const SHARE_ID_REGEX = /^[A-Za-z0-9_-]{16}$/;
+const SHARE_ID_REGEX = /^[A-Za-z0-9_-]{16,24}$/;
 
 function createShareId(): string {
-  return randomBytes(18).toString("base64url").slice(0, 16);
+  return randomBytes(24).toString("base64url").slice(0, 24);
 }
 
 function triggerOpportunisticCleanup(): void {
@@ -156,7 +156,15 @@ const DEFAULT_SHARE_TTL_DAYS = 30;
 async function parseStoredChatMessages(
   doc: Pick<ChatHistoryDocument, "encryptedMessages">,
 ): Promise<z.infer<typeof ChatMessageSchema>[]> {
-  const decrypted = JSON.parse(decrypt(doc.encryptedMessages));
+  let decryptedJson: string;
+  try {
+    decryptedJson = decrypt(doc.encryptedMessages);
+  } catch (err) {
+    throw new Error(
+      `Dekryptering av chat-meldinger feilet: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  const decrypted = JSON.parse(decryptedJson);
   return z.array(ChatMessageSchema).parse(decrypted);
 }
 

@@ -130,6 +130,7 @@ function DatadogUserSync() {
 function AuthConflictGuard() {
   const queryClient = useQueryClient();
   const clerk = useClerk();
+  const { t } = useLanguage();
   const signOutTriggeredRef = useRef(false);
 
   useEffect(() => {
@@ -145,22 +146,32 @@ function AuthConflictGuard() {
         const msg = error instanceof Error ? error.message : "";
         if (erFatalUserDataFeilmelding(msg)) {
           signOutTriggeredRef.current = true;
-          const erSlettet = msg.includes("kontoen er slettet");
-          showToast.error(
-            erSlettet ? "Konto slettet" : "Innloggingskonflikt",
-            erSlettet
-              ? "Kontoen din er slettet. Opprett en ny konto for å fortsette."
-              : msg || "Kontoen din har en innloggingskonflikt. Du blir logget ut.",
-          );
+          const erSlettet = /kontoen er slettet/i.test(msg);
+          const erOAuthKonflikt = /allerede koblet til en annen studywise/i.test(msg);
+          const erEpostKonflikt = /allerede en konto med denne e-postadressen/i.test(msg);
+
+          let feilmelding: string;
+          if (erSlettet) {
+            feilmelding = t("auth.conflictRedirect.accountDeleted");
+          } else if (erOAuthKonflikt) {
+            feilmelding = t("auth.conflictRedirect.oauthConflict");
+          } else if (erEpostKonflikt) {
+            feilmelding = t("auth.conflictRedirect.emailConflict");
+          } else {
+            feilmelding = t("auth.conflictRedirect.accountConflict");
+          }
+
+          const maalside = erSlettet ? "/auth/sign-up" : "/auth/sign-in";
+          const redirectUrl = `${maalside}?error=${encodeURIComponent(feilmelding)}`;
           void clerk.signOut().catch(() => {}).finally(() => {
             clearClientAuthState(queryClient);
-            window.location.replace(erSlettet ? "/auth/sign-up" : "/auth/sign-in");
+            window.location.replace(redirectUrl);
           });
         }
       }
     });
     return unsubscribe;
-  }, [clerk, queryClient]);
+  }, [clerk, queryClient, t]);
 
   return null;
 }

@@ -55,6 +55,7 @@ export function SidebarAppShell({
   contentClassName,
   children,
 }: SidebarAppShellProps) {
+  const { t } = useLanguage();
   return (
     <div className="flex h-full min-h-full min-w-0 flex-col bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 md:flex-row">
       <Sidebar
@@ -63,7 +64,7 @@ export function SidebarAppShell({
         brukernavn={brukernavn}
         brukerRolle={brukerRolle}
       />
-      <section className="flex min-w-0 flex-1 flex-col bg-white dark:bg-slate-900" aria-label="Appinnhold">
+      <section className="flex min-w-0 flex-1 flex-col bg-white dark:bg-slate-900" aria-label={t("chat.appContentLabel")}>
         <div className={cn("flex-1 min-h-0 overflow-y-auto", contentClassName)}>{children}</div>
         {footer ? <Footer /> : null}
       </section>

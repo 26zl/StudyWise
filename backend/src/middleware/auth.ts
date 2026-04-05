@@ -22,8 +22,10 @@ import {
   isUserDeleted,
   isUsernameConflict,
   getSessionIdFromTokenCache,
+  deleteClerkUserById,
 } from "../rutere/auth/clerkAuth.js";
 import { AUTH_TURNSTILE_COOKIE_NAME } from "common/auth";
+import { clearAuthTurnstileCookie } from "../utils/authTurnstileCookie.js";
 import { audit, AUDIT_ACTIONS } from "../utils/auditLog.js";
 import { checkSecurityThresholds } from "../utils/securityAlert.js";
 
@@ -48,7 +50,7 @@ function getCookieValue(req: Request, name: string): string | undefined {
 
 
 type AuthResolution =
-  | { status: "authenticated"; clerkUserId: string }
+  | { status: "authenticated"; clerkUserId: string; clearTurnstileCookie?: boolean }
   | { status: "missing_token" }
   | { status: "invalid_or_expired" }
   | { status: "account_conflict"; clerkUserId: string }
@@ -95,6 +97,8 @@ async function resolveAuthentication(req: Request): Promise<AuthResolution> {
   const forceSync = req.query.forceSync === "true";
   const authTurnstileCookie = getCookieValue(req, AUTH_TURNSTILE_COOKIE_NAME);
   const sessionId = getSessionIdFromTokenCache(token) ?? undefined;
+  // Spor om Turnstile-cookie ble brukt slik at den kan slettes etter autentisering (engangsbruk)
+  const hadTurnstileCookie = !!authTurnstileCookie;
   const userResult = await findOrCreateUserByClerkId(clerkUserId, { flowId, forceSync, authTurnstileCookie, sessionId });
   const tDb = Date.now();
 
@@ -152,7 +156,8 @@ async function resolveAuthentication(req: Request): Promise<AuthResolution> {
   );
 
   settAutentisertBrukerPåRequest(req, userResult);
-  return { status: "authenticated", clerkUserId };
+  // Flagg at Turnstile-cookie ble konsumert og bør slettes (engangsbruk)
+  return { status: "authenticated", clerkUserId, clearTurnstileCookie: hadTurnstileCookie };
 }
 
 export interface CanvasTilkobling {
@@ -226,6 +231,10 @@ export async function requireAuth(
     const result = await resolveAuthentication(req);
 
     if (result.status === "authenticated") {
+      // Slett Turnstile-cookie etter forbruk (engangsbruk — forhindrer gjenbruk for andre sesjoner)
+      if (result.clearTurnstileCookie) {
+        clearAuthTurnstileCookie(res);
+      }
       next();
       return;
     }
@@ -286,6 +295,7 @@ export async function requireAuth(
       );
       res.status(403).json({
         error: "turnstile_required",
+        kode: "turnstile_required",
         melding: "Sikkerhetsverifisering kreves. Gå tilbake til innloggingssiden og prøv igjen.",
       });
       return;
@@ -309,14 +319,29 @@ export async function requireAuth(
         },
         req,
       });
+
+      // Slett den nye Clerk-brukeren asynkront for å bryte innloggingsloopen.
+      // Brukeren har ingen lokal data (registreringen ble avvist), så det er trygt.
+      void deleteClerkUserById(result.clerkUserId).then((deleted) => {
+        if (deleted) {
+          logger.info(
+            { clerkUserId: result.clerkUserId },
+            "OAuth-konflikt: ny Clerk-bruker slettet for å forhindre innloggingsloop",
+          );
+        }
+      });
+
       const providerName =
         result.provider === "google" ? "Google" : "Microsoft";
-      apiError.conflict(
-        res,
-        `Denne ${providerName}-kontoen er allerede koblet til en annen StudyWise-bruker. ` +
+      res.status(409).json({
+        error: "oauth_account_conflict",
+        kode: "oauth_account_conflict",
+        melding:
+          `Denne ${providerName}-kontoen er allerede koblet til en annen StudyWise-bruker. ` +
           "Den eksisterende kontoen må slettes først før denne kontoen kan brukes. " +
           "Logg inn med den eksisterende kontoen og slett den, eller bruk en annen innloggingsmetode.",
-      );
+        provider: result.provider,
+      });
       return;
     }
 
@@ -336,10 +361,13 @@ export async function requireAuth(
         },
         req,
       });
-      apiError.conflict(
-        res,
-        "Innloggingskonflikt: vi mangler verifiserbar OAuth-identifikator fra innloggingsleverandoren. Prov igjen, eller kontakt support hvis problemet fortsetter.",
-      );
+      res.status(409).json({
+        error: "oauth_metadata_missing",
+        kode: "oauth_metadata_missing",
+        melding:
+          "Innloggingskonflikt: vi mangler verifiserbar OAuth-identifikator fra innloggingsleverandoren. Prov igjen, eller kontakt support hvis problemet fortsetter.",
+        provider: result.provider,
+      });
       return;
     }
 
@@ -359,6 +387,7 @@ export async function requireAuth(
       });
       res.status(409).json({
         error: "username_conflict",
+        kode: "username_conflict",
         melding:
           `Brukernavnet "${result.username}" er allerede tatt. ` +
           "Gå tilbake til innloggingssiden og velg et annet brukernavn.",
@@ -382,6 +411,7 @@ export async function requireAuth(
       });
       res.status(403).json({
         error: "user_deleted",
+        kode: "user_deleted",
         melding:
           "Denne kontoen er slettet. Opprett en ny konto for å fortsette.",
       });
@@ -511,6 +541,7 @@ export async function requireRecentAuth(req: Request, res: Response, next: NextF
   if (now - sessionCreatedAt > SENSITIVE_OP_MAX_SESSION_AGE_SEC) {
     res.status(403).json({
       error: "session_too_old",
+      kode: "session_too_old",
       melding: "Du må logge inn på nytt før du kan utføre denne handlingen.",
       maxAgeSec: SENSITIVE_OP_MAX_SESSION_AGE_SEC,
     });

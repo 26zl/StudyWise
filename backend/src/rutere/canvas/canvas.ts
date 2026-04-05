@@ -207,7 +207,7 @@ router.get("/whoami", async (req, res) => {
           : undefined;
         if (oppdatertCanvasBrukerId != null) {
           await User.updateOne(
-            { _id: userId },
+            { _id: userId, deletedAt: { $exists: false } },
             {
               $set: {
                 canvasUser: oppdatertCanvasBrukerId as mongoose.Types.ObjectId,
@@ -387,7 +387,7 @@ router.get("/emner", async (req, res) => {
 router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
   const token = req.canvasToken;
   const tokenAvtrykk = token
-    ? crypto.createHash("sha256").update(token).digest("hex").slice(0, 12)
+    ? crypto.createHash("sha256").update(token).digest("hex").slice(0, 32)
     : "ukjent";
   const tenantPrefix = req.canvasBaseUrl ? getCanvasTenantCachePrefix(req.canvasBaseUrl) : "default";
   const cacheKey = `canvas:${tenantPrefix}:${tokenAvtrykk}:emner-metadata`;
@@ -649,7 +649,7 @@ router.get("/announcements", rateLimitCanvasTung, async (req, res) => {
 router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
   const token = req.canvasToken;
   const tokenAvtrykk = token
-    ? crypto.createHash("sha256").update(token).digest("hex").slice(0, 12)
+    ? crypto.createHash("sha256").update(token).digest("hex").slice(0, 32)
     : "ukjent";
   const tenantPrefix = req.canvasBaseUrl ? getCanvasTenantCachePrefix(req.canvasBaseUrl) : "default";
   const cacheKey = `canvas:${tenantPrefix}:${tokenAvtrykk}:kalender-v3`; // Ny versjon med Planner API

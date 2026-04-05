@@ -1107,12 +1107,20 @@ router.post("/push-subscriptions/test", rateLimitMe, async (req, res) => {
   }
 });
 
-// POST /logout (Clerk session cleared on frontend; backend clears Canvas runtime cache)
+// POST /logout (Clerk session cleared on frontend; backend clears Canvas runtime cache + token cache)
 router.post("/logout", rateLimitMe, async (req, res) => {
   const userId = req.user?.id;
   try {
     if (userId) {
       await clearUserCanvasRuntimeState(userId);
+
+      // Invalider Bearer-token-cache for brukeren slik at cached tokens ikke kan gjenbrukes etter logout
+      const authenticatedUser = (req as Request & { authenticatedUser?: IUser }).authenticatedUser;
+      const clerkId = authenticatedUser?.clerkId;
+      if (clerkId) {
+        const { invalidateTokenCacheByClerkId } = await import("./clerkAuth.js");
+        invalidateTokenCacheByClerkId(clerkId);
+      }
     }
   } catch (error) {
     logger.error({ err: error }, "Feil under logout-opprydding");

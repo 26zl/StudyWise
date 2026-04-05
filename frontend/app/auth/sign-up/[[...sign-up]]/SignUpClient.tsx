@@ -63,7 +63,9 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
+  // Vis feilmelding fra URL-parameter (f.eks. etter auth-konflikt redirect)
+  const urlError = searchParams.get("error");
+  const [formError, setFormError] = useState<string | null>(urlError);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOAuthSubmitting, setIsOAuthSubmitting] = useState(false);
 
@@ -119,12 +121,13 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
     fetchApi("/api/user/me", { method: "GET" })
       .then(async (res) => {
         if (cancelled) return;
-        if (res.status === 409) {
+        if (res.status === 409 || res.status === 403) {
           const json = await res.json().catch(() => ({}));
           const errorType = json?.error;
           if (
             errorType === "oauth_account_conflict" ||
-            errorType === "oauth_metadata_missing"
+            errorType === "oauth_metadata_missing" ||
+            errorType === "turnstile_required"
           ) {
             await clerk.signOut().catch(() => {});
             setOauthConflict(true);
@@ -290,6 +293,14 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
       setIsOAuthSubmitting(true);
 
       try {
+        // Server-side Turnstile-gate: verifiser at human-check er bestått før OAuth-redirect
+        const gateOk = await checkAuthTurnstileGate();
+        if (!gateOk) {
+          setFormError(t("auth.humanCheck.gateError"));
+          setIsOAuthSubmitting(false);
+          return;
+        }
+
         await signUp.authenticateWithRedirect({
           strategy,
           redirectUrl: "/auth/sign-up/sso-callback",

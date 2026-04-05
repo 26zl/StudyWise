@@ -319,7 +319,7 @@ async function markPushIdsAsSent(
   });
 
   await User.updateOne(
-    { _id: userId },
+    { _id: userId, deletedAt: { $exists: false } },
     {
       $set: {
         browserPushSentState: nextState,

@@ -5,6 +5,7 @@ import { audit, AUDIT_ACTIONS, getDeletedAuditActorId } from "../utils/auditLog.
 
 export const CLERK_DELETION_RETRY_INTERVAL_MS = 5 * 60 * 1000;
 const CLERK_DELETION_BATCH_SIZE = 20;
+const MAX_CLERK_DELETION_ATTEMPTS = 20;
 
 function calculateNextRetryAt(attempts: number): Date {
   const delayMs = Math.min(60 * 60 * 1000, 60 * 1000 * 2 ** Math.max(0, attempts));
@@ -45,6 +46,26 @@ export async function processPendingClerkDeletions(): Promise<void> {
 
   for (const item of pending) {
     const attempts = item.attempts ?? 0;
+
+    // Dead-letter: gi opp etter maks forsøk
+    if (attempts >= MAX_CLERK_DELETION_ATTEMPTS) {
+      logger.error(
+        { clerkId: item.clerkId, userId: item.userId, attempts },
+        "Clerk-sletting ga opp etter maks forsøk — krever manuell oppfølging",
+      );
+      if (item.userId) {
+        await audit({
+          actorUserId: getDeletedAuditActorId(item.userId),
+          action: AUDIT_ACTIONS.ACCOUNT_DELETED,
+          category: "privacy",
+          outcome: "failure",
+          metadata: { phase: "clerk_retry_exhausted", attempts, lastError: item.lastError },
+        });
+      }
+      await PendingClerkDeletionModel.deleteOne({ _id: item._id });
+      continue;
+    }
+
     try {
       const deleted = await deleteClerkUserById(item.clerkId);
       if (deleted) {

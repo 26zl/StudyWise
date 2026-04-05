@@ -22,6 +22,7 @@ import { deleteClerkUserById, invalidateTokenCacheByClerkId } from "./clerkAuth.
 import { WebPushSubscriptionModel } from "../../database/models/WebPushSubscription.js";
 import { StudyContext } from "../../database/models/StudyContext.js";
 import { enqueueClerkDeletionRetry } from "../../services/clerkDeletionRetry.service.js";
+import { enqueueVectorDeletionRetry } from "../../services/vectorDeletionRetry.service.js";
 import { DeletedUserTombstone } from "../../database/models/DeletedUserTombstone.js";
 import { PendingClerkDeletionModel } from "../../database/models/PendingClerkDeletion.js";
 
@@ -176,8 +177,19 @@ export async function deleteAccountData(
     vectorCleanupSucceeded = false;
     logger.error(
       { err: cleanupError, userId },
-      "Kontosletting fullforte lokal sletting, men Pinecone-opprydding feilet",
+      "Kontosletting fullforte lokal sletting, men Pinecone-opprydding feilet — legger i retry-kø",
     );
+    try {
+      await enqueueVectorDeletionRetry({
+        userId,
+        lastError: cleanupError instanceof Error ? cleanupError.message : "Pinecone-opprydding feilet",
+      });
+    } catch (retryEnqueueError) {
+      logger.error(
+        { err: retryEnqueueError, userId },
+        "Klarte ikke å legge vektor-sletting i retry-kø",
+      );
+    }
   }
 
   const runtimeCleanupTasks: Array<Promise<unknown>> = [

@@ -432,25 +432,42 @@ export const AUTH_TURNSTILE_COOKIE_VERSION = "v1";
  * Bruker dynamisk import av crypto for å unngå top-level import
  * som kan feile i edge-runtimes.
  */
+/**
+ * Validerer en rå Turnstile-cookie-verdi mot en HMAC-signatur.
+ * Format: v1.<nonce>.<expiresAt>.<signature>
+ * HMAC dekker versjon, nonce og utløpstid for å binde cookien til en unik challenge.
+ * Returnerer { valid, nonce } slik at backend kan håndheve server-side single-use via Redis.
+ */
 export async function validateAuthTurnstileCookieValue(
   rawValue: string | undefined,
   secret: string,
 ): Promise<boolean> {
-  if (!rawValue || !secret) return false;
+  const result = await parseAuthTurnstileCookie(rawValue, secret);
+  return result.valid;
+}
 
-  const [version, expiresAt, signature] = rawValue.split(".");
-  if (version !== AUTH_TURNSTILE_COOKIE_VERSION || !expiresAt || !signature) {
-    return false;
+export async function parseAuthTurnstileCookie(
+  rawValue: string | undefined,
+  secret: string,
+): Promise<{ valid: boolean; nonce: string | null }> {
+  if (!rawValue || !secret) return { valid: false, nonce: null };
+
+  const parts = rawValue.split(".");
+  if (parts.length !== 4) return { valid: false, nonce: null };
+
+  const [version, nonce, expiresAt, signature] = parts;
+  if (version !== AUTH_TURNSTILE_COOKIE_VERSION || !nonce || !expiresAt || !signature) {
+    return { valid: false, nonce: null };
   }
 
-  if (!/^\d+$/.test(expiresAt) || !/^[a-f0-9]{64}$/i.test(signature)) {
-    return false;
+  if (!/^[a-f0-9]{32}$/i.test(nonce) || !/^\d+$/.test(expiresAt) || !/^[a-f0-9]{64}$/i.test(signature)) {
+    return { valid: false, nonce: null };
   }
 
   const crypto = await import("node:crypto");
   const expected = crypto
     .createHmac("sha256", secret)
-    .update(`${AUTH_TURNSTILE_COOKIE_VERSION}:${expiresAt}`)
+    .update(`${AUTH_TURNSTILE_COOKIE_VERSION}:${nonce}:${expiresAt}`)
     .digest("hex");
 
   const isValid = crypto.timingSafeEqual(
@@ -458,7 +475,11 @@ export async function validateAuthTurnstileCookieValue(
     Buffer.from(expected, "hex"),
   );
 
-  return isValid && Number(expiresAt) > Date.now();
+  if (!isValid || Number(expiresAt) <= Date.now()) {
+    return { valid: false, nonce: null };
+  }
+
+  return { valid: true, nonce };
 }
 
 export const AuthTurnstileVerifyRequestSchema = z.object({

@@ -146,6 +146,20 @@ export const nbMessages = {
         "Hvis du ikke mottar koden, sjekk spamfilteret ditt. Bruker du vanligvis Microsoft eller Google, går du tilbake og logger inn med samme metode.",
       title: "Glemt passord?",
     },
+    conflictRedirect: {
+      accountDeleted:
+        "Kontoen din er slettet. Opprett en ny konto for å fortsette.",
+      accountConflict:
+        "Kontoen din har en innloggingskonflikt. Du blir logget ut.",
+      oauthConflict:
+        "Denne kontoen er allerede koblet til en annen StudyWise-bruker. Logg inn med den eksisterende kontoen, eller bruk en annen innloggingsmetode.",
+      emailConflict:
+        "Det finnes allerede en konto med denne e-postadressen koblet til en annen innloggingsmetode. Prøv å logge inn med den opprinnelige metoden (f.eks. Microsoft eller Google), eller kontakt support.",
+    },
+    logoutFailedTitle: "Kunne ikke logge ut",
+    logoutFailedDescription: "Innloggingssesjonen kunne ikke avsluttes. Prøv igjen.",
+    couldNotUpdateAiContext: "Kunne ikke oppdatere AI-kontekst",
+    couldNotUpdateAiContextRetry: "Prøv igjen.",
     signIn: {
       title: "Logg inn",
       subtitle: "Velkommen tilbake! Logg inn for å fortsette.",
@@ -296,6 +310,10 @@ export const nbMessages = {
       generic:
         "Kunne ikke laste brukerdata. Sjekk internettforbindelsen og prøv igjen.",
       sessionExpired: "Sesjonen har utløpt. Logg inn på nytt.",
+    },
+    ki: {
+      generationFailed: "KI-generering feilet. Prøv igjen.",
+      summarizationFailed: "Oppsummering feilet. Prøv igjen.",
     },
   },
   notifications: {
@@ -791,6 +809,10 @@ export const nbMessages = {
     noFlashcardsGenerated: "Ingen flashcards ble generert",
     requestTimeout: "Forespørselen tok for lang tid",
     couldNotGenerate: "Kunne ikke generere {contentType}",
+    decreaseCount: "Reduser antall",
+    increaseCount: "Øk antall",
+    selectStudyMode: "Velg studiemodus",
+    newQuiz: "Ny quiz",
   },
   arbeidsplan: {
     loadingPlan: "Laster arbeidsplan...",
@@ -953,6 +975,20 @@ export const nbMessages = {
     conversationFallback: "Samtale",
     uploadDocumentLabel: "Last opp dokument (PDF, Word, PowerPoint, Excel, kodefiler, bilder)",
     uploadDocumentAriaLabel: "Last opp dokument",
+    retryButton: "Prøv igjen",
+    showErrorDetails: "Vis feildetaljer (debug)",
+    sendingFailed: "Sending feilet",
+    copyButton: "Kopier",
+    shareConversation: "Del samtale",
+    shareConversationTitle: "Del hele samtalen",
+    exportMarkdown: "Eksporter samtale som Markdown",
+    exportMarkdownTitle: "Eksporter samtale (MD)",
+    sendingMessage: "Sender melding",
+    sendMessage: "Send melding",
+    removeAttachment: "Fjern {name}",
+    emptyStateTitle: "Hei! Hvordan kan jeg hjelpe deg?",
+    emptyStateSubtitle: "Jeg kan hjelpe deg med studier, Canvas-innhold og mye mer",
+    appContentLabel: "Appinnhold",
   },
   profil: {
     loading: "Laster konto...",

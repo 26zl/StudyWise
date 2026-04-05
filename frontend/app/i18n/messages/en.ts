@@ -147,6 +147,20 @@ export const enMessages = {
         "If you do not receive the code, check your spam folder. If you usually use Microsoft or Google, go back and sign in with the same method.",
       title: "Forgot password?",
     },
+    conflictRedirect: {
+      accountDeleted:
+        "Your account has been deleted. Create a new account to continue.",
+      accountConflict:
+        "Your account has a sign-in conflict. You have been signed out.",
+      oauthConflict:
+        "This account is already linked to another StudyWise user. Sign in with the existing account, or use a different sign-in method.",
+      emailConflict:
+        "An account with this email address already exists with a different sign-in method. Try signing in with the original method (e.g. Microsoft or Google), or contact support.",
+    },
+    logoutFailedTitle: "Could not sign out",
+    logoutFailedDescription: "The session could not be ended. Please try again.",
+    couldNotUpdateAiContext: "Could not update AI context",
+    couldNotUpdateAiContextRetry: "Try again.",
     signIn: {
       title: "Sign in",
       subtitle: "Welcome back! Sign in to continue.",
@@ -295,6 +309,10 @@ export const enMessages = {
       generic:
         "Could not load user data. Check your internet connection and try again.",
       sessionExpired: "Your session has expired. Sign in again.",
+    },
+    ki: {
+      generationFailed: "AI generation failed. Try again.",
+      summarizationFailed: "Summarization failed. Try again.",
     },
   },
   notifications: {
@@ -792,6 +810,10 @@ export const enMessages = {
     noFlashcardsGenerated: "No flashcards were generated",
     requestTimeout: "The request timed out",
     couldNotGenerate: "Could not generate {contentType}",
+    decreaseCount: "Decrease count",
+    increaseCount: "Increase count",
+    selectStudyMode: "Select study mode",
+    newQuiz: "New quiz",
   },
   arbeidsplan: {
     loadingPlan: "Loading study plan...",
@@ -954,6 +976,20 @@ export const enMessages = {
     conversationFallback: "Conversation",
     uploadDocumentLabel: "Upload document (PDF, Word, PowerPoint, Excel, code files, images)",
     uploadDocumentAriaLabel: "Upload document",
+    retryButton: "Try again",
+    showErrorDetails: "Show error details (debug)",
+    sendingFailed: "Sending failed",
+    copyButton: "Copy",
+    shareConversation: "Share conversation",
+    shareConversationTitle: "Share entire conversation",
+    exportMarkdown: "Export conversation as Markdown",
+    exportMarkdownTitle: "Export conversation (MD)",
+    sendingMessage: "Sending message",
+    sendMessage: "Send message",
+    removeAttachment: "Remove {name}",
+    emptyStateTitle: "Hi! How can I help you?",
+    emptyStateSubtitle: "I can help you with studying, Canvas content and much more",
+    appContentLabel: "App content",
   },
   profil: {
     loading: "Loading account...",

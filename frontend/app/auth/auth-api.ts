@@ -34,6 +34,7 @@ import { fetchApi } from "../lib/apiClient";
 import { broadcastLogout, clearClientAuthState } from "../hooks/use-auth-sync";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useUIStore } from "../store/uiStore";
+import { useLanguage } from "@/app/i18n";
 import type { ZodType } from "zod";
 import {
   createApiError,
@@ -446,6 +447,7 @@ export function useLoggUtWithRedirect() {
   const loggUt = useLoggUt();
   const clerk = useClerk();
   const queryClient = useQueryClient();
+  const { t } = useLanguage();
   const logoutInFlightRef = useRef(false);
   return useCallback(async () => {
     if (logoutInFlightRef.current || loggUt.isPending) {
@@ -458,8 +460,8 @@ export function useLoggUtWithRedirect() {
     } catch (error) {
       if (!AppError.isAppError(error) || !error.requiresReauth()) {
         showToast.warning(
-          "Lokal opprydding feilet",
-          "Vi fortsetter med utlogging av innloggingssesjonen.",
+          t("auth.logoutFailedTitle"),
+          t("auth.logoutFailedDescription"),
         );
       }
     }
@@ -473,8 +475,8 @@ export function useLoggUtWithRedirect() {
     } catch {
       useUIStore.getState().setIsLoggingOut(false);
       showToast.error(
-        "Kunne ikke logge ut",
-        "Innloggingssesjonen kunne ikke avsluttes. Prøv igjen.",
+        t("auth.logoutFailedTitle"),
+        t("auth.logoutFailedDescription"),
       );
       logoutInFlightRef.current = false;
       return;
@@ -484,7 +486,7 @@ export function useLoggUtWithRedirect() {
     broadcastLogout();
 
     window.location.replace("/");
-  }, [clerk, loggUt, queryClient]);
+  }, [clerk, loggUt, queryClient, t]);
 }
 // Hook for lagring av Canvas token
 export function useLagreCanvasToken() {
@@ -619,6 +621,7 @@ const PREFERENCES_DEBOUNCE_MS = 500;
 export function useDebouncedPreferanseOppdater() {
   const queryClient = useQueryClient();
   const { mutateAsync, isPending } = useOppdaterPreferanser();
+  const { t } = useLanguage();
   const pendingRef = useRef<CanvasContextPreferences | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flushRef = useRef<() => void>(() => {});
@@ -633,10 +636,10 @@ export function useDebouncedPreferanseOppdater() {
     if (p) {
       mutateAsync(p).catch(() => {
         queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY });
-        showToast.error("Kunne ikke oppdatere AI-kontekst", "Prøv igjen.");
+        showToast.error(t("auth.couldNotUpdateAiContext"), t("auth.couldNotUpdateAiContextRetry"));
       });
     }
-  }, [mutateAsync, queryClient]);
+  }, [mutateAsync, queryClient, t]);
 
   flushRef.current = flush;
 

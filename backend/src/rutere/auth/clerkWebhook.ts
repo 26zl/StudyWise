@@ -11,7 +11,7 @@ import express from "express";
 import { User } from "../../database/models/User.js";
 import { deleteAccountData } from "./kontoSlett.js";
 import { logger } from "../../utils/logger.js";
-import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
+import { anonymizeAuditTrailForDeletedUser, audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import { rateLimitClerkWebhook } from "../../middleware/rate-limit.js";
 import { getCache, setCache, isRedisReady } from "../../cache/redis.js";
 
@@ -31,15 +31,43 @@ function getWebhookSecret(): string | null {
 const WEBHOOK_DEDUPE_PREFIX = "webhook:svix:";
 const WEBHOOK_DEDUPE_TTL_S = 360;
 
+// In-memory fallback for replay-beskyttelse når Redis er nede (per dyno)
+const LOCAL_DEDUPE_MAX_SIZE = 500;
+const LOCAL_DEDUPE_TTL_MS = WEBHOOK_DEDUPE_TTL_S * 1000;
+const localDedupeCache = new Map<string, number>();
+
+function localDedupeCleanup(): void {
+  if (localDedupeCache.size <= LOCAL_DEDUPE_MAX_SIZE) return;
+  const now = Date.now();
+  for (const [key, ts] of localDedupeCache) {
+    if (now - ts > LOCAL_DEDUPE_TTL_MS) localDedupeCache.delete(key);
+  }
+  // Hvis fortsatt for stor, fjern eldste oppføringer
+  if (localDedupeCache.size > LOCAL_DEDUPE_MAX_SIZE) {
+    const entries = [...localDedupeCache.entries()].sort((a, b) => a[1] - b[1]);
+    const toRemove = entries.slice(0, entries.length - LOCAL_DEDUPE_MAX_SIZE);
+    for (const [key] of toRemove) localDedupeCache.delete(key);
+  }
+}
+
 async function isReplayedEvent(svixId: string): Promise<boolean> {
-  if (!isRedisReady()) return false; // Tillat gjennomgang hvis Redis er nede
-  const existing = await getCache(`${WEBHOOK_DEDUPE_PREFIX}${svixId}`);
-  return existing !== null;
+  if (isRedisReady()) {
+    const existing = await getCache(`${WEBHOOK_DEDUPE_PREFIX}${svixId}`);
+    return existing !== null;
+  }
+  // Fallback: in-memory dedupe (per dyno)
+  const ts = localDedupeCache.get(svixId);
+  if (ts && Date.now() - ts < LOCAL_DEDUPE_TTL_MS) return true;
+  return false;
 }
 
 async function markEventProcessed(svixId: string): Promise<void> {
-  if (!isRedisReady()) return;
-  await setCache(`${WEBHOOK_DEDUPE_PREFIX}${svixId}`, "1", WEBHOOK_DEDUPE_TTL_S);
+  if (isRedisReady()) {
+    await setCache(`${WEBHOOK_DEDUPE_PREFIX}${svixId}`, "1", WEBHOOK_DEDUPE_TTL_S);
+  }
+  // Alltid oppdater lokal cache som fallback
+  localDedupeCache.set(svixId, Date.now());
+  localDedupeCleanup();
 }
 
 /**
@@ -148,7 +176,8 @@ router.post("/", async (req, res) => {
   }
 
   if (event.type !== "user.deleted") {
-    // Ignorer andre hendelser — returner 200 for å unngå retries
+    // Ignorer andre hendelser — marker som behandlet og returner 200 for å unngå retries
+    await markEventProcessed(svixId);
     res.json({ received: true });
     return;
   }
@@ -161,8 +190,10 @@ router.post("/", async (req, res) => {
   }
 
   // Finn lokal bruker basert på clerkId
-  const user = await User.findOne({ clerkId }).select("_id");
+  const user = await User.findOne({ clerkId, deletedAt: { $exists: false } }).select("_id");
   if (!user) {
+    // Marker som behandlet slik at replays av samme hendelse avvises
+    await markEventProcessed(svixId);
     logger.info(
       { clerkId },
       "Clerk webhook user.deleted: ingen lokal bruker funnet — allerede slettet via StudyWise",
@@ -194,7 +225,18 @@ router.post("/", async (req, res) => {
       },
     });
 
-    // Marker hendelsen som behandlet for replay-beskyttelse
+    // Anonymiser revisjonssporet for slettet bruker (GDPR)
+    try {
+      await anonymizeAuditTrailForDeletedUser(userId);
+    } catch (auditError) {
+      logger.warn(
+        { err: auditError, userId },
+        "Clerk webhook: klarte ikke å anonymisere revisjonsspor etter sletting",
+      );
+    }
+
+    // Marker hendelsen som behandlet ETTER vellykket opprydding.
+    // Hvis opprydding feiler (500) skal Clerk kunne prøve på nytt — derfor markeres ikke før suksess.
     await markEventProcessed(svixId);
 
     logger.info(

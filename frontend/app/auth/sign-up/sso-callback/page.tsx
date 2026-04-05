@@ -27,11 +27,12 @@ export default function SSOCallbackPage() {
     const redirectOrConflict = async () => {
       try {
         const res = await fetchApi("/api/user/me", { method: "GET" });
-        if (res.status === 409) {
+        if (res.status === 409 || res.status === 403) {
           const json = await res.json().catch(() => ({}));
           if (
             json?.error === "oauth_account_conflict" ||
-            json?.error === "oauth_metadata_missing"
+            json?.error === "oauth_metadata_missing" ||
+            json?.error === "turnstile_required"
           ) {
             await clerk.signOut().catch(() => {});
             setOauthConflict(true);

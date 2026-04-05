@@ -165,6 +165,7 @@ function QuestionCountSelector({
   onChange: (n: number) => void;
   label?: string;
 }) {
+  const { t } = useLanguage();
   const presets = [5, 10, 15, 20];
   return (
     <div className="space-y-4">
@@ -193,7 +194,7 @@ function QuestionCountSelector({
             type="button"
             onClick={() => onChange(Math.max(1, count - 1))}
             className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 text-slate-600 transition-all hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
-            aria-label="Reduser antall"
+            aria-label={t("quiz.decreaseCount")}
           >
             <Minus className="w-4 h-4" />
           </button>
@@ -204,7 +205,7 @@ function QuestionCountSelector({
             type="button"
             onClick={() => onChange(Math.min(50, count + 1))}
             className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 text-slate-600 transition-all hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
-            aria-label="Øk antall"
+            aria-label={t("quiz.increaseCount")}
           >
             <Plus className="w-4 h-4" />
           </button>
@@ -223,11 +224,12 @@ function ModeToggle({
   mode: StudyMode;
   onChangeMode: (m: StudyMode) => void;
 }) {
+  const { t } = useLanguage();
   return (
     <div
       className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800"
       role="tablist"
-      aria-label="Velg studiemodus"
+      aria-label={t("quiz.selectStudyMode")}
     >
       <button
         type="button"
@@ -721,6 +723,7 @@ function QuizResults({
   onRestart: () => void;
   onBack: () => void;
 }) {
+  const { t } = useLanguage();
   const pct = Math.round((score / total) * 100);
   const emoji = pct >= 80 ? "🎉" : pct >= 50 ? "👍" : "💪";
   const msg = pct >= 80 ? "Fantastisk!" : pct >= 50 ? "Bra jobbet!" : "Øv mer!";
@@ -770,7 +773,7 @@ function QuizResults({
           className="flex items-center gap-2 rounded-xl border border-slate-300 px-5 py-3 text-base font-medium text-slate-600 transition-all hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
         >
           <ArrowLeft className="w-5 h-5" />
-          Ny quiz
+          {t("quiz.newQuiz")}
         </button>
         <button
           type="button"
@@ -778,7 +781,7 @@ function QuizResults({
           className="flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-base font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
         >
           <RotateCcw className="w-5 h-5" />
-          Prøv igjen
+          {t("chat.retryButton")}
         </button>
       </div>
     </motion.div>

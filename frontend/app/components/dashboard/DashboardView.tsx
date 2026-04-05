@@ -204,19 +204,18 @@ export function DashboardView() {
             />
         );
     }
-    // Én shell: sidebar + faner vises alltid; innhold = loader mens /me laster, deretter seksjoner (redirect/feil håndteres over)
-    // isPending fanger også disabled-tilstand (Clerk ikke klar ennå), isLoading kun aktiv fetching
-    const visInnhold = megQuery.isSuccess || megQuery.isError;
+    // Vent på brukerdata før dashboard-skallet vises — forhindrer flash av dashboard ved auth-feil
+    if (!megQuery.isSuccess) {
+        return <LoadingView text={t("common.loading.userData")} />;
+    }
     return (
         <SidebarAppShell
             aktivVisning={aktivVisning}
             byttVisning={settAktivVisning}
-            brukernavn={megQuery.isPending ? "..." : brukernavn}
+            brukernavn={brukernavn}
             brukerRolle={brukerRolle}
         >
-            {!visInnhold ? (
-                <SectionLoader translationKey={megQuery.isPending ? "common.loading.userData" : "common.loading.generic"} />
-            ) : (
+            {(
             <>
             {aktivVisning === "chat" && (
                 <SectionErrorBoundary sectionName={t("dashboard.sections.aiChat")}>

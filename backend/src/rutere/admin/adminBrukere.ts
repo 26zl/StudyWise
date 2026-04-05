@@ -27,6 +27,7 @@ import { logger } from "../../utils/logger.js";
 import { isValidMongoObjectId } from "../../utils/mongoId.js";
 import { deleteAccountData } from "../auth/kontoSlett.js";
 import { escapeRegex } from "../../utils/regexUtils.js";
+import { requireRecentAuth } from "../../middleware/auth.js";
 
 const router = Router();
 
@@ -104,11 +105,11 @@ router.get("/brukere", async (req, res) => {
 });
 
 // ── PATCH /brukere/:id/rolle ────────────────────────────────────────────────
-router.patch("/brukere/:id/rolle", async (req, res) => {
+router.patch("/brukere/:id/rolle", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
 
-  const targetId = req.params.id;
+  const targetId = String(req.params.id);
 
   if (!isValidMongoObjectId(targetId)) {
     return apiError.badRequest(res, "Ugyldig bruker-ID");
@@ -134,10 +135,13 @@ router.patch("/brukere/:id/rolle", async (req, res) => {
     bruker.role = parsed.data.rolle;
     await bruker.save();
 
+    // Sikkerhetsvarsel ved oppgradering til admin-rolle
+    const isAdminPromotion = gammelRolle !== "admin" && parsed.data.rolle === "admin";
+
     await audit({
       actorUserId,
       action: AUDIT_ACTIONS.ADMIN_ACTION,
-      category: "admin",
+      category: isAdminPromotion ? "security" : "admin",
       outcome: "success",
       role: req.actorRole,
       targetUserId: targetId,
@@ -145,9 +149,17 @@ router.patch("/brukere/:id/rolle", async (req, res) => {
         subAction: "brukere.endreRolle",
         gammelRolle,
         nyRolle: parsed.data.rolle,
+        ...(isAdminPromotion && { securityAlert: "admin_promotion" }),
       },
       req,
     });
+
+    if (isAdminPromotion) {
+      logger.warn(
+        { actorUserId, targetUserId: targetId },
+        "SIKKERHETSVARSEL: Admin forfremmet en bruker til admin-rolle",
+      );
+    }
 
     return res.json(
       AdminEndreRolleResponseSchema.parse({ id: targetId, rolle: parsed.data.rolle }),
@@ -159,11 +171,11 @@ router.patch("/brukere/:id/rolle", async (req, res) => {
 });
 
 // ── DELETE /brukere/:id ─────────────────────────────────────────────────────
-router.delete("/brukere/:id", async (req, res) => {
+router.delete("/brukere/:id", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
 
-  const targetId = req.params.id;
+  const targetId = String(req.params.id);
 
   if (!isValidMongoObjectId(targetId)) {
     return apiError.badRequest(res, "Ugyldig bruker-ID");

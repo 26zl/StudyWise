@@ -945,9 +945,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       const sanitizedTargetHint = target.courseHint ? sanitizeCourseHintValue(target.courseHint) : null;
       const hasOverride = hasExplicitCourseOverride(lastUserMsg);
       const shouldReuseLockedCourseHint = isLikelyFollowUp
-        || refersToCurrentCourseContext(lastUserMsg)
-        || !!target.moduleHint
-        || !!target.fileHint;
+        || refersToCurrentCourseContext(lastUserMsg);
 
       if (hasOverride && sanitizedTargetHint) {
         // Bruker vil eksplisitt bytte kurs — oppdater låsen
@@ -1171,7 +1169,7 @@ Rules:
     }
 
     // Dynamisk timeout og max_tokens basert på intent
-    const maxTokens = 1400;
+    const maxTokens = fullDocumentModeActive ? 6000 : intent === "canvas_full" ? 4000 : intent === "canvas_light" ? 2000 : 1400;
     const TIMEOUT_MS = intent === "canvas_full" ? 120000 : intent === "canvas_light" ? 60000 : 30000;
 
     // Token-basert trimming av samtalehistorikk.
@@ -1370,24 +1368,13 @@ Rules:
     }
 
     // Headers not sent yet — use normal JSON error response
-    if (
-      handleAIError(res, error, KIChatResponseSchema, {
-        timeoutLabel: "CHAT_TIMEOUT",
-        timeoutMessage:
-          "Chat-forespørselen tok for lang tid. Prøv igjen eller forenkle spørsmålet.",
-        kontekst: "ki-chat",
-      })
-    )
-      return;
-
-    if (res.headersSent) return;
-    return res.status(500).json(
-      KIChatResponseSchema.parse({
-        suksess: false,
-        melding: "Kunne ikke få svar fra KI-assistenten. Prøv igjen senere.",
-        response: "",
-      }),
-    );
+    handleAIError(res, error, KIChatResponseSchema, {
+      timeoutLabel: "CHAT_TIMEOUT",
+      timeoutMessage:
+        "Chat-forespørselen tok for lang tid. Prøv igjen eller forenkle spørsmålet.",
+      kontekst: "ki-chat",
+    });
+    return;
   } finally {
     if (timeoutHandle) {
       clearTimeout(timeoutHandle);

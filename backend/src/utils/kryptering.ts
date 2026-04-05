@@ -17,11 +17,21 @@ const getKey = (): Buffer => {
     if (keyHex.length !== 64) {
         throw new Error("ENCRYPTION_KEY må være 64 hex-tegn (32 bytes) for AES-256-GCM.");
     }
-    // Sjekk at nøkkelen ikke er et svakt mønster (f.eks. repeating bytes)
-    // En 32-byte tilfeldig nøkkel har i snitt ~27 unike byte-verdier (fødselsdagsparadokset).
-    // Terskel 24 fanger de fleste svake nøkler mens den tillater naturlig variasjon.
-    const uniqueBytes = new Set(keyHex.match(/.{2}/g) || []);
-    if (uniqueBytes.size < 24) {
+    // Sjekk at nøkkelen ikke er et svakt mønster (f.eks. repeating bytes, sekvenser, lav entropi).
+    // Bruker Shannon-entropi på byte-nivå. 32 tilfeldige bytes gir ~7.5+ bits/byte.
+    // Terskel 3.0 bits/byte avviser åpenbart svake nøkler (repeterende, sekvensielle, korte alfabet)
+    // mens den tillater alle realistiske tilfeldige nøkler.
+    const byteValues = (keyHex.match(/.{2}/g) || []).map((h) => parseInt(h, 16));
+    const freq = new Map<number, number>();
+    for (const b of byteValues) {
+        freq.set(b, (freq.get(b) ?? 0) + 1);
+    }
+    let entropy = 0;
+    for (const count of freq.values()) {
+        const p = count / byteValues.length;
+        entropy -= p * Math.log2(p);
+    }
+    if (entropy < 3.0) {
         throw new Error(
             "ENCRYPTION_KEY er for svak (for lite entropi). " +
             "Generer en sikker nøkkel med: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""

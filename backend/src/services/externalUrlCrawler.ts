@@ -210,24 +210,79 @@ function isBlockedIpv4Address(address: string): boolean {
   );
 }
 
+function expandIpv6(address: string): string {
+  // Fjern bracket-notasjon
+  let addr = address.replace(/^\[|\]$/g, "").toLowerCase();
+
+  // Ekspander :: til fullstendig form
+  const sides = addr.split("::");
+  if (sides.length === 2) {
+    const left = sides[0] ? sides[0].split(":") : [];
+    const right = sides[1] ? sides[1].split(":") : [];
+    const missing = 8 - left.length - right.length;
+    const middle = Array(Math.max(0, missing)).fill("0000");
+    addr = [...left, ...middle, ...right].join(":");
+  }
+
+  // Normaliser hvert segment til 4 hex-siffer
+  return addr
+    .split(":")
+    .map((seg) => seg.padStart(4, "0"))
+    .join(":");
+}
+
 function isBlockedIpv6Address(address: string): boolean {
+  const expanded = expandIpv6(address);
+
+  // Loopback ::1
+  if (expanded === "0000:0000:0000:0000:0000:0000:0000:0001") return true;
+  // Unspecified ::
+  if (expanded === "0000:0000:0000:0000:0000:0000:0000:0000") return true;
+
+  const firstSegment = expanded.slice(0, 4);
+
+  // Unique local addresses fc00::/7 (fc00-fdff)
+  if (firstSegment >= "fc00" && firstSegment <= "fdff") return true;
+  // Link-local fe80::/10
+  if (firstSegment >= "fe80" && firstSegment <= "febf") return true;
+
+  // IPv4-mapped IPv6 (::ffff:x.x.x.x) — sjekk dotted-form på original adresse
   const lower = address.toLowerCase();
-  if (lower === "::" || lower === "::1" || lower === "0:0:0:0:0:0:0:1") {
-    return true;
+  const mappedDotted = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mappedDotted?.[1]) {
+    return isBlockedIpv4Address(mappedDotted[1]);
   }
-  // Unique local addresses fc00::/7 og link-local fe80::/10
-  if (lower.startsWith("fc") || lower.startsWith("fd") || lower.startsWith("fe80:")) {
-    return true;
+  // Hex-form av IPv4-mapped (f.eks. ::ffff:7f00:1 = 127.0.0.1)
+  if (expanded.startsWith("0000:0000:0000:0000:0000:ffff:")) {
+    const hexPart = expanded.slice(30); // "HHHH:HHHH"
+    const hexSegments = hexPart.split(":");
+    if (hexSegments.length === 2) {
+      const high = parseInt(hexSegments[0], 16);
+      const low = parseInt(hexSegments[1], 16);
+      if (!isNaN(high) && !isNaN(low)) {
+        const ipv4 = `${(high >> 8) & 0xff}.${high & 0xff}.${(low >> 8) & 0xff}.${low & 0xff}`;
+        return isBlockedIpv4Address(ipv4);
+      }
+    }
   }
-  // IPv4-mapped IPv6 (::ffff:x.x.x.x)
-  const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped?.[1]) {
-    return isBlockedIpv4Address(mapped[1]);
+
+  // IPv4-compatible (deprecated) ::x.x.x.x og ::HHHH:HHHH
+  if (expanded.startsWith("0000:0000:0000:0000:0000:0000:")) {
+    const hexPart = expanded.slice(30);
+    const hexSegments = hexPart.split(":");
+    if (hexSegments.length === 2) {
+      const high = parseInt(hexSegments[0], 16);
+      const low = parseInt(hexSegments[1], 16);
+      if (!isNaN(high) && !isNaN(low)) {
+        const ipv4 = `${(high >> 8) & 0xff}.${high & 0xff}.${(low >> 8) & 0xff}.${low & 0xff}`;
+        return isBlockedIpv4Address(ipv4);
+      }
+    }
   }
+
   // AWS metadata IPv6 variant
-  if (lower.includes("fd00:ec2::254")) {
-    return true;
-  }
+  if (lower.includes("fd00:ec2::254")) return true;
+
   return false;
 }
 

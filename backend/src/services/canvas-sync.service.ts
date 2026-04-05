@@ -482,12 +482,21 @@ async function _doSync(
           if (previousHash === hash) {
             // Data uendret — hopp over Redis-skriving, bare oppdater TTL
             unchanged++;
-            const keys = ["meta", "moduler", "oppgaver", "kunngjøringer"];
+            const keyDataMap: Record<string, unknown> = {
+              meta: courseData.meta,
+              moduler: storageData.moduler,
+              oppgaver: courseData.oppgaver,
+              kunngjøringer: courseData.kunngjøringer,
+            };
+            const keys = Object.keys(keyDataMap);
             const ttlResults = await Promise.allSettled(
               keys.map(async (k) => {
                 const existing = await getCache(userKey(userId, "emne", courseId, k));
                 if (existing) {
                   await setCache(userKey(userId, "emne", courseId, k), existing, SYNC_CACHE_TTL);
+                } else {
+                  // Nøkkelen utløp mellom sjekk og skriving — re-populer fra ferske data
+                  await setCache(userKey(userId, "emne", courseId, k), JSON.stringify(keyDataMap[k]), SYNC_CACHE_TTL);
                 }
               }),
             );

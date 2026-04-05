@@ -182,22 +182,46 @@ Request authentication flows through middleware in `backend/src/middleware/`:
 
 Typical route setup: `router.use(requireAuth)` then per-route `knyttCanvasToken` where Canvas access is needed.
 
+4. **`requireRecentAuth`** (`auth.ts`) — Step-up security: requires the Clerk session to be created within the last 10 minutes. Used for irreversible operations (account deletion, admin role changes, admin user deletion).
+
 ### Account Deletion
 
 `backend/src/rutere/auth/kontoSlett.ts` — `deleteAccountData(userId, options?)` handles full cleanup:
 
 - MongoDB transaction: deletes ChatHistory, SharedChat, TaskBreakdown, ContentEmbedding, CanvasUser, Arbeidsplan, CanvasStructure, WebPushSubscription, StudyContext, PendingClerkDeletion, User — creates `DeletedUserTombstone` (90-day TTL)
-- Post-transaction: Pinecone vector cleanup, Redis/runtime cache invalidation, Clerk user deletion
+- Post-transaction: Pinecone vector cleanup (with retry queue via `PendingVectorDeletion` on failure), Redis/runtime cache invalidation, Clerk user deletion
 - `{ skipClerkDeletion: true }` — skips Clerk API call (used by webhook when Clerk user is already deleted)
 - Idempotent: if user not found, checks tombstone and returns early
 
 ### Clerk Webhook
 
-`backend/src/rutere/auth/clerkWebhook.ts` — safety net for `user.deleted` events from Clerk (e.g. admin deletes user via Clerk Dashboard). Mounted **before** `express.json()` in `index.ts` with `express.raw()` for signature verification. Uses Svix HMAC-SHA256 signature verification, timestamp validation (5 min window), and best-effort Redis-based replay/dedupe protection when Redis is available; if Redis is unavailable/not ready, dedupe is bypassed and the webhook still proceeds after signature/timestamp validation. Requires `CLERK_WEBHOOK_SECRET` env var (optional — logs warning at startup if missing).
+`backend/src/rutere/auth/clerkWebhook.ts` — safety net for `user.deleted` events from Clerk (e.g. admin deletes user via Clerk Dashboard). Mounted **before** `express.json()` in `index.ts` with `express.raw()` for signature verification. Uses Svix HMAC-SHA256 signature verification, timestamp validation (5 min window), and Redis-based replay/dedupe protection with in-memory LRU fallback when Redis is unavailable. After deletion, anonymizes the audit trail for GDPR compliance. Requires `CLERK_WEBHOOK_SECRET` env var (optional — logs warning at startup if missing).
 
 ### Auth Turnstile
 
 Turnstile verification state is shared across dynos via Redis (`auth:turnstile-session:<sid>`) with a local in-memory read-through cache. Cookie validation logic lives in `common/src/auth.ts` (`validateAuthTurnstileCookieValue`) — shared between frontend SSR and backend to avoid duplicating HMAC verification.
+
+### Cross-Environment Re-Linking (Clerk Dev ↔ Prod)
+
+Supports sharing a single MongoDB database between dev and prod Clerk instances. When a user authenticates with a different Clerk instance than the one that created their MongoDB user:
+
+1. `findOrCreateUserByClerkId()` detects email/OAuth conflicts with the existing user
+2. Before blocking, it calls `clerkUserExistsInCurrentInstance()` to check if the conflicting user's `clerkId` exists in the **current** Clerk instance
+3. If the old `clerkId` returns 404, the MongoDB user is re-linked to the new `clerkId` via `relinkUserToClerkId()` instead of being rejected
+4. Covers all conflict paths: OAuth account, email, cross-validation, and duplicate-key race conditions
+
+Secure because each backend only trusts its configured `CLERK_SECRET_KEY`. Fail-safe: network errors assume the `clerkId` exists and block as normal. Email verification: `relinkUserToClerkId()` verifies that the new Clerk user's email matches the existing MongoDB user's email (or OAuth emails) before re-linking — mismatches are blocked and audit-logged. Usernames and emails are NOT re-synced during re-linking to preserve user identity.
+
+### Auth Conflict Guard (Frontend)
+
+`frontend/app/providers.tsx` — `AuthConflictGuard` monitors `/me` query errors for fatal auth conflicts (OAuth conflict, deleted account, email conflict). On detection:
+
+1. Maps backend error patterns to i18n keys (`auth.conflictRedirect.*`) via regex
+2. Signs out via Clerk
+3. Redirects to `/auth/sign-in?error=...` (or `/auth/sign-up` for deleted accounts)
+4. The sign-in/sign-up pages read `?error=` from URL params and display via `AuthError` component
+
+Fatal error patterns are defined in `frontend/app/lib/errorUtils.ts` (`FATAL_USERDATA_ERROR_REGEX`). Adding new fatal auth errors requires updating both the regex and the i18n conflict redirect keys.
 
 ### Audit Logging
 
@@ -205,7 +229,7 @@ Turnstile verification state is shared across dynos via Redis (`auth:turnstile-s
 
 ### Dashboard (SPA Container)
 
-Location: `frontend/app/dashboard/page.tsx` (page) and `frontend/app/components/DashboardView.tsx` (main UI).
+Location: `frontend/app/dashboard/page.tsx` (page) and `frontend/app/components/dashboard/DashboardView.tsx` (main UI).
 
 - **Purpose**: Combines Canvas and AI tools in one interface
 - **How it works**: SPA container; active view is driven by the `?view=` URL param via **nuqs** (`useQueryState`) in `DashboardView`, so switching tabs does not reload the page and the URL stays in sync
@@ -219,7 +243,8 @@ Location: `frontend/app/dashboard/page.tsx` (page) and `frontend/app/components/
 - **Arbeidsplan**: Weekly work plans (study blocks); collection name is `arbeidsplan` (not `arbeidsplans`)
 - **ContentEmbedding**: Chunk text and metadata per user/course/file (MongoDB). Source of truth for content; vector index lives in Pinecone (integrated embedding). No vector index in Atlas
 - **DeletedUserTombstone**: GDPR tombstone for deleted users (prevents re-registration within TTL)
-- **PendingClerkDeletion**: Tracks async Clerk user deletion requests
+- **PendingClerkDeletion**: Tracks async Clerk user deletion requests (max 20 retries, then dead-lettered with audit log)
+- **PendingVectorDeletion**: Retry queue for failed Pinecone vector deletions (GDPR compliance, max 20 retries)
 - **WebPushSubscription**: Browser push notification subscriptions per user
 - **SharedChat**: Public share links for chat conversations (with expiry)
 - **CanvasStructure**: Cached Canvas course structure (modules, items)

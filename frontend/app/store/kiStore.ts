@@ -119,7 +119,7 @@ function kjørQuizJob(
         quizJob: {
           status: "error",
           mode,
-          error: error instanceof Error ? error.message : "KI-generering feilet. Prøv igjen.",
+          error: error instanceof Error ? error.message : "ki_generation_failed",
         },
       }));
     } finally {
@@ -168,7 +168,7 @@ export const useKIStore = create<KIState>()(
             [assignmentId]: {
               status: "error",
               assignmentId,
-              error: error instanceof Error ? error.message : "KI-generering feilet. Prøv igjen.",
+              error: error instanceof Error ? error.message : "ki_generation_failed",
             },
           },
         }));
@@ -201,7 +201,7 @@ export const useKIStore = create<KIState>()(
         set({
           weeklyPlanJob: {
             status: "error",
-            error: error instanceof Error ? error.message : "KI-generering feilet. Prøv igjen.",
+            error: error instanceof Error ? error.message : "ki_generation_failed",
           },
         });
       });
@@ -239,7 +239,7 @@ export const useKIStore = create<KIState>()(
             ...state.oppsummeringJobs,
             [key]: {
               status: "error",
-              error: error instanceof Error ? error.message : "Oppsummering feilet. Prøv igjen.",
+              error: error instanceof Error ? error.message : "summarization_failed",
             },
           },
         }));

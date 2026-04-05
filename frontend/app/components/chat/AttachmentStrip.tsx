@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from "react";
 import { X, FileText, FileSpreadsheet, Presentation } from "lucide-react";
+import { useLanguage } from "@/app/i18n";
 
 // Typer
 
@@ -56,6 +57,7 @@ function formatStørrelse(bytes: number): string {
 // Bildechip med blob-URL lifecycle
 
 function BildeThumbnail({ fil, onFjern }: { fil: File; onFjern: () => void }) {
+  const { t } = useLanguage();
   // useState + useEffect i stedet for useMemo — unngår at StrictMode revoke-r URL-en
   const [url, setUrl] = useState("");
 
@@ -91,7 +93,7 @@ function BildeThumbnail({ fil, onFjern }: { fil: File; onFjern: () => void }) {
         type="button"
         onClick={onFjern}
         className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-slate-600 dark:bg-slate-400 text-white dark:text-slate-900 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-        aria-label={`Fjern ${fil.name}`}
+        aria-label={t("chat.removeAttachment", { name: fil.name })}
       >
         <X className="w-3 h-3" />
       </button>
@@ -102,6 +104,7 @@ function BildeThumbnail({ fil, onFjern }: { fil: File; onFjern: () => void }) {
 // DokumentChip
 
 function DokumentChip({ fil, onFjern }: { fil: File; onFjern: () => void }) {
+  const { t } = useLanguage();
   return (
     <div className="group flex items-center gap-1.5 h-14 pl-1.5 pr-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 shrink-0 max-w-56 relative">
       <div className="h-10 w-10 shrink-0 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
@@ -119,7 +122,7 @@ function DokumentChip({ fil, onFjern }: { fil: File; onFjern: () => void }) {
         type="button"
         onClick={onFjern}
         className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-slate-600 dark:bg-slate-400 text-white dark:text-slate-900 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-        aria-label={`Fjern ${fil.name}`}
+        aria-label={t("chat.removeAttachment", { name: fil.name })}
       >
         <X className="w-3 h-3" />
       </button>

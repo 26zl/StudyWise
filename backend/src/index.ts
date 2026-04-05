@@ -74,6 +74,10 @@ import {
   processPendingClerkDeletions,
 } from "./services/clerkDeletionRetry.service.js";
 import {
+  startPendingVectorDeletionPolling,
+  processPendingVectorDeletions,
+} from "./services/vectorDeletionRetry.service.js";
+import {
   startWebPushPolling,
   processWebPushNotifications,
 } from "./services/webPush.service.js";
@@ -407,10 +411,14 @@ connectToDatabase()
     }
     const dependencyHealthInterval = startExternalDependencyHealthPolling();
     const clerkDeletionRetryInterval = startPendingClerkDeletionPolling();
+    const vectorDeletionRetryInterval = startPendingVectorDeletionPolling();
     const webPushInterval = startWebPushPolling();
 
     void processPendingClerkDeletions().catch((error) => {
       logger.warn({ err: error }, "Initial retry av ventende Clerk-slettinger feilet");
+    });
+    void processPendingVectorDeletions().catch((error) => {
+      logger.warn({ err: error }, "Initial retry av ventende vektor-slettinger feilet");
     });
     void processWebPushNotifications().catch((error) => {
       logger.warn({ err: error }, "Initial web-push-sjekk feilet");
@@ -443,6 +451,7 @@ connectToDatabase()
           clearInterval(dependencyHealthInterval);
           clearInterval(shareCleanupInterval);
           if (clerkDeletionRetryInterval) clearInterval(clerkDeletionRetryInterval);
+          if (vectorDeletionRetryInterval) clearInterval(vectorDeletionRetryInterval);
           if (webPushInterval) clearInterval(webPushInterval);
           // Lukk database-tilkobling
           await mongoose.connection.close();

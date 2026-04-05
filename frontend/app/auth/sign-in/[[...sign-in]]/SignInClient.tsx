@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useSignIn } from "@clerk/nextjs/legacy";
+import { useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, ShieldCheck } from "lucide-react";
 import { AuthTurnstileInline } from "@/app/auth/AuthTurnstileInline";
 import { checkAuthTurnstileGate } from "@/app/auth/auth-turnstile-api";
@@ -33,9 +34,13 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
   const [isVerified, setIsVerified] = useState(initialVerified);
   const isRedirectingToDashboard = isLoaded && isSignedIn;
 
+  // Vis feilmelding fra URL-parameter (f.eks. etter auth-konflikt redirect)
+  const searchParams = useSearchParams();
+  const urlError = searchParams.get("error");
+
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(urlError);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOAuthSubmitting, setIsOAuthSubmitting] = useState(false);
 
@@ -135,6 +140,14 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
       setIsOAuthSubmitting(true);
 
       try {
+        // Server-side Turnstile-gate: verifiser at human-check er bestått før OAuth-redirect
+        const gateOk = await checkAuthTurnstileGate();
+        if (!gateOk) {
+          setFormError(t("auth.humanCheck.gateError"));
+          setIsOAuthSubmitting(false);
+          return;
+        }
+
         await signIn.authenticateWithRedirect({
           strategy,
           redirectUrl: "/auth/sign-in/sso-callback",

@@ -247,6 +247,112 @@ async function checkOAuthAccountConflicts(
   return null;
 }
 
+/**
+ * Sjekker om en clerkId finnes i den nåværende Clerk-instansen.
+ * Returnerer false hvis brukeren ikke eksisterer (404) — typisk fordi clerkId-en
+ * tilhører en annen Clerk-instans (f.eks. dev vs. prod).
+ * Returnerer true hvis brukeren eksisterer, eller ved nettverksfeil (fail-safe).
+ */
+async function clerkUserExistsInCurrentInstance(clerkId: string): Promise<boolean> {
+  const clerk = getClerkBackendClient();
+  if (!clerk) return true; // Fail-safe: anta den finnes
+
+  try {
+    await clerk.users.getUser(clerkId);
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    if (message.includes("404") || message.includes("not found") || message.includes("resource_not_found")) {
+      return false;
+    }
+    // Nettverksfeil etc. — fail-safe, blokker som normalt
+    return true;
+  }
+}
+
+/**
+ * Re-linker en eksisterende MongoDB-bruker til en ny clerkId.
+ * Brukes når den eksisterende brukerens clerkId tilhører en annen Clerk-instans
+ * (f.eks. dev Clerk vs. prod Clerk mot samme MongoDB).
+ *
+ * Sikkerhet: verifiserer at den nye Clerk-brukerens e-post matcher den eksisterende
+ * MongoDB-brukerens e-post (eller OAuth-e-poster) før re-linking tillates.
+ * Brukernavn oppdateres IKKE her — det beholdes fra den eksisterende kontoen.
+ * E-post oppdateres heller ikke — den er allerede verifisert og eid av denne brukeren.
+ */
+async function relinkUserToClerkId(
+  existingUserId: IUser["_id"],
+  newClerkUserId: string,
+  profile: ClerkProfile,
+  oauthAccounts: OAuthAccount[],
+  clerkEmail?: string,
+): Promise<IUser | null> {
+  // Sikkerhet: bekreft at e-posten til den nye Clerk-brukeren matcher MongoDB-brukerens primære e-post.
+  // Kun primær e-post aksepteres — OAuth-e-poster er sekundære og kan kontrolleres av tredjepart.
+  if (clerkEmail) {
+    const existingUser = await User.findOne({
+      _id: existingUserId,
+      deletedAt: { $exists: false },
+    }).select("email");
+    if (existingUser) {
+      const normalizedClerkEmail = clerkEmail.toLowerCase().trim();
+      const primaryEmail = existingUser.email?.toLowerCase().trim();
+      if (!primaryEmail || primaryEmail !== normalizedClerkEmail) {
+        logger.warn(
+          { existingUserId: existingUserId.toString(), newClerkUserId, clerkEmail },
+          "Kryssmiljø re-link avvist: Clerk-brukerens e-post matcher ikke MongoDB-brukerens e-post",
+        );
+        await audit({
+          actorUserId: `relink:${newClerkUserId}`,
+          action: AUDIT_ACTIONS.ACCESS_DENIED,
+          category: "security",
+          outcome: "failure",
+          metadata: {
+            reason: "cross_env_relink_email_mismatch",
+            existingUserId: existingUserId.toString(),
+            newClerkUserId,
+          },
+        });
+        return null;
+      }
+    }
+  }
+
+  const updateFields: Record<string, unknown> = {
+    clerkId: newClerkUserId,
+    authProvider: profile.authProvider,
+    clerkProfileSyncedAt: new Date(),
+    mfaEnabled: profile.mfaEnabled,
+  };
+  if (profile.firstName) updateFields.firstName = profile.firstName;
+  if (profile.lastName) updateFields.lastName = profile.lastName;
+  if (oauthAccounts.length > 0) updateFields.oauthAccounts = oauthAccounts;
+
+  const relinkedUser = await User.findOneAndUpdate(
+    { _id: existingUserId, deletedAt: { $exists: false } },
+    { $set: updateFields },
+    { returnDocument: "after" },
+  ).select("+canvasApiToken");
+
+  if (relinkedUser) {
+    logger.info(
+      { userId: relinkedUser._id.toString(), newClerkUserId },
+      "Kryssmiljø re-link: eksisterende bruker re-linket til ny Clerk-instans",
+    );
+    await audit({
+      actorUserId: relinkedUser._id.toString(),
+      action: AUDIT_ACTIONS.USER_CREATED,
+      category: "auth",
+      outcome: "success",
+      metadata: {
+        subAction: "cross_env_relink",
+        newClerkUserId,
+      },
+    });
+  }
+  return relinkedUser;
+}
+
 /** Normaliserer e-post til lowercase og trim; returnerer null ved tom/manglende. */
 function normalizeEmail(email: string | undefined): string | null {
   if (!email) {
@@ -1012,6 +1118,36 @@ export async function findOrCreateUserByClerkId(
         clerkUserId,
       );
       if (oauthConflict) {
+        // Kryssmiljø-sjekk: hvis den konfliktskapende brukerens clerkId ikke finnes
+        // i denne Clerk-instansen (f.eks. dev vs. prod), re-link i stedet for å blokkere.
+        const conflictingUser = await User.findOne({
+          _id: oauthConflict.conflictingUserId,
+          deletedAt: { $exists: false },
+        }).select("clerkId");
+
+        if (conflictingUser?.clerkId) {
+          const existsInClerk = await clerkUserExistsInCurrentInstance(conflictingUser.clerkId);
+          if (!existsInClerk) {
+            logger.info(
+              {
+                clerkUserId,
+                oldClerkId: conflictingUser.clerkId,
+                conflictingUserId: oauthConflict.conflictingUserId,
+                flowId: fid,
+              },
+              "authFlow: OAuth conflict — gammel clerkId finnes ikke i denne Clerk-instansen, re-linker bruker",
+            );
+            const relinked = await relinkUserToClerkId(
+              conflictingUser._id,
+              clerkUserId,
+              profile,
+              oauthAccounts,
+              email ?? undefined,
+            );
+            if (relinked) return relinked;
+          }
+        }
+
         logger.warn(
           {
             clerkUserId,
@@ -1035,6 +1171,16 @@ export async function findOrCreateUserByClerkId(
       existingByOAuthEmail &&
       existingByOAuthEmail.clerkId !== clerkUserId
     ) {
+      // Kryssmiljø-sjekk
+      if (existingByOAuthEmail.clerkId) {
+        const existsInClerk = await clerkUserExistsInCurrentInstance(existingByOAuthEmail.clerkId);
+        if (!existsInClerk) {
+          logger.info({ clerkUserId, oldClerkId: existingByOAuthEmail.clerkId, flowId: fid },
+            "authFlow: OAuth-email-konflikt — gammel clerkId finnes ikke, re-linker");
+          const relinked = await relinkUserToClerkId(existingByOAuthEmail._id, clerkUserId, profile, oauthAccounts, email ?? undefined);
+          if (relinked) return relinked;
+        }
+      }
       logger.warn(
         {
           clerkUserId,
@@ -1061,6 +1207,16 @@ export async function findOrCreateUserByClerkId(
         existingByPrimaryEmail &&
         existingByPrimaryEmail.clerkId !== clerkUserId
       ) {
+        // Kryssmiljø-sjekk
+        if (existingByPrimaryEmail.clerkId) {
+          const existsInClerk = await clerkUserExistsInCurrentInstance(existingByPrimaryEmail.clerkId);
+          if (!existsInClerk) {
+            logger.info({ clerkUserId, oldClerkId: existingByPrimaryEmail.clerkId, flowId: fid },
+              "authFlow: primær-email-konflikt — gammel clerkId finnes ikke, re-linker");
+            const relinked = await relinkUserToClerkId(existingByPrimaryEmail._id, clerkUserId, profile, oauthAccounts, email ?? undefined);
+            if (relinked) return relinked;
+          }
+        }
         logger.warn(
           {
             clerkUserId,
@@ -1080,6 +1236,16 @@ export async function findOrCreateUserByClerkId(
         deletedAt: { $exists: false },
       }).select("_id clerkId");
       if (existingByOAuthEmailArray) {
+        // Kryssmiljø-sjekk
+        if (existingByOAuthEmailArray.clerkId) {
+          const existsInClerk = await clerkUserExistsInCurrentInstance(existingByOAuthEmailArray.clerkId);
+          if (!existsInClerk) {
+            logger.info({ clerkUserId, oldClerkId: existingByOAuthEmailArray.clerkId, flowId: fid },
+              "authFlow: OAuth-email-krysskonflikt — gammel clerkId finnes ikke, re-linker");
+            const relinked = await relinkUserToClerkId(existingByOAuthEmailArray._id, clerkUserId, profile, oauthAccounts, email ?? undefined);
+            if (relinked) return relinked;
+          }
+        }
         logger.warn(
           {
             clerkUserId,
@@ -1097,6 +1263,25 @@ export async function findOrCreateUserByClerkId(
     // Frontend viser en resolver-dialog der brukeren velger nytt brukernavn i Clerk,
     // deretter re-henter /me som kjører findOrCreateUserByClerkId på nytt.
     if (usernameAction.mode === "keep" && profile.username) {
+      // Race-condition-sjekk: et parallelt request kan ha opprettet brukeren allerede.
+      // Hvis den konfliktskapende brukeren har samme clerkId, returner den i stedet for å blokkere.
+      const conflictUser = await User.findOne({
+        _id: usernameAction.conflictingUserId,
+        deletedAt: { $exists: false },
+      }).select("clerkId");
+      if (conflictUser?.clerkId === clerkUserId) {
+        logger.info(
+          { clerkUserId, userId: usernameAction.conflictingUserId, flowId: fid },
+          "authFlow: brukernavn-konflikt er med egen konto (parallelt request) — gjenbruker",
+        );
+        const existingUser = await User.findOne({
+          _id: usernameAction.conflictingUserId,
+          clerkId: clerkUserId,
+          deletedAt: { $exists: false },
+        }).select("+canvasApiToken");
+        if (existingUser) return existingUser;
+      }
+
       logger.warn(
         {
           clerkUserId,
@@ -1169,8 +1354,30 @@ export async function findOrCreateUserByClerkId(
           existingByEmail.clerkId &&
           existingByEmail.clerkId !== clerkUserId
         ) {
-          // Samme e-post, annen Clerk-konto. Automatisk re-linking er fjernet
-          // fordi det er en usikker antakelse at "samme verifiserte e-post = samme person".
+          // Kryssmiljø-sjekk: hvis den eksisterende brukerens clerkId ikke finnes
+          // i denne Clerk-instansen, re-link i stedet for å blokkere.
+          const existsInClerk = await clerkUserExistsInCurrentInstance(existingByEmail.clerkId);
+          if (!existsInClerk) {
+            logger.info(
+              {
+                clerkUserId,
+                oldClerkId: existingByEmail.clerkId,
+                userId: existingByEmail._id,
+                flowId: fid,
+              },
+              "authFlow: email conflict — gammel clerkId finnes ikke i denne Clerk-instansen, re-linker bruker",
+            );
+            const relinked = await relinkUserToClerkId(
+              existingByEmail._id,
+              clerkUserId,
+              profile,
+              oauthAccounts,
+              email ?? undefined,
+            );
+            if (relinked) return relinked;
+          }
+
+          // Samme e-post, annen Clerk-konto som finnes i denne instansen.
           // Brukeren må slette den eksisterende kontoen først, eller kontakte support.
           logger.warn(
             {
@@ -1374,6 +1581,16 @@ export async function findOrCreateUserByClerkId(
       }
 
       if (concurrentUser?.clerkId && concurrentUser.clerkId !== clerkUserId) {
+        // Kryssmiljø-sjekk: re-link hvis gammel clerkId ikke finnes i denne Clerk-instansen
+        const existsInClerk = await clerkUserExistsInCurrentInstance(concurrentUser.clerkId);
+        if (!existsInClerk) {
+          logger.info(
+            { clerkUserId, oldClerkId: concurrentUser.clerkId, userId: concurrentUser._id, flowId: fid },
+            "authFlow: duplikatnøkkel-race — gammel clerkId finnes ikke, re-linker",
+          );
+          const relinked = await relinkUserToClerkId(concurrentUser._id, clerkUserId, profile, oauthAccounts, email ?? undefined);
+          if (relinked) return relinked;
+        }
         logger.warn(
           {
             clerkUserId,
@@ -1670,7 +1887,14 @@ export async function getClerkUserIdFromToken(
   // Sjekk cache først
   const cached = tokenCache.get(tokenHash);
   if (cached) {
-    if (cached.exp >= Date.now()) return cached.sub;
+    if (cached.exp >= Date.now()) {
+      // Cross-dyno sjekk: avvis token hvis clerkId er markert som slettet i Redis (logout/kontosletting på annen dyno)
+      if (await isClerkIdDeleted(cached.sub)) {
+        tokenCache.delete(tokenHash);
+        return null;
+      }
+      return cached.sub;
+    }
     tokenCache.delete(tokenHash);
   }
 

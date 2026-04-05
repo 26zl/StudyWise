@@ -16,6 +16,7 @@ import { TaskBreakdown } from "./models/TaskBreakdown.js";
 import { User } from "./models/User.js";
 import { DeletedUserTombstone } from "./models/DeletedUserTombstone.js";
 import { PendingClerkDeletionModel } from "./models/PendingClerkDeletion.js";
+import { PendingVectorDeletionModel } from "./models/PendingVectorDeletion.js";
 import { WebPushSubscriptionModel } from "./models/WebPushSubscription.js";
 import { StudyContext } from "./models/StudyContext.js";
 
@@ -62,6 +63,7 @@ async function ensureDatabaseIndexes() {
         TaskBreakdown.createIndexes(),
         DeletedUserTombstone.createIndexes(),
         PendingClerkDeletionModel.createIndexes(),
+        PendingVectorDeletionModel.createIndexes(),
         WebPushSubscriptionModel.createIndexes(),
         StudyContext.createIndexes(),
     ]);

@@ -311,12 +311,8 @@ export default function ProfilPage() {
                   card: "w-full max-w-full border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800/95",
                   navbar: "max-sm:w-full",
                   scrollBox: "max-w-full",
-                  // Skjul e-post, tilkoblede kontoer og delete-seksjoner i Clerk UI.
-                  // E-postendring og provider-kobling styres av lokal backend-policy.
-                  // Delete account håndteres av vår egen implementering som sletter
-                  // både Clerk-konto og all StudyWise-data.
-                  profileSection__emailAddresses: "hidden",
-                  profileSection__connectedAccounts: "hidden",
+                  // Skjul Clerk sin innebygde "Delete account" — vi har vår egen
+                  // som håndterer sletting av både Clerk-konto og all StudyWise-data.
                   profileSection__deleteAccount: { display: "none" },
                   profileSection__danger: { display: "none" },
                 },

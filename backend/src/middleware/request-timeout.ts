@@ -9,6 +9,7 @@
 
 import type { Request, Response, NextFunction } from "express";
 import { logger } from "../utils/logger.js";
+import { apiError } from "../utils/apiError.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;  // 30 sekunder for vanlige requests
 const UPLOAD_TIMEOUT_MS = 120_000;  // 2 minutter for filopplasting, dokumentanalyse, task-breakdown
@@ -102,10 +103,7 @@ export function requestTimeout(req: Request, res: Response, next: NextFunction) 
                 { method: req.method, path: req.path, timeoutMs },
                 "Request timeout — avbryter nedstrøms operasjoner",
             );
-            return res.status(504).json({
-                feil: "Gateway Timeout",
-                melding: "Forespørselen tok for lang tid. Prøv igjen.",
-            });
+            return apiError.timeout(res, "Forespørselen tok for lang tid. Prøv igjen.");
         }
 
         // Ikke ødelegg socket manuelt her; vi har allerede sendt 504-respons.
@@ -117,7 +115,7 @@ export function requestTimeout(req: Request, res: Response, next: NextFunction) 
     res.once("close", cleanup);
 
     // Rydd opp hvis klienten avbryter requesten tidlig.
-    req.once("aborted", () => {
+    req.once("close", () => {
         cleanup();
         if (!res.writableEnded) {
             abortRequest();
