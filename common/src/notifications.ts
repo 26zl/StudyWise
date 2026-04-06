@@ -61,8 +61,24 @@ export const WebPushSubscriptionKeysSchema = z.object({
   auth: z.string().min(1, "auth mangler"),
 });
 
+// Gyldige push-tjeneste-domener (FCM, Mozilla, Apple, Windows)
+const ALLOWED_PUSH_ENDPOINT_PATTERNS = [
+  /^https:\/\/[a-z0-9.-]*\.google\.com\//,
+  /^https:\/\/fcm\.googleapis\.com\//,
+  /^https:\/\/[a-z0-9.-]*\.push\.services\.mozilla\.com\//,
+  /^https:\/\/[a-z0-9.-]*\.push\.apple\.com\//,
+  /^https:\/\/[a-z0-9.-]*\.notify\.windows\.com\//,
+  /^https:\/\/push\.services\.mozilla\.com\//,
+];
+
 export const WebPushSubscriptionSchema = z.object({
-  endpoint: z.string().url("Ugyldig endpoint").refine((v) => v.startsWith("https://"), "Endpoint må bruke HTTPS"),
+  endpoint: z.string().url("Ugyldig endpoint")
+    .max(2000, "Endpoint for lang")
+    .refine((v) => v.startsWith("https://"), "Endpoint må bruke HTTPS")
+    .refine(
+      (v) => ALLOWED_PUSH_ENDPOINT_PATTERNS.some((p) => p.test(v)),
+      "Endpoint må tilhøre en kjent push-tjeneste (FCM, Mozilla, Apple, Windows)",
+    ),
   expirationTime: z.number().int().nullable().optional(),
   keys: WebPushSubscriptionKeysSchema,
 });

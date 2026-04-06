@@ -819,6 +819,7 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
   const quizJob = useKIStore((s) => s.quizJob);
   const startQuizGeneration = useKIStore((s) => s.startQuizGeneration);
   const startFlashcardGeneration = useKIStore((s) => s.startFlashcardGeneration);
+  const cancelQuizJob = useKIStore((s) => s.cancelQuizJob);
   const clearQuizJob = useKIStore((s) => s.clearQuizJob);
   const resumeQuizJob = useKIStore((s) => s.resumeQuizJob);
 
@@ -845,7 +846,10 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
       };
       if (parsed.selectedCourseId !== undefined) setSelectedCourseId(parsed.selectedCourseId);
       if (parsed.selectedModules) setSelectedModules(parsed.selectedModules);
-      if (typeof parsed.questionCount === "number") setQuestionCount(parsed.questionCount);
+      if (typeof parsed.questionCount === "number") {
+        const nesteAntall = Math.max(1, Math.min(50, Math.trunc(parsed.questionCount)));
+        setQuestionCount(nesteAntall);
+      }
       // Gjenopprett spørsmål/kort-data før phase settes
       if (parsed.quizQuestions?.length) setQuizQuestions(parsed.quizQuestions);
       if (parsed.flashcards?.length) setFlashcards(parsed.flashcards);
@@ -928,42 +932,88 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
     name: m.name,
   }));
 
+  useEffect(() => {
+    if (!selectedCourseId || coursesLoading) return;
+    if (selectedCourse) return;
+
+    // Rydd bort lagret emnevalg som ikke lenger finnes for denne brukeren.
+    setSelectedCourseId(null);
+    setSelectedModules([]);
+    setError(null);
+  }, [coursesLoading, selectedCourse, selectedCourseId]);
+
+  useEffect(() => {
+    if (!selectedCourseId || modulesLoading) return;
+
+    const gyldigeModuler = new Set(moduleOptions.map((m) => m.id));
+    setSelectedModules((prev) => {
+      const neste = prev.filter((id) => gyldigeModuler.has(id));
+      return neste.length === prev.length ? prev : neste;
+    });
+  }, [moduleOptions, modulesLoading, selectedCourseId]);
+
   const toggleModule = useCallback((id: string) => {
     setSelectedModules((prev) =>
       prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]
     );
   }, []);
 
-  const canGenerate = selectedCourseId && selectedModules.length > 0;
+  const selectedModuleNames = moduleOptions
+    .filter((m) => selectedModules.includes(m.id))
+    .map((m) => m.name);
+  const canGenerate = Boolean(selectedCourse && selectedModuleNames.length > 0);
 
   // Start generering via store
   const handleGenerate = () => {
-    if (!selectedCourse || selectedModules.length === 0 || isGenerating) return;
+    if (isGenerating) return;
+
+    if (!selectedCourse) {
+      const melding = t("quiz.selectionOutOfDate");
+      setError(melding);
+      showToast.error(melding);
+      return;
+    }
+
+    if (selectedModuleNames.length === 0) {
+      const melding = t("quiz.selectionOutOfDate");
+      setError(melding);
+      showToast.error(melding);
+      return;
+    }
+
     setError(null);
     hasHandledResult.current = false;
-
-    const moduleNames = moduleOptions
-      .filter((m) => selectedModules.includes(m.id))
-      .map((m) => m.name);
+    const safeQuestionCount = Math.max(1, Math.min(50, Math.trunc(questionCount)));
+    if (safeQuestionCount !== questionCount) {
+      setQuestionCount(safeQuestionCount);
+    }
 
     if (studyMode === "quiz") {
-      startQuizGeneration(
-        QuizGenerateRequestSchema.parse({
-          courseId: selectedCourse.numericId,
-          courseName: selectedCourse.name,
-          moduleNames,
-          questionCount,
-        }),
-      );
+      const parsed = QuizGenerateRequestSchema.safeParse({
+        courseId: selectedCourse.numericId,
+        courseName: selectedCourse.name,
+        moduleNames: selectedModuleNames,
+        questionCount: safeQuestionCount,
+      });
+      if (!parsed.success) {
+        setError(t("quiz.couldNotGenerateQuiz"));
+        showToast.error(t("quiz.couldNotGenerateQuiz"));
+        return;
+      }
+      startQuizGeneration(parsed.data);
     } else {
-      startFlashcardGeneration(
-        FlashcardsGenerateRequestSchema.parse({
-          courseId: selectedCourse.numericId,
-          courseName: selectedCourse.name,
-          moduleNames,
-          cardCount: questionCount,
-        }),
-      );
+      const parsed = FlashcardsGenerateRequestSchema.safeParse({
+        courseId: selectedCourse.numericId,
+        courseName: selectedCourse.name,
+        moduleNames: selectedModuleNames,
+        cardCount: safeQuestionCount,
+      });
+      if (!parsed.success) {
+        setError(t("quiz.couldNotGenerateFlashcards"));
+        showToast.error(t("quiz.couldNotGenerateFlashcards"));
+        return;
+      }
+      startFlashcardGeneration(parsed.data);
     }
     // Marker at vi er midt i generering slik at UI vises konsekvent etter navigasjon.
     setPhase("setup");
@@ -1176,7 +1226,7 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="relative z-0"
+                      className="relative z-0 space-y-3"
                     >
                       <button
                         type="button"
@@ -1197,15 +1247,25 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                             >
                               <Sparkles className="w-5 h-5" />
                             </motion.div>
-                            {studyMode === "quiz" ? "Genererer quiz..." : "Genererer flashcards..."}
+                            {studyMode === "quiz" ? t("quiz.generatingQuiz") : t("quiz.generatingFlashcards")}
                           </>
                         ) : (
                           <>
                             <Sparkles className="w-5 h-5" />
-                            {studyMode === "quiz" ? "Generer quiz" : "Generer flashcards"}
+                            {studyMode === "quiz" ? t("quiz.generateQuiz") : t("quiz.generateFlashcards")}
                           </>
                         )}
                       </button>
+                      {isGenerating && (
+                        <button
+                          type="button"
+                          onClick={cancelQuizJob}
+                          className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                          {t("common.actions.cancel")}
+                        </button>
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>

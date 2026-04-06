@@ -109,6 +109,14 @@ export const AdminStatsResponseSchema = z.object({
     brukereMedGammelSync7d: CountSchema,
     canvasBrukereUtenSyncData: CountSchema,
   }),
+  varsler: z.object({
+    pushAbonnementer: CountSchema,
+    brukereMedPush: CountSchema,
+    snittEnheterPerBruker: MetricSchema,
+  }),
+  integrasjoner: z.object({
+    brukereMedNotion: CountSchema,
+  }),
   revisjon: z.object({
     hendelserTotalt: CountSchema,
     feilTotalt: CountSchema,

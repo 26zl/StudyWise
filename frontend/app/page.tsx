@@ -40,10 +40,10 @@ export default async function HomePage() {
           <h2 id="funksjoner-heading" className="sr-only">
             {translate(language, "landing.features.heading")}
           </h2>
-          <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-transparent border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-none hover:shadow-md transition-shadow">
-              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center mb-6">
-                <BookOpen size={24} />
+          <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="p-6 sm:p-8 rounded-2xl bg-white dark:bg-transparent border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-none hover:shadow-md transition-shadow">
+              <div className="w-14 h-14 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center mb-6">
+                <BookOpen size={28} />
               </div>
               <h3 className="text-xl font-semibold mb-3">
                 {translate(language, "landing.features.canvasIntegration.title")}
@@ -52,9 +52,9 @@ export default async function HomePage() {
                 {translate(language, "landing.features.canvasIntegration.description")}
               </p>
             </div>
-            <div className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-transparent border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-none hover:shadow-md transition-shadow">
-              <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl flex items-center justify-center mb-6">
-                <LayoutDashboard size={24} />
+            <div className="p-6 sm:p-8 rounded-2xl bg-white dark:bg-transparent border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-none hover:shadow-md transition-shadow">
+              <div className="w-14 h-14 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl flex items-center justify-center mb-6">
+                <LayoutDashboard size={28} />
               </div>
               <h3 className="text-xl font-semibold mb-3">
                 {translate(language, "landing.features.overview.title")}
@@ -63,9 +63,9 @@ export default async function HomePage() {
                 {translate(language, "landing.features.overview.description")}
               </p>
             </div>
-            <div className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-transparent border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-none hover:shadow-md transition-shadow">
-              <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center mb-6">
-                <Bot size={24} />
+            <div className="p-6 sm:p-8 rounded-2xl bg-white dark:bg-transparent border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-none hover:shadow-md transition-shadow">
+              <div className="w-14 h-14 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center mb-6">
+                <Bot size={28} />
               </div>
               <h3 className="text-xl font-semibold mb-3">
                 {translate(language, "landing.features.aiPartner.title")}

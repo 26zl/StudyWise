@@ -16,8 +16,8 @@ const KIClientContentSchema = z
 
 // zod schemas for KI API
 export const KIMessageSchema = z.object({
-  role: z.enum(["user", "assistant", "system"]),
-  content: z.string(),
+  role: z.enum(["user", "assistant"]),
+  content: z.string().min(1, "Meldingsinnhold kan ikke være tomt").max(KI_MAX_MESSAGE_LENGTH_BACKEND),
   timestamp: z.string().optional(),
 });
 
@@ -160,9 +160,9 @@ export const FlashcardsGenerateResponseSchema = z.object({
 // for å holde generering, lagring og visning i sync.
 export const SubTaskSchema = z.object({
   id: z.string().min(1),
-  title: z.string().min(1, "Tittel kan ikke være tom").max(200, "Tittel må være maks 200 tegn"),
+  title: z.string().trim().min(1, "Tittel kan ikke være tom").max(200, "Tittel må være maks 200 tegn"),
   description: z.string().max(1000, "Beskrivelse må være maks 1000 tegn").default(""),
-  estimatedTime: z.string().min(1, "Tidsestimat kan ikke være tomt"),
+  estimatedTime: z.string().trim().min(1, "Tidsestimat kan ikke være tomt").max(50, "Tidsestimat for langt"),
   priority: z.enum(["low", "medium", "high"]),
   completed: z.boolean(),
   approved: z.boolean().default(false),
@@ -170,9 +170,9 @@ export const SubTaskSchema = z.object({
 
 /** AI-generert subtask (uten id, completed, approved - disse legges til ved lagring). */
 export const GeneratedSubTaskSchema = z.object({
-  title: z.string().min(1).max(200),
+  title: z.string().trim().min(1).max(200),
   description: z.string().max(1000).default(""),
-  estimatedTime: z.string().min(1).max(50),
+  estimatedTime: z.string().trim().min(1).max(50),
   priority: z.enum(["low", "medium", "high"]),
 });
 export type GeneratedSubTask = z.infer<typeof GeneratedSubTaskSchema>;

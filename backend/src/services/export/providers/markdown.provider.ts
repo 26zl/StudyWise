@@ -4,7 +4,7 @@
  */
 
 import type { ExportDocument, ExportBlock, TextSegment, ListItem, TableCell } from "common/export";
-import type { ExportProvider, ProviderOptions } from "../export-types.js";
+import type { ExportProvider } from "../export-types.js";
 import type { ExportResponse } from "common/export";
 
 /** Rendrer inline-segmenter til Markdown-tekst */
@@ -97,7 +97,7 @@ export const markdownProvider: ExportProvider = {
     return true;
   },
 
-  async execute(doc: ExportDocument, _options?: ProviderOptions): Promise<ExportResponse> {
+  async execute(doc: ExportDocument): Promise<ExportResponse> {
     const content = renderMarkdown(doc);
     return {
       kind: "serialized",

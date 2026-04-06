@@ -13,7 +13,7 @@ import { deleteAccountData } from "./kontoSlett.js";
 import { logger } from "../../utils/logger.js";
 import { anonymizeAuditTrailForDeletedUser, audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import { rateLimitClerkWebhook } from "../../middleware/rate-limit.js";
-import { getCache, setCache, isRedisReady } from "../../cache/redis.js";
+import { setCache, setCacheNX, isRedisReady } from "../../cache/redis.js";
 
 const router = express.Router();
 
@@ -50,15 +50,21 @@ function localDedupeCleanup(): void {
   }
 }
 
-async function isReplayedEvent(svixId: string): Promise<boolean> {
+/**
+ * Reserverer svixId atomisk slik at samtidige leveranser blokkeres.
+ * Bruker kort TTL (60s) — markEventProcessed() oppdaterer med full TTL etter suksess.
+ * Ved feil utløper reservasjonen, og Clerk kan prøve igjen.
+ */
+async function claimEvent(svixId: string): Promise<boolean> {
   if (isRedisReady()) {
-    const existing = await getCache(`${WEBHOOK_DEDUPE_PREFIX}${svixId}`);
-    return existing !== null;
+    const key = `${WEBHOOK_DEDUPE_PREFIX}${svixId}`;
+    return setCacheNX(key, "processing", 60);
   }
-  // Fallback: in-memory dedupe (per dyno)
+  // Fallback: in-memory (per dyno, ikke atomisk på tvers av dynos)
   const ts = localDedupeCache.get(svixId);
-  if (ts && Date.now() - ts < LOCAL_DEDUPE_TTL_MS) return true;
-  return false;
+  if (ts && Date.now() - ts < LOCAL_DEDUPE_TTL_MS) return false;
+  localDedupeCache.set(svixId, Date.now());
+  return true;
 }
 
 async function markEventProcessed(svixId: string): Promise<void> {
@@ -158,10 +164,12 @@ router.post("/", async (req, res) => {
     return;
   }
 
-  // Replay-beskyttelse: avvis allerede behandlede hendelser basert på svix-id
+  // Replay-beskyttelse: reserver hendelsen atomisk slik at samtidige leveranser blokkeres.
+  // claimEvent() setter kort TTL (60s) — markEventProcessed() oppdaterer med full TTL etter suksess.
   const svixId = req.headers["svix-id"] as string;
-  if (await isReplayedEvent(svixId)) {
-    logger.info({ svixId }, "Clerk webhook: duplikat hendelse avvist (replay)");
+  const claimed = await claimEvent(svixId);
+  if (!claimed) {
+    logger.info({ svixId }, "Clerk webhook: duplikat hendelse avvist (replay/concurrent)");
     res.json({ received: true });
     return;
   }

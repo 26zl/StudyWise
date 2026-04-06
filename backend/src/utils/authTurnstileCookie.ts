@@ -13,7 +13,12 @@ import { logger } from "./logger.js";
 const AUTH_TURNSTILE_COOKIE_PATH = "/";
 const AUTH_TURNSTILE_COOKIE_TTL_MS = 5 * 60 * 1000;
 
-/** Redis-prefix for forbrukte Turnstile-nonce-er (atomisk single-use). */
+/**
+ * Redis-prefix for forbrukte Turnstile-nonce-er.
+ * Atomisk single-use via SET NX: kun første sesjon som konsumerer noncen får den.
+ * Andre sesjoner får turnstile_required og håndteres av TurnstileReChallenge
+ * (Cloudflare auto-passer nylig verifiserte nettlesere, så re-challenge er usynlig/instant).
+ */
 const TURNSTILE_NONCE_PREFIX = "auth:turnstile-nonce:";
 /** TTL for forbrukte nonce-er — matcher cookie-TTL + litt margin. */
 const TURNSTILE_NONCE_TTL_S = Math.ceil(AUTH_TURNSTILE_COOKIE_TTL_MS / 1000) + 60;
@@ -72,11 +77,24 @@ export function clearAuthTurnstileCookie(res: Response): void {
 
 /**
  * Validerer en rå Turnstile-cookie-verdi (server-side gate).
- * Sjekker HMAC-signatur via felles implementasjon i common/auth,
- * og håndhever atomisk single-use via Redis nonce-dedupe.
- * En cookie kan kun brukes én gang — parallelle auth-forsøk blokkeres.
+ * Sjekker HMAC-signatur og utløp via common/auth, og håndhever atomisk
+ * single-use via Redis SET NX.
+ *
+ * Cookien opprettes pre-auth (før Clerk-sesjon finnes) og kan derfor ikke
+ * bindes til en bestemt sesjon ved utstedelse. Sesjons-binding skjer etter
+ * konsumering via markSessionTurnstileVerified(sid).
+ *
+ * Designvalg — én cookie = én sesjon:
+ * - Noncen konsumeres atomisk (SET NX) — kun første sesjon vinner.
+ * - Cookien slettes fra nettleseren etter konsumering.
+ * - Andre sesjoner i samme nettleser får turnstile_required og håndteres
+ *   av TurnstileReChallenge (inline re-verifisering).
+ * - Cloudflare auto-passer nylig verifiserte nettlesere, så re-challenge
+ *   er typisk usynlig/instant for ekte brukere.
  */
-export async function isValidAuthTurnstileCookieValue(rawValue: string | undefined): Promise<boolean> {
+export async function isValidAuthTurnstileCookieValue(
+  rawValue: string | undefined,
+): Promise<boolean> {
   const secret = process.env.AUTH_TURNSTILE_GATE_SECRET?.trim();
   if (!secret) return false;
 
@@ -84,17 +102,14 @@ export async function isValidAuthTurnstileCookieValue(rawValue: string | undefin
   if (!valid || !nonce) return false;
 
   // Atomisk single-use via SET NX: kun den første forespørselen får sette nøkkelen.
-  // Parallelle kall med samme nonce vil få false tilbake fra setCacheNX.
   const redisKey = `${TURNSTILE_NONCE_PREFIX}${nonce}`;
 
   if (isRedisReady()) {
     const wasSet = await setCacheNX(redisKey, "1", TURNSTILE_NONCE_TTL_S);
     if (!wasSet) {
-      // Nøkkelen fantes allerede — nonce er forbrukt (eller setCacheNX feilet)
-      logger.warn({ nonce: nonce.slice(0, 8) }, "Turnstile-cookie nonce allerede forbrukt (Redis NX)");
+      logger.warn({ nonce: nonce.slice(0, 8) }, "Turnstile-cookie nonce allerede forbrukt");
       return false;
     }
-    // Oppdater lokal cache også for raskere avvisning ved gjentatte forsøk
     localNonceCache.set(nonce, Date.now());
     cleanupLocalNonceCache();
   } else {

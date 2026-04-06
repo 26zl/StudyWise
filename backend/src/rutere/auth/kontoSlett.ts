@@ -142,6 +142,22 @@ export async function deleteAccountData(
         );
       }
 
+      // Rydd opp tombstones med overlappende OAuth-kontoer innenfor transaksjonen
+      // for å unngå duplicate key-feil fra asynkron opprydding (queueDeletedOAuthConflictCleanup)
+      const oauthAccounts = user.oauthAccounts ?? [];
+      if (oauthAccounts.length > 0) {
+        await DeletedUserTombstone.updateMany(
+          {
+            $or: oauthAccounts.map((acc) => ({
+              "oauthAccounts.provider": acc.provider,
+              "oauthAccounts.providerAccountId": acc.providerAccountId,
+            })),
+          },
+          { $unset: { oauthAccounts: 1 } },
+          { session },
+        );
+      }
+
       // Opprett minimal tombstone for å håndtere OAuth/brukernavn-konflikter
       // Tombstones har 90-dagers TTL og slettes automatisk av MongoDB
       await DeletedUserTombstone.create(
@@ -149,7 +165,7 @@ export async function deleteAccountData(
           {
             originalUserId: id,
             clerkId: user.clerkId,
-            oauthAccounts: user.oauthAccounts ?? [],
+            oauthAccounts,
             usernameNormalized: user.usernameNormalized,
             deletedAt: new Date(),
           },

@@ -823,6 +823,7 @@ export async function fetchPdfContent(
   canvasToken: string | null | undefined,
   file: { id: number; filename: string; url: string; size: number; mime_type?: string },
   baseUrl?: string,
+  options?: { syncMode?: boolean },
 ): Promise<{ content: string; truncated: boolean } | null> {
   // Sjekk at filen er en PDF
   const isPdf = file.mime_type === "application/pdf" || file.filename.toLowerCase().endsWith(".pdf");
@@ -866,6 +867,7 @@ export async function fetchPdfContent(
       buffer,
       "application/pdf",
       freshFile.filename ?? file.filename,
+      options?.syncMode ? { syncMode: true } : undefined,
     );
 
     if (!parsed.success || parsed.text.trim().length === 0) {

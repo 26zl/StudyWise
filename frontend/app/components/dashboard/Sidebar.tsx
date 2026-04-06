@@ -415,7 +415,7 @@ export function Sidebar({
                     </button>
 
                     {/* Chat-historikk */}
-                    <div className="mb-8">
+                    <div className="mb-10">
                         <NavElement view="chat" icon={MessageSquare} label={t("dashboard.sidebar.aiAssistant")} isActiveOverride={erChatAktiv} />
 
                         {/* Oppgavedeling med KI */}
@@ -452,7 +452,7 @@ export function Sidebar({
                             isActiveOverride={erPåDashboard && (effektivVisning === "quiz" || effektivVisning === "flashcards")}
                         />
 
-                        <div className={`flex items-center justify-between px-5 ${erBookmarksUtvidet ? "pt-3 pb-2" : "pt-2 pb-1"}`}>
+                        <div className={`flex items-center justify-between px-5 ${erBookmarksUtvidet ? "pt-5 pb-2" : "pt-3 pb-1"}`}>
                             <Link
                                 href="/dashboard/bokmerker"
                                 prefetch={false}
@@ -481,7 +481,7 @@ export function Sidebar({
                             bookmarkedChats.map((chat) => renderChatRad(chat, "bookmarks"))
                         )}
 
-                        <div className={`flex items-center justify-between px-5 ${erBookmarksUtvidet ? "pt-4 pb-2" : "pt-2 pb-1"}`}>
+                        <div className={`flex items-center justify-between px-5 ${erBookmarksUtvidet ? "pt-6 pb-2" : "pt-3 pb-1"}`}>
                             <Link
                                 href="/dashboard/samtalehistorikk"
                                 prefetch={false}
@@ -524,7 +524,7 @@ export function Sidebar({
                     </div>
 
                     {/* Canvas-seksjon */}
-                    <div className="border-t border-slate-200 dark:border-slate-800 pt-8">
+                    <div className="border-t border-slate-200 dark:border-slate-800 pt-10">
                         <button
                             type="button"
                             onClick={() => settErCanvasUtvidet(!erCanvasUtvidet)}

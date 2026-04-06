@@ -7,6 +7,7 @@
  */
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useClerk } from "@clerk/nextjs";
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { MeResponse } from "common/auth";
 import { AppError } from "../lib/errors";
@@ -45,4 +46,21 @@ export function skalRedirecteTilAuth(megQuery: MegQueryResult): boolean {
   if (megQuery.isError && erAuthFeil(megQuery.error)) return true;
   if (megQuery.isSuccess && !megQuery.data?.user) return true;
   return false;
+}
+
+/**
+ * Fatale auth-feil (OAuth-konflikt, slettet konto osv.): logger ut automatisk via Clerk.
+ * Returnerer true mens utlogging pågår, slik at komponenten kan vise lastespinner.
+ */
+export function useFatalAuthSignOut(megQuery: MegQueryResult): boolean {
+  const clerk = useClerk();
+  const feilMsg = megQuery.isError ? (megQuery.error?.message ?? "") : "";
+  const erFatal = megQuery.isError && erFatalUserDataFeilmelding(feilMsg);
+
+  useEffect(() => {
+    if (!erFatal) return;
+    void clerk.signOut({ redirectUrl: "/auth/sign-in" });
+  }, [erFatal, clerk]);
+
+  return erFatal;
 }

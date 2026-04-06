@@ -29,6 +29,7 @@ import {
 import { createRateLimiter } from "../../middleware/rate-limit.js";
 import { isValidMongoObjectId } from "../../utils/mongoId.js";
 import { tryAuthenticateRequest } from "../../middleware/auth.js";
+import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 
 export const kiShareRouter = Router();
 export const sharedChatRouter = Router();
@@ -292,6 +293,19 @@ kiShareRouter.post("/chat/:chatId/share", async (req, res) => {
       "Opprettet delingslenke for chat",
     );
 
+    void audit({
+      actorUserId: userId,
+      action: AUDIT_ACTIONS.SHARE_CREATED,
+      category: "ki",
+      outcome: "success",
+      metadata: {
+        chatId: doc._id.toString(),
+        shareId: shared.shareId,
+        accessType: shared.accessType,
+      },
+      req,
+    });
+
     return res.json(
       ChatShareResponseSchema.parse({
         shareId: shared.shareId,
@@ -386,14 +400,25 @@ kiShareRouter.delete("/chat/shared", async (req, res) => {
       },
     );
 
+    const deletedCount = result.modifiedCount ?? 0;
+
     logger.info(
-      { userId, deletedCount: result.modifiedCount ?? 0 },
+      { userId, deletedCount },
       "Deaktiverte alle delingslenker for bruker",
     );
 
+    void audit({
+      actorUserId: userId,
+      action: AUDIT_ACTIONS.SHARE_REMOVED,
+      category: "ki",
+      outcome: "success",
+      metadata: { deletedCount, scope: "all" },
+      req,
+    });
+
     return res.json({
       ok: true,
-      deletedCount: result.modifiedCount ?? 0,
+      deletedCount,
     });
   } catch (error) {
     return sendUnknownError(res, error, {
@@ -447,6 +472,18 @@ kiShareRouter.patch("/chat/shared/:shareId", async (req, res) => {
 
     await doc.save();
 
+    void audit({
+      actorUserId: userId,
+      action: AUDIT_ACTIONS.SHARE_CREATED,
+      category: "ki",
+      outcome: "success",
+      metadata: {
+        shareId: req.params.shareId,
+        updates: Object.keys(parsed.data),
+      },
+      req,
+    });
+
     return res.json({
       ok: true,
     });
@@ -482,6 +519,16 @@ kiShareRouter.delete("/chat/shared/:shareId", async (req, res) => {
 
     doc.isActive = false;
     await doc.save();
+
+    void audit({
+      actorUserId: userId,
+      action: AUDIT_ACTIONS.SHARE_REMOVED,
+      category: "ki",
+      outcome: "success",
+      metadata: { shareId: req.params.shareId },
+      req,
+    });
+
     return res.status(204).send();
   } catch (error) {
     return sendUnknownError(res, error, {

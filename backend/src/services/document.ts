@@ -30,6 +30,7 @@ import { extractText, renderPageAsImage } from "unpdf";
 import mammoth from "mammoth";
 import Tesseract from "tesseract.js";
 import sharp from "sharp";
+import pLimit from "p-limit";
 import { logger } from "../utils/logger.js";
 import { DocumentParseResult } from "common/document";
 import { extractTextFromFile, getCodeLanguage } from "./fileExtractor.js";
@@ -37,7 +38,17 @@ import { extractTextFromFile, getCodeLanguage } from "./fileExtractor.js";
 // Konfigurasjon
 const OCR_TIMEOUT_MS = 60000; // 60 sekunder timeout for OCR
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB maks filstørrelse for parsing
-const MAX_OCR_PAGES = 10; // Maks antall PDF-sider som OCR-es (ytelsesgrense)
+const MAX_OCR_PAGES = 10; // Maks antall PDF-sider som OCR-es (interaktiv analyse)
+const MAX_OCR_PAGES_SYNC = 3; // Maks antall PDF-sider som OCR-es under Canvas sync (minnegrense)
+/** Maks filstørrelse for OCR under sync — store skannede PDF-er hopper over OCR */
+const MAX_OCR_FILE_SIZE_SYNC = 5 * 1024 * 1024; // 5MB
+
+/**
+ * Global OCR-semafor: begrenser samtidige OCR-operasjoner på tvers av alle
+ * forespørsler for å unngå at minnet spiser opp Heroku-dynoen.
+ * Tesseract + sharp + renderPageAsImage bruker ~8-12 MB per side.
+ */
+const ocrLimit = pLimit(1);
 
 // Støttede MIME-typer og deres filtype
 export const SUPPORTED_DOCUMENT_TYPES: Record<string, string> = {
@@ -172,11 +183,11 @@ export function validateFileMagicBytes(buffer: Buffer, declaredMimeType: string)
 
     // Alle Office Open XML-formater (docx, pptx, xlsx) deler PK ZIP-signatur.
     // Verifiser intern ZIP-struktur for å skille mellom formatene.
+    // application/msword (legacy .doc) bruker OLE2-signatur, ikke ZIP — hører ikke hjemme her
     const allowedForZip = [
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/msword",
     ];
     if (fromMagic === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" && allowedForZip.includes(declaredNorm)) {
         // Sjekk intern struktur for å verifisere at ZIP-innholdet matcher deklarert type
@@ -433,7 +444,7 @@ async function performOCR(buffer: Buffer): Promise<{ text: string; confidence: n
  */
 async function parseImageDocument(buffer: Buffer): Promise<DocumentParseResult> {
     try {
-        const { text, confidence } = await performOCR(buffer);
+        const { text, confidence } = await ocrLimit(() => performOCR(buffer));
 
         if (!text || text.trim().length === 0) {
             logger.warn("Bildet inneholder ingen lesbar tekst");
@@ -506,8 +517,9 @@ async function parseImageDocument(buffer: Buffer): Promise<DocumentParseResult> 
  * Bruker unpdf sin renderPageAsImage for å konvertere sider til PNG,
  * deretter Tesseract for tekstgjenkjenning.
  */
-async function ocrPdfPages(pdfSource: Buffer, numPages: number): Promise<{ text: string; avgConfidence: number; pagesProcessed: number }> {
-    const pagesToProcess = Math.min(numPages, MAX_OCR_PAGES);
+async function ocrPdfPages(pdfSource: Buffer, numPages: number, opts?: { maxPages?: number }): Promise<{ text: string; avgConfidence: number; pagesProcessed: number }> {
+    const pageLimit = opts?.maxPages ?? MAX_OCR_PAGES;
+    const pagesToProcess = Math.min(numPages, pageLimit);
     logger.info({ totalPages: numPages, pagesToProcess }, "Starting PDF page rasterization for OCR");
 
     const pageTexts: string[] = [];
@@ -534,8 +546,8 @@ async function ocrPdfPages(pdfSource: Buffer, numPages: number): Promise<{ text:
 
             logger.info({ page, imageSize: imgBuffer.length }, "PDF page rasterized, running OCR");
 
-            // Kjør OCR på det rasteriserte bildet
-            const { text, confidence } = await performOCR(imgBuffer);
+            // Kjør OCR på det rasteriserte bildet (gjennom global semafor)
+            const { text, confidence } = await ocrLimit(() => performOCR(imgBuffer));
 
             if (text && text.trim().length > 0) {
                 pageTexts.push(`--- Side ${page} ---\n${text.trim()}`);
@@ -570,7 +582,7 @@ async function ocrPdfPages(pdfSource: Buffer, numPages: number): Promise<{ text:
 /**
  * Parser en PDF-fil med unpdf
  */
-async function parsePdfDocument(buffer: Buffer): Promise<DocumentParseResult> {
+async function parsePdfDocument(buffer: Buffer, options?: ParseDocumentOptions): Promise<DocumentParseResult> {
     try {
         // Lag en uavhengig kopi av PDF-dataene.
         // extractText() (pdf.js) kan detache den underliggende ArrayBuffer-en via
@@ -604,11 +616,29 @@ async function parsePdfDocument(buffer: Buffer): Promise<DocumentParseResult> {
 
         // Valider at vi faktisk fikk ekte tekst - hvis ikke, rasteriser sider og kjør OCR
         if (!hasRealText) {
+            // I sync-modus: hopp over OCR for store filer for å spare minne
+            if (options?.syncMode && buffer.length > MAX_OCR_FILE_SIZE_SYNC) {
+                logger.info(
+                    { bufferSize: buffer.length, threshold: MAX_OCR_FILE_SIZE_SYNC },
+                    "Hopper over OCR for stor PDF under sync (minnegrense)",
+                );
+                return {
+                    success: false,
+                    text: "",
+                    pages: numPages,
+                    fileType: "pdf",
+                    redacted: false,
+                    truncated: false,
+                    error: "PDF-filen inneholder ingen lesbar tekst og er for stor for OCR under synkronisering.",
+                };
+            }
+
             logger.warn("PDF inneholder ingen lesbar tekst via standard ekstraksjon, rasteriserer sider for OCR");
-            
+
             // Rasteriser PDF-sider til bilder og kjør OCR per side
             try {
-                const ocrResult = await ocrPdfPages(buffer, numPages);
+                const maxPages = options?.syncMode ? MAX_OCR_PAGES_SYNC : MAX_OCR_PAGES;
+                const ocrResult = await ocrPdfPages(buffer, numPages, { maxPages });
                 logger.info({
                     ocrTextLength: ocrResult.text.length,
                     ocrTrimmedLength: ocrResult.text.trim().length,
@@ -767,7 +797,7 @@ async function ocrImageBuffers(
 
     for (let i = 0; i < imagesToProcess; i++) {
         try {
-            const { text, confidence } = await performOCR(images[i]);
+            const { text, confidence } = await ocrLimit(() => performOCR(images[i]));
 
             if (text && text.trim().length > 0) {
                 texts.push(`--- Bilde ${i + 1} ---\n${text.trim()}`);
@@ -1007,10 +1037,16 @@ function safeBasename(filename: string | undefined): string {
     return last.includes("..") ? "" : last.slice(0, 255);
 }
 
+export interface ParseDocumentOptions {
+  /** Sync-modus: strengere minnegrenser (færre OCR-sider, hopper over OCR for store filer) */
+  syncMode?: boolean;
+}
+
 export async function parseDocument(
     buffer: Buffer,
     mimeType: string,
-    filename?: string
+    filename?: string,
+    options?: ParseDocumentOptions,
 ): Promise<DocumentParseResult> {
   const safeName = safeBasename(filename);
   // Sjekk filstørrelse først
@@ -1083,7 +1119,7 @@ export async function parseDocument(
   // Velg riktig parser basert på filtype
   switch (fileType) {
     case "pdf":
-      return parsePdfDocument(buffer);
+      return parsePdfDocument(buffer, options);
 
     case "docx":
     case "doc":

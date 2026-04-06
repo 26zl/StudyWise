@@ -412,8 +412,8 @@ async function hentCanvasDataImpl<T>(
                             error: errorCode,
                             cached: true,
                         };
-                        // Cache negative result med kortere TTL (5 minutter)
-                        const negativeCacheTtl = Math.min(cacheTtl, 300);
+                        // Cache negative result med kort TTL (60 sek) slik at gjenoppretting ikke maskeres
+                        const negativeCacheTtl = Math.min(cacheTtl, 60);
                         await setCache(cacheNokkel, JSON.stringify(negativeResult), negativeCacheTtl);
                         logger.debug({ endpoint, errorCode, cacheTtl: negativeCacheTtl }, "Cachet negativ respons");
                     }

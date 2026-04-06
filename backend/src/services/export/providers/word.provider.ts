@@ -17,7 +17,7 @@ import {
   WidthType,
   CheckBox,
 } from "docx";
-import type { ExportProvider, ExportProviderResult, ProviderOptions } from "../export-types.js";
+import type { ExportProvider, ExportProviderResult } from "../export-types.js";
 import type { ExportDocument, ExportBlock, TextSegment, ListItem, ExportResponse } from "common/export";
 
 export class WordExportProvider implements ExportProvider {
@@ -28,7 +28,7 @@ export class WordExportProvider implements ExportProvider {
     return true;
   }
 
-  async execute(doc: ExportDocument, _options?: ProviderOptions): Promise<ExportResponse> {
+  async execute(doc: ExportDocument): Promise<ExportResponse> {
     const result = await this.export(doc);
     return {
       kind: "serialized",
@@ -42,7 +42,7 @@ export class WordExportProvider implements ExportProvider {
     };
   }
 
-  async export(document: ExportDocument): Promise<ExportProviderResult> {
+  private async export(document: ExportDocument): Promise<ExportProviderResult> {
     const children: (Paragraph | Table)[] = [];
 
     // Tittel

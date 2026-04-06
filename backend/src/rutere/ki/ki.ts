@@ -28,6 +28,7 @@ import {
   loadCanvasContext,
   ensureCanvasSync,
   resolveTargetAgainstKnownCourses,
+  resolveModuleHintToCourse,
   ContextResultSchema,
   type IntentType,
   type ContextResult,
@@ -519,7 +520,7 @@ function extractQueryTarget(message: string): TargetedQuery {
   // Vanlige emnefragmenter som kan dukke opp i Canvas-emnenavn
   const courseKeywords = [
     "algoritmer", "datastrukturer", "database", "strategi", "sikkerhet",
-    "python", "objekt", "web", "nettverk", "metode", "mobil", "ki",
+    "python", "objekt", "web", "nettverk", "metode", "mobil",
     "maskinlæring", "machine learning", "windows", "server",
     "operativsystem", "matematikk", "statistikk", "økonomi", "ledelse",
     "prosjekt", "bacheloroppgave", "kommunikasjon", "innovasjon",
@@ -558,6 +559,9 @@ function extractQueryTarget(message: string): TargetedQuery {
     "it security": "sikkerhet",
     "cyber security": "sikkerhet",
     "machine learning": "maskinlæring",
+    "ki i studiene": "ki",
+    "kunstig intelligens": "ki",
+    "artificial intelligence": "ki",
     "diskret matematikk": "diskret",
     "discrete mathematics": "diskret",
     "operating system": "operativsystem",
@@ -928,9 +932,10 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       }
 
       // Ekstraher eventuelle emne/modul-hint fra siste brukermelding
+      // NB: resolveTargetAgainstKnownCourses kalles ETTER sesjonslås-logikken
+      // slik at låst courseHint ikke blir overstyrt av feilaktig kursoppløsning.
       const lastUserMsg = messages.filter((m: { role: string }) => m.role === "user").at(-1)?.content ?? "";
       let target = extractQueryTarget(lastUserMsg);
-      target = await resolveTargetAgainstKnownCourses(req.user.id, target, lastUserMsg);
       const isLikelyFollowUp = isLikelyFollowUpQuestion(lastUserMsg);
 
       // ─── Session-locked courseHint ───
@@ -980,8 +985,9 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
           );
         } else if (sanitizedTargetHint !== lockedCourseHint) {
           target.courseHint = lockedCourseHint;
+          target.courseIdHint = null; // Nullstill — lar resolveTargetAgainstKnownCourses løse riktig kurs
           logger.info(
-            { courseHint: target.courseHint, fromLock: true, ignoredHint: true },
+            { courseHint: target.courseHint, fromLock: true, ignoredHint: sanitizedTargetHint },
             "courseHint beholdt fra sesjonslås (ingen eksplisitt override)",
           );
         } else {
@@ -1002,6 +1008,23 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       if (target.courseHint && target.courseIdHint == null) {
         target = await resolveTargetAgainstKnownCourses(req.user.id, target, lastUserMsg);
       }
+
+      // Fallback: når det finnes moduleHint (f.eks. "uke 7") men ingen courseHint,
+      // søk i CanvasStructure for å finne hvilket kurs som eier den modulen.
+      if (target.courseIdHint == null && target.moduleHint) {
+        target = await resolveModuleHintToCourse(req.user.id, target, lastUserMsg);
+
+        // Oppdater sesjonslåsen hvis vi fant et kurs via moduloppslag
+        if (target.courseHint) {
+          const resolvedLockValue = sanitizeCourseHintValue(target.courseHint);
+          await setCache(courseHintLockKey, resolvedLockValue, SESSION_COURSEHINT_TTL);
+          logger.info(
+            { courseHint: resolvedLockValue, source: "moduleHintResolution" },
+            "courseHint oppdatert fra moduloppslag",
+          );
+        }
+      }
+
       traceCourseIdHint = target.courseIdHint;
       traceCourseHint = target.courseHint;
 
@@ -1094,7 +1117,8 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
         // Fil-/PDF-innhold skal aldri lagres i Redis (kun i MongoDB) — cache kun strukturell kontekst
         const kontekstHarFilInnhold =
           contextResult.kontekst.includes("--- PDF-INNHOLD:") ||
-          contextResult.kontekst.includes("--- FIL-INNHOLD:");
+          contextResult.kontekst.includes("--- FIL-INNHOLD:") ||
+          contextResult.kontekst.includes("--- FIL-INNHOLD (FULLT DOKUMENT):");
 
         if (sessionCacheKey && contextResult.hasCanvasData && !kontekstHarFilInnhold) {
           await setCache(sessionCacheKey, JSON.stringify(contextResult), SESSION_CONTEXT_TTL);
@@ -1198,7 +1222,7 @@ Rules:
     }> = [
       { role: "system", content: fullDocumentStrictPrefix + enhancedSystemPrompt, cache_control: { type: "ephemeral" } },
       ...(hasCanvasData
-        ? [{ role: "system" as const, content: "<retrieved_course_data>\n" + canvasKontekst + "\n</retrieved_course_data>", cache_control: { type: "ephemeral" as const } }]
+        ? [{ role: "system" as const, content: canvasKontekst, cache_control: { type: "ephemeral" as const } }]
         : []),
       ...trimmedMessages.map((m: { role: string; content: string }) => ({
         role: m.role as "user" | "assistant",

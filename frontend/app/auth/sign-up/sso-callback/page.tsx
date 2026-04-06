@@ -31,11 +31,15 @@ export default function SSOCallbackPage() {
           const json = await res.json().catch(() => ({}));
           if (
             json?.error === "oauth_account_conflict" ||
-            json?.error === "oauth_metadata_missing" ||
-            json?.error === "turnstile_required"
+            json?.error === "oauth_metadata_missing"
           ) {
             await clerk.signOut().catch(() => {});
             setOauthConflict(true);
+            return;
+          }
+          // turnstile_required: redirect til dashboard — TurnstileReChallenge viser re-verifikasjon
+          if (json?.error === "turnstile_required") {
+            window.location.replace("/dashboard");
             return;
           }
         }

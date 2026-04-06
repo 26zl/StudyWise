@@ -11,21 +11,12 @@ export const EXPORT_TARGETS = [
   "pdf",
   "text",
   "word",
+  "excel",
   "notion",
 ] as const;
 
 export const ExportTargetSchema = z.enum(EXPORT_TARGETS);
 export type ExportTarget = z.infer<typeof ExportTargetSchema>;
-
-// Serialiserbare mål (returnerer fil/binærdata direkte)
-export const SERIALIZABLE_TARGETS = ["markdown", "pdf", "text", "word"] as const;
-
-// Eksterne mål (krever API-kall til tredjepartstjenester)
-export const EXTERNAL_TARGETS = ["notion"] as const;
-
-export function isSerializableTarget(target: ExportTarget): boolean {
-  return (SERIALIZABLE_TARGETS as readonly string[]).includes(target);
-}
 
 // --- Internt dokumentformat (mellomformat) ---
 
@@ -138,20 +129,29 @@ export type NotionExportOptions = z.infer<typeof NotionExportOptionsSchema>;
 export const ExportProviderOptionsSchema = z.object({
   notion: NotionExportOptionsSchema.optional(),
 });
+export type ExportProviderOptions = z.infer<typeof ExportProviderOptionsSchema>;
 
 /** Eksport-request */
 export const ExportRequestSchema = z.object({
   target: ExportTargetSchema,
-  title: z.string().min(1, "Tittel er påkrevd").max(EXPORT_TITLE_MAX_LENGTH),
-  content: z.string().min(1, "Innhold er påkrevd").max(EXPORT_CONTENT_MAX_LENGTH),
+  title: z.string().trim().min(1, "Tittel er påkrevd").max(EXPORT_TITLE_MAX_LENGTH),
+  content: z.string().trim().min(1, "Innhold er påkrevd").max(EXPORT_CONTENT_MAX_LENGTH),
   metadata: z.record(z.string(), z.unknown()).optional(),
   options: ExportProviderOptionsSchema.optional(),
 });
 export type ExportRequest = z.infer<typeof ExportRequestSchema>;
 
-/** Respons for serialiserbare mål (markdown/pdf/text/word) */
+// Serialiserbare mål (fil-eksport)
+const SERIALIZED_TARGETS = ["markdown", "pdf", "text", "word", "excel"] as const;
+const SerializedTargetSchema = z.enum(SERIALIZED_TARGETS);
+
+// Eksterne mål (tredjepart-integrasjon)
+const EXTERNAL_TARGETS = ["notion"] as const;
+const ExternalTargetSchema = z.enum(EXTERNAL_TARGETS);
+
+/** Respons for serialiserbare mål (markdown/pdf/text/word/excel) */
 export const SerializedExportResponseSchema = z.object({
-  target: ExportTargetSchema,
+  target: SerializedTargetSchema,
   content: z.string(),
   mimeType: z.string(),
   filename: z.string().optional(),
@@ -162,7 +162,7 @@ export type SerializedExportResponse = z.infer<typeof SerializedExportResponseSc
 
 /** Respons for eksterne mål (notion) */
 export const ExternalExportResponseSchema = z.object({
-  target: ExportTargetSchema,
+  target: ExternalTargetSchema,
   resourceId: z.string(),
   url: z.string().optional(),
   title: z.string(),

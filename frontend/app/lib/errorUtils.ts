@@ -27,7 +27,7 @@ export interface ApiErrorPayload {
 
 /** Auth-/konto-feil som krever tydelig handling (ikke vanlig retry). */
 const FATAL_USERDATA_ERROR_REGEX =
-  /kontoen er slettet|innloggingskonflikt|allerede en konto|brukernavnet .* er allerede tatt|allerede koblet til en annen studywise-bruker|mangler verifiserbar oauth-identifikator|sikkerhetsverifisering kreves|turnstile_required/i;
+  /kontoen er slettet|innloggingskonflikt|allerede en konto|brukernavnet .* er allerede tatt|allerede koblet til en annen studywise-bruker|mangler verifiserbar oauth-identifikator/i;
 
 export function erFatalUserDataFeilmelding(message: string): boolean {
   return FATAL_USERDATA_ERROR_REGEX.test(message);

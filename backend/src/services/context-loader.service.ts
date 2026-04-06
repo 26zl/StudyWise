@@ -70,6 +70,8 @@ export const ContextResultSchema = z.object({
   hasSparseChunks: z.boolean().optional(),
   /** true når konteksten er hentet som full dokumenttekst (ikke chunk-sammensetning) */
   fullDocumentMode: z.boolean().optional(),
+  /** true når konteksten kun er metadata (modulstruktur/oppgaveliste) uten faktisk faginnhold */
+  metadataOnly: z.boolean().optional(),
 });
 
 export type ContextResult = z.infer<typeof ContextResultSchema>;
@@ -125,13 +127,16 @@ function shouldUseFullDocumentMode(
   message: string,
   target: TargetedQuery | undefined,
   filteredResults: HybridSearchResult[],
+  moduleHintMissed = false,
 ): { enabled: boolean; reason: string; triggerWord?: string } {
   const rawLower = message.toLowerCase();
   const normalized = normaliserCanvasSporsmal(message);
   const wordCount = normalized.split(/\s+/).filter(Boolean).length;
   const triggerWord = FULL_DOCUMENT_TRIGGER_WORDS.find((word) => rawLower.includes(word));
   const explicitBroadQuery = !!triggerWord;
-  const explicitFileOrChapter = Boolean(target?.fileHint || target?.moduleHint);
+  // Når moduleHint ikke traff noen resultater, er chunks fra en annen modul enn forespurt.
+  // Da skal vi IKKE trigge full_document basert på moduleHint — filene er irrelevante.
+  const explicitFileOrChapter = Boolean(target?.fileHint || (!moduleHintMissed && target?.moduleHint));
   const uniqueFileIds = new Set(filteredResults.map((r) => `${r.source.courseId}:${r.source.fileId}`));
   const singleFileBroadMatch = uniqueFileIds.size === 1 && wordCount < 6;
 
@@ -264,6 +269,105 @@ export async function resolveTargetAgainstKnownCourses(
   };
 }
 
+/**
+ * Når det finnes moduleHint (f.eks. "uke 7") men ingen courseHint, sjekk
+ * CanvasStructure for å finne hvilket kurs som har en modul med matchende navn.
+ * Meldingsteksten brukes for å skille mellom kurser som har lignende modulnavn.
+ */
+export async function resolveModuleHintToCourse(
+  userId: string,
+  target: TargetedQuery,
+  message: string,
+): Promise<TargetedQuery> {
+  if (target.courseIdHint != null || !target.moduleHint) {
+    return target;
+  }
+
+  const structures = await CanvasStructureModel.find(
+    { userId },
+    { courseId: 1, courseName: 1, course_code: 1, "moduler.name": 1, "moduler.items.title": 1 },
+  ).lean();
+
+  if (structures.length === 0) return target;
+
+  const normalizedHint = normaliserCanvasSporsmal(target.moduleHint);
+  const normalizedMsg = normaliserCanvasSporsmal(message);
+
+  interface ModuleMatch {
+    courseId: string;
+    courseName: string;
+    courseCode: string;
+    moduleName: string;
+    score: number;
+  }
+
+  const matches: ModuleMatch[] = [];
+
+  for (const structure of structures) {
+    for (const mod of structure.moduler ?? []) {
+      const normalizedModName = normaliserCanvasSporsmal(mod.name);
+      if (!normalizedModName.includes(normalizedHint)) continue;
+
+      // Modulnavn matcher — beregn score basert på item-titler mot meldingen
+      let score = 10; // Grunnpoeng for modulnavn-match
+      const items = (mod as { items?: Array<{ title?: string }> }).items ?? [];
+      for (const item of items) {
+        if (!item.title) continue;
+        const normalizedTitle = normaliserCanvasSporsmal(item.title);
+        // Sjekk om item-tittel har felles ord med meldingen (minst 4 tegn for å unngå støy)
+        const titleWords = normalizedTitle.split(/\s+/).filter((w) => w.length >= 4);
+        for (const word of titleWords) {
+          if (normalizedMsg.includes(word)) {
+            score += 15;
+          }
+        }
+      }
+
+      matches.push({
+        courseId: structure.courseId,
+        courseName: structure.courseName,
+        courseCode: structure.course_code ?? "",
+        moduleName: mod.name,
+        score,
+      });
+    }
+  }
+
+  if (matches.length === 0) return target;
+
+  matches.sort((a, b) => b.score - a.score);
+  const best = matches[0];
+  const secondBest = matches[1];
+
+  // Krev tydelig vinner (score >= 25 betyr minst 1 item-tittel match + modul-match)
+  if (best.score < 25) return target;
+  if (secondBest && best.score - secondBest.score < 10) return target;
+
+  const numericCourseId = /^\d+$/.test(best.courseId) ? Number(best.courseId) : null;
+  const resolvedHint = best.courseCode
+    ? best.courseCode.replace(/-/g, "").toLowerCase()
+    : normaliserCanvasSporsmal(best.courseName);
+
+  logger.info(
+    {
+      userId,
+      moduleHint: target.moduleHint,
+      resolvedCourse: best.courseName,
+      resolvedCourseId: numericCourseId,
+      moduleName: best.moduleName,
+      score: best.score,
+      runnerUpScore: secondBest?.score ?? 0,
+    },
+    "Løste moduleHint til kurs via CanvasStructure",
+  );
+
+  return {
+    ...target,
+    courseIdHint: numericCourseId,
+    courseHint: resolvedHint,
+  };
+}
+
 function hasCourseTarget(target?: TargetedQuery): boolean {
   return target?.courseIdHint !== null && target?.courseIdHint !== undefined
     ? true
@@ -300,7 +404,7 @@ function formaterLettKontekst(emner: LettKontekstEmne[], prefs?: CanvasContextPr
   const now = new Date();
   const twoWeeksFromNow = new Date(now.getTime() + TWO_WEEKS_MS);
 
-  let kontekst = "[CANVAS-DATA START]\n";
+  let kontekst = "<canvas-kursdata>\n";
 
   if (!prefs || prefs.courses) {
     kontekst += `EMNER (${emner.length} aktive):\n`;
@@ -335,7 +439,7 @@ function formaterLettKontekst(emner: LettKontekstEmne[], prefs?: CanvasContextPr
     }
   }
 
-  kontekst += "[CANVAS-DATA SLUTT]";
+  kontekst += "</canvas-kursdata>";
   return kontekst;
 }
 
@@ -352,7 +456,7 @@ function titleMatchesFileHint(title: string, fileHint: string): boolean {
 function formaterKursoversiktFraLagring(
   courses: Array<{ courseName: string; course_code?: string; moduler?: Array<{ name: string }> }>,
 ): string {
-  let kontekst = "[CANVAS-DATA START]\n";
+  let kontekst = "<canvas-kursdata>\n";
   kontekst += `EMNER (${courses.length} aktive):\n`;
   for (const course of courses) {
     const label = formatCourseLabel(course.courseName, course.course_code);
@@ -365,7 +469,7 @@ function formaterKursoversiktFraLagring(
       kontekst += "\n";
     }
   }
-  kontekst += "[CANVAS-DATA SLUTT]";
+  kontekst += "</canvas-kursdata>";
   return kontekst;
 }
 
@@ -727,7 +831,7 @@ async function byggMålrettetKontekstFraMongo(
     if (!matchedStructure && target.moduleHint) {
       const hint = target.moduleHint.toLowerCase();
       matchedStructure = structures.find((s) =>
-        s.moduler.some((mod) => mod.name.toLowerCase().includes(hint)),
+        s.moduler.some((mod) => modulTitleMatcherHint(mod.name, hint)),
       );
     }
 
@@ -747,7 +851,7 @@ async function byggMålrettetKontekstFraMongo(
 
     if (!matchedStructure) return null;
 
-    let kontekst = "[CANVAS-DATA START]\n";
+    let kontekst = "<canvas-kursdata>\n";
     kontekst += `EMNE: ${formatCourseLabel(matchedStructure.courseName, matchedStructure.course_code)}\n\n`;
 
     let hadModuleFileContent = false;
@@ -760,8 +864,7 @@ async function byggMålrettetKontekstFraMongo(
 
         // Filtrer til spesifikk modul hvis moduleHint finnes
         if (target.moduleHint) {
-          const hint = target.moduleHint.toLowerCase();
-          if (!mod.name.toLowerCase().includes(hint)) {
+          if (!modulTitleMatcherHint(mod.name, target.moduleHint)) {
             kontekst += "(Ikke relevant for søket)\n";
             continue;
           }
@@ -841,15 +944,14 @@ async function byggMålrettetKontekstFraMongo(
       }
     }
 
-    kontekst += "[CANVAS-DATA SLUTT]";
+    kontekst += "</canvas-kursdata>";
 
-    // Ved modulspørsmål uten filinnhold: fall tilbake til API som henter PDF live
     if (target.moduleHint && !hadModuleFileContent) {
       logger.info(
-        { userId, target },
-        "Målrettet MongoDB: ingen filinnhold for modul — fallback til API",
+        { userId, target, contextLength: kontekst.length },
+        "Målrettet MongoDB: ingen filinnhold for modul — metadata-kontekst klar, on-demand kan berike",
       );
-      return null;
+      return `${kontekst}\n<!-- MODULE_NEEDS_FILE_CONTENT -->`;
     }
 
     return kontekst;
@@ -904,6 +1006,117 @@ async function byggLettKontekstFraRedis(userId: string, prefs?: CanvasContextPre
 }
 
 /**
+ * Bygger modulstruktur-oversikt med filnavn og tilgjengelig innhold for et spesifikt emne.
+ * Brukes for å berike hybrid-søk med kontekst om hva som finnes i emnet,
+ * slik at KI-assistenten vet om alle moduler og filer — ikke bare det den fant via søk.
+ *
+ * For målrettet modul (moduleHint) inkluderes også lagret filinnhold fra MongoDB,
+ * slik at KI har tilgang til faktisk kursinnhold selv om hybrid-søket bare fant 1 dokument.
+ */
+async function byggModulStrukturOversikt(
+  userId: string,
+  target: TargetedQuery,
+  hiddenCourseIds?: Set<number>,
+): Promise<string | null> {
+  try {
+    const matchedCourses = await finnRelevanteEmner(userId, target, hiddenCourseIds);
+    if (matchedCourses.length === 0) return null;
+
+    const matchedCourse = matchedCourses[0];
+    const courseId = String(matchedCourse.id);
+
+    // Hent moduler fra Redis eller MongoDB
+    type ModulItem = { id?: number; title: string; type: string; content_id?: number; page_url?: string };
+    type Modul = { name: string; items?: ModulItem[] };
+    let moduler: Modul[] = [];
+
+    const modulerRaw = await getCache(userKey(userId, "emne", courseId, "moduler"));
+    if (modulerRaw) {
+      try { moduler = JSON.parse(modulerRaw); } catch { /* ugyldig JSON */ }
+    }
+    if (moduler.length === 0) {
+      const structure = await CanvasStructureModel.findOne(
+        { userId, courseId },
+        { moduler: 1 },
+      ).lean();
+      if (structure?.moduler?.length) {
+        moduler = structure.moduler.map((m) => ({
+          name: m.name,
+          items: m.items?.map((i) => ({
+            id: i.id,
+            title: i.title,
+            type: i.type,
+            content_id: i.content_id ?? undefined,
+            page_url: i.page_url ?? undefined,
+          })),
+        }));
+      }
+    }
+    if (moduler.length === 0) return null;
+
+    let oversikt = `\n--- EMNESTRUKTUR: ${formatCourseLabel(matchedCourse.name, undefined)} ---\n`;
+    oversikt += `Moduler (${moduler.length}):\n`;
+
+    // For målrettet modul: inkluder lagret filinnhold
+    const isModuleTargeted = !!target.moduleHint;
+    const MAX_FILE_CONTENT_CHARS = 3500;
+    const MAX_FILES_WITH_CONTENT = 8;
+    let filesWithContentIncluded = 0;
+
+    for (const modul of moduler) {
+      const items = modul.items ?? [];
+      const isTargetModule = isModuleTargeted && modulTitleMatcherHint(modul.name, target.moduleHint!);
+
+      if (isTargetModule) {
+        // Målrettet modul: vis filer med innhold
+        oversikt += `\n### ${modul.name}\n`;
+        for (const item of items) {
+          oversikt += `- [${item.type}] ${item.title}\n`;
+
+          // Prøv å inkludere lagret filinnhold for File/Page-items
+          if (filesWithContentIncluded < MAX_FILES_WITH_CONTENT) {
+            const fileId = item.type === "Page" ? item.id : item.content_id;
+            if ((item.type === "File" || item.type === "Page") && fileId != null) {
+              try {
+                const chunks = await getStoredChunksForFile(userId, courseId, fileId);
+                if (chunks.length > 0) {
+                  const fullText = chunks
+                    .sort((a, b) => a.index - b.index)
+                    .map((c) => c.text)
+                    .join("\n\n");
+                  const truncated = fullText.length > MAX_FILE_CONTENT_CHARS
+                    ? fullText.substring(0, MAX_FILE_CONTENT_CHARS) + "\n[...forkortet...]"
+                    : fullText;
+                  oversikt += `\nINNHOLD FRA ${item.title}:\n${truncated}\n`;
+                  filesWithContentIncluded++;
+                }
+              } catch {
+                // Lagret filinnhold mangler — ignorer
+              }
+            }
+          }
+        }
+      } else {
+        // Andre moduler: vis filnavn kompakt
+        const fileNames = items
+          .filter((i) => i.type === "File" || i.type === "Page")
+          .map((i) => i.title);
+        oversikt += `- ${modul.name} (${items.length} elementer)`;
+        if (fileNames.length > 0) {
+          oversikt += `\n  Filer: ${fileNames.join(", ")}`;
+        }
+        oversikt += "\n";
+      }
+    }
+
+    return oversikt;
+  } catch (err) {
+    logger.warn({ err, userId }, "Kunne ikke bygge modulstruktur-oversikt");
+    return null;
+  }
+}
+
+/**
  * Bygger målrettet kontekst fra Redis-data for et spesifikt emne/modul.
  * Inkluderer: emne-metadata, moduler, oppgaver og kunngjøringer for det aktuelle emnet.
  */
@@ -943,7 +1156,7 @@ async function byggMålrettetKontekstFraRedis(
       "byggMålrettet: Data hentet for matchet emne",
     );
 
-    let kontekst = "[CANVAS-DATA START]\n";
+    let kontekst = "<canvas-kursdata>\n";
     kontekst += `EMNE: ${formatCourseLabel(matchedCourse.name, matchedCourse.course_code)}\n\n`;
 
     let hadModuleFileContent = false;
@@ -962,8 +1175,7 @@ async function byggMålrettetKontekstFraRedis(
 
           // Filtrer til spesifikk modul hvis moduleHint finnes
           if (target.moduleHint) {
-            const hint = target.moduleHint.toLowerCase();
-            if (!modul.name.toLowerCase().includes(hint)) {
+            if (!modulTitleMatcherHint(modul.name, target.moduleHint)) {
               kontekst += "(Ikke relevant for søket)\n";
               continue;
             }
@@ -1071,15 +1283,16 @@ async function byggMålrettetKontekstFraRedis(
       }
     }
 
-    kontekst += "[CANVAS-DATA SLUTT]";
+    kontekst += "</canvas-kursdata>";
 
-    // Ved modulspørsmål uten filinnhold i Redis: fall tilbake til API som henter PDF live
+    // Modulspørsmål uten filinnhold: marker at on-demand bør prøves for å berike konteksten
     if (target.moduleHint && !hadModuleFileContent) {
       logger.info(
-        { userId, target },
-        "Målrettet Redis: ingen filinnhold for modul — fallback til API",
+        { userId, target, contextLength: kontekst.length },
+        "Målrettet Redis: ingen filinnhold for modul — metadata-kontekst klar, on-demand kan berike",
       );
-      return null;
+      // Returner konteksten med en markør slik at caller kan prøve on-demand berikelse
+      return `${kontekst}\n<!-- MODULE_NEEDS_FILE_CONTENT -->`;
     }
 
     return kontekst;
@@ -1160,17 +1373,17 @@ async function byggKontekstFraChunks(
     // Modul-filter kun når vi er avgrenset til spesifikke kurs
     if (coursesPinned && target?.moduleHint) {
       const moduleMatches = scored.filter((chunk) =>
-        chunk.source.moduleTitle.toLowerCase().includes(target.moduleHint!.toLowerCase()),
+        modulTitleMatcherHint(chunk.source.moduleTitle, target.moduleHint!),
       );
       if (moduleMatches.length === 0) {
-        // moduleHint matchet ingenting — returner null slik at on-demand henting kan trigges
-        logger.warn(
-          { userId, moduleHint: target.moduleHint, chunksBeforeFilter: scored.length, action: "moduleHintMissed" },
-          "Chunk-søk: moduleHint matchet ingen chunks — returnerer null for on-demand fallback",
+        // moduleHint matchet ingenting — bruk kursresultatene i stedet
+        logger.info(
+          { userId, moduleHint: target.moduleHint, chunksBeforeFilter: scored.length },
+          "Chunk-søk: moduleHint matchet ingen chunks — bruker kursresultater",
         );
-        return null;
+      } else {
+        scored = moduleMatches;
       }
-      scored = moduleMatches;
     }
 
     if (target?.fileHint) {
@@ -1206,7 +1419,7 @@ async function byggKontekstFraChunks(
       "Chunk-basert kontekst bygget fra tekstinnhold",
     );
 
-    return "[CANVAS-DATA START]\n" + chunkKontekst + "\n[CANVAS-DATA SLUTT]";
+    return "<canvas-kursdata>\n" + chunkKontekst + "\n</canvas-kursdata>";
   } catch (error) {
     logger.warn({ err: error }, "Feil ved bygging av chunk-kontekst");
     return null;
@@ -1217,6 +1430,24 @@ interface FilterResult {
   results: HybridSearchResult[];
   /** true hvis moduleHint-filter filtrerte bort alle resultater */
   moduleHintMissed: boolean;
+}
+
+/** Normaliserer streng for modul-matching: lowercase, fjern ekstra mellomrom/bindestreker */
+function normaliserModulNavn(text: string): string {
+  return text.toLowerCase().replace(/[-_]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/** Sjekker om moduleTitle matcher moduleHint med fleksibel substring-matching */
+function modulTitleMatcherHint(moduleTitle: string, hint: string): boolean {
+  const normTitle = normaliserModulNavn(moduleTitle);
+  const normHint = normaliserModulNavn(hint);
+  // Direkte substring-match
+  if (normTitle.includes(normHint) || normHint.includes(normTitle)) return true;
+  // Ordbasert overlapp: minst halvparten av hint-ordene finnes i tittelen
+  const hintWords = normHint.split(" ").filter((w) => w.length > 2);
+  if (hintWords.length === 0) return false;
+  const matchCount = hintWords.filter((w) => normTitle.includes(w)).length;
+  return matchCount >= Math.ceil(hintWords.length / 2);
 }
 
 function filtrerHybridResultater(
@@ -1231,7 +1462,7 @@ function filtrerHybridResultater(
   // ellers lar vi retrieval-scoren bestemme relevans
   if (coursesPinned && target?.moduleHint) {
     const moduleMatches = filtered.filter((result) =>
-      result.source.moduleTitle.toLowerCase().includes(target.moduleHint!.toLowerCase()),
+      modulTitleMatcherHint(result.source.moduleTitle, target.moduleHint!),
     );
     if (moduleMatches.length === 0) {
       // moduleHint matchet ingenting — merk som "missed" slik at caller
@@ -1241,6 +1472,7 @@ function filtrerHybridResultater(
           moduleHint: target.moduleHint,
           courseHint: target.courseHint,
           chunksBeforeFilter: results.length,
+          moduleTitles: results.map((r) => r.source.moduleTitle),
           action: "moduleHintMissed",
         },
         "Hybrid søk: alle resultater filtrert bort av moduleHint — signaliserer miss til caller",
@@ -1320,16 +1552,18 @@ async function byggKontekstFraHybridSearch(
       );
     }
 
-    const filterResult = filtrerHybridResultater(results, target, coursesPinned);
+    let filterResult = filtrerHybridResultater(results, target, coursesPinned);
 
-    // Når moduleHint filtrerte bort alle resultater, returner null slik at caller
-    // kan falle gjennom til on-demand henting fra Canvas API
-    if (filterResult.moduleHintMissed) {
+    // Når moduleHint filtrerte bort alle resultater: prøv igjen uten moduleHint-filter.
+    // Innhold fra samme kurs (andre moduler) er bedre enn ingen kontekst — men full_document
+    // mode deaktiveres for å unngå å laste inn irrelevant fullt dokument.
+    if (filterResult.moduleHintMissed && results.length > 0) {
       logger.info(
-        { userId, moduleHint: target?.moduleHint, messagePreview: message.substring(0, 80) },
-        "Hybrid søk: moduleHint ga ingen treff — returnerer null for on-demand fallback",
+        { userId, moduleHint: target?.moduleHint, unfilteredCount: results.length, messagePreview: message.substring(0, 80) },
+        "Hybrid søk: moduleHint ga ingen treff — bruker kursresultater uten moduleHint-filter",
       );
-      return null;
+      const courseOnlyTarget = target ? { ...target, moduleHint: null } : target;
+      filterResult = filtrerHybridResultater(results, courseOnlyTarget, coursesPinned);
     }
 
     const filteredResults = filterResult.results;
@@ -1342,7 +1576,7 @@ async function byggKontekstFraHybridSearch(
     }
 
     // ── Full dokument-mode ──
-    const fullDocumentDecision = shouldUseFullDocumentMode(message, target, filteredResults);
+    const fullDocumentDecision = shouldUseFullDocumentMode(message, target, filteredResults, filterResult.moduleHintMissed);
     if (fullDocumentDecision.enabled) {
       const primary = filteredResults[0];
       const fullDocument = await getStoredFullDocumentForFile(
@@ -1356,11 +1590,51 @@ async function byggKontekstFraHybridSearch(
         const estimatedChars = maxTokens * 4;
         const truncatedFullText = fullDocument.fullText.slice(0, estimatedChars);
         const truncated = truncatedFullText.length < fullDocument.fullText.length;
+
+        // Når hoveddokumentet er lite (typisk PowerPoint med kulepunkter),
+        // berik konteksten med andre filer fra samme modul
+        const MIN_FULL_DOC_CHARS = 6000;
+        let supplementBlock = "";
+        if (truncatedFullText.length < MIN_FULL_DOC_CHARS && target?.moduleHint) {
+          const supplementBudget = estimatedChars - truncatedFullText.length;
+          const otherFilesInModule = filteredResults.filter(
+            (r) => r.source.fileId !== primary.source.fileId,
+          );
+          const seenFileIds = new Set<number>([primary.source.fileId]);
+          for (const other of otherFilesInModule) {
+            if (seenFileIds.has(other.source.fileId)) continue;
+            if (supplementBlock.length >= supplementBudget) break;
+            seenFileIds.add(other.source.fileId);
+            const otherFullDoc = await getStoredFullDocumentForFile(
+              userId,
+              other.source.courseId,
+              other.source.fileId,
+            );
+            if (otherFullDoc) {
+              const remaining = supplementBudget - supplementBlock.length;
+              const otherText = otherFullDoc.fullText.slice(0, remaining);
+              supplementBlock += `\n--- FIL-INNHOLD (SUPPLERENDE): ${otherFullDoc.fileName} ---\n${otherText}\n--- SLUTT SUPPLERENDE ---\n`;
+            }
+          }
+          if (supplementBlock) {
+            logger.info(
+              {
+                mode: "full_document_supplemented",
+                primaryChars: truncatedFullText.length,
+                supplementChars: supplementBlock.length,
+                supplementFiles: seenFileIds.size - 1,
+              },
+              "Full dokument-mode beriket med andre filer fra samme modul",
+            );
+          }
+        }
+
         const kontekst =
-          "[CANVAS-DATA START]\n" +
+          "<canvas-kursdata>\n" +
           `--- FIL-INNHOLD (FULLT DOKUMENT): ${fullDocument.fileName} ---\n` +
           truncatedFullText +
-          "\n[CANVAS-DATA SLUTT]";
+          supplementBlock +
+          "\n</canvas-kursdata>";
 
         logger.info(
           {
@@ -1370,6 +1644,7 @@ async function byggKontekstFraHybridSearch(
             fileName: fullDocument.fileName,
             fullTextChars: fullDocument.charCount,
             injectedChars: truncatedFullText.length,
+            totalContextChars: kontekst.length,
             truncated,
             reason: fullDocumentDecision.reason,
           },
@@ -1548,7 +1823,7 @@ async function byggKontekstFraHybridSearch(
     );
 
     return {
-      kontekst: "[CANVAS-DATA START]\n" + kontekst + "\n[CANVAS-DATA SLUTT]",
+      kontekst: "<canvas-kursdata>\n" + kontekst + "\n</canvas-kursdata>",
       hasSparseChunks,
       fullDocumentMode: false,
     };
@@ -1567,7 +1842,7 @@ const ON_DEMAND_MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 /**
  * Henter filinnhold on-demand fra Canvas API for en spesifikk modul.
- * Brukes som fallback når modulmetadata finnes men filinnhold ikke er synkronisert.
+ * Brukes som siste fallback når verken Redis eller MongoDB har data.
  * Lagrer innholdet i MongoDB/Pinecone for fremtidige forespørsler (fire-and-forget).
  */
 async function hentModulFilerOnDemand(
@@ -1575,18 +1850,20 @@ async function hentModulFilerOnDemand(
   canvasToken: string,
   moduleHint: string,
   baseUrl?: string,
+  courseIdHint?: number,
 ): Promise<string | null> {
   try {
-    // Finn modulen fra CanvasStructure
-    const structures = await CanvasStructureModel.find({ userId }).lean<ICanvasStructure[]>();
+    // Finn modulen fra CanvasStructure — prioriter korrekt kurs
+    const query: Record<string, unknown> = { userId };
+    if (courseIdHint) query.courseId = courseIdHint;
+    const structures = await CanvasStructureModel.find(query).lean<ICanvasStructure[]>();
     if (!structures || structures.length === 0) return null;
 
-    const hint = moduleHint.toLowerCase();
     let matchedStructure: ICanvasStructure | undefined;
     let matchedModule: ICanvasStructure["moduler"][0] | undefined;
 
     for (const s of structures) {
-      const mod = s.moduler.find((m) => m.name.toLowerCase().includes(hint));
+      const mod = s.moduler.find((m) => modulTitleMatcherHint(m.name, moduleHint));
       if (mod) {
         matchedStructure = s;
         matchedModule = mod;
@@ -1604,7 +1881,7 @@ async function hentModulFilerOnDemand(
     if (filItems.length === 0) return null;
 
     const courseId = String(matchedStructure.courseId);
-    let kontekst = `[CANVAS-DATA START]\n`;
+    let kontekst = `<canvas-kursdata>\n`;
     kontekst += `EMNE: ${formatCourseLabel(matchedStructure.courseName, matchedStructure.course_code)}\n\n`;
     kontekst += `### ${matchedModule.name}\n`;
 
@@ -1686,7 +1963,7 @@ async function hentModulFilerOnDemand(
 
     if (hentetFiler === 0) return null;
 
-    kontekst += "\n[CANVAS-DATA SLUTT]";
+    kontekst += "\n</canvas-kursdata>";
 
     logger.info(
       { userId, moduleHint, hentetFiler, courseId },
@@ -1837,15 +2114,26 @@ export async function loadCanvasContext(
   // ── Hybrid søk når chunkHint finnes (uavhengig av intent) ──
   // chunkHint indikerer at brukeren spør om spesifikt faginnhold, selv om
   // intent er canvas_light (f.eks. "forklar kvantitativ metode").
+  // Resultatet huskes i hybridAlreadyAttempted slik at Trinn 0 ikke gjentar identisk søk.
+  let hybridAlreadyAttempted = false;
   if (!shouldPreferStructuredContext && hasStoredAIContent && message && target?.chunkHint) {
+    hybridAlreadyAttempted = true;
     const hybridResult = await byggKontekstFraHybridSearch(userId, message, target, hiddenCourseIds);
     if (hybridResult) {
+      // Berik med modulstruktur-oversikt slik at KI vet hva som finnes i emnet
+      let kontekst = hybridResult.kontekst;
+      if (hasCourseTarget(target)) {
+        const strukturOversikt = await byggModulStrukturOversikt(userId, target, hiddenCourseIds);
+        if (strukturOversikt) {
+          kontekst = kontekst.replace("</canvas-kursdata>", strukturOversikt + "\n</canvas-kursdata>");
+        }
+      }
       logger.info(
-        { userId, intent, chunkHint: target.chunkHint, source: "vector", contextLength: hybridResult.kontekst.length },
+        { userId, intent, chunkHint: target.chunkHint, source: "vector", contextLength: kontekst.length },
         "Canvas-kontekst lastet fra hybrid søk (chunkHint-trigget)",
       );
       return {
-        kontekst: hybridResult.kontekst,
+        kontekst,
         hasCanvasData: true,
         source: "vector",
         hasSparseChunks: hybridResult.hasSparseChunks,
@@ -1864,7 +2152,7 @@ export async function loadCanvasContext(
     if (wantsAnnouncements && !hasSpecificTarget) {
       const announcements = await hentKunngjøringerForBruker(userId);
       if (announcements.length > 0) {
-        const kontekst = "[CANVAS-DATA START]\n" + formaterKunngjøringerKontekst(announcements) + "\n[CANVAS-DATA SLUTT]";
+        const kontekst = "<canvas-kursdata>\n" + formaterKunngjøringerKontekst(announcements) + "\n</canvas-kursdata>";
         logger.info(
           { userId, intent, source: "redis", count: announcements.length, contextLength: kontekst.length },
           "Canvas-kontekst lastet som kunngjøringsoversikt",
@@ -1978,18 +2266,28 @@ export async function loadCanvasContext(
   }
 
   // Trinn 0: Hybrid søk (Pinecone + BM25 → RRF → Cohere Rerank)
-  if (!shouldPreferStructuredContext && hasStoredAIContent && message) {
+  // Hopp over om chunkHint-stien allerede kjørte identisk søk.
+  if (!hybridAlreadyAttempted && !shouldPreferStructuredContext && hasStoredAIContent && message) {
     const hybridResult = await byggKontekstFraHybridSearch(userId, message, target, hiddenCourseIds);
     if (hybridResult) {
-      const kontekstMedKunngjøringer = announcementBlock
-        ? hybridResult.kontekst.replace("[CANVAS-DATA SLUTT]", announcementBlock + "\n[CANVAS-DATA SLUTT]")
-        : hybridResult.kontekst;
+      let kontekst = hybridResult.kontekst;
+      // Injiser kunngjøringer
+      if (announcementBlock) {
+        kontekst = kontekst.replace("</canvas-kursdata>", announcementBlock + "\n</canvas-kursdata>");
+      }
+      // Berik med modulstruktur slik at KI kjenner til hele emneinnholdet
+      if (hasCourseTarget(target)) {
+        const strukturOversikt = await byggModulStrukturOversikt(userId, target!, hiddenCourseIds);
+        if (strukturOversikt) {
+          kontekst = kontekst.replace("</canvas-kursdata>", strukturOversikt + "\n</canvas-kursdata>");
+        }
+      }
       logger.info(
-        { userId, intent, source: "vector", contextLength: kontekstMedKunngjøringer.length },
+        { userId, intent, source: "vector", contextLength: kontekst.length },
         "Canvas-kontekst lastet fra hybrid søk",
       );
       return {
-        kontekst: kontekstMedKunngjøringer,
+        kontekst,
         hasCanvasData: true,
         source: "vector",
         hasSparseChunks: hybridResult.hasSparseChunks,
@@ -2001,7 +2299,7 @@ export async function loadCanvasContext(
   // Hvis brukeren spør om kunngjøringer og vi har data, returner det direkte —
   // hybrid-søk finner aldri kunngjøringer (ikke indeksert), så vi trenger ikke vente på chunk-søk.
   if (wantsAnnouncements && announcementBlock) {
-    const kontekst = "[CANVAS-DATA START]\n" + announcementBlock + "\n[CANVAS-DATA SLUTT]";
+    const kontekst = "<canvas-kursdata>\n" + announcementBlock + "\n</canvas-kursdata>";
     return { kontekst, hasCanvasData: true, source: "redis" };
   }
 
@@ -2017,48 +2315,88 @@ export async function loadCanvasContext(
     }
   }
 
-  // Trinn 2: Målrettet Redis (tittel-matching)
+  // Trinn 2: Målrettet Redis/MongoDB (tittel-matching)
   if (hasSpecificTarget && target) {
-    // Prøv Redis først for målrettet kontekst
+    let metadataKontekst: string | null = null;
+    let metadataSource: "redis" | "mongodb" | null = null;
+
+    // Prøv Redis først
     if (hasRedisSyncData) {
-      const redisKontekst = await byggMålrettetKontekstFraRedis(userId, target, contextPrefs, hiddenCourseIds);
-      if (redisKontekst) {
+      metadataKontekst = await byggMålrettetKontekstFraRedis(userId, target, contextPrefs, hiddenCourseIds);
+      if (metadataKontekst) metadataSource = "redis";
+    }
+
+    // MongoDB fallback
+    if (!metadataKontekst) {
+      metadataKontekst = await byggMålrettetKontekstFraMongo(userId, target, contextPrefs);
+      if (metadataKontekst) metadataSource = "mongodb";
+    }
+
+    if (metadataKontekst) {
+      const needsFileContent = metadataKontekst.includes("<!-- MODULE_NEEDS_FILE_CONTENT -->");
+      const cleanKontekst = metadataKontekst.replace("\n<!-- MODULE_NEEDS_FILE_CONTENT -->", "");
+
+      // Modulen har allerede filinnhold — returner direkte
+      if (!needsFileContent) {
         logger.info(
-          { userId, intent, target, source: "redis", contextLength: redisKontekst.length },
-          "Målrettet Canvas-kontekst lastet fra Redis",
+          { userId, intent, target, source: metadataSource, contextLength: cleanKontekst.length },
+          "Målrettet Canvas-kontekst lastet (med filinnhold)",
         );
-        return { kontekst: redisKontekst, hasCanvasData: true, source: "redis" };
+        return { kontekst: cleanKontekst, hasCanvasData: true, source: metadataSource! };
       }
-    }
 
-    // MongoDB fallback for målrettet kontekst
-    const mongoKontekst = await byggMålrettetKontekstFraMongo(userId, target, contextPrefs);
-    if (mongoKontekst) {
+      // Modulen mangler filinnhold — prøv on-demand med 5s timeout for å berike
+      if (target.moduleHint) {
+        logger.info(
+          { userId, intent, target, source: "on-demand-enrichment" },
+          "Metadata-kontekst klar — prøver on-demand berikelse med timeout",
+        );
+        try {
+          const ON_DEMAND_TIMEOUT_MS = 5000;
+          const onDemandPromise = hentModulFilerOnDemand(
+            userId, canvasToken, target.moduleHint, baseUrl, target.courseIdHint ?? undefined,
+          );
+          const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), ON_DEMAND_TIMEOUT_MS));
+          const onDemandKontekst = await Promise.race([onDemandPromise, timeoutPromise]);
+
+          if (onDemandKontekst) {
+            logger.info(
+              { userId, intent, target, source: "on-demand-enriched", contextLength: onDemandKontekst.length },
+              "On-demand berikelse fullført — bruker modulfilinnhold",
+            );
+            return { kontekst: onDemandKontekst, hasCanvasData: true, source: "api" };
+          }
+
+          logger.info(
+            { userId, intent, target },
+            "On-demand berikelse ga ingen resultater eller timet ut — bruker metadata-kontekst",
+          );
+        } catch (err) {
+          logger.warn({ err, userId }, "On-demand berikelse feilet — bruker metadata-kontekst");
+        }
+      }
+
+      // Returner metadata-konteksten (uten filinnhold, men med modulstruktur)
       logger.info(
-        { userId, intent, target, source: "mongodb", contextLength: mongoKontekst.length },
-        "Målrettet Canvas-kontekst lastet fra MongoDB (fallback)",
+        { userId, intent, target, source: metadataSource, contextLength: cleanKontekst.length },
+        "Målrettet Canvas-kontekst lastet (kun metadata)",
       );
-      if (redisAvailable) {
-        syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
-          logger.warn({ err, userId }, "Bakgrunns-sync feilet etter MongoDB-fallback");
-        });
-      }
-      return { kontekst: mongoKontekst, hasCanvasData: true, source: "mongodb" };
+      return { kontekst: cleanKontekst, hasCanvasData: true, source: metadataSource!, metadataOnly: true };
     }
 
-    // On-demand filhenting: modulmetadata finnes men filinnhold mangler
+    // Ingen metadata i det hele tatt — prøv full on-demand som siste utvei
     if (target.moduleHint) {
       logger.info(
         { userId, intent, target, source: "on-demand" },
-        "Redis+MongoDB mangler filinnhold for modul — prøver on-demand henting fra Canvas API",
+        "Redis+MongoDB mangler all data — prøver on-demand henting fra Canvas API",
       );
-      const onDemandKontekst = await hentModulFilerOnDemand(userId, canvasToken, target.moduleHint, baseUrl);
+      const onDemandKontekst = await hentModulFilerOnDemand(userId, canvasToken, target.moduleHint, baseUrl, target.courseIdHint ?? undefined);
       if (onDemandKontekst) {
         return { kontekst: onDemandKontekst, hasCanvasData: true, source: "api" };
       }
     }
 
-    // Ingen lokal data — trigger sync og returner tom kontekst
+    // Ingen data — trigger sync
     logger.info(
       { userId, intent, target, source: "none" },
       "Redis+MongoDB+on-demand mangler data — trigger sync (målrettet)",

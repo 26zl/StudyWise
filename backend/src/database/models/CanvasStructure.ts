@@ -24,6 +24,8 @@ export interface ICanvasModuleItem {
   crawledAt?: Date;
   /** Liste over PDF-URL-er som er crawlet fra denne ExternalUrl-en */
   crawledPdfs?: string[];
+  /** Liste over undersider som er crawlet fra denne ExternalUrl-en */
+  crawledSubpages?: string[];
 }
 
 export interface ICanvasModule {
@@ -74,6 +76,7 @@ const CanvasModuleItemSchema = new Schema<ICanvasModuleItem>(
     crawledHash: { type: String },
     crawledAt: { type: Date },
     crawledPdfs: { type: [String], default: undefined },
+    crawledSubpages: { type: [String], default: undefined },
   },
   { _id: false },
 );

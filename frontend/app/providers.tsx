@@ -21,6 +21,7 @@ import { LanguageProvider, useLanguage } from "@/app/i18n";
 import type { Language } from "@/app/i18n/types";
 import { erFatalUserDataFeilmelding } from "./lib/errorUtils";
 import { showToast } from "@/app/components/ui/Toaster";
+import { TurnstileReChallenge } from "./auth/TurnstileReChallenge";
 
 function normalizeProfileField(value: string | null | undefined): string | undefined {
   const trimmed = value?.trim();
@@ -144,6 +145,8 @@ function AuthConflictGuard() {
       ) {
         const error = event.query.state.error;
         const msg = error instanceof Error ? error.message : "";
+        // Ignorer Turnstile-re-challenge — håndteres av TurnstileReChallenge-komponenten
+        if (/turnstile_required/i.test(msg) || /sikkerhetsverifisering utløpt/i.test(msg)) return;
         if (erFatalUserDataFeilmelding(msg)) {
           signOutTriggeredRef.current = true;
           const erSlettet = /kontoen er slettet/i.test(msg);
@@ -303,7 +306,7 @@ function SyncConflictBanner() {
         };
       });
     } catch {
-      showToast.error("Feil", t("auth.syncConflict.dismissError"));
+      showToast.error(t("common.labels.error"), t("auth.syncConflict.dismissError"));
     } finally {
       setDismissing(null);
     }
@@ -382,6 +385,7 @@ export function Providers({
             <ClerkTokenSync />
             <AuthSyncListener />
             <AuthConflictGuard />
+            <TurnstileReChallenge />
             <PrefetchMeOnMount />
             <DatadogUserSync />
             <ClerkProfileCacheSync />

@@ -90,11 +90,27 @@ export const decrypt = (encryptedText: string): string => {
         throw new Error(`Ugyldig authTag-lengde: forventet 16, fikk ${authTag.length}.`);
     }
 
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-    decipher.setAuthTag(authTag);
+    try {
+        const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+        decipher.setAuthTag(authTag);
 
-    let decrypted = decipher.update(encryptedHex, "hex", "utf8");
-    decrypted += decipher.final("utf8");
+        let decrypted = decipher.update(encryptedHex, "hex", "utf8");
+        decrypted += decipher.final("utf8");
 
-    return decrypted;
+        return decrypted;
+    } catch {
+        // Generisk feilmelding uavhengig av årsak (forhindrer oracle-angrep)
+        throw new Error("Dekryptering feilet.");
+    }
 };
+
+/** Sjekker om en kryptert streng er gyldig (dekrypterbar) uten å returnere klarteksten. */
+export function erGyldigKryptert(kryptertVerdi: string | undefined): boolean {
+    if (!kryptertVerdi) return false;
+    try {
+        decrypt(kryptertVerdi);
+        return true;
+    } catch {
+        return false;
+    }
+}

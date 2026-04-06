@@ -16,7 +16,7 @@ import {
 } from "../../services/export/export-service.js";
 import type { RuntimeProviderOptions } from "../../services/export/export-types.js";
 import { User } from "../../database/models/User.js";
-import { decrypt } from "../../utils/kryptering.js";
+import { decrypt, erGyldigKryptert } from "../../utils/kryptering.js";
 import {
   apiError,
   requireUserId,
@@ -39,18 +39,13 @@ const exportRateLimit = createRateLimiter({
  * Returnerer liste over støttede eksportmål og om de er konfigurert.
  */
 kiExportRouter.get("/export/targets", async (req, res) => {
-  const userId = req.user?.id;
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+
   let notionConfigured = false;
   if (userId) {
-    const bruker = await User.findById(userId).select("+notionApiKey");
-    if (bruker?.notionApiKey) {
-      try {
-        decrypt(bruker.notionApiKey);
-        notionConfigured = true;
-      } catch {
-        notionConfigured = false;
-      }
-    }
+    const bruker = await User.findOne({ _id: userId, deletedAt: { $exists: false } }).select("+notionApiKey");
+    notionConfigured = erGyldigKryptert(bruker?.notionApiKey);
   }
   const targets = getAvailableTargets().map((targetInfo) =>
     targetInfo.target === "notion"
@@ -86,7 +81,7 @@ kiExportRouter.post("/export", exportRateLimit, async (req, res) => {
     let runtimeOptions: RuntimeProviderOptions | undefined = options;
 
     if (target === "notion") {
-      const bruker = await User.findById(userId).select("+notionApiKey");
+      const bruker = await User.findOne({ _id: userId, deletedAt: { $exists: false } }).select("+notionApiKey");
       if (!bruker?.notionApiKey) {
         return apiError.badRequest(
           res,
@@ -129,14 +124,16 @@ kiExportRouter.post("/export", exportRateLimit, async (req, res) => {
     // Håndter kjente konfigurasjonsfeil med 400/503
     if (error instanceof Error) {
       const normalizedErrorMessage = error.message.toLowerCase();
+      // Logg detaljert feil server-side, send generisk melding til klient
+      logger.warn({ err: error, target: req.body?.target }, "Eksportfeil");
       if (normalizedErrorMessage.includes("notion")) {
-        return apiError.badRequest(res, error.message);
+        return apiError.badRequest(res, "Kunne ikke eksportere til Notion. Sjekk innstillingene og prøv igjen.");
       }
       if (normalizedErrorMessage.includes("ikke konfigurert")) {
         return apiError.serviceUnavailable(res, "Eksporttjenesten");
       }
       if (normalizedErrorMessage.includes("påkrevd")) {
-        return apiError.badRequest(res, error.message);
+        return apiError.badRequest(res, "Manglende påkrevde felter for eksport.");
       }
     }
 

@@ -34,6 +34,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  Bell,
+  FileUp,
 } from "lucide-react";
 import { useLanguage } from "@/app/i18n";
 import { useMeg } from "@/app/auth/auth-api";
@@ -207,6 +209,13 @@ function StatistikkFane() {
     { label: t("admin.stats.canvasUsersWithoutSync"), verdi: data.sync.canvasBrukereUtenSyncData, ikon: AlertTriangle },
   ];
 
+  const varslerStats: StatKortData[] = [
+    { label: t("admin.stats.pushSubscriptions"), verdi: data.varsler.pushAbonnementer, ikon: Bell },
+    { label: t("admin.stats.usersWithPush"), verdi: data.varsler.brukereMedPush, ikon: Users },
+    { label: t("admin.stats.avgDevicesPerUser"), verdi: data.varsler.snittEnheterPerBruker, ikon: BarChart3 },
+    { label: t("admin.stats.usersWithNotion"), verdi: data.integrasjoner.brukereMedNotion, ikon: FileUp },
+  ];
+
   const revisjonsStats: StatKortData[] = [
     { label: t("admin.stats.auditEventsTotal"), verdi: data.revisjon.hendelserTotalt, ikon: Activity },
     { label: t("admin.stats.auditFailuresTotal"), verdi: data.revisjon.feilTotalt, ikon: AlertTriangle },
@@ -262,6 +271,7 @@ function StatistikkFane() {
       <StatSeksjon title={t("admin.stats.sections.conversations")} stats={samtaleStats} language={language} />
       <StatSeksjon title={t("admin.stats.sections.planning")} stats={planStats} language={language} />
       <StatSeksjon title={t("admin.stats.sections.content")} stats={innholdsStats} language={language} />
+      <StatSeksjon title={t("admin.stats.sections.notifications")} stats={varslerStats} language={language} />
       <StatSeksjon title={t("admin.stats.sections.sync")} stats={syncStats} language={language} />
       <StatSeksjon title={t("admin.stats.sections.audit")} stats={revisjonsStats} language={language} />
       <StatSeksjon title={t("admin.stats.sections.quality")} stats={kvalitetsStats} language={language} />

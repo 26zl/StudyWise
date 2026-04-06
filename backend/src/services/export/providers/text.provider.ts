@@ -4,7 +4,7 @@
  */
 
 import type { ExportDocument, ExportBlock, TextSegment, ListItem } from "common/export";
-import type { ExportProvider, ProviderOptions } from "../export-types.js";
+import type { ExportProvider } from "../export-types.js";
 import type { ExportResponse } from "common/export";
 
 /** Henter ren tekst fra segmenter (ingen formatering) */
@@ -100,7 +100,7 @@ export const textProvider: ExportProvider = {
     return true;
   },
 
-  async execute(doc: ExportDocument, _options?: ProviderOptions): Promise<ExportResponse> {
+  async execute(doc: ExportDocument): Promise<ExportResponse> {
     const content = renderText(doc);
     return {
       kind: "serialized",

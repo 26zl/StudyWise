@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useAuth, useClerk } from "@clerk/nextjs";
+import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { MessageSquare, Pin, Search, Trash2, Users } from "lucide-react";
@@ -9,6 +9,7 @@ import { useMeg } from "@/app/auth/auth-api";
 import {
   skalRedirecteTilAuth,
   useAuthRedirect,
+  useFatalAuthSignOut,
 } from "@/app/auth/authUtils";
 import type { VisningType } from "@/app/components/dashboard/Sidebar";
 import {
@@ -21,7 +22,6 @@ import { fetchApi } from "@/app/lib/apiClient";
 import { lagSamtaleForhandsvisning } from "@/app/components/chat/conversationMessageUtils";
 import { formaterDatoShort } from "@/app/lib/dato";
 import {
-  erFatalUserDataFeilmelding,
   getBrukerdataFeilmelding,
   parseApiError,
 } from "@/app/lib/errorUtils";
@@ -40,17 +40,9 @@ export default function SamtalehistorikkPage() {
     parseAsStringLiteral(["history", "shared"] as const).withDefault("history"),
   );
   const { isLoaded } = useAuth();
-  const clerk = useClerk();
   const megQuery = useMeg({ enabled: isLoaded });
   useAuthRedirect(megQuery);
-
-  // Fatale auth-feil (OAuth-konflikt, slettet konto): logg ut automatisk
-  const _fatalMsg = megQuery.isError ? (megQuery.error?.message ?? "") : "";
-  const _erFatalAuthFeil = megQuery.isError && erFatalUserDataFeilmelding(_fatalMsg);
-  useEffect(() => {
-    if (!_erFatalAuthFeil) return;
-    void clerk.signOut({ redirectUrl: "/auth/sign-in" });
-  }, [_erFatalAuthFeil, clerk]);
+  const erFatalAuthFeil = useFatalAuthSignOut(megQuery);
 
   const { chats, loading: chatsLoading, deleteChat, clearAll } = useChatHistory();
   const { setSelectedChatId, setCurrentChatId } = useUIStore();
@@ -182,7 +174,7 @@ export default function SamtalehistorikkPage() {
     return <LoadingView text={t("common.loading.chatHistory")} />;
   }
 
-  if (skalRedirecteTilAuth(megQuery) || _erFatalAuthFeil) {
+  if (skalRedirecteTilAuth(megQuery) || erFatalAuthFeil) {
     const label = skalRedirecteTilAuth(megQuery)
       ? t("common.loading.redirectingToSignIn")
       : t("common.loading.generic");
@@ -367,7 +359,7 @@ export default function SamtalehistorikkPage() {
                       leadingControl={selectMode ? (
                         <input
                           type="checkbox"
-                          aria-label={`Velg "${chat.title}"`}
+                          aria-label={t("chatHistory.selectChat", { title: chat.title })}
                           checked={selectedIds.has(chat.id)}
                           onChange={() => {
                             setSelectedIds((prev) => {

@@ -66,7 +66,7 @@ import { crawlCourseExternalUrls } from "./crawler.js";
 const SYNC_CACHE_TTL = 7200;
 
 /** Maks samtidige Canvas API-kall under synkronisering */
-const SYNC_CONCURRENCY = 3;
+const SYNC_CONCURRENCY = 2;
 
 /** Minimum intervall mellom synkroniseringer per bruker (sekunder) */
 const MIN_SYNC_INTERVAL_S = 300; // 5 minutter
@@ -76,6 +76,39 @@ const SYNC_STATUS_TTL = 300;
 
 /** Maks antall filer/sider å ekstrahere per synkronisering */
 const MAX_FILES_PER_SYNC = 200;
+
+/** Minneterskel i MB — pauser filekstraksjon over dette nivået */
+const MEMORY_PRESSURE_THRESHOLD_MB = 380;
+
+/**
+ * Sjekker minnebruk og pauser ved høyt trykk.
+ * Returnerer true hvis vi er over terskelen (etter å ha forsøkt GC).
+ */
+async function checkMemoryPressure(userId: string): Promise<boolean> {
+  const heapUsedMB = Math.round(process.memoryUsage().heapUsed / (1024 * 1024));
+  if (heapUsedMB < MEMORY_PRESSURE_THRESHOLD_MB) return false;
+
+  logger.warn(
+    { userId, heapUsedMB, threshold: MEMORY_PRESSURE_THRESHOLD_MB },
+    "Minnetrykk oppdaget under sync — pauser filekstraksjon",
+  );
+
+  // Forsøk å frigjøre minne med GC hvis tilgjengelig
+  if (global.gc) {
+    global.gc();
+  }
+
+  // Gi event-loopen tid til å rydde opp
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  const heapAfterMB = Math.round(process.memoryUsage().heapUsed / (1024 * 1024));
+  logger.info(
+    { userId, heapBeforeMB: heapUsedMB, heapAfterMB },
+    "Minnesjekk etter GC-forsøk",
+  );
+
+  return heapAfterMB >= MEMORY_PRESSURE_THRESHOLD_MB;
+}
 
 // ─── Typer ─────────────────────────────────────────────────
 
@@ -396,6 +429,7 @@ async function _doSync(
               crawledHash?: string;
               crawledAt?: Date;
               crawledPdfs?: string[];
+              crawledSubpages?: string[];
             }
           >();
           if (previousStructure?.moduler) {
@@ -410,6 +444,7 @@ async function _doSync(
                         crawledHash: item.crawledHash,
                         crawledAt: item.crawledAt,
                         crawledPdfs: item.crawledPdfs,
+                        crawledSubpages: item.crawledSubpages,
                       },
                     );
                   }
@@ -437,6 +472,7 @@ async function _doSync(
                 // Behold crawl-metadata fra forrige sync
                 crawledAt: prev?.crawledAt,
                 crawledPdfs: prev?.crawledPdfs,
+                crawledSubpages: prev?.crawledSubpages,
               };
               if (prev?.contentHash && prev.contentHash === newContentHash) {
                 logger.debug(
@@ -618,7 +654,7 @@ async function _doSync(
           }
 
           // Pre-hent all filmetadata parallelt (maks 5 samtidige kall) — én runde i stedet for N sekvensielle
-          const FILE_META_CONCURRENCY = 5;
+          const FILE_META_CONCURRENCY = 3;
           const fileMetaLimit = pLimit(FILE_META_CONCURRENCY);
           type CanvasFileData = Awaited<ReturnType<typeof fetchFileMetadata>>["data"];
           const fileMetadataMap = new Map<number, CanvasFileData>();
@@ -661,6 +697,16 @@ async function _doSync(
               try {
                 if (!isSupportedFileType(fileData.filename)) {
                   continue;
+                }
+
+                // Minnevern: stopp filekstraksjon hvis heapet er for stort
+                if (await checkMemoryPressure(userId)) {
+                  logger.warn(
+                    { userId, courseId, filename: fileData.filename },
+                    "Avbryter filekstraksjon pga. høyt minnetrykk",
+                  );
+                  reachedFileLimit = true;
+                  break;
                 }
 
                 keepFileIds.add(contentId);
@@ -713,7 +759,7 @@ async function _doSync(
                     url: fileData.url,
                     size: fileData.size,
                     mime_type: fileData.mime_type,
-                  }, baseUrl);
+                  }, baseUrl, { syncMode: true });
                   if (pdfResult) {
                     content = pdfResult.content;
                   }
@@ -1166,8 +1212,8 @@ export async function hasCanvasSyncData(userId: string): Promise<boolean> {
   return meta !== null;
 }
 
-/** Maks filer per sync under initial sync (konfigurerbar via env) */
-const INITIAL_SYNC_MAX_FILES = parseInt(process.env.INITIAL_SYNC_MAX_FILES ?? "50", 10);
+/** Maks filer per sync under initial sync (konfigurerbar via env) — satt til 200 for full dekning */
+const INITIAL_SYNC_MAX_FILES = parseInt(process.env.INITIAL_SYNC_MAX_FILES ?? "200", 10);
 
 /**
  * Kjører en full Canvas-sync i bakgrunnen uten rate-limit.

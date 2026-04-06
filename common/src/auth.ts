@@ -58,7 +58,7 @@ export const CanvasBaseUrlSchema = StoredCanvasBaseUrlSchema
 
 // Request schema for lagring av Canvas token (canonicalisert: trim; tom streng/whitespace avvises)
 export const CanvasTokenRequestSchema = z.object({
-  token: z.string().trim().min(1, "Token kan ikke være tom"),
+  token: z.string().trim().min(1, "Token kan ikke være tom").max(500, "Token er for lang"),
   /** Påkrevd: hvilken Canvas-instans tokenet gjelder (multi-tenant). */
   canvasBaseUrl: CanvasBaseUrlSchema,
 });

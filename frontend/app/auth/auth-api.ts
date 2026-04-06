@@ -167,6 +167,20 @@ async function hentMeg(signal?: AbortSignal, options?: { forceSync?: boolean }):
         "Denne kontoen er slettet. Opprett en ny konto for å fortsette.",
       );
     }
+    // Turnstile-verifisering utløpt: kast feil slik at TurnstileReChallenge kan vise
+    // re-verifikasjonsmodal. Ikke logg ut — brukeren kan fullføre re-challenge inline.
+    if (
+      res.status === 403 &&
+      json &&
+      typeof json === "object" &&
+      "error" in json &&
+      json.error === "turnstile_required"
+    ) {
+      throw createApiError(
+        json,
+        "Sikkerhetsverifisering utløpt. Fullfør verifiseringen for å fortsette.",
+      );
+    }
     if (res.status === 401 || res.status === 403) {
       throw createAuthStatusError(res.status, json, "Ikke autentisert");
     }

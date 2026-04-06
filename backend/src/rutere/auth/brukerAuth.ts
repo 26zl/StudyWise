@@ -763,7 +763,7 @@ router.post("/sync-conflicts/dismiss", rateLimitMe, async (req, res) => {
     }
 
     await User.updateOne(
-      { _id: userId },
+      { _id: userId, deletedAt: { $exists: false } },
       { $pull: { syncConflicts: { type } } },
     );
 
@@ -830,9 +830,11 @@ router.put("/profile", rateLimitMe, async (req, res) => {
 
     let oppdatertBruker;
     try {
-      oppdatertBruker = await User.findByIdAndUpdate(userId, mongoUpdate, {
-        returnDocument: "after",
-      }).select("+canvasApiToken");
+      oppdatertBruker = await User.findOneAndUpdate(
+        { _id: userId, deletedAt: { $exists: false } },
+        mongoUpdate,
+        { returnDocument: "after" },
+      ).select("+canvasApiToken");
     } catch (error) {
       if (isMongoDuplicateKeyError(error) && usernameConflictPayload) {
         return res.status(409).json({
@@ -961,8 +963,8 @@ router.put("/preferences", rateLimitMe, async (req, res) => {
       updateFields.hiddenCourseIds = normalizeHiddenCourseIds(hiddenCourseIds);
     }
 
-    const oppdatertBruker = await User.findByIdAndUpdate(
-      userId,
+    const oppdatertBruker = await User.findOneAndUpdate(
+      { _id: userId, deletedAt: { $exists: false } },
       { $set: updateFields },
       { returnDocument: "after" },
     );
@@ -1114,12 +1116,15 @@ router.post("/logout", rateLimitMe, async (req, res) => {
     if (userId) {
       await clearUserCanvasRuntimeState(userId);
 
-      // Invalider Bearer-token-cache for brukeren slik at cached tokens ikke kan gjenbrukes etter logout
+      // Invalider Bearer-token-cache for gjeldende sesjon slik at cached tokens ikke kan gjenbrukes etter logout.
+      // Bruker per-sesjon invalidering for å unngå at andre faner/enheter mister sesjonen.
       const authenticatedUser = (req as Request & { authenticatedUser?: IUser }).authenticatedUser;
       const clerkId = authenticatedUser?.clerkId;
       if (clerkId) {
-        const { invalidateTokenCacheByClerkId } = await import("./clerkAuth.js");
-        invalidateTokenCacheByClerkId(clerkId);
+        const { invalidateTokenCacheBySession, getSessionIdFromTokenCache } = await import("./clerkAuth.js");
+        const token = req.headers.authorization?.replace(/^Bearer\s+/i, "");
+        const sessionId = token ? getSessionIdFromTokenCache(token) : undefined;
+        invalidateTokenCacheBySession(clerkId, sessionId);
       }
     }
   } catch (error) {

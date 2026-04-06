@@ -1051,8 +1051,8 @@ export async function findOrCreateUserByClerkId(
     const sid = options?.sessionId;
     if (isProd && !(await isSessionTurnstileVerified(sid))) {
       if (await isValidAuthTurnstileCookieValue(options?.authTurnstileCookie)) {
-        // Gyldig cookie → marker sesjonen som verifisert for påfølgende kall
-        if (sid) markSessionTurnstileVerified(sid);
+        // Gyldig cookie → marker sesjonen som verifisert (synkront for cross-dyno konsistens)
+        if (sid) await markSessionTurnstileVerified(sid);
       } else {
         logger.warn(
           { clerkUserId, userId: existing._id, flowId: fid, sid },
@@ -1482,8 +1482,8 @@ export async function findOrCreateUserByClerkId(
         );
         return { __turnstileRequired: true };
       }
-      // Turnstile-sjekk bestått — marker sesjonen som verifisert for parallelle kall
-      if (newUserSid) markSessionTurnstileVerified(newUserSid);
+      // Turnstile-sjekk bestått — marker sesjonen som verifisert (synkront for cross-dyno konsistens)
+      if (newUserSid) await markSessionTurnstileVerified(newUserSid);
     }
 
     try {
@@ -1706,16 +1706,24 @@ const tokenCache = new Map<string, { sub: string; sid?: string; exp: number }>()
  *
  * Bruker Redis for deling mellom dynos, med lokal Map som fallback
  * og read-through cache for å redusere Redis-kall.
- * TTL: 1 time — lengre enn Turnstile-cookiens 5 min, men kort nok til å rydde opp.
+ *
+ * TTL er 24 timer — samsvarer med typisk Clerk-sesjonsvarighet.
+ * Ved logout fjernes sesjonen fra Redis (markSessionDeleted), slik at
+ * Turnstile-verifiseringen automatisk invalideres sammen med sesjonen.
+ * Ved utløp av Clerk-sesjon krever backend ny autentisering uansett.
  */
-const TURNSTILE_VERIFIED_SESSION_TTL_S = 3600; // 1 time
+const TURNSTILE_VERIFIED_SESSION_TTL_S = 86400; // 24 timer — koblet til sesjonslivssyklus via logout-invalidering
 const TURNSTILE_SESSION_PREFIX = "auth:turnstile-session:";
 
 // Lokal in-memory cache: brukes som read-through for Redis (unngår Redis-kall per request)
 const turnstileLocalCache = new Map<string, number>();
 
-/** Marker en Clerk-sesjon som Turnstile-verifisert. */
-export function markSessionTurnstileVerified(sid: string): void {
+/**
+ * Marker en Clerk-sesjon som Turnstile-verifisert.
+ * Returnerer Promise slik at kalleren kan awaite Redis-skrivingen
+ * for cross-dyno konsistens (forhindrer race mellom parallelle kall på ulike dynos).
+ */
+export async function markSessionTurnstileVerified(sid: string): Promise<void> {
   const expiry = Date.now() + TURNSTILE_VERIFIED_SESSION_TTL_S * 1000;
   turnstileLocalCache.set(sid, expiry);
   // Rydd opp utløpte entries periodisk
@@ -1725,8 +1733,12 @@ export function markSessionTurnstileVerified(sid: string): void {
       if (exp <= now) turnstileLocalCache.delete(key);
     }
   }
-  // Skriv til Redis asynkront slik at andre dynos også ser verifiseringen
-  void setCache(`${TURNSTILE_SESSION_PREFIX}${sid}`, "1", TURNSTILE_VERIFIED_SESSION_TTL_S).catch(() => {});
+  // Skriv til Redis synkront slik at andre dynos ser verifiseringen umiddelbart
+  try {
+    await setCache(`${TURNSTILE_SESSION_PREFIX}${sid}`, "1", TURNSTILE_VERIFIED_SESSION_TTL_S);
+  } catch {
+    // Ikke-kritisk — lokal cache fungerer som fallback for denne dynoen
+  }
 }
 
 /** Sjekk om en Clerk-sesjon allerede er Turnstile-verifisert. */
@@ -1797,6 +1809,26 @@ export function getSessionIdFromTokenCache(bearerToken: string): string | undefi
   return cached?.sid;
 }
 
+/**
+ * Invalider token-cache for en spesifikk sesjon (brukes ved logout).
+ * Invaliderer kun gjeldende sesjon — andre faner/enheter forblir upåvirket.
+ */
+export function invalidateTokenCacheBySession(clerkId: string, sessionId?: string): void {
+  for (const [tokenHash, entry] of tokenCache) {
+    if (entry.sub === clerkId && (!sessionId || entry.sid === sessionId)) {
+      tokenCache.delete(tokenHash);
+    }
+  }
+  // Marker sesjonen som slettet i Redis slik at andre dynos også avviser den
+  if (sessionId) {
+    void markSessionDeleted(sessionId);
+  }
+}
+
+/**
+ * Invalider token-cache for ALLE sesjoner tilhørende en clerkId (brukes ved kontosletting).
+ * Blokkerer alle tokens for brukeren på tvers av dynos.
+ */
 export function invalidateTokenCacheByClerkId(clerkId: string): void {
   for (const [tokenHash, entry] of tokenCache) {
     if (entry.sub === clerkId) tokenCache.delete(tokenHash);
@@ -1805,8 +1837,10 @@ export function invalidateTokenCacheByClerkId(clerkId: string): void {
   void markClerkIdDeleted(clerkId);
 }
 
-/** Redis-nøkkel-prefix for slettede clerkIds (cross-dyno invalidering). */
+/** Redis-nøkkel-prefix for slettede clerkIds (cross-dyno invalidering ved kontosletting). */
 const DELETED_CLERK_PREFIX = "auth:deleted-clerk:";
+/** Redis-nøkkel-prefix for slettede sesjoner (cross-dyno invalidering ved logout). */
+const DELETED_SESSION_PREFIX = "auth:deleted-session:";
 /** TTL for slettet-markør: litt lengre enn token-cache TTL for sikker dekning. */
 const DELETED_CLERK_TTL_S = 60;
 
@@ -1818,11 +1852,33 @@ async function markClerkIdDeleted(clerkId: string): Promise<void> {
   }
 }
 
+async function markSessionDeleted(sessionId: string): Promise<void> {
+  try {
+    await setCache(`${DELETED_SESSION_PREFIX}${sessionId}`, "1", DELETED_CLERK_TTL_S);
+  } catch {
+    // Ikke-kritisk — lokal cache er allerede invalidert
+  }
+}
+
 async function isClerkIdDeleted(clerkId: string): Promise<boolean> {
   try {
     const val = await getCache(`${DELETED_CLERK_PREFIX}${clerkId}`);
     return val !== null;
-  } catch {
+  } catch (err) {
+    // Fail-open: lokal dyno har allerede fjernet token fra tokenCache ved sletting.
+    // Redis-sjekk er sekundær mekanisme for andre dynos (maks 30s vindu).
+    logger.warn({ err, clerkId }, "Redis-feil ved sjekk av slettet clerkId — fail-open");
+    return false;
+  }
+}
+
+async function isSessionDeleted(sessionId: string | undefined): Promise<boolean> {
+  if (!sessionId) return false;
+  try {
+    const val = await getCache(`${DELETED_SESSION_PREFIX}${sessionId}`);
+    return val !== null;
+  } catch (err) {
+    logger.warn({ err, sessionId }, "Redis-feil ved sjekk av slettet sesjon — fail-open");
     return false;
   }
 }
@@ -1890,8 +1946,8 @@ export async function getClerkUserIdFromToken(
   const cached = tokenCache.get(tokenHash);
   if (cached) {
     if (cached.exp >= Date.now()) {
-      // Cross-dyno sjekk: avvis token hvis clerkId er markert som slettet i Redis (logout/kontosletting på annen dyno)
-      if (await isClerkIdDeleted(cached.sub)) {
+      // Cross-dyno sjekk: avvis token hvis clerkId er slettet (kontosletting) eller sesjon er slettet (logout)
+      if (await isClerkIdDeleted(cached.sub) || await isSessionDeleted(cached.sid)) {
         tokenCache.delete(tokenHash);
         return null;
       }
@@ -1911,10 +1967,10 @@ export async function getClerkUserIdFromToken(
     const sub = payload.sub;
     if (typeof sub !== "string") return null;
 
-    // Cross-dyno sjekk: avvis token hvis clerkId er markert som slettet i Redis
-    if (await isClerkIdDeleted(sub)) return null;
-
     const sid = typeof payload.sid === "string" ? payload.sid : undefined;
+
+    // Cross-dyno sjekk: avvis token hvis clerkId er slettet (kontosletting) eller sesjon er slettet (logout)
+    if (await isClerkIdDeleted(sub) || await isSessionDeleted(sid)) return null;
 
     // Cache aldri lengre enn tokenets faktiske utløpstid.
     tokenCache.set(tokenHash, {

@@ -16,6 +16,7 @@ import { markdownProvider } from "./providers/markdown.provider.js";
 import { PdfExportProvider } from "./providers/pdf.provider.js";
 import { textProvider } from "./providers/text.provider.js";
 import { WordExportProvider } from "./providers/word.provider.js";
+import { ExcelExportProvider } from "./providers/excel.provider.js";
 import { notionProvider } from "./providers/notion.provider.js";
 import { logger } from "../../utils/logger.js";
 
@@ -32,6 +33,7 @@ registerProvider(markdownProvider);
 registerProvider(new PdfExportProvider());
 registerProvider(textProvider);
 registerProvider(new WordExportProvider());
+registerProvider(new ExcelExportProvider());
 registerProvider(notionProvider);
 
 /** Returner liste over alle registrerte mål med konfigurasjonsstatus. */

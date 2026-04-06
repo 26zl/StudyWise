@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Check, Copy } from "lucide-react";
+import { useState, useMemo, useRef, useCallback } from "react";
+import { Check, Copy, Download } from "lucide-react";
 import hljs from "highlight.js";
 import DOMPurify from "isomorphic-dompurify";
 import { useLanguage } from "@/app/i18n";
@@ -23,10 +23,11 @@ function CodeBlock({ className, children }: CodeBlockProps) {
   const { t } = useLanguage();
   const [kopiert, setKopiert] = useState(false);
 
-  // Detekter språk fra markdown className ("language-java" → "java")
-  const match = className?.match(/language-(\w+)/);
+  // Detekter språk fra markdown className ("language-java" → "java", "language-shell-session" → "shell-session")
+  const match = className?.match(/language-([\w-]+)/);
   const sprak = match?.[1];
-  const erBlokk = !!sprak;
+  // Blokkmodus: har språk ELLER inneholder newlines (fenced code uten språk)
+  const erBlokk = !!sprak || (typeof children === "string" && children.includes("\n"));
 
   // Inline code — render som vanlig <code>
   if (!erBlokk) {
@@ -121,14 +122,59 @@ function CodeBlock({ className, children }: CodeBlockProps) {
 // ─── Tabell ───────────────────────────────────────────────────────────────────
 
 function MarkdownTable({ children, ...props }: React.ComponentProps<"table">) {
+  const { t } = useLanguage();
+  const tableRef = useRef<HTMLTableElement>(null);
+
+  const exportToCSV = useCallback(() => {
+    const table = tableRef.current;
+    if (!table) return;
+
+    const rows = Array.from(table.querySelectorAll("tr"));
+    const csvContent = rows
+      .map((row) =>
+        Array.from(row.querySelectorAll("th, td"))
+          .map((cell) => {
+            const text = (cell as HTMLElement).innerText.replace(/"/g, '""');
+            return `"${text}"`;
+          })
+          .join("\t"),
+      )
+      .join("\n");
+
+    // BOM for riktig norsk tegnsett i Excel
+    const bom = "\uFEFF";
+    const blob = new Blob([bom + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement("a"), {
+      href: url,
+      download: `tabell-${new Date().toISOString().slice(0, 10)}.csv`,
+    });
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
   return (
-    <div className="my-3 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-      <table
-        className="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-700"
-        {...props}
-      >
-        {children}
-      </table>
+    <div className="my-3 rounded-xl border border-slate-200 dark:border-slate-700">
+      <div className="overflow-x-auto">
+        <table
+          ref={tableRef}
+          className="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-700"
+          {...props}
+        >
+          {children}
+        </table>
+      </div>
+      <div className="flex justify-end px-3 py-1.5 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700">
+        <button
+          type="button"
+          onClick={exportToCSV}
+          className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors cursor-pointer"
+          title={t("table.exportCSV")}
+        >
+          <Download className="w-3.5 h-3.5" />
+          <span>{t("table.exportCSV")}</span>
+        </button>
+      </div>
     </div>
   );
 }

@@ -156,15 +156,28 @@ export function useBrowserPushNotifications(
           // Gammelt abonnement kan allerede være fjernet server-side
         });
       }
-      await saveBrowserPushSubscription(subscription);
+      try {
+        await saveBrowserPushSubscription(subscription);
+      } catch {
+        // Rull tilbake nettleser-abonnementet hvis lagring på server feilet
+        await subscription.unsubscribe().catch(() => {});
+        throw new Error("Kunne ikke lagre push-abonnement på serveren. Prøv igjen.");
+      }
       const nextPreferences = {
         ...preferences,
         enabled: true,
       };
-      // Optimistic: update UI immediately
       setPreferences(nextPreferences);
-      const updated = await savePreferences(nextPreferences);
-      setPreferences(updated.browserPushPreferences ?? nextPreferences);
+      try {
+        const updated = await savePreferences(nextPreferences);
+        setPreferences(updated.browserPushPreferences ?? nextPreferences);
+      } catch {
+        // Rull tilbake abonnement ved preferanse-feil
+        await deleteBrowserPushSubscription(subscription.endpoint).catch(() => {});
+        await subscription.unsubscribe().catch(() => {});
+        setPreferences(preferences);
+        throw new Error("Kunne ikke lagre varselinnstillinger. Prøv igjen.");
+      }
       setSubscribed(true);
     } finally {
       setIsPending(false);
@@ -180,19 +193,30 @@ export function useBrowserPushNotifications(
         ? await registration.pushManager.getSubscription()
         : null;
 
-      if (subscription) {
-        await deleteBrowserPushSubscription(subscription.endpoint);
-        await subscription.unsubscribe();
-      }
-
       const nextPreferences = {
         ...preferences,
         enabled: false,
       };
-      // Optimistic: update UI immediately
       setPreferences(nextPreferences);
-      const updated = await savePreferences(nextPreferences);
-      setPreferences(updated.browserPushPreferences ?? nextPreferences);
+      try {
+        const updated = await savePreferences(nextPreferences);
+        setPreferences(updated.browserPushPreferences ?? nextPreferences);
+      } catch {
+        // Rull tilbake ved preferanse-feil
+        setPreferences(preferences);
+        throw new Error("Kunne ikke lagre varselinnstillinger. Prøv igjen.");
+      }
+
+      // Fjern abonnement etter preferanser er lagret — feil her er ikke kritisk
+      // siden preferansene allerede er satt til disabled
+      if (subscription) {
+        await deleteBrowserPushSubscription(subscription.endpoint).catch(() => {
+          // Foreldreløst abonnement på server — ryddes opp ved neste enable eller utløper
+        });
+        await subscription.unsubscribe().catch(() => {
+          // Nettleser-abonnementet kan allerede være fjernet
+        });
+      }
       setSubscribed(false);
     } finally {
       setIsPending(false);

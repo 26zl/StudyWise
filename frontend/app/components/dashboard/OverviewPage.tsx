@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
@@ -16,6 +16,7 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
+  Download,
   MessageSquare,
   Sparkles,
   Target,
@@ -31,11 +32,12 @@ import {
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { StatCard } from "@/app/components/ui/StatCard";
-import { useAuth, useClerk } from "@clerk/nextjs";
+import { useAuth } from "@clerk/nextjs";
 import { useMeg, useHiddenCourseIds } from "@/app/auth/auth-api";
 import {
   skalRedirecteTilAuth,
   useAuthRedirect,
+  useFatalAuthSignOut,
 } from "@/app/auth/authUtils";
 import {
   useCanvasAllAssignments,
@@ -52,7 +54,6 @@ import {
   formaterDagerRelativtFrist,
 } from "@/app/lib/dato";
 import {
-  erFatalUserDataFeilmelding,
   getBrukerdataFeilmelding,
   lagBrukervennligFeilmelding,
 } from "@/app/lib/errorUtils";
@@ -94,7 +95,7 @@ interface QuickActionCardProps {
   description: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
   href: string;
-  color: "blue" | "green" | "purple";
+  color: "blue" | "green" | "purple" | "amber";
 }
 
 export function OversiktPage() {
@@ -107,7 +108,6 @@ export function OversiktPage() {
     ),
   );
   const { isLoaded: clerkLoaded } = useAuth();
-  const clerk = useClerk();
   const megQuery = useMeg({ enabled: clerkLoaded });
   const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
   const userQuery = useCanvasUser(megQuery.isSuccess && harCanvasToken);
@@ -126,13 +126,7 @@ export function OversiktPage() {
   );
 
   useAuthRedirect(megQuery);
-
-  const _fatalMsg = megQuery.isError ? (megQuery.error?.message ?? "") : "";
-  const _erFatalAuthFeil = megQuery.isError && erFatalUserDataFeilmelding(_fatalMsg);
-  useEffect(() => {
-    if (!_erFatalAuthFeil) return;
-    void clerk.signOut({ redirectUrl: "/auth/sign-in" });
-  }, [_erFatalAuthFeil, clerk]);
+  const erFatalAuthFeil = useFatalAuthSignOut(megQuery);
 
   const coursesQuery = useCanvasCourses(harCanvasToken);
   const hiddenSet = useHiddenCourseIds();
@@ -194,7 +188,7 @@ export function OversiktPage() {
     return <LoadingView text={t("common.loading.overview")} />;
   }
 
-  if (skalRedirecteTilAuth(megQuery) || _erFatalAuthFeil) {
+  if (skalRedirecteTilAuth(megQuery) || erFatalAuthFeil) {
     const label = skalRedirecteTilAuth(megQuery)
       ? t("common.loading.redirectingToSignIn")
       : t("common.loading.generic");
@@ -403,7 +397,7 @@ export function OversiktPage() {
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
               {t("overview.quickAccess.title")}
             </h2>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
               <QuickActionCard
                 title={t("overview.quickActions.aiAssistant.title")}
                 description={t("overview.quickActions.aiAssistant.description")}
@@ -424,6 +418,13 @@ export function OversiktPage() {
                 icon={BookOpen}
                 href="/dashboard?view=canvas-courses"
                 color="green"
+              />
+              <QuickActionCard
+                title={t("overview.quickActions.exportChat.title")}
+                description={t("overview.quickActions.exportChat.description")}
+                icon={Download}
+                href="/dashboard"
+                color="amber"
               />
             </div>
           </div>
@@ -503,12 +504,15 @@ function QuickActionCard({
       "border-green-200 bg-green-50 hover:bg-green-100 dark:border-green-800 dark:bg-green-900/10 dark:hover:bg-green-900/20",
     purple:
       "border-purple-200 bg-purple-50 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-900/10 dark:hover:bg-purple-900/20",
+    amber:
+      "border-amber-200 bg-amber-50 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/10 dark:hover:bg-amber-900/20",
   };
 
   const iconColorClasses = {
     blue: "text-blue-600 dark:text-blue-400",
     green: "text-green-600 dark:text-green-400",
     purple: "text-purple-600 dark:text-purple-400",
+    amber: "text-amber-600 dark:text-amber-400",
   };
 
   return (
@@ -586,7 +590,7 @@ function StudyActivityCard({
         </p>
       ) : (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
             <ActivityItem
               icon={MessageSquare}
               label={t("overview.studyActivity.chatSessions")}

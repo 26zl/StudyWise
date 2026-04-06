@@ -55,11 +55,11 @@ export const showToast = {
   },
 
   // Suksess med angre-knapp (undo ved sletting)
-  undoable: (melding: string, onUndo: () => void, varighet = 5000) => {
+  undoable: (melding: string, onUndo: () => void, label: string, varighet = 5000) => {
     toast.success(melding, {
       duration: varighet,
       action: {
-        label: "Angre",
+        label,
         onClick: onUndo,
       },
     });

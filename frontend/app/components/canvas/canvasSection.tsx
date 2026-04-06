@@ -49,6 +49,36 @@ import { useCanvasLabels, type CanvasVisning } from "@/app/components/canvas/can
 import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { formaterDatoLong, formaterDatoMedTid, dagerFraIdag, formaterDagerRelativtFrist } from "@/app/lib/dato";
 import { useMeg, useOppdaterHiddenCourses, useHiddenCourseIds } from "@/app/auth/auth-api";
+import type { CanvasFile } from "common/canvas";
+
+// Felles filliste brukt i både modulvisning og filvisning
+function FilListe({ filer, overskrift }: { filer: CanvasFile[]; overskrift: string }) {
+    return (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 font-medium text-slate-900 dark:text-white">
+                {overskrift}
+            </div>
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                {filer.map((f) => {
+                    const filUrl = sikkerFilNedlastingUrl(f.id);
+                    if (!filUrl) return null;
+                    return (
+                        <a
+                            key={f.id}
+                            href={filUrl}
+                            className="flex px-4 py-3 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm text-slate-800 dark:text-slate-200 items-center gap-2"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            <Download size={16} className="text-slate-400" />
+                            <span>{f.display_name || f.filename}</span>
+                        </a>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
 
 // Props for CanvasSection komponent
 interface CanvasSectionProps {
@@ -219,7 +249,6 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
         oppdaterHiddenCourses.mutate({ courseIds: nyeIds }, {
             onSuccess: () => showToast.success(labels.courseHidden),
             onError: (err) => {
-                console.error("Hide course failed:", err);
                 showToast.error(labels.hideCourse, err instanceof Error ? err.message : "");
             },
         });
@@ -236,7 +265,6 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                 }
             },
             onError: (err) => {
-                console.error("Show course failed:", err);
                 showToast.error(labels.showCourse, err instanceof Error ? err.message : "");
             },
         });
@@ -710,29 +738,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                         )}
 
                         {(!siderQuery.data || siderQuery.data.length === 0) && filerQuery.data && filerQuery.data.length > 0 && (
-                            <div className="rounded-xl border border-slate-200 dark:border-slate-700">
-                                <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 font-medium text-slate-900 dark:text-white">
-                                    {labels.files}
-                                </div>
-                                <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {filerQuery.data.map((f) => {
-                                        const filUrl = sikkerFilNedlastingUrl(f.id);
-                                        if (!filUrl) return null;
-                                        return (
-                                        <a
-                                            key={f.id}
-                                            href={filUrl}
-                                            className="flex px-4 py-3 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm text-slate-800 dark:text-slate-200 items-center gap-2"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                        >
-                                            <Download size={16} className="text-slate-400" />
-                                            <span>{f.display_name || f.filename}</span>
-                                        </a>
-                                        );
-                                    })}
-                                </div>
-                            </div>
+                            <FilListe filer={filerQuery.data} overskrift={labels.files} />
                         )}
                     </div>
                 )}
@@ -792,29 +798,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                             <p className="text-sm text-slate-500 dark:text-slate-400">{labels.filesNothingToShow}</p>
                         )}
                         {filerQuery.data && filerQuery.data.length > 0 && (
-                            <div className="rounded-xl border border-slate-200 dark:border-slate-700">
-                                <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 font-medium text-slate-900 dark:text-white">
-                                    {labels.files}
-                                </div>
-                                <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {filerQuery.data.map((f) => {
-                                        const filUrl = sikkerFilNedlastingUrl(f.id);
-                                        if (!filUrl) return null;
-                                        return (
-                                        <a
-                                            key={f.id}
-                                            href={filUrl}
-                                            className="flex px-4 py-3 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm text-slate-800 dark:text-slate-200 items-center gap-2"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                        >
-                                            <Download size={16} className="text-slate-400" />
-                                            <span>{f.display_name || f.filename}</span>
-                                        </a>
-                                        );
-                                    })}
-                                </div>
-                            </div>
+                            <FilListe filer={filerQuery.data} overskrift={labels.files} />
                         )}
                     </div>
                 )}

@@ -115,9 +115,11 @@ export function requestTimeout(req: Request, res: Response, next: NextFunction) 
     res.once("close", cleanup);
 
     // Rydd opp hvis klienten avbryter requesten tidlig.
+    // Sjekk req.destroyed for å skille ekte klientfrakobling fra normal stream-lukking
+    // (Node 20+ kan fire "close" når POST-body er ferdig lest, ikke bare ved disconnect).
     req.once("close", () => {
         cleanup();
-        if (!res.writableEnded) {
+        if (!res.writableEnded && req.destroyed) {
             abortRequest();
         }
     });

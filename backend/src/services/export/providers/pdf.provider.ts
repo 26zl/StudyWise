@@ -4,8 +4,20 @@
  */
 
 import PDFDocument from "pdfkit";
-import type { ExportProvider, ExportProviderResult, ProviderOptions } from "../export-types.js";
+import type { ExportProvider, ExportProviderResult } from "../export-types.js";
 import type { ExportDocument, ExportBlock, TextSegment, ListItem, ExportResponse } from "common/export";
+
+/**
+ * Fjerner emoji-tegn fra tekst — standard PDF-fonter (Helvetica, Courier) støtter ikke Unicode-emoji,
+ * og de rendres som uleselige tegn (f.eks. "Ø>Ý"). Fjerner også eventuelle doble mellomrom som oppstår.
+ */
+function stripEmoji(text: string): string {
+  return text
+    // eslint-disable-next-line no-misleading-character-class -- Bevisst: fjerner emoji + ZWJ + variation selector
+    .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\u200D\uFE0F]/gu, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
 
 const FONT_SIZES = {
   h1: 24,
@@ -32,7 +44,7 @@ export class PdfExportProvider implements ExportProvider {
     return true;
   }
 
-  async execute(doc: ExportDocument, _options?: ProviderOptions): Promise<ExportResponse> {
+  async execute(doc: ExportDocument): Promise<ExportResponse> {
     const result = await this.export(doc);
     return {
       kind: "serialized",
@@ -46,7 +58,7 @@ export class PdfExportProvider implements ExportProvider {
     };
   }
 
-  async export(document: ExportDocument): Promise<ExportProviderResult> {
+  private async export(document: ExportDocument): Promise<ExportProviderResult> {
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument({
@@ -76,7 +88,7 @@ export class PdfExportProvider implements ExportProvider {
         doc
           .fontSize(FONT_SIZES.h1)
           .fillColor(COLORS.heading)
-          .text(document.title, { align: "left" });
+          .text(stripEmoji(document.title), { align: "left" });
         doc.moveDown(0.5);
 
         // Metadata
@@ -161,8 +173,37 @@ export class PdfExportProvider implements ExportProvider {
   }
 
   private renderSegments(doc: PDFKit.PDFDocument, segments: TextSegment[]): void {
-    const text = segments.map((s) => s.text).join("");
-    doc.text(text, { continued: false });
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i];
+      const isLast = i === segments.length - 1;
+      const styles = seg.styles || [];
+
+      // Velg font basert på stil
+      if (styles.includes("code")) {
+        doc.font("Courier");
+      } else if (styles.includes("bold") && styles.includes("italic")) {
+        doc.font("Helvetica-BoldOblique");
+      } else if (styles.includes("bold")) {
+        doc.font("Helvetica-Bold");
+      } else if (styles.includes("italic")) {
+        doc.font("Helvetica-Oblique");
+      } else {
+        doc.font("Helvetica");
+      }
+
+      // Lenker: bruk blå farge og understreking
+      const cleanText = stripEmoji(seg.text);
+      if (seg.href) {
+        doc.fillColor(COLORS.link);
+        doc.text(cleanText, { continued: !isLast, underline: true, link: seg.href });
+      } else {
+        doc.text(cleanText, { continued: !isLast });
+      }
+
+      // Tilbakestill farge og font
+      if (seg.href) doc.fillColor(COLORS.text);
+      if (styles.includes("code")) doc.font("Helvetica");
+    }
   }
 
   private renderList(
@@ -174,20 +215,21 @@ export class PdfExportProvider implements ExportProvider {
     items.forEach((item, index) => {
       let prefix: string;
       if (type === "bullet") {
-        prefix = "• ";
+        prefix = "- ";
       } else if (type === "numbered") {
         prefix = `${index + 1}. `;
       } else {
-        prefix = item.checked ? "☑ " : "☐ ";
+        // Unngå Unicode-emoji (☑/☐) som standard PDF-fonter ikke støtter
+        prefix = item.checked ? "[x] " : "[ ] ";
       }
-      const text = item.segments.map((s) => s.text).join("");
+      const text = stripEmoji(item.segments.map((s) => s.text).join(""));
       doc.text(`${prefix}${text}`, { indent: 20 });
     });
     doc.moveDown(0.5);
   }
 
   private renderQuote(doc: PDFKit.PDFDocument, segments: TextSegment[]): void {
-    const text = segments.map((s) => s.text).join("");
+    const text = stripEmoji(segments.map((s) => s.text).join(""));
     doc
       .fontSize(FONT_SIZES.body)
       .fillColor(COLORS.quote)
@@ -204,7 +246,7 @@ export class PdfExportProvider implements ExportProvider {
       .fontSize(FONT_SIZES.code)
       .fillColor(COLORS.code)
       .font("Courier")
-      .text(code, { indent: 10 })
+      .text(stripEmoji(code), { indent: 10 })
       .font("Helvetica");
     doc.moveDown(0.5);
   }
@@ -224,10 +266,10 @@ export class PdfExportProvider implements ExportProvider {
   private renderCallout(
     doc: PDFKit.PDFDocument,
     segments: TextSegment[],
-    emoji?: string,
+    _emoji?: string,
   ): void {
-    const text = segments.map((s) => s.text).join("");
-    const prefix = emoji ? `${emoji} ` : "💡 ";
+    const text = stripEmoji(segments.map((s) => s.text).join(""));
+    const prefix = "[!] ";
     doc
       .fontSize(FONT_SIZES.body)
       .fillColor(COLORS.text)
@@ -240,18 +282,72 @@ export class PdfExportProvider implements ExportProvider {
     headers: { segments: TextSegment[] }[] | undefined,
     rows: { segments: TextSegment[] }[][],
   ): void {
-    doc.fontSize(FONT_SIZES.body).fillColor(COLORS.text);
+    const allRows = [...(headers ? [headers] : []), ...rows];
+    if (allRows.length === 0) return;
 
-    if (headers && headers.length > 0) {
-      const headerText = headers.map((h) => h.segments.map((s) => s.text).join("")).join(" | ");
-      doc.text(headerText, { underline: true });
+    const colCount = Math.max(...allRows.map((r) => r.length));
+    const pageWidth = (doc.page?.width ?? 595) - 100; // A4 minus marginer
+    const cellPadding = 6;
+    const colWidth = Math.floor(pageWidth / colCount);
+    const rowHeight = 24;
+    const startX = 50;
+
+    doc.fontSize(FONT_SIZES.body - 1);
+
+    for (let r = 0; r < allRows.length; r++) {
+      const row = allRows[r];
+      const isHeader = headers && r === 0;
+      const y = doc.y;
+
+      // Beregn radhøyde basert på innhold
+      let maxCellHeight = rowHeight;
+      const cellTexts = Array.from({ length: colCount }, (_, c) =>
+        c < row.length ? stripEmoji(row[c].segments.map((s) => s.text).join("")) : "",
+      );
+      for (const text of cellTexts) {
+        const h = doc.heightOfString(text, { width: colWidth - cellPadding * 2 }) + cellPadding * 2;
+        if (h > maxCellHeight) maxCellHeight = h;
+      }
+
+      // Ny side hvis det ikke er plass
+      if (y + maxCellHeight > (doc.page?.height ?? 842) - 60) {
+        doc.addPage();
+      }
+
+      const cellY = doc.y;
+
+      // Bakgrunnsfarge for header
+      if (isHeader) {
+        doc.rect(startX, cellY, pageWidth, maxCellHeight).fill("#E2E8F0");
+      } else if (r % 2 === 0) {
+        doc.rect(startX, cellY, pageWidth, maxCellHeight).fill("#F8FAFC");
+      }
+
+      // Celleinnhold
+      for (let c = 0; c < colCount; c++) {
+        const cellX = startX + c * colWidth;
+        const text = cellTexts[c];
+
+        doc.fillColor(COLORS.text);
+        if (isHeader) doc.font("Helvetica-Bold");
+        else doc.font("Helvetica");
+
+        doc.text(text, cellX + cellPadding, cellY + cellPadding, {
+          width: colWidth - cellPadding * 2,
+          height: maxCellHeight - cellPadding * 2,
+        });
+      }
+
+      // Horisontal linje under raden
+      doc.strokeColor("#CBD5E1").lineWidth(0.5);
+      doc.moveTo(startX, cellY + maxCellHeight).lineTo(startX + pageWidth, cellY + maxCellHeight).stroke();
+
+      // Flytt doc.y manuelt fordi vi bruker absolutt posisjonering
+      doc.y = cellY + maxCellHeight;
     }
 
-    for (const row of rows) {
-      const rowText = row.map((cell) => cell.segments.map((s) => s.text).join("")).join(" | ");
-      doc.text(rowText);
-    }
-    doc.moveDown(0.5);
+    doc.y += 4; // Litt luft etter tabell
+    doc.moveDown(0.3);
   }
 
   private generateFilename(title: string): string {

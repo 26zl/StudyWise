@@ -25,6 +25,7 @@ export const enMessages = {
       show: "Show",
       signOut: "Sign out",
       start: "Start",
+      undo: "Undo",
       verifyCode: "Verify code",
     },
     accessibility: {
@@ -32,6 +33,7 @@ export const enMessages = {
     },
     labels: {
       canvasUser: "Canvas user",
+      error: "Error",
       notSignedIn: "Not signed in",
     },
     loading: {
@@ -95,6 +97,11 @@ export const enMessages = {
     topicUpdateError: "Could not update topic",
     pinUpdateError: "Could not update bookmark",
     titleUpdateError: "Could not update chat name",
+    selectChat: "Select \"{title}\"",
+  },
+  canvasContent: {
+    imageLoadError: "Could not load image",
+    imageAlt: "Canvas image",
   },
   auth: {
     forgotPassword: {
@@ -266,6 +273,10 @@ export const enMessages = {
         "We could not load Cloudflare Turnstile. Reload the page and try again.",
       gateError:
         "Security verification expired. Reload the page and complete the Turnstile check.",
+      rechallenge: {
+        title: "Security verification",
+        description: "Your session needs a new security check. Complete the verification to continue.",
+      },
     },
   },
   errors: {
@@ -361,18 +372,18 @@ export const enMessages = {
     features: {
       aiPartner: {
         description:
-          "Stuck on something? Get instant help, explanations, and study tips from your personal AI assistant.",
+          "Stuck on something? Get help, explanations, quizzes, flashcards, and task breakdowns. Upload documents for analysis, get an AI-generated study plan, and export to PDF, Word, Excel, or Notion.",
         title: "AI Study Partner",
       },
       canvasIntegration: {
         description:
-          "Connect Canvas once and get access to all your courses, modules, files, and announcements directly in the dashboard.",
+          "Connect Canvas once and get access to all your courses, modules, files, announcements, and calendar directly in the dashboard.",
         title: "Seamless Canvas Integration",
       },
       heading: "Features",
       overview: {
         description:
-          "See everything happening today and in the coming days. Your personal tasks and school deadlines are gathered in one place.",
+          "See everything happening today and in the coming days. Deadlines, AI-generated weekly plans, and study statistics in one place — with export to PDF, Word, Excel, and Notion.",
         title: "Complete Overview",
       },
     },
@@ -406,6 +417,10 @@ export const enMessages = {
       taskBreakdown: {
         description: "Break assignments into smaller steps",
         title: "AI Task Breakdown",
+      },
+      exportChat: {
+        description: "Export conversations to PDF, Word, Excel or Notion",
+        title: "Export",
       },
     },
     stats: {
@@ -572,7 +587,7 @@ export const enMessages = {
       apiKeyPlaceholder: "secret_xxxxxxxx...",
       defaultPageLabel: "Default Page ID (optional)",
       defaultPagePlaceholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-      defaultPageHelp: "You can paste a full Notion link or a page ID. We auto-extract the page ID. Leave empty to choose at export time.",
+      defaultPageHelp: "You can paste a full Notion link or a page ID. We auto-extract the page ID. Leave empty to choose at export time. Remember to share the page with your integration in Notion.",
       hide: "Hide",
       show: "Show",
       save: "Save",
@@ -587,7 +602,7 @@ export const enMessages = {
         step2: "Click \"Create new integration\"",
         step3: "Give the integration a name (e.g., \"StudyWise\")",
         step4: "Copy the \"Internal Integration Secret\" and paste it here",
-        step5: "Share the pages you want to export to with the integration in Notion",
+        step5: "Share the pages you want to export to with the integration in Notion (open the page → \"...\" → Connections → add your integration)",
       },
       saveSuccess: {
         title: "Notion settings saved",
@@ -669,6 +684,7 @@ export const enMessages = {
       notConnected: "Not connected. Add a Canvas API token below.",
       studywiseAccount: "StudyWise account",
       title: "Account overview",
+      primaryEmail: "Primary email",
       username: "Username",
       usernameNotSet: "Not set",
     },
@@ -689,6 +705,7 @@ export const enMessages = {
         conversations: "Conversations and sharing",
         planning: "Planning and subtasks",
         content: "Content and Canvas",
+        notifications: "Notifications and integrations",
         sync: "Sync and cache",
         audit: "Audit and security",
         quality: "Data quality",
@@ -800,6 +817,10 @@ export const enMessages = {
       orphanedCanvasStructures: "Canvas structures without valid user",
       orphanedCanvasUsers: "Canvas users without valid user",
       ownerlessShareLinks: "Share links without owner",
+      pushSubscriptions: "Push subscriptions",
+      usersWithPush: "Users with push",
+      avgDevicesPerUser: "Avg devices per user",
+      usersWithNotion: "Users with Notion",
     },
     users: {
       email: "Email",
@@ -860,11 +881,16 @@ export const enMessages = {
     couldNotGenerateFlashcards: "Could not generate flashcards.",
     noQuestionsGenerated: "No questions were generated",
     noFlashcardsGenerated: "No flashcards were generated",
+    selectionOutOfDate: "The selected course or modules are no longer available. Please select them again.",
     requestTimeout: "The request timed out",
     couldNotGenerate: "Could not generate {contentType}",
     decreaseCount: "Decrease count",
     increaseCount: "Increase count",
     selectStudyMode: "Select study mode",
+    generateQuiz: "Generate quiz",
+    generateFlashcards: "Generate flashcards",
+    generatingQuiz: "Generating quiz...",
+    generatingFlashcards: "Generating flashcards...",
     newQuiz: "New quiz",
   },
   arbeidsplan: {
@@ -1111,6 +1137,8 @@ export const enMessages = {
       textDescription: "Simple text file without formatting (.txt)",
       word: "Word",
       wordDescription: "Microsoft Word document (.docx)",
+      excel: "Excel",
+      excelDescription: "Spreadsheet with tables (.xlsx)",
       notion: "Notion",
       notionDescription: "Create page in Notion",
     },
@@ -1454,6 +1482,9 @@ export const enMessages = {
     copiedLabel: "Copied",
     copyLabel: "Copy",
     linesLabel: "{count} lines",
+  },
+  table: {
+    exportCSV: "Export to Excel",
   },
   minArbeidsplan: {
     retryButton: "Try again",

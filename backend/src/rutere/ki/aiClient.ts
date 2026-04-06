@@ -206,6 +206,22 @@ export async function chatCompletionWithVision(options: {
  *   konverterer dette til cache_control-blokken på system-parameteren i Anthropic-kallet,
  *   slik at gjentatte kall med samme system-prompt bruker cached input tokens.
  */
+/** Sikkerhetsnett-timeout for AI SDK streamText — avbryter hvis Promise.all henger. */
+const STREAM_SAFETY_TIMEOUT_MS = 110_000; // 110 sekunder (litt under request-timeout på 120s)
+
+/** Promise.race med timeout — rydder opp timer uansett utfall. */
+async function raceMedTimeout<T>(promise: Promise<T>, ms: number, melding: string): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(melding)), ms);
+    });
+    try {
+        return await Promise.race([promise, timeoutPromise]);
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 async function callAnthropic(options: {
     model: string;
     messages: ChatMessage[];
@@ -264,6 +280,15 @@ async function callAnthropic(options: {
         sdkMessages.push({ role: m.role, content: m.content });
     }
 
+    const startMs = Date.now();
+
+    // Sjekk om signalet allerede er avbrutt (kan skje hvis req.close fyrte for tidlig i Node 20+).
+    // I så fall bruker vi kun raceMedTimeout som sikkerhetsnett i stedet.
+    const effectiveSignal = signal?.aborted ? undefined : signal;
+    if (signal?.aborted) {
+        logger.warn({ model }, "Abort-signal allerede avbrutt før Claude-kall — ignorerer signal");
+    }
+
     logger.info({ model, messageCount: sdkMessages.length }, "Sender til Anthropic Claude (Vercel AI SDK)");
 
     const MAX_RETRIES = 3;
@@ -276,7 +301,7 @@ async function callAnthropic(options: {
                 messages: sdkMessages,
                 maxOutputTokens: max_tokens,
                 temperature: Math.min(Math.max(temperature, 0), 1),
-                abortSignal: signal,
+                abortSignal: effectiveSignal,
                 onFinish: ({ usage }: { usage: { cachedInputTokens?: number; inputTokens?: number; outputTokens?: number } }) => {
                     // cachedInputTokens er innebygd i LanguageModelUsage (ai@6)
                     if (usage.cachedInputTokens) {
@@ -293,7 +318,21 @@ async function callAnthropic(options: {
                 },
             });
 
-            const [text, usage] = await Promise.all([streamResult.text, streamResult.usage]);
+            // Sikkerhetsnett: Promise.race med timeout slik at vi ikke henger
+            // dersom AI SDK ikke propagerer abort-signal til text/usage-promisene.
+            const { text, usage } = await raceMedTimeout(
+                Promise.all([streamResult.text, streamResult.usage]).then(
+                    ([t, u]) => ({ text: t, usage: u }),
+                ),
+                STREAM_SAFETY_TIMEOUT_MS,
+                "AI-kallet tok for lang tid (timeout)",
+            );
+
+            const durationMs = Date.now() - startMs;
+            logger.info(
+                { model, durationMs, outputTokens: usage.outputTokens },
+                "Anthropic Claude-svar mottatt",
+            );
 
             return {
                 text,
@@ -319,6 +358,11 @@ async function callAnthropic(options: {
                 continue;
             }
 
+            const durationMs = Date.now() - startMs;
+            logger.warn(
+                { model, durationMs, err: error },
+                "Anthropic Claude-kall feilet",
+            );
             throw error;
         }
     }

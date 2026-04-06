@@ -162,12 +162,13 @@ async function resolveAuthentication(req: Request): Promise<AuthResolution> {
   // Dekker re-link-flyt og andre auth-stier som returnerer bruker uten egen Turnstile-sjekk.
   if (isProd && sessionId && hadTurnstileCookie && !(await isSessionTurnstileVerified(sessionId))) {
     if (await isValidAuthTurnstileCookieValue(authTurnstileCookie)) {
-      markSessionTurnstileVerified(sessionId);
+      await markSessionTurnstileVerified(sessionId);
     }
   }
 
   settAutentisertBrukerPåRequest(req, userResult);
-  // Flagg at Turnstile-cookie ble konsumert og bør slettes (engangsbruk)
+  // Slett cookie etter konsumering — én cookie = én sesjon.
+  // Andre sesjoner håndteres av TurnstileReChallenge (Cloudflare auto-pass).
   return { status: "authenticated", clerkUserId, clearTurnstileCookie: hadTurnstileCookie };
 }
 
@@ -242,7 +243,6 @@ export async function requireAuth(
     const result = await resolveAuthentication(req);
 
     if (result.status === "authenticated") {
-      // Slett Turnstile-cookie etter forbruk (engangsbruk — forhindrer gjenbruk for andre sesjoner)
       if (result.clearTurnstileCookie) {
         clearAuthTurnstileCookie(res);
       }
@@ -340,6 +340,11 @@ export async function requireAuth(
             "OAuth-konflikt: ny Clerk-bruker slettet for å forhindre innloggingsloop",
           );
         }
+      }).catch((err) => {
+        logger.error(
+          { err, clerkUserId: result.clerkUserId },
+          "Kunne ikke slette Clerk-bruker etter OAuth-konflikt",
+        );
       });
 
       const providerName =

@@ -24,6 +24,7 @@ import { CanvasUser } from "../../database/models/CanvasUser.js";
 import { ContentEmbedding } from "../../database/models/ContentEmbedding.js";
 import { AuditLog } from "../../database/models/AuditLog.js";
 import { DeletedUserTombstone } from "../../database/models/DeletedUserTombstone.js";
+import { WebPushSubscriptionModel } from "../../database/models/WebPushSubscription.js";
 import { backfillMissingFullText } from "../../services/embedding.service.js";
 import { apiError, requireUserId } from "../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
@@ -736,6 +737,9 @@ router.get("/statistikk", async (req, res) => {
       orphanedCanvasStrukturer,
       orphanedCanvasBrukere,
       delingerUtenEier,
+      pushAbonnementer,
+      pushBrukereAgg,
+      brukereMedNotion,
     ] = await Promise.all([
       ChatHistory.countDocuments({ user: { $in: aktiveBrukerObjectIds } }),
       ChatHistory.countDocuments({ user: { $in: aktiveBrukerObjectIds }, pinned: true }),
@@ -894,6 +898,13 @@ router.get("/statistikk", async (req, res) => {
       CanvasStructureModel.countDocuments({ userId: { $nin: alleBrukerIds } }),
       CanvasUser.countDocuments({ localUser: { $nin: alleBrukerObjectIds } }),
       SharedChat.countDocuments({ ownerId: { $nin: alleBrukerObjectIds } }),
+      WebPushSubscriptionModel.countDocuments({ userId: { $in: aktiveBrukerObjectIds } }),
+      WebPushSubscriptionModel.aggregate<{ total: number }>([
+        { $match: { userId: { $in: aktiveBrukerObjectIds } } },
+        { $group: { _id: "$userId" } },
+        { $count: "total" },
+      ]),
+      User.countDocuments({ _id: { $in: aktiveBrukerObjectIds }, notionApiKey: { $exists: true, $ne: null } }),
     ]);
 
     const totalDeloppgaver = deloppgaverAgg[0]?.deloppgaverTotalt ?? 0;
@@ -917,6 +928,8 @@ router.get("/statistikk", async (req, res) => {
     const brukereMedGammelSync7d = syncAgg.filter((entry) => new Date(entry.sistSyncedAt) < siste7DagerSiden).length;
     const canvasBrukereUtenSyncData = Math.max(canvasBrukerIds.length - brukereMedSyncData, 0);
     const auditKategori24t = Object.fromEntries(auditKategori24tAgg.map((entry) => [entry._id, entry.total]));
+    const antallPushBrukere = pushBrukereAgg[0]?.total ?? 0;
+    const snittEnheterPerBruker = antallPushBrukere > 0 ? avrundEnDesimal(pushAbonnementer / antallPushBrukere) : 0;
     const snittSamtalerPerBruker = totalBrukere > 0 ? avrundEnDesimal(totalSamtaler / totalBrukere) : 0;
     const snittDeloppgaverPerOppdeling =
       totalOppgaveoppdelinger > 0 ? avrundEnDesimal(totalDeloppgaver / totalOppgaveoppdelinger) : 0;
@@ -993,6 +1006,14 @@ router.get("/statistikk", async (req, res) => {
           brukereMedFerskSync24t,
           brukereMedGammelSync7d,
           canvasBrukereUtenSyncData,
+        },
+        varsler: {
+          pushAbonnementer,
+          brukereMedPush: antallPushBrukere,
+          snittEnheterPerBruker,
+        },
+        integrasjoner: {
+          brukereMedNotion,
         },
         revisjon: {
           hendelserTotalt: auditTotalt,

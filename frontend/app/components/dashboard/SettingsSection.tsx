@@ -87,11 +87,12 @@ function normalizeNotionPageIdInput(raw: string): string {
         return directMatch[1].replace(/-/g, "").toLowerCase();
     }
 
-    const fromUrlMatch = value.match(
-        /[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/,
-    );
-    if (fromUrlMatch?.[0]) {
-        return fromUrlMatch[0].replace(/-/g, "").toLowerCase();
+    // Match siste 32-tegns hex-sekvens i URL (Notion page ID er alltid sist i pathen)
+    const allMatches = [
+        ...value.matchAll(/[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g),
+    ];
+    if (allMatches.length > 0) {
+        return allMatches[allMatches.length - 1][0].replace(/-/g, "").toLowerCase();
     }
 
     // Behold original input ved ugyldig format; backend gir tydelig valideringsfeil ved lagring.
@@ -473,8 +474,11 @@ export function SettingsSection({
                                             {visningsnavn}
                                         </p>
                                     ) : null}
-                                    <p className={`${visningsnavn ? "text-sm text-slate-500 dark:text-slate-400" : "font-medium text-slate-900 dark:text-white"}`}>
-                                        {lokalBrukerEpost || t("common.labels.notSignedIn")}
+                                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                                        {t("settings.profile.primaryEmail")}:{" "}
+                                        <span className="font-medium text-slate-700 dark:text-slate-200">
+                                            {lokalBrukerEpost || t("common.labels.notSignedIn")}
+                                        </span>
                                     </p>
                                     <p className="text-sm text-slate-500 dark:text-slate-400">
                                         {t("settings.profile.username")}:{" "}
@@ -650,7 +654,7 @@ export function SettingsSection({
                                     )}
                                 </div>
 
-                                <div className="grid gap-3 sm:grid-cols-3">
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                                     {([
                                         ["announcements", t("settings.browserPush.channels.announcements")],
                                         ["deadlines", t("settings.browserPush.channels.deadlines")],
@@ -1015,26 +1019,8 @@ export function SettingsSection({
                         </div>
                     </section>
 
-                    {/* AI Canvas-kontekst - kun vis hvis bruker har Canvas token */}
-                    {harCanvasToken && (
-                        <section className="p-5 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
-                                    <Bot size={20} className="text-slate-600 dark:text-slate-300" />
-                                </div>
-                                <h3 className="font-semibold text-slate-900 dark:text-white">
-                                    {t("settings.canvasContext.title")}
-                                </h3>
-                            </div>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                                {t("settings.canvasContext.description")}
-                            </p>
-                            <CanvasContextSelector />
-                        </section>
-                    )}
-
-                    {/* Notion-integrasjon */}
-                    <section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                    {/* Notion-integrasjon - kun vis hvis bruker har Canvas-tilkobling */}
+                    {harCanvasToken && (<section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
                                 <FileUp size={20} className="text-slate-600 dark:text-slate-300" />
@@ -1129,7 +1115,8 @@ export function SettingsSection({
                                             type="text"
                                             value={notionDefaultPageId}
                                             aria-label={t("settings.notionIntegration.defaultPageLabel")}
-                                            onChange={(e) => setNotionDefaultPageId(normalizeNotionPageIdInput(e.target.value))}
+                                            onChange={(e) => setNotionDefaultPageId(e.target.value)}
+                                            onBlur={(e) => setNotionDefaultPageId(normalizeNotionPageIdInput(e.target.value))}
                                             placeholder={t("settings.notionIntegration.defaultPagePlaceholder")}
                                             className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                         />
@@ -1166,7 +1153,25 @@ export function SettingsSection({
                                 </div>
                             </>
                         )}
-                    </section>
+                    </section>)}
+
+                    {/* AI Canvas-kontekst - kun vis hvis bruker har Canvas token */}
+                    {harCanvasToken && (
+                        <section className="p-5 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
+                                    <Bot size={20} className="text-slate-600 dark:text-slate-300" />
+                                </div>
+                                <h3 className="font-semibold text-slate-900 dark:text-white">
+                                    {t("settings.canvasContext.title")}
+                                </h3>
+                            </div>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                                {t("settings.canvasContext.description")}
+                            </p>
+                            <CanvasContextSelector />
+                        </section>
+                    )}
 
                 </div>
             </div>

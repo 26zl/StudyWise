@@ -42,6 +42,8 @@ const upload = multer({
     files: KONTAKT_MAX_ATTACHMENTS,
     fileSize: KONTAKT_MAX_ATTACHMENT_SIZE_BYTES,
     fieldSize: 10_000,
+    fields: 10,
+    parts: KONTAKT_MAX_ATTACHMENTS + 15,
   },
   fileFilter: (_req, file, callback) => {
     if (
@@ -100,12 +102,20 @@ function validateKontaktAttachments(files: Express.Multer.File[] | undefined): s
 router.post(
   "/",
   rateLimitContact,
-  // Avvis store payloads tidlig — før multer leser hele body inn i minne
+  // Avvis store payloads tidlig — før multer leser hele body inn i minne.
+  // Sjekker både Content-Length-header og faktisk strøm-størrelse (chunked requests).
   (req: Request, res: Response, next) => {
     const contentLength = Number(req.headers["content-length"]);
     if (contentLength > KONTAKT_MAX_TOTAL_BODY_BYTES) {
       return apiError.badRequest(res, `Maks total størrelse er ${Math.floor(KONTAKT_MAX_TOTAL_BODY_BYTES / (1024 * 1024))} MB`);
     }
+    let bytesReceived = 0;
+    req.on("data", (chunk: Buffer) => {
+      bytesReceived += chunk.length;
+      if (bytesReceived > KONTAKT_MAX_TOTAL_BODY_BYTES) {
+        req.destroy();
+      }
+    });
     next();
   },
   (req, res, next) => {

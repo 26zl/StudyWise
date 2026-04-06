@@ -7,12 +7,10 @@ import type {
   ExportDocument,
   ExportTarget,
   ExportResponse,
-  ExportProviderOptionsSchema,
+  ExportProviderOptions,
 } from "common/export";
-import type { z } from "zod";
 
-export type ProviderOptions = z.infer<typeof ExportProviderOptionsSchema>;
-export type RuntimeProviderOptions = Omit<ProviderOptions, "notion"> & {
+export type RuntimeProviderOptions = Omit<ExportProviderOptions, "notion"> & {
   notion?: {
     parentPageId?: string;
     /** Runtime-injisert Notion API-nøkkel fra brukerinnstillinger. */
@@ -50,10 +48,4 @@ export interface ExportProvider {
     doc: ExportDocument,
     options?: RuntimeProviderOptions,
   ): Promise<ExportResponse>;
-
-  /**
-   * Alternativ eksportmetode som returnerer rå provider-resultat.
-   * Brukes av PDF/Word providers som genererer binærdata.
-   */
-  export?(doc: ExportDocument): Promise<ExportProviderResult>;
 }

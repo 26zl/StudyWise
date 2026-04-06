@@ -23,7 +23,8 @@ import { DEFAULT_MODEL } from "../ki/aiModels.js";
 import { chatCompletion, isClientAvailable } from "../ki/aiClient.js";
 import { handleAIJsonRouteError } from "../ki/handleAIError.js";
 import { knyttCanvasToken } from "../../middleware/auth.js";
-import { loadCanvasContext } from "../../services/context-loader.service.js";
+import { loadCanvasContext, ensureCanvasSync } from "../../services/context-loader.service.js";
+import { isSyncing, waitForSync } from "../../services/canvas-sync.service.js";
 import {
   AI_COMPLETION_PUSH_MIN_DURATION_MS,
   sendAICompletionWebPush,
@@ -32,6 +33,9 @@ import {
   createCourseTargetedQuery,
   extractJsonArray,
 } from "../ki/studyContentUtils.js";
+
+/** Maks ventetid på Canvas-sync før flashcards fortsetter med tilgjengelig data */
+const FLASHCARD_SYNC_WAIT_MS = 8_000;
 
 const router = Router();
 router.use(rateLimitKi);
@@ -73,6 +77,13 @@ router.post("/generate", knyttCanvasToken, async (req, res) => {
     const { courseId, courseName, moduleNames, cardCount } = parsed.data;
     const generationStartedAt = Date.now();
 
+    // Sørg for at Canvas-data er synkronisert før vi henter kontekst.
+    await ensureCanvasSync(userId, req.canvasToken, req.canvasBaseUrl);
+    if (isSyncing(userId)) {
+      logger.info({ userId, courseId }, "Venter på Canvas sync før flashcard-generering");
+      await waitForSync(userId, FLASHCARD_SYNC_WAIT_MS);
+    }
+
     // Hent Canvas-kontekst for kurset via context-loader (bruker hybrid søk + Redis/MongoDB)
     const moduleListStr = moduleNames.join(", ");
     const contextResult = await loadCanvasContext(
@@ -96,6 +107,11 @@ ${contextResult.kontekst}
 
 Generer nøyaktig ${cardCount} flashcards som JSON-array.`;
 
+    logger.info(
+      { userId, courseId, courseName, contextLength: contextResult.kontekst.length },
+      "Starter flashcard-generering via Claude",
+    );
+
     const result = await chatCompletion({
       model: DEFAULT_MODEL,
       messages: [
@@ -113,6 +129,11 @@ Generer nøyaktig ${cardCount} flashcards som JSON-array.`;
         mode: "flashcards",
       },
     });
+
+    logger.info(
+      { userId, courseId, responseLength: result.text.length },
+      "Claude-svar mottatt for flashcard-generering",
+    );
 
     const rawFlashcards = z
       .array(FlashcardSchema.omit({ id: true }))

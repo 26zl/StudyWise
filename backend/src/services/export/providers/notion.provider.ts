@@ -25,6 +25,9 @@ const NOTION_BASE_URL = "https://api.notion.com/v1";
 // Notion begrenser antall blokker per append-kall
 const NOTION_MAX_BLOCKS_PER_REQUEST = 100;
 
+// Timeout for Notion API-kall (30 sekunder)
+const NOTION_API_TIMEOUT_MS = 30_000;
+
 function sanitizeNotionErrorBody(body: string): string {
   // Begrens lengde + maskér potensielle tokens/secrets i feilmeldinger.
   const truncated = body.slice(0, 220);
@@ -305,12 +308,13 @@ async function createNotionPage(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(createPageBody),
+    signal: AbortSignal.timeout(NOTION_API_TIMEOUT_MS),
   });
 
   if (!createRes.ok) {
     const body = await createRes.text();
     logger.error(
-      { status: createRes.status },
+      { status: createRes.status, body: sanitizeNotionErrorBody(body) },
       "Notion create page feilet",
     );
     if (createRes.status === 401) {
@@ -320,9 +324,10 @@ async function createNotionPage(
       throw new Error("Notion har avvist tilgang. Del parent-siden med integrasjonen din i Notion.");
     }
     if (createRes.status === 404) {
-      throw new Error("Fant ikke Notion side-ID. Sjekk at page ID er riktig.");
+      throw new Error("Fant ikke Notion-siden. Sjekk at side-ID er riktig og at siden er delt med Notion-integrasjonen din.");
     }
-    throw new Error(`Notion API-feil (${createRes.status}): ${sanitizeNotionErrorBody(body)}`);
+    // Logg rå body til server, men send kun generisk melding til frontend
+    throw new Error(`Notion API-feil (${createRes.status}). Prøv igjen senere.`);
   }
 
   const pageData = (await createRes.json()) as { id: string; url: string };
@@ -340,13 +345,14 @@ async function createNotionPage(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ children: batch }),
+        signal: AbortSignal.timeout(NOTION_API_TIMEOUT_MS),
       },
     );
 
     if (!appendRes.ok) {
       const body = await appendRes.text();
       logger.warn(
-        { status: appendRes.status, pageId: pageData.id },
+        { status: appendRes.status, pageId: pageData.id, body: sanitizeNotionErrorBody(body) },
         "Notion append blocks feilet — siden er delvis opprettet",
       );
       if (appendRes.status === 401 || appendRes.status === 403) {
@@ -354,11 +360,10 @@ async function createNotionPage(
           "Notion avviste oppdatering av sideinnhold. Kontroller tilgang og del siden med integrasjonen.",
         );
       }
-      if (appendRes.status >= 400 && appendRes.status < 500) {
-        throw new Error(
-          `Notion API-feil ved innsending av innhold (${appendRes.status}): ${sanitizeNotionErrorBody(body)}`,
-        );
-      }
+      // Alle feil (4xx og 5xx) kastes — brukeren må vite at eksport var delvis
+      throw new Error(
+        `Notion-eksport ble delvis fullført (${appendRes.status}). Sjekk siden i Notion.`,
+      );
     }
   }
 

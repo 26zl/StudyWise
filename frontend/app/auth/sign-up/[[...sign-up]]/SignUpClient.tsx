@@ -75,8 +75,9 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
   const usernameAbortRef = useRef<AbortController | null>(null);
 
   // OAuth-konflikt: blokkerer registrering tidlig
+  // Start som true ved OAuth-retur med aktiv sesjon for å unngå flash av skjemaet før conflict-sjekk kjører
   const [oauthConflict, setOauthConflict] = useState(false);
-  const [oauthConflictChecking, setOauthConflictChecking] = useState(false);
+  const [oauthConflictChecking, setOauthConflictChecking] = useState(isOAuthReturn && isSignedIn);
 
   // Email verification state
   const [step, setStep] = useState<SignUpStep>(
@@ -112,6 +113,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
   // Pre-check for OAuth-konto-konflikt: kall /api/user/me tidlig for å oppdage om
   // samme OAuth-konto allerede er tilknyttet en annen bruker (f.eks. dev vs. prod).
   // Vises som feilmelding istedenfor brukernavn-skjemaet.
+  // Ved kryssmiljø re-link: hvis backend-brukeren allerede har brukernavn, synk til Clerk og gå videre.
   useEffect(() => {
     if (step !== "oauth-username" || !isSignedIn || oauthConflict) return;
 
@@ -126,11 +128,30 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
           const errorType = json?.error;
           if (
             errorType === "oauth_account_conflict" ||
-            errorType === "oauth_metadata_missing" ||
-            errorType === "turnstile_required"
+            errorType === "oauth_metadata_missing"
           ) {
             await clerk.signOut().catch(() => {});
             setOauthConflict(true);
+            return;
+          }
+          // turnstile_required: redirect til dashboard — TurnstileReChallenge viser re-verifikasjon
+          if (errorType === "turnstile_required") {
+            window.location.replace("/dashboard");
+            return;
+          }
+        }
+
+        // Re-link: backend-bruker har allerede brukernavn — synk til Clerk og hopp over prompt
+        if (res.ok && clerkUser && !clerkUser.username) {
+          const json = await res.json().catch(() => null);
+          const existingUsername = json?.user?.username;
+          if (existingUsername) {
+            try {
+              await clerkUser.update({ username: existingUsername });
+            } catch {
+              // Clerk-oppdatering feilet — brukeren kan fortsette manuelt
+            }
+            window.location.replace("/dashboard");
             return;
           }
         }
@@ -145,7 +166,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
     return () => {
       cancelled = true;
     };
-  }, [step, isSignedIn, oauthConflict]);
+  }, [step, isSignedIn, oauthConflict, clerkUser]);
 
   // Gjenopprett session hvis sign-up allerede er fullført (f.eks. etter reload på verify-steget)
   useEffect(() => {

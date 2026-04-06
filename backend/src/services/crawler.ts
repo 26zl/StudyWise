@@ -43,7 +43,7 @@ import { parseDocument } from "./document.js";
 const FETCH_TIMEOUT_MS = 15000;
 
 /** Maks samtidige URL-hentinger */
-const CRAWLER_CONCURRENCY = 3;
+const CRAWLER_CONCURRENCY = 2;
 
 /** Maks PDF-er per ekstern side */
 const MAX_PDFS_PER_PAGE = 5;
@@ -56,6 +56,9 @@ const MAX_TEXT_CONTENT_SIZE_BYTES = 2 * 1024 * 1024;
 
 /** Maks antall redirects per URL for å unngå redirect-loop og SSRF-kjeder */
 const MAX_REDIRECTS = 3;
+
+/** Maks antall undersider som crawles per ExternalUrl-item */
+const MAX_SUBPAGES_PER_ITEM = 20;
 
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 
@@ -182,6 +185,7 @@ interface CrawlCourseExternalUrlsInput {
       crawledHash?: string;
       crawledAt?: Date;
       crawledPdfs?: string[];
+      crawledSubpages?: string[];
     }>;
   }>;
 }
@@ -196,6 +200,7 @@ interface ExternalUrlItem {
   crawledHash?: string;
   crawledAt?: Date;
   crawledPdfs?: string[];
+  crawledSubpages?: string[];
 }
 
 interface CrawlExternalUrlOptions {
@@ -818,7 +823,7 @@ async function parsePdfBuffer(
   buffer: Buffer,
   sourceUrl: string,
 ): Promise<{ content: string; hash: string } | null> {
-  const result = await parseDocument(buffer, "application/pdf", "external.pdf");
+  const result = await parseDocument(buffer, "application/pdf", "external.pdf", { syncMode: true });
   if (!result.success || !result.text.trim()) {
     logger.info({ url: sourceUrl }, "PDF inneholder ingen lesbar tekst");
     return null;
@@ -875,6 +880,7 @@ export async function crawlCourseExternalUrls(
           crawledHash: item.crawledHash,
           crawledAt: item.crawledAt,
           crawledPdfs: item.crawledPdfs,
+          crawledSubpages: item.crawledSubpages,
         });
       }
     }
@@ -924,6 +930,162 @@ export async function crawlCourseExternalUrls(
   return result;
 }
 
+// ─── Undersider (shallow crawl) ──────────────────────────
+
+/** URL-stier som aldri inneholder faginnhold */
+const EXCLUDED_PATH_PATTERNS = [
+  /\/(?:login|signin|signup|register|auth|logout|account|admin|search|cart|checkout)\b/i,
+  /\/(?:privacy|terms|cookie|gdpr|legal|imprint|impressum)\b/i,
+  /\/(?:wp-admin|wp-login|wp-json|feed|rss|api|graphql)\b/i,
+  // eslint-disable-next-line security/detect-unsafe-regex -- Enkel sjekk for rot-URL med/uten fragment, ingen ReDoS-risiko
+  /^\/(?:#.*)?$/, // Bare fragment eller root uten sti
+];
+
+/** Filendelser som ikke er HTML-sider */
+const NON_HTML_EXTENSIONS = new Set([
+  ".pdf", ".zip", ".gz", ".tar", ".rar", ".7z",
+  ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp",
+  ".mp4", ".mp3", ".avi", ".mov", ".wmv", ".flv",
+  ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+  ".exe", ".msi", ".dmg", ".deb", ".rpm",
+  ".css", ".js", ".json", ".xml", ".woff", ".woff2", ".ttf", ".eot",
+]);
+
+/**
+ * Finner interne lenker (samme domene) som sannsynligvis peker til innholdssider.
+ * Returnerer dedupliserte, absolutte URL-er opp til MAX_SUBPAGES_PER_ITEM.
+ */
+function findContentLinks(html: string, baseUrl: string): Array<{ url: string; title: string }> {
+  const $ = cheerio.load(html);
+  const links: Array<{ url: string; title: string }> = [];
+  const seenPaths = new Set<string>();
+
+  let baseHostname: string;
+  try {
+    baseHostname = new URL(baseUrl).hostname.toLowerCase();
+  } catch {
+    return [];
+  }
+
+  $("a[href]").each((_, el) => {
+    if (links.length >= MAX_SUBPAGES_PER_ITEM) return false;
+
+    const href = $(el).attr("href")?.trim();
+    if (!href) return;
+
+    // Blokker farlige URI-skjemaer (case-insensitivt for å unngå bypass via "JavaScript:" osv.)
+    const hrefLower = href.toLowerCase();
+    if (hrefLower.startsWith("#") || hrefLower.startsWith("mailto:") || hrefLower.startsWith("javascript:") || hrefLower.startsWith("data:") || hrefLower.startsWith("vbscript:")) return;
+
+    let absoluteUrl: URL;
+    try {
+      absoluteUrl = new URL(href, baseUrl);
+    } catch {
+      return;
+    }
+
+    // Kun http/https — blokkerer javascript:, data:, osv. som kan overleve URL-parsing
+    if (absoluteUrl.protocol !== "http:" && absoluteUrl.protocol !== "https:") return;
+
+    // Kun samme domene (tillat også www-variant)
+    const linkHost = absoluteUrl.hostname.toLowerCase();
+    if (linkHost !== baseHostname && linkHost !== `www.${baseHostname}` && `www.${linkHost}` !== baseHostname) {
+      return;
+    }
+
+    // Fjern fragment og normaliser
+    absoluteUrl.hash = "";
+    const normalizedPath = absoluteUrl.pathname.toLowerCase();
+
+    // Hopp over duplikater
+    if (seenPaths.has(normalizedPath)) return;
+
+    // Hopp over rot-URL (allerede crawlet som hovedside)
+    if (normalizedPath === "/" || normalizedPath === "") return;
+
+    // Hopp over ikke-HTML-filer
+    const lastSegment = normalizedPath.split("/").pop() ?? "";
+    const extMatch = lastSegment.match(/\.\w{1,5}$/);
+    if (extMatch && NON_HTML_EXTENSIONS.has(extMatch[0].toLowerCase())) return;
+
+    // Hopp over uønskede stier
+    if (EXCLUDED_PATH_PATTERNS.some((p) => p.test(normalizedPath))) return;
+
+    seenPaths.add(normalizedPath);
+
+    let title = $(el).text().trim();
+    if (!title || title.length > 200) {
+      title = decodeURIComponent(normalizedPath.split("/").filter(Boolean).pop() ?? "side");
+    }
+
+    links.push({ url: absoluteUrl.toString(), title });
+  });
+
+  return links;
+}
+
+// ─── GitHub-spesifikk håndtering ─────────────────────────
+
+/**
+ * Sjekker om en URL er en GitHub-repo-side og konverterer til rå README-innhold.
+ * Returnerer null hvis ikke GitHub-repo, ellers README-URL-er å prøve.
+ */
+function getGitHubReadmeUrls(urlStr: string): string[] | null {
+  try {
+    const url = new URL(urlStr);
+    if (url.hostname !== "github.com" && url.hostname !== "www.github.com") return null;
+
+    // Match /owner/repo (med eller uten trailing slash, tab-parametre osv.)
+    const pathMatch = url.pathname.match(/^\/([^/]+)\/([^/]+)\/?$/);
+    if (!pathMatch) return null;
+
+    const [, owner, repo] = pathMatch;
+    const cleanRepo = repo.replace(/\.git$/, "");
+
+    // Prøv vanlige README-varianter via raw.githubusercontent.com
+    return [
+      `https://raw.githubusercontent.com/${owner}/${cleanRepo}/main/README.md`,
+      `https://raw.githubusercontent.com/${owner}/${cleanRepo}/master/README.md`,
+      `https://raw.githubusercontent.com/${owner}/${cleanRepo}/main/README.rst`,
+    ];
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Henter GitHub README-innhold direkte fra raw.githubusercontent.com.
+ * Prøver main → master → rst-varianter.
+ */
+async function fetchGitHubReadme(repoUrl: string): Promise<string | null> {
+  const readmeUrls = getGitHubReadmeUrls(repoUrl);
+  if (!readmeUrls) return null;
+
+  for (const readmeUrl of readmeUrls) {
+    const response = await fetchWithSafeRedirects(readmeUrl, FETCH_TIMEOUT_MS);
+    if (!response) continue;
+
+    try {
+      if (response.ok) {
+        const buffer = await readResponseBodyWithLimit(response, MAX_TEXT_CONTENT_SIZE_BYTES);
+        const text = buffer.toString("utf8").trim();
+        if (text.length > 50) {
+          logger.info(
+            { repoUrl, readmeUrl },
+            "GitHub README hentet via raw.githubusercontent.com",
+          );
+          return text;
+        }
+      }
+      discardResponseBody(response);
+    } catch {
+      // Prøv neste variant
+    }
+  }
+
+  return null;
+}
+
 /**
  * Crawler én ExternalUrl-item.
  */
@@ -947,6 +1109,40 @@ async function crawlExternalUrlItem(
       "ExternalUrl krever innlogging — hopper over",
     );
     result.skipped++;
+    return result;
+  }
+
+  // GitHub-repo: hent README direkte (HTML-crawl av github.com gir ofte bare navigasjon)
+  const githubReadme = await fetchGitHubReadme(item.externalUrl);
+  if (githubReadme) {
+    const readmeHash = sha256(githubReadme);
+    if (item.crawledHash !== readmeHash) {
+      const chunks = createChunksFromContent(githubReadme, {
+        courseId,
+        courseName,
+        moduleTitle: item.moduleName,
+        fileName: `${item.title} (README)`,
+        fileId: item.itemId,
+      });
+      if (chunks.length > 0) {
+        await upsertStoredFileContent({
+          userId,
+          courseId,
+          courseName,
+          moduleId: item.moduleId,
+          moduleTitle: item.moduleName,
+          fileName: `${item.title} (README)`,
+          fileId: item.itemId,
+          fileHash: readmeHash,
+          chunks,
+          fullText: githubReadme,
+        });
+        result.crawled++;
+      }
+      await updateItemCrawlStatus(userId, courseId, item.moduleId, item.itemId, readmeHash);
+    } else {
+      result.skipped++;
+    }
     return result;
   }
 
@@ -1079,7 +1275,173 @@ async function crawlExternalUrlItem(
     result,
   );
 
+  // Crawl undersider (shallow, 1 nivå dypt) for å hente faktisk faginnhold
+  await processSubpageLinks(
+    html,
+    item,
+    userId,
+    courseId,
+    courseName,
+    result,
+  );
+
   return result;
+}
+
+/**
+ * Oppdager og crawler undersider på samme domene for å hente faginnhold
+ * som ikke finnes på hovedsiden (f.eks. windowsnett.no, GitHub Pages).
+ */
+async function processSubpageLinks(
+  html: string,
+  item: ExternalUrlItem,
+  userId: string,
+  courseId: string,
+  courseName: string,
+  result: CrawlResult,
+): Promise<void> {
+  const contentLinks = findContentLinks(html, item.externalUrl);
+  if (contentLinks.length === 0) return;
+
+  const previouslyIndexed = new Set(item.crawledSubpages ?? []);
+  const newlyIndexed: string[] = [...previouslyIndexed];
+  const subpageLimit = pLimit(CRAWLER_CONCURRENCY);
+
+  logger.info(
+    {
+      url: item.externalUrl,
+      subpageCount: contentLinks.length,
+      previouslyIndexedCount: previouslyIndexed.size,
+    },
+    "Starter crawling av undersider",
+  );
+
+  await Promise.allSettled(
+    contentLinks.map((link) =>
+      subpageLimit(async () => {
+        // Hopp over allerede indekserte undersider
+        if (previouslyIndexed.has(link.url)) return;
+
+        const subContent = await fetchExternalContent(link.url);
+        if (subContent.kind !== "html") return;
+
+        const domainSelectors = getDomainSelectors(link.url);
+        const subText = extractTextFromHtml(subContent.html, domainSelectors);
+        if (!subText.trim() || subText.length < 100) return;
+
+        const subFileId = createStableFileId(link.url);
+        const subHash = sha256(subText);
+        const subFileName = `${item.title} — ${link.title}`;
+
+        const chunks = createChunksFromContent(subText, {
+          courseId,
+          courseName,
+          moduleTitle: item.moduleName,
+          fileName: subFileName,
+          fileId: subFileId,
+        });
+
+        if (chunks.length > 0) {
+          try {
+            await upsertStoredFileContent({
+              userId,
+              courseId,
+              courseName,
+              moduleId: item.moduleId,
+              moduleTitle: item.moduleName,
+              fileName: subFileName,
+              fileId: subFileId,
+              fileHash: subHash,
+              chunks,
+              fullText: subText,
+            });
+
+            newlyIndexed.push(link.url);
+            result.crawled++;
+
+            logger.info(
+              { url: link.url, parentUrl: item.externalUrl, chunkCount: chunks.length },
+              "Underside crawlet og indeksert",
+            );
+          } catch (error) {
+            logger.warn(
+              { err: error, url: link.url },
+              "Feil ved indeksering av underside",
+            );
+          }
+        }
+
+        // Prosesser PDF-lenker på undersiden
+        const subPdfLinks = findPdfLinks(subContent.html, link.url);
+        for (const pdf of subPdfLinks) {
+          if (previouslyIndexed.has(pdf.url) || newlyIndexed.includes(pdf.url)) continue;
+
+          const pdfResult = await downloadAndProcessPdf(pdf.url);
+          if (!pdfResult) continue;
+
+          const pdfFileId = createStableFileId(pdf.url);
+          const pdfChunks = createChunksFromContent(pdfResult.content, {
+            courseId,
+            courseName,
+            moduleTitle: item.moduleName,
+            fileName: pdf.title,
+            fileId: pdfFileId,
+          });
+
+          if (pdfChunks.length > 0) {
+            try {
+              await upsertStoredFileContent({
+                userId,
+                courseId,
+                courseName,
+                moduleId: item.moduleId,
+                moduleTitle: item.moduleName,
+                fileName: pdf.title,
+                fileId: pdfFileId,
+                fileHash: pdfResult.hash,
+                chunks: pdfChunks,
+                fullText: pdfResult.content,
+              });
+              result.pdfsIndexed++;
+            } catch (error) {
+              logger.warn(
+                { err: error, url: pdf.url },
+                "Feil ved indeksering av PDF fra underside",
+              );
+            }
+          }
+        }
+      }),
+    ),
+  );
+
+  // Rydd opp undersider som har forsvunnet fra hovedsiden
+  const currentSubpageUrls = new Set(contentLinks.map((l) => l.url));
+  const removedSubpages = [...previouslyIndexed].filter((url) => !currentSubpageUrls.has(url));
+  for (const removedUrl of removedSubpages) {
+    try {
+      const removedFileId = createStableFileId(removedUrl);
+      await deleteStoredFileContent(userId, courseId, removedFileId);
+      const idx = newlyIndexed.indexOf(removedUrl);
+      if (idx !== -1) newlyIndexed.splice(idx, 1);
+      logger.info(
+        { url: removedUrl, parentUrl: item.externalUrl },
+        "Fjernet chunks for underside som ikke lenger finnes på hovedsiden",
+      );
+    } catch (error) {
+      logger.warn(
+        { err: error, url: removedUrl },
+        "Feil ved opprydding av fjernet underside",
+      );
+    }
+  }
+
+  // Oppdater listen over indekserte undersider
+  const listChanged = newlyIndexed.length !== previouslyIndexed.size ||
+    !newlyIndexed.every((url) => previouslyIndexed.has(url));
+  if (listChanged) {
+    await updateItemCrawledSubpages(userId, courseId, item.moduleId, item.itemId, newlyIndexed);
+  }
 }
 
 /**
@@ -1249,6 +1611,36 @@ async function updateItemCrawledPdfs(
     logger.warn(
       { err: error, userId, courseId, moduleId, itemId },
       "Kunne ikke oppdatere crawledPdfs for ExternalUrl",
+    );
+  }
+}
+
+/**
+ * Oppdaterer listen over crawlede undersider for et item i MongoDB.
+ */
+async function updateItemCrawledSubpages(
+  userId: string,
+  courseId: string,
+  moduleId: number,
+  itemId: number,
+  crawledSubpages: string[],
+): Promise<void> {
+  try {
+    await CanvasStructureModel.updateOne(
+      { userId, courseId },
+      {
+        $set: {
+          "moduler.$[mod].items.$[item].crawledSubpages": crawledSubpages,
+        },
+      },
+      {
+        arrayFilters: [{ "mod.id": moduleId }, { "item.id": itemId }],
+      },
+    );
+  } catch (error) {
+    logger.warn(
+      { err: error, userId, courseId, moduleId, itemId },
+      "Kunne ikke oppdatere crawledSubpages for ExternalUrl",
     );
   }
 }

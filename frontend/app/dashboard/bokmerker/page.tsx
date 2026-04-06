@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useAuth, useClerk } from "@clerk/nextjs";
+import { useCallback, useMemo, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Pin, Search } from "lucide-react";
 import { useMeg } from "@/app/auth/auth-api";
 import {
   skalRedirecteTilAuth,
   useAuthRedirect,
+  useFatalAuthSignOut,
 } from "@/app/auth/authUtils";
 import type { VisningType } from "@/app/components/dashboard/Sidebar";
 import { ConversationListItem } from "@/app/components/dashboard/ConversationListItem";
@@ -16,7 +17,7 @@ import {
 } from "@/app/components/layout/SidebarAppShell";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
-import { erFatalUserDataFeilmelding, getBrukerdataFeilmelding } from "@/app/lib/errorUtils";
+import { getBrukerdataFeilmelding } from "@/app/lib/errorUtils";
 import { useChatHistory } from "@/app/hooks/useChatHistory";
 import { lagSamtaleForhandsvisning } from "@/app/components/chat/conversationMessageUtils";
 import { formaterDatoShort } from "@/app/lib/dato";
@@ -27,16 +28,9 @@ import { useUIStore } from "@/app/store/uiStore";
 export default function BokmerkerPage() {
   const router = useRouter();
   const { isLoaded } = useAuth();
-  const clerk = useClerk();
   const megQuery = useMeg({ enabled: isLoaded });
   useAuthRedirect(megQuery);
-
-  const _fatalMsg = megQuery.isError ? (megQuery.error?.message ?? "") : "";
-  const _erFatalAuthFeil = megQuery.isError && erFatalUserDataFeilmelding(_fatalMsg);
-  useEffect(() => {
-    if (!_erFatalAuthFeil) return;
-    void clerk.signOut({ redirectUrl: "/auth/sign-in" });
-  }, [_erFatalAuthFeil, clerk]);
+  const erFatalAuthFeil = useFatalAuthSignOut(megQuery);
 
   const { chats, loading: chatsLoading, setChatPinned } = useChatHistory();
   const { setSelectedChatId, setCurrentChatId } = useUIStore();
@@ -80,7 +74,7 @@ export default function BokmerkerPage() {
     return <LoadingView text={t("bokmerker.loading")} />;
   }
 
-  if (skalRedirecteTilAuth(megQuery) || _erFatalAuthFeil) {
+  if (skalRedirecteTilAuth(megQuery) || erFatalAuthFeil) {
     const label = skalRedirecteTilAuth(megQuery)
       ? t("common.loading.redirectingToSignIn")
       : t("common.loading.generic");

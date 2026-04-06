@@ -12,14 +12,15 @@ import { LoadingView } from "@/app/components/ui/Loading";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { type VisningType } from "@/app/components/dashboard/Sidebar";
 import { SectionErrorBoundary } from "@/app/components/ui/ErrorBoundary";
-import { useAuth, useClerk } from "@clerk/nextjs";
+import { useAuth } from "@clerk/nextjs";
 import { useCanvasUser } from "@/app/canvas/canvas-api";
 import { useMeg } from "@/app/auth/auth-api";
 import {
   useAuthRedirect,
   skalRedirecteTilAuth,
+  useFatalAuthSignOut,
 } from "@/app/auth/authUtils";
-import { erFatalUserDataFeilmelding, getBrukerdataFeilmelding } from "@/app/lib/errorUtils";
+import { getBrukerdataFeilmelding } from "@/app/lib/errorUtils";
 import { prefetchCanvasData } from "@/app/canvas/canvas-api";
 import { useUIStore } from "@/app/store/uiStore";
 import { useVarslerPopups, useVarslerStateSync } from "@/app/hooks/useVarsler";
@@ -99,7 +100,6 @@ export function DashboardView() {
 
     // Hent brukerdata og Canvas-token status – vent til Clerk er klar for å unngå 401 race
     const { isLoaded: clerkLoaded } = useAuth();
-    const clerk = useClerk();
     const megQuery = useMeg({ enabled: clerkLoaded });
     const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
     const brukerQueryAktiv = megQuery.isSuccess && harCanvasToken;
@@ -150,13 +150,7 @@ export function DashboardView() {
     const brukerdataFeilmelding = getBrukerdataFeilmelding(megQuery.error, t);
 
     // Fatale auth-feil (OAuth-konflikt, slettet konto): logg ut automatisk uten å vise feilmelding
-    const feilMsg = megQuery.isError ? (megQuery.error?.message ?? "") : "";
-    const erFatalAuthFeil = megQuery.isError && erFatalUserDataFeilmelding(feilMsg);
-
-    useEffect(() => {
-        if (!erFatalAuthFeil) return;
-        void clerk.signOut({ redirectUrl: "/auth/sign-in" });
-    }, [erFatalAuthFeil, clerk]);
+    const erFatalAuthFeil = useFatalAuthSignOut(megQuery);
 
     // Auth-/brukerhåndteringsfeil: vis ren lastespinner UTEN dashboard-innhold (sidebar, meny osv.)
     // Brukeren skal aldri se dashboard-rammen ved auth-feil.

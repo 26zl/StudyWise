@@ -53,6 +53,11 @@ const FORMAT_ICONS: Record<ExportTarget, React.ReactNode> = {
       <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 9l-2 6h-1l-1.5-4.5L7 17H6l-2-6h1.5l1.2 4 1.5-4h1l1.5 4 1.2-4H14zm0-4V3.5L18.5 9H13z" />
     </svg>
   ),
+  excel: (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6zm2-5.5L9.5 17H11l-2-3 2-3H9.5L8 13.5 6.5 11H5l2 3-2 3h1.5L8 14.5z" />
+    </svg>
+  ),
   notion: (
     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
       <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.98-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466l1.823 1.447zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.934zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952l1.448.327s0 .84-1.168.84l-3.22.186c-.094-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.454-.233 4.763 7.279V9.107l-1.214-.14c-.094-.514.28-.887.747-.933l3.224-.001zm-12.292-6.63l12.681-.746c1.588-.14 1.962-.047 2.949.7l4.064 2.8c.654.467.888.607.888 1.12v14.371c0 1.12-.42 1.774-1.868 1.867l-15.41.887c-1.073.047-1.587-.093-2.148-.84l-3.267-4.204c-.7-.933-.981-1.633-.981-2.426V3.807c0-.98.42-1.773 1.587-1.913l1.505-.14z" />
@@ -61,7 +66,7 @@ const FORMAT_ICONS: Record<ExportTarget, React.ReactNode> = {
 };
 
 /** Rekkefølge for eksportformater i UI */
-const FORMAT_ORDER: ExportTarget[] = ["markdown", "pdf", "word", "text", "notion"];
+const FORMAT_ORDER: ExportTarget[] = ["markdown", "pdf", "word", "excel", "text", "notion"];
 
 export function ChatExportModal({
   isOpen,
@@ -103,31 +108,32 @@ export function ChatExportModal({
     async function fetchTargetsAndNotionDefaults() {
       setIsLoading(true);
       try {
-        const [targetsRes, notionRes] = await Promise.all([
+        const [targetsResult, notionResult] = await Promise.allSettled([
           fetchApi("/api/ki/export/targets"),
           fetchApi("/api/user/notion", { method: "GET" }),
         ]);
 
-        if (targetsRes.ok) {
-          const data = (await targetsRes.json()) as { targets: ExportTargetInfo[] };
+        if (targetsResult.status === "fulfilled" && targetsResult.value.ok) {
+          const data = (await targetsResult.value.json()) as { targets: ExportTargetInfo[] };
           setAvailableTargets(data.targets);
+        } else {
+          // Fallback til lokale mål ved feil på targets-endepunktet
+          setAvailableTargets([
+            { target: "markdown", configured: true },
+            { target: "pdf", configured: true },
+            { target: "text", configured: true },
+            { target: "word", configured: true },
+            { target: "excel", configured: true },
+            { target: "notion", configured: false },
+          ]);
         }
 
-        if (notionRes.ok) {
-          const notionData = (await notionRes.json()) as NotionSettingsResponse;
+        if (notionResult.status === "fulfilled" && notionResult.value.ok) {
+          const notionData = (await notionResult.value.json()) as NotionSettingsResponse;
           if (notionData.defaultPageId) {
             setNotionPageId(notionData.defaultPageId);
           }
         }
-      } catch {
-        // Fallback til lokale mål
-        setAvailableTargets([
-          { target: "markdown", configured: true },
-          { target: "pdf", configured: true },
-          { target: "text", configured: true },
-          { target: "word", configured: true },
-          { target: "notion", configured: false },
-        ]);
       } finally {
         setIsLoading(false);
       }
@@ -209,14 +215,16 @@ export function ChatExportModal({
           blob = new Blob([result.data.content], { type: result.data.mimeType });
         }
 
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = result.data.filename || `studywise-export.${getFileExtension(selectedTarget)}`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        const blobUrl = URL.createObjectURL(blob);
+        try {
+          const a = Object.assign(document.createElement("a"), {
+            href: blobUrl,
+            download: result.data.filename || `studywise-export.${getFileExtension(selectedTarget)}`,
+          });
+          a.click();
+        } finally {
+          URL.revokeObjectURL(blobUrl);
+        }
 
         showToast.success(
           t("exportModal.successDownload", { format: t(`exportModal.formats.${selectedTarget}`) }),
@@ -423,7 +431,7 @@ export function ChatExportModal({
                 <p className="text-sm font-medium text-green-900 dark:text-green-100">
                   {t("exportModal.successExternal", { provider: "Notion" })}
                 </p>
-                {exportResult.data.url && (
+                {exportResult.data.url && /^https:\/\//.test(exportResult.data.url) && (
                   <a
                     href={exportResult.data.url}
                     target="_blank"
@@ -489,6 +497,10 @@ function getFileExtension(target: ExportTarget): string {
       return "txt";
     case "word":
       return "docx";
+    case "excel":
+      return "xlsx";
+    case "notion":
+      return ""; // Notion eksporterer eksternt, ikke som fil
     default:
       return "txt";
   }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ImgHTMLAttributes, type JSX } from "react";
 import { createCanvasHtmlParser, parseCanvasHtml } from "@/app/canvas/canvasHtml";
 import { fetchApi } from "@/app/lib/apiClient";
+import { useLanguage } from "@/app/i18n";
 
 function normalizeStyle(style?: string | CSSProperties): CSSProperties | undefined {
     if (!style) return undefined;
@@ -40,6 +41,7 @@ function TilpassetBilde({
     class: _class,
     ...props
 }: ImgHTMLAttributes<HTMLImageElement> & { class?: string }): JSX.Element {
+    const { t } = useLanguage();
     const originalSrc = typeof src === "string" ? src : undefined;
     const [laster, settLaster] = useState(true);
     const [bildeFeilet, settBildeFeilet] = useState(false);
@@ -114,7 +116,7 @@ function TilpassetBilde({
                 />
             ) : (
                 <span className={`inline-flex min-h-24 min-w-32 items-center justify-center px-4 py-3 text-sm ${bildeFeilet ? "text-red-500 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}>
-                    {bildeFeilet ? "Kunne ikke laste bilde" : (alt || "Canvas bilde")}
+                    {bildeFeilet ? t("canvasContent.imageLoadError") : (alt || t("canvasContent.imageAlt"))}
                 </span>
             )}
         </span>
@@ -124,7 +126,7 @@ function TilpassetBilde({
 const renderImage = (domNode: import("html-react-parser").Element) => (
     <TilpassetBilde
         src={domNode.attribs?.src ?? ""}
-        alt={domNode.attribs?.alt || "Canvas bilde"}
+        alt={domNode.attribs?.alt ?? ""}
         {...domNode.attribs}
     />
 );

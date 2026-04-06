@@ -11,14 +11,23 @@ const COURSE_OVERVIEW_PATTERNS = [
 
 const STRUCTURED_CANVAS_QUERY_PATTERNS = [
   ...COURSE_OVERVIEW_PATTERNS,
-  // Norsk
+  // Norsk — modul/leksjonsstruktur
+  /\b(?:hvilke|vis|liste|oversikt|hva slags)\b.*\b(?:moduler|leksjoner|forelesninger|temaer|kapitler|ukeplaner|uker)\b/i,
+  /\b(?:moduler|leksjoner|forelesninger|temaer|kapitler)\b.*\b(?:finnes|har|inneholder|kan du se|er det|ligger)\b/i,
+  /\b(?:innhold|struktur|pensum|fagplan)\b.*\b(?:emnet|kurset|faget)\b/i,
+  /\b(?:emnet|kurset|faget)\b.*\b(?:innhold|struktur|pensum|fagplan)\b/i,
+  // Norsk — frister/oppgaver/hendelser
   /\b(?:neste|kommende)\b.*\b(?:frist|frister|oppgave|oppgaver|innlevering|innleveringer|hendelse|hendelser|kunngjøring(?:er|ene)?)\b/i,
   /\b(?:hvilke|vis|liste|oversikt)\b.*\b(?:oppgaver|innleveringer|frister|kunngjøringer|hendelser)\b/i,
   /\boppsummer\b.*\b(?:kunngjøring(?:er|ene)?|beskjed(?:er)?|endring(?:er)?)\b/i,
   /\b(?:kunngjøring(?:er|ene)?|beskjed(?:er)?|endring(?:er)?)\b.*\boppsummer\b/i,
   /\b(?:kalender|timeplan|todo|gjøremål)\b/i,
   /\bnår er\b.*\b(?:frist|frister|eksamen|innlevering|oppgave)\b/i,
-  // Engelsk
+  // Engelsk — module/lesson structure
+  /\b(?:which|what|show|list|overview)\b.*\b(?:modules|lessons|lectures|topics|chapters|weeks)\b/i,
+  /\b(?:modules|lessons|lectures|topics|chapters)\b.*\b(?:are there|does it have|contains|can you see)\b/i,
+  /\b(?:content|structure|syllabus|curriculum)\b.*\b(?:course|subject|class)\b/i,
+  // Engelsk — frister/oppgaver/hendelser
   /\b(?:next|upcoming)\b.*\b(?:deadline|deadlines|assignment|assignments|submission|submissions|event|events|announcement|announcements)\b/i,
   /\b(?:which|show|list|overview)\b.*\b(?:assignments|submissions|deadlines|announcements|events)\b/i,
   /\bsummar(?:y|ize)\b.*\b(?:announcements?|notifications?|changes?)\b/i,

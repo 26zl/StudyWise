@@ -6,7 +6,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Bot, Download, Copy, Share2, RefreshCw, Plus, User, GraduationCap } from "lucide-react";
+import { Send, Square, Bot, Download, Copy, Share2, RefreshCw, Plus, User, GraduationCap } from "lucide-react";
 import { LoadingSpinner, LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
@@ -164,6 +164,10 @@ export function ChatSection() {
     const brukerErVedBunnRef = useRef(true);
     /** Ref for animasjonsintervall — ryddes opp ved unmount eller ny melding. */
     const animationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    /** AbortController for aktiv KI-forespørsel — brukes av stopp-knappen. */
+    const chatAbortRef = useRef<AbortController | null>(null);
+    /** Full tekst og melding-ID for pågående animasjon — brukes av stopp-knappen for å vise komplett svar. */
+    const animatingFullTextRef = useRef<{ id: string; text: string } | null>(null);
 
     /** Pågående chat-forespørsel: brukes i onSuccess/onError for å lagre riktig chat (inkl. chatId fra promise) etter svar. */
     const pendingChatRef = useRef<{
@@ -324,6 +328,9 @@ export function ChatSection() {
     /** Oppdaterer pending state og sessionStorage med ny chat-id. Setter alltid runningChatId og currentChatId i store (så Sidebar viser pågående-markering også ved unmount); setter aktivChatId kun hvis komponenten er mountet. */
     const oppdaterPendingChatId = useCallback((requestId: string, chatId: string | undefined) => {
         if (!chatId) return;
+        const requestErFortsattAktiv =
+            pendingConversationState?.requestId === requestId ||
+            pendingChatRef.current?.requestId === requestId;
         if (pendingConversationState?.requestId === requestId) {
             pendingConversationState = {
                 ...pendingConversationState,
@@ -334,15 +341,59 @@ export function ChatSection() {
                 setCurrentChatId(chatId);
             }
         }
-        try {
-            sessionStorage?.setItem("studywise_last_chat_id", chatId);
-        } catch {
-            /* ignore */
+        if (requestErFortsattAktiv) {
+            try {
+                sessionStorage?.setItem("studywise_last_chat_id", chatId);
+            } catch {
+                /* ignore */
+            }
         }
-        if (isMountedRef.current) {
+        if (requestErFortsattAktiv && isMountedRef.current) {
             settAktivSamtale(chatId);
         }
     }, [setRunningChatId, setCurrentChatId, settAktivSamtale]);
+
+    /** Rydder opp lokal/global pending-state når brukeren avbryter en pågående chatforespørsel. */
+    const avbrytAktivChatForesporsel = useCallback((
+        options: {
+            requestId?: string;
+            userMessageId?: string;
+        } = {},
+    ) => {
+        const aktivPending = pendingChatRef.current;
+        const requestId = options.requestId ?? aktivPending?.requestId;
+        const userMessageId = options.userMessageId ?? aktivPending?.userMessage.id;
+
+        chatAbortRef.current = null;
+        animatingFullTextRef.current = null;
+        stoppAktivAnimasjon();
+
+        if (!requestId || aktivPending?.requestId === requestId) {
+            pendingChatRef.current = null;
+        }
+        if (requestId && pendingConversationState?.requestId === requestId) {
+            pendingConversationState = null;
+        }
+
+        setRunningChatId(null);
+
+        try {
+            sessionStorage?.removeItem("studywise_last_chat_id");
+        } catch {
+            /* ignore */
+        }
+
+        if (!isMountedRef.current) return;
+
+        settSkriver(false);
+        if (!userMessageId) return;
+
+        settMeldinger((prev) => {
+            const neste = prev.filter((m) => m.id !== userMessageId);
+            meldingerRef.current = neste;
+            return neste;
+        });
+    }, [setRunningChatId, stoppAktivAnimasjon]);
 
     /** Gjenoppretter meldinger og UI-state fra pending (brukes ved gjenopptak etter refresh). Bruker isResponsePending så vi ikke viser skriver/analyse-indikator når bare lagring gjenstår. */
     const hydratePendingConversation = useCallback((pending: PendingConversationState) => {
@@ -958,8 +1009,12 @@ export function ChatSection() {
         const assistantId = (Date.now() + 1).toString();
         brukerErVedBunnRef.current = true;
 
-        void streamKIChat(apiMeldinger, { explanationLevel })
+        const abortController = new AbortController();
+        chatAbortRef.current = abortController;
+
+        void streamKIChat(apiMeldinger, { explanationLevel, signal: abortController.signal })
             .then((data) => {
+                chatAbortRef.current = null;
                 const responseText = data.response.trim();
                 if (!responseText) {
                     showToast.error(t("chat.aiResponseFailed"), t("chat.aiResponseEmpty"));
@@ -994,7 +1049,9 @@ export function ChatSection() {
                         ...t,
                         { id: assistantId, rolle: "assistant" as const, innhold: "", tidsstempel: new Date() },
                     ]);
+                    animatingFullTextRef.current = { id: assistantId, text: responseText };
                     animerTekst(assistantId, responseText, () => {
+                        animatingFullTextRef.current = null;
                         if (isMountedRef.current) {
                             // Sikrer at full tekst er satt selv om intervallet ble ryddet tidlig
                             settMeldinger((prev) =>
@@ -1009,6 +1066,15 @@ export function ChatSection() {
                 }
             })
             .catch((error: unknown) => {
+                chatAbortRef.current = null;
+                // Bruker avbrøt manuelt — fjern brukerens melding og reset
+                if (abortController.signal.aborted) {
+                    avbrytAktivChatForesporsel({
+                        requestId,
+                        userMessageId: brukerMelding.id,
+                    });
+                    return;
+                }
                 settAnimerendeMeldingId(null);
                 const err = error instanceof Error ? error : new Error("Uventet feil");
                 settKiError(err);
@@ -1553,21 +1619,51 @@ export function ChatSection() {
                             className="flex-1 resize-none bg-transparent py-2 text-[15px] text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:outline-none focus:ring-0 border-none shadow-none disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
                             style={{ outline: "none" }}
                         />
-                        <button
-                            type="button"
-                            onClick={() => {
-                                void sendMelding();
-                            }}
-                            disabled={(!tekstInput.trim() && vedlegg.length === 0) || skriver || analyserarDokument}
-                            className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-                            aria-label={skriver || analyserarDokument ? t("chat.sendingMessage") : t("chat.sendMessage")}
-                        >
-                            {skriver || analyserarDokument ? (
-                                <LoadingSpinner className="w-4 h-4 text-slate-400 animate-spin" />
-                            ) : (
+                        {skriver ? (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (chatAbortRef.current) {
+                                        const aktivPending = pendingChatRef.current;
+                                        chatAbortRef.current.abort();
+                                        avbrytAktivChatForesporsel({
+                                            requestId: aktivPending?.requestId,
+                                            userMessageId: aktivPending?.userMessage.id,
+                                        });
+                                        return;
+                                    }
+
+                                    stoppAktivAnimasjon();
+                                    // Vis komplett tekst umiddelbart hvis animasjonen ble stoppet (svar allerede mottatt)
+                                    const pending = animatingFullTextRef.current;
+                                    if (pending) {
+                                        settMeldinger((prev) =>
+                                            prev.map((m) =>
+                                                m.id === pending.id ? { ...m, innhold: pending.text } : m,
+                                            ),
+                                        );
+                                        animatingFullTextRef.current = null;
+                                    }
+                                    settSkriver(false);
+                                }}
+                                className="shrink-0 w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 flex items-center justify-center transition-colors"
+                                aria-label={t("common.actions.cancel")}
+                            >
+                                <Square className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 fill-current" />
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    void sendMelding();
+                                }}
+                                disabled={(!tekstInput.trim() && vedlegg.length === 0) || analyserarDokument}
+                                className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                                aria-label={t("chat.sendMessage")}
+                            >
                                 <Send className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-                            )}
-                        </button>
+                            </button>
+                        )}
                     </div>
                     <div className="flex items-center justify-between mt-2 px-1">
                         <div className="flex items-center gap-1">

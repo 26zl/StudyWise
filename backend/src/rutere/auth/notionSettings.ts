@@ -4,7 +4,7 @@
  */
 import { Router } from "express";
 import { z } from "zod";
-import { decrypt, encrypt } from "../../utils/kryptering.js";
+import { encrypt, decrypt, erGyldigKryptert } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
 import { apiError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
@@ -14,9 +14,85 @@ import { normalizeNotionPageId } from "../../services/export/notion-id.js";
 
 const router = Router();
 
+const NOTION_API_VERSION = "2022-06-28";
+
+/**
+ * Verifiserer en Notion API-nøkkel mot Notion API.
+ * Returnerer null ved suksess, ellers en feilmelding.
+ */
+async function verifiserNotionApiKey(apiKey: string): Promise<string | null> {
+    try {
+        const response = await fetch("https://api.notion.com/v1/users/me", {
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "Notion-Version": NOTION_API_VERSION,
+            },
+            signal: AbortSignal.timeout(10_000),
+        });
+
+        if (response.ok) return null;
+
+        if (response.status === 401) {
+            return "Ugyldig Notion API-nøkkel. Sjekk at nøkkelen er korrekt og ikke utløpt.";
+        }
+        if (response.status === 403) {
+            return "Notion API-nøkkelen mangler nødvendige tilganger. Sjekk integrasjonens rettigheter.";
+        }
+
+        logger.warn(
+            { status: response.status },
+            "Uventet svar fra Notion API ved verifisering",
+        );
+        return `Kunne ikke verifisere Notion API-nøkkelen (HTTP ${response.status}). Prøv igjen senere.`;
+    } catch (error) {
+        logger.warn({ error }, "Feil ved verifisering av Notion API-nøkkel");
+        return "Kunne ikke kontakte Notion API for verifisering. Sjekk nettverket og prøv igjen.";
+    }
+}
+
+/**
+ * Verifiserer at en Notion side-ID er tilgjengelig med gitt API-nøkkel.
+ * Returnerer null ved suksess, ellers en feilmelding.
+ */
+async function verifiserNotionPageId(apiKey: string, pageId: string): Promise<string | null> {
+    try {
+        const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "Notion-Version": NOTION_API_VERSION,
+            },
+            signal: AbortSignal.timeout(10_000),
+        });
+
+        if (response.ok) return null;
+
+        if (response.status === 404) {
+            return "Notion-siden ble ikke funnet. Sjekk at side-ID er riktig og at siden er delt med integrasjonen din i Notion (Connections → legg til integrasjonen).";
+        }
+        if (response.status === 401) {
+            return "Notion API-nøkkelen er ugyldig. Lagre en ny nøkkel først.";
+        }
+
+        logger.warn(
+            { status: response.status, pageId },
+            "Uventet svar fra Notion API ved verifisering av side-ID",
+        );
+        return `Kunne ikke verifisere Notion side-ID (HTTP ${response.status}). Prøv igjen senere.`;
+    } catch (error) {
+        logger.warn({ error, pageId }, "Feil ved verifisering av Notion side-ID");
+        return "Kunne ikke kontakte Notion API for verifisering av side-ID. Sjekk nettverket og prøv igjen.";
+    }
+}
+
 /** Request schema for saving Notion settings. */
 const NotionSettingsRequestSchema = z.object({
-    apiKey: z.string().min(1, "API-nøkkel er påkrevd").optional(),
+    apiKey: z.string().min(1, "API-nøkkel er påkrevd")
+        .refine((key) => /^(ntn_|secret_)/.test(key.trim()), {
+            message: "Ugyldig Notion API-nøkkel. Nøkkelen skal starte med 'ntn_' eller 'secret_'.",
+        })
+        .optional(),
     defaultPageId: z.string().optional(),
     clearApiKey: z.boolean().optional(), // If true, delete existing API key
 });
@@ -38,20 +114,12 @@ router.get("/notion", async (req, res) => {
             return apiError.unauthorized(res);
         }
 
-        const bruker = await User.findById(userId).select("+notionApiKey");
+        const bruker = await User.findOne({ _id: userId, deletedAt: { $exists: false } }).select("+notionApiKey");
         if (!bruker) {
             return apiError.notFound(res, "Bruker");
         }
 
-        let hasApiKey = false;
-        if (bruker.notionApiKey) {
-            try {
-                decrypt(bruker.notionApiKey);
-                hasApiKey = true;
-            } catch {
-                hasApiKey = false;
-            }
-        }
+        const hasApiKey = erGyldigKryptert(bruker.notionApiKey);
 
         return res.json(
             NotionSettingsResponseSchema.parse({
@@ -84,7 +152,7 @@ router.put("/notion", rateLimitToken, async (req, res) => {
         }
         const { apiKey, defaultPageId, clearApiKey } = parseResult.data;
 
-        const bruker = await User.findById(userId).select("+notionApiKey");
+        const bruker = await User.findOne({ _id: userId, deletedAt: { $exists: false } }).select("+notionApiKey");
         if (!bruker) {
             return apiError.notFound(res, "Bruker");
         }
@@ -113,6 +181,12 @@ router.put("/notion", rateLimitToken, async (req, res) => {
                 req,
             });
         } else if (apiKey) {
+            // Verifiser nøkkelen mot Notion API før lagring
+            const verifikasjonsFeil = await verifiserNotionApiKey(apiKey.trim());
+            if (verifikasjonsFeil) {
+                return apiError.badRequest(res, verifikasjonsFeil);
+            }
+
             // Encrypt and save new key
             const kryptertKey = encrypt(apiKey);
             setFields.notionApiKey = kryptertKey;
@@ -140,6 +214,16 @@ router.put("/notion", rateLimitToken, async (req, res) => {
                         "Ugyldig Notion side-ID. Lim inn en gyldig side-ID eller Notion-lenke.",
                     );
                 }
+                // Verifiser at siden er tilgjengelig med API-nøkkelen
+                const klartekstApiKey = apiKey?.trim()
+                    || (erGyldigKryptert(bruker.notionApiKey) ? decrypt(bruker.notionApiKey!) : null);
+                if (klartekstApiKey) {
+                    const pageVerifikasjonsFeil = await verifiserNotionPageId(klartekstApiKey, normalizedPageId);
+                    if (pageVerifikasjonsFeil) {
+                        return apiError.badRequest(res, pageVerifikasjonsFeil);
+                    }
+                }
+
                 setFields.notionDefaultPageId = normalizedPageId;
             }
         }
@@ -153,20 +237,12 @@ router.put("/notion", rateLimitToken, async (req, res) => {
             updateOps.$unset = unsetFields;
         }
         if (Object.keys(updateOps).length > 0) {
-            await User.findByIdAndUpdate(userId, updateOps);
+            await User.findOneAndUpdate({ _id: userId, deletedAt: { $exists: false } }, updateOps);
         }
 
-        // Fetch updated user to return current state
-        const oppdatertBruker = await User.findById(userId).select("+notionApiKey");
-        let hasApiKey = false;
-        if (oppdatertBruker?.notionApiKey) {
-            try {
-                decrypt(oppdatertBruker.notionApiKey);
-                hasApiKey = true;
-            } catch {
-                hasApiKey = false;
-            }
-        }
+        // Hent oppdatert bruker for å returnere gjeldende tilstand
+        const oppdatertBruker = await User.findOne({ _id: userId, deletedAt: { $exists: false } }).select("+notionApiKey");
+        const hasApiKey = erGyldigKryptert(oppdatertBruker?.notionApiKey);
 
         return res.json(
             NotionSettingsResponseSchema.parse({
@@ -197,7 +273,7 @@ router.delete("/notion", rateLimitToken, async (req, res) => {
             return apiError.unauthorized(res);
         }
 
-        const bruker = await User.findById(userId).select("+notionApiKey");
+        const bruker = await User.findOne({ _id: userId, deletedAt: { $exists: false } }).select("+notionApiKey");
         if (!bruker) {
             return apiError.notFound(res, "Bruker");
         }
@@ -206,7 +282,7 @@ router.delete("/notion", rateLimitToken, async (req, res) => {
             return apiError.badRequest(res, "Ingen Notion API-nøkkel å slette");
         }
 
-        await User.findByIdAndUpdate(userId, {
+        await User.findOneAndUpdate({ _id: userId, deletedAt: { $exists: false } }, {
             $unset: { notionApiKey: 1, notionDefaultPageId: 1 },
         });
 

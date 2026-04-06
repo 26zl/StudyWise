@@ -20,7 +20,15 @@ import type {
  * Parser inline-formatering: **bold**, *italic*, `code`, [lenke](url).
  * Returnerer en liste med TextSegment.
  */
+/** Maks lengde per linje for inline-parsing (hindrer ReDoS ved ondartet input) */
+const MAX_INLINE_PARSE_LENGTH = 10_000;
+
 export function parseInlineSegments(text: string): TextSegment[] {
+  // Begrens lengde for å forhindre katastrofal backtracking i regex
+  if (text.length > MAX_INLINE_PARSE_LENGTH) {
+    return [{ text }];
+  }
+
   const segments: TextSegment[] = [];
   // Regex for bold, italic, inline-kode og lenker
   const inlineRegex = /(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|\[([^\]]+)\]\(([^)]+)\))/g;
@@ -44,8 +52,13 @@ export function parseInlineSegments(text: string): TextSegment[] {
       // `code`
       segments.push({ text: match[4], styles: ["code"] });
     } else if (match[5] && match[6]) {
-      // [tekst](url)
-      segments.push({ text: match[5], styles: ["link"], href: match[6] });
+      // [tekst](url) — kun http/https-lenker
+      const href = match[6];
+      if (/^https?:\/\//i.test(href) && href.length <= 2000) {
+        segments.push({ text: match[5], styles: ["link"], href });
+      } else {
+        segments.push({ text: match[5] });
+      }
     }
 
     lastIndex = match.index + match[0].length;
@@ -139,21 +152,7 @@ export function parseMarkdownToBlocks(markdown: string): ExportBlock[] {
       continue;
     }
 
-    // Sitat (> tekst)
-    if (trimmed.startsWith("> ")) {
-      const quoteLines: string[] = [];
-      while (i < lines.length && lines[i].trimEnd().startsWith("> ")) {
-        quoteLines.push(lines[i].trimEnd().slice(2));
-        i++;
-      }
-      blocks.push({
-        type: "quote",
-        segments: parseInlineSegments(quoteLines.join("\n")),
-      });
-      continue;
-    }
-
-    // Callout (> 💡 eller > ⚠️ etc. — emoji-prefiks i sitat)
+    // Callout (> 💡 eller > ⚠️ etc. — emoji-prefiks i sitat) — må sjekkes FØR vanlig sitat
     if (/^>\s*[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u.test(trimmed)) {
       const calloutLines: string[] = [];
       while (i < lines.length && lines[i].trimEnd().startsWith(">")) {
@@ -168,6 +167,19 @@ export function parseMarkdownToBlocks(markdown: string): ExportBlock[] {
         type: "callout",
         emoji,
         segments: parseInlineSegments(content),
+      });
+      continue;
+
+    // Sitat (> tekst)
+    } else if (trimmed.startsWith("> ")) {
+      const quoteLines: string[] = [];
+      while (i < lines.length && lines[i].trimEnd().startsWith("> ")) {
+        quoteLines.push(lines[i].trimEnd().slice(2));
+        i++;
+      }
+      blocks.push({
+        type: "quote",
+        segments: parseInlineSegments(quoteLines.join("\n")),
       });
       continue;
     }

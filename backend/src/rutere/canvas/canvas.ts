@@ -366,11 +366,24 @@ router.get("/emner", async (req, res) => {
     logger.info({ count: courses.length }, "Hentet aktive emner");
     if (req.user?.id && req.canvasToken && req.canvasBaseUrl) {
       const { ensureCanvasSync } = await import("../../services/context-loader.service.js");
-      ensureCanvasSync(req.user.id, req.canvasToken, req.canvasBaseUrl).catch(
-        (err) => {
-          logger.debug({ err }, "Bakgrunns Canvas-sync feilet (ikke-kritisk)");
-        },
-      );
+      const { syncCanvasDataForUser, hasCanvasSyncData } = await import("../../services/canvas-sync.service.js");
+
+      // Proaktiv sync: sjekk om bruker har synkroniserte data.
+      // Hvis ikke (første gang eller etter cache-utløp), kjør full sync med bypass rate-limit.
+      const hasSyncedData = await hasCanvasSyncData(req.user.id).catch(() => false);
+      if (!hasSyncedData) {
+        syncCanvasDataForUser(req.user.id, req.canvasToken, req.canvasBaseUrl, undefined, {
+          bypassRateLimit: true,
+        }).catch((err) => {
+          logger.debug({ err }, "Proaktiv Canvas-sync feilet (ikke-kritisk)");
+        });
+      } else {
+        ensureCanvasSync(req.user.id, req.canvasToken, req.canvasBaseUrl).catch(
+          (err) => {
+            logger.debug({ err }, "Bakgrunns Canvas-sync feilet (ikke-kritisk)");
+          },
+        );
+      }
     }
     res.json({
       courses,

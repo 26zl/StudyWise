@@ -89,6 +89,7 @@ export function MinArbeidsplan() {
         setPendingDelete(false);
         showToast.info(t("arbeidsplan.deleteUndone"));
       },
+      t("common.actions.undo"),
       5000,
     );
 

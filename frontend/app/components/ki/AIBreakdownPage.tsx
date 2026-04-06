@@ -25,11 +25,12 @@ import {
   SidebarAppShell,
 } from "@/app/components/layout/SidebarAppShell";
 import { StatCard } from "@/app/components/ui/StatCard";
-import { useAuth, useClerk } from "@clerk/nextjs";
+import { useAuth } from "@clerk/nextjs";
 import { useMeg, useHiddenCourseIds } from "@/app/auth/auth-api";
 import {
   skalRedirecteTilAuth,
   useAuthRedirect,
+  useFatalAuthSignOut,
 } from "@/app/auth/authUtils";
 import {
   useCanvasAllAssignments,
@@ -40,7 +41,6 @@ import { erInnlevert } from "@/app/canvas/canvasUtils";
 import { useManuellInnlevering } from "@/app/hooks/useManuellInnlevering";
 import { formaterDatoLong } from "@/app/lib/dato";
 import {
-  erFatalUserDataFeilmelding,
   getBrukerdataFeilmelding,
   lagBrukervennligFeilmelding,
 } from "@/app/lib/errorUtils";
@@ -67,6 +67,7 @@ export function AIBreakdownPage() {
   );
   const expandedRef = useRef(expandedAssignmentIdsInUrl);
   expandedRef.current = expandedAssignmentIdsInUrl;
+  const harInitialisert = useRef(false);
   const expandedAssignmentIds = useMemo(
     () => new Set(expandedAssignmentIdsInUrl),
     [expandedAssignmentIdsInUrl],
@@ -74,7 +75,6 @@ export function AIBreakdownPage() {
   const { language, t } = useLanguage();
 
   const { isLoaded: clerkLoaded } = useAuth();
-  const clerk = useClerk();
   const megQuery = useMeg({ enabled: clerkLoaded });
   const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
   const userQuery = useCanvasUser(megQuery.isSuccess && harCanvasToken);
@@ -96,13 +96,7 @@ export function AIBreakdownPage() {
   );
 
   useAuthRedirect(megQuery);
-
-  const _fatalMsg = megQuery.isError ? (megQuery.error?.message ?? "") : "";
-  const _erFatalAuthFeil = megQuery.isError && erFatalUserDataFeilmelding(_fatalMsg);
-  useEffect(() => {
-    if (!_erFatalAuthFeil) return;
-    void clerk.signOut({ redirectUrl: "/auth/sign-in" });
-  }, [_erFatalAuthFeil, clerk]);
+  const erFatalAuthFeil = useFatalAuthSignOut(megQuery);
 
   const aktiveOppgaver = useMemo(
     () =>
@@ -116,9 +110,11 @@ export function AIBreakdownPage() {
     const gyldigeIds = new Set(aktiveOppgaver.map((assignment) => assignment.id.toString()));
     const nåværende = expandedRef.current ?? [];
     const neste = [...new Set(nåværende.filter((id) => gyldigeIds.has(id)))];
-    if (neste.length === 0 && aktiveOppgaver.length > 0) {
+    // Åpne første oppgave kun ved initial lasting, ikke når bruker lukker manuelt
+    if (neste.length === 0 && aktiveOppgaver.length > 0 && !harInitialisert.current) {
       neste.push(aktiveOppgaver[0].id.toString());
     }
+    harInitialisert.current = true;
     const nesteVerdi = neste.length > 0 ? neste : null;
     const erLik =
       (nesteVerdi === null && nåværende.length === 0) ||
@@ -145,7 +141,7 @@ export function AIBreakdownPage() {
     return <LoadingView text={t("common.loading.assignments")} />;
   }
 
-  if (skalRedirecteTilAuth(megQuery) || _erFatalAuthFeil) {
+  if (skalRedirecteTilAuth(megQuery) || erFatalAuthFeil) {
     const label = skalRedirecteTilAuth(megQuery)
       ? t("common.loading.redirectingToSignIn")
       : t("common.loading.generic");

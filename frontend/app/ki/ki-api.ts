@@ -578,11 +578,13 @@ async function postGeneriskApi<T>(
   path: string,
   body: unknown,
   schema: ZodType<T>,
+  signal?: AbortSignal,
 ): Promise<T> {
   const res = await fetchApi(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal,
   });
 
   if (res.status === 401 || res.status === 403) {
@@ -703,6 +705,12 @@ export async function streamKIChat(
   let buffer = "";
   let lastDataLine: string | null = null;
 
+  // Abort-signalet fra fetch() propagerer ikke til body-strømmen etter at
+  // headere er mottatt (SSE sender headere umiddelbart). Lytt eksplisitt
+  // på abort og kanseller leseren manuelt for å sikre at avbryt-knappen fungerer.
+  const onAbort = () => { reader.cancel().catch(() => {}); };
+  options.signal?.addEventListener("abort", onAbort, { once: true });
+
   try {
     // Les HTTP body incrementalt chunk for chunk
     while (true) {
@@ -726,7 +734,13 @@ export async function streamKIChat(
     await res.body.cancel().catch(() => {});
     throw err;
   } finally {
+    options.signal?.removeEventListener("abort", onAbort);
     reader.releaseLock();
+  }
+
+  // Bruker avbrøt — kast tidlig uten misvisende feilmelding
+  if (options.signal?.aborted) {
+    throw new DOMException("Forespørselen ble avbrutt", "AbortError");
   }
 
   // Tøm eventuelle gjenværende bytes fra TextDecoder
@@ -949,15 +963,13 @@ import {
 export type { QuizGenerateRequest, QuizGenerateResponse, FlashcardsGenerateRequest, FlashcardsGenerateResponse };
 
 /** Rå API-funksjon for quiz-generering. */
-export async function generateQuizApi(request: QuizGenerateRequest): Promise<QuizGenerateResponse> {
+export async function generateQuizApi(request: QuizGenerateRequest, signal?: AbortSignal): Promise<QuizGenerateResponse> {
   const validated = QuizGenerateRequestSchema.parse(request);
-  // Bruker direkte /api/quiz endepunkt (ikke /api/ki) for å unngå feil-ruting og unødvendige 429-feil.
-  return postGeneriskApi("/api/quiz/generate", validated, QuizGenerateResponseSchema);
+  return postGeneriskApi("/api/quiz/generate", validated, QuizGenerateResponseSchema, signal);
 }
 
 /** Rå API-funksjon for flashcard-generering. */
-export async function generateFlashcardsApi(request: FlashcardsGenerateRequest): Promise<FlashcardsGenerateResponse> {
+export async function generateFlashcardsApi(request: FlashcardsGenerateRequest, signal?: AbortSignal): Promise<FlashcardsGenerateResponse> {
   const validated = FlashcardsGenerateRequestSchema.parse(request);
-  // Bruker direkte /api/flashcards endepunkt (ikke /api/ki) for å unngå feil-ruting og unødvendige 429-feil.
-  return postGeneriskApi("/api/flashcards/generate", validated, FlashcardsGenerateResponseSchema);
+  return postGeneriskApi("/api/flashcards/generate", validated, FlashcardsGenerateResponseSchema, signal);
 }

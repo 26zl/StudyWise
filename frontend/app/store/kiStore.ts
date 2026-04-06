@@ -78,6 +78,7 @@ interface KIState {
   quizJob: QuizJob | null;
   startQuizGeneration: (request: QuizGenerateRequest) => void;
   startFlashcardGeneration: (request: FlashcardsGenerateRequest) => void;
+  cancelQuizJob: () => void;
   clearQuizJob: () => void;
   resumeQuizJob: () => void;
 
@@ -89,7 +90,10 @@ interface KIState {
 }
 
 // Global peker til aktiv quiz/flashcard-forespørsel slik at den ikke avbrytes ved navigasjon.
-let activeQuizJob: Promise<void> | null = null;
+// quizJobRunning er en synkron vakt som settes umiddelbart — hindrer race conditions
+// der flere useEffect-kall når kjørQuizJob() før Promisen er tildelt.
+let quizJobRunning = false;
+let activeQuizAbortController: AbortController | null = null;
 
 function kjørQuizJob(
   mode: QuizJob["mode"],
@@ -97,24 +101,31 @@ function kjørQuizJob(
   set: (partial: Partial<KIState> | ((state: KIState) => Partial<KIState>)) => void,
 ): void {
   // Hindre dobbeltkall når en forespørsel allerede er i gang.
-  if (activeQuizJob) return;
+  if (quizJobRunning) return;
 
-  activeQuizJob = (async () => {
+  quizJobRunning = true;
+
+  const abortController = new AbortController();
+  activeQuizAbortController = abortController;
+
+  void (async () => {
     try {
       if (mode === "quiz") {
-        const data = await generateQuizApi(payload as QuizGenerateRequest);
+        const data = await generateQuizApi(payload as QuizGenerateRequest, abortController.signal);
         set(() => ({
           quizJob: { status: "success", mode: "quiz", result: data },
           lastQuizRequest: undefined,
         }));
       } else {
-        const data = await generateFlashcardsApi(payload as FlashcardsGenerateRequest);
+        const data = await generateFlashcardsApi(payload as FlashcardsGenerateRequest, abortController.signal);
         set(() => ({
           quizJob: { status: "success", mode: "flashcards", result: data },
           lastQuizRequest: undefined,
         }));
       }
     } catch (error) {
+      // Ignorer avbrutte forespørsler — bruker avbrøt manuelt
+      if (abortController.signal.aborted) return;
       set(() => ({
         quizJob: {
           status: "error",
@@ -123,7 +134,8 @@ function kjørQuizJob(
         },
       }));
     } finally {
-      activeQuizJob = null;
+      quizJobRunning = false;
+      activeQuizAbortController = null;
     }
   })();
 }
@@ -283,13 +295,22 @@ export const useKIStore = create<KIState>()(
     kjørQuizJob("flashcards", request, set);
   },
 
+  cancelQuizJob: () => {
+    if (activeQuizAbortController) {
+      activeQuizAbortController.abort();
+      activeQuizAbortController = null;
+    }
+    quizJobRunning = false;
+    set({ quizJob: null, lastQuizRequest: undefined });
+  },
+
   clearQuizJob: () => {
     set({ quizJob: null, lastQuizRequest: undefined });
   },
 
   resumeQuizJob: () => {
     const { quizJob, lastQuizRequest } = get();
-    if (activeQuizJob) return;
+    if (quizJobRunning) return;
     if (!lastQuizRequest) return;
     if (quizJob?.status === "pending") {
       kjørQuizJob(lastQuizRequest.mode, lastQuizRequest.payload, set);

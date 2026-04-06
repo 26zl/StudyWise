@@ -174,8 +174,8 @@ export default function ProfilPage() {
   const router = useRouter();
   const { isLoaded: authLoaded, userId } = useAuth();
   const { isLoaded: clerkUserLoaded, user: clerkUser } = useUser();
-  const { data: meData } = useMeg({ enabled: authLoaded && !!userId });
   const megQuery = useMeg({ enabled: authLoaded && !!userId });
+  const meData = megQuery.data;
   const { mutateAsync: oppdaterProfil, isPending: isProfilOppdateringPending } = useOppdaterProfil();
   const sisteSyncForsokRef = useRef<string | null>(null);
 

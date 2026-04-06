@@ -33,12 +33,12 @@ describe("KIMessageSchema", () => {
     expect(resultat.success).toBe(true);
   });
 
-  it("godtar gyldig melding med role 'system'", () => {
+  it("avviser system-rolle (kun backend-intern, ikke del av kontrakten)", () => {
     const resultat = KIMessageSchema.safeParse({
       role: "system",
       content: "Systemmelding.",
     });
-    expect(resultat.success).toBe(true);
+    expect(resultat.success).toBe(false);
   });
 
   it("avviser ugyldig rolle", () => {
@@ -47,10 +47,9 @@ describe("KIMessageSchema", () => {
     ).toBe(false);
   });
 
-  it("godtar tom content (KIMessageSchema har ingen min-begrensning)", () => {
-    // KIMessageSchema bruker z.string() uten refine, så tom streng er gyldig
+  it("avviser tom content", () => {
     const resultat = KIMessageSchema.safeParse({ role: "user", content: "" });
-    expect(resultat.success).toBe(true);
+    expect(resultat.success).toBe(false);
   });
 
   it("godtar valgfri timestamp", () => {

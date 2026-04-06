@@ -23,6 +23,7 @@ export const nbMessages = {
       show: "Vis",
       signOut: "Logg ut",
       start: "Start",
+      undo: "Angre",
       verifyCode: "Bekreft kode",
     },
     accessibility: {
@@ -30,6 +31,7 @@ export const nbMessages = {
     },
     labels: {
       canvasUser: "Canvas bruker",
+      error: "Feil",
       notSignedIn: "Ikke innlogget",
     },
     loading: {
@@ -81,6 +83,10 @@ export const nbMessages = {
       taskBreakdown: "Oppgavedeling med KI",
     },
   },
+  canvasContent: {
+    imageLoadError: "Kunne ikke laste bilde",
+    imageAlt: "Canvas bilde",
+  },
   chatHistory: {
     clearConfirmDescription:
       "Alle lagrede samtaler fjernes. Dette kan ikke angres.",
@@ -93,6 +99,7 @@ export const nbMessages = {
     topicUpdateError: "Kunne ikke oppdatere tema",
     pinUpdateError: "Kunne ikke oppdatere bokmerke",
     titleUpdateError: "Kunne ikke oppdatere chat-navn",
+    selectChat: "Velg \"{title}\"",
   },
   auth: {
     forgotPassword: {
@@ -268,6 +275,10 @@ export const nbMessages = {
         "Vi klarte ikke å laste Cloudflare Turnstile. Last siden på nytt og prøv igjen.",
       gateError:
         "Sikkerhetsverifisering utløpt. Last siden på nytt og fullfør Turnstile-sjekken.",
+      rechallenge: {
+        title: "Sikkerhetsverifisering",
+        description: "Sesjonen din trenger en ny sikkerhetssjekk. Fullfør verifiseringen for å fortsette.",
+      },
     },
   },
   errors: {
@@ -361,18 +372,18 @@ export const nbMessages = {
     features: {
       aiPartner: {
         description:
-          "Står du fast? Få umiddelbar hjelp, forklaringer og studietips fra din personlige KI-assistent.",
+          "Står du fast? Få hjelp, forklaringer, quiz, flashcards og oppgavenedbrytning. Last opp dokumenter for analyse, få en KI-generert studieplan, og eksporter til PDF, Word, Excel eller Notion.",
         title: "KI-Studiepartner",
       },
       canvasIntegration: {
         description:
-          "Koble til Canvas én gang og få tilgang til alle dine emner, moduler, filer og kunngjøringer direkte i dashboardet.",
+          "Koble til Canvas én gang og få tilgang til alle dine emner, moduler, filer, kunngjøringer og kalender direkte i dashboardet.",
         title: "Sømløs Canvas-integrasjon",
       },
       heading: "Funksjoner",
       overview: {
         description:
-          "Se alt som skjer i dag og de neste dagene. Dine personlige gjøremål og frister fra skolen samlet på ett sted.",
+          "Se alt som skjer i dag og de neste dagene. Frister, KI-generert ukeplan og studiestatistikk samlet på ett sted — med eksport til PDF, Word, Excel og Notion.",
         title: "Total Oversikt",
       },
     },
@@ -406,6 +417,10 @@ export const nbMessages = {
       taskBreakdown: {
         description: "Bryt ned oppgaver i mindre deler",
         title: "Oppgavedeling med KI",
+      },
+      exportChat: {
+        description: "Eksporter samtaler til PDF, Word, Excel eller Notion",
+        title: "Eksporter",
       },
     },
     stats: {
@@ -571,7 +586,7 @@ export const nbMessages = {
       apiKeyPlaceholder: "secret_xxxxxxxx...",
       defaultPageLabel: "Standard side-ID (valgfritt)",
       defaultPagePlaceholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-      defaultPageHelp: "Du kan lime inn full Notion-lenke eller page ID. Vi henter ut side-ID automatisk. La stå tom for å velge ved eksport.",
+      defaultPageHelp: "Du kan lime inn full Notion-lenke eller page ID. Vi henter ut side-ID automatisk. La stå tom for å velge ved eksport. Husk å dele siden med integrasjonen i Notion.",
       hide: "Skjul",
       show: "Vis",
       save: "Lagre",
@@ -586,7 +601,7 @@ export const nbMessages = {
         step2: "Klikk \"Create new integration\"",
         step3: "Gi integrasjonen et navn (f.eks. \"StudyWise\")",
         step4: "Kopier \"Internal Integration Secret\" og lim inn her",
-        step5: "Del sidene du vil eksportere til med integrasjonen i Notion",
+        step5: "Del sidene du vil eksportere til med integrasjonen i Notion (åpne siden → «...» → Connections → legg til integrasjonen)",
       },
       saveSuccess: {
         title: "Notion-innstillinger lagret",
@@ -667,6 +682,7 @@ export const nbMessages = {
       notConnected: "Ikke tilkoblet. Legg til Canvas API-token nedenfor.",
       studywiseAccount: "StudyWise-konto",
       title: "Kontooversikt",
+      primaryEmail: "Primær e-post",
       username: "Brukernavn",
       usernameNotSet: "Ikke satt",
     },
@@ -687,6 +703,7 @@ export const nbMessages = {
         conversations: "Samtaler og deling",
         planning: "Planlegging og deloppgaver",
         content: "Innhold og Canvas",
+        notifications: "Varsler og integrasjoner",
         sync: "Sync og cache",
         audit: "Revisjon og sikkerhet",
         quality: "Datakvalitet",
@@ -798,6 +815,10 @@ export const nbMessages = {
       orphanedCanvasStructures: "Canvas-strukturer uten gyldig bruker",
       orphanedCanvasUsers: "Canvas-brukere uten gyldig bruker",
       ownerlessShareLinks: "Delingslenker uten eier",
+      pushSubscriptions: "Push-abonnementer",
+      usersWithPush: "Brukere med push",
+      avgDevicesPerUser: "Snitt enheter per bruker",
+      usersWithNotion: "Brukere med Notion",
     },
     users: {
       email: "E-post",
@@ -859,11 +880,16 @@ export const nbMessages = {
     couldNotGenerateFlashcards: "Kunne ikke generere flashcards.",
     noQuestionsGenerated: "Ingen spørsmål ble generert",
     noFlashcardsGenerated: "Ingen flashcards ble generert",
+    selectionOutOfDate: "Valgt emne eller moduler er ikke lenger tilgjengelige. Velg på nytt.",
     requestTimeout: "Forespørselen tok for lang tid",
     couldNotGenerate: "Kunne ikke generere {contentType}",
     decreaseCount: "Reduser antall",
     increaseCount: "Øk antall",
     selectStudyMode: "Velg studiemodus",
+    generateQuiz: "Generer quiz",
+    generateFlashcards: "Generer flashcards",
+    generatingQuiz: "Genererer quiz...",
+    generatingFlashcards: "Genererer flashcards...",
     newQuiz: "Ny quiz",
   },
   arbeidsplan: {
@@ -1113,6 +1139,8 @@ export const nbMessages = {
       textDescription: "Enkel tekstfil uten formatering (.txt)",
       word: "Word",
       wordDescription: "Microsoft Word-dokument (.docx)",
+      excel: "Excel",
+      excelDescription: "Regneark med tabeller (.xlsx)",
       notion: "Notion",
       notionDescription: "Opprett side i Notion",
     },
@@ -1540,6 +1568,9 @@ export const nbMessages = {
     copiedLabel: "Kopiert",
     copyLabel: "Kopier",
     linesLabel: "{count} linjer",
+  },
+  table: {
+    exportCSV: "Eksporter til Excel",
   },
   minArbeidsplan: {
     retryButton: "Prøv igjen",
