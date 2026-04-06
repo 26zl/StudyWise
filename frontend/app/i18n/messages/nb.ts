@@ -1665,4 +1665,36 @@ export const nbMessages = {
     sharedViewsSingular: "{count} visning",
     sharedViewsPlural: "{count} visninger",
   },
+  onboarding: {
+    welcome: "Velkommen til StudyWise!",
+    welcomeDescription:
+      "StudyWise er din KI-drevne studieassistent som hjelper deg med å studere smartere. La oss ta en rask gjennomgang av hva du kan gjøre.",
+    steps: {
+      chat: "KI-chat",
+      chatDescription:
+        "Still spørsmål, få forklaringer og få hjelp med studiene dine. KI-assistenten kan svare på faglige spørsmål, hjelpe deg med oppgaver og forklare vanskelige konsepter.",
+      canvas: "Canvas-integrasjon",
+      canvasDescription:
+        "Koble til Canvas LMS for å se kunngjøringer, emner og oppgaver direkte i StudyWise. Gå til Innstillinger for å legge til Canvas API-token.",
+      calendar: "Kalender",
+      calendarDescription:
+        "Se alle frister og hendelser fra Canvas i en oversiktlig kalendervisning. Hold styr på innleveringer og viktige datoer.",
+      quiz: "Quiz og flashcards",
+      quizDescription:
+        "Generer quiz og flashcards fra pensum og dokumenter for å teste kunnskapen din. KI-en lager spørsmål basert på fagstoffet ditt.",
+      notifications: "Varsler",
+      notificationsDescription:
+        "Få varsler om kommende frister og viktige hendelser fra Canvas slik at du aldri går glipp av noe.",
+      settings: "Innstillinger",
+      settingsDescription:
+        "Tilpass StudyWise etter dine behov. Koble til Canvas, endre språk, tema og andre preferanser.",
+    },
+    getStarted: "Kom i gang",
+    next: "Neste",
+    previous: "Forrige",
+    skip: "Hopp over",
+    stepOf: "Steg {current} av {total}",
+    tipCanvasToken:
+      "Tips: Koble til Canvas i Innstillinger for å få mest mulig ut av StudyWise!",
+  },
 } as const;

@@ -89,6 +89,9 @@ export const AUTH_PROVIDERS = ["google", "microsoft", "email"] as const;
 export type AuthProvider = (typeof AUTH_PROVIDERS)[number];
 export const AuthProviderSchema = z.enum(AUTH_PROVIDERS);
 
+/** Liste over alle innloggingsmetoder brukeren har brukt (f.eks. ["microsoft", "google"]). */
+export const AuthProvidersArraySchema = z.array(AuthProviderSchema);
+
 /** OAuth-leverandører som bruker ekstern kontotilknytning (ikke e-post). */
 export const OAUTH_PROVIDERS = ["google", "microsoft"] as const;
 export type OAuthProvider = (typeof OAUTH_PROVIDERS)[number];
@@ -156,6 +159,7 @@ export const UIPreferencesSchema = z.object({
   language: z.enum(LANGUAGES).optional(),
   theme: z.enum(THEMES).optional(),
   cookieConsent: z.enum(COOKIE_CONSENT_VALUES).optional(),
+  hasSeenOnboarding: z.boolean().optional(),
 });
 export type UIPreferences = z.infer<typeof UIPreferencesSchema>;
 
@@ -306,8 +310,8 @@ export const AuthBrukerSchema = z.object({
   hiddenCourseIds: HiddenCourseIdsSchema.optional(),
   /** RBAC-rolle (user, admin). */
   role: RoleSchema.optional(),
-  /** Innloggingsmetode (google, microsoft, email). */
-  authProvider: AuthProviderSchema.optional(),
+  /** Innloggingsmetoder brukeren har brukt (f.eks. ["microsoft", "google"]). */
+  authProviders: AuthProvidersArraySchema.optional(),
   /** Om brukeren har aktivert tofaktorautentisering (MFA/TOTP). */
   mfaEnabled: z.boolean().optional(),
   /** Aktive Clerk↔lokal synkroniseringskonflikter som bruker må se. */

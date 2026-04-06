@@ -32,6 +32,7 @@ import { CanvasErrorCodeSchema } from "common/canvasErrors";
 import { AppError, CanvasApiError, UsernameConflictError } from "../lib/errors";
 import { fetchApi } from "../lib/apiClient";
 import { broadcastLogout, clearClientAuthState } from "../hooks/use-auth-sync";
+import { mergeUIPreferences } from "../lib/preferences";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useUIStore } from "../store/uiStore";
 import { useLanguage } from "@/app/i18n";
@@ -75,7 +76,10 @@ function mergeCachedUserPreferences(
         updated.manuellInnleveringState ?? current.user.manuellInnleveringState,
       browserPushPreferences:
         updated.browserPushPreferences ?? current.user.browserPushPreferences,
-      uiPreferences: updated.uiPreferences ?? current.user.uiPreferences,
+      uiPreferences: mergeUIPreferences(
+        current.user.uiPreferences,
+        updated.uiPreferences,
+      ),
       hiddenCourseIds:
         updated.hiddenCourseIds ?? current.user.hiddenCourseIds,
     },

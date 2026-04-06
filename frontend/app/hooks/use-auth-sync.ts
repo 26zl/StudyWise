@@ -19,6 +19,7 @@ const AUTH_PATH_PREFIXES = ["/dashboard", "/oversikt", "/ai-breakdown", "/accoun
 
 export function clearClientAuthState(queryClient: QueryClient): void {
     clearDatadogUser();
+    void queryClient.cancelQueries();
     queryClient.clear();
     resetGjesteSamtykke();
     useUIStore.getState().reset();

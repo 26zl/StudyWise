@@ -107,7 +107,7 @@ interface DbUserRow {
   username?: string;
   usernameNormalized?: string;
   clerkId?: string;
-  authProvider?: string;
+  authProviders?: string[];
   deletedAt?: string;
   oauthAccountsCount: number;
 }
@@ -462,8 +462,7 @@ function normalizeDbUserRow(doc: Record<string, unknown>): DbUserRow {
         ? doc.usernameNormalized
         : undefined,
     clerkId: typeof doc.clerkId === "string" ? doc.clerkId : undefined,
-    authProvider:
-      typeof doc.authProvider === "string" ? doc.authProvider : undefined,
+    authProviders: Array.isArray(doc.authProviders) ? doc.authProviders : undefined,
     deletedAt:
       doc.deletedAt instanceof Date
         ? doc.deletedAt.toISOString()
@@ -500,7 +499,7 @@ async function collectDbSnapshot(
     username: 1,
     usernameNormalized: 1,
     clerkId: 1,
-    authProvider: 1,
+    authProviders: 1,
     deletedAt: 1,
     oauthAccounts: 1,
   };

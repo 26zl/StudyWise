@@ -63,7 +63,7 @@ router.get("/brukere", async (req, res) => {
 
     const [brukere, total] = await Promise.all([
       User.find(filter)
-        .select("email role username firstName lastName canvasBaseUrl authProvider createdAt")
+        .select("email role username firstName lastName canvasBaseUrl authProviders createdAt")
         .sort({ createdAt: -1 })
         .skip(offset)
         .limit(limit)
@@ -90,7 +90,7 @@ router.get("/brukere", async (req, res) => {
         fornavn: b.firstName,
         etternavn: b.lastName,
         harCanvasToken: Boolean(b.canvasBaseUrl),
-        authProvider: b.authProvider,
+        authProviders: b.authProviders ?? [],
         opprettet: b.createdAt,
       })),
       total,

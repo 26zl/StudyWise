@@ -78,8 +78,8 @@ export interface IUser extends Document {
     role: UserRole;
     /** Om brukeren har aktivert tofaktorautentisering (MFA/TOTP) i Clerk. */
     mfaEnabled?: boolean;
-    /** Innloggingsmetode (google, microsoft, email). Settes ved opprettelse/sync fra Clerk. */
-    authProvider?: AuthProvider;
+    /** Innloggingsmetoder brukeren har brukt (f.eks. ["microsoft", "google"]). Oppdateres ved sync fra Clerk. */
+    authProviders?: AuthProvider[];
     /** OAuth-kontoer koblet til brukeren (provider + providerAccountId for unikhet). */
     oauthAccounts?: OAuthAccount[];
     /** Clerk-brukernavn (påkrevd ved registrering). */
@@ -108,6 +108,7 @@ export interface IUser extends Document {
         language?: "nb" | "en";
         theme?: "light" | "dark" | "system";
         cookieConsent?: "accepted" | "declined";
+        hasSeenOnboarding?: boolean;
     };
     /** Aktive Clerk↔lokal synkroniseringskonflikter som vises til bruker. */
     syncConflicts?: SyncConflict[];
@@ -145,9 +146,8 @@ const UserSchema: Schema = new Schema(
             type: Boolean,
             default: false,
         },
-        authProvider: {
-            type: String,
-            enum: AUTH_PROVIDERS,
+        authProviders: {
+            type: [{ type: String, enum: AUTH_PROVIDERS }],
             default: undefined,
         },
         oauthAccounts: {
@@ -266,6 +266,7 @@ const UserSchema: Schema = new Schema(
                 enabled: { type: Boolean, default: false },
                 announcements: { type: Boolean, default: true },
                 deadlines: { type: Boolean, default: true },
+                earlyDeadlines: { type: Boolean, default: true },
                 events: { type: Boolean, default: true },
                 aiResponses: { type: Boolean, default: true },
             },
@@ -290,6 +291,7 @@ const UserSchema: Schema = new Schema(
                 language: { type: String, enum: ["nb", "en"] },
                 theme: { type: String, enum: ["light", "dark", "system"] },
                 cookieConsent: { type: String, enum: ["accepted", "declined"] },
+                hasSeenOnboarding: { type: Boolean },
             },
             default: undefined,
         },

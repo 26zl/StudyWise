@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useEffect, useRef, Suspense, lazy, useCallback } from "react";
+import { useEffect, useRef, useState, Suspense, lazy, useCallback } from "react";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { useQueryClient } from "@tanstack/react-query";
 import { LoadingView } from "@/app/components/ui/Loading";
@@ -30,6 +30,8 @@ import {
 } from "@/app/components/layout/SidebarAppShell";
 import { useLanguage } from "@/app/i18n";
 import type { MessageKey } from "@/app/i18n";
+import { OnboardingModal } from "@/app/components/onboarding/OnboardingModal";
+import { useOppdaterUIPreferanser } from "@/app/auth/auth-api";
 
 const GYLDIGE_VISNINGER = [
   "chat",
@@ -52,6 +54,11 @@ const CalendarSection = lazy(() => import("@/app/calendar/CalendarSection").then
 const VarslingerSection = lazy(() => import("@/app/components/dashboard/VarslingerSection").then(m => ({ default: m.VarslingerSection })));
 const QuizView = lazy(() => import("@/app/components/ki/QuizView").then(m => ({ default: m.QuizView })));
 const AdminSection = lazy(() => import("@/app/components/admin/AdminSection").then(m => ({ default: m.AdminSection })));
+const ONBOARDING_STORAGE_KEY_PREFIX = "studywise-onboarding-vist";
+
+function getOnboardingStorageKey(userId: string): string {
+    return `${ONBOARDING_STORAGE_KEY_PREFIX}:${userId}`;
+}
 
 function SectionLoader({
   text,
@@ -147,6 +154,36 @@ export function DashboardView() {
         if (aktivVisning === "canvas-assignments") return "assignments";
         return "announcements";
     };
+    // Onboarding-guide for nye brukere (konto + localStorage-fallback)
+    const harSettOnboardingBackend = megQuery.data?.user?.uiPreferences?.hasSeenOnboarding === true;
+    const lokalOnboardingNokkel = megQuery.data?.user?.id
+        ? getOnboardingStorageKey(megQuery.data.user.id)
+        : null;
+    const [visOnboarding, settVisOnboarding] = useState(false);
+    const oppdaterUI = useOppdaterUIPreferanser();
+    useEffect(() => {
+        if (!megQuery.isSuccess) return;
+        const harSettLokalt =
+            typeof window !== "undefined" &&
+            lokalOnboardingNokkel !== null &&
+            localStorage.getItem(lokalOnboardingNokkel) === "true";
+        if (!harSettOnboardingBackend && !harSettLokalt) {
+            settVisOnboarding(true);
+        }
+    }, [megQuery.isSuccess, harSettOnboardingBackend, lokalOnboardingNokkel]);
+
+    const lukkOnboarding = useCallback(() => {
+        settVisOnboarding(false);
+        try {
+            if (lokalOnboardingNokkel) {
+                localStorage.setItem(lokalOnboardingNokkel, "true");
+            }
+        } catch {
+            /* privat modus */
+        }
+        oppdaterUI.mutate({ hasSeenOnboarding: true });
+    }, [lokalOnboardingNokkel, oppdaterUI]);
+
     const brukerdataFeilmelding = getBrukerdataFeilmelding(megQuery.error, t);
 
     // Fatale auth-feil (OAuth-konflikt, slettet konto): logg ut automatisk uten å vise feilmelding
@@ -189,6 +226,9 @@ export function DashboardView() {
         >
             {(
             <>
+            {visOnboarding && (
+                <OnboardingModal onLukk={lukkOnboarding} />
+            )}
             {aktivVisning === "chat" && (
                 <SectionErrorBoundary sectionName={t("dashboard.sections.aiChat")}>
                     <Suspense fallback={<SectionLoader translationKey="common.loading.aiChat" />}>

@@ -980,16 +980,18 @@ export function SettingsSection({
                                             setCanvasKonflikt(null);
                                         }
                                     }}
-                                    placeholder={t("settings.canvasToken.placeholder")}
+                                    placeholder={harCanvasToken ? "••••••••••••••••" : t("settings.canvasToken.placeholder")}
                                     className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                 />
-                                <button
-                                    type="button"
-                                    onClick={() => setVisToken(!visToken)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                                >
-                                    {visToken ? t("settings.canvasToken.hide") : t("settings.canvasToken.show")}
-                                </button>
+                                {canvasToken && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setVisToken(!visToken)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                                    >
+                                        {visToken ? t("settings.canvasToken.hide") : t("settings.canvasToken.show")}
+                                    </button>
+                                )}
                             </div>
 
                             <button
@@ -1097,13 +1099,15 @@ export function SettingsSection({
                                             placeholder={harNotionApiKey ? "••••••••••••••••" : t("settings.notionIntegration.apiKeyPlaceholder")}
                                             className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                         />
-                                        <button
-                                            type="button"
-                                            onClick={() => setVisNotionKey(!visNotionKey)}
-                                            className="absolute right-3 top-8 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                                        >
-                                            {visNotionKey ? t("settings.notionIntegration.hide") : t("settings.notionIntegration.show")}
-                                        </button>
+                                        {notionApiKey && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setVisNotionKey(!visNotionKey)}
+                                                className="absolute right-3 top-8 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                                            >
+                                                {visNotionKey ? t("settings.notionIntegration.hide") : t("settings.notionIntegration.show")}
+                                            </button>
+                                        )}
                                     </div>
 
                                     <div>

@@ -76,7 +76,7 @@ const IDENTITY_FIELDS_SHOULD_BE_UNSET = [
   "usernameNormalized",
   "firstName",
   "lastName",
-  "authProvider",
+  "authProviders",
 ];
 
 // ---------- Hjelpefunksjoner ----------
@@ -278,7 +278,7 @@ async function main(): Promise<Report> {
   header("DELETED USERS WITH LINGERING IDENTITY FIELDS");
   const deletedUsers = await collection.find(
     { deletedAt: { $exists: true } },
-    { projection: { _id: 1, deletedAt: 1, clerkId: 1, oauthAccounts: 1, username: 1, usernameNormalized: 1, firstName: 1, lastName: 1, authProvider: 1 } },
+    { projection: { _id: 1, deletedAt: 1, clerkId: 1, oauthAccounts: 1, username: 1, usernameNormalized: 1, firstName: 1, lastName: 1, authProviders: 1 } },
   ).toArray();
 
   for (const doc of deletedUsers) {

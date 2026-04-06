@@ -8,8 +8,6 @@ import type { AssignmentMedEmne } from "../canvas/canvas-api";
 import { erInnlevert } from "../canvas/canvasUtils";
 import type { Assignment } from "common/calendar-ui";
 import type { Language } from "@/app/i18n/types";
-import DOMPurify from "isomorphic-dompurify";
-
 // —— Frist-terrkler og -typer ——
 
 /** Antall dager frem i tid vi viser frister (varslinger, oversikt, kontekst). Brukes overalt for konsistens. */
@@ -245,8 +243,8 @@ export function lagVarslingForhandsvisning(
 ): string {
     if (!innhold) return "";
 
-    // Bruk DOMPurify til å fjerne all HTML (inkl. script/style), deretter dekod entiteter
-    const stripped = DOMPurify.sanitize(innhold, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+    // Fjern all HTML med enkel regex (DOMPurify er for tung for SSR her)
+    const stripped = innhold.replace(/<[^>]*>/g, "");
     const renset = stripped
         .replace(/&nbsp;/gi, " ")
         .replace(/\s+/g, " ")

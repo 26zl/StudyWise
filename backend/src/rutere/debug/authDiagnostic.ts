@@ -30,7 +30,7 @@ function safeUserProjection(u: {
   clerkId?: string;
   email?: string;
   username?: string;
-  authProvider?: string;
+  authProviders?: string[];
   deletedAt?: Date;
   createdAt?: Date;
 }) {
@@ -39,7 +39,7 @@ function safeUserProjection(u: {
     clerkId: u.clerkId,
     email: u.email,
     username: u.username,
-    authProvider: u.authProvider,
+    authProviders: u.authProviders,
     deletedAt: u.deletedAt,
     createdAt: u.createdAt,
   };
@@ -52,7 +52,7 @@ function isUserLikeResult(
   clerkId?: string;
   email?: string;
   username?: string;
-  authProvider?: string;
+  authProviders?: string[];
   deletedAt?: Date;
   createdAt?: Date;
 } {
@@ -153,21 +153,21 @@ router.get("/auth-diagnostic", async (req: Request, res: Response) => {
 
     // Email duplicates for current user
     const emailDupes = await User.find({ email: currentUser.email })
-      .select("_id clerkId email username authProvider deletedAt createdAt");
+      .select("_id clerkId email username authProviders deletedAt createdAt");
 
     // Brukernavn-duplikater for nåværende bruker
     let usernameDupes: typeof emailDupes = [];
     if (currentUser.username) {
       const normalized = currentUser.username.toLowerCase().trim();
       usernameDupes = await User.find({ usernameNormalized: normalized })
-        .select("_id clerkId email username authProvider deletedAt createdAt");
+        .select("_id clerkId email username authProviders deletedAt createdAt");
     }
 
     // ClerkId duplicates
     let clerkIdDupes: typeof emailDupes = [];
     if (currentUser.clerkId) {
       clerkIdDupes = await User.find({ clerkId: currentUser.clerkId })
-        .select("_id clerkId email username authProvider deletedAt createdAt");
+        .select("_id clerkId email username authProviders deletedAt createdAt");
     }
 
     // Index verification
@@ -214,7 +214,7 @@ router.get("/auth-diagnostic", async (req: Request, res: Response) => {
         email: currentUser.email,
         username: currentUser.username,
         usernameNormalized: (currentUser as unknown as Record<string, unknown>).usernameNormalized,
-        authProvider: currentUser.authProvider,
+        authProviders: currentUser.authProviders,
         deletedAt: currentUser.deletedAt,
         createdAt: currentUser.createdAt,
         oauthAccountCount: currentUser.oauthAccounts?.length ?? 0,

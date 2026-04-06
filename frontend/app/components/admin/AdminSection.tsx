@@ -762,8 +762,10 @@ function BrukereFane() {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-700 px-2.5 py-0.5 text-xs text-slate-600 dark:text-slate-300 capitalize">
-                            {bruker.authProvider ?? "–"}
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-700 px-2.5 py-0.5 text-xs text-slate-600 dark:text-slate-300 capitalize">
+                            {bruker.authProviders && bruker.authProviders.length > 0
+                              ? bruker.authProviders.join(", ")
+                              : "–"}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">

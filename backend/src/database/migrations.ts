@@ -637,6 +637,68 @@ const migrations: Migration[] = [
       );
     },
   },
+  {
+    id: "2026-04-06-authProvider-string-to-array",
+    description:
+      "Konverter authProvider (streng) til authProviders (array) for å støtte flere innloggingsmetoder",
+    up: async () => {
+      const col = mongoose.connection.collection("users");
+
+      // Finn brukere som har gammelt authProvider-felt (streng)
+      const count = await col.countDocuments({
+        authProvider: { $exists: true, $type: "string" },
+      });
+
+      if (count === 0) {
+        // Sjekk om det finnes brukere uten authProviders-array (kan skje ved tom DB)
+        return;
+      }
+
+      logger.info(
+        { count },
+        "Migrerer authProvider (streng) → authProviders (array)",
+      );
+
+      // Konverter: authProvider: "google" → authProviders: ["google"], fjern gammelt felt
+      const cursor = col.find({
+        authProvider: { $exists: true, $type: "string" },
+      });
+
+      let updated = 0;
+      const BATCH_SIZE = 500;
+      type BulkOp = { updateOne: { filter: object; update: object } };
+      let batch: BulkOp[] = [];
+
+      for await (const doc of cursor) {
+        const oldProvider = doc.authProvider as string;
+        batch.push({
+          updateOne: {
+            filter: { _id: doc._id },
+            update: {
+              $set: { authProviders: [oldProvider] },
+              $unset: { authProvider: 1 },
+            },
+          },
+        });
+
+        if (batch.length >= BATCH_SIZE) {
+          await col.bulkWrite(batch);
+          updated += batch.length;
+          batch = [];
+        }
+      }
+
+      if (batch.length > 0) {
+        await col.bulkWrite(batch);
+        updated += batch.length;
+      }
+
+      logger.info(
+        { updated },
+        "Migrasjon fullført: authProvider → authProviders",
+      );
+    },
+  },
 ];
 
 /**

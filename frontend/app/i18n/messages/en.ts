@@ -1575,4 +1575,36 @@ export const enMessages = {
     sharedViewsSingular: "{count} view",
     sharedViewsPlural: "{count} views",
   },
+  onboarding: {
+    welcome: "Welcome to StudyWise!",
+    welcomeDescription:
+      "StudyWise is your AI-powered study assistant that helps you study smarter. Let's take a quick tour of what you can do.",
+    steps: {
+      chat: "AI Chat",
+      chatDescription:
+        "Ask questions, get explanations, and get help with your studies. The AI assistant can answer academic questions, help with assignments, and explain difficult concepts.",
+      canvas: "Canvas Integration",
+      canvasDescription:
+        "Connect to Canvas LMS to see announcements, courses, and assignments directly in StudyWise. Go to Settings to add your Canvas API token.",
+      calendar: "Calendar",
+      calendarDescription:
+        "View all deadlines and events from Canvas in a clear calendar view. Keep track of submissions and important dates.",
+      quiz: "Quiz & Flashcards",
+      quizDescription:
+        "Generate quizzes and flashcards from your curriculum and documents to test your knowledge. The AI creates questions based on your study material.",
+      notifications: "Notifications",
+      notificationsDescription:
+        "Get notifications about upcoming deadlines and important events from Canvas so you never miss anything.",
+      settings: "Settings",
+      settingsDescription:
+        "Customize StudyWise to your needs. Connect to Canvas, change language, theme, and other preferences.",
+    },
+    getStarted: "Get started",
+    next: "Next",
+    previous: "Previous",
+    skip: "Skip",
+    stepOf: "Step {current} of {total}",
+    tipCanvasToken:
+      "Tip: Connect to Canvas in Settings to get the most out of StudyWise!",
+  },
 } as const satisfies PartialMessages;

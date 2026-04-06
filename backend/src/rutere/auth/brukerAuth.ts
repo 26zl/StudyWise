@@ -9,7 +9,7 @@ import { User, type IUser } from "../../database/models/User.js";
 import { CanvasUser } from "../../database/models/CanvasUser.js";
 import { decrypt, encrypt } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
-import { z, ZodError } from "zod";
+import { ZodError } from "zod";
 import { hashSha256, timingSafeHexEqual } from "../../utils/cryptoUtils.js";
 import { apiError, requireUserId, sendError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
 import { warmCanvasCache, fetchUserProfile } from "../canvas/canvasService.js";
@@ -41,11 +41,9 @@ import {
   normalizeManuellInnleveringState,
   normalizeVarslerState,
   normalizeHiddenCourseIds,
-  HiddenCourseIdsSchema,
 } from "common/auth";
 import { sanitizeUsername } from "../../database/models/User.js";
 import {
-  BrowserPushPreferencesSchema,
   createDefaultBrowserPushPreferences,
   normalizeBrowserPushPreferences,
   DeleteWebPushSubscriptionRequestSchema,
@@ -264,7 +262,7 @@ function serializeAuthBruker(bruker: IUser) {
       ? normalizeHiddenCourseIds(bruker.hiddenCourseIds)
       : undefined,
     role: bruker.role ?? "user",
-    authProvider: bruker.authProvider,
+    authProviders: bruker.authProviders ?? [],
     mfaEnabled: bruker.mfaEnabled ?? false,
     syncConflicts:
       bruker.syncConflicts && bruker.syncConflicts.length > 0
@@ -924,18 +922,7 @@ router.put("/preferences", rateLimitMe, async (req, res) => {
       uiPreferences,
       hiddenCourseIds,
     } = PreferencesUpdateSchema.parse(req.body);
-    const updateFields: {
-      canvasContextPreferences?: ReturnType<
-        typeof createDefaultCanvasContextPreferences
-      >;
-      varslerState?: ReturnType<typeof normalizeVarslerState>;
-      manuellInnleveringState?: ReturnType<
-        typeof normalizeManuellInnleveringState
-      >;
-      browserPushPreferences?: z.infer<typeof BrowserPushPreferencesSchema>;
-      uiPreferences?: z.infer<typeof UIPreferencesSchema>;
-      hiddenCourseIds?: z.infer<typeof HiddenCourseIdsSchema>;
-    } = {};
+    const updateFields: Record<string, unknown> = {};
     if (canvasContextPreferences !== undefined) {
       updateFields.canvasContextPreferences =
         CanvasContextPreferencesSchema.parse(canvasContextPreferences);
@@ -954,10 +941,18 @@ router.put("/preferences", rateLimitMe, async (req, res) => {
       );
     }
     if (uiPreferences !== undefined) {
-      updateFields.uiPreferences = UIPreferencesSchema.parse({
+      UIPreferencesSchema.parse({
         ...(bruker.uiPreferences ?? {}),
         ...uiPreferences,
       });
+
+      // Oppdater kun feltene som faktisk kom inn i requesten, slik at samtidige
+      // preferansekall ikke overskriver hverandre ved race conditions.
+      for (const [key, value] of Object.entries(uiPreferences)) {
+        if (value !== undefined) {
+          updateFields[`uiPreferences.${key}`] = value;
+        }
+      }
     }
     if (hiddenCourseIds !== undefined) {
       updateFields.hiddenCourseIds = normalizeHiddenCourseIds(hiddenCourseIds);

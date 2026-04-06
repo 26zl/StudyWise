@@ -34,7 +34,7 @@ type ClerkProfile = {
   username?: string;
   firstName?: string;
   lastName?: string;
-  authProvider?: AuthProvider;
+  authProviders: AuthProvider[];
   /** OAuth-kontoer fra Clerk (provider + providerAccountId). */
   oauthAccounts: OAuthAccount[];
   /** Om brukeren har aktivert tofaktorautentisering (MFA/TOTP). */
@@ -320,7 +320,7 @@ async function relinkUserToClerkId(
 
   const updateFields: Record<string, unknown> = {
     clerkId: newClerkUserId,
-    authProvider: profile.authProvider,
+    authProviders: profile.authProviders,
     clerkProfileSyncedAt: new Date(),
     mfaEnabled: profile.mfaEnabled,
   };
@@ -474,8 +474,8 @@ async function getClerkProfile(
     return null;
   }
 
-  // Bestem innloggingsmetode og samle OAuth-kontoer fra Clerk external accounts
-  let authProvider: AuthProvider | undefined;
+  // Bestem innloggingsmetoder og samle OAuth-kontoer fra Clerk external accounts
+  const authProviderSet = new Set<AuthProvider>();
   const oauthAccounts: OAuthAccount[] = [];
   const externalAccounts = clerkUser.externalAccounts ?? [];
 
@@ -485,13 +485,13 @@ async function getClerkProfile(
 
     if (rawProvider.includes("google") || rawProvider === "oauth_google") {
       mappedProvider = "google";
-      if (!authProvider) authProvider = "google";
+      authProviderSet.add("google");
     } else if (
       rawProvider.includes("microsoft") ||
       rawProvider === "oauth_microsoft"
     ) {
       mappedProvider = "microsoft";
-      if (!authProvider) authProvider = "microsoft";
+      authProviderSet.add("microsoft");
     }
 
     // Lagre OAuth-konto med providerAccountId og e-post for å forhindre at samme konto brukes på flere brukere
@@ -514,9 +514,23 @@ async function getClerkProfile(
     }
   }
 
-  if (!authProvider) {
-    authProvider = "email";
+  // Sjekk om brukeren har e-postadresser som ikke er knyttet til en OAuth-konto (lokal e-post)
+  const oauthEmails = new Set(
+    oauthAccounts.map((a) => a.email?.toLowerCase()).filter(Boolean),
+  );
+  const harLokalEpost = clerkUser.emailAddresses.some((e) => {
+    const addr = e.emailAddress?.toLowerCase()?.trim();
+    return addr && !oauthEmails.has(addr);
+  });
+
+  if (harLokalEpost) {
+    authProviderSet.add("email");
+  } else if (authProviderSet.size === 0) {
+    // Fallback: ingen OAuth og ingen lokal e-post — bør ikke skje, men sikrer at listen aldri er tom
+    authProviderSet.add("email");
   }
+
+  const authProviders: AuthProvider[] = [...authProviderSet];
 
   // Clerk markerer MFA som aktivert når brukeren har minst én TOTP-faktor
   const mfaEnabled = clerkUser.twoFactorEnabled === true;
@@ -526,7 +540,7 @@ async function getClerkProfile(
     username: clerkUser.username ?? undefined,
     firstName: clerkUser.firstName ?? undefined,
     lastName: clerkUser.lastName ?? undefined,
-    authProvider,
+    authProviders,
     oauthAccounts,
     mfaEnabled,
   };
@@ -569,8 +583,9 @@ function buildClerkProfileUpdate(
 
   setFields.mfaEnabled = profile.mfaEnabled;
 
-  if (profile.authProvider) {
-    setFields.authProvider = profile.authProvider;
+  // Synk alle innloggingsmetoder fra Clerk (liste over alle tilkoblede providere)
+  if (profile.authProviders.length > 0) {
+    setFields.authProviders = profile.authProviders;
   }
 
   if (profile.oauthAccounts.length > 0) {
@@ -801,7 +816,7 @@ async function syncExistingUserWithClerkProfile(
           { _id: existing._id, clerkId: clerkUserId },
           buildClerkProfileUpdate(profileWithoutOauth, syncedAt, {
             usernameAction,
-          }),
+            }),
           { returnDocument: "after" },
         );
         return updatedWithoutOauth ?? existing;
@@ -873,7 +888,7 @@ async function syncExistingUserWithClerkProfile(
             syncedAt,
             {
               usernameAction,
-            },
+                },
           );
           const retried = await User.findOneAndUpdate(
             { _id: existing._id, clerkId: clerkUserId },
@@ -1087,7 +1102,7 @@ export async function findOrCreateUserByClerkId(
         clerkUserId,
         email,
         username: profile.username,
-        authProvider: profile.authProvider,
+        authProviders: profile.authProviders,
         oauthAccountCount: oauthAccounts.length,
         usernameAction: usernameAction.mode,
         flowId: fid,
@@ -1095,18 +1110,17 @@ export async function findOrCreateUserByClerkId(
       "authFlow: Clerk profile fetched — proceeding with conflict checks",
     );
 
-    if (
-      (profile.authProvider === "google" ||
-        profile.authProvider === "microsoft") &&
-      oauthAccounts.length === 0
-    ) {
+    const oauthProvider = profile.authProviders.find(
+      (p): p is "google" | "microsoft" => p === "google" || p === "microsoft",
+    );
+    if (oauthProvider && oauthAccounts.length === 0) {
       logger.warn(
-        { clerkUserId, authProvider: profile.authProvider },
+        { clerkUserId, authProviders: profile.authProviders },
         "OAuth-innlogging mangler providerAccountId fra Clerk; avviser for å unngå duplikatkonto",
       );
       return {
         __oauthMetadataMissing: true,
-        provider: profile.authProvider,
+        provider: oauthProvider,
       };
     }
 
@@ -1323,7 +1337,7 @@ export async function findOrCreateUserByClerkId(
             $unset: {
               clerkId: 1,
               oauthAccounts: 1,
-              authProvider: 1,
+              authProviders: 1,
               username: 1,
               usernameNormalized: 1,
               firstName: 1,
@@ -1412,7 +1426,7 @@ export async function findOrCreateUserByClerkId(
               firstName: firstName ?? existingByEmail.firstName,
               lastName: lastName ?? existingByEmail.lastName,
               clerkProfileSyncedAt,
-              authProvider: profile.authProvider,
+              authProviders: profile.authProviders,
               ...(oauthAccounts.length > 0 ? { oauthAccounts } : {}),
             },
             ...(oauthAccounts.length === 0
@@ -1459,7 +1473,7 @@ export async function findOrCreateUserByClerkId(
       role: DEFAULT_ROLE,
       firstName,
       lastName,
-      authProvider: profile.authProvider,
+      authProviders: profile.authProviders,
       mfaEnabled: profile.mfaEnabled,
       oauthAccounts: oauthAccounts.length > 0 ? oauthAccounts : undefined,
       ...(includeUsername && usernameAction.mode === "set"

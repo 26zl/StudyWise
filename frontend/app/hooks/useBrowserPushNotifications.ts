@@ -87,6 +87,10 @@ export function useBrowserPushNotifications(
   const { t } = useLanguage();
 
   useEffect(() => {
+    setPreferences(initialPreferences ?? DEFAULT_PREFERENCES);
+  }, [initialPreferences]);
+
+  useEffect(() => {
     if (!support) return;
 
     let active = true;
@@ -227,7 +231,7 @@ export function useBrowserPushNotifications(
     next: Partial<
       Pick<
         BrowserPushPreferences,
-        "announcements" | "deadlines" | "events" | "aiResponses"
+        "announcements" | "deadlines" | "earlyDeadlines" | "events" | "aiResponses"
       >
     >,
   ) => {

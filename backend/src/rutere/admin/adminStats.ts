@@ -679,7 +679,7 @@ router.get("/statistikk", async (req, res) => {
 
   try {
     const [aktiveBrukere, antallSlettede] = await Promise.all([
-      User.find(ACTIVE_FILTER, { _id: 1, role: 1, canvasBaseUrl: 1, authProvider: 1 }).lean(),
+      User.find(ACTIVE_FILTER, { _id: 1, role: 1, canvasBaseUrl: 1, authProviders: 1 }).lean(),
       DeletedUserTombstone.countDocuments(),
     ]);
 
@@ -692,9 +692,9 @@ router.get("/statistikk", async (req, res) => {
     const antallAdmin = aktiveBrukere.filter((bruker) => bruker.role === "admin").length;
     const antallMedCanvas = aktiveBrukere.filter((bruker) => Boolean(bruker.canvasBaseUrl)).length;
     const antallUtenCanvas = totalBrukere - antallMedCanvas;
-    const antallGoogle = aktiveBrukere.filter((bruker) => bruker.authProvider === "google").length;
-    const antallMicrosoft = aktiveBrukere.filter((bruker) => bruker.authProvider === "microsoft").length;
-    const antallEmail = aktiveBrukere.filter((bruker) => bruker.authProvider === "email").length;
+    const antallGoogle = aktiveBrukere.filter((bruker) => bruker.authProviders?.includes("google")).length;
+    const antallMicrosoft = aktiveBrukere.filter((bruker) => bruker.authProviders?.includes("microsoft")).length;
+    const antallEmail = aktiveBrukere.filter((bruker) => bruker.authProviders?.includes("email")).length;
     const antallUkjentProvider = Math.max(
       totalBrukere - antallGoogle - antallMicrosoft - antallEmail,
       0,

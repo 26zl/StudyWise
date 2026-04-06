@@ -210,6 +210,12 @@ export function useCookieConsent() {
       return;
     }
 
+    // Behold lokal cache hvis backend midlertidig mangler samtykkeverdien.
+    // Dette hindrer at banneret blinker tilbake ved ut-av-rekkefolge-svar.
+    if (backendConsent === null) {
+      return;
+    }
+
     writeAuthenticatedConsentToStorage(userId, backendConsent);
     setCachedAuthenticatedConsent(backendConsent);
   }, [backendConsent, henterMeg, isAuthenticated, userId]);

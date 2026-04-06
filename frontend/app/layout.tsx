@@ -84,7 +84,7 @@ export default async function RootLayout({
         <link rel="dns-prefetch" href="https://clerk.studwize.page" />
       </head>
       <body className="antialiased min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950" suppressHydrationWarning>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <MainAppShell
             clerkPublishableKey={clerkPublishableKey}
             initialLanguage={initialLanguage}

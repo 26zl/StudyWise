@@ -91,7 +91,7 @@ interface DbUserRow {
   username?: string;
   usernameNormalized?: string;
   clerkId?: string;
-  authProvider?: string;
+  authProviders?: string[];
   deletedAt?: string;
   oauthAccountsCount: number;
   syncConflict?: unknown;
@@ -366,7 +366,7 @@ function normalizeDbUserRow(doc: Record<string, unknown>): DbUserRow {
     username: typeof doc.username === "string" ? doc.username : undefined,
     usernameNormalized: typeof doc.usernameNormalized === "string" ? doc.usernameNormalized : undefined,
     clerkId: typeof doc.clerkId === "string" ? doc.clerkId : undefined,
-    authProvider: typeof doc.authProvider === "string" ? doc.authProvider : undefined,
+    authProviders: Array.isArray(doc.authProviders) ? doc.authProviders : undefined,
     deletedAt: doc.deletedAt instanceof Date ? doc.deletedAt.toISOString() : undefined,
     oauthAccountsCount: Array.isArray(doc.oauthAccounts) ? doc.oauthAccounts.length : 0,
     syncConflict: doc.syncConflict,
@@ -419,7 +419,7 @@ async function collectDbSnapshot(emails: string[], usernames: string[], clerkIds
 
   const projection = {
     _id: 1, email: 1, username: 1, usernameNormalized: 1, clerkId: 1,
-    authProvider: 1, deletedAt: 1, oauthAccounts: 1, syncConflict: 1,
+    authProviders: 1, deletedAt: 1, oauthAccounts: 1, syncConflict: 1,
   };
 
   const normalizedUsernames = usernames.map((u) => u.toLowerCase().trim()).filter(Boolean);

@@ -3,7 +3,7 @@
  */
 
 import { z } from "zod";
-import { AccountDeletionDeletedSchema, AuthProviderSchema, RoleSchema } from "./auth.js";
+import { AccountDeletionDeletedSchema, AuthProvidersArraySchema, RoleSchema } from "./auth.js";
 
 const PaginationQueryValueSchema = z.string().trim().max(6).regex(/^\d+$/);
 
@@ -21,7 +21,7 @@ export const AdminBrukerSchema = z.object({
   fornavn: z.string().optional(),
   etternavn: z.string().optional(),
   harCanvasToken: z.boolean(),
-  authProvider: AuthProviderSchema.optional(),
+  authProviders: AuthProvidersArraySchema.optional(),
   opprettet: z.coerce.date(),
 });
 
