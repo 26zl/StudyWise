@@ -42,11 +42,8 @@ kiExportRouter.get("/export/targets", async (req, res) => {
   const userId = requireUserId(req, res);
   if (!userId) return;
 
-  let notionConfigured = false;
-  if (userId) {
-    const bruker = await User.findOne({ _id: userId, deletedAt: { $exists: false } }).select("+notionApiKey");
-    notionConfigured = erGyldigKryptert(bruker?.notionApiKey);
-  }
+  const bruker = await User.findOne({ _id: userId, deletedAt: { $exists: false } }).select("+notionApiKey");
+  const notionConfigured = erGyldigKryptert(bruker?.notionApiKey);
   const targets = getAvailableTargets().map((targetInfo) =>
     targetInfo.target === "notion"
       ? { ...targetInfo, configured: notionConfigured }
