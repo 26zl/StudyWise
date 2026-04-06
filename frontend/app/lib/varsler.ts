@@ -243,8 +243,14 @@ export function lagVarslingForhandsvisning(
 ): string {
     if (!innhold) return "";
 
-    // Fjern all HTML med enkel regex (DOMPurify er for tung for SSR her)
-    const stripped = innhold.replace(/<[^>]*>/g, "");
+    // Fjern all HTML med regex i løkke — forhindrer at nestede fragmenter som
+    // "<scr<script>ipt>" overlever etter én enkelt pass (CWE-180/CWE-116)
+    let stripped = innhold;
+    let prev: string;
+    do {
+        prev = stripped;
+        stripped = stripped.replace(/<[^>]*>/g, "");
+    } while (stripped !== prev);
     const renset = stripped
         .replace(/&nbsp;/gi, " ")
         .replace(/\s+/g, " ")
