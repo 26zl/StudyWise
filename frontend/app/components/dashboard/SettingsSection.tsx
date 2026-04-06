@@ -712,10 +712,7 @@ export function SettingsSection({
                                                     );
                                                 });
                                         }}
-                                        disabled={
-                                            browserPush.isPending ||
-                                            !browserPush.preferences.enabled
-                                        }
+                                        disabled={browserPush.isPending}
                                         className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                                     >
                                         {t("settings.browserPush.sendTest")}

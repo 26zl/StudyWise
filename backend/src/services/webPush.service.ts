@@ -497,11 +497,23 @@ export async function upsertWebPushSubscription(
 ): Promise<void> {
   const ownerUserId = new mongoose.Types.ObjectId(userId);
   try {
-    const updated = await WebPushSubscriptionModel.findOneAndUpdate(
-      {
-        endpoint: subscription.endpoint,
-        $or: [{ userId: ownerUserId }, { userId: { $exists: false } }],
-      },
+    const existing = await WebPushSubscriptionModel.findOne({
+      endpoint: subscription.endpoint,
+    }).select("userId keys");
+
+    if (existing && !existing.userId.equals(ownerUserId)) {
+      const sameKeyMaterial =
+        existing.keys.auth === subscription.keys.auth &&
+        existing.keys.p256dh === subscription.keys.p256dh;
+
+      // Hindrer at en bruker overtar et endpoint uten å bevise at det er samme faktiske abonnement.
+      if (!sameKeyMaterial) {
+        throw new WebPushSubscriptionConflictError();
+      }
+    }
+
+    await WebPushSubscriptionModel.findOneAndUpdate(
+      { endpoint: subscription.endpoint },
       {
         $set: {
           userId: ownerUserId,
@@ -513,13 +525,22 @@ export async function upsertWebPushSubscription(
       },
       { upsert: true, returnDocument: "after" },
     );
-
-    if (!updated) {
-      throw new WebPushSubscriptionConflictError();
-    }
   } catch (error) {
     if (isMongoDuplicateKeyError(error)) {
-      throw new WebPushSubscriptionConflictError();
+      // Sjelden race ved samtidig upsert på samme endpoint: gjør ett siste ikke-upsert-forsøk.
+      await WebPushSubscriptionModel.findOneAndUpdate(
+        { endpoint: subscription.endpoint },
+        {
+          $set: {
+            userId: ownerUserId,
+            endpoint: subscription.endpoint,
+            expirationTime: subscription.expirationTime ?? null,
+            keys: subscription.keys,
+            userAgent: userAgent?.slice(0, 500),
+          },
+        },
+      );
+      return;
     }
     throw error;
   }

@@ -255,9 +255,35 @@ export function useBrowserPushNotifications(
     }
   };
 
+  const ensureSubscriptionSyncedForTest = async (): Promise<void> => {
+    if (!support) {
+      throw new Error("Nettleservarsler støttes ikke i denne nettleseren.");
+    }
+    if (!configured || !vapidPublicKey) {
+      throw new Error("Nettleservarsler er ikke konfigurert på serveren.");
+    }
+
+    const currentPermission = Notification.permission;
+    setPermission(currentPermission);
+    if (currentPermission !== "granted") {
+      throw new Error("Du må aktivere nettleservarsler før du kan sende testvarsel.");
+    }
+
+    const registration = await getBrowserPushRegistration();
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      const created = await subscribeToBrowserPush(vapidPublicKey);
+      subscription = created.subscription;
+    }
+
+    await saveBrowserPushSubscription(subscription);
+    setSubscribed(true);
+  };
+
   const sendTest = async () => {
     setIsPending(true);
     try {
+      await ensureSubscriptionSyncedForTest();
       return await sendBrowserPushTest();
     } finally {
       setIsPending(false);
