@@ -78,7 +78,7 @@
       "lodash.get": "npm:lodash@^4.17.21",
       "lodash.isequal": "npm:lodash@^4.17.21",
       "esbuild": "^0.25.0",
-      "vite@>=7.0.0 <8.0.0": ">=7.3.2",
+      "vite": ">=8.0.5",
       "markdown-it": ">=14.1.1",
       "qs": ">=6.14.2",
       "minimatch": ">=10.2.1"

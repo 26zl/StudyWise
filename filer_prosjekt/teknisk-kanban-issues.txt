@@ -1,0 +1,236 @@
+Teknisk Kanban — StudyWise
+==========================
+Alle 177 issues opprettet i GitHub Projects (#25) med status: Done.
+
+==============================================================================
+ORIGINALE ITEMS (1-145) — Fra opprinnelig liste
+==============================================================================
+
+--- Prosjektoppsett & Infrastruktur (1-13) ---
+1.  Sett opp pnpm monorepo med frontend, backend, common og docs
+2.  Konfigurert TypeScript 5.9 med delte tsconfig
+3.  Sett opp Next.js 16 med App Router og Turbopack
+4.  Konfigurert Express 5 backend med TypeScript
+5.  Sett opp Docker + docker-compose for lokal utvikling
+6.  Laget Procfile for Heroku-deploy
+7.  Sett opp Tailwind CSS v4 med dark mode
+8.  Konfigurert ESLint for frontend og backend
+9.  Sett opp pnpm workspace med filter-scripts
+10. Laget validate-env scripts for backend og frontend
+11. Sett opp common-pakke med subpath exports i package.json
+12. Konfigurert predev/prebuild scripts for riktig bygge-rekkefølge
+13. Sett opp VitePress for teknisk dokumentasjon
+
+--- Database & Cache (14-26) ---
+14. Sett opp MongoDB-tilkobling med Mongoose v9
+15. Opprettet User-modell med Clerk-integrasjon
+16. Opprettet CanvasUser-modell for Canvas-token-lagring
+17. Opprettet CanvasStructure-modell for cachet Canvas-data
+18. Opprettet ChatHistory-modell for KI-samtaler
+19. Opprettet ContentEmbedding-modell for dokument-chunks
+20. Opprettet TaskBreakdown-modell for AI-deloppgaver
+21. Opprettet Arbeidsplan-modell med StudyBlock-schema
+22. Opprettet AuditLog-modell for admin-sporing
+23. Sett opp Redis-klient med reconnect-logikk
+24. Implementert Redis cache for Canvas API-data
+25. Laget database-migrasjonsscript
+26. Verifisert MongoDB-indekser ved oppstart
+
+--- Autentisering & Sikkerhet (27-38) ---
+27. Integrert Clerk for JWT-basert autentisering
+28. Implementert auth-middleware med token-verifisering
+29. Laget CSRF-beskyttelse middleware
+30. Implementert rate limiting per bruker og endpoint
+31. Satt opp Helmet for HTTP-sikkerhetsheaders
+32. Implementert kryptering av Canvas-tokens (AES-256-GCM)
+33. Laget request-timeout middleware
+34. Implementert request-id middleware for sporing
+35. Laget require-role middleware for rollebasert tilgang
+36. Implementert Clerk webhook-håndtering for brukersynk
+37. Laget kontosletting med full datarydding (GDPR)
+38. Implementert auth-sync på tvers av browser-tabs (BroadcastChannel)
+
+--- Canvas LMS-integrasjon (39-50) ---
+39. Implementert Canvas API proxy med token-autentisering
+40. Laget Canvas-emner endpoint (hent aktive kurs)
+41. Laget Canvas-oppgaver endpoint med fristfiltrering
+42. Implementert Canvas-sider/moduler-henting
+43. Implementert Canvas-hendelser for kalender
+44. Laget Canvas-kunngjøringer endpoint
+45. Sett opp Canvas-sync service for bakgrunnssynkronisering
+46. Implementert Canvas-token validering og feilhåndtering
+47. Laget strukturerte Canvas-feilkoder (canvasErrors)
+48. Opprettet liste over norske Canvas-institusjoner
+49. Implementert Canvas-diagnostikk endpoint for debugging
+50. Laget Canvas context selector (velg data KI har tilgang til)
+
+--- KI/AI — Chat (51-64) ---
+51. Integrert Anthropic Claude SDK
+52. Implementert KI-chat endpoint med streaming (SSE)
+53. Laget system prompt for studieveileder-kontekst
+54. Implementert meldingshistorikk-trimming for token-grense
+55. Laget ChatSection-komponent med fullverdig chat-UI
+56. Implementert chat-lagring med automatisk tittel
+57. Laget chathistorikk-sidebar med søk
+58. Implementert pending state for chat under navigering
+59. Laget chat-eksport til Markdown
+60. Implementert deling av KI-samtaler via token
+61. Laget delt-chat visning (/delt-chat/[shareToken])
+62. Implementert retry-knapp for feilede KI-meldinger
+63. Laget smarte oppfølgingsforslag basert på svartype
+64. Implementert auto-genererte modulspørsmål i chat
+
+--- KI/AI — Dokumentanalyse (65-69) ---
+65. Implementert dokumentopplasting i chat (drag & drop)
+66. Laget filekstraksjon for PDF, DOCX, PPTX, TXT
+67. Implementert bilde-OCR for dokumentanalyse
+68. Laget AttachmentStrip-komponent for vedleggvisning
+69. Implementert dokumentanalyse-endpoint med Claude
+
+--- KI/AI — Oppgavedeling (70-75) ---
+70. Laget AI-oppgavedeling endpoint (bryt ned Canvas-oppgaver)
+71. Implementert SubTask-generering med prioritet og tidsestimat
+72. Laget AITaskBreakdown-komponent med redigerbare deloppgaver
+73. Implementert lagring av deloppgaver i database
+74. Laget AIBreakdownPage som helside-visning
+75. Implementert CanvasKIActions for KI-handlinger på oppgaver
+
+--- KI/AI — Ukeplan (76-80) ---
+76. Laget AI-ukeplangenerering endpoint
+77. Implementert WeeklyPlanSuggestions-komponent
+78. Laget AddToWorkplanModal med dag/tid-velger
+79. Implementert conflict check mot eksisterende arbeidsplan
+80. Laget automatisk fordeling av oppgaver over valgte dager
+
+--- KI/AI — Oppsummering & Quiz (81-84) ---
+81. Implementert AI-oppsummering endpoint
+82. Laget KIOppsummering-komponent med kort/lang oppsummering
+83. Implementert quiz-generering med Claude
+84. Laget QuizView-komponent med Framer Motion-animasjoner
+
+--- Vektorsøk & RAG (85-92) ---
+85. Sett opp Pinecone serverless med integrated embeddings
+86. Implementert tekst-chunking service for dokumenter
+87. Laget embedding-generering og lagring i Pinecone
+88. Implementert semantisk søk i dokumentembeddings
+89. Laget BM25 nøkkelordsøk-service
+90. Implementert hybrid retrieval (semantisk + BM25)
+91. Integrert Cohere rerank-v3.5 for søkeresultat-reranking
+92. Laget context-loader service for KI-kontekst fra søk
+
+--- Arbeidsplan (93-98) ---
+93. Implementert CRUD API for arbeidsplaner
+94. Laget MinArbeidsplan-komponent med progress tracking
+95. Implementert toggle fullført-status på studieblokker
+96. Laget fremdriftsstatistikk endpoint (progress stats)
+97. Implementert undo ved sletting av arbeidsplan
+98. Lagt til priority tooltips med forklaring
+
+--- Frontend — Sider & Layout (99-110) ---
+99.  Laget landing page med hero-seksjon
+100. Implementert dashboard med tab-navigasjon (nuqs URL-synk)
+101. Laget oversiktsside med StatCards
+102. Implementert kalendervisning med CalendarGrid
+103. Laget innstillinger-side med Canvas-token og AI-kontekst
+104. Implementert varsler-seksjon med Canvas-kunngjøringer
+105. Laget om oss-side
+106. Laget kontakt-side
+107. Laget personvernserklæring-side
+108. Laget sikkerhetsinfo-side
+109. Laget vilkår-side
+110. Implementert profil-side med Clerk UserProfile
+
+--- Frontend — State & Data (111-118) ---
+111. Sett opp Zustand stores (kiStore, uiStore)
+112. Konfigurert TanStack React Query med queryConfig
+113. Implementert API-klient med auth-token (fetchApi)
+114. Laget ki-api med alle KI-hooks og streaming
+115. Laget canvas-api med React Query hooks
+116. Laget arbeidsplan-api med React Query hooks
+117. Laget calendar-api for Canvas-hendelser
+118. Laget auth-api med brukerregistrering og /me
+
+--- Frontend — Feilhåndtering & UX (119-125) ---
+119. Implementert felles feilhåndteringsystem (errorUtils)
+120. Laget brukervennlige norske feilmeldinger per kontekst
+121. Implementert FeilMelding-komponent (error/warning/info)
+122. Laget ErrorBoundary for uventede feil
+123. Implementert toast-system med Sonner
+124. Lagt til undo-støtte i toast (showToast.undoable)
+125. Implementert loading states og skeleton UI
+
+--- Frontend — UI-komponenter (126-130) ---
+126. Laget CodeBlock med syntax highlighting
+127. Implementert ReactMarkdown med GFM og sanitizing
+128. Laget tema-provider med dark/light mode
+129. Implementert CookieBanner for samtykke
+130. Laget responsive sidebar med mobil-støtte
+
+--- Observabilitet & Resiliens (131-137) ---
+131. Sett opp Pino-logging med strukturerte logger
+132. Implementert Datadog APM (dd-trace) for backend
+133. Laget Datadog RUM-komponent for frontend
+134. Implementert TelemetryConsent for brukersamtykke
+135. Laget circuit breakers for Canvas og Anthropic API
+136. Implementert health check endpoint
+137. Laget audit logging for admin-handlinger
+
+--- Internasjonalisering (138-140) ---
+138. Sett opp i18n-system med norsk og engelsk
+139. Laget LanguageProvider med server-side støtte
+140. Opprettet meldingsfiler for nb og en
+
+--- Dokumentasjon (141-145) ---
+141. Skrevet AGENTS.md med prosjektretningslinjer
+142. Skrevet CLAUDE.md som prosjektreferanse
+143. Skrevet CONTRIBUTING.md som bidragsguide
+144. Satt opp Swagger UI for API-dokumentasjon
+145. Konfigurert VitePress docs-side
+
+==============================================================================
+NYE ITEMS (146-177) — Funnet ved kodebase-analyse, ikke i original liste
+==============================================================================
+
+--- KI/AI — Nye (146-151) ---
+146. Implementert flashcard-generering fra Canvas-innhold
+147. Laget FlashcardView-komponent med studie-modus
+148. Implementert KI-eksport til 6 formater (Markdown, PDF, Word, Excel, Text, Notion)
+149. Laget eksport-providers med builder-pattern
+150. Implementert studiekontekst-service for personaliserte KI-svar
+151. Implementert Notion-integrasjon (API-nøkkel, side-verifisering, eksport)
+
+--- Sikkerhet & Auth — Nye (152-157) ---
+152. Implementert nonce-basert CSP (Content Security Policy)
+153. Implementert Turnstile-verifisering for auth og kontaktskjema
+154. Laget step-up auth (requireRecentAuth) for sensitive operasjoner
+155. Implementert cross-environment re-linking (Clerk dev/prod)
+156. Laget auth conflict guard i frontend
+157. Implementert soft-delete pattern for brukere (deletedAt)
+
+--- Infrastruktur & Resiliens — Nye (158-164) ---
+158. Satt opp web push notifications service med VAPID
+159. Implementert web crawler for eksterne Canvas-lenker
+160. Laget kontaktskjema med Cloudflare Worker-integrasjon
+161. Implementert graceful shutdown (SIGTERM/SIGINT)
+162. Laget retry-kø for Clerk-slettinger (PendingClerkDeletion)
+163. Laget retry-kø for Pinecone vektor-slettinger (PendingVectorDeletion)
+164. Implementert memory pressure checks for Heroku-dynos
+
+--- Frontend — Nye (165-170) ---
+165. Laget velkomst-/onboarding-modal for nye brukere
+166. Laget FAQ-side
+167. Implementert smarte fristvarsler med kompleksitetsvurdering
+168. Laget studiestatistikk endpoint og visning
+169. Implementert auth sign-in/sign-up sider med Turnstile
+170. Laget glemt passord-flyt
+
+--- Admin — Nye (171-172) ---
+171. Implementert admin-panel med brukeradministrasjon og statistikk
+172. Laget admin audit-logg visning
+
+--- CI/CD — Nye (173-177) ---
+173. Satt opp CI-pipeline med actionlint, quality, dependency-scan, secret-scan, SBOM
+174. Konfigurert automatisk deploy til Vercel (frontend) og Heroku (backend)
+175. Laget OWASP dependency-check workflow (ukentlig)
+176. Laget automatisk dependency update workflow
+177. Satt opp Playwright E2E testing i CI
