@@ -108,7 +108,7 @@ export async function anonymizeAuditTrailForDeletedUser(userId: string): Promise
   await Promise.all([
     AuditLog.updateMany(
       { actorUserId: userId },
-      { $set: { actorUserId: anonymizedActorId } },
+      { $set: { actorUserId: anonymizedActorId, ip: null, userAgent: null } },
     ),
     AuditLog.updateMany(
       { targetUserId: userId },

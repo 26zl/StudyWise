@@ -32,7 +32,7 @@ import Tesseract from "tesseract.js";
 import sharp from "sharp";
 import pLimit from "p-limit";
 import { logger } from "../utils/logger.js";
-import { DocumentParseResult } from "common/document";
+import { DocumentParseResult, DocumentParseResultSchema } from "common/document";
 import { extractTextFromFile, getCodeLanguage } from "./fileExtractor.js";
 
 // Konfigurasjon
@@ -42,6 +42,8 @@ const MAX_OCR_PAGES = 10; // Maks antall PDF-sider som OCR-es (interaktiv analys
 const MAX_OCR_PAGES_SYNC = 3; // Maks antall PDF-sider som OCR-es under Canvas sync (minnegrense)
 /** Maks filstørrelse for OCR under sync — store skannede PDF-er hopper over OCR */
 const MAX_OCR_FILE_SIZE_SYNC = 5 * 1024 * 1024; // 5MB
+/** Maks dekompresjonsforhold for ZIP-baserte filer (DOCX/PPTX/XLSX) — beskytter mot zip-bomber */
+const MAX_ZIP_DECOMPRESSION_RATIO = 100;
 
 /**
  * Global OCR-semafor: begrenser samtidige OCR-operasjoner på tvers av alle
@@ -201,6 +203,39 @@ export function validateFileMagicBytes(buffer: Buffer, declaredMimeType: string)
         return `Filinnhold matcher ikke deklarert type: innhold ser ut som ${fromMagic}, opplastet som ${declaredMimeType}.`;
     }
     return null;
+}
+
+/**
+ * Estimerer total ukomprimert størrelse fra ZIP Local File Headers.
+ * Leser felt «uncompressed size» (4 bytes, little-endian) fra hver entry
+ * uten å faktisk dekomprimere. Returnerer null hvis bufferen ikke er gyldig ZIP.
+ */
+function estimateZipDecompressedSize(buffer: Buffer): number | null {
+    // ZIP Local File Header signatur: PK\x03\x04
+    if (buffer.length < 30 || buffer[0] !== 0x50 || buffer[1] !== 0x4B) return null;
+
+    let total = 0;
+    let offset = 0;
+
+    while (offset + 30 <= buffer.length) {
+        // Sjekk Local File Header signatur
+        if (buffer[0 + offset] !== 0x50 || buffer[1 + offset] !== 0x4B ||
+            buffer[2 + offset] !== 0x03 || buffer[3 + offset] !== 0x04) {
+            break;
+        }
+        // Uncompressed size: offset 22, 4 bytes LE
+        const uncompressedSize = buffer.readUInt32LE(offset + 22);
+        total += uncompressedSize;
+
+        // Hopp til neste entry: 30 + filename length (offset 26) + extra field length (offset 28) + compressed size (offset 18)
+        const fileNameLen = buffer.readUInt16LE(offset + 26);
+        const extraFieldLen = buffer.readUInt16LE(offset + 28);
+        const compressedSize = buffer.readUInt32LE(offset + 18);
+
+        offset += 30 + fileNameLen + extraFieldLen + compressedSize;
+    }
+
+    return total > 0 ? total : null;
 }
 
 // Filendelser til MIME-type mapping (fallback)
@@ -1048,6 +1083,18 @@ export async function parseDocument(
     filename?: string,
     options?: ParseDocumentOptions,
 ): Promise<DocumentParseResult> {
+  // Kjør intern parsing og valider resultatet mot skjemaet
+  const result = await parseDocumentInternal(buffer, mimeType, filename, options);
+  return DocumentParseResultSchema.parse(result);
+}
+
+/** Intern parsing-logikk — kalles av parseDocument() som validerer resultatet */
+async function parseDocumentInternal(
+    buffer: Buffer,
+    mimeType: string,
+    filename?: string,
+    options?: ParseDocumentOptions,
+): Promise<DocumentParseResult> {
   const safeName = safeBasename(filename);
   // Sjekk filstørrelse først
   if (buffer.length > MAX_FILE_SIZE_BYTES) {
@@ -1115,6 +1162,32 @@ export async function parseDocument(
   }
 
   logger.info({ mimeType, fileType }, "Parsing document");
+
+  // ZIP-baserte Office-formater: sjekk total ukomprimert størrelse for å beskytte mot zip-bomber.
+  // En 14MB komprimert fil med 100:1 ratio ville blitt ~1.4GB i minne.
+  if (fileType === "docx" || fileType === "pptx" || fileType === "xlsx") {
+    const totalUncompressed = estimateZipDecompressedSize(buffer);
+    if (totalUncompressed !== null) {
+      const ratio = buffer.length > 0 ? totalUncompressed / buffer.length : 0;
+      if (ratio > MAX_ZIP_DECOMPRESSION_RATIO) {
+        const compressedMB = (buffer.length / (1024 * 1024)).toFixed(1);
+        const uncompressedMB = (totalUncompressed / (1024 * 1024)).toFixed(0);
+        logger.warn(
+          { compressedMB, uncompressedMB, ratio: ratio.toFixed(0), fileType },
+          "Potensiell zip-bombe avvist: dekompresjonsforhold for høyt",
+        );
+        return {
+          success: false,
+          text: "",
+          pages: 0,
+          fileType,
+          redacted: false,
+          truncated: false,
+          error: `Filen ser ut til å ha et mistenkelig høyt dekompresjonsforhold (${compressedMB}MB → ${uncompressedMB}MB). Opplastingen ble avvist av sikkerhetsgrunner.`,
+        };
+      }
+    }
+  }
 
   // Velg riktig parser basert på filtype
   switch (fileType) {

@@ -65,7 +65,11 @@ export const createRateLimiter = ({
     // Returnerer middleware-funksjon
     return async (req: Request, res: Response, next: NextFunction) => {
         const key = keyGenerator(req);
-        const limiter = isRedisReady() ? redisLimiter : memoryLimiter;
+        const useRedis = isRedisReady();
+        if (!useRedis) {
+            logger.warn({ keyPrefix }, "Rate limiter: Redis utilgjengelig, faller tilbake til in-memory (per-instans)");
+        }
+        const limiter = useRedis ? redisLimiter : memoryLimiter;
         try {
             const rateRes = await limiter.consume(key);
             setRateLimitHeaders(res, rateRes, points);

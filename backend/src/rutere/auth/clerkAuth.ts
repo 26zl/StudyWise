@@ -1961,7 +1961,12 @@ export async function getClerkUserIdFromToken(
   if (cached) {
     if (cached.exp >= Date.now()) {
       // Cross-dyno sjekk: avvis token hvis clerkId er slettet (kontosletting) eller sesjon er slettet (logout)
-      if (await isClerkIdDeleted(cached.sub) || await isSessionDeleted(cached.sid)) {
+      // Parallelle Redis-oppslag for bedre ytelse i auth-hot-path
+      const [clerkDeleted, sessionDeleted] = await Promise.all([
+        isClerkIdDeleted(cached.sub),
+        isSessionDeleted(cached.sid),
+      ]);
+      if (clerkDeleted || sessionDeleted) {
         tokenCache.delete(tokenHash);
         return null;
       }
@@ -1984,7 +1989,12 @@ export async function getClerkUserIdFromToken(
     const sid = typeof payload.sid === "string" ? payload.sid : undefined;
 
     // Cross-dyno sjekk: avvis token hvis clerkId er slettet (kontosletting) eller sesjon er slettet (logout)
-    if (await isClerkIdDeleted(sub) || await isSessionDeleted(sid)) return null;
+    // Parallelle Redis-oppslag for bedre ytelse i auth-hot-path
+    const [clerkDeleted2, sessionDeleted2] = await Promise.all([
+      isClerkIdDeleted(sub),
+      isSessionDeleted(sid),
+    ]);
+    if (clerkDeleted2 || sessionDeleted2) return null;
 
     // Cache aldri lengre enn tokenets faktiske utløpstid.
     tokenCache.set(tokenHash, {

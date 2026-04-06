@@ -14,7 +14,7 @@ import { ensurePineconeIndex } from "../services/pinecone.service.js";
 import { logger } from "./logger.js";
 
 /** Intervall i ms for periodisk oppdatering av Clerk/Pinecone-helse (5 min). */
-export const DEPENDENCY_HEALTH_REFRESH_MS = 5 * 60 * 1000;
+const DEPENDENCY_HEALTH_REFRESH_MS = 5 * 60 * 1000;
 
 /** Enkelt avhengighetsstatus: sann, usann eller ennå ikke sjekket. */
 type CachedDependencyState = boolean | null;

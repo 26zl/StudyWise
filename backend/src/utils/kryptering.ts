@@ -2,25 +2,25 @@
  * Kryptering/dekryptering (AES-256-GCM) for sensitivt innhold i backend.
  *
  * Brukes bl.a. for Canvas-token og chat-historikk. Nøkkel hentes fra `ENCRYPTION_KEY` (32 bytes hex).
+ *
+ * Nøkkelversjonering:
+ *   Kryptert format: `v<versjon>:iv:authTag:encrypted` (hex-kodet).
+ *   Ved dekryptering prøves nøkkelen som tilhører versjonsprefikset først.
+ *   Data uten versjonsprefiks behandles som v1 (bakoverkompatibel med eksisterende data).
+ *   `ENCRYPTION_KEY_PREVIOUS` (valgfri) støtter sømløs nøkkelrotasjon: ny data krypteres
+ *   med `ENCRYPTION_KEY`, gammel data dekrypteres med forrige nøkkel ved behov.
  */
 import crypto from "crypto";
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;
+const CURRENT_KEY_VERSION = 1;
 
-// Henter krypteringsnøkkelen fra miljøvariabler
-const getKey = (): Buffer => {
-    const keyHex = process.env.ENCRYPTION_KEY;
-    if (!keyHex) {
-        throw new Error("ENCRYPTION_KEY mangler i miljøvariabler.");
-    }
+/** Validerer og returnerer en 32-byte nøkkel fra hex-streng. */
+function parseKeyHex(keyHex: string, label: string): Buffer {
     if (keyHex.length !== 64) {
-        throw new Error("ENCRYPTION_KEY må være 64 hex-tegn (32 bytes) for AES-256-GCM.");
+        throw new Error(`${label} må være 64 hex-tegn (32 bytes) for AES-256-GCM.`);
     }
-    // Sjekk at nøkkelen ikke er et svakt mønster (f.eks. repeating bytes, sekvenser, lav entropi).
-    // Bruker Shannon-entropi på byte-nivå. 32 tilfeldige bytes gir ~7.5+ bits/byte.
-    // Terskel 3.0 bits/byte avviser åpenbart svake nøkler (repeterende, sekvensielle, korte alfabet)
-    // mens den tillater alle realistiske tilfeldige nøkler.
     const byteValues = (keyHex.match(/.{2}/g) || []).map((h) => parseInt(h, 16));
     const freq = new Map<number, number>();
     for (const b of byteValues) {
@@ -33,20 +33,36 @@ const getKey = (): Buffer => {
     }
     if (entropy < 3.0) {
         throw new Error(
-            "ENCRYPTION_KEY er for svak (for lite entropi). " +
+            `${label} er for svak (for lite entropi). ` +
             "Generer en sikker nøkkel med: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
         );
     }
     const key = Buffer.from(keyHex, "hex");
     if (key.length !== 32) {
-        throw new Error("ENCRYPTION_KEY må være 32 bytes etter hex-dekoding.");
+        throw new Error(`${label} må være 32 bytes etter hex-dekoding.`);
     }
     return key;
+}
+
+// Henter krypteringsnøkkelen fra miljøvariabler
+const getKey = (): Buffer => {
+    const keyHex = process.env.ENCRYPTION_KEY;
+    if (!keyHex) {
+        throw new Error("ENCRYPTION_KEY mangler i miljøvariabler.");
+    }
+    return parseKeyHex(keyHex, "ENCRYPTION_KEY");
+};
+
+/** Returnerer forrige nøkkel for rotasjon, eller null hvis ikke satt. */
+const getPreviousKey = (): Buffer | null => {
+    const keyHex = process.env.ENCRYPTION_KEY_PREVIOUS;
+    if (!keyHex) return null;
+    return parseKeyHex(keyHex, "ENCRYPTION_KEY_PREVIOUS");
 };
 
 /**
  * Krypterer en streng.
- * Returnerer format: iv:authTag:encryptedContent (hex-kodet)
+ * Returnerer format: v<versjon>:iv:authTag:encryptedContent (hex-kodet)
  */
 export const encrypt = (text: string): string => {
     const key = getKey();
@@ -59,23 +75,11 @@ export const encrypt = (text: string): string => {
 
     const authTag = cipher.getAuthTag();
 
-    return `${iv.toString("hex")}:${authTag.toString("hex")}:${encrypted}`;
+    return `v${CURRENT_KEY_VERSION}:${iv.toString("hex")}:${authTag.toString("hex")}:${encrypted}`;
 };
 
-/**
- * Dekrypterer en streng.
- * Forventer format: iv:authTag:encryptedContent (hex-kodet)
- */
-export const decrypt = (encryptedText: string): string => {
-    const key = getKey();
-    const parts = encryptedText.split(":");
-
-    if (parts.length !== 3) {
-        throw new Error("Ugyldig format på kryptert data.");
-    }
-
-    const [ivHex, authTagHex, encryptedHex] = parts;
-
+/** Dekrypterer med en spesifikk nøkkel. Kaster ved feil. */
+function decryptWithKey(key: Buffer, ivHex: string, authTagHex: string, encryptedHex: string): string {
     if (!/^[0-9a-f]+$/i.test(ivHex) || !/^[0-9a-f]+$/i.test(authTagHex) || !/^[0-9a-f]*$/i.test(encryptedHex)) {
         throw new Error("Ugyldig hex i kryptert data.");
     }
@@ -90,15 +94,51 @@ export const decrypt = (encryptedText: string): string => {
         throw new Error(`Ugyldig authTag-lengde: forventet 16, fikk ${authTag.length}.`);
     }
 
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+    decipher.setAuthTag(authTag);
+
+    let decrypted = decipher.update(encryptedHex, "hex", "utf8");
+    decrypted += decipher.final("utf8");
+    return decrypted;
+}
+
+/**
+ * Dekrypterer en streng.
+ * Støtter både nytt format (v<versjon>:iv:authTag:encrypted) og
+ * legacy-format (iv:authTag:encrypted) for bakoverkompatibilitet.
+ * Ved nøkkelrotasjon prøves ENCRYPTION_KEY_PREVIOUS som fallback.
+ */
+export const decrypt = (encryptedText: string): string => {
+    const parts = encryptedText.split(":");
+
+    let ivHex: string;
+    let authTagHex: string;
+    let encryptedHex: string;
+
+    // Nytt versjonert format: v1:iv:authTag:encrypted
+    if (parts.length === 4 && /^v\d+$/.test(parts[0])) {
+        [, ivHex, authTagHex, encryptedHex] = parts;
+    }
+    // Legacy-format (bakoverkompatibelt): iv:authTag:encrypted
+    else if (parts.length === 3) {
+        [ivHex, authTagHex, encryptedHex] = parts;
+    } else {
+        throw new Error("Ugyldig format på kryptert data.");
+    }
+
+    // Prøv gjeldende nøkkel først
     try {
-        const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-        decipher.setAuthTag(authTag);
-
-        let decrypted = decipher.update(encryptedHex, "hex", "utf8");
-        decrypted += decipher.final("utf8");
-
-        return decrypted;
+        return decryptWithKey(getKey(), ivHex, authTagHex, encryptedHex);
     } catch {
+        // Prøv forrige nøkkel som fallback (nøkkelrotasjon)
+        const prevKey = getPreviousKey();
+        if (prevKey) {
+            try {
+                return decryptWithKey(prevKey, ivHex, authTagHex, encryptedHex);
+            } catch {
+                // Begge nøkler feilet
+            }
+        }
         // Generisk feilmelding uavhengig av årsak (forhindrer oracle-angrep)
         throw new Error("Dekryptering feilet.");
     }

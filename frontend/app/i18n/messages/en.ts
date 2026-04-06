@@ -383,7 +383,7 @@ export const enMessages = {
       heading: "Features",
       overview: {
         description:
-          "See everything happening today and in the coming days. Deadlines, AI-generated weekly plans, and study statistics in one place — with export to PDF, Word, Excel, and Notion.",
+          "See everything happening today and in the coming days. Deadlines, AI-generated weekly plans, and study statistics in one place.",
         title: "Complete Overview",
       },
     },
@@ -1066,6 +1066,18 @@ export const enMessages = {
     emptyStateTitle: "Hi! How can I help you?",
     emptyStateSubtitle: "I can help you with studying, Canvas content and much more",
     appContentLabel: "App content",
+    fileTooLarge: "The file \"{name}\" is too large. Maximum file size is 15 MB.",
+    analyzeDocumentFallback: "Analyze document: {name}",
+    summarizeDocumentFallback: "Give me a summary of this document.",
+    canvasDataAnnouncements: "Announcements",
+    canvasDataCourses: "Courses",
+    canvasDataAssignments: "Assignments",
+    canvasDataEvents: "Events",
+    noCanvasDataSelected: "You have not selected any Canvas data. Go to Settings → AI Canvas context and select at least one dataset so I can help you with Canvas-related questions.",
+    missingCanvasData: "I don't have access to {missing} because it is not enabled.\n\nGo to Settings → AI Canvas context and enable \"{activate}\", and try again.",
+    missingCanvasDataJoinOr: " or ",
+    missingCanvasDataJoinAnd: "\" and \"",
+    typingIndicator: "AI assistant is typing...",
   },
   profil: {
     loading: "Loading account...",
@@ -1218,6 +1230,12 @@ export const enMessages = {
     featureWorkplanBody: "Generate weekly study plans tailored to your deadlines",
     featureChatHistoryLabel: "Conversation history:",
     featureChatHistoryBody: "Save and continue conversations with the AI",
+    featureExportLabel: "Export:",
+    featureExportBody:
+      "Export AI content to PDF, Word, Excel, or Notion",
+    featureShareLabel: "Shared conversations:",
+    featureShareBody:
+      "Share conversations with others via a secure link with expiry",
     teamTitle: "The team",
     teamBody: "StudyWise was developed by students at USN as part of their bachelor's thesis in IT and information systems. The project focuses on exploring how AI can improve the study experience for students.",
     techTitle: "Technology",

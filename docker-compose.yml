@@ -12,6 +12,9 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: studywise
+      MONGO_INITDB_ROOT_PASSWORD: studywise-dev
     ports:
       - "27017:27017"
     volumes:
@@ -39,7 +42,7 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=4000
-      - MONGO_URI=mongodb://mongo:27017/studywise
+      - MONGO_URI=mongodb://studywise:studywise-dev@mongo:27017/studywise?authSource=admin
       - REDIS_URL=redis://redis:6379
       - WEB_ORIGINS=http://localhost:3000
     depends_on:

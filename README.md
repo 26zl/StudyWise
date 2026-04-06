@@ -99,7 +99,7 @@ pnpm kill:dev             # Stopp alle Node prosesser (Windows)
 
 ### Enhetstester (Vitest)
 
-24 testfiler med ~712 tester fordelt på `common`, `backend` og `frontend`. Testfiler ligger i `__tests__/`-mapper.
+25 testfiler med ~714 tester fordelt på `common`, `backend` og `frontend`. Testfiler ligger i `__tests__/`-mapper.
 
 ```bash
 pnpm test:unit                # Alle enhetstester
@@ -120,8 +120,10 @@ pnpm test:canvas              # Canvas-tester
 # Auth Matrix (120 scenarier)
 pnpm test:auth:matrix         # Kjør alle executable scenarier
 pnpm test:auth:matrix:basic   # Gruppe A: Signup uniqueness
+pnpm test:auth:matrix:oauth   # OAuth-scenarier
 pnpm test:auth:matrix:update  # Gruppe G: Username updates
 pnpm test:auth:matrix:delete  # Gruppe I: Deletion/reuse
+pnpm test:auth:matrix:session # Gruppe J: Session/cross-tab
 pnpm test:auth:matrix:race    # Gruppe L: Race conditions
 
 # E2E (Playwright)

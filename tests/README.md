@@ -14,6 +14,7 @@ pnpm test:canvas       # Kun Canvas-tester
 # Auth Matrix (120 scenarier definert, ~36 executable)
 pnpm test:auth:matrix         # Kjør alle executable scenarier
 pnpm test:auth:matrix:basic   # Gruppe A: Basic signup uniqueness
+pnpm test:auth:matrix:oauth   # OAuth-scenarier
 pnpm test:auth:matrix:update  # Gruppe G: Username updates
 pnpm test:auth:matrix:delete  # Gruppe I: Deletion/reuse
 pnpm test:auth:matrix:session # Gruppe J: Session/cross-tab

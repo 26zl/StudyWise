@@ -9,7 +9,7 @@
  */
 
 import { Router } from "express";
-import { ExportRequestSchema } from "common/export";
+import { ExportRequestSchema, ExportResponseSchema } from "common/export";
 import {
   executeExport,
   getAvailableTargets,
@@ -116,7 +116,8 @@ kiExportRouter.post("/export", exportRateLimit, async (req, res) => {
 
     logger.info({ userId, target }, "Bruker eksporterte innhold");
 
-    return res.json(result);
+    // Valider respons mot skjema før sending
+    return res.json(ExportResponseSchema.parse(result));
   } catch (error) {
     // Håndter kjente konfigurasjonsfeil med 400/503
     if (error instanceof Error) {

@@ -43,7 +43,7 @@ Delte Zod-skjemaer og TypeScript-typer mellom frontend og backend. **Bruk subpat
 ```typescript
 import { CanvasCourseSchema } from "common/canvas";             // Canvas API-typer
 import { classifyHttpStatus } from "common/canvasErrors";       // Feilkoder og hjelpere
-import { CANVAS_INSTITUTIONS } from "common/canvasInstitutions"; // Canvas-institusjonsliste
+import { CANVAS_INSTITUSJONER_NORGE } from "common/canvasInstitutions"; // Canvas-institusjonsliste
 import { SubTaskSchema } from "common/ki";                      // KI/AI-typer
 import { ChatMessageSchema } from "common/chat";                // Chat-historikk-typer
 import { CalendarItemSchema } from "common/calendar";           // Kalender API-typer
@@ -52,7 +52,8 @@ import { DocumentParseResultSchema } from "common/document";    // Dokumentbehan
 import { AUTH_CHANNEL_NAME } from "common/auth";                // Auth-konstanter (f.eks. BroadcastChannel sync)
 import { getWeekNumber } from "common/dateUtils";               // Dato-hjelpefunksjoner
 import { UKEDAGER } from "common/arbeidsplan";                  // Arbeidsplan-konstanter
-import { PaginationQueryValueSchema } from "common/admin";      // Admin-paginering og -typer
+import { AdminBrukereQuerySchema } from "common/admin";          // Admin-paginering og -typer
+import { ExportTargetSchema } from "common/export";                // KI-eksport-typer
 import { KONTAKT_MAX_ATTACHMENTS } from "common/contact";       // Kontaktskjema-konstanter
 import { BrowserPushPreferencesSchema } from "common/notifications"; // Web push-typer
 ```
@@ -100,7 +101,7 @@ pnpm clean:install          # Full reinstall (clean + install + update + build)
 
 ### Tester
 
-Vitest er satt opp for `common`, `frontend` og `backend` med 24 testfiler (~712 tester). Testfiler ligger i `__tests__/`-mapper i hver pakke.
+Vitest er satt opp for `common`, `frontend` og `backend` med 25 testfiler (~714 tester). Testfiler ligger i `__tests__/`-mapper i hver pakke.
 
 ```bash
 pnpm test:unit               # Kjør alle enhetstester (common + backend + frontend)
@@ -124,8 +125,10 @@ pnpm test:ki                       # KI/AI-smoketester
 pnpm test:canvas                   # Canvas-smoketester
 pnpm test:auth:matrix              # Full auth-scenariomatrise (120 scenarier)
 pnpm test:auth:matrix:basic        # Gruppe A: Signup uniqueness
+pnpm test:auth:matrix:oauth        # OAuth-scenarier
 pnpm test:auth:matrix:update       # Gruppe G: Username updates
 pnpm test:auth:matrix:delete       # Gruppe I: Deletion/reuse
+pnpm test:auth:matrix:session      # Gruppe J: Session/cross-tab
 pnpm test:auth:matrix:race         # Gruppe L: Race conditions
 ```
 
@@ -176,13 +179,15 @@ Forespørsler autentiseres gjennom middleware i `backend/src/middleware/`:
 
 Typisk rute-oppsett: `router.use(requireAuth)`, deretter `knyttCanvasToken` per rute der Canvas-tilgang trengs.
 
+4. **`requireRecentAuth`** (`auth.ts`) — Step-up sikkerhet: krever at Clerk-sesjonen er opprettet de siste 10 minuttene. Brukes for irreversible operasjoner (kontosletting, admin-rolleendringer, admin-brukersletting).
+
 ### Audit-logging
 
 `backend/src/utils/auditLog.ts` — `audit()` skriver strukturerte hendelser til MongoDB (`AuditLog`-modell) med aktør, handling, kategori, utfall og request-metadata. Kategorier: `auth`, `profile`, `integration`, `admin`, `security`, `privacy`, `ki`. Dekker auth-feil, admin-handlinger, kontosletting, Canvas-token-ops, chat-deling, RBAC/CSRF/rate-limit-brudd, sikkerhetsvarsler og alle KI-operasjoner (chat, dokumentanalyse, oppsummering, oppgavedeling, ukeplan, historikk-sletting). Importer `AUDIT_ACTIONS` for forhåndsdefinerte handlingskonstanter. AuditLog har 2-års TTL og automatisk GDPR-anonymisering ved brukersletting.
 
 ### Dashboard (SPA-container)
 
-Lokasjon: `frontend/app/dashboard/page.tsx` (side) og `frontend/app/components/DashboardView.tsx` (hoved-UI).
+Lokasjon: `frontend/app/dashboard/page.tsx` (side) og `frontend/app/components/dashboard/DashboardView.tsx` (hoved-UI).
 
 - **Formål**: Samler Canvas og KI-verktøy i ett grensesnitt
 - **Virkemåte**: SPA-container; aktiv visning styres av URL-parametren `?view=` via **nuqs** (`useQueryState`) i `DashboardView`, så fane-bytt ikke laster siden på nytt og URL holdes i sync
@@ -196,7 +201,8 @@ Lokasjon: `frontend/app/dashboard/page.tsx` (side) og `frontend/app/components/D
 - **Arbeidsplan**: Ukeplaner (studieblokker); collection-navn er `arbeidsplan` (ikke `arbeidsplans`)
 - **ContentEmbedding**: Chunk-tekst og metadata per bruker/kurs/fil (MongoDB). Sannhetskilde for innhold; vektorindeks ligger i Pinecone (integrated embedding). Ingen vektorindeks i Atlas
 - **DeletedUserTombstone**: GDPR-tombstone for slettede brukere (forhindrer re-registrering innen TTL)
-- **PendingClerkDeletion**: Sporer asynkrone Clerk-brukerslettingsforespørsler
+- **PendingClerkDeletion**: Sporer asynkrone Clerk-brukerslettingsforespørsler (maks 20 forsøk, deretter dead-lettered med audit-logg)
+- **PendingVectorDeletion**: Retry-kø for mislykkede Pinecone-vektorslettinger (GDPR-compliance, maks 20 forsøk)
 - **WebPushSubscription**: Browser push-varsling-abonnementer per bruker
 - **SharedChat**: Offentlige delelenker for chat-samtaler (med utløpstid)
 - **CanvasStructure**: Cachet Canvas-kursstruktur (moduler, elementer)
@@ -244,6 +250,7 @@ Hver fil håndterer ett KI-område:
 - `kiShare.ts` – Chat-deling (offentlige delelenker med utløpstid)
 - `taskBreakdown.ts` – Oppgavedeling
 - `weeklyPlan.ts` – KI-genererte ukeplaner
+- `kiExport.ts` – Eksport av KI-innhold (markdown, PDF, Word, tekst, Excel, Notion)
 
 Andre ruter:
 
@@ -261,6 +268,10 @@ Delt infrastruktur (gjenbruk disse, ikke dupliser):
 SSE-endepunkter må sjekke `res.writableEnded` før de skriver keepalive-pings. SSE-responser hopper over gzip-komprimering (`text/event-stream`-filter i `backend/src/index.ts`).
 
 **KI-kontekstlasting**: Ved lasting av Canvas-kontekst for chat opprettes en `AbortController` og dens `signal` sendes til `loadCanvasContext` → `syncCanvasDataForUser`. Ved `res.once('finish')` / `res.once('close')` aborteres kontrolleren slik at bakgrunnssynk stoppes når responsen er ferdig.
+
+### Web Crawler
+
+`backend/src/services/crawler.ts` — Crawler for eksterne URL-er lenket i Canvas-emner, trekker ut innhold med `@mozilla/readability`, og indekserer til Pinecone. Funksjoner: domenespesifikke selektorer, PDF-deteksjon, innholdshashing for dedup, blokkering av innloggingssider. Aktiveres under Canvas-synk for å indeksere lenkede ressurser.
 
 ### Dokumentbehandling
 

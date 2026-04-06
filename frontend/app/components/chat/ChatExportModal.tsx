@@ -19,6 +19,7 @@ import { showToast } from "@/app/components/ui/Toaster";
 import { useDialogAccessibility } from "@/app/hooks/useDialogAccessibility";
 import { useLanguage } from "@/app/i18n";
 import { fetchApi } from "@/app/lib/apiClient";
+import { ExportResponseSchema } from "common/export";
 import type { ExportTarget, ExportResponse } from "common/export";
 
 interface ExportTargetInfo {
@@ -196,7 +197,8 @@ export function ChatExportModal({
         );
       }
 
-      const result = (await response.json()) as ExportResponse;
+      // Valider respons mot skjema
+      const result = ExportResponseSchema.parse(await response.json());
       setExportResult(result);
 
       if (result.kind === "serialized") {

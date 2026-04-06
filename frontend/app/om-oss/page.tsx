@@ -17,6 +17,8 @@ export default function OmOssPage() {
     { label: t("omOss.featureTaskBreakdownLabel"), body: t("omOss.featureTaskBreakdownBody") },
     { label: t("omOss.featureWorkplanLabel"), body: t("omOss.featureWorkplanBody") },
     { label: t("omOss.featureChatHistoryLabel"), body: t("omOss.featureChatHistoryBody") },
+    { label: t("omOss.featureExportLabel"), body: t("omOss.featureExportBody") },
+    { label: t("omOss.featureShareLabel"), body: t("omOss.featureShareBody") },
   ];
 
   return (

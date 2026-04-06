@@ -186,7 +186,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
     () =>
       Array.from({ length: 12 }, (_, index) => ({
         value: index.toString(),
-        label: capitalizeLabel(format(new Date(2026, index, 1), "MMMM", { locale })),
+        label: capitalizeLabel(format(new Date(new Date().getFullYear(), index, 1), "MMMM", { locale })),
       })),
     [locale],
   );

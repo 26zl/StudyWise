@@ -383,7 +383,7 @@ export const nbMessages = {
       heading: "Funksjoner",
       overview: {
         description:
-          "Se alt som skjer i dag og de neste dagene. Frister, KI-generert ukeplan og studiestatistikk samlet på ett sted — med eksport til PDF, Word, Excel og Notion.",
+          "Se alt som skjer i dag og de neste dagene. Frister, KI-generert ukeplan og studiestatistikk samlet på ett sted.",
         title: "Total Oversikt",
       },
     },
@@ -1065,6 +1065,18 @@ export const nbMessages = {
     emptyStateTitle: "Hei! Hvordan kan jeg hjelpe deg?",
     emptyStateSubtitle: "Jeg kan hjelpe deg med studier, Canvas-innhold og mye mer",
     appContentLabel: "Appinnhold",
+    fileTooLarge: "Filen «{name}» er for stor. Maksimal filstørrelse er 15 MB.",
+    analyzeDocumentFallback: "Analyser dokumentet: {name}",
+    summarizeDocumentFallback: "Gi meg en oppsummering av dette dokumentet.",
+    canvasDataAnnouncements: "Kunngjøringer",
+    canvasDataCourses: "Emner",
+    canvasDataAssignments: "Oppgaver",
+    canvasDataEvents: "Hendelser",
+    noCanvasDataSelected: "Du har ikke valgt noen Canvas-data. Gå til Innstillinger → AI Canvas-kontekst og velg minst ett datasett for at jeg skal kunne hjelpe deg med Canvas-relaterte spørsmål.",
+    missingCanvasData: "Jeg har ikke tilgang til {missing} fordi dette ikke er aktivert.\n\nGå til Innstillinger → AI Canvas-kontekst og aktiver «{activate}», og prøv igjen.",
+    missingCanvasDataJoinOr: " eller ",
+    missingCanvasDataJoinAnd: "» og «",
+    typingIndicator: "KI-assistenten skriver...",
   },
   profil: {
     loading: "Laster konto...",
@@ -1228,6 +1240,12 @@ export const nbMessages = {
       "Generer ukentlige studieplaner tilpasset dine frister",
     featureChatHistoryLabel: "Samtalehistorikk:",
     featureChatHistoryBody: "Lagre og fortsett samtaler med AI-en",
+    featureExportLabel: "Eksport:",
+    featureExportBody:
+      "Eksporter KI-innhold til PDF, Word, Excel eller Notion",
+    featureShareLabel: "Deling av samtaler:",
+    featureShareBody:
+      "Del samtaler med andre via en sikker lenke med utløpstid",
     teamTitle: "Teamet",
     teamBody:
       "StudyWise er utviklet av studenter ved USN som en del av deres bacheloroppgave i IT og informasjonssystemer. Prosjektet fokuserer på å utforske hvordan AI kan forbedre studieopplevelsen for studenter.",

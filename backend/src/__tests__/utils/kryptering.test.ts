@@ -59,24 +59,25 @@ describe("kryptering", () => {
 
   // --- Kryptert format ---
 
-  it("returnerer format iv:authTag:data med 3 kolon-separerte deler", async () => {
+  it("returnerer format v1:iv:authTag:data med 4 kolon-separerte deler", async () => {
     const { encrypt } = await importModule();
     const kryptert = encrypt("test");
     const deler = kryptert.split(":");
-    expect(deler).toHaveLength(3);
+    expect(deler).toHaveLength(4);
+    expect(deler[0]).toBe("v1");
   });
 
   it("IV er 32 hex-tegn (16 bytes)", async () => {
     const { encrypt } = await importModule();
     const kryptert = encrypt("test");
-    const [iv] = kryptert.split(":");
+    const [, iv] = kryptert.split(":");
     expect(iv).toMatch(/^[0-9a-f]{32}$/);
   });
 
   it("authTag er 32 hex-tegn (16 bytes)", async () => {
     const { encrypt } = await importModule();
     const kryptert = encrypt("test");
-    const [, authTag] = kryptert.split(":");
+    const [, , authTag] = kryptert.split(":");
     expect(authTag).toMatch(/^[0-9a-f]{32}$/);
   });
 
@@ -105,22 +106,22 @@ describe("kryptering", () => {
 
   it("kaster feil ved for mange kolon-separerte deler", async () => {
     const { decrypt } = await importModule();
-    expect(() => decrypt("a:b:c:d")).toThrow("Ugyldig format");
+    expect(() => decrypt("a:b:c:d:e")).toThrow("Ugyldig format");
   });
 
   it("kaster feil ved ugyldig hex i IV", async () => {
     const { decrypt } = await importModule();
-    expect(() => decrypt("gggg:aabbccdd:eeff")).toThrow();
+    expect(() => decrypt("v1:gggg:aabbccdd:eeff")).toThrow();
   });
 
   it("kaster feil ved manipulert ciphertext (endret data)", async () => {
     const { encrypt, decrypt } = await importModule();
     const kryptert = encrypt("sensitiv data");
     const deler = kryptert.split(":");
-    // Endre siste tegn i den krypterte dataen
-    const sisteHexTegn = deler[2].slice(-1);
+    // Endre siste tegn i den krypterte dataen (index 3 = encrypted data)
+    const sisteHexTegn = deler[3].slice(-1);
     const endretTegn = sisteHexTegn === "0" ? "1" : "0";
-    deler[2] = deler[2].slice(0, -1) + endretTegn;
+    deler[3] = deler[3].slice(0, -1) + endretTegn;
     expect(() => decrypt(deler.join(":"))).toThrow();
   });
 
@@ -128,9 +129,43 @@ describe("kryptering", () => {
     const { encrypt, decrypt } = await importModule();
     const kryptert = encrypt("data");
     const deler = kryptert.split(":");
-    // Endre authTag
-    deler[1] = "0".repeat(32);
+    // Endre authTag (index 2)
+    deler[2] = "0".repeat(32);
     expect(() => decrypt(deler.join(":"))).toThrow();
+  });
+
+  // --- Legacy-format (bakoverkompatibilitet) ---
+
+  it("dekrypterer legacy-format (iv:authTag:data uten versjonsprefiks)", async () => {
+    const { decrypt } = await importModule();
+    // Krypter manuelt i legacy-format (uten v1-prefiks)
+    const keyBuf = Buffer.from(testKey, "hex");
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv("aes-256-gcm", keyBuf, iv);
+    let enc = cipher.update("legacy-test", "utf8", "hex");
+    enc += cipher.final("hex");
+    const tag = cipher.getAuthTag();
+    const legacyFormat = `${iv.toString("hex")}:${tag.toString("hex")}:${enc}`;
+    expect(decrypt(legacyFormat)).toBe("legacy-test");
+  });
+
+  // --- Nøkkelrotasjon ---
+
+  it("dekrypterer med forrige nøkkel via ENCRYPTION_KEY_PREVIOUS", async () => {
+    const gammelNokkel = testKey;
+    const nyNokkel = genererTestnokkel();
+
+    // Krypter med gammel nøkkel
+    const { encrypt: encryptGammel } = await importModule();
+    const kryptert = encryptGammel("rotasjonstest");
+
+    // Roter nøkkel
+    vi.stubEnv("ENCRYPTION_KEY", nyNokkel);
+    vi.stubEnv("ENCRYPTION_KEY_PREVIOUS", gammelNokkel);
+    vi.resetModules();
+    const { decrypt: decryptNy } = await importModule();
+
+    expect(decryptNy(kryptert)).toBe("rotasjonstest");
   });
 
   // --- Miljøvariabel-validering ---

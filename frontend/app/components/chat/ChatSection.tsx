@@ -577,7 +577,7 @@ export function ChatSection() {
                 const feilMelding: Melding = {
                     id: Date.now().toString(),
                     rolle: "assistant",
-                    innhold: `Filen «${fil.name}» er for stor. Maksimal filstørrelse er 15 MB.`,
+                    innhold: t("chat.fileTooLarge", { name: fil.name }),
                     tidsstempel: new Date(),
                 };
                 settMeldinger((tidligere) => [...tidligere, feilMelding]);
@@ -593,7 +593,7 @@ export function ChatSection() {
         }
 
         settVedlegg([godkjente[0]]);
-    }, [vedlegg.length]);
+    }, [vedlegg.length, t]);
 
     // Håndter filvalg fra input-element (støtter multiple)
     const handleFilValg = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -699,7 +699,7 @@ export function ChatSection() {
         if ((!trimmetTekst && !harVedlegg) || skriver || analyserarDokument) return;
 
         const vedlagtNavn = vedlegg.map((f) => f.name).join(", ");
-        const brukerMeldingInnhold = trimmetTekst || (harVedlegg ? `Analyser dokumentet: ${vedlagtNavn}` : "");
+        const brukerMeldingInnhold = trimmetTekst || (harVedlegg ? t("chat.analyzeDocumentFallback", { name: vedlagtNavn }) : "");
         settTekstInput("");
 
         // Reset høyde
@@ -812,7 +812,7 @@ export function ChatSection() {
                 })();
             };
 
-            analyserDokument(filTilAnalyse, brukerMeldingInnhold || "Gi meg en oppsummering av dette dokumentet.", {
+            analyserDokument(filTilAnalyse, brukerMeldingInnhold || t("chat.summarizeDocumentFallback"), {
                 onSuccess: (data) => {
                     const responseText = data.response.trim();
                     if (!responseText) {
@@ -888,16 +888,16 @@ export function ChatSection() {
 
             // Sjekk mot brukerens valg (canvasContextSelection), ikke kontekst-strengen
             if (spørOmKunngjøringer && !canvasContextSelection.announcements) {
-                manglerData.push("Kunngjøringer");
+                manglerData.push(t("chat.canvasDataAnnouncements"));
             }
             if (spørOmEmner && !canvasContextSelection.courses) {
-                manglerData.push("Emner");
+                manglerData.push(t("chat.canvasDataCourses"));
             }
             if (spørOmOppgaver && !canvasContextSelection.assignments) {
-                manglerData.push("Oppgaver");
+                manglerData.push(t("chat.canvasDataAssignments"));
             }
             if (spørOmHendelser && !canvasContextSelection.events) {
-                manglerData.push("Hendelser");
+                manglerData.push(t("chat.canvasDataEvents"));
             }
 
             // Hvis brukeren ikke har valgt noen Canvas-data i innstillinger
@@ -905,7 +905,7 @@ export function ChatSection() {
                 const systemMelding: Melding = {
                     id: (Date.now() + 1).toString(),
                     rolle: "assistant",
-                    innhold: "Du har ikke valgt noen Canvas-data. Gå til Innstillinger → AI Canvas-kontekst og velg minst ett datasett for at jeg skal kunne hjelpe deg med Canvas-relaterte spørsmål.",
+                    innhold: t("chat.noCanvasDataSelected"),
                     tidsstempel: new Date(),
                 };
                 settMeldinger((tidligere) => [...tidligere, systemMelding]);
@@ -917,7 +917,10 @@ export function ChatSection() {
                 const systemMelding: Melding = {
                     id: (Date.now() + 1).toString(),
                     rolle: "assistant",
-                    innhold: `Jeg har ikke tilgang til ${manglerData.join(" eller ").toLowerCase()} fordi dette ikke er aktivert.\n\nGå til Innstillinger → AI Canvas-kontekst og aktiver «${manglerData.join("» og «")}», og prøv igjen.`,
+                    innhold: t("chat.missingCanvasData", {
+                        missing: manglerData.join(t("chat.missingCanvasDataJoinOr")).toLowerCase(),
+                        activate: manglerData.join(t("chat.missingCanvasDataJoinAnd")),
+                    }),
                     tidsstempel: new Date(),
                 };
                 settMeldinger((tidligere) => [...tidligere, systemMelding]);
@@ -1520,7 +1523,7 @@ export function ChatSection() {
 
                     {/* Skriver indikator */}
                     {((skriver && !animerendeMeldingId) || analyserarDokument) && (
-                        <div className="flex items-start gap-3 justify-start">
+                        <div className="flex items-start gap-3 justify-start" role="status" aria-live="polite">
                             <div className="shrink-0 w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center mt-1">
                                 <Bot className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                             </div>
@@ -1535,6 +1538,7 @@ export function ChatSection() {
                                         <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "0ms" }} />
                                         <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "150ms" }} />
                                         <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                                        <span className="sr-only">{t("chat.typingIndicator")}</span>
                                     </div>
                                 )}
                             </div>

@@ -44,7 +44,7 @@ Zod schemas and TypeScript interfaces shared between frontend and backend. **Sub
 ```typescript
 import { CanvasCourseSchema } from "common/canvas";             // Canvas API types
 import { classifyHttpStatus } from "common/canvasErrors";       // Error codes & helpers
-import { CANVAS_INSTITUTIONS } from "common/canvasInstitutions"; // Canvas institution list
+import { CANVAS_INSTITUSJONER_NORGE } from "common/canvasInstitutions"; // Canvas institution list
 import { SubTaskSchema } from "common/ki";                      // KI/AI feature types
 import { ChatMessageSchema } from "common/chat";                // Chat history types
 import { CalendarItemSchema } from "common/calendar";           // Calendar API types
@@ -56,6 +56,7 @@ import { UKEDAGER } from "common/arbeidsplan";                  // Work plan con
 import { AdminBrukereQuerySchema } from "common/admin";          // Admin pagination/query types
 import { KONTAKT_MAX_ATTACHMENTS } from "common/contact";       // Contact form constants
 import { BrowserPushPreferencesSchema } from "common/notifications"; // Web push types
+import { ExportTargetSchema } from "common/export";                // KI export types
 ```
 
 When adding a new schema to common, add a subpath export in `common/package.json` `"exports"` map.
@@ -109,7 +110,7 @@ pnpm clean:install          # Full reinstall (clean + install + update + build)
 
 ### Tests
 
-Vitest is configured for `common`, `frontend`, and `backend` with 24 test files (~712 tests). Test files live in `__tests__/` directories within each package.
+Vitest is configured for `common`, `frontend`, and `backend` with 25 test files (~716 tests). Test files live in `__tests__/` directories within each package.
 
 ```bash
 pnpm test:unit               # Run all unit tests (common + backend + frontend)
@@ -133,6 +134,11 @@ pnpm test:ki                       # KI/AI smoke tests
 pnpm test:canvas                   # Canvas smoke tests
 pnpm test:auth:matrix              # Full auth scenario matrix
 pnpm test:auth:matrix:basic        # Basic auth matrix only
+pnpm test:auth:matrix:oauth        # OAuth scenarios
+pnpm test:auth:matrix:update       # Username updates
+pnpm test:auth:matrix:delete       # Deletion/reuse
+pnpm test:auth:matrix:session      # Session/cross-tab
+pnpm test:auth:matrix:race         # Race conditions
 ```
 
 The `func-testing.yml` workflow runs stable Playwright E2E specs in CI (Chromium only; triggered after CI succeeds or manually). Diagnostic/repro specs and Firefox/WebKit are local-only. Uploads HTML report and trace artifacts.
@@ -143,7 +149,7 @@ The `func-testing.yml` workflow runs stable Playwright E2E specs in CI (Chromium
 docker compose up --build   # Run full stack locally (MongoDB, Redis, backend, frontend)
 ```
 
-Docker brukes **kun for lokal utvikling** — ikke i produksjon. Requires `backend/.env` and a root `.env` (copy from `docker.env.example`). All services use `security_opt: no-new-privileges:true`. Build secrets (`CLERK_SECRET_KEY`, `AUTH_TURNSTILE_GATE_SECRET`) are mounted via `--mount=type=secret` (never baked into image layers). Note: `INTERNAL_API_URL=http://backend:4000` is set in `docker-compose.yml` for container-to-container routing.
+Docker brukes **kun for lokal utvikling** — ikke i produksjon. Requires `backend/.env` and a root `.env` (copy from `docker.env.example`). All services use `security_opt: no-new-privileges:true`. Build secrets (`CLERK_SECRET_KEY`, `AUTH_TURNSTILE_GATE_SECRET`) are mounted via `--mount=type=secret` (never baked into image layers). MongoDB runs with authentication (`studywise`/`studywise-dev`). Note: `INTERNAL_API_URL=http://backend:4000` is set in `docker-compose.yml` for container-to-container routing.
 
 ### Deployment
 
@@ -275,6 +281,7 @@ Each file handles a distinct AI feature:
 - `kiShare.ts` - Chat sharing (public share links with expiry)
 - `taskBreakdown.ts` - Task breakdown generation
 - `weeklyPlan.ts` - AI-generated weekly study plans
+- `kiExport.ts` - Export AI content (markdown, PDF, Word, text, Notion)
 
 Other routes:
 
@@ -292,6 +299,10 @@ Shared infrastructure (reuse these, don't duplicate):
 SSE endpoints must check `res.writableEnded` before writing keepalive pings. SSE responses skip gzip compression (`text/event-stream` filter in `backend/src/index.ts`).
 
 **KI context loading**: When loading Canvas context for chat, an `AbortController` is created and its `signal` is passed to `loadCanvasContext` → `syncCanvasDataForUser`. On `res.once('finish')` / `res.once('close')` the controller aborts so background sync stops when the response ends.
+
+### Web Crawler
+
+`backend/src/services/crawler.ts` — Crawls external URLs linked in Canvas courses, extracts content using `@mozilla/readability`, and indexes to Pinecone. Features: domain-specific selectors, PDF detection, content hashing for dedup, login page blocking. Invoked during Canvas sync to index linked resources.
 
 ### Document Processing
 
@@ -395,7 +406,7 @@ onSave(subtasks.map(({ approved: _approved, ...task }) => task));
 - `backend/src/utils/htmlUtils.ts` — `stripHtml(html, { removeStyles?: boolean })`
 - `backend/src/utils/logger.ts` — Pino logger singleton (auto-redacts PII)
 - `backend/src/utils/auditLog.ts` — `audit()` + `AUDIT_ACTIONS` for structured audit events
-- `backend/src/utils/kryptering.ts` — `encrypt()` / `decrypt()` for AES-256-GCM (Canvas tokens, chat history)
+- `backend/src/utils/kryptering.ts` — `encrypt()` / `decrypt()` for AES-256-GCM (Canvas tokens, chat history). Versioned format (`v1:iv:authTag:encrypted`) with backward-compatible legacy support. `ENCRYPTION_KEY_PREVIOUS` enables seamless key rotation.
 
 **Frontend**:
 
@@ -442,7 +453,7 @@ pnpm install
 pnpm build  # Builds common package first!
 ```
 
-**Environment**: Copy `backend/.env.example` → `backend/.env` and `frontend/.env.example` → `frontend/.env`, fill in required values. Required for dev: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, Turnstile/contact vars. Optional: `CLERK_WEBHOOK_SECRET` (for Clerk user.deleted webhook — logs warning if missing). Production additionally requires `API_HOST`, `TRUST_PROXY_HOPS`, `WEB_ORIGINS` and optional `INTERNAL_HOSTS` (comma-separated hostnames for internal traffic, e.g. Vercel → Heroku direct), plus Datadog APM (`DD_*`). For Docker: copy `docker.env.example` → `.env` in project root (see Docker section above).
+**Environment**: Copy `backend/.env.example` → `backend/.env` and `frontend/.env.example` → `frontend/.env`, fill in required values. Required for dev: `MONGO_URI`, `REDIS_URL`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, Turnstile/contact vars. Optional: `CLERK_WEBHOOK_SECRET` (for Clerk user.deleted webhook — logs warning if missing), `ENCRYPTION_KEY_PREVIOUS` (for key rotation — set to the old key when rotating `ENCRYPTION_KEY`). Production additionally requires `API_HOST`, `TRUST_PROXY_HOPS`, `WEB_ORIGINS` and optional `INTERNAL_HOSTS` (comma-separated hostnames for internal traffic, e.g. Vercel → Heroku direct), plus Datadog APM (`DD_*`). For Docker: copy `docker.env.example` → `.env` in project root (see Docker section above).
 
 ### CI Pipeline (`.github/workflows/ci.yml`)
 

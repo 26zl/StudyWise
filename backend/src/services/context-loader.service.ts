@@ -2021,6 +2021,10 @@ export async function loadCanvasContext(
     return { kontekst: "", hasCanvasData: false, source: "none" };
   }
 
+  // Avbryt tidlig dersom forespørselen allerede er avsluttet
+  const ABORTED_RESULT: ContextResult = { kontekst: "", hasCanvasData: false, source: "none" };
+  if (signal?.aborted) return ABORTED_RESULT;
+
   // Sett generiske moduleHints til null tidlig i pipelinen slik at alle nedstrøms filtre
   // ikke blokkerer resultater pga. ord som "leksjonene", "forelesningene" osv.
   // courseHint beholdes alltid — det er alltid spesifikt nok til å identifisere et kurs.
@@ -2110,6 +2114,9 @@ export async function loadCanvasContext(
     }
     return { kontekst: "", hasCanvasData: false, source: "none" };
   }
+
+  // Sjekk abort-signal før tyngre søkeoperasjoner
+  if (signal?.aborted) return ABORTED_RESULT;
 
   // ── Hybrid søk når chunkHint finnes (uavhengig av intent) ──
   // chunkHint indikerer at brukeren spør om spesifikt faginnhold, selv om
@@ -2265,6 +2272,9 @@ export async function loadCanvasContext(
     }
   }
 
+  // Sjekk abort-signal før canvas_full søketrinn
+  if (signal?.aborted) return ABORTED_RESULT;
+
   // Trinn 0: Hybrid søk (Pinecone + BM25 → RRF → Cohere Rerank)
   // Hopp over om chunkHint-stien allerede kjørte identisk søk.
   if (!hybridAlreadyAttempted && !shouldPreferStructuredContext && hasStoredAIContent && message) {
@@ -2302,6 +2312,9 @@ export async function loadCanvasContext(
     const kontekst = "<canvas-kursdata>\n" + announcementBlock + "\n</canvas-kursdata>";
     return { kontekst, hasCanvasData: true, source: "redis" };
   }
+
+  // Sjekk abort-signal før chunk-søk og metadata-oppslag
+  if (signal?.aborted) return ABORTED_RESULT;
 
   // Trinn 1: Chunk-basert søk (keyword fallback når hybrid søk ikke ga treff)
   if (!shouldPreferStructuredContext && hasStoredAIContent && message) {
@@ -2408,6 +2421,9 @@ export async function loadCanvasContext(
     }
     return { kontekst: "", hasCanvasData: false, source: "none" };
   }
+
+  // Sjekk abort-signal før siste fallback-runde
+  if (signal?.aborted) return ABORTED_RESULT;
 
   // canvas_full uten spesifikt mål → bruk lett kontekst (som eksisterende logikk)
   if (hasRedisSyncData) {

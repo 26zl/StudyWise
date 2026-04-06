@@ -1084,6 +1084,8 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       }
 
       if (!usedSessionCache) {
+        // Lagre timeout-handle slik at vi kan rydde opp etter Promise.race
+        let contextTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
         contextResult = await Promise.race([
           loadCanvasContext(
             req.user.id,
@@ -1096,13 +1098,15 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
             contextPrefs,
             hiddenCourseIds,
           ),
-          new Promise<ContextResult>((resolve) =>
-            setTimeout(
+          new Promise<ContextResult>((resolve) => {
+            contextTimeoutHandle = setTimeout(
               () => resolve({ kontekst: "[CANVAS STATUS: Henting tok for lang tid. Prøv igjen.]", hasCanvasData: false, source: "none" }),
               KI_TIMEOUT_MS,
-            ),
-          ),
+            );
+          }),
         ]);
+        // Rydd opp timeout for å unngå timer-lekkasje
+        if (contextTimeoutHandle) clearTimeout(contextTimeoutHandle);
 
         // Cache for oppfølgingsspørsmål i samme sesjon (kun når vi fikk faktisk data)
         const hasRichCanvasContent =
