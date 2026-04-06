@@ -264,15 +264,15 @@ export const enMessages = {
       dismissError: "Could not remove the conflict. Please try again.",
     },
     humanCheck: {
-      eyebrow: "Cloudflare Turnstile",
-      title: "Extra bot protection",
+      eyebrow: "Security check",
+      title: "Security verification",
       description:
         "This check is integrated alongside sign in and sign up to reduce automated abuse.",
       verifying: "Verifying...",
       widgetError:
-        "We could not load Cloudflare Turnstile. Reload the page and try again.",
+        "We could not load the security verification. Reload the page and try again.",
       gateError:
-        "Security verification expired. Reload the page and complete the Turnstile check.",
+        "Security verification expired. Reload the page and complete the check.",
       rechallenge: {
         title: "Security verification",
         description: "Your session needs a new security check. Complete the verification to continue.",

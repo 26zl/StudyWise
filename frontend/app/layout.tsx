@@ -75,7 +75,11 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const initialLanguage = await resolveInitialLanguage();
+  const [initialLanguage, headerStore] = await Promise.all([
+    resolveInitialLanguage(),
+    headers(),
+  ]);
+  const nonce = headerStore.get("x-nonce") ?? undefined;
 
   return (
     <html lang={initialLanguage} suppressHydrationWarning>
@@ -84,10 +88,11 @@ export default async function RootLayout({
         <link rel="dns-prefetch" href="https://clerk.studwize.page" />
       </head>
       <body className="antialiased min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950" suppressHydrationWarning>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange nonce={nonce}>
           <MainAppShell
             clerkPublishableKey={clerkPublishableKey}
             initialLanguage={initialLanguage}
+            nonce={nonce}
           >
             {children}
           </MainAppShell>

@@ -266,15 +266,15 @@ export const nbMessages = {
       dismissError: "Kunne ikke fjerne konflikten. Prøv igjen.",
     },
     humanCheck: {
-      eyebrow: "Cloudflare Turnstile",
-      title: "Botbeskyttelse",
+      eyebrow: "Sikkerhetssjekk",
+      title: "Sikkerhetsverifisering",
       description:
         "Denne kontrollen er integrert sammen med innlogging og registrering for å redusere automatisert misbruk.",
       verifying: "Verifiserer...",
       widgetError:
-        "Vi klarte ikke å laste Cloudflare Turnstile. Last siden på nytt og prøv igjen.",
+        "Vi klarte ikke å laste sikkerhetsverifiseringen. Last siden på nytt og prøv igjen.",
       gateError:
-        "Sikkerhetsverifisering utløpt. Last siden på nytt og fullfør Turnstile-sjekken.",
+        "Sikkerhetsverifisering utløpt. Last siden på nytt og fullfør sjekken.",
       rechallenge: {
         title: "Sikkerhetsverifisering",
         description: "Sesjonen din trenger en ny sikkerhetssjekk. Fullfør verifiseringen for å fortsette.",

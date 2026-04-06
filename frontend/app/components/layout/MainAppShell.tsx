@@ -35,10 +35,12 @@ export function MainAppShell({
   children,
   clerkPublishableKey,
   initialLanguage,
+  nonce,
 }: {
   children: React.ReactNode;
   clerkPublishableKey?: string | null;
   initialLanguage: Language;
+  nonce?: string;
 }) {
   const pathname = usePathname();
   const usesSidebarShell =
@@ -48,7 +50,7 @@ export function MainAppShell({
     pathname === "/ai-breakdown";
 
   return (
-    <Providers clerkPublishableKey={clerkPublishableKey} initialLanguage={initialLanguage}>
+    <Providers clerkPublishableKey={clerkPublishableKey} initialLanguage={initialLanguage} nonce={nonce}>
       <div className="flex flex-col min-h-screen">
         <SkipToContentLink />
         <Header />

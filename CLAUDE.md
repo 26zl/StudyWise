@@ -153,7 +153,7 @@ Docker brukes **kun for lokal utvikling** — ikke i produksjon. Requires `backe
 
 ### Deployment
 
-- **Backend**: Heroku (Professional dyno + Datadog buildpack) — auto-deploys from `main` via Heroku Automatic Deploys
+- **Backend**: Heroku (2× Standard-2X dynos + Datadog buildpack) — auto-deploys from `main` via Heroku Automatic Deploys. Node runs with `--max-old-space-size=384 --expose-gc` (see `Procfile`) to constrain V8 heap on 512MB dynos and enable manual GC in memory pressure checks.
 - **Frontend**: Vercel — deployed via `deploy.yml` after CI passes
 - **Security/CDN**: Cloudflare (DDoS, SSL/TLS, caching)
 - **Docs**: GitHub Pages — deployed via `deploy.docs.yml` on changes to `docs/`
@@ -188,7 +188,7 @@ Request authentication flows through middleware in `backend/src/middleware/`:
 
 Typical route setup: `router.use(requireAuth)` then per-route `knyttCanvasToken` where Canvas access is needed.
 
-4. **`requireRecentAuth`** (`auth.ts`) — Step-up security: requires the Clerk session to be created within the last 10 minutes. Used for irreversible operations (account deletion, admin role changes, admin user deletion).
+4. **`requireRecentAuth`** (`auth.ts`) — Step-up security: requires the Clerk session to be created within the last 10 minutes. Used for irreversible operations (account deletion, admin role changes, admin user deletion). **Must be placed before rate limit middleware** so failed step-up checks don't consume rate limit tokens.
 
 ### Account Deletion
 
@@ -283,6 +283,11 @@ Each file handles a distinct AI feature:
 - `weeklyPlan.ts` - AI-generated weekly study plans
 - `kiExport.ts` - Export AI content (markdown, PDF, Word, text, Notion)
 
+Other AI routes (outside `ki/`):
+
+- `quiz/quiz.ts` - Quiz generation from Canvas course content (POST `/api/quiz/generate`)
+- `flashcards/flashcards.ts` - Flashcard generation from Canvas course content (POST `/api/flashcards/generate`)
+
 Other routes:
 
 - `contact/contact.ts` - Handles contact form submissions with Turnstile verification and forwards to Cloudflare Worker.
@@ -299,6 +304,16 @@ Shared infrastructure (reuse these, don't duplicate):
 SSE endpoints must check `res.writableEnded` before writing keepalive pings. SSE responses skip gzip compression (`text/event-stream` filter in `backend/src/index.ts`).
 
 **KI context loading**: When loading Canvas context for chat, an `AbortController` is created and its `signal` is passed to `loadCanvasContext` → `syncCanvasDataForUser`. On `res.once('finish')` / `res.once('close')` the controller aborts so background sync stops when the response ends.
+
+### Canvas Sync (Distributed)
+
+`backend/src/services/canvas-sync.service.ts` — Syncs Canvas data to Redis (structure) and MongoDB (content chunks for AI search). Key design decisions:
+
+- **Distributed lock**: Redis `SET NX` prevents multiple Heroku dynos from syncing the same user simultaneously. Lock has 600s TTL as safety net; released in `finally` block.
+- **Memory pressure**: `checkMemoryPressure()` monitors **RSS** (not just V8 heap) since native libraries (sharp, tesseract, unpdf) allocate outside the heap. Threshold is 300MB to leave headroom on 512MB Heroku dynos.
+- **OCR limits during sync**: Max 1 PDF page OCR'd during sync (vs 10 in interactive mode). Files >5MB skip OCR entirely during sync.
+- **Duplicate handling**: `embedding.service.ts` uses `insertMany({ ordered: false })` and gracefully handles E11000 duplicate key errors from concurrent writes.
+- **Abort support**: `AbortSignal` stops sync when the triggering chat response completes.
 
 ### Web Crawler
 
@@ -480,7 +495,7 @@ All jobs have `permissions: contents: read` and `actions: read` (workflow-level 
 
 ### CSP (Content Security Policy)
 
-Nonce-based CSP is enforced per request in `frontend/proxy.ts`. `buildCspValue(nonce)` from `next.config.js` generates the policy: production uses `'nonce-<value>'` + `'strict-dynamic'` for script-src, dev falls back to `'unsafe-inline'`. The nonce is passed to layout via the `x-nonce` request header.
+Nonce-based CSP is enforced per request in `frontend/proxy.ts`. `buildCspValue(nonce)` from `next.config.js` generates the policy: production uses `'nonce-<value>'` + `'strict-dynamic'` for script-src, dev falls back to `'unsafe-inline'`. The nonce is passed to layout via the `x-nonce` request header, then threaded through `MainAppShell` → `Providers` → `ClerkProvider` so Clerk can mark its dynamically injected scripts with the nonce. **With `'strict-dynamic'`, host-based allowlists in script-src are ignored** — only nonced scripts and scripts they dynamically create are trusted.
 
 ### No Hardcoding of Secrets
 
@@ -515,6 +530,7 @@ When hiding Clerk UI sections via `appearance.elements`, Tailwind class `"hidden
 - **"bad auth : authentication failed"** (Atlas) → Verify username/password and Database Access permissions.
 - **TypeScript errors after changes in `common/`** → Run `pnpm build:common`, then `pnpm typecheck`
 - **Redis "almost full" / high memory** → Redis caches Canvas API + sync structure (per user/course). Set **maxmemory-policy** to `allkeys-lru` (or `volatile-lru`) so Redis evicts old keys instead of rejecting writes. Increase Redis memory in Redis Cloud if needed. Sync cache TTL is 2 hours (`SYNC_CACHE_TTL = 7200`) to limit growth.
+- **Heroku R14 (Memory quota exceeded)** → Native memory from sharp/tesseract/unpdf accumulates outside V8 heap. `--max-old-space-size=384` in `Procfile` constrains V8; `--expose-gc` enables `global.gc()` in `checkMemoryPressure()`. If a dyno is stuck at high memory, restart it (`heroku ps:restart web.N`). Next deploy restarts both dynos automatically.
 
 ---
 

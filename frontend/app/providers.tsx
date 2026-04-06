@@ -31,9 +31,11 @@ function normalizeProfileField(value: string | null | undefined): string | undef
 function ClerkProviderMedSprak({
   children,
   clerkPublishableKey,
+  nonce,
 }: {
   children: React.ReactNode;
   clerkPublishableKey?: string | null;
+  nonce?: string;
 }) {
   const { language } = useLanguage();
 
@@ -43,6 +45,7 @@ function ClerkProviderMedSprak({
       localization={language === "en" ? enUS : nbNO}
       signInUrl="/auth/sign-in"
       signUpUrl="/auth/sign-up"
+      nonce={nonce}
       dynamic
     >
       {children}
@@ -353,10 +356,12 @@ export function Providers({
   children,
   clerkPublishableKey,
   initialLanguage,
+  nonce,
 }: {
   children: React.ReactNode;
   clerkPublishableKey?: string | null;
   initialLanguage: Language;
+  nonce?: string;
 }) {
   // Lager en instans av QueryClient som håndterer caching av data.
   // useState sikrer at clienten bare lages én gang per sesjon (ikke på hver render).
@@ -379,7 +384,7 @@ export function Providers({
   // Dette gjør at alle komponenter inni kan bruke hooks som useQuery().
   return (
     <LanguageProvider initialLanguage={initialLanguage}>
-      <ClerkProviderMedSprak clerkPublishableKey={clerkPublishableKey}>
+      <ClerkProviderMedSprak clerkPublishableKey={clerkPublishableKey} nonce={nonce}>
         <QueryClientProvider client={queryClient}>
           <NuqsAdapter>
             <ClerkTokenSync />
