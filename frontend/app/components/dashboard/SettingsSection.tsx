@@ -242,11 +242,18 @@ export function SettingsSection({
     const [isDeletingNotion, setIsDeletingNotion] = useState(false);
     const [visNotionSlettBekreftelse, setVisNotionSlettBekreftelse] = useState(false);
 
-    // Hent Notion-status ved oppstart
+    // Hent Notion-status når Canvas-token er tilgjengelig
     useEffect(() => {
+        if (!harCanvasToken) {
+            setIsLoadingNotion(false);
+            return;
+        }
+        let avbrutt = false;
         const fetchNotionStatus = async () => {
+            setIsLoadingNotion(true);
             try {
                 const res = await fetchApi("/api/user/notion", { method: "GET" });
+                if (avbrutt) return;
                 if (res.ok) {
                     const data = await res.json() as {
                         hasApiKey: boolean;
@@ -256,13 +263,14 @@ export function SettingsSection({
                     setNotionDefaultPageId(data.defaultPageId ?? "");
                 }
             } catch {
-                // Ignore errors, just show as not configured
+                // Ignorer feil, vis som ikke konfigurert
             } finally {
-                setIsLoadingNotion(false);
+                if (!avbrutt) setIsLoadingNotion(false);
             }
         };
         void fetchNotionStatus();
-    }, []);
+        return () => { avbrutt = true; };
+    }, [harCanvasToken]);
 
     // Lagre Notion-innstillinger
     const handleSaveNotion = async () => {
@@ -447,14 +455,6 @@ export function SettingsSection({
                                     {t("settings.profile.title")}
                                 </h3>
                             </div>
-                            <Link
-                                href="/account"
-                                prefetch={false}
-                                className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-                            >
-                                {t("settings.accountSecurity.action")}
-                                <ExternalLink size={14} />
-                            </Link>
                         </div>
 
                         <div className="space-y-4">

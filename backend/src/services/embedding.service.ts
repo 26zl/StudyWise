@@ -277,13 +277,37 @@ export async function upsertStoredFileContent(options: {
   }
 
   if (toInsert.length > 0) {
-    const inserted = await ContentEmbedding.insertMany(toInsert, { ordered: true });
-    for (let i = 0; i < inserted.length; i++) {
-      pineconeRecords.push({
-        id: inserted[i]._id.toString(),
-        text: toInsert[i].text,
-        metadata: { userId, courseId, moduleId, fileId, chunkIndex: toInsert[i].chunkIndex },
-      });
+    try {
+      // ordered: false — fortsett innsetting selv om enkeltdokumenter feiler (f.eks. E11000 duplikatnøkkel
+      // fra en annen prosess som satt inn samme chunk samtidig)
+      const inserted = await ContentEmbedding.insertMany(toInsert, { ordered: false });
+      for (let i = 0; i < inserted.length; i++) {
+        pineconeRecords.push({
+          id: inserted[i]._id.toString(),
+          text: inserted[i].text,
+          metadata: { userId, courseId, moduleId, fileId, chunkIndex: inserted[i].chunkIndex },
+        });
+      }
+    } catch (err: unknown) {
+      // Ved duplikatnøkkel-feil (E11000) har noen chunks allerede blitt satt inn av en annen prosess.
+      // insertMany med ordered:false setter inn alle den kan og kaster feil for duplikatene.
+      const bulkErr = err as { code?: number; insertedDocs?: Array<{ _id: mongoose.Types.ObjectId; text: string; chunkIndex: number }> };
+      if (bulkErr.code === 11000) {
+        const successDocs = bulkErr.insertedDocs ?? [];
+        logger.info(
+          { userId, fileId, attempted: toInsert.length, inserted: successDocs.length },
+          "Noen chunks var allerede satt inn av en annen prosess — fortsetter med de vellykkede",
+        );
+        for (const doc of successDocs) {
+          pineconeRecords.push({
+            id: doc._id.toString(),
+            text: doc.text,
+            metadata: { userId, courseId, moduleId, fileId, chunkIndex: doc.chunkIndex },
+          });
+        }
+      } else {
+        throw err;
+      }
     }
   }
 

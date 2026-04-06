@@ -308,7 +308,8 @@ export default function ProfilPage() {
                 },
                 elements: {
                   rootBox: "w-full max-w-full",
-                  card: "w-full max-w-full border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800/95",
+                  cardBox: { boxShadow: "none", borderRadius: "0.75rem", border: "1px solid var(--clerk-color-border)" },
+                  card: "w-full max-w-full border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/95",
                   navbar: "max-sm:w-full",
                   scrollBox: "max-w-full",
                   // Skjul Clerk sin innebygde "Delete account" — vi har vår egen

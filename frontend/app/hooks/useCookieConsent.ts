@@ -40,8 +40,17 @@ function readGuestConsentFromStorage(): CookieConsentStatus {
   }
 
   try {
-    // Gjestesamtykke lagres i sessionStorage (kun gjeldende økt, i tråd med personvernpolicy)
-    return parseCookieConsent(window.sessionStorage.getItem(GUEST_COOKIE_CONSENT_STORAGE_KEY));
+    // Prøv localStorage først (persistent), deretter sessionStorage (migrering fra gammel kode)
+    const fromLocal = parseCookieConsent(window.localStorage.getItem(GUEST_COOKIE_CONSENT_STORAGE_KEY));
+    if (fromLocal) return fromLocal;
+    const fromSession = parseCookieConsent(window.sessionStorage.getItem(GUEST_COOKIE_CONSENT_STORAGE_KEY));
+    if (fromSession) {
+      // Migrer til localStorage og rydd opp sessionStorage
+      window.localStorage.setItem(GUEST_COOKIE_CONSENT_STORAGE_KEY, fromSession);
+      window.sessionStorage.removeItem(GUEST_COOKIE_CONSENT_STORAGE_KEY);
+      return fromSession;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -54,11 +63,12 @@ function writeGuestConsentToStorage(consent: CookieConsentStatus): void {
 
   try {
     if (consent === null) {
+      window.localStorage.removeItem(GUEST_COOKIE_CONSENT_STORAGE_KEY);
       window.sessionStorage.removeItem(GUEST_COOKIE_CONSENT_STORAGE_KEY);
       return;
     }
-    // Gjestesamtykke lagres i sessionStorage (kun gjeldende økt, i tråd med personvernpolicy)
-    window.sessionStorage.setItem(GUEST_COOKIE_CONSENT_STORAGE_KEY, consent);
+    // Samtykkevalg er ikke persondata — trygt å lagre persistent i localStorage
+    window.localStorage.setItem(GUEST_COOKIE_CONSENT_STORAGE_KEY, consent);
   } catch {
     // Ignorer lagringsfeil i låste miljøer.
   }

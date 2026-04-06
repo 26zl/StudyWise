@@ -91,6 +91,24 @@
     }
 }
 
+
+/* Clerk badges ("Primary", "This device") har for lav kontrast */
+.cl-badge[data-color="primary"],
+.cl-badge[data-color="warning"] {
+    color: #475569 !important;
+    opacity: 1 !important;
+}
+.dark .cl-badge[data-color="primary"],
+.dark .cl-badge[data-color="warning"] {
+    color: #94a3b8 !important;
+}
+@media (prefers-color-scheme: dark) {
+    :root:not(.light) .cl-badge[data-color="primary"],
+    :root:not(.light) .cl-badge[data-color="warning"] {
+        color: #94a3b8 !important;
+    }
+}
+
 *,
 *::before,
 *::after {

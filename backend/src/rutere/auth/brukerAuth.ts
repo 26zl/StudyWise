@@ -1140,7 +1140,7 @@ router.post("/logout", rateLimitMe, async (req, res) => {
 
 // DELETE /account — slett egen konto og all tilknyttet data (GDPR).
 // Krever auth + nylig sesjon (step-up) for å forhindre misbruk ved stjålet session.
-router.delete("/account", rateLimitAccountDeletion, requireRecentAuth, async (req, res) => {
+router.delete("/account", requireRecentAuth, rateLimitAccountDeletion, async (req, res) => {
   const userId = req.user?.id;
   if (!userId) {
     return apiError.unauthorized(res);

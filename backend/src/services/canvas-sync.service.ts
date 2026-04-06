@@ -28,6 +28,7 @@ import {
   deleteCacheKeys,
   getCache,
   setCache,
+  setCacheNX,
   isRedisReady,
   invalidateCacheByPattern,
 } from "../cache/redis.js";
@@ -78,18 +79,30 @@ const SYNC_STATUS_TTL = 300;
 const MAX_FILES_PER_SYNC = 200;
 
 /** Minneterskel i MB — pauser filekstraksjon over dette nivået */
-const MEMORY_PRESSURE_THRESHOLD_MB = 380;
+const MEMORY_PRESSURE_THRESHOLD_MB = 300;
+
+/** TTL for distribuert sync-lås i Redis (sekunder) — forhindrer at flere dynoer synker samtidig */
+const SYNC_LOCK_TTL_S = 600;
+
+/** Redis-nøkkel for distribuert sync-lås */
+function syncLockKey(userId: string): string {
+  return userKey(userId, "sync", "lock");
+}
 
 /**
  * Sjekker minnebruk og pauser ved høyt trykk.
+ * Bruker RSS (resident set size) i stedet for bare heapUsed, fordi native minnebruk
+ * fra sharp/tesseract/unpdf ikke vises i V8 heap men teller mot Heroku sin 512MB-grense.
  * Returnerer true hvis vi er over terskelen (etter å ha forsøkt GC).
  */
 async function checkMemoryPressure(userId: string): Promise<boolean> {
-  const heapUsedMB = Math.round(process.memoryUsage().heapUsed / (1024 * 1024));
-  if (heapUsedMB < MEMORY_PRESSURE_THRESHOLD_MB) return false;
+  const mem = process.memoryUsage();
+  const rssMB = Math.round(mem.rss / (1024 * 1024));
+  const heapUsedMB = Math.round(mem.heapUsed / (1024 * 1024));
+  if (rssMB < MEMORY_PRESSURE_THRESHOLD_MB) return false;
 
   logger.warn(
-    { userId, heapUsedMB, threshold: MEMORY_PRESSURE_THRESHOLD_MB },
+    { userId, rssMB, heapUsedMB, threshold: MEMORY_PRESSURE_THRESHOLD_MB },
     "Minnetrykk oppdaget under sync — pauser filekstraksjon",
   );
 
@@ -101,13 +114,14 @@ async function checkMemoryPressure(userId: string): Promise<boolean> {
   // Gi event-loopen tid til å rydde opp
   await new Promise((resolve) => setTimeout(resolve, 500));
 
-  const heapAfterMB = Math.round(process.memoryUsage().heapUsed / (1024 * 1024));
+  const memAfter = process.memoryUsage();
+  const rssAfterMB = Math.round(memAfter.rss / (1024 * 1024));
   logger.info(
-    { userId, heapBeforeMB: heapUsedMB, heapAfterMB },
+    { userId, rssBeforeMB: rssMB, rssAfterMB, heapAfterMB: Math.round(memAfter.heapUsed / (1024 * 1024)) },
     "Minnesjekk etter GC-forsøk",
   );
 
-  return heapAfterMB >= MEMORY_PRESSURE_THRESHOLD_MB;
+  return rssAfterMB >= MEMORY_PRESSURE_THRESHOLD_MB;
 }
 
 // ─── Typer ─────────────────────────────────────────────────
@@ -234,9 +248,19 @@ export async function syncCanvasDataForUser(
   signal?: AbortSignal,
   options?: SyncOptions,
 ): Promise<SyncResult> {
-  // Hvis det allerede pågår en sync for denne brukeren, vent på den
+  // Hvis det allerede pågår en sync for denne brukeren i denne prosessen, vent på den
   const existing = activeSyncs.get(userId);
   if (existing) return existing;
+
+  // Distribuert lås via Redis — forhindrer at flere dynoer synker samme bruker samtidig
+  const lockKey = syncLockKey(userId);
+  if (isRedisReady()) {
+    const acquired = await setCacheNX(lockKey, `${Date.now()}`, SYNC_LOCK_TTL_S);
+    if (!acquired) {
+      logger.info({ userId }, "Canvas sync hoppet over — en annen instans synker allerede denne brukeren");
+      return { synced: false, courses: { total: 0, updated: 0, unchanged: 0, failed: 0 }, durationMs: 0 };
+    }
+  }
 
   const promise = _doSync(userId, canvasToken, baseUrl, signal, options);
   activeSyncs.set(userId, promise);
@@ -256,11 +280,15 @@ export async function syncCanvasDataForUser(
   } finally {
     activeSyncs.delete(userId);
     if (isRedisReady()) {
-      await setCache(
-        syncStatusKey(userId),
-        JSON.stringify({ status: "done", completedAt: Date.now() }),
-        SYNC_STATUS_TTL,
-      ).catch((err) => logger.warn({ err, userId }, "Kunne ikke sette sync-status til 'done' i Redis"));
+      await Promise.all([
+        setCache(
+          syncStatusKey(userId),
+          JSON.stringify({ status: "done", completedAt: Date.now() }),
+          SYNC_STATUS_TTL,
+        ),
+        // Frigjør distribuert lås slik at neste sync kan starte
+        deleteCacheKeys([lockKey]),
+      ]).catch((err) => logger.warn({ err, userId }, "Kunne ikke oppdatere sync-status/lås i Redis"));
     }
   }
 }
@@ -867,6 +895,10 @@ async function _doSync(
                   pageLimit(async () => {
                     if (signal?.aborted) return;
                     if (fileCount >= maxFilesPerSync) return;
+                    if (await checkMemoryPressure(userId)) {
+                      logger.warn({ userId, courseId, pageTitle: item.title }, "Avbryter page-ekstraksjon pga. høyt minnetrykk");
+                      return;
+                    }
 
                     // Bruk item.id som fileId for Pages (unik innenfor kurset)
                     const pageItemId = item.id;

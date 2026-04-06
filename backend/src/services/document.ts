@@ -39,7 +39,7 @@ import { extractTextFromFile, getCodeLanguage } from "./fileExtractor.js";
 const OCR_TIMEOUT_MS = 60000; // 60 sekunder timeout for OCR
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB maks filstørrelse for parsing
 const MAX_OCR_PAGES = 10; // Maks antall PDF-sider som OCR-es (interaktiv analyse)
-const MAX_OCR_PAGES_SYNC = 3; // Maks antall PDF-sider som OCR-es under Canvas sync (minnegrense)
+const MAX_OCR_PAGES_SYNC = 1; // Maks antall PDF-sider som OCR-es under Canvas sync (minnegrense på Heroku 512MB)
 /** Maks filstørrelse for OCR under sync — store skannede PDF-er hopper over OCR */
 const MAX_OCR_FILE_SIZE_SYNC = 5 * 1024 * 1024; // 5MB
 /** Maks dekompresjonsforhold for ZIP-baserte filer (DOCX/PPTX/XLSX) — beskytter mot zip-bomber */
