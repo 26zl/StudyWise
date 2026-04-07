@@ -318,7 +318,7 @@ function SyncConflictBanner() {
   if (conflicts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex max-w-md flex-col gap-2">
+    <div className="fixed right-4 z-50 flex max-w-md flex-col gap-2" style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
       {conflicts.map((c) => (
         <div
           key={c.type}

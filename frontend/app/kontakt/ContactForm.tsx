@@ -185,7 +185,7 @@ export function ContactForm() {
   };
 
   const inputClassName =
-    "w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400";
+    "w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-base sm:text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400";
 
   const errorClassName = "mt-1 text-sm text-red-500 dark:text-red-400";
   const acceptedTypes = KONTAKT_ALLOWED_ATTACHMENT_TYPES.join(",");

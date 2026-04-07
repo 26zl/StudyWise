@@ -15,7 +15,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.67",
     "@anthropic-ai/sdk": "^0.78.0",
-    "@clerk/backend": "^3.2.4",
+    "@clerk/backend": "^3.2.7",
     "@mozilla/readability": "^0.6.0",
     "@napi-rs/canvas": "^0.1.97",
     "@pinecone-database/pinecone": "^7.1.0",

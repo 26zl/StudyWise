@@ -51,13 +51,13 @@ export function MainAppShell({
 
   return (
     <Providers clerkPublishableKey={clerkPublishableKey} initialLanguage={initialLanguage} nonce={nonce}>
-      <div className="flex flex-col min-h-screen">
+      <div className={`flex flex-col ${usesSidebarShell ? "h-dvh overflow-hidden" : "min-h-dvh"}`}>
         <SkipToContentLink />
         <Header />
         <main
           id="main-content"
           tabIndex={-1}
-          className={`flex-1 min-h-0 relative flex flex-col outline-none ${usesSidebarShell ? "overflow-y-hidden" : "overflow-y-auto"}`}
+          className={`flex-1 relative flex flex-col outline-none ${usesSidebarShell ? "min-h-0 overflow-y-hidden" : ""}`}
         >
           <ErrorBoundary>
             {children}

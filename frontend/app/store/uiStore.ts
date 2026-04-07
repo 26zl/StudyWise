@@ -75,7 +75,9 @@ const defaultSelection: CanvasContextPreferences = {
 
 // Oppretter storen som en hook (useUIStore) som kan brukes i alle komponenter
 export const useUIStore = create<UIState>()((set) => ({
-    isVenstreMenyOpen: true, // Default: venstremeny synlig; på desktop kan bruker lukke/åpne med knappen
+    // Default LUKKET — må være konstant for å matche SSR (window finnes ikke på server).
+    // Sidebar.tsx åpner den på desktop ved mount via et media-query-effect.
+    isVenstreMenyOpen: false,
     toggleVenstreMeny: () => set((state) => ({ isVenstreMenyOpen: !state.isVenstreMenyOpen })),
     lukkVenstreMeny: () => set({ isVenstreMenyOpen: false }),
     settVenstreMenyOpen: (isOpen) => set({ isVenstreMenyOpen: isOpen }),

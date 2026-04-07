@@ -76,6 +76,11 @@ import {
   processPendingClerkDeletions,
 } from "./services/clerkDeletionRetry.service.js";
 import {
+  startChatHistoryCleanupPolling,
+  sweepCorruptedChatHistory,
+} from "./services/chatHistoryCleanup.service.js";
+import { validateEncryptionKeyAtStartup } from "./utils/validateEncryptionKey.js";
+import {
   startPendingVectorDeletionPolling,
   processPendingVectorDeletions,
 } from "./services/vectorDeletionRetry.service.js";
@@ -413,7 +418,14 @@ connectToDatabase()
     } else {
       logger.warn("Cohere ikke tilgjengelig ved oppstart");
     }
+    // Validér ENCRYPTION_KEY mot eksisterende data (warner kun, stopper ikke oppstart)
+    void validateEncryptionKeyAtStartup();
+
     const dependencyHealthInterval = startExternalDependencyHealthPolling();
+    const chatHistoryCleanupInterval = startChatHistoryCleanupPolling();
+    void sweepCorruptedChatHistory().catch((err) => {
+      logger.warn({ err }, "Initial ChatHistory-cleanup feilet");
+    });
     const clerkDeletionRetryInterval = startPendingClerkDeletionPolling();
     const vectorDeletionRetryInterval = startPendingVectorDeletionPolling();
     const webPushInterval = startWebPushPolling();
@@ -454,6 +466,7 @@ connectToDatabase()
         try {
           clearInterval(dependencyHealthInterval);
           clearInterval(shareCleanupInterval);
+          clearInterval(chatHistoryCleanupInterval);
           if (clerkDeletionRetryInterval) clearInterval(clerkDeletionRetryInterval);
           if (vectorDeletionRetryInterval) clearInterval(vectorDeletionRetryInterval);
           if (webPushInterval) clearInterval(webPushInterval);

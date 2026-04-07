@@ -118,7 +118,7 @@ export default function SignInSSOCallbackPage() {
   }, [clerk, signIn, signUp, setActive]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
+    <div className="flex min-h-dvh items-center justify-center px-4">
       {/* Påkrevd for Clerks bot-registreringsbeskyttelse */}
       <div id="clerk-captcha" />
       <div className="w-full max-w-md space-y-4">

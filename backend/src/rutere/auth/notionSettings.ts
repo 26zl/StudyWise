@@ -88,12 +88,14 @@ async function verifiserNotionPageId(apiKey: string, pageId: string): Promise<st
 
 /** Request schema for saving Notion settings. */
 const NotionSettingsRequestSchema = z.object({
-    apiKey: z.string().min(1, "API-nøkkel er påkrevd")
+    apiKey: z.string()
+        .min(1, "API-nøkkel er påkrevd")
+        .max(200, "API-nøkkel er for lang")
         .refine((key) => /^(ntn_|secret_)/.test(key.trim()), {
             message: "Ugyldig Notion API-nøkkel. Nøkkelen skal starte med 'ntn_' eller 'secret_'.",
         })
         .optional(),
-    defaultPageId: z.string().optional(),
+    defaultPageId: z.string().max(100, "Side-ID er for lang").optional(),
     clearApiKey: z.boolean().optional(), // If true, delete existing API key
 });
 

@@ -497,13 +497,13 @@ export function AITaskBreakdown({
                       type="text"
                       value={editForm.title || ""}
                       onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-base sm:text-sm text-slate-900 dark:text-white"
                       placeholder={t("taskBreakdown.fields.titlePlaceholder")}
                     />
                     <textarea
                       value={editForm.description || ""}
                       onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white resize-none"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-base sm:text-sm text-slate-900 dark:text-white resize-none"
                       rows={3}
                       placeholder={t("taskBreakdown.fields.descriptionPlaceholder")}
                     />
@@ -512,13 +512,13 @@ export function AITaskBreakdown({
                         type="text"
                         value={editForm.estimatedTime || ""}
                         onChange={(e) => setEditForm({ ...editForm, estimatedTime: e.target.value })}
-                        className="w-24 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                        className="w-24 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-base sm:text-sm text-slate-900 dark:text-white"
                         placeholder="2t"
                       />
                       <select
                         value={editForm.priority || "medium"}
                         onChange={(e) => setEditForm({ ...editForm, priority: e.target.value as "low" | "medium" | "high" })}
-                        className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                        className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-base sm:text-sm text-slate-900 dark:text-white"
                       >
                         <option value="low">{t("taskBreakdown.priority.low")}</option>
                         <option value="medium">{t("taskBreakdown.priority.medium")}</option>

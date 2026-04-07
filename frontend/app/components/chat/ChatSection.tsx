@@ -1620,7 +1620,7 @@ export function ChatSection() {
                             placeholder={vedlegg.length > 0 ? t("chat.placeholderAttachment") : t("chat.placeholderDefault")}
                             disabled={skriver || analyserarDokument}
                             rows={1}
-                            className="flex-1 resize-none bg-transparent py-2 text-[15px] text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:outline-none focus:ring-0 border-none shadow-none disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
+                            className="flex-1 resize-none bg-transparent py-2 text-base sm:text-[15px] text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:outline-none focus:ring-0 border-none shadow-none disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
                             style={{ outline: "none" }}
                         />
                         {skriver ? (

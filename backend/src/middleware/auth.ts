@@ -175,6 +175,8 @@ async function resolveAuthentication(req: Request): Promise<AuthResolution> {
 export interface CanvasTilkobling {
   canvasToken?: string;
   canvasBaseUrl?: string;
+  /** Settes hvis brukeren har et lagret token, men dekryptering feilet (f.eks. nøkkelrotasjon). */
+  decryptFailed?: boolean;
 }
 
 /**
@@ -207,13 +209,15 @@ export async function hentCanvasTilkoblingForBruker(
   }
 
   let canvasToken: string | undefined;
+  let decryptFailed = false;
   if (user.canvasApiToken) {
     try {
       canvasToken = decrypt(user.canvasApiToken);
     } catch (err) {
+      decryptFailed = true;
       logger.error(
         { userId, error: err instanceof Error ? err.message : "unknown" },
-        "Kunne ikke dekryptere Canvas API-token — ignorerer verdien",
+        "Kunne ikke dekryptere Canvas API-token — sannsynligvis ENCRYPTION_KEY-mismatch",
       );
     }
   }
@@ -221,6 +225,7 @@ export async function hentCanvasTilkoblingForBruker(
   return {
     canvasToken,
     canvasBaseUrl: validatedBaseUrl,
+    decryptFailed,
   };
 }
 
@@ -496,6 +501,16 @@ export const knyttCanvasToken = async (req: Request, res: Response, next: NextFu
         }
 
         if (!canvasTilkobling.canvasToken) {
+            if (canvasTilkobling.decryptFailed) {
+                res.status(401).json({
+                    error: "canvas_token_invalid",
+                    kode: "canvas_token_invalid",
+                    melding:
+                        "Canvas-tokenet ditt kunne ikke leses (sannsynligvis fordi krypteringsnøkkelen er endret). " +
+                        "Gå til Innstillinger og lagre tokenet på nytt.",
+                });
+                return;
+            }
             return apiError.unauthorized(res, "Brukeren har ikke tilknyttet et Canvas-token.");
         }
 

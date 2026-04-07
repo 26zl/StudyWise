@@ -183,7 +183,7 @@ export default function SamtalehistorikkPage() {
 
   if (megQuery.isError && !megQuery.data?.user) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-5 p-4">
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-5 p-4">
         <FeilMelding melding={getBrukerdataFeilmelding(megQuery.error, t)} />
         <button
           type="button"

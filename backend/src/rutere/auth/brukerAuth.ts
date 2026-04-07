@@ -409,21 +409,48 @@ router.post("/token", rateLimitToken, async (req, res) => {
       bruker.canvasBaseUrl === canvasBaseUrl &&
       timingSafeHexEqual(bruker.canvasTokenHash, nyTokenHash)
     ) {
-      // Token er uendret — Canvas-data er fortsatt gyldig, ikke invalider
-      // Varm cache i bakgrunnen i tilfelle Redis har utløpt
-      warmCanvasCache(cleanToken, canvasBaseUrl).catch((err) => {
-        logger.debug({ err }, "Bakgrunns cache-warming feilet (ikke-kritisk)");
-      });
-      logger.info(
-        { userId },
-        "Canvas token identisk (hash match) — ingen invalidering",
-      );
-      return res.json(
-        CanvasTokenResponseSchema.parse({
-          melding: "Token er allerede lagret",
-          success: true,
-        }),
-      );
+      // Hash-treff er ikke nok — verifiser at lagret token faktisk kan dekrypteres
+      // og at Canvas fortsatt godkjenner det. Hvis ikke, fall gjennom til full re-lagring
+      // slik at korrupt/utdatert kryptert verdi blir reparert.
+      let lagretTokenLeselig = false;
+      try {
+        lagretTokenLeselig =
+          !!bruker.canvasApiToken && decrypt(bruker.canvasApiToken) === cleanToken;
+      } catch {
+        lagretTokenLeselig = false;
+      }
+
+      if (lagretTokenLeselig) {
+        try {
+          await fetchUserProfile(cleanToken, canvasBaseUrl);
+          // Token er uendret og fortsatt gyldig — ingen invalidering
+          warmCanvasCache(cleanToken, canvasBaseUrl).catch((err) => {
+            logger.debug({ err }, "Bakgrunns cache-warming feilet (ikke-kritisk)");
+          });
+          logger.info(
+            { userId },
+            "Canvas token identisk (hash match + Canvas verifisert) — ingen invalidering",
+          );
+          return res.json(
+            CanvasTokenResponseSchema.parse({
+              melding: "Token er allerede lagret",
+              success: true,
+            }),
+          );
+        } catch (verifyErr) {
+          logger.warn(
+            { err: verifyErr, userId },
+            "Hash matchet men Canvas avviste tokenet — re-lagrer for å oppdatere status",
+          );
+          // Fall gjennom til full verifisering/lagring nedenfor
+        }
+      } else {
+        logger.warn(
+          { userId },
+          "Hash matchet men lagret kryptert token er uleselig — re-lagrer for å reparere",
+        );
+        // Fall gjennom til full lagring nedenfor (re-krypterer med gjeldende nøkkel)
+      }
     }
     // Verifiser Canvas-konto eierskap FØR lagring
     let canvasProfile:

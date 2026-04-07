@@ -573,6 +573,8 @@ export const nbMessages = {
       saveErrorTitle: "Kunne ikke lagre token",
       saveSuccessDescription: "Canvas-data blir tilgjengelig om kort tid.",
       saveSuccessTitle: "Canvas-token lagret",
+      saveUnchangedDescription: "Tokenet du sendte er identisk med det vi har lagret. Ingen endring.",
+      saveUnchangedTitle: "Token uendret",
       saving: "Lagrer...",
       show: "Vis",
       title: "Canvas API Token",

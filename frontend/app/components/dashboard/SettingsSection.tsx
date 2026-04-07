@@ -376,7 +376,7 @@ export function SettingsSection({
             return;
         }
         try {
-            await mutateAsync({
+            const respons = await mutateAsync({
                 token: trimmetToken,
                 forceRelink,
                 canvasBaseUrl: parsedCanvasBaseUrl.data,
@@ -388,10 +388,20 @@ export function SettingsSection({
             // Invalidér queries for å hente data på nytt
             queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY });
             queryClient.invalidateQueries({ queryKey: ["canvas"] });
-            showToast.success(
-                t("settings.canvasToken.saveSuccessTitle"),
-                t("settings.canvasToken.saveSuccessDescription"),
-            );
+            // Backend short-circuiter når samme token-hash sendes på nytt — gi tydelig
+            // tilbakemelding så bruker forstår at ingenting endret seg
+            const erUendret = respons?.melding === "Token er allerede lagret";
+            if (erUendret) {
+                showToast.warning(
+                    t("settings.canvasToken.saveUnchangedTitle"),
+                    t("settings.canvasToken.saveUnchangedDescription"),
+                );
+            } else {
+                showToast.success(
+                    t("settings.canvasToken.saveSuccessTitle"),
+                    t("settings.canvasToken.saveSuccessDescription"),
+                );
+            }
             // Sett cooldown for å hindre spamming (clear ved unmount)
             setCooldown(true);
             if (cooldownTimeoutRef.current) clearTimeout(cooldownTimeoutRef.current);
@@ -442,7 +452,7 @@ export function SettingsSection({
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6 md:p-8 flex justify-center">
+            <div className="flex-1 min-h-0 overflow-y-auto p-6 md:p-8 flex justify-center">
                 <div className="max-w-4xl w-full space-y-8">
                     {/* Brukerinformasjon */}
                     <section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
@@ -743,7 +753,7 @@ export function SettingsSection({
                                 id="language-select"
                                 value={language}
                                 onChange={(e) => setLanguage(e.target.value === "en" ? "en" : "nb")}
-                                className="w-full max-w-xs min-h-11 px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full max-w-xs min-h-11 px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value="nb">{t("settings.language.options.nb")}</option>
                                 <option value="en">{t("settings.language.options.en")}</option>
@@ -934,7 +944,7 @@ export function SettingsSection({
                                         setValgtInstitusjonUrl(e.target.value);
                                         setCanvasKonflikt(null);
                                     }}
-                                    className="w-full min-h-11 px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="w-full min-h-11 px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
                                     <option value="">{t("settings.canvasToken.institutionPlaceholder")}</option>
                                     {CANVAS_INSTITUSJONER_NORGE.map((inst) => (
@@ -978,7 +988,7 @@ export function SettingsSection({
                                         }
                                     }}
                                     placeholder={harCanvasToken ? "••••••••••••••••" : t("settings.canvasToken.placeholder")}
-                                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base sm:text-sm"
                                 />
                                 {canvasToken && (
                                     <button
@@ -1094,7 +1104,7 @@ export function SettingsSection({
                                             aria-label={t("settings.notionIntegration.apiKeyLabel")}
                                             onChange={(e) => setNotionApiKey(e.target.value)}
                                             placeholder={harNotionApiKey ? "••••••••••••••••" : t("settings.notionIntegration.apiKeyPlaceholder")}
-                                            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base sm:text-sm"
                                         />
                                         {notionApiKey && (
                                             <button
@@ -1119,7 +1129,7 @@ export function SettingsSection({
                                             onChange={(e) => setNotionDefaultPageId(e.target.value)}
                                             onBlur={(e) => setNotionDefaultPageId(normalizeNotionPageIdInput(e.target.value))}
                                             placeholder={t("settings.notionIntegration.defaultPagePlaceholder")}
-                                            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base sm:text-sm"
                                         />
                                         <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                                             {t("settings.notionIntegration.defaultPageHelp")}

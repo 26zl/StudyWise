@@ -43,6 +43,7 @@ export function CookieBanner() {
       role="region"
       aria-labelledby={titleId}
       className="fixed bottom-0 left-0 right-0 z-50 p-4 md:p-5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.3)]"
+      style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
     >
       <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="space-y-2">

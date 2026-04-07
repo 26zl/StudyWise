@@ -78,8 +78,17 @@ const SYNC_STATUS_TTL = 300;
 /** Maks antall filer/sider å ekstrahere per synkronisering */
 const MAX_FILES_PER_SYNC = 200;
 
-/** Minneterskel i MB — pauser filekstraksjon over dette nivået */
-const MEMORY_PRESSURE_THRESHOLD_MB = 300;
+/**
+ * Minneterskel i MB — pauser filekstraksjon over dette nivået.
+ * Default 300 MB er tilpasset 512 MB Heroku-dynoer. Lokalt på Mac/Windows
+ * kan terskelen overstyres med `SYNC_MEMORY_THRESHOLD_MB` (f.eks. 1500) slik at
+ * sync ikke blokkeres av normal Node-baseline RSS (~480 MB).
+ */
+const MEMORY_PRESSURE_THRESHOLD_MB = (() => {
+  const raw = process.env.SYNC_MEMORY_THRESHOLD_MB;
+  const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 300;
+})();
 
 /** TTL for distribuert sync-lås i Redis (sekunder) — forhindrer at flere dynoer synker samtidig */
 const SYNC_LOCK_TTL_S = 600;

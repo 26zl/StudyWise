@@ -86,7 +86,7 @@ export default function SharePage() {
 
   if (error || !data) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4">
+      <div className="flex min-h-dvh items-center justify-center px-4">
         <div className="w-full max-w-md">
           <FeilMelding melding={error ?? t("sharePage.missingShare")} />
         </div>
@@ -95,7 +95,7 @@ export default function SharePage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-dvh bg-slate-50 dark:bg-slate-950">
       <div className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
           <p className="text-sm font-medium text-slate-700 dark:text-slate-200">

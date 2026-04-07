@@ -127,6 +127,14 @@ export function Sidebar({
         router.prefetch("/account");
     }, [router]);
 
+    // Default i storen er LUKKET (matcher SSR). Åpne automatisk på desktop ved første mount.
+    const settVenstreMenyOpen = useUIStore((s) => s.settVenstreMenyOpen);
+    useEffect(() => {
+        if (typeof window !== "undefined" && window.innerWidth >= 768) {
+            settVenstreMenyOpen(true);
+        }
+    }, [settVenstreMenyOpen]);
+
     useEffect(() => {
         if (pendingPathname != null && pathname === pendingPathname) {
             setPendingPathname(null);

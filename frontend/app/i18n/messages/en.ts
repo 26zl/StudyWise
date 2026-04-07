@@ -574,6 +574,8 @@ export const enMessages = {
       saveErrorTitle: "Could not save token",
       saveSuccessDescription: "Canvas data will be available shortly.",
       saveSuccessTitle: "Canvas token saved",
+      saveUnchangedDescription: "The token you submitted is identical to the one we already have. No change.",
+      saveUnchangedTitle: "Token unchanged",
       saving: "Saving...",
       show: "Show",
       title: "Canvas API Token",

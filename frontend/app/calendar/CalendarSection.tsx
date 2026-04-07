@@ -247,7 +247,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
               <select
                 value={currentDate.getMonth().toString()}
                 onChange={(e) => handleMonthChange(parseInt(e.target.value, 10))}
-                className="h-8 sm:h-9 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-9 sm:h-9 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {monthOptions.map((month) => (
                   <option key={month.value} value={month.value}>{month.label}</option>
@@ -256,7 +256,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
               <select
                 value={currentDate.getFullYear().toString()}
                 onChange={(e) => handleYearChange(parseInt(e.target.value, 10))}
-                className="h-8 sm:h-9 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-9 sm:h-9 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {years.map((year) => (
                   <option key={year} value={year.toString()}>{year}</option>
@@ -337,7 +337,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
         />
 
         {/* Detaljer-panel - mobile-first design */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 h-fit xl:max-h-[calc(100vh-12rem)] xl:overflow-y-auto">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 h-fit xl:max-h-[calc(100dvh-12rem)] xl:overflow-y-auto">
           <h2 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3 sm:mb-4">
             {selectedDate
               ? `${filter === "timetable" ? labels.headings.lectures : filter === "assignments" ? labels.headings.assignments : labels.headings.events}${language === "en" ? " for " : " "}${format(selectedDate, language === "en" ? "MMMM d" : "d. MMMM", { locale })}`
