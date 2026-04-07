@@ -43,6 +43,7 @@ import { LoadingSpinner } from "@/app/components/ui/Loading";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { showToast } from "@/app/components/ui/Toaster";
 import { formaterDatoLong, formaterDatoOgTid, formaterTall } from "@/app/lib/dato";
+import { fetchApi } from "@/app/lib/apiClient";
 import {
   useAdminStats,
   useAdminBrukere,
@@ -57,7 +58,7 @@ import {
 } from "@/app/admin/admin-api";
 import type { AdminBruker } from "@/app/admin/admin-api";
 
-type AdminFane = "stats" | "observability" | "users" | "audit";
+type AdminFane = "stats" | "observability" | "users" | "audit" | "feedback";
 type LangsmithStatusFilter = "all" | "success" | "error";
 
 type LangsmithRunRow = {
@@ -961,17 +962,93 @@ function RevisjonsloggFane() {
   );
 }
 
+// ── Feedback-fane ──────────────────────────────────────────────────────────
+type FeedbackItem = {
+  id: string;
+  rating: "up" | "down";
+  question?: string;
+  answer?: string;
+  comment?: string;
+  createdAt: string;
+  user: { id: string; email?: string; username?: string } | null;
+};
+
+function FeedbackFane() {
+  const { t } = useLanguage();
+  const [rating, setRating] = useState<"up" | "down">("down");
+  const [data, setData] = useState<{ totals: { up: number; down: number }; items: FeedbackItem[] } | null>(null);
+  const [laster, setLaster] = useState(false);
+
+  useEffect(() => {
+    setLaster(true);
+    fetchApi(`/api/admin/feedback?rating=${rating}&limit=100`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setData(d))
+      .catch(() => setData(null))
+      .finally(() => setLaster(false));
+  }, [rating]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        {(["down", "up"] as const).map((r) => (
+          <button
+            key={r}
+            type="button"
+            onClick={() => setRating(r)}
+            className={`px-3 py-1 rounded-lg text-sm border ${rating === r ? "bg-blue-600 text-white border-blue-600" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"}`}
+          >
+            {r === "down" ? t("admin.feedback.bad") : t("admin.feedback.good")}
+            {data ? ` (${data.totals[r]})` : ""}
+          </button>
+        ))}
+      </div>
+
+      {laster && <p className="text-sm text-slate-500">…</p>}
+
+      {data && data.items.length === 0 && !laster && (
+        <p className="text-sm text-slate-500 italic">{t("admin.feedback.empty")}</p>
+      )}
+
+      <ul className="space-y-3">
+        {data?.items.map((it) => (
+          <li
+            key={it.id}
+            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3"
+          >
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
+              <span>{it.user?.email ?? it.user?.username ?? "—"}</span>
+              <span>{new Date(it.createdAt).toLocaleString()}</span>
+            </div>
+            {it.question && (
+              <p className="text-sm text-slate-700 dark:text-slate-300 mb-1">
+                <span className="font-semibold">Q:</span> {it.question}
+              </p>
+            )}
+            {it.answer && (
+              <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-4">
+                <span className="font-semibold">A:</span> {it.answer}
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 // ── Hovedkomponent ──────────────────────────────────────────────────────────
 
 const FANER: {
   id: AdminFane;
   ikon: React.ElementType;
-  labelKey: "admin.tabs.stats" | "admin.tabs.observability" | "admin.tabs.users" | "admin.tabs.audit";
+  labelKey: "admin.tabs.stats" | "admin.tabs.observability" | "admin.tabs.users" | "admin.tabs.audit" | "admin.tabs.feedback";
 }[] = [
   { id: "stats", ikon: BarChart3, labelKey: "admin.tabs.stats" },
   { id: "observability", ikon: Activity, labelKey: "admin.tabs.observability" },
   { id: "users", ikon: Users, labelKey: "admin.tabs.users" },
   { id: "audit", ikon: ScrollText, labelKey: "admin.tabs.audit" },
+  { id: "feedback", ikon: AlertTriangle, labelKey: "admin.tabs.feedback" },
 ];
 
 export function AdminSection() {
@@ -1019,6 +1096,7 @@ export function AdminSection() {
         {aktivFane === "observability" && <ObservabilityFane />}
         {aktivFane === "users" && <BrukereFane />}
         {aktivFane === "audit" && <RevisjonsloggFane />}
+        {aktivFane === "feedback" && <FeedbackFane />}
       </div>
     </div>
   );

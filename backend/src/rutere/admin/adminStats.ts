@@ -22,6 +22,7 @@ import { Arbeidsplan } from "../../database/models/arbeidsplan.js";
 import { CanvasStructureModel } from "../../database/models/CanvasStructure.js";
 import { CanvasUser } from "../../database/models/CanvasUser.js";
 import { ContentEmbedding } from "../../database/models/ContentEmbedding.js";
+import { ChatFeedback } from "../../database/models/ChatFeedback.js";
 import { AuditLog } from "../../database/models/AuditLog.js";
 import { DeletedUserTombstone } from "../../database/models/DeletedUserTombstone.js";
 import { WebPushSubscriptionModel } from "../../database/models/WebPushSubscription.js";
@@ -1072,6 +1073,52 @@ router.post("/maintenance/backfill-fulltext", async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, "Admin fullText-backfill feilet");
+    return apiError.serverError(res);
+  }
+});
+
+// GET /feedback - hent siste KI-svar med tommel-feedback (default ned)
+router.get("/feedback", async (req, res) => {
+  try {
+    const rating = req.query.rating === "up" ? "up" : "down";
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+
+    const items = await ChatFeedback.find({ rating })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .populate("user", "email username")
+      .lean();
+
+    const totals = await ChatFeedback.aggregate<{ _id: "up" | "down"; count: number }>([
+      { $group: { _id: "$rating", count: { $sum: 1 } } },
+    ]);
+
+    res.json({
+      rating,
+      totals: {
+        up: totals.find((t) => t._id === "up")?.count ?? 0,
+        down: totals.find((t) => t._id === "down")?.count ?? 0,
+      },
+      items: items.map((i) => ({
+        id: String(i._id),
+        messageId: i.messageId,
+        chatId: i.chatId,
+        rating: i.rating,
+        question: i.question,
+        answer: i.answer,
+        comment: i.comment,
+        createdAt: i.createdAt,
+        user: i.user
+          ? {
+              id: String((i.user as { _id: unknown })._id),
+              email: (i.user as { email?: string }).email,
+              username: (i.user as { username?: string }).username,
+            }
+          : null,
+      })),
+    });
+  } catch (error) {
+    logger.error({ error }, "Feil ved henting av admin feedback");
     return apiError.serverError(res);
   }
 });

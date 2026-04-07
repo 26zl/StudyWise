@@ -1244,18 +1244,36 @@ router.get("/study-stats/today", rateLimitMe, async (req: Request, res: Response
     const { getIsoWeekInfo, parseTimerStreng } = await import("common/dateUtils");
 
     // Kjør alle queries parallelt for best ytelse
-    const [chatCount, taskResult, studyContextResult, arbeidsplan] = await Promise.all([
+    const [chatCount, chatActivityTimestamps, taskResult, studyContextResult, arbeidsplan] = await Promise.all([
       // Antall KI-samtaler opprettet eller oppdatert i dag
       ChatHistory.countDocuments({
         user: new mongoose.Types.ObjectId(userId),
         updatedAt: { $gte: todayStart },
       }),
 
-      // Antall fullførte subtasks oppdatert i dag
+      // Tidsstempler for chat-aktivitet i dag — brukes til å estimere faktisk tid brukt
+      // (createdAt + updatedAt fanger både opprettelse og siste oppdatering)
+      ChatHistory.find(
+        {
+          user: new mongoose.Types.ObjectId(userId),
+          $or: [
+            { updatedAt: { $gte: todayStart } },
+            { createdAt: { $gte: todayStart } },
+          ],
+        },
+        { createdAt: 1, updatedAt: 1 },
+      ).lean(),
+
+      // Antall subtasks fullført i dag (basert på per-subtask completedAt)
       TaskBreakdown.aggregate([
-        { $match: { userId: new mongoose.Types.ObjectId(userId), updatedAt: { $gte: todayStart } } },
+        { $match: { userId: new mongoose.Types.ObjectId(userId) } },
         { $unwind: "$subtasks" },
-        { $match: { "subtasks.completed": true } },
+        {
+          $match: {
+            "subtasks.completed": true,
+            "subtasks.completedAt": { $gte: todayStart },
+          },
+        },
         { $count: "total" },
       ]),
 
@@ -1282,10 +1300,44 @@ router.get("/study-stats/today", rateLimitMe, async (req: Request, res: Response
         (b) => b.completed && b.completedAt && b.completedAt >= todayStart,
       );
       studyBlocksCompleted = todayBlocks.length;
-      studyHoursCompleted = Math.round(
-        todayBlocks.reduce((sum, b) => sum + parseTimerStreng(b.duration), 0) * 10,
-      ) / 10;
+      studyHoursCompleted =
+        todayBlocks.reduce((sum, b) => sum + parseTimerStreng(b.duration), 0);
     }
+
+    // Estimer aktiv tid brukt på KI-chat i dag basert på createdAt/updatedAt-spor.
+    // Behandler hvert chat-dokument som en aktivitetsperiode mellom createdAt og updatedAt
+    // (klippet til dagens start), og slår sammen overlappende perioder for å unngå dobbelttelling.
+    // Et minimum på 2 minutter per chat sikrer at korte samtaler også teller.
+    interface AktivitetsPeriode { start: number; slutt: number; }
+    const perioder: AktivitetsPeriode[] = [];
+    for (const c of chatActivityTimestamps as Array<{ createdAt?: Date; updatedAt?: Date }>) {
+      const created = c.createdAt ? new Date(c.createdAt).getTime() : null;
+      const updated = c.updatedAt ? new Date(c.updatedAt).getTime() : null;
+      if (!updated) continue;
+      const sluttTs = updated;
+      const startTs = Math.max(
+        created ?? sluttTs - 2 * 60_000,
+        todayStart.getTime(),
+      );
+      if (sluttTs <= startTs) {
+        perioder.push({ start: sluttTs - 2 * 60_000, slutt: sluttTs });
+      } else {
+        perioder.push({ start: startTs, slutt: sluttTs });
+      }
+    }
+    // Slå sammen overlappende perioder
+    perioder.sort((a, b) => a.start - b.start);
+    const slatt: AktivitetsPeriode[] = [];
+    for (const p of perioder) {
+      const sist = slatt[slatt.length - 1];
+      if (sist && p.start <= sist.slutt) {
+        sist.slutt = Math.max(sist.slutt, p.slutt);
+      } else {
+        slatt.push({ ...p });
+      }
+    }
+    const chatTimer = slatt.reduce((sum, p) => sum + (p.slutt - p.start) / 3_600_000, 0);
+    studyHoursCompleted = Math.round((studyHoursCompleted + chatTimer) * 10) / 10;
 
     return res.json({
       chatSessions: chatCount,

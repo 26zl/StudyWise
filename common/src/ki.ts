@@ -54,6 +54,19 @@ const UsageSchema = z.object({
   total_tokens: z.number().int().nonnegative(),
 });
 
+/** Kildereferanse til en fil/kurs som ble brukt i et KI-svar. */
+export const KIChatSourceSchema = z.object({
+  courseId: z.string(),
+  courseName: z.string(),
+  fileId: z.number().int(),
+  fileName: z.string(),
+  /** Hvor stor del av relevansen denne kilden bidro med (0-1). Brukes til sortering. */
+  score: z.number().optional(),
+  /** Antall chunks fra denne filen som ble brukt i konteksten. */
+  chunkCount: z.number().int().nonnegative().optional(),
+});
+export type KIChatSource = z.infer<typeof KIChatSourceSchema>;
+
 // Svar-schema for KI chat API
 export const KIChatResponseSchema = z.object({
   suksess: z.boolean(),
@@ -61,7 +74,43 @@ export const KIChatResponseSchema = z.object({
   response: z.string(),
   model: z.string().optional(),
   usage: UsageSchema.optional(),
+  /** Kilder (Canvas-filer) som ble brukt i svaret — vises som klikkbar liste under svaret. */
+  kilder: z.array(KIChatSourceSchema).optional(),
 });
+
+/** Tommel opp/ned-feedback på et KI-svar. */
+export const ChatFeedbackRequestSchema = z.object({
+  messageId: z.string().trim().min(1).max(100),
+  chatId: z.string().trim().min(1).max(100).optional(),
+  rating: z.enum(["up", "down"]),
+  question: z.string().trim().max(2000).optional(),
+  answer: z.string().trim().max(5000).optional(),
+  comment: z.string().trim().max(1000).optional(),
+});
+export type ChatFeedbackRequest = z.infer<typeof ChatFeedbackRequestSchema>;
+
+export const ChatFeedbackResponseSchema = z.object({
+  suksess: z.boolean(),
+});
+
+/** Aggregert oversikt over hva KI har indeksert for et kurs (filer + chunks). */
+export const CourseKnowledgeFileSchema = z.object({
+  fileId: z.number().int(),
+  fileName: z.string(),
+  chunkCount: z.number().int().nonnegative(),
+  charCount: z.number().int().nonnegative().optional(),
+  lastUpdated: z.string().optional(),
+});
+
+export const CourseKnowledgeResponseSchema = z.object({
+  courseId: z.string(),
+  courseName: z.string(),
+  fileCount: z.number().int().nonnegative(),
+  totalChunks: z.number().int().nonnegative(),
+  files: z.array(CourseKnowledgeFileSchema),
+});
+export type CourseKnowledgeResponse = z.infer<typeof CourseKnowledgeResponseSchema>;
+export type CourseKnowledgeFile = z.infer<typeof CourseKnowledgeFileSchema>;
 
 // Modell-liste (for KI modellvalg i frontend)
 export const KIModelsResponseSchema = z.object({
@@ -165,6 +214,7 @@ export const SubTaskSchema = z.object({
   estimatedTime: z.string().trim().min(1, "Tidsestimat kan ikke være tomt").max(50, "Tidsestimat for langt"),
   priority: z.enum(["low", "medium", "high"]),
   completed: z.boolean(),
+  completedAt: z.coerce.date().optional().nullable(),
   approved: z.boolean().default(false),
 });
 

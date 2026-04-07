@@ -30,11 +30,13 @@ import {
 } from "common/canvas";
 import { logger } from "../../utils/logger.js";
 import { parseDocument } from "../../services/document.js";
+import { isProd } from "../../utils/env.js";
 
-/** Maks filstørrelse vi laster ned for PDF-ekstraksjon i Canvas-sync (10 MB) */
-export const MAX_PDF_FILE_SIZE = 10 * 1024 * 1024;
-/** Maks filstørrelse for generell fil-nedlasting (10 MB) */
-export const MAX_FILE_SIZE = 10 * 1024 * 1024;
+/** Maks filstørrelse vi laster ned for PDF-ekstraksjon i Canvas-sync.
+ *  Prod (Heroku 512 MB): 10 MB. Lokalt: 200 MB (effektivt ubegrenset). */
+export const MAX_PDF_FILE_SIZE = (isProd ? 10 : 200) * 1024 * 1024;
+/** Maks filstørrelse for generell fil-nedlasting. Prod: 10 MB. Lokalt: 200 MB. */
+export const MAX_FILE_SIZE = (isProd ? 10 : 200) * 1024 * 1024;
 
 // Generisk type for Canvas API-respons med valgfri metadata
 type CanvasResponseWithMeta<T> = {

@@ -49,7 +49,33 @@ export function isCourseOverviewQuery(message: string): boolean {
   return COURSE_OVERVIEW_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
+/**
+ * Ord som indikerer at brukeren spør om FAGINNHOLD å studere/øve på,
+ * ikke bare strukturen i kurset. Når disse er til stede sammen med en
+ * struktur-pattern (f.eks. "hva slags moduler"), skal spørsmålet
+ * IKKE klassifiseres som strukturelt — brukeren trenger faktisk
+ * filinnhold via hybrid-retrieval, ikke bare modul-titler.
+ */
+const STUDY_INTENT_KEYWORDS = [
+  // Norsk
+  "eksamen", "øve", "øving", "lære", "forstå", "forklar",
+  "forberede", "forberedelse", "pugge", "studere", "repetisjon", "repetere",
+  "oppsummer", "pensum",
+  // Engelsk
+  "exam", "study", "studying", "learn", "understand", "explain",
+  "prepare", "preparation", "practice", "review", "summarize", "summarise",
+  "revise", "revision",
+];
+
+function harStudieIntent(text: string): boolean {
+  return STUDY_INTENT_KEYWORDS.some((kw) => text.includes(kw));
+}
+
 export function isStructuredCanvasQuery(message: string): boolean {
   const normalized = normaliserCanvasSporsmal(message);
+  // Hvis brukeren tydelig spør om eksamensforberedelse/læring, la struktur-
+  // pattern slippe gjennom slik at intent-klassifikatoren kan eskalere til
+  // canvas_full og hente faktisk filinnhold via hybrid-retrieval.
+  if (harStudieIntent(normalized)) return false;
   return STRUCTURED_CANVAS_QUERY_PATTERNS.some((pattern) => pattern.test(normalized));
 }

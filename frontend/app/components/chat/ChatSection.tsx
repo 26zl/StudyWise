@@ -6,7 +6,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Square, Bot, Download, Copy, Share2, RefreshCw, Plus, User, GraduationCap } from "lucide-react";
+import { Send, Square, Bot, Download, Copy, Share2, RefreshCw, Plus, User, GraduationCap, FileText, ThumbsUp, ThumbsDown } from "lucide-react";
 import { LoadingSpinner, LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
@@ -21,9 +21,10 @@ import { useChatHistory } from "@/app/hooks/useChatHistory";
 import { FeilMelding, type FeilMeldingType } from "@/app/components/ui/FeilMelding";
 import { useUIStore } from "@/app/store/uiStore";
 import { useKIStore } from "@/app/store/kiStore";
-import { fetchApi } from "@/app/lib/apiClient";
+import { fetchApi, downloadAuthedFile } from "@/app/lib/apiClient";
 import { formaterTall } from "@/app/lib/dato";
 import { parseApiError } from "@/app/lib/errorUtils";
+import { useMeg } from "@/app/auth/auth-api";
 
 /** Én melding i chatten (bruker eller assistent), med id og evt. vedleggsnavn. */
 interface Melding {
@@ -34,6 +35,8 @@ interface Melding {
     vedleggNavn?: string[];
     /** Markerer at KI-svaret feilet for denne brukerforespørselen */
     feilet?: boolean;
+    /** Kilder (Canvas-filer) som ble brukt i KI-svaret — vises som klikkbar liste */
+    kilder?: import("common/ki").KIChatSource[];
 }
 
 
@@ -131,6 +134,8 @@ function lagTilkoblingsBanner(error: Error | null | undefined): { melding: strin
 
 export function ChatSection() {
     const { language, t } = useLanguage();
+    const megQuery = useMeg();
+    const erAdmin = megQuery.data?.user?.role === "admin";
     const forslag = [
         t("chatSection.weekPriorities"),
         t("chatSection.registeredCourses"),
@@ -139,6 +144,8 @@ export function ChatSection() {
     ];
     const [mounted, setMounted] = useState(false);
     const [meldinger, settMeldinger] = useState<Melding[]>([]);
+    // Lokal cache for tommel-feedback per melding-id (kun for å vise active state).
+    const [feedbackMap, settFeedbackMap] = useState<Record<string, "up" | "down">>({});
     const [tekstInput, settTekstInput] = useState("");
     const [skriver, settSkriver] = useState(false);
     const [vedlegg, settVedlegg] = useState<File[]>([]);
@@ -1039,6 +1046,7 @@ export function ChatSection() {
                     rolle: "assistant",
                     innhold: responseText,
                     tidsstempel: new Date(),
+                    kilder: data.kilder && data.kilder.length > 0 ? data.kilder : undefined,
                 };
 
                 // Lagre i DB umiddelbart; state-oppdatering og skriver-deaktivering skjer etter animasjon
@@ -1164,7 +1172,8 @@ export function ChatSection() {
 
     /** Holder lokal pending-UI i synk med den samtalen som faktisk er synlig. */
     useEffect(() => {
-        if (animerendeMeldingId) return;
+        // Bail kun når animasjonen faktisk peker på en eksisterende boble; ellers skal vi få lov til å reset-e skriver.
+        if (animerendeMeldingId && meldinger.some((m) => m.id === animerendeMeldingId)) return;
         const pendingUi = getPendingUiState(hentSynligPendingConversation());
         if (skriver !== pendingUi.skriver) {
             settSkriver(pendingUi.skriver);
@@ -1238,6 +1247,12 @@ export function ChatSection() {
             const pending = pendingChatRef.current;
             if ((pending && pending.chatId === aktivChatId) || pendingConversationState?.chatId === aktivChatId) return;
             if (animerendeMeldingId) return;
+            // Defensiv guard: ikke wipe en pågående sending. Hvis vi skriver eller har en aktiv pending
+            // (f.eks. ny chat hvor saveChat akkurat har resolvet og aktivChatId nettopp ble satt før
+            // chats-cachen er oppdatert), la meldingene stå urørt — ellers kan brukerboblen forsvinne
+            // mens stop-knappen fortsatt vises.
+            if (skriver || pendingChatRef.current || pendingConversationState) return;
+            if (meldingerRef.current.length > 0) return;
 
             stoppAktivAnimasjon();
             settMeldinger([]);
@@ -1263,13 +1278,21 @@ export function ChatSection() {
         }));
         if (harSammeMeldinger(currentMessages, savedMessages)) return;
 
+        // Defensiv guard: ikke overskriv lokale optimistiske meldinger med en kortere cache-snapshot.
+        // Dette kan skje når brukeren nettopp har sendt en melding mot en eksisterende chat og
+        // cachen ennå ikke er oppdatert med den nye user-bubblen — uten denne sjekken ville
+        // user-bubblen forsvinne mens skriver fortsatt er true.
+        // Vi blokkerer ALL cache-overskriving når skriver/pending er aktiv, uansett retning,
+        // for å hindre at en stale snapshot tømmer meldinger mens en send er underveis.
+        if (skriver || pendingChatRef.current || pendingConversationState?.chatId === aktivChatId) return;
+
         settMeldinger(chat.messages.map((m, i) => ({
             id: `${Date.now()}-${i}`,
             rolle: m.rolle,
             innhold: m.innhold,
             tidsstempel: new Date(),
         })));
-    }, [aktivChatId, chats, loadChatById, loading, animerendeMeldingId, setSelectedChatId, settAktivSamtale, stoppAktivAnimasjon]);
+    }, [aktivChatId, chats, loadChatById, loading, animerendeMeldingId, setSelectedChatId, settAktivSamtale, stoppAktivAnimasjon, skriver]);
 
     const sisteAssistentsvar =
         [...meldinger].reverse().find((melding) => melding.rolle === "assistant")?.innhold ?? "";
@@ -1410,8 +1433,8 @@ export function ChatSection() {
                         </div>
                     )}
 
-                    {/* Tomme meldinger - vis forslag (kun etter mount og når ikke loading) */}
-                    {mounted && !loading && meldinger.length === 0 && (
+                    {/* Tomme meldinger - vis forslag (kun etter mount og når ikke loading; ikke under pågående svar) */}
+                    {mounted && !loading && meldinger.length === 0 && !skriver && !analyserarDokument && (
                         <div className="space-y-4">
                             <div className="text-center py-12">
                                 <Bot className="w-16 h-16 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
@@ -1442,7 +1465,7 @@ export function ChatSection() {
                     )}
 
                     {/* Meldingshistorikk */}
-                    {meldinger.map((melding) => (
+                    {meldinger.map((melding, meldingIdx) => (
                         <div
                             key={melding.id}
                             className={`flex items-start gap-3 ${melding.rolle === "user" ? "justify-end" : "justify-start"}`}
@@ -1462,6 +1485,32 @@ export function ChatSection() {
                                     }
                                 >
                                     <ConversationMessageContent message={melding} />
+                                    {erAdmin && melding.rolle === "assistant" && melding.kilder && melding.kilder.filter((k) => Number(k.fileId) > 0).length > 0 && animerendeMeldingId !== melding.id && (
+                                        <div className="mt-3 pt-3 border-t border-stone-200 dark:border-slate-700">
+                                            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("chat.sources")}</p>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {melding.kilder.filter((k) => Number(k.fileId) > 0).map((k) => (
+                                                    <button
+                                                        type="button"
+                                                        key={`${k.courseId}:${k.fileId}`}
+                                                        onClick={() => {
+                                                            void downloadAuthedFile(
+                                                                `/api/canvas/filer/${k.fileId}/download`,
+                                                                k.fileName,
+                                                            ).catch(() => {
+                                                                showToast.error("Kunne ikke laste ned filen");
+                                                            });
+                                                        }}
+                                                        title={`${k.courseName} – ${k.fileName}`}
+                                                        className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors max-w-full"
+                                                    >
+                                                        <FileText className="w-3 h-3 shrink-0" />
+                                                        <span className="truncate">{k.fileName}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Retry-knapp under feilede brukermeldinger */}
@@ -1508,6 +1557,52 @@ export function ChatSection() {
                                             >
                                                 <Copy className="w-4 h-4" />
                                             </button>
+                                            {(["up", "down"] as const).map((rating) => {
+                                                const aktiv = feedbackMap[melding.id] === rating;
+                                                const Icon = rating === "up" ? ThumbsUp : ThumbsDown;
+                                                const aktivKlasse = aktiv
+                                                    ? rating === "up"
+                                                        ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 ring-1 ring-green-400 dark:ring-green-600"
+                                                        : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 ring-1 ring-red-400 dark:ring-red-600"
+                                                    : "";
+                                                return (
+                                                    <button
+                                                        key={rating}
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            const forrige = meldinger[meldingIdx - 1];
+                                                            const sporsmal = forrige?.rolle === "user" ? forrige.innhold : undefined;
+                                                            settFeedbackMap((prev) => ({ ...prev, [melding.id]: rating }));
+                                                            try {
+                                                                const r = await fetchApi("/api/ki/feedback", {
+                                                                    method: "POST",
+                                                                    headers: { "Content-Type": "application/json" },
+                                                                    body: JSON.stringify({
+                                                                        messageId: melding.id,
+                                                                        rating,
+                                                                        question: sporsmal?.slice(0, 2000),
+                                                                        answer: melding.innhold.slice(0, 5000),
+                                                                    }),
+                                                                });
+                                                                if (!r.ok) throw new Error("feedback");
+                                                                showToast.success(rating === "up" ? t("chat.feedbackThanksGood") : t("chat.feedbackThanksBad"));
+                                                            } catch {
+                                                                settFeedbackMap((prev) => {
+                                                                    const next = { ...prev };
+                                                                    delete next[melding.id];
+                                                                    return next;
+                                                                });
+                                                                showToast.error(t("chat.feedbackFailed"));
+                                                            }
+                                                        }}
+                                                        className={`${actionBtnClass} ${aktivKlasse}`}
+                                                        title={rating === "up" ? t("chat.feedbackGood") : t("chat.feedbackBad")}
+                                                        aria-pressed={aktiv}
+                                                    >
+                                                        <Icon className={`w-4 h-4 ${aktiv ? "fill-current" : ""}`} />
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 )}
@@ -1521,8 +1616,9 @@ export function ChatSection() {
                         </div>
                     ))}
 
-                    {/* Skriver indikator */}
-                    {((skriver && !animerendeMeldingId) || analyserarDokument) && (
+                    {/* Skriver indikator — vis også når animerendeMeldingId peker på en boble som ikke lenger finnes
+                        i meldinger (kan skje ved chat-bytte/cache-race), ellers blir skjermen helt tom. */}
+                    {((skriver && (!animerendeMeldingId || !meldinger.some((m) => m.id === animerendeMeldingId && m.innhold.length > 0))) || analyserarDokument) && (
                         <div className="flex items-start gap-3 justify-start" role="status" aria-live="polite">
                             <div className="shrink-0 w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center mt-1">
                                 <Bot className="w-5 h-5 text-purple-600 dark:text-purple-400" />

@@ -697,6 +697,12 @@ export const nbMessages = {
       observability: "LangSmith",
       users: "Brukere",
       audit: "Revisjonslogg",
+      feedback: "Feedback",
+    },
+    feedback: {
+      good: "Bra svar",
+      bad: "Dårlige svar",
+      empty: "Ingen feedback ennå.",
     },
     stats: {
       note: "Tallene under gjelder aktive brukere der det er relevant. Revisjon og datakvalitet vises som plattformdata direkte fra lagringen.",
@@ -1058,6 +1064,18 @@ export const nbMessages = {
     retryButton: "Prøv igjen",
     showErrorDetails: "Vis feildetaljer (debug)",
     sendingFailed: "Sending feilet",
+    sources: "Kilder",
+    feedbackGood: "Bra svar",
+    feedbackBad: "Dårlig svar",
+    feedbackThanksGood: "Takk for tilbakemeldingen!",
+    feedbackThanksBad: "Takk — vi bruker dette for å forbedre svarene.",
+    feedbackFailed: "Kunne ikke lagre tilbakemelding.",
+    knowledge: {
+      title: "Hva vet KI om dette kurset",
+      summary: "{files} filer · {chunks} indekserte tekstbiter",
+      empty: "KI har ikke indeksert noen filer for dette kurset ennå.",
+      error: "Kunne ikke laste oversikten.",
+    },
     copyButton: "Kopier",
     shareConversation: "Del samtale",
     shareConversationTitle: "Del hele samtalen",
@@ -1286,6 +1304,9 @@ export const nbMessages = {
     canvasCacheLabel: "Canvas-cache:",
     canvasCacheBody:
       "Vi cacher midlertidig data fra Canvas (emner, oppgaver, kalender) for bedre ytelse. Cache lagres kun kort tid (minutter til timer).",
+    feedbackLabel: "Tilbakemelding på KI-svar:",
+    feedbackBody:
+      "Hvis du gir tommel opp/ned på et KI-svar, lagrer vi vurderingen sammen med spørsmålet ditt og selve svaret fra KI-en i klartekst (ikke kryptert) slik at vi kan forbedre kvaliteten på fremtidige svar. Dette er kun synlig for administratorer og slettes automatisk når kontoen din slettes.",
     legalBasisTitle: "Behandlingsgrunnlag (GDPR Art. 6)",
     legalBasisIntro:
       "Vi behandler personopplysninger på følgende rettslige grunnlag:",

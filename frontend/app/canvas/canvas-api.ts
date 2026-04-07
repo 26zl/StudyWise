@@ -81,10 +81,14 @@ function isTokenError(error: unknown): boolean {
   return false;
 }
 
-// Retry-funksjon som stopper ved token-feil
+// Retry-funksjon som stopper ved token-feil og permanente Canvas-feil
 function shouldRetryCanvasQuery(failureCount: number, error: unknown): boolean {
   // Aldri retry ved token-feil
   if (isTokenError(error)) return false;
+  // Aldri retry når ressursen er deaktivert/ikke finnes eller når brukeren mangler tilgang
+  // — disse feilene er permanente og retries gir bare unødvendig last på Canvas API
+  if (error instanceof CanvasResourceError) return false;
+  if (error instanceof CanvasPermissionError) return false;
   // Maks 2 retries for andre feil
   return failureCount < 2;
 }
@@ -190,6 +194,7 @@ export async function fetchCanvas<T>(
     );
   }
 
+  // deepcode ignore DOMXSS: Ingen DOM-skriving — responsen valideres med Zod og returneres som typede data.
   const res = await fetchApi(`/api/canvas${endpoint}`);
 
   await håndterFeilRespons(res);

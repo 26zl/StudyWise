@@ -22,7 +22,7 @@
 import { logger } from "../utils/logger.js";
 import { escapeRegex } from "../utils/regexUtils.js";
 import { getCache, isRedisReady } from "../cache/redis.js";
-import { syncCanvasDataForUser, hasCanvasSyncData, userKey, isSyncing, waitForSync } from "./canvas-sync.service.js";
+import { syncCanvasDataForUser, hasCanvasSyncData, userKey, isSyncing, waitForSync, hasIndexedCourseData } from "./canvas-sync.service.js";
 import type { TargetedQuery } from "../rutere/ki/ki.js";
 import { TWO_WEEKS_MS } from "common/dateUtils";
 import type { CanvasContextPreferences } from "common/auth";
@@ -42,6 +42,7 @@ import {
   getStoredChunksForCourses,
   getStoredChunksForFile,
   getStoredFullDocumentForFile,
+  getAllFullDocumentsForCourse,
   hasStoredContentForUser,
 } from "./embedding.service.js";
 import { hybridSearch, type HybridSearchResult } from "./hybrid-retrieval.service.js";
@@ -62,6 +63,17 @@ import { z } from "zod";
 
 export type IntentType = "general_chat" | "canvas_light" | "canvas_full";
 
+/** Kildereferanse — duplisert lokalt for å unngå sirkulær avhengighet med common/ki. */
+const ContextSourceSchema = z.object({
+  courseId: z.string(),
+  courseName: z.string(),
+  fileId: z.number().int(),
+  fileName: z.string(),
+  score: z.number().optional(),
+  chunkCount: z.number().int().nonnegative().optional(),
+});
+export type ContextSource = z.infer<typeof ContextSourceSchema>;
+
 export const ContextResultSchema = z.object({
   kontekst: z.string(),
   hasCanvasData: z.boolean(),
@@ -72,6 +84,8 @@ export const ContextResultSchema = z.object({
   fullDocumentMode: z.boolean().optional(),
   /** true når konteksten kun er metadata (modulstruktur/oppgaveliste) uten faktisk faginnhold */
   metadataOnly: z.boolean().optional(),
+  /** Kilder som ble brukt i konteksten — propageres til chat-svar som klikkbar liste. */
+  kilder: z.array(ContextSourceSchema).optional(),
 });
 
 export type ContextResult = z.infer<typeof ContextResultSchema>;
@@ -108,6 +122,12 @@ const FULL_DOCUMENT_TRIGGER_WORDS = [
   "hva handler om",
   "sammendrag",
   "gå gjennom",
+  "utdype",
+  "utdyp",
+  "forklar forelesning",
+  "forklar mer om",
+  "fortell mer om",
+  "mer om forelesning",
   // Engelsk
   "summarize",
   "summarise",
@@ -121,6 +141,11 @@ const FULL_DOCUMENT_TRIGGER_WORDS = [
   "what is it about",
   "summary",
   "go through",
+  "elaborate",
+  "expand on",
+  "tell me more about",
+  "explain lecture",
+  "more about lecture",
 ];
 
 function shouldUseFullDocumentMode(
@@ -187,15 +212,21 @@ function scoreKnownCourseMatch(
 
   const tokens = tokenizeCourseMatchText(`${course.name} ${course.course_code ?? ""}`);
   if (tokens.length > 0) {
+    // Stem-matching: tillat trailing bokstaver slik at "organisering" treffer
+    // "organiserings", "metode" treffer "metoden", "database" treffer "databaser", osv.
     const matchedTokens = tokens.filter((token) =>
       // eslint-disable-next-line security/detect-non-literal-regexp -- token er avledet fra intern kurskatalog og escapeRegex() brukes
-      new RegExp(`(^|\\s)${escapeRegex(token)}(\\s|$)`, "i").test(normalizedMessage),
+      new RegExp(`\\b${escapeRegex(token)}[a-zæøå]*\\b`, "i").test(normalizedMessage),
     );
 
     if (matchedTokens.length >= 2) {
       score += matchedTokens.length * 22;
     } else if (matchedTokens.length === 1 && tokens.length === 1) {
       score += 35;
+    } else if (matchedTokens.length === 1) {
+      // Selv ett token-treff bør gi en del poeng — ellers blir terskelen (45/70)
+      // umulig å nå for meldinger som "Organiserings emnet" der bare ett ord matcher.
+      score += 50;
     }
   }
 
@@ -1509,7 +1540,7 @@ async function byggKontekstFraHybridSearch(
   message: string,
   target?: TargetedQuery,
   hiddenCourseIds?: Set<number>,
-): Promise<{ kontekst: string; hasSparseChunks: boolean; fullDocumentMode: boolean } | null> {
+): Promise<{ kontekst: string; hasSparseChunks: boolean; fullDocumentMode: boolean; kilder: ContextSource[] } | null> {
   try {
     const relevantCourses = await finnRelevanteEmner(userId, target, hiddenCourseIds);
     const courseIds = relevantCourses.map((course) => String(course.id));
@@ -1522,6 +1553,69 @@ async function byggKontekstFraHybridSearch(
     }
 
     const coursesPinned = courseIds.length > 0;
+
+    // ── Kursomfattende oversikt: "forklar forelesningene"/"hva har lectures dekket" ──
+    // Når brukeren spør bredt om alle forelesninger/leksjoner i ett spesifikt kurs,
+    // last alle fulle dokumenter for kurset i stedet for kun top-K hybrid-chunks.
+    // Dette løser at KI ellers hopper over forelesninger som ikke traff retrieval.
+    if (target?.courseIdHint != null && !target?.fileHint && !target?.moduleHint) {
+      const lowerMsg = message.toLowerCase();
+      const COURSE_WIDE_TRIGGERS = [
+        "forelesningene", "forelesninger", "alle forelesninger",
+        "leksjonene", "leksjoner", "alle leksjoner",
+        "modulene", "alle moduler",
+        "the lectures", "all lectures", "all the lectures",
+        "all modules", "all the topics covered",
+      ];
+      const matchesCourseWide = COURSE_WIDE_TRIGGERS.some((t) => lowerMsg.includes(t));
+      if (matchesCourseWide) {
+        const courseIdStr = String(target.courseIdHint);
+        const allDocs = await getAllFullDocumentsForCourse(userId, courseIdStr);
+        if (allDocs.length > 0) {
+          // Char-budsjett ~80k tegn (≈20k tokens) totalt for kursoversikt
+          const TOTAL_BUDGET = 80_000;
+          const perFileBudget = Math.max(2000, Math.floor(TOTAL_BUDGET / allDocs.length));
+          let totalChars = 0;
+          const blocks: string[] = [];
+          const kilder: ContextSource[] = [];
+          for (const doc of allDocs) {
+            if (totalChars >= TOTAL_BUDGET) break;
+            const remaining = TOTAL_BUDGET - totalChars;
+            const slice = doc.fullText.slice(0, Math.min(perFileBudget, remaining));
+            blocks.push(
+              `--- FIL-INNHOLD: ${doc.fileName}${doc.moduleTitle ? ` (${doc.moduleTitle})` : ""} ---\n${slice}\n--- SLUTT ---`,
+            );
+            totalChars += slice.length;
+            kilder.push({
+              courseId: courseIdStr,
+              courseName: relevantCourses.find((c) => String(c.id) === courseIdStr)?.name ?? "",
+              fileId: doc.fileId,
+              fileName: doc.fileName,
+              score: 1,
+              chunkCount: 1,
+            });
+          }
+          const kontekst = "<canvas-kursdata>\n" + blocks.join("\n\n") + "\n</canvas-kursdata>";
+          logger.info(
+            {
+              userId,
+              courseId: courseIdStr,
+              fileCount: allDocs.length,
+              filesIncluded: kilder.length,
+              totalChars,
+              contextLength: kontekst.length,
+            },
+            "Kursomfattende oversikt-mode aktivert (alle forelesninger lastet)",
+          );
+          return {
+            kontekst,
+            hasSparseChunks: false,
+            fullDocumentMode: true,
+            kilder,
+          };
+        }
+      }
+    }
 
     // Bruk chunkHint som søkequery når den finnes — gir bedre nøkkelord-matching
     // Fallback til full melding for semantisk søk
@@ -1651,7 +1745,21 @@ async function byggKontekstFraHybridSearch(
           "Full dokument-mode aktivert",
         );
 
-        return { kontekst, hasSparseChunks: false, fullDocumentMode: true };
+        return {
+          kontekst,
+          hasSparseChunks: false,
+          fullDocumentMode: true,
+          kilder: [
+            {
+              courseId: String(primary.source.courseId),
+              courseName: primary.source.courseName ?? "",
+              fileId: primary.source.fileId,
+              fileName: fullDocument.fileName,
+              score: primary.score,
+              chunkCount: 1,
+            },
+          ],
+        };
       }
     }
     if (!fullDocumentDecision.enabled) {
@@ -1822,10 +1930,32 @@ async function byggKontekstFraHybridSearch(
       "Hybrid søk kontekst bygget med full fil-ekspansjon",
     );
 
+    // Bygg kildeliste fra fileMatchCounts — én oppføring per fil, sortert etter
+    // matchcount/score. Brukes som klikkbar liste under chat-svaret.
+    const topScoreByFile = new Map<string, number>();
+    for (const r of filteredResults) {
+      const key = `${r.source.courseId}:${r.source.fileId}`;
+      const prev = topScoreByFile.get(key) ?? -Infinity;
+      if (r.score > prev) topScoreByFile.set(key, r.score);
+    }
+    const kilder: ContextSource[] = Array.from(fileMatchCounts.entries())
+      .map(([key, info]) => ({
+        courseId: String(info.source.courseId),
+        courseName: info.source.courseName ?? "",
+        fileId: info.source.fileId,
+        fileName: info.source.fileName ?? "",
+        score: topScoreByFile.get(key),
+        chunkCount: info.indexes.size,
+      }))
+      .filter((k) => k.fileName.length > 0)
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+      .slice(0, 8);
+
     return {
       kontekst: "<canvas-kursdata>\n" + kontekst + "\n</canvas-kursdata>",
       hasSparseChunks,
       fullDocumentMode: false,
+      kilder,
     };
   } catch (error) {
     logger.warn({ err: error }, "Feil ved hybrid søk — faller tilbake til keyword-søk");
@@ -2056,6 +2186,42 @@ export async function loadCanvasContext(
   // Bruk sanitert target for alle videre oppslag
   target = sanitizedTarget;
 
+  // ── Vent på sync hvis brukeren peker på et spesifikt kurs som ikke er indeksert ──
+  // Dette løser racet der chat svarer "ingen tilgang til lærestoff" fordi sync av det
+  // aktuelle kurset enda ikke er ferdig. Vi triggrer sync med priority og venter
+  // inntil kurset har minst én chunk i MongoDB, eller timeout.
+  if (target?.courseIdHint != null && !signal?.aborted) {
+    const courseIdStr = String(target.courseIdHint);
+    const alreadyIndexed = await hasIndexedCourseData(userId, courseIdStr);
+    if (!alreadyIndexed) {
+      logger.info(
+        { userId, courseId: courseIdStr },
+        "loadCanvasContext: kurs ikke indeksert — trigger prioritert sync og venter",
+      );
+      // Trigger sync med priority (no-op hvis allerede pågår)
+      void syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, {
+        priorityCourseId: courseIdStr,
+      }).catch((err) => {
+        logger.warn({ err, userId, courseId: courseIdStr }, "Prioritert sync feilet");
+      });
+      // Vent inntil 25s på at det prioriterte kurset får minst én indeksert chunk
+      const WAIT_DEADLINE_MS = 25_000;
+      const POLL_INTERVAL_MS = 750;
+      const startedAt = Date.now();
+      while (Date.now() - startedAt < WAIT_DEADLINE_MS) {
+        if (signal?.aborted) break;
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+        if (await hasIndexedCourseData(userId, courseIdStr)) {
+          logger.info(
+            { userId, courseId: courseIdStr, waitedMs: Date.now() - startedAt },
+            "loadCanvasContext: prioritert kurs ble indeksert under venting",
+          );
+          break;
+        }
+      }
+    }
+  }
+
   const redisAvailable = isRedisReady();
   const hasRedisSyncData = redisAvailable && (await hasCanvasSyncData(userId));
   const hasStoredAIContent = await hasStoredContentForUser(userId);
@@ -2095,7 +2261,7 @@ export async function loadCanvasContext(
       );
       // Trigger bakgrunns-sync for å oppdatere Redis
       if (redisAvailable) {
-        syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
+        syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, { priorityCourseId: target?.courseIdHint ?? undefined }).catch((err) => {
           logger.warn({ err, userId }, "Bakgrunns-sync feilet etter MongoDB-fallback");
         });
       }
@@ -2108,7 +2274,7 @@ export async function loadCanvasContext(
       "Canvas-kontekst: ingen lagret kursoversikt — trigger sync",
     );
     if (redisAvailable) {
-      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
+      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, { priorityCourseId: target?.courseIdHint ?? undefined }).catch((err) => {
         logger.warn({ err, userId }, "Bakgrunns-sync feilet");
       });
     }
@@ -2145,6 +2311,7 @@ export async function loadCanvasContext(
         source: "vector",
         hasSparseChunks: hybridResult.hasSparseChunks,
         fullDocumentMode: hybridResult.fullDocumentMode,
+        kilder: hybridResult.kilder,
       };
     }
     // Hvis hybrid søk ikke ga resultater, fortsett med vanlig intent-basert flyt
@@ -2187,7 +2354,7 @@ export async function loadCanvasContext(
           "Canvas-kontekst lastet fra MongoDB (målrettet metadata fallback)",
         );
         if (redisAvailable) {
-          syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
+          syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, { priorityCourseId: target?.courseIdHint ?? undefined }).catch((err) => {
             logger.warn({ err, userId }, "Bakgrunns-sync feilet etter målrettet metadata-fallback");
           });
         }
@@ -2200,7 +2367,7 @@ export async function loadCanvasContext(
         "Redis+MongoDB mangler data — trigger sync (målrettet metadata)",
       );
       if (redisAvailable) {
-        syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
+        syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, { priorityCourseId: target?.courseIdHint ?? undefined }).catch((err) => {
           logger.warn({ err, userId }, "Bakgrunns-sync feilet");
         });
       }
@@ -2232,7 +2399,7 @@ export async function loadCanvasContext(
       );
       // Trigger bakgrunns-sync for å oppdatere Redis
       if (redisAvailable) {
-        syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
+        syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, { priorityCourseId: target?.courseIdHint ?? undefined }).catch((err) => {
           logger.warn({ err, userId }, "Bakgrunns-sync feilet etter MongoDB-fallback");
         });
       }
@@ -2245,7 +2412,7 @@ export async function loadCanvasContext(
       "Redis+MongoDB mangler data — trigger sync (lett)",
     );
     if (redisAvailable) {
-      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
+      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, { priorityCourseId: target?.courseIdHint ?? undefined }).catch((err) => {
         logger.warn({ err, userId }, "Bakgrunns-sync feilet");
       });
     }
@@ -2302,6 +2469,7 @@ export async function loadCanvasContext(
         source: "vector",
         hasSparseChunks: hybridResult.hasSparseChunks,
         fullDocumentMode: hybridResult.fullDocumentMode,
+        kilder: hybridResult.kilder,
       };
     }
   }
@@ -2415,7 +2583,7 @@ export async function loadCanvasContext(
       "Redis+MongoDB+on-demand mangler data — trigger sync (målrettet)",
     );
     if (redisAvailable) {
-      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
+      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, { priorityCourseId: target?.courseIdHint ?? undefined }).catch((err) => {
         logger.warn({ err, userId }, "Bakgrunns-sync feilet");
       });
     }
@@ -2445,7 +2613,7 @@ export async function loadCanvasContext(
       "canvas_full uten mål — lett kontekst fra MongoDB (fallback)",
     );
     if (redisAvailable) {
-      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
+      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, { priorityCourseId: target?.courseIdHint ?? undefined }).catch((err) => {
         logger.warn({ err, userId }, "Bakgrunns-sync feilet etter MongoDB-fallback");
       });
     }
@@ -2458,7 +2626,7 @@ export async function loadCanvasContext(
     "Redis+MongoDB mangler data — trigger sync (canvas_full uten mål)",
   );
   if (redisAvailable) {
-    syncCanvasDataForUser(userId, canvasToken, baseUrl, signal).catch((err) => {
+    syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, { priorityCourseId: target?.courseIdHint ?? undefined }).catch((err) => {
       logger.warn({ err, userId }, "Bakgrunns-sync feilet");
     });
   }
@@ -2475,6 +2643,7 @@ export async function ensureCanvasSync(
   userId: string,
   canvasToken: string,
   baseUrl?: string,
+  priorityCourseId?: string | number,
 ): Promise<void> {
   if (!isRedisReady()) return;
 
@@ -2483,7 +2652,9 @@ export async function ensureCanvasSync(
     return;
   }
 
-  syncCanvasDataForUser(userId, canvasToken, baseUrl).catch((err) => {
+  syncCanvasDataForUser(userId, canvasToken, baseUrl, undefined, {
+    priorityCourseId,
+  }).catch((err) => {
     logger.warn({ err, userId }, "Canvas sync feilet");
   });
 }

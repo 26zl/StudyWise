@@ -35,9 +35,12 @@ export async function updateStudyContext(
   if (!courseId || !courseName) return;
 
   try {
+    // Implisitt læring: detekter forklaringsnivå-signal i brukerens melding.
+    const detectedLevel = detectExplanationLevelSignal(userMessage);
+
     // Ekstraher et kort tema fra brukerens melding (første 80 tegn, rens)
     const topic = extractTopic(userMessage);
-    if (!topic) return;
+    if (!topic && !detectedLevel) return;
 
     // Ekstraher kort oppsummering fra AI-svaret (første meningsfulle setning)
     const summary = extractSummary(aiResponse);
@@ -45,46 +48,53 @@ export async function updateStudyContext(
     const existing = await StudyContext.findOne({ userId, courseId });
 
     if (existing) {
-      // Oppdater eksisterende topic eller legg til nytt
-      const existingTopic = existing.topics.find(
-        (t) => t.topic.toLowerCase() === topic.toLowerCase(),
-      );
+      if (topic) {
+        // Oppdater eksisterende topic eller legg til nytt
+        const existingTopic = existing.topics.find(
+          (t) => t.topic.toLowerCase() === topic.toLowerCase(),
+        );
 
-      if (existingTopic) {
-        existingTopic.queryCount += 1;
-        existingTopic.lastAskedAt = new Date();
-        existingTopic.summary = summary;
-      } else {
-        // Legg til nytt tema, fjern eldste hvis over grensen
-        if (existing.topics.length >= MAX_TOPICS_PER_COURSE) {
-          existing.topics.sort(
-            (a, b) => a.lastAskedAt.getTime() - b.lastAskedAt.getTime(),
-          );
-          existing.topics.shift();
+        if (existingTopic) {
+          existingTopic.queryCount += 1;
+          existingTopic.lastAskedAt = new Date();
+          existingTopic.summary = summary;
+        } else {
+          // Legg til nytt tema, fjern eldste hvis over grensen
+          if (existing.topics.length >= MAX_TOPICS_PER_COURSE) {
+            existing.topics.sort(
+              (a, b) => a.lastAskedAt.getTime() - b.lastAskedAt.getTime(),
+            );
+            existing.topics.shift();
+          }
+          existing.topics.push({
+            topic,
+            queryCount: 1,
+            lastAskedAt: new Date(),
+            summary,
+          });
         }
-        existing.topics.push({
-          topic,
-          queryCount: 1,
-          lastAskedAt: new Date(),
-          summary,
-        });
+      }
+
+      if (detectedLevel) {
+        existing.preferredExplanationLevel = detectedLevel;
       }
 
       existing.totalInteractions += 1;
       await existing.save();
-    } else {
+    } else if (topic) {
       // Opprett ny studiekontekst for kurset
       await StudyContext.create({
         userId,
         courseId,
         courseName,
         topics: [{
-          topic,
+          topic: topic!,
           queryCount: 1,
           lastAskedAt: new Date(),
           summary,
         }],
         totalInteractions: 1,
+        preferredExplanationLevel: detectedLevel ?? undefined,
       });
     }
   } catch (error) {
@@ -123,6 +133,9 @@ export async function loadStudyContextForUser(
     for (const ctx of contexts) {
       kontekst += `Kurs: ${ctx.courseName}\n`;
       kontekst += `Totalt ${ctx.totalInteractions} samtaler\n`;
+      if (ctx.preferredExplanationLevel) {
+        kontekst += `Foretrukket forklaringsnivå (lært implisitt): ${ctx.preferredExplanationLevel}\n`;
+      }
 
       // Sorter temaer etter relevans (nyeste og mest spurte først)
       const sortedTopics = [...ctx.topics].sort((a, b) => {
@@ -161,6 +174,27 @@ export async function deleteStudyContextForUser(userId: string): Promise<number>
 }
 
 // ─── Hjelpefunksjoner ─────────────────────────────────────
+
+/**
+ * Detekterer implisitt signal om ønsket forklaringsnivå fra brukerens melding.
+ * Returnerer null hvis ingen tydelig signal funnet.
+ */
+function detectExplanationLevelSignal(
+  message: string,
+): "simple" | "standard" | "detailed" | "expert" | null {
+  const t = message.toLowerCase();
+  if (/\b(forklar (det )?enkl(ere|t)|som om jeg er fem|mer grunnleggende|på en enklere måte|kortere)\b/.test(t)) {
+    return "simple";
+  }
+  if (/\b(mer detaljert|gå i dybden|forklar grundig(ere)?|utdyp|dypere forklaring)\b/.test(t)) {
+    return "detailed";
+  }
+  if (/\b(teknisk dypdykk|på ekspertnivå|formell definisjon|akademisk svar)\b/.test(t)) {
+    return "expert";
+  }
+  return null;
+}
+
 
 /**
  * Ekstraherer et kort tematittel fra brukerens melding.

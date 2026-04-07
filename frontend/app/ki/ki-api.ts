@@ -22,6 +22,8 @@ import {
   type SubTask,
   type TaskBreakdownGenerateRequest,
   type WeeklyPlanGenerateRequest,
+  CourseKnowledgeResponseSchema,
+  type CourseKnowledgeResponse,
 } from "common/ki";
 import { parseApiError, identifiserFeiltype, type FeilType } from "../lib/errorUtils";
 import { fetchApi } from "../lib/apiClient";
@@ -972,4 +974,20 @@ export async function generateQuizApi(request: QuizGenerateRequest, signal?: Abo
 export async function generateFlashcardsApi(request: FlashcardsGenerateRequest, signal?: AbortSignal): Promise<FlashcardsGenerateResponse> {
   const validated = FlashcardsGenerateRequestSchema.parse(request);
   return postGeneriskApi("/api/flashcards/generate", validated, FlashcardsGenerateResponseSchema, signal);
+}
+
+/** Hent aggregert oversikt over hva KI har indeksert for et kurs. */
+export function useCourseKnowledge(courseId: string | number | null | undefined) {
+  return useQuery<CourseKnowledgeResponse>({
+    queryKey: ["ki", "course-knowledge", String(courseId ?? "")],
+    queryFn: () =>
+      requestKI(
+        `/course-knowledge/${encodeURIComponent(String(courseId))}`,
+        CourseKnowledgeResponseSchema,
+        { method: "GET" },
+      ),
+    enabled: courseId != null && String(courseId).length > 0,
+    staleTime: 1000 * 60 * 2,
+    refetchOnWindowFocus: false,
+  });
 }

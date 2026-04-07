@@ -20,6 +20,8 @@ import {
 import { kiHistoryRouter } from "./kiHistory.js";
 import { kiAnalyseRouter } from "./kiAnalyse.js";
 import { kiShareRouter } from "./kiShare.js";
+import { kiCourseKnowledgeRouter } from "./kiCourseKnowledge.js";
+import { kiFeedbackRouter } from "./kiFeedback.js";
 import { SUPPORTED_MODELS, DEFAULT_MODEL, resolveModel } from "./aiModels.js";
 import { STUDYWISE_SYSTEM_PROMPT, STUDYWISE_COMPARISON_PROMPT } from "./systemPrompt.js";
 import { chatCompletion } from "./aiClient.js";
@@ -251,19 +253,6 @@ function sanitizeCourseHintValue(courseHint: string): string {
     );
   }
   return sanitized;
-}
-
-function includesWholeKeyword(text: string, keyword: string): boolean {
-  const escaped = escapeRegex(keyword);
-  let pattern: RegExp;
-  if (keyword.includes(" ")) {
-    // eslint-disable-next-line security/detect-non-literal-regexp -- keyword kommer fra hardkodet liste over kursnøkkelord
-    pattern = new RegExp(`(^|\\s)${escaped}(\\s|$)`, "i");
-  } else {
-    // eslint-disable-next-line security/detect-non-literal-regexp -- keyword kommer fra hardkodet liste over kursnøkkelord
-    pattern = new RegExp(`\\b${escaped}\\b`, "i");
-  }
-  return pattern.test(text);
 }
 
 function extractModuleHint(message: string): string | null {
@@ -528,7 +517,8 @@ function extractQueryTarget(message: string): TargetedQuery {
     "embedded", "elektronikk", "fysikk", "diskret",
     // Tillegg: vanlige norske fag og emnekode-prefikser
     "analyse", "logistikk", "regnskap", "markedsføring", "juss", "etikk",
-    "organisasjon", "sosiologi", "psykologi", "filosofi", "historie",
+    "organisasjon", "organisering", "organisatorisk",
+    "sosiologi", "psykologi", "filosofi", "historie",
     "biologi", "kjemi", "geografi", "engelsk", "norsk", "spansk", "tysk",
     "finans", "investering", "revisjon", "skatt", "forretning",
     // Engelske varianter
@@ -620,9 +610,26 @@ function extractQueryTarget(message: string): TargetedQuery {
     }
   }
 
-  // Fallback til enkle nøkkelord
+  // Fallback til enkle nøkkelord — bruker stem-matching slik at bøyninger
+  // som "organiserings", "organiseringsemnet", "metoden", "databaser" også treffer.
+  // Den ekstraherte hinten oppløses senere mot brukerens faktiske emnekatalog
+  // (se context-loader.service.ts → Matchet kurshint mot brukerens faktiske emnekatalog).
   if (!courseHint) {
-    courseHint = courseKeywords.find((kw) => includesWholeKeyword(cleanedForCourse, kw)) ?? null;
+    for (const kw of courseKeywords) {
+      const escaped = escapeRegex(kw);
+      // Sammensatte (med mellomrom): krev hel-frase-match
+      // Enkeltord: tillat trailing tegn (stem) for å fange norske bøyninger og sammensatte ord
+      // eslint-disable-next-line security/detect-non-literal-regexp -- kw kommer fra hardkodet liste
+      const pattern = kw.includes(" ")
+        ? new RegExp(`(^|\\s)${escaped}(\\s|$)`, "i")
+        // eslint-disable-next-line security/detect-non-literal-regexp -- kw kommer fra hardkodet liste
+        : new RegExp(`\\b${escaped}[a-zæøå]*\\b`, "i");
+      if (pattern.test(cleanedForCourse)) {
+        courseHint = kw;
+        logger.info({ courseHint, pattern: "keywordStem" }, "Ekstraherte fag fra nøkkelord (stem)");
+        break;
+      }
+    }
   }
 
   // Ekstraher filnavn-hints (f.eks. "kapittel3.pdf", "2_Analyse_av_tema.pdf")
@@ -721,6 +728,10 @@ router.use(rateLimitKi);
 router.use(kiHistoryRouter);
 // Deling av chat
 router.use(kiShareRouter);
+// Course knowledge (hva KI har indeksert per kurs)
+router.use(kiCourseKnowledgeRouter);
+// Feedback (tommel opp/ned)
+router.use(kiFeedbackRouter);
 // Dokumentanalyse ruter
 router.use(kiAnalyseRouter);
 
@@ -864,7 +875,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
 
     // SSE-headere og keepalive tidlig slik at proxy/klient ikke lukker under lang kontekstlasting (f.eks. PDF-oppsummering)
     if (!res.headersSent) {
-      const sse = setupSSE(req, res, 130_000); // maks timeout (canvas_full=120s) + margin
+      const sse = setupSSE(req, res, 160_000); // maks timeout (full_document=150s) + margin
       sseCleanup = sse.clearKeepalive;
       sseStarted = true;
     }
@@ -876,6 +887,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     let fullDocumentStrictPrefix = "";
     let traceCourseIdHint: number | null = null;
     let traceCourseHint: string | null = null;
+    let contextKilder: import("common/ki").KIChatSource[] | undefined;
 
     if (intent !== "general_chat" && req.canvasToken && req.user?.id) {
       const baseUrl = req.canvasBaseUrl;
@@ -942,7 +954,9 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       // Bruker Redis for å låse courseHint til første gyldige ekstraksjon i sesjonen.
       // Oppdateres KUN ved eksplisitt kursbytte-signal fra brukeren.
       // Alle courseHint-verdier saniteres før lagring/sammenligning for konsistent matching.
-      const courseHintLockKey = `ki:session:${req.user.id}:locked-course-hint`;
+      // NB: nøkkelen ligger BEVISST utenfor `ki:session:*`-pattern slik at canvas-sync sin
+      // session-cache-invalidering ikke sletter sesjonslåsen mellom oppfølgingsspørsmål.
+      const courseHintLockKey = `ki:user:${req.user.id}:locked-course-hint`;
       const SESSION_COURSEHINT_TTL = 3600; // 1 time — matcher typisk chat-sesjon
 
       const lockedCourseHintRaw = await getCache(courseHintLockKey);
@@ -964,18 +978,18 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
         // Bruk eksisterende låst courseHint kun når meldingen ikke gir ny eksplisitt courseHint.
         // Dette hindrer at sesjonslås overstyrer ny emnekode som 6105N.
         if (!sanitizedTargetHint) {
-          if (!shouldReuseLockedCourseHint) {
-            logger.info(
-              { lockedCourseHint, intent, messagePreview: lastUserMsg.substring(0, 100) },
-              "courseHint fra sesjonslås ignorert for nytt, bredt spørsmål",
-            );
-          } else {
-            target.courseHint = lockedCourseHint;
-            logger.info(
-              { courseHint: target.courseHint, fromLock: true },
-              "courseHint arvet fra sesjonslås",
-            );
-          }
+          // Arv alltid den låste hintet når meldingen ikke nevner et nytt kurs.
+          // Tidligere dropp ved "bredt spørsmål" førte til at oppfølginger som
+          // "forklar hva forelesningene har gått ut på?" mistet kurskonteksten.
+          target.courseHint = lockedCourseHint;
+          logger.info(
+            {
+              courseHint: target.courseHint,
+              fromLock: true,
+              reason: shouldReuseLockedCourseHint ? "followUpMarker" : "noNewCourseRef",
+            },
+            "courseHint arvet fra sesjonslås",
+          );
         } else if (sanitizedTargetHint !== lockedCourseHint && hasOverride) {
           await setCache(courseHintLockKey, sanitizedTargetHint, SESSION_COURSEHINT_TTL);
           target.courseHint = sanitizedTargetHint;
@@ -1002,10 +1016,38 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
           { courseHint: sanitizedTargetHint, newLock: true },
           "courseHint låst (første ekstraksjon)",
         );
+      } else {
+        // Ingen lås (f.eks. bruker har gjenåpnet en gammel chat etter at Redis-låsen
+        // utløp) og ingen hint i siste melding — skann tidligere brukermeldinger i
+        // samtalehistorikken for å gjenfinne kurskonteksten. Dette gjør at oppfølginger
+        // i gamle chatter ikke "glemmer" hvilket emne samtalen handler om.
+        const tidligereBrukerMeldinger = messages
+          .filter((m: { role: string }) => m.role === "user")
+          .slice(0, -1)
+          .map((m: { content: string }) => m.content)
+          .reverse();
+        for (const tidligere of tidligereBrukerMeldinger) {
+          const tidligereTarget = extractQueryTarget(tidligere);
+          const tidligereHint = tidligereTarget.courseHint
+            ? sanitizeCourseHintValue(tidligereTarget.courseHint)
+            : null;
+          if (tidligereHint) {
+            target.courseHint = tidligereHint;
+            await setCache(courseHintLockKey, tidligereHint, SESSION_COURSEHINT_TTL);
+            logger.info(
+              { courseHint: tidligereHint, fromHistory: true },
+              "courseHint gjenfunnet fra samtalehistorikk (gjenopptatt chat)",
+            );
+            break;
+          }
+        }
       }
       // Hvis ingen courseHint finnes og ingen lås — fortsett uten (bredt søk)
 
-      if (target.courseHint && target.courseIdHint == null) {
+      // Kjør alltid katalogmatching når courseIdHint mangler — også uten courseHint.
+      // Dette gjør at meldinger som "Organiserings emnet snart eksamen" fortsatt kan
+      // matches mot brukerens faktiske emnekatalog basert på selve meldingsteksten.
+      if (target.courseIdHint == null) {
         target = await resolveTargetAgainstKnownCourses(req.user.id, target, lastUserMsg);
       }
 
@@ -1138,6 +1180,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       canvasKontekst = contextResult.kontekst;
       hasCanvasData = contextResult.hasCanvasData;
       fullDocumentModeActive = !!contextResult.fullDocumentMode;
+      contextKilder = contextResult.kilder && contextResult.kilder.length > 0 ? contextResult.kilder : undefined;
 
       // Append instruksjon for sparse innhold (PowerPoint-kulepunkter)
       if (contextResult.hasSparseChunks) {
@@ -1198,7 +1241,15 @@ Rules:
 
     // Dynamisk timeout og max_tokens basert på intent
     const maxTokens = fullDocumentModeActive ? 6000 : intent === "canvas_full" ? 4000 : intent === "canvas_light" ? 2000 : 1400;
-    const TIMEOUT_MS = intent === "canvas_full" ? 120000 : intent === "canvas_light" ? 60000 : 30000;
+    // Full dokument-mode laster opp til ~70k tegn kontekst og kan generere flere tusen output-tokens —
+    // 60 s er for stramt (Anthropic bruker typisk 60-90 s). Gi den 150 s.
+    const TIMEOUT_MS = fullDocumentModeActive
+      ? 150000
+      : intent === "canvas_full"
+        ? 120000
+        : intent === "canvas_light"
+          ? 60000
+          : 30000;
 
     // Token-basert trimming av samtalehistorikk.
     // Reserverer plass til system-prompt + AI-respons, bruker resten til historikk.
@@ -1326,6 +1377,7 @@ Rules:
             total_tokens: usage.total_tokens,
           }
         : undefined,
+      kilder: contextKilder,
     });
     // writeSSE base64-koder JSON-payloaden før den skrives til event-streamen.
     if (writeSSE(res, payload)) {

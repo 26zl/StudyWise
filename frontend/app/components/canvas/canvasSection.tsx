@@ -21,6 +21,8 @@ import {
     ClipboardList,
 } from "lucide-react";
 import { LoadingView } from "@/app/components/ui/Loading";
+import { CourseKnowledgePanel } from "@/app/components/ki/CourseKnowledgePanel";
+import { fetchApi, downloadAuthedFile } from "@/app/lib/apiClient";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { CanvasTokenNotice } from "@/app/components/canvas/CanvasTokenNotice";
 import {
@@ -63,16 +65,19 @@ function FilListe({ filer, overskrift }: { filer: CanvasFile[]; overskrift: stri
                     const filUrl = sikkerFilNedlastingUrl(f.id);
                     if (!filUrl) return null;
                     return (
-                        <a
+                        <button
+                            type="button"
                             key={f.id}
-                            href={filUrl}
-                            className="flex px-4 py-3 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm text-slate-800 dark:text-slate-200 items-center gap-2"
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            onClick={() => {
+                                void downloadAuthedFile(filUrl, f.display_name || f.filename).catch(() => {
+                                    showToast.error("Kunne ikke laste ned filen");
+                                });
+                            }}
+                            className="flex w-full text-left px-4 py-3 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm text-slate-800 dark:text-slate-200 items-center gap-2"
                         >
                             <Download size={16} className="text-slate-400" />
                             <span>{f.display_name || f.filename}</span>
-                        </a>
+                        </button>
                     );
                 })}
             </div>
@@ -237,6 +242,18 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     const [valgtSide, settValgtSide] = useState<{ pageId: string; courseId: number } | null>(null);
     const [aktivTab, settAktivTab] = useState<EmneTab>("courses");
 
+    // Trigger prioritert Canvas-sync når bruker åpner et kurs.
+    // Resultatet bryr vi oss ikke om — det skjer i bakgrunnen, og KI bruker dataene
+    // ved neste chat-spørsmål. Stille feilhåndtering: ikke bra hvis dette plager brukeren.
+    useEffect(() => {
+        if (valgtEmneId == null) return;
+        void fetchApi("/api/canvas/sync/prioritize", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ courseId: valgtEmneId }),
+        }).catch(() => {});
+    }, [valgtEmneId]);
+
     // Skjulte emner
     const megQuery = useMeg();
     const oppdaterHiddenCourses = useOppdaterHiddenCourses();
@@ -350,6 +367,12 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
                     {course?.name}
                 </h3>
+
+                {megQuery.data?.user?.role === "admin" && (
+                    <div className="mb-4">
+                        <CourseKnowledgePanel courseId={valgtEmneId} />
+                    </div>
+                )}
 
                 {/* Vis tabs kun for innhold som finnes */}
                 {(() => {
@@ -604,7 +627,12 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                             // For filer med content_id: åpne direkte
                                             if (isFile && downloadPath && downloadPath.startsWith("/api/")) {
                                                 e.preventDefault();
-                                                window.open(downloadPath, "_blank", "noopener,noreferrer");
+                                                void downloadAuthedFile(downloadPath, item.title).catch(() => {
+                                                    showToast.error(
+                                                        labels.openFileErrorTitle,
+                                                        labels.openFileErrorDescription,
+                                                    );
+                                                });
                                                 return;
                                             }
                                             // For filer UTEN content_id: hent dynamisk via /open endpoint
@@ -620,7 +648,12 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                                             // Rekonstruer URL fra validert ID - bryter taint-kjeden
                                                             const validatedFileId = pathMatch[1];
                                                             const safeUrl = `/api/canvas/filer/${encodeURIComponent(validatedFileId)}/download`;
-                                                            window.open(safeUrl, "_blank", "noopener,noreferrer");
+                                                            void downloadAuthedFile(safeUrl, item.title).catch(() => {
+                                                                showToast.error(
+                                                                    labels.openFileErrorTitle,
+                                                                    labels.openFileErrorDescription,
+                                                                );
+                                                            });
                                                             return;
                                                         }
                                                     }

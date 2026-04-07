@@ -502,6 +502,36 @@ export async function getStoredChunksForCourses(
   }));
 }
 
+/**
+ * Henter alle fulle dokumenter (chunkIndex: -1) for et kurs.
+ * Brukes for kursomfattende oversiktsspørsmål ("forklar forelesningene").
+ */
+export async function getAllFullDocumentsForCourse(
+  userId: string,
+  courseId: string,
+): Promise<Array<{ fileId: number; fileName: string; moduleTitle: string; fullText: string; charCount: number }>> {
+  const docs = await ContentEmbedding.find(
+    { userId, courseId, chunkIndex: -1 },
+    { _id: 0, fileId: 1, fileName: 1, moduleTitle: 1, fullText: 1, text: 1, charCount: 1 },
+  )
+    .sort({ moduleTitle: 1, fileName: 1 })
+    .lean();
+
+  return docs
+    .map((doc) => {
+      const fullText = typeof doc.fullText === "string" && doc.fullText.length > 0 ? doc.fullText : doc.text;
+      if (!fullText || fullText.trim().length === 0) return null;
+      return {
+        fileId: doc.fileId,
+        fileName: doc.fileName,
+        moduleTitle: doc.moduleTitle ?? "",
+        fullText,
+        charCount: typeof doc.charCount === "number" ? doc.charCount : fullText.length,
+      };
+    })
+    .filter((d): d is { fileId: number; fileName: string; moduleTitle: string; fullText: string; charCount: number } => d !== null);
+}
+
 export async function getStoredFullDocumentForFile(
   userId: string,
   courseId: string,

@@ -41,6 +41,13 @@ const CHUNK_SIZE = 2000;
 /** Overlap mellom chunks i tegn */
 const CHUNK_OVERLAP = 200;
 
+/**
+ * Minimum tegn-lengde for at en chunk skal beholdes.
+ * Filtrerer ut støy fra OCR-rester, side-headere og fragment-rester
+ * etter findBreakPoint. Tilsvarer ca. 30 tokens.
+ */
+const MIN_CHUNK_CHARS = 120;
+
 /** Maks antall chunks å returnere fra søk */
 const MAX_SEARCH_RESULTS = 10;
 
@@ -173,15 +180,21 @@ export function chunkText(
     }
 
     const chunk = text.slice(start, end).trim();
-    if (chunk.length > 0) {
+    // Drop chunks som er for små til å være meningsfulle — typisk fragmenter
+    // når findBreakPoint returnerer en posisjon nær start. Disse forsøpler
+    // ellers Pinecone/BM25-indeksen med nesten-identiske mikro-chunks.
+    if (chunk.length >= MIN_CHUNK_CHARS) {
       chunks.push(chunk);
     }
 
-    // Beregn effektiv overlap: for svært små chunks (mindre enn overlap),
-    // reduseres overlap proporsjonalt slik at vi ikke lager mange nesten-identiske chunks.
+    // Garanter minst 50% framdrift av chunkSize per iterasjon. Tidligere
+    // brukte vi `Math.max(actualLen - effectiveOverlap, 1)`, som kunne ende
+    // på 1-tegns-stepping når findBreakPoint returnerte en kort segment —
+    // det produserte hundrevis av sliding-window chunks forskjøvet med 1 tegn.
     const actualLen = end - start;
     const effectiveOverlap = Math.min(overlap, Math.floor(actualLen / 2));
-    start += Math.max(actualLen - effectiveOverlap, 1);
+    const minStep = Math.max(1, Math.floor(chunkSize / 2));
+    start += Math.max(actualLen - effectiveOverlap, minStep);
   }
 
   return chunks;

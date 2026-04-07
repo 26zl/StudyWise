@@ -269,6 +269,7 @@ router.put("/:assignmentId/toggle/:taskId", async (req, res) => {
     }
 
     task.completed = !task.completed;
+    task.completedAt = task.completed ? new Date() : null;
     breakdown.subtasks = subtasks;
     breakdown.updatedAt = new Date();
     await breakdown.save();

@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import DOMPurify, { type Config as DOMPurifyConfig } from "isomorphic-dompurify";
 import parse, { Element, domToReact, type DOMNode, type HTMLReactParserOptions } from "html-react-parser";
 import { ExternalLink } from "lucide-react";
+import { downloadAuthedFile } from "../lib/apiClient";
 
 // DOMPurify konfigurasjon - streng XSS-beskyttelse
 const DOMPURIFY_CONFIG: DOMPurifyConfig = {
@@ -204,11 +205,21 @@ export const createCanvasHtmlParser = (renderImage?: (el: Element) => ReactNode,
                 const href = domNode.attribs?.href;
                 const resolvedHref = canvasBildeProxyUrl(href) ?? resolveCanvasRelativeHref(href ?? "", canvasBaseUrl);
                 const children = domToReact(domNode.children as DOMNode[], { replace });
+                // Hvis lenken peker til en StudyWise-proxiet Canvas-fil, intercept klikket
+                // og last ned via autentisert blob slik at brukeren forblir på StudyWise.
+                const erFilNedlasting = typeof resolvedHref === "string"
+                    && /^\/api\/canvas\/filer\/\d+\/download$/.test(resolvedHref);
                 return asReplacement(
                     <a
                         href={resolvedHref}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={erFilNedlasting ? (e) => {
+                            e.preventDefault();
+                            void downloadAuthedFile(resolvedHref).catch(() => {
+                                // Stille fallback — feilen logges av nettleseren
+                            });
+                        } : undefined}
                         className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
                     >
                         {children}

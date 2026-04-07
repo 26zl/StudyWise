@@ -24,6 +24,7 @@
 import crypto from "crypto";
 import pLimit from "p-limit";
 import { logger } from "../utils/logger.js";
+import { isProd } from "../utils/env.js";
 import {
   deleteCacheKeys,
   getCache,
@@ -40,6 +41,7 @@ import {
   fetchPdfContent,
   fetchFileContent,
   fetchFileMetadata,
+  fetchFiles,
   fetchPage,
 } from "../rutere/canvas/canvasService.js";
 import { isSupportedFileType, extractTextFromFile } from "./fileExtractor.js";
@@ -59,6 +61,7 @@ import {
   upsertStoredFileContent,
 } from "./embedding.service.js";
 import { CanvasStructureModel, type ICanvasModuleItem } from "../database/models/CanvasStructure.js";
+import { ContentEmbedding } from "../database/models/ContentEmbedding.js";
 import { crawlCourseExternalUrls } from "./crawler.js";
 
 // ─── Konstanter ────────────────────────────────────────────
@@ -87,7 +90,9 @@ const MAX_FILES_PER_SYNC = 200;
 const MEMORY_PRESSURE_THRESHOLD_MB = (() => {
   const raw = process.env.SYNC_MEMORY_THRESHOLD_MB;
   const parsed = raw ? Number.parseInt(raw, 10) : NaN;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 300;
+  if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  // Lokalt: høy terskel slik at minnesjekken ikke blokkerer sync. Prod: 300 MB (Heroku 512 MB).
+  return isProd ? 300 : 8192;
 })();
 
 /** TTL for distribuert sync-lås i Redis (sekunder) — forhindrer at flere dynoer synker samtidig */
@@ -105,6 +110,8 @@ function syncLockKey(userId: string): string {
  * Returnerer true hvis vi er over terskelen (etter å ha forsøkt GC).
  */
 async function checkMemoryPressure(userId: string): Promise<boolean> {
+  // Lokalt har vi rikelig med RAM — minnesjekken er kun relevant for Heroku-dynoer (512 MB).
+  if (!isProd) return false;
   const mem = process.memoryUsage();
   const rssMB = Math.round(mem.rss / (1024 * 1024));
   const heapUsedMB = Math.round(mem.heapUsed / (1024 * 1024));
@@ -155,6 +162,8 @@ export interface SyncResult {
 interface SyncOptions {
   bypassRateLimit?: boolean;
   maxFiles?: number;
+  /** Prioritert kurs som skal synkroniseres først (det brukeren faktisk spør om). */
+  priorityCourseId?: string | number;
 }
 
 // ─── Sync-tracking ─────────────────────────────────────────
@@ -353,6 +362,21 @@ async function _doSync(
   } catch (error) {
     logger.error({ err: error, userId }, "Kunne ikke hente emner for Canvas sync");
     return { synced: false, courses: { total: 0, updated: 0, unchanged: 0, failed: 0 }, durationMs: Date.now() - startTime };
+  }
+
+  // Prioriter kurset brukeren faktisk spør om — slik at det blir indeksert først
+  // selv om sync skulle bli avbrutt eller treffe minnetrykk underveis.
+  if (options?.priorityCourseId != null) {
+    const prio = String(options.priorityCourseId);
+    courses = [...courses].sort((a, b) => {
+      const aPrio = String(a.id) === prio ? 0 : 1;
+      const bPrio = String(b.id) === prio ? 0 : 1;
+      return aPrio - bPrio;
+    });
+    logger.info(
+      { userId, priorityCourseId: prio },
+      "Canvas sync: prioriterer kurs først",
+    );
   }
 
   if (courses.length === 0) {
@@ -672,6 +696,13 @@ async function _doSync(
           let fileCount = 0;
           let reachedFileLimit = false;
           const keepFileIds = new Set<number>();
+          // Komplett enumerasjon av alle filer som faktisk finnes i Canvas akkurat nå.
+          // Brukes til cleanup uavhengig av om vi rakk å prosessere alle (slik at filer
+          // som er fjernet i Canvas blir slettet selv om vi traff filgrensen denne runden).
+          const allCanvasFileIds = new Set<number>();
+          // Settes til false hvis enumerasjonen er ufullstendig (orphan-fetch feilet).
+          // Kun da skal vi hoppe over cleanup — ellers risikerer vi å slette gyldige filer.
+          let enumerationComplete = true;
           const storedFileStatus = await getStoredFileStatusForCourse(userId, courseId);
 
           // Samle alle File-items på tvers av moduler for å batch-hente metadata parallelt.
@@ -687,6 +718,7 @@ async function _doSync(
             for (const item of mod.items) {
               if (item.type !== "File" || !item.content_id) continue;
               allFileItems.push({ mod, item, contentId: item.content_id });
+              allCanvasFileIds.add(item.content_id);
             }
           }
 
@@ -708,6 +740,137 @@ async function _doSync(
               }),
             ),
           );
+
+          // Felles prosessering av én fil — brukes både for modul-linkede og
+          // orphan-filer (filer som ligger under "Files"-fanen i Canvas men
+          // ikke er linket fra noen modul). Returnerer "limit-reached" hvis
+          // minnetrykk eller filgrensen tvinger en stopp.
+          type ProcessOutcome = "ok" | "skipped" | "limit-reached";
+          const prosessSyncFil = async (
+            fileData: CanvasFileData,
+            contentId: number,
+            moduleId: number,
+            moduleTitle: string,
+          ): Promise<ProcessOutcome> => {
+            try {
+              if (!isSupportedFileType(fileData.filename)) return "skipped";
+
+              if (await checkMemoryPressure(userId)) {
+                logger.warn(
+                  { userId, courseId, filename: fileData.filename },
+                  "Avbryter filekstraksjon pga. høyt minnetrykk",
+                );
+                return "limit-reached";
+              }
+
+              keepFileIds.add(contentId);
+              const metaHash = sha256(`${fileData.id}:${fileData.updated_at}:${fileData.size}`);
+              const existingStatus = storedFileStatus.get(contentId);
+
+              if (existingStatus?.fileHash === metaHash) {
+                if (!existingStatus.hasEmbedding && isEmbeddingAvailable()) {
+                  const storedChunks = await getStoredChunksForFile(userId, courseId, contentId);
+                  if (storedChunks.length > 0) {
+                    await upsertStoredFileContent({
+                      userId,
+                      courseId,
+                      courseName: course.name,
+                      moduleId,
+                      moduleTitle,
+                      fileName: fileData.filename,
+                      fileId: contentId,
+                      fileHash: metaHash,
+                      chunks: storedChunks,
+                      fullText: storedChunks
+                        .sort((a, b) => a.index - b.index)
+                        .map((chunk) => chunk.text)
+                        .join("\n\n"),
+                    });
+                    return "ok";
+                  }
+                }
+
+                await updateStoredFileMetadata(userId, courseId, contentId, {
+                  courseName: course.name,
+                  moduleTitle,
+                  fileName: fileData.filename,
+                  fileHash: metaHash,
+                });
+                return "ok";
+              }
+
+              const isPdf =
+                fileData.mime_type === "application/pdf" ||
+                fileData.filename.toLowerCase().endsWith(".pdf");
+
+              let content: string | null = null;
+
+              if (isPdf) {
+                const pdfResult = await fetchPdfContent(canvasToken, {
+                  id: fileData.id,
+                  filename: fileData.filename,
+                  url: fileData.url,
+                  size: fileData.size,
+                  mime_type: fileData.mime_type,
+                }, baseUrl, { syncMode: true });
+                if (pdfResult) {
+                  content = pdfResult.content;
+                }
+              } else {
+                const buf = await fetchFileContent(canvasToken, {
+                  id: fileData.id,
+                  filename: fileData.filename,
+                  url: fileData.url,
+                  size: fileData.size,
+                }, baseUrl);
+                if (buf) {
+                  const result = await extractTextFromFile(buf, fileData.filename);
+                  if (result && result.content.trim().length > 0) {
+                    content = result.content;
+                  }
+                }
+              }
+
+              if (!content || content.trim().length === 0) {
+                logger.info(
+                  { userId, courseId, fileId: contentId, filename: fileData.filename },
+                  "Fil ga ikke ekstraherbart innhold — beholder eventuell tidligere lagring",
+                );
+                return "skipped";
+              }
+
+              const chunks: ContentChunk[] = createChunksFromContent(content, {
+                courseId,
+                courseName: course.name,
+                moduleTitle,
+                fileName: fileData.filename,
+                fileId: contentId,
+              });
+
+              if (chunks.length === 0) return "skipped";
+
+              await upsertStoredFileContent({
+                userId,
+                courseId,
+                courseName: course.name,
+                moduleId,
+                moduleTitle,
+                fileName: fileData.filename,
+                fileId: contentId,
+                fileHash: metaHash,
+                chunks,
+                fullText: content,
+              });
+              fileCount++;
+              return "ok";
+            } catch (error) {
+              logger.warn(
+                { err: error, userId, contentId, filename: fileData.filename },
+                "Feil ved filekstraksjon under sync",
+              );
+              return "skipped";
+            }
+          };
 
           for (const mod of moduler) {
             if (signal?.aborted) break;
@@ -731,151 +894,69 @@ async function _doSync(
               const fileData = fileMetadataMap.get(contentId);
               if (!fileData) continue; // metadata-henting feilet — skip denne filen
 
-              try {
-                if (!isSupportedFileType(fileData.filename)) {
-                  continue;
-                }
-
-                // Minnevern: stopp filekstraksjon hvis heapet er for stort
-                if (await checkMemoryPressure(userId)) {
-                  logger.warn(
-                    { userId, courseId, filename: fileData.filename },
-                    "Avbryter filekstraksjon pga. høyt minnetrykk",
-                  );
-                  reachedFileLimit = true;
-                  break;
-                }
-
-                keepFileIds.add(contentId);
-                const metaHash = sha256(`${fileData.id}:${fileData.updated_at}:${fileData.size}`);
-                const existingStatus = storedFileStatus.get(contentId);
-
-                if (existingStatus?.fileHash === metaHash) {
-                  if (!existingStatus.hasEmbedding && isEmbeddingAvailable()) {
-                    const storedChunks = await getStoredChunksForFile(userId, courseId, contentId);
-                    if (storedChunks.length > 0) {
-                      await upsertStoredFileContent({
-                        userId,
-                        courseId,
-                        courseName: course.name,
-                        moduleId: mod.id,
-                        moduleTitle: mod.name,
-                        fileName: fileData.filename,
-                        fileId: contentId,
-                        fileHash: metaHash,
-                        chunks: storedChunks,
-                        fullText: storedChunks
-                          .sort((a, b) => a.index - b.index)
-                          .map((chunk) => chunk.text)
-                          .join("\n\n"),
-                      });
-
-                      continue;
-                    }
-                  }
-
-                  await updateStoredFileMetadata(userId, courseId, contentId, {
-                    courseName: course.name,
-                    moduleTitle: mod.name,
-                    fileName: fileData.filename,
-                    fileHash: metaHash,
-                  });
-                  continue;
-                }
-
-                const isPdf =
-                  fileData.mime_type === "application/pdf" ||
-                  fileData.filename.toLowerCase().endsWith(".pdf");
-
-                let content: string | null = null;
-
-                if (isPdf) {
-                  const pdfResult = await fetchPdfContent(canvasToken, {
-                    id: fileData.id,
-                    filename: fileData.filename,
-                    url: fileData.url,
-                    size: fileData.size,
-                    mime_type: fileData.mime_type,
-                  }, baseUrl, { syncMode: true });
-                  if (pdfResult) {
-                    content = pdfResult.content;
-                  }
-                } else {
-                  const buf = await fetchFileContent(canvasToken, {
-                    id: fileData.id,
-                    filename: fileData.filename,
-                    url: fileData.url,
-                    size: fileData.size,
-                  }, baseUrl);
-                  if (buf) {
-                    const result = await extractTextFromFile(buf, fileData.filename);
-                    if (result && result.content.trim().length > 0) {
-                      content = result.content;
-                    }
-                  }
-                }
-
-                if (!content || content.trim().length === 0) {
-                  logger.info(
-                    { userId, courseId, fileId: contentId, filename: fileData.filename },
-                    "Fil ga ikke ekstraherbart innhold — beholder eventuell tidligere lagring",
-                  );
-                  continue;
-                }
-
-                const chunks: ContentChunk[] = createChunksFromContent(content, {
-                  courseId,
-                  courseName: course.name,
-                  moduleTitle: mod.name,
-                  fileName: fileData.filename,
-                  fileId: contentId,
-                });
-
-                if (chunks.length === 0) {
-                  continue;
-                }
-
-                await upsertStoredFileContent({
-                  userId,
-                  courseId,
-                  courseName: course.name,
-                  moduleId: mod.id,
-                  moduleTitle: mod.name,
-                  fileName: fileData.filename,
-                  fileId: contentId,
-                  fileHash: metaHash,
-                  chunks,
-                  fullText: content,
-                });
-                fileCount++;
-              } catch (error) {
-                logger.warn(
-                  { err: error, userId, contentId, title: item.title },
-                  "Feil ved filekstraksjon under sync",
-                );
+              const outcome = await prosessSyncFil(fileData, contentId, mod.id, mod.name);
+              if (outcome === "limit-reached") {
+                reachedFileLimit = true;
+                break;
               }
             }
           }
 
-          if (!reachedFileLimit) {
-            const removedCount = await deleteMissingFilesForCourse(
-              userId,
-              courseId,
-              [...keepFileIds],
-            );
-            if (removedCount > 0) {
-              logger.info(
-                { userId, courseId, removedCount },
-                "Slettet lagrede filer som ikke lenger finnes i kurset",
+          // ── Orphan-filer fra "Files"-fanen ──
+          // Mange emner (typisk humanistisk-/teorifag som ORL1000) organiserer hele
+          // pensumet under "Files" uten å linke filene fra moduler. Uten denne
+          // ekstra runden ville sync hoppe over alle forelesnings-PDFene for slike emner.
+          if (!signal?.aborted) {
+            try {
+              const { data: orphanFiles } = await fetchFiles(canvasToken, course.id, baseUrl);
+              // Sørg for at orphan-IDer alltid registreres for cleanup, selv om vi
+              // hopper over prosessering pga. filgrensen.
+              for (const f of orphanFiles) {
+                allCanvasFileIds.add(f.id);
+              }
+              if (reachedFileLimit) {
+                logger.info(
+                  { userId, courseId, orphanCount: orphanFiles.length },
+                  "Filgrensen nådd — registrerer orphan-filer for cleanup uten å prosessere",
+                );
+              }
+              const ufunneFiler = reachedFileLimit
+                ? []
+                : orphanFiles.filter((f) => !keepFileIds.has(f.id));
+              if (ufunneFiler.length > 0) {
+                logger.info(
+                  { userId, courseId, count: ufunneFiler.length },
+                  "Prosesserer orphan-filer fra /files-endepunktet",
+                );
+              }
+              for (const f of ufunneFiler) {
+                if (signal?.aborted) break;
+                if (fileCount >= maxFilesPerSync) {
+                  reachedFileLimit = true;
+                  break;
+                }
+                const outcome = await prosessSyncFil(
+                  f as unknown as CanvasFileData,
+                  f.id,
+                  0,
+                  "Files",
+                );
+                if (outcome === "limit-reached") {
+                  reachedFileLimit = true;
+                  break;
+                }
+              }
+            } catch (err) {
+              enumerationComplete = false;
+              logger.warn(
+                { err, userId, courseId },
+                "Kunne ikke hente orphan-filer fra /files — hopper over cleanup for å unngå tap",
               );
             }
-          } else {
-            logger.info(
-              { userId, courseId, maxFilesPerSync },
-              "Hopper over sletting av manglende filer fordi filgrensen ble nådd",
-            );
           }
 
+          // Cleanup flyttet nedover — kjøres etter at pages og oppgaver også er
+          // indeksert, slik at keepFileIds er komplett før vi bestemmer hva som skal slettes.
           await deleteCacheKeys([userKey(userId, "emne", courseId, "chunks")]);
 
           // ── Page-ekstraksjon for Page-type module items ──
@@ -1069,6 +1150,41 @@ async function _doSync(
               );
             }
           }
+
+          // ── Cleanup av filer som ikke lenger finnes i Canvas ──
+          // Kjøres SIST slik at keepFileIds reflekterer alt vi har indeksert i denne synken
+          // (modulfiler, orphan-filer, pages, oppgaver). Hopper over hvis enumerasjonen er
+          // ufullstendig (orphan-fetch feilet) for å unngå tap av gyldige data.
+          if (enumerationComplete && !signal?.aborted) {
+            // Union: alle Canvas-filer fra full enumerasjon (selv om vi ikke prosesserte
+            // dem alle) + alle ID-er som ble lagt til av pages/oppgaver-indeksering.
+            const cleanupKeepIds = [
+              ...new Set<number>([...allCanvasFileIds, ...keepFileIds]),
+            ];
+            try {
+              const removedCount = await deleteMissingFilesForCourse(
+                userId,
+                courseId,
+                cleanupKeepIds,
+              );
+              if (removedCount > 0) {
+                logger.info(
+                  { userId, courseId, removedCount, keptCount: cleanupKeepIds.length },
+                  "Slettet lagrede filer som ikke lenger finnes i kurset",
+                );
+              }
+            } catch (cleanupErr) {
+              logger.warn(
+                { err: cleanupErr, userId, courseId },
+                "Feil ved cleanup av manglende filer",
+              );
+            }
+          } else {
+            logger.info(
+              { userId, courseId, reachedFileLimit, enumerationComplete },
+              "Hopper over sletting av manglende filer (ufullstendig enumerasjon)",
+            );
+          }
         } catch (error) {
           // Behold forrige hash slik at kurset ikke behandles som "fjernet"
           const prevHash = previousMeta.courseHashes[courseId];
@@ -1251,6 +1367,20 @@ export async function hasCanvasSyncData(userId: string): Promise<boolean> {
   if (!isRedisReady()) return false;
   const meta = await getCache(userKey(userId, "syncMeta"));
   return meta !== null;
+}
+
+/**
+ * Sjekker om et spesifikt kurs har minst én indeksert chunk i MongoDB.
+ * Brukes av chat-flyten for å avgjøre om vi må vente på sync før vi svarer.
+ */
+export async function hasIndexedCourseData(userId: string, courseId: string | number): Promise<boolean> {
+  try {
+    const exists = await ContentEmbedding.exists({ userId, courseId: String(courseId) });
+    return exists !== null;
+  } catch (err) {
+    logger.warn({ err, userId, courseId }, "hasIndexedCourseData feilet");
+    return false;
+  }
 }
 
 /** Maks filer per sync under initial sync (konfigurerbar via env) — satt til 200 for full dekning */

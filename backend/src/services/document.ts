@@ -32,6 +32,7 @@ import Tesseract from "tesseract.js";
 import sharp from "sharp";
 import pLimit from "p-limit";
 import { logger } from "../utils/logger.js";
+import { isProd } from "../utils/env.js";
 import { DocumentParseResult, DocumentParseResultSchema } from "common/document";
 import { extractTextFromFile, getCodeLanguage } from "./fileExtractor.js";
 
@@ -39,9 +40,31 @@ import { extractTextFromFile, getCodeLanguage } from "./fileExtractor.js";
 const OCR_TIMEOUT_MS = 60000; // 60 sekunder timeout for OCR
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB maks filstørrelse for parsing
 const MAX_OCR_PAGES = 10; // Maks antall PDF-sider som OCR-es (interaktiv analyse)
-const MAX_OCR_PAGES_SYNC = 1; // Maks antall PDF-sider som OCR-es under Canvas sync (minnegrense på Heroku 512MB)
-/** Maks filstørrelse for OCR under sync — store skannede PDF-er hopper over OCR */
-const MAX_OCR_FILE_SIZE_SYNC = 5 * 1024 * 1024; // 5MB
+/**
+ * Maks antall PDF-sider som OCR-es under Canvas sync.
+ * Default 1 for Heroku 512MB-dynoer; kan overstyres med SYNC_OCR_MAX_PAGES
+ * for lokal kjøring eller større dynoer.
+ */
+const MAX_OCR_PAGES_SYNC = (() => {
+  const raw = process.env.SYNC_OCR_MAX_PAGES;
+  const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+  if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  // Lokalt: ingen praktisk grense (samme som interaktiv MAX_OCR_PAGES). Prod: 1 side.
+  return isProd ? 1 : MAX_OCR_PAGES;
+})();
+/**
+ * Maks filstørrelse for OCR under sync — store skannede PDF-er hopper over OCR.
+ * Default 5MB i prod (Heroku); lokalt er grensen praktisk talt fjernet.
+ * Kan overstyres med SYNC_OCR_MAX_FILE_MB.
+ */
+const MAX_OCR_FILE_SIZE_SYNC = (() => {
+  const raw = process.env.SYNC_OCR_MAX_FILE_MB;
+  const parsedMb = raw ? Number.parseInt(raw, 10) : NaN;
+  if (Number.isFinite(parsedMb) && parsedMb > 0) return parsedMb * 1024 * 1024;
+  // Lokalt: 1 GB (effektivt ubegrenset). Prod: 5 MB.
+  const mb = isProd ? 5 : 1024;
+  return mb * 1024 * 1024;
+})();
 /** Maks dekompresjonsforhold for ZIP-baserte filer (DOCX/PPTX/XLSX) — beskytter mot zip-bomber */
 const MAX_ZIP_DECOMPRESSION_RATIO = 100;
 

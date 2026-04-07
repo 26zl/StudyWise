@@ -30,6 +30,8 @@ export interface IStudyContext extends Document {
   topics: IStudyContextTopic[];
   /** Antall KI-samtaler for dette kurset */
   totalInteractions: number;
+  /** Implisitt lært preferanse for forklaringsnivå (basert på "forklar enklere" o.l.). */
+  preferredExplanationLevel?: "simple" | "standard" | "detailed" | "expert";
   updatedAt: Date;
   createdAt: Date;
 }
@@ -51,6 +53,11 @@ const StudyContextSchema = new Schema<IStudyContext>(
     courseName: { type: String, required: true },
     topics: { type: [StudyContextTopicSchema], default: [] },
     totalInteractions: { type: Number, default: 0 },
+    preferredExplanationLevel: {
+      type: String,
+      enum: ["simple", "standard", "detailed", "expert"],
+      required: false,
+    },
   },
   { timestamps: true },
 );

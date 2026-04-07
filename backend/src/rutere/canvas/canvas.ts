@@ -394,6 +394,25 @@ router.get("/emner", async (req, res) => {
   }
 });
 
+// POST /sync/prioritize - Trigger bakgrunns-sync med prioritert kurs
+// Brukes når frontend åpner et kurs slik at det synkroniseres først.
+router.post("/sync/prioritize", async (req, res) => {
+  try {
+    if (!req.user?.id || !req.canvasToken || !req.canvasBaseUrl) {
+      return res.status(204).end();
+    }
+    const courseId = req.body?.courseId;
+    if (courseId == null) {
+      return res.status(400).json({ error: "courseId mangler" });
+    }
+    const { ensureCanvasSync } = await import("../../services/context-loader.service.js");
+    void ensureCanvasSync(req.user.id, req.canvasToken, req.canvasBaseUrl, String(courseId));
+    return res.status(202).json({ accepted: true });
+  } catch (error) {
+    return handleCanvasError(res, error, "Feil ved prioritert sync");
+  }
+});
+
 // GET /emner/metadata - Hent innholds-metadata for alle emner
 // Returnerer info om hvilke emner som har forside, moduler, filer etc.
 // Brukes for å vise/skjule knapper i frontend dynamisk
@@ -1380,6 +1399,13 @@ router.get("/filer/:fileId/download", async (req, res) => {
     );
     const disposition = canvasRes.headers.get("content-disposition");
     if (disposition) res.setHeader("Content-Disposition", disposition);
+    // Tillat privat browser-caching i 1 time slik at samme bilde/PDF ikke lastes
+    // ned på nytt ved hver komponent-mount. Overstyrer global no-store-policy som
+    // ellers tvinger redownload av <img>/<a>-ressurser i Canvas-frontpages.
+    res.setHeader("Cache-Control", "private, max-age=3600, immutable");
+    res.removeHeader("Pragma");
+    res.removeHeader("Expires");
+    res.removeHeader("Surrogate-Control");
     const nodeStream = Readable.fromWeb(
       canvasRes.body as unknown as ReadableStream,
     );

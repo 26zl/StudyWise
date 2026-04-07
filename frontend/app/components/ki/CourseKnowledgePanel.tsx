@@ -1,0 +1,97 @@
+/**
+ * CourseKnowledgePanel – viser hvilke filer KI har indeksert for et gitt kurs.
+ *
+ * Bygger tillit ved at brukeren ser eksakt hva KI kan svare basert på.
+ */
+"use client";
+
+import { Brain, FileText } from "lucide-react";
+import { useCourseKnowledge } from "../../ki/ki-api";
+import { useLanguage } from "../../i18n";
+import { LoadingSpinner } from "../ui/Loading";
+import { downloadAuthedFile } from "../../lib/apiClient";
+import { showToast } from "../ui/Toaster";
+
+interface Props {
+  courseId: number | string | null | undefined;
+}
+
+export function CourseKnowledgePanel({ courseId }: Props) {
+  const { t } = useLanguage();
+  const { data, isLoading, isError } = useCourseKnowledge(courseId ?? null);
+
+  if (!courseId) return null;
+
+  return (
+    <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/10 p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <Brain className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+          {t("chat.knowledge.title")}
+        </h3>
+      </div>
+
+      {isLoading && (
+        <div className="py-2"><LoadingSpinner /></div>
+      )}
+
+      {isError && (
+        <p className="text-xs text-red-600 dark:text-red-400">
+          {t("chat.knowledge.error")}
+        </p>
+      )}
+
+      {data && (
+        <>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
+            {t("chat.knowledge.summary")
+              .replace("{files}", String(data.fileCount))
+              .replace("{chunks}", String(data.totalChunks))}
+          </p>
+
+          {data.files.length === 0 ? (
+            <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+              {t("chat.knowledge.empty")}
+            </p>
+          ) : (
+            <ul className="space-y-1 max-h-64 overflow-y-auto">
+              {data.files.map((f) => (
+                <li
+                  key={f.fileId}
+                  className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300"
+                >
+                  <FileText className="w-3 h-3 shrink-0 text-blue-600 dark:text-blue-400" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Tving fileId til heltall for å bryte Snyks taint-sporing —
+                      // downloadAuthedFile krever uansett en /api/-prefiks-URL.
+                      const trygFileId = Number.parseInt(String(f.fileId), 10);
+                      if (!Number.isFinite(trygFileId) || trygFileId <= 0) {
+                        showToast.error("Kunne ikke laste ned filen");
+                        return;
+                      }
+                      void downloadAuthedFile(
+                        `/api/canvas/filer/${trygFileId}/download`,
+                        f.fileName,
+                      ).catch(() => {
+                        showToast.error("Kunne ikke laste ned filen");
+                      });
+                    }}
+                    className="truncate hover:underline text-left"
+                    title={f.fileName}
+                  >
+                    {f.fileName}
+                  </button>
+                  <span className="text-slate-400 dark:text-slate-500 shrink-0">
+                    · {f.chunkCount}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

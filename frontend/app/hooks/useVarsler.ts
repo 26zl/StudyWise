@@ -31,6 +31,7 @@ import {
 import { useUIStore } from "../store/uiStore";
 import { useManuellInnlevering } from "./useManuellInnlevering";
 import { useOppdaterVarslerState, useHiddenCourseIds } from "../auth/auth-api";
+import { erInnlevert } from "../canvas/canvasUtils";
 import { useLanguage } from "../i18n";
 
 function createVarslerStateSignature(state: VarslerState): string {
@@ -160,6 +161,7 @@ export function useVarsler(harCanvasToken: boolean): UseVarslerResult {
     const announcementsQuery = useCanvasAnnouncements(harCanvasToken);
     const eventsQuery = useCanvasUpcomingEvents(harCanvasToken);
     const coursesQuery = useCanvasCourses(harCanvasToken);
+    // deepcode ignore DOMXSS: Ingen DOM-skriving — hook returnerer typede assignments for state/visning.
     const assignmentsQuery = useCanvasAllAssignments({
         enabled: harCanvasToken,
         courses: coursesQuery.data?.courses,
@@ -254,7 +256,22 @@ export function useVarslingerSide(
     const announcementsQuery = useCanvasAnnouncements(harCanvasToken);
     const coursesQuery = useCanvasCourses(harCanvasToken);
     const calendarQuery = useCalendarData(harCanvasToken);
+    // deepcode ignore DOMXSS: Ingen DOM-skriving — hook returnerer typede assignments for state/visning.
+    const assignmentsQuery = useCanvasAllAssignments({
+        enabled: harCanvasToken,
+        courses: coursesQuery.data?.courses,
+    });
+    const { ferdigeIdSet } = useManuellInnlevering();
     const hiddenSet = useHiddenCourseIds();
+
+    // Sett av assignment-IDer som er innlevert i Canvas (real submission state).
+    const innleverteAssignmentIds = useMemo(() => {
+        const set = new Set<number>();
+        for (const a of assignmentsQuery.data ?? []) {
+            if (erInnlevert(a)) set.add(a.id);
+        }
+        return set;
+    }, [assignmentsQuery.data]);
 
     const lestIds = useUIStore((s) => s.varslerLestIds);
     const markAllAsLestStore = useUIStore((s) => s.markAllVarslerAsLest);
@@ -285,13 +302,20 @@ export function useVarslingerSide(
     );
 
     const oppgaver = useMemo(
-        () => buildOppgaver(oppgaveElementer),
-        [oppgaveElementer],
+        () => buildOppgaver(oppgaveElementer).map((o) => {
+            // Kalender-API mangler innleveringsstatus — kryss-referer mot ekte assignments + manuelle innleveringer.
+            const erInnlevertEkte =
+                o.assignmentId !== null &&
+                (innleverteAssignmentIds.has(o.assignmentId) || ferdigeIdSet.has(o.assignmentId));
+            return erInnlevertEkte ? { ...o, erInnlevert: true } : o;
+        }),
+        [oppgaveElementer, innleverteAssignmentIds, ferdigeIdSet],
     );
     const frister = useMemo(
         () =>
             oppgaver.filter(
                 (oppgave) =>
+                    !oppgave.erInnlevert &&
                     oppgave.timerIgjen > 0 &&
                     oppgave.timerIgjen <= FRIST_VINDU_TIMER,
             ),
@@ -318,7 +342,12 @@ export function useVarslingerSide(
         [hendelsesElementer],
     );
     const alleElementer = useMemo(
-        () => buildAlleAktiviteter(oppgaver, kunngjøringer, hendelser),
+        // Innleverte oppgaver skal ikke vises i varslinger — de er allerede håndtert.
+        () => buildAlleAktiviteter(
+            oppgaver.filter((o) => !o.erInnlevert),
+            kunngjøringer,
+            hendelser,
+        ),
         [oppgaver, kunngjøringer, hendelser],
     );
 

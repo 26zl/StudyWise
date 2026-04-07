@@ -32,6 +32,9 @@ export default function PersonvernPage() {
           <li>
             <strong>{t("personvern.canvasCacheLabel")}</strong> {t("personvern.canvasCacheBody")}
           </li>
+          <li>
+            <strong>{t("personvern.feedbackLabel")}</strong> {t("personvern.feedbackBody")}
+          </li>
         </ul>
       </InfoSection>
 

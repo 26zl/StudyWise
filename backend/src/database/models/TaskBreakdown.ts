@@ -34,6 +34,10 @@ const SubTaskSchema = new mongoose.Schema(
     type: Boolean,
     default: false,
   },
+  completedAt: {
+    type: Date,
+    default: null,
+  },
   approved: {
     type: Boolean,
     default: false,

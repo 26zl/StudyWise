@@ -6,6 +6,7 @@
 import mongoose from "mongoose";
 import { User } from "../../database/models/User.js";
 import { ChatHistory } from "../../database/models/ChatHistory.js";
+import { ChatFeedback } from "../../database/models/ChatFeedback.js";
 import { SharedChat } from "../../database/models/SharedChat.js";
 import { TaskBreakdown } from "../../database/models/TaskBreakdown.js";
 import { CanvasUser } from "../../database/models/CanvasUser.js";
@@ -94,6 +95,7 @@ export async function deleteAccountData(
         arbeidsplanRes,
         webPushRes,
         studyContextRes,
+        _chatFeedbackRes,
       ] = await Promise.all([
         ChatHistory.deleteMany({ user: id }, { session }),
         SharedChat.deleteMany({ ownerId: id }, { session }),
@@ -104,6 +106,7 @@ export async function deleteAccountData(
         Arbeidsplan.deleteMany({ userId }, { session }),
         WebPushSubscriptionModel.deleteMany({ userId: id }, { session }),
         StudyContext.deleteMany({ userId }, { session }),
+        ChatFeedback.deleteMany({ user: id }, { session }),
       ]);
 
       result.chatHistory = chatRes.deletedCount ?? 0;
