@@ -20,6 +20,8 @@ import { PendingClerkDeletionModel } from "./models/PendingClerkDeletion.js";
 import { PendingVectorDeletionModel } from "./models/PendingVectorDeletion.js";
 import { WebPushSubscriptionModel } from "./models/WebPushSubscription.js";
 import { StudyContext } from "./models/StudyContext.js";
+import { KnowledgeBase } from "./models/Kunnskapsbase.js";
+import { KBContentChunk } from "./models/KBContentChunk.js";
 
 import { isProd } from "../utils/env.js";
 import { runMigrations } from "./migrations.js";
@@ -68,6 +70,8 @@ async function ensureDatabaseIndexes() {
         PendingVectorDeletionModel.createIndexes(),
         WebPushSubscriptionModel.createIndexes(),
         StudyContext.createIndexes(),
+        KnowledgeBase.createIndexes(),
+        KBContentChunk.createIndexes(),
     ]);
 
     // Verifiser at alle påkrevde unike indekser faktisk finnes på User-samlingen.

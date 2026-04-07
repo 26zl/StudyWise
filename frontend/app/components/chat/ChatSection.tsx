@@ -24,7 +24,6 @@ import { useKIStore } from "@/app/store/kiStore";
 import { fetchApi, downloadAuthedFile } from "@/app/lib/apiClient";
 import { formaterTall } from "@/app/lib/dato";
 import { parseApiError } from "@/app/lib/errorUtils";
-import { useMeg } from "@/app/auth/auth-api";
 
 /** Én melding i chatten (bruker eller assistent), med id og evt. vedleggsnavn. */
 interface Melding {
@@ -39,6 +38,22 @@ interface Melding {
     kilder?: import("common/ki").KIChatSource[];
 }
 
+function hentVisbareKilder(melding: Melding): import("common/ki").KIChatSource[] {
+    const kilder = melding.kilder ?? [];
+    const dedupe = new Set<string>();
+    const filtered: import("common/ki").KIChatSource[] = [];
+    for (const kilde of kilder) {
+        const hasCanvasFile = Number.isFinite(kilde.fileId);
+        const hasUrl = typeof kilde.sourceUrl === "string" && kilde.sourceUrl.length > 0;
+        if (!hasCanvasFile && !hasUrl) continue;
+        const key = `${kilde.sourceKind ?? "canvas_file"}:${kilde.courseId}:${kilde.fileId ?? "na"}:${kilde.fileName}:${kilde.sourceUrl ?? ""}`;
+        if (dedupe.has(key)) continue;
+        dedupe.add(key);
+        filtered.push(kilde);
+    }
+    return filtered;
+}
+
 
 /** Serialisert melding (tidsstempel som ISO-streng) for lagring i modulstate. */
 type PendingMeldingSnapshot = {
@@ -47,6 +62,7 @@ type PendingMeldingSnapshot = {
     innhold: string;
     tidsstempel: string;
     vedleggNavn?: string[];
+    kilder?: import("common/ki").KIChatSource[];
 };
 
 /** Pågående forespørsel som kan gjenopptas etter refresh/navigering (chat eller dokumentanalyse). */
@@ -77,6 +93,7 @@ function serializeMelding(melding: Melding): PendingMeldingSnapshot {
         innhold: melding.innhold,
         tidsstempel: melding.tidsstempel.toISOString(),
         vedleggNavn: melding.vedleggNavn,
+        kilder: melding.kilder,
     };
 }
 
@@ -87,6 +104,7 @@ function hydrateMelding(snapshot: PendingMeldingSnapshot): Melding {
         innhold: snapshot.innhold,
         tidsstempel: new Date(snapshot.tidsstempel),
         vedleggNavn: snapshot.vedleggNavn,
+        kilder: snapshot.kilder,
     };
 }
 
@@ -104,6 +122,7 @@ function buildPendingPayload(pending: PendingConversationState) {
     ].map((melding) => ({
         rolle: melding.rolle,
         innhold: melding.innhold,
+        kilder: melding.kilder,
     }));
 }
 
@@ -134,8 +153,6 @@ function lagTilkoblingsBanner(error: Error | null | undefined): { melding: strin
 
 export function ChatSection() {
     const { language, t } = useLanguage();
-    const megQuery = useMeg();
-    const erAdmin = megQuery.data?.user?.role === "admin";
     const forslag = [
         t("chatSection.weekPriorities"),
         t("chatSection.registeredCourses"),
@@ -155,6 +172,7 @@ export function ChatSection() {
     const [viserShareModal, setViserShareModal] = useState(false);
     const [viserExportModal, setViserExportModal] = useState(false);
     const [oppretterDeling, setOppretterDeling] = useState(false);
+    const [kildePanelMeldingId, setKildePanelMeldingId] = useState<string | null>(null);
     /** KI-feil fra reelt kall (chat/dokumentanalyse) – vises som banner; erstatter tidligere test-connection. */
     const [kiError, settKiError] = useState<Error | null>(null);
 
@@ -261,7 +279,9 @@ export function ChatSection() {
     }, [erNaerBunn]);
 
     const scrollTilBunn = useCallback((behavior: ScrollBehavior = "auto") => {
-        meldingerSluttRef.current?.scrollIntoView({ behavior });
+        const container = meldingsContainerRef.current;
+        if (!container) return;
+        container.scrollTo({ top: container.scrollHeight, behavior });
     }, []);
 
     // Scroll til bunn når innhold vokser, men bare hvis brukeren ikke har scrollet seg bort.
@@ -296,6 +316,7 @@ export function ChatSection() {
         const payload = oppdatert.map((m) => ({
             rolle: m.rolle,
             innhold: m.innhold,
+            kilder: m.kilder,
         }));
         if (aktivChatId) {
             await saveChat(payload, aktivChatId);
@@ -322,13 +343,14 @@ export function ChatSection() {
     };
 
     const harSammeMeldinger = (
-        current: Array<{ rolle: "user" | "assistant"; innhold: string }>,
-        expected: Array<{ rolle: "user" | "assistant"; innhold: string }>,
+        current: Array<{ rolle: "user" | "assistant"; innhold: string; kilder?: import("common/ki").KIChatSource[] }>,
+        expected: Array<{ rolle: "user" | "assistant"; innhold: string; kilder?: import("common/ki").KIChatSource[] }>,
     ) => (
         current.length === expected.length &&
         current.every((melding, index) => (
             melding.rolle === expected[index]?.rolle &&
-            melding.innhold === expected[index]?.innhold
+            melding.innhold === expected[index]?.innhold &&
+            JSON.stringify(melding.kilder ?? []) === JSON.stringify(expected[index]?.kilder ?? [])
         ))
     );
 
@@ -423,11 +445,13 @@ export function ChatSection() {
         const expectedMessages = [...pending.messagesBefore, pending.userMessage].map((m) => ({
             rolle: m.rolle,
             innhold: m.innhold,
+            kilder: m.kilder,
         }));
         const sameChat = pending.chatId ? aktivChatId === pending.chatId : true;
         const currentMessages = meldingerRef.current.map((m) => ({
             rolle: m.rolle,
             innhold: m.innhold,
+            kilder: m.kilder,
         }));
         return sameChat && harSammeMeldinger(currentMessages, expectedMessages);
     };
@@ -443,6 +467,7 @@ export function ChatSection() {
         const currentMessages = meldingerRef.current.map((m) => ({
             rolle: m.rolle,
             innhold: m.innhold,
+            kilder: m.kilder,
         }));
         const expectedMessages = [
             ...pending.messagesBefore,
@@ -451,6 +476,7 @@ export function ChatSection() {
         ].map((m) => ({
             rolle: m.rolle,
             innhold: m.innhold,
+            kilder: m.kilder,
         }));
 
         return harSammeMeldinger(currentMessages, expectedMessages) ? pending : null;
@@ -465,6 +491,7 @@ export function ChatSection() {
         const payload = [...pending.messagesBefore, pending.userMessage].map((m) => ({
             rolle: m.rolle,
             innhold: m.innhold,
+            kilder: m.kilder,
         }));
         await saveChat(
             payload,
@@ -493,6 +520,7 @@ export function ChatSection() {
         const payload = [...pending.messagesBefore, pending.userMessage, sisteMelding].map((m) => ({
             rolle: m.rolle,
             innhold: m.innhold,
+            kilder: m.kilder,
         }));
         const savedChatId = await saveChat(
             payload,
@@ -737,6 +765,7 @@ export function ChatSection() {
             const messagesBeforeForSave = [...meldinger, brukerMelding].map((m) => ({
                 rolle: m.rolle as "user" | "assistant",
                 innhold: m.innhold,
+                kilder: m.kilder,
             }));
             pendingConversationState = {
                 requestId,
@@ -752,7 +781,7 @@ export function ChatSection() {
             const docChatIdPromise = aktivChatId
                 ? Promise.resolve(aktivChatId)
                 : saveChat(
-                    [{ rolle: "user" as const, innhold: brukerMeldingInnhold }],
+                    [{ rolle: "user" as const, innhold: brukerMeldingInnhold, kilder: undefined }],
                     undefined,
                     titleFromFirst,
                     { silent: true, retryCount: 1 },
@@ -765,7 +794,7 @@ export function ChatSection() {
                 });
 
             const persistDocumentResult = async (
-                payload: Array<{ rolle: "user" | "assistant"; innhold: string }>,
+                payload: Array<{ rolle: "user" | "assistant"; innhold: string; kilder?: import("common/ki").KIChatSource[] }>,
                 assistantSnapshot: PendingMeldingSnapshot,
             ) => {
                 const resolvedChatId = docAnalysisChatIdRef.current ?? await docChatIdPromise;
@@ -952,10 +981,10 @@ export function ChatSection() {
         };
         setRunningChatId(aktivChatId);
 
-        const chatIdPromise = aktivChatId
-            ? Promise.resolve(aktivChatId)
-            : saveChat(
-                [{ rolle: "user" as const, innhold: brukerMeldingInnhold }],
+            const chatIdPromise = aktivChatId
+                ? Promise.resolve(aktivChatId)
+                : saveChat(
+                [{ rolle: "user" as const, innhold: brukerMeldingInnhold, kilder: undefined }],
                 undefined,
                 titleFromFirst,
                 { silent: true, retryCount: 1 },
@@ -1222,6 +1251,7 @@ export function ChatSection() {
                     rolle: m.rolle,
                     innhold: m.innhold,
                     tidsstempel: new Date(),
+                    kilder: m.kilder,
                 }));
             settMeldinger(
                 messagesToShow,
@@ -1271,10 +1301,12 @@ export function ChatSection() {
         const currentMessages = meldingerRef.current.map((m) => ({
             rolle: m.rolle,
             innhold: m.innhold,
+            kilder: m.kilder,
         }));
         const savedMessages = chat.messages.map((m) => ({
             rolle: m.rolle,
             innhold: m.innhold,
+            kilder: m.kilder,
         }));
         if (harSammeMeldinger(currentMessages, savedMessages)) return;
 
@@ -1291,6 +1323,7 @@ export function ChatSection() {
             rolle: m.rolle,
             innhold: m.innhold,
             tidsstempel: new Date(),
+            kilder: m.kilder,
         })));
     }, [aktivChatId, chats, loadChatById, loading, animerendeMeldingId, setSelectedChatId, settAktivSamtale, stoppAktivAnimasjon, skriver]);
 
@@ -1300,6 +1333,11 @@ export function ChatSection() {
         aktivChat?.title?.trim() ||
         meldinger.find((melding) => melding.rolle === "user")?.innhold?.trim().slice(0, 50) ||
         t("chat.conversationFallback");
+    const panelMelding = kildePanelMeldingId
+        ? meldinger.find((melding) => melding.id === kildePanelMeldingId && melding.rolle === "assistant")
+        : null;
+    const panelKilder = panelMelding ? hentVisbareKilder(panelMelding) : [];
+    const visKildePanel = !!panelMelding;
 
     const opprettDelingslenke = useCallback(async () => {
         if (oppretterDeling) return null;
@@ -1357,7 +1395,7 @@ export function ChatSection() {
     }, [aktivChatId, oppretterDeling, saveChat, settAktivSamtale, t]);
 
     return (
-        <div className="h-full flex">
+        <div className="h-full flex min-h-0 overflow-hidden">
             <ChatShareModal
                 isOpen={viserShareModal}
                 onClose={() => {
@@ -1381,12 +1419,12 @@ export function ChatSection() {
                 }).join("\n\n---\n\n")}
             />
             {/* Main Chat Area */}
-            <div className="flex-1 flex flex-col min-w-0">
+            <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
                 {/* Meldinger */}
                 <div
                     ref={meldingsContainerRef}
                     onScroll={oppdaterBrukerScrollPosisjon}
-                    className="flex-1 overflow-y-auto p-4 md:p-6"
+                    className="flex-1 overflow-y-auto p-4 md:p-6 min-h-0"
                 >
                   <div className="max-w-235 mx-auto space-y-5">
                     {/* Tilkoblingsfeil – samme FeilMelding + Prøv igjen-UI som DashboardView/oversikt (konsekvent UX) */}
@@ -1466,6 +1504,10 @@ export function ChatSection() {
 
                     {/* Meldingshistorikk */}
                     {meldinger.map((melding, meldingIdx) => (
+                        (() => {
+                            const visbareKilder = melding.rolle === "assistant" ? hentVisbareKilder(melding) : [];
+                            const harKilder = visbareKilder.length > 0;
+                            return (
                         <div
                             key={melding.id}
                             className={`flex items-start gap-3 ${melding.rolle === "user" ? "justify-end" : "justify-start"}`}
@@ -1485,32 +1527,6 @@ export function ChatSection() {
                                     }
                                 >
                                     <ConversationMessageContent message={melding} />
-                                    {erAdmin && melding.rolle === "assistant" && melding.kilder && melding.kilder.filter((k) => Number(k.fileId) > 0).length > 0 && animerendeMeldingId !== melding.id && (
-                                        <div className="mt-3 pt-3 border-t border-stone-200 dark:border-slate-700">
-                                            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("chat.sources")}</p>
-                                            <div className="flex flex-wrap gap-1.5">
-                                                {melding.kilder.filter((k) => Number(k.fileId) > 0).map((k) => (
-                                                    <button
-                                                        type="button"
-                                                        key={`${k.courseId}:${k.fileId}`}
-                                                        onClick={() => {
-                                                            void downloadAuthedFile(
-                                                                `/api/canvas/filer/${k.fileId}/download`,
-                                                                k.fileName,
-                                                            ).catch(() => {
-                                                                showToast.error("Kunne ikke laste ned filen");
-                                                            });
-                                                        }}
-                                                        title={`${k.courseName} – ${k.fileName}`}
-                                                        className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors max-w-full"
-                                                    >
-                                                        <FileText className="w-3 h-3 shrink-0" />
-                                                        <span className="truncate">{k.fileName}</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
                                 </div>
 
                                 {/* Retry-knapp under feilede brukermeldinger */}
@@ -1542,6 +1558,26 @@ export function ChatSection() {
                                 {melding.rolle === "assistant" && animerendeMeldingId !== melding.id && !skriver && (
                                     <div className="flex items-center mt-1.5 px-0.5">
                                         <div className="flex items-center gap-0.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setKildePanelMeldingId((prev) => prev === melding.id ? null : melding.id);
+                                                }}
+                                                className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                                                    harKilder
+                                                        ? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700"
+                                                        : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+                                                }`}
+                                                title={`${t("chat.sources")} (${visbareKilder.length})`}
+                                                aria-pressed={kildePanelMeldingId === melding.id}
+                                            >
+                                                <span className="inline-flex items-center -space-x-1">
+                                                    <span className="w-3.5 h-3.5 rounded-full bg-red-400 border border-white/80" />
+                                                    <span className="w-3.5 h-3.5 rounded-full bg-yellow-400 border border-white/80" />
+                                                    <span className="w-3.5 h-3.5 rounded-full bg-blue-400 border border-white/80" />
+                                                </span>
+                                                <span>{visbareKilder.length} {t("chat.sourcesPillLabel")}</span>
+                                            </button>
                                             <button
                                                 type="button"
                                                 onClick={async () => {
@@ -1614,6 +1650,8 @@ export function ChatSection() {
                                 </div>
                             )}
                         </div>
+                            );
+                        })()
                     ))}
 
                     {/* Skriver indikator — vis også når animerendeMeldingId peker på en boble som ikke lenger finnes
@@ -1645,16 +1683,18 @@ export function ChatSection() {
                   </div>
                 </div>
 
-                {/* Smart suggestions - VIS KUN NÅR DET ER MELDINGER OG IKKE SKRIVER */}
-                {meldinger.length > 0 && !skriver && !analyserarDokument && sisteAssistentsvar && (
-                    <SmartSuggestions
-                        lastAIMessage={sisteAssistentsvar}
-                        onSelectSuggestion={(suggestion) => {
-                            settTekstInput(suggestion);
-                            tekstInputRef.current?.focus();
-                        }}
-                    />
-                )}
+                {/* Smart suggestions - reserver høyde for å hindre at input flytter seg */}
+                <div className="shrink-0 min-h-[52px]">
+                    {meldinger.length > 0 && !skriver && !analyserarDokument && sisteAssistentsvar && (
+                        <SmartSuggestions
+                            lastAIMessage={sisteAssistentsvar}
+                            onSelectSuggestion={(suggestion) => {
+                                settTekstInput(suggestion);
+                                tekstInputRef.current?.focus();
+                            }}
+                        />
+                    )}
+                </div>
 
                 {/* Input */}
                 <div className="shrink-0 px-4 md:px-6 pb-4 pt-3">
@@ -1662,7 +1702,7 @@ export function ChatSection() {
                     {/* Vedleggsliste (kompakt stripe) */}
                     <AttachmentStrip vedlegg={vedlegg} onFjern={fjernVedlegg} />
                     
-                    <div className="flex items-end gap-2 rounded-2xl border border-slate-200 dark:border-slate-700 focus-within:border-slate-200 dark:focus-within:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 focus-within:outline-none focus-within:ring-0">
+                    <div className="chat-input-shell flex items-end gap-2 rounded-2xl border border-slate-200 dark:border-slate-700 focus-within:border-slate-200 dark:focus-within:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 focus-within:outline-none focus-within:ring-0">
                         {/* Skjult fil-input - én fil om gangen for å matche backend */}
                         <input
                             ref={filInputRef}
@@ -1677,11 +1717,11 @@ export function ChatSection() {
                             type="button"
                             onClick={() => setViserShareModal(true)}
                             disabled={meldinger.length === 0 || skriver || analyserarDokument}
-                            className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                            className="chat-input-icon-btn shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                             title={t("chat.shareConversationTitle")}
                             aria-label={t("chat.shareConversation")}
                         >
-                            <Share2 className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+                            <Share2 className="chat-input-icon w-5 h-5 text-slate-400 dark:text-slate-500" />
                         </button>
 
                         {/* Eksporter samtale */}
@@ -1689,11 +1729,11 @@ export function ChatSection() {
                             type="button"
                             onClick={() => setViserExportModal(true)}
                             disabled={meldinger.length === 0 || skriver || analyserarDokument}
-                            className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                            className="chat-input-icon-btn shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                             title={t("exportModal.title")}
                             aria-label={t("exportModal.title")}
                         >
-                            <Download className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+                            <Download className="chat-input-icon w-5 h-5 text-slate-400 dark:text-slate-500" />
                         </button>
 
                         {/* Filopplasting */}
@@ -1701,11 +1741,11 @@ export function ChatSection() {
                             type="button"
                             onClick={() => filInputRef.current?.click()}
                             disabled={skriver || analyserarDokument}
-                            className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                            className="chat-input-icon-btn shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                             title={t("chat.uploadDocumentLabel")}
                             aria-label={t("chat.uploadDocumentAriaLabel")}
                         >
-                            <Plus className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+                            <Plus className="chat-input-icon w-5 h-5 text-slate-400 dark:text-slate-500" />
                         </button>
 
                         <textarea
@@ -1716,7 +1756,7 @@ export function ChatSection() {
                             placeholder={vedlegg.length > 0 ? t("chat.placeholderAttachment") : t("chat.placeholderDefault")}
                             disabled={skriver || analyserarDokument}
                             rows={1}
-                            className="flex-1 resize-none bg-transparent py-2 text-base sm:text-[15px] text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:outline-none focus:ring-0 border-none shadow-none disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
+                            className="chat-input-textarea flex-1 resize-none bg-transparent py-2 text-base sm:text-[15px] text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:outline-none focus:ring-0 border-none shadow-none disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
                             style={{ outline: "none" }}
                         />
                         {skriver ? (
@@ -1746,10 +1786,10 @@ export function ChatSection() {
                                     }
                                     settSkriver(false);
                                 }}
-                                className="shrink-0 w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 flex items-center justify-center transition-colors"
+                                className="chat-input-icon-btn shrink-0 w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 flex items-center justify-center transition-colors"
                                 aria-label={t("common.actions.cancel")}
                             >
-                                <Square className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 fill-current" />
+                                <Square className="chat-input-icon w-3.5 h-3.5 text-slate-600 dark:text-slate-300 fill-current" />
                             </button>
                         ) : (
                             <button
@@ -1758,10 +1798,10 @@ export function ChatSection() {
                                     void sendMelding();
                                 }}
                                 disabled={(!tekstInput.trim() && vedlegg.length === 0) || analyserarDokument}
-                                className="shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                                className="chat-input-icon-btn shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                                 aria-label={t("chat.sendMessage")}
                             >
-                                <Send className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+                                <Send className="chat-input-icon w-4 h-4 text-slate-400 dark:text-slate-500" />
                             </button>
                         )}
                     </div>
@@ -1789,13 +1829,142 @@ export function ChatSection() {
                                 })}
                             </div>
                         </div>
-                        <p className="text-xs text-slate-400 dark:text-slate-500">
+                        <p className="hidden md:block text-xs text-slate-400 dark:text-slate-500">
                             {t("chat.inputHint")}
                         </p>
                     </div>
                   </div>
                 </div>
             </div>
+
+            {visKildePanel && (
+                <aside className="hidden lg:flex w-[360px] shrink-0 border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 min-h-0 flex-col">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                            {t("chat.sources")} ({panelKilder.length})
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => setKildePanelMeldingId(null)}
+                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                            aria-label={t("common.actions.close")}
+                        >
+                            ×
+                        </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                        {panelKilder.length === 0 && (
+                            <p className="text-sm text-slate-500 dark:text-slate-400 px-1">
+                                Ingen kilder registrert for dette svaret.
+                            </p>
+                        )}
+                        {panelKilder.map((k) => (
+                            <button
+                                type="button"
+                                key={`${k.courseId}:${k.fileId}:${k.fileName}`}
+                                onClick={() => {
+                                    if (Number.isFinite(k.fileId)) {
+                                        void downloadAuthedFile(
+                                            `/api/canvas/filer/${k.fileId}/download`,
+                                            k.fileName,
+                                        ).catch(() => {
+                                            showToast.error(t("chat.sourceDownloadFailed"));
+                                        });
+                                        return;
+                                    }
+                                    if (k.sourceUrl) {
+                                        window.open(k.sourceUrl, "_blank", "noopener,noreferrer");
+                                        return;
+                                    }
+                                    showToast.error(t("chat.sourceDownloadFailed"));
+                                }}
+                                title={`${k.courseName} – ${k.fileName}`}
+                                className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors"
+                            >
+                                <div className="flex items-start gap-2">
+                                    <FileText className="w-4 h-4 mt-0.5 shrink-0 text-blue-600 dark:text-blue-300" />
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                                            {k.fileName}
+                                        </p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                            {k.courseName}
+                                        </p>
+                                    </div>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </aside>
+            )}
+            {visKildePanel && (
+                <div className="lg:hidden fixed inset-0 z-40">
+                    <button
+                        type="button"
+                        className="absolute inset-0 bg-black/40"
+                        onClick={() => setKildePanelMeldingId(null)}
+                        aria-label={t("common.actions.close")}
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 max-h-[70vh] rounded-t-2xl border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+                            <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                                {t("chat.sources")} ({panelKilder.length})
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => setKildePanelMeldingId(null)}
+                                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                                aria-label={t("common.actions.close")}
+                            >
+                                ×
+                            </button>
+                        </div>
+                        <div className="overflow-y-auto p-3 space-y-2">
+                            {panelKilder.length === 0 && (
+                                <p className="text-sm text-slate-500 dark:text-slate-400 px-1">
+                                    Ingen kilder registrert for dette svaret.
+                                </p>
+                            )}
+                            {panelKilder.map((k) => (
+                                <button
+                                    type="button"
+                                    key={`${k.courseId}:${k.fileId}:${k.fileName}:mobile`}
+                                    onClick={() => {
+                                        if (Number.isFinite(k.fileId)) {
+                                            void downloadAuthedFile(
+                                                `/api/canvas/filer/${k.fileId}/download`,
+                                                k.fileName,
+                                            ).catch(() => {
+                                                showToast.error(t("chat.sourceDownloadFailed"));
+                                            });
+                                            return;
+                                        }
+                                        if (k.sourceUrl) {
+                                            window.open(k.sourceUrl, "_blank", "noopener,noreferrer");
+                                            return;
+                                        }
+                                        showToast.error(t("chat.sourceDownloadFailed"));
+                                    }}
+                                    title={`${k.courseName} – ${k.fileName}`}
+                                    className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors"
+                                >
+                                    <div className="flex items-start gap-2">
+                                        <FileText className="w-4 h-4 mt-0.5 shrink-0 text-blue-600 dark:text-blue-300" />
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                                                {k.fileName}
+                                            </p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                                {k.courseName}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
-} 
+}

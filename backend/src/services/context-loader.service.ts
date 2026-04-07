@@ -480,6 +480,20 @@ function titleMatchesFileHint(title: string, fileHint: string): boolean {
   return normTitle.includes(normHint) || normHint.includes(normTitle);
 }
 
+function isContentBearingModuleItemType(itemType: string): boolean {
+  return itemType === "File" || itemType === "Page" || itemType === "ExternalUrl";
+}
+
+function resolveModuleItemFileId(item: {
+  type: string;
+  id?: number;
+  content_id?: number;
+}): number | null {
+  if (item.type === "File") return item.content_id ?? null;
+  if (item.type === "Page" || item.type === "ExternalUrl") return item.id ?? null;
+  return null;
+}
+
 /**
  * Formaterer kursoversikt fra lagret MongoDB/Redis-data.
  * Brukes når brukeren spør om "hvilke fag har jeg" o.l.
@@ -563,7 +577,7 @@ async function hentKjentEmnekatalog(userId: string, hiddenCourseIds?: Set<number
             .filter((navn): navn is string => typeof navn === "string" && navn.trim().length > 0);
           const fileNames = moduler.flatMap((modul) =>
             (modul.items ?? [])
-              .filter((item) => item.type === "File" || item.type === "Page")
+              .filter((item) => isContentBearingModuleItemType(item.type))
               .map((item) => item.title),
           );
 
@@ -870,7 +884,7 @@ async function byggMålrettetKontekstFraMongo(
       matchedStructure = structures.find((s) =>
         s.moduler.some((mod) =>
           mod.items?.some((item) =>
-            (item.type === "File" || item.type === "Page") && titleMatchesFileHint(item.title, target.fileHint!),
+            isContentBearingModuleItemType(item.type) && titleMatchesFileHint(item.title, target.fileHint!),
           ),
         ),
       );
@@ -908,9 +922,9 @@ async function byggMålrettetKontekstFraMongo(
             kontekst += `- [${item.type}] ${item.title}\n`;
 
             // Inkluder filinnhold fra chunks (MongoDB ContentEmbedding) for matchende filer og Pages
-            const itemFileId = item.type === "Page" ? item.id : item.content_id;
+            const itemFileId = resolveModuleItemFileId(item);
             const skalInkludereFil =
-              (item.type === "File" || item.type === "Page") &&
+              isContentBearingModuleItemType(item.type) &&
               itemFileId != null &&
               (target.fileHint
                 ? titleMatchesFileHint(item.title, target.fileHint)
@@ -1106,8 +1120,8 @@ async function byggModulStrukturOversikt(
 
           // Prøv å inkludere lagret filinnhold for File/Page-items
           if (filesWithContentIncluded < MAX_FILES_WITH_CONTENT) {
-            const fileId = item.type === "Page" ? item.id : item.content_id;
-            if ((item.type === "File" || item.type === "Page") && fileId != null) {
+            const fileId = resolveModuleItemFileId(item);
+            if (isContentBearingModuleItemType(item.type) && fileId != null) {
               try {
                 const chunks = await getStoredChunksForFile(userId, courseId, fileId);
                 if (chunks.length > 0) {
@@ -1130,7 +1144,7 @@ async function byggModulStrukturOversikt(
       } else {
         // Andre moduler: vis filnavn kompakt
         const fileNames = items
-          .filter((i) => i.type === "File" || i.type === "Page")
+          .filter((i) => isContentBearingModuleItemType(i.type))
           .map((i) => i.title);
         oversikt += `- ${modul.name} (${items.length} elementer)`;
         if (fileNames.length > 0) {
@@ -1219,9 +1233,9 @@ async function byggMålrettetKontekstFraRedis(
               const itemTitle = item.title ?? "";
               kontekst += `- [${item.type}] ${itemTitle}\n`;
 
-              const redisItemFileId = item.type === "Page" ? item.id : item.content_id;
+              const redisItemFileId = resolveModuleItemFileId(item);
               const skalInkludereFil =
-                (item.type === "File" || item.type === "Page") &&
+                isContentBearingModuleItemType(item.type) &&
                 redisItemFileId != null &&
                 (target.fileHint
                   ? titleMatchesFileHint(itemTitle, target.fileHint)
@@ -1343,7 +1357,7 @@ async function byggKontekstFraChunks(
   message: string,
   target?: TargetedQuery,
   hiddenCourseIds?: Set<number>,
-): Promise<string | null> {
+): Promise<{ kontekst: string; kilder: ContextSource[] } | null> {
   try {
     const relevantCourses = await finnRelevanteEmner(userId, target, hiddenCourseIds);
     const courseIds = relevantCourses.map((course) => String(course.id));
@@ -1438,6 +1452,31 @@ async function byggKontekstFraChunks(
     const chunkKontekst = buildChunkContext(scored);
     if (chunkKontekst.length === 0) return null;
 
+    const fileMap = new Map<string, ContextSource>();
+    for (const chunk of scored) {
+      const key = `${chunk.source.courseId}:${chunk.source.fileId}`;
+      const existing = fileMap.get(key);
+      if (!existing) {
+        fileMap.set(key, {
+          courseId: String(chunk.source.courseId),
+          courseName: chunk.source.courseName ?? "",
+          fileId: chunk.source.fileId,
+          fileName: chunk.source.fileName ?? "",
+          score: chunk.score,
+          chunkCount: 1,
+        });
+      } else {
+        existing.chunkCount = (existing.chunkCount ?? 0) + 1;
+        if ((chunk.score ?? 0) > (existing.score ?? 0)) {
+          existing.score = chunk.score;
+        }
+      }
+    }
+    const kilder = Array.from(fileMap.values())
+      .filter((k) => k.fileName.length > 0)
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+      .slice(0, 8);
+
     logger.info(
       {
         userId,
@@ -1450,7 +1489,10 @@ async function byggKontekstFraChunks(
       "Chunk-basert kontekst bygget fra tekstinnhold",
     );
 
-    return "<canvas-kursdata>\n" + chunkKontekst + "\n</canvas-kursdata>";
+    return {
+      kontekst: "<canvas-kursdata>\n" + chunkKontekst + "\n</canvas-kursdata>",
+      kilder,
+    };
   } catch (error) {
     logger.warn({ err: error }, "Feil ved bygging av chunk-kontekst");
     return null;
@@ -1647,10 +1689,11 @@ async function byggKontekstFraHybridSearch(
     }
 
     let filterResult = filtrerHybridResultater(results, target, coursesPinned);
+    const moduleHintMissedOriginal = filterResult.moduleHintMissed;
 
     // Når moduleHint filtrerte bort alle resultater: prøv igjen uten moduleHint-filter.
-    // Innhold fra samme kurs (andre moduler) er bedre enn ingen kontekst — men full_document
-    // mode deaktiveres for å unngå å laste inn irrelevant fullt dokument.
+    // Innhold fra samme kurs (andre moduler) er bedre enn ingen kontekst, men dette er
+    // en "soft miss" som må bevares for senere beslutninger (full_document og on-demand).
     if (filterResult.moduleHintMissed && results.length > 0) {
       logger.info(
         { userId, moduleHint: target?.moduleHint, unfilteredCount: results.length, messagePreview: message.substring(0, 80) },
@@ -1658,6 +1701,8 @@ async function byggKontekstFraHybridSearch(
       );
       const courseOnlyTarget = target ? { ...target, moduleHint: null } : target;
       filterResult = filtrerHybridResultater(results, courseOnlyTarget, coursesPinned);
+      // Bevar originalt signal om moduleHint-miss, selv om fallback ga treff.
+      filterResult = { ...filterResult, moduleHintMissed: true };
     }
 
     const filteredResults = filterResult.results;
@@ -1670,7 +1715,12 @@ async function byggKontekstFraHybridSearch(
     }
 
     // ── Full dokument-mode ──
-    const fullDocumentDecision = shouldUseFullDocumentMode(message, target, filteredResults, filterResult.moduleHintMissed);
+    const fullDocumentDecision = shouldUseFullDocumentMode(
+      message,
+      target,
+      filteredResults,
+      moduleHintMissedOriginal,
+    );
     if (fullDocumentDecision.enabled) {
       const primary = filteredResults[0];
       const fullDocument = await getStoredFullDocumentForFile(
@@ -2005,7 +2055,7 @@ async function hentModulFilerOnDemand(
 
     // Filtrer til filer som kan prosesseres
     const filItems = matchedModule.items.filter(
-      (item) => (item.type === "File" || item.type === "Page") && item.content_id != null,
+      (item) => item.type === "File" ? item.content_id != null : item.type === "Page" || item.type === "ExternalUrl",
     );
 
     if (filItems.length === 0) return null;
@@ -2489,10 +2539,10 @@ export async function loadCanvasContext(
     const chunkKontekst = await byggKontekstFraChunks(userId, message, target, hiddenCourseIds);
     if (chunkKontekst) {
       logger.info(
-        { userId, intent, source: "chunks", contextLength: chunkKontekst.length },
+        { userId, intent, source: "chunks", contextLength: chunkKontekst.kontekst.length, sources: chunkKontekst.kilder.length },
         "Canvas-kontekst lastet fra chunk-søk (keyword)",
       );
-      return { kontekst: chunkKontekst, hasCanvasData: true, source: "chunks" };
+      return { kontekst: chunkKontekst.kontekst, hasCanvasData: true, source: "chunks", kilder: chunkKontekst.kilder };
     }
   }
 

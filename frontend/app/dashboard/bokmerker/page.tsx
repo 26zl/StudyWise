@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { Pin, Search } from "lucide-react";
+import { Pin, Search, Database } from "lucide-react";
 import { useMeg } from "@/app/auth/auth-api";
 import {
   skalRedirecteTilAuth,
@@ -24,6 +24,10 @@ import { formaterDatoShort } from "@/app/lib/dato";
 import { useLanguage } from "@/app/i18n";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useUIStore } from "@/app/store/uiStore";
+import { KbListe } from "@/app/components/kunnskapsbase/KbListe";
+import { KbDetaljer } from "@/app/components/kunnskapsbase/KbDetaljer";
+
+type ActiveTab = "bookmarks" | "knowledgeBase";
 
 export default function BokmerkerPage() {
   const router = useRouter();
@@ -36,6 +40,8 @@ export default function BokmerkerPage() {
   const { setSelectedChatId, setCurrentChatId } = useUIStore();
   const { language, t } = useLanguage();
   const [query, setQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("bookmarks");
+  const [selectedBaseId, setSelectedBaseId] = useState<string | null>(null);
 
   const brukernavn =
     megQuery.data?.user?.firstName ||
@@ -105,63 +111,106 @@ export default function BokmerkerPage() {
     >
       <div className="min-h-full bg-white px-4 py-6 text-slate-900 dark:bg-slate-900 dark:text-slate-100 md:px-8">
         <div className="mx-auto w-full max-w-5xl">
-          <div className="mb-4 flex items-center justify-between">
-            <h1 className="text-2xl font-semibold">{t("bokmerker.title")}</h1>
+          {/* Fane-navigasjon */}
+          <div className="mb-6 flex items-center gap-1 border-b border-slate-200 dark:border-slate-700">
+            <button
+              type="button"
+              onClick={() => { setActiveTab("bookmarks"); setSelectedBaseId(null); }}
+              className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+                activeTab === "bookmarks"
+                  ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
+                  : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+              }`}
+            >
+              <Pin className="h-4 w-4" />
+              {t("bokmerker.title")}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setActiveTab("knowledgeBase"); setSelectedBaseId(null); }}
+              className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+                activeTab === "knowledgeBase"
+                  ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
+                  : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+              }`}
+            >
+              <Database className="h-4 w-4" />
+              {t("kb.title")}
+            </button>
           </div>
 
-          <div className="mb-4">
-            <label htmlFor="bookmarks-search" className="sr-only">
-              {t("bokmerker.searchLabel")}
-            </label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                id="bookmarks-search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={t("bokmerker.searchPlaceholder")}
-                aria-label={t("bokmerker.searchLabel")}
-                className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm dark:border-slate-700 dark:bg-slate-950"
-              />
-            </div>
-          </div>
+          {/* ═══ Bokmerker-fane ═══ */}
+          {activeTab === "bookmarks" && (
+            <>
+              <div className="mb-4">
+                <label htmlFor="bookmarks-search" className="sr-only">
+                  {t("bokmerker.searchLabel")}
+                </label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    id="bookmarks-search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder={t("bokmerker.searchPlaceholder")}
+                    aria-label={t("bokmerker.searchLabel")}
+                    className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm dark:border-slate-700 dark:bg-slate-950"
+                  />
+                </div>
+              </div>
 
-          {filteredChats.length === 0 ? (
-            <FeilMelding
-              melding={
-                query.trim().length > 0
-                  ? t("bokmerker.noSearchMatches")
-                  : t("dashboard.sidebar.noBookmarksYet")
-              }
-              type="info"
-            />
-          ) : (
-            <div className="space-y-1">
-              {filteredChats.map((chat) => (
-                <ConversationListItem
-                  key={chat.id}
-                  title={chat.title}
-                  preview={lagSamtaleForhandsvisning(chat.messages, chat.title)}
-                  meta={formaterDatoShort(chat.timestamp, language)}
-                  onOpen={() => åpneSamtale(chat.id)}
-                  footer={(
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const ok = await setChatPinned(chat.id, false);
-                        if (ok) {
-                          showToast.success(t("bokmerker.removedFromBookmarks"));
-                        }
-                      }}
-                      className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
-                    >
-                      <Pin className="h-3.5 w-3.5" />
-                      {t("bokmerker.unpin")}
-                    </button>
-                  )}
+              {filteredChats.length === 0 ? (
+                <FeilMelding
+                  melding={
+                    query.trim().length > 0
+                      ? t("bokmerker.noSearchMatches")
+                      : t("dashboard.sidebar.noBookmarksYet")
+                  }
+                  type="info"
                 />
-              ))}
-            </div>
+              ) : (
+                <div className="space-y-1">
+                  {filteredChats.map((chat) => (
+                    <ConversationListItem
+                      key={chat.id}
+                      title={chat.title}
+                      preview={lagSamtaleForhandsvisning(chat.messages, chat.title)}
+                      meta={formaterDatoShort(chat.timestamp, language)}
+                      onOpen={() => åpneSamtale(chat.id)}
+                      footer={(
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const ok = await setChatPinned(chat.id, false);
+                            if (ok) {
+                              showToast.success(t("bokmerker.removedFromBookmarks"));
+                            }
+                          }}
+                          className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+                        >
+                          <Pin className="h-3.5 w-3.5" />
+                          {t("bokmerker.unpin")}
+                        </button>
+                      )}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ═══ Kunnskapsbase-fane ═══ */}
+          {activeTab === "knowledgeBase" && (
+            selectedBaseId ? (
+              <KbDetaljer
+                baseId={selectedBaseId}
+                onBack={() => setSelectedBaseId(null)}
+              />
+            ) : (
+              <KbListe
+                onSelectBase={(id) => setSelectedBaseId(id)}
+              />
+            )
           )}
         </div>
       </div>

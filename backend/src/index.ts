@@ -39,6 +39,7 @@ import authDiagnosticRouter, {
 } from "./rutere/debug/authDiagnostic.js";
 import quizRouter from "./rutere/quiz/quiz.js";
 import flashcardsRouter from "./rutere/flashcards/flashcards.js";
+import knowledgeBaseRouter from "./rutere/kunnskapsbase/kunnskapsbase.js";
 import { kiExportRouter } from "./rutere/ki/kiExport.js";
 import {
   cleanupExpiredSharedChats,
@@ -361,6 +362,7 @@ app.use("/api/user", noCache, notionSettingsRouter);
 app.use("/api/arbeidsplan", noCache, arbeidsplanRuter);
 app.use("/api/quiz", noCache, quizRouter);
 app.use("/api/flashcards", noCache, flashcardsRouter);
+app.use("/api/kb", noCache, knowledgeBaseRouter);
 
 // Admin: krever requireAuth (allerede kjørt) + requireRole("admin")
 app.use("/api/admin", rateLimitMe, requireRole("admin"), adminAuditRouter);

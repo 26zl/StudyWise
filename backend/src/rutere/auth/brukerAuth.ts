@@ -806,7 +806,7 @@ router.post("/sync-conflicts/dismiss", rateLimitMe, async (req, res) => {
 });
 
 // PUT /profile — oppdater brukerprofil (fornavn, etternavn, brukernavn). Synker til Clerk.
-router.put("/profile", rateLimitMe, async (req, res) => {
+router.put("/profile", requireRecentAuth, rateLimitMe, async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {

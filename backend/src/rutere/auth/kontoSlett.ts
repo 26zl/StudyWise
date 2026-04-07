@@ -26,6 +26,9 @@ import { enqueueClerkDeletionRetry } from "../../services/clerkDeletionRetry.ser
 import { enqueueVectorDeletionRetry } from "../../services/vectorDeletionRetry.service.js";
 import { DeletedUserTombstone } from "../../database/models/DeletedUserTombstone.js";
 import { PendingClerkDeletionModel } from "../../database/models/PendingClerkDeletion.js";
+import { KnowledgeBase } from "../../database/models/Kunnskapsbase.js";
+import { KBContentChunk } from "../../database/models/KBContentChunk.js";
+import { deleteAllKBContentForUser } from "../../services/kunnskapsbase-indeksering.service.js";
 
 export interface AccountDeletionResult {
   deleted: {
@@ -107,6 +110,8 @@ export async function deleteAccountData(
         WebPushSubscriptionModel.deleteMany({ userId: id }, { session }),
         StudyContext.deleteMany({ userId }, { session }),
         ChatFeedback.deleteMany({ user: id }, { session }),
+        KnowledgeBase.deleteMany({ userId }, { session }),
+        KBContentChunk.deleteMany({ userId }, { session }),
       ]);
 
       result.chatHistory = chatRes.deletedCount ?? 0;
@@ -188,6 +193,30 @@ export async function deleteAccountData(
     throw txError;
   } finally {
     await session.endSession();
+  }
+
+  // Slett KB-vektorer fra Pinecone (best-effort, logger feil)
+  try {
+    await deleteAllKBContentForUser(userId);
+  } catch (kbCleanupError) {
+    vectorCleanupSucceeded = false;
+    logger.error(
+      { err: kbCleanupError, userId },
+      "KB Pinecone-opprydding feilet under kontosletting — legger i retry-kø",
+    );
+    try {
+      await enqueueVectorDeletionRetry({
+        userId,
+        lastError: kbCleanupError instanceof Error
+          ? kbCleanupError.message
+          : "KB Pinecone-opprydding feilet",
+      });
+    } catch (retryEnqueueError) {
+      logger.error(
+        { err: retryEnqueueError, userId },
+        "Klarte ikke å legge KB vektor-sletting i retry-kø",
+      );
+    }
   }
 
   try {

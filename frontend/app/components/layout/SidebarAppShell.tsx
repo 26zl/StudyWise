@@ -64,8 +64,15 @@ export function SidebarAppShell({
         brukernavn={brukernavn}
         brukerRolle={brukerRolle}
       />
-      <section className="flex min-w-0 flex-1 flex-col bg-white dark:bg-slate-900" aria-label={t("chat.appContentLabel")}>
-        <div className={cn("flex-1 min-h-0 overflow-y-auto", contentClassName)}>{children}</div>
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-white dark:bg-slate-900" aria-label={t("chat.appContentLabel")}>
+        <div
+          className={cn(
+            "flex-1 min-h-0 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]",
+            contentClassName,
+          )}
+        >
+          {children}
+        </div>
         {footer ? <Footer /> : null}
       </section>
     </div>
@@ -159,3 +166,4 @@ export function SidebarAppErrorState({
     </SidebarAppState>
   );
 }
+

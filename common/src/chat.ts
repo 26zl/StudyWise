@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 import { KI_MAX_MESSAGE_LENGTH_BACKEND } from "./ki.js";
+import { KIChatSourceSchema } from "./ki.js";
 
 const CHAT_TITLE_MAX_LENGTH = 120;
 const CHAT_TOPIC_MAX_LENGTH = 40;
@@ -37,6 +38,7 @@ export const ChatMessageSchema = z.object({
     .string()
     .max(KI_MAX_MESSAGE_LENGTH_BACKEND, `Meldingen kan være maks ${KI_MAX_MESSAGE_LENGTH_BACKEND} tegn`)
     .refine((value) => value.trim().length > 0, "Meldingen kan ikke være tom"),
+  kilder: z.array(KIChatSourceSchema).optional(),
 });
 
 // Schema for lagring av chat-samtale. title valgfri; brukes for visning (f.eks. avkortet første spørsmål).

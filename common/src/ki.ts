@@ -58,8 +58,10 @@ const UsageSchema = z.object({
 export const KIChatSourceSchema = z.object({
   courseId: z.string(),
   courseName: z.string(),
-  fileId: z.number().int(),
+  fileId: z.number().int().optional(),
   fileName: z.string(),
+  sourceUrl: z.string().url().optional(),
+  sourceKind: z.enum(["canvas_file", "kb_link", "kb_file", "live_url"]).optional(),
   /** Hvor stor del av relevansen denne kilden bidro med (0-1). Brukes til sortering. */
   score: z.number().optional(),
   /** Antall chunks fra denne filen som ble brukt i konteksten. */

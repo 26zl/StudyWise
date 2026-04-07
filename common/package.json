@@ -64,6 +64,10 @@
     "./export": {
       "types": "./dist/export.d.ts",
       "import": "./dist/export.js"
+    },
+    "./kunnskapsbase": {
+      "types": "./dist/kunnskapsbase.d.ts",
+      "import": "./dist/kunnskapsbase.js"
     }
   },
   "scripts": {

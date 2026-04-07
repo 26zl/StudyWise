@@ -207,7 +207,7 @@ interface CrawlExternalUrlOptions {
   changedItemIds?: Set<number>;
 }
 
-type FetchExternalResult =
+export type FetchExternalResult =
   | { kind: "html"; html: string }
   | { kind: "pdf"; buffer: Buffer }
   | { kind: "skip" }
@@ -604,7 +604,7 @@ function sha256(data: string): string {
 /**
  * Henter HTML fra en URL med timeout.
  */
-async function fetchExternalContent(url: string): Promise<FetchExternalResult> {
+export async function fetchExternalContent(url: string): Promise<FetchExternalResult> {
   const response = await fetchWithSafeRedirects(url, FETCH_TIMEOUT_MS);
   if (!response) {
     return { kind: "failed" };
@@ -658,7 +658,7 @@ async function fetchExternalContent(url: string): Promise<FetchExternalResult> {
  * 2. @mozilla/readability — intelligent artikkelekstraksjon som fungerer på de fleste sider
  * 3. Cheerio-fallback — manuell seleksjon av hovedinnhold
  */
-function extractTextFromHtml(html: string, domainSelectors?: string[] | null): string {
+export function extractTextFromHtml(html: string, domainSelectors?: string[] | null): string {
   // 1. Prøv domene-spesifikke selektorer (f.eks. lovdata.no, regjeringen.no)
   if (domainSelectors) {
     const $ = cheerio.load(html);

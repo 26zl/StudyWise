@@ -5,6 +5,8 @@
 
 import { Router } from "express";
 import { createHash } from "crypto";
+import { lookup } from "node:dns/promises";
+import net from "net";
 import { logger } from "../../utils/logger.js";
 import { apiError, sendZodError } from "../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
@@ -40,15 +42,64 @@ import { isStructuredCanvasQuery } from "../../services/canvasStructuredQueries.
 import { trimToTokenLimit, countTokens } from "../../utils/tokenCounter.js";
 import { knyttCanvasTokenValgfritt } from "../../middleware/auth.js";
 import { User } from "../../database/models/User.js";
+import { KnowledgeBase } from "../../database/models/Kunnskapsbase.js";
+import { searchKBContent, buildKBContext } from "../../services/kunnskapsbase-indeksering.service.js";
 import { createDefaultCanvasContextPreferences } from "common/auth";
 import { setupSSE, writeSSE } from "../../utils/sseUtils.js";
 import { createLinkedAbortController } from "../../utils/abort.js";
 import { loadStudyContextForUser, updateStudyContext } from "../../services/studyContext.service.js";
 import { escapeRegex } from "../../utils/regexUtils.js";
+import { stripHtml } from "../../utils/htmlUtils.js";
+import { parseDocument } from "../../services/document.js";
 import {
   AI_COMPLETION_PUSH_MIN_DURATION_MS,
   sendAICompletionWebPush,
 } from "../../services/webPush.service.js";
+
+type ChatSource = import("common/ki").KIChatSource;
+
+function mapKBResultsToChatSources(results: import("../../services/kunnskapsbase-indeksering.service.js").KBSearchResult[], baseName: string): ChatSource[] {
+  const seen = new Set<string>();
+  const sources: ChatSource[] = [];
+  for (const result of results) {
+    const sourceKind = result.sourceType === "link" ? "kb_link" : "kb_file";
+    const sourceUrl = result.sourceUrl;
+    const key = `${sourceKind}:${result.sourceId ?? result.sourceName}:${sourceUrl ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    sources.push({
+      courseId: "kb",
+      courseName: baseName,
+      fileName: result.sourceName,
+      sourceUrl,
+      sourceKind,
+      score: result.score,
+    });
+  }
+  return sources.slice(0, 100);
+}
+
+function mergeChatSources(
+  ...groups: Array<ChatSource[] | undefined>
+): ChatSource[] | undefined {
+  const merged: ChatSource[] = [];
+  const seen = new Set<string>();
+  for (const group of groups) {
+    if (!group || group.length === 0) continue;
+    for (const source of group) {
+      const hasDownloadableCanvasFile = Number.isFinite(source.fileId);
+      const hasNavigableUrl = typeof source.sourceUrl === "string" && source.sourceUrl.length > 0;
+      if (!hasDownloadableCanvasFile && !hasNavigableUrl) {
+        continue;
+      }
+      const key = `${source.sourceKind ?? "canvas_file"}:${source.courseId}:${source.fileId ?? "na"}:${source.fileName}:${source.sourceUrl ?? ""}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(source);
+    }
+  }
+  return merged.length > 0 ? merged.slice(0, 100) : undefined;
+}
 
 /** Parser JSON sync-status fra Redis. Returnerer statusfeltet, eller null ved ugyldig verdi. */
 function parseSyncStatus(raw: string | null): string | null {
@@ -282,6 +333,32 @@ function detectIntent(messages: Array<{ role: string; content: string }>): Inten
     .slice(-3)
     .map((m) => normaliserSkrivefeil(m.content));
 
+  const hasCanvasSpecificSignals = (msg: string): boolean => {
+    const hasCourseOrFileHints =
+      /\b(?:canvas|emne|kurs|modul|forelesning|leksjon|kapittel|fil|pdf|docx|pptx|xlsx)\b/i.test(msg) ||
+      /\b[a-zæøå]{2,4}-?\d{2,4}\b/i.test(msg);
+    const hasTopicSignals = TOPIC_KEYWORDS.some((kw) => msg.includes(kw));
+    const hasLightSignals = CANVAS_LIGHT_KEYWORDS.some((kw) => msg.includes(kw));
+    const hasNonGenericFullSignals = CANVAS_FULL_KEYWORDS
+      .filter((kw) => !["hva er", "what is", "hva betyr", "what means"].includes(kw))
+      .some((kw) => msg.includes(kw));
+    return hasCourseOrFileHints || hasTopicSignals || hasLightSignals || hasNonGenericFullSignals;
+  };
+
+  const isLikelyGeneralDefinition = (msg: string): boolean => {
+    const words = msg.trim().split(/\s+/).filter(Boolean);
+    const startsLikeDefinition =
+      msg.startsWith("hva er ") ||
+      msg.startsWith("hva betyr ") ||
+      msg.startsWith("what is ") ||
+      msg.startsWith("what does ");
+    return startsLikeDefinition && words.length <= 7 && !hasCanvasSpecificSignals(msg);
+  };
+
+  if (recentUserMessages.some((msg) => isLikelyGeneralDefinition(msg))) {
+    return "general_chat";
+  }
+
   // Prioritet 0: Rene struktur-/oppslagsspørsmål skal ikke routes til innholdssøk
   for (const msg of recentUserMessages) {
     if (isStructuredCanvasQuery(msg)) {
@@ -335,6 +412,188 @@ function chooseModelForFullDocumentMode(
     return { model: largestAvailableContextModel, reason: "largest_context" };
   }
   return { model: baseModel, reason: "base" };
+}
+
+const KB_SESSION_TTL = 3600;
+
+function kbSessionKey(userId: string): string {
+  return `ki:session:${userId}:active-kb`;
+}
+
+function extractSlashKBBaseName(message: string): string | null {
+  const trimmed = message.trim();
+  // /skolebasen
+  // /my base
+  // ignorerer /help, /? og URL-er
+  const slashMatch = trimmed.match(/^\/([^\s/][^\n]*)$/);
+  if (!slashMatch?.[1]) return null;
+  const candidate = slashMatch[1].trim();
+  if (!candidate || candidate === "?" || candidate.toLowerCase() === "help") return null;
+  if (candidate.startsWith("http://") || candidate.startsWith("https://")) return null;
+  return candidate;
+}
+
+function extractFirstHttpUrl(message: string): string | null {
+  const match = message.match(/https?:\/\/[^\s<>"'`]+/i);
+  return match?.[0] ?? null;
+}
+
+function normalizeKbAliasText(value: string): string {
+  return normaliserSkrivefeil(value)
+    .replace(/https?:\/\/\S+/gi, " ")
+    .replace(/[^\wæøå\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractLikelyKbAliases(message: string): string[] {
+  const normalized = normalizeKbAliasText(message);
+  if (!normalized) return [];
+
+  const noStopwords = normalized
+    .split(" ")
+    .map((word) => word.trim())
+    .filter((word) => word.length >= 3)
+    .filter((word) => !CHUNK_STOPWORDS.has(word));
+
+  return [...new Set(noStopwords)].slice(0, 4);
+}
+
+function normalizeTextContent(text: string): string {
+  return text
+    .replace(/\r/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+function isLoopbackOrPrivateIp(address: string): boolean {
+  if (net.isIP(address) === 4) {
+    const parts = address.split(".").map((part) => Number.parseInt(part, 10));
+    const [a, b] = parts;
+    if (a === 10 || a === 127 || a === 0) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 169 && b === 254) return true;
+    return false;
+  }
+
+  if (net.isIP(address) === 6) {
+    const lowered = address.toLowerCase();
+    if (lowered === "::1") return true;
+    if (lowered.startsWith("fc") || lowered.startsWith("fd")) return true; // ULA
+    if (lowered.startsWith("fe80:")) return true; // link-local
+    if (lowered === "::") return true;
+    return false;
+  }
+
+  return true;
+}
+
+async function ensurePublicHttpUrl(rawUrl: string): Promise<URL | null> {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+  const hostname = parsed.hostname.toLowerCase();
+  if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")) {
+    return null;
+  }
+
+  const dnsResults = await lookup(hostname, { all: true });
+  if (!dnsResults.length) return null;
+  if (dnsResults.some((entry) => isLoopbackOrPrivateIp(entry.address))) return null;
+  return parsed;
+}
+
+async function buildLiveUrlContextFromMessage(message: string): Promise<string | null> {
+  const urlCandidate = extractFirstHttpUrl(message);
+  if (!urlCandidate) return null;
+
+  const safeUrl = await ensurePublicHttpUrl(urlCandidate);
+  if (!safeUrl) {
+    logger.warn({ urlCandidate }, "Direkte URL blokkert (lokal/privat/ugyldig)");
+    return null;
+  }
+
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), 12_000);
+  try {
+    const response = await fetch(safeUrl, {
+      method: "GET",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "StudyWise/1.0 (KI Live URL Context)",
+        Accept: "text/html,application/pdf,text/plain,*/*",
+      },
+    });
+
+    if (!response.ok) {
+      logger.warn({ url: safeUrl.toString(), status: response.status }, "Direkte URL kunne ikke hentes");
+      return null;
+    }
+
+    const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+    let extracted = "";
+    let labelType = "html";
+
+    if (contentType.includes("text/html") || contentType.includes("application/xhtml+xml")) {
+      const html = await response.text();
+      extracted = normalizeTextContent(stripHtml(html, { removeStyles: true }));
+      labelType = "html";
+    } else if (contentType.includes("application/pdf")) {
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const parsed = await parseDocument(buffer, "application/pdf", safeUrl.pathname || "document.pdf");
+      extracted = normalizeTextContent(parsed.text);
+      labelType = "pdf";
+    } else if (
+      contentType.includes("application/vnd.openxmlformats-officedocument.wordprocessingml.document") ||
+      contentType.includes("application/msword")
+    ) {
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const filename = safeUrl.pathname.split("/").pop() || "document.docx";
+      const parsed = await parseDocument(buffer, contentType, filename);
+      extracted = normalizeTextContent(parsed.text);
+      labelType = "doc";
+    } else {
+      const text = await response.text();
+      extracted = normalizeTextContent(text);
+      labelType = "text";
+    }
+
+    if (!extracted || extracted.length < 80) {
+      logger.info({ url: safeUrl.toString(), contentType }, "Direkte URL ga for lite innhold");
+      return null;
+    }
+
+    const maxChars = 22_000;
+    const clipped = extracted.slice(0, maxChars);
+    return `<live_url source="${safeUrl.toString()}" contentType="${labelType}">
+${clipped}
+</live_url>`;
+  } catch (err) {
+    logger.warn({ err, url: safeUrl.toString() }, "Direkte URL-henting feilet");
+    return null;
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+}
+
+function extractLiveUrlSource(context: string): ChatSource | null {
+  const match = context.match(/<live_url\s+source="([^"]+)"\s+contentType="([^"]+)">/i);
+  if (!match) return null;
+  return {
+    courseId: "live-url",
+    courseName: "Direkte URL",
+    fileName: match[1],
+    sourceUrl: match[1],
+    sourceKind: "live_url",
+  };
 }
 
 function isLikelyFollowUpQuestion(message: string): boolean {
@@ -888,6 +1147,8 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     let traceCourseIdHint: number | null = null;
     let traceCourseHint: string | null = null;
     let contextKilder: import("common/ki").KIChatSource[] | undefined;
+    let kbKilder: import("common/ki").KIChatSource[] | undefined;
+    let liveUrlKilder: import("common/ki").KIChatSource[] | undefined;
 
     if (intent !== "general_chat" && req.canvasToken && req.user?.id) {
       const baseUrl = req.canvasBaseUrl;
@@ -965,6 +1226,8 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       const hasOverride = hasExplicitCourseOverride(lastUserMsg);
       const shouldReuseLockedCourseHint = isLikelyFollowUp
         || refersToCurrentCourseContext(lastUserMsg);
+      const hasBaseSlashCommand = extractSlashKBBaseName(lastUserMsg) !== null;
+      const mentionsKnowledgeBase = /\b(?:basen|kunnskapsbase|knowledge base)\b/i.test(normaliserSkrivefeil(lastUserMsg));
 
       if (hasOverride && sanitizedTargetHint) {
         // Bruker vil eksplisitt bytte kurs — oppdater låsen
@@ -977,7 +1240,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       } else if (lockedCourseHint) {
         // Bruk eksisterende låst courseHint kun når meldingen ikke gir ny eksplisitt courseHint.
         // Dette hindrer at sesjonslås overstyrer ny emnekode som 6105N.
-        if (!sanitizedTargetHint) {
+        if (!sanitizedTargetHint && !hasBaseSlashCommand && !mentionsKnowledgeBase) {
           // Arv alltid den låste hintet når meldingen ikke nevner et nytt kurs.
           // Tidligere dropp ved "bredt spørsmål" førte til at oppfølginger som
           // "forklar hva forelesningene har gått ut på?" mistet kurskonteksten.
@@ -990,14 +1253,14 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
             },
             "courseHint arvet fra sesjonslås",
           );
-        } else if (sanitizedTargetHint !== lockedCourseHint && hasOverride) {
+        } else if (sanitizedTargetHint && sanitizedTargetHint !== lockedCourseHint && hasOverride) {
           await setCache(courseHintLockKey, sanitizedTargetHint, SESSION_COURSEHINT_TTL);
           target.courseHint = sanitizedTargetHint;
           logger.info(
             { previousCourseHint: lockedCourseHint, courseHint: sanitizedTargetHint, override: true },
             "courseHint oppdatert fra ny eksplisitt hint",
           );
-        } else if (sanitizedTargetHint !== lockedCourseHint) {
+        } else if (sanitizedTargetHint !== lockedCourseHint && !hasBaseSlashCommand && !mentionsKnowledgeBase) {
           target.courseHint = lockedCourseHint;
           target.courseIdHint = null; // Nullstill — lar resolveTargetAgainstKnownCourses løse riktig kurs
           logger.info(
@@ -1113,12 +1376,24 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
           if (!parsed.success) {
             logger.warn({ sessionCacheKey, errors: parsed.error.issues }, "Ugyldig struktur i session-cache — henter på nytt");
           } else {
-            contextResult = parsed.data;
-            usedSessionCache = true;
-            logger.info(
-              { sessionCacheKey, contextLength: contextResult.kontekst.length },
-              "Bruker cached session-kontekst for kurs",
-            );
+            const parsedData = parsed.data;
+            const cacheMissingSources =
+              parsedData.hasCanvasData &&
+              parsedData.source !== "none" &&
+              (!parsedData.kilder || parsedData.kilder.length === 0);
+            if (cacheMissingSources) {
+              logger.info(
+                { sessionCacheKey, source: parsedData.source, contextLength: parsedData.kontekst.length },
+                "Session-cache mangler kilder — henter fersk kontekst",
+              );
+            } else {
+              contextResult = parsedData;
+              usedSessionCache = true;
+              logger.info(
+                { sessionCacheKey, contextLength: contextResult.kontekst.length },
+                "Bruker cached session-kontekst for kurs",
+              );
+            }
           }
         } catch {
           logger.warn({ sessionCacheKey }, "Ugyldig JSON i session-cache — henter på nytt");
@@ -1269,6 +1544,146 @@ Rules:
       enhancedSystemPrompt += studyContext;
     }
 
+    // ——— Kunnskapsbase via slash-kommando (/basenavn) + automatisk alias-match ———
+    let kbKontekst = "";
+    let liveUrlKontekst = "";
+    const lastUserMessageForKB = trimmedMessages.filter((m) => m.role === "user").at(-1)?.content ?? "";
+    const slashBaseName = extractSlashKBBaseName(lastUserMessageForKB);
+
+    if (slashBaseName) {
+      const escaped = escapeRegex(slashBaseName);
+      const base = await KnowledgeBase.findOne({
+        userId: req.user!.id,
+        navn: { $regex: new RegExp(`^${escaped}$`, "i") },
+      }).lean();
+
+      if (!base) {
+        const availableBases = await KnowledgeBase.find({ userId: req.user!.id })
+          .select("navn")
+          .sort({ navn: 1 })
+          .lean();
+        const names = availableBases.map((b) => b.navn);
+        const responseText = names.length > 0
+          ? `Fant ikke kunnskapsbasen "${slashBaseName}". Tilgjengelige baser: ${names.join(", ")}`
+          : `Fant ikke kunnskapsbasen "${slashBaseName}". Du har ingen kunnskapsbaser ennå.`;
+        const payload = KIChatResponseSchema.parse({
+          suksess: true,
+          response: responseText,
+          model: resolvedRequestedModel,
+        });
+        if (writeSSE(res, payload)) res.end();
+        return;
+      }
+
+      await setCache(
+        kbSessionKey(req.user!.id),
+        JSON.stringify({ id: String(base._id), navn: base.navn }),
+        KB_SESSION_TTL,
+      );
+
+      const responseText = `Kunnskapsbasen "${base.navn}" er nå aktivert med /. Still et spørsmål om innholdet.`;
+      const payload = KIChatResponseSchema.parse({
+        suksess: true,
+        response: responseText,
+        model: resolvedRequestedModel,
+      });
+      if (writeSSE(res, payload)) res.end();
+      return;
+    }
+
+    const activeKbRaw = await getCache(kbSessionKey(req.user!.id));
+    let activeKb: { id: string; navn: string } | null = null;
+    if (activeKbRaw) {
+      try {
+        const parsed = JSON.parse(activeKbRaw) as { id?: string; navn?: string };
+        if (parsed.id && parsed.navn) {
+          activeKb = { id: parsed.id, navn: parsed.navn };
+          const kbResults = await searchKBContent(req.user!.id, parsed.id, lastUserMessageForKB, 8);
+          if (kbResults.length > 0) {
+            kbKontekst = buildKBContext(kbResults, parsed.navn);
+            kbKilder = mapKBResultsToChatSources(kbResults, parsed.navn);
+            enhancedSystemPrompt += `
+
+## Kunnskapsbase (aktiv via /)
+
+Bruk innholdet i <kunnskapsbase>-taggene som primærkilde når det er relevant.
+Referer til kilde (fil/lenke) i svaret.
+`;
+          }
+        }
+      } catch {
+        // ignorer ugyldig cacheverdi
+      }
+    }
+
+    // Auto-match på basenavn i spørsmål, f.eks. "oppsummer windows"
+    if (!kbKontekst) {
+      const aliases = extractLikelyKbAliases(lastUserMessageForKB);
+      if (aliases.length > 0) {
+        const baser = await KnowledgeBase.find({ userId: req.user!.id })
+          .select("_id navn")
+          .lean();
+
+        const scored = baser
+          .map((base) => {
+            const baseName = normaliserSkrivefeil(base.navn);
+            let score = 0;
+            for (const alias of aliases) {
+              if (baseName === alias) score += 100;
+              else if (baseName.includes(alias)) score += 60;
+              else if (alias.includes(baseName)) score += 40;
+            }
+            return { base, score };
+          })
+          .filter((entry) => entry.score > 0)
+          .sort((a, b) => b.score - a.score);
+
+        const match = scored[0]?.base;
+        if (match) {
+          const matchId = String(match._id);
+          const kbResults = await searchKBContent(req.user!.id, matchId, lastUserMessageForKB, 8);
+          if (kbResults.length > 0) {
+            kbKontekst = buildKBContext(kbResults, match.navn);
+            kbKilder = mapKBResultsToChatSources(kbResults, match.navn);
+            activeKb = { id: matchId, navn: match.navn };
+            await setCache(
+              kbSessionKey(req.user!.id),
+              JSON.stringify(activeKb),
+              KB_SESSION_TTL,
+            );
+
+            enhancedSystemPrompt += `
+
+## Kunnskapsbase (automatisk matchet)
+
+Bruk innholdet i <kunnskapsbase>-taggene som primærkilde når det er relevant.
+Referer til kilde (fil/lenke) i svaret.
+`;
+            logger.info(
+              { userId: req.user!.id, matchedBaseName: match.navn, aliases },
+              "Automatisk KB-basenavn matchet fra brukerens spørsmål",
+            );
+          }
+        }
+      }
+    }
+
+    // Direkte URL i melding (pdf/nettside) — brukes når KB ikke ga kontekst
+    if (!kbKontekst) {
+      liveUrlKontekst = await buildLiveUrlContextFromMessage(lastUserMessageForKB) ?? "";
+      if (liveUrlKontekst) {
+        const liveSource = extractLiveUrlSource(liveUrlKontekst);
+        if (liveSource) liveUrlKilder = [liveSource];
+        enhancedSystemPrompt += `
+
+## Direkte URL-kontekst
+
+Når <live_url>-tag finnes, skal du bruke det innholdet som primærkilde.
+Oppgi tydelig at svaret er basert på den oppgitte URL-en.
+`;
+      }
+    }
+
     // System-prompt styres kun av backend (KIChatClientMessageSchema tillater ikke "system" fra klient — prompt-injection-sikring).
     const fullMessages: Array<{
       role: "system" | "user" | "assistant";
@@ -1278,6 +1693,12 @@ Rules:
       { role: "system", content: fullDocumentStrictPrefix + enhancedSystemPrompt, cache_control: { type: "ephemeral" } },
       ...(hasCanvasData
         ? [{ role: "system" as const, content: canvasKontekst, cache_control: { type: "ephemeral" as const } }]
+        : []),
+      ...(kbKontekst
+        ? [{ role: "system" as const, content: kbKontekst, cache_control: { type: "ephemeral" as const } }]
+        : []),
+      ...(liveUrlKontekst
+        ? [{ role: "system" as const, content: liveUrlKontekst, cache_control: { type: "ephemeral" as const } }]
         : []),
       ...trimmedMessages.map((m: { role: string; content: string }) => ({
         role: m.role as "user" | "assistant",
@@ -1366,6 +1787,14 @@ Rules:
       "Vellykket chat-svar",
     );
 
+    // Når KB eller direkte URL er i spill, prioriter disse kildene over Canvas.
+    // Dette unngår at courseHint-lås i Canvas forurenser kildelisten for "basen"-spørsmål.
+    const preferNonCanvasSources =
+      (kbKilder && kbKilder.length > 0) || (liveUrlKilder && liveUrlKilder.length > 0);
+    const mergedSources = preferNonCanvasSources
+      ? mergeChatSources(kbKilder, liveUrlKilder)
+      : mergeChatSources(contextKilder, kbKilder, liveUrlKilder);
+
     const payload = KIChatResponseSchema.parse({
       suksess: true,
       response: responseText,
@@ -1377,7 +1806,7 @@ Rules:
             total_tokens: usage.total_tokens,
           }
         : undefined,
-      kilder: contextKilder,
+      kilder: mergedSources,
     });
     // writeSSE base64-koder JSON-payloaden før den skrives til event-streamen.
     if (writeSSE(res, payload)) {
@@ -1466,3 +1895,5 @@ Rules:
 });
 
 export default router;
+
+

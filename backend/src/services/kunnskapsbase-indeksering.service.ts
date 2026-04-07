@@ -1,0 +1,408 @@
+/**
+ * KB Indexing Service
+ *
+ * Indekserer innhold fra kunnskapsbase-lenker og -filer til Pinecone
+ * for semantisk søk. Bruker eksisterende chunking og Pinecone-integrasjon.
+ *
+ * Metadata-konvensjon:
+ *   - userId: brukerens ID
+ *   - courseId: "kb:<baseId>" (prefix for å skille fra Canvas-data)
+ *   - moduleId: 0 (ikke brukt for KB)
+ *   - fileId: hash av sourceId (numerisk verdi for Pinecone-filter)
+ *   - chunkIndex: chunk-nummer
+ */
+
+import crypto from "crypto";
+import { logger } from "../utils/logger.js";
+import { KBContentChunk } from "../database/models/KBContentChunk.js";
+import { createChunksFromContent } from "./chunk.service.js";
+import { countTokens } from "../utils/tokenCounter.js";
+import {
+  isPineconeConfigured,
+  pineconeUpsert,
+  pineconeDeleteByFilter,
+  pineconeQuery,
+} from "./pinecone.service.js";
+
+// ─── Hjelpefunksjoner ──────────────────────────────��─────
+
+/** Genererer en stabil numerisk fileId fra sourceId for Pinecone-metadata */
+function sourceIdToNumeric(sourceId: string): number {
+  const digest = crypto.createHash("sha256").update(sourceId, "utf8").digest();
+  const high = digest.readUInt32BE(0) & 0x001fffff;
+  const low = digest.readUInt32BE(4);
+  return high * 0x100000000 + low;
+}
+
+/** Lager Pinecone courseId-prefiks for kunnskapsbase */
+export function kbCourseId(baseId: string): string {
+  return `kb:${baseId}`;
+}
+
+// ─── Indeksering ─────────────────────────────────────────
+
+export interface IndexContentOptions {
+  userId: string;
+  baseId: string;
+  sourceId: string;
+  sourceType: "link" | "file";
+  sourceName: string;
+  content: string;
+  /** Ekstra metadata for crawlede sider */
+  metadata?: {
+    sourceUrl?: string;
+    parentUrl?: string;
+    depth?: number;
+    contentType?: string;
+    domain?: string;
+    path?: string;
+  };
+}
+
+/**
+ * Indekserer tekstinnhold fra en lenke eller fil til MongoDB + Pinecone.
+ * Chunker innholdet, lagrer i KBContentChunk og upsert-er til Pinecone.
+ */
+export async function indexKBContent(options: IndexContentOptions): Promise<number> {
+  const { userId, baseId, sourceId, sourceType, sourceName, content, metadata } = options;
+
+  if (!content || content.trim().length === 0) {
+    logger.warn({ baseId, sourceId, sourceType }, "Tomt innhold — hopper over indeksering");
+    return 0;
+  }
+
+  // Chunk innholdet med eksisterende chunking-logikk
+  const chunkSource = {
+    courseId: `kb:${baseId}`,
+    courseName: sourceName,
+    moduleTitle: sourceType === "file" ? "Fil" : "Lenke",
+    fileName: sourceName,
+    fileId: sourceIdToNumeric(sourceId),
+  };
+  const chunks = createChunksFromContent(content, chunkSource);
+
+  if (chunks.length === 0) {
+    logger.warn({ baseId, sourceId }, "Ingen chunks generert fra innhold");
+    return 0;
+  }
+
+  // Lagre chunks i MongoDB med ekstra metadata
+  const mongoOps = chunks.map((chunk, index) => ({
+    updateOne: {
+      filter: { userId, baseId, sourceId, chunkIndex: index },
+      update: {
+        $set: {
+          sourceType,
+          sourceName,
+          text: chunk.text,
+          tokenCount: countTokens(chunk.text),
+          contentHash: crypto.createHash("sha256").update(chunk.text).digest("hex"),
+          pineconeSynced: false,
+          // Ekstra metadata for crawlede sider
+          ...(metadata?.sourceUrl && { sourceUrl: metadata.sourceUrl }),
+          ...(metadata?.parentUrl && { parentUrl: metadata.parentUrl }),
+          ...(metadata?.depth !== undefined && { depth: metadata.depth }),
+          ...(metadata?.contentType && { contentType: metadata.contentType }),
+          ...(metadata?.domain && { domain: metadata.domain }),
+          ...(metadata?.path && { path: metadata.path }),
+        },
+      },
+      upsert: true,
+    },
+  }));
+
+  await KBContentChunk.bulkWrite(mongoOps, { ordered: false });
+
+  // Slett eventuelle overflødige chunks fra forrige indeksering
+  await KBContentChunk.deleteMany({
+    userId,
+    baseId,
+    sourceId,
+    chunkIndex: { $gte: chunks.length },
+  });
+
+  // Upsert til Pinecone
+  if (isPineconeConfigured()) {
+    const pineconeRecords = chunks.map((chunk, index) => ({
+      id: `kb:${userId}:${baseId}:${sourceId}:${index}`,
+      text: chunk.text,
+      metadata: {
+        userId,
+        courseId: kbCourseId(baseId),
+        moduleId: 0,
+        fileId: sourceIdToNumeric(sourceId),
+        chunkIndex: index,
+        // Ekstra metadata for sporing
+        ...(metadata?.sourceUrl && { sourceUrl: metadata.sourceUrl }),
+        ...(metadata?.depth !== undefined && { depth: metadata.depth }),
+      },
+    }));
+
+    try {
+      await pineconeUpsert(pineconeRecords);
+      // Marker chunks som synkronisert
+      await KBContentChunk.updateMany(
+        { userId, baseId, sourceId, chunkIndex: { $lt: chunks.length } },
+        { $set: { pineconeSynced: true } },
+      );
+    } catch (err) {
+      logger.error(
+        { err, baseId, sourceId },
+        "Pinecone upsert feilet for KB-innhold — MongoDB-data beholdes",
+      );
+    }
+  }
+
+  logger.info(
+    { baseId, sourceId, sourceType, chunkCount: chunks.length },
+    "KB-innhold indeksert",
+  );
+
+  return chunks.length;
+}
+
+/**
+ * Sletter indeksert innhold for en kilde (lenke eller fil).
+ * Sletter fra Pinecone først (GDPR), deretter MongoDB.
+ */
+export async function deleteKBSourceContent(
+  userId: string,
+  baseId: string,
+  sourceId: string,
+): Promise<void> {
+  // Slett fra Pinecone først
+  if (isPineconeConfigured()) {
+    try {
+      await pineconeDeleteByFilter({
+        userId,
+        courseId: kbCourseId(baseId),
+        fileId: sourceIdToNumeric(sourceId),
+      });
+    } catch (err) {
+      logger.error(
+        { err, baseId, sourceId },
+        "Pinecone-sletting feilet for KB-kilde — avbryter for dataintegritet",
+      );
+      throw err;
+    }
+  }
+
+  await KBContentChunk.deleteMany({ userId, baseId, sourceId });
+}
+
+/**
+ * Sletter alt indeksert innhold for en hel base.
+ */
+export async function deleteKBBaseContent(
+  userId: string,
+  baseId: string,
+): Promise<void> {
+  if (isPineconeConfigured()) {
+    try {
+      await pineconeDeleteByFilter({
+        userId,
+        courseId: kbCourseId(baseId),
+      });
+    } catch (err) {
+      logger.error(
+        { err, baseId },
+        "Pinecone-sletting feilet for KB-base — avbryter for dataintegritet",
+      );
+      throw err;
+    }
+  }
+
+  await KBContentChunk.deleteMany({ userId, baseId });
+}
+
+/**
+ * Sletter alt indeksert KB-innhold for en bruker (kontosletting / GDPR).
+ */
+export async function deleteAllKBContentForUser(userId: string): Promise<void> {
+  // Hent alle baseId-er for brukeren
+  const { KnowledgeBase } = await import("../database/models/Kunnskapsbase.js");
+  const bases = await KnowledgeBase.find({ userId }, { _id: 1 }).lean();
+  const failedBaseIds: string[] = [];
+
+  for (const base of bases) {
+    if (isPineconeConfigured()) {
+      try {
+        await pineconeDeleteByFilter({
+          userId,
+          courseId: kbCourseId(String(base._id)),
+        });
+      } catch (err) {
+        const baseId = String(base._id);
+        failedBaseIds.push(baseId);
+        logger.error(
+          { err, baseId },
+          "Pinecone-sletting feilet for KB-base ved kontosletting",
+        );
+      }
+    }
+  }
+
+  if (failedBaseIds.length > 0) {
+    throw new Error(
+      `KB Pinecone-sletting feilet for ${failedBaseIds.length} base(r): ${failedBaseIds.join(", ")}`,
+    );
+  }
+
+  await KBContentChunk.deleteMany({ userId });
+}
+
+// ─── Søk / konteksthenting ──────────────────────────────
+
+export interface KBSearchResult {
+  text: string;
+  sourceId?: string;
+  sourceName: string;
+  sourceType: "link" | "file";
+  sourceUrl?: string;
+  score?: number;
+}
+
+/**
+ * Parser Pinecone-ID for KB-poster.
+ * Format: kb:<userId>:<baseId>:<sourceId>:<chunkIndex>
+ * NB: sourceId kan inneholde kolon, så vi parser fra høyre side.
+ */
+function parseKBPineconeId(id: string): { sourceId: string; chunkIndex: number } | null {
+  const parts = id.split(":");
+  if (parts.length < 5 || parts[0] !== "kb") return null;
+
+  const chunkIndexRaw = parts[parts.length - 1];
+  const chunkIndex = Number.parseInt(chunkIndexRaw, 10);
+  if (!Number.isFinite(chunkIndex)) return null;
+
+  const sourceId = parts.slice(3, -1).join(":");
+  if (!sourceId) return null;
+
+  return { sourceId, chunkIndex };
+}
+
+/**
+ * Henter relevante chunks fra en aktiv kunnskapsbase basert på brukerens spørsmål.
+ * Bruker Pinecone for semantisk søk, med fallback til MongoDB keyword-søk.
+ */
+export async function searchKBContent(
+  userId: string,
+  baseId: string,
+  query: string,
+  topK = 6,
+): Promise<KBSearchResult[]> {
+  const { KnowledgeBase } = await import("../database/models/Kunnskapsbase.js");
+  const ownsBase = await KnowledgeBase.exists({ _id: baseId, userId });
+  if (!ownsBase) {
+    logger.warn({ userId, baseId }, "KB-søk avvist: base finnes ikke eller tilhører annen bruker");
+    return [];
+  }
+
+  const courseId = kbCourseId(baseId);
+
+  // Prøv Pinecone semantisk søk
+  if (isPineconeConfigured()) {
+    try {
+      const pineconeResults = await pineconeQuery(query, topK, {
+        userId,
+        courseIds: [courseId],
+      });
+
+      if (pineconeResults.length > 0) {
+        // Hent fullstendig chunk-data fra MongoDB basert på Pinecone-resultatene
+        const chunkIds = pineconeResults
+          .map((r) => parseKBPineconeId(r.id))
+          .filter((v): v is { sourceId: string; chunkIndex: number } => v !== null);
+
+        if (chunkIds.length === 0) {
+          logger.warn(
+            { baseId, hitCount: pineconeResults.length },
+            "Ingen gyldige KB Pinecone-ID-er etter parsing",
+          );
+          return [];
+        }
+
+        const chunks = await KBContentChunk.find({
+          userId,
+          baseId,
+          $or: chunkIds.map((c) => ({
+            sourceId: c.sourceId,
+            chunkIndex: c.chunkIndex,
+          })),
+        }).lean();
+
+        return chunks.map((chunk) => ({
+          text: chunk.text,
+          sourceId: chunk.sourceId,
+          sourceName: chunk.sourceName,
+          sourceType: chunk.sourceType,
+          sourceUrl: chunk.sourceUrl,
+          score: pineconeResults.find((r) =>
+            r.id === `kb:${userId}:${baseId}:${chunk.sourceId}:${chunk.chunkIndex}`,
+          )?.score,
+        }));
+      }
+    } catch (err) {
+      logger.warn(
+        { err, baseId },
+        "Pinecone-søk feilet for KB — fallback til MongoDB",
+      );
+    }
+  }
+
+  // Reserveløsning: nøkkelordsøk i MongoDB
+  const queryWords = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+  if (queryWords.length === 0) {
+    // Returner de nyeste chunks
+    const chunks = await KBContentChunk.find({ userId, baseId })
+      .sort({ createdAt: -1 })
+      .limit(topK)
+      .lean();
+    return chunks.map((c) => ({
+      text: c.text,
+      sourceId: c.sourceId,
+      sourceName: c.sourceName,
+      sourceType: c.sourceType,
+      sourceUrl: c.sourceUrl,
+    }));
+  }
+
+  // Enkel nøkkelord-matching via regex
+  const regexPattern = queryWords.map((w) => `(?=.*${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`).join("");
+  const chunks = await KBContentChunk.find({
+    userId,
+    baseId,
+    // eslint-disable-next-line security/detect-non-literal-regexp -- queryWords er sanitert med regex-escape
+    text: { $regex: new RegExp(regexPattern, "i") },
+  })
+    .limit(topK)
+    .lean();
+
+  return chunks.map((c) => ({
+    text: c.text,
+    sourceId: c.sourceId,
+    sourceName: c.sourceName,
+    sourceType: c.sourceType,
+    sourceUrl: c.sourceUrl,
+  }));
+}
+
+/**
+ * Bygger kontekststreng for KI-chatten fra KB-søkeresultater.
+ * Returnerer alltid en kontekst når baseName er oppgitt, selv uten resultater,
+ * slik at KI-en vet at basen er aktiv.
+ */
+export function buildKBContext(results: KBSearchResult[], baseName: string): string {
+  if (results.length === 0) {
+    return `<kunnskapsbase name="${baseName}" status="aktiv">
+Ingen relevante utdrag funnet for dette spørsmålet. Basen "${baseName}" er fortsatt aktiv.
+</kunnskapsbase>`;
+  }
+
+  const sections = results.map((r) => {
+    const kildetype = r.sourceType === "file" ? "Fil" : "Lenke";
+    return `--- ${kildetype}: ${r.sourceName} ---\n${r.text}\n--- SLUTT ---`;
+  });
+
+  return `<kunnskapsbase name="${baseName}" status="aktiv">\n${sections.join("\n\n")}\n</kunnskapsbase>`;
+}

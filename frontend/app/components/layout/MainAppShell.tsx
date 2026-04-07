@@ -57,7 +57,7 @@ export function MainAppShell({
         <main
           id="main-content"
           tabIndex={-1}
-          className={`flex-1 relative flex flex-col outline-none ${usesSidebarShell ? "min-h-0 overflow-y-hidden" : ""}`}
+          className={`flex-1 relative flex flex-col outline-none ${usesSidebarShell ? "min-h-0 overflow-hidden" : ""}`}
         >
           <ErrorBoundary>
             {children}

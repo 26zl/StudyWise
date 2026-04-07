@@ -45,6 +45,8 @@ export const AUDIT_ACTIONS = {
   KI_WEEKLY_PLAN: "ki_weekly_plan",
   KI_HISTORY_DELETED: "ki_history_deleted",
   KI_HISTORY_ALL_DELETED: "ki_history_all_deleted",
+  KB_BASE_CREATED: "kb_base_created",
+  KB_BASE_DELETED: "kb_base_deleted",
 } as const;
 
 export function getDeletedAuditActorId(userId: string): string {

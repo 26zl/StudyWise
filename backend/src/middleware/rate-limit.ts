@@ -174,6 +174,26 @@ export const rateLimitClerkWebhook = createRateLimiter({
   keyGenerator: getClientIp,
 });
 
+// Kunnskapsbase: moderat grense (30 per minutt i prod, generøs i dev)
+export const rateLimitKB = isProd
+  ? createRateLimiter({ points: 30, duration: 60, keyPrefix: "rlflx:kb" })
+  : createRateLimiter({ points: 200, duration: 60, keyPrefix: "rlflx:kb:dev" });
+
+// Kunnskapsbase write-operasjoner: strengere grense for å beskytte crawling/parsing-ressurser
+export const rateLimitKBWrite = isProd
+  ? createRateLimiter({
+      points: 10,
+      duration: 60,
+      keyPrefix: "rlflx:kb:write",
+      keyGenerator: (req) => req.user?.id ?? getClientIp(req),
+    })
+  : createRateLimiter({
+      points: 60,
+      duration: 60,
+      keyPrefix: "rlflx:kb:write:dev",
+      keyGenerator: (req) => req.user?.id ?? getClientIp(req),
+    });
+
 // Auth Turnstile: moderat grense på offentlig verifisering foran Clerk
 export const rateLimitAuthTurnstile = isProd
   ? createRateLimiter({

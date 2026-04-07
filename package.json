@@ -60,6 +60,7 @@
     "test:canvas:smoke": "pnpm --filter tests exec tsx canvas/smoke.ts"
   },
   "devDependencies": {
+    "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.13",
     "@types/node": "^25.5.2",
     "concurrently": "^9.2.1",
     "dotenv": "^17.4.1",
