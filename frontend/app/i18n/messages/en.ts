@@ -1709,7 +1709,7 @@ export const enMessages = {
     steps: {
       chat: "AI Chat",
       chatDescription:
-        "Ask academic questions, get explanations, or help with assignments. You can choose how thorough the answer should be: \"Simple\" for quick overviews, \"Standard\" for balanced answers, \"Detailed\" for deeper walkthroughs, and \"Expert\" for academic depth with worked examples. Pick the level from the chat settings before you send your message.",
+        "Ask academic questions, get explanations, or help with assignments. You can choose how thorough the answer should be: \"Simple\" for quick overviews, \"Standard\" for balanced answers, \"Detailed\" for deeper walkthroughs, and \"Expert\" for academic depth with worked examples. Pick the level from the chat settings before you send your message. Tip: The \"Library\" and \"Conversations\" headers in the sidebar are clickable — click the label to open dedicated pages where you'll find the knowledge base, bookmarks, chat history, and management of shared chats. Use the arrow next to the header to expand or collapse the inline preview in the sidebar.",
       canvas: "Canvas Integration",
       canvasDescription:
         "Connect Canvas LMS once and StudyWise automatically pulls in your courses, assignments, announcements, and reading materials. The AI chat can use your Canvas content as context — so answers are grounded in your own lecture notes and curriculum. Add your token under Settings → Canvas.",

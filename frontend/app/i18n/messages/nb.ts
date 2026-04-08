@@ -1800,7 +1800,7 @@ export const nbMessages = {
     steps: {
       chat: "KI-chat",
       chatDescription:
-        "Still faglige spørsmål, få forklaringer eller hjelp til oppgaver. Du kan velge hvor grundig svaret skal være: «Enkel» for raske oversikter, «Standard» for balanserte svar, «Detaljert» for dypere gjennomgang, og «Ekspert» for akademisk dybde med eksempler. Velg nivå fra innstillingene i chatten før du sender meldingen.",
+        "Still faglige spørsmål, få forklaringer eller hjelp til oppgaver. Du kan velge hvor grundig svaret skal være: «Enkel» for raske oversikter, «Standard» for balanserte svar, «Detaljert» for dypere gjennomgang, og «Ekspert» for akademisk dybde med eksempler. Velg nivå fra innstillingene i chatten før du sender meldingen. Tips: Overskriftene «Bibliotek» og «Samtaler» i sidepanelet er klikkbare — klikk på navnet for å åpne dedikerte sider der du finner kunnskapsbasen, bokmerker, samtalehistorikk og administrasjon av delte samtaler. Bruk pilen ved siden av overskriften for å utvide eller skjule forhåndsvisningen i sidepanelet.",
       canvas: "Canvas-integrasjon",
       canvasDescription:
         "Koble til Canvas LMS én gang, så henter StudyWise automatisk emner, oppgaver, kunngjøringer og pensumfiler. KI-chatten kan bruke Canvas-innholdet som kontekst — du får svar basert på dine egne forelesningsnotater og pensum. Legg til token under Innstillinger → Canvas.",
