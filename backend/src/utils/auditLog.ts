@@ -150,7 +150,10 @@ function isSensitiveMetadataKey(key: string): boolean {
     "firstname",
     "lastname",
     "fullname",
+    "navn",
+    "name",
     "phone",
+    "telefon",
     "studentnumber",
     "studentid",
     "token",
@@ -165,6 +168,17 @@ function isSensitiveMetadataKey(key: string): boolean {
     "sessionid",
     "jwt",
     "bearer",
+    // URL- og filnavn-felt: signerte lenker, query-tokens og PII-filnavn
+    // (CV-er, vitnemål, etc.) maskeres for å unngå PII/secrets i AuditLog.
+    "url",
+    "sourceurl",
+    "originalurl",
+    "downloadurl",
+    "redirecturl",
+    "filnavn",
+    "filename",
+    "originalname",
+    "uploadname",
   ]);
 
   if (exactMatches.has(normalized)) {

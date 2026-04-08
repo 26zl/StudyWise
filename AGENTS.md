@@ -35,6 +35,9 @@ StudyWise – AI-drevet studieveileder med Canvas LMS-integrasjon. pnpm-monorepo
 - **Feilhåndtering**: Standardisert via `backend/src/utils/apiError.ts`
 - **APM**: Datadog (`dd-trace`) — kreves i produksjon via `validateEnv()` og initialiseres i `backend/src/datadog.ts`; init er wrappet i try/catch slik at serveren fortsatt kan håndtere feil hvis tracer-oppsettet selv svikter. Frontend: RUM kjøres via `DatadogRum` når `NEXT_PUBLIC_DD_RUM_APPLICATION_ID`/`NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN` er satt **og** brukeren har godtatt cookie-samtykke (GDPR-gated via `useCookieConsent`).
 - **Resiliens**: Circuit breakers for Canvas og Anthropic API (`backend/src/utils/circuitBreaker.ts`), request timeout-middleware (`backend/src/middleware/request-timeout.ts`)
+- **HTTP-klient**: `undici` global dispatcher (`backend/src/utils/httpAgent.ts`) — felles connection-pool (64 connections per origin, 30 s keep-alive). Alle `fetch()`-kall (Canvas, Anthropic, Cohere, Pinecone, Notion) gjenbruker TCP/TLS-handshakes. Importeres én gang i `index.ts` etter Datadog.
+- **Job-køer**: BullMQ (`backend/src/queues/`) — tre køer: `clerk-deletion` (Clerk-bruker-sletting retry), `pinecone-cleanup` (vektor-cleanup retry), `web-push` (push-varsel-utsending). Maks 20/5 forsøk med exponential backoff. Worker-tilkoblinger er **separate** fra queue-tilkoblinger (BullMQ-krav). Bruker `volatile-lru` Redis-policy (BullMQ-jobber har ingen TTL → blir aldri evictet). Admin-UI under "Køer"-fanen via `/api/admin/queues/*`. Failed jobs beholdes for inspeksjon (dead-letter).
+- **Live-logger**: Backend-logger publiseres til Redis Stream `logs:buffer` (MAXLEN ~500). Cross-dyno: alle Heroku-dynos publiserer til samme stream. Frontend admin-fanen poller `/api/admin/logs/recent` med `sinceId`-cursor (ikke SSE — EventSource kan ikke sende Bearer-token). Fallback til in-memory ringbuffer hvis Redis er nede.
 
 ### Common
 
@@ -201,8 +204,6 @@ Lokasjon: `frontend/app/dashboard/page.tsx` (side) og `frontend/app/components/d
 - **Arbeidsplan**: Ukeplaner (studieblokker); collection-navn er `arbeidsplan` (ikke `arbeidsplans`)
 - **ContentEmbedding**: Chunk-tekst og metadata per bruker/kurs/fil (MongoDB). Sannhetskilde for innhold; vektorindeks ligger i Pinecone (integrated embedding). Ingen vektorindeks i Atlas
 - **DeletedUserTombstone**: GDPR-tombstone for slettede brukere (forhindrer re-registrering innen TTL)
-- **PendingClerkDeletion**: Sporer asynkrone Clerk-brukerslettingsforespørsler (maks 20 forsøk, deretter dead-lettered med audit-logg)
-- **PendingVectorDeletion**: Retry-kø for mislykkede Pinecone-vektorslettinger (GDPR-compliance, maks 20 forsøk)
 - **WebPushSubscription**: Browser push-varsling-abonnementer per bruker
 - **SharedChat**: Offentlige delelenker for chat-samtaler (med utløpstid)
 - **CanvasStructure**: Cachet Canvas-kursstruktur (moduler, elementer)
@@ -213,8 +214,8 @@ Lokasjon: `frontend/app/dashboard/page.tsx` (side) og `frontend/app/components/d
 
 `backend/src/rutere/auth/kontoSlett.ts` — `deleteAccountData(userId, options?)` håndterer full opprydding:
 
-- MongoDB-transaksjon: sletter ChatHistory, SharedChat, TaskBreakdown, ContentEmbedding, CanvasUser, Arbeidsplan, CanvasStructure, WebPushSubscription, StudyContext, PendingClerkDeletion, User — oppretter `DeletedUserTombstone` (90-dagers TTL)
-- Etter transaksjon: Pinecone-vektorer, Redis/runtime-cache-invalidering, Clerk-brukersletting
+- MongoDB-transaksjon: sletter ChatHistory, SharedChat, TaskBreakdown, ContentEmbedding, CanvasUser, Arbeidsplan, CanvasStructure, WebPushSubscription, StudyContext, KnowledgeBase, KBContentChunk, User — oppretter `DeletedUserTombstone` (90-dagers TTL)
+- Etter transaksjon: Pinecone-vektor-cleanup (via **BullMQ `pinecone-cleanup`-køen** med retry), Redis/runtime-cache-invalidering, Clerk-brukersletting (også via **BullMQ `clerk-deletion`-køen** med 20 forsøk)
 - `{ skipClerkDeletion: true }` — hopper over Clerk API-kall (brukes av webhook når Clerk-brukeren allerede er slettet)
 - Idempotent: hvis bruker ikke finnes, sjekker tombstone og returnerer tidlig
 

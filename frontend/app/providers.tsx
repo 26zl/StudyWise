@@ -19,7 +19,7 @@ import { usePreferencesSync } from "./hooks/usePreferencesSync";
 import { MeResponseSchema, type MeResponse, type SyncConflict } from "common/auth";
 import { LanguageProvider, useLanguage } from "@/app/i18n";
 import type { Language } from "@/app/i18n/types";
-import { erFatalUserDataFeilmelding } from "./lib/errorUtils";
+import { getApiErrorCode, getFatalUserDataReason } from "./lib/errorUtils";
 import { showToast } from "@/app/components/ui/Toaster";
 import { TurnstileReChallenge } from "./auth/TurnstileReChallenge";
 
@@ -147,18 +147,28 @@ function AuthConflictGuard() {
         event.query.state.status === "error"
       ) {
         const error = event.query.state.error;
-        const msg = error instanceof Error ? error.message : "";
         // Ignorer Turnstile-re-challenge — håndteres av TurnstileReChallenge-komponenten
-        if (/turnstile_required/i.test(msg) || /sikkerhetsverifisering utløpt/i.test(msg)) return;
-        if (erFatalUserDataFeilmelding(msg)) {
+        if (getApiErrorCode(error) === "turnstile_required") return;
+
+        const fatalReason = getFatalUserDataReason(error);
+        if (fatalReason) {
           signOutTriggeredRef.current = true;
-          const erSlettet = /kontoen er slettet/i.test(msg);
-          const erOAuthKonflikt = /allerede koblet til en annen studywise/i.test(msg);
-          const erEpostKonflikt = /allerede en konto med denne e-postadressen/i.test(msg);
+          const erSlettet = fatalReason === "user_deleted";
+          const erLaast = fatalReason === "user_locked";
+          const erOAuthKonflikt =
+            fatalReason === "oauth_account_conflict" ||
+            fatalReason === "oauth_metadata_missing";
+          const erEpostKonflikt = fatalReason === "account_conflict";
 
           let feilmelding: string;
           if (erSlettet) {
             feilmelding = t("auth.conflictRedirect.accountDeleted");
+          } else if (erLaast) {
+            // Inkluder backend sin begrunnelse hvis tilgjengelig — ellers default-melding
+            const errorMessage = error instanceof Error ? error.message : "";
+            feilmelding = errorMessage.length > 0
+              ? errorMessage
+              : t("auth.conflictRedirect.accountLocked");
           } else if (erOAuthKonflikt) {
             feilmelding = t("auth.conflictRedirect.oauthConflict");
           } else if (erEpostKonflikt) {

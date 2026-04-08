@@ -11,17 +11,17 @@ import { useClerk } from "@clerk/nextjs";
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { MeResponse } from "common/auth";
 import { AppError } from "../lib/errors";
-import { erFatalUserDataFeilmelding } from "../lib/errorUtils";
+import { erFatalUserDataFeil } from "../lib/errorUtils";
 
 type MegQueryResult = UseQueryResult<MeResponse, Error>;
 
 function erAuthFeil(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
   // Slettet bruker og kontokonflikter skal IKKE trigge redirect — de trenger spesialhåndtering
-  if (erFatalUserDataFeilmelding(message)) {
+  if (erFatalUserDataFeil(error)) {
     return false;
   }
   if (AppError.isAppError(error) && error.requiresReauth()) return true;
+  const message = error instanceof Error ? error.message : String(error);
   return message.includes("401") || message.includes("Ikke autentisert");
 }
 
@@ -53,8 +53,7 @@ export function skalRedirecteTilAuth(megQuery: MegQueryResult): boolean {
  */
 export function useFatalAuthSignOut(megQuery: MegQueryResult): boolean {
   const clerk = useClerk();
-  const feilMsg = megQuery.isError ? (megQuery.error?.message ?? "") : "";
-  const erFatal = megQuery.isError && erFatalUserDataFeilmelding(feilMsg);
+  const erFatal = megQuery.isError && erFatalUserDataFeil(megQuery.error);
 
   useEffect(() => {
     if (!erFatal) return;

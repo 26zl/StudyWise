@@ -71,8 +71,10 @@ describe("guardRelink", () => {
     vi.useRealTimers();
   });
 
-  it("tillater første relink og lagrer state med count=1", async () => {
-    const result = await guardRelink("user-1", "clerk-new");
+  it("tillater første relink når forrige Clerk-miljø matcher nåværende miljø", async () => {
+    const result = await guardRelink("user-1", "clerk-new", {
+      previousClerkEnv: "test",
+    });
     expect(result).toEqual({ blocked: false });
 
     const state = await getRelinkState("user-1");
@@ -82,13 +84,23 @@ describe("guardRelink", () => {
     expect(state?.count).toBe(1);
   });
 
+  it("blokkerer første relink i dev når forrige Clerk-miljø ikke kan verifiseres", async () => {
+    const result = await guardRelink("user-ukjent", "clerk-new");
+
+    expect(result).toEqual({
+      blocked: true,
+      reason: "dev_gate_env_mismatch",
+      count: 1,
+    });
+  });
+
   it("blokkerer andre relink innen cooldown-vinduet (ping-pong)", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
 
-    await guardRelink("user-2", "clerk-a");
+    await guardRelink("user-2", "clerk-a", { previousClerkEnv: "test" });
     vi.advanceTimersByTime(RELINK_COOLDOWN_MS - 1000);
-    const result = await guardRelink("user-2", "clerk-b");
+    const result = await guardRelink("user-2", "clerk-b", { previousClerkEnv: "test" });
 
     expect(result).toEqual({
       blocked: true,
@@ -101,9 +113,9 @@ describe("guardRelink", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
 
-    await guardRelink("user-3", "clerk-a");
+    await guardRelink("user-3", "clerk-a", { previousClerkEnv: "test" });
     vi.advanceTimersByTime(RELINK_COOLDOWN_MS + 1);
-    const result = await guardRelink("user-3", "clerk-b");
+    const result = await guardRelink("user-3", "clerk-b", { previousClerkEnv: "test" });
 
     expect(result).toEqual({ blocked: false });
     const state = await getRelinkState("user-3");
@@ -117,7 +129,7 @@ describe("guardRelink", () => {
 
     // Første relink i test-miljø
     process.env.CLERK_SECRET_KEY = "sk_test_dev";
-    await guardRelink("user-4", "clerk-test");
+    await guardRelink("user-4", "clerk-test", { previousClerkEnv: "test" });
 
     // Mer enn cooldown går — men nå bytter vi til live-miljø
     vi.advanceTimersByTime(RELINK_COOLDOWN_MS + 5_000);
@@ -136,7 +148,7 @@ describe("guardRelink", () => {
     envMock.isProd = true;
 
     process.env.CLERK_SECRET_KEY = "sk_test_dev";
-    await guardRelink("user-5", "clerk-test");
+    await guardRelink("user-5", "clerk-test", { previousClerkEnv: "test" });
 
     vi.advanceTimersByTime(RELINK_COOLDOWN_MS + 5_000);
     process.env.CLERK_SECRET_KEY = "sk_live_prod";
@@ -149,25 +161,27 @@ describe("guardRelink", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
 
-    await guardRelink("user-6", "clerk-a");
+    await guardRelink("user-6", "clerk-a", { previousClerkEnv: "test" });
     vi.advanceTimersByTime(1000);
-    const r2 = await guardRelink("user-6", "clerk-b");
+    const r2 = await guardRelink("user-6", "clerk-b", { previousClerkEnv: "test" });
     vi.advanceTimersByTime(1000);
-    const r3 = await guardRelink("user-6", "clerk-c");
+    const r3 = await guardRelink("user-6", "clerk-c", { previousClerkEnv: "test" });
 
     expect(r2).toMatchObject({ blocked: true, count: 2 });
     expect(r3).toMatchObject({ blocked: true, count: 3 });
   });
 
   it("isolerer state per bruker", async () => {
-    await guardRelink("user-a", "clerk-1");
-    const result = await guardRelink("user-b", "clerk-2");
+    await guardRelink("user-a", "clerk-1", { previousClerkEnv: "test" });
+    const result = await guardRelink("user-b", "clerk-2", { previousClerkEnv: "test" });
     expect(result).toEqual({ blocked: false });
   });
 
   it("håndterer korrupt JSON i Redis ved å behandle som 'ingen prior state'", async () => {
     cacheStore.set("auth:relink-state:user-corrupt", "{ikke gyldig json");
-    const result = await guardRelink("user-corrupt", "clerk-new");
+    const result = await guardRelink("user-corrupt", "clerk-new", {
+      previousClerkEnv: "test",
+    });
     expect(result).toEqual({ blocked: false });
   });
 
@@ -177,9 +191,9 @@ describe("guardRelink", () => {
     envMock.isProd = false;
     process.env.CLERK_SECRET_KEY = "sk_test_dev";
 
-    await guardRelink("user-7", "clerk-a");
+    await guardRelink("user-7", "clerk-a", { previousClerkEnv: "test" });
     vi.advanceTimersByTime(RELINK_COOLDOWN_MS + 1);
-    const result = await guardRelink("user-7", "clerk-b");
+    const result = await guardRelink("user-7", "clerk-b", { previousClerkEnv: "test" });
 
     expect(result).toEqual({ blocked: false });
   });

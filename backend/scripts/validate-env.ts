@@ -13,3 +13,7 @@ if (process.env.CI === "true") {
 
 validateEnv();
 process.stdout.write("[validateEnv] Alle påkrevde backend-miljøvariabler er validert for build\n");
+// Tving exit: transitive imports (logger → logBuffer → redis) åpner en
+// Redis-tilkobling som ellers ville holdt prosessen i live for alltid og
+// blokkert &&-kjeden i `pnpm build`.
+process.exit(0);

@@ -84,6 +84,12 @@ jobs:
       - name: Lint markdown
         run: pnpm lint:md
 
+      - name: Verify dependency versions are in sync
+        run: pnpm syncpack:list
+
+      - name: Lint soft-delete filters on User queries
+        run: pnpm lint:soft-delete
+
       - name: Verify build
         run: pnpm build
         env:

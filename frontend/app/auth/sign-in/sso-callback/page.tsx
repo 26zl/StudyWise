@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useClerk } from "@clerk/nextjs";
 import { useSignIn, useSignUp } from "@clerk/nextjs/legacy";
+import { useSearchParams } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { LoadingView } from "@/app/components/ui/Loading";
+import { getPostAuthRedirectFromParams, withPostAuthRedirect } from "@/app/auth/redirects";
 import { useLanguage } from "@/app/i18n";
 import { AuthCard } from "@/app/auth/authUI";
 import { fetchApi } from "@/app/lib/apiClient";
@@ -15,6 +17,11 @@ export default function SignInSSOCallbackPage() {
   const clerk = useClerk();
   const { signIn, setActive } = useSignIn();
   const { signUp } = useSignUp();
+  const searchParams = useSearchParams();
+  const redirectUrl = getPostAuthRedirectFromParams(searchParams);
+  const signInHref = withPostAuthRedirect("/auth/sign-in", redirectUrl);
+  const signUpHref = withPostAuthRedirect("/auth/sign-up", redirectUrl);
+  const continueSignUpHref = withPostAuthRedirect("/auth/sign-up?oauth=complete", redirectUrl);
   const handledRef = useRef(false);
   const [callbackError, setCallbackError] = useState(false);
   const [oauthConflict, setOauthConflict] = useState(false);
@@ -40,14 +47,14 @@ export default function SignInSSOCallbackPage() {
           }
           // turnstile_required: redirect til dashboard — TurnstileReChallenge viser re-verifikasjon
           if (json?.error === "turnstile_required") {
-            window.location.replace("/dashboard");
+            window.location.replace(redirectUrl);
             return;
           }
         }
       } catch {
         // Nettverksfeil — redirect til dashboard uansett, konflikten fanges der
       }
-      window.location.replace("/dashboard");
+      window.location.replace(redirectUrl);
     };
 
     const SSO_CALLBACK_TIMEOUT_MS = 15_000;
@@ -57,13 +64,13 @@ export default function SignInSSOCallbackPage() {
         // La Clerk prosessere OAuth-tokenet fra URL, med timeout for å unngå evig spinner
         const callbackResult = await Promise.race([
           clerk.handleRedirectCallback({
-            signInForceRedirectUrl: "/dashboard",
-            signUpForceRedirectUrl: "/dashboard",
-            signInUrl: "/auth/sign-in",
-            signUpUrl: "/auth/sign-up",
-            continueSignUpUrl: "/auth/sign-up?oauth=complete",
-            firstFactorUrl: "/auth/sign-in",
-            secondFactorUrl: "/auth/sign-in",
+            signInForceRedirectUrl: redirectUrl,
+            signUpForceRedirectUrl: redirectUrl,
+            signInUrl: signInHref,
+            signUpUrl: signUpHref,
+            continueSignUpUrl: continueSignUpHref,
+            firstFactorUrl: signInHref,
+            secondFactorUrl: signInHref,
           }),
           new Promise<"timeout">((resolve) =>
             setTimeout(() => resolve("timeout"), SSO_CALLBACK_TIMEOUT_MS),
@@ -109,13 +116,13 @@ export default function SignInSSOCallbackPage() {
         }
         setCallbackError(true);
         setTimeout(() => {
-          window.location.replace("/auth/sign-in");
+          window.location.replace(signInHref);
         }, 2000);
       }
     };
 
     void handleCallback();
-  }, [clerk, signIn, signUp, setActive]);
+  }, [clerk, signIn, signUp, setActive, redirectUrl, signInHref, signUpHref, continueSignUpHref]);
 
   return (
     <div className="flex min-h-dvh items-center justify-center px-4">
@@ -137,7 +144,7 @@ export default function SignInSSOCallbackPage() {
                 </p>
               </div>
               <Link
-                href="/auth/sign-in"
+                href={signInHref}
                 className="inline-flex w-full items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
               >
                 {t("auth.signUp.oauthConflict.backToSignIn")}
@@ -149,13 +156,13 @@ export default function SignInSSOCallbackPage() {
                 {t("auth.genericError")}
               </p>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                {t("common.loading.redirectingToDashboard")}
+                {t("common.loading.redirecting")}
               </p>
             </div>
           ) : (
             <LoadingView
               fullPage={false}
-              translationKey="common.loading.redirectingToDashboard"
+              translationKey="common.loading.redirecting"
             />
           )}
         </AuthCard>
@@ -163,7 +170,7 @@ export default function SignInSSOCallbackPage() {
           <AuthCard>
             <p className="text-sm text-slate-600 dark:text-slate-300">
               {t("auth.genericError")}{" "}
-              <Link href="/auth/sign-in" className="font-semibold text-blue-600 dark:text-blue-400">
+              <Link href={signInHref} className="font-semibold text-blue-600 dark:text-blue-400">
                 {t("auth.signIn.submitButton")}
               </Link>
             </p>

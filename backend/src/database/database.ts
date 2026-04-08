@@ -16,9 +16,8 @@ import { SharedChat } from "./models/SharedChat.js";
 import { TaskBreakdown } from "./models/TaskBreakdown.js";
 import { User } from "./models/User.js";
 import { DeletedUserTombstone } from "./models/DeletedUserTombstone.js";
-import { PendingClerkDeletionModel } from "./models/PendingClerkDeletion.js";
-import { PendingVectorDeletionModel } from "./models/PendingVectorDeletion.js";
 import { WebPushSubscriptionModel } from "./models/WebPushSubscription.js";
+import { ContactMessage } from "./models/ContactMessage.js";
 import { StudyContext } from "./models/StudyContext.js";
 import { KnowledgeBase } from "./models/Kunnskapsbase.js";
 import { KBContentChunk } from "./models/KBContentChunk.js";
@@ -66,9 +65,8 @@ async function ensureDatabaseIndexes() {
         SharedChat.createIndexes(),
         TaskBreakdown.createIndexes(),
         DeletedUserTombstone.createIndexes(),
-        PendingClerkDeletionModel.createIndexes(),
-        PendingVectorDeletionModel.createIndexes(),
         WebPushSubscriptionModel.createIndexes(),
+        ContactMessage.createIndexes(),
         StudyContext.createIndexes(),
         KnowledgeBase.createIndexes(),
         KBContentChunk.createIndexes(),

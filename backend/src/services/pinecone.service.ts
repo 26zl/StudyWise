@@ -236,39 +236,3 @@ export async function pineconeDeleteByFilter(
   });
 }
 
-/**
- * Slett vektorer etter eksplisitte IDer. Brukes av cleanup-script som
- * må fjerne enkeltchunks (f.eks. mikro-chunks fra gammel chunking-bug)
- * uten å slette hele filer.
- */
-export async function pineconeDeleteByIds(ids: string[]): Promise<void> {
-  if (!isPineconeConfigured() || ids.length === 0) return;
-  const BATCH = 1000;
-  await pineconeCircuit.execute(async () => {
-    const host = await getIndexHost();
-    const url = `https://${host}/vectors/delete`;
-    for (let i = 0; i < ids.length; i += BATCH) {
-      const batch = ids.slice(i, i + BATCH);
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Api-Key": PINECONE_API_KEY!,
-          "Content-Type": "application/json",
-          "X-Pinecone-Api-Version": "2025-04",
-        },
-        body: JSON.stringify({
-          namespace: DEFAULT_NAMESPACE,
-          ids: batch,
-        }),
-      });
-      if (!res.ok) {
-        const body = await res.text();
-        logger.error(
-          { status: res.status, body, batchSize: batch.length },
-          "Pinecone deleteByIds feilet",
-        );
-        throw new Error(`Pinecone deleteByIds feilet: ${res.status} ${body}`);
-      }
-    }
-  });
-}

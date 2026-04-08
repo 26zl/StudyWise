@@ -1,0 +1,40 @@
+{
+  "$schema": "https://unpkg.com/syncpack@14.0.0/dist/schema.json",
+  "indent": "  ",
+  "sortFirst": ["name", "description", "version", "private", "type", "scripts"],
+  "source": [
+    "package.json",
+    "common/package.json",
+    "backend/package.json",
+    "frontend/package.json",
+    "docs/package.json",
+    "tests/package.json"
+  ],
+  "versionGroups": [
+    {
+      "label": "Bruk workspace-protokoll for interne pakker",
+      "dependencies": ["common"],
+      "dependencyTypes": ["prod", "dev"],
+      "pinVersion": "workspace:*"
+    },
+    {
+      "label": "Ignorer pnpm overrides (npm: og workspace: protokoller forvirrer syncpack)",
+      "dependencies": ["**"],
+      "dependencyTypes": ["pnpmOverrides"],
+      "isIgnored": true
+    }
+  ],
+  "semverGroups": [
+    {
+      "label": "Windows-spesifikke binærpakker pinnes eksakt",
+      "dependencies": ["@rolldown/*"],
+      "range": "",
+      "dependencyTypes": ["dev", "prod"]
+    },
+    {
+      "label": "Tillat caret som standard",
+      "range": "^",
+      "dependencyTypes": ["prod", "dev"]
+    }
+  ]
+}

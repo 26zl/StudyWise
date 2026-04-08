@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useState, type SubmitEvent } from "react";
 import { useSignIn } from "@clerk/nextjs";
+import { useSearchParams } from "next/navigation";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { AuthTurnstileInline } from "@/app/auth/AuthTurnstileInline";
 import { checkAuthTurnstileGate } from "@/app/auth/auth-turnstile-api";
+import { getPostAuthRedirectFromParams, withPostAuthRedirect } from "@/app/auth/redirects";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
@@ -31,6 +33,9 @@ export function ForgotPasswordClient({
 }: ForgotPasswordClientProps) {
   const { t } = useLanguage();
   const { signIn, errors, fetchStatus } = useSignIn();
+  const searchParams = useSearchParams();
+  const redirectUrl = getPostAuthRedirectFromParams(searchParams);
+  const signInHref = withPostAuthRedirect("/auth/sign-in", redirectUrl);
   const [isVerified, setIsVerified] = useState(initialVerified);
   const [isRedirectingToDashboard, setIsRedirectingToDashboard] = useState(false);
 
@@ -135,7 +140,7 @@ export function ForgotPasswordClient({
         t("auth.forgotPassword.complete.title"),
         t("auth.forgotPassword.complete.description"),
       );
-      window.location.replace("/dashboard");
+      window.location.replace(redirectUrl);
     }
   }
 
@@ -145,7 +150,7 @@ export function ForgotPasswordClient({
         <AuthCard>
           <LoadingView
             fullPage={false}
-            translationKey="common.loading.redirectingToDashboard"
+            translationKey="common.loading.redirecting"
           />
         </AuthCard>
       </div>
@@ -216,7 +221,7 @@ export function ForgotPasswordClient({
                 <AuthFooterLink
                   text={t("auth.forgotPassword.support")}
                   linkText={t("common.actions.backToSignIn")}
-                  href="/auth/sign-in"
+                  href={signInHref}
                 />
               </AuthCard>
             </>
@@ -340,7 +345,7 @@ export function ForgotPasswordClient({
               </div>
 
               <Link
-                href="/auth/sign-in"
+                href={signInHref}
                 prefetch={false}
                 className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
               >

@@ -699,6 +699,29 @@ const migrations: Migration[] = [
       );
     },
   },
+  {
+    id: "2026-04-08-drop-pending-deletion-collections",
+    description:
+      "Dropper pendingclerkdeletions og pendingvectordeletions (erstattet av BullMQ-køer)",
+    up: async () => {
+      const collectionsToDrop = [
+        "pendingclerkdeletions",
+        "pendingvectordeletions",
+      ];
+      const db = mongoose.connection.db;
+      if (!db) return;
+
+      const existing = await db.listCollections().toArray();
+      const existingNames = new Set(existing.map((c) => c.name));
+
+      for (const name of collectionsToDrop) {
+        if (existingNames.has(name)) {
+          await db.collection(name).drop();
+          logger.info({ collection: name }, "Droppet utdatert collection");
+        }
+      }
+    },
+  },
 ];
 
 /**

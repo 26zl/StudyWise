@@ -451,5 +451,3 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
     </div>
   );
 };
-
-export default CalendarSection;

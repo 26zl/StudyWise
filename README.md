@@ -16,11 +16,11 @@ STUDYWISE - En KI-basert studieassistent for høyere utdanning med integrasjon m
 
 Prosjektet er bygd som et **pnpm-monorepo** for å dele skjemaer og typer (`common`) sømløst mellom klient og server.
 
-- **Frontend:** Next.js 16 (React 19), Tailwind CSS v4, React Query, Zustand.
-- **Backend:** Node.js, Express 5, TypeScript.
-- **Databaser & Cache:** MongoDB (primær database), Pinecone (vektorsøk for KI-dokumenter), Redis (hurtigminne for Canvas API og sessions).
-- **KI-Motor:** Anthropic Claude & Cohere (hybrid søk).
-- **Infrastruktur & Sikkerhet:** Heroku (backend), Vercel (frontend), Datadog (APM/overvåking), Clerk (bruker-autentisering), Cloudflare (WAF/CDN/Turnstile).
+- **Frontend:** Next.js 16 (React 19), Tailwind CSS v4, React Query, Zustand, nuqs (URL-synkronisert state).
+- **Backend:** Node.js 20+, Express 5, TypeScript, undici (HTTP connection pooling), BullMQ (bakgrunns-jobber for Clerk-sletting, Pinecone-cleanup og web-push m/ retry og dead-letter).
+- **Databaser & Cache:** MongoDB (primær database), Pinecone (vektorsøk for KI-dokumenter), Redis (hurtigminne for Canvas API, sessions, BullMQ-jobber og live admin-logger).
+- **KI-Motor:** Anthropic Claude & Cohere (hybrid søk), LangSmith (tracing).
+- **Infrastruktur & Sikkerhet:** Heroku (backend, 2× dynos), Vercel (frontend), Datadog (APM/overvåking), Clerk (bruker-autentisering), Cloudflare (WAF/CDN/Turnstile).
 
 ---
 
@@ -93,13 +93,28 @@ pnpm --filter common add <pakkenavn>
 pnpm run clean:all        # Fjerner alt: node_modules, dist, .next, pnpm-lock.yaml
 pnpm run clean:install    # Full reinstall (clean + install + update + build)
 pnpm kill:dev             # Stopp alle Node prosesser (Windows)
+
+# Repo-vedlikehold (versjons-drift, dødt kode, bundle-størrelse, sikkerhet)
+pnpm syncpack:list        # Sjekk om avhengighets-versjoner er i synk på tvers av workspaces
+pnpm syncpack:fix         # Auto-fiks versjons-mismatcher + formater package.json
+pnpm knip                 # Finn ubrukt kode/exports/avhengigheter
+pnpm size                 # Sjekk frontend bundle mot size-limit-budsjettet
+pnpm lint:soft-delete     # Verifiser at alle User-queries har soft-delete-filter
 ```
+
+> **Merk:** `pnpm syncpack:list` og `pnpm lint:soft-delete` kjøres automatisk i CI
+> (`quality`-jobben i `ci.yml`). Soft-delete-linten er en defense-in-depth-sjekk
+> som fanger nye `User.find/findOne/findById/...`-kall som glemmer
+> `deletedAt: { $exists: false }`-filteret — en av de viktigste IDOR-vektorene i
+> StudyWise. Hvis et kall-sted med vilje må se soft-deleted brukere (admin-stats,
+> GDPR-konfliktsjekk, idempotent kontosletting), legg til kommentaren
+> `// allow-deleted-users: <kort begrunnelse>` rett over kallet.
 
 ## Testing
 
 ### Enhetstester (Vitest)
 
-25 testfiler med ~714 tester fordelt på `common`, `backend` og `frontend`. Testfiler ligger i `__tests__/`-mapper.
+Testfiler ligger i `__tests__/`-mapper i `common`, `backend` og `frontend`. Kjør `pnpm test:unit` for gjeldende antall.
 
 ```bash
 pnpm test:unit                # Alle enhetstester

@@ -73,6 +73,22 @@ export interface StartLangsmithRunInput {
   meta?: LangsmithTraceMeta;
 }
 
+/**
+ * Map fra runId → original extra-objekt fra startLangsmithRun.
+ * LangSmith API erstatter `extra` ved updateRun (ingen deep merge), så vi
+ * må re-sende userId/courseId/intent/mode sammen med token_usage i finish.
+ * Cleanup: entries fjernes i finishLangsmithRun. Hvis finish aldri kalles
+ * (transient feil før try-blokk), tar 5-min interval-cleanup hånd om det.
+ */
+const runExtras = new Map<string, { extra: Record<string, unknown>; createdAt: number }>();
+const RUN_EXTRA_TTL_MS = 5 * 60 * 1000;
+setInterval(() => {
+  const cutoff = Date.now() - RUN_EXTRA_TTL_MS;
+  for (const [runId, entry] of runExtras) {
+    if (entry.createdAt < cutoff) runExtras.delete(runId);
+  }
+}, RUN_EXTRA_TTL_MS).unref?.();
+
 export async function startLangsmithRun(
   input: StartLangsmithRunInput,
 ): Promise<string | null> {
@@ -81,6 +97,14 @@ export async function startLangsmithRun(
   const runId = randomUUID();
   try {
     await ensureLangsmithProjectReady();
+
+    const extra: Record<string, unknown> = {
+      userId: input.meta?.userId ?? null,
+      courseId: input.meta?.courseId ?? null,
+      intent: input.meta?.intent ?? null,
+      mode: input.meta?.mode ?? null,
+    };
+    runExtras.set(runId, { extra, createdAt: Date.now() });
 
     const runPayload = {
       id: runId,
@@ -93,12 +117,7 @@ export async function startLangsmithRun(
         model: input.model,
         systemPrompt: input.systemPrompt ?? "",
       },
-      extra: {
-        userId: input.meta?.userId ?? null,
-        courseId: input.meta?.courseId ?? null,
-        intent: input.meta?.intent ?? null,
-        mode: input.meta?.mode ?? null,
-      },
+      extra,
     };
 
     try {
@@ -135,6 +154,11 @@ export async function finishLangsmithRun(input: {
     const outputTokens = input.usage?.completion_tokens ?? 0;
     const totalTokens = input.usage?.total_tokens ?? inputTokens + outputTokens;
 
+    // Re-merge med original extra: LangSmith updateRun erstatter hele extra-feltet,
+    // så hvis vi bare sender token_usage forsvinner intent/userId/mode/courseId.
+    const originalExtra = runExtras.get(input.runId)?.extra ?? {};
+    runExtras.delete(input.runId);
+
     await langsmithClient.updateRun(input.runId, {
       end_time: Date.now(),
       outputs: input.response ? { response: input.response } : undefined,
@@ -144,6 +168,7 @@ export async function finishLangsmithRun(input: {
           : String(input.error)
         : undefined,
       extra: {
+        ...originalExtra,
         token_usage: {
           input_tokens: inputTokens,
           output_tokens: outputTokens,

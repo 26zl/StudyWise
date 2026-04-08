@@ -157,7 +157,7 @@ Generer nøyaktig ${cardCount} flashcards som JSON-array.`;
         userId,
         title: "StudyWise: Flashcards er klare",
         body: "KI har generert flashcards for deg.",
-        url: "/dashboard?view=quiz",
+        url: "/dashboard?view=flashcards",
         tag: `studywise-ai-flashcards-${userId}-${courseId}`,
       }).catch((err) => {
         logger.warn(

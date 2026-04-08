@@ -223,7 +223,7 @@ export default function ProfilPage() {
     if (sisteSyncForsokRef.current === syncNokkel) return;
     sisteSyncForsokRef.current = syncNokkel;
 
-    void oppdaterProfil({ ...profileUpdate, skipClerkSync: true }).catch(
+    void oppdaterProfil(profileUpdate).catch(
       async (error: unknown) => {
         if (error instanceof UsernameConflictError) {
           if (clerkUser && localUsername) {

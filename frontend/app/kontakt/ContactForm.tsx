@@ -39,6 +39,22 @@ type KontaktFormData = {
   melding: string;
 };
 
+function hentSanertSidekontekst(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+
+  const sanitizedPath = window.location.pathname
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => (
+      /^[A-Za-z0-9_-]{12,}$/.test(segment) || /^[0-9a-f]{24}$/i.test(segment)
+        ? "[id]"
+        : segment
+    ))
+    .join("/");
+
+  return sanitizedPath ? `/${sanitizedPath}` : "/";
+}
+
 export function ContactForm() {
   const { t } = useLanguage();
   const [isSending, setIsSending] = useState(false);
@@ -80,7 +96,11 @@ export function ContactForm() {
     reset,
     formState: { errors },
   } = useForm<KontaktFormData>({
-    resolver: zodResolver(KontaktFormSchema),
+    // @hookform/resolvers@5.2.2 sin type-stamp ligger bak Zod 4.3.x sin
+    // interne `_zod.version.minor`-bump (minor=3 vs forventet 0). Runtime
+    // fungerer perfekt — kun et TS-overload-mismatch. Cast bypasser sjekken
+    // til en oppstrøms-fix lander. Kan fjernes når @hookform/resolvers > 5.2.2.
+    resolver: zodResolver(KontaktFormSchema as never),
   });
 
   // Callback ved Turnstile-suksess
@@ -160,7 +180,7 @@ export function ContactForm() {
         turnstileToken: turnstileToken ?? "",
         // Honeypot: les faktisk verdi fra skjult felt (bots fyller ofte ut alle felt)
         nettsted: honeypotRef.current?.value ?? "",
-        sideUrl: typeof window !== "undefined" ? window.location.href : undefined,
+        sideUrl: hentSanertSidekontekst(),
         attachments,
       });
 

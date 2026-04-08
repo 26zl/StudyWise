@@ -18,6 +18,7 @@ interface StructuredCanvasError extends Error {
 }
 
 export interface ApiErrorPayload {
+  error?: string;
   feil?: string;
   melding?: string;
   kode?: string;
@@ -25,12 +26,118 @@ export interface ApiErrorPayload {
   canvasKonflikt?: boolean;
 }
 
+export type FatalUserDataReason =
+  | "account_conflict"
+  | "oauth_account_conflict"
+  | "oauth_metadata_missing"
+  | "user_deleted"
+  | "user_locked"
+  | "username_conflict";
+
+interface ApiTaggedError extends Error {
+  apiErrorCode?: string;
+  apiErrorPayload?: ApiErrorPayload | null;
+  fatalUserDataReason?: FatalUserDataReason;
+}
+
 /** Auth-/konto-feil som krever tydelig handling (ikke vanlig retry). */
 const FATAL_USERDATA_ERROR_REGEX =
-  /kontoen er slettet|innloggingskonflikt|allerede en konto|brukernavnet .* er allerede tatt|allerede koblet til en annen studywise-bruker|mangler verifiserbar oauth-identifikator/i;
+  /kontoen er slettet|kontoen din er midlertidig låst|innloggingskonflikt|allerede en konto|brukernavnet .* er allerede tatt|allerede koblet til en annen studywise-bruker|mangler verifiserbar oauth-identifikator/i;
 
 export function erFatalUserDataFeilmelding(message: string): boolean {
   return FATAL_USERDATA_ERROR_REGEX.test(message);
+}
+
+function erFatalUserDataReason(value: unknown): value is FatalUserDataReason {
+  return (
+    value === "account_conflict" ||
+    value === "oauth_account_conflict" ||
+    value === "oauth_metadata_missing" ||
+    value === "user_deleted" ||
+    value === "user_locked" ||
+    value === "username_conflict"
+  );
+}
+
+function extractApiErrorCodeFromPayload(payload: ApiErrorPayload | null): string | null {
+  if (!payload) return null;
+  if (typeof payload.kode === "string" && payload.kode.trim().length > 0) {
+    return payload.kode;
+  }
+  if (typeof payload.error === "string" && payload.error.trim().length > 0) {
+    return payload.error;
+  }
+  return null;
+}
+
+function merkApiFeil(
+  error: Error,
+  payload: unknown,
+  options?: {
+    apiErrorCode?: string;
+    fatalUserDataReason?: FatalUserDataReason;
+  },
+): Error {
+  const taggedError = error as ApiTaggedError;
+  const extractedPayload = extractApiErrorPayload(payload);
+  const extractedCode = extractApiErrorCodeFromPayload(extractedPayload);
+
+  taggedError.apiErrorPayload = extractedPayload;
+  taggedError.apiErrorCode = options?.apiErrorCode ?? extractedCode ?? undefined;
+  taggedError.fatalUserDataReason =
+    options?.fatalUserDataReason ??
+    (erFatalUserDataReason(taggedError.apiErrorCode) ? taggedError.apiErrorCode : undefined);
+
+  return error;
+}
+
+export function getApiErrorCode(error: unknown): string | null {
+  if (typeof error === "object" && error !== null) {
+    const apiErrorCode = (error as ApiTaggedError).apiErrorCode;
+    if (typeof apiErrorCode === "string" && apiErrorCode.trim().length > 0) {
+      return apiErrorCode;
+    }
+
+    const payload = (error as ApiTaggedError).apiErrorPayload;
+    return extractApiErrorCodeFromPayload(payload ?? null);
+  }
+
+  return null;
+}
+
+export function getFatalUserDataReason(error: unknown): FatalUserDataReason | null {
+  if (typeof error === "object" && error !== null) {
+    const fatalReason = (error as ApiTaggedError).fatalUserDataReason;
+    if (erFatalUserDataReason(fatalReason)) {
+      return fatalReason;
+    }
+  }
+
+  const apiErrorCode = getApiErrorCode(error);
+  if (erFatalUserDataReason(apiErrorCode)) {
+    return apiErrorCode;
+  }
+
+  const message =
+    typeof error === "string" ? error : error instanceof Error ? error.message : "";
+  if (!message) return null;
+  if (/kontoen er slettet/i.test(message)) return "user_deleted";
+  if (/kontoen din er midlertidig låst/i.test(message)) return "user_locked";
+  if (/brukernavnet .* er allerede tatt/i.test(message)) return "username_conflict";
+  if (/allerede koblet til en annen studywise-bruker/i.test(message)) {
+    return "oauth_account_conflict";
+  }
+  if (/mangler verifiserbar oauth-identifikator/i.test(message)) {
+    return "oauth_metadata_missing";
+  }
+  if (/innloggingskonflikt|allerede en konto/i.test(message)) {
+    return "account_conflict";
+  }
+  return null;
+}
+
+export function erFatalUserDataFeil(error: unknown): boolean {
+  return getFatalUserDataReason(error) !== null;
 }
 
 // Feiltyper som kan identifiseres
@@ -192,7 +299,7 @@ export function getBrukerdataFeilmelding(
     return hentTekst(t, "errors.userData.sessionExpired", "Sesjonen har utløpt. Logg inn på nytt.");
   }
   // Slettet bruker og kontokonflikter: vis den faktiske meldingen direkte
-  if (erFatalUserDataFeilmelding(msg)) {
+  if (erFatalUserDataFeil(error)) {
     return msg;
   }
   return lagBrukervennligFeilmelding(
@@ -433,26 +540,34 @@ export async function parseApiJson(res: Response): Promise<unknown> {
 export function createApiError(
   payload: unknown,
   fallback = "API feil",
+  options?: {
+    apiErrorCode?: string;
+    fatalUserDataReason?: FatalUserDataReason;
+  },
 ): Error {
-  return new Error(extractApiErrorMessage(payload, fallback));
+  return merkApiFeil(new Error(extractApiErrorMessage(payload, fallback)), payload, options);
 }
 
 export function createAuthStatusError(
   status: number,
   payload: unknown,
   fallback = "Ikke autentisert",
+  options?: {
+    apiErrorCode?: string;
+    fatalUserDataReason?: FatalUserDataReason;
+  },
 ): Error {
   const melding = extractApiErrorMessage(payload, fallback);
 
   if (status === 401) {
-    return new SessionExpiredError(melding);
+    return merkApiFeil(new SessionExpiredError(melding), payload, options);
   }
 
   if (status === 403) {
-    return new ForbiddenError(melding);
+    return merkApiFeil(new ForbiddenError(melding), payload, options);
   }
 
-  return new Error(melding);
+  return merkApiFeil(new Error(melding), payload, options);
 }
 
 /**

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.mjs"],
+      "ignoreDependencies": ["@rolldown/binding-win32-x64-msvc"]
+    },
+    "common": {
+      "entry": ["src/index.ts", "src/**/*.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "backend": {
+      "entry": ["src/index.ts", "src/datadog.ts"],
+      "project": ["src/**/*.ts"],
+      "ignore": ["dist/**", "src/**/__tests__/**"]
+    },
+    "frontend": {
+      "entry": [
+        "app/**/page.tsx",
+        "app/**/layout.tsx",
+        "app/**/route.ts",
+        "app/**/loading.tsx",
+        "app/**/error.tsx",
+        "app/**/not-found.tsx",
+        "middleware.ts",
+        "proxy.ts",
+        "next.config.js",
+        "postcss.config.mjs"
+      ],
+      "project": ["app/**/*.{ts,tsx}", "*.{ts,tsx,js,mjs}"],
+      "ignore": [".next/**"],
+      "ignoreDependencies": ["katex"]
+    },
+    "docs": {
+      "entry": [".vitepress/config.*", ".vitepress/theme/index.*"],
+      "project": [".vitepress/**/*.{ts,js}"]
+    },
+    "tests": {
+      "entry": ["run.ts", "auth/*.ts", "ki/*.ts", "canvas/*.ts", "**/*.spec.ts"],
+      "project": ["**/*.ts"]
+    }
+  },
+  "ignoreBinaries": ["heroku", "docker"],
+  "ignoreExportsUsedInFile": true
+}

@@ -4,9 +4,10 @@
  * GET /api/debug/auth-diagnostic
  * Returnerer diagnostikkdata om gjeldende autentisert bruker, indekser og potensielle duplikater.
  *
- * Krever: NODE_ENV !== "production" OG ENABLE_DIAGNOSTICS=true
+ * Krever: NODE_ENV !== "production", ENABLE_DIAGNOSTICS=true og loopback-trafikk
  */
 
+import { isIP } from "node:net";
 import { Router, type Request, type Response } from "express";
 import { User, sanitizeUsername } from "../../database/models/User.js";
 import { logger } from "../../utils/logger.js";
@@ -22,6 +23,51 @@ const testAuthFlowRouter = Router();
 function isDiagnosticsEnabled(): boolean {
   if (isProd) return false;
   return process.env.ENABLE_DIAGNOSTICS === "true";
+}
+
+function erLoopbackAdresse(address: string): boolean {
+  const trimmed = address.trim().toLowerCase();
+  if (!trimmed) return false;
+
+  const normalized = trimmed.startsWith("::ffff:") ? trimmed.slice(7) : trimmed;
+  if (normalized === "::1") return true;
+  if (isIP(normalized) === 4) {
+    return normalized.startsWith("127.");
+  }
+  return false;
+}
+
+export function isLocalDiagnosticsRequest(req: Pick<Request, "ip" | "ips" | "socket">): boolean {
+  const kandidater = [
+    req.ip,
+    ...(Array.isArray(req.ips) ? req.ips : []),
+    req.socket?.remoteAddress,
+  ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+
+  return kandidater.some(erLoopbackAdresse);
+}
+
+function avvisUgyldigDiagnosticsRequest(req: Request, res: Response): boolean {
+  if (!isDiagnosticsEnabled()) {
+    res.status(404).json({ error: "Not found" });
+    return true;
+  }
+
+  if (isLocalDiagnosticsRequest(req)) {
+    return false;
+  }
+
+  logger.warn(
+    {
+      path: req.path,
+      ip: req.ip,
+      ips: req.ips,
+      remoteAddress: req.socket?.remoteAddress,
+    },
+    "Auth-diagnostikk avvist: kun loopback-trafikk er tillatt",
+  );
+  res.status(403).json({ error: "Forbidden" });
+  return true;
 }
 
 /** Trygg brukerprojeksjon — eksponerer aldri tokens, kun identitet og metadata-felt. */
@@ -134,9 +180,7 @@ function classifyConflictResult(value: unknown): {
 }
 
 router.get("/auth-diagnostic", async (req: Request, res: Response) => {
-  if (!isDiagnosticsEnabled()) {
-    return res.status(404).json({ error: "Not found" });
-  }
+  if (avvisUgyldigDiagnosticsRequest(req, res)) return;
 
   try {
     const userId = req.user?.id;
@@ -256,12 +300,10 @@ router.get("/auth-diagnostic", async (req: Request, res: Response) => {
  * For testing av auth-flyt uten en ekte Clerk JWT-sesjon.
  *
  * Body: { clerkId: string, flowId?: string }
- * Dobbelt-sikret: kun dev + ENABLE_DIAGNOSTICS=true
+ * Dobbelt-sikret: kun dev + ENABLE_DIAGNOSTICS=true + loopback-trafikk
  */
 testAuthFlowRouter.post("/test-auth-flow", async (req: Request, res: Response) => {
-  if (!isDiagnosticsEnabled()) {
-    return res.status(404).json({ error: "Not found" });
-  }
+  if (avvisUgyldigDiagnosticsRequest(req, res)) return;
 
   const { clerkId, flowId } = req.body as { clerkId?: string; flowId?: string };
   if (!clerkId || typeof clerkId !== "string") {
@@ -308,7 +350,7 @@ testAuthFlowRouter.post("/test-auth-flow", async (req: Request, res: Response) =
  * Brukes av auth matrix-testene for å verifisere 409 Conflict-håndtering.
  *
  * Body: { clerkId: string, newUsername: string, flowId?: string }
- * Dobbelt-sikret: kun dev + ENABLE_DIAGNOSTICS=true
+ * Dobbelt-sikret: kun dev + ENABLE_DIAGNOSTICS=true + loopback-trafikk
  *
  * Returnerer:
  * - 200 { success: true, user: {...} } ved vellykket oppdatering
@@ -317,9 +359,7 @@ testAuthFlowRouter.post("/test-auth-flow", async (req: Request, res: Response) =
  * - 404 { error: "user_not_found" } hvis clerkId ikke matcher noen bruker
  */
 testAuthFlowRouter.post("/test-update-profile", async (req: Request, res: Response) => {
-  if (!isDiagnosticsEnabled()) {
-    return res.status(404).json({ error: "Not found" });
-  }
+  if (avvisUgyldigDiagnosticsRequest(req, res)) return;
 
   const { clerkId, newUsername, flowId } = req.body as {
     clerkId?: string;
@@ -371,6 +411,7 @@ testAuthFlowRouter.post("/test-update-profile", async (req: Request, res: Respon
     }
 
     // Forsøk oppdatering
+    // allow-deleted-users: debug-rute (kun !isProd) — `user` er allerede hentet via findOrCreateUserByClerkId
     try {
       const updatedUser = await User.findByIdAndUpdate(
         user._id,

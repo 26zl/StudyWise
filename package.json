@@ -57,16 +57,42 @@
     "test:ki": "pnpm --filter tests exec tsx run.ts ki",
     "test:ki:smoke": "pnpm --filter tests exec tsx ki/smoke.ts",
     "test:canvas": "pnpm --filter tests exec tsx run.ts canvas",
-    "test:canvas:smoke": "pnpm --filter tests exec tsx canvas/smoke.ts"
+    "test:canvas:smoke": "pnpm --filter tests exec tsx canvas/smoke.ts",
+    "syncpack:list": "syncpack lint",
+    "syncpack:fix": "syncpack fix-mismatches && syncpack format",
+    "lint:soft-delete": "node scripts/lint-soft-delete.mjs",
+    "db:reset-encrypted": "node scripts/reset-encrypted-data.mjs",
+    "knip": "knip",
+    "knip:fix": "knip --fix --allow-remove-files",
+    "size": "size-limit",
+    "size:why": "size-limit --why"
   },
+  "size-limit": [
+    {
+      "name": "Frontend – førsteinnlasting (alle JS)",
+      "path": "frontend/.next/static/chunks/**/*.js",
+      "limit": "900 kB",
+      "gzip": true
+    },
+    {
+      "name": "Frontend – framework chunks",
+      "path": "frontend/.next/static/chunks/framework-*.js",
+      "limit": "60 kB",
+      "gzip": true
+    }
+  ],
   "devDependencies": {
     "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.13",
+    "@size-limit/preset-app": "^12.0.1",
     "@types/node": "^25.5.2",
     "concurrently": "^9.2.1",
     "dotenv": "^17.4.1",
     "kill-port": "^2.0.1",
+    "knip": "^6.3.1",
     "remark-cli": "^12.0.1",
     "remark-preset-lint-recommended": "^7.0.1",
+    "size-limit": "^12.0.1",
+    "syncpack": "^14.3.0",
     "wait-on": "^9.0.4"
   },
   "pnpm": {

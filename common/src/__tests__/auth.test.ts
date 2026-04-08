@@ -16,6 +16,7 @@ import {
   createDefaultCanvasContextPreferences,
   normalizeVarslerState,
   normalizeManuellInnleveringState,
+  HiddenCourseIdsSchema,
   normalizeHiddenCourseIds,
   PreferencesUpdateSchema,
   ProfileUpdateSchema,
@@ -362,6 +363,18 @@ describe("normalizeHiddenCourseIds", () => {
     const mange = Array.from({ length: 300 }, (_, i) => i + 1);
     const resultat = normalizeHiddenCourseIds({ courseIds: mange });
     expect(resultat.courseIds.length).toBe(200);
+  });
+
+  it("filtrerer bort ugyldige emne-IDer", () => {
+    const resultat = normalizeHiddenCourseIds({ courseIds: [0, -10, 25, 25, 42] });
+    expect(resultat.courseIds).toEqual([25, 42]);
+  });
+});
+
+describe("HiddenCourseIdsSchema", () => {
+  it("avviser null eller negative emne-IDer", () => {
+    expect(HiddenCourseIdsSchema.safeParse({ courseIds: [0] }).success).toBe(false);
+    expect(HiddenCourseIdsSchema.safeParse({ courseIds: [-1, 10] }).success).toBe(false);
   });
 });
 

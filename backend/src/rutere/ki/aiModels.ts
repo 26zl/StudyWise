@@ -29,5 +29,3 @@ export function resolveModel(requested?: string | null): string {
   return requested && SUPPORTED_MODELS[requested] ? requested : DEFAULT_MODEL;
 }
 
-// Typedefinisjoner
-export type SupportedModelId = keyof typeof SUPPORTED_MODELS;

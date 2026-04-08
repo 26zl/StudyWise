@@ -47,14 +47,16 @@ Bruker → Frontend → Backend → KI-tjenester (Claude, Pinecone, Cohere) → 
 | Område | Teknologi |
 | --- | --------- |
 | **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS v4, TanStack Query, Zustand, nuqs, react-hook-form, Zod, Lucide React, Sonner, next-themes |
-| **Backend** | Express 5, Node.js 20+, TypeScript, Mongoose/MongoDB |
+| **Backend** | Express 5, Node.js 20+, TypeScript, Mongoose/MongoDB, undici (HTTP connection pooling) |
 | **Auth** | Clerk (innlogging, SSO med Google/Microsoft, brukersynk) |
 | **KI** | Anthropic Claude API, Cohere rerank (rerank-v3.5) for hybrid søk |
 | **Cache** | Redis Cloud (Canvas API-cache, sync-struktur, KI-sesjonskontekst, rate limiting) |
+| **Job-køer** | BullMQ (Clerk-sletting, Pinecone-cleanup, web-push m/ retry og dead-letter), integrert kø-admin i admin-panelet |
 | **Vektorsøk** | Pinecone (serverless, integrated embedding); chunk-tekst i MongoDB som sannhetskilde |
 | **Filer/dokumenter** | Multer, unpdf (PDF), mammoth (Word), tesseract.js + sharp (OCR) |
 | **API** | Swagger UI + swagger-jsdoc, Helmet, CORS, compression, rate-limiter-flexible |
 | **Logging/Observability** | Pino + pino-http, Datadog APM (backend) og RUM (frontend) |
+| **Tooling** | syncpack (versjons-drift), knip (død kode), size-limit (bundle-budsjett) |
 | **CI/CD** | GitHub Actions, Heroku (backend), Vercel (frontend), Cloudflare (CDN/WAF), GitHub Pages (docs) |
 | **Dokumentasjon** | VitePress; bygges og publiseres til GitHub Pages ved endringer i `docs/` |
 

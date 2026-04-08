@@ -17,7 +17,6 @@ import {
 } from "common/arbeidsplan";
 export const DAYS_ORDER: string[] = [...UKEDAGER];
 export type { StudyBlock, Arbeidsplan } from "common/arbeidsplan";
-export type ProgressStats = ArbeidsplanProgress;
 
 // Delte Tailwind-klasser for arbeidsplan-komponenter
 export const PRIORITY_COLORS = {

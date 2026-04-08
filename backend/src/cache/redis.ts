@@ -19,6 +19,12 @@ let isShuttingDown = false;
 const client = createClient({
     url: redisUrl,
     socket: {
+        // Redis Cloud kald-start: TLS-handshake + auth kan ta 6-10s når
+        // instansen har vært inaktiv. Default node-redis socket connectTimeout
+        // er 5s som gir falsk-positiv "ConnectionTimeoutError" → reconnect.
+        // 15s gir nok slack til å fange opp første kald-start uten å maskere
+        // ekte nettverksfeil.
+        connectTimeout: 15000,
         reconnectStrategy: (retries: number) => {
             if (isShuttingDown) return false; // Ikke reconnect under shutdown
             // Exponential backoff: 3s, 6s, 12s, ... maks 30s

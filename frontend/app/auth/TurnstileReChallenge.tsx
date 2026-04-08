@@ -15,7 +15,7 @@ import { verifyAuthTurnstile } from "@/app/auth/auth-turnstile-api";
 import { useLanguage } from "@/app/i18n";
 import { AUTH_ME_QUERY_KEY } from "@/app/auth/auth-api";
 import { showToast } from "@/app/components/ui/Toaster";
-import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
+import { getApiErrorCode, lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 
 type TurnstileRenderer = {
   render: (element: HTMLElement, options: Record<string, unknown>) => string;
@@ -52,9 +52,7 @@ export function TurnstileReChallenge() {
         event.query.state.status === "error"
       ) {
         const error = event.query.state.error;
-        const msg = error instanceof Error ? error.message : "";
-        // Sjekk om feilen er turnstile_required (matcher meldingen satt i auth-api.ts)
-        if (/sikkerhetsverifisering utløpt/i.test(msg) || /turnstile_required/i.test(msg)) {
+        if (getApiErrorCode(error) === "turnstile_required") {
           setShowChallenge(true);
         }
       }

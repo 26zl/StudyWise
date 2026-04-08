@@ -20,6 +20,7 @@ import {
   isOAuthAccountConflict,
   isOAuthMetadataMissing,
   isUserDeleted,
+  isUserLocked,
   isUsernameConflict,
   getSessionIdFromTokenCache,
   deleteClerkUserById,
@@ -66,6 +67,7 @@ type AuthResolution =
     }
   | { status: "username_conflict"; clerkUserId: string; username: string }
   | { status: "user_deleted"; clerkUserId: string }
+  | { status: "user_locked"; clerkUserId: string; lockedReason?: string }
   | { status: "user_sync_failed"; clerkUserId: string };
 
 function settAutentisertBrukerPåRequest(req: Request, user: IUser): void {
@@ -78,7 +80,8 @@ function settAutentisertBrukerPåRequest(req: Request, user: IUser): void {
   (req as Request & { authenticatedUser?: IUser }).authenticatedUser = user;
 }
 
-async function resolveAuthentication(req: Request): Promise<AuthResolution> {
+// Eksportert for unit-testing — kalles internt fra requireAuth-middlewaren
+export async function resolveAuthentication(req: Request): Promise<AuthResolution> {
   const token = hentBearerToken(req);
   if (!token) {
     return { status: "missing_token" };
@@ -141,8 +144,27 @@ async function resolveAuthentication(req: Request): Promise<AuthResolution> {
     return { status: "user_deleted", clerkUserId };
   }
 
+  if (isUserLocked(userResult)) {
+    return {
+      status: "user_locked",
+      clerkUserId,
+      lockedReason: userResult.lockedReason,
+    };
+  }
+
   if (!userResult) {
     return { status: "user_sync_failed", clerkUserId };
+  }
+
+  // Sjekk om brukeren har blitt låst etter at sesjonen ble opprettet — skjer
+  // når admin låser en innlogget bruker. Vi avviser hvert request inntil
+  // unlock, slik at brukeren blir effektivt sparket ut umiddelbart.
+  if (userResult.lockedAt) {
+    return {
+      status: "user_locked",
+      clerkUserId,
+      lockedReason: userResult.lockedReason ?? undefined,
+    };
   }
 
   logger.debug(
@@ -294,11 +316,13 @@ export async function requireAuth(
         metadata: { reason: "account_conflict" },
         req,
       });
-      apiError.conflict(
-        res,
-        "Det finnes allerede en konto med denne e-postadressen koblet til en annen innloggingsmetode. " +
+      res.status(409).json({
+        error: "account_conflict",
+        kode: "account_conflict",
+        melding:
+          "Det finnes allerede en konto med denne e-postadressen koblet til en annen innloggingsmetode. " +
           "Prøv å logge inn med den opprinnelige metoden (f.eks. Microsoft eller Google), eller kontakt support.",
-      );
+      });
       return;
     }
 
@@ -435,6 +459,33 @@ export async function requireAuth(
         kode: "user_deleted",
         melding:
           "Denne kontoen er slettet. Opprett en ny konto for å fortsette.",
+      });
+      return;
+    }
+
+    if (result.status === "user_locked") {
+      logger.info(
+        { clerkUserId: result.clerkUserId },
+        "Låst bruker forsøkte å logge inn",
+      );
+      await audit({
+        actorUserId: result.clerkUserId,
+        action: AUDIT_ACTIONS.TOKEN_VERIFICATION_FAILURE,
+        category: "security",
+        outcome: "failure",
+        metadata: { reason: "user_locked", begrunnelse: result.lockedReason ?? null },
+        req,
+      });
+      const baseMelding =
+        "Kontoen din er midlertidig låst av en administrator. Kontakt support hvis du tror dette er en feil.";
+      const fullMelding = result.lockedReason
+        ? `${baseMelding} Begrunnelse: ${result.lockedReason}`
+        : baseMelding;
+      res.status(403).json({
+        error: "user_locked",
+        kode: "user_locked",
+        melding: fullMelding,
+        begrunnelse: result.lockedReason,
       });
       return;
     }

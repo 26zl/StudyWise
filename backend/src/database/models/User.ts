@@ -70,10 +70,18 @@ export interface IUser extends Document {
     email: string;
     /** Clerk user id (f.eks. user_xxx) for brukere som logger inn via Clerk. */
     clerkId?: string;
+    /** Hvilket Clerk-miljø den nåværende clerkId-en ble synkronisert fra. */
+    clerkEnv?: "test" | "live" | "unknown";
     /** Sist lokal profil ble synkronisert fra Clerk. */
     clerkProfileSyncedAt?: Date;
     /** Soft-delete tombstone for å hindre re-oppretting via Clerk etter kontosletting. */
     deletedAt?: Date;
+    /** Tidspunkt brukeren ble låst ute av admin. Hvis satt → ingen innlogging. Beholder all data slik at unlock kan reverseres. */
+    lockedAt?: Date;
+    /** Valgfri begrunnelse vist til brukeren ved innloggingsforsøk og synlig i admin-panelet. */
+    lockedReason?: string;
+    /** Admin-bruker-ID som låste kontoen — for audit/feilsøking. */
+    lockedBy?: mongoose.Types.ObjectId | string;
     /** RBAC-rolle. Standard user. */
     role: UserRole;
     /** Om brukeren har aktivert tofaktorautentisering (MFA/TOTP) i Clerk. */
@@ -129,12 +137,32 @@ const UserSchema: Schema = new Schema(
             type: String,
             trim: true,
         },
+        clerkEnv: {
+            type: String,
+            enum: ["test", "live", "unknown"],
+            default: undefined,
+        },
         clerkProfileSyncedAt: {
             type: Date,
             default: undefined,
         },
         deletedAt: {
             type: Date,
+            default: undefined,
+        },
+        lockedAt: {
+            type: Date,
+            default: undefined,
+        },
+        lockedReason: {
+            type: String,
+            trim: true,
+            maxlength: 500,
+            default: undefined,
+        },
+        lockedBy: {
+            type: String,
+            trim: true,
             default: undefined,
         },
         role: {
@@ -211,8 +239,9 @@ const UserSchema: Schema = new Schema(
                     type: [Number],
                     default: [],
                     validate: {
-                        validator: (v: number[]) => v.length <= 200,
-                        message: "hiddenCourseIds cannot exceed 200 items",
+                        validator: (v: number[]) =>
+                            v.length <= 200 && v.every((courseId) => Number.isInteger(courseId) && courseId > 0),
+                        message: "hiddenCourseIds must contain positive integers and cannot exceed 200 items",
                     },
                 },
             },

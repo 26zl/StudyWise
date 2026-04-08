@@ -165,14 +165,6 @@ export async function loadStudyContextForUser(
   }
 }
 
-/**
- * Sletter all studiekontekst for en bruker (GDPR).
- */
-export async function deleteStudyContextForUser(userId: string): Promise<number> {
-  const result = await StudyContext.deleteMany({ userId });
-  return result.deletedCount;
-}
-
 // ─── Hjelpefunksjoner ─────────────────────────────────────
 
 /**

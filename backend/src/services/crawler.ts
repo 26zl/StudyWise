@@ -41,6 +41,9 @@ import { parseDocument } from "./document.js";
 
 /** Timeout for HTTP-forespørsler (ms) */
 const FETCH_TIMEOUT_MS = 15000;
+// Maks tillatt størrelse for kontordokumenter (DOCX/PPTX/XLSX m.fl.) hentet via live-URL.
+// Holdes høyere enn HTML/tekst men innenfor parserens praktiske grenser.
+const MAX_OFFICE_DOC_SIZE_BYTES = 25 * 1024 * 1024;
 
 /** Maks samtidige URL-hentinger */
 const CRAWLER_CONCURRENCY = 2;
@@ -68,7 +71,32 @@ const MAX_SUBPAGE_PDFS_PER_ITEM = 5;
  * Re-eksporterer findContentLinks for bruk i KB deep crawl.
  * Finner interne lenker (samme domene) som sannsynligvis peker til innholdssider.
  */
-export { findContentLinks, findPdfLinks, downloadAndProcessPdf, getDomainSelectors, sha256 };
+export {
+  findContentLinks,
+  findPdfLinks,
+  downloadAndProcessPdf,
+  getDomainSelectors,
+  sha256,
+  // SSRF-trygge fetch-primitiver gjenbrukt av live-URL-flyten i ki.ts
+  fetchWithSafeRedirects,
+  readResponseBodyWithLimit,
+  discardResponseBody,
+  getHeaderValue,
+  BodyTooLargeError,
+  MAX_PDF_SIZE_BYTES,
+  MAX_TEXT_CONTENT_SIZE_BYTES,
+  MAX_OFFICE_DOC_SIZE_BYTES,
+  FETCH_TIMEOUT_MS,
+  // Eksporterte for testing — pure SSRF-helpere uten sideeffekter
+  isSafeExternalUrlFormat,
+  isBlockedIpv4Address,
+  isBlockedIpv6Address,
+  isBlockedIpAddress,
+  normalizeHostname,
+  expandIpv6,
+  resolveRedirectUrl,
+};
+export type { SafeFetchResponse };
 
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 

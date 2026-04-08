@@ -38,17 +38,32 @@ import {
   ExternalLink,
   Bell,
   FileUp,
+  Layers,
+  PlayCircle,
+  Server,
+  Zap,
+  Terminal,
+  Pause,
+  Play,
+  Info,
+  Unlock,
+  Lock,
+  LockOpen,
+  LogOut,
+  MailCheck,
 } from "lucide-react";
 import { useLanguage } from "@/app/i18n";
+import type { Translator } from "@/app/i18n/types";
 import { useMeg } from "@/app/auth/auth-api";
 import { LoadingSpinner } from "@/app/components/ui/Loading";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
-import { showToast } from "@/app/components/ui/Toaster";
+import { showToast, toast } from "@/app/components/ui/Toaster";
 import { formaterDatoLong, formaterDatoOgTid, formaterTall } from "@/app/lib/dato";
 import { fetchApi } from "@/app/lib/apiClient";
 import {
   useAdminStats,
   useAdminBrukere,
+  type AdminBrukereStatusFilter,
   useAdminAudit,
   useDailyMetrics,
   useLangsmithOverview,
@@ -56,11 +71,36 @@ import {
   useRuns,
   useEndreRolle,
   useSlettBruker,
+  useClearRelinkGuard,
+  useLockUser,
+  useUnlockUser,
+  useRevokeUserSessions,
+  useResendVerification,
+  useAdminBrukerDetalj,
+  useAdminContactMessages,
+  useUpdateContactMessageStatus,
+  useDeleteContactMessage,
   useClearLangsmithCache,
+  useQueueOverview,
+  useQueueJobs,
+  useRetryQueueJob,
+  useRemoveQueueJob,
+  useRedisInfo,
+  useRedisPrefixes,
+  useRedisFlushPrefix,
+  useRedisRelinkStates,
+  useClearRedisRelinkState,
 } from "@/app/admin/admin-api";
-import type { AdminBruker } from "@/app/admin/admin-api";
+import type {
+  AdminBruker,
+  AdminContactMessage,
+  AdminQueueOverviewItem,
+  AdminRedisPrefix,
+  AdminRedisRelinkStateItem,
+  ContactMessageStatus,
+} from "@/app/admin/admin-api";
 
-type AdminFane = "stats" | "observability" | "users" | "audit" | "feedback";
+type AdminFane = "stats" | "observability" | "queues" | "redis" | "users" | "inbox" | "audit" | "logs" | "feedback";
 type LangsmithStatusFilter = "all" | "success" | "error";
 
 type LangsmithRunRow = {
@@ -72,6 +112,37 @@ type LangsmithRunRow = {
   latencyMs: number;
   status: "success" | "error";
 };
+
+function hentFeilmelding(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+  return fallback;
+}
+
+function visBekreftelsesToast({
+  t,
+  melding,
+  handlingstekst,
+  onBekreft,
+}: {
+  t: Translator;
+  melding: string;
+  handlingstekst: string;
+  onBekreft: () => void;
+}) {
+  toast.warning(melding, {
+    duration: 10_000,
+    action: {
+      label: handlingstekst,
+      onClick: onBekreft,
+    },
+    cancel: {
+      label: t("common.actions.cancel"),
+      onClick: () => {},
+    },
+  });
+}
 
 // ── Statistikk-fane ─────────────────────────────────────────────────────────
 
@@ -624,6 +695,263 @@ function ObservabilityFane() {
   );
 }
 
+// ── Brukerdetalj-modal (privacy-respekterende oversikt) ─────────────────────
+
+function BrukerDetaljModal({ brukerId, onClose }: { brukerId: string; onClose: () => void }) {
+  const { language, t } = useLanguage();
+  const { data, isLoading, error } = useAdminBrukerDetalj(brukerId);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="bruker-detalj-tittel"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-800">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <h3 id="bruker-detalj-tittel" className="text-lg font-semibold text-slate-900 dark:text-white">
+            {t("admin.users.detailsTitle")}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t("common.actions.close")}
+            className="rounded-lg p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {isLoading && <LoadingSpinner />}
+        {error && <FeilMelding melding={t("admin.users.detailsLoadFailed")} />}
+
+        {data && (
+          <div className="space-y-5">
+            {/* Identitet */}
+            <DetaljSeksjon title={t("admin.users.detailsIdentity")}>
+              <DetaljRad label={t("admin.users.email")} value={data.email} mono />
+              <DetaljRad
+                label={t("admin.users.name")}
+                value={
+                  [data.fornavn, data.etternavn].filter(Boolean).join(" ") ||
+                  data.brukernavn ||
+                  "—"
+                }
+              />
+              <DetaljRad label={t("admin.users.role")} value={data.rolle} />
+              <DetaljRad label="ID" value={data.id} mono />
+              <DetaljRad
+                label={t("admin.users.created")}
+                value={formaterDatoOgTid(data.opprettet, language)}
+              />
+              <DetaljRad
+                label={t("admin.users.detailsUpdated")}
+                value={formaterDatoOgTid(data.oppdatert, language)}
+              />
+            </DetaljSeksjon>
+
+            {/* Status */}
+            <DetaljSeksjon title={t("admin.users.detailsStatus")}>
+              {data.deleted && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                  <strong>{t("admin.users.statusDeleted")}</strong>
+                  {data.deletedAt && ` · ${formaterDatoOgTid(data.deletedAt, language)}`}
+                </div>
+              )}
+              {data.locked && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-sm text-amber-700 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300">
+                  <strong>{t("admin.users.statusLocked")}</strong>
+                  {data.lockedAt && ` · ${formaterDatoOgTid(data.lockedAt, language)}`}
+                  {data.lockedReason && (
+                    <div className="mt-1 text-xs">{data.lockedReason}</div>
+                  )}
+                </div>
+              )}
+              {!data.deleted && !data.locked && (
+                <div className="text-sm text-emerald-600 dark:text-emerald-400">
+                  ✓ {t("admin.users.statusActive")}
+                </div>
+              )}
+            </DetaljSeksjon>
+
+            {/* Auth */}
+            <DetaljSeksjon title={t("admin.users.detailsAuth")}>
+              <DetaljRad label="Clerk ID" value={data.clerkId ?? "—"} mono />
+              <DetaljRad label="Clerk env" value={data.clerkEnv ?? "—"} />
+              <DetaljRad
+                label={t("admin.users.detailsClerkSynced")}
+                value={
+                  data.clerkProfileSyncedAt
+                    ? formaterDatoOgTid(data.clerkProfileSyncedAt, language)
+                    : "—"
+                }
+              />
+              <DetaljRad label="MFA" value={data.mfaEnabled ? "✓" : "—"} />
+              <DetaljRad
+                label={t("admin.users.detailsAuthProviders")}
+                value={data.authProviders?.join(", ") ?? "—"}
+              />
+              <DetaljRad
+                label={t("admin.users.detailsOauthAccounts")}
+                value={String(data.oauthAccountCount)}
+              />
+              {data.syncConflictCount > 0 && (
+                <DetaljRad
+                  label={t("admin.users.detailsSyncConflicts")}
+                  value={`${data.syncConflictCount} (${data.syncConflictTypes?.join(", ") ?? ""})`}
+                  tone="warning"
+                />
+              )}
+            </DetaljSeksjon>
+
+            {/* Canvas (kun status, ALDRI token eller data) */}
+            <DetaljSeksjon title={t("admin.users.detailsCanvas")}>
+              <DetaljRad
+                label={t("admin.users.detailsCanvasConnected")}
+                value={data.canvasConnected ? "✓" : "—"}
+              />
+              {data.canvasConnected && (
+                <>
+                  <DetaljRad
+                    label={t("admin.users.detailsCanvasInstance")}
+                    value={data.canvasBaseUrl ?? "—"}
+                    mono
+                  />
+                  <DetaljRad
+                    label={t("admin.users.detailsCanvasUserCached")}
+                    value={data.canvasUserCached ? "✓" : "—"}
+                  />
+                </>
+              )}
+            </DetaljSeksjon>
+
+            {/* Aktivitetstellinger (privacy-trygt) */}
+            <DetaljSeksjon title={t("admin.users.detailsActivity")}>
+              <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                {t("admin.users.detailsActivityNote")}
+              </p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <KountKort label="Chat-historikk" value={data.counts.chatHistory} />
+                <KountKort label="Delte chats" value={data.counts.sharedChats} />
+                <KountKort label="Oppgave-oppdelinger" value={data.counts.taskBreakdowns} />
+                <KountKort label="Arbeidsplaner" value={data.counts.arbeidsplaner} />
+                <KountKort label="Embeddings" value={data.counts.contentEmbeddings} />
+                <KountKort label="Canvas-strukturer" value={data.counts.canvasStructures} />
+                <KountKort label="Kunnskapsbaser" value={data.counts.knowledgeBases} />
+                <KountKort label="KB-chunks" value={data.counts.knowledgeBaseChunks} />
+                <KountKort label="Web push subs" value={data.counts.webPushSubscriptions} />
+              </div>
+            </DetaljSeksjon>
+
+            {/* Integrasjoner */}
+            <DetaljSeksjon title={t("admin.users.detailsIntegrations")}>
+              <DetaljRad
+                label="Notion"
+                value={data.notionConfigured ? "✓ konfigurert" : "—"}
+              />
+              <DetaljRad label={t("admin.users.detailsLanguage")} value={data.language ?? "—"} />
+              <DetaljRad label={t("admin.users.detailsTheme")} value={data.theme ?? "—"} />
+            </DetaljSeksjon>
+
+            {/* Recent audit */}
+            <DetaljSeksjon
+              title={`${t("admin.users.detailsRecentAudit")} ${
+                data.auditFailureCount30d > 0
+                  ? `(${data.auditFailureCount30d} feil siste 30 dager)`
+                  : ""
+              }`}
+            >
+              {data.recentAuditEntries.length === 0 ? (
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  {t("admin.users.detailsNoAudit")}
+                </p>
+              ) : (
+                <ul className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                  {data.recentAuditEntries.map((entry) => (
+                    <li
+                      key={entry.id}
+                      className="flex items-center justify-between gap-2 border-b border-slate-100 px-2 py-1 text-xs last:border-0 dark:border-slate-700"
+                    >
+                      <span className="font-mono text-slate-700 dark:text-slate-300">
+                        {entry.action}
+                      </span>
+                      <span
+                        className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${
+                          entry.outcome === "success"
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                            : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                        }`}
+                      >
+                        {entry.outcome}
+                      </span>
+                      <span className="ml-auto shrink-0 text-slate-500 dark:text-slate-400">
+                        {formaterDatoOgTid(entry.createdAt, language)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </DetaljSeksjon>
+
+            <div className="border-t border-slate-200 pt-3 text-[10px] italic text-slate-400 dark:border-slate-700">
+              {t("admin.users.detailsPrivacyFooter")}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DetaljSeksjon({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        {title}
+      </h4>
+      <div className="space-y-1">{children}</div>
+    </div>
+  );
+}
+
+function DetaljRad({
+  label,
+  value,
+  mono,
+  tone,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  tone?: "warning";
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 text-sm">
+      <dt className="text-slate-500 dark:text-slate-400">{label}</dt>
+      <dd
+        className={`${mono ? "font-mono text-xs" : ""} ${
+          tone === "warning" ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-white"
+        } truncate text-right`}
+      >
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function KountKort({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-center dark:border-slate-700 dark:bg-slate-900">
+      <div className="text-lg font-semibold text-slate-900 dark:text-white">{value.toLocaleString()}</div>
+      <div className="text-[10px] text-slate-500 dark:text-slate-400">{label}</div>
+    </div>
+  );
+}
+
 // ── Brukere-fane ────────────────────────────────────────────────────────────
 
 function BrukereFane() {
@@ -633,6 +961,7 @@ function BrukereFane() {
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<AdminBrukereStatusFilter>("active");
   const [offset, setOffset] = useState(0);
   const limit = 20;
 
@@ -656,11 +985,24 @@ function BrukereFane() {
     }, 400);
   };
 
-  const { data, isLoading, error } = useAdminBrukere({ limit, offset, search: debouncedSearch || undefined });
+  const { data, isLoading, error } = useAdminBrukere({
+    limit,
+    offset,
+    search: debouncedSearch || undefined,
+    status: statusFilter,
+  });
   const endreRolle = useEndreRolle();
   const slettBruker = useSlettBruker();
+  const clearRelinkGuard = useClearRelinkGuard();
+  const lockUser = useLockUser();
+  const unlockUser = useUnlockUser();
+  const revokeSessions = useRevokeUserSessions();
+  const resendVerification = useResendVerification();
 
   const [bekreftSlett, setBekreftSlett] = useState<string | null>(null);
+  const [lockDialog, setLockDialog] = useState<{ id: string; email: string } | null>(null);
+  const [lockReason, setLockReason] = useState("");
+  const [detaljId, setDetaljId] = useState<string | null>(null);
 
   const handleEndreRolle = (bruker: AdminBruker) => {
     if (bruker.id === minId) {
@@ -675,6 +1017,76 @@ function BrukereFane() {
         onError: (err) => showToast.error(err instanceof Error ? err.message : t("admin.errors.roleChangeFailed")),
       },
     );
+  };
+
+  const handleOpenLockDialog = (bruker: AdminBruker) => {
+    if (bruker.id === minId) {
+      showToast.error(t("admin.users.cannotLockSelf"));
+      return;
+    }
+    if (bruker.rolle === "admin") {
+      showToast.error(t("admin.users.cannotLockAdmin"));
+      return;
+    }
+    setLockReason("");
+    setLockDialog({ id: bruker.id, email: bruker.email });
+  };
+
+  const handleConfirmLock = () => {
+    if (!lockDialog) return;
+    lockUser.mutate(
+      {
+        brukerId: lockDialog.id,
+        reason: lockReason.trim() || undefined,
+      },
+      {
+        onSuccess: () => {
+          showToast.success(t("admin.users.lockSuccess"));
+          setLockDialog(null);
+          setLockReason("");
+        },
+        onError: (err) =>
+          showToast.error(err instanceof Error ? err.message : t("admin.users.lockFailed")),
+      },
+    );
+  };
+
+  const handleRevokeSessions = (bruker: AdminBruker) => {
+    if (!confirm(t("admin.users.revokeSessionsConfirm"))) return;
+    revokeSessions.mutate(bruker.id, {
+      onSuccess: (result) =>
+        showToast.success(`${t("admin.users.revokeSessionsSuccess")} (${result.revoked})`),
+      onError: (err) =>
+        showToast.error(err instanceof Error ? err.message : t("admin.users.revokeSessionsFailed")),
+    });
+  };
+
+  const handleResendVerification = (bruker: AdminBruker) => {
+    if (!confirm(t("admin.users.resendVerificationConfirm"))) return;
+    resendVerification.mutate(bruker.id, {
+      onSuccess: () => showToast.success(t("admin.users.resendVerificationSuccess")),
+      onError: (err) =>
+        showToast.error(err instanceof Error ? err.message : t("admin.users.resendVerificationFailed")),
+    });
+  };
+
+  const handleUnlock = (bruker: AdminBruker) => {
+    if (!confirm(t("admin.users.unlockConfirm"))) return;
+    unlockUser.mutate(bruker.id, {
+      onSuccess: () => showToast.success(t("admin.users.unlockSuccess")),
+      onError: (err) =>
+        showToast.error(err instanceof Error ? err.message : t("admin.users.unlockFailed")),
+    });
+  };
+
+  const handleClearRelinkGuard = (brukerId: string) => {
+    clearRelinkGuard.mutate(brukerId, {
+      onSuccess: () => showToast.success(t("admin.users.relinkGuardCleared")),
+      onError: (err) =>
+        showToast.error(
+          err instanceof Error ? err.message : t("admin.users.relinkGuardClearFailed"),
+        ),
+    });
   };
 
   const handleSlett = (brukerId: string) => {
@@ -704,17 +1116,97 @@ function BrukereFane() {
 
   return (
     <div className="space-y-4">
-      {/* Søk */}
-      <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => handleSearch(e.target.value)}
-          placeholder={t("admin.users.searchPlaceholder")}
-          aria-label={t("admin.users.searchPlaceholder")}
-          className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-base sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+      {/* Lås konto-dialog */}
+      {lockDialog && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="lock-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setLockDialog(null);
+          }}
+        >
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-800">
+            <h3 id="lock-dialog-title" className="text-base font-semibold text-slate-900 dark:text-white">
+              {t("admin.users.lockConfirmTitle")}
+            </h3>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+              {t("admin.users.lockConfirmDescription")}
+            </p>
+            <p className="mt-2 font-mono text-xs text-slate-500 dark:text-slate-400">
+              {lockDialog.email}
+            </p>
+
+            <label className="mt-4 block text-xs font-medium text-slate-700 dark:text-slate-300">
+              {t("admin.users.lockReasonLabel")}
+            </label>
+            <textarea
+              value={lockReason}
+              onChange={(e) => setLockReason(e.target.value)}
+              maxLength={500}
+              rows={3}
+              placeholder={t("admin.users.lockReasonPlaceholder")}
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+            />
+            <div className="mt-1 text-right text-[10px] text-slate-400">
+              {lockReason.length}/500
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setLockDialog(null)}
+                className="rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+              >
+                {t("common.actions.cancel")}
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmLock}
+                disabled={lockUser.isPending}
+                className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                <Lock size={14} />
+                {t("admin.users.lockConfirmButton")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Brukerdetalj-modal */}
+      {detaljId && (
+        <BrukerDetaljModal brukerId={detaljId} onClose={() => setDetaljId(null)} />
+      )}
+
+      {/* Søk + status-filter */}
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => handleSearch(e.target.value)}
+            placeholder={t("admin.users.searchPlaceholder")}
+            aria-label={t("admin.users.searchPlaceholder")}
+            className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-base sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value as AdminBrukereStatusFilter);
+            setOffset(0);
+          }}
+          aria-label={t("admin.users.statusFilterLabel")}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-base sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white sm:w-48"
+        >
+          <option value="active">{t("admin.users.statusActive")}</option>
+          <option value="locked">{t("admin.users.statusLocked")}</option>
+          <option value="deleted">{t("admin.users.statusDeleted")}</option>
+          <option value="all">{t("admin.users.statusAll")}</option>
+        </select>
       </div>
 
       {isLoading && <LoadingSpinner />}
@@ -753,6 +1245,15 @@ function BrukereFane() {
                           {erDeg && (
                             <span className="ml-1.5 text-xs text-sky-600 dark:text-sky-400 font-medium">
                               {t("admin.users.you")}
+                            </span>
+                          )}
+                          {bruker.locked && (
+                            <span
+                              title={bruker.lockedReason ?? undefined}
+                              className="ml-1.5 inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                            >
+                              <Lock size={10} />
+                              {t("admin.users.lockedBadge")}
                             </span>
                           )}
                         </td>
@@ -825,14 +1326,78 @@ function BrukereFane() {
                                     </button>
                                   </div>
                                 ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => setBekreftSlett(bruker.id)}
-                                    title={t("admin.users.deleteUser")}
-                                    className="rounded-lg p-1.5 text-slate-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => setDetaljId(bruker.id)}
+                                      title={t("admin.users.viewDetails")}
+                                      className="rounded-lg p-1.5 text-slate-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                    >
+                                      <Info size={16} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleClearRelinkGuard(bruker.id)}
+                                      disabled={clearRelinkGuard.isPending}
+                                      title={t("admin.users.clearRelinkGuard")}
+                                      className="rounded-lg p-1.5 text-slate-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-600 dark:hover:text-amber-400 transition-colors disabled:opacity-50"
+                                    >
+                                      <Unlock size={16} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRevokeSessions(bruker)}
+                                      disabled={revokeSessions.isPending}
+                                      title={t("admin.users.revokeSessions")}
+                                      className="rounded-lg p-1.5 text-slate-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors disabled:opacity-50"
+                                    >
+                                      <LogOut size={16} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleResendVerification(bruker)}
+                                      disabled={resendVerification.isPending}
+                                      title={t("admin.users.resendVerification")}
+                                      className="rounded-lg p-1.5 text-slate-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors disabled:opacity-50"
+                                    >
+                                      <MailCheck size={16} />
+                                    </button>
+                                    {bruker.locked ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUnlock(bruker)}
+                                        disabled={unlockUser.isPending}
+                                        title={t("admin.users.unlockUser")}
+                                        className="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20 transition-colors disabled:opacity-50"
+                                      >
+                                        <LockOpen size={16} />
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenLockDialog(bruker)}
+                                        disabled={lockUser.isPending || bruker.id === minId || bruker.rolle === "admin"}
+                                        title={
+                                          bruker.id === minId
+                                            ? t("admin.users.cannotLockSelf")
+                                            : bruker.rolle === "admin"
+                                              ? t("admin.users.cannotLockAdmin")
+                                              : t("admin.users.lockUser")
+                                        }
+                                        className="rounded-lg p-1.5 text-slate-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-600 dark:hover:text-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                      >
+                                        <Lock size={16} />
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => setBekreftSlett(bruker.id)}
+                                      title={t("admin.users.deleteUser")}
+                                      className="rounded-lg p-1.5 text-slate-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </>
                                 )}
                               </>
                             )}
@@ -883,19 +1448,78 @@ function BrukereFane() {
 function RevisjonsloggFane() {
   const { language, t } = useLanguage();
   const [offset, setOffset] = useState(0);
+  const [outcomeFilter, setOutcomeFilter] = useState<"all" | "success" | "failure">("all");
+  const [userIdFilter, setUserIdFilter] = useState("");
+  const [debouncedUserId, setDebouncedUserId] = useState("");
+  const userIdDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const limit = 50;
 
-  const { data, isLoading, error } = useAdminAudit({ limit, offset });
+  const handleUserIdSearch = (value: string) => {
+    setUserIdFilter(value);
+    if (userIdDebounceRef.current) clearTimeout(userIdDebounceRef.current);
+    userIdDebounceRef.current = setTimeout(() => {
+      setDebouncedUserId(value.trim());
+      setOffset(0);
+    }, 400);
+  };
+
+  useEffect(() => () => {
+    if (userIdDebounceRef.current) clearTimeout(userIdDebounceRef.current);
+  }, []);
+
+  const { data, isLoading, error } = useAdminAudit({
+    limit,
+    offset,
+    outcome: outcomeFilter === "all" ? undefined : outcomeFilter,
+    targetUserId: debouncedUserId || undefined,
+  });
 
   const total = data?.total ?? 0;
   const harNeste = offset + limit < total;
   const harForrige = offset > 0;
+
+  const handleExportCsv = () => {
+    // Direkte navigasjon — fetch ville krevd ekstra Blob-håndtering for nedlastning
+    const url = "/api/admin/audit/export.csv";
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
 
   if (isLoading) return <LoadingSpinner />;
   if (error) return <FeilMelding melding={t("admin.errors.auditFailed")} />;
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <select
+            value={outcomeFilter}
+            onChange={(e) => {
+              setOutcomeFilter(e.target.value as "all" | "success" | "failure");
+              setOffset(0);
+            }}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+          >
+            <option value="all">{t("admin.audit.outcomeAll")}</option>
+            <option value="success">{t("admin.audit.outcomeSuccess")}</option>
+            <option value="failure">{t("admin.audit.outcomeFailure")}</option>
+          </select>
+          <input
+            type="text"
+            value={userIdFilter}
+            onChange={(e) => handleUserIdSearch(e.target.value)}
+            placeholder={t("admin.audit.targetUserIdPlaceholder")}
+            className="w-64 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={handleExportCsv}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+        >
+          <FileUp size={14} />
+          {t("admin.audit.exportCsv")}
+        </button>
+      </div>
       <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
         <table className="w-full text-sm">
           <thead>
@@ -1053,17 +1677,906 @@ function FeedbackFane() {
   );
 }
 
+// ── Køer-fane (BullMQ) ──────────────────────────────────────────────────────
+
+function KøerFane() {
+  const { t } = useLanguage();
+  const [valgtKø, setValgtKø] = useState<string | null>(null);
+  const overviewQuery = useQueueOverview();
+  const jobsQuery = useQueueJobs(valgtKø, "failed");
+  const retryMutation = useRetryQueueJob();
+  const removeMutation = useRemoveQueueJob();
+
+  // Velg første kø automatisk når data lastes
+  useEffect(() => {
+    if (!valgtKø && overviewQuery.data?.queues.length) {
+      setValgtKø(overviewQuery.data.queues[0].name);
+    }
+  }, [valgtKø, overviewQuery.data]);
+
+  const handleRetry = (jobId: string) => {
+    if (!valgtKø) return;
+    retryMutation.mutate(
+      { queueName: valgtKø, jobId },
+      {
+        onSuccess: () => showToast.success(t("admin.queues.actions.retrySuccess")),
+        onError: (error) =>
+          showToast.error(
+            t("admin.queues.actions.retryFailed"),
+            hentFeilmelding(error, t("admin.queues.actions.retryFailed")),
+          ),
+      },
+    );
+  };
+
+  const handleRemove = (jobId: string) => {
+    if (!valgtKø) return;
+    visBekreftelsesToast({
+      t,
+      melding: t("admin.queues.actions.confirmRemove"),
+      handlingstekst: t("common.actions.delete"),
+      onBekreft: () => {
+        removeMutation.mutate(
+          { queueName: valgtKø, jobId },
+          {
+            onSuccess: () => showToast.success(t("admin.queues.actions.removeSuccess")),
+            onError: (error) =>
+              showToast.error(
+                t("admin.queues.actions.removeFailed"),
+                hentFeilmelding(error, t("admin.queues.actions.removeFailed")),
+              ),
+          },
+        );
+      },
+    });
+  };
+
+  if (overviewQuery.isLoading) return <LoadingSpinner />;
+  if (overviewQuery.error)
+    return <FeilMelding melding={t("admin.queues.loadFailed")} />;
+
+  const queues = overviewQuery.data?.queues ?? [];
+  if (queues.length === 0)
+    return <FeilMelding melding={t("admin.queues.empty")} />;
+
+  return (
+    <section className="space-y-4">
+      <div>
+        <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+          {t("admin.queues.title")}
+        </h2>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+          {t("admin.queues.description")}
+        </p>
+      </div>
+
+      {/* Kø-kort */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {queues.map((q: AdminQueueOverviewItem) => {
+          const aktiv = valgtKø === q.name;
+          return (
+            <button
+              key={q.name}
+              type="button"
+              onClick={() => setValgtKø(q.name)}
+              className={`text-left rounded-xl border p-4 transition-colors ${
+                aktiv
+                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-400"
+                  : "border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Layers size={16} className="text-slate-500 dark:text-slate-400" />
+                  <span className="font-mono text-sm font-medium text-slate-900 dark:text-white">
+                    {q.name}
+                  </span>
+                </div>
+                {q.isPaused && (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                    {t("admin.queues.counts.paused")}
+                  </span>
+                )}
+              </div>
+              <dl className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                <KøCount label={t("admin.queues.counts.waiting")} value={q.counts.waiting} />
+                <KøCount label={t("admin.queues.counts.active")} value={q.counts.active} />
+                <KøCount label={t("admin.queues.counts.delayed")} value={q.counts.delayed} />
+                <KøCount label={t("admin.queues.counts.completed")} value={q.counts.completed} tone="success" />
+                <KøCount label={t("admin.queues.counts.failed")} value={q.counts.failed} tone="danger" />
+              </dl>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Failed jobs-liste */}
+      {valgtKø && (
+        <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+              {t("admin.queues.jobsTitle")} — <span className="font-mono">{valgtKø}</span>
+            </h3>
+            <button
+              type="button"
+              onClick={() => jobsQuery.refetch()}
+              disabled={jobsQuery.isFetching}
+              className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 disabled:opacity-50"
+            >
+              <RefreshCcw size={12} className={jobsQuery.isFetching ? "animate-spin" : ""} />
+            </button>
+          </div>
+          {jobsQuery.isLoading ? (
+            <div className="p-4"><LoadingSpinner /></div>
+          ) : jobsQuery.data && jobsQuery.data.jobs.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-600 dark:bg-slate-900/40 dark:text-slate-400">
+                  <tr>
+                    <th className="px-4 py-2 text-left">{t("admin.queues.columns.id")}</th>
+                    <th className="px-4 py-2 text-left">{t("admin.queues.columns.attempts")}</th>
+                    <th className="px-4 py-2 text-left">{t("admin.queues.columns.failedReason")}</th>
+                    <th className="px-4 py-2 text-left">{t("admin.queues.columns.timestamp")}</th>
+                    <th className="px-4 py-2 text-right">{t("admin.queues.columns.actions")}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                  {jobsQuery.data.jobs.map((job) => (
+                    <tr key={job.id} className="text-slate-800 dark:text-slate-200">
+                      <td className="px-4 py-2 font-mono text-xs">{job.id}</td>
+                      <td className="px-4 py-2">
+                        {job.attemptsMade}/{job.maxAttempts}
+                      </td>
+                      <td className="px-4 py-2 max-w-md truncate text-xs text-red-600 dark:text-red-400" title={job.failedReason}>
+                        {job.failedReason ?? "—"}
+                      </td>
+                      <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
+                        {formaterDatoOgTid(new Date(job.timestamp))}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleRetry(job.id)}
+                            disabled={retryMutation.isPending}
+                            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                          >
+                            <PlayCircle size={12} />
+                            {t("admin.queues.actions.retry")}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemove(job.id)}
+                            disabled={removeMutation.isPending}
+                            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                          >
+                            <Trash2 size={12} />
+                            {t("admin.queues.actions.remove")}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="p-4 text-sm text-slate-500 dark:text-slate-400">
+              {t("admin.queues.noJobs")}
+            </p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function KøCount({ label, value, tone }: { label: string; value: number; tone?: "success" | "danger" }) {
+  const valueClass =
+    tone === "success"
+      ? "text-emerald-600 dark:text-emerald-400"
+      : tone === "danger"
+        ? "text-red-600 dark:text-red-400"
+        : "text-slate-900 dark:text-white";
+  return (
+    <div>
+      <dt className="text-slate-500 dark:text-slate-400">{label}</dt>
+      <dd className={`font-semibold ${valueClass}`}>{value}</dd>
+    </div>
+  );
+}
+
+// ── Redis-fane ──────────────────────────────────────────────────────────────
+
+function formatUptime(seconds: number): string {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (d > 0) return `${d}d ${h}t`;
+  if (h > 0) return `${h}t ${m}m`;
+  return `${m}m`;
+}
+
+function RedisFane() {
+  const { t } = useLanguage();
+  const infoQuery = useRedisInfo();
+  const prefixesQuery = useRedisPrefixes();
+  const relinkQuery = useRedisRelinkStates();
+  const flushMutation = useRedisFlushPrefix();
+  const clearRelinkMutation = useClearRedisRelinkState();
+
+  const handleFlush = (prefix: string) => {
+    visBekreftelsesToast({
+      t,
+      melding: t("admin.redis.prefixes.confirmFlush"),
+      handlingstekst: t("common.actions.clearAll"),
+      onBekreft: () =>
+        flushMutation.mutate(prefix, {
+          onSuccess: (result) =>
+            showToast.success(`${t("admin.redis.prefixes.flushSuccess")}: ${result.deletedCount}`),
+          onError: (error) =>
+            showToast.error(
+              t("admin.redis.prefixes.flushFailed"),
+              hentFeilmelding(error, t("admin.redis.prefixes.flushFailed")),
+            ),
+        }),
+    });
+  };
+
+  const handleClearRelink = (userId: string) => {
+    clearRelinkMutation.mutate(userId, {
+      onSuccess: () => showToast.success(t("admin.redis.relinkStates.clearSuccess")),
+      onError: (error) =>
+        showToast.error(
+          t("admin.redis.relinkStates.clearFailed"),
+          hentFeilmelding(error, t("admin.redis.relinkStates.clearFailed")),
+        ),
+    });
+  };
+
+  if (infoQuery.isLoading) return <LoadingSpinner />;
+  if (infoQuery.error) return <FeilMelding melding={t("admin.redis.loadFailed")} />;
+
+  const info = infoQuery.data;
+  if (!info?.connected) {
+    return <FeilMelding melding={t("admin.redis.disconnected")} />;
+  }
+
+  const memoryUsedPct =
+    info.maxMemoryBytes > 0
+      ? Math.min(100, Math.round((info.usedMemoryBytes / info.maxMemoryBytes) * 100))
+      : null;
+
+  return (
+    <section className="space-y-6">
+      <div>
+        <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+          {t("admin.redis.title")}
+        </h2>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+          {t("admin.redis.description")}
+        </p>
+      </div>
+
+      {/* Server-info */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+          <Server size={16} />
+          {t("admin.redis.info.sectionTitle")}
+        </h3>
+        <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-4">
+          <RedisInfoItem label={t("admin.redis.info.version")} value={info.redisVersion} />
+          <RedisInfoItem
+            label={t("admin.redis.info.uptime")}
+            value={formatUptime(info.uptimeSeconds)}
+          />
+          <RedisInfoItem
+            label={t("admin.redis.info.connectedClients")}
+            value={String(info.connectedClients)}
+          />
+          <RedisInfoItem
+            label={t("admin.redis.info.evictionPolicy")}
+            value={info.evictionPolicy}
+            tone={info.evictionPolicy === "allkeys-lru" ? "warning" : undefined}
+          />
+          <RedisInfoItem
+            label={t("admin.redis.info.usedMemory")}
+            value={
+              memoryUsedPct != null
+                ? `${info.usedMemoryHuman} (${memoryUsedPct}%)`
+                : info.usedMemoryHuman
+            }
+          />
+          <RedisInfoItem label={t("admin.redis.info.peakMemory")} value={info.usedMemoryPeakHuman} />
+          <RedisInfoItem
+            label={t("admin.redis.info.maxMemory")}
+            value={info.maxMemoryBytes > 0 ? info.maxMemoryHuman : "—"}
+          />
+          <RedisInfoItem
+            label={t("admin.redis.info.hitRate")}
+            value={info.hitRate != null ? `${(info.hitRate * 100).toFixed(1)}%` : "—"}
+            tone={info.hitRate != null && info.hitRate < 0.5 ? "warning" : "success"}
+          />
+        </dl>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+          <span>
+            {t("admin.redis.info.hits")}: <strong>{info.keyspaceHits.toLocaleString()}</strong>
+          </span>
+          <span>
+            {t("admin.redis.info.misses")}: <strong>{info.keyspaceMisses.toLocaleString()}</strong>
+          </span>
+          <span>
+            {t("admin.redis.info.dbSizes")}:{" "}
+            {Object.entries(info.dbSizes)
+              .map(([db, n]) => `${db}=${n.toLocaleString()}`)
+              .join(", ") || "—"}
+          </span>
+        </div>
+      </div>
+
+      {/* Prefiks-tabell */}
+      <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+        <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+            <Database size={16} />
+            {t("admin.redis.prefixes.sectionTitle")}
+          </h3>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {t("admin.redis.prefixes.description")}
+          </p>
+        </div>
+        {prefixesQuery.isLoading ? (
+          <div className="p-4"><LoadingSpinner /></div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-xs uppercase text-slate-600 dark:bg-slate-900/40 dark:text-slate-400">
+                <tr>
+                  <th className="px-4 py-2 text-left">{t("admin.redis.prefixes.prefix")}</th>
+                  <th className="px-4 py-2 text-left">{t("admin.redis.prefixes.label")}</th>
+                  <th className="px-4 py-2 text-right">{t("admin.redis.prefixes.count")}</th>
+                  <th className="px-4 py-2 text-right">{t("admin.redis.prefixes.actions")}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                {(prefixesQuery.data?.prefixes ?? []).map((p: AdminRedisPrefix) => (
+                  <tr key={p.prefix} className="text-slate-800 dark:text-slate-200">
+                    <td className="px-4 py-2 font-mono text-xs">{p.prefix}</td>
+                    <td className="px-4 py-2">{p.label}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">
+                      {p.count.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      {p.canFlush ? (
+                        <button
+                          type="button"
+                          onClick={() => handleFlush(p.prefix)}
+                          disabled={flushMutation.isPending || p.count === 0}
+                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                        >
+                          <Trash2 size={12} />
+                          {t("admin.redis.prefixes.flush")}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400">
+                          {t("admin.redis.prefixes.protected")}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Stuck brukere */}
+      <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+        <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+            <Zap size={16} />
+            {t("admin.redis.relinkStates.sectionTitle")}
+          </h3>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {t("admin.redis.relinkStates.description")}
+          </p>
+        </div>
+        {relinkQuery.isLoading ? (
+          <div className="p-4"><LoadingSpinner /></div>
+        ) : !relinkQuery.data || relinkQuery.data.states.length === 0 ? (
+          <p className="p-4 text-sm text-slate-500 dark:text-slate-400">
+            {t("admin.redis.relinkStates.empty")}
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-xs uppercase text-slate-600 dark:bg-slate-900/40 dark:text-slate-400">
+                <tr>
+                  <th className="px-4 py-2 text-left">{t("admin.redis.relinkStates.userId")}</th>
+                  <th className="px-4 py-2 text-right">{t("admin.redis.relinkStates.count")}</th>
+                  <th className="px-4 py-2 text-left">{t("admin.redis.relinkStates.env")}</th>
+                  <th className="px-4 py-2 text-right">{t("admin.redis.relinkStates.age")}</th>
+                  <th className="px-4 py-2 text-right">{t("admin.redis.relinkStates.ttl")}</th>
+                  <th className="px-4 py-2 text-right">{t("admin.redis.prefixes.actions")}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                {relinkQuery.data.states.map((s: AdminRedisRelinkStateItem) => (
+                  <tr key={s.userId} className="text-slate-800 dark:text-slate-200">
+                    <td className="px-4 py-2 font-mono text-xs">{s.userId}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{s.count ?? "—"}</td>
+                    <td className="px-4 py-2 text-xs">{s.env ?? "—"}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">
+                      {s.ageSeconds ?? "—"}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums">{s.ttlSeconds}</td>
+                    <td className="px-4 py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleClearRelink(s.userId)}
+                        disabled={clearRelinkMutation.isPending}
+                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-amber-600 hover:bg-amber-50 disabled:opacity-50 dark:text-amber-400 dark:hover:bg-amber-900/20"
+                      >
+                        <Zap size={12} />
+                        {t("admin.redis.relinkStates.clear")}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function RedisInfoItem({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "success" | "warning";
+}) {
+  const valueClass =
+    tone === "success"
+      ? "text-emerald-600 dark:text-emerald-400"
+      : tone === "warning"
+        ? "text-amber-600 dark:text-amber-400"
+        : "text-slate-900 dark:text-white";
+  return (
+    <div>
+      <dt className="text-xs text-slate-500 dark:text-slate-400">{label}</dt>
+      <dd className={`font-mono text-sm font-semibold ${valueClass}`}>{value}</dd>
+    </div>
+  );
+}
+
+// ── Logger-fane (live-tail backend + frontend) ──────────────────────────────
+
+type LogEntry = {
+  // Redis Stream-ID (`<ms>-<seq>`) — strengt monotont stigende, brukes som cursor
+  id: string;
+  timestamp: number;
+  source: "backend" | "frontend";
+  level: "fatal" | "error" | "warn" | "info" | "debug" | "trace";
+  msg: string;
+  context?: Record<string, unknown>;
+};
+
+const LOG_LEVEL_COLOR: Record<LogEntry["level"], string> = {
+  fatal: "text-red-700 dark:text-red-300",
+  error: "text-red-600 dark:text-red-400",
+  warn: "text-amber-600 dark:text-amber-400",
+  info: "text-blue-600 dark:text-blue-400",
+  debug: "text-slate-500 dark:text-slate-400",
+  trace: "text-slate-400 dark:text-slate-500",
+};
+
+function LoggerFane() {
+  const { t } = useLanguage();
+  const [entries, setEntries] = useState<LogEntry[]>([]);
+  const [paused, setPaused] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState<"all" | "backend" | "frontend">("all");
+  const [minLevel, setMinLevel] = useState<LogEntry["level"]>("info");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
+
+  // Aktiver frontend log forwarder + start SSE-strøm
+  useEffect(() => {
+    let active = true;
+    void import("@/app/lib/client-logger").then(({ installAdminLogForwarder }) => {
+      if (active) installAdminLogForwarder();
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Polling i stedet for SSE: EventSource kan ikke sende Authorization-header
+  // (kun cookies), så Bearer-auth fungerer ikke. Backend lagrer nå loggene i en
+  // delt Redis Stream, så polling fra hvilken som helst dyno ser samme data.
+  useEffect(() => {
+    let cancelled = false;
+    let lastId = "";
+    // Reset ved filterbytte så vi henter backlog på nytt
+    setEntries([]);
+
+    const tick = async () => {
+      if (cancelled || pausedRef.current) return;
+      try {
+        const sp = new URLSearchParams();
+        if (sourceFilter !== "all") sp.set("source", sourceFilter);
+        sp.set("minLevel", minLevel);
+        sp.set("limit", "200");
+        if (lastId) sp.set("sinceId", lastId);
+        const res = await fetchApi(`/api/admin/logs/recent?${sp.toString()}`);
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as { entries: LogEntry[] };
+        if (cancelled || !data.entries?.length) return;
+        // Stream-IDer er sortert; siste element er den nyeste
+        lastId = data.entries[data.entries.length - 1].id;
+        setEntries((prev) => {
+          const next = [...prev, ...data.entries];
+          return next.length > 1000 ? next.slice(-1000) : next;
+        });
+      } catch {
+        // Ignorer transiente feil — neste polling prøver igjen
+      }
+    };
+
+    void tick();
+    const interval = setInterval(tick, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [sourceFilter, minLevel]);
+
+  // Auto-scroll til bunnen ved nye rader (kun hvis ikke pauset)
+  useEffect(() => {
+    if (paused) return;
+    const el = containerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [entries, paused]);
+
+  const handleClear = () => setEntries([]);
+
+  return (
+    <section className="space-y-4">
+      <div>
+        <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+          {t("admin.logs.title")}
+        </h2>
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          {t("admin.logs.description")}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={sourceFilter}
+          onChange={(e) => setSourceFilter(e.target.value as typeof sourceFilter)}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+        >
+          <option value="all">{t("admin.logs.sourceAll")}</option>
+          <option value="backend">{t("admin.logs.sourceBackend")}</option>
+          <option value="frontend">{t("admin.logs.sourceFrontend")}</option>
+        </select>
+        <select
+          value={minLevel}
+          onChange={(e) => setMinLevel(e.target.value as LogEntry["level"])}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+        >
+          <option value="trace">trace+</option>
+          <option value="debug">debug+</option>
+          <option value="info">info+</option>
+          <option value="warn">warn+</option>
+          <option value="error">error+</option>
+        </select>
+        <button
+          type="button"
+          onClick={() => setPaused((p) => !p)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+        >
+          {paused ? <Play size={14} /> : <Pause size={14} />}
+          {paused ? t("admin.logs.resume") : t("admin.logs.pause")}
+        </button>
+        <button
+          type="button"
+          onClick={handleClear}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+        >
+          <X size={14} />
+          {t("admin.logs.clear")}
+        </button>
+        <span className="ml-auto text-xs text-slate-500 dark:text-slate-400">
+          {entries.length} / 1000
+        </span>
+      </div>
+
+      <div
+        ref={containerRef}
+        className="h-[600px] overflow-y-auto rounded-xl border border-slate-200 bg-slate-950 p-3 font-mono text-xs leading-relaxed text-slate-200 dark:border-slate-700"
+      >
+        {entries.length === 0 ? (
+          <p className="text-center text-slate-500">{t("admin.logs.empty")}</p>
+        ) : (
+          entries.map((entry) => (
+            <div key={entry.id} className="border-b border-slate-800/50 py-1 last:border-0">
+              <span className="text-slate-500">
+                {new Date(entry.timestamp).toLocaleTimeString("nb-NO", {
+                  hour12: false,
+                })}
+              </span>{" "}
+              <span className={`font-semibold uppercase ${LOG_LEVEL_COLOR[entry.level]}`}>
+                {entry.level}
+              </span>{" "}
+              <span className="text-slate-400">[{entry.source}]</span>{" "}
+              <span className="text-slate-100">{entry.msg}</span>
+              {entry.context && Object.keys(entry.context).length > 0 && (
+                <pre className="ml-12 mt-0.5 text-[10px] text-slate-400">
+                  {JSON.stringify(entry.context)}
+                </pre>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ── Innboks-fane (kontaktskjema-meldinger) ──────────────────────────────────
+
+function InnboksFane() {
+  const { language, t } = useLanguage();
+  const [statusFilter, setStatusFilter] = useState<ContactMessageStatus | "all">("all");
+  const [valgtId, setValgtId] = useState<string | null>(null);
+
+  const { data, isLoading, error } = useAdminContactMessages({ status: statusFilter });
+  const updateStatus = useUpdateContactMessageStatus();
+  const deleteMessage = useDeleteContactMessage();
+
+  const valgt = data?.meldinger.find((m) => m.id === valgtId) ?? null;
+
+  // Auto-marker som lest når en uleste melding blir åpnet
+  useEffect(() => {
+    if (valgt && valgt.status === "unread") {
+      updateStatus.mutate({ id: valgt.id, status: "read" });
+    }
+  }, [valgt?.id]);
+
+  const handleSetStatus = (id: string, status: ContactMessageStatus) => {
+    updateStatus.mutate(
+      { id, status },
+      {
+        onError: () => showToast.error(t("admin.inbox.updateFailed")),
+      },
+    );
+  };
+
+  const handleDelete = (m: AdminContactMessage) => {
+    if (!confirm(t("admin.inbox.deleteConfirm"))) return;
+    deleteMessage.mutate(m.id, {
+      onSuccess: () => {
+        showToast.success(t("admin.inbox.deleteSuccess"));
+        if (valgtId === m.id) setValgtId(null);
+      },
+      onError: () => showToast.error(t("admin.inbox.deleteFailed")),
+    });
+  };
+
+  if (isLoading) return <LoadingSpinner />;
+  if (error) return <FeilMelding melding={t("admin.inbox.loadFailed")} />;
+
+  const meldinger = data?.meldinger ?? [];
+  const unread = data?.unread ?? 0;
+
+  return (
+    <section className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+            {t("admin.inbox.title")}
+          </h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            {t("admin.inbox.unreadCount", { count: String(unread) })}
+          </p>
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as ContactMessageStatus | "all")}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+        >
+          <option value="all">{t("admin.inbox.statusAll")}</option>
+          <option value="unread">{t("admin.inbox.statusUnread")}</option>
+          <option value="read">{t("admin.inbox.statusRead")}</option>
+          <option value="replied">{t("admin.inbox.statusReplied")}</option>
+        </select>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-[minmax(280px,1fr)_2fr]">
+        {/* Listing */}
+        <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+          {meldinger.length === 0 ? (
+            <p className="p-4 text-sm text-slate-500 dark:text-slate-400">
+              {t("admin.inbox.empty")}
+            </p>
+          ) : (
+            <ul className="max-h-[600px] divide-y divide-slate-200 overflow-y-auto dark:divide-slate-700">
+              {meldinger.map((m) => {
+                const aktiv = valgtId === m.id;
+                const erUlest = m.status === "unread";
+                return (
+                  <li key={m.id}>
+                    <button
+                      type="button"
+                      onClick={() => setValgtId(m.id)}
+                      className={`block w-full px-4 py-3 text-left transition-colors ${
+                        aktiv
+                          ? "bg-blue-50 dark:bg-blue-900/20"
+                          : "hover:bg-slate-50 dark:hover:bg-slate-900/40"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {erUlest && (
+                          <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+                        )}
+                        <span
+                          className={`truncate text-sm ${
+                            erUlest
+                              ? "font-semibold text-slate-900 dark:text-white"
+                              : "text-slate-700 dark:text-slate-300"
+                          }`}
+                        >
+                          {m.navn}
+                        </span>
+                        {m.status === "replied" && (
+                          <span className="ml-auto rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium uppercase text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                            {t("admin.inbox.statusReplied")}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+                        {m.emne}
+                      </div>
+                      <div className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
+                        {formaterDatoOgTid(m.createdAt, language)}
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        {/* Detalj-panel */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+          {!valgt ? (
+            <p className="py-12 text-center text-sm text-slate-500 dark:text-slate-400">
+              {t("admin.inbox.selectMessage")}
+            </p>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+                    {valgt.emne}
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                    <strong>{valgt.navn}</strong>{" "}
+                    <a
+                      href={`mailto:${valgt.epost}?subject=Re: ${encodeURIComponent(valgt.emne)}`}
+                      className="text-blue-600 hover:underline dark:text-blue-400"
+                    >
+                      &lt;{valgt.epost}&gt;
+                    </a>
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    {formaterDatoOgTid(valgt.createdAt, language)}
+                    {valgt.requestId && ` · req: ${valgt.requestId.slice(0, 8)}`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(valgt)}
+                  disabled={deleteMessage.isPending}
+                  title={t("admin.inbox.delete")}
+                  className="rounded-lg p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 disabled:opacity-50"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+
+              <div className="whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                {valgt.melding}
+              </div>
+
+              {valgt.attachmentCount > 0 && valgt.attachmentSummary && (
+                <div className="text-xs text-slate-600 dark:text-slate-400">
+                  <strong>{t("admin.inbox.attachments")}:</strong>
+                  <ul className="mt-1 ml-4 list-disc">
+                    {valgt.attachmentSummary.map((a, i) => (
+                      <li key={i}>
+                        {a.filnavn} ({Math.round(a.sizeBytes / 1024)} kB)
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {valgt.sideUrl && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {t("admin.inbox.fromPage")}:{" "}
+                  <span className="font-mono">{valgt.sideUrl}</span>
+                </p>
+              )}
+
+              <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => handleSetStatus(valgt.id, "read")}
+                  disabled={valgt.status === "read"}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
+                >
+                  {t("admin.inbox.markRead")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSetStatus(valgt.id, "unread")}
+                  disabled={valgt.status === "unread"}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
+                >
+                  {t("admin.inbox.markUnread")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSetStatus(valgt.id, "replied")}
+                  disabled={valgt.status === "replied"}
+                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {t("admin.inbox.markReplied")}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ── Hovedkomponent ──────────────────────────────────────────────────────────
 
 const FANER: {
   id: AdminFane;
   ikon: React.ElementType;
-  labelKey: "admin.tabs.stats" | "admin.tabs.observability" | "admin.tabs.users" | "admin.tabs.audit" | "admin.tabs.feedback";
+  labelKey:
+    | "admin.tabs.stats"
+    | "admin.tabs.observability"
+    | "admin.tabs.queues"
+    | "admin.tabs.redis"
+    | "admin.tabs.users"
+    | "admin.tabs.inbox"
+    | "admin.tabs.audit"
+    | "admin.tabs.logs"
+    | "admin.tabs.feedback";
 }[] = [
   { id: "stats", ikon: BarChart3, labelKey: "admin.tabs.stats" },
   { id: "observability", ikon: Activity, labelKey: "admin.tabs.observability" },
+  { id: "queues", ikon: Layers, labelKey: "admin.tabs.queues" },
+  { id: "redis", ikon: Server, labelKey: "admin.tabs.redis" },
   { id: "users", ikon: Users, labelKey: "admin.tabs.users" },
+  { id: "inbox", ikon: Mail, labelKey: "admin.tabs.inbox" },
   { id: "audit", ikon: ScrollText, labelKey: "admin.tabs.audit" },
+  { id: "logs", ikon: Terminal, labelKey: "admin.tabs.logs" },
   { id: "feedback", ikon: AlertTriangle, labelKey: "admin.tabs.feedback" },
 ];
 
@@ -1110,8 +2623,12 @@ export function AdminSection() {
       <div role="tabpanel" id={`admin-tabpanel-${aktivFane}`} aria-labelledby={`admin-tab-${aktivFane}`}>
         {aktivFane === "stats" && <StatistikkFane />}
         {aktivFane === "observability" && <ObservabilityFane />}
+        {aktivFane === "queues" && <KøerFane />}
+        {aktivFane === "redis" && <RedisFane />}
         {aktivFane === "users" && <BrukereFane />}
+        {aktivFane === "inbox" && <InnboksFane />}
         {aktivFane === "audit" && <RevisjonsloggFane />}
+        {aktivFane === "logs" && <LoggerFane />}
         {aktivFane === "feedback" && <FeedbackFane />}
       </div>
     </div>

@@ -221,8 +221,10 @@ export function normalizeManuellInnleveringState(
 /** Maks antall skjulte emner per bruker. */
 export const HIDDEN_COURSES_MAX = 200;
 
+const HiddenCourseIdSchema = z.number().int().positive();
+
 export const HiddenCourseIdsSchema = z.object({
-  courseIds: z.array(z.number().int()).max(HIDDEN_COURSES_MAX),
+  courseIds: z.array(HiddenCourseIdSchema).max(HIDDEN_COURSES_MAX),
 });
 export type HiddenCourseIds = z.infer<typeof HiddenCourseIdsSchema>;
 
@@ -230,8 +232,9 @@ export function normalizeHiddenCourseIds(
   hiddenCourseIds?: { courseIds?: readonly number[] } | null,
 ): HiddenCourseIds {
   const ids = hiddenCourseIds?.courseIds ?? [];
+  const filteredIds = ids.filter((id) => Number.isInteger(id) && id > 0);
   return HiddenCourseIdsSchema.parse({
-    courseIds: Array.from(new Set(ids)).slice(-HIDDEN_COURSES_MAX),
+    courseIds: Array.from(new Set(filteredIds)).slice(-HIDDEN_COURSES_MAX),
   });
 }
 
@@ -334,8 +337,6 @@ export const ProfileUpdateSchema = z
   .object({
     firstName: NameFieldSchema,
     lastName: NameFieldSchema,
-    /** Hopp over tilbakesynk til Clerk (brukes når endringen allerede kom fra Clerk). */
-    skipClerkSync: z.boolean().optional(),
   })
   .refine(
     (data) => data.firstName !== undefined || data.lastName !== undefined,
@@ -371,8 +372,6 @@ export const ProfileUpdateWithUsernameSchema = z
       .max(USERNAME_MAX_LENGTH, `Brukernavn kan maks være ${USERNAME_MAX_LENGTH} tegn`)
       .regex(USERNAME_PATTERN, "Brukernavn kan kun inneholde bokstaver, tall og understrek")
       .optional(),
-    /** Hopp over tilbakesynk til Clerk (brukes når endringen allerede kom fra Clerk). */
-    skipClerkSync: z.boolean().optional(),
   })
   .refine(
     (data) =>

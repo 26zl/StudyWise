@@ -4,7 +4,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import { Menu, Moon, Sun, X, MoreVertical, LogOut } from "lucide-react";
 import { SignInButton, SignUpButton, useAuth } from "@clerk/nextjs";
@@ -16,6 +16,7 @@ import { useLanguage } from "@/app/i18n";
 import type { Language } from "@/app/i18n";
 import { useDialogAccessibility } from "@/app/hooks/useDialogAccessibility";
 import { useMediaQuery } from "@/app/hooks/useMediaQuery";
+import { buildPostAuthRedirect } from "@/app/auth/redirects";
 
 type NavigationItem = {
   href: string;
@@ -95,9 +96,11 @@ function NavigationLink({
 function AuthActionButton({
   action,
   mobile = false,
+  redirectUrl,
 }: {
   action: AuthAction;
   mobile?: boolean;
+  redirectUrl: string;
 }) {
   const className = mobile
     ? "text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors py-3 min-h-11 touch-manipulation w-full focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
@@ -110,14 +113,14 @@ function AuthActionButton({
 
   if (action.kind === "sign-in") {
     return (
-      <SignInButton mode="redirect" forceRedirectUrl="/dashboard">
+      <SignInButton mode="redirect" forceRedirectUrl={redirectUrl}>
         {button}
       </SignInButton>
     );
   }
 
   return (
-    <SignUpButton mode="redirect" forceRedirectUrl="/dashboard">
+    <SignUpButton mode="redirect" forceRedirectUrl={redirectUrl}>
       {button}
     </SignUpButton>
   );
@@ -172,6 +175,7 @@ function ThemeToggleButton({
 
 export function Header() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { toggleVenstreMeny, isVenstreMenyOpen } = useUIStore();
   const harSidebar =
     pathname.startsWith("/dashboard") || pathname === "/oversikt" || pathname === "/ai-breakdown" || pathname.startsWith("/account");
@@ -188,6 +192,7 @@ export function Header() {
   const mobilCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const mobilMenuId = useId();
   const mobilMenuHeadingId = useId();
+  const redirectUrl = buildPostAuthRedirect(pathname, searchParams);
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
@@ -254,7 +259,7 @@ export function Header() {
           </>
         ) : (
           labels.authActions.map((action) => (
-            <AuthActionButton key={action.kind} action={action} />
+            <AuthActionButton key={action.kind} action={action} redirectUrl={redirectUrl} />
           ))
         )}
         <ThemeToggleButton
@@ -339,7 +344,7 @@ export function Header() {
               </>
             ) : (
               labels.authActions.map((action) => (
-                <AuthActionButton key={action.kind} action={action} mobile />
+                <AuthActionButton key={action.kind} action={action} mobile redirectUrl={redirectUrl} />
               ))
             )}
             <ThemeToggleButton

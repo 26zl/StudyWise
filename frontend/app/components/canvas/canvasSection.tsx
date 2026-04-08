@@ -51,10 +51,12 @@ import { useCanvasLabels, type CanvasVisning } from "@/app/components/canvas/can
 import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { formaterDatoLong, formaterDatoMedTid, dagerFraIdag, formaterDagerRelativtFrist } from "@/app/lib/dato";
 import { useMeg, useOppdaterHiddenCourses, useHiddenCourseIds } from "@/app/auth/auth-api";
+import { useLanguage } from "@/app/i18n";
 import type { CanvasFile } from "common/canvas";
 
 // Felles filliste brukt i både modulvisning og filvisning
 function FilListe({ filer, overskrift }: { filer: CanvasFile[]; overskrift: string }) {
+    const { t } = useLanguage();
     return (
         <div className="rounded-xl border border-slate-200 dark:border-slate-700">
             <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 font-medium text-slate-900 dark:text-white">
@@ -70,7 +72,7 @@ function FilListe({ filer, overskrift }: { filer: CanvasFile[]; overskrift: stri
                             key={f.id}
                             onClick={() => {
                                 void downloadAuthedFile(filUrl, f.display_name || f.filename).catch(() => {
-                                    showToast.error("Kunne ikke laste ned filen");
+                                    showToast.error(t("errors.generic.download"));
                                 });
                             }}
                             className="flex w-full text-left px-4 py-3 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm text-slate-800 dark:text-slate-200 items-center gap-2"

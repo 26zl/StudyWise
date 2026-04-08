@@ -68,14 +68,14 @@ export function CourseKnowledgePanel({ courseId }: Props) {
                       // downloadAuthedFile krever uansett en /api/-prefiks-URL.
                       const trygFileId = Number.parseInt(String(f.fileId), 10);
                       if (!Number.isFinite(trygFileId) || trygFileId <= 0) {
-                        showToast.error("Kunne ikke laste ned filen");
+                        showToast.error(t("errors.generic.download"));
                         return;
                       }
                       void downloadAuthedFile(
                         `/api/canvas/filer/${trygFileId}/download`,
                         f.fileName,
                       ).catch(() => {
-                        showToast.error("Kunne ikke laste ned filen");
+                        showToast.error(t("errors.generic.download"));
                       });
                     }}
                     className="truncate hover:underline text-left"

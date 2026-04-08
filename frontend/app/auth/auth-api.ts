@@ -40,7 +40,7 @@ import type { ZodType } from "zod";
 import {
   createApiError,
   createAuthStatusError,
-  erFatalUserDataFeilmelding,
+  erFatalUserDataFeil,
   extractApiErrorMessage,
   extractApiErrorPayload,
   parseApiJson,
@@ -169,6 +169,7 @@ async function hentMeg(signal?: AbortSignal, options?: { forceSync?: boolean }):
       throw createApiError(
         json,
         "Denne kontoen er slettet. Opprett en ny konto for å fortsette.",
+        { fatalUserDataReason: "user_deleted" },
       );
     }
     // Turnstile-verifisering utløpt: kast feil slik at TurnstileReChallenge kan vise
@@ -206,6 +207,7 @@ async function hentMeg(signal?: AbortSignal, options?: { forceSync?: boolean }):
         throw createApiError(
           json,
           `Brukernavnet «${username}» er allerede tatt. Velg et annet brukernavn og prøv igjen.`,
+          { fatalUserDataReason: "username_conflict" },
         );
       }
       if (
@@ -221,6 +223,10 @@ async function hentMeg(signal?: AbortSignal, options?: { forceSync?: boolean }):
       throw createApiError(
         json,
         "Kontoen din har en innloggingskonflikt. Du blir logget ut. Prøv å logge inn med en annen metode.",
+        {
+          apiErrorCode: "account_conflict",
+          fatalUserDataReason: "account_conflict",
+        },
       );
     }
     throw createApiError(json, "Kunne ikke hente brukerdata");
@@ -333,10 +339,10 @@ export function useMeg(options?: {
         return failureCount < 1;
       }
       // Konto-konflikt (409) og slettet bruker (403) er deterministiske — retry hjelper ikke
-      const msg = error instanceof Error ? error.message : "";
-      if (erFatalUserDataFeilmelding(msg)) {
+      if (erFatalUserDataFeil(error)) {
         return false;
       }
+      const msg = error instanceof Error ? error.message : "";
       if (
         msg.includes("kontoen er slettet") ||
         msg.includes("Denne kontoen er slettet")

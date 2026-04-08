@@ -325,17 +325,6 @@ export function useCanvasUpcomingEvents(enabled = true) {
   });
 }
 
-// Hent todo liste
-export function useCanvasTodo(enabled = true) {
-  const isEnabled = useCanvasEnabled(enabled);
-  return useQuery({
-    queryKey: ["canvas", "todo"],
-    queryFn: () => fetchCanvas("/users/self/todo", TodoResponseSchema),
-    enabled: isEnabled,
-    ...canvasQueryOptions,
-  });
-}
-
 // Oppgave med emnenavn (frontend-only berikelse av CanvasAssignment)
 export interface AssignmentMedEmne extends CanvasAssignment {
   course_name: string;

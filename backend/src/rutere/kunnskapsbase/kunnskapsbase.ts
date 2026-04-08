@@ -31,6 +31,7 @@ import {
   KBCreateBaseSchema,
   KBUpdateBaseSchema,
   KBAddLinkSchema,
+  type KBCrawlOptions,
   KB_MAX_BASES_PER_USER,
   KB_MAX_LINKS_PER_BASE,
   KB_MAX_FILES_PER_BASE,
@@ -60,6 +61,9 @@ import {
 } from "common/kunnskapsbase";
 
 const router = Router();
+// Per-bruker concurrency-limiter for KB-ingest. Map-entryen ryddes opp etter
+// hver fullført jobb hvis brukeren ikke har flere ventende eller aktive jobber,
+// slik at brukere som engangs-ingest'er ikke blir liggende i prosessminnet.
 const kbIngestionLimiterByUser = new Map<string, ReturnType<typeof pLimit>>();
 
 function runKBIngestionJob(userId: string, job: () => Promise<void>): void {
@@ -67,9 +71,18 @@ function runKBIngestionJob(userId: string, job: () => Promise<void>): void {
   const limiter = existing ?? pLimit(2);
   if (!existing) kbIngestionLimiterByUser.set(userId, limiter);
 
-  void limiter(job).catch((err) => {
-    logger.error({ err, userId }, "KB bakgrunnsjobb feilet");
-  });
+  void limiter(job)
+    .catch((err) => {
+      logger.error({ err, userId }, "KB bakgrunnsjobb feilet");
+    })
+    .finally(() => {
+      // Frigi map-entry når brukeren ikke har flere kjørende eller ventende jobber.
+      // pLimit eksponerer activeCount + pendingCount; hvis begge er 0 er limiteren tom.
+      const current = kbIngestionLimiterByUser.get(userId);
+      if (current && current.activeCount === 0 && current.pendingCount === 0) {
+        kbIngestionLimiterByUser.delete(userId);
+      }
+    });
 }
 
 // ─── Multer-oppsett for filopplasting ────────────────────
@@ -319,6 +332,7 @@ router.post("/:id/links", rateLimitKBWrite, async (req: Request, res: Response) 
     }
 
     const tittel = parsed.data.tittel || parsed.data.url;
+    const crawlConfig = buildStoredCrawlConfig(parsed.data.crawlOptions);
     const lenkeIdObject = new Types.ObjectId();
     const now = new Date();
 
@@ -337,6 +351,7 @@ router.post("/:id/links", rateLimitKBWrite, async (req: Request, res: Response) 
             tittel,
             indexed: false,
             crawlStatus: "pending",
+            ...(crawlConfig ? { crawlConfig } : {}),
             createdAt: now,
           },
         },
@@ -372,7 +387,15 @@ router.post("/:id/links", rateLimitKBWrite, async (req: Request, res: Response) 
     const lenkeId = String(lenkeIdObject);
 
     // Indekser lenkeinnhold asynkront (blokkerer ikke responsen) med per-bruker concurrency-cap
-    runKBIngestionJob(userId, () => crawlAndIndexLink(userId, baseId, lenkeId, parsed.data.url, tittel));
+    runKBIngestionJob(userId, () =>
+      crawlAndIndexLink(
+        userId,
+        baseId,
+        lenkeId,
+        parsed.data.url,
+        tittel,
+        crawlConfig,
+      ));
 
     void audit({
       actorUserId: userId,
@@ -689,6 +712,38 @@ interface CrawlStats {
   totalChars: number;
 }
 
+interface ResolvedKBCrawlOptions {
+  maxDepth: number;
+  maxPages: number;
+  maxDocuments: number;
+  samePathOnly: boolean;
+}
+
+function buildStoredCrawlConfig(
+  crawlOptions?: KBCrawlOptions,
+): KBCrawlOptions | undefined {
+  if (!crawlOptions) return undefined;
+
+  const hasAnyValue = Object.values(crawlOptions).some((value) => value !== undefined);
+  if (!hasAnyValue) return undefined;
+
+  return {
+    ...(crawlOptions.maxDepth !== undefined ? { maxDepth: crawlOptions.maxDepth } : {}),
+    ...(crawlOptions.maxPages !== undefined ? { maxPages: crawlOptions.maxPages } : {}),
+    ...(crawlOptions.maxDocuments !== undefined ? { maxDocuments: crawlOptions.maxDocuments } : {}),
+    ...(crawlOptions.samePathOnly !== undefined ? { samePathOnly: crawlOptions.samePathOnly } : {}),
+  };
+}
+
+function resolveKBCrawlOptions(crawlOptions?: KBCrawlOptions): ResolvedKBCrawlOptions {
+  return {
+    maxDepth: crawlOptions?.maxDepth ?? KB_CRAWL_MAX_DEPTH,
+    maxPages: crawlOptions?.maxPages ?? KB_CRAWL_MAX_PAGES,
+    maxDocuments: crawlOptions?.maxDocuments ?? KB_CRAWL_MAX_DOCUMENTS,
+    samePathOnly: crawlOptions?.samePathOnly ?? false,
+  };
+}
+
 /**
  * Deep crawl en URL og indekser til KB.
  * BFS-crawling med dybde-tracking, dedup, og respekt for grenser.
@@ -699,12 +754,10 @@ async function crawlAndIndexLink(
   lenkeId: string,
   url: string,
   tittel: string,
+  crawlOptions?: KBCrawlOptions,
 ): Promise<void> {
-  // Hent crawl-konfigurasjon fra lenke-innstillinger (standard: bruk globale konstanter)
-  const maxDepth = KB_CRAWL_MAX_DEPTH;
-  const maxPages = KB_CRAWL_MAX_PAGES;
-  const maxDocuments = KB_CRAWL_MAX_DOCUMENTS;
-  const samePathOnly = false; // kan gjøres konfigurerbart via API senere
+  const { maxDepth, maxPages, maxDocuments, samePathOnly } =
+    resolveKBCrawlOptions(crawlOptions);
 
   const visited = new Set<string>();
   const queue: Array<{ url: string; depth: number; parentUrl?: string }> = [];
@@ -792,9 +845,15 @@ async function crawlAndIndexLink(
         ),
       );
 
-      // Prosesser oppdagede lenker og dokumenter
-      for (const result of batchResults) {
+      // Prosesser oppdagede lenker og dokumenter.
+      // VIKTIG: Promise.allSettled garanterer at batchResults[i] tilsvarer batch[i],
+      // så vi binder hvert resultat til den faktiske kildesiden via index — ikke
+      // til batch[0] eller batch.find(...) (som tidligere ga feil parent og depth).
+      for (let i = 0; i < batchResults.length; i++) {
+        const result = batchResults[i];
         if (result.status !== "fulfilled") continue;
+        const sourceItem = batch[i];
+        if (!sourceItem) continue;
         const { links, documents } = result.value;
 
         // Legg til nye undersider i køen
@@ -802,20 +861,19 @@ async function crawlAndIndexLink(
           const normalized = normalizeUrl(link.url);
           if (visited.has(normalized)) continue;
           if (!isSameDomainOrPath(url, link.url, samePathOnly)) continue;
-          
+
           visited.add(normalized);
-          const currentItem = batch.find((b) => !visited.has(normalizeUrl(b.url))) ?? batch[0];
           queue.push({
             url: link.url,
-            depth: (currentItem?.depth ?? 0) + 1,
-            parentUrl: currentItem?.url,
+            depth: sourceItem.depth + 1,
+            parentUrl: sourceItem.url,
           });
         }
 
         // Last ned og indekser dokumenter (PDF/DOCX)
         for (const doc of documents) {
           if (stats.documentsIndexed >= maxDocuments) break;
-          
+
           const normalized = normalizeUrl(doc.url);
           if (visited.has(normalized)) continue;
           visited.add(normalized);
@@ -833,8 +891,8 @@ async function crawlAndIndexLink(
                 metadata: {
                   sourceUrl: doc.url,
                   contentType: "application/pdf",
-                  depth: (batch[0]?.depth ?? 0) + 1,
-                  parentUrl: batch[0]?.url,
+                  depth: sourceItem.depth + 1,
+                  parentUrl: sourceItem.url,
                   domain: new URL(doc.url).hostname,
                 },
               });

@@ -2,8 +2,12 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  createApiError,
   erFatalUserDataFeilmelding,
+  erFatalUserDataFeil,
   erTokenFeilmelding,
+  getApiErrorCode,
+  getFatalUserDataReason,
   identifiserFeiltype,
   extractApiErrorMessage,
   extractApiErrorPayload,
@@ -40,6 +44,40 @@ describe("erFatalUserDataFeilmelding", () => {
     expect(erFatalUserDataFeilmelding("Serverfeil")).toBe(false);
     expect(erFatalUserDataFeilmelding("Nettverksfeil")).toBe(false);
     expect(erFatalUserDataFeilmelding("")).toBe(false);
+  });
+});
+
+describe("strukturert fatal auth-klassifisering", () => {
+  it("henter api-feilkode fra merket error", () => {
+    const error = createApiError({
+      kode: "turnstile_required",
+      melding: "Sikkerhetsverifisering utløpt.",
+    });
+    expect(getApiErrorCode(error)).toBe("turnstile_required");
+  });
+
+  it("klassifiserer account_conflict uten tekstmatching", () => {
+    const error = createApiError(
+      { kode: "conflict", melding: "Det finnes allerede en konto." },
+      "API feil",
+      {
+        apiErrorCode: "account_conflict",
+        fatalUserDataReason: "account_conflict",
+      },
+    );
+
+    expect(getFatalUserDataReason(error)).toBe("account_conflict");
+    expect(erFatalUserDataFeil(error)).toBe(true);
+  });
+
+  it("klassifiserer oauth-konflikt fra payload-kode", () => {
+    const error = createApiError({
+      kode: "oauth_account_conflict",
+      melding: "OAuth-konto er allerede koblet til en annen bruker.",
+    });
+
+    expect(getFatalUserDataReason(error)).toBe("oauth_account_conflict");
+    expect(erFatalUserDataFeil(error)).toBe(true);
   });
 });
 

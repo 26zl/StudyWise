@@ -2,6 +2,25 @@
 
 const NOTIFICATIONS_URL = "/dashboard?view=varslinger";
 
+function getSafeNotificationUrl(candidate) {
+  if (typeof candidate !== "string" || candidate.trim().length === 0) {
+    return NOTIFICATIONS_URL;
+  }
+
+  try {
+    const parsed = new URL(candidate, self.location.origin);
+    if (parsed.origin !== self.location.origin) {
+      return NOTIFICATIONS_URL;
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return NOTIFICATIONS_URL;
+    }
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return NOTIFICATIONS_URL;
+  }
+}
+
 self.addEventListener("push", (event) => {
   if (!event.data) {
     return;
@@ -24,7 +43,7 @@ self.addEventListener("push", (event) => {
     badge: payload.badge || "/icons/icon-192x192.png",
     tag: payload.tag || "studywise-notification",
     data: {
-      url: payload.url || NOTIFICATIONS_URL,
+      url: getSafeNotificationUrl(payload.url),
     },
   };
 
@@ -33,7 +52,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || NOTIFICATIONS_URL;
+  const targetUrl = getSafeNotificationUrl(event.notification.data?.url);
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {

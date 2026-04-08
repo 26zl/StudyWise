@@ -3,12 +3,9 @@
  *
  * Brukes bl.a. for Canvas-token og chat-historikk. Nøkkel hentes fra `ENCRYPTION_KEY` (32 bytes hex).
  *
- * Nøkkelversjonering:
- *   Kryptert format: `v<versjon>:iv:authTag:encrypted` (hex-kodet).
- *   Ved dekryptering prøves nøkkelen som tilhører versjonsprefikset først.
- *   Data uten versjonsprefiks behandles som v1 (bakoverkompatibel med eksisterende data).
- *   `ENCRYPTION_KEY_PREVIOUS` (valgfri) støtter sømløs nøkkelrotasjon: ny data krypteres
- *   med `ENCRYPTION_KEY`, gammel data dekrypteres med forrige nøkkel ved behov.
+ * Format: `v<versjon>:iv:authTag:encrypted` (hex-kodet). Data uten versjonsprefiks
+ * behandles som v1 (bakoverkompatibel med eksisterende data fra før versjons-prefikset
+ * ble innført).
  */
 import crypto from "crypto";
 
@@ -51,13 +48,6 @@ const getKey = (): Buffer => {
         throw new Error("ENCRYPTION_KEY mangler i miljøvariabler.");
     }
     return parseKeyHex(keyHex, "ENCRYPTION_KEY");
-};
-
-/** Returnerer forrige nøkkel for rotasjon, eller null hvis ikke satt. */
-const getPreviousKey = (): Buffer | null => {
-    const keyHex = process.env.ENCRYPTION_KEY_PREVIOUS;
-    if (!keyHex) return null;
-    return parseKeyHex(keyHex, "ENCRYPTION_KEY_PREVIOUS");
 };
 
 /**
@@ -106,7 +96,6 @@ function decryptWithKey(key: Buffer, ivHex: string, authTagHex: string, encrypte
  * Dekrypterer en streng.
  * Støtter både nytt format (v<versjon>:iv:authTag:encrypted) og
  * legacy-format (iv:authTag:encrypted) for bakoverkompatibilitet.
- * Ved nøkkelrotasjon prøves ENCRYPTION_KEY_PREVIOUS som fallback.
  */
 export const decrypt = (encryptedText: string): string => {
     const parts = encryptedText.split(":");
@@ -126,19 +115,9 @@ export const decrypt = (encryptedText: string): string => {
         throw new Error("Ugyldig format på kryptert data.");
     }
 
-    // Prøv gjeldende nøkkel først
     try {
         return decryptWithKey(getKey(), ivHex, authTagHex, encryptedHex);
     } catch {
-        // Prøv forrige nøkkel som fallback (nøkkelrotasjon)
-        const prevKey = getPreviousKey();
-        if (prevKey) {
-            try {
-                return decryptWithKey(prevKey, ivHex, authTagHex, encryptedHex);
-            } catch {
-                // Begge nøkler feilet
-            }
-        }
         // Generisk feilmelding uavhengig av årsak (forhindrer oracle-angrep)
         throw new Error("Dekryptering feilet.");
     }

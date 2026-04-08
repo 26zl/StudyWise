@@ -1,14 +1,11 @@
 /**
  * SidebarAppShell – app-skall med sidebar (dashboard-navigasjon), hovedinnhold og valgfri footer.
- * Eksporterer også SidebarAppLoadingState og SidebarAppErrorState for felles last-/feilvisning.
  */
 "use client";
 
 import type { ReactNode } from "react";
 import { Sidebar, type VisningType } from "@/app/components/dashboard/Sidebar";
 import { Footer } from "@/app/components/layout/footer";
-import { FeilMelding } from "@/app/components/ui/FeilMelding";
-import { LoadingView } from "@/app/components/ui/Loading";
 import { cn } from "@/app/lib/utils";
 import { useLanguage } from "@/app/i18n";
 
@@ -20,30 +17,6 @@ type SidebarAppShellProps = {
   footer?: boolean;
   contentClassName?: string;
   children: ReactNode;
-};
-
-type SidebarAppStateProps = Pick<
-  SidebarAppShellProps,
-  "aktivVisning" | "byttVisning" | "brukernavn" | "brukerRolle" | "footer"
-> & {
-  className?: string;
-  children: ReactNode;
-};
-
-type SidebarAppLoadingStateProps = Pick<
-  SidebarAppShellProps,
-  "aktivVisning" | "byttVisning" | "brukernavn" | "brukerRolle" | "footer"
-> & {
-  label?: string;
-};
-
-type SidebarAppErrorStateProps = Pick<
-  SidebarAppShellProps,
-  "aktivVisning" | "byttVisning" | "brukernavn" | "brukerRolle" | "footer"
-> & {
-  message: string;
-  onRetry?: () => void;
-  retryLabel?: string;
 };
 
 export function SidebarAppShell({
@@ -79,91 +52,4 @@ export function SidebarAppShell({
   );
 }
 
-function SidebarAppState({
-  aktivVisning,
-  byttVisning,
-  brukernavn,
-  brukerRolle,
-  footer = true,
-  className,
-  children,
-}: SidebarAppStateProps) {
-  return (
-    <SidebarAppShell
-      aktivVisning={aktivVisning}
-      byttVisning={byttVisning}
-      brukernavn={brukernavn}
-      brukerRolle={brukerRolle}
-      footer={footer}
-      contentClassName=""
-    >
-      <div
-        className={cn(
-          "flex min-h-full flex-col items-center justify-center gap-4 p-6 text-center",
-          className,
-        )}
-      >
-        {children}
-      </div>
-    </SidebarAppShell>
-  );
-}
-
-export function SidebarAppLoadingState({
-  aktivVisning,
-  byttVisning,
-  brukernavn,
-  brukerRolle,
-  footer,
-  label,
-}: SidebarAppLoadingStateProps) {
-  const { t } = useLanguage();
-  return (
-    <SidebarAppState
-      aktivVisning={aktivVisning}
-      byttVisning={byttVisning}
-      brukernavn={brukernavn}
-      brukerRolle={brukerRolle}
-      footer={footer}
-    >
-      <LoadingView text={label ?? t("common.loading.generic")} fullPage={false} />
-    </SidebarAppState>
-  );
-}
-
-export function SidebarAppErrorState({
-  aktivVisning,
-  byttVisning,
-  brukernavn,
-  brukerRolle,
-  footer,
-  message,
-  onRetry,
-  retryLabel,
-}: SidebarAppErrorStateProps) {
-  const { t } = useLanguage();
-  return (
-    <SidebarAppState
-      aktivVisning={aktivVisning}
-      byttVisning={byttVisning}
-      brukernavn={brukernavn}
-      brukerRolle={brukerRolle}
-      footer={footer}
-      className="gap-5"
-    >
-      <div className="w-full max-w-md">
-        <FeilMelding melding={message} />
-      </div>
-      {onRetry ? (
-        <button
-          type="button"
-          onClick={onRetry}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
-        >
-          {retryLabel ?? t("common.actions.retry")}
-        </button>
-      ) : null}
-    </SidebarAppState>
-  );
-}
 

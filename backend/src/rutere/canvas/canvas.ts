@@ -115,6 +115,18 @@ function handleCanvasError(
   sendCanvasErrorResponse(res, error);
 }
 
+/**
+ * Minimalt skjema for emner-metadata-respons. Brukes for både write og read av
+ * Redis-cache slik at vi ikke serverer korrupt eller drift-format til frontend.
+ * Skjemaet er bevisst løst på `metadata`-verdi-typene siden de er Canvas-spesifikke
+ * og varierer per kurs — vi validerer kun den ytre formen.
+ */
+const EmnerMetadataResponseSchema = z.object({
+  metadata: z.record(z.string(), z.unknown()),
+  courseCount: z.number().int().min(0),
+  generatedAt: z.string(),
+});
+
 /** Parser numerisk route-param; sender badRequest og returnerer null ved ugyldig verdi. */
 function parseNumericParam(
   res: import("express").Response,
@@ -403,7 +415,7 @@ router.post("/sync/prioritize", async (req, res) => {
     }
     const courseId = req.body?.courseId;
     if (courseId == null) {
-      return res.status(400).json({ error: "courseId mangler" });
+      return apiError.badRequest(res, "courseId mangler");
     }
     const { ensureCanvasSync } = await import("../../services/context-loader.service.js");
     void ensureCanvasSync(req.user.id, req.canvasToken, req.canvasBaseUrl, String(courseId));
@@ -428,13 +440,23 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
     // Sjekk om force refresh er satt
     const forceRefresh = req.query.refresh === "true";
 
-    // Sjekk cache først (med mindre force refresh)
+    // Sjekk cache først (med mindre force refresh).
+    // Vi re-validerer cachen mot et minimalt skjema fordi raw JSON kan ha drift
+    // etter skjema-endringer eller delvis korrupt write — fall tilbake til frisk
+    // henting heller enn å sende ugyldig form til frontend.
     if (!forceRefresh) {
       const cached = await getCache(cacheKey);
       if (cached) {
         try {
-          logger.info({ cacheKey }, "Emner metadata cache HIT");
-          return res.json(JSON.parse(cached));
+          const parsed = EmnerMetadataResponseSchema.safeParse(JSON.parse(cached));
+          if (parsed.success) {
+            logger.info({ cacheKey }, "Emner metadata cache HIT");
+            return res.json(parsed.data);
+          }
+          logger.warn(
+            { cacheKey, issues: parsed.error.issues },
+            "Schema-mismatch i emner-metadata cache, henter på nytt",
+          );
         } catch {
           logger.warn({ cacheKey }, "Korrupt cache-data for emner metadata, henter på nytt");
         }
@@ -574,11 +596,11 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
       };
     });
 
-    const response = {
+    const response = EmnerMetadataResponseSchema.parse({
       metadata: metadataMap,
       courseCount: courses.length,
       generatedAt: new Date().toISOString(),
-    };
+    });
 
     // Cache i 30 minutter
     await setCache(cacheKey, JSON.stringify(response), CACHE_TTL.MODULES);
@@ -700,25 +722,35 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
     cached: string,
     cacheAge?: number,
   ) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let parsed: any;
+    // Re-valider mot common-skjemaet før vi paginerer. Hvis cachen har drift
+    // (f.eks. etter en feltoppdatering i common/calendar) faller vi tilbake til
+    // frisk Canvas-henting heller enn å sende ugyldig form til frontend.
+    let parsedCache: ReturnType<typeof CalendarItemsResponseSchema.parse>;
     try {
-      parsed = JSON.parse(cached);
+      const result = CalendarItemsResponseSchema.safeParse(JSON.parse(cached));
+      if (!result.success) {
+        logger.warn(
+          { issues: result.error.issues },
+          "Schema-mismatch i kalender-cache, ignorerer cache",
+        );
+        return null;
+      }
+      parsedCache = result.data;
     } catch {
       logger.warn("Korrupt cache-data for kalender, ignorerer cache");
       return null;
     }
-    const allItems: CalendarItem[] = parsed.items || [];
+    const allItems: CalendarItem[] = parsedCache.items;
     const paginatedItems = allItems.slice(
       (page - 1) * limit,
       page * limit,
     );
 
     return {
-      ...parsed,
+      ...parsedCache,
       items: paginatedItems,
       meta: {
-        ...parsed.meta,
+        ...parsedCache.meta,
         fromCache: true,
         cacheAge,
         pagination: {

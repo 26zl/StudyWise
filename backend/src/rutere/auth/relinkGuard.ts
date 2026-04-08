@@ -30,6 +30,10 @@ export type GuardRelinkResult =
   | { blocked: true; reason: "dev_gate_env_mismatch" | "rate_limited_ping_pong"; count: number }
   | { blocked: false };
 
+type GuardRelinkOptions = {
+  previousClerkEnv?: ClerkEnv | null;
+};
+
 export function getCurrentClerkEnv(): ClerkEnv {
   const key = process.env.CLERK_SECRET_KEY ?? "";
   if (key.startsWith("sk_test_")) return "test";
@@ -55,6 +59,28 @@ export async function setRelinkState(userId: string, state: RelinkState): Promis
   );
 }
 
+function shouldBlockForDevGate(
+  previousClerkEnv: ClerkEnv | null | undefined,
+  currentEnv: ClerkEnv,
+): boolean {
+  if (isProd) {
+    return false;
+  }
+
+  // Per-utvikler opt-out: når en utvikler bevisst deler én Mongo + samme
+  // ENCRYPTION_KEY mellom lokal dev og prod, blir dev-gate bare friksjon.
+  // Flagget settes kun i utviklerens egen lokale .env (aldri i .env.example
+  // eller CI), så andre på teamet beholder beskyttelsen.
+  // Cooldown-vernet (rate_limited_ping_pong) er fortsatt aktivt.
+  if (process.env.RELINK_DEV_GATE_DISABLED === "true") {
+    return false;
+  }
+
+  // Hvis vi ikke sikkert vet at gammel og ny clerkId tilhører samme miljø,
+  // blokkerer vi i ikke-prod. Det er tryggere enn å relinke på delt Mongo.
+  return previousClerkEnv !== currentEnv || currentEnv === "unknown";
+}
+
 /**
  * Sjekker om en relink skal tillates. Oppdaterer Redis-state som sideeffekt
  * (både ved tillatt og blokkert utfall, slik at teller og cooldown holdes i sync).
@@ -62,12 +88,24 @@ export async function setRelinkState(userId: string, state: RelinkState): Promis
 export async function guardRelink(
   existingUserId: string,
   newClerkUserId: string,
+  options?: GuardRelinkOptions,
 ): Promise<GuardRelinkResult> {
   const now = Date.now();
   const currentEnv = getCurrentClerkEnv();
   const prior = await getRelinkState(existingUserId);
+  const previousClerkEnv = options?.previousClerkEnv ?? null;
 
   if (!prior) {
+    if (shouldBlockForDevGate(previousClerkEnv, currentEnv)) {
+      await setRelinkState(existingUserId, {
+        at: now,
+        clerkId: newClerkUserId,
+        env: currentEnv,
+        count: 1,
+      });
+      return { blocked: true, reason: "dev_gate_env_mismatch", count: 1 };
+    }
+
     await setRelinkState(existingUserId, {
       at: now,
       clerkId: newClerkUserId,
@@ -80,11 +118,10 @@ export async function guardRelink(
   const elapsed = now - prior.at;
   const withinCooldown = elapsed < RELINK_COOLDOWN_MS;
   const nextCount = withinCooldown ? prior.count + 1 : 1;
-  const envMismatch =
-    prior.env !== "unknown" && currentEnv !== "unknown" && prior.env !== currentEnv;
+  const envMismatch = shouldBlockForDevGate(prior.env, currentEnv);
 
   // Dev-gate: blokker all cross-env relink i ikke-prod, uavhengig av cooldown.
-  if (!isProd && envMismatch) {
+  if (envMismatch) {
     await setRelinkState(existingUserId, {
       at: now,
       clerkId: newClerkUserId,

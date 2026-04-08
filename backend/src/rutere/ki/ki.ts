@@ -63,6 +63,14 @@ import {
   findPdfLinks,
   downloadAndProcessPdf,
   getDomainSelectors,
+  fetchWithSafeRedirects,
+  readResponseBodyWithLimit,
+  discardResponseBody,
+  getHeaderValue,
+  BodyTooLargeError,
+  MAX_PDF_SIZE_BYTES,
+  MAX_TEXT_CONTENT_SIZE_BYTES,
+  MAX_OFFICE_DOC_SIZE_BYTES,
 } from "../../services/crawler.js";
 import {
   AI_COMPLETION_PUSH_MIN_DURATION_MS,
@@ -587,29 +595,28 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
     return null;
   }
 
-  const controller = new AbortController();
-  const timeoutHandle = setTimeout(() => controller.abort(), 12_000);
   let finalUrl = safeUrl.toString();
-  let outcome: "success" | "too_short" | "http_error" | "fetch_error" = "fetch_error";
+  let outcome: "success" | "too_short" | "http_error" | "fetch_error" | "body_too_large" =
+    "fetch_error";
   try {
-    const response = await fetch(safeUrl, {
-      method: "GET",
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        "User-Agent": "StudyWise/1.0 (KI Live URL Context)",
-        Accept: "text/html,application/pdf,text/plain,*/*",
-      },
-    });
+    // Bruker crawler-pakkens SSRF-trygge fetch:
+    // - Manuelle redirects, hver hop går gjennom DNS/IP-validering (forhindrer DNS-rebinding via redirect).
+    // - Pinned IP-lookup på selve socketen (forhindrer second-resolve TOCTOU).
+    // - Bounded body reader (DoS-vern mot enorme responses).
+    const response = await fetchWithSafeRedirects(safeUrl.toString(), 12_000);
+    if (!response) {
+      logger.warn({ url: safeUrl.toString() }, "Direkte URL: SSRF-trygt fetch returnerte null");
+      return null;
+    }
 
     if (!response.ok) {
       outcome = "http_error";
+      discardResponseBody(response);
       logger.warn({ url: safeUrl.toString(), status: response.status }, "Direkte URL kunne ikke hentes");
       return null;
     }
 
-    const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
-    finalUrl = response.url || finalUrl;
+    const contentType = (getHeaderValue(response.headers, "content-type") ?? "").toLowerCase();
     logger.info(
       {
         requestedUrl: safeUrl.toString(),
@@ -627,7 +634,8 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
     let discoveredDocuments = 0;
 
     if (contentType.includes("text/html") || contentType.includes("application/xhtml+xml")) {
-      const html = await response.text();
+      const htmlBuffer = await readResponseBodyWithLimit(response, MAX_TEXT_CONTENT_SIZE_BYTES);
+      const html = htmlBuffer.toString("utf8");
       const domainSelectors = getDomainSelectors(finalUrl);
       const seedText = normalizeTextContent(extractTextFromHtml(html, domainSelectors) || stripHtml(html, { removeStyles: true }));
       const sections: string[] = [];
@@ -749,7 +757,7 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
         "Direkte URL-kontekst: deep crawl fullført",
       );
     } else if (contentType.includes("application/pdf")) {
-      const buffer = Buffer.from(await response.arrayBuffer());
+      const buffer = await readResponseBodyWithLimit(response, MAX_PDF_SIZE_BYTES);
       const parsed = await parseDocument(buffer, "application/pdf", safeUrl.pathname || "document.pdf");
       extracted = normalizeTextContent(parsed.text);
       labelType = "pdf";
@@ -757,14 +765,14 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
       contentType.includes("application/vnd.openxmlformats-officedocument.wordprocessingml.document") ||
       contentType.includes("application/msword")
     ) {
-      const buffer = Buffer.from(await response.arrayBuffer());
+      const buffer = await readResponseBodyWithLimit(response, MAX_OFFICE_DOC_SIZE_BYTES);
       const filename = safeUrl.pathname.split("/").pop() || "document.docx";
       const parsed = await parseDocument(buffer, contentType, filename);
       extracted = normalizeTextContent(parsed.text);
       labelType = "doc";
     } else {
-      const text = await response.text();
-      extracted = normalizeTextContent(text);
+      const textBuffer = await readResponseBodyWithLimit(response, MAX_TEXT_CONTENT_SIZE_BYTES);
+      extracted = normalizeTextContent(textBuffer.toString("utf8"));
       labelType = "text";
     }
 
@@ -794,10 +802,17 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
 ${clipped}
 </live_url>`;
   } catch (err) {
+    if (err instanceof BodyTooLargeError) {
+      outcome = "body_too_large";
+      logger.warn(
+        { url: safeUrl.toString(), maxBytes: err.maxBytes },
+        "Direkte URL: respons overskred størrelsesgrensen",
+      );
+      return null;
+    }
     logger.warn({ err, url: safeUrl.toString() }, "Direkte URL-henting feilet");
     return null;
   } finally {
-    clearTimeout(timeoutHandle);
     logger.info(
       {
         requestedUrl: safeUrl.toString(),
@@ -1264,9 +1279,6 @@ router.get("/models", (_req, res) => {
     KIModelsResponseSchema.parse({ models, defaultModel: DEFAULT_MODEL }),
   );
 });
-
-// GET /test-connection fjernet: KI-tilgjengelighet vises nå ved reelle feil (chat/dokumentanalyse).
-// Unngår dedikert round-trip og 3–4 s latency; bruker får samme feilbanner når et kall feiler.
 
 // Hovedendepunkt for chat
 router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {

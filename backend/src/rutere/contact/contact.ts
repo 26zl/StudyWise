@@ -26,6 +26,7 @@ import {
   isTurnstileConfigured,
 } from "../../services/turnstile.service.js";
 import { sendKontaktmelding } from "../../services/contact.service.js";
+import { ContactMessage } from "../../database/models/ContactMessage.js";
 import { isProd } from "../../utils/env.js";
 import { validateFileMagicBytes } from "../../services/document.js";
 
@@ -243,6 +244,33 @@ router.post(
       },
       "Kontakthenvendelse mottatt",
     );
+
+    // Persister i MongoDB så admin kan se innboksen i panelet.
+    // Vedlegg lagres KUN som metadata (filnavn + størrelse) — ikke selve innholdet.
+    try {
+      await ContactMessage.create({
+        navn,
+        epost,
+        emne,
+        melding,
+        sideUrl,
+        requestId,
+        attachmentCount: attachments.length,
+        attachmentSummary: attachments.length > 0
+          ? attachments.map((a) => ({
+              filnavn: a.filnavn,
+              sizeBytes: a.størrelse,
+              mimeType: a.mimeType,
+            }))
+          : undefined,
+      });
+    } catch (persistErr) {
+      // Persistering må aldri blokkere svaret — logger og fortsetter
+      logger.warn(
+        { err: persistErr, requestId },
+        "Kunne ikke persistere kontaktmelding til MongoDB (epost-flyt fungerte)",
+      );
+    }
 
     return res.json(
       KontaktResponseSchema.parse({

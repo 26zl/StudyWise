@@ -84,9 +84,16 @@ router.get("/audit", async (req, res) => {
   const rawCategory = parsedQuery.data.category;
   const category: AuditCategory | undefined =
     rawCategory && VALID_CATEGORIES.has(rawCategory) ? (rawCategory as AuditCategory) : undefined;
+  const outcome = parsedQuery.data.outcome;
+  const targetUserId = parsedQuery.data.targetUserId;
+  const actorUserIdFilter = parsedQuery.data.actorUserId;
 
   try {
-    const filter = category ? { category } : {};
+    const filter: Record<string, unknown> = {};
+    if (category) filter.category = category;
+    if (outcome) filter.outcome = outcome;
+    if (targetUserId) filter.targetUserId = targetUserId;
+    if (actorUserIdFilter) filter.actorUserId = actorUserIdFilter;
     const [items, total] = await Promise.all([
       AuditLog.find(filter).sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
       AuditLog.countDocuments(filter),
@@ -98,7 +105,14 @@ router.get("/audit", async (req, res) => {
       category: "admin",
       outcome: "success",
       role: req.actorRole,
-      metadata: { subAction: "audit.list", limit, offset, category: category ?? null },
+      metadata: {
+        subAction: "audit.list",
+        limit,
+        offset,
+        category: category ?? null,
+        outcome: outcome ?? null,
+        targetUserId: targetUserId ?? null,
+      },
       req,
     });
 
@@ -112,6 +126,117 @@ router.get("/audit", async (req, res) => {
     );
   } catch (err) {
     logger.error({ err, requestId }, "Admin audit list failed");
+    return apiError.serverError(res);
+  }
+});
+
+/**
+ * GET /api/admin/audit/export.csv
+ * Eksporterer audit-logg som CSV. Støtter samme filtre som /audit pluss
+ * `from`/`to` ISO-datoer for å begrense tidsvindu (default: siste 90 dager).
+ * Maks 10 000 rader per eksport for å unngå minneblåsing.
+ */
+router.get("/audit/export.csv", async (req, res) => {
+  const actorUserId = req.user?.id;
+  if (!actorUserId) {
+    return apiError.unauthorized(res);
+  }
+
+  const rawCategory = typeof req.query.category === "string" ? req.query.category : undefined;
+  const category: AuditCategory | undefined =
+    rawCategory && VALID_CATEGORIES.has(rawCategory) ? (rawCategory as AuditCategory) : undefined;
+  const fromRaw = typeof req.query.from === "string" ? req.query.from : undefined;
+  const toRaw = typeof req.query.to === "string" ? req.query.to : undefined;
+  const targetUserIdRaw =
+    typeof req.query.targetUserId === "string" ? req.query.targetUserId.trim() : undefined;
+
+  const fromDate = fromRaw ? new Date(fromRaw) : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+  const toDate = toRaw ? new Date(toRaw) : new Date();
+  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+    return apiError.badRequest(res, "Ugyldig from/to-dato — bruk ISO-format");
+  }
+
+  const filter: Record<string, unknown> = {
+    createdAt: { $gte: fromDate, $lte: toDate },
+  };
+  if (category) filter.category = category;
+  if (targetUserIdRaw && targetUserIdRaw.length > 0) filter.targetUserId = targetUserIdRaw;
+
+  const MAX_EXPORT_ROWS = 10_000;
+
+  try {
+    const rows = await AuditLog.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(MAX_EXPORT_ROWS)
+      .lean();
+
+    // CSV-escape: quote felt med komma, quote eller newline; escape quotes ved å doble dem
+    const csvEscape = (value: unknown): string => {
+      if (value == null) return "";
+      const s = typeof value === "string" ? value : JSON.stringify(value);
+      if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+
+    const header = [
+      "id",
+      "createdAt",
+      "category",
+      "action",
+      "outcome",
+      "actorUserId",
+      "targetUserId",
+      "role",
+      "metadata",
+    ].join(",");
+
+    const lines = [header];
+    for (const row of rows) {
+      const r = row as Parameters<typeof shapeAuditItem>[0];
+      // Sanitiser metadata gjennom samme allowlist som /audit-listen
+      const meta = r.metadata;
+      const safeMeta =
+        meta && typeof meta === "object"
+          ? Object.fromEntries(
+              Object.entries(meta).filter(([k]) => ALLOWED_METADATA_KEYS.has(k)),
+            )
+          : undefined;
+      lines.push(
+        [
+          csvEscape(String(r._id)),
+          csvEscape(r.createdAt.toISOString()),
+          csvEscape(r.category),
+          csvEscape(r.action),
+          csvEscape(r.outcome),
+          csvEscape(r.actorUserId),
+          csvEscape(r.targetUserId),
+          csvEscape(r.role),
+          csvEscape(safeMeta && Object.keys(safeMeta).length > 0 ? safeMeta : undefined),
+        ].join(","),
+      );
+    }
+
+    await audit({
+      actorUserId,
+      action: AUDIT_ACTIONS.ADMIN_ACTION,
+      category: "admin",
+      outcome: "success",
+      role: req.actorRole,
+      metadata: {
+        subAction: "audit.export",
+        category: category ?? null,
+        rowCount: rows.length,
+      },
+      req,
+    });
+
+    const filename = `audit-${fromDate.toISOString().slice(0, 10)}-${toDate.toISOString().slice(0, 10)}.csv`;
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Cache-Control", "no-store");
+    return res.send(lines.join("\n"));
+  } catch (err) {
+    logger.error({ err }, "Admin audit CSV export failed");
     return apiError.serverError(res);
   }
 });

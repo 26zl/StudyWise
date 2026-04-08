@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 import pLimit from "p-limit";
-import * as webpush from "web-push";
 import { isCanvasAssignmentSubmitted } from "common/canvas";
 import { isMongoDuplicateKeyError } from "../utils/canvasUserSync.js";
 import {
@@ -22,14 +21,7 @@ import {
 import { decrypt } from "../utils/kryptering.js";
 import { logger } from "../utils/logger.js";
 import { stripHtml } from "../utils/htmlUtils.js";
-
-const webPushClient = (
-  "default" in webpush &&
-  webpush.default &&
-  typeof webpush.default === "object"
-    ? webpush.default
-    : webpush
-) as typeof webpush;
+import { enqueueWebPushDelivery } from "../queues/webPush.queue.js";
 
 export const WEB_PUSH_POLL_INTERVAL_MS = 10 * 60 * 1000;
 const WEB_PUSH_USER_BATCH_LIMIT = 50;
@@ -77,33 +69,8 @@ function getWebPushConfig() {
   };
 }
 
-let vapidConfigured = false;
-
 function ensureWebPushConfigured(): boolean {
-  const config = getWebPushConfig();
-  if (!config.configured) {
-    return false;
-  }
-
-  if (!vapidConfigured) {
-    webPushClient.setVapidDetails(config.subject, config.publicKey, config.privateKey);
-    vapidConfigured = true;
-  }
-
-  return true;
-}
-
-function isGoneSubscriptionError(error: unknown): boolean {
-  if (!error || typeof error !== "object") {
-    return false;
-  }
-
-  const statusCode =
-    "statusCode" in error && typeof error.statusCode === "number"
-      ? error.statusCode
-      : null;
-
-  return statusCode === 404 || statusCode === 410;
+  return getWebPushConfig().configured;
 }
 
 function truncateText(value: string, maxLength = 140): string {
@@ -111,6 +78,11 @@ function truncateText(value: string, maxLength = 140): string {
   return `${value.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
+/**
+ * Enqueuer ett push-varsel for hver subscription i BullMQ-køen `web-push`.
+ * Selve utsendingen + retry + sletting av døde abonnementer (404/410) skjer i
+ * worker-prosessen. Returnerer true så lenge minst én jobb ble enqueued.
+ */
 async function sendPayloadToSubscriptions(
   subscriptions: Array<{
     _id: mongoose.Types.ObjectId;
@@ -120,49 +92,37 @@ async function sendPayloadToSubscriptions(
   }>,
   payload: PushCandidate,
 ): Promise<boolean> {
-  let delivered = false;
+  if (subscriptions.length === 0) return false;
 
+  let enqueued = 0;
   for (const subscription of subscriptions) {
-    const pushSubscription: webpush.PushSubscription = {
-      endpoint: subscription.endpoint,
-      expirationTime: subscription.expirationTime ?? null,
-      keys: {
-        p256dh: subscription.keys.p256dh,
-        auth: subscription.keys.auth,
-      },
-    };
-
     try {
-      await webPushClient.sendNotification(
-        pushSubscription,
-        JSON.stringify({
+      await enqueueWebPushDelivery({
+        subscriptionId: subscription._id.toString(),
+        endpoint: subscription.endpoint,
+        expirationTime: subscription.expirationTime ?? null,
+        keys: {
+          p256dh: subscription.keys.p256dh,
+          auth: subscription.keys.auth,
+        },
+        candidateId: payload.id,
+        payload: {
           title: payload.title,
           body: payload.body,
           url: payload.url,
           tag: payload.tag,
-          icon: "/icons/icon-192x192.png",
-          badge: "/icons/icon-192x192.png",
-        }),
-      );
-      delivered = true;
+        },
+      });
+      enqueued++;
     } catch (error) {
-      if (isGoneSubscriptionError(error)) {
-        await WebPushSubscriptionModel.deleteOne({ _id: subscription._id });
-        logger.info(
-          { endpoint: subscription.endpoint },
-          "Slettet ugyldig web-push-abonnement",
-        );
-        continue;
-      }
-
       logger.warn(
-        { err: error, endpoint: subscription.endpoint },
-        "Utsending av web-push feilet",
+        { err: error, subscriptionId: subscription._id.toString() },
+        "Kunne ikke enqueue web-push-jobb",
       );
     }
   }
 
-  return delivered;
+  return enqueued > 0;
 }
 
 function buildAnnouncementCandidates(

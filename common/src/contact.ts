@@ -14,6 +14,8 @@ export const KONTAKT_ALLOWED_ATTACHMENT_TYPES = [
 export const KONTAKT_MAX_ATTACHMENTS = 3;
 export const KONTAKT_MAX_ATTACHMENT_SIZE_BYTES = 5 * 1024 * 1024;
 
+const KONTAKT_SIDE_PATH_REGEX = /^\/(?!\/)[^\s?#]*$/;
+
 export const KontaktAttachmentSchema = z.object({
   filnavn: z.string().trim().min(1).max(255),
   mimeType: z.enum(KONTAKT_ALLOWED_ATTACHMENT_TYPES),
@@ -56,12 +58,15 @@ export const KontaktRequestSchema = z.object({
     .max(2048, "Verifiseringstoken er ugyldig"),
   // Honeypot-felt: skal alltid være tomt (sendes som skjult felt)
   nettsted: z.string().trim().max(200).optional(),
-  // Valgfri metadata: URL der brukeren sendte skjemaet fra
+  // Valgfri metadata: sanert intern sti der brukeren sendte skjemaet fra
   sideUrl: z
     .string()
-    .url()
+    .trim()
     .max(2000)
-    .refine((v) => /^https?:\/\//i.test(v), "Kun HTTP(S)-URLer er tillatt")
+    .refine(
+      (v) => KONTAKT_SIDE_PATH_REGEX.test(v),
+      "Sidekontekst må være en sanert intern sti uten query eller hash",
+    )
     .optional(),
 });
 

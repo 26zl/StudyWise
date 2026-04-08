@@ -72,6 +72,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "lint": "tsc --noEmit --pretty false",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

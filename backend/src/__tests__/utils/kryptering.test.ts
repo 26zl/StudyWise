@@ -149,25 +149,6 @@ describe("kryptering", () => {
     expect(decrypt(legacyFormat)).toBe("legacy-test");
   });
 
-  // --- Nøkkelrotasjon ---
-
-  it("dekrypterer med forrige nøkkel via ENCRYPTION_KEY_PREVIOUS", async () => {
-    const gammelNokkel = testKey;
-    const nyNokkel = genererTestnokkel();
-
-    // Krypter med gammel nøkkel
-    const { encrypt: encryptGammel } = await importModule();
-    const kryptert = encryptGammel("rotasjonstest");
-
-    // Roter nøkkel
-    vi.stubEnv("ENCRYPTION_KEY", nyNokkel);
-    vi.stubEnv("ENCRYPTION_KEY_PREVIOUS", gammelNokkel);
-    vi.resetModules();
-    const { decrypt: decryptNy } = await importModule();
-
-    expect(decryptNy(kryptert)).toBe("rotasjonstest");
-  });
-
   // --- Miljøvariabel-validering ---
 
   it("kaster feil når ENCRYPTION_KEY mangler", async () => {

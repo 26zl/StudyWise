@@ -22,10 +22,9 @@ import { invalidateCacheByPattern, isRedisReady } from "../../cache/redis.js";
 import { deleteClerkUserById, invalidateTokenCacheByClerkId } from "./clerkAuth.js";
 import { WebPushSubscriptionModel } from "../../database/models/WebPushSubscription.js";
 import { StudyContext } from "../../database/models/StudyContext.js";
-import { enqueueClerkDeletionRetry } from "../../services/clerkDeletionRetry.service.js";
-import { enqueueVectorDeletionRetry } from "../../services/vectorDeletionRetry.service.js";
+import { enqueueClerkDeletionRetry } from "../../queues/clerkDeletion.queue.js";
+import { enqueueVectorDeletionRetry } from "../../queues/pineconeCleanup.queue.js";
 import { DeletedUserTombstone } from "../../database/models/DeletedUserTombstone.js";
-import { PendingClerkDeletionModel } from "../../database/models/PendingClerkDeletion.js";
 import { KnowledgeBase } from "../../database/models/Kunnskapsbase.js";
 import { KBContentChunk } from "../../database/models/KBContentChunk.js";
 import { deleteAllKBContentForUser } from "../../services/kunnskapsbase-indeksering.service.js";
@@ -65,6 +64,8 @@ export async function deleteAccountData(
   let providerAccountDeleted = false;
   let vectorCleanupSucceeded = true;
 
+  // allow-deleted-users: kontosletting MÅ være idempotent — vi må kunne se soft-deleted
+  // brukere for å kunne svare riktig (med tombstone-sjekk) ved gjentatte sletteforsøk
   const user = await User.findById(id).select(
     "+canvasApiToken +canvasTokenHash",
   );
@@ -84,6 +85,9 @@ export async function deleteAccountData(
       vectorCleanupSucceeded: !!alreadyDeleted,
     };
   }
+  const kbBaseIds = (await KnowledgeBase.find({ userId }, { _id: 1 }).lean()).map((base) =>
+    String(base._id),
+  );
 
   const session = await mongoose.startSession();
   try {
@@ -142,13 +146,8 @@ export async function deleteAccountData(
         );
       }
 
-      // Fjern eventuelle stale retry-oppføringer for Clerk-sletting
-      if (user.clerkId) {
-        await PendingClerkDeletionModel.deleteMany(
-          { clerkId: user.clerkId },
-          { session },
-        );
-      }
+      // Stale retry-oppføringer håndteres nå av BullMQ (clerk-deletion queue);
+      // ingen MongoDB-cleanup nødvendig her.
 
       // Rydd opp tombstones med overlappende OAuth-kontoer innenfor transaksjonen
       // for å unngå duplicate key-feil fra asynkron opprydding (queueDeletedOAuthConflictCleanup)
@@ -197,7 +196,7 @@ export async function deleteAccountData(
 
   // Slett KB-vektorer fra Pinecone (best-effort, logger feil)
   try {
-    await deleteAllKBContentForUser(userId);
+    await deleteAllKBContentForUser(userId, kbBaseIds);
   } catch (kbCleanupError) {
     vectorCleanupSucceeded = false;
     logger.error(
@@ -207,6 +206,7 @@ export async function deleteAccountData(
     try {
       await enqueueVectorDeletionRetry({
         userId,
+        kbBaseIds,
         lastError: kbCleanupError instanceof Error
           ? kbCleanupError.message
           : "KB Pinecone-opprydding feilet",
@@ -230,6 +230,7 @@ export async function deleteAccountData(
     try {
       await enqueueVectorDeletionRetry({
         userId,
+        kbBaseIds,
         lastError: cleanupError instanceof Error ? cleanupError.message : "Pinecone-opprydding feilet",
       });
     } catch (retryEnqueueError) {

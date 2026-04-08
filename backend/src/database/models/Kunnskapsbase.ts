@@ -28,8 +28,6 @@ export interface IKBLink {
     maxPages?: number;
     maxDocuments?: number;
     samePathOnly?: boolean;
-    includePatterns?: string[];
-    excludePatterns?: string[];
   };
   /** Antall crawlede HTML-sider */
   crawledPages?: number;
@@ -60,8 +58,6 @@ const KBLinkSchema = new Schema<IKBLink>(
           maxPages: Number,
           maxDocuments: Number,
           samePathOnly: Boolean,
-          includePatterns: [String],
-          excludePatterns: [String],
         },
         { _id: false },
       ),

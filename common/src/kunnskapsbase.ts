@@ -81,27 +81,25 @@ export const KBUpdateBaseSchema = z.object({
   navn: z.string().trim().min(1, "Navn er påkrevd").max(KB_MAX_BASE_NAME_LENGTH),
 });
 
+/** Støttede crawl-innstillinger for URL-indeksering */
+export const KBCrawlOptionsSchema = z.object({
+  /** Maks dybde (0 = kun seed-URL) — knyttet til backend-konstant */
+  maxDepth: z.number().int().min(0).max(KB_CRAWL_MAX_DEPTH).optional(),
+  /** Maks antall sider å crawle — knyttet til backend-konstant */
+  maxPages: z.number().int().min(1).max(KB_CRAWL_MAX_PAGES).optional(),
+  /** Maks antall dokumenter (PDF, DOCX) — knyttet til backend-konstant */
+  maxDocuments: z.number().int().min(0).max(KB_CRAWL_MAX_DOCUMENTS).optional(),
+  /** Begrens crawling til samme path-prefiks som seed-URLen */
+  samePathOnly: z.boolean().optional(),
+});
+export type KBCrawlOptions = z.infer<typeof KBCrawlOptionsSchema>;
+
 /** Legg til lenke i base */
 export const KBAddLinkSchema = z.object({
   url: z.string().url("Ugyldig URL").max(KB_MAX_URL_LENGTH),
   tittel: z.string().trim().max(KB_MAX_LINK_TITLE_LENGTH).optional(),
   /** Crawl-konfigurasjon (valgfritt) */
-  crawlOptions: z
-    .object({
-      /** Maks dybde (0 = kun seed-URL) — knyttet til backend-konstant */
-      maxDepth: z.number().int().min(0).max(KB_CRAWL_MAX_DEPTH).optional(),
-      /** Maks antall sider å crawle — knyttet til backend-konstant */
-      maxPages: z.number().int().min(1).max(KB_CRAWL_MAX_PAGES).optional(),
-      /** Maks antall dokumenter (PDF, DOCX) — knyttet til backend-konstant */
-      maxDocuments: z.number().int().min(0).max(KB_CRAWL_MAX_DOCUMENTS).optional(),
-      /** Begrens til samme path-prefiks */
-      samePathOnly: z.boolean().optional(),
-      /** Include-patterns (regex-strenger) */
-      includePatterns: z.array(z.string()).max(5).optional(),
-      /** Exclude-patterns (regex-strenger) */
-      excludePatterns: z.array(z.string()).max(5).optional(),
-    })
-    .optional(),
+  crawlOptions: KBCrawlOptionsSchema.optional(),
 });
 
 /** Lenke i respons */

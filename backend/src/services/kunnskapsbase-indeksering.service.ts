@@ -15,6 +15,7 @@
 import crypto from "crypto";
 import { logger } from "../utils/logger.js";
 import { KBContentChunk } from "../database/models/KBContentChunk.js";
+import { KnowledgeBase } from "../database/models/Kunnskapsbase.js";
 import { createChunksFromContent } from "./chunk.service.js";
 import { countTokens } from "../utils/tokenCounter.js";
 import {
@@ -218,21 +219,50 @@ export async function deleteKBBaseContent(
 /**
  * Sletter alt indeksert KB-innhold for en bruker (kontosletting / GDPR).
  */
-export async function deleteAllKBContentForUser(userId: string): Promise<void> {
-  // Hent alle baseId-er for brukeren
-  const { KnowledgeBase } = await import("../database/models/Kunnskapsbase.js");
-  const bases = await KnowledgeBase.find({ userId }, { _id: 1 }).lean();
+export async function deleteAllKBContentForUser(
+  userId: string,
+  baseIds?: string[],
+): Promise<void> {
+  const resolvedBaseIds = Array.from(
+    new Set(
+      (
+        baseIds && baseIds.length > 0
+          ? baseIds
+          : await (async () => {
+              const bases = await KnowledgeBase.find({ userId }, { _id: 1 }).lean();
+              if (bases.length > 0) {
+                return bases.map((base) => String(base._id));
+              }
+
+              // Hvis base-dokumentene allerede er slettet, prøv å hente baseId fra chunks.
+              // Bruker $group-aggregation i stedet for .distinct() fordi MongoDB
+              // Stable API v1 ikke støtter distinct-kommandoen.
+              const chunkBaseIds = await KBContentChunk.aggregate<{ _id: unknown }>([
+                { $match: { userId } },
+                { $group: { _id: "$baseId" } },
+              ]);
+              return chunkBaseIds
+                .map((doc) => doc._id)
+                .filter(
+                  (value): value is string =>
+                    typeof value === "string" && value.trim().length > 0,
+                );
+            })()
+      )
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0),
+    ),
+  );
   const failedBaseIds: string[] = [];
 
-  for (const base of bases) {
+  for (const baseId of resolvedBaseIds) {
     if (isPineconeConfigured()) {
       try {
         await pineconeDeleteByFilter({
           userId,
-          courseId: kbCourseId(String(base._id)),
+          courseId: kbCourseId(baseId),
         });
       } catch (err) {
-        const baseId = String(base._id);
         failedBaseIds.push(baseId);
         logger.error(
           { err, baseId },

@@ -140,6 +140,12 @@ export const validateEnv = (): void => {
   const clerkSecret = process.env.CLERK_SECRET_KEY;
   if (clerkSecret && clerkSecret.length < 32) {
     manglende.push("CLERK_SECRET_KEY (må være minst 32 tegn)");
+  } else if (
+    clerkSecret &&
+    !clerkSecret.startsWith("sk_test_") &&
+    !clerkSecret.startsWith("sk_live_")
+  ) {
+    manglende.push("CLERK_SECRET_KEY (må starte med 'sk_test_' eller 'sk_live_')");
   }
 
   // Spesiell validering for MONGO_URI format

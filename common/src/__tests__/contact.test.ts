@@ -103,14 +103,52 @@ describe("KontaktRequestSchema", () => {
   it("godtar valgfri sideUrl", () => {
     const resultat = KontaktRequestSchema.safeParse({
       ...gyldig,
-      sideUrl: "https://studywize.page/kontakt",
+      sideUrl: "/kontakt",
     });
     expect(resultat.success).toBe(true);
   });
 
-  it("avviser ugyldig sideUrl", () => {
+  it("godtar sanert sti med maskert ID", () => {
+    const resultat = KontaktRequestSchema.safeParse({
+      ...gyldig,
+      sideUrl: "/share/[id]",
+    });
+    expect(resultat.success).toBe(true);
+  });
+
+  it("avviser absolutt sideUrl", () => {
     expect(
-      KontaktRequestSchema.safeParse({ ...gyldig, sideUrl: "ftp://ugyldig" }).success,
+      KontaktRequestSchema.safeParse({
+        ...gyldig,
+        sideUrl: "https://studywize.page/kontakt",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("avviser sideUrl med query", () => {
+    expect(
+      KontaktRequestSchema.safeParse({
+        ...gyldig,
+        sideUrl: "/kontakt?debug=1",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("avviser sideUrl med hash", () => {
+    expect(
+      KontaktRequestSchema.safeParse({
+        ...gyldig,
+        sideUrl: "/kontakt#seksjon",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("avviser scheme-relativ sideUrl", () => {
+    expect(
+      KontaktRequestSchema.safeParse({
+        ...gyldig,
+        sideUrl: "//ond.example",
+      }).success,
     ).toBe(false);
   });
 });

@@ -682,6 +682,7 @@ router.delete("/token", rateLimitToken, async (req, res) => {
         );
         deletedCanvasUsers = canvasRes.deletedCount;
         // $unset fjerner Canvas-feltene atomisk — unngår setter-krasj på canvasBaseUrl (normalizeCanvasBaseUrl)
+        // allow-deleted-users: bruker er allerede validert via User.findOne med deletedAt-filter ovenfor
         await User.updateOne(
           { _id: bruker._id },
           {
@@ -806,7 +807,7 @@ router.post("/sync-conflicts/dismiss", rateLimitMe, async (req, res) => {
 });
 
 // PUT /profile — oppdater brukerprofil (fornavn, etternavn, brukernavn). Synker til Clerk.
-router.put("/profile", requireRecentAuth, rateLimitMe, async (req, res) => {
+router.put("/profile", rateLimitMe, async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -876,8 +877,9 @@ router.put("/profile", requireRecentAuth, rateLimitMe, async (req, res) => {
       return apiError.notFound(res, "Bruker");
     }
 
-    // Synkroniser til Clerk hvis brukeren har clerkId (hopp over hvis endringen allerede kom fra Clerk)
-    if (oppdatertBruker.clerkId && !parsed.skipClerkSync) {
+    // Synkroniser til Clerk hvis brukeren har clerkId.
+    // Klientstyrt "skip sync" er fjernet for å unngå varig drift mellom Clerk og MongoDB.
+    if (oppdatertBruker.clerkId) {
       const { updateClerkUserProfile } = await import("./clerkAuth.js");
       const clerkUpdates: {
         firstName?: string;

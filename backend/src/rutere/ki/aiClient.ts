@@ -358,14 +358,32 @@ async function callAnthropic(options: {
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
+            // onFinish får den endelige usage-objektet fra AI SDK etter at strømmen
+            // er ferdig. Vi fanger det i en closure her fordi `streamResult.usage`
+            // og `streamResult.totalUsage` har vist seg upålitelige med
+            // ai@6 + @ai-sdk/anthropic (siste step kan være tomt → undefined felter).
+            // onFinish-callbacken er den autoritative kilden.
+            type CapturedUsage = {
+                inputTokens?: number;
+                outputTokens?: number;
+                totalTokens?: number;
+                cachedInputTokens?: number;
+            };
+            let capturedUsage: CapturedUsage | null = null;
+
             const streamResult = streamText({
                 model: anthropicSdkProvider(model),
                 messages: sdkMessages,
                 maxOutputTokens: max_tokens,
                 temperature: Math.min(Math.max(temperature, 0), 1),
                 abortSignal: effectiveSignal,
-                onFinish: ({ usage }: { usage: { cachedInputTokens?: number; inputTokens?: number; outputTokens?: number } }) => {
-                    // cachedInputTokens er innebygd i LanguageModelUsage (ai@6)
+                onFinish: ({ usage, totalUsage }: {
+                    usage: CapturedUsage;
+                    totalUsage?: CapturedUsage;
+                }) => {
+                    // Foretrekk totalUsage (sum av alle steps) hvis tilgjengelig,
+                    // fall tilbake til usage (siste step).
+                    capturedUsage = totalUsage ?? usage;
                     if (usage.cachedInputTokens) {
                         logger.info(
                             {
@@ -382,26 +400,32 @@ async function callAnthropic(options: {
 
             // Sikkerhetsnett: Promise.race med timeout slik at vi ikke henger
             // dersom AI SDK ikke propagerer abort-signal til text/usage-promisene.
-            const { text, usage } = await raceMedTimeout(
-                Promise.all([streamResult.text, streamResult.usage]).then(
-                    ([t, u]) => ({ text: t, usage: u }),
+            const { text, fallbackUsage } = await raceMedTimeout(
+                Promise.all([streamResult.text, streamResult.totalUsage]).then(
+                    ([t, u]) => ({ text: t, fallbackUsage: u as CapturedUsage }),
                 ),
                 STREAM_SAFETY_TIMEOUT_MS,
                 "AI-kallet tok for lang tid (timeout)",
             );
 
+            // Bruk det vi fanget i onFinish (autoritativ), fall tilbake til
+            // streamResult.totalUsage hvis onFinish ikke ble kalt av en eller annen grunn.
+            const finalUsage: CapturedUsage = capturedUsage ?? fallbackUsage ?? {};
+            const inputTokens = finalUsage.inputTokens ?? 0;
+            const outputTokens = finalUsage.outputTokens ?? 0;
+
             const durationMs = Date.now() - startMs;
             logger.info(
-                { model, durationMs, outputTokens: usage.outputTokens },
+                { model, durationMs, inputTokens, outputTokens },
                 "Anthropic Claude-svar mottatt",
             );
 
             return {
                 text,
                 usage: {
-                    prompt_tokens: usage.inputTokens ?? 0,
-                    completion_tokens: usage.outputTokens ?? 0,
-                    total_tokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
+                    prompt_tokens: inputTokens,
+                    completion_tokens: outputTokens,
+                    total_tokens: finalUsage.totalTokens ?? inputTokens + outputTokens,
                 },
             };
         } catch (error) {

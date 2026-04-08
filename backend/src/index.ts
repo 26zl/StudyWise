@@ -14,6 +14,9 @@ validateEnv();
 // Datadog APM — MÅ importeres før Express/Mongoose/Redis for korrekt instrumentering
 import "./datadog.js";
 
+// Undici global dispatcher — connection pooling for alle fetch()-kall
+import "./utils/httpAgent.js";
+
 import express from "express";
 import cors from "cors";
 import compression from "compression";
@@ -52,6 +55,11 @@ import { requireRole } from "./middleware/require-role.js";
 import adminAuditRouter from "./rutere/admin/adminAudit.js";
 import adminBrukereRouter from "./rutere/admin/adminBrukere.js";
 import adminStatsRouter from "./rutere/admin/adminStats.js";
+import adminQueuesRouter from "./rutere/admin/adminQueues.js";
+import adminRedisRouter from "./rutere/admin/adminRedis.js";
+import adminLangsmithRouter from "./rutere/admin/adminLangsmith.js";
+import adminContactRouter from "./rutere/admin/adminContact.js";
+import adminLogsRouter from "./rutere/admin/adminLogs.js";
 import { beskytteMotCsrf } from "./middleware/csrf.js";
 import { noCache } from "./middleware/no-cache.js";
 import { rateLimitMe } from "./middleware/rate-limit.js";
@@ -73,18 +81,10 @@ import {
 import { isClientAvailable } from "./rutere/ki/aiClient.js";
 import { isCohereConfigured } from "./services/cohere-rerank.service.js";
 import {
-  startPendingClerkDeletionPolling,
-  processPendingClerkDeletions,
-} from "./services/clerkDeletionRetry.service.js";
-import {
   startChatHistoryCleanupPolling,
   sweepCorruptedChatHistory,
 } from "./services/chatHistoryCleanup.service.js";
-import { validateEncryptionKeyAtStartup } from "./utils/validateEncryptionKey.js";
-import {
-  startPendingVectorDeletionPolling,
-  processPendingVectorDeletions,
-} from "./services/vectorDeletionRetry.service.js";
+import { startQueueWorkers, stopQueueWorkers } from "./queues/index.js";
 import {
   startWebPushPolling,
   processWebPushNotifications,
@@ -368,6 +368,12 @@ app.use("/api/kb", noCache, knowledgeBaseRouter);
 app.use("/api/admin", rateLimitMe, requireRole("admin"), adminAuditRouter);
 app.use("/api/admin", rateLimitMe, requireRole("admin"), adminBrukereRouter);
 app.use("/api/admin", rateLimitMe, requireRole("admin"), adminStatsRouter);
+app.use("/api/admin", rateLimitMe, requireRole("admin"), adminQueuesRouter);
+app.use("/api/admin", rateLimitMe, requireRole("admin"), adminRedisRouter);
+app.use("/api/admin", rateLimitMe, requireRole("admin"), adminLangsmithRouter);
+app.use("/api/admin", rateLimitMe, requireRole("admin"), adminContactRouter);
+app.use("/api/admin", rateLimitMe, requireRole("admin"), adminLogsRouter);
+
 
 // Debug-ruter (kun development, krever auth)
 if (!isProd) {
@@ -427,24 +433,17 @@ connectToDatabase()
     } else {
       logger.warn("Cohere ikke tilgjengelig ved oppstart");
     }
-    // Validér ENCRYPTION_KEY mot eksisterende data (warner kun, stopper ikke oppstart)
-    void validateEncryptionKeyAtStartup();
-
     const dependencyHealthInterval = startExternalDependencyHealthPolling();
     const chatHistoryCleanupInterval = startChatHistoryCleanupPolling();
     void sweepCorruptedChatHistory().catch((err) => {
       logger.warn({ err }, "Initial ChatHistory-cleanup feilet");
     });
-    const clerkDeletionRetryInterval = startPendingClerkDeletionPolling();
-    const vectorDeletionRetryInterval = startPendingVectorDeletionPolling();
+    // BullMQ workers (Clerk-sletting + Pinecone-cleanup) erstatter de tidligere
+    // MongoDB-baserte polling-løkkene. Migrerer ev. eksisterende pending-rader på oppstart.
+    await startQueueWorkers();
+    logger.info("BullMQ-workers startet");
     const webPushInterval = startWebPushPolling();
 
-    void processPendingClerkDeletions().catch((error) => {
-      logger.warn({ err: error }, "Initial retry av ventende Clerk-slettinger feilet");
-    });
-    void processPendingVectorDeletions().catch((error) => {
-      logger.warn({ err: error }, "Initial retry av ventende vektor-slettinger feilet");
-    });
     void processWebPushNotifications().catch((error) => {
       logger.warn({ err: error }, "Initial web-push-sjekk feilet");
     });
@@ -476,9 +475,10 @@ connectToDatabase()
           clearInterval(dependencyHealthInterval);
           clearInterval(shareCleanupInterval);
           clearInterval(chatHistoryCleanupInterval);
-          if (clerkDeletionRetryInterval) clearInterval(clerkDeletionRetryInterval);
-          if (vectorDeletionRetryInterval) clearInterval(vectorDeletionRetryInterval);
           if (webPushInterval) clearInterval(webPushInterval);
+          // Steng BullMQ workers + Redis-tilkobling
+          await stopQueueWorkers();
+          logger.info("BullMQ-workers stoppet");
           // Lukk database-tilkobling
           await mongoose.connection.close();
           logger.info("MongoDB-tilkobling lukket");

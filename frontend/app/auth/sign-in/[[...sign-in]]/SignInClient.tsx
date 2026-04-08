@@ -8,6 +8,7 @@ import { useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, ShieldCheck } from "lucide-react";
 import { AuthTurnstileInline } from "@/app/auth/AuthTurnstileInline";
 import { checkAuthTurnstileGate } from "@/app/auth/auth-turnstile-api";
+import { getPostAuthRedirectFromParams, withPostAuthRedirect } from "@/app/auth/redirects";
 import { useLanguage } from "@/app/i18n";
 import { LoadingView } from "@/app/components/ui/Loading";
 import {
@@ -38,6 +39,9 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
   // Vis feilmelding fra URL-parameter (f.eks. etter auth-konflikt redirect)
   const searchParams = useSearchParams();
   const urlError = searchParams.get("error");
+  const redirectUrl = getPostAuthRedirectFromParams(searchParams);
+  const signUpHref = withPostAuthRedirect("/auth/sign-up", redirectUrl);
+  const forgotPasswordHref = withPostAuthRedirect("/auth/forgot-password", redirectUrl);
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -50,6 +54,10 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
   const [mfaCode, setMfaCode] = useState("");
   const [mfaError, setMfaError] = useState<string | null>(null);
   const [mfaSubmitting, setMfaSubmitting] = useState(false);
+
+  const redirectEtterAuth = useCallback(() => {
+    window.location.replace(redirectUrl);
+  }, [redirectUrl]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -80,7 +88,7 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
 
         if (result.status === "complete" && result.createdSessionId) {
           await setActive({ session: result.createdSessionId });
-          window.location.replace("/dashboard");
+          redirectEtterAuth();
         } else if (result.status === "needs_second_factor") {
           setMfaStep(true);
           setFormError(null);
@@ -95,7 +103,7 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
         setIsSubmitting(false);
       }
     },
-    [signIn, setActive, identifier, password, isSubmitting, t],
+    [signIn, setActive, identifier, password, isSubmitting, t, redirectEtterAuth],
   );
 
   // MFA: verifiser TOTP-kode
@@ -121,7 +129,7 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
 
         if (result.status === "complete" && result.createdSessionId) {
           await setActive({ session: result.createdSessionId });
-          window.location.replace("/dashboard");
+          redirectEtterAuth();
         } else {
           setMfaError(t("auth.signIn.mfa.verificationFailed"));
         }
@@ -131,7 +139,7 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
         setMfaSubmitting(false);
       }
     },
-    [signIn, setActive, mfaCode, mfaSubmitting, t],
+    [signIn, setActive, mfaCode, mfaSubmitting, t, redirectEtterAuth],
   );
 
   const handleOAuth = useCallback(
@@ -151,15 +159,15 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
 
         await signIn.authenticateWithRedirect({
           strategy,
-          redirectUrl: "/auth/sign-in/sso-callback",
-          redirectUrlComplete: "/dashboard",
+          redirectUrl: withPostAuthRedirect("/auth/sign-in/sso-callback", redirectUrl),
+          redirectUrlComplete: redirectUrl,
         });
       } catch (err) {
         setFormError(parseClerkError(err, t("auth.genericError")));
         setIsOAuthSubmitting(false);
       }
     },
-    [signIn, isOAuthSubmitting, t],
+    [signIn, isOAuthSubmitting, t, redirectUrl],
   );
 
   if (isRedirectingToDashboard) {
@@ -168,7 +176,7 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
         <AuthCard>
           <LoadingView
             fullPage={false}
-            translationKey="common.loading.redirectingToDashboard"
+            translationKey="common.loading.redirecting"
           />
         </AuthCard>
       </div>
@@ -303,7 +311,7 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
             <AuthFooterLink
               text={t("auth.signIn.noAccount")}
               linkText={t("auth.signIn.signUpLink")}
-              href="/auth/sign-up"
+              href={signUpHref}
             />
           </AuthCard>
 
@@ -318,7 +326,7 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
             </div>
 
             <Link
-              href="/auth/forgot-password"
+              href={forgotPasswordHref}
               prefetch={false}
               className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-blue-700 transition-colors hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
             >

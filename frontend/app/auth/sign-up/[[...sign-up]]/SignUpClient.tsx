@@ -8,6 +8,7 @@ import Link from "next/link";
 import { Loader2, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { AuthTurnstileInline } from "@/app/auth/AuthTurnstileInline";
 import { checkAuthTurnstileGate } from "@/app/auth/auth-turnstile-api";
+import { getPostAuthRedirectFromParams, withPostAuthRedirect } from "@/app/auth/redirects";
 import { useLanguage } from "@/app/i18n";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
@@ -45,6 +46,9 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
   const { isLoaded: userLoaded, user: clerkUser } = useUser();
   const { signUp, setActive } = useSignUp();
   const searchParams = useSearchParams();
+  const redirectUrl = getPostAuthRedirectFromParams(searchParams);
+  const signInHref = withPostAuthRedirect("/auth/sign-in", redirectUrl);
+  const oauthCompleteHref = withPostAuthRedirect("/auth/sign-up?oauth=complete", redirectUrl);
   const [isVerified, setIsVerified] = useState(initialVerified);
 
   // Detekter post-OAuth retur: bruker er innlogget og kommer tilbake fra OAuth
@@ -100,6 +104,10 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
   const [pendingEmail, setPendingEmail] = useState("");
 
+  const redirectEtterAuth = useCallback(() => {
+    window.location.replace(redirectUrl);
+  }, [redirectUrl]);
+
   // Sett steg til oauth-username når bruker kommer tilbake fra OAuth
   useEffect(() => {
     if (!isOAuthReturn || step === "oauth-username") return;
@@ -107,7 +115,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
     // Case 1: Sign-up fullført, session aktiv — sjekk om brukernavn mangler
     if (isSignedIn) {
       if (clerkUser?.username) {
-        window.location.replace("/dashboard");
+        redirectEtterAuth();
       } else {
         setStep("oauth-username");
       }
@@ -118,7 +126,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
     if (isOAuthMissingRequirements) {
       setStep("oauth-username");
     }
-  }, [isOAuthReturn, isSignedIn, isOAuthMissingRequirements, clerkUser, step]);
+  }, [isOAuthReturn, isSignedIn, isOAuthMissingRequirements, clerkUser, step, redirectEtterAuth]);
 
   // Pre-check for OAuth-konto-konflikt: kall /api/user/me tidlig for å oppdage om
   // samme OAuth-konto allerede er tilknyttet en annen bruker (f.eks. dev vs. prod).
@@ -146,7 +154,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
           }
           // turnstile_required: redirect til dashboard — TurnstileReChallenge viser re-verifikasjon
           if (errorType === "turnstile_required") {
-            window.location.replace("/dashboard");
+            redirectEtterAuth();
             return;
           }
         }
@@ -161,7 +169,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
             } catch {
               // Clerk-oppdatering feilet — brukeren kan fortsette manuelt
             }
-            window.location.replace("/dashboard");
+            redirectEtterAuth();
             return;
           }
         }
@@ -176,17 +184,17 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
     return () => {
       cancelled = true;
     };
-  }, [step, isSignedIn, oauthConflict, clerkUser]);
+  }, [step, isSignedIn, oauthConflict, clerkUser, redirectEtterAuth]);
 
   // Gjenopprett session hvis sign-up allerede er fullført (f.eks. etter reload på verify-steget)
   useEffect(() => {
     if (step !== "verify" || !signUp) return;
     if (signUp.status === "complete" && signUp.createdSessionId) {
       void setActive({ session: signUp.createdSessionId }).then(() => {
-        window.location.replace("/dashboard");
+        redirectEtterAuth();
       });
     }
-  }, [step, signUp, setActive]);
+  }, [step, signUp, setActive, redirectEtterAuth]);
 
   // Debounced username check med AbortController
   useEffect(() => {
@@ -351,15 +359,15 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
 
         await signUp.authenticateWithRedirect({
           strategy,
-          redirectUrl: "/auth/sign-up/sso-callback",
-          redirectUrlComplete: "/auth/sign-up?oauth=complete",
+          redirectUrl: withPostAuthRedirect("/auth/sign-up/sso-callback", redirectUrl),
+          redirectUrlComplete: oauthCompleteHref,
         });
       } catch (err) {
         setFormError(parseClerkError(err, t("auth.genericError")));
         setIsOAuthSubmitting(false);
       }
     },
-    [signUp, isOAuthSubmitting, t],
+    [signUp, isOAuthSubmitting, t, redirectUrl, oauthCompleteHref],
   );
 
   // Sett brukernavn etter OAuth
@@ -410,7 +418,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
 
           if (result.status === "complete" && result.createdSessionId) {
             await setActive({ session: result.createdSessionId });
-            window.location.replace("/dashboard");
+            redirectEtterAuth();
             return;
           }
 
@@ -434,7 +442,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
         }
 
         await clerkUser.update(updatePayload);
-        window.location.replace("/dashboard");
+        redirectEtterAuth();
       } catch (err) {
         const msg = parseClerkError(err, t("auth.signUp.oauthUsernameError"));
         // Clerk returnerer spesifikk feil hvis brukernavn er tatt
@@ -446,7 +454,19 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
         setIsSubmitting(false);
       }
     },
-    [signUp, setActive, clerkUser, username, firstName, lastName, oauthMissingFirstName, oauthMissingLastName, usernameStatus, t],
+    [
+      signUp,
+      setActive,
+      clerkUser,
+      username,
+      firstName,
+      lastName,
+      oauthMissingFirstName,
+      oauthMissingLastName,
+      usernameStatus,
+      t,
+      redirectEtterAuth,
+    ],
   );
 
   // Verifiser e-postkode
@@ -465,7 +485,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
 
         if (result.status === "complete" && result.createdSessionId) {
           await setActive({ session: result.createdSessionId });
-          window.location.replace("/dashboard");
+          redirectEtterAuth();
         } else if (result.status === "complete") {
           setVerifyError(t("auth.signUp.verify.sessionFailed"));
         } else {
@@ -476,7 +496,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
         if (signUp.status === "complete" && signUp.createdSessionId) {
           try {
             await setActive({ session: signUp.createdSessionId });
-            window.location.replace("/dashboard");
+            redirectEtterAuth();
             return;
           } catch {
             // Fall through til feilmelding
@@ -488,7 +508,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
         setIsVerifyingCode(false);
       }
     },
-    [signUp, setActive, verificationCode, isVerifyingCode, t],
+    [signUp, setActive, verificationCode, isVerifyingCode, t, redirectEtterAuth],
   );
 
   // Send verifiseringskode på nytt
@@ -514,7 +534,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
         <AuthCard>
           <LoadingView
             fullPage={false}
-            translationKey="common.loading.redirectingToDashboard"
+            translationKey="common.loading.redirecting"
           />
         </AuthCard>
       </div>
@@ -606,7 +626,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
               subtitle={t("auth.signUp.oauthConflict.description")}
             />
             <Link
-              href="/auth/sign-in"
+              href={signInHref}
               className="inline-flex w-full items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
             >
               {t("auth.signUp.oauthConflict.backToSignIn")}
@@ -826,7 +846,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
           <AuthFooterLink
             text={t("auth.signUp.alreadyHaveAccount")}
             linkText={t("auth.signUp.signInLink")}
-            href="/auth/sign-in"
+            href={signInHref}
           />
 
           {/* Påkrevd for Clerks bot-registreringsbeskyttelse */}
@@ -883,7 +903,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
           {verifyError === t("auth.signUp.verify.alreadyVerified") && (
             <div className="mt-4 text-center">
               <Link
-                href="/auth/sign-in"
+                href={signInHref}
                 className="text-sm font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
               >
                 {t("auth.signIn.submitButton")} &rarr;

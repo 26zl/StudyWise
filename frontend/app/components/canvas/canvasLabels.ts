@@ -181,8 +181,6 @@ export function getCanvasLabels(language: Language) {
     };
 }
 
-export type CanvasLabels = ReturnType<typeof getCanvasLabels>;
-
 export function useCanvasLabels() {
     const { language } = useLanguage();
 
