@@ -504,7 +504,23 @@ async function ensurePublicHttpUrl(rawUrl: string): Promise<URL | null> {
     return null;
   }
 
-  const dnsResults = await lookup(hostname, { all: true });
+  // DNS-timeout for å forhindre at en treg/manipulert resolver henger SSE-strømmen.
+  // NB: Dette er ikke en full DNS-rebinding-mitigering — for det måtte vi ha pinnet
+  // den løste IP-en og brukt den direkte i fetch (krever http.Agent med custom lookup).
+  // Som ekstra forsvar avviser vi alt som ser ut som privat/loopback IP og gir
+  // fetch en kort total-timeout (12s) i buildLiveUrlContextFromMessage.
+  const DNS_TIMEOUT_MS = 3_000;
+  let dnsResults: import("node:dns").LookupAddress[];
+  try {
+    dnsResults = await Promise.race([
+      lookup(hostname, { all: true }) as Promise<import("node:dns").LookupAddress[]>,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("DNS_TIMEOUT")), DNS_TIMEOUT_MS),
+      ),
+    ]);
+  } catch {
+    return null;
+  }
   if (!dnsResults.length) return null;
   if (dnsResults.some((entry) => isLoopbackOrPrivateIp(entry.address))) return null;
   return parsed;
@@ -878,10 +894,10 @@ function extractQueryTarget(message: string): TargetedQuery {
       const escaped = escapeRegex(kw);
       // Sammensatte (med mellomrom): krev hel-frase-match
       // Enkeltord: tillat trailing tegn (stem) for å fange norske bøyninger og sammensatte ord
-      // eslint-disable-next-line security/detect-non-literal-regexp -- kw kommer fra hardkodet liste
       const pattern = kw.includes(" ")
+        // eslint-disable-next-line security/detect-non-literal-regexp -- kw kommer fra hardkodet liste, escaped via escapeRegex
         ? new RegExp(`(^|\\s)${escaped}(\\s|$)`, "i")
-        // eslint-disable-next-line security/detect-non-literal-regexp -- kw kommer fra hardkodet liste
+        // eslint-disable-next-line security/detect-non-literal-regexp -- kw kommer fra hardkodet liste, escaped via escapeRegex
         : new RegExp(`\\b${escaped}[a-zæøå]*\\b`, "i");
       if (pattern.test(cleanedForCourse)) {
         courseHint = kw;
@@ -1161,7 +1177,9 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       // Sync-venting er best-effort — feil her skal IKKE stoppe KI-flyten
       try {
         // Sikre at bakgrunns-sync er igangsatt
-        ensureCanvasSync(req.user.id, req.canvasToken, baseUrl).catch((err) => {
+        // Tråder abortController.signal videre slik at bakgrunns-sync stopper
+        // når responsen avsluttes (klient navigerer bort, timeout, etc.).
+        ensureCanvasSync(req.user.id, req.canvasToken, baseUrl, undefined, abortController.signal).catch((err) => {
           logger.warn({ err, userId: req.user!.id }, "ensureCanvasSync feilet — fortsetter uten sync");
         });
 
@@ -1554,6 +1572,7 @@ Rules:
       const escaped = escapeRegex(slashBaseName);
       const base = await KnowledgeBase.findOne({
         userId: req.user!.id,
+        // eslint-disable-next-line security/detect-non-literal-regexp -- escaped via escapeRegex()
         navn: { $regex: new RegExp(`^${escaped}$`, "i") },
       }).lean();
 
@@ -1624,18 +1643,20 @@ Referer til kilde (fil/lenke) i svaret.
           .select("_id navn")
           .lean();
 
+        // Krever eksakt match mellom et alias og et basenavn for å unngå at en
+        // tilfeldig spørring med felles ord aktiverer feil base og dermed lekker
+        // sensitivt KB-innhold inn i prompten. Substring-matching ble bevisst
+        // fjernet — bruk /baseName for eksplisitt aktivering.
         const scored = baser
           .map((base) => {
             const baseName = normaliserSkrivefeil(base.navn);
             let score = 0;
             for (const alias of aliases) {
               if (baseName === alias) score += 100;
-              else if (baseName.includes(alias)) score += 60;
-              else if (alias.includes(baseName)) score += 40;
             }
             return { base, score };
           })
-          .filter((entry) => entry.score > 0)
+          .filter((entry) => entry.score >= 100)
           .sort((a, b) => b.score - a.score);
 
         const match = scored[0]?.base;

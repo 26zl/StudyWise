@@ -2694,6 +2694,7 @@ export async function ensureCanvasSync(
   canvasToken: string,
   baseUrl?: string,
   priorityCourseId?: string | number,
+  signal?: AbortSignal,
 ): Promise<void> {
   if (!isRedisReady()) return;
 
@@ -2702,9 +2703,13 @@ export async function ensureCanvasSync(
     return;
   }
 
-  syncCanvasDataForUser(userId, canvasToken, baseUrl, undefined, {
+  syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, {
     priorityCourseId,
   }).catch((err) => {
+    if ((err as { name?: string } | null)?.name === "AbortError") {
+      logger.debug({ userId }, "Canvas sync avbrutt (signal)");
+      return;
+    }
     logger.warn({ err, userId }, "Canvas sync feilet");
   });
 }

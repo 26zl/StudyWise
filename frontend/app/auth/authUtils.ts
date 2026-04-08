@@ -13,8 +13,7 @@ import type { MeResponse } from "common/auth";
 import { AppError } from "../lib/errors";
 import { erFatalUserDataFeilmelding } from "../lib/errorUtils";
 
-/** MeResponse ved innlogget, undefined før første svar eller når bruker ikke er autentisert. */
-export type MegQueryResult = UseQueryResult<MeResponse, Error>;
+type MegQueryResult = UseQueryResult<MeResponse, Error>;
 
 function erAuthFeil(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);

@@ -1558,16 +1558,13 @@ export function ChatSection() {
                                 {melding.rolle === "assistant" && animerendeMeldingId !== melding.id && !skriver && (
                                     <div className="flex items-center mt-1.5 px-0.5">
                                         <div className="flex items-center gap-0.5">
+                                            {harKilder && (
                                             <button
                                                 type="button"
                                                 onClick={() => {
                                                     setKildePanelMeldingId((prev) => prev === melding.id ? null : melding.id);
                                                 }}
-                                                className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                                                    harKilder
-                                                        ? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700"
-                                                        : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
-                                                }`}
+                                                className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium transition-colors bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700"
                                                 title={`${t("chat.sources")} (${visbareKilder.length})`}
                                                 aria-pressed={kildePanelMeldingId === melding.id}
                                             >
@@ -1578,6 +1575,7 @@ export function ChatSection() {
                                                 </span>
                                                 <span>{visbareKilder.length} {t("chat.sourcesPillLabel")}</span>
                                             </button>
+                                            )}
                                             <button
                                                 type="button"
                                                 onClick={async () => {

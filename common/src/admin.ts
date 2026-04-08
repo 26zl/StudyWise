@@ -103,6 +103,16 @@ export const AdminStatsResponseSchema = z.object({
     canvasModuler: CountSchema,
     canvasModulElementer: CountSchema,
   }),
+  kunnskapsbase: z.object({
+    baser: CountSchema,
+    lenker: CountSchema,
+    filer: CountSchema,
+    chunks: CountSchema,
+    brukereMedBase: CountSchema,
+    crawledeLenker: CountSchema,
+    feiledeLenker: CountSchema,
+    snittBaserPerBruker: MetricSchema,
+  }),
   sync: z.object({
     brukereMedSyncData: CountSchema,
     brukereMedFerskSync24t: CountSchema,
@@ -138,6 +148,8 @@ export const AdminStatsResponseSchema = z.object({
     orphanedCanvasStrukturer: CountSchema,
     orphanedCanvasBrukere: CountSchema,
     delingerUtenEier: CountSchema,
+    orphanedKunnskapsbaser: CountSchema,
+    orphanedKBChunks: CountSchema,
   }),
 });
 

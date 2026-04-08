@@ -8,6 +8,8 @@ import {
   KBBaseListResponseSchema,
   KBBaseDetailSchema,
   KBBaseSummarySchema,
+  KBLinkSchema,
+  KBFileSchema,
   type KBBaseListResponse,
   type KBBaseDetail,
   type KBBaseSummary,
@@ -75,7 +77,7 @@ export async function leggTilKBLenke(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url, tittel }),
   });
-  return data as KBLink;
+  return KBLinkSchema.parse(data);
 }
 
 /** Slett lenke fra base */
@@ -103,7 +105,7 @@ export async function lastOppKBFil(baseId: string, file: File): Promise<KBFile> 
     throw new Error(melding);
   }
 
-  return (await res.json()) as KBFile;
+  return KBFileSchema.parse(await res.json());
 }
 
 /** Slett fil fra base */

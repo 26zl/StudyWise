@@ -87,6 +87,10 @@ export default function FaqPage() {
           a: t("faq.fileTypesA"),
         },
         {
+          q: t("faq.knowledgeBaseQ"),
+          a: t("faq.knowledgeBaseA"),
+        },
+        {
           q: t("faq.sharedChatsQ"),
           a: t("faq.sharedChatsA"),
         },

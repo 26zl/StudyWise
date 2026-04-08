@@ -141,17 +141,18 @@ router.post("/", rateLimitKBWrite, async (req: Request, res: Response) => {
   }
 
   try {
-    // Sjekk maks antall baser
-    const antall = await KnowledgeBase.countDocuments({ userId });
-    if (antall >= KB_MAX_BASES_PER_USER) {
-      apiError.badRequest(res, `Du kan ha maks ${KB_MAX_BASES_PER_USER} kunnskapsbaser`);
-      return;
-    }
-
+    // Atomisk grense-sjekk: opprett først, tell etterpå, rull tilbake ved overskridelse.
+    // Hindrer race condition mellom samtidige requests fra samme bruker.
     const base = await KnowledgeBase.create({
       userId,
       navn: parsed.data.navn,
     });
+    const antall = await KnowledgeBase.countDocuments({ userId });
+    if (antall > KB_MAX_BASES_PER_USER) {
+      await KnowledgeBase.deleteOne({ _id: base._id });
+      apiError.badRequest(res, `Du kan ha maks ${KB_MAX_BASES_PER_USER} kunnskapsbaser`);
+      return;
+    }
 
     void audit({
       actorUserId: userId,
@@ -360,6 +361,15 @@ router.post("/:id/links", rateLimitKBWrite, async (req: Request, res: Response) 
     // Indekser lenkeinnhold asynkront (blokkerer ikke responsen) med per-bruker concurrency-cap
     runKBIngestionJob(userId, () => crawlAndIndexLink(userId, baseId, lenkeId, parsed.data.url, tittel));
 
+    void audit({
+      actorUserId: userId,
+      action: AUDIT_ACTIONS.KB_LINK_ADDED,
+      category: "ki",
+      outcome: "success",
+      req,
+      metadata: { baseId, lenkeId, url: parsed.data.url },
+    });
+
     res.status(201).json({
       id: lenkeId,
       url: nyLenke.url,
@@ -392,12 +402,22 @@ router.delete("/:id/links/:linkId", rateLimitKBWrite, async (req: Request, res: 
     }
 
     const lenkeId = String(base.lenker[lenkeIndex]._id);
+    const slettetUrl = base.lenker[lenkeIndex].url;
 
     // Slett indeksert innhold
     await deleteKBSourceContent(userId, String(base._id), lenkeId);
 
     base.lenker.splice(lenkeIndex, 1);
     await base.save();
+
+    void audit({
+      actorUserId: userId,
+      action: AUDIT_ACTIONS.KB_LINK_DELETED,
+      category: "ki",
+      outcome: "success",
+      req,
+      metadata: { baseId: String(base._id), lenkeId, url: slettetUrl },
+    });
 
     res.status(204).end();
   } catch (err) {
@@ -445,18 +465,26 @@ router.post("/:id/files", rateLimitKBWrite, (req: Request, res: Response) => {
       const filIdObject = new Types.ObjectId();
       const now = new Date();
 
+      // Normaliser filnavn: kun basename, fjern kontrolltegn og path-separatorer
+      const safeFilnavn = (req.file.originalname || "fil")
+        .split(/[\\/]/)
+        .pop()!
+        // eslint-disable-next-line no-control-regex -- fjerner kontrolltegn for å hindre injeksjon i logg/UI
+        .replace(/[\u0000-\u001f\u007f]/g, "")
+        .slice(0, 255) || "fil";
+
       const oppdatertBase = await KnowledgeBase.findOneAndUpdate(
         {
           _id: baseId,
           userId,
-          "filer.filnavn": { $ne: req.file.originalname },
+          "filer.filnavn": { $ne: safeFilnavn },
           $expr: { $lt: [{ $size: "$filer" }, KB_MAX_FILES_PER_BASE] },
         },
         {
           $push: {
             filer: {
               _id: filIdObject,
-              filnavn: req.file.originalname,
+              filnavn: safeFilnavn,
               mimeType: req.file.mimetype,
               storrelse: req.file.size,
               contentHash,
@@ -480,7 +508,7 @@ router.post("/:id/files", rateLimitKBWrite, (req: Request, res: Response) => {
           apiError.badRequest(res, `Maks ${KB_MAX_FILES_PER_BASE} filer per base`);
           return;
         }
-        if (eksisterendeBase.filer.some((f) => f.filnavn === req.file!.originalname)) {
+        if (eksisterendeBase.filer.some((f) => f.filnavn === safeFilnavn)) {
           apiError.badRequest(res, "En fil med dette navnet finnes allerede i basen");
           return;
         }
@@ -512,6 +540,15 @@ router.post("/:id/files", rateLimitKBWrite, (req: Request, res: Response) => {
           file.mimetype,
         ));
 
+      void audit({
+        actorUserId: userId,
+        action: AUDIT_ACTIONS.KB_FILE_UPLOADED,
+        category: "ki",
+        outcome: "success",
+        req,
+        metadata: { baseId, filId, filnavn: file.originalname, storrelse: file.size },
+      });
+
       res.status(201).json({
         id: filId,
         filnavn: nyFil.filnavn,
@@ -541,12 +578,22 @@ router.delete("/:id/files/:fileId", rateLimitKBWrite, async (req: Request, res: 
     }
 
     const filId = String(base.filer[filIndex]._id);
+    const slettetFilnavn = base.filer[filIndex].filnavn;
 
     // Slett indeksert innhold
     await deleteKBSourceContent(userId, String(base._id), filId);
 
     base.filer.splice(filIndex, 1);
     await base.save();
+
+    void audit({
+      actorUserId: userId,
+      action: AUDIT_ACTIONS.KB_FILE_DELETED,
+      category: "ki",
+      outcome: "success",
+      req,
+      metadata: { baseId: String(base._id), filId, filnavn: slettetFilnavn },
+    });
 
     res.status(204).end();
   } catch (err) {
@@ -560,6 +607,29 @@ router.delete("/:id/files/:fileId", rateLimitKBWrite, async (req: Request, res: 
  * Crawler og indekserer en lenke asynkront.
  * Bruker enkel HTTP-henting med Readability for innholdsekstraksjon.
  */
+async function setLinkCrawlStatus(
+  baseId: string,
+  lenkeId: string,
+  status: "completed" | "failed",
+  feilmelding?: string,
+): Promise<void> {
+  try {
+    await KnowledgeBase.updateOne(
+      { _id: baseId, "lenker._id": lenkeId },
+      {
+        $set: {
+          "lenker.$.crawlStatus": status,
+          "lenker.$.lastCrawledAt": new Date(),
+          ...(feilmelding ? { "lenker.$.crawlError": feilmelding } : { "lenker.$.crawlError": "" }),
+          ...(status === "completed" ? { "lenker.$.indexed": true } : {}),
+        },
+      },
+    );
+  } catch (err) {
+    logger.error({ err, baseId, lenkeId, status }, "Kunne ikke oppdatere crawl-status på lenke");
+  }
+}
+
 async function crawlAndIndexLink(
   userId: string,
   baseId: string,
@@ -574,10 +644,12 @@ async function crawlAndIndexLink(
 
     if (fetched.kind === "failed") {
       logger.warn({ url }, "Kunne ikke hente lenkeinnhold");
+      await setLinkCrawlStatus(baseId, lenkeId, "failed", "Kunne ikke hente innhold fra lenken");
       return;
     }
     if (fetched.kind === "skip") {
       logger.info({ url }, "Ustøttet innholdstype for lenke — hopper over");
+      await setLinkCrawlStatus(baseId, lenkeId, "failed", "Ustøttet innholdstype");
       return;
     }
 
@@ -593,6 +665,7 @@ async function crawlAndIndexLink(
 
     if (text.trim().length === 0) {
       logger.info({ url }, "Tomt innhold fra lenke — hopper over");
+      await setLinkCrawlStatus(baseId, lenkeId, "failed", "Lenken ga ingen tekst som kunne indekseres");
       return;
     }
 
@@ -609,17 +682,18 @@ async function crawlAndIndexLink(
       },
     });
 
-    // Oppdater indexed-status på lenken
-    await KnowledgeBase.updateOne(
-      { _id: baseId, "lenker._id": lenkeId },
-      { $set: { "lenker.$.indexed": true } },
-    );
-
+    await setLinkCrawlStatus(baseId, lenkeId, "completed");
     logger.info({ baseId, lenkeId, url }, "Lenke indeksert i kunnskapsbase");
   } catch (err) {
     logger.error(
       { err, url, baseId, lenkeId },
       "Feil ved crawling/indeksering av lenke",
+    );
+    await setLinkCrawlStatus(
+      baseId,
+      lenkeId,
+      "failed",
+      err instanceof Error ? err.message : "Ukjent feil ved indeksering",
     );
   }
 }
@@ -640,6 +714,11 @@ async function parseAndIndexFile(
 
     if (!parsed.text || parsed.text.trim().length === 0) {
       logger.warn({ filnavn, baseId }, "Tomt innhold fra fil — hopper over indeksering");
+      // Marker som indeksert slik at UI ikke står fast i "pending"
+      await KnowledgeBase.updateOne(
+        { _id: baseId, "filer._id": filId },
+        { $set: { "filer.$.indexed": true } },
+      );
       return;
     }
 

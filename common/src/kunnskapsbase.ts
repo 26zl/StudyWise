@@ -88,12 +88,12 @@ export const KBAddLinkSchema = z.object({
   /** Crawl-konfigurasjon (valgfritt) */
   crawlOptions: z
     .object({
-      /** Maks dybde (0 = kun seed-URL, maks 3) */
-      maxDepth: z.number().int().min(0).max(3).optional(),
-      /** Maks antall sider å crawle */
-      maxPages: z.number().int().min(1).max(50).optional(),
-      /** Maks antall dokumenter (PDF, DOCX) */
-      maxDocuments: z.number().int().min(0).max(20).optional(),
+      /** Maks dybde (0 = kun seed-URL) — knyttet til backend-konstant */
+      maxDepth: z.number().int().min(0).max(KB_CRAWL_MAX_DEPTH).optional(),
+      /** Maks antall sider å crawle — knyttet til backend-konstant */
+      maxPages: z.number().int().min(1).max(KB_CRAWL_MAX_PAGES).optional(),
+      /** Maks antall dokumenter (PDF, DOCX) — knyttet til backend-konstant */
+      maxDocuments: z.number().int().min(0).max(KB_CRAWL_MAX_DOCUMENTS).optional(),
       /** Begrens til samme path-prefiks */
       samePathOnly: z.boolean().optional(),
       /** Include-patterns (regex-strenger) */

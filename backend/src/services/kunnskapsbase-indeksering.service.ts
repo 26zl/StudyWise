@@ -388,21 +388,52 @@ export async function searchKBContent(
 }
 
 /**
+ * Saniterer brukerkontrollert tekst som plasseres inne i en attributtverdi
+ * eller mellom XML-tags i system-prompten. Forhindrer at KB-navn eller
+ * KB-innhold kan bryte ut av <kunnskapsbase>-konteksten og injisere
+ * instruksjoner til modellen.
+ */
+function sanitizeForPromptTag(value: string): string {
+  return value
+    .replace(/[<>]/g, " ")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "'")
+    // eslint-disable-next-line no-control-regex -- fjerner null-bytes for å hindre prompt-injection
+    .replace(/\u0000/g, "");
+}
+
+/**
+ * Fjerner forekomster av </kunnskapsbase> og lignende lukkende tags fra
+ * brukerinnhold slik at KB-tekst ikke kan terminere konteksten tidlig.
+ */
+function sanitizeKBBodyText(text: string): string {
+  return text
+    .replace(/<\/?kunnskapsbase[^>]*>/gi, " ")
+    .replace(/<\/?live_url[^>]*>/gi, " ")
+    // eslint-disable-next-line no-control-regex -- fjerner null-bytes for å hindre prompt-injection
+    .replace(/\u0000/g, "");
+}
+
+/**
  * Bygger kontekststreng for KI-chatten fra KB-søkeresultater.
  * Returnerer alltid en kontekst når baseName er oppgitt, selv uten resultater,
  * slik at KI-en vet at basen er aktiv.
  */
 export function buildKBContext(results: KBSearchResult[], baseName: string): string {
+  const safeBaseName = sanitizeForPromptTag(baseName);
+
   if (results.length === 0) {
-    return `<kunnskapsbase name="${baseName}" status="aktiv">
-Ingen relevante utdrag funnet for dette spørsmålet. Basen "${baseName}" er fortsatt aktiv.
+    return `<kunnskapsbase name="${safeBaseName}" status="aktiv">
+Ingen relevante utdrag funnet for dette spørsmålet. Basen "${safeBaseName}" er fortsatt aktiv.
 </kunnskapsbase>`;
   }
 
   const sections = results.map((r) => {
     const kildetype = r.sourceType === "file" ? "Fil" : "Lenke";
-    return `--- ${kildetype}: ${r.sourceName} ---\n${r.text}\n--- SLUTT ---`;
+    const safeName = sanitizeForPromptTag(r.sourceName);
+    const safeText = sanitizeKBBodyText(r.text);
+    return `--- ${kildetype}: ${safeName} ---\n${safeText}\n--- SLUTT ---`;
   });
 
-  return `<kunnskapsbase name="${baseName}" status="aktiv">\n${sections.join("\n\n")}\n</kunnskapsbase>`;
+  return `<kunnskapsbase name="${safeBaseName}" status="aktiv">\n${sections.join("\n\n")}\n</kunnskapsbase>`;
 }

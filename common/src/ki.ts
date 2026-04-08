@@ -32,13 +32,6 @@ export const KIChatClientMessageSchema = z.object({
 export const ExplanationLevelSchema = z.enum(["simple", "standard", "detailed", "expert"]);
 export type ExplanationLevel = z.infer<typeof ExplanationLevelSchema>;
 
-export const EXPLANATION_LEVEL_LABELS: Record<ExplanationLevel, string> = {
-  simple: "Enkelt",
-  standard: "Standard",
-  detailed: "Detaljert",
-  expert: "Ekspert",
-};
-
 // Request-schema for KI chat API
 export const KIChatRequestSchema = z.object({
   messages: z.array(KIChatClientMessageSchema).min(1, "Minst én melding må sendes inn").max(200, "Maks 200 meldinger kan sendes inn"),

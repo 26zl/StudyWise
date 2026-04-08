@@ -347,6 +347,8 @@ The backend accepts file uploads via `multer` and processes them with:
 - **Host validation** - In production, `API_HOST` is required and controls which hostname is allowed (e.g. `api.studwize.page`). Direct access via `herokuapp.com` returns 403. `/health` is exempt. `INTERNAL_HOSTS` (comma-separated) allows additional hostnames for internal traffic (e.g. Vercel → Heroku direct). `TRUST_PROXY_HOPS` must match the real proxy chain so client IPs, Turnstile `remoteip` and rate limiting stay correct.
 - **CORS pre-check** - Origin validation happens before `cors()` middleware to prevent generic 500 errors from invalid origins
 - **Trust proxy** - Set to `1` in Express for correct IP handling behind Cloudflare/Heroku proxies
+- **Snyk DOMXSS false positives** - Snyk's taint analysis flags `fetchApi()`, `downloadAuthedFile()` and similar fetch wrappers as DOM-XSS sinks even though no DOM write occurs. The codebase suppresses these with `// deepcode ignore DOMXSS: <reason>` comments at the call site, and breaks taint sporing with `Number.parseInt(String(x), 10)` for IDs. Don't "fix" these — verify the sink is actually a DOM write before touching them.
+- **Verify audit findings before fixing** - Static analyzers and explore agents frequently report false positives (e.g. exports that are actually used via subpath imports, Zod v4 `.check()` flagged as v3 syntax, conditional `max-md:hidden` flagged as anti-pattern). Always grep to confirm zero usage / actually-broken behavior before editing.
 
 ### Styling Rules (Tailwind)
 
@@ -355,6 +357,7 @@ The backend accepts file uploads via `multer` and processes them with:
 - **Mobile First**: Always design for mobile first, then add breakpoints (`sm:`, `md:`, `lg:`)
   - Correct: `w-full md:w-1/2`
   - Wrong: `w-1/2 max-md:w-full`
+- **Neutral palette**: Use `slate-*` (not `gray-*`) for neutral colors to match the project palette
 
 ### Error Handling
 

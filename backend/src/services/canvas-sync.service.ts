@@ -170,9 +170,20 @@ interface SyncOptions {
 
 /** Holder styr på pågående synkroniseringer per bruker */
 const activeSyncs = new Map<string, Promise<SyncResult>>();
+/** Starttidspunkt per pågående sync — brukes til å oppdage stale entries */
+const activeSyncStartedAt = new Map<string, number>();
+/** Maks tid en in-memory entry får leve før den anses som stale (matcher Redis-låsen) */
+const ACTIVE_SYNC_STALE_MS = SYNC_LOCK_TTL_S * 1000;
 
-/** Sjekker om en bruker har en pågående synkronisering */
+/** Sjekker om en bruker har en pågående synkronisering (stale entries ignoreres) */
 export function isSyncing(userId: string): boolean {
+  const startedAt = activeSyncStartedAt.get(userId);
+  if (startedAt && Date.now() - startedAt > ACTIVE_SYNC_STALE_MS) {
+    // Stale — rydd opp slik at neste kall kan starte ny sync
+    activeSyncs.delete(userId);
+    activeSyncStartedAt.delete(userId);
+    return false;
+  }
   return activeSyncs.has(userId);
 }
 
@@ -266,9 +277,19 @@ export async function syncCanvasDataForUser(
   signal?: AbortSignal,
   options?: SyncOptions,
 ): Promise<SyncResult> {
-  // Hvis det allerede pågår en sync for denne brukeren i denne prosessen, vent på den
+  // Hvis det allerede pågår en sync for denne brukeren i denne prosessen, vent på den.
+  // Stale entries (eldre enn ACTIVE_SYNC_STALE_MS) ignoreres for å unngå at en krasjet
+  // sync permanent låser brukeren ute frem til neste dyno-restart.
   const existing = activeSyncs.get(userId);
-  if (existing) return existing;
+  const existingStartedAt = activeSyncStartedAt.get(userId);
+  if (existing && existingStartedAt && Date.now() - existingStartedAt <= ACTIVE_SYNC_STALE_MS) {
+    return existing;
+  }
+  if (existing) {
+    logger.warn({ userId, ageMs: existingStartedAt ? Date.now() - existingStartedAt : null }, "Stale activeSyncs-entry oppdaget — starter ny sync");
+    activeSyncs.delete(userId);
+    activeSyncStartedAt.delete(userId);
+  }
 
   // Distribuert lås via Redis — forhindrer at flere dynoer synker samme bruker samtidig
   const lockKey = syncLockKey(userId);
@@ -282,6 +303,7 @@ export async function syncCanvasDataForUser(
 
   const promise = _doSync(userId, canvasToken, baseUrl, signal, options);
   activeSyncs.set(userId, promise);
+  activeSyncStartedAt.set(userId, Date.now());
 
   // Sett Redis sync-status til "running" med timestamp slik at andre prosesser kan polle
   // og oppdage stale status (eldre enn SYNC_STATUS_TTL sekunder)
@@ -297,6 +319,7 @@ export async function syncCanvasDataForUser(
     return await promise;
   } finally {
     activeSyncs.delete(userId);
+    activeSyncStartedAt.delete(userId);
     if (isRedisReady()) {
       await Promise.all([
         setCache(

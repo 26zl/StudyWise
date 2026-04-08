@@ -3,9 +3,6 @@
  * Sentraliserte verdier for cache TTL og timeout
  */
 
-/** Cache TTL for KI-test-connection (sekunder) */
-export const KI_CACHE_TTL = 300; // 5 minutter
-
 /** Cache TTL for KI-oppsummering (sekunder) */
 export const KI_OPPSUMMERING_CACHE_TTL = 3600; // 1 time
 

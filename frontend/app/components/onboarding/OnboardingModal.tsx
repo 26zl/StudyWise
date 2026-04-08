@@ -11,6 +11,7 @@ import {
   BookOpen,
   CalendarDays,
   Brain,
+  Library,
   Bell,
   Settings,
   ChevronRight,
@@ -59,6 +60,13 @@ const STEG: OnboardingSteg[] = [
     fargeklasse: "bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400",
   },
   {
+    ikon: <Library className="h-8 w-8" />,
+    ikonLiten: <Library className="h-5 w-5" />,
+    tittelKey: "onboarding.steps.knowledgeBase",
+    beskrivKey: "onboarding.steps.knowledgeBaseDescription",
+    fargeklasse: "bg-teal-100 text-teal-600 dark:bg-teal-900/40 dark:text-teal-400",
+  },
+  {
     ikon: <Bell className="h-8 w-8" />,
     ikonLiten: <Bell className="h-5 w-5" />,
     tittelKey: "onboarding.steps.notifications",
@@ -70,7 +78,7 @@ const STEG: OnboardingSteg[] = [
     ikonLiten: <Settings className="h-5 w-5" />,
     tittelKey: "onboarding.steps.settings",
     beskrivKey: "onboarding.steps.settingsDescription",
-    fargeklasse: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+    fargeklasse: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
   },
 ];
 
@@ -128,7 +136,7 @@ export function OnboardingModal({ onLukk }: OnboardingModalProps) {
   return (
     <dialog
       ref={dialogRef}
-      className="fixed inset-0 z-50 m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-gray-200 bg-white p-0 shadow-2xl backdrop:bg-black/50 dark:border-gray-700 dark:bg-gray-900"
+      className="fixed inset-0 z-50 m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-slate-200 bg-white p-0 shadow-2xl backdrop:bg-black/50 dark:border-slate-700 dark:bg-slate-900"
       aria-label={t("onboarding.welcome")}
     >
       <div className="relative flex flex-col">
@@ -136,7 +144,7 @@ export function OnboardingModal({ onLukk }: OnboardingModalProps) {
         <button
           type="button"
           onClick={lukkModal}
-          className="absolute right-3 top-3 rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+          className="absolute right-3 top-3 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
           aria-label={t("common.actions.close")}
         >
           <X className="h-5 w-5" />
@@ -152,10 +160,10 @@ export function OnboardingModal({ onLukk }: OnboardingModalProps) {
         </div>
 
         {/* Steg-indikator og navigasjon */}
-        <div className="flex items-center justify-between border-t border-gray-200 px-6 py-4 dark:border-gray-700">
+        <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4 dark:border-slate-700">
           <div className="flex items-center gap-1.5">
             {!erVelkomst && (
-              <span className="text-xs text-gray-500 dark:text-gray-400">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 {t("onboarding.stepOf", {
                   current: aktivtSteg + 1,
                   total: STEG.length,
@@ -169,7 +177,7 @@ export function OnboardingModal({ onLukk }: OnboardingModalProps) {
               <button
                 type="button"
                 onClick={forrige}
-                className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
               >
                 <ChevronLeft className="h-4 w-4" />
                 {t("onboarding.previous")}
@@ -180,7 +188,7 @@ export function OnboardingModal({ onLukk }: OnboardingModalProps) {
               <button
                 type="button"
                 onClick={lukkModal}
-                className="rounded-lg px-3 py-2 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
               >
                 {t("onboarding.skip")}
               </button>
@@ -212,7 +220,7 @@ export function OnboardingModal({ onLukk }: OnboardingModalProps) {
                 className={`h-2 rounded-full transition-all ${
                   i === aktivtSteg
                     ? "w-6 bg-blue-600 dark:bg-blue-400"
-                    : "w-2 bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500"
+                    : "w-2 bg-slate-300 hover:bg-slate-400 dark:bg-slate-600 dark:hover:bg-slate-500"
                 }`}
                 aria-label={`${t("onboarding.stepOf", { current: i + 1, total: STEG.length })}`}
               />
@@ -231,10 +239,10 @@ function VelkomstSide({ t }: { t: Translator }) {
       <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-linear-to-br from-blue-500 to-purple-600 text-white shadow-lg">
         <Sparkles className="h-8 w-8" />
       </div>
-      <h2 className="mb-2 text-2xl font-bold text-gray-900 dark:text-white">
+      <h2 className="mb-2 text-2xl font-bold text-slate-900 dark:text-white">
         {t("onboarding.welcome")}
       </h2>
-      <p className="max-w-sm text-gray-600 dark:text-gray-400">
+      <p className="max-w-sm text-slate-600 dark:text-slate-400">
         {t("onboarding.welcomeDescription")}
       </p>
 
@@ -243,12 +251,12 @@ function VelkomstSide({ t }: { t: Translator }) {
         {STEG.map((s, i) => (
           <div
             key={i}
-            className="flex flex-col items-center gap-1.5 rounded-xl border border-gray-100 p-3 dark:border-gray-800"
+            className="flex flex-col items-center gap-1.5 rounded-xl border border-slate-100 p-3 dark:border-slate-800"
           >
             <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${s.fargeklasse}`}>
               {s.ikonLiten}
             </div>
-            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+            <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
               {t(s.tittelKey)}
             </span>
           </div>
@@ -271,10 +279,10 @@ function StegSide({
       <div className={`mb-5 flex h-16 w-16 items-center justify-center rounded-2xl ${steg.fargeklasse}`}>
         {steg.ikon}
       </div>
-      <h3 className="mb-2 text-xl font-bold text-gray-900 dark:text-white">
+      <h3 className="mb-2 text-xl font-bold text-slate-900 dark:text-white">
         {t(steg.tittelKey)}
       </h3>
-      <p className="max-w-sm text-gray-600 dark:text-gray-400">
+      <p className="max-w-sm text-slate-600 dark:text-slate-400">
         {t(steg.beskrivKey)}
       </p>
     </div>

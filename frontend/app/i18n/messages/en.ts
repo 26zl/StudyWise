@@ -71,7 +71,7 @@ export const enMessages = {
       assignments: "Assignments",
       calendar: "Calendar",
       canvas: "Canvas",
-      bookmarks: "Bookmarks",
+      bookmarks: "Library",
       chatHistory: "Conversations",
       courses: "Courses",
       noChatsYet: "No conversations yet",
@@ -718,6 +718,7 @@ export const enMessages = {
         audit: "Audit and security",
         quality: "Data quality",
         observability: "LangSmith observability",
+        knowledgeBase: "Knowledge base",
       },
       aiObservability: {
         cardsTitle: "LangSmith key metrics",
@@ -829,6 +830,16 @@ export const enMessages = {
       usersWithPush: "Users with push",
       avgDevicesPerUser: "Avg devices per user",
       usersWithNotion: "Users with Notion",
+      kbBases: "Knowledge bases",
+      kbUsersWithBase: "Users with a knowledge base",
+      kbAvgBasesPerUser: "Avg bases per user",
+      kbLinks: "Total links",
+      kbFiles: "Total files",
+      kbChunks: "Indexed text chunks",
+      kbCrawled: "Successfully crawled links",
+      kbCrawlFailed: "Links with crawl errors",
+      orphanedKnowledgeBases: "Knowledge bases without valid user",
+      orphanedKBChunks: "KB chunks without valid user",
     },
     users: {
       email: "Email",
@@ -1324,7 +1335,7 @@ export const enMessages = {
     thirdPartyCanvasLabel: "Canvas LMS:",
     thirdPartyCanvasBody: "We only use your API token to fetch data on your behalf from your institution's Canvas. The token is stored encrypted with us and is not sent to other third parties.",
     thirdPartyPineconeLabel: "Vector search (Pinecone):",
-    thirdPartyPineconeBody: "When you use AI features with Canvas content, text chunks (without names, emails, or other personally identifying data) are sent to Pinecone for indexing and semantic search. Pinecone only stores vector representations and anonymized text linked to your user ID.",
+    thirdPartyPineconeBody: "When you use AI features with Canvas content or your own knowledge bases (links and files you have added), text chunks (without names, emails, or other personally identifying data) are sent to Pinecone for indexing and semantic search. Pinecone only stores vector representations and anonymized text linked to your user ID, and everything is deleted when you remove the base or your account.",
     thirdPartyCohereLabel: "Reranking (Cohere):",
     thirdPartyCohereBody: "To improve relevance in AI responses, Cohere is used to rank search results. Only anonymized text excerpts are sent — no personal data.",
     thirdPartyDatadogLabel: "Monitoring (Datadog):",
@@ -1462,6 +1473,9 @@ export const enMessages = {
     withoutCanvasA: "Yes, you can use the AI chat and document analysis without connecting to Canvas. A Canvas token is only needed to fetch course data, assignments, and calendar.",
     fileTypesQ: "Which file types are supported for document analysis?",
     fileTypesA: "StudyWise supports PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), images (PNG, JPG, WEBP), and common code files.",
+    knowledgeBaseQ: "What is a knowledge base?",
+    knowledgeBaseA:
+      "A knowledge base is a collection of links and files you add yourself. The content is indexed so the AI can use it as context when you chat. Type \"use the base <name>\" to activate a base in the conversation.",
     sharedChatsQ: "How long are shared conversations stored?",
     sharedChatsA: "Shared conversation links are valid for 30 days. After that, the shared link is automatically deleted.",
     notFound: "Didn't find the answer?",
@@ -1673,6 +1687,9 @@ export const enMessages = {
       quiz: "Quiz & Flashcards",
       quizDescription:
         "Generate quizzes and flashcards from your curriculum and documents to test your knowledge. The AI creates questions based on your study material.",
+      knowledgeBase: "Knowledge Base",
+      knowledgeBaseDescription:
+        "Collect links and files in your own knowledge bases. The AI can use the content as context when you chat — perfect for curriculum, projects, or exam prep.",
       notifications: "Notifications",
       notificationsDescription:
         "Get notifications about upcoming deadlines and important events from Canvas so you never miss anything.",

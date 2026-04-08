@@ -296,6 +296,8 @@ Backend tar imot filopplasting via `multer` og prosesserer med:
 - **Host-validering** – I produksjon er `API_HOST` påkrevd og styrer hvilket hostname som er tillatt (f.eks. `api.studwize.page`). Direkte tilgang via `herokuapp.com` returnerer 403. `/health` er unntatt. `TRUST_PROXY_HOPS` må settes riktig for faktisk proxy-kjede slik at klient-IP og rate limiting blir korrekt.
 - **CORS pre-check** – Origin-validering skjer før `cors()`-middleware for å unngå generiske 500-feil fra ugyldige origins
 - **Trust proxy** – Satt til `1` i Express for korrekt IP-håndtering bak Cloudflare/Heroku-proxyer
+- **Snyk DOMXSS false positives** – Snyks taint-analyse flagger `fetchApi()`, `downloadAuthedFile()` og lignende fetch-wrappere som DOM-XSS-sinks selv om ingen DOM-skriving skjer. Kodebasen undertrykker disse med `// deepcode ignore DOMXSS: <årsak>`-kommentarer ved kallstedet, og bryter taint-sporing med `Number.parseInt(String(x), 10)` for ID-er. Ikke "fiks" disse — verifiser at sink faktisk er en DOM-skriving før du rører dem.
+- **Verifiser audit-funn før fiks** – Statiske analyseverktøy og explore-agenter rapporterer ofte falske positiver (f.eks. eksporter som faktisk brukes via subpath-imports, Zod v4 `.check()` flagget som v3-syntax, betinget `max-md:hidden` flagget som anti-pattern). Grep alltid for å bekrefte null bruk / faktisk ødelagt oppførsel før du redigerer.
 - **Rate limiting** – bruk eksisterende `rateLimitKi`-middleware for KI-endepunkter; for andre sensitive endepunkter: `rate-limiter-flexible` (se `backend/src/middleware/rate-limit.ts`)
 - **Sikkerhetslint** – `pnpm lint` inkluderer `eslint-plugin-security` (SAST) i frontend og backend. Kjøres i CI.
 - **Toast** – frontend skal bruke `sonner` for varsler. Aldri `alert()` eller `confirm()`
@@ -309,6 +311,7 @@ Backend tar imot filopplasting via `multer` og prosesserer med:
 - **Mobile first**: Design for mobil først, deretter breakpoints (`sm:`, `md:`, `lg:`)
   - Riktig: `w-full md:w-1/2`
   - Feil: `w-1/2 max-md:w-full`
+- **Nøytral palett**: Bruk `slate-*` (ikke `gray-*`) for nøytrale farger for å matche prosjektets palett
 
 ### Feilhåndtering
 

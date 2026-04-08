@@ -26,6 +26,8 @@ import { ChatFeedback } from "../../database/models/ChatFeedback.js";
 import { AuditLog } from "../../database/models/AuditLog.js";
 import { DeletedUserTombstone } from "../../database/models/DeletedUserTombstone.js";
 import { WebPushSubscriptionModel } from "../../database/models/WebPushSubscription.js";
+import { KnowledgeBase } from "../../database/models/Kunnskapsbase.js";
+import { KBContentChunk } from "../../database/models/KBContentChunk.js";
 import { backfillMissingFullText } from "../../services/embedding.service.js";
 import { apiError, requireUserId } from "../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
@@ -741,6 +743,10 @@ router.get("/statistikk", async (req, res) => {
       pushAbonnementer,
       pushBrukereAgg,
       brukereMedNotion,
+      kunnskapsbaseAgg,
+      kbChunksTotalt,
+      orphanedKunnskapsbaser,
+      orphanedKBChunks,
     ] = await Promise.all([
       ChatHistory.countDocuments({ user: { $in: aktiveBrukerObjectIds } }),
       ChatHistory.countDocuments({ user: { $in: aktiveBrukerObjectIds }, pinned: true }),
@@ -906,6 +912,55 @@ router.get("/statistikk", async (req, res) => {
         { $count: "total" },
       ]),
       User.countDocuments({ _id: { $in: aktiveBrukerObjectIds }, notionApiKey: { $exists: true, $ne: null } }),
+      KnowledgeBase.aggregate<{
+        baser: number;
+        lenker: number;
+        filer: number;
+        crawledeLenker: number;
+        feiledeLenker: number;
+        brukere: string[];
+      }>([
+        { $match: { userId: { $in: aktiveBrukerIds } } },
+        {
+          $project: {
+            userId: 1,
+            antallLenker: { $size: { $ifNull: ["$lenker", []] } },
+            antallFiler: { $size: { $ifNull: ["$filer", []] } },
+            crawlede: {
+              $size: {
+                $filter: {
+                  input: { $ifNull: ["$lenker", []] },
+                  as: "lenke",
+                  cond: { $eq: ["$$lenke.crawlStatus", "completed"] },
+                },
+              },
+            },
+            feilede: {
+              $size: {
+                $filter: {
+                  input: { $ifNull: ["$lenker", []] },
+                  as: "lenke",
+                  cond: { $eq: ["$$lenke.crawlStatus", "failed"] },
+                },
+              },
+            },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            baser: { $sum: 1 },
+            lenker: { $sum: "$antallLenker" },
+            filer: { $sum: "$antallFiler" },
+            crawledeLenker: { $sum: "$crawlede" },
+            feiledeLenker: { $sum: "$feilede" },
+            brukere: { $addToSet: "$userId" },
+          },
+        },
+      ]),
+      KBContentChunk.countDocuments({ userId: { $in: aktiveBrukerIds } }),
+      KnowledgeBase.countDocuments({ userId: { $nin: alleBrukerIds } }),
+      KBContentChunk.countDocuments({ userId: { $nin: alleBrukerIds } }),
     ]);
 
     const totalDeloppgaver = deloppgaverAgg[0]?.deloppgaverTotalt ?? 0;
@@ -938,6 +993,13 @@ router.get("/statistikk", async (req, res) => {
       totalDokumentfiler > 0 ? avrundEnDesimal(totalEmbeddings / totalDokumentfiler) : 0;
     const arbeidsplanFullforingsgrad =
       blokkerTotalt > 0 ? avrundEnDesimal((fullforteBlokker / blokkerTotalt) * 100) : 0;
+    const kbBaser = kunnskapsbaseAgg[0]?.baser ?? 0;
+    const kbLenker = kunnskapsbaseAgg[0]?.lenker ?? 0;
+    const kbFiler = kunnskapsbaseAgg[0]?.filer ?? 0;
+    const kbCrawlede = kunnskapsbaseAgg[0]?.crawledeLenker ?? 0;
+    const kbFeilede = kunnskapsbaseAgg[0]?.feiledeLenker ?? 0;
+    const kbBrukere = kunnskapsbaseAgg[0]?.brukere?.length ?? 0;
+    const snittBaserPerBruker = kbBrukere > 0 ? avrundEnDesimal(kbBaser / kbBrukere) : 0;
 
     await audit({
       actorUserId,
@@ -1002,6 +1064,16 @@ router.get("/statistikk", async (req, res) => {
           canvasModuler,
           canvasModulElementer,
         },
+        kunnskapsbase: {
+          baser: kbBaser,
+          lenker: kbLenker,
+          filer: kbFiler,
+          chunks: kbChunksTotalt,
+          brukereMedBase: kbBrukere,
+          crawledeLenker: kbCrawlede,
+          feiledeLenker: kbFeilede,
+          snittBaserPerBruker,
+        },
         sync: {
           brukereMedSyncData,
           brukereMedFerskSync24t,
@@ -1037,6 +1109,8 @@ router.get("/statistikk", async (req, res) => {
           orphanedCanvasStrukturer,
           orphanedCanvasBrukere,
           delingerUtenEier,
+          orphanedKunnskapsbaser,
+          orphanedKBChunks,
         },
       }),
     );

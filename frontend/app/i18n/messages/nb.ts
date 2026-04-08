@@ -69,7 +69,7 @@ export const nbMessages = {
       assignments: "Oppgaver",
       calendar: "Kalender",
       canvas: "Canvas",
-      bookmarks: "Festet",
+      bookmarks: "Bibliotek",
       chatHistory: "Samtaler",
       courses: "Emner",
       noChatsYet: "Ingen samtaler ennå",
@@ -716,6 +716,7 @@ export const nbMessages = {
         audit: "Revisjon og sikkerhet",
         quality: "Datakvalitet",
         observability: "LangSmith observabilitet",
+        knowledgeBase: "Kunnskapsbase",
       },
       aiObservability: {
         cardsTitle: "LangSmith nøkkeltall",
@@ -827,6 +828,16 @@ export const nbMessages = {
       usersWithPush: "Brukere med push",
       avgDevicesPerUser: "Snitt enheter per bruker",
       usersWithNotion: "Brukere med Notion",
+      kbBases: "Kunnskapsbaser",
+      kbUsersWithBase: "Brukere med kunnskapsbase",
+      kbAvgBasesPerUser: "Snitt baser per bruker",
+      kbLinks: "Lenker totalt",
+      kbFiles: "Filer totalt",
+      kbChunks: "Indekserte tekstbiter",
+      kbCrawled: "Vellykket crawlede lenker",
+      kbCrawlFailed: "Lenker med crawl-feil",
+      orphanedKnowledgeBases: "Kunnskapsbaser uten gyldig bruker",
+      orphanedKBChunks: "KB-tekstbiter uten gyldig bruker",
     },
     users: {
       email: "E-post",
@@ -1359,7 +1370,7 @@ export const nbMessages = {
       "Vi bruker kun ditt API-token for å hente data på dine vegne mot din institusjons Canvas. Tokenet lagres kryptert hos oss og sendes ikke til andre tredjeparter.",
     thirdPartyPineconeLabel: "Vektorsøk (Pinecone):",
     thirdPartyPineconeBody:
-      "Når du bruker AI-funksjoner med Canvas-innhold, sendes tekstbiter (uten navn, e-post eller andre personidentifiserende data) til Pinecone for indeksering og semantisk søk. Pinecone lagrer kun vektorrepresentasjoner og anonymisert tekst knyttet til din bruker-ID.",
+      "Når du bruker AI-funksjoner med Canvas-innhold eller egne kunnskapsbaser (lenker og filer du har lagt til), sendes tekstbiter (uten navn, e-post eller andre personidentifiserende data) til Pinecone for indeksering og semantisk søk. Pinecone lagrer kun vektorrepresentasjoner og anonymisert tekst knyttet til din bruker-ID, og alt slettes når du fjerner basen eller kontoen din.",
     thirdPartyCohereLabel: "Reranking (Cohere):",
     thirdPartyCohereBody:
       "For å forbedre relevansen i AI-svar brukes Cohere til å rangere søkeresultater. Kun anonymiserte tekstutdrag sendes — ingen personopplysninger.",
@@ -1543,6 +1554,9 @@ export const nbMessages = {
     fileTypesQ: "Hvilke filtyper støttes for dokumentanalyse?",
     fileTypesA:
       "StudyWise støtter PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), bilder (PNG, JPG, WEBP) og vanlige kodefiler.",
+    knowledgeBaseQ: "Hva er en kunnskapsbase?",
+    knowledgeBaseA:
+      "En kunnskapsbase er en samling av lenker og filer du selv legger til. Innholdet indekseres slik at KI-en kan bruke det som kontekst når du chatter. Skriv «bruk basen <navn>» for å aktivere en base i samtalen.",
     sharedChatsQ: "Hvor lenge lagres delte samtaler?",
     sharedChatsA:
       "Delte samtalelenker er gyldige i 30 dager. Etter det slettes den delte lenken automatisk.",
@@ -1764,6 +1778,9 @@ export const nbMessages = {
       quiz: "Quiz og flashcards",
       quizDescription:
         "Generer quiz og flashcards fra pensum og dokumenter for å teste kunnskapen din. KI-en lager spørsmål basert på fagstoffet ditt.",
+      knowledgeBase: "Kunnskapsbase",
+      knowledgeBaseDescription:
+        "Samle lenker og filer i egne kunnskapsbaser. KI-en kan bruke innholdet som kontekst når du chatter — perfekt for pensum, prosjekter eller eksamensforberedelse.",
       notifications: "Varsler",
       notificationsDescription:
         "Få varsler om kommende frister og viktige hendelser fra Canvas slik at du aldri går glipp av noe.",

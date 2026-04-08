@@ -25,6 +25,8 @@ import {
   Database,
   BookOpen,
   FileText,
+  Library,
+  Link2,
   RefreshCcw,
   UserX,
   Trash2,
@@ -231,6 +233,17 @@ function StatistikkFane() {
     { label: t("admin.stats.securityEvents24h"), verdi: data.revisjon.security24t, ikon: ShieldCheck },
   ];
 
+  const kunnskapsbaseStats: StatKortData[] = [
+    { label: t("admin.stats.kbBases"), verdi: data.kunnskapsbase.baser, ikon: Library },
+    { label: t("admin.stats.kbUsersWithBase"), verdi: data.kunnskapsbase.brukereMedBase, ikon: Users },
+    { label: t("admin.stats.kbAvgBasesPerUser"), verdi: data.kunnskapsbase.snittBaserPerBruker, ikon: BarChart3 },
+    { label: t("admin.stats.kbLinks"), verdi: data.kunnskapsbase.lenker, ikon: Link2 },
+    { label: t("admin.stats.kbFiles"), verdi: data.kunnskapsbase.filer, ikon: FileText },
+    { label: t("admin.stats.kbChunks"), verdi: data.kunnskapsbase.chunks, ikon: Database },
+    { label: t("admin.stats.kbCrawled"), verdi: data.kunnskapsbase.crawledeLenker, ikon: Link2 },
+    { label: t("admin.stats.kbCrawlFailed"), verdi: data.kunnskapsbase.feiledeLenker, ikon: AlertTriangle },
+  ];
+
   const kvalitetsStats: StatKortData[] = [
     { label: t("admin.stats.orphanedChats"), verdi: data.kvalitet.orphanedSamtaler, ikon: AlertTriangle },
     { label: t("admin.stats.orphanedTaskBreakdowns"), verdi: data.kvalitet.orphanedOppgaveoppdelinger, ikon: AlertTriangle },
@@ -239,6 +252,8 @@ function StatistikkFane() {
     { label: t("admin.stats.orphanedCanvasStructures"), verdi: data.kvalitet.orphanedCanvasStrukturer, ikon: BookOpen },
     { label: t("admin.stats.orphanedCanvasUsers"), verdi: data.kvalitet.orphanedCanvasBrukere, ikon: UserX },
     { label: t("admin.stats.ownerlessShareLinks"), verdi: data.kvalitet.delingerUtenEier, ikon: Share2 },
+    { label: t("admin.stats.orphanedKnowledgeBases"), verdi: data.kvalitet.orphanedKunnskapsbaser, ikon: Library },
+    { label: t("admin.stats.orphanedKBChunks"), verdi: data.kvalitet.orphanedKBChunks, ikon: Database },
   ];
 
   return (
@@ -272,6 +287,7 @@ function StatistikkFane() {
       <StatSeksjon title={t("admin.stats.sections.conversations")} stats={samtaleStats} language={language} />
       <StatSeksjon title={t("admin.stats.sections.planning")} stats={planStats} language={language} />
       <StatSeksjon title={t("admin.stats.sections.content")} stats={innholdsStats} language={language} />
+      <StatSeksjon title={t("admin.stats.sections.knowledgeBase")} stats={kunnskapsbaseStats} language={language} />
       <StatSeksjon title={t("admin.stats.sections.notifications")} stats={varslerStats} language={language} />
       <StatSeksjon title={t("admin.stats.sections.sync")} stats={syncStats} language={language} />
       <StatSeksjon title={t("admin.stats.sections.audit")} stats={revisjonsStats} language={language} />
