@@ -319,6 +319,15 @@ SSE endpoints must check `res.writableEnded` before writing keepalive pings. SSE
 
 `backend/src/services/crawler.ts` — Crawls external URLs linked in Canvas courses, extracts content using `@mozilla/readability`, and indexes to Pinecone. Features: domain-specific selectors, PDF detection, content hashing for dedup, login page blocking. Invoked during Canvas sync to index linked resources.
 
+### Frontend App Shell & Backdrop
+
+`frontend/app/components/layout/MainAppShell.tsx` is mounted from the root layout and wraps every route. Key things to know:
+
+- **`LandingBackdrop`** is mounted globally with `fixed inset-0 z-0` so the decorative educational backdrop shows on every page. The shell wrapper uses `relative z-10`. `Toaster`, `CookieBanner`, `DatadogRum` and `TelemetryConsent` are **siblings** of the wrapper, not children — their z-index is unaffected by the wrapper's stacking context.
+- **Pages should avoid opaque root backgrounds** (`bg-white` / `bg-slate-50` on the outermost div). Per-card backgrounds are fine and expected for readability — just keep the page root transparent so the backdrop bleeds through.
+- **`usesSidebarShell` list**: any route that renders `SidebarAppShell` MUST be added to this list in `MainAppShell.tsx`. Otherwise the parent `<main>` uses `min-h-dvh` instead of `h-dvh overflow-hidden`, the shell's `h-full` resolves to 0, and the inner `overflow-y-auto` silently breaks scrolling. Currently includes `/dashboard*`, `/oversikt`, `/ai-breakdown`, `/account*`.
+- **CSS animation cascade gotcha**: avoid `animate-[shorthand]` + a separate `[animation-delay:Xs]` Tailwind class. The CSS `animation` shorthand can reset `animation-delay` to 0 depending on cascade order, breaking spread effects. When delay matters, use inline `style={{ animation: "..." }}` instead (see `LandingBackdrop.tsx`).
+
 ### Document Processing
 
 The backend accepts file uploads via `multer` and processes them with:
@@ -339,7 +348,8 @@ The backend accepts file uploads via `multer` and processes them with:
 - **Relative URLs** - Frontend uses `/api/...`, Next.js rewrites to backend
 - **Config protection** - Don't modify tsconfig/eslint/next.config without asking
 - **Norwegian naming** - Routes, components, variables in Norwegian; filenames in English. **All code comments must be in Norwegian** — no English helper comments
-- **Rate limiting** - Apply `rate-limiter-flexible` middleware for new sensitive endpoints (see `backend/src/middleware/rate-limit.ts`)
+- **Rate limiting** - Apply `rate-limiter-flexible` middleware for new sensitive endpoints (see `backend/src/middleware/rate-limit.ts`). `createRateLimiter()` returns a middleware with `.reward(req)` attached via `Object.assign` — call `await rateLimiter.reward(req)` in catch blocks for transient failures so the user isn't penalized. The `.reward()` closes over the **same** memory/redis limiter instances; never construct parallel `RateLimiterMemory`/`RateLimiterRedis` instances for refunds (they have separate internal state and the refund will silently no-op in dev)
+- **User lookups** - Always go through `findOrCreateUserByClerkId()` in `backend/src/middleware/auth.ts`. It handles soft-delete filtering, tombstone checks, and the cross-environment Clerk dev↔prod re-linking flow. Don't bypass it with raw `User.findOne({ clerkId })`
 - **Security linting** - `pnpm lint` includes `eslint-plugin-security` (SAST) in both frontend and backend. Runs automatically in CI.
 - **Toast notifications** - Frontend must use `sonner` for user-facing notifications. Never use `alert()` or `confirm()`
 - **`req.user` typing** - Globally typed via `backend/src/typer/express.d.ts`. Never cast with `as any`
