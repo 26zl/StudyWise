@@ -13,6 +13,7 @@
  *   5. Returnerer topp-K resultater sortert etter score
  */
 
+import mongoose from "mongoose";
 import { logger } from "../utils/logger.js";
 import { ContentEmbedding } from "../database/models/ContentEmbedding.js";
 import { extractSearchTerms } from "./semantic-search.service.js";
@@ -25,8 +26,8 @@ const K1 = 1.2;
 /** Dokumentlengde-normalisering — 0 = ingen normalisering, 1 = full */
 const B = 0.75;
 
-/** Maks antall chunks å hente fra MongoDB for scoring */
-const MAX_CANDIDATE_CHUNKS = 2000;
+/** Maks antall chunks å hente fra MongoDB for scoring — redusert for bedre ytelse */
+const MAX_CANDIDATE_CHUNKS = 800;
 
 // ─── Typer ─────────────────────────────────────────────────
 
@@ -127,6 +128,7 @@ function beregnBM25Scorer(docs: DocCandidate[], termer: string[]): Map<string, n
 
 /**
  * Søker i MongoDB ContentEmbedding med BM25-scoring.
+ * Bruker MongoDB text index for pre-filtering når tilgjengelig.
  *
  * @param userId - Brukerens lokale ID
  * @param query - Brukerens søketekst
@@ -156,21 +158,57 @@ export async function bm25Search(
       filter.courseId = { $in: options.courseIds };
     }
 
-    // Hent kandidat-chunks fra MongoDB (sortert for deterministisk utvalg)
-    const docs = await ContentEmbedding.find(filter, {
-      _id: 1,
-      text: 1,
-      courseId: 1,
-      courseName: 1,
-      moduleTitle: 1,
-      fileName: 1,
-      fileId: 1,
-      chunkIndex: 1,
-      tokenCount: 1,
-    })
-      .sort({ _id: 1 })
-      .limit(MAX_CANDIDATE_CHUNKS)
-      .lean();
+    // Prøv text search pre-filtering først (mye raskere enn full scan)
+    let docs: Array<{
+      _id: mongoose.Types.ObjectId;
+      text: string;
+      courseId: string;
+      courseName: string;
+      moduleTitle: string;
+      fileName: string;
+      fileId: number;
+      chunkIndex: number;
+      tokenCount: number;
+    }>;
+
+    const textQuery = termer.join(" ");
+    try {
+      // Text search returnerer kun dokumenter som matcher minst ett ord
+      docs = await ContentEmbedding.find(
+        { ...filter, $text: { $search: textQuery } },
+        {
+          _id: 1,
+          text: 1,
+          courseId: 1,
+          courseName: 1,
+          moduleTitle: 1,
+          fileName: 1,
+          fileId: 1,
+          chunkIndex: 1,
+          tokenCount: 1,
+          score: { $meta: "textScore" },
+        },
+      )
+        .sort({ score: { $meta: "textScore" } })
+        .limit(MAX_CANDIDATE_CHUNKS)
+        .lean();
+    } catch {
+      // Fallback til vanlig søk hvis text index ikke er tilgjengelig
+      docs = await ContentEmbedding.find(filter, {
+        _id: 1,
+        text: 1,
+        courseId: 1,
+        courseName: 1,
+        moduleTitle: 1,
+        fileName: 1,
+        fileId: 1,
+        chunkIndex: 1,
+        tokenCount: 1,
+      })
+        .sort({ _id: 1 })
+        .limit(MAX_CANDIDATE_CHUNKS)
+        .lean();
+    }
 
     if (docs.length === 0) return { results: [] };
 

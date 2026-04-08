@@ -45,12 +45,25 @@ import { User } from "../../database/models/User.js";
 import { KnowledgeBase } from "../../database/models/Kunnskapsbase.js";
 import { searchKBContent, buildKBContext } from "../../services/kunnskapsbase-indeksering.service.js";
 import { createDefaultCanvasContextPreferences } from "common/auth";
+import {
+  KB_CRAWL_MAX_DEPTH,
+  KB_CRAWL_MAX_PAGES,
+  KB_CRAWL_MAX_DOCUMENTS,
+} from "common/kunnskapsbase";
 import { setupSSE, writeSSE } from "../../utils/sseUtils.js";
 import { createLinkedAbortController } from "../../utils/abort.js";
 import { loadStudyContextForUser, updateStudyContext } from "../../services/studyContext.service.js";
 import { escapeRegex } from "../../utils/regexUtils.js";
 import { stripHtml } from "../../utils/htmlUtils.js";
 import { parseDocument } from "../../services/document.js";
+import {
+  fetchExternalContent,
+  extractTextFromHtml,
+  findContentLinks,
+  findPdfLinks,
+  downloadAndProcessPdf,
+  getDomainSelectors,
+} from "../../services/crawler.js";
 import {
   AI_COMPLETION_PUSH_MIN_DURATION_MS,
   sendAICompletionWebPush,
@@ -394,7 +407,7 @@ function selectModel(
   if (intent === "canvas_light" || (messageCount <= 4 && contextLength < 6000)) {
     return "claude-haiku-4-5";
   }
-  return "claude-sonnet-4-20250514";
+  return "claude-sonnet-4-5";
 }
 
 function chooseModelForFullDocumentMode(
@@ -405,7 +418,7 @@ function chooseModelForFullDocumentMode(
 ): { model: string; reason: "base" | "largest_context" } {
   const historyTokens = historyMessages.reduce((sum, msg) => sum + countTokens(msg.content) + 4, 0);
   const requestedWindowTokens = countTokens(systemPrompt) + countTokens(canvasContext) + historyTokens + 2000;
-  const largestAvailableContextModel = "claude-sonnet-4-20250514";
+  const largestAvailableContextModel = "claude-sonnet-4-5";
   const largestAvailableContextWindow = 200000;
 
   if (requestedWindowTokens > largestAvailableContextWindow) {
@@ -526,9 +539,47 @@ async function ensurePublicHttpUrl(rawUrl: string): Promise<URL | null> {
   return parsed;
 }
 
+const LIVE_URL_MAX_DEPTH = Math.min(3, KB_CRAWL_MAX_DEPTH);
+const LIVE_URL_MAX_PAGES = Math.min(8, KB_CRAWL_MAX_PAGES);
+const LIVE_URL_MAX_DOCUMENTS = Math.min(6, KB_CRAWL_MAX_DOCUMENTS);
+const LIVE_URL_MAX_CHARS = 22_000;
+const LIVE_URL_MIN_TEXT_CHARS = 80;
+const LIVE_URL_SAME_PATH_ONLY = false;
+
+function normalizeLiveCrawlUrl(urlStr: string): string {
+  try {
+    const url = new URL(urlStr);
+    url.hash = "";
+    url.hostname = url.hostname.toLowerCase();
+    const params = new URLSearchParams(url.searchParams);
+    const sortedParams = new URLSearchParams([...params.entries()].sort());
+    url.search = sortedParams.toString();
+    return url.toString();
+  } catch {
+    return urlStr;
+  }
+}
+
+function isWithinLiveCrawlScope(seedUrl: string, candidateUrl: string, samePathOnly: boolean): boolean {
+  try {
+    const seed = new URL(seedUrl);
+    const candidate = new URL(candidateUrl);
+    const seedHost = seed.hostname.toLowerCase().replace(/^www\./, "");
+    const candidateHost = candidate.hostname.toLowerCase().replace(/^www\./, "");
+    if (seedHost !== candidateHost) return false;
+    if (!samePathOnly) return true;
+    const seedPath = seed.pathname.replace(/\/[^/]*$/, "");
+    return candidate.pathname.startsWith(seedPath);
+  } catch {
+    return false;
+  }
+}
+
 async function buildLiveUrlContextFromMessage(message: string): Promise<string | null> {
   const urlCandidate = extractFirstHttpUrl(message);
   if (!urlCandidate) return null;
+  const startedAt = Date.now();
+  logger.info({ urlCandidate }, "Direkte URL-kontekst: starter henting");
 
   const safeUrl = await ensurePublicHttpUrl(urlCandidate);
   if (!safeUrl) {
@@ -538,6 +589,8 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
 
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), 12_000);
+  let finalUrl = safeUrl.toString();
+  let outcome: "success" | "too_short" | "http_error" | "fetch_error" = "fetch_error";
   try {
     const response = await fetch(safeUrl, {
       method: "GET",
@@ -550,18 +603,151 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
     });
 
     if (!response.ok) {
+      outcome = "http_error";
       logger.warn({ url: safeUrl.toString(), status: response.status }, "Direkte URL kunne ikke hentes");
       return null;
     }
 
     const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+    finalUrl = response.url || finalUrl;
+    logger.info(
+      {
+        requestedUrl: safeUrl.toString(),
+        finalUrl,
+        status: response.status,
+        contentType,
+      },
+      "Direkte URL-kontekst: innhold hentet",
+    );
     let extracted = "";
     let labelType: string;
+    let crawledPages = 0;
+    let crawledDocuments = 0;
+    let discoveredLinks = 0;
+    let discoveredDocuments = 0;
 
     if (contentType.includes("text/html") || contentType.includes("application/xhtml+xml")) {
       const html = await response.text();
-      extracted = normalizeTextContent(stripHtml(html, { removeStyles: true }));
-      labelType = "html";
+      const domainSelectors = getDomainSelectors(finalUrl);
+      const seedText = normalizeTextContent(extractTextFromHtml(html, domainSelectors) || stripHtml(html, { removeStyles: true }));
+      const sections: string[] = [];
+      const visited = new Set<string>();
+      const queue: Array<{ url: string; depth: number; parentUrl?: string }> = [];
+
+      const normalizedSeed = normalizeLiveCrawlUrl(finalUrl);
+      visited.add(normalizedSeed);
+      queue.push({ url: finalUrl, depth: 0 });
+
+      if (seedText.length >= LIVE_URL_MIN_TEXT_CHARS) {
+        sections.push(`[HTML depth=0 url=${finalUrl}]\n${seedText}`);
+        crawledPages++;
+      }
+
+      const seedLinks = findContentLinks(html, finalUrl);
+      const seedDocs = findPdfLinks(html, finalUrl);
+      discoveredLinks += seedLinks.length;
+      discoveredDocuments += seedDocs.length;
+      for (const link of seedLinks) {
+        if (queue.length >= LIVE_URL_MAX_PAGES) break;
+        const normalized = normalizeLiveCrawlUrl(link.url);
+        if (visited.has(normalized)) continue;
+        if (!isWithinLiveCrawlScope(finalUrl, link.url, LIVE_URL_SAME_PATH_ONLY)) continue;
+        visited.add(normalized);
+        queue.push({ url: link.url, depth: 1, parentUrl: finalUrl });
+      }
+      for (const doc of seedDocs) {
+        if (crawledDocuments >= LIVE_URL_MAX_DOCUMENTS) break;
+        const normalized = normalizeLiveCrawlUrl(doc.url);
+        if (visited.has(normalized)) continue;
+        if (!isWithinLiveCrawlScope(finalUrl, doc.url, LIVE_URL_SAME_PATH_ONLY)) continue;
+        visited.add(normalized);
+        const pdfResult = await downloadAndProcessPdf(doc.url);
+        if (!pdfResult || pdfResult.content.trim().length < LIVE_URL_MIN_TEXT_CHARS) continue;
+        sections.push(`[PDF depth=1 url=${doc.url} parent=${finalUrl}]\n${normalizeTextContent(pdfResult.content)}`);
+        crawledDocuments++;
+      }
+
+      let cursor = 1;
+      while (
+        cursor < queue.length &&
+        crawledPages < LIVE_URL_MAX_PAGES &&
+        (crawledPages + crawledDocuments) < (LIVE_URL_MAX_PAGES + LIVE_URL_MAX_DOCUMENTS)
+      ) {
+        const current = queue[cursor];
+        cursor++;
+        if (!current) break;
+        if (current.depth > LIVE_URL_MAX_DEPTH) continue;
+
+        const fetched = await fetchExternalContent(current.url);
+        if (fetched.kind === "failed" || fetched.kind === "skip") continue;
+
+        if (fetched.kind === "pdf") {
+          if (crawledDocuments >= LIVE_URL_MAX_DOCUMENTS) continue;
+          const parsed = await parseDocument(fetched.buffer, "application/pdf", current.url);
+          const pdfText = normalizeTextContent(parsed.text);
+          if (pdfText.length < LIVE_URL_MIN_TEXT_CHARS) continue;
+          sections.push(
+            `[PDF depth=${current.depth} url=${current.url}${current.parentUrl ? ` parent=${current.parentUrl}` : ""}]\n${pdfText}`,
+          );
+          crawledDocuments++;
+          continue;
+        }
+
+        const childSelectors = getDomainSelectors(current.url);
+        const childText = normalizeTextContent(extractTextFromHtml(fetched.html, childSelectors));
+        if (childText.length >= LIVE_URL_MIN_TEXT_CHARS) {
+          sections.push(
+            `[HTML depth=${current.depth} url=${current.url}${current.parentUrl ? ` parent=${current.parentUrl}` : ""}]\n${childText}`,
+          );
+          crawledPages++;
+        }
+
+        if (current.depth >= LIVE_URL_MAX_DEPTH) continue;
+        const childLinks = findContentLinks(fetched.html, current.url);
+        const childDocs = findPdfLinks(fetched.html, current.url);
+        discoveredLinks += childLinks.length;
+        discoveredDocuments += childDocs.length;
+
+        for (const link of childLinks) {
+          if (queue.length >= LIVE_URL_MAX_PAGES + LIVE_URL_MAX_DOCUMENTS) break;
+          const normalized = normalizeLiveCrawlUrl(link.url);
+          if (visited.has(normalized)) continue;
+          if (!isWithinLiveCrawlScope(finalUrl, link.url, LIVE_URL_SAME_PATH_ONLY)) continue;
+          visited.add(normalized);
+          queue.push({ url: link.url, depth: current.depth + 1, parentUrl: current.url });
+        }
+
+        for (const doc of childDocs) {
+          if (crawledDocuments >= LIVE_URL_MAX_DOCUMENTS) break;
+          const normalized = normalizeLiveCrawlUrl(doc.url);
+          if (visited.has(normalized)) continue;
+          if (!isWithinLiveCrawlScope(finalUrl, doc.url, LIVE_URL_SAME_PATH_ONLY)) continue;
+          visited.add(normalized);
+          const pdfResult = await downloadAndProcessPdf(doc.url);
+          if (!pdfResult || pdfResult.content.trim().length < LIVE_URL_MIN_TEXT_CHARS) continue;
+          sections.push(
+            `[PDF depth=${current.depth + 1} url=${doc.url} parent=${current.url}]\n${normalizeTextContent(pdfResult.content)}`,
+          );
+          crawledDocuments++;
+        }
+      }
+
+      extracted = normalizeTextContent(sections.join("\n\n"));
+      labelType = sections.length > 1 ? "html+deep" : "html";
+      logger.info(
+        {
+          seedUrl: finalUrl,
+          maxDepth: LIVE_URL_MAX_DEPTH,
+          maxPages: LIVE_URL_MAX_PAGES,
+          maxDocuments: LIVE_URL_MAX_DOCUMENTS,
+          crawledPages,
+          crawledDocuments,
+          discoveredLinks,
+          discoveredDocuments,
+          visitedCount: visited.size,
+        },
+        "Direkte URL-kontekst: deep crawl fullført",
+      );
     } else if (contentType.includes("application/pdf")) {
       const buffer = Buffer.from(await response.arrayBuffer());
       const parsed = await parseDocument(buffer, "application/pdf", safeUrl.pathname || "document.pdf");
@@ -583,12 +769,27 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
     }
 
     if (!extracted || extracted.length < 80) {
-      logger.info({ url: safeUrl.toString(), contentType }, "Direkte URL ga for lite innhold");
+      outcome = "too_short";
+      logger.info(
+        { url: finalUrl, contentType, extractedChars: extracted.length },
+        "Direkte URL ga for lite innhold",
+      );
       return null;
     }
 
-    const maxChars = 22_000;
-    const clipped = extracted.slice(0, maxChars);
+    const clipped = extracted.slice(0, LIVE_URL_MAX_CHARS);
+    const truncated = extracted.length > LIVE_URL_MAX_CHARS;
+    outcome = "success";
+    logger.info(
+      {
+        url: finalUrl,
+        contentType: labelType,
+        extractedChars: extracted.length,
+        clippedChars: clipped.length,
+        truncated,
+      },
+      "Direkte URL-kontekst: tekst ekstrahert",
+    );
     return `<live_url source="${safeUrl.toString()}" contentType="${labelType}">
 ${clipped}
 </live_url>`;
@@ -597,6 +798,15 @@ ${clipped}
     return null;
   } finally {
     clearTimeout(timeoutHandle);
+    logger.info(
+      {
+        requestedUrl: safeUrl.toString(),
+        finalUrl,
+        outcome,
+        elapsedMs: Date.now() - startedAt,
+      },
+      "Direkte URL-kontekst: ferdig",
+    );
   }
 }
 
@@ -667,9 +877,9 @@ function hasExplicitCourseOverride(message: string): boolean {
     return true;
   }
 
-  // "i windows emnet", "i dat2000-kurset", "i inf2010-faget"
+  // "i windows emnet", "til metode emnet", "i dat2000-kurset", "om inf2010-faget"
   // Tolkes som eksplisitt kurskontekst, ikke bare tematisk ord.
-  if (/\bi\s+[a-zæøå0-9-]{2,}\s+(?:emnet|kurset|faget)\b/i.test(lower)) {
+  if (/\b(?:i|til|om|for)\s+[a-zæøå0-9-]{2,}\s+(?:emnet|kurset|faget)\b/i.test(lower)) {
     return true;
   }
 
@@ -742,6 +952,12 @@ const CHUNK_STOPWORDS = new Set([
   "about", "explain", "describe", "tell", "give", "show", "make", "write",
 ]);
 
+const URL_ARTIFACT_TOKENS = new Set([
+  "http", "https", "www",
+  "com", "no", "net", "org", "edu", "gov", "io", "co",
+  "html", "htm", "php", "asp", "aspx",
+]);
+
 /**
  * Ekstraherer de viktigste søkeordene (3–6) fra brukerens melding.
  * Fjerner stoppord og beholder substantiv/fagbegreper.
@@ -754,13 +970,33 @@ const CHUNK_STOPWORDS = new Set([
  */
 function extractChunkHint(message: string): string | null {
   const lower = normaliserSkrivefeil(message);
+  const blockedHostTokens = new Set<string>();
+
+  for (const match of message.matchAll(/https?:\/\/[^\s<>"'`]+/gi)) {
+    const candidate = match[0];
+    try {
+      const parsed = new URL(candidate);
+      for (const token of parsed.hostname.toLowerCase().split(".")) {
+        const normalized = normaliserSkrivefeil(token).trim();
+        if (normalized.length >= 2) blockedHostTokens.add(normalized);
+      }
+    } catch {
+      // ignorer ugyldig URL-kandidat
+    }
+  }
+
+  const withoutUrls = lower
+    .replace(/https?:\/\/[^\s<>"'`]+/gi, " ")
+    .replace(/\bwww\.[^\s<>"'`]+\b/gi, " ");
 
   // Del opp i ord (kun alfanumeriske + æøå)
-  const words = lower
+  const words = withoutUrls
     .replace(/[^\wæøå\s-]/g, " ")
     .split(/\s+/)
     .filter((w) => w.length >= 3) // Ignorer veldig korte ord
-    .filter((w) => !CHUNK_STOPWORDS.has(w));
+    .filter((w) => !CHUNK_STOPWORDS.has(w))
+    .filter((w) => !URL_ARTIFACT_TOKENS.has(w))
+    .filter((w) => !blockedHostTokens.has(w));
 
   // Fjern duplikater og behold rekkefølge
   const unique = [...new Set(words)];
@@ -1099,10 +1335,10 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
 
   if (checkAIClientUnavailable(res, resolvedRequestedModel, KIChatResponseSchema)) return;
 
-  if (requestedModel && !SUPPORTED_MODELS[requestedModel]) {
+  if (requestedModel && requestedModel !== resolvedRequestedModel && !SUPPORTED_MODELS[requestedModel]) {
     logger.warn(
-      { requestedModel },
-      "Forespurt modell ikke støttet, bruker default",
+      { requestedModel, resolvedRequestedModel },
+      "Forespurt modell normalisert/falt tilbake",
     );
   }
 
@@ -1133,7 +1369,69 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     }
 
     // ——— Intent-deteksjon: Trenger denne meldingen Canvas-data? ———
-    const intent = detectIntent(messages);
+    let intent = detectIntent(messages);
+    const hasDirectUrlInLastMessage = extractFirstHttpUrl(lastUserMessage) !== null;
+    const hasSlashKbCommandInLastMessage = extractSlashKBBaseName(lastUserMessage) !== null;
+    const shouldPrioritizeDirectUrl = hasDirectUrlInLastMessage && !hasSlashKbCommandInLastMessage;
+
+    if (shouldPrioritizeDirectUrl && intent !== "general_chat") {
+      logger.info(
+        {
+          previousIntent: intent,
+          overriddenIntent: "general_chat",
+          reason: "explicitDirectUrlInPrompt",
+          messagePreview: lastUserMessage.substring(0, 120),
+        },
+        "Direkte URL i melding prioriteres over Canvas-kontekst",
+      );
+      intent = "general_chat";
+    }
+
+    if (intent === "general_chat" && req.user?.id) {
+      const lastMessageNormalized = normaliserSkrivefeil(lastUserMessage);
+      const hasKnowledgeBaseMention = /\b(?:basen|kunnskapsbase|knowledge base)\b/i.test(lastMessageNormalized);
+      const hasSlashKbCommand = hasSlashKbCommandInLastMessage;
+      const hasFollowUpSignal =
+        isLikelyFollowUpQuestion(lastUserMessage) || refersToCurrentCourseContext(lastUserMessage);
+      const hasExplicitCourseSwitch = hasExplicitCourseOverride(lastUserMessage);
+      const extractedTarget = extractQueryTarget(lastUserMessage);
+      const hasNewCourseHintInMessage =
+        hasExplicitCourseSwitch || !!extractedTarget.courseHint || extractedTarget.courseIdHint !== null;
+      const haikuRequested = resolvedRequestedModel === "claude-haiku-4-5";
+      const hasContentSignals =
+        hasFollowUpSignal ||
+        !!extractedTarget.moduleHint ||
+        !!extractedTarget.fileHint ||
+        !!extractedTarget.chunkHint;
+
+      if (
+        !shouldPrioritizeDirectUrl &&
+        !hasNewCourseHintInMessage &&
+        !hasKnowledgeBaseMention &&
+        !hasSlashKbCommand &&
+        (hasFollowUpSignal || (haikuRequested && hasContentSignals))
+      ) {
+        const lockedCourseHintRaw = await getCache(`ki:user:${req.user.id}:locked-course-hint`);
+        const lockedCourseHint = lockedCourseHintRaw
+          ? sanitizeCourseHintValue(lockedCourseHintRaw)
+          : null;
+
+        if (lockedCourseHint) {
+          intent = hasFollowUpSignal ? "canvas_full" : "canvas_light";
+          logger.info(
+            {
+              previousIntent: "general_chat",
+              promotedIntent: intent,
+              reason: hasFollowUpSignal ? "lockedCourseFollowUp" : "lockedCourseHaikuContentSignal",
+              requestedModel: resolvedRequestedModel,
+              lockedCourseHint,
+              messagePreview: lastUserMessage.substring(0, 120),
+            },
+            "Intent oppjustert til canvas_full basert på låst kurskontekst",
+          );
+        }
+      }
+    }
 
     if (intent !== "general_chat" && !req.canvasToken) {
       // Brukeren spør om Canvas men har ikke token
@@ -1364,7 +1662,6 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
         .digest("hex")
         .slice(0, 8);
       const followUpWithoutCourseHint =
-        intent === "canvas_full" &&
         !target.courseHint &&
         isLikelyFollowUpQuestion(lastUserMsg);
       const scopedCourseHint = target.courseHint ?? lockedCourseHint;
@@ -1372,18 +1669,14 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
         ? buildCourseHintCacheSegment(scopedCourseHint)
         : null;
       const lastCourseSessionKey =
-        intent === "canvas_full"
-          ? courseHintCacheSegment
-            ? `ki:session:${req.user.id}:last-course:${courseHintCacheSegment}`
-            : `ki:session:${req.user.id}:last-course`
+        courseHintCacheSegment
+          ? `ki:session:${req.user.id}:last-course:${courseHintCacheSegment}`
+          : `ki:session:${req.user.id}:last-course`;
+      const sessionCacheKey = target.courseHint
+        ? `ki:session:${req.user.id}:course:${buildCourseHintCacheSegment(target.courseHint)}:${queryHash}`
+        : followUpWithoutCourseHint
+          ? lastCourseSessionKey
           : null;
-      const sessionCacheKey = intent === "canvas_full"
-        ? target.courseHint
-          ? `ki:session:${req.user.id}:course:${buildCourseHintCacheSegment(target.courseHint)}:${queryHash}`
-          : followUpWithoutCourseHint
-            ? lastCourseSessionKey
-            : null
-        : null;
       const cachedSessionCtx = sessionCacheKey ? await getCache(sessionCacheKey) : null;
       let contextResult: ContextResult = { kontekst: "", hasCanvasData: false, source: "none" };
       let usedSessionCache = false;
@@ -1692,6 +1985,15 @@ Referer til kilde (fil/lenke) i svaret.
       if (liveUrlKontekst) {
         const liveSource = extractLiveUrlSource(liveUrlKontekst);
         if (liveSource) liveUrlKilder = [liveSource];
+        logger.info(
+          {
+            intent,
+            sourceUrl: liveSource?.sourceUrl ?? null,
+            liveUrlContextChars: liveUrlKontekst.length,
+            sourceUsedInFinalContext: true,
+          },
+          "Direkte URL-kontekst lagt til i prompt",
+        );
         enhancedSystemPrompt += `
 
 ## Direkte URL-kontekst
@@ -1723,17 +2025,22 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
         content: m.content,
       })),
     ];
-    const selectedModelBase = selectModel(intent, trimmedMessages.length, hasCanvasData ? canvasKontekst.length : 0);
+    const autoSelectedModelBase = selectModel(intent, trimmedMessages.length, hasCanvasData ? canvasKontekst.length : 0);
     const fullDocumentModelSelection = fullDocumentModeActive
-      ? chooseModelForFullDocumentMode(selectedModelBase, enhancedSystemPrompt, canvasKontekst, trimmedMessages)
-      : { model: selectedModelBase, reason: "base" as const };
-    const selectedModel = fullDocumentModelSelection.model;
-    const selectedModelReason = selectedModel === "claude-haiku-4-5" ? "haiku" : "sonnet";
+      ? chooseModelForFullDocumentMode(autoSelectedModelBase, enhancedSystemPrompt, canvasKontekst, trimmedMessages)
+      : { model: autoSelectedModelBase, reason: "base" as const };
+    const selectedModel = requestedModel ? resolvedRequestedModel : fullDocumentModelSelection.model;
+    const selectedModelReason = requestedModel
+      ? "user_selected"
+      : selectedModel === "claude-haiku-4-5"
+        ? "haiku"
+        : "sonnet";
     logger.info(
       {
         intent,
         model: selectedModel,
         reason: selectedModelReason,
+        requestedModel: requestedModel ?? null,
         messageCount: trimmedMessages.length,
         contextLength: hasCanvasData ? canvasKontekst.length : 0,
       },
@@ -1761,6 +2068,9 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
         historyCount: trimmedMessages.length,
         maxTokens,
         timeoutMs: TIMEOUT_MS,
+        kbContextIncluded: !!kbKontekst,
+        liveUrlContextIncluded: !!liveUrlKontekst,
+        liveUrlContextLength: liveUrlKontekst.length,
       },
       "Sender til AI-tjenesten",
     );

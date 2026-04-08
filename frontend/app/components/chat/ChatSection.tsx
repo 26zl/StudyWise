@@ -16,7 +16,7 @@ import { ChatExportModal } from "@/app/components/chat/ChatExportModal";
 import { ConversationMessageContent } from "@/app/components/chat/ConversationMessageContent";
 import { SmartSuggestions } from "@/app/components/chat/SmartSuggestions";
 import { ChatShareResponseSchema } from "common/chat";
-import { streamKIChat, useKIDocumentAnalyse, SUPPORTED_FILE_TYPES, getKIErrorMessage, getKIBannerForError, type KIErrorContext } from "@/app/ki/ki-api";
+import { streamKIChat, useKIDocumentAnalyse, useKIModels, SUPPORTED_FILE_TYPES, getKIErrorMessage, getKIBannerForError, type KIErrorContext } from "@/app/ki/ki-api";
 import { useChatHistory } from "@/app/hooks/useChatHistory";
 import { FeilMelding, type FeilMeldingType } from "@/app/components/ui/FeilMelding";
 import { useUIStore } from "@/app/store/uiStore";
@@ -24,6 +24,11 @@ import { useKIStore } from "@/app/store/kiStore";
 import { fetchApi, downloadAuthedFile } from "@/app/lib/apiClient";
 import { formaterTall } from "@/app/lib/dato";
 import { parseApiError } from "@/app/lib/errorUtils";
+
+const ALLOWED_CHAT_MODEL_IDS = new Set([
+    "claude-sonnet-4-5",
+    "claude-haiku-4-5",
+]);
 
 /** Én melding i chatten (bruker eller assistent), med id og evt. vedleggsnavn. */
 interface Melding {
@@ -173,6 +178,7 @@ export function ChatSection() {
     const [viserExportModal, setViserExportModal] = useState(false);
     const [oppretterDeling, setOppretterDeling] = useState(false);
     const [kildePanelMeldingId, setKildePanelMeldingId] = useState<string | null>(null);
+    const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
     /** KI-feil fra reelt kall (chat/dokumentanalyse) – vises som banner; erstatter tidligere test-connection. */
     const [kiError, settKiError] = useState<Error | null>(null);
 
@@ -180,6 +186,7 @@ export function ChatSection() {
     const meldingerSluttRef = useRef<HTMLDivElement>(null);
     const tekstInputRef = useRef<HTMLTextAreaElement>(null);
     const filInputRef = useRef<HTMLInputElement>(null);
+    const modelMenuRef = useRef<HTMLDivElement>(null);
     const sendMeldingRef = useRef<(options?: SendMeldingOptions) => Promise<void>>(async () => {});
     const meldingerRef = useRef<Melding[]>([]);
     /** Promise-basert mutex for chat-opprettelse. Holder Promise mens chat opprettes for å forhindre race conditions. */
@@ -214,6 +221,8 @@ export function ChatSection() {
         clearPendingKIMelding,
         canvasContextSelection,
         explanationLevel,
+        selectedChatModel,
+        setSelectedChatModel,
     } = useUIStore();
     const { setRunningChatId } = useKIStore();
 
@@ -223,6 +232,15 @@ export function ChatSection() {
         canvasContextSelection.assignments ||
         canvasContextSelection.events;
     const sisteNySamtaleToken = useRef(newChatToken);
+    const { data: modelsData } = useKIModels();
+    const modelOptions = [
+        { id: "auto", name: t("chat.modelAuto") },
+        ...((modelsData?.models ?? [])
+            .filter((model) => ALLOWED_CHAT_MODEL_IDS.has(model.id))
+            .map((model) => ({ id: model.id, name: model.name }))),
+    ];
+    const selectedModelLabel =
+        modelOptions.find((model) => model.id === selectedChatModel)?.name ?? t("chat.modelAuto");
 
     const settAktivSamtale = useCallback((chatId: string | null) => {
         setAktivChatId(chatId);
@@ -240,6 +258,17 @@ export function ChatSection() {
         return () => {
             isMountedRef.current = false;
         };
+    }, []);
+
+    useEffect(() => {
+        const onDocumentClick = (event: MouseEvent) => {
+            if (!modelMenuRef.current) return;
+            if (!modelMenuRef.current.contains(event.target as Node)) {
+                setIsModelMenuOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", onDocumentClick);
+        return () => document.removeEventListener("mousedown", onDocumentClick);
     }, []);
 
     // Rydd opp animasjonsintervall ved unmount for å unngå state-oppdateringer etter unmount
@@ -696,29 +725,31 @@ export function ChatSection() {
     }, []);
 
     /**
-     * Animerer assistent-svar ord-for-ord ved å progressivt oppdatere meldingen med gitt ID.
+     * Animerer assistent-svar paragraf-for-paragraf for raskere, mer lesbar progresjon.
      */
     const animerTekst = useCallback(
         (id: string, fullText: string, onDone: () => void) => {
             stoppAktivAnimasjon();
             settAnimerendeMeldingId(id);
-            const tokens = fullText.split(/(\s+)/);
+            const paragraphs = fullText
+                .split(/(\n{2,})/)
+                .filter((segment) => segment.length > 0);
+            const chunks = paragraphs.length > 0 ? paragraphs : [fullText];
             let index = 0;
-            const steg = Math.max(1, Math.ceil(tokens.length / 180));
             animationIntervalRef.current = setInterval(() => {
-                index = Math.min(index + steg, tokens.length);
+                index = Math.min(index + 1, chunks.length);
                 settMeldinger((prev) =>
                     prev.map((m) =>
-                        m.id === id ? { ...m, innhold: tokens.slice(0, index).join("") } : m,
+                        m.id === id ? { ...m, innhold: chunks.slice(0, index).join("") } : m,
                     ),
                 );
-                if (index >= tokens.length) {
+                if (index >= chunks.length) {
                     if (animationIntervalRef.current) clearInterval(animationIntervalRef.current);
                     animationIntervalRef.current = null;
                     settAnimerendeMeldingId(null);
                     onDone();
                 }
-            }, 16);
+            }, 35);
         },
         [stoppAktivAnimasjon],
     );
@@ -1051,7 +1082,11 @@ export function ChatSection() {
         const abortController = new AbortController();
         chatAbortRef.current = abortController;
 
-        void streamKIChat(apiMeldinger, { explanationLevel, signal: abortController.signal })
+        void streamKIChat(apiMeldinger, {
+            explanationLevel,
+            model: selectedChatModel,
+            signal: abortController.signal,
+        })
             .then((data) => {
                 chatAbortRef.current = null;
                 const responseText = data.response.trim();
@@ -1757,6 +1792,41 @@ export function ChatSection() {
                             className="chat-input-textarea flex-1 resize-none bg-transparent py-2 text-base sm:text-[15px] text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:outline-none focus:ring-0 border-none shadow-none disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
                             style={{ outline: "none" }}
                         />
+                        <div ref={modelMenuRef} className="relative shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => setIsModelMenuOpen((prev) => !prev)}
+                                className="h-8 max-w-[180px] truncate rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                title={t("chat.modelSelectorTooltip")}
+                                aria-label={t("chat.modelSelectorLabel")}
+                            >
+                                {selectedModelLabel}
+                            </button>
+                            {isModelMenuOpen && (
+                                <div className="absolute right-0 bottom-full mb-2 w-56 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-1.5 shadow-xl z-20">
+                                    {modelOptions.map((model) => {
+                                        const isSelected = model.id === selectedChatModel;
+                                        return (
+                                            <button
+                                                key={model.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedChatModel(model.id);
+                                                    setIsModelMenuOpen(false);
+                                                }}
+                                                className={`w-full text-left rounded-xl px-3 py-2 text-sm transition-colors ${
+                                                    isSelected
+                                                        ? "bg-blue-600 text-white"
+                                                        : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                                }`}
+                                            >
+                                                {model.name}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
                         {skriver ? (
                             <button
                                 type="button"

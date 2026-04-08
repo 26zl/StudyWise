@@ -134,6 +134,7 @@ export async function pineconeQuery(
   const trimmed = queryText?.trim();
   if (!trimmed) return [];
   return pineconeCircuit.execute(async () => {
+    const startTime = Date.now();
     const host = await getIndexHost();
     const url = `https://${host}/records/namespaces/${DEFAULT_NAMESPACE}/search`;
     const filterObj: Record<string, unknown> = {
@@ -142,6 +143,16 @@ export async function pineconeQuery(
     if (filter.courseIds && filter.courseIds.length > 0) {
       filterObj.courseId = { $in: filter.courseIds };
     }
+    logger.info(
+      {
+        userId: filter.userId,
+        topK,
+        hasCourseFilter: Boolean(filter.courseIds && filter.courseIds.length > 0),
+        courseFilterCount: filter.courseIds?.length ?? 0,
+        queryPreview: trimmed.slice(0, 120),
+      },
+      "Pinecone search startet",
+    );
     const res = await fetch(url, {
       method: "POST",
       headers: {
@@ -167,6 +178,15 @@ export async function pineconeQuery(
       result?: { hits?: Array<{ id?: string; _id?: string; score?: number; _score?: number }> };
     };
     const hits = data.result?.hits ?? [];
+    logger.info(
+      {
+        userId: filter.userId,
+        topK,
+        hitCount: hits.length,
+        elapsedMs: Date.now() - startTime,
+      },
+      "Pinecone search fullført",
+    );
     return hits.map((h) => ({
       id: h.id ?? h._id ?? "",
       score: h.score ?? h._score,

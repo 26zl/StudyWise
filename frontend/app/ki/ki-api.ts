@@ -9,6 +9,7 @@ import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   KIChatResponseSchema,
+  KIModelsResponseSchema,
   KIDocumentAnalyseResponseSchema,
   KIOppsummeringResponseSchema,
   KI_MAX_MESSAGE_LENGTH_FRONTEND,
@@ -30,7 +31,7 @@ import { fetchApi } from "../lib/apiClient";
 import { ForbiddenError } from "../lib/errors";
 
 // Eksporter typer
-export type { KIChatResponse, KIMessage } from "common/ki";
+export type { KIChatResponse, KIMessage, KIModelsResponse } from "common/ki";
 
 // Støttede filtyper for dokumentopplasting (inkluderer bilder for OCR)
 export const SUPPORTED_FILE_TYPES = [
@@ -659,7 +660,7 @@ export async function streamKIChat(
 
   const request: KIChatRequest = {
     messages: trimmedMessages,
-    model: options.model,
+    model: options.model && options.model !== "auto" ? options.model : undefined,
     temperature: options.temperature,
     ...(options.explanationLevel && { explanationLevel: options.explanationLevel as KIChatRequest["explanationLevel"] }),
   };
@@ -756,6 +757,15 @@ export async function streamKIChat(
   }
 
   return assertSuccessfulKIChat(parseSSEPayload(lastDataLine, KIChatResponseSchema));
+}
+
+export function useKIModels() {
+  return useQuery({
+    queryKey: ["ki", "models"],
+    queryFn: async () => requestKI("/models", KIModelsResponseSchema, { method: "GET" }),
+    staleTime: 1000 * 60 * 10,
+    refetchOnWindowFocus: false,
+  });
 }
 
 // React query hooks

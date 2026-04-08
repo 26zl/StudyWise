@@ -44,7 +44,20 @@ import {
   deleteKBBaseContent,
 } from "../../services/kunnskapsbase-indeksering.service.js";
 import { parseDocument } from "../../services/document.js";
-import { extractTextFromHtml, fetchExternalContent } from "../../services/crawler.js";
+import {
+  extractTextFromHtml,
+  fetchExternalContent,
+  findContentLinks,
+  findPdfLinks,
+  downloadAndProcessPdf,
+  getDomainSelectors,
+} from "../../services/crawler.js";
+import {
+  KB_CRAWL_MAX_DEPTH,
+  KB_CRAWL_MAX_PAGES,
+  KB_CRAWL_MAX_DOCUMENTS,
+  KB_CRAWL_CONCURRENCY,
+} from "common/kunnskapsbase";
 
 const router = Router();
 const kbIngestionLimiterByUser = new Map<string, ReturnType<typeof pLimit>>();
@@ -630,6 +643,56 @@ async function setLinkCrawlStatus(
   }
 }
 
+/**
+ * URL-normalisering for dedup — fjerner fragment, lowercase, sorterer query-params.
+ */
+function normalizeUrl(urlStr: string): string {
+  try {
+    const url = new URL(urlStr);
+    url.hash = "";
+    url.hostname = url.hostname.toLowerCase();
+    // Sorter query-params for konsistent dedup
+    const params = new URLSearchParams(url.searchParams);
+    const sortedParams = new URLSearchParams([...params.entries()].sort());
+    url.search = sortedParams.toString();
+    return url.toString();
+  } catch {
+    return urlStr;
+  }
+}
+
+/**
+ * Sjekker om en URL er innenfor samme domene/path-prefix.
+ */
+function isSameDomainOrPath(seedUrl: string, candidateUrl: string, samePathOnly: boolean): boolean {
+  try {
+    const seed = new URL(seedUrl);
+    const candidate = new URL(candidateUrl);
+    const seedHost = seed.hostname.toLowerCase().replace(/^www\./, "");
+    const candidateHost = candidate.hostname.toLowerCase().replace(/^www\./, "");
+    
+    if (seedHost !== candidateHost) return false;
+    if (samePathOnly) {
+      // Kandidat må være under samme sti-prefiks
+      const seedPath = seed.pathname.replace(/\/[^/]*$/, ""); // Fjern siste segment
+      return candidate.pathname.startsWith(seedPath);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+interface CrawlStats {
+  pagesIndexed: number;
+  documentsIndexed: number;
+  totalChars: number;
+}
+
+/**
+ * Deep crawl en URL og indekser til KB.
+ * BFS-crawling med dybde-tracking, dedup, og respekt for grenser.
+ */
 async function crawlAndIndexLink(
   userId: string,
   baseId: string,
@@ -637,63 +700,191 @@ async function crawlAndIndexLink(
   url: string,
   tittel: string,
 ): Promise<void> {
+  // Hent crawl-konfigurasjon fra lenke-innstillinger (standard: bruk globale konstanter)
+  const maxDepth = KB_CRAWL_MAX_DEPTH;
+  const maxPages = KB_CRAWL_MAX_PAGES;
+  const maxDocuments = KB_CRAWL_MAX_DOCUMENTS;
+  const samePathOnly = false; // kan gjøres konfigurerbart via API senere
+
+  const visited = new Set<string>();
+  const queue: Array<{ url: string; depth: number; parentUrl?: string }> = [];
+  const stats: CrawlStats = { pagesIndexed: 0, documentsIndexed: 0, totalChars: 0 };
+  const startTime = Date.now();
+  
+  // Seed URL
+  const normalizedSeed = normalizeUrl(url);
+  visited.add(normalizedSeed);
+  queue.push({ url, depth: 0 });
+  
+  const domainSelectors = getDomainSelectors(url);
+  const limit = pLimit(KB_CRAWL_CONCURRENCY);
+
+  logger.info(
+    { baseId, lenkeId, url, maxDepth, maxPages, maxDocuments },
+    "Starter deep crawl av KB-lenke",
+  );
+
   try {
-    const fetched = await fetchExternalContent(url);
-    let text = "";
-    let contentType = "";
+    while (queue.length > 0) {
+      // Sjekk grenser
+      if (stats.pagesIndexed >= maxPages) {
+        logger.info({ baseId, lenkeId, stats }, "Maks sider nådd — avslutter crawl");
+        break;
+      }
 
-    if (fetched.kind === "failed") {
-      logger.warn({ url }, "Kunne ikke hente lenkeinnhold");
-      await setLinkCrawlStatus(baseId, lenkeId, "failed", "Kunne ikke hente innhold fra lenken");
+      // Prosesser neste batch parallelt (opptil concurrency limit)
+      const batchSize = Math.min(queue.length, KB_CRAWL_CONCURRENCY);
+      const batch = queue.splice(0, batchSize);
+      
+      const batchResults = await Promise.allSettled(
+        batch.map(({ url: pageUrl, depth, parentUrl }) =>
+          limit(async () => {
+            if (stats.pagesIndexed >= maxPages) return { links: [], documents: [] };
+            
+            const fetched = await fetchExternalContent(pageUrl);
+            if (fetched.kind === "failed" || fetched.kind === "skip") {
+              return { links: [], documents: [] };
+            }
+
+            let text = "";
+            let contentType = "";
+            let discoveredLinks: Array<{ url: string; title: string }> = [];
+            let discoveredDocs: Array<{ url: string; title: string }> = [];
+
+            if (fetched.kind === "html") {
+              contentType = "text/html";
+              text = extractTextFromHtml(fetched.html, domainSelectors);
+              
+              // Oppdage undersider og dokumenter kun hvis dybde < maxDepth
+              if (depth < maxDepth) {
+                discoveredLinks = findContentLinks(fetched.html, pageUrl);
+                discoveredDocs = findPdfLinks(fetched.html, pageUrl);
+              }
+            } else if (fetched.kind === "pdf") {
+              contentType = "application/pdf";
+              const parsed = await parseDocument(fetched.buffer, "application/pdf", pageUrl);
+              text = parsed.text;
+            }
+
+            // Indekser innhold (hopp over tomme sider, men fortsett crawl)
+            if (text.trim().length > 50) {
+              await indexKBContent({
+                userId,
+                baseId,
+                sourceId: lenkeId,
+                sourceType: "link",
+                sourceName: depth === 0 ? tittel : `${tittel} > ${pageUrl.split("/").pop() ?? "side"}`,
+                content: text,
+                metadata: {
+                  sourceUrl: pageUrl,
+                  contentType,
+                  depth,
+                  parentUrl,
+                  domain: new URL(pageUrl).hostname,
+                },
+              });
+              stats.pagesIndexed++;
+              stats.totalChars += text.length;
+            }
+
+            return { links: discoveredLinks, documents: discoveredDocs };
+          }),
+        ),
+      );
+
+      // Prosesser oppdagede lenker og dokumenter
+      for (const result of batchResults) {
+        if (result.status !== "fulfilled") continue;
+        const { links, documents } = result.value;
+
+        // Legg til nye undersider i køen
+        for (const link of links) {
+          const normalized = normalizeUrl(link.url);
+          if (visited.has(normalized)) continue;
+          if (!isSameDomainOrPath(url, link.url, samePathOnly)) continue;
+          
+          visited.add(normalized);
+          const currentItem = batch.find((b) => !visited.has(normalizeUrl(b.url))) ?? batch[0];
+          queue.push({
+            url: link.url,
+            depth: (currentItem?.depth ?? 0) + 1,
+            parentUrl: currentItem?.url,
+          });
+        }
+
+        // Last ned og indekser dokumenter (PDF/DOCX)
+        for (const doc of documents) {
+          if (stats.documentsIndexed >= maxDocuments) break;
+          
+          const normalized = normalizeUrl(doc.url);
+          if (visited.has(normalized)) continue;
+          visited.add(normalized);
+
+          try {
+            const pdfResult = await downloadAndProcessPdf(doc.url);
+            if (pdfResult && pdfResult.content.trim().length > 50) {
+              await indexKBContent({
+                userId,
+                baseId,
+                sourceId: lenkeId,
+                sourceType: "link",
+                sourceName: `${tittel} > ${doc.title}`,
+                content: pdfResult.content,
+                metadata: {
+                  sourceUrl: doc.url,
+                  contentType: "application/pdf",
+                  depth: (batch[0]?.depth ?? 0) + 1,
+                  parentUrl: batch[0]?.url,
+                  domain: new URL(doc.url).hostname,
+                },
+              });
+              stats.documentsIndexed++;
+              stats.totalChars += pdfResult.content.length;
+            }
+          } catch (err) {
+            logger.warn({ err, docUrl: doc.url }, "Kunne ikke laste ned/parse dokument");
+          }
+        }
+      }
+    }
+
+    const elapsedMs = Date.now() - startTime;
+    
+    if (stats.pagesIndexed === 0 && stats.documentsIndexed === 0) {
+      logger.warn({ baseId, lenkeId, url }, "Deep crawl ga ingen indekserbart innhold");
+      await setLinkCrawlStatus(baseId, lenkeId, "failed", "Ingen indekserbart innhold funnet");
       return;
     }
-    if (fetched.kind === "skip") {
-      logger.info({ url }, "Ustøttet innholdstype for lenke — hopper over");
-      await setLinkCrawlStatus(baseId, lenkeId, "failed", "Ustøttet innholdstype");
-      return;
-    }
 
-    if (fetched.kind === "html") {
-      contentType = "text/html";
-      text = extractTextFromHtml(fetched.html);
-    } else if (fetched.kind === "pdf") {
-      contentType = "application/pdf";
-      const buffer = fetched.buffer;
-      const parsed = await parseDocument(buffer, "application/pdf", url);
-      text = parsed.text;
-    }
-
-    if (text.trim().length === 0) {
-      logger.info({ url }, "Tomt innhold fra lenke — hopper over");
-      await setLinkCrawlStatus(baseId, lenkeId, "failed", "Lenken ga ingen tekst som kunne indekseres");
-      return;
-    }
-
-    await indexKBContent({
-      userId,
-      baseId,
-      sourceId: lenkeId,
-      sourceType: "link",
-      sourceName: tittel,
-      content: text,
-      metadata: {
-        sourceUrl: url,
-        contentType,
+    // Oppdater lenke med crawl-statistikk
+    await KnowledgeBase.updateOne(
+      { _id: baseId, "lenker._id": lenkeId },
+      {
+        $set: {
+          "lenker.$.crawlStatus": "completed",
+          "lenker.$.lastCrawledAt": new Date(),
+          "lenker.$.crawledPages": stats.pagesIndexed,
+          "lenker.$.crawledDocuments": stats.documentsIndexed,
+          "lenker.$.indexed": true,
+          "lenker.$.crawlError": "",
+        },
       },
-    });
+    );
 
-    await setLinkCrawlStatus(baseId, lenkeId, "completed");
-    logger.info({ baseId, lenkeId, url }, "Lenke indeksert i kunnskapsbase");
+    logger.info(
+      { baseId, lenkeId, url, stats, elapsedMs, visited: visited.size },
+      "Deep crawl av KB-lenke fullført",
+    );
   } catch (err) {
     logger.error(
-      { err, url, baseId, lenkeId },
-      "Feil ved crawling/indeksering av lenke",
+      { err, url, baseId, lenkeId, stats },
+      "Feil ved deep crawl av KB-lenke",
     );
     await setLinkCrawlStatus(
       baseId,
       lenkeId,
       "failed",
-      err instanceof Error ? err.message : "Ukjent feil ved indeksering",
+      err instanceof Error ? err.message : "Ukjent feil ved crawling",
     );
   }
 }

@@ -11,6 +11,7 @@ import { streamText } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { logger } from "../../utils/logger.js";
 import { anthropicCircuit } from "../../utils/circuitBreaker.js";
+import { DEFAULT_MODEL } from "./aiModels.js";
 import {
     finishLangsmithRun,
     startLangsmithRun,
@@ -92,6 +93,32 @@ export async function chatCompletion(options: {
     traceMeta?: LangsmithTraceMeta;
 }): Promise<ChatCompletionResult> {
     const { model, messages, max_tokens, temperature, signal, traceName, traceMeta } = options;
+    const shouldFallbackToDefaultModel = (error: unknown): boolean => {
+        const maybeError = error as {
+            status?: number;
+            statusCode?: number;
+            responseBody?: string;
+            message?: string;
+            cause?: { status?: number; statusCode?: number; responseBody?: string; message?: string };
+        } | undefined;
+
+        const primaryStatus = maybeError?.status ?? maybeError?.statusCode;
+        const causeStatus = maybeError?.cause?.status ?? maybeError?.cause?.statusCode;
+        const responseBody = typeof maybeError?.responseBody === "string" ? maybeError.responseBody : "";
+        const causeResponseBody = typeof maybeError?.cause?.responseBody === "string" ? maybeError.cause.responseBody : "";
+        const message = typeof maybeError?.message === "string" ? maybeError.message : "";
+        const causeMessage = typeof maybeError?.cause?.message === "string" ? maybeError.cause.message : "";
+
+        const hasNotFoundSignal =
+            responseBody.includes("not_found_error")
+            || causeResponseBody.includes("not_found_error")
+            || message.includes("not_found_error")
+            || causeMessage.includes("not_found_error")
+            || message.includes("No output generated")
+            || causeMessage.includes("No output generated");
+
+        return (primaryStatus === 404 || causeStatus === 404 || hasNotFoundSignal) && model !== DEFAULT_MODEL;
+    };
     const runId = await startLangsmithRun({
         name: traceName ?? "chat",
         model,
@@ -116,6 +143,33 @@ export async function chatCompletion(options: {
 
         return result;
     } catch (error) {
+        if (shouldFallbackToDefaultModel(error)) {
+            logger.warn(
+                { requestedModel: model, fallbackModel: DEFAULT_MODEL, err: error },
+                "chatCompletion: modell feilet — prøver default-modell",
+            );
+            try {
+                const fallbackResult = await anthropicCircuit.execute(() =>
+                    callAnthropic({
+                        model: DEFAULT_MODEL,
+                        messages,
+                        max_tokens,
+                        temperature,
+                        signal,
+                    }),
+                );
+                fallbackResult.text = stripAnalyseTags(fallbackResult.text);
+                await finishLangsmithRun({
+                    runId,
+                    response: fallbackResult.text,
+                    usage: fallbackResult.usage,
+                });
+                return fallbackResult;
+            } catch (fallbackError) {
+                await finishLangsmithRun({ runId, error: fallbackError });
+                throw fallbackError;
+            }
+        }
         await finishLangsmithRun({ runId, error });
         throw error;
     }
@@ -235,6 +289,14 @@ async function callAnthropic(options: {
 
     const { model, messages, max_tokens, temperature, signal } = options;
 
+    const isModelNotFoundError = (error: unknown): boolean => {
+        const maybeError = error as { status?: number; responseBody?: string; message?: string } | undefined;
+        const responseBody = typeof maybeError?.responseBody === "string" ? maybeError.responseBody : "";
+        const message = typeof maybeError?.message === "string" ? maybeError.message : "";
+        return maybeError?.status === 404
+            && (responseBody.includes("not_found_error") || message.includes("not_found_error"));
+    };
+
     // Skill ut system-meldinger fra samtalehistorikk
     const systemMessages = messages.filter(m => m.role === "system");
     const nonSystemMessages = messages.filter(m => m.role !== "system");
@@ -347,6 +409,20 @@ async function callAnthropic(options: {
 
             const status = (error as { status?: number }).status;
             const isRetryable = status === 529 || status === 500;
+
+            if (isModelNotFoundError(error) && model !== DEFAULT_MODEL) {
+                logger.warn(
+                    { requestedModel: model, fallbackModel: DEFAULT_MODEL, err: error },
+                    "Valgt modell ikke tilgjengelig hos Anthropic — faller tilbake til default-modell",
+                );
+                return callAnthropic({
+                    model: DEFAULT_MODEL,
+                    messages,
+                    max_tokens,
+                    temperature,
+                    signal,
+                });
+            }
 
             if (isRetryable && attempt < MAX_RETRIES) {
                 const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 8000);

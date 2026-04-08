@@ -1614,9 +1614,9 @@ async function byggKontekstFraHybridSearch(
         const courseIdStr = String(target.courseIdHint);
         const allDocs = await getAllFullDocumentsForCourse(userId, courseIdStr);
         if (allDocs.length > 0) {
-          // Char-budsjett ~80k tegn (≈20k tokens) totalt for kursoversikt
-          const TOTAL_BUDGET = 80_000;
-          const perFileBudget = Math.max(2000, Math.floor(TOTAL_BUDGET / allDocs.length));
+          // Char-budsjett ~50k tegn (≈12.5k tokens) — redusert for bedre LLM-latens
+          const TOTAL_BUDGET = 50_000;
+          const perFileBudget = Math.max(1500, Math.floor(TOTAL_BUDGET / allDocs.length));
           let totalChars = 0;
           const blocks: string[] = [];
           const kilder: ContextSource[] = [];
@@ -2019,6 +2019,8 @@ async function byggKontekstFraHybridSearch(
 const ON_DEMAND_MAX_FILES = 5;
 /** Maks filstørrelse for on-demand henting (10 MB) */
 const ON_DEMAND_MAX_FILE_SIZE = 10 * 1024 * 1024;
+/** Timeout per fil-henting (ms) — forhindrer at én treg fil blokkerer alle */
+const ON_DEMAND_PER_FILE_TIMEOUT_MS = 8_000;
 
 /**
  * Henter filinnhold on-demand fra Canvas API for en spesifikk modul.
@@ -2065,60 +2067,101 @@ async function hentModulFilerOnDemand(
     kontekst += `EMNE: ${formatCourseLabel(matchedStructure.courseName, matchedStructure.course_code)}\n\n`;
     kontekst += `### ${matchedModule.name}\n`;
 
-    let hentetFiler = 0;
+    // Parallell filhenting med per-fil timeout
+    interface FileResult {
+      title: string;
+      type: string;
+      content: string | null;
+      fileData: { filename: string; id: number } | null;
+    }
 
-    for (const item of filItems.slice(0, ON_DEMAND_MAX_FILES)) {
+    const filesToFetch = filItems.slice(0, ON_DEMAND_MAX_FILES);
+    
+    const fetchFileWithTimeout = async (item: typeof filItems[0]): Promise<FileResult> => {
       const contentId = item.content_id!;
-      kontekst += `- [${item.type}] ${item.title}\n`;
+      
+      // Wrapper med timeout
+      const timeoutPromise = new Promise<null>((resolve) =>
+        setTimeout(() => resolve(null), ON_DEMAND_PER_FILE_TIMEOUT_MS),
+      );
 
-      try {
-        // Hent filmetadata fra Canvas API
-        const { data: fileData } = await fetchFileMetadata(canvasToken, contentId, baseUrl);
-        if (!fileData || fileData.size > ON_DEMAND_MAX_FILE_SIZE) continue;
-        if (!isSupportedFileType(fileData.filename)) continue;
+      const fetchPromise = (async (): Promise<string | null> => {
+        try {
+          const { data: fileData } = await fetchFileMetadata(canvasToken, contentId, baseUrl);
+          if (!fileData || fileData.size > ON_DEMAND_MAX_FILE_SIZE) return null;
+          if (!isSupportedFileType(fileData.filename)) return null;
 
-        const isPdf =
-          fileData.mime_type === "application/pdf" ||
-          fileData.filename.toLowerCase().endsWith(".pdf");
+          const isPdf =
+            fileData.mime_type === "application/pdf" ||
+            fileData.filename.toLowerCase().endsWith(".pdf");
 
-        let content: string | null = null;
-
-        if (isPdf) {
-          const pdfResult = await fetchPdfContent(canvasToken, {
-            id: fileData.id,
-            filename: fileData.filename,
-            url: fileData.url,
-            size: fileData.size,
-            mime_type: fileData.mime_type,
-          }, baseUrl);
-          if (pdfResult) content = pdfResult.content;
-        } else {
-          const buf = await fetchFileContent(canvasToken, {
-            id: fileData.id,
-            filename: fileData.filename,
-            url: fileData.url,
-            size: fileData.size,
-          }, baseUrl);
-          if (buf) {
-            const result = await extractTextFromFile(buf, fileData.filename);
-            if (result && result.content.trim().length > 0) content = result.content;
+          if (isPdf) {
+            const pdfResult = await fetchPdfContent(canvasToken, {
+              id: fileData.id,
+              filename: fileData.filename,
+              url: fileData.url,
+              size: fileData.size,
+              mime_type: fileData.mime_type,
+            }, baseUrl);
+            return pdfResult?.content ?? null;
+          } else {
+            const buf = await fetchFileContent(canvasToken, {
+              id: fileData.id,
+              filename: fileData.filename,
+              url: fileData.url,
+              size: fileData.size,
+            }, baseUrl);
+            if (buf) {
+              const result = await extractTextFromFile(buf, fileData.filename);
+              if (result && result.content.trim().length > 0) return result.content;
+            }
           }
+          return null;
+        } catch (err) {
+          logger.warn({ err, userId, fileId: contentId }, "On-demand fil-fetch feilet");
+          return null;
         }
+      })();
 
-        if (!content || content.trim().length === 0) continue;
+      const content = await Promise.race([fetchPromise, timeoutPromise]);
+      
+      // Hent fileData for lagring (gjøres separat for å ikke blokkere)
+      let fileData: { filename: string; id: number } | null = null;
+      try {
+        const { data } = await fetchFileMetadata(canvasToken, contentId, baseUrl);
+        if (data) fileData = { filename: data.filename, id: data.id };
+      } catch {
+        // Ignorer — ikke kritisk for kontekst
+      }
 
-        // Inkluder i kontekst (maks 4000 tegn per fil for å unngå token-overforbruk)
-        const truncated = content.length > 4000 ? content.substring(0, 4000) + "\n[...forkortet...]" : content;
-        kontekst += `\nINNHOLD FRA ${item.title}:\n${truncated}\n`;
-        hentetFiler++;
+      return { title: item.title, type: item.type ?? "File", content, fileData };
+    };
 
-        // Lagre i MongoDB for fremtidige forespørsler (fire-and-forget)
+    // Hent alle filer parallelt
+    const results = await Promise.allSettled(filesToFetch.map(fetchFileWithTimeout));
+    
+    let hentetFiler = 0;
+    for (const result of results) {
+      if (result.status !== "fulfilled") continue;
+      const { title, type, content, fileData } = result.value;
+      
+      kontekst += `- [${type}] ${title}\n`;
+      
+      if (!content || content.trim().length === 0) continue;
+
+      // Inkluder i kontekst (maks 4000 tegn per fil)
+      const truncated = content.length > 4000 ? content.substring(0, 4000) + "\n[...forkortet...]" : content;
+      kontekst += `\nINNHOLD FRA ${title}:\n${truncated}\n`;
+      hentetFiler++;
+
+      // Lagre i MongoDB for fremtidige forespørsler (fire-and-forget)
+      if (fileData) {
         const chunks = createChunksFromContent(content, {
           courseId,
           courseName: matchedStructure.courseName,
           moduleTitle: matchedModule.name,
           fileName: fileData.filename,
-          fileId: contentId,
+          fileId: fileData.id,
         });
         if (chunks.length > 0) {
           void upsertStoredFileContent({
@@ -2128,16 +2171,14 @@ async function hentModulFilerOnDemand(
             moduleId: matchedModule.id,
             moduleTitle: matchedModule.name,
             fileName: fileData.filename,
-            fileId: contentId,
+            fileId: fileData.id,
             fileHash: `ondemand-${Date.now()}`,
             chunks,
             fullText: content,
           }).catch((err) => {
-            logger.warn({ err, userId, fileId: contentId }, "On-demand lagring feilet (ikke-kritisk)");
+            logger.warn({ err, userId, fileId: fileData.id }, "On-demand lagring feilet (ikke-kritisk)");
           });
         }
-      } catch (err) {
-        logger.warn({ err, userId, fileId: item.content_id, title: item.title }, "On-demand filhenting feilet for fil");
       }
     }
 
@@ -2254,9 +2295,10 @@ export async function loadCanvasContext(
       }).catch((err) => {
         logger.warn({ err, userId, courseId: courseIdStr }, "Prioritert sync feilet");
       });
-      // Vent inntil 25s på at det prioriterte kurset får minst én indeksert chunk
-      const WAIT_DEADLINE_MS = 25_000;
-      const POLL_INTERVAL_MS = 750;
+      // Vent inntil 10s på at det prioriterte kurset får minst én indeksert chunk
+      // Redusert fra 25s for å forbedre responsivitet — de fleste syncer fullføres på <5s
+      const WAIT_DEADLINE_MS = 10_000;
+      const POLL_INTERVAL_MS = 400;
       const startedAt = Date.now();
       while (Date.now() - startedAt < WAIT_DEADLINE_MS) {
         if (signal?.aborted) break;
@@ -2373,6 +2415,33 @@ export async function loadCanvasContext(
 
   // ── canvas_light ──
   if (intent === "canvas_light") {
+    // Faglige spørsmål havner av og til feilaktig i canvas_light uten chunkHint.
+    // Prøv hybrid-søk også her når vi har lagret AI-innhold.
+    if (!hybridAlreadyAttempted && !shouldPreferStructuredContext && hasStoredAIContent && message && !wantsAnnouncements) {
+      const hybridResult = await byggKontekstFraHybridSearch(userId, message, target, hiddenCourseIds);
+      if (hybridResult) {
+        let kontekst = hybridResult.kontekst;
+        if (hasCourseTarget(target)) {
+          const strukturOversikt = await byggModulStrukturOversikt(userId, target!, hiddenCourseIds);
+          if (strukturOversikt) {
+            kontekst = kontekst.replace("</canvas-kursdata>", strukturOversikt + "\n</canvas-kursdata>");
+          }
+        }
+        logger.info(
+          { userId, intent, source: "vector", contextLength: kontekst.length },
+          "Canvas-light oppgradert til hybrid søk",
+        );
+        return {
+          kontekst,
+          hasCanvasData: true,
+          source: "vector",
+          hasSparseChunks: hybridResult.hasSparseChunks,
+          fullDocumentMode: hybridResult.fullDocumentMode,
+          kilder: hybridResult.kilder,
+        };
+      }
+    }
+
     if (wantsAnnouncements && !hasSpecificTarget) {
       const announcements = await hentKunngjøringerForBruker(userId);
       if (announcements.length > 0) {

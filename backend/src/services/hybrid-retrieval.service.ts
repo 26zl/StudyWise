@@ -26,17 +26,28 @@ import {
 /** RRF-konstant (typisk 60) — demper rankeringsforskjeller */
 const RRF_K = 60;
 
-/** Antall resultater fra hvert søkesystem (overhent for bedre RRF-fusjon) */
-const PER_SOURCE_LIMIT = 10;
+/** Base-antall resultater fra hvert søkesystem (overhent for bedre RRF-fusjon) */
+const PER_SOURCE_LIMIT_BASE = 15;
 
-/** Endelig antall resultater etter reranking */
-const FINAL_TOP_N = 6;
+/** Endelig base-antall resultater etter reranking */
+const FINAL_TOP_N_BASE = 8;
 
 /** Maks antall parallelle begrep-søk ved multi-concept splitting */
 const MAX_CONCEPT_SPLITS = 3;
 
 /** Minimumslengde for et begrep som skal gi eget søk */
 const MIN_CONCEPT_LENGTH = 4;
+
+/**
+ * Adaptiv topK-beregning basert på query-kompleksitet.
+ * Enkle begrep → færre treff; sammensatte spørsmål → flere treff.
+ */
+function adaptiveTopK(query: string, baseLimit: number): number {
+  const wordCount = query.trim().split(/\s+/).length;
+  if (wordCount <= 2) return Math.max(6, Math.floor(baseLimit * 0.7));
+  if (wordCount >= 8) return Math.min(20, Math.ceil(baseLimit * 1.4));
+  return baseLimit;
+}
 
 // ─── Multi-concept splitting ───────────────────────────────
 
@@ -202,11 +213,11 @@ async function singleConceptSearch(
 }> {
   const [vectorResponse, bm25Response] = await Promise.all([
     vectorSearch(userId, query, {
-      limit: options?.limit ?? PER_SOURCE_LIMIT,
+      limit: options?.limit ?? PER_SOURCE_LIMIT_BASE,
       courseIds: options?.courseIds,
     }),
     bm25Search(userId, query, {
-      limit: options?.limit ?? PER_SOURCE_LIMIT,
+      limit: options?.limit ?? PER_SOURCE_LIMIT_BASE,
       courseIds: options?.courseIds,
     }),
   ]);
@@ -242,7 +253,10 @@ export async function hybridSearch(
     return { results: [], degraded: false, sources: { vector: false, bm25: false, reranked: false } };
   }
 
-  const topN = options?.topN ?? FINAL_TOP_N;
+  // Adaptiv topN basert på query-kompleksitet
+  const adaptiveFinalN = adaptiveTopK(trimmedQuery, FINAL_TOP_N_BASE);
+  const topN = options?.topN ?? adaptiveFinalN;
+  const perSourceLimit = adaptiveTopK(trimmedQuery, PER_SOURCE_LIMIT_BASE);
   const startTime = Date.now();
 
   // ── Trinn 0: Sjekk om query bør splittes i flere begreper ──
@@ -264,12 +278,12 @@ export async function hybridSearch(
     const searchPromises = [
       singleConceptSearch(userId, trimmedQuery, {
         courseIds: options?.courseIds,
-        limit: Math.ceil(PER_SOURCE_LIMIT / 2),
+        limit: Math.ceil(perSourceLimit / 2),
       }),
       ...concepts.map((concept) =>
         singleConceptSearch(userId, concept, {
           courseIds: options?.courseIds,
-          limit: Math.ceil(PER_SOURCE_LIMIT / concepts.length),
+          limit: Math.ceil(perSourceLimit / concepts.length),
         }),
       ),
     ];

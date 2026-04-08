@@ -59,6 +59,16 @@ const MAX_REDIRECTS = 3;
 
 /** Maks antall undersider som crawles per ExternalUrl-item */
 const MAX_SUBPAGES_PER_ITEM = 20;
+/** Maks antall PDF-er funnet via undersider per item */
+const MAX_SUBPAGE_PDFS_PER_ITEM = 5;
+
+// ─── Eksporterte hjelpefunksjoner for KB-crawl ────────────
+
+/**
+ * Re-eksporterer findContentLinks for bruk i KB deep crawl.
+ * Finner interne lenker (samme domene) som sannsynligvis peker til innholdssider.
+ */
+export { findContentLinks, findPdfLinks, downloadAndProcessPdf, getDomainSelectors, sha256 };
 
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 
@@ -951,6 +961,44 @@ const NON_HTML_EXTENSIONS = new Set([
   ".css", ".js", ".json", ".xml", ".woff", ".woff2", ".ttf", ".eot",
 ]);
 
+const CONTENT_HINT_PATTERNS = [
+  /\b(article|blog|docs?|guide|kurs|course|whitepaper|research|resources?)\b/i,
+  /\b(strategi|endring|ledelse|konkurranse|situasjonsbestemt)\b/i,
+];
+
+const STOPWORDS = new Set([
+  "www", "com", "html", "php", "index", "page", "node", "about", "home",
+  "the", "and", "for", "til", "med", "som", "fra", "hos", "hvem", "vi",
+]);
+
+function extractUrlTokens(pathOrTitle: string): string[] {
+  return pathOrTitle
+    .toLowerCase()
+    .split(/[^a-z0-9æøå]+/i)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 4 && !STOPWORDS.has(s));
+}
+
+function isLikelyContentLink(baseUrl: string, candidateUrl: URL, anchorTitle: string): boolean {
+  const base = new URL(baseUrl);
+  const baseDir = base.pathname.replace(/\/[^/]*$/, "/");
+  const candidatePath = candidateUrl.pathname.toLowerCase();
+
+  // Tillat alltid lenker under samme "katalog" hvis seed ikke er rotnivå
+  if (baseDir !== "/" && candidatePath.startsWith(baseDir.toLowerCase())) {
+    return true;
+  }
+
+  // Ellers: krev tematisk samsvar med seed-slug eller tydelige innholdshint
+  const seedTokens = extractUrlTokens(base.pathname);
+  const candidateText = `${candidatePath} ${anchorTitle.toLowerCase()}`;
+  if (seedTokens.some((token) => candidateText.includes(token))) {
+    return true;
+  }
+
+  return CONTENT_HINT_PATTERNS.some((pattern) => pattern.test(candidateText));
+}
+
 /**
  * Finner interne lenker (samme domene) som sannsynligvis peker til innholdssider.
  * Returnerer dedupliserte, absolutte URL-er opp til MAX_SUBPAGES_PER_ITEM.
@@ -1011,9 +1059,12 @@ function findContentLinks(html: string, baseUrl: string): Array<{ url: string; t
     // Hopp over uønskede stier
     if (EXCLUDED_PATH_PATTERNS.some((p) => p.test(normalizedPath))) return;
 
+    const anchorTitle = $(el).text().trim();
+    if (!isLikelyContentLink(baseUrl, absoluteUrl, anchorTitle)) return;
+
     seenPaths.add(normalizedPath);
 
-    let title = $(el).text().trim();
+    let title = anchorTitle;
     if (!title || title.length > 200) {
       title = decodeURIComponent(normalizedPath.split("/").filter(Boolean).pop() ?? "side");
     }
@@ -1304,8 +1355,13 @@ async function processSubpageLinks(
   if (contentLinks.length === 0) return;
 
   const previouslyIndexed = new Set(item.crawledSubpages ?? []);
+  const globallySeenInThisRun = new Set<string>([
+    ...(item.crawledSubpages ?? []),
+    ...(item.crawledPdfs ?? []),
+  ]);
   const newlyIndexed: string[] = [...previouslyIndexed];
   const subpageLimit = pLimit(CRAWLER_CONCURRENCY);
+  let subpagePdfCount = 0;
 
   logger.info(
     {
@@ -1320,7 +1376,8 @@ async function processSubpageLinks(
     contentLinks.map((link) =>
       subpageLimit(async () => {
         // Hopp over allerede indekserte undersider
-        if (previouslyIndexed.has(link.url)) return;
+        if (previouslyIndexed.has(link.url) || globallySeenInThisRun.has(link.url)) return;
+        globallySeenInThisRun.add(link.url);
 
         const subContent = await fetchExternalContent(link.url);
         if (subContent.kind !== "html") return;
@@ -1374,7 +1431,9 @@ async function processSubpageLinks(
         // Prosesser PDF-lenker på undersiden
         const subPdfLinks = findPdfLinks(subContent.html, link.url);
         for (const pdf of subPdfLinks) {
-          if (previouslyIndexed.has(pdf.url) || newlyIndexed.includes(pdf.url)) continue;
+          if (subpagePdfCount >= MAX_SUBPAGE_PDFS_PER_ITEM) break;
+          if (globallySeenInThisRun.has(pdf.url) || newlyIndexed.includes(pdf.url)) continue;
+          globallySeenInThisRun.add(pdf.url);
 
           const pdfResult = await downloadAndProcessPdf(pdf.url);
           if (!pdfResult) continue;
@@ -1403,6 +1462,7 @@ async function processSubpageLinks(
                 fullText: pdfResult.content,
               });
               result.pdfsIndexed++;
+              subpagePdfCount++;
             } catch (error) {
               logger.warn(
                 { err: error, url: pdf.url },

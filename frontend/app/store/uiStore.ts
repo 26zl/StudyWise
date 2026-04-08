@@ -61,6 +61,9 @@ interface UIState {
     // Forklaringsnivå for KI-svar
     explanationLevel: ExplanationLevel;
     setExplanationLevel: (level: ExplanationLevel) => void;
+    // Modellvalg i chat: "auto" = dynamisk miks (Haiku/Sonnet), ellers fast modell
+    selectedChatModel: string;
+    setSelectedChatModel: (model: string) => void;
     // Flagg for pågående utlogging — komponenter viser lastespinner i stedet for feilmeldinger
     isLoggingOut: boolean;
     setIsLoggingOut: (value: boolean) => void;
@@ -100,6 +103,8 @@ export const useUIStore = create<UIState>()((set) => ({
     setCanvasTokenInvalid: (invalid) => set({ canvasTokenInvalid: invalid }),
     explanationLevel: "standard" as ExplanationLevel,
     setExplanationLevel: (level) => set({ explanationLevel: level }),
+    selectedChatModel: "auto",
+    setSelectedChatModel: (model) => set({ selectedChatModel: model }),
     isLoggingOut: false,
     setIsLoggingOut: (value) => set({ isLoggingOut: value }),
     varslerLestIds: new Set(),
@@ -143,6 +148,7 @@ export const useUIStore = create<UIState>()((set) => ({
             canvasContextSelection: createDefaultCanvasContextPreferences(),
             canvasTokenInvalid: false,
             explanationLevel: "standard" as ExplanationLevel,
+            selectedChatModel: "auto",
             varslerLestIds: new Set(),
             varslerToastVistIds: new Set(),
             varslerStateHydrated: false,
