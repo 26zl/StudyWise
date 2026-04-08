@@ -37,6 +37,8 @@ interface SettingsSectionProps {
     etternavn?: string;
     /** Brukerens brukernavn (fra /me). */
     username?: string;
+    /** Brukerens rolle (fra /me) — brukes til å vise admin-merke. */
+    brukerRolle?: string;
     browserPushPreferences?: BrowserPushPreferences;
 }
 
@@ -142,6 +144,7 @@ export function SettingsSection({
     fornavn,
     etternavn,
     username,
+    brukerRolle,
     browserPushPreferences,
 }: SettingsSectionProps) {
     const { language, setLanguage, t } = useLanguage();
@@ -476,9 +479,17 @@ export function SettingsSection({
                                     tone="blue"
                                 />
                                 <div className="min-w-0">
-                                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                                        {t("settings.profile.studywiseAccount")}
-                                    </p>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                            {t("settings.profile.studywiseAccount")}
+                                        </p>
+                                        {brukerRolle === "admin" && (
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300 ring-1 ring-inset ring-blue-200 dark:ring-blue-500/30">
+                                                <Shield size={10} />
+                                                Admin
+                                            </span>
+                                        )}
+                                    </div>
                                     {visningsnavn ? (
                                         <p className="font-medium text-slate-900 dark:text-white">
                                             {visningsnavn}

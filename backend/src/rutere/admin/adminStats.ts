@@ -56,6 +56,13 @@ interface LangsmithRunSnapshot {
   total_tokens?: number | null;
   error?: unknown;
   extra?: unknown;
+  // Normaliserte felter beregnet fra inputs/outputs før caching,
+  // slik at modellnavn + token-tall overlever at vi stripper inputs/outputs
+  // (brukerprompter og AI-svar skal ikke i Redis).
+  _normalizedModel?: string;
+  _normalizedInputTokens?: number;
+  _normalizedOutputTokens?: number;
+  _normalizedTotalTokens?: number;
 }
 
 function avrundEnDesimal(verdi: number): number {
@@ -67,6 +74,12 @@ function asTimestamp(value: unknown): number | null {
   if (typeof value === "string") {
     const parsed = Date.parse(value);
     return Number.isFinite(parsed) ? parsed : null;
+  }
+  // LangSmith SDK returnerer start_time/end_time som Date-objekter i fresh fetch
+  // (før serialisering til Redis gjør dem om til ISO-strings).
+  if (value instanceof Date) {
+    const ts = value.getTime();
+    return Number.isFinite(ts) ? ts : null;
   }
   return null;
 }
@@ -126,11 +139,32 @@ function hentIntent(run: LangsmithRunSnapshot): string {
 }
 
 function hentModel(run: LangsmithRunSnapshot): string {
+  // Normalisert felt (satt ved fetch-tid, overlever caching)
+  if (run._normalizedModel && run._normalizedModel.length > 0) return run._normalizedModel;
+
   const inputs = (run.inputs ?? {}) as Record<string, unknown>;
   if (typeof inputs.model === "string" && inputs.model.trim().length > 0) return inputs.model.trim();
 
   const extra = (run.extra ?? {}) as Record<string, unknown>;
   if (typeof extra.model === "string" && extra.model.trim().length > 0) return extra.model.trim();
+
+  // LangSmith-standardlokasjoner for LLM-runs
+  const invocationParams = extra.invocation_params as Record<string, unknown> | undefined;
+  if (invocationParams && typeof invocationParams.model === "string" && invocationParams.model.trim().length > 0) {
+    return invocationParams.model.trim();
+  }
+  if (invocationParams && typeof invocationParams.model_name === "string" && invocationParams.model_name.trim().length > 0) {
+    return invocationParams.model_name.trim();
+  }
+
+  const metadata = hentMetadata(run);
+  if (typeof metadata.ls_model_name === "string" && metadata.ls_model_name.trim().length > 0) {
+    return metadata.ls_model_name.trim();
+  }
+  if (typeof metadata.model === "string" && metadata.model.trim().length > 0) {
+    return metadata.model.trim();
+  }
+
   return "ukjent";
 }
 
@@ -219,29 +253,80 @@ function hentTokens(run: LangsmithRunSnapshot): {
   outputTokens: number;
   totalTokens: number;
 } {
+  // Normaliserte felter (satt ved fetch-tid, overlever caching)
+  if (
+    run._normalizedInputTokens != null ||
+    run._normalizedOutputTokens != null ||
+    run._normalizedTotalTokens != null
+  ) {
+    const inputTokens = run._normalizedInputTokens ?? 0;
+    const outputTokens = run._normalizedOutputTokens ?? 0;
+    return {
+      inputTokens,
+      outputTokens,
+      totalTokens: run._normalizedTotalTokens ?? inputTokens + outputTokens,
+    };
+  }
+
+  type TokenUsage = {
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+    prompt_tokens?: number;
+    completion_tokens?: number;
+  };
+
   const extra = (run.extra ?? {}) as Record<string, unknown>;
-  const extraTokenUsage = extra.token_usage as
-    | { input_tokens?: number; output_tokens?: number; total_tokens?: number }
-    | undefined;
+  const extraTokenUsage = extra.token_usage as TokenUsage | undefined;
   const metadata = hentMetadata(run);
-  const metadataTokenUsage = metadata.token_usage as
-    | { input_tokens?: number; output_tokens?: number; total_tokens?: number }
-    | undefined;
+  const metadataTokenUsage = metadata.token_usage as TokenUsage | undefined;
+
+  // LangSmith legger ofte usage i outputs.llm_output.token_usage eller
+  // outputs.generations[*].message.usage_metadata (LangChain-chat)
+  const outputs = (run.outputs ?? {}) as Record<string, unknown>;
+  const llmOutput = outputs.llm_output as Record<string, unknown> | undefined;
+  const llmOutputUsage = llmOutput?.token_usage as TokenUsage | undefined;
+  const outputsUsage = outputs.usage_metadata as TokenUsage | undefined;
+
+  let generationUsage: TokenUsage | undefined;
+  const generations = outputs.generations;
+  if (Array.isArray(generations) && generations.length > 0) {
+    const firstGen = Array.isArray(generations[0]) ? generations[0][0] : generations[0];
+    const message = (firstGen as Record<string, unknown> | undefined)?.message as
+      | Record<string, unknown>
+      | undefined;
+    generationUsage = message?.usage_metadata as TokenUsage | undefined;
+  }
 
   const inputTokens =
     run.prompt_tokens ??
     extraTokenUsage?.input_tokens ??
+    extraTokenUsage?.prompt_tokens ??
     metadataTokenUsage?.input_tokens ??
+    metadataTokenUsage?.prompt_tokens ??
+    llmOutputUsage?.input_tokens ??
+    llmOutputUsage?.prompt_tokens ??
+    outputsUsage?.input_tokens ??
+    generationUsage?.input_tokens ??
     0;
   const outputTokens =
     run.completion_tokens ??
     extraTokenUsage?.output_tokens ??
+    extraTokenUsage?.completion_tokens ??
     metadataTokenUsage?.output_tokens ??
+    metadataTokenUsage?.completion_tokens ??
+    llmOutputUsage?.output_tokens ??
+    llmOutputUsage?.completion_tokens ??
+    outputsUsage?.output_tokens ??
+    generationUsage?.output_tokens ??
     0;
   const totalTokens =
     run.total_tokens ??
     extraTokenUsage?.total_tokens ??
     metadataTokenUsage?.total_tokens ??
+    llmOutputUsage?.total_tokens ??
+    outputsUsage?.total_tokens ??
+    generationUsage?.total_tokens ??
     inputTokens + outputTokens;
 
   return { inputTokens, outputTokens, totalTokens };
@@ -250,7 +335,12 @@ function hentTokens(run: LangsmithRunSnapshot): {
 /**
  * Henter LangSmith-runs med Redis-cache.
  * Alle endepunkter deler samme cachede runs-liste for å unngå gjentatte API-kall.
+ *
+ * In-flight dedup: samtidige kall med samme `days` deler én LangSmith-forespørsel
+ * (forhindrer at avbrutte admin-sidelastninger trigger flere parallelle LangSmith-kall).
  */
+const inFlightLangsmithRuns = new Map<number, Promise<LangsmithRunSnapshot[]>>();
+
 async function hentLangsmithRunsCached(days: number): Promise<LangsmithRunSnapshot[]> {
   if (!langsmithClient) {
     logger.warn("LangSmith-klient mangler, kan ikke hente observability-data");
@@ -267,38 +357,61 @@ async function hentLangsmithRunsCached(days: number): Promise<LangsmithRunSnapsh
     }
   }
 
+  // Slå sammen samtidige fetcher for samme tidsvindu
+  const inFlight = inFlightLangsmithRuns.get(days);
+  if (inFlight) return inFlight;
+
   const client = langsmithClient;
   const startTime = new Date(Date.now() - days * DAY_MS);
 
-  const runs: LangsmithRunSnapshot[] = [];
-  try {
-    for await (const run of client.listRuns({
-      projectName: LANGSMITH_PROJECT,
-      startTime,
-      limit: 100,
-      order: "desc",
-    })) {
-      runs.push(run as LangsmithRunSnapshot);
+  const fetchPromise = (async (): Promise<LangsmithRunSnapshot[]> => {
+    const runs: LangsmithRunSnapshot[] = [];
+    try {
+      for await (const run of client.listRuns({
+        projectName: LANGSMITH_PROJECT,
+        startTime,
+        limit: 100,
+        order: "desc",
+      })) {
+        runs.push(run as LangsmithRunSnapshot);
+      }
+      logger.info(
+        { antall: runs.length, dager: days },
+        "LangSmith-runs hentet",
+      );
+    } catch (error) {
+      logger.warn(
+        { err: error, project: LANGSMITH_PROJECT },
+        "LangSmith listRuns feilet — returnerer tom liste",
+      );
+      return [];
     }
-    logger.info(
-      { antall: runs.length, dager: days },
-      "LangSmith-runs hentet",
-    );
-  } catch (error) {
-    logger.warn(
-      { err: error, project: LANGSMITH_PROJECT },
-      "LangSmith listRuns feilet — returnerer tom liste",
-    );
-    return [];
-  }
 
-  // Cacher kun ikke-tomme resultater — tomme kan skyldes midlertidige feil.
-  // Strip inputs/outputs før caching — brukerprompter og AI-svar skal ikke i Redis.
-  if (runs.length > 0) {
-    const strippedRuns = runs.map(({ inputs: _i, outputs: _o, ...rest }) => rest);
-    await setCache(cacheKey, JSON.stringify(strippedRuns), LANGSMITH_CACHE_TTL);
+    // Normaliser modell + tokens FØR stripping, slik at de overlever caching.
+    // (hentModel/hentTokens leser disse feltene først når de er satt.)
+    for (const run of runs) {
+      run._normalizedModel = hentModel(run);
+      const tokens = hentTokens(run);
+      run._normalizedInputTokens = tokens.inputTokens;
+      run._normalizedOutputTokens = tokens.outputTokens;
+      run._normalizedTotalTokens = tokens.totalTokens;
+    }
+
+    // Cacher kun ikke-tomme resultater — tomme kan skyldes midlertidige feil.
+    // Strip inputs/outputs før caching — brukerprompter og AI-svar skal ikke i Redis.
+    if (runs.length > 0) {
+      const strippedRuns = runs.map(({ inputs: _i, outputs: _o, ...rest }) => rest);
+      await setCache(cacheKey, JSON.stringify(strippedRuns), LANGSMITH_CACHE_TTL);
+    }
+    return runs;
+  })();
+
+  inFlightLangsmithRuns.set(days, fetchPromise);
+  try {
+    return await fetchPromise;
+  } finally {
+    inFlightLangsmithRuns.delete(days);
   }
-  return runs;
 }
 
 async function hentLangsmithStatsMedCache() {
@@ -308,13 +421,9 @@ async function hentLangsmithStatsMedCache() {
   }
 
   if (!langsmithClient) {
-    const tomtSvar = lagTomLangsmithStats();
-    await setCache(
-      LANGSMITH_STATS_CACHE_KEY,
-      JSON.stringify(tomtSvar),
-      LANGSMITH_CACHE_TTL,
-    );
-    return tomtSvar;
+    // Ikke cache "klient mangler"-tilstand — den skal forsvinne så snart
+    // LANGCHAIN_API_KEY settes, uten å vente på TTL.
+    return lagTomLangsmithStats();
   }
 
   const nå = Date.now();

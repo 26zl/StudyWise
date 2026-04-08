@@ -356,7 +356,8 @@ export function Sidebar({
                 tabIndex={erMobil ? -1 : undefined}
                 className={`
                     fixed md:relative z-50 md:z-auto
-                    w-72 h-full
+                    w-72 h-dvh md:h-full
+                    pb-[env(safe-area-inset-bottom)] md:pb-0
                     bg-white dark:bg-slate-900
                     border-r border-slate-200 dark:border-slate-800
                     flex flex-col

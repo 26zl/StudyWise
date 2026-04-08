@@ -270,6 +270,7 @@ export function DashboardView() {
                             fornavn={megQuery.data?.user?.firstName ?? undefined}
                             etternavn={megQuery.data?.user?.lastName ?? undefined}
                             username={megQuery.data?.user?.username ?? undefined}
+                            brukerRolle={brukerRolle}
                             browserPushPreferences={megQuery.data?.user?.browserPushPreferences}
                         />
                     </Suspense>
