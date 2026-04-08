@@ -80,7 +80,7 @@ async function markEventProcessed(svixId: string): Promise<void> {
  * Verifiserer Svix webhook-signatur.
  * Clerk/Svix bruker HMAC-SHA256 med base64-encoded nøkkel.
  */
-function verifySvixSignature(
+export function verifySvixSignature(
   payload: string,
   headers: {
     svixId: string | undefined;

@@ -21,6 +21,7 @@ import { sanitizeUsername } from "../../database/models/User.js";
 import { isValidAuthTurnstileCookieValue } from "../../utils/authTurnstileCookie.js";
 import { isProd } from "../../utils/env.js";
 import { getCache, setCache } from "../../cache/redis.js";
+import { guardRelink, getCurrentClerkEnv } from "./relinkGuard.js";
 
 /** Minste intervall (ms) mellom profiloppdateringer fra Clerk for samme bruker (5 min). */
 const CLERK_PROFILE_SYNC_INTERVAL_MS = 5 * 60 * 1000;
@@ -316,6 +317,37 @@ async function relinkUserToClerkId(
         return null;
       }
     }
+  }
+
+  // Kryssmiljø re-link guard: blokker ping-pong og dev/prod-blanding.
+  const guard = await guardRelink(existingUserId.toString(), newClerkUserId);
+  if (guard.blocked) {
+    logger.warn(
+      {
+        existingUserId: existingUserId.toString(),
+        newClerkUserId,
+        reason: guard.reason,
+        count: guard.count,
+        currentEnv: getCurrentClerkEnv(),
+      },
+      guard.reason === "dev_gate_env_mismatch"
+        ? "Kryssmiljø re-link blokkert (dev-gate): manuell utlogging kreves"
+        : "Kryssmiljø re-link blokkert (ping-pong innenfor cooldown)",
+    );
+    await audit({
+      actorUserId: `relink:${newClerkUserId}`,
+      action: AUDIT_ACTIONS.ACCESS_DENIED,
+      category: "security",
+      outcome: "failure",
+      metadata: {
+        reason: guard.reason,
+        existingUserId: existingUserId.toString(),
+        newClerkUserId,
+        count: guard.count,
+        currentEnv: getCurrentClerkEnv(),
+      },
+    });
+    return null;
   }
 
   const updateFields: Record<string, unknown> = {

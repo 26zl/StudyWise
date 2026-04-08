@@ -1133,29 +1133,31 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                   </div>
                 )}
 
-                {/* Step 1: Course */}
-                <div className="mb-8">
-                  <label className="mb-4 block text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    1. Velg emne
-                  </label>
-                  {!harCanvasToken ? null : coursesLoading ? (
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/50">
-                      <LoadingView text={t("quiz.loadingCourses")} fullPage={false} />
-                    </div>
-                  ) : courseOptions.length === 0 ? (
-                    <FeilMelding melding={allCoursesHidden ? t("quiz.allCoursesHidden") : t("quiz.noCoursesFound")} />
-                  ) : (
-                    <Dropdown
-                      label={t("quiz.selectCourse")}
-                      value={selectedCourseId}
-                      options={courseOptions.map((c) => ({ id: c.id, name: c.name, emoji: c.emoji }))}
-                      onSelect={(id) => {
-                        setSelectedCourseId(id);
-                        setSelectedModules([]);
-                      }}
-                    />
-                  )}
-                </div>
+                {/* Step 1: Course — vises kun når Canvas-token er satt */}
+                {harCanvasToken && (
+                  <div className="mb-8">
+                    <label className="mb-4 block text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      1. Velg emne
+                    </label>
+                    {coursesLoading ? (
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/50">
+                        <LoadingView text={t("quiz.loadingCourses")} fullPage={false} />
+                      </div>
+                    ) : courseOptions.length === 0 ? (
+                      <FeilMelding melding={allCoursesHidden ? t("quiz.allCoursesHidden") : t("quiz.noCoursesFound")} />
+                    ) : (
+                      <Dropdown
+                        label={t("quiz.selectCourse")}
+                        value={selectedCourseId}
+                        options={courseOptions.map((c) => ({ id: c.id, name: c.name, emoji: c.emoji }))}
+                        onSelect={(id) => {
+                          setSelectedCourseId(id);
+                          setSelectedModules([]);
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
 
                 {/* Step 2: Modules */}
                 <AnimatePresence>

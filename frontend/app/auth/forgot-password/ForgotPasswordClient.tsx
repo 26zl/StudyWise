@@ -15,6 +15,7 @@ import {
   AuthError,
   AuthPrimaryButton,
   AuthFooterLink,
+  SecuredByClerk,
   AUTH_INPUT_CLASSES,
   AUTH_LABEL_CLASSES,
 } from "@/app/auth/authUI";
@@ -350,6 +351,8 @@ export function ForgotPasswordClient({
           )}
         </>
       )}
+
+      <SecuredByClerk label={t("auth.securedByClerk")} />
     </div>
   );
 }

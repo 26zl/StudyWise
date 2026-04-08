@@ -169,10 +169,17 @@ function AuthConflictGuard() {
 
           const maalside = erSlettet ? "/auth/sign-up" : "/auth/sign-in";
           const redirectUrl = `${maalside}?error=${encodeURIComponent(feilmelding)}`;
-          void clerk.signOut().catch(() => {}).finally(() => {
-            clearClientAuthState(queryClient);
-            window.location.replace(redirectUrl);
-          });
+          // Ved kryssmiljø-relink kan Clerk.signOut() feile fordi sesjonen allerede
+          // er ugyldig. Vi logger, men rydder lokal state og redirecter uansett.
+          void clerk
+            .signOut()
+            .catch((error) => {
+              console.warn("Clerk signOut feilet under AuthConflictGuard-redirect", error);
+            })
+            .finally(() => {
+              clearClientAuthState(queryClient);
+              window.location.replace(redirectUrl);
+            });
         }
       }
     });

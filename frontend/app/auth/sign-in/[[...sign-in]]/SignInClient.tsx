@@ -19,6 +19,7 @@ import {
   AuthError,
   AuthPrimaryButton,
   AuthFooterLink,
+  SecuredByClerk,
   AUTH_INPUT_CLASSES,
   AUTH_LABEL_CLASSES,
 } from "@/app/auth/authUI";
@@ -325,6 +326,8 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
               <ArrowRight className="h-4 w-4" />
             </Link>
           </AuthCard>
+
+          <SecuredByClerk label={t("auth.securedByClerk")} />
         </>
       )}
     </div>

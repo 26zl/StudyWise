@@ -488,16 +488,14 @@ export function useLoggUtWithRedirect() {
     // i stedet for feilmeldinger mens Clerk-sesjonen invalideres.
     useUIStore.getState().setIsLoggingOut(true);
 
+    // Clerk signOut kan feile ved kryssmiljø-relink (dev↔prod) eller nettverksfeil.
+    // I så fall rydder vi lokal state og redirecter uansett — Clerk-sesjonen
+    // kan allerede være ugyldig på server-siden, så å bli stående i "innlogget" UI
+    // er verre enn en best-effort logout.
     try {
       await clerk.signOut();
-    } catch {
-      useUIStore.getState().setIsLoggingOut(false);
-      showToast.error(
-        t("auth.logoutFailedTitle"),
-        t("auth.logoutFailedDescription"),
-      );
-      logoutInFlightRef.current = false;
-      return;
+    } catch (error) {
+      console.warn("Clerk signOut feilet, fortsetter med lokal opprydding", error);
     }
 
     clearClientAuthState(queryClient);

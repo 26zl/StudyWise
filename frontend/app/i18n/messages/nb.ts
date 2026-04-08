@@ -102,6 +102,7 @@ export const nbMessages = {
     selectChat: "Velg \"{title}\"",
   },
   auth: {
+    securedByClerk: "Sikret av Clerk",
     forgotPassword: {
       complete: {
         description:
@@ -233,6 +234,18 @@ export const nbMessages = {
       emailPlaceholder: "navn@example.com",
       passwordLabel: "Passord",
       passwordPlaceholder: "Velg et passord",
+      passwordRequirements: {
+        minLength: "Minst 8 tegn",
+        notCompromised: "Ikke et kjent kompromittert passord",
+        strength: "Rimelig sterkt (ikke lett å gjette)",
+        hint: "Clerk sjekker styrke og lekkasjer når du sender inn.",
+        weak: "Passordet er for kort — minst 8 tegn kreves",
+      },
+      passwordErrors: {
+        pwned: "Dette passordet har blitt funnet i en datalekkasje. Av sikkerhetshensyn må du velge et annet passord.",
+        notStrongEnough: "Passordet er for svakt. Prøv et lengre passord eller bruk flere uvanlige ord.",
+        tooShort: "Passordet er for kort. Må være minst 8 tegn.",
+      },
       submitButton: "Opprett konto",
       submitting: "Oppretter...",
       orContinueWith: "eller fortsett med",
@@ -1783,29 +1796,29 @@ export const nbMessages = {
   onboarding: {
     welcome: "Velkommen til StudyWise!",
     welcomeDescription:
-      "StudyWise er din KI-drevne studieassistent som hjelper deg med å studere smartere. La oss ta en rask gjennomgang av hva du kan gjøre.",
+      "StudyWise samler KI-chat, Canvas-data og dine egne notater på ett sted. Ta en rask omvisning under, så du vet nøyaktig hvor du finner alt — og hvordan du får mest ut av verktøyene.",
     steps: {
       chat: "KI-chat",
       chatDescription:
-        "Still spørsmål, få forklaringer og få hjelp med studiene dine. KI-assistenten kan svare på faglige spørsmål, hjelpe deg med oppgaver og forklare vanskelige konsepter.",
+        "Still faglige spørsmål, få forklaringer eller hjelp til oppgaver. Du kan velge hvor grundig svaret skal være: «Enkel» for raske oversikter, «Standard» for balanserte svar, «Detaljert» for dypere gjennomgang, og «Ekspert» for akademisk dybde med eksempler. Velg nivå fra innstillingene i chatten før du sender meldingen.",
       canvas: "Canvas-integrasjon",
       canvasDescription:
-        "Koble til Canvas LMS for å se kunngjøringer, emner og oppgaver direkte i StudyWise. Gå til Innstillinger for å legge til Canvas API-token.",
+        "Koble til Canvas LMS én gang, så henter StudyWise automatisk emner, oppgaver, kunngjøringer og pensumfiler. KI-chatten kan bruke Canvas-innholdet som kontekst — du får svar basert på dine egne forelesningsnotater og pensum. Legg til token under Innstillinger → Canvas.",
       calendar: "Kalender",
       calendarDescription:
-        "Se alle frister og hendelser fra Canvas i en oversiktlig kalendervisning. Hold styr på innleveringer og viktige datoer.",
+        "Alle frister, innleveringer og hendelser fra Canvas samles i en visuell kalender. Filtrer per emne, se uke- eller månedsvisning, og få varsler når fristen nærmer seg. Manuelt innleverte oppgaver kan markeres som fullført så de forsvinner fra listen.",
       quiz: "Quiz og flashcards",
       quizDescription:
-        "Generer quiz og flashcards fra pensum og dokumenter for å teste kunnskapen din. KI-en lager spørsmål basert på fagstoffet ditt.",
+        "Velg et emne og én eller flere moduler fra Canvas, så genererer KI-en quiz med flervalgssvar eller flashcards basert på pensumet ditt. Perfekt som selvtest før eksamen. Du kan bestemme antall spørsmål og vanskelighetsgrad.",
       knowledgeBase: "Kunnskapsbase",
       knowledgeBaseDescription:
-        "Samle lenker og filer i egne kunnskapsbaser. KI-en kan bruke innholdet som kontekst når du chatter — perfekt for pensum, prosjekter eller eksamensforberedelse.",
+        "Lag dine egne samlinger av lenker, PDF-er, Word-dokumenter og notater. StudyWise indekserer innholdet og lar KI-chatten bruke det som kontekst når du stiller spørsmål — så får du svar basert på dine egne kilder. Bruk det til pensum, prosjektarbeid eller bacheloroppgave. Opprett en base under «Kunnskapsbase» i menyen og last opp filer eller lim inn URL-er.",
       notifications: "Varsler",
       notificationsDescription:
-        "Få varsler om kommende frister og viktige hendelser fra Canvas slik at du aldri går glipp av noe.",
-      settings: "Innstillinger",
+        "Få varsler når Canvas-frister nærmer seg, slik at ingenting faller mellom to stoler. Du kan skru på push-varsler i nettleseren, justere hvor lang tid i forveien du vil varsles, og skjule varsler for spesifikke emner du ikke følger aktivt.",
+      settings: "Innstillinger og konto",
       settingsDescription:
-        "Tilpass StudyWise etter dine behov. Koble til Canvas, endre språk, tema og andre preferanser.",
+        "Under «Innstillinger» styrer du Canvas-token, språk (norsk/engelsk), lyst/mørkt tema, varslingspreferanser og hvilke emner som skal skjules. Under «Konto» finner du profil, passordbytte, tofaktor, og mulighet for å laste ned eller slette alle dine data (GDPR). Alt er tilgjengelig via menyen øverst til høyre.",
     },
     getStarted: "Kom i gang",
     next: "Neste",

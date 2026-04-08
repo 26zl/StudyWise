@@ -12,7 +12,7 @@ export default function NotFound() {
   const { t } = useLanguage();
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <main className="flex min-h-screen items-center justify-center px-4 py-12 text-slate-900 dark:text-slate-100">
       <div className="w-full max-w-md text-center">
         <p className="text-sm font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
           {t("errorPages.notFound.eyebrow")}

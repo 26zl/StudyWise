@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, ShieldCheck } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /*  Shared Clerk error parser                                         */
@@ -11,14 +11,24 @@ import { Loader2, AlertCircle } from "lucide-react";
  * Trekk ut lesbar feilmelding fra Clerk-feil.
  * `fallback` bør komme fra i18n (t("auth.genericError")).
  */
-export function parseClerkError(err: unknown, fallback: string): string {
+export function parseClerkError(
+  err: unknown,
+  fallback: string,
+  translateCode?: (code: string) => string | undefined,
+): string {
   if (
     err &&
     typeof err === "object" &&
     "errors" in err &&
     Array.isArray((err as { errors: unknown[] }).errors)
   ) {
-    const first = (err as { errors: { longMessage?: string; message?: string }[] }).errors[0];
+    const first = (
+      err as { errors: { code?: string; longMessage?: string; message?: string }[] }
+    ).errors[0];
+    if (first?.code && translateCode) {
+      const translated = translateCode(first.code);
+      if (translated) return translated;
+    }
     return first?.longMessage ?? first?.message ?? fallback;
   }
   if (err instanceof Error) return err.message;
@@ -208,6 +218,24 @@ export function AuthPrimaryButton({
 /* ------------------------------------------------------------------ */
 /*  AuthFooterLink                                                    */
 /* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
+/*  SecuredByClerk                                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Liten "Sikret av Clerk"-merke til bunn av custom auth-sider.
+ * Clerks ferdige <SignIn/>/<SignUp/> viser denne automatisk, men siden vi
+ * bruker custom UI må vi rendre den selv for å gi brukeren samme trygghet.
+ */
+export function SecuredByClerk({ label }: { label: string }) {
+  return (
+    <div className="mt-6 flex items-center justify-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+      <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+      <span>{label}</span>
+    </div>
+  );
+}
 
 export function AuthFooterLink({
   text,

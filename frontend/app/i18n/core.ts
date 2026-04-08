@@ -17,11 +17,13 @@ export function isLanguage(value: string | null | undefined): value is Language 
 export function getPreferredLanguageFromAcceptLanguage(
   acceptLanguage: string | null | undefined,
 ): Language {
+  // Default til engelsk for alt som ikke er norsk (nb/nn/no).
+  // Vi ser etter norske språktagger først; hvis ingen treff, faller vi tilbake til engelsk.
   if (!acceptLanguage) {
-    return DEFAULT_LANGUAGE;
+    return "en";
   }
 
-  return /\ben\b/i.test(acceptLanguage) ? "en" : DEFAULT_LANGUAGE;
+  return /\b(nb|nn|no)\b/i.test(acceptLanguage) ? "nb" : "en";
 }
 
 function getNestedMessage(

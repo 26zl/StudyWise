@@ -26,6 +26,7 @@ import {
   AuthError,
   AuthPrimaryButton,
   AuthFooterLink,
+  SecuredByClerk,
   AUTH_INPUT_CLASSES,
   AUTH_LABEL_CLASSES,
 } from "@/app/auth/authUI";
@@ -68,6 +69,15 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
   const [formError, setFormError] = useState<string | null>(urlError);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOAuthSubmitting, setIsOAuthSubmitting] = useState(false);
+
+  // Passordkrav — match Clerks instilling: min 8 tegn lokalt, styrke (zxcvbn
+  // "Normal") og HaveIBeenPwned-sjekk kjøres av Clerk server-side ved submit.
+  // Vi legger ingen lokale complexity-regler (stor/liten/tall/spesial) siden
+  // Clerks "Password rules" er satt til None — det ville blokkert passord
+  // Clerk faktisk aksepterer.
+  const passwordMinLengthOk = password.length >= 8;
+  const passwordValid = passwordMinLengthOk;
+  const passwordTouched = password.length > 0;
 
   // Username validation state
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
@@ -257,6 +267,10 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
         setFormError(t("auth.signUp.allFieldsRequired"));
         return;
       }
+      if (!passwordValid) {
+        setFormError(t("auth.signUp.passwordRequirements.weak"));
+        return;
+      }
 
       setIsSubmitting(true);
       setFormError(null);
@@ -298,12 +312,25 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
         setPendingEmail(trimmedEmail);
         setStep("verify");
       } catch (err) {
-        setFormError(parseClerkError(err, t("auth.genericError")));
+        setFormError(
+          parseClerkError(err, t("auth.genericError"), (code) => {
+            switch (code) {
+              case "form_password_pwned":
+                return t("auth.signUp.passwordErrors.pwned");
+              case "form_password_not_strong_enough":
+                return t("auth.signUp.passwordErrors.notStrongEnough");
+              case "form_password_length_too_short":
+                return t("auth.signUp.passwordErrors.tooShort");
+              default:
+                return undefined;
+            }
+          }),
+        );
       } finally {
         setIsSubmitting(false);
       }
     },
-    [signUp, firstName, lastName, username, email, password, usernameStatus, isSubmitting, t],
+    [signUp, firstName, lastName, username, email, password, passwordValid, usernameStatus, isSubmitting, t],
   );
 
   // OAuth sign-up (Google/Microsoft) — uten brukernavn, velges etterpå
@@ -746,10 +773,38 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={t("auth.signUp.passwordPlaceholder")}
-                className={`mt-1 ${AUTH_INPUT_CLASSES}`}
+                className={`mt-1 ${AUTH_INPUT_CLASSES} ${
+                  passwordTouched && !passwordValid
+                    ? "border-red-300 dark:border-red-700"
+                    : passwordTouched && passwordValid
+                      ? "border-emerald-300 dark:border-emerald-700"
+                      : ""
+                }`}
                 autoComplete="new-password"
                 disabled={isSubmitting || isOAuthSubmitting}
               />
+              {passwordTouched && (
+                <ul className="mt-2 space-y-1">
+                  <li
+                    className={`flex items-center gap-1.5 text-xs ${
+                      passwordMinLengthOk
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-red-600 dark:text-red-400"
+                    }`}
+                  >
+                    {passwordMinLengthOk ? (
+                      <CheckCircle2 className="h-3 w-3 shrink-0" />
+                    ) : (
+                      <XCircle className="h-3 w-3 shrink-0" />
+                    )}
+                    <span>{t("auth.signUp.passwordRequirements.minLength")}</span>
+                  </li>
+                  <li className="flex items-start gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    <span aria-hidden className="mt-0.5">•</span>
+                    <span>{t("auth.signUp.passwordRequirements.hint")}</span>
+                  </li>
+                </ul>
+              )}
             </div>
 
             <AuthError message={formError} />
@@ -760,7 +815,8 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
               disabled={
                 usernameStatus === "taken" ||
                 usernameStatus === "invalid" ||
-                usernameStatus === "checking"
+                usernameStatus === "checking" ||
+                !passwordValid
               }
             >
               {t("auth.signUp.submitButton")}
@@ -836,6 +892,8 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
           )}
         </AuthCard>
       )}
+
+      <SecuredByClerk label={t("auth.securedByClerk")} />
     </div>
   );
 }

@@ -65,27 +65,32 @@ describe("getPreferredLanguageFromAcceptLanguage", () => {
     expect(getPreferredLanguageFromAcceptLanguage("no")).toBe("nb");
   });
 
-  it("returnerer DEFAULT_LANGUAGE for null", () => {
-    expect(getPreferredLanguageFromAcceptLanguage(null)).toBe("nb");
+  it("faller tilbake til 'en' for null", () => {
+    expect(getPreferredLanguageFromAcceptLanguage(null)).toBe("en");
   });
 
-  it("returnerer DEFAULT_LANGUAGE for undefined", () => {
-    expect(getPreferredLanguageFromAcceptLanguage(undefined)).toBe("nb");
+  it("faller tilbake til 'en' for undefined", () => {
+    expect(getPreferredLanguageFromAcceptLanguage(undefined)).toBe("en");
   });
 
-  it("returnerer DEFAULT_LANGUAGE for tom streng", () => {
-    expect(getPreferredLanguageFromAcceptLanguage("")).toBe("nb");
+  it("faller tilbake til 'en' for tom streng", () => {
+    expect(getPreferredLanguageFromAcceptLanguage("")).toBe("en");
   });
 
-  it("gjenkjenner 'en' i kompleks Accept-Language-header", () => {
+  it("prioriterer norsk i kompleks Accept-Language-header med både nb og en", () => {
     expect(
       getPreferredLanguageFromAcceptLanguage("nb-NO,nb;q=0.9,en-US;q=0.8,en;q=0.7"),
-    ).toBe("en");
+    ).toBe("nb");
   });
 
-  it("returnerer DEFAULT_LANGUAGE for andre språk uten 'en'", () => {
-    expect(getPreferredLanguageFromAcceptLanguage("sv-SE,sv;q=0.9")).toBe("nb");
-    expect(getPreferredLanguageFromAcceptLanguage("de-DE,de;q=0.9")).toBe("nb");
+  it("returnerer 'en' for andre språk enn norsk", () => {
+    expect(getPreferredLanguageFromAcceptLanguage("sv-SE,sv;q=0.9")).toBe("en");
+    expect(getPreferredLanguageFromAcceptLanguage("de-DE,de;q=0.9")).toBe("en");
+    expect(getPreferredLanguageFromAcceptLanguage("fr-FR,fr;q=0.9")).toBe("en");
+  });
+
+  it("gjenkjenner 'nn' (nynorsk) som norsk", () => {
+    expect(getPreferredLanguageFromAcceptLanguage("nn-NO,nn;q=0.9")).toBe("nb");
   });
 });
 

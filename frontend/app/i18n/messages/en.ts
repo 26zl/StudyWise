@@ -104,6 +104,7 @@ export const enMessages = {
     imageAlt: "Canvas image",
   },
   auth: {
+    securedByClerk: "Secured by Clerk",
     forgotPassword: {
       complete: {
         description:
@@ -233,6 +234,18 @@ export const enMessages = {
       emailPlaceholder: "name@example.com",
       passwordLabel: "Password",
       passwordPlaceholder: "Choose a password",
+      passwordRequirements: {
+        minLength: "At least 8 characters",
+        notCompromised: "Not a known compromised password",
+        strength: "Reasonably strong (not easy to guess)",
+        hint: "Clerk checks strength and breaches when you submit.",
+        weak: "Password is too short — at least 8 characters required",
+      },
+      passwordErrors: {
+        pwned: "This password was found in a data breach. For account safety, please choose a different password.",
+        notStrongEnough: "Password is too weak. Try a longer password or add more uncommon words.",
+        tooShort: "Password is too short. Must be at least 8 characters.",
+      },
       submitButton: "Create account",
       submitting: "Creating...",
       orContinueWith: "or continue with",
@@ -1692,29 +1705,29 @@ export const enMessages = {
   onboarding: {
     welcome: "Welcome to StudyWise!",
     welcomeDescription:
-      "StudyWise is your AI-powered study assistant that helps you study smarter. Let's take a quick tour of what you can do.",
+      "StudyWise brings AI chat, Canvas data, and your own notes together in one place. Take a quick tour below — you'll learn where to find everything and how to get the most out of the tools.",
     steps: {
       chat: "AI Chat",
       chatDescription:
-        "Ask questions, get explanations, and get help with your studies. The AI assistant can answer academic questions, help with assignments, and explain difficult concepts.",
+        "Ask academic questions, get explanations, or help with assignments. You can choose how thorough the answer should be: \"Simple\" for quick overviews, \"Standard\" for balanced answers, \"Detailed\" for deeper walkthroughs, and \"Expert\" for academic depth with worked examples. Pick the level from the chat settings before you send your message.",
       canvas: "Canvas Integration",
       canvasDescription:
-        "Connect to Canvas LMS to see announcements, courses, and assignments directly in StudyWise. Go to Settings to add your Canvas API token.",
+        "Connect Canvas LMS once and StudyWise automatically pulls in your courses, assignments, announcements, and reading materials. The AI chat can use your Canvas content as context — so answers are grounded in your own lecture notes and curriculum. Add your token under Settings → Canvas.",
       calendar: "Calendar",
       calendarDescription:
-        "View all deadlines and events from Canvas in a clear calendar view. Keep track of submissions and important dates.",
+        "All deadlines, submissions, and events from Canvas in one visual calendar. Filter by course, switch between week and month view, and get reminders as due dates approach. Manually-submitted assignments can be marked as done so they disappear from the list.",
       quiz: "Quiz & Flashcards",
       quizDescription:
-        "Generate quizzes and flashcards from your curriculum and documents to test your knowledge. The AI creates questions based on your study material.",
+        "Pick a course and one or more modules from Canvas, and the AI will generate a multiple-choice quiz or flashcards based on your reading material. Perfect for self-testing before exams. You control the question count and difficulty.",
       knowledgeBase: "Knowledge Base",
       knowledgeBaseDescription:
-        "Collect links and files in your own knowledge bases. The AI can use the content as context when you chat — perfect for curriculum, projects, or exam prep.",
+        "Build your own collections of links, PDFs, Word documents, and notes. StudyWise indexes the content and lets the AI chat use it as context when you ask questions — so answers are grounded in your own sources. Great for curriculum, project work, or your bachelor thesis. Create a base under \"Knowledge Base\" in the menu and upload files or paste URLs.",
       notifications: "Notifications",
       notificationsDescription:
-        "Get notifications about upcoming deadlines and important events from Canvas so you never miss anything.",
-      settings: "Settings",
+        "Get notified as Canvas deadlines approach so nothing slips through the cracks. Enable browser push notifications, adjust how far in advance you want to be warned, and hide notifications for courses you're not actively following.",
+      settings: "Settings & Account",
       settingsDescription:
-        "Customize StudyWise to your needs. Connect to Canvas, change language, theme, and other preferences.",
+        "Under \"Settings\" you control your Canvas token, language (English/Norwegian), light/dark theme, notification preferences, and which courses to hide. Under \"Account\" you'll find your profile, password change, two-factor auth, and the option to export or delete all your data (GDPR). Everything is available from the menu in the top right.",
     },
     getStarted: "Get started",
     next: "Next",
