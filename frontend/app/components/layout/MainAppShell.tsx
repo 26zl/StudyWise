@@ -13,6 +13,7 @@ import { Toaster } from "@/app/components/ui/Toaster";
 import { CookieBanner } from "@/app/components/layout/CookieBanner";
 import { DatadogRum } from "@/app/components/layout/DatadogRum";
 import { ErrorBoundary } from "@/app/components/ui/ErrorBoundary";
+import { LandingBackdrop } from "@/app/components/layout/LandingBackdrop";
 import type { Language } from "@/app/i18n/types";
 import { useLanguage } from "@/app/i18n";
 
@@ -47,11 +48,14 @@ export function MainAppShell({
     pathname === "/dashboard" ||
     pathname.startsWith("/dashboard/") ||
     pathname === "/oversikt" ||
-    pathname === "/ai-breakdown";
+    pathname === "/ai-breakdown" ||
+    pathname === "/account" ||
+    pathname.startsWith("/account/");
 
   return (
     <Providers clerkPublishableKey={clerkPublishableKey} initialLanguage={initialLanguage} nonce={nonce}>
-      <div className={`flex flex-col ${usesSidebarShell ? "h-dvh overflow-hidden" : "min-h-dvh"}`}>
+      <LandingBackdrop />
+      <div className={`relative z-10 flex flex-col ${usesSidebarShell ? "h-dvh overflow-hidden" : "min-h-dvh"}`}>
         <SkipToContentLink />
         <Header />
         <main

@@ -57,14 +57,14 @@ export function SidebarAppShell({
 }: SidebarAppShellProps) {
   const { t } = useLanguage();
   return (
-    <div className="flex h-full min-h-full min-w-0 flex-col bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 md:flex-row">
+    <div className="flex h-full min-h-full min-w-0 flex-col text-slate-900 dark:text-slate-100 md:flex-row">
       <Sidebar
         aktivVisning={aktivVisning}
         byttVisning={byttVisning}
         brukernavn={brukernavn}
         brukerRolle={brukerRolle}
       />
-      <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-white dark:bg-slate-900" aria-label={t("chat.appContentLabel")}>
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-label={t("chat.appContentLabel")}>
         <div
           className={cn(
             "flex-1 min-h-0 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]",
@@ -95,7 +95,7 @@ function SidebarAppState({
       brukernavn={brukernavn}
       brukerRolle={brukerRolle}
       footer={footer}
-      contentClassName="bg-slate-50 dark:bg-slate-950"
+      contentClassName=""
     >
       <div
         className={cn(

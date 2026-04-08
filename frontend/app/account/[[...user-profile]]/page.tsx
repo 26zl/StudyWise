@@ -289,7 +289,7 @@ export default function ProfilPage() {
           <p className="text-sm leading-6 text-slate-500 dark:text-slate-400">
             {t("settings.accountSecurity.connectionHint")}
           </p>
-          <div className="mt-3 w-full overflow-x-clip">
+          <div className="mt-3 w-full max-w-full overflow-x-hidden [touch-action:pan-y]">
             <UserProfile
               key={language}
               path="/account"

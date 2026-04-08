@@ -109,7 +109,7 @@ export default function BokmerkerPage() {
       brukernavn={brukernavn}
       brukerRolle={brukerRolle}
     >
-      <div className="min-h-full bg-white px-4 py-6 text-slate-900 dark:bg-slate-900 dark:text-slate-100 md:px-8">
+      <div className="min-h-full px-4 py-6 text-slate-900 dark:text-slate-100 md:px-8">
         <div className="mx-auto w-full max-w-5xl">
           {/* Fane-navigasjon */}
           <div className="mb-6 flex items-center gap-1 border-b border-slate-200 dark:border-slate-700">

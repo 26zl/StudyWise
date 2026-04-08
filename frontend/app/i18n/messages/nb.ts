@@ -557,7 +557,7 @@ export const nbMessages = {
       howTo: {
         step1: "Logg inn på Canvas",
         step2: "Gå til Innstillinger → Godkjente integrasjoner",
-        step3: 'Klikk "Ny tilgangstoken"',
+        step3: 'Klikk "+ Ny tilgangsnøkkel"',
         step4: "Kopier token og lim inn her",
         title: "Slik får du en API token:",
       },
@@ -1528,9 +1528,9 @@ export const nbMessages = {
     categoryFeatures: "Funksjoner",
     canvasTokenQ: "Hvordan får jeg Canvas API-token?",
     canvasTokenA:
-      'Logg inn på Canvas, gå til Innstillinger → Godkjente integrasjoner, og klikk "Ny tilgangstoken". Kopier tokenet og lim det inn i StudyWise under Innstillinger.',
+      'Logg inn på Canvas, gå til Innstillinger → Godkjente integrasjoner, og klikk "+ Ny tilgangsnøkkel". Kopier nøkkelen og lim den inn i StudyWise under Innstillinger.',
     canvasTokenSettings: "Innstillinger → Godkjente integrasjoner",
-    canvasTokenButton: "Ny tilgangstoken",
+    canvasTokenButton: "+ Ny tilgangsnøkkel",
     canvasInstitutionsQ: "Hvilke Canvas-institusjoner støttes?",
     canvasInstitutionsA:
       "StudyWise støtter Canvas-installasjoner ved norske universiteter og høgskoler. Velg institusjonen din når du kobler til Canvas.",
@@ -1562,6 +1562,25 @@ export const nbMessages = {
       "Delte samtalelenker er gyldige i 30 dager. Etter det slettes den delte lenken automatisk.",
     notFound: "Fant du ikke svaret?",
     contactUs: "Kontakt oss",
+  },
+  errorPages: {
+    notFound: {
+      eyebrow: "Feil 404",
+      title: "Siden finnes ikke",
+      description:
+        "Vi fant ikke siden du leter etter. Den kan ha blitt flyttet, slettet, eller lenken kan være feilskrevet.",
+      goHome: "Tilbake til forsiden",
+      goDashboard: "Gå til dashboard",
+    },
+    runtime: {
+      eyebrow: "Noe gikk galt",
+      title: "En uventet feil oppstod",
+      description:
+        "Vi har logget feilen og vil se på den. Prøv å laste siden på nytt — hvis problemet vedvarer, kontakt oss.",
+      retry: "Last på nytt",
+      contactSupport: "Kontakt support",
+      errorId: "Feil-ID",
+    },
   },
   kontakt: {
     title: "Kontakt oss",

@@ -375,6 +375,13 @@ if (!isProd) {
   app.use("/api/debug", noCache, authDiagnosticRouter);
 }
 
+// 404-handler: ukjente ruter returnerer konsistent JSON i stedet for Express sin default HTML.
+// Må stå etter alle ruter, men før den globale error handleren.
+app.use((req, res) => {
+  logger.warn({ method: req.method, url: req.originalUrl }, "Ukjent rute (404)");
+  apiError.notFound(res, "Endepunkt");
+});
+
 // Feil håndtering globalt
 app.use(
   (

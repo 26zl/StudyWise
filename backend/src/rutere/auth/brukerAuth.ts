@@ -1205,6 +1205,11 @@ router.delete("/account", requireRecentAuth, rateLimitAccountDeletion, async (re
       vectorCleanupSucceeded: deletionResult.vectorCleanupSucceeded,
     }));
   } catch (err) {
+    // Refunder rate-limit-tokenet siden selve sletteoperasjonen feilet —
+    // brukeren skal ikke låses ute i 24 timer for en transient feil de ikke forårsaket.
+    // Best-effort: feiler stille og maskerer ikke den opprinnelige feilen.
+    await rateLimitAccountDeletion.reward(req);
+
     await audit({
       actorUserId: userId,
       action: AUDIT_ACTIONS.ACCOUNT_DELETED,

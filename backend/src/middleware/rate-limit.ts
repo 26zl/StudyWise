@@ -41,13 +41,23 @@ const isRateLimiterResult = (value: unknown): value is RateLimiterRes =>
         value !== null &&
         "msBeforeNext" in value &&
         "remainingPoints" in value);
+// Middleware med refund-evne. Kallesteder kan bruke den som vanlig Express-middleware,
+// og evt. kalle .reward(req) for å refundere et token (best-effort, brukes ved transient feil).
+export type RateLimiterMiddleware = ((
+    req: Request,
+    res: Response,
+    next: NextFunction,
+) => Promise<void | Response>) & {
+    reward: (req: Request) => Promise<void>;
+};
+
 // Oppretter rate limiter middleware
 export const createRateLimiter = ({
     points,
     duration,
     keyPrefix = "rlflx",
     keyGenerator = getClientIp,
-}: RateLimitOptions) => {
+}: RateLimitOptions): RateLimiterMiddleware => {
     const memoryLimiter = new RateLimiterMemory({
         points,
         duration,
@@ -63,7 +73,7 @@ export const createRateLimiter = ({
         rejectIfRedisNotReady: true,
     });
     // Returnerer middleware-funksjon
-    return async (req: Request, res: Response, next: NextFunction) => {
+    const middleware = async (req: Request, res: Response, next: NextFunction) => {
         const key = keyGenerator(req);
         const useRedis = isRedisReady();
         if (!useRedis) {
@@ -98,6 +108,21 @@ export const createRateLimiter = ({
             return sendError(res, "server_error", { melding: "Kunne ikke verifisere rate limit. Prøv igjen senere." });
         }
     };
+
+    // Refunderer ett token for nøkkelen til req. Brukes når en operasjon feiler transient
+    // og brukeren ikke skal bli straffet. Best-effort: feiler stille (loggføres) for å
+    // ikke maskere den opprinnelige feilen som returneres til klienten.
+    const reward = async (req: Request): Promise<void> => {
+        const key = keyGenerator(req);
+        const limiter = isRedisReady() ? redisLimiter : memoryLimiter;
+        try {
+            await limiter.reward(key, 1);
+        } catch (err) {
+            logger.warn({ err, keyPrefix, key }, "Kunne ikke refundere rate-limit-token");
+        }
+    };
+
+    return Object.assign(middleware, { reward }) as RateLimiterMiddleware;
 };
 
 import { isProd } from "../utils/env.js";
@@ -142,10 +167,12 @@ export const rateLimitUsernameCheck = isProd
   ? createRateLimiter({ points: 10, duration: 60, keyPrefix: "rlflx:username-check" })
   : createRateLimiter(devMeLimit);
 
-// Account deletion: maks 2 forsøk per time per bruker (sensitiv operasjon)
+// Kontosletting: maks 1 forsøk per 24 timer per bruker.
+// Irreversibel operasjon — beskyttes i tillegg av requireRecentAuth (10 min step-up).
+// Bruk .reward(req) i sletteruten for å refundere tokenet ved transient feil.
 export const rateLimitAccountDeletion = createRateLimiter({
-  points: 2,
-  duration: 3600,
+  points: 1,
+  duration: 86_400,
   keyPrefix: "rlflx:account-delete",
   keyGenerator: (req) => req.user?.id ?? getClientIp(req),
 });

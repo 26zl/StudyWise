@@ -203,7 +203,7 @@ export default function SamtalehistorikkPage() {
       brukernavn={brukernavn}
       brukerRolle={brukerRolle}
     >
-      <div className="min-h-full bg-white px-4 py-6 text-slate-900 dark:bg-slate-900 dark:text-slate-100 md:px-8">
+      <div className="min-h-full px-4 py-6 text-slate-900 dark:text-slate-100 md:px-8">
         <div className="mx-auto w-full max-w-5xl">
           <div className="mb-4 flex items-center justify-between">
             <h1 className="text-2xl font-semibold">{t("dashboard.sidebar.chatHistory")}</h1>

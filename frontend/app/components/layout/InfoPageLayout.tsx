@@ -48,7 +48,7 @@ export function InfoPageLayout({
   const updatedAtLabel = t("infoPageLayout.lastUpdated");
 
   return (
-    <div className={cn("min-h-full flex flex-col bg-slate-50 dark:bg-slate-950", className)}>
+    <div className={cn("min-h-full flex flex-col", className)}>
       <div className="mx-auto flex-1 w-full max-w-3xl px-4 py-12 sm:px-6 lg:max-w-5xl lg:px-8 xl:max-w-6xl">
         <Link
           href={backHref}

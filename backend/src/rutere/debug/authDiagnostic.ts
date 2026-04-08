@@ -151,23 +151,29 @@ router.get("/auth-diagnostic", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Bruker ikke funnet" });
     }
 
-    // Email duplicates for current user
-    const emailDupes = await User.find({ email: currentUser.email })
-      .select("_id clerkId email username authProviders deletedAt createdAt");
+    // E-post-duplikater for nåværende bruker (kun aktive — ekskluderer soft-deleted)
+    const emailDupes = await User.find({
+      email: currentUser.email,
+      deletedAt: { $exists: false },
+    }).select("_id clerkId email username authProviders deletedAt createdAt");
 
-    // Brukernavn-duplikater for nåværende bruker
+    // Brukernavn-duplikater for nåværende bruker (kun aktive)
     let usernameDupes: typeof emailDupes = [];
     if (currentUser.username) {
       const normalized = currentUser.username.toLowerCase().trim();
-      usernameDupes = await User.find({ usernameNormalized: normalized })
-        .select("_id clerkId email username authProviders deletedAt createdAt");
+      usernameDupes = await User.find({
+        usernameNormalized: normalized,
+        deletedAt: { $exists: false },
+      }).select("_id clerkId email username authProviders deletedAt createdAt");
     }
 
-    // ClerkId duplicates
+    // ClerkId-duplikater (kun aktive)
     let clerkIdDupes: typeof emailDupes = [];
     if (currentUser.clerkId) {
-      clerkIdDupes = await User.find({ clerkId: currentUser.clerkId })
-        .select("_id clerkId email username authProviders deletedAt createdAt");
+      clerkIdDupes = await User.find({
+        clerkId: currentUser.clerkId,
+        deletedAt: { $exists: false },
+      }).select("_id clerkId email username authProviders deletedAt createdAt");
     }
 
     // Index verification

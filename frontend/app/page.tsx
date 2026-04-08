@@ -15,10 +15,9 @@ export default async function HomePage() {
   const initialUser = await getUserServerSafe();
 
   return (
-    <div className="min-h-full flex flex-col bg-white text-slate-900 transition-colors dark:bg-slate-900 dark:text-slate-100">
-      <main className="flex-1 flex flex-col">
-        <section className="relative px-4 sm:px-6 lg:px-8 pt-24 pb-12 md:pt-32 md:pb-16 lg:pt-40 lg:pb-20 overflow-hidden">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-250 h-125 bg-blue-400/20 dark:bg-blue-600/10 rounded-full blur-3xl -z-10" />
+    <div className="relative min-h-full flex flex-col text-slate-900 transition-colors dark:text-slate-100 overflow-hidden">
+      <main className="relative flex-1 flex flex-col">
+        <section className="relative px-4 sm:px-6 lg:px-8 pt-24 pb-12 md:pt-32 md:pb-16 lg:pt-40 lg:pb-20">
           <div className="max-w-4xl mx-auto text-center space-y-8">
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight bg-linear-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent pb-4">
               {translate(language, "landing.hero.title")}

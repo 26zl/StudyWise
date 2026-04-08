@@ -1481,6 +1481,25 @@ export const enMessages = {
     notFound: "Didn't find the answer?",
     contactUs: "Contact us",
   },
+  errorPages: {
+    notFound: {
+      eyebrow: "Error 404",
+      title: "Page not found",
+      description:
+        "We couldn't find the page you're looking for. It may have been moved, deleted, or the link could be misspelled.",
+      goHome: "Back to home",
+      goDashboard: "Go to dashboard",
+    },
+    runtime: {
+      eyebrow: "Something went wrong",
+      title: "An unexpected error occurred",
+      description:
+        "We've logged the error and will look into it. Try reloading the page — if the problem persists, please contact us.",
+      retry: "Reload",
+      contactSupport: "Contact support",
+      errorId: "Error ID",
+    },
+  },
   kontakt: {
     title: "Contact us",
     description: "Do you have questions, feedback, or need help? Send us a message.",

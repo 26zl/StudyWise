@@ -217,7 +217,7 @@ export function OversiktPage() {
       brukernavn={brukernavn}
       brukerRolle={brukerRolle}
     >
-      <div className="min-h-full bg-slate-50 dark:bg-slate-950">
+      <div className="min-h-full">
         <div className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
           <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between">
