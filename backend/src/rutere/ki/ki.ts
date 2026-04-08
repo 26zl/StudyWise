@@ -556,7 +556,7 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
 
     const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
     let extracted = "";
-    let labelType = "html";
+    let labelType: string;
 
     if (contentType.includes("text/html") || contentType.includes("application/xhtml+xml")) {
       const html = await response.text();
@@ -1611,12 +1611,10 @@ Rules:
     }
 
     const activeKbRaw = await getCache(kbSessionKey(req.user!.id));
-    let activeKb: { id: string; navn: string } | null = null;
     if (activeKbRaw) {
       try {
         const parsed = JSON.parse(activeKbRaw) as { id?: string; navn?: string };
         if (parsed.id && parsed.navn) {
-          activeKb = { id: parsed.id, navn: parsed.navn };
           const kbResults = await searchKBContent(req.user!.id, parsed.id, lastUserMessageForKB, 8);
           if (kbResults.length > 0) {
             kbKontekst = buildKBContext(kbResults, parsed.navn);
@@ -1666,10 +1664,9 @@ Referer til kilde (fil/lenke) i svaret.
           if (kbResults.length > 0) {
             kbKontekst = buildKBContext(kbResults, match.navn);
             kbKilder = mapKBResultsToChatSources(kbResults, match.navn);
-            activeKb = { id: matchId, navn: match.navn };
             await setCache(
               kbSessionKey(req.user!.id),
-              JSON.stringify(activeKb),
+              JSON.stringify({ id: matchId, navn: match.navn }),
               KB_SESSION_TTL,
             );
 
