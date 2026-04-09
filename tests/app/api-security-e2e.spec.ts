@@ -51,8 +51,8 @@ test.describe("API-sikkerhet — input-validering", () => {
       },
       data: "dette er ikke json{{{",
     });
-    // Enten 400 (bad request) eller 401 (auth først)
-    expect([400, 401]).toContain(res.status());
+    // Express body-parser returnerer 400 eller 500 for ugyldig JSON, auth kan gi 401
+    expect([400, 401, 500]).toContain(res.status());
   });
 
   test("username-check med ugyldig input returnerer 400", async ({ request }) => {

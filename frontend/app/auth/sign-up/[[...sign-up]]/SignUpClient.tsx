@@ -884,7 +884,6 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
                     <span>{t("auth.signUp.passwordRequirements.minLength")}</span>
                   </li>
                   <li className="flex items-start gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                    <span aria-hidden className="mt-0.5">•</span>
                     <span>{t("auth.signUp.passwordRequirements.hint")}</span>
                   </li>
                 </ul>

@@ -241,7 +241,7 @@ export const enMessages = {
         minLength: "At least 8 characters",
         notCompromised: "Not a known compromised password",
         strength: "Reasonably strong (not easy to guess)",
-        hint: "Clerk checks strength and breaches when you submit.",
+        hint: "Password is checked for strength and breaches when you submit.",
         weak: "Password is too short — at least 8 characters required",
       },
       passwordErrors: {

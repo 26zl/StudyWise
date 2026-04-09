@@ -909,11 +909,11 @@ router.put("/profile", rateLimitMe, async (req, res) => {
         username?: string;
       } = {};
       if (parsed.firstName !== undefined)
-        clerkUpdates.firstName = parsed.firstName || "";
+        clerkUpdates.firstName = parsed.firstName ?? "";
       if (parsed.lastName !== undefined)
-        clerkUpdates.lastName = parsed.lastName || "";
+        clerkUpdates.lastName = parsed.lastName ?? "";
       if (parsed.username !== undefined)
-        clerkUpdates.username = parsed.username || "";
+        clerkUpdates.username = parsed.username ?? "";
       const clerkSuccess = await updateClerkUserProfile(
         oppdatertBruker.clerkId,
         clerkUpdates,

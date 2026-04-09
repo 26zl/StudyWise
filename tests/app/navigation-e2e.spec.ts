@@ -72,10 +72,7 @@ test.describe("Navigasjon — cookie-banner", () => {
     await page.goto("/");
     await page.waitForLoadState("domcontentloaded");
 
-    const cookieBanner = page.getByRole("region", { name: /cookie/i })
-      .or(page.locator("[data-testid='cookie-banner']"))
-      .or(page.getByText(/essential.*cookie|nødvendige.*informasjonskaps/i).first());
-
+    const cookieBanner = page.getByRole("region", { name: /cookie/i });
     await expect(cookieBanner).toBeVisible({ timeout: 15_000 });
   });
 

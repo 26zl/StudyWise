@@ -360,7 +360,7 @@ export async function fetchUpcomingEvents(canvasToken?: string | null, baseUrl?:
   });
   // Valider hvert element og dropp de som mangler gyldig id (Canvas returnerer noen ganger tomme/NaN)
   const valid: z.infer<typeof CanvasCalendarEventSchema>[] = [];
-  const invalid: { idx: number; issues: z.ZodIssue[] }[] = [];
+  const invalid: { idx: number; issues: z.core.$ZodIssue[] }[] = [];
 
   response.data.forEach((item, idx) => {
     // Prøv å coerce id eksplisitt til number før validering for å unngå NaN fra f.eks. tom streng

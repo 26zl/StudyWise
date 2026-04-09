@@ -724,10 +724,11 @@ async function getClerkProfile(
     }
 
     // Lagre OAuth-konto med providerAccountId og e-post for å forhindre at samme konto brukes på flere brukere.
-    // Clerk kan gi ID via providerUserId eller externalId avhengig av tilkoblingsmetode.
-    const accountId = account.providerUserId || (account as unknown as Record<string, unknown>).externalId;
+    // Clerk Backend SDK har providerUserId direkte på ExternalAccount-klassen.
+    // providerUserId kan være tom streng "" for uverifiserte kontoer — bruk account.id som fallback.
+    const accountId = account.providerUserId?.trim() || account.id?.trim() || null;
     if (mappedProvider && accountId) {
-      const oauthEmail = (account as unknown as Record<string, unknown>).emailAddress;
+      const oauthEmail = account.emailAddress;
       const hasValidEmail = typeof oauthEmail === "string" && oauthEmail.includes("@");
       if (!hasValidEmail) {
         logger.warn(
@@ -739,12 +740,18 @@ async function getClerkProfile(
         provider: mappedProvider,
         providerAccountId: String(accountId),
         ...(hasValidEmail
-          ? { email: (oauthEmail as string).toLowerCase().trim() }
+          ? { email: oauthEmail.toLowerCase().trim() }
           : {}),
       });
     } else if (mappedProvider && !accountId) {
       logger.warn(
-        { provider: mappedProvider, clerkUserId, verification: account.verification?.status },
+        {
+          provider: mappedProvider,
+          clerkUserId,
+          verification: account.verification?.status,
+          rawProviderUserId: account.providerUserId,
+          rawAccountId: account.id,
+        },
         "OAuth-konto fra Clerk mangler providerUserId og externalId — kan ikke lagre i oauthAccounts",
       );
     }
@@ -1082,7 +1089,7 @@ async function syncExistingUserWithClerkProfile(
     profile.email != null &&
     existing.email !== profile.email &&
     (existing.oauthAccounts ?? []).some(
-      (a) => a.email?.toLowerCase() === profile.email!.toLowerCase(),
+      (a) => a.email?.toLowerCase().trim() === profile.email!.toLowerCase().trim(),
     );
 
   // Hvis post-relink: merge providers/OAuth i stedet for å la buildClerkProfileUpdate overskrive

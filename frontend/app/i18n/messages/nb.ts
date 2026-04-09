@@ -241,7 +241,7 @@ export const nbMessages = {
         minLength: "Minst 8 tegn",
         notCompromised: "Ikke et kjent kompromittert passord",
         strength: "Rimelig sterkt (ikke lett å gjette)",
-        hint: "Clerk sjekker styrke og lekkasjer når du sender inn.",
+        hint: "Passordet blir sjekket for styrke og lekkasjer når du sender inn.",
         weak: "Passordet er for kort — minst 8 tegn kreves",
       },
       passwordErrors: {

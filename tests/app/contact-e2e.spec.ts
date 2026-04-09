@@ -22,7 +22,7 @@ test.describe("Kontaktskjema", () => {
         message: "Testmelding",
       },
     });
-    // Bør feile pga. manglende/ugyldig Turnstile-token
-    expect([400, 403, 422]).toContain(res.status());
+    // Kontaktruten krever Turnstile-token eller auth — avhengig av konfigurasjon
+    expect([400, 401, 403, 422]).toContain(res.status());
   });
 });

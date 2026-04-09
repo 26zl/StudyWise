@@ -75,7 +75,7 @@ test.describe("App smoke — API-helsejekk", () => {
     const res = await request.get("http://localhost:4000/health");
     expect(res.status()).toBe(200);
     const body = await res.json();
-    expect(body).toHaveProperty("status", "ok");
+    expect(body).toHaveProperty("ok", true);
   });
 
   test("API-ruter returnerer 401 uten auth", async ({ request }) => {

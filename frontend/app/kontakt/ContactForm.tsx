@@ -74,9 +74,8 @@ export function ContactForm() {
       .min(2, t("contactForm.nameMinError"))
       .max(100, t("contactForm.nameMaxError")),
     epost: z
-      .string()
-      .trim()
       .email(t("contactForm.emailError"))
+      .trim()
       .max(320, t("contactForm.emailMaxError")),
     emne: z
       .string()

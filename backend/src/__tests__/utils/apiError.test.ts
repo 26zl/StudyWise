@@ -287,7 +287,7 @@ describe("requireUserId", () => {
 describe("sendZodError", () => {
   it("sender 400 med validation_error kode for Zod-feil", () => {
     const res = lagMockRes();
-    const schema = z.object({ epost: z.string().email() });
+    const schema = z.object({ epost: z.email() });
 
     try {
       schema.parse({ epost: "ugyldig" });
