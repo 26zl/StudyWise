@@ -1717,7 +1717,7 @@ export function ChatSection() {
                 </div>
 
                 {/* Smart suggestions - reserver høyde for å hindre at input flytter seg */}
-                <div className="shrink-0 min-h-[52px]">
+                <div className="shrink-0 min-h-13">
                     {meldinger.length > 0 && !skriver && !analyserarDokument && sisteAssistentsvar && (
                         <SmartSuggestions
                             lastAIMessage={sisteAssistentsvar}
@@ -1750,7 +1750,7 @@ export function ChatSection() {
                             type="button"
                             onClick={() => setViserShareModal(true)}
                             disabled={meldinger.length === 0 || skriver || analyserarDokument}
-                            className="chat-input-icon-btn shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                            className="chat-input-icon-btn shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed hidden sm:flex items-center justify-center transition-colors"
                             title={t("chat.shareConversationTitle")}
                             aria-label={t("chat.shareConversation")}
                         >
@@ -1762,7 +1762,7 @@ export function ChatSection() {
                             type="button"
                             onClick={() => setViserExportModal(true)}
                             disabled={meldinger.length === 0 || skriver || analyserarDokument}
-                            className="chat-input-icon-btn shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                            className="chat-input-icon-btn shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed hidden sm:flex items-center justify-center transition-colors"
                             title={t("exportModal.title")}
                             aria-label={t("exportModal.title")}
                         >
@@ -1789,14 +1789,14 @@ export function ChatSection() {
                             placeholder={vedlegg.length > 0 ? t("chat.placeholderAttachment") : t("chat.placeholderDefault")}
                             disabled={skriver || analyserarDokument}
                             rows={1}
-                            className="chat-input-textarea flex-1 resize-none bg-transparent py-2 text-base sm:text-[15px] text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:outline-none focus:ring-0 border-none shadow-none disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
+                            className="chat-input-textarea flex-1 min-w-0 resize-none bg-transparent py-2 text-base sm:text-[15px] text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:outline-none focus:ring-0 border-none shadow-none disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
                             style={{ outline: "none" }}
                         />
                         <div ref={modelMenuRef} className="relative shrink-0">
                             <button
                                 type="button"
                                 onClick={() => setIsModelMenuOpen((prev) => !prev)}
-                                className="h-8 max-w-[180px] truncate rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                className="h-8 max-w-30 sm:max-w-45 truncate rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-2 sm:px-3 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                                 title={t("chat.modelSelectorTooltip")}
                                 aria-label={t("chat.modelSelectorLabel")}
                             >
@@ -1906,7 +1906,7 @@ export function ChatSection() {
             </div>
 
             {visKildePanel && (
-                <aside className="hidden lg:flex w-[360px] shrink-0 border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 min-h-0 flex-col">
+                <aside className="hidden lg:flex w-90 shrink-0 border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 min-h-0 flex-col">
                     <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
                         <p className="text-sm font-semibold text-slate-900 dark:text-white">
                             {t("chat.sources")} ({panelKilder.length})

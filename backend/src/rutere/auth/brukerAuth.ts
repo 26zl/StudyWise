@@ -81,6 +81,9 @@ import {
   upsertWebPushSubscription,
   WebPushSubscriptionConflictError,
 } from "../../services/webPush.service.js";
+import { clerkUserExistsInCurrentInstance } from "./clerkAuth.js";
+import { getCurrentClerkEnv } from "./relinkGuard.js";
+import { isProd } from "../../utils/env.js";
 
 const router = Router();
 
@@ -301,12 +304,13 @@ router.get("/username/check", rateLimitUsernameCheck, async (req, res) => {
   try {
     const parsed = UsernameCheckQuerySchema.safeParse({
       username: req.query.username,
+      email: req.query.email,
     });
     if (!parsed.success) {
       return sendZodError(res, parsed.error, "Brukernavnvalidering");
     }
 
-    const { username } = parsed.data;
+    const { username, email } = parsed.data;
     const sanitized = sanitizeUsername(username);
     if (!sanitized) {
       const elapsed = Date.now() - start;
@@ -321,10 +325,28 @@ router.get("/username/check", rateLimitUsernameCheck, async (req, res) => {
       );
     }
 
+    const normalizedEmail = email?.toLowerCase().trim() || null;
     const existingUser = await User.findOne({
       usernameNormalized: sanitized.usernameNormalized,
       deletedAt: { $exists: false },
-    }).select("_id");
+    }).select("_id email clerkId clerkEnv");
+
+    let available = !existingUser;
+    if (existingUser && normalizedEmail) {
+      const currentClerkEnv = getCurrentClerkEnv();
+      const envAllowsRelink =
+        isProd ||
+        process.env.RELINK_DEV_GATE_DISABLED === "true" ||
+        (existingUser.clerkEnv === currentClerkEnv && currentClerkEnv !== "unknown");
+
+      const samePrimaryEmail = existingUser.email?.toLowerCase().trim() === normalizedEmail;
+      if (samePrimaryEmail && envAllowsRelink && existingUser.clerkId) {
+        const existsInCurrentClerk = await clerkUserExistsInCurrentInstance(existingUser.clerkId);
+        if (!existsInCurrentClerk) {
+          available = true;
+        }
+      }
+    }
 
     // Konstant forsinkelse: sørg for at alle svar tar minst USERNAME_CHECK_MIN_DELAY_MS
     // for å forhindre timing-basert brukernavn-enumeration.
@@ -335,7 +357,7 @@ router.get("/username/check", rateLimitUsernameCheck, async (req, res) => {
 
     return res.json(
       UsernameCheckResponseSchema.parse({
-        available: !existingUser,
+        available,
         username,
       }),
     );

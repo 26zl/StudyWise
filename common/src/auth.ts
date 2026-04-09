@@ -511,6 +511,9 @@ export const UsernameCheckQuerySchema = z.object({
     .min(USERNAME_MIN_LENGTH, `Brukernavn må være minst ${USERNAME_MIN_LENGTH} tegn`)
     .max(USERNAME_MAX_LENGTH, `Brukernavn kan maks være ${USERNAME_MAX_LENGTH} tegn`)
     .regex(USERNAME_PATTERN, "Brukernavn kan kun inneholde bokstaver, tall og understrek"),
+  // Valgfri e-post brukes kun for å oppdage om brukernavnet tilhører samme konto
+  // i et annet Clerk-miljø, slik at kryssmiljø-relink kan gjenbruke brukernavnet.
+  email: z.string().trim().max(320).optional(),
 });
 
 export const UsernameCheckResponseSchema = z.object({

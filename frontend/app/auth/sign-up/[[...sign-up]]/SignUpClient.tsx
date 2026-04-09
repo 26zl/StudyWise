@@ -39,6 +39,45 @@ type SignUpClientProps = {
 type UsernameStatus = "idle" | "checking" | "available" | "taken" | "invalid";
 type SignUpStep = "form" | "verify" | "oauth-username";
 
+function normalizeEmailForUsernameCheck(value: string | null | undefined): string | undefined {
+  const trimmed = value?.trim().toLowerCase();
+  if (!trimmed || !trimmed.includes("@") || trimmed.includes(" ")) {
+    return undefined;
+  }
+  return trimmed;
+}
+
+function readPendingSignUpEmail(signUp: unknown): string | undefined {
+  if (!signUp || typeof signUp !== "object") {
+    return undefined;
+  }
+
+  const candidate = signUp as Record<string, unknown>;
+  if (typeof candidate.emailAddress === "string") {
+    return normalizeEmailForUsernameCheck(candidate.emailAddress);
+  }
+
+  if (Array.isArray(candidate.emailAddresses)) {
+    for (const item of candidate.emailAddresses) {
+      if (!item || typeof item !== "object") continue;
+      const entry = item as Record<string, unknown>;
+      if (typeof entry.emailAddress === "string") {
+        return normalizeEmailForUsernameCheck(entry.emailAddress);
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function buildUsernameCheckUrl(username: string, email?: string): string {
+  const params = new URLSearchParams({ username });
+  if (email) {
+    params.set("email", email);
+  }
+  return `/api/user/username/check?${params.toString()}`;
+}
+
 export function SignUpClient({ initialVerified }: SignUpClientProps) {
   const { t } = useLanguage();
   const { isLoaded, isSignedIn } = useAuth();
@@ -103,6 +142,14 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
   const [pendingEmail, setPendingEmail] = useState("");
+  const usernameCheckEmail =
+    step === "form"
+      ? normalizeEmailForUsernameCheck(email)
+      : readPendingSignUpEmail(signUp) ??
+        normalizeEmailForUsernameCheck(
+          clerkUser?.primaryEmailAddress?.emailAddress ??
+            clerkUser?.emailAddresses?.[0]?.emailAddress,
+        );
 
   const redirectEtterAuth = useCallback(() => {
     window.location.replace(redirectUrl);
@@ -143,13 +190,28 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
         if (cancelled) return;
         if (res.status === 409 || res.status === 403) {
           const json = await res.json().catch(() => ({}));
-          const errorType = json?.error;
+          const errorType = typeof json?.error === "string" ? json.error : undefined;
+          const errorMessage = typeof json?.melding === "string"
+            ? json.melding
+            : t("auth.conflictRedirect.emailConflict");
           if (
             errorType === "oauth_account_conflict" ||
             errorType === "oauth_metadata_missing"
           ) {
             await clerk.signOut().catch(() => {});
             setOauthConflict(true);
+            return;
+          }
+          if (
+            errorType === "account_conflict" ||
+            errorType === "username_conflict" ||
+            errorType === "user_deleted" ||
+            errorType === "user_locked"
+          ) {
+            await clerk.signOut().catch(() => {});
+            window.location.replace(
+              `${signInHref}?error=${encodeURIComponent(errorMessage)}`,
+            );
             return;
           }
           // turnstile_required: redirect til dashboard — TurnstileReChallenge viser re-verifikasjon
@@ -217,10 +279,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
       usernameAbortRef.current = controller;
       setUsernameStatus("checking");
 
-      fetch(
-        `/api/user/username/check?username=${encodeURIComponent(trimmed)}`,
-        { signal: controller.signal },
-      )
+      fetch(buildUsernameCheckUrl(trimmed, usernameCheckEmail), { signal: controller.signal })
         .then(async (res) => {
           if (controller.signal.aborted) return;
           if (!res.ok) {
@@ -242,7 +301,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
       if (usernameDebounceRef.current) clearTimeout(usernameDebounceRef.current);
       usernameAbortRef.current?.abort();
     };
-  }, [username]);
+  }, [username, usernameCheckEmail]);
 
   // Email+password sign-up
   const handleSubmit = useCallback(
@@ -261,10 +320,6 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
       }
       if (!isValidUsernameFormat(trimmedUsername)) {
         setFormError(t("auth.signUp.usernameInvalid"));
-        return;
-      }
-      if (usernameStatus === "taken") {
-        setFormError(t("auth.signUp.usernameTaken"));
         return;
       }
       if (usernameStatus === "checking") {
@@ -293,7 +348,10 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
         }
 
         const checkRes = await fetch(
-          `/api/user/username/check?username=${encodeURIComponent(trimmedUsername)}`,
+          buildUsernameCheckUrl(
+            trimmedUsername,
+            normalizeEmailForUsernameCheck(trimmedEmail),
+          ),
         );
         if (checkRes.ok) {
           const checkData = await checkRes.json();
@@ -380,10 +438,6 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
         setFormError(t("auth.signUp.usernameInvalid"));
         return;
       }
-      if (usernameStatus === "taken") {
-        setFormError(t("auth.signUp.usernameTaken"));
-        return;
-      }
       if (usernameStatus === "checking") {
         setFormError(t("auth.signUp.usernameWait"));
         return;
@@ -405,6 +459,16 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
       setFormError(null);
 
       try {
+        const checkRes = await fetch(buildUsernameCheckUrl(trimmedUsername, usernameCheckEmail));
+        if (checkRes.ok) {
+          const checkData = await checkRes.json();
+          if (!checkData.available) {
+            setUsernameStatus("taken");
+            setFormError(t("auth.signUp.usernameTaken"));
+            return;
+          }
+        }
+
         // Case 1: Sign-up er ufullstendig (mangler brukernavn) — sett via Clerk sign-up
         if (signUp && signUp.status === "missing_requirements") {
           const updateFields: Record<string, string> = { username: trimmedUsername };

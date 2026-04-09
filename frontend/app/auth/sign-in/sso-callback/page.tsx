@@ -36,17 +36,33 @@ export default function SignInSSOCallbackPage() {
         const res = await fetchApi("/api/user/me", { method: "GET" });
         if (res.status === 409 || res.status === 403) {
           const json = await res.json().catch(() => ({}));
+          const errorType = typeof json?.error === "string" ? json.error : undefined;
+          const errorMessage = typeof json?.melding === "string"
+            ? json.melding
+            : t("auth.conflictRedirect.emailConflict");
           if (
-            json?.error === "oauth_account_conflict" ||
-            json?.error === "oauth_metadata_missing"
+            errorType === "oauth_account_conflict" ||
+            errorType === "oauth_metadata_missing"
           ) {
             // Rydd opp Clerk-sesjonen slik at brukeren ikke sitter igjen med en aktiv session
             await clerk.signOut().catch(() => {});
             setOauthConflict(true);
             return;
           }
+          if (
+            errorType === "account_conflict" ||
+            errorType === "username_conflict" ||
+            errorType === "user_deleted" ||
+            errorType === "user_locked"
+          ) {
+            await clerk.signOut().catch(() => {});
+            window.location.replace(
+              `${signInHref}?error=${encodeURIComponent(errorMessage)}`,
+            );
+            return;
+          }
           // turnstile_required: redirect til dashboard — TurnstileReChallenge viser re-verifikasjon
-          if (json?.error === "turnstile_required") {
+          if (errorType === "turnstile_required") {
             window.location.replace(redirectUrl);
             return;
           }

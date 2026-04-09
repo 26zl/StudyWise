@@ -24,6 +24,7 @@ export type RelinkState = {
   clerkId: string;
   env: ClerkEnv;
   count: number;
+  allowed?: boolean;
 };
 
 export type GuardRelinkResult =
@@ -102,6 +103,7 @@ export async function guardRelink(
         clerkId: newClerkUserId,
         env: currentEnv,
         count: 1,
+        allowed: false,
       });
       return { blocked: true, reason: "dev_gate_env_mismatch", count: 1 };
     }
@@ -111,7 +113,14 @@ export async function guardRelink(
       clerkId: newClerkUserId,
       env: currentEnv,
       count: 1,
+      allowed: true,
     });
+    return { blocked: false };
+  }
+
+  // Parallelle /me-kall kan treffe samme relink flere ganger med identisk
+  // clerkId i samme miljø. Det er ikke ping-pong og skal være idempotent.
+  if (prior.allowed === true && prior.clerkId === newClerkUserId && prior.env === currentEnv) {
     return { blocked: false };
   }
 
@@ -127,6 +136,7 @@ export async function guardRelink(
       clerkId: newClerkUserId,
       env: currentEnv,
       count: nextCount,
+      allowed: false,
     });
     return { blocked: true, reason: "dev_gate_env_mismatch", count: nextCount };
   }
@@ -138,6 +148,7 @@ export async function guardRelink(
       clerkId: newClerkUserId,
       env: currentEnv,
       count: nextCount,
+      allowed: false,
     });
     return { blocked: true, reason: "rate_limited_ping_pong", count: nextCount };
   }
@@ -148,6 +159,7 @@ export async function guardRelink(
     clerkId: newClerkUserId,
     env: currentEnv,
     count: 1,
+    allowed: true,
   });
   return { blocked: false };
 }

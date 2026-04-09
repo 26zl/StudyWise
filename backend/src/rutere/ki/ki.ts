@@ -1770,7 +1770,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
         // lastCourseSessionKey og sessionCacheKey kan peke på samme nøkkel når followUpWithoutCourseHint=true.
         // Skriv kun til lastCourseSessionKey separat når de er forskjellige, og kun ved rikt innhold —
         // unngår at svakt innhold fra follow-up forgifter last-course-cachen.
-        if (lastCourseSessionKey && hasRichCanvasContent && !kontekstHarFilInnhold && lastCourseSessionKey !== sessionCacheKey) {
+        if (hasRichCanvasContent && !kontekstHarFilInnhold && lastCourseSessionKey !== sessionCacheKey) {
           await setCache(lastCourseSessionKey, JSON.stringify(contextResult), SESSION_CONTEXT_TTL);
         }
       }

@@ -3,6 +3,7 @@
  * Finner eller oppretter bruker på clerkId og oppdaterer lokal profil fra Clerk ved behov.
  */
 import { createClerkClient, verifyToken } from "@clerk/backend";
+import { isClerkAPIResponseError } from "@clerk/backend/errors";
 import { hashSha256 } from "../../utils/cryptoUtils.js";
 import { User } from "../../database/models/User.js";
 import { DeletedUserTombstone } from "../../database/models/DeletedUserTombstone.js";
@@ -20,8 +21,8 @@ import { getConfiguredWebOrigins } from "../../utils/webOrigins.js";
 import { sanitizeUsername } from "../../database/models/User.js";
 import { isValidAuthTurnstileCookieValue } from "../../utils/authTurnstileCookie.js";
 import { isProd } from "../../utils/env.js";
-import { getCache, setCache } from "../../cache/redis.js";
-import { guardRelink, getCurrentClerkEnv, type ClerkEnv } from "./relinkGuard.js";
+import { getCache, setCache, deleteCacheKeys } from "../../cache/redis.js";
+import { guardRelink, getCurrentClerkEnv, RELINK_STATE_KEY_PREFIX, type ClerkEnv } from "./relinkGuard.js";
 
 /** Minste intervall (ms) mellom profiloppdateringer fra Clerk for samme bruker (5 min). */
 const CLERK_PROFILE_SYNC_INTERVAL_MS = 5 * 60 * 1000;
@@ -301,7 +302,7 @@ async function checkOAuthAccountConflicts(
  * tilhører en annen Clerk-instans (f.eks. dev vs. prod).
  * Returnerer true hvis brukeren eksisterer, eller ved nettverksfeil (fail-safe).
  */
-async function clerkUserExistsInCurrentInstance(clerkId: string): Promise<boolean> {
+export async function clerkUserExistsInCurrentInstance(clerkId: string): Promise<boolean> {
   const clerk = getClerkBackendClient();
   if (!clerk) return true; // Fail-safe: anta den finnes
 
@@ -309,11 +310,20 @@ async function clerkUserExistsInCurrentInstance(clerkId: string): Promise<boolea
     await clerk.users.getUser(clerkId);
     return true;
   } catch (error) {
+    // Clerk SDK v3+: sjekk status direkte (mer robust enn string-matching)
+    if (isClerkAPIResponseError(error) && error.status === 404) {
+      return false;
+    }
+    // Fallback: string-matching for eldre SDK-versjoner eller uventede feiltyper
     const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
     if (message.includes("404") || message.includes("not found") || message.includes("resource_not_found")) {
       return false;
     }
     // Nettverksfeil etc. — fail-safe, blokker som normalt
+    logger.warn(
+      { clerkId, errorMessage: error instanceof Error ? error.message : String(error) },
+      "clerkUserExistsInCurrentInstance: ukjent feiltype fra Clerk API — fail-safe returnerer true",
+    );
     return true;
   }
 }
@@ -413,9 +423,16 @@ async function relinkUserToClerkId(
   if (profile.lastName) updateFields.lastName = profile.lastName;
   if (oauthAccounts.length > 0) updateFields.oauthAccounts = oauthAccounts;
 
+  // Bygg $unset for tomme arrays (speiler logikken i buildClerkProfileUpdate)
+  const unsetFields: Record<string, 1> = {};
+  if (oauthAccounts.length === 0) unsetFields.oauthAccounts = 1;
+
   const relinkedUser = await User.findOneAndUpdate(
     { _id: existingUserId, deletedAt: { $exists: false } },
-    { $set: updateFields },
+    {
+      $set: updateFields,
+      ...(Object.keys(unsetFields).length > 0 ? { $unset: unsetFields } : {}),
+    },
     { returnDocument: "after" },
   ).select("+canvasApiToken");
 
@@ -424,6 +441,8 @@ async function relinkUserToClerkId(
       { userId: relinkedUser._id.toString(), newClerkUserId },
       "Kryssmiljø re-link: eksisterende bruker re-linket til ny Clerk-instans",
     );
+    // Rydd opp Redis relink-state etter vellykket relink — forhindrer stuck states
+    void deleteCacheKeys([`${RELINK_STATE_KEY_PREFIX}${existingUserId.toString()}`]);
     await audit({
       actorUserId: relinkedUser._id.toString(),
       action: AUDIT_ACTIONS.ACCOUNT_RELINKED,
@@ -520,15 +539,29 @@ function normalizeEmail(email: string | undefined): string | null {
 type UsernameSyncAction =
   | { mode: "set"; username: string; usernameNormalized: string }
   | { mode: "unset" }
-  | { mode: "keep"; conflictingUserId: string };
+  | { mode: "keep"; conflictingUserId: string }
+  | { mode: "keep"; reason: "preserve_existing" };
 
 async function resolveUsernameSyncAction(
   username: string | undefined,
   excludeUserId?: IUser["_id"] | null,
+  existingUsername?: string,
 ): Promise<UsernameSyncAction> {
   const sanitized = sanitizeUsername(username);
   if (!sanitized) {
+    // Clerk har ikke brukernavn — behold eksisterende hvis bruker allerede har et
+    if (existingUsername) {
+      return { mode: "keep", reason: "preserve_existing" };
+    }
     return { mode: "unset" };
+  }
+
+  // Bevar eksisterende brukernavn under profilsynk — brukernavn-endringer
+  // gjøres via PUT /profile (oppdaterer MongoDB + Clerk), ikke via Clerk-synk.
+  // Dette forhindrer at kryssmiljø-relink overskriver brukernavnet med
+  // dev-Clerk sitt brukernavn.
+  if (existingUsername && existingUsername !== sanitized.username) {
+    return { mode: "keep", reason: "preserve_existing" };
   }
 
   const baseFilter: Record<string, unknown> = {
@@ -844,6 +877,7 @@ async function syncExistingUserWithClerkProfile(
   const usernameAction = await resolveUsernameSyncAction(
     profile.username,
     existing._id,
+    existingUsername,
   );
   const nextUsername = resolveStoredUsername(usernameAction, existingUsername);
   const existingOauth = JSON.stringify(existing.oauthAccounts ?? []);
@@ -856,13 +890,17 @@ async function syncExistingUserWithClerkProfile(
   const lastNameChanged = (existing.lastName ?? undefined) !== profile.lastName;
 
   if (usernameAction.mode === "keep") {
+    const reason = "reason" in usernameAction ? usernameAction.reason : "conflict";
     logger.info(
       {
         clerkUserId,
         userId: existing._id,
-        conflictingUserId: usernameAction.conflictingUserId,
+        ...("conflictingUserId" in usernameAction ? { conflictingUserId: usernameAction.conflictingUserId } : {}),
+        reason,
       },
-      "Droppet Clerk-brukernavn fordi det allerede er i bruk",
+      reason === "preserve_existing"
+        ? "Bevarer eksisterende brukernavn under profilsynk (Clerk-brukernavn annerledes)"
+        : "Droppet Clerk-brukernavn fordi det allerede er i bruk",
     );
   }
 
@@ -1514,13 +1552,13 @@ export async function findOrCreateUserByClerkId(
     // Brukernavn allerede tatt – avvis registrering.
     // Frontend viser en resolver-dialog der brukeren velger nytt brukernavn i Clerk,
     // deretter re-henter /me som kjører findOrCreateUserByClerkId på nytt.
-    if (usernameAction.mode === "keep" && profile.username) {
+    if (usernameAction.mode === "keep" && "conflictingUserId" in usernameAction && profile.username) {
       // Race-condition-sjekk: et parallelt request kan ha opprettet brukeren allerede.
       // Hvis den konfliktskapende brukeren har samme clerkId, returner den i stedet for å blokkere.
       const conflictUser = await User.findOne({
         _id: usernameAction.conflictingUserId,
         deletedAt: { $exists: false },
-      }).select("clerkId");
+      }).select("clerkId clerkEnv");
       if (conflictUser?.clerkId === clerkUserId) {
         logger.info(
           { clerkUserId, userId: usernameAction.conflictingUserId, flowId: fid },
@@ -1532,6 +1570,40 @@ export async function findOrCreateUserByClerkId(
           deletedAt: { $exists: false },
         }).select("+canvasApiToken");
         if (existingUser) return existingUser;
+      }
+
+      if (conflictUser?.clerkId) {
+        const relinked = await attemptRelinkWhenPreviousClerkMissing({
+          existingUser: conflictUser,
+          clerkUserId,
+          profile,
+          oauthAccounts,
+          clerkEmail: email ?? undefined,
+          flowId: fid,
+          infoMessage:
+            "authFlow: username conflict — gammel clerkId finnes ikke i denne Clerk-instansen, re-linker for å bevare brukernavn",
+          warnMessage:
+            "authFlow: username conflict — re-link returnerte null (e-post-mismatch eller guard blokkert)",
+          logFields: {
+            conflictingUserId: usernameAction.conflictingUserId,
+            username: profile.username,
+          },
+        });
+        if (relinked) return relinked;
+
+        const existsInClerk = await clerkUserExistsInCurrentInstance(conflictUser.clerkId);
+        if (existsInClerk) {
+          logger.info(
+            {
+              clerkUserId,
+              oldClerkId: conflictUser.clerkId,
+              conflictingUserId: usernameAction.conflictingUserId,
+              username: profile.username,
+              flowId: fid,
+            },
+            "authFlow: username conflict — gammel clerkId finnes fortsatt i Clerk, blokkerer",
+          );
+        }
       }
 
       logger.warn(

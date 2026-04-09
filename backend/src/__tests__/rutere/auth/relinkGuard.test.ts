@@ -109,6 +109,26 @@ describe("guardRelink", () => {
     });
   });
 
+  it("tillater gjentatt relink til samme clerkId innen cooldown", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+
+    const first = await guardRelink("user-same", "clerk-same", {
+      previousClerkEnv: "test",
+    });
+    vi.advanceTimersByTime(500);
+    const second = await guardRelink("user-same", "clerk-same", {
+      previousClerkEnv: "test",
+    });
+
+    expect(first).toEqual({ blocked: false });
+    expect(second).toEqual({ blocked: false });
+
+    const state = await getRelinkState("user-same");
+    expect(state?.count).toBe(1);
+    expect(state?.allowed).toBe(true);
+  });
+
   it("tillater relink etter cooldown har utløpt", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));

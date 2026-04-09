@@ -2302,7 +2302,7 @@ function LoggerFane() {
 
       <div
         ref={containerRef}
-        className="h-[600px] overflow-y-auto rounded-xl border border-slate-200 bg-slate-950 p-3 font-mono text-xs leading-relaxed text-slate-200 dark:border-slate-700"
+        className="h-150 overflow-y-auto rounded-xl border border-slate-200 bg-slate-950 p-3 font-mono text-xs leading-relaxed text-slate-200 dark:border-slate-700"
       >
         {entries.length === 0 ? (
           <p className="text-center text-slate-500">{t("admin.logs.empty")}</p>
@@ -2409,7 +2409,7 @@ function InnboksFane() {
               {t("admin.inbox.empty")}
             </p>
           ) : (
-            <ul className="max-h-[600px] divide-y divide-slate-200 overflow-y-auto dark:divide-slate-700">
+            <ul className="max-h-150 divide-y divide-slate-200 overflow-y-auto dark:divide-slate-700">
               {meldinger.map((m) => {
                 const aktiv = valgtId === m.id;
                 const erUlest = m.status === "unread";
@@ -2503,7 +2503,7 @@ function InnboksFane() {
                 <div className="text-xs text-slate-600 dark:text-slate-400">
                   <strong>{t("admin.inbox.attachments")}:</strong>
                   <ul className="mt-1 ml-4 list-disc">
-                    {valgt.attachmentSummary.map((a, i) => (
+                    {valgt.attachmentSummary.map((a: { filnavn: string; sizeBytes: number; mimeType: string }, i: number) => (
                       <li key={i}>
                         {a.filnavn} ({Math.round(a.sizeBytes / 1024)} kB)
                       </li>
