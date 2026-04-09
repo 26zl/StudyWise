@@ -15,6 +15,7 @@ import { showToast } from "@/app/components/ui/Toaster";
 import { fetchApi } from "@/app/lib/apiClient";
 import {
   isValidUsernameFormat,
+  OAuthRelinkHintResponseSchema,
   USERNAME_MIN_LENGTH,
   USERNAME_MAX_LENGTH,
 } from "common/auth";
@@ -78,6 +79,14 @@ function buildUsernameCheckUrl(username: string, email?: string): string {
   return `/api/user/username/check?${params.toString()}`;
 }
 
+function buildOAuthRelinkHintUrl(signUpAttemptId: string, email?: string): string {
+  const params = new URLSearchParams({ signUpAttemptId });
+  if (email) {
+    params.set("email", email);
+  }
+  return `/api/user/oauth-relink-hint?${params.toString()}`;
+}
+
 export function SignUpClient({ initialVerified }: SignUpClientProps) {
   const { t } = useLanguage();
   const { isLoaded, isSignedIn } = useAuth();
@@ -130,26 +139,27 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
   // OAuth-konflikt: blokkerer registrering tidlig
   // Start som true ved OAuth-retur med aktiv sesjon for å unngå flash av skjemaet før conflict-sjekk kjører
   const [oauthConflict, setOauthConflict] = useState(false);
-  const [oauthConflictChecking, setOauthConflictChecking] = useState(isOAuthReturn && isSignedIn);
+  const [oauthConflictChecking, setOauthConflictChecking] = useState(isOAuthReturn);
 
   // Email verification state
   const [step, setStep] = useState<SignUpStep>(
-    (isOAuthReturn && isSignedIn) || isOAuthMissingRequirements
-      ? "oauth-username"
-      : "form",
+    isOAuthReturn ? "oauth-username" : "form",
   );
   const [verificationCode, setVerificationCode] = useState("");
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
   const [pendingEmail, setPendingEmail] = useState("");
+  const signUpAttemptId = typeof signUp?.id === "string" ? signUp.id : undefined;
+  const pendingOAuthEmail =
+    readPendingSignUpEmail(signUp) ??
+    normalizeEmailForUsernameCheck(
+      clerkUser?.primaryEmailAddress?.emailAddress ??
+        clerkUser?.emailAddresses?.[0]?.emailAddress,
+    );
   const usernameCheckEmail =
     step === "form"
       ? normalizeEmailForUsernameCheck(email)
-      : readPendingSignUpEmail(signUp) ??
-        normalizeEmailForUsernameCheck(
-          clerkUser?.primaryEmailAddress?.emailAddress ??
-            clerkUser?.emailAddresses?.[0]?.emailAddress,
-        );
+      : pendingOAuthEmail;
 
   const redirectEtterAuth = useCallback(() => {
     window.location.replace(redirectUrl);
@@ -157,7 +167,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
 
   // Sett steg til oauth-username når bruker kommer tilbake fra OAuth
   useEffect(() => {
-    if (!isOAuthReturn || step === "oauth-username") return;
+    if (!isOAuthReturn) return;
 
     // Case 1: Sign-up fullført, session aktiv — sjekk om brukernavn mangler
     if (isSignedIn) {
@@ -173,80 +183,221 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
     if (isOAuthMissingRequirements) {
       setStep("oauth-username");
     }
-  }, [isOAuthReturn, isSignedIn, isOAuthMissingRequirements, clerkUser, step, redirectEtterAuth]);
+  }, [isOAuthReturn, isSignedIn, isOAuthMissingRequirements, clerkUser, redirectEtterAuth]);
 
   // Pre-check for OAuth-konto-konflikt: kall /api/user/me tidlig for å oppdage om
   // samme OAuth-konto allerede er tilknyttet en annen bruker (f.eks. dev vs. prod).
   // Vises som feilmelding istedenfor brukernavn-skjemaet.
-  // Ved kryssmiljø re-link: hvis backend-brukeren allerede har brukernavn, synk til Clerk og gå videre.
+  // Ved kryssmiljø re-link: hvis backend-brukeren allerede har brukernavn, auto-fullfør
+  // Clerk-signupen eller synk brukernavnet tilbake til Clerk uten å vise prompt.
   useEffect(() => {
-    if (step !== "oauth-username" || !isSignedIn || oauthConflict) return;
+    if (step !== "oauth-username" || oauthConflict) return;
 
     let cancelled = false;
+    let keepWaiting = false;
     setOauthConflictChecking(true);
 
-    fetchApi("/api/user/me", { method: "GET" })
-      .then(async (res) => {
-        if (cancelled) return;
-        if (res.status === 409 || res.status === 403) {
-          const json = await res.json().catch(() => ({}));
-          const errorType = typeof json?.error === "string" ? json.error : undefined;
-          const errorMessage = typeof json?.melding === "string"
-            ? json.melding
-            : t("auth.conflictRedirect.emailConflict");
-          if (
-            errorType === "oauth_account_conflict" ||
-            errorType === "oauth_metadata_missing"
-          ) {
-            await clerk.signOut().catch(() => {});
-            setOauthConflict(true);
-            return;
-          }
-          if (
-            errorType === "account_conflict" ||
-            errorType === "username_conflict" ||
-            errorType === "user_deleted" ||
-            errorType === "user_locked"
-          ) {
-            await clerk.signOut().catch(() => {});
-            window.location.replace(
-              `${signInHref}?error=${encodeURIComponent(errorMessage)}`,
-            );
-            return;
-          }
-          // turnstile_required: redirect til dashboard — TurnstileReChallenge viser re-verifikasjon
-          if (errorType === "turnstile_required") {
+    const prefillFraEksisterendeProfil = (existingProfile: {
+      username?: string;
+      firstName?: string;
+      lastName?: string;
+    }) => {
+      const existingUsername =
+        typeof existingProfile.username === "string"
+          ? existingProfile.username.trim()
+          : "";
+      if (existingUsername) {
+        setUsername((current) => current || existingUsername);
+      }
+      if (oauthMissingFirstName && existingProfile.firstName?.trim()) {
+        setFirstName((current) => current || existingProfile.firstName!.trim());
+      }
+      if (oauthMissingLastName && existingProfile.lastName?.trim()) {
+        setLastName((current) => current || existingProfile.lastName!.trim());
+      }
+    };
+
+    const applyEksisterendeProfil = async (existingProfile: {
+      username?: string;
+      firstName?: string;
+      lastName?: string;
+    }): Promise<boolean> => {
+      const existingUsername =
+        typeof existingProfile.username === "string"
+          ? existingProfile.username.trim()
+          : "";
+      if (!existingUsername) {
+        return false;
+      }
+
+      prefillFraEksisterendeProfil(existingProfile);
+
+      const updatePayload: Record<string, string> = { username: existingUsername };
+      if (oauthMissingFirstName && existingProfile.firstName?.trim()) {
+        updatePayload.firstName = existingProfile.firstName.trim();
+      }
+      if (oauthMissingLastName && existingProfile.lastName?.trim()) {
+        updatePayload.lastName = existingProfile.lastName.trim();
+      }
+
+      // Missing requirements: fullfør pending Clerk sign-up automatisk hvis vi allerede kjenner brukeren.
+      if (signUp && signUp.status === "missing_requirements") {
+        try {
+          const result = await signUp.update(updatePayload);
+          if (cancelled) return true;
+          if (result.status === "complete" && result.createdSessionId) {
+            await setActive({ session: result.createdSessionId });
             redirectEtterAuth();
-            return;
+            return true;
           }
+        } catch {
+          return false;
+        }
+      }
+
+      // Aktiv session: synk brukernavn/nøkkelfelter tilbake til Clerk og gå videre.
+      if (clerkUser) {
+        if (clerkUser.username === existingUsername) {
+          redirectEtterAuth();
+          return true;
         }
 
-        // Re-link: backend-bruker har allerede brukernavn — synk til Clerk og hopp over prompt
-        if (res.ok && clerkUser && !clerkUser.username) {
-          const json = await res.json().catch(() => null);
-          const existingUsername = json?.user?.username;
-          if (existingUsername) {
-            try {
-              await clerkUser.update({ username: existingUsername });
-            } catch {
-              // Clerk-oppdatering feilet — brukeren kan fortsette manuelt
-            }
-            redirectEtterAuth();
-            return;
-          }
+        try {
+          await clerkUser.update(updatePayload);
+          if (cancelled) return true;
+          redirectEtterAuth();
+          return true;
+        } catch {
+          return false;
         }
-      })
+      }
+
+      return false;
+    };
+
+    // Sikkerhetsnett: hvis Clerk aldri gir signUpAttemptId, vis skjemaet etter 5 sek
+    const keepWaitingTimeout = setTimeout(() => {
+      if (!cancelled && keepWaiting) {
+        keepWaiting = false;
+        setOauthConflictChecking(false);
+      }
+    }, 5_000);
+
+    const resolveOAuthUsernameStep = async () => {
+      if (isOAuthReturn && !isSignedIn && !isOAuthMissingRequirements && !signUpAttemptId) {
+        keepWaiting = true;
+        return;
+      }
+
+      if (isSignedIn && clerkUser?.username) {
+        redirectEtterAuth();
+        return;
+      }
+
+      // Missing requirements uten aktiv session: bruk signUpAttemptId som sikker
+      // beviskjede mot Clerk før vi foreslår eksisterende brukernavn.
+      if (isOAuthMissingRequirements && signUpAttemptId) {
+        try {
+          const hintRes = await fetch(
+            buildOAuthRelinkHintUrl(signUpAttemptId, pendingOAuthEmail),
+          );
+          if (!cancelled && hintRes.ok) {
+            const hint = OAuthRelinkHintResponseSchema.parse(
+              await hintRes.json(),
+            );
+            if (hint.canAutoComplete) {
+              const completed = await applyEksisterendeProfil(hint);
+              if (completed) return;
+            }
+          }
+        } catch {
+          // Nettverksfeil — fall tilbake til vanlig brukernavnsskjema
+        }
+      }
+
+      if (!isSignedIn) {
+        return;
+      }
+
+      const res = await fetchApi("/api/user/me?forceSync=true", { method: "GET" });
+      if (cancelled) return;
+      if (res.status === 409 || res.status === 403) {
+        const json = await res.json().catch(() => ({}));
+        const errorType = typeof json?.error === "string" ? json.error : undefined;
+        const errorMessage = typeof json?.melding === "string"
+          ? json.melding
+          : t("auth.conflictRedirect.emailConflict");
+        if (
+          errorType === "oauth_account_conflict" ||
+          errorType === "oauth_metadata_missing"
+        ) {
+          await clerk.signOut().catch(() => {});
+          setOauthConflict(true);
+          return;
+        }
+        if (
+          errorType === "account_conflict" ||
+          errorType === "username_conflict" ||
+          errorType === "user_deleted" ||
+          errorType === "user_locked"
+        ) {
+          await clerk.signOut().catch(() => {});
+          window.location.replace(
+            `${signInHref}?error=${encodeURIComponent(errorMessage)}`,
+          );
+          return;
+        }
+        // turnstile_required: redirect til dashboard — TurnstileReChallenge viser re-verifikasjon
+        if (errorType === "turnstile_required") {
+          redirectEtterAuth();
+          return;
+        }
+      }
+
+      if (res.ok) {
+        const json = await res.json().catch(() => null);
+        const completed = await applyEksisterendeProfil({
+          username:
+            typeof json?.user?.username === "string" ? json.user.username : undefined,
+          firstName:
+            typeof json?.user?.firstName === "string" ? json.user.firstName : undefined,
+          lastName:
+            typeof json?.user?.lastName === "string" ? json.user.lastName : undefined,
+        });
+        if (completed) return;
+      }
+    };
+
+    void resolveOAuthUsernameStep()
       .catch(() => {
         // Nettverksfeil — la brukeren fortsette normalt
       })
       .finally(() => {
-        if (!cancelled) setOauthConflictChecking(false);
+        if (!cancelled && !keepWaiting) setOauthConflictChecking(false);
       });
 
     return () => {
       cancelled = true;
+      clearTimeout(keepWaitingTimeout);
     };
-  }, [step, isSignedIn, oauthConflict, clerkUser, redirectEtterAuth]);
+  }, [
+    step,
+    oauthConflict,
+    clerk,
+    clerkUser,
+    isOAuthMissingRequirements,
+    isOAuthReturn,
+    isSignedIn,
+    oauthMissingFirstName,
+    oauthMissingLastName,
+    pendingOAuthEmail,
+    redirectEtterAuth,
+    setActive,
+    signInHref,
+    signUp,
+    signUpAttemptId,
+    t,
+  ]);
 
   // Gjenopprett session hvis sign-up allerede er fullført (f.eks. etter reload på verify-steget)
   useEffect(() => {

@@ -1,4 +1,8 @@
-const PUBLIC_GET_ONLY_PATHS = ["/api/ki/share", "/api/user/username/check"] as const;
+const PUBLIC_GET_ONLY_PATHS = [
+  "/api/ki/share",
+  "/api/user/username/check",
+  "/api/user/oauth-relink-hint",
+] as const;
 const PUBLIC_ALL_METHOD_PATHS = ["/api/kontakt"] as const;
 
 function matchesExactOrChildPath(path: string, publicPath: string): boolean {

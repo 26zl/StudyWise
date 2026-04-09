@@ -5,7 +5,7 @@
  * (React Query + zustand + Datadog) før eventuell redirect.
  */
 import { useEffect, useRef } from "react";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, useClerk } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { AUTH_CHANNEL_NAME } from "common/auth";
@@ -60,9 +60,11 @@ export function broadcastLogout() {
  */
 export function useAuthSync() {
     const queryClient = useQueryClient();
+    const clerk = useClerk();
     const { isLoaded, isSignedIn } = useAuth();
     const pathname = usePathname();
     const previousSignedInRef = useRef<boolean | null>(null);
+    const externalLogoutInFlightRef = useRef(false);
     useEffect(() => {
         if (typeof window === "undefined" || !("BroadcastChannel" in window)) return;
 
@@ -74,14 +76,29 @@ export function useAuthSync() {
         }
         channel.onmessage = (event) => {
             if (event.data === LOGOUT_MESSAGE) {
-                // En annen fane har logget ut - rydd opp og redirect kun fra auth-beskyttede sider
-                clearAuthStateOgRedirectVedBehov(queryClient, window.location.pathname);
+                if (externalLogoutInFlightRef.current) {
+                    return;
+                }
+
+                externalLogoutInFlightRef.current = true;
+
+                // En annen fane har logget ut - prøv å rydde Clerk-session også i denne fanen
+                // før vi tømmer lokal state. Hvis Clerk feiler, rydder vi klient-state uansett.
+                void clerk
+                    .signOut()
+                    .catch(() => {
+                        // Ignorer — sesjonen kan allerede være ugyldig eller utilgjengelig.
+                    })
+                    .finally(() => {
+                        externalLogoutInFlightRef.current = false;
+                        clearAuthStateOgRedirectVedBehov(queryClient, window.location.pathname);
+                    });
             }
         };
         return () => {
             channel?.close();
         };
-    }, [queryClient]);
+    }, [clerk, queryClient]);
 
     useEffect(() => {
         if (!isLoaded) return;
@@ -92,7 +109,9 @@ export function useAuthSync() {
         }
 
         if (previousSignedInRef.current && !isSignedIn) {
-            broadcastLogout();
+            if (!externalLogoutInFlightRef.current) {
+                broadcastLogout();
+            }
             clearAuthStateOgRedirectVedBehov(queryClient, pathname);
         }
 

@@ -32,6 +32,8 @@ import {
   LogoutResponseSchema,
   ProfileUpdateResponseSchema,
   ProfileUpdateWithUsernameSchema,
+  OAuthRelinkHintQuerySchema,
+  OAuthRelinkHintResponseSchema,
   UsernameCheckQuerySchema,
   UsernameCheckResponseSchema,
   SYNC_CONFLICT_TYPES,
@@ -81,7 +83,7 @@ import {
   upsertWebPushSubscription,
   WebPushSubscriptionConflictError,
 } from "../../services/webPush.service.js";
-import { clerkUserExistsInCurrentInstance } from "./clerkAuth.js";
+import { clerkUserExistsInCurrentInstance, resolveOAuthRelinkHint } from "./clerkAuth.js";
 import { getCurrentClerkEnv } from "./relinkGuard.js";
 import { isProd } from "../../utils/env.js";
 
@@ -329,7 +331,7 @@ router.get("/username/check", rateLimitUsernameCheck, async (req, res) => {
     const existingUser = await User.findOne({
       usernameNormalized: sanitized.usernameNormalized,
       deletedAt: { $exists: false },
-    }).select("_id email clerkId clerkEnv");
+    }).select("_id email clerkId clerkEnv oauthAccounts");
 
     let available = !existingUser;
     if (existingUser && normalizedEmail) {
@@ -339,8 +341,16 @@ router.get("/username/check", rateLimitUsernameCheck, async (req, res) => {
         process.env.RELINK_DEV_GATE_DISABLED === "true" ||
         (existingUser.clerkEnv === currentClerkEnv && currentClerkEnv !== "unknown");
 
-      const samePrimaryEmail = existingUser.email?.toLowerCase().trim() === normalizedEmail;
-      if (samePrimaryEmail && envAllowsRelink && existingUser.clerkId) {
+      const knownEmails = new Set(
+        [
+          existingUser.email?.toLowerCase().trim(),
+          ...(existingUser.oauthAccounts ?? [])
+            .map((account) => account.email?.toLowerCase().trim())
+            .filter(Boolean),
+        ].filter(Boolean),
+      );
+      const sameKnownEmail = knownEmails.has(normalizedEmail);
+      if (sameKnownEmail && envAllowsRelink && existingUser.clerkId) {
         const existsInCurrentClerk = await clerkUserExistsInCurrentInstance(existingUser.clerkId);
         if (!existsInCurrentClerk) {
           available = true;
@@ -365,6 +375,62 @@ router.get("/username/check", rateLimitUsernameCheck, async (req, res) => {
     return sendUnknownError(res, error, {
       kontekst: "sjekk av brukernavn",
       melding: "Kunne ikke sjekke brukernavn. Prøv igjen.",
+    });
+  }
+});
+
+// GET /oauth-relink-hint — verifiser pending Clerk sign-up og returner lokal profil
+// som kan brukes til å auto-fullføre username-kravet ved kryssmiljø-relink.
+// Konstant forsinkelse (som /username/check) for å forhindre timing-basert e-post-enumeration.
+router.get("/oauth-relink-hint", rateLimitUsernameCheck, async (req, res) => {
+  const start = Date.now();
+  try {
+    const parsed = OAuthRelinkHintQuerySchema.safeParse({
+      signUpAttemptId: req.query.signUpAttemptId,
+      email: req.query.email,
+    });
+    if (!parsed.success) {
+      const elapsed = Date.now() - start;
+      if (elapsed < USERNAME_CHECK_MIN_DELAY_MS) {
+        await new Promise((r) => setTimeout(r, USERNAME_CHECK_MIN_DELAY_MS - elapsed));
+      }
+      return sendZodError(res, parsed.error, "OAuth re-link hint");
+    }
+
+    const hint = await resolveOAuthRelinkHint(
+      parsed.data.signUpAttemptId,
+      parsed.data.email,
+    );
+
+    const elapsed = Date.now() - start;
+    if (elapsed < USERNAME_CHECK_MIN_DELAY_MS) {
+      await new Promise((r) => setTimeout(r, USERNAME_CHECK_MIN_DELAY_MS - elapsed));
+    }
+
+    if (!hint) {
+      return res.json(
+        OAuthRelinkHintResponseSchema.parse({
+          canAutoComplete: false,
+        }),
+      );
+    }
+
+    return res.json(
+      OAuthRelinkHintResponseSchema.parse({
+        canAutoComplete: true,
+        username: hint.username,
+        ...(hint.firstName ? { firstName: hint.firstName } : {}),
+        ...(hint.lastName ? { lastName: hint.lastName } : {}),
+      }),
+    );
+  } catch (error) {
+    const elapsed = Date.now() - start;
+    if (elapsed < USERNAME_CHECK_MIN_DELAY_MS) {
+      await new Promise((r) => setTimeout(r, USERNAME_CHECK_MIN_DELAY_MS - elapsed));
+    }
+    return sendUnknownError(res, error, {
+      kontekst: "henting av OAuth re-link hint",
+      melding: "Kunne ikke sjekke eksisterende konto. Prøv igjen.",
     });
   }
 });
@@ -436,8 +502,9 @@ router.post("/token", rateLimitToken, async (req, res) => {
       // slik at korrupt/utdatert kryptert verdi blir reparert.
       let lagretTokenLeselig = false;
       try {
-        lagretTokenLeselig =
-          !!bruker.canvasApiToken && decrypt(bruker.canvasApiToken) === cleanToken;
+        const decrypted = bruker.canvasApiToken ? decrypt(bruker.canvasApiToken) : null;
+        lagretTokenLeselig = decrypted != null && decrypted.length === cleanToken.length &&
+          crypto.timingSafeEqual(Buffer.from(decrypted), Buffer.from(cleanToken));
       } catch {
         lagretTokenLeselig = false;
       }
