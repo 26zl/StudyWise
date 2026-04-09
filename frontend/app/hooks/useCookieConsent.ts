@@ -40,11 +40,14 @@ function readGuestConsentFromStorage(): CookieConsentStatus {
   }
 
   try {
-    // Gjestesamtykke skal bare leve i aktiv nettleserøkt.
-    // Rydd bort eventuelle persistente legacy-verdier fra eldre kode.
-    window.localStorage.removeItem(GUEST_COOKIE_CONSENT_STORAGE_KEY);
+    // Migrer fra sessionStorage til localStorage (eldre kode brukte sessionStorage)
+    const sessionValue = window.sessionStorage.getItem(GUEST_COOKIE_CONSENT_STORAGE_KEY);
+    if (sessionValue) {
+      window.localStorage.setItem(GUEST_COOKIE_CONSENT_STORAGE_KEY, sessionValue);
+      window.sessionStorage.removeItem(GUEST_COOKIE_CONSENT_STORAGE_KEY);
+    }
     return parseCookieConsent(
-      window.sessionStorage.getItem(GUEST_COOKIE_CONSENT_STORAGE_KEY),
+      window.localStorage.getItem(GUEST_COOKIE_CONSENT_STORAGE_KEY),
     );
   } catch {
     return null;
@@ -63,7 +66,7 @@ function writeGuestConsentToStorage(consent: CookieConsentStatus): void {
       return;
     }
 
-    window.sessionStorage.setItem(GUEST_COOKIE_CONSENT_STORAGE_KEY, consent);
+    window.localStorage.setItem(GUEST_COOKIE_CONSENT_STORAGE_KEY, consent);
   } catch {
     // Ignorer lagringsfeil i låste miljøer.
   }
