@@ -13,11 +13,14 @@
  * Fallback: hvis Redis ikke er klar (cold start, lokal dev uten Redis) bruker vi
  * en in-memory ringbuffer slik at admin-fanen fortsatt fungerer single-process.
  *
+ * Viktig: modulen importerer bevisst IKKE Redis direkte. Redis importerer logger,
+ * logger importerer logBuffer, og direkte import her ville laget en sirkulær
+ * avhengighet som kan krasje oppstart når Redis er utilgjengelig.
+ *
  * IDer er Redis Stream-IDer på formatet `<ms>-<seq>`. Disse er strengt
  * monotont stigende per stream og lex-sorterbare, så frontend kan bruke siste
  * sett ID som cursor uten ekstra logikk.
  */
-import client, { isRedisReady } from "../cache/redis.js";
 
 export type LogSource = "backend" | "frontend";
 export type LogLevel = "fatal" | "error" | "warn" | "info" | "debug" | "trace";
@@ -37,6 +40,37 @@ const STREAM_KEY = "logs:buffer";
 const STREAM_MAXLEN = 500;
 const FALLBACK_CAPACITY = 500;
 
+type RedisStreamMessage = { id: string; message: Record<string, string> };
+
+type RedisLogBufferAdapter = {
+  isReady: () => boolean;
+  xAdd: (
+    key: string,
+    id: string,
+    message: Record<string, string>,
+    options: {
+      TRIM: {
+        strategy: "MAXLEN";
+        strategyModifier: "~";
+        threshold: number;
+      };
+    },
+  ) => Promise<string>;
+  xRange: (
+    key: string,
+    start: string,
+    end: string,
+    options: { COUNT: number },
+  ) => Promise<RedisStreamMessage[]>;
+  xRevRange: (
+    key: string,
+    start: string,
+    end: string,
+    options: { COUNT: number },
+  ) => Promise<RedisStreamMessage[]>;
+  xLen: (key: string) => Promise<number>;
+};
+
 const LEVEL_RANK: Record<LogLevel, number> = {
   trace: 10,
   debug: 20,
@@ -50,6 +84,11 @@ const LEVEL_RANK: Record<LogLevel, number> = {
 // (`<ms>-<seq>`) slik at kontrakten mot frontend er identisk.
 const fallbackEntries: BufferedLogEntry[] = [];
 let fallbackSeq = 0;
+let redisAdapter: RedisLogBufferAdapter | null = null;
+
+export function configureRedisLogBuffer(adapter: RedisLogBufferAdapter): void {
+  redisAdapter = adapter;
+}
 
 function makeFallbackId(): string {
   return `${Date.now()}-${fallbackSeq++}`;
@@ -77,14 +116,14 @@ class DistributedLogBuffer {
       context: partial.context,
     };
 
-    if (!isRedisReady()) {
+    if (!redisAdapter || !redisAdapter.isReady()) {
       pushFallback(entry);
       return;
     }
 
     // Fire-and-forget XADD med MAXLEN-trimming. `~` lar Redis trimme litt
     // upresist for ytelse — fortsatt bounded rundt 500.
-    void client
+    void redisAdapter
       .xAdd(
         STREAM_KEY,
         "*",
@@ -122,7 +161,7 @@ class DistributedLogBuffer {
     const limit = Math.min(Math.max(1, options?.limit ?? 200), STREAM_MAXLEN);
     const minRank = options?.minLevel ? LEVEL_RANK[options.minLevel] : 0;
 
-    if (!isRedisReady()) {
+    if (!redisAdapter || !redisAdapter.isReady()) {
       let filtered = fallbackEntries;
       if (options?.source) filtered = filtered.filter((e) => e.source === options.source);
       if (minRank) filtered = filtered.filter((e) => LEVEL_RANK[e.level] >= minRank);
@@ -136,11 +175,11 @@ class DistributedLogBuffer {
     try {
       // Med sinceId: hent alle rader etter den, eksklusivt (`(id`).
       // Uten: hent siste N med xRevRange.
-      let raw: Array<{ id: string; message: Record<string, string> }>;
+      let raw: RedisStreamMessage[];
       if (options?.sinceId) {
-        raw = await client.xRange(STREAM_KEY, `(${options.sinceId}`, "+", { COUNT: limit });
+        raw = await redisAdapter.xRange(STREAM_KEY, `(${options.sinceId}`, "+", { COUNT: limit });
       } else {
-        const rev = await client.xRevRange(STREAM_KEY, "+", "-", { COUNT: limit });
+        const rev = await redisAdapter.xRevRange(STREAM_KEY, "+", "-", { COUNT: limit });
         raw = rev.reverse();
       }
 
@@ -178,9 +217,9 @@ class DistributedLogBuffer {
   }
 
   async size(): Promise<number> {
-    if (!isRedisReady()) return fallbackEntries.length;
+    if (!redisAdapter || !redisAdapter.isReady()) return fallbackEntries.length;
     try {
-      return await client.xLen(STREAM_KEY);
+      return await redisAdapter.xLen(STREAM_KEY);
     } catch {
       return fallbackEntries.length;
     }

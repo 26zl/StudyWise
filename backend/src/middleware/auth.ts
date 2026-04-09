@@ -87,9 +87,9 @@ export async function resolveAuthentication(req: Request): Promise<AuthResolutio
     return { status: "missing_token" };
   }
 
-  // Les valgfri debug flow-korrelasjons-ID (kun dev-header)
+  // Les valgfri debug flow-korrelasjons-ID (kun dev)
   const flowId =
-    typeof req.headers["x-debug-flow-id"] === "string"
+    !isProd && typeof req.headers["x-debug-flow-id"] === "string"
       ? req.headers["x-debug-flow-id"].slice(0, 64)
       : undefined;
 

@@ -34,7 +34,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useLanguage } from "@/app/i18n";
 import { useDialogAccessibility } from "@/app/hooks/useDialogAccessibility";
-import { useMediaQuery } from "@/app/hooks/useMediaQuery";
+import {
+    MOBILE_MEDIA_QUERY,
+    useMediaQuery,
+} from "@/app/hooks/useMediaQuery";
 
 // Typer for de ulike visningene i sidebar
 export type VisningType =
@@ -78,7 +81,7 @@ export function Sidebar({
     const [renameValue, setRenameValue] = useState("");
     const [erBookmarksUtvidet, settErBookmarksUtvidet] = useState(true);
     const [erHistorikkUtvidet, settErHistorikkUtvidet] = useState(true);
-    const erMobil = useMediaQuery("(max-width: 767px)");
+    const erMobil = useMediaQuery(MOBILE_MEDIA_QUERY);
     const dialogRef = useRef<HTMLElement | null>(null);
     const closeButtonRef = useRef<HTMLButtonElement | null>(null);
     const headingId = useId();
@@ -127,13 +130,14 @@ export function Sidebar({
         router.prefetch("/account");
     }, [router]);
 
-    // Default i storen er LUKKET (matcher SSR). Åpne automatisk på desktop ved første mount.
+    // Hold sidebar-state i sync med faktisk breakpoint slik at mobil/desktop
+    // ikke driver fra hverandre ved resize eller hydration.
     const settVenstreMenyOpen = useUIStore((s) => s.settVenstreMenyOpen);
     useEffect(() => {
-        if (typeof window !== "undefined" && window.innerWidth >= 768) {
-            settVenstreMenyOpen(true);
+        if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+            settVenstreMenyOpen(!window.matchMedia(MOBILE_MEDIA_QUERY).matches);
         }
-    }, [settVenstreMenyOpen]);
+    }, [erMobil, settVenstreMenyOpen]);
 
     useEffect(() => {
         if (pendingPathname != null && pathname === pendingPathname) {
@@ -152,6 +156,12 @@ export function Sidebar({
         }
     }, [pathname, pendingVisning, aktivVisning]);
 
+    const lukkVenstreMenyHvisMobil = useCallback(() => {
+        if (erMobil) {
+            lukkVenstreMeny();
+        }
+    }, [erMobil, lukkVenstreMeny]);
+
     const handleNavigasjon = (visning: VisningType) => {
         if (pathname !== "/dashboard") {
             setPendingPathname("/dashboard");
@@ -160,9 +170,7 @@ export function Sidebar({
         }
         setPendingVisning(visning);
         byttVisning(visning);
-        if (window.innerWidth < 768) {
-            lukkVenstreMeny();
-        }
+        lukkVenstreMenyHvisMobil();
     };
     const effektivPathname = pendingPathname ?? pathname;
     const erPåDashboard = effektivPathname === "/dashboard";
@@ -336,7 +344,7 @@ export function Sidebar({
     return (
         <>
             {/* Mobil overlegg (Overlay) */}
-            {isVenstreMenyOpen && (
+            {erMobil && isVenstreMenyOpen && (
                 <button
                     type="button"
                     aria-label={t("common.actions.close")}
@@ -392,7 +400,7 @@ export function Sidebar({
                             onClick={() => {
                                 setPendingVisning(null);
                                 setPendingPathname("/oversikt");
-                                if (window.innerWidth < 768) lukkVenstreMeny();
+                                lukkVenstreMenyHvisMobil();
                             }}
                             className={`
                                 w-full flex items-center gap-3 px-5 py-3.5 rounded-xl text-left text-sm
@@ -435,9 +443,7 @@ export function Sidebar({
                             onClick={() => {
                                 setPendingVisning(null);
                                 setPendingPathname("/ai-breakdown");
-                                if (window.innerWidth < 768) {
-                                    lukkVenstreMeny();
-                                }
+                                lukkVenstreMenyHvisMobil();
                             }}
                             className={`
                                 w-full flex items-center gap-3 px-5 py-3.5 rounded-xl text-left text-sm
@@ -466,7 +472,7 @@ export function Sidebar({
                                 href="/dashboard/bokmerker"
                                 prefetch={false}
                                 onClick={() => {
-                                    if (window.innerWidth < 768) lukkVenstreMeny();
+                                    lukkVenstreMenyHvisMobil();
                                 }}
                                 className="group flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-blue-500 dark:text-slate-400 dark:hover:text-blue-400 transition-colors"
                             >
@@ -495,7 +501,7 @@ export function Sidebar({
                                 href="/dashboard/samtalehistorikk"
                                 prefetch={false}
                                 onClick={() => {
-                                    if (window.innerWidth < 768) lukkVenstreMeny();
+                                    lukkVenstreMenyHvisMobil();
                                 }}
                                 className="group flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-blue-500 dark:text-slate-400 dark:hover:text-blue-400 transition-colors"
                             >
@@ -523,7 +529,7 @@ export function Sidebar({
                                 href="/dashboard/samtalehistorikk"
                                 prefetch={false}
                                 onClick={() => {
-                                    if (window.innerWidth < 768) lukkVenstreMeny();
+                                    lukkVenstreMenyHvisMobil();
                                 }}
                                 className="mt-1 block px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                             >
@@ -595,7 +601,7 @@ export function Sidebar({
                         aria-current={effektivPathname === "/account" || effektivPathname.startsWith("/account/") ? "page" : undefined}
                         onClick={() => {
                             setPendingVisning(null);
-                            if (window.innerWidth < 768) lukkVenstreMeny();
+                            lukkVenstreMenyHvisMobil();
                         }}
                         className={`
                             w-full flex items-center gap-3 px-5 py-3.5 rounded-xl text-left text-sm

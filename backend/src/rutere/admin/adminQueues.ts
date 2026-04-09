@@ -13,6 +13,7 @@ import {
   AdminQueueJobsQuerySchema,
   AdminQueueJobsResponseSchema,
   AdminQueueOverviewResponseSchema,
+  AdminQueueStateResponseSchema,
   type AdminQueueJob,
   type QueueJobStatus,
 } from "common/admin";
@@ -80,7 +81,24 @@ async function jobToDto(
     finishedOn: job.finishedOn,
     failedReason: job.failedReason,
     delay: job.opts.delay,
+    stacktrace: Array.isArray(job.stacktrace) && job.stacktrace.length > 0
+      ? job.stacktrace.slice(-5)
+      : undefined,
   };
+}
+
+/**
+ * Tell dead-letter jobs: failed jobs som har brukt opp alle retry-forsøk.
+ * Henter maks 100 failed jobs og filtrerer på attemptsMade >= maxAttempts.
+ */
+async function countDeadLetterJobs(q: ReturnType<typeof getQueueByName>): Promise<number> {
+  if (!q) return 0;
+  try {
+    const failedJobs = await q.getJobs(["failed"], 0, 99, false);
+    return failedJobs.filter((j) => j.attemptsMade >= (j.opts.attempts ?? 1)).length;
+  } catch {
+    return 0;
+  }
 }
 
 router.get("/queues/overview", async (_req, res) => {
@@ -88,15 +106,18 @@ router.get("/queues/overview", async (_req, res) => {
     const queues = getAllQueues();
     const overview = await Promise.all(
       queues.map(async (q) => {
-        const counts = await q.getJobCounts(
-          "waiting",
-          "active",
-          "delayed",
-          "completed",
-          "failed",
-          "paused",
-        );
-        const isPaused = await q.isPaused();
+        const [counts, isPaused, deadLetterCount] = await Promise.all([
+          q.getJobCounts(
+            "waiting",
+            "active",
+            "delayed",
+            "completed",
+            "failed",
+            "paused",
+          ),
+          q.isPaused(),
+          countDeadLetterJobs(q),
+        ]);
         return {
           name: q.name,
           counts: {
@@ -108,6 +129,7 @@ router.get("/queues/overview", async (_req, res) => {
             paused: counts.paused ?? 0,
           },
           isPaused,
+          deadLetterCount,
         };
       }),
     );
@@ -146,6 +168,62 @@ router.get("/queues/:name/jobs", async (req, res) => {
     return res.json(payload);
   } catch (err) {
     return sendUnknownError(res, err, { kontekst: "admin.queues.jobs" });
+  }
+});
+
+router.post("/queues/:name/pause", requireRecentAuth, async (req, res) => {
+  const queueName = String(req.params.name);
+  const queue = getQueueByName(queueName);
+  if (!queue) return apiError.notFound(res, "Ukjent kø");
+
+  try {
+    await queue.pause();
+
+    void audit({
+      actorUserId: req.user?.id ?? "unknown",
+      action: AUDIT_ACTIONS.ADMIN_ACTION,
+      category: "admin",
+      outcome: "success",
+      role: req.actorRole,
+      metadata: {
+        subAction: "queue.pause",
+        queue: queue.name,
+      },
+      req,
+    });
+
+    return res.json(AdminQueueStateResponseSchema.parse({ success: true, isPaused: true }));
+  } catch (err) {
+    logger.error({ err, queue: queue.name }, "Admin queue pause feilet");
+    return sendUnknownError(res, err, { kontekst: "admin.queues.pause" });
+  }
+});
+
+router.post("/queues/:name/resume", requireRecentAuth, async (req, res) => {
+  const queueName = String(req.params.name);
+  const queue = getQueueByName(queueName);
+  if (!queue) return apiError.notFound(res, "Ukjent kø");
+
+  try {
+    await queue.resume();
+
+    void audit({
+      actorUserId: req.user?.id ?? "unknown",
+      action: AUDIT_ACTIONS.ADMIN_ACTION,
+      category: "admin",
+      outcome: "success",
+      role: req.actorRole,
+      metadata: {
+        subAction: "queue.resume",
+        queue: queue.name,
+      },
+      req,
+    });
+
+    return res.json(AdminQueueStateResponseSchema.parse({ success: true, isPaused: false }));
+  } catch (err) {
+    logger.error({ err, queue: queue.name }, "Admin queue resume feilet");
+    return sendUnknownError(res, err, { kontekst: "admin.queues.resume" });
   }
 });
 

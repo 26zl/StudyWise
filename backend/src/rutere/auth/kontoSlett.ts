@@ -194,44 +194,41 @@ export async function deleteAccountData(
     await session.endSession();
   }
 
-  // Slett KB-vektorer fra Pinecone (best-effort, logger feil)
+  // Slett alle Pinecone-vektorer (KB + Canvas-innhold) og legg i retry-kø samlet ved feil.
+  // Konsolidert til én enqueue for å unngå at feil i en av to separate enqueue-kall
+  // fører til at kbBaseIds går tapt fra retry-jobben.
+  const vectorErrors: string[] = [];
+
   try {
     await deleteAllKBContentForUser(userId, kbBaseIds);
   } catch (kbCleanupError) {
     vectorCleanupSucceeded = false;
+    const msg = kbCleanupError instanceof Error ? kbCleanupError.message : "KB Pinecone-opprydding feilet";
+    vectorErrors.push(`KB: ${msg}`);
     logger.error(
       { err: kbCleanupError, userId },
-      "KB Pinecone-opprydding feilet under kontosletting — legger i retry-kø",
+      "KB Pinecone-opprydding feilet under kontosletting",
     );
-    try {
-      await enqueueVectorDeletionRetry({
-        userId,
-        kbBaseIds,
-        lastError: kbCleanupError instanceof Error
-          ? kbCleanupError.message
-          : "KB Pinecone-opprydding feilet",
-      });
-    } catch (retryEnqueueError) {
-      logger.error(
-        { err: retryEnqueueError, userId },
-        "Klarte ikke å legge KB vektor-sletting i retry-kø",
-      );
-    }
   }
 
   try {
     await deleteStoredUserVectors(userId);
   } catch (cleanupError) {
     vectorCleanupSucceeded = false;
+    const msg = cleanupError instanceof Error ? cleanupError.message : "Pinecone-opprydding feilet";
+    vectorErrors.push(`Vektorer: ${msg}`);
     logger.error(
       { err: cleanupError, userId },
-      "Kontosletting fullforte lokal sletting, men Pinecone-opprydding feilet — legger i retry-kø",
+      "Pinecone vektor-opprydding feilet under kontosletting",
     );
+  }
+
+  if (vectorErrors.length > 0) {
     try {
       await enqueueVectorDeletionRetry({
         userId,
         kbBaseIds,
-        lastError: cleanupError instanceof Error ? cleanupError.message : "Pinecone-opprydding feilet",
+        lastError: vectorErrors.join("; "),
       });
     } catch (retryEnqueueError) {
       logger.error(

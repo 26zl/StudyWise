@@ -15,6 +15,7 @@ import {
   AdminContactMessageUpdateSchema,
 } from "common/admin";
 import { ContactMessage } from "../../database/models/ContactMessage.js";
+import { requireRecentAuth } from "../../middleware/auth.js";
 import { apiError, requireUserId, sendUnknownError, sendZodError } from "../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import { logger } from "../../utils/logger.js";
@@ -92,7 +93,7 @@ router.get("/contact/messages", async (req, res) => {
 });
 
 // ── PATCH /contact/messages/:id ─────────────────────────────────────────────
-router.patch("/contact/messages/:id", async (req, res) => {
+router.patch("/contact/messages/:id", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
 
@@ -154,7 +155,7 @@ router.patch("/contact/messages/:id", async (req, res) => {
 });
 
 // ── DELETE /contact/messages/:id ────────────────────────────────────────────
-router.delete("/contact/messages/:id", async (req, res) => {
+router.delete("/contact/messages/:id", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
 

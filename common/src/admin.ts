@@ -80,6 +80,17 @@ export const AdminSlettBrukerResponseSchema = z.object({
 
 const CountSchema = z.number().int().min(0);
 const MetricSchema = z.number().min(0);
+const QueryDateValueSchema = z.string().trim().min(1).max(40);
+
+export const AdminAuditCategorySchema = z.enum([
+  "auth",
+  "profile",
+  "integration",
+  "admin",
+  "security",
+  "privacy",
+  "ki",
+]);
 
 export const AdminStatsResponseSchema = z.object({
   brukere: z.object({
@@ -186,18 +197,22 @@ export const AdminStatsResponseSchema = z.object({
 export const AdminAuditQuerySchema = z.object({
   limit: PaginationQueryValueSchema.optional(),
   offset: PaginationQueryValueSchema.optional(),
-  category: z.string().trim().max(50).optional(),
+  category: AdminAuditCategorySchema.optional(),
   outcome: z.enum(["success", "failure"]).optional(),
   /** Filter på targetUserId — for å hente errors knyttet til en spesifikk bruker. */
   targetUserId: z.string().trim().max(64).optional(),
   /** Filter på actorUserId — komplementært til targetUserId. */
   actorUserId: z.string().trim().max(64).optional(),
+  /** ISO-dato eller YYYY-MM-DD for start av tidsvindu. */
+  from: QueryDateValueSchema.optional(),
+  /** ISO-dato eller YYYY-MM-DD for slutt av tidsvindu. */
+  to: QueryDateValueSchema.optional(),
 });
 
 export const AdminAuditItemSchema = z.object({
   id: z.string(),
   action: z.string(),
-  category: z.string(),
+  category: AdminAuditCategorySchema,
   outcome: z.string(),
   actorUserId: z.string(),
   targetUserId: z.string().optional(),
@@ -295,6 +310,51 @@ export const AdminLangsmithRunDetailSchema = AdminLangsmithRunSchema.extend({
   ragSources: z.array(AdminLangsmithRagSourceSchema),
   outputPreview: z.string(),
   errorMessage: z.string().optional(),
+});
+
+// ── Vedlikehold (admin) ─────────────────────────────────────────────────────
+
+export const AdminMaintenanceFullTextBackfillResponseSchema = z.object({
+  suksess: z.literal(true),
+  scannedFiles: CountSchema,
+  updatedFiles: CountSchema,
+});
+
+// ── KI-feedback (admin) ─────────────────────────────────────────────────────
+
+export const AdminFeedbackRatingSchema = z.enum(["up", "down"]);
+
+export const AdminFeedbackQuerySchema = z.object({
+  rating: AdminFeedbackRatingSchema.optional(),
+  limit: PaginationQueryValueSchema.optional(),
+});
+
+export const AdminFeedbackUserSchema = z
+  .object({
+    id: z.string(),
+    email: z.string().email().optional(),
+    username: z.string().optional(),
+  })
+  .nullable();
+
+export const AdminFeedbackItemSchema = z.object({
+  id: z.string(),
+  messageId: z.string(),
+  chatId: z.string().optional(),
+  rating: AdminFeedbackRatingSchema,
+  question: z.string().optional(),
+  answer: z.string().optional(),
+  createdAt: z.coerce.date(),
+  user: AdminFeedbackUserSchema,
+});
+
+export const AdminFeedbackResponseSchema = z.object({
+  rating: AdminFeedbackRatingSchema,
+  totals: z.object({
+    up: CountSchema,
+    down: CountSchema,
+  }),
+  items: z.array(AdminFeedbackItemSchema),
 });
 
 export type AdminBrukereQuery = z.infer<typeof AdminBrukereQuerySchema>;
@@ -437,6 +497,7 @@ export type AdminUnlockUserResponse = z.infer<typeof AdminUnlockUserResponseSche
 export type AdminSlettBrukerResponse = z.infer<typeof AdminSlettBrukerResponseSchema>;
 export type AdminStatsResponse = z.infer<typeof AdminStatsResponseSchema>;
 export type AdminAuditQuery = z.infer<typeof AdminAuditQuerySchema>;
+export type AdminAuditCategory = z.infer<typeof AdminAuditCategorySchema>;
 export type AdminAuditItem = z.infer<typeof AdminAuditItemSchema>;
 export type AdminAuditResponse = z.infer<typeof AdminAuditResponseSchema>;
 export type AdminLangsmithStatsResponse = z.infer<typeof AdminLangsmithStatsResponseSchema>;
@@ -448,6 +509,14 @@ export type AdminLangsmithDailyMetricsResponse = z.infer<
 export type AdminLangsmithRun = z.infer<typeof AdminLangsmithRunSchema>;
 export type AdminLangsmithRunsResponse = z.infer<typeof AdminLangsmithRunsResponseSchema>;
 export type AdminLangsmithRunDetail = z.infer<typeof AdminLangsmithRunDetailSchema>;
+export type AdminMaintenanceFullTextBackfillResponse = z.infer<
+  typeof AdminMaintenanceFullTextBackfillResponseSchema
+>;
+export type AdminFeedbackRating = z.infer<typeof AdminFeedbackRatingSchema>;
+export type AdminFeedbackQuery = z.infer<typeof AdminFeedbackQuerySchema>;
+export type AdminFeedbackUser = z.infer<typeof AdminFeedbackUserSchema>;
+export type AdminFeedbackItem = z.infer<typeof AdminFeedbackItemSchema>;
+export type AdminFeedbackResponse = z.infer<typeof AdminFeedbackResponseSchema>;
 
 // ── BullMQ-køer (admin) ─────────────────────────────────────────────────────
 
@@ -473,6 +542,8 @@ export const AdminQueueOverviewItemSchema = z.object({
   name: z.string(),
   counts: AdminQueueCountsSchema,
   isPaused: z.boolean(),
+  /** Antall jobs som har brukt opp alle retry-forsøk (dead-letter) */
+  deadLetterCount: z.number().int().min(0).optional(),
 });
 
 export const AdminQueueOverviewResponseSchema = z.object({
@@ -492,6 +563,7 @@ export const AdminQueueJobSchema = z.object({
   finishedOn: z.number().int().optional(),
   failedReason: z.string().optional(),
   delay: z.number().int().min(0).optional(),
+  stacktrace: z.array(z.string()).optional(),
 });
 
 export const AdminQueueJobsResponseSchema = z.object({
@@ -504,6 +576,11 @@ export const AdminQueueJobsQuerySchema = z.object({
   limit: PaginationQueryValueSchema.optional(),
 });
 
+export const AdminQueueStateResponseSchema = z.object({
+  success: z.literal(true),
+  isPaused: z.boolean(),
+});
+
 export type QueueJobStatus = z.infer<typeof QueueJobStatusSchema>;
 export type AdminQueueCounts = z.infer<typeof AdminQueueCountsSchema>;
 export type AdminQueueOverviewItem = z.infer<typeof AdminQueueOverviewItemSchema>;
@@ -511,6 +588,7 @@ export type AdminQueueOverviewResponse = z.infer<typeof AdminQueueOverviewRespon
 export type AdminQueueJob = z.infer<typeof AdminQueueJobSchema>;
 export type AdminQueueJobsResponse = z.infer<typeof AdminQueueJobsResponseSchema>;
 export type AdminQueueJobsQuery = z.infer<typeof AdminQueueJobsQuerySchema>;
+export type AdminQueueStateResponse = z.infer<typeof AdminQueueStateResponseSchema>;
 
 // ── Redis-admin ─────────────────────────────────────────────────────────────
 
@@ -570,3 +648,22 @@ export type AdminRedisPrefixesResponse = z.infer<typeof AdminRedisPrefixesRespon
 export type AdminRedisFlushResponse = z.infer<typeof AdminRedisFlushResponseSchema>;
 export type AdminRedisRelinkStateItem = z.infer<typeof AdminRedisRelinkStateItemSchema>;
 export type AdminRedisRelinkStatesResponse = z.infer<typeof AdminRedisRelinkStatesResponseSchema>;
+
+// ── Admin mutasjons-responser ───────────────────────────────────────────────
+
+export const AdminRevokeSessionsResponseSchema = z.object({
+  success: z.literal(true),
+  revoked: z.number().int().min(0),
+});
+export type AdminRevokeSessionsResponse = z.infer<typeof AdminRevokeSessionsResponseSchema>;
+
+export const AdminSuccessResponseSchema = z.object({
+  success: z.literal(true),
+});
+export type AdminSuccessResponse = z.infer<typeof AdminSuccessResponseSchema>;
+
+export const AdminRedisFlushResultSchema = z.object({
+  prefix: z.string(),
+  deletedCount: z.number().int().min(0),
+});
+export type AdminRedisFlushResult = z.infer<typeof AdminRedisFlushResultSchema>;

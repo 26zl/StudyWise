@@ -302,7 +302,7 @@ app.use(
 app.use(beskytteMotCsrf);
 
 // Clerk-only auth: protected routes require Authorization: Bearer <clerk_session_token>
-const offentligSti = new Set(["/health", "/ready", "/health/dependencies"]);
+const offentligSti = new Set(["/health", "/ready"]);
 
 // Offentlige API-ruter (monteres FØR auth-middleware)
 import { contactRouter } from "./rutere/contact/contact.js";
@@ -339,7 +339,8 @@ app.get("/ready", (_req, res) => {
 });
 
 // /health/dependencies = status for eksterne og ikke-kritiske avhengigheter.
-app.get("/health/dependencies", (_req, res) => {
+// Krever admin-rolle for å unngå å lekke intern driftsinformasjon.
+app.get("/health/dependencies", requireRole("admin"), (_req, res) => {
   return res.json(getDependenciesHealth());
 });
 
@@ -364,15 +365,16 @@ app.use("/api/quiz", noCache, quizRouter);
 app.use("/api/flashcards", noCache, flashcardsRouter);
 app.use("/api/kb", noCache, knowledgeBaseRouter);
 
-// Admin: krever requireAuth (allerede kjørt) + requireRole("admin")
-app.use("/api/admin", rateLimitMe, requireRole("admin"), adminAuditRouter);
-app.use("/api/admin", rateLimitMe, requireRole("admin"), adminBrukereRouter);
-app.use("/api/admin", rateLimitMe, requireRole("admin"), adminStatsRouter);
-app.use("/api/admin", rateLimitMe, requireRole("admin"), adminQueuesRouter);
-app.use("/api/admin", rateLimitMe, requireRole("admin"), adminRedisRouter);
-app.use("/api/admin", rateLimitMe, requireRole("admin"), adminLangsmithRouter);
-app.use("/api/admin", rateLimitMe, requireRole("admin"), adminContactRouter);
-app.use("/api/admin", rateLimitMe, requireRole("admin"), adminLogsRouter);
+// Admin: krever requireAuth (allerede kjørt) + requireRole("admin") + noCache
+// fordi svarene inneholder sensitiv drifts-, bruker- og revisjonsdata.
+app.use("/api/admin", noCache, rateLimitMe, requireRole("admin"), adminAuditRouter);
+app.use("/api/admin", noCache, rateLimitMe, requireRole("admin"), adminBrukereRouter);
+app.use("/api/admin", noCache, rateLimitMe, requireRole("admin"), adminStatsRouter);
+app.use("/api/admin", noCache, rateLimitMe, requireRole("admin"), adminQueuesRouter);
+app.use("/api/admin", noCache, rateLimitMe, requireRole("admin"), adminRedisRouter);
+app.use("/api/admin", noCache, rateLimitMe, requireRole("admin"), adminLangsmithRouter);
+app.use("/api/admin", noCache, rateLimitMe, requireRole("admin"), adminContactRouter);
+app.use("/api/admin", noCache, rateLimitMe, requireRole("admin"), adminLogsRouter);
 
 
 // Debug-ruter (kun development, krever auth)

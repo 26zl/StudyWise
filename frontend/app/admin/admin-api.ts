@@ -8,9 +8,11 @@ import {
   AdminBrukerListeResponseSchema,
   AdminEndreRolleResponseSchema,
   AdminEndreRolleSchema,
+  AdminFeedbackResponseSchema,
   AdminLangsmithDailyMetricsResponseSchema,
   AdminLangsmithOverviewResponseSchema,
   AdminLangsmithRunDetailSchema,
+  AdminMaintenanceFullTextBackfillResponseSchema,
   AdminBrukerDetaljSchema,
   AdminContactMessageListResponseSchema,
   AdminContactMessageSchema,
@@ -19,13 +21,18 @@ import {
   AdminLangsmithRunsResponseSchema,
   AdminQueueJobsResponseSchema,
   AdminQueueOverviewResponseSchema,
+  AdminQueueStateResponseSchema,
   AdminRedisInfoResponseSchema,
   AdminRedisPrefixesResponseSchema,
   AdminRedisRelinkStatesResponseSchema,
   AdminSlettBrukerResponseSchema,
   AdminStatsResponseSchema,
+  AdminRevokeSessionsResponseSchema,
+  AdminSuccessResponseSchema,
+  AdminRedisFlushResultSchema,
 } from "common/admin";
 import type {
+  AdminAuditCategory,
   AdminAuditItem,
   AdminAuditResponse,
   AdminBruker,
@@ -34,6 +41,10 @@ import type {
   AdminContactMessage,
   AdminContactMessageListResponse,
   AdminEndreRollePayload,
+  AdminFeedbackItem,
+  AdminFeedbackRating,
+  AdminFeedbackResponse,
+  AdminMaintenanceFullTextBackfillResponse,
   ContactMessageStatus,
   AdminLangsmithDailyMetricsResponse,
   AdminLangsmithOverviewResponse,
@@ -43,6 +54,7 @@ import type {
   AdminQueueJobsResponse,
   AdminQueueOverviewItem,
   AdminQueueOverviewResponse,
+  AdminQueueStateResponse,
   AdminRedisInfoResponse,
   AdminRedisPrefix,
   AdminRedisPrefixesResponse,
@@ -77,6 +89,20 @@ export function useAdminStats() {
       return AdminStatsResponseSchema.parse(await res.json());
     },
     staleTime: 30_000,
+  });
+}
+
+export function useBackfillFullText() {
+  return useMutation({
+    mutationFn: async (): Promise<AdminMaintenanceFullTextBackfillResponse> => {
+      const res = await fetchApi("/api/admin/maintenance/backfill-fulltext", {
+        method: "POST",
+      });
+      if (!res.ok) {
+        await throwAdminApiError(res, "Kunne ikke kjøre fulltekst-backfill");
+      }
+      return AdminMaintenanceFullTextBackfillResponseSchema.parse(await res.json());
+    },
   });
 }
 
@@ -179,15 +205,17 @@ export function useAdminAudit(
   params: {
     limit?: number;
     offset?: number;
-    category?: string;
+    category?: AdminAuditCategory;
     outcome?: "success" | "failure";
     targetUserId?: string;
     actorUserId?: string;
+    from?: string;
+    to?: string;
   } = {},
 ) {
-  const { limit = 50, offset = 0, category, outcome, targetUserId, actorUserId } = params;
+  const { limit = 50, offset = 0, category, outcome, targetUserId, actorUserId, from, to } = params;
   return useQuery({
-    queryKey: ["admin", "audit", { limit, offset, category, outcome, targetUserId, actorUserId }],
+    queryKey: ["admin", "audit", { limit, offset, category, outcome, targetUserId, actorUserId, from, to }],
     queryFn: async (): Promise<AdminAuditResponse> => {
       const sp = new URLSearchParams();
       sp.set("limit", String(limit));
@@ -196,6 +224,8 @@ export function useAdminAudit(
       if (outcome) sp.set("outcome", outcome);
       if (targetUserId) sp.set("targetUserId", targetUserId);
       if (actorUserId) sp.set("actorUserId", actorUserId);
+      if (from) sp.set("from", from);
+      if (to) sp.set("to", to);
       const res = await fetchApi(`/api/admin/audit?${sp.toString()}`);
       if (!res.ok) throw new Error("Kunne ikke hente revisjonslogg");
       return AdminAuditResponseSchema.parse(await res.json());
@@ -237,7 +267,7 @@ export function useRevokeUserSessions() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.melding || data.feil || "Kunne ikke logge ut sesjoner");
       }
-      return res.json() as Promise<{ success: true; revoked: number }>;
+      return AdminRevokeSessionsResponseSchema.parse(await res.json());
     },
   });
 }
@@ -252,7 +282,7 @@ export function useResendVerification() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.melding || data.feil || "Kunne ikke sende verifiseringsepost");
       }
-      return res.json() as Promise<{ success: true }>;
+      return AdminSuccessResponseSchema.parse(await res.json());
     },
   });
 }
@@ -389,6 +419,44 @@ export function useRetryQueueJob() {
   });
 }
 
+export function usePauseQueue() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (queueName: string): Promise<AdminQueueStateResponse> => {
+      const res = await fetchApi(
+        `/api/admin/queues/${encodeURIComponent(queueName)}/pause`,
+        { method: "POST" },
+      );
+      if (!res.ok) {
+        await throwAdminApiError(res, "Kunne ikke pause kø");
+      }
+      return AdminQueueStateResponseSchema.parse(await res.json());
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "queues"] });
+    },
+  });
+}
+
+export function useResumeQueue() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (queueName: string): Promise<AdminQueueStateResponse> => {
+      const res = await fetchApi(
+        `/api/admin/queues/${encodeURIComponent(queueName)}/resume`,
+        { method: "POST" },
+      );
+      if (!res.ok) {
+        await throwAdminApiError(res, "Kunne ikke starte køen igjen");
+      }
+      return AdminQueueStateResponseSchema.parse(await res.json());
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "queues"] });
+    },
+  });
+}
+
 export function useRemoveQueueJob() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -448,7 +516,7 @@ export function useRedisFlushPrefix() {
       if (!res.ok) {
         await throwAdminApiError(res, "Kunne ikke tømme prefix");
       }
-      return res.json() as Promise<{ prefix: string; deletedCount: number }>;
+      return AdminRedisFlushResultSchema.parse(await res.json());
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "redis"] });
@@ -557,7 +625,7 @@ export function useDeleteContactMessage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.melding || data.feil || "Kunne ikke slette melding");
       }
-      return res.json() as Promise<{ success: true }>;
+      return AdminSuccessResponseSchema.parse(await res.json());
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "contact-messages"] });
@@ -565,10 +633,37 @@ export function useDeleteContactMessage() {
   });
 }
 
+// ── Feedback (admin) ────────────────────────────────────────────────────────
+
+export function useAdminFeedback(
+  params: {
+    rating?: AdminFeedbackRating;
+    limit?: number;
+  } = {},
+) {
+  const { rating = "down", limit = 100 } = params;
+  return useQuery({
+    queryKey: ["admin", "feedback", { rating, limit }],
+    queryFn: async (): Promise<AdminFeedbackResponse> => {
+      const sp = new URLSearchParams();
+      sp.set("rating", rating);
+      sp.set("limit", String(limit));
+      const res = await fetchApi(`/api/admin/feedback?${sp.toString()}`);
+      if (!res.ok) throw new Error("Kunne ikke hente feedback");
+      return AdminFeedbackResponseSchema.parse(await res.json());
+    },
+    staleTime: 10_000,
+  });
+}
+
 export type {
+  AdminAuditCategory,
   AdminBruker,
   AdminStatsResponse,
   AdminAuditItem,
+  AdminFeedbackItem,
+  AdminFeedbackRating,
+  AdminMaintenanceFullTextBackfillResponse,
   AdminLangsmithOverviewResponse,
   AdminLangsmithRunsResponse,
   AdminLangsmithRunDetail,

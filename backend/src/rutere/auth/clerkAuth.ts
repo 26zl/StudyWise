@@ -681,8 +681,10 @@ async function getClerkProfile(
       authProviderSet.add("microsoft");
     }
 
-    // Lagre OAuth-konto med providerAccountId og e-post for å forhindre at samme konto brukes på flere brukere
-    if (mappedProvider && account.providerUserId) {
+    // Lagre OAuth-konto med providerAccountId og e-post for å forhindre at samme konto brukes på flere brukere.
+    // Clerk kan gi ID via providerUserId eller externalId avhengig av tilkoblingsmetode.
+    const accountId = account.providerUserId || (account as unknown as Record<string, unknown>).externalId;
+    if (mappedProvider && accountId) {
       const oauthEmail = (account as unknown as Record<string, unknown>).emailAddress;
       const hasValidEmail = typeof oauthEmail === "string" && oauthEmail.includes("@");
       if (!hasValidEmail) {
@@ -693,11 +695,16 @@ async function getClerkProfile(
       }
       oauthAccounts.push({
         provider: mappedProvider,
-        providerAccountId: account.providerUserId,
+        providerAccountId: String(accountId),
         ...(hasValidEmail
           ? { email: (oauthEmail as string).toLowerCase().trim() }
           : {}),
       });
+    } else if (mappedProvider && !accountId) {
+      logger.warn(
+        { provider: mappedProvider, clerkUserId, verification: account.verification?.status },
+        "OAuth-konto fra Clerk mangler providerUserId og externalId — kan ikke lagre i oauthAccounts",
+      );
     }
   }
 

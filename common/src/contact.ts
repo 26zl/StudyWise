@@ -24,7 +24,7 @@ export const KontaktAttachmentSchema = z.object({
     .int()
     .positive()
     .max(KONTAKT_MAX_ATTACHMENT_SIZE_BYTES),
-  innholdBase64: z.string().trim().min(1),
+  innholdBase64: z.string().trim().min(1).max(Math.ceil(KONTAKT_MAX_ATTACHMENT_SIZE_BYTES * 4 / 3) + 4),
 });
 
 /**

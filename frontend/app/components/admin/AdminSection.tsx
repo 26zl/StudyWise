@@ -5,6 +5,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useQueryState, parseAsStringLiteral } from "nuqs";
 import {
   Users,
   BarChart3,
@@ -59,8 +60,9 @@ import { LoadingSpinner } from "@/app/components/ui/Loading";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { showToast, toast } from "@/app/components/ui/Toaster";
 import { formaterDatoLong, formaterDatoOgTid, formaterTall } from "@/app/lib/dato";
-import { fetchApi } from "@/app/lib/apiClient";
+import { downloadAuthedFile, fetchApi } from "@/app/lib/apiClient";
 import {
+  useBackfillFullText,
   useAdminStats,
   useAdminBrukere,
   type AdminBrukereStatusFilter,
@@ -83,24 +85,45 @@ import {
   useClearLangsmithCache,
   useQueueOverview,
   useQueueJobs,
+  usePauseQueue,
   useRetryQueueJob,
   useRemoveQueueJob,
+  useResumeQueue,
   useRedisInfo,
   useRedisPrefixes,
   useRedisFlushPrefix,
   useRedisRelinkStates,
   useClearRedisRelinkState,
+  useAdminFeedback,
 } from "@/app/admin/admin-api";
 import type {
+  AdminAuditCategory,
   AdminBruker,
   AdminContactMessage,
+  AdminFeedbackItem,
+  AdminFeedbackRating,
+  AdminMaintenanceFullTextBackfillResponse,
   AdminQueueOverviewItem,
   AdminRedisPrefix,
   AdminRedisRelinkStateItem,
   ContactMessageStatus,
+  QueueJobStatus,
 } from "@/app/admin/admin-api";
 
-type AdminFane = "stats" | "observability" | "queues" | "redis" | "users" | "inbox" | "audit" | "logs" | "feedback";
+const GYLDIGE_ADMIN_FANER = [
+  "stats",
+  "observability",
+  "queues",
+  "redis",
+  "users",
+  "inbox",
+  "audit",
+  "logs",
+  "feedback",
+  "maintenance",
+] as const;
+
+type AdminFane = (typeof GYLDIGE_ADMIN_FANER)[number];
 type LangsmithStatusFilter = "all" | "success" | "error";
 
 type LangsmithRunRow = {
@@ -214,6 +237,97 @@ function StatSeksjon({
           />
         ))}
       </div>
+    </section>
+  );
+}
+
+function MaintenanceFane() {
+  const { language, t } = useLanguage();
+  const backfillMutation = useBackfillFullText();
+  const [sisteResultat, setSisteResultat] =
+    useState<AdminMaintenanceFullTextBackfillResponse | null>(null);
+
+  const handleBackfill = () => {
+    visBekreftelsesToast({
+      t,
+      melding: t("admin.maintenance.backfill.confirm"),
+      handlingstekst: t("admin.maintenance.backfill.action"),
+      onBekreft: () => {
+        backfillMutation.mutate(undefined, {
+          onSuccess: (result) => {
+            setSisteResultat(result);
+            showToast.success(t("admin.maintenance.backfill.success"));
+          },
+          onError: (error) =>
+            showToast.error(
+              t("admin.maintenance.backfill.failed"),
+              hentFeilmelding(error, t("admin.maintenance.backfill.failed")),
+            ),
+        });
+      },
+    });
+  };
+
+  return (
+    <section className="space-y-4">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+              <Zap size={18} />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+                {t("admin.maintenance.title")}
+              </h2>
+              <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
+                {t("admin.maintenance.description")}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleBackfill}
+            disabled={backfillMutation.isPending}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-amber-500 dark:hover:bg-amber-600"
+          >
+            <RefreshCcw size={15} className={backfillMutation.isPending ? "animate-spin" : ""} />
+            {t("admin.maintenance.backfill.action")}
+          </button>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+            {t("admin.maintenance.backfill.cardTitle")}
+          </p>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            {t("admin.maintenance.backfill.cardDescription")}
+          </p>
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+            {t("admin.maintenance.backfill.note")}
+          </p>
+        </div>
+      </div>
+
+      {sisteResultat && (
+        <StatSeksjon
+          title={t("admin.maintenance.lastResult")}
+          language={language}
+          stats={[
+            {
+              label: t("admin.maintenance.backfill.scannedFiles"),
+              verdi: sisteResultat.scannedFiles,
+              ikon: FileText,
+            },
+            {
+              label: t("admin.maintenance.backfill.updatedFiles"),
+              verdi: sisteResultat.updatedFiles,
+              ikon: CheckCircle2,
+            },
+          ]}
+        />
+      )}
     </section>
   );
 }
@@ -743,7 +857,7 @@ function BrukerDetaljModal({ brukerId, onClose }: { brukerId: string; onClose: (
                 }
               />
               <DetaljRad label={t("admin.users.role")} value={data.rolle} />
-              <DetaljRad label="ID" value={data.id} mono />
+              <DetaljRad label={t("admin.users.detailsId")} value={data.id} mono />
               <DetaljRad
                 label={t("admin.users.created")}
                 value={formaterDatoOgTid(data.opprettet, language)}
@@ -780,8 +894,8 @@ function BrukerDetaljModal({ brukerId, onClose }: { brukerId: string; onClose: (
 
             {/* Auth */}
             <DetaljSeksjon title={t("admin.users.detailsAuth")}>
-              <DetaljRad label="Clerk ID" value={data.clerkId ?? "—"} mono />
-              <DetaljRad label="Clerk env" value={data.clerkEnv ?? "—"} />
+              <DetaljRad label={t("admin.users.detailsClerkId")} value={data.clerkId ?? "—"} mono />
+              <DetaljRad label={t("admin.users.detailsClerkEnv")} value={data.clerkEnv ?? "—"} />
               <DetaljRad
                 label={t("admin.users.detailsClerkSynced")}
                 value={
@@ -790,7 +904,7 @@ function BrukerDetaljModal({ brukerId, onClose }: { brukerId: string; onClose: (
                     : "—"
                 }
               />
-              <DetaljRad label="MFA" value={data.mfaEnabled ? "✓" : "—"} />
+              <DetaljRad label={t("admin.users.detailsMfa")} value={data.mfaEnabled ? "✓" : "—"} />
               <DetaljRad
                 label={t("admin.users.detailsAuthProviders")}
                 value={data.authProviders?.join(", ") ?? "—"}
@@ -835,23 +949,23 @@ function BrukerDetaljModal({ brukerId, onClose }: { brukerId: string; onClose: (
                 {t("admin.users.detailsActivityNote")}
               </p>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                <KountKort label="Chat-historikk" value={data.counts.chatHistory} />
-                <KountKort label="Delte chats" value={data.counts.sharedChats} />
-                <KountKort label="Oppgave-oppdelinger" value={data.counts.taskBreakdowns} />
-                <KountKort label="Arbeidsplaner" value={data.counts.arbeidsplaner} />
-                <KountKort label="Embeddings" value={data.counts.contentEmbeddings} />
-                <KountKort label="Canvas-strukturer" value={data.counts.canvasStructures} />
-                <KountKort label="Kunnskapsbaser" value={data.counts.knowledgeBases} />
-                <KountKort label="KB-chunks" value={data.counts.knowledgeBaseChunks} />
-                <KountKort label="Web push subs" value={data.counts.webPushSubscriptions} />
+                <KountKort label={t("admin.users.activityCounts.chatHistory")} value={data.counts.chatHistory} language={language} />
+                <KountKort label={t("admin.users.activityCounts.sharedChats")} value={data.counts.sharedChats} language={language} />
+                <KountKort label={t("admin.users.activityCounts.taskBreakdowns")} value={data.counts.taskBreakdowns} language={language} />
+                <KountKort label={t("admin.users.activityCounts.workPlans")} value={data.counts.arbeidsplaner} language={language} />
+                <KountKort label={t("admin.users.activityCounts.contentEmbeddings")} value={data.counts.contentEmbeddings} language={language} />
+                <KountKort label={t("admin.users.activityCounts.canvasStructures")} value={data.counts.canvasStructures} language={language} />
+                <KountKort label={t("admin.users.activityCounts.knowledgeBases")} value={data.counts.knowledgeBases} language={language} />
+                <KountKort label={t("admin.users.activityCounts.knowledgeBaseChunks")} value={data.counts.knowledgeBaseChunks} language={language} />
+                <KountKort label={t("admin.users.activityCounts.webPushSubscriptions")} value={data.counts.webPushSubscriptions} language={language} />
               </div>
             </DetaljSeksjon>
 
             {/* Integrasjoner */}
             <DetaljSeksjon title={t("admin.users.detailsIntegrations")}>
               <DetaljRad
-                label="Notion"
-                value={data.notionConfigured ? "✓ konfigurert" : "—"}
+                label={t("admin.users.detailsNotion")}
+                value={data.notionConfigured ? t("admin.users.detailsConfigured") : "—"}
               />
               <DetaljRad label={t("admin.users.detailsLanguage")} value={data.language ?? "—"} />
               <DetaljRad label={t("admin.users.detailsTheme")} value={data.theme ?? "—"} />
@@ -861,7 +975,9 @@ function BrukerDetaljModal({ brukerId, onClose }: { brukerId: string; onClose: (
             <DetaljSeksjon
               title={`${t("admin.users.detailsRecentAudit")} ${
                 data.auditFailureCount30d > 0
-                  ? `(${data.auditFailureCount30d} feil siste 30 dager)`
+                  ? t("admin.users.detailsAuditFailureCount30d", {
+                      count: formaterTall(data.auditFailureCount30d, language),
+                    })
                   : ""
               }`}
             >
@@ -943,10 +1059,20 @@ function DetaljRad({
   );
 }
 
-function KountKort({ label, value }: { label: string; value: number }) {
+function KountKort({
+  label,
+  value,
+  language,
+}: {
+  label: string;
+  value: number;
+  language: "nb" | "en";
+}) {
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-center dark:border-slate-700 dark:bg-slate-900">
-      <div className="text-lg font-semibold text-slate-900 dark:text-white">{value.toLocaleString()}</div>
+      <div className="text-lg font-semibold text-slate-900 dark:text-white">
+        {formaterTall(value, language)}
+      </div>
       <div className="text-[10px] text-slate-500 dark:text-slate-400">{label}</div>
     </div>
   );
@@ -1052,30 +1178,54 @@ function BrukereFane() {
   };
 
   const handleRevokeSessions = (bruker: AdminBruker) => {
-    if (!confirm(t("admin.users.revokeSessionsConfirm"))) return;
-    revokeSessions.mutate(bruker.id, {
-      onSuccess: (result) =>
-        showToast.success(`${t("admin.users.revokeSessionsSuccess")} (${result.revoked})`),
-      onError: (err) =>
-        showToast.error(err instanceof Error ? err.message : t("admin.users.revokeSessionsFailed")),
+    visBekreftelsesToast({
+      t,
+      melding: t("admin.users.revokeSessionsConfirm"),
+      handlingstekst: t("admin.users.revokeSessions"),
+      onBekreft: () => {
+        revokeSessions.mutate(bruker.id, {
+          onSuccess: (result) =>
+            showToast.success(`${t("admin.users.revokeSessionsSuccess")} (${result.revoked})`),
+          onError: (err) =>
+            showToast.error(
+              err instanceof Error ? err.message : t("admin.users.revokeSessionsFailed"),
+            ),
+        });
+      },
     });
   };
 
   const handleResendVerification = (bruker: AdminBruker) => {
-    if (!confirm(t("admin.users.resendVerificationConfirm"))) return;
-    resendVerification.mutate(bruker.id, {
-      onSuccess: () => showToast.success(t("admin.users.resendVerificationSuccess")),
-      onError: (err) =>
-        showToast.error(err instanceof Error ? err.message : t("admin.users.resendVerificationFailed")),
+    visBekreftelsesToast({
+      t,
+      melding: t("admin.users.resendVerificationConfirm"),
+      handlingstekst: t("admin.users.resendVerification"),
+      onBekreft: () => {
+        resendVerification.mutate(bruker.id, {
+          onSuccess: () => showToast.success(t("admin.users.resendVerificationSuccess")),
+          onError: (err) =>
+            showToast.error(
+              err instanceof Error ? err.message : t("admin.users.resendVerificationFailed"),
+            ),
+        });
+      },
     });
   };
 
   const handleUnlock = (bruker: AdminBruker) => {
-    if (!confirm(t("admin.users.unlockConfirm"))) return;
-    unlockUser.mutate(bruker.id, {
-      onSuccess: () => showToast.success(t("admin.users.unlockSuccess")),
-      onError: (err) =>
-        showToast.error(err instanceof Error ? err.message : t("admin.users.unlockFailed")),
+    visBekreftelsesToast({
+      t,
+      melding: t("admin.users.unlockConfirm"),
+      handlingstekst: t("admin.users.unlockUser"),
+      onBekreft: () => {
+        unlockUser.mutate(bruker.id, {
+          onSuccess: () => showToast.success(t("admin.users.unlockSuccess")),
+          onError: (err) =>
+            showToast.error(
+              err instanceof Error ? err.message : t("admin.users.unlockFailed"),
+            ),
+        });
+      },
     });
   };
 
@@ -1449,39 +1599,101 @@ function RevisjonsloggFane() {
   const { language, t } = useLanguage();
   const [offset, setOffset] = useState(0);
   const [outcomeFilter, setOutcomeFilter] = useState<"all" | "success" | "failure">("all");
-  const [userIdFilter, setUserIdFilter] = useState("");
-  const [debouncedUserId, setDebouncedUserId] = useState("");
-  const userIdDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<AdminAuditCategory | "all">("all");
+  const [targetUserIdFilter, setTargetUserIdFilter] = useState("");
+  const [actorUserIdFilter, setActorUserIdFilter] = useState("");
+  const [debouncedTargetUserId, setDebouncedTargetUserId] = useState("");
+  const [debouncedActorUserId, setDebouncedActorUserId] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [selectedAuditId, setSelectedAuditId] = useState<string | null>(null);
+  const filterDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const limit = 50;
-
-  const handleUserIdSearch = (value: string) => {
-    setUserIdFilter(value);
-    if (userIdDebounceRef.current) clearTimeout(userIdDebounceRef.current);
-    userIdDebounceRef.current = setTimeout(() => {
-      setDebouncedUserId(value.trim());
-      setOffset(0);
-    }, 400);
-  };
+  const kategorier: AdminAuditCategory[] = [
+    "admin",
+    "auth",
+    "integration",
+    "ki",
+    "privacy",
+    "profile",
+    "security",
+  ];
 
   useEffect(() => () => {
-    if (userIdDebounceRef.current) clearTimeout(userIdDebounceRef.current);
+    if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
   }, []);
+
+  useEffect(() => {
+    if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
+    filterDebounceRef.current = setTimeout(() => {
+      setDebouncedTargetUserId(targetUserIdFilter.trim());
+      setDebouncedActorUserId(actorUserIdFilter.trim());
+      setOffset(0);
+    }, 400);
+
+    return () => {
+      if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
+    };
+  }, [targetUserIdFilter, actorUserIdFilter]);
 
   const { data, isLoading, error } = useAdminAudit({
     limit,
     offset,
+    category: categoryFilter === "all" ? undefined : categoryFilter,
     outcome: outcomeFilter === "all" ? undefined : outcomeFilter,
-    targetUserId: debouncedUserId || undefined,
+    targetUserId: debouncedTargetUserId || undefined,
+    actorUserId: debouncedActorUserId || undefined,
+    from: fromDate || undefined,
+    to: toDate || undefined,
   });
 
   const total = data?.total ?? 0;
   const harNeste = offset + limit < total;
   const harForrige = offset > 0;
+  const valgtItem = data?.items.find((item) => item.id === selectedAuditId) ?? null;
 
-  const handleExportCsv = () => {
-    // Direkte navigasjon — fetch ville krevd ekstra Blob-håndtering for nedlastning
-    const url = "/api/admin/audit/export.csv";
-    window.open(url, "_blank", "noopener,noreferrer");
+  useEffect(() => {
+    if (!data?.items.length) {
+      setSelectedAuditId(null);
+      return;
+    }
+
+    if (!selectedAuditId || !data.items.some((item) => item.id === selectedAuditId)) {
+      setSelectedAuditId(data.items[0].id);
+    }
+  }, [data?.items, selectedAuditId]);
+
+  const handleExportCsv = async () => {
+    const sp = new URLSearchParams();
+    if (categoryFilter !== "all") sp.set("category", categoryFilter);
+    if (outcomeFilter !== "all") sp.set("outcome", outcomeFilter);
+    if (debouncedTargetUserId) sp.set("targetUserId", debouncedTargetUserId);
+    if (debouncedActorUserId) sp.set("actorUserId", debouncedActorUserId);
+    if (fromDate) sp.set("from", fromDate);
+    if (toDate) sp.set("to", toDate);
+
+    const url = `/api/admin/audit/export.csv${sp.toString() ? `?${sp.toString()}` : ""}`;
+
+    try {
+      await downloadAuthedFile(url, "audit-export.csv");
+    } catch (error) {
+      showToast.error(
+        t("admin.audit.exportFailed"),
+        hentFeilmelding(error, t("admin.audit.exportFailed")),
+      );
+    }
+  };
+
+  const resetFilters = () => {
+    setOutcomeFilter("all");
+    setCategoryFilter("all");
+    setTargetUserIdFilter("");
+    setActorUserIdFilter("");
+    setDebouncedTargetUserId("");
+    setDebouncedActorUserId("");
+    setFromDate("");
+    setToDate("");
+    setOffset(0);
   };
 
   if (isLoading) return <LoadingSpinner />;
@@ -1489,8 +1701,37 @@ function RevisjonsloggFane() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+              {t("admin.audit.title")}
+            </h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              {t("admin.audit.description")}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              <X size={14} />
+              {t("admin.audit.resetFilters")}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleExportCsv()}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              <FileUp size={14} />
+              {t("admin.audit.exportCsv")}
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
           <select
             value={outcomeFilter}
             onChange={(e) => {
@@ -1503,23 +1744,60 @@ function RevisjonsloggFane() {
             <option value="success">{t("admin.audit.outcomeSuccess")}</option>
             <option value="failure">{t("admin.audit.outcomeFailure")}</option>
           </select>
+
+          <select
+            value={categoryFilter}
+            onChange={(e) => {
+              setCategoryFilter(e.target.value as AdminAuditCategory | "all");
+              setOffset(0);
+            }}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+          >
+            <option value="all">{t("admin.audit.categoryAll")}</option>
+            {kategorier.map((kategori) => (
+              <option key={kategori} value={kategori}>
+                {kategori}
+              </option>
+            ))}
+          </select>
+
           <input
             type="text"
-            value={userIdFilter}
-            onChange={(e) => handleUserIdSearch(e.target.value)}
+            value={targetUserIdFilter}
+            onChange={(e) => setTargetUserIdFilter(e.target.value)}
             placeholder={t("admin.audit.targetUserIdPlaceholder")}
-            className="w-64 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+          />
+          <input
+            type="text"
+            value={actorUserIdFilter}
+            onChange={(e) => setActorUserIdFilter(e.target.value)}
+            placeholder={t("admin.audit.actorUserIdPlaceholder")}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+          />
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => {
+              setFromDate(e.target.value);
+              setOffset(0);
+            }}
+            aria-label={t("admin.audit.fromDate")}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+          />
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => {
+              setToDate(e.target.value);
+              setOffset(0);
+            }}
+            aria-label={t("admin.audit.toDate")}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
           />
         </div>
-        <button
-          type="button"
-          onClick={handleExportCsv}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-        >
-          <FileUp size={14} />
-          {t("admin.audit.exportCsv")}
-        </button>
       </div>
+
       <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
         <table className="w-full text-sm">
           <thead>
@@ -1528,19 +1806,28 @@ function RevisjonsloggFane() {
               <th className="px-4 py-3">{t("admin.audit.category")}</th>
               <th className="px-4 py-3">{t("admin.audit.outcome")}</th>
               <th className="px-4 py-3">{t("admin.audit.actor")}</th>
+              <th className="px-4 py-3">{t("admin.audit.target")}</th>
               <th className="px-4 py-3">{t("admin.audit.time")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
             {(!data || data.items.length === 0) ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                <td colSpan={6} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                   {t("admin.audit.noEntries")}
                 </td>
               </tr>
             ) : (
               data.items.map((item) => (
-                <tr key={item.id} className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                <tr
+                  key={item.id}
+                  onClick={() => setSelectedAuditId(item.id)}
+                  className={`cursor-pointer transition-colors ${
+                    selectedAuditId === item.id
+                      ? "bg-blue-50 dark:bg-blue-900/20"
+                      : "bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800/50"
+                  }`}
+                >
                   <td className="px-4 py-3 text-slate-900 dark:text-white font-mono text-xs">
                     {item.action}
                   </td>
@@ -1562,6 +1849,9 @@ function RevisjonsloggFane() {
                   </td>
                   <td className="px-4 py-3 text-slate-500 dark:text-slate-400 font-mono text-xs truncate max-w-30">
                     {item.actorUserId}
+                  </td>
+                  <td className="px-4 py-3 text-slate-500 dark:text-slate-400 font-mono text-xs truncate max-w-30">
+                    {item.targetUserId ?? "—"}
                   </td>
                   <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
                     {formaterDatoOgTid(item.createdAt, language)}
@@ -1598,80 +1888,145 @@ function RevisjonsloggFane() {
           </div>
         </div>
       )}
+
+      {valgtItem && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+              {t("admin.audit.detailsTitle")}
+            </h3>
+            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+              {valgtItem.category}
+            </span>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <DetaljRad label={t("admin.audit.action")} value={valgtItem.action} mono />
+            <DetaljRad label={t("admin.audit.actor")} value={valgtItem.actorUserId} mono />
+            <DetaljRad label={t("admin.audit.target")} value={valgtItem.targetUserId ?? "—"} mono />
+            <DetaljRad
+              label={t("admin.audit.role")}
+              value={valgtItem.role ?? "—"}
+            />
+          </div>
+
+          <div className="mt-4 rounded-xl bg-slate-50 p-4 dark:bg-slate-900">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                {t("admin.audit.metadata")}
+              </p>
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                {formaterDatoOgTid(valgtItem.createdAt, language)}
+              </span>
+            </div>
+            {valgtItem.metadata && Object.keys(valgtItem.metadata).length > 0 ? (
+              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-lg bg-white p-3 text-xs text-slate-700 dark:bg-slate-950 dark:text-slate-300">
+                {JSON.stringify(valgtItem.metadata, null, 2)}
+              </pre>
+            ) : (
+              <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+                {t("admin.audit.noMetadata")}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ── Feedback-fane ──────────────────────────────────────────────────────────
-type FeedbackItem = {
-  id: string;
-  rating: "up" | "down";
-  question?: string;
-  answer?: string;
-  comment?: string;
-  createdAt: string;
-  user: { id: string; email?: string; username?: string } | null;
-};
 
 function FeedbackFane() {
-  const { t } = useLanguage();
-  const [rating, setRating] = useState<"up" | "down">("down");
-  const [data, setData] = useState<{ totals: { up: number; down: number }; items: FeedbackItem[] } | null>(null);
-  const [laster, setLaster] = useState(false);
+  const { language, t } = useLanguage();
+  const [rating, setRating] = useState<AdminFeedbackRating>("down");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const { data, isLoading, error } = useAdminFeedback({
+    rating,
+    limit: 100,
+  });
 
-  useEffect(() => {
-    setLaster(true);
-    fetchApi(`/api/admin/feedback?rating=${rating}&limit=100`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setData(d))
-      .catch(() => setData(null))
-      .finally(() => setLaster(false));
-  }, [rating]);
+  if (isLoading) return <LoadingSpinner />;
+  if (error) return <FeilMelding melding={t("admin.feedback.loadFailed")} />;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        {(["down", "up"] as const).map((r) => (
-          <button
-            key={r}
-            type="button"
-            onClick={() => setRating(r)}
-            className={`px-3 py-1 rounded-lg text-sm border ${rating === r ? "bg-blue-600 text-white border-blue-600" : "border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"}`}
-          >
-            {r === "down" ? t("admin.feedback.bad") : t("admin.feedback.good")}
-            {data ? ` (${data.totals[r]})` : ""}
-          </button>
-        ))}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          {(["down", "up"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setRating(value)}
+              className={`rounded-lg border px-3 py-1 text-sm ${
+                rating === value
+                  ? "border-blue-600 bg-blue-600 text-white"
+                  : "border-slate-300 text-slate-700 dark:border-slate-700 dark:text-slate-200"
+              }`}
+            >
+              {value === "down" ? t("admin.feedback.bad") : t("admin.feedback.good")}
+              {data ? ` (${data.totals[value]})` : ""}
+            </button>
+          ))}
+        </div>
+
       </div>
 
-      {laster && <p className="text-sm text-slate-500">…</p>}
-
-      {data && data.items.length === 0 && !laster && (
-        <p className="text-sm text-slate-500 italic">{t("admin.feedback.empty")}</p>
+      {data && data.items.length === 0 && (
+        <p className="text-sm italic text-slate-500">{t("admin.feedback.empty")}</p>
       )}
 
       <ul className="space-y-3">
-        {data?.items.map((it) => (
-          <li
-            key={it.id}
-            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3"
-          >
-            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
-              <span>{it.user?.email ?? it.user?.username ?? "—"}</span>
-              <span>{new Date(it.createdAt).toLocaleString()}</span>
-            </div>
-            {it.question && (
-              <p className="text-sm text-slate-700 dark:text-slate-300 mb-1">
-                <span className="font-semibold">Q:</span> {it.question}
-              </p>
-            )}
-            {it.answer && (
-              <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-4">
-                <span className="font-semibold">A:</span> {it.answer}
-              </p>
-            )}
-          </li>
-        ))}
+        {data?.items.map((item: AdminFeedbackItem) => {
+          const expanded = expandedId === item.id;
+          return (
+            <li
+              key={item.id}
+              className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800"
+            >
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-slate-900 dark:text-white">
+                    {item.user?.email ?? item.user?.username ?? t("admin.feedback.anonymous")}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {formaterDatoOgTid(item.createdAt, language)}
+                  </p>
+                </div>
+              </div>
+
+              {item.question && (
+                <div className="mt-4 space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                    {t("admin.feedback.question")}
+                  </p>
+                  <p className="text-sm text-slate-700 dark:text-slate-300">{item.question}</p>
+                </div>
+              )}
+
+              {item.answer && (
+                <div className="mt-4 space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                    {t("admin.feedback.answer")}
+                  </p>
+                  <p className={`text-sm text-slate-600 dark:text-slate-400 ${expanded ? "" : "line-clamp-4"}`}>
+                    {item.answer}
+                  </p>
+                  {item.answer.length > 280 && (
+                    <button
+                      type="button"
+                      onClick={() => setExpandedId(expanded ? null : item.id)}
+                      className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                    >
+                      {expanded ? t("admin.feedback.showLess") : t("admin.feedback.showMore")}
+                    </button>
+                  )}
+                </div>
+              )}
+
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
@@ -1680,10 +2035,14 @@ function FeedbackFane() {
 // ── Køer-fane (BullMQ) ──────────────────────────────────────────────────────
 
 function KøerFane() {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const [valgtKø, setValgtKø] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<QueueJobStatus>("failed");
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const overviewQuery = useQueueOverview();
-  const jobsQuery = useQueueJobs(valgtKø, "failed");
+  const jobsQuery = useQueueJobs(valgtKø, statusFilter);
+  const pauseMutation = usePauseQueue();
+  const resumeMutation = useResumeQueue();
   const retryMutation = useRetryQueueJob();
   const removeMutation = useRemoveQueueJob();
 
@@ -1693,6 +2052,17 @@ function KøerFane() {
       setValgtKø(overviewQuery.data.queues[0].name);
     }
   }, [valgtKø, overviewQuery.data]);
+
+  useEffect(() => {
+    if (!jobsQuery.data?.jobs.length) {
+      setSelectedJobId(null);
+      return;
+    }
+
+    if (!selectedJobId || !jobsQuery.data.jobs.some((job) => job.id === selectedJobId)) {
+      setSelectedJobId(jobsQuery.data.jobs[0].id);
+    }
+  }, [jobsQuery.data?.jobs, selectedJobId]);
 
   const handleRetry = (jobId: string) => {
     if (!valgtKø) return;
@@ -1731,11 +2101,29 @@ function KøerFane() {
     });
   };
 
+  const handlePauseResume = (queueName: string, isPaused: boolean) => {
+    const mutation = isPaused ? resumeMutation : pauseMutation;
+    const successMessage = isPaused
+      ? t("admin.queues.actions.resumeSuccess")
+      : t("admin.queues.actions.pauseSuccess");
+    const errorMessage = isPaused
+      ? t("admin.queues.actions.resumeFailed")
+      : t("admin.queues.actions.pauseFailed");
+
+    mutation.mutate(queueName, {
+      onSuccess: () => showToast.success(successMessage),
+      onError: (error) =>
+        showToast.error(errorMessage, hentFeilmelding(error, errorMessage)),
+    });
+  };
+
   if (overviewQuery.isLoading) return <LoadingSpinner />;
   if (overviewQuery.error)
     return <FeilMelding melding={t("admin.queues.loadFailed")} />;
 
   const queues = overviewQuery.data?.queues ?? [];
+  const valgtKøData = queues.find((queue) => queue.name === valgtKø) ?? null;
+  const valgtJobb = jobsQuery.data?.jobs.find((job) => job.id === selectedJobId) ?? null;
   if (queues.length === 0)
     return <FeilMelding melding={t("admin.queues.empty")} />;
 
@@ -1778,6 +2166,12 @@ function KøerFane() {
                   </span>
                 )}
               </div>
+              {(q.deadLetterCount ?? 0) > 0 && (
+                <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                  <AlertTriangle size={13} />
+                  {t("admin.queues.deadLetterWarning", { count: q.deadLetterCount ?? 0 })}
+                </div>
+              )}
               <dl className="mt-3 grid grid-cols-3 gap-2 text-xs">
                 <KøCount label={t("admin.queues.counts.waiting")} value={q.counts.waiting} />
                 <KøCount label={t("admin.queues.counts.active")} value={q.counts.active} />
@@ -1790,21 +2184,60 @@ function KøerFane() {
         })}
       </div>
 
-      {/* Failed jobs-liste */}
-      {valgtKø && (
+      {/* Jobb-liste */}
+      {valgtKø && valgtKøData && (
         <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
-          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-              {t("admin.queues.jobsTitle")} — <span className="font-mono">{valgtKø}</span>
-            </h3>
-            <button
-              type="button"
-              onClick={() => jobsQuery.refetch()}
-              disabled={jobsQuery.isFetching}
-              className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 disabled:opacity-50"
-            >
-              <RefreshCcw size={12} className={jobsQuery.isFetching ? "animate-spin" : ""} />
-            </button>
+          <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                {t("admin.queues.jobsTitle")} — <span className="font-mono">{valgtKø}</span>
+              </h3>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value as QueueJobStatus)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                >
+                  <option value="failed">{t("admin.queues.counts.failed")}</option>
+                  <option value="waiting">{t("admin.queues.counts.waiting")}</option>
+                  <option value="active">{t("admin.queues.counts.active")}</option>
+                  <option value="delayed">{t("admin.queues.counts.delayed")}</option>
+                  <option value="completed">{t("admin.queues.counts.completed")}</option>
+                  <option value="paused">{t("admin.queues.counts.paused")}</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => handlePauseResume(valgtKøData.name, valgtKøData.isPaused)}
+                  disabled={pauseMutation.isPending || resumeMutation.isPending}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  {valgtKøData.isPaused ? <Play size={14} /> : <Pause size={14} />}
+                  {valgtKøData.isPaused
+                    ? t("admin.queues.actions.resumeQueue")
+                    : t("admin.queues.actions.pauseQueue")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => jobsQuery.refetch()}
+                  disabled={jobsQuery.isFetching}
+                  className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 disabled:opacity-50"
+                >
+                  <RefreshCcw size={12} className={jobsQuery.isFetching ? "animate-spin" : ""} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3 text-xs text-slate-500 dark:text-slate-400">
+              <span>
+                {t("admin.queues.selectedStatus")}: <strong>{statusFilter}</strong>
+              </span>
+              <span>
+                {t("admin.queues.counts.waiting")}: <strong>{formaterTall(valgtKøData.counts.waiting, language)}</strong>
+              </span>
+              <span>
+                {t("admin.queues.counts.failed")}: <strong>{formaterTall(valgtKøData.counts.failed, language)}</strong>
+              </span>
+            </div>
           </div>
           {jobsQuery.isLoading ? (
             <div className="p-4"><LoadingSpinner /></div>
@@ -1814,6 +2247,8 @@ function KøerFane() {
                 <thead className="bg-slate-50 text-xs uppercase text-slate-600 dark:bg-slate-900/40 dark:text-slate-400">
                   <tr>
                     <th className="px-4 py-2 text-left">{t("admin.queues.columns.id")}</th>
+                    <th className="px-4 py-2 text-left">{t("admin.queues.columns.name")}</th>
+                    <th className="px-4 py-2 text-left">{t("admin.queues.columns.status")}</th>
                     <th className="px-4 py-2 text-left">{t("admin.queues.columns.attempts")}</th>
                     <th className="px-4 py-2 text-left">{t("admin.queues.columns.failedReason")}</th>
                     <th className="px-4 py-2 text-left">{t("admin.queues.columns.timestamp")}</th>
@@ -1822,8 +2257,22 @@ function KøerFane() {
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                   {jobsQuery.data.jobs.map((job) => (
-                    <tr key={job.id} className="text-slate-800 dark:text-slate-200">
+                    <tr
+                      key={job.id}
+                      onClick={() => setSelectedJobId(job.id)}
+                      className={`cursor-pointer text-slate-800 dark:text-slate-200 ${
+                        selectedJobId === job.id
+                          ? "bg-blue-50 dark:bg-blue-900/20"
+                          : "bg-white dark:bg-slate-900"
+                      }`}
+                    >
                       <td className="px-4 py-2 font-mono text-xs">{job.id}</td>
+                      <td className="px-4 py-2 text-xs">{job.name}</td>
+                      <td className="px-4 py-2">
+                        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                          {job.status}
+                        </span>
+                      </td>
                       <td className="px-4 py-2">
                         {job.attemptsMade}/{job.maxAttempts}
                       </td>
@@ -1831,22 +2280,30 @@ function KøerFane() {
                         {job.failedReason ?? "—"}
                       </td>
                       <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
-                        {formaterDatoOgTid(new Date(job.timestamp))}
+                        {formaterDatoOgTid(new Date(job.timestamp), language)}
                       </td>
                       <td className="px-4 py-2 text-right">
                         <div className="inline-flex items-center gap-1">
+                          {job.status === "failed" && (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleRetry(job.id);
+                              }}
+                              disabled={retryMutation.isPending}
+                              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                            >
+                              <PlayCircle size={12} />
+                              {t("admin.queues.actions.retry")}
+                            </button>
+                          )}
                           <button
                             type="button"
-                            onClick={() => handleRetry(job.id)}
-                            disabled={retryMutation.isPending}
-                            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
-                          >
-                            <PlayCircle size={12} />
-                            {t("admin.queues.actions.retry")}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemove(job.id)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleRemove(job.id);
+                            }}
                             disabled={removeMutation.isPending}
                             className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
                           >
@@ -1865,6 +2322,97 @@ function KøerFane() {
               {t("admin.queues.noJobs")}
             </p>
           )}
+        </div>
+      )}
+
+      {valgtJobb && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+              {t("admin.queues.details.title")}
+            </h3>
+            <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
+              {valgtJobb.id}
+            </span>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <DetaljRad label={t("admin.queues.columns.name")} value={valgtJobb.name} />
+            <DetaljRad label={t("admin.queues.columns.status")} value={valgtJobb.status} />
+            <DetaljRad
+              label={t("admin.queues.columns.attempts")}
+              value={`${valgtJobb.attemptsMade}/${valgtJobb.maxAttempts}`}
+            />
+            <DetaljRad
+              label={t("admin.queues.details.delay")}
+              value={valgtJobb.delay ? `${formaterTall(valgtJobb.delay, language)} ms` : "—"}
+            />
+          </div>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-2">
+            <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-900">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                {t("admin.queues.details.timeline")}
+              </p>
+              <div className="mt-3 space-y-2">
+                <DetaljRad
+                  label={t("admin.queues.columns.timestamp")}
+                  value={formaterDatoOgTid(new Date(valgtJobb.timestamp), language)}
+                />
+                <DetaljRad
+                  label={t("admin.queues.details.processedOn")}
+                  value={
+                    valgtJobb.processedOn
+                      ? formaterDatoOgTid(new Date(valgtJobb.processedOn), language)
+                      : "—"
+                  }
+                />
+                <DetaljRad
+                  label={t("admin.queues.details.finishedOn")}
+                  value={
+                    valgtJobb.finishedOn
+                      ? formaterDatoOgTid(new Date(valgtJobb.finishedOn), language)
+                      : "—"
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-900">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                {t("admin.queues.details.failedReason")}
+              </p>
+              <p className="mt-3 text-sm text-slate-700 dark:text-slate-300">
+                {valgtJobb.failedReason ?? "—"}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-2">
+            <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-900">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                {t("admin.queues.details.payload")}
+              </p>
+              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-lg bg-white p-3 text-xs text-slate-700 dark:bg-slate-950 dark:text-slate-300">
+                {JSON.stringify(valgtJobb.data, null, 2)}
+              </pre>
+            </div>
+
+            <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-900">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                {t("admin.queues.details.stacktrace")}
+              </p>
+              {valgtJobb.stacktrace && valgtJobb.stacktrace.length > 0 ? (
+                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-lg bg-white p-3 text-xs text-slate-700 dark:bg-slate-950 dark:text-slate-300">
+                  {valgtJobb.stacktrace.join("\n\n")}
+                </pre>
+              ) : (
+                <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+                  {t("admin.queues.details.noStacktrace")}
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </section>
@@ -1898,7 +2446,7 @@ function formatUptime(seconds: number): string {
 }
 
 function RedisFane() {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const infoQuery = useRedisInfo();
   const prefixesQuery = useRedisPrefixes();
   const relinkQuery = useRedisRelinkStates();
@@ -2000,15 +2548,15 @@ function RedisFane() {
         </dl>
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
           <span>
-            {t("admin.redis.info.hits")}: <strong>{info.keyspaceHits.toLocaleString()}</strong>
+            {t("admin.redis.info.hits")}: <strong>{formaterTall(info.keyspaceHits, language)}</strong>
           </span>
           <span>
-            {t("admin.redis.info.misses")}: <strong>{info.keyspaceMisses.toLocaleString()}</strong>
+            {t("admin.redis.info.misses")}: <strong>{formaterTall(info.keyspaceMisses, language)}</strong>
           </span>
           <span>
             {t("admin.redis.info.dbSizes")}:{" "}
             {Object.entries(info.dbSizes)
-              .map(([db, n]) => `${db}=${n.toLocaleString()}`)
+              .map(([db, n]) => `${db}=${formaterTall(n, language)}`)
               .join(", ") || "—"}
           </span>
         </div>
@@ -2044,7 +2592,7 @@ function RedisFane() {
                     <td className="px-4 py-2 font-mono text-xs">{p.prefix}</td>
                     <td className="px-4 py-2">{p.label}</td>
                     <td className="px-4 py-2 text-right tabular-nums">
-                      {p.count.toLocaleString()}
+                      {formaterTall(p.count, language)}
                     </td>
                     <td className="px-4 py-2 text-right">
                       {p.canFlush ? (
@@ -2178,7 +2726,7 @@ const LOG_LEVEL_COLOR: Record<LogEntry["level"], string> = {
 };
 
 function LoggerFane() {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [paused, setPaused] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<"all" | "backend" | "frontend">("all");
@@ -2187,14 +2735,18 @@ function LoggerFane() {
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
 
-  // Aktiver frontend log forwarder + start SSE-strøm
+  // Aktiver frontend log forwarder når admin åpner logger-fanen
   useEffect(() => {
     let active = true;
+    let cleanup: (() => void) | undefined;
     void import("@/app/lib/client-logger").then(({ installAdminLogForwarder }) => {
-      if (active) installAdminLogForwarder();
+      if (active) {
+        cleanup = installAdminLogForwarder();
+      }
     });
     return () => {
       active = false;
+      cleanup?.();
     };
   }, []);
 
@@ -2310,9 +2862,7 @@ function LoggerFane() {
           entries.map((entry) => (
             <div key={entry.id} className="border-b border-slate-800/50 py-1 last:border-0">
               <span className="text-slate-500">
-                {new Date(entry.timestamp).toLocaleTimeString("nb-NO", {
-                  hour12: false,
-                })}
+                {formaterDatoOgTid(new Date(entry.timestamp), language)}
               </span>{" "}
               <span className={`font-semibold uppercase ${LOG_LEVEL_COLOR[entry.level]}`}>
                 {entry.level}
@@ -2362,13 +2912,19 @@ function InnboksFane() {
   };
 
   const handleDelete = (m: AdminContactMessage) => {
-    if (!confirm(t("admin.inbox.deleteConfirm"))) return;
-    deleteMessage.mutate(m.id, {
-      onSuccess: () => {
-        showToast.success(t("admin.inbox.deleteSuccess"));
-        if (valgtId === m.id) setValgtId(null);
+    visBekreftelsesToast({
+      t,
+      melding: t("admin.inbox.deleteConfirm"),
+      handlingstekst: t("admin.inbox.delete"),
+      onBekreft: () => {
+        deleteMessage.mutate(m.id, {
+          onSuccess: () => {
+            showToast.success(t("admin.inbox.deleteSuccess"));
+            if (valgtId === m.id) setValgtId(null);
+          },
+          onError: () => showToast.error(t("admin.inbox.deleteFailed")),
+        });
       },
-      onError: () => showToast.error(t("admin.inbox.deleteFailed")),
     });
   };
 
@@ -2567,7 +3123,8 @@ const FANER: {
     | "admin.tabs.inbox"
     | "admin.tabs.audit"
     | "admin.tabs.logs"
-    | "admin.tabs.feedback";
+    | "admin.tabs.feedback"
+    | "admin.tabs.maintenance";
 }[] = [
   { id: "stats", ikon: BarChart3, labelKey: "admin.tabs.stats" },
   { id: "observability", ikon: Activity, labelKey: "admin.tabs.observability" },
@@ -2578,11 +3135,15 @@ const FANER: {
   { id: "audit", ikon: ScrollText, labelKey: "admin.tabs.audit" },
   { id: "logs", ikon: Terminal, labelKey: "admin.tabs.logs" },
   { id: "feedback", ikon: AlertTriangle, labelKey: "admin.tabs.feedback" },
+  { id: "maintenance", ikon: Zap, labelKey: "admin.tabs.maintenance" },
 ];
 
 export function AdminSection() {
   const { t } = useLanguage();
-  const [aktivFane, setAktivFane] = useState<AdminFane>("stats");
+  const [aktivFane, setAdminTab] = useQueryState(
+    "adminTab",
+    parseAsStringLiteral(GYLDIGE_ADMIN_FANER).withDefault("stats").withOptions({ scroll: false }),
+  );
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
@@ -2606,7 +3167,9 @@ export function AdminSection() {
             aria-selected={aktivFane === id}
             aria-controls={`admin-tabpanel-${id}`}
             id={`admin-tab-${id}`}
-            onClick={() => setAktivFane(id)}
+            onClick={() => {
+              void setAdminTab(id === "stats" ? null : id);
+            }}
             className={`flex items-center gap-1.5 sm:gap-2 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-medium whitespace-nowrap transition-colors ${
               aktivFane === id
                 ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
@@ -2630,6 +3193,7 @@ export function AdminSection() {
         {aktivFane === "audit" && <RevisjonsloggFane />}
         {aktivFane === "logs" && <LoggerFane />}
         {aktivFane === "feedback" && <FeedbackFane />}
+        {aktivFane === "maintenance" && <MaintenanceFane />}
       </div>
     </div>
   );

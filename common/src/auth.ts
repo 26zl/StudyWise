@@ -63,18 +63,23 @@ export const CanvasTokenRequestSchema = z.object({
   canvasBaseUrl: CanvasBaseUrlSchema,
 });
 
-/** Respons ved lagring/sletting av Canvas-token. Må inneholde success, feil eller canvasKonflikt slik at {} ikke er gyldig. */
-export const CanvasTokenResponseSchema = z
-  .object({
+/** Respons ved lagring/sletting av Canvas-token. Suksess, feil og konflikt er gjensidig utelukkende. */
+export const CanvasTokenResponseSchema = z.union([
+  z.strictObject({
     melding: z.string().optional(),
-    success: z.literal(true).optional(),
-    feil: z.string().optional(),
-    canvasKonflikt: z.boolean().optional(),
-  })
-  .refine(
-    (d) => d.success === true || (d.feil != null && d.feil !== "") || d.canvasKonflikt === true,
-    { message: "Respons må inneholde success, feil eller canvasKonflikt" },
-  );
+    success: z.literal(true),
+  }),
+  z.strictObject({
+    melding: z.string().optional(),
+    feil: z.string().min(1, "Feilmelding kan ikke være tom"),
+    canvasKonflikt: z.literal(true),
+  }),
+  z.strictObject({
+    melding: z.string().optional(),
+    feil: z.string().min(1, "Feilmelding kan ikke være tom"),
+    canvasKonflikt: z.literal(false).optional(),
+  }),
+]);
 
 // Canvas kontekst preferanser
 export const CanvasContextPreferencesSchema = z.object({
@@ -429,16 +434,11 @@ export const AUTH_TURNSTILE_COOKIE_VERSION = "v1";
 
 /**
  * Validerer en rå Turnstile-cookie-verdi mot en HMAC-signatur.
- * Felles implementasjon som brukes av både frontend (SSR) og backend
- * for å unngå duplisert sikkerhetskritisk logikk.
- *
- * Bruker dynamisk import av crypto for å unngå top-level import
- * som kan feile i edge-runtimes.
- */
-/**
- * Validerer en rå Turnstile-cookie-verdi mot en HMAC-signatur.
  * Format: v1.<nonce>.<expiresAt>.<signature>
  * HMAC dekker versjon, nonce og utløpstid for å binde cookien til en unik challenge.
+ * Felles implementasjon brukes av både frontend (SSR) og backend.
+ * Bruker dynamisk import av crypto for å unngå top-level import
+ * som kan feile i edge-runtimes.
  * Returnerer { valid, nonce } slik at backend kan håndheve server-side single-use via Redis.
  */
 export async function validateAuthTurnstileCookieValue(

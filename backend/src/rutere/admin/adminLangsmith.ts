@@ -18,6 +18,7 @@ import {
   AdminLangsmithRunsResponseSchema,
   AdminLangsmithStatsResponseSchema,
 } from "common/admin";
+import { requireRecentAuth } from "../../middleware/auth.js";
 import { apiError } from "../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import { logger } from "../../utils/logger.js";
@@ -755,7 +756,7 @@ router.get("/langsmith/runs/:runId", async (req, res) => {
   }
 });
 
-router.post("/langsmith/clear-cache", async (req, res) => {
+router.post("/langsmith/clear-cache", requireRecentAuth, async (req, res) => {
   try {
     const { deleteCacheKeys, invalidateCacheByPattern } = await import("../../cache/redis.js");
     await Promise.all([

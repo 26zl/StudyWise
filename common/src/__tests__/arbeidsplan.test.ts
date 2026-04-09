@@ -144,6 +144,34 @@ describe("StudyBlockSchema", () => {
     });
     expect(resultat.success).toBe(true);
   });
+
+  it("avviser completedAt når blokken ikke er fullført", () => {
+    const resultat = StudyBlockSchema.safeParse({
+      day: "Torsdag",
+      timeSlot: "12:00",
+      task: "Les notater",
+      duration: "1t",
+      priority: "medium",
+      courseName: "Kurs",
+      completed: false,
+      completedAt: "2026-04-09T12:00:00.000Z",
+    });
+    expect(resultat.success).toBe(false);
+  });
+
+  it("godtar completedAt når blokken er fullført", () => {
+    const resultat = StudyBlockSchema.safeParse({
+      day: "Fredag",
+      timeSlot: "14:00",
+      task: "Repeter",
+      duration: "1t",
+      priority: "low",
+      courseName: "Kurs",
+      completed: true,
+      completedAt: "2026-04-09T12:00:00.000Z",
+    });
+    expect(resultat.success).toBe(true);
+  });
 });
 
 // ─── CreateArbeidsplanSchema ────────────────────────────────────────────────

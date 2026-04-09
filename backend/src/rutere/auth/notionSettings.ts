@@ -3,7 +3,7 @@
  * GET/PUT /notion - Get/save Notion API settings for current user.
  */
 import { Router } from "express";
-import { z } from "zod";
+import { NotionSettingsRequestSchema, NotionSettingsResponseSchema } from "common/export";
 import { encrypt, decrypt, erGyldigKryptert } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
 import { apiError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
@@ -87,24 +87,7 @@ async function verifiserNotionPageId(apiKey: string, pageId: string): Promise<st
 }
 
 /** Request schema for saving Notion settings. */
-const NotionSettingsRequestSchema = z.object({
-    apiKey: z.string()
-        .min(1, "API-nøkkel er påkrevd")
-        .max(200, "API-nøkkel er for lang")
-        .refine((key) => /^(ntn_|secret_)/.test(key.trim()), {
-            message: "Ugyldig Notion API-nøkkel. Nøkkelen skal starte med 'ntn_' eller 'secret_'.",
-        })
-        .optional(),
-    defaultPageId: z.string().max(100, "Side-ID er for lang").optional(),
-    clearApiKey: z.boolean().optional(), // If true, delete existing API key
-});
-
-/** Response schema. */
-const NotionSettingsResponseSchema = z.object({
-    melding: z.string(),
-    hasApiKey: z.boolean(),
-    defaultPageId: z.string().nullable(),
-});
+// Schemas importert fra common/export
 
 /**
  * GET /notion - Check if user has Notion API key and get default page ID.

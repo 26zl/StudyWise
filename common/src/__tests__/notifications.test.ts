@@ -6,6 +6,7 @@ import { describe, it, expect } from "vitest";
 import {
   BrowserPushPreferencesSchema,
   WebPushSubscriptionSchema,
+  DeleteWebPushSubscriptionRequestSchema,
   createDefaultBrowserPushPreferences,
   normalizeBrowserPushPreferences,
   normalizeBrowserPushSentState,
@@ -126,6 +127,22 @@ describe("WebPushSubscriptionSchema", () => {
       expirationTime: null,
     });
     expect(resultat.success).toBe(true);
+  });
+});
+
+describe("DeleteWebPushSubscriptionRequestSchema", () => {
+  it("godtar endpoint fra kjent push-tjeneste", () => {
+    const resultat = DeleteWebPushSubscriptionRequestSchema.safeParse({
+      endpoint: "https://fcm.googleapis.com/fcm/send/abc123",
+    });
+    expect(resultat.success).toBe(true);
+  });
+
+  it("avviser ukjent HTTPS-endpoint", () => {
+    const resultat = DeleteWebPushSubscriptionRequestSchema.safeParse({
+      endpoint: "https://example.com/push",
+    });
+    expect(resultat.success).toBe(false);
   });
 });
 

@@ -6,7 +6,12 @@
  *   GET /statistikk – Aggregerte nøkkeltall for plattformen
  */
 import { Router } from "express";
-import { AdminStatsResponseSchema } from "common/admin";
+import {
+  AdminFeedbackQuerySchema,
+  AdminFeedbackResponseSchema,
+  AdminMaintenanceFullTextBackfillResponseSchema,
+  AdminStatsResponseSchema,
+} from "common/admin";
 import { User } from "../../database/models/User.js";
 import { ChatHistory } from "../../database/models/ChatHistory.js";
 import { SharedChat } from "../../database/models/SharedChat.js";
@@ -22,10 +27,16 @@ import { WebPushSubscriptionModel } from "../../database/models/WebPushSubscript
 import { KnowledgeBase } from "../../database/models/Kunnskapsbase.js";
 import { KBContentChunk } from "../../database/models/KBContentChunk.js";
 import { backfillMissingFullText } from "../../services/embedding.service.js";
+import { requireRecentAuth } from "../../middleware/auth.js";
 import { apiError, requireUserId } from "../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import { logger } from "../../utils/logger.js";
+import { setCacheNX, getCache } from "../../cache/redis.js";
+
 const router = Router();
+
+const BACKFILL_COOLDOWN_KEY = "admin:backfill-fulltext:last-run";
+const BACKFILL_COOLDOWN_S = 600; // 10 minutter
 
 const ACTIVE_FILTER = { deletedAt: { $exists: false } };
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -479,9 +490,18 @@ router.get("/statistikk", async (req, res) => {
   }
 });
 
-router.post("/maintenance/backfill-fulltext", async (req, res) => {
+router.post("/maintenance/backfill-fulltext", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
+
+  // Cooldown: hindrer at backfill kjøres oftere enn hvert 10. minutt
+  const acquired = await setCacheNX(BACKFILL_COOLDOWN_KEY, Date.now().toString(), BACKFILL_COOLDOWN_S);
+  if (!acquired) {
+    const lastRun = await getCache(BACKFILL_COOLDOWN_KEY);
+    const agoMs = lastRun ? Date.now() - Number(lastRun) : 0;
+    const remainingMin = Math.ceil((BACKFILL_COOLDOWN_S * 1000 - agoMs) / 60_000);
+    return apiError.rateLimited(res, `Backfill ble nylig kjørt. Prøv igjen om ~${remainingMin} minutt(er).`);
+  }
 
   try {
     const result = await backfillMissingFullText();
@@ -500,12 +520,16 @@ router.post("/maintenance/backfill-fulltext", async (req, res) => {
       req,
     });
 
-    return res.json({
+    if (res.headersSent) return;
+    return res.json(
+      AdminMaintenanceFullTextBackfillResponseSchema.parse({
       suksess: true,
       ...result,
-    });
+      }),
+    );
   } catch (err) {
     logger.error({ err }, "Admin fullText-backfill feilet");
+    if (res.headersSent) return;
     return apiError.serverError(res);
   }
 });
@@ -513,8 +537,13 @@ router.post("/maintenance/backfill-fulltext", async (req, res) => {
 // GET /feedback - hent siste KI-svar med tommel-feedback (default ned)
 router.get("/feedback", async (req, res) => {
   try {
-    const rating = req.query.rating === "up" ? "up" : "down";
-    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const parsedQuery = AdminFeedbackQuerySchema.safeParse(req.query);
+    if (!parsedQuery.success) {
+      return apiError.badRequest(res, "Ugyldige feedback-filtre");
+    }
+
+    const rating = parsedQuery.data.rating ?? "down";
+    const limit = Math.min(Number(parsedQuery.data.limit ?? "50") || 50, 200);
 
     const items = await ChatFeedback.find({ rating })
       .sort({ createdAt: -1 })
@@ -526,7 +555,18 @@ router.get("/feedback", async (req, res) => {
       { $group: { _id: "$rating", count: { $sum: 1 } } },
     ]);
 
-    res.json({
+    void audit({
+      actorUserId: req.user?.id ?? "unknown",
+      action: AUDIT_ACTIONS.ADMIN_ACTION,
+      category: "admin",
+      outcome: "success",
+      role: req.actorRole,
+      metadata: { subAction: "feedback.view", rating, resultCount: items.length },
+      req,
+    });
+
+    return res.json(
+      AdminFeedbackResponseSchema.parse({
       rating,
       totals: {
         up: totals.find((t) => t._id === "up")?.count ?? 0,
@@ -539,7 +579,6 @@ router.get("/feedback", async (req, res) => {
         rating: i.rating,
         question: i.question,
         answer: i.answer,
-        comment: i.comment,
         createdAt: i.createdAt,
         user: i.user
           ? {
@@ -549,7 +588,8 @@ router.get("/feedback", async (req, res) => {
             }
           : null,
       })),
-    });
+      }),
+    );
   } catch (error) {
     logger.error({ error }, "Feil ved henting av admin feedback");
     return apiError.serverError(res);

@@ -6,6 +6,8 @@
  */
 import { Schema, model, Types } from "mongoose";
 
+const CHAT_FEEDBACK_TTL_DAYS = 180;
+
 export interface ChatFeedbackDocument {
   _id: Types.ObjectId;
   user: Types.ObjectId;
@@ -18,8 +20,6 @@ export interface ChatFeedbackDocument {
   question?: string;
   /** Selve KI-svaret (truncert). */
   answer?: string;
-  /** Valgfri fritekst-kommentar. */
-  comment?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -32,12 +32,16 @@ const ChatFeedbackSchema = new Schema<ChatFeedbackDocument>(
     rating: { type: String, enum: ["up", "down"], required: true },
     question: { type: String, maxlength: 2000 },
     answer: { type: String, maxlength: 5000 },
-    comment: { type: String, maxlength: 1000 },
   },
   { timestamps: true },
 );
 
 ChatFeedbackSchema.index({ user: 1, messageId: 1 }, { unique: true });
 ChatFeedbackSchema.index({ rating: 1, createdAt: -1 });
+// Feedback brukes til kvalitetsforbedring, men skal ikke lagres på ubestemt tid.
+ChatFeedbackSchema.index(
+  { createdAt: 1 },
+  { expireAfterSeconds: CHAT_FEEDBACK_TTL_DAYS * 24 * 60 * 60 },
+);
 
 export const ChatFeedback = model<ChatFeedbackDocument>("ChatFeedback", ChatFeedbackSchema);

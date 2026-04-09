@@ -42,7 +42,16 @@ function ClerkProviderMedSprak({
   return (
     <ClerkProvider
       publishableKey={clerkPublishableKey ?? undefined}
-      localization={language === "en" ? enUS : nbNO}
+      localization={{
+        ...(language === "en" ? enUS : nbNO),
+        signUp: {
+          emailCode: {
+            subtitle: language === "en"
+              ? "We sent a verification code to {{identifier}}. It may take a moment to arrive"
+              : "Vi sendte en verifiseringskode til {{identifier}}. Det kan ta litt tid før den ankommer",
+          },
+        },
+      }}
       signInUrl="/auth/sign-in"
       signUpUrl="/auth/sign-up"
       nonce={nonce}

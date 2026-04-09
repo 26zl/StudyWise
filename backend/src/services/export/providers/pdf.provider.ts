@@ -193,7 +193,7 @@ export class PdfExportProvider implements ExportProvider {
 
       // Lenker: bruk blå farge og understreking
       const cleanText = stripEmoji(seg.text);
-      if (seg.href) {
+      if (styles.includes("link") && seg.href) {
         doc.fillColor(COLORS.link);
         doc.text(cleanText, { continued: !isLast, underline: true, link: seg.href });
       } else {
@@ -201,7 +201,7 @@ export class PdfExportProvider implements ExportProvider {
       }
 
       // Tilbakestill farge og font
-      if (seg.href) doc.fillColor(COLORS.text);
+      if (styles.includes("link") && seg.href) doc.fillColor(COLORS.text);
       if (styles.includes("code")) doc.font("Helvetica");
     }
   }

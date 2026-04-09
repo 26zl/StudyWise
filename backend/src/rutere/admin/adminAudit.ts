@@ -23,7 +23,28 @@ const ALLOWED_METADATA_KEYS = new Set([
   "subAction", "messageCount", "limit", "offset", "category", "reason",
   "shareType", "chatId", "model", "tokens", "fileType", "type",
   "tekstLengde", "assignmentId", "subtaskCount", "blockCount", "assignmentCount",
+  "actorUserId", "targetUserId", "from", "to", "rowCount", "status",
+  "queue", "jobId", "prefix", "deletedCount", "revoked", "gammelRolle",
+  "nyRolle", "securityAlert", "scannedFiles", "updatedFiles",
 ]);
+
+function parseAdminDato(
+  raw: string | undefined,
+  boundary: "start" | "end",
+): Date | null {
+  if (!raw) return null;
+
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return null;
+
+  const dateOnlyMatch = /^\d{4}-\d{2}-\d{2}$/.test(trimmed);
+  const normalized = dateOnlyMatch
+    ? `${trimmed}T${boundary === "start" ? "00:00:00.000" : "23:59:59.999"}Z`
+    : trimmed;
+  const parsed = new Date(normalized);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
 
 function shapeAuditItem(raw: {
   _id: unknown;
@@ -87,6 +108,15 @@ router.get("/audit", async (req, res) => {
   const outcome = parsedQuery.data.outcome;
   const targetUserId = parsedQuery.data.targetUserId;
   const actorUserIdFilter = parsedQuery.data.actorUserId;
+  const fromDate = parseAdminDato(parsedQuery.data.from, "start");
+  const toDate = parseAdminDato(parsedQuery.data.to, "end");
+
+  if ((parsedQuery.data.from && !fromDate) || (parsedQuery.data.to && !toDate)) {
+    return apiError.badRequest(res, "Ugyldig from/to-dato — bruk ISO-format eller YYYY-MM-DD");
+  }
+  if (fromDate && toDate && fromDate > toDate) {
+    return apiError.badRequest(res, "'Fra' kan ikke være senere enn 'Til'");
+  }
 
   try {
     const filter: Record<string, unknown> = {};
@@ -94,6 +124,12 @@ router.get("/audit", async (req, res) => {
     if (outcome) filter.outcome = outcome;
     if (targetUserId) filter.targetUserId = targetUserId;
     if (actorUserIdFilter) filter.actorUserId = actorUserIdFilter;
+    if (fromDate || toDate) {
+      filter.createdAt = {
+        ...(fromDate ? { $gte: fromDate } : {}),
+        ...(toDate ? { $lte: toDate } : {}),
+      };
+    }
     const [items, total] = await Promise.all([
       AuditLog.find(filter).sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
       AuditLog.countDocuments(filter),
@@ -112,6 +148,9 @@ router.get("/audit", async (req, res) => {
         category: category ?? null,
         outcome: outcome ?? null,
         targetUserId: targetUserId ?? null,
+        actorUserId: actorUserIdFilter ?? null,
+        from: fromDate?.toISOString() ?? null,
+        to: toDate?.toISOString() ?? null,
       },
       req,
     });
@@ -147,19 +186,31 @@ router.get("/audit/export.csv", async (req, res) => {
     rawCategory && VALID_CATEGORIES.has(rawCategory) ? (rawCategory as AuditCategory) : undefined;
   const fromRaw = typeof req.query.from === "string" ? req.query.from : undefined;
   const toRaw = typeof req.query.to === "string" ? req.query.to : undefined;
+  const outcomeRaw = req.query.outcome === "success" || req.query.outcome === "failure"
+    ? req.query.outcome
+    : undefined;
+  const actorUserIdRaw =
+    typeof req.query.actorUserId === "string" ? req.query.actorUserId.trim() : undefined;
   const targetUserIdRaw =
     typeof req.query.targetUserId === "string" ? req.query.targetUserId.trim() : undefined;
 
-  const fromDate = fromRaw ? new Date(fromRaw) : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-  const toDate = toRaw ? new Date(toRaw) : new Date();
-  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+  const parsedFromDate = parseAdminDato(fromRaw, "start");
+  const parsedToDate = parseAdminDato(toRaw, "end");
+  const fromDate = parsedFromDate ?? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+  const toDate = parsedToDate ?? new Date();
+  if ((fromRaw && !parsedFromDate) || (toRaw && !parsedToDate)) {
     return apiError.badRequest(res, "Ugyldig from/to-dato — bruk ISO-format");
+  }
+  if (fromDate > toDate) {
+    return apiError.badRequest(res, "'Fra' kan ikke være senere enn 'Til'");
   }
 
   const filter: Record<string, unknown> = {
     createdAt: { $gte: fromDate, $lte: toDate },
   };
   if (category) filter.category = category;
+  if (outcomeRaw) filter.outcome = outcomeRaw;
+  if (actorUserIdRaw && actorUserIdRaw.length > 0) filter.actorUserId = actorUserIdRaw;
   if (targetUserIdRaw && targetUserIdRaw.length > 0) filter.targetUserId = targetUserIdRaw;
 
   const MAX_EXPORT_ROWS = 10_000;
@@ -225,6 +276,11 @@ router.get("/audit/export.csv", async (req, res) => {
       metadata: {
         subAction: "audit.export",
         category: category ?? null,
+        outcome: outcomeRaw ?? null,
+        actorUserId: actorUserIdRaw ?? null,
+        targetUserId: targetUserIdRaw ?? null,
+        from: fromDate.toISOString(),
+        to: toDate.toISOString(),
         rowCount: rows.length,
       },
       req,

@@ -7,6 +7,7 @@ import {
   EmailSchema,
   StoredCanvasBaseUrlSchema,
   CanvasBaseUrlSchema,
+  CanvasTokenResponseSchema,
   normalizeCanvasBaseUrl,
   isValidFirstName,
   isValidLastName,
@@ -117,6 +118,41 @@ describe("CanvasBaseUrlSchema", () => {
 
   it("avviser ukjent Canvas-instans", () => {
     const resultat = CanvasBaseUrlSchema.safeParse("https://ukjent.example.com");
+    expect(resultat.success).toBe(false);
+  });
+});
+
+describe("CanvasTokenResponseSchema", () => {
+  it("godtar ren suksessrespons", () => {
+    const resultat = CanvasTokenResponseSchema.safeParse({
+      success: true,
+      melding: "Token lagret",
+    });
+    expect(resultat.success).toBe(true);
+  });
+
+  it("godtar konfliktrespons", () => {
+    const resultat = CanvasTokenResponseSchema.safeParse({
+      feil: "Canvas-konto konflikt",
+      melding: "Konflikt oppdaget",
+      canvasKonflikt: true,
+    });
+    expect(resultat.success).toBe(true);
+  });
+
+  it("avviser selvmotsigende respons med både suksess og feil", () => {
+    const resultat = CanvasTokenResponseSchema.safeParse({
+      success: true,
+      feil: "Skal ikke være her",
+    });
+    expect(resultat.success).toBe(false);
+  });
+
+  it("avviser konfliktflagg uten feiltekst", () => {
+    const resultat = CanvasTokenResponseSchema.safeParse({
+      canvasKonflikt: true,
+      melding: "Konflikt oppdaget",
+    });
     expect(resultat.success).toBe(false);
   });
 });

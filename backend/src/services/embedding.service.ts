@@ -254,14 +254,29 @@ export async function upsertStoredFileContent(options: {
     }
   }
 
-  // Slett overskytende chunks (f.eks. filen ble kortere)
+  // Slett overskytende chunks (f.eks. filen ble kortere).
+  // Pinecone slettes FØR MongoDB slik at vi ikke mister referanser til orphaned vektorer.
   const newMaxIndex = chunks.length - 1;
   const staleIds = existing
     .filter((doc) => doc.chunkIndex > newMaxIndex)
     .map((doc) => doc._id);
 
+  let stalePineconeDeleted = false;
   if (staleIds.length > 0) {
-    await ContentEmbedding.deleteMany({ _id: { $in: staleIds } });
+    try {
+      await pineconeDeleteByFilter({ userId, courseId, fileId });
+      stalePineconeDeleted = true;
+    } catch (error) {
+      logger.warn(
+        { err: error, userId, courseId, fileId },
+        "Pinecone delete av stale vektorer feilet — beholder MongoDB-chunks som referanse",
+      );
+    }
+    // Slett MongoDB stale chunks kun hvis Pinecone-sletting lyktes (eller Pinecone ikke er konfigurert),
+    // slik at vi ikke mister referanser til orphaned vektorer.
+    if (stalePineconeDeleted || !isPineconeConfigured()) {
+      await ContentEmbedding.deleteMany({ _id: { $in: staleIds } });
+    }
   }
 
   // Utfør MongoDB-operasjoner
@@ -334,19 +349,8 @@ export async function upsertStoredFileContent(options: {
     });
   }
 
-  // Slett stale vektorer fra Pinecone
-  if (staleIds.length > 0) {
-    try {
-      await pineconeDeleteByFilter({ userId, courseId, fileId });
-    } catch (error) {
-      logger.warn(
-        { err: error, userId, courseId, fileId },
-        "Pinecone delete av stale vektorer feilet",
-      );
-    }
-  }
-
-  // Retry med enkel backoff for Pinecone upsert (MongoDB er allerede lagret)
+  // Retry med enkel backoff for Pinecone upsert (MongoDB er allerede lagret).
+  // Stale Pinecone-vektorer er allerede slettet (eller feilet) ovenfor.
   const MAX_UPSERT_RETRIES = 2;
   let upsertSuccess = false;
   if (pineconeRecords.length > 0 && isPineconeConfigured()) {

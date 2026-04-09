@@ -6,7 +6,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Square, Bot, Download, Copy, Share2, RefreshCw, Plus, User, GraduationCap, FileText, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Send, Square, Bot, Upload, Copy, Share2, RefreshCw, Plus, User, GraduationCap, FileText, ThumbsUp, ThumbsDown } from "lucide-react";
 import { LoadingSpinner, LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
@@ -1374,6 +1374,54 @@ export function ChatSection() {
     const panelKilder = panelMelding ? hentVisbareKilder(panelMelding) : [];
     const visKildePanel = !!panelMelding;
 
+    const handleKildeKlikk = useCallback((kilde: import("common/ki").KIChatSource) => {
+        if (Number.isFinite(kilde.fileId)) {
+            void downloadAuthedFile(
+                `/api/canvas/filer/${kilde.fileId}/download`,
+                kilde.fileName,
+            ).catch(() => {
+                showToast.error(t("chat.sourceDownloadFailed"));
+            });
+            return;
+        }
+        if (kilde.sourceUrl) {
+            window.open(kilde.sourceUrl, "_blank", "noopener,noreferrer");
+            return;
+        }
+        showToast.error(t("chat.sourceDownloadFailed"));
+    }, [t]);
+
+    const renderKildeListe = useCallback((keySuffix = "") => (
+        <>
+            {panelKilder.length === 0 && (
+                <p className="px-1 text-sm text-slate-500 dark:text-slate-400">
+                    {t("chat.noSourcesForAnswer")}
+                </p>
+            )}
+            {panelKilder.map((kilde) => (
+                <button
+                    type="button"
+                    key={`${kilde.sourceKind ?? "canvas_file"}:${kilde.courseId}:${kilde.fileId ?? "na"}:${kilde.fileName}:${kilde.sourceUrl ?? ""}${keySuffix}`}
+                    onClick={() => handleKildeKlikk(kilde)}
+                    title={`${kilde.courseName} – ${kilde.fileName}`}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-left transition-colors hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/70"
+                >
+                    <div className="flex items-start gap-2">
+                        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-300" />
+                        <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-slate-900 dark:text-white">
+                                {kilde.fileName}
+                            </p>
+                            <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                                {kilde.courseName}
+                            </p>
+                        </div>
+                    </div>
+                </button>
+            ))}
+        </>
+    ), [handleKildeKlikk, panelKilder, t]);
+
     const opprettDelingslenke = useCallback(async () => {
         if (oppretterDeling) return null;
         setOppretterDeling(true);
@@ -1766,7 +1814,7 @@ export function ChatSection() {
                             title={t("exportModal.title")}
                             aria-label={t("exportModal.title")}
                         >
-                            <Download className="chat-input-icon w-5 h-5 text-slate-400 dark:text-slate-500" />
+                            <Upload className="chat-input-icon w-5 h-5 text-slate-400 dark:text-slate-500" />
                         </button>
 
                         {/* Filopplasting */}
@@ -1921,47 +1969,7 @@ export function ChatSection() {
                         </button>
                     </div>
                     <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                        {panelKilder.length === 0 && (
-                            <p className="text-sm text-slate-500 dark:text-slate-400 px-1">
-                                Ingen kilder registrert for dette svaret.
-                            </p>
-                        )}
-                        {panelKilder.map((k) => (
-                            <button
-                                type="button"
-                                key={`${k.courseId}:${k.fileId}:${k.fileName}`}
-                                onClick={() => {
-                                    if (Number.isFinite(k.fileId)) {
-                                        void downloadAuthedFile(
-                                            `/api/canvas/filer/${k.fileId}/download`,
-                                            k.fileName,
-                                        ).catch(() => {
-                                            showToast.error(t("chat.sourceDownloadFailed"));
-                                        });
-                                        return;
-                                    }
-                                    if (k.sourceUrl) {
-                                        window.open(k.sourceUrl, "_blank", "noopener,noreferrer");
-                                        return;
-                                    }
-                                    showToast.error(t("chat.sourceDownloadFailed"));
-                                }}
-                                title={`${k.courseName} – ${k.fileName}`}
-                                className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors"
-                            >
-                                <div className="flex items-start gap-2">
-                                    <FileText className="w-4 h-4 mt-0.5 shrink-0 text-blue-600 dark:text-blue-300" />
-                                    <div className="min-w-0">
-                                        <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
-                                            {k.fileName}
-                                        </p>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                                            {k.courseName}
-                                        </p>
-                                    </div>
-                                </div>
-                            </button>
-                        ))}
+                        {renderKildeListe()}
                     </div>
                 </aside>
             )}
@@ -1988,47 +1996,7 @@ export function ChatSection() {
                             </button>
                         </div>
                         <div className="overflow-y-auto p-3 space-y-2">
-                            {panelKilder.length === 0 && (
-                                <p className="text-sm text-slate-500 dark:text-slate-400 px-1">
-                                    Ingen kilder registrert for dette svaret.
-                                </p>
-                            )}
-                            {panelKilder.map((k) => (
-                                <button
-                                    type="button"
-                                    key={`${k.courseId}:${k.fileId}:${k.fileName}:mobile`}
-                                    onClick={() => {
-                                        if (Number.isFinite(k.fileId)) {
-                                            void downloadAuthedFile(
-                                                `/api/canvas/filer/${k.fileId}/download`,
-                                                k.fileName,
-                                            ).catch(() => {
-                                                showToast.error(t("chat.sourceDownloadFailed"));
-                                            });
-                                            return;
-                                        }
-                                        if (k.sourceUrl) {
-                                            window.open(k.sourceUrl, "_blank", "noopener,noreferrer");
-                                            return;
-                                        }
-                                        showToast.error(t("chat.sourceDownloadFailed"));
-                                    }}
-                                    title={`${k.courseName} – ${k.fileName}`}
-                                    className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors"
-                                >
-                                    <div className="flex items-start gap-2">
-                                        <FileText className="w-4 h-4 mt-0.5 shrink-0 text-blue-600 dark:text-blue-300" />
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
-                                                {k.fileName}
-                                            </p>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                                                {k.courseName}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </button>
-                            ))}
+                            {renderKildeListe(":mobile")}
                         </div>
                     </div>
                 </div>

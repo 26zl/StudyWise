@@ -6,6 +6,7 @@
  */
 import { createClient } from "redis";
 import { logger } from "../utils/logger.js";
+import { configureRedisLogBuffer } from "../utils/logBuffer.js";
 
 import { isProd } from "../utils/env.js";
 // Påkrevd av validateEnv ved serverstart; ingen fallback (én sannhetskilde).
@@ -35,6 +36,14 @@ const client = createClient({
     },
 });
 
+configureRedisLogBuffer({
+    isReady: () => client.isOpen && client.isReady,
+    xAdd: (key, id, message, options) => client.xAdd(key, id, message, options),
+    xRange: (key, start, end, options) => client.xRange(key, start, end, options),
+    xRevRange: (key, start, end, options) => client.xRevRange(key, start, end, options),
+    xLen: (key) => client.xLen(key),
+});
+
 client.on("error", (err) => {
     // Unngå log-spam ved gjentatte feil — logg kun hvert 10. forsøk
     reconnectAttempts++;
@@ -59,14 +68,19 @@ client.on("end", () => {
 /** Markerer at vi er i shutdown — stopper reconnect-forsøk */
 export const stopRedisReconnect = () => { isShuttingDown = true; };
 
-client.connect().catch((err) => {
-    logger.error({ err }, "Redis tilkobling feilet (reconnect vil prøve automatisk)");
-    if (isProd) {
-        logger.warn(
-            "ADVARSEL: Redis er ikke tilgjengelig i produksjon. " +
-            "Rate limiting vil kun fungere per server-instans. " +
-            "Automatisk reconnect er aktivert."
-        );
+void client.connect().catch((err) => {
+    try {
+        logger.error({ err }, "Redis tilkobling feilet (reconnect vil prøve automatisk)");
+        if (isProd) {
+            logger.warn(
+                "ADVARSEL: Redis er ikke tilgjengelig i produksjon. " +
+                "Rate limiting vil kun fungere per server-instans. " +
+                "Automatisk reconnect er aktivert."
+            );
+        }
+    } catch {
+        // Redis-oppstart må aldri trigge en ny unhandled rejection hvis loggeren
+        // selv ikke er fullt initialisert ennå.
     }
 });
 

@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
@@ -136,7 +136,7 @@ export function OversiktPage() {
   });
 
   const studyStatsQuery = useStudyStatsToday(megQuery.isSuccess);
-  const progressQuery = useProgressStats();
+  const progressQuery = useProgressStats(megQuery.isSuccess);
 
   const { ferdigeIdSet, toggleFerdig } = useManuellInnlevering();
 
@@ -155,11 +155,11 @@ export function OversiktPage() {
     erInnenforFristVindu(assignment.due_at),
   );
 
-  const activeCoursesCount = new Set(
+  const activeCoursesCount = useMemo(() => new Set(
     allAssignments
       .filter((assignment) => assignment.course_id != null)
       .map((assignment) => assignment.course_id),
-  ).size;
+  ).size, [allAssignments]);
 
   const handlePlanCreated = () => {
     setActiveTab("mine-oppgaver");

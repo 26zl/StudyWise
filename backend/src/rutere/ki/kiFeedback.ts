@@ -37,7 +37,6 @@ kiFeedbackRouter.post("/feedback", async (req, res) => {
           chatId: parsed.data.chatId,
           question: parsed.data.question,
           answer: parsed.data.answer,
-          comment: parsed.data.comment,
         },
       },
       { upsert: true, new: true },

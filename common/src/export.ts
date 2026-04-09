@@ -23,12 +23,40 @@ export type ExportTarget = z.infer<typeof ExportTargetSchema>;
 export const InlineStyleSchema = z.enum(["bold", "italic", "code", "link"]);
 export type InlineStyle = z.infer<typeof InlineStyleSchema>;
 
+const ExportHrefSchema = z
+  .string()
+  .trim()
+  .url("Ugyldig lenke")
+  .max(2000, "Lenke er for lang")
+  .refine((value) => /^https?:\/\//i.test(value), "Lenke må bruke http eller https");
+
 /** Tekstsegment med valgfri inline-formatering */
-export const TextSegmentSchema = z.object({
-  text: z.string(),
-  styles: z.array(InlineStyleSchema).optional(),
-  href: z.string().optional(),
-});
+export const TextSegmentSchema = z
+  .object({
+    text: z.string(),
+    styles: z.array(InlineStyleSchema).optional(),
+    href: ExportHrefSchema.optional(),
+  })
+  .superRefine((segment, ctx) => {
+    const hasLinkStyle = segment.styles?.includes("link") ?? false;
+    const hasHref = segment.href !== undefined;
+
+    if (hasLinkStyle && !hasHref) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["href"],
+        message: "Lenkesegmenter må ha href",
+      });
+    }
+
+    if (hasHref && !hasLinkStyle) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["styles"],
+        message: "href krever at segmentet er markert som lenke",
+      });
+    }
+  });
 export type TextSegment = z.infer<typeof TextSegmentSchema>;
 
 /** Listelement — kan inneholde rik tekst */
@@ -106,9 +134,11 @@ export const ExportBlockSchema = z.discriminatedUnion("type", [
 ]);
 export type ExportBlock = z.infer<typeof ExportBlockSchema>;
 
+const EXPORT_TITLE_MAX_LENGTH = 200;
+
 /** Komplett eksportdokument */
 export const ExportDocumentSchema = z.object({
-  title: z.string(),
+  title: z.string().max(EXPORT_TITLE_MAX_LENGTH),
   metadata: z.record(z.string(), z.unknown()).optional(),
   blocks: z.array(ExportBlockSchema),
 });
@@ -116,7 +146,6 @@ export type ExportDocument = z.infer<typeof ExportDocumentSchema>;
 
 // --- API Request / Response ---
 
-const EXPORT_TITLE_MAX_LENGTH = 200;
 const EXPORT_CONTENT_MAX_LENGTH = 500_000;
 
 /** Notion-spesifikke alternativer */
@@ -181,3 +210,39 @@ export const ExportResponseSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 export type ExportResponse = z.infer<typeof ExportResponseSchema>;
+
+// --- Eksport-target discovery (GET /export/targets) ---
+
+/** Info om et tilgjengelig eksportmål og om det er konfigurert. */
+export const ExportTargetInfoSchema = z.object({
+  target: ExportTargetSchema,
+  configured: z.boolean(),
+});
+export type ExportTargetInfo = z.infer<typeof ExportTargetInfoSchema>;
+
+export const ExportTargetsResponseSchema = z.object({
+  targets: z.array(ExportTargetInfoSchema),
+});
+export type ExportTargetsResponse = z.infer<typeof ExportTargetsResponseSchema>;
+
+// --- Notion-innstillinger (GET/PUT /user/notion) ---
+
+export const NotionSettingsResponseSchema = z.object({
+  melding: z.string(),
+  hasApiKey: z.boolean(),
+  defaultPageId: z.string().nullable(),
+});
+export type NotionSettingsResponse = z.infer<typeof NotionSettingsResponseSchema>;
+
+export const NotionSettingsRequestSchema = z.object({
+  apiKey: z.string()
+    .min(1, "API-nøkkel er påkrevd")
+    .max(200, "API-nøkkel er for lang")
+    .refine((key) => /^(ntn_|secret_)/.test(key.trim()), {
+      message: "Ugyldig Notion API-nøkkel. Nøkkelen skal starte med 'ntn_' eller 'secret_'.",
+    })
+    .optional(),
+  defaultPageId: z.string().max(100, "Side-ID er for lang").optional(),
+  clearApiKey: z.boolean().optional(),
+});
+export type NotionSettingsRequest = z.infer<typeof NotionSettingsRequestSchema>;

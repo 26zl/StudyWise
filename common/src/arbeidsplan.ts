@@ -27,6 +27,14 @@ export const StudyBlockSchema = z.object({
   assignmentId: IkkeTomTekstSchema.max(200, "Oppgave-ID må være maks 200 tegn").optional(),
   completed: z.boolean().default(false),
   completedAt: IsoDateStringSchema.optional(),
+}).superRefine((block, ctx) => {
+  if (!block.completed && block.completedAt !== undefined) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["completedAt"],
+      message: "completedAt kan bare settes når blokken er fullført",
+    });
+  }
 });
 
 /** Zod-skjema for å opprette/oppdatere arbeidsplan */

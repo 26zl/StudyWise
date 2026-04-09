@@ -71,14 +71,16 @@ const ALLOWED_PUSH_ENDPOINT_PATTERNS = [
   /^https:\/\/push\.services\.mozilla\.com\//,
 ];
 
+const WebPushEndpointSchema = z.string().url("Ugyldig endpoint")
+  .max(2000, "Endpoint for lang")
+  .refine((v) => v.startsWith("https://"), "Endpoint må bruke HTTPS")
+  .refine(
+    (v) => ALLOWED_PUSH_ENDPOINT_PATTERNS.some((p) => p.test(v)),
+    "Endpoint må tilhøre en kjent push-tjeneste (FCM, Mozilla, Apple, Windows)",
+  );
+
 export const WebPushSubscriptionSchema = z.object({
-  endpoint: z.string().url("Ugyldig endpoint")
-    .max(2000, "Endpoint for lang")
-    .refine((v) => v.startsWith("https://"), "Endpoint må bruke HTTPS")
-    .refine(
-      (v) => ALLOWED_PUSH_ENDPOINT_PATTERNS.some((p) => p.test(v)),
-      "Endpoint må tilhøre en kjent push-tjeneste (FCM, Mozilla, Apple, Windows)",
-    ),
+  endpoint: WebPushEndpointSchema,
   expirationTime: z.number().int().nullable().optional(),
   keys: WebPushSubscriptionKeysSchema,
 });
@@ -90,7 +92,7 @@ export const SaveWebPushSubscriptionRequestSchema = z.object({
 });
 
 export const DeleteWebPushSubscriptionRequestSchema = z.object({
-  endpoint: z.string().url("Ugyldig endpoint").refine((v) => v.startsWith("https://"), "Endpoint må bruke HTTPS"),
+  endpoint: WebPushEndpointSchema,
 });
 
 export const WebPushSubscriptionResponseSchema = z.object({

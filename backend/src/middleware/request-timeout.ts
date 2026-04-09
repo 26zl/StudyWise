@@ -26,6 +26,7 @@ const LONG_TIMEOUT_PREFIXES = [
     "/api/ki/weekly-plan",
     "/api/quiz/generate",
     "/api/flashcards/generate",
+    "/api/admin/maintenance",
 ];
 
 function getRequestPath(req: Request): string {

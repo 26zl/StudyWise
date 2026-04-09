@@ -6,8 +6,8 @@ import { z } from "zod";
 import { KI_MAX_MESSAGE_LENGTH_BACKEND } from "./ki.js";
 import { KIChatSourceSchema } from "./ki.js";
 
-const CHAT_TITLE_MAX_LENGTH = 120;
-const CHAT_TOPIC_MAX_LENGTH = 40;
+export const CHAT_TITLE_MAX_LENGTH = 120;
+export const CHAT_TOPIC_MAX_LENGTH = 40;
 
 function normalizeOptionalText(value: unknown): unknown {
   if (typeof value !== "string") {

@@ -131,7 +131,7 @@ export function SmartSuggestions({
   };
 
   return (
-    <div className="py-3 px-4 md:px-6">
+    <div className="hidden sm:block py-3 px-4 md:px-6">
       <div className="max-w-[940px] mx-auto flex items-start gap-2">
         <Sparkles className="w-4 h-4 text-purple-500 mt-1 shrink-0" />
         <div className="flex-1">

@@ -9,7 +9,7 @@
  */
 
 import { Router } from "express";
-import { ExportRequestSchema, ExportResponseSchema } from "common/export";
+import { ExportRequestSchema, ExportResponseSchema, ExportTargetsResponseSchema } from "common/export";
 import {
   executeExport,
   getAvailableTargets,
@@ -49,7 +49,7 @@ kiExportRouter.get("/export/targets", async (req, res) => {
       ? { ...targetInfo, configured: notionConfigured }
       : targetInfo,
   );
-  return res.json({ targets });
+  return res.json(ExportTargetsResponseSchema.parse({ targets }));
 });
 
 /**

@@ -20,17 +20,8 @@ import { useDialogAccessibility } from "@/app/hooks/useDialogAccessibility";
 import { useLanguage } from "@/app/i18n";
 import { fetchApi } from "@/app/lib/apiClient";
 import { ExportResponseSchema } from "common/export";
-import type { ExportTarget, ExportResponse } from "common/export";
-
-interface ExportTargetInfo {
-  target: ExportTarget;
-  configured: boolean;
-}
-
-interface NotionSettingsResponse {
-  hasApiKey: boolean;
-  defaultPageId: string | null;
-}
+import type { ExportTarget, ExportResponse, ExportTargetInfo } from "common/export";
+import { ExportTargetsResponseSchema, NotionSettingsResponseSchema } from "common/export";
 
 interface ChatExportModalProps {
   isOpen: boolean;
@@ -115,7 +106,7 @@ export function ChatExportModal({
         ]);
 
         if (targetsResult.status === "fulfilled" && targetsResult.value.ok) {
-          const data = (await targetsResult.value.json()) as { targets: ExportTargetInfo[] };
+          const data = ExportTargetsResponseSchema.parse(await targetsResult.value.json());
           setAvailableTargets(data.targets);
         } else {
           // Fallback til lokale mål ved feil på targets-endepunktet
@@ -130,7 +121,7 @@ export function ChatExportModal({
         }
 
         if (notionResult.status === "fulfilled" && notionResult.value.ok) {
-          const notionData = (await notionResult.value.json()) as NotionSettingsResponse;
+          const notionData = NotionSettingsResponseSchema.parse(await notionResult.value.json());
           if (notionData.defaultPageId) {
             setNotionPageId(notionData.defaultPageId);
           }

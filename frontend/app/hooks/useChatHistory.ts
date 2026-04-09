@@ -16,6 +16,7 @@ import {
   ChatSaveResponseSchema,
   ChatTitleUpdateResponseSchema,
   ChatTopicUpdateResponseSchema,
+  CHAT_TITLE_MAX_LENGTH,
 } from "common/chat";
 import { fetchAuthedJson } from "../lib/apiClient";
 import { SessionExpiredError } from "../lib/errors";
@@ -92,7 +93,7 @@ async function loadChatHistory(): Promise<SavedChat[]> {
   }
 }
 
-export function useChatHistory() {
+export function useChatHistory(enabled = true) {
   const queryClient = useQueryClient();
   const { t } = useLanguage();
   const currentChatId = useUIStore((state) => state.currentChatId);
@@ -104,6 +105,7 @@ export function useChatHistory() {
     queryFn: loadChatHistory,
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
+    enabled,
   });
 
   const chats = data ?? [];
@@ -121,7 +123,7 @@ export function useChatHistory() {
   ) => {
     if (messages.length === 0) return undefined;
     const payload: ChatSavePayload = { messages };
-    if (title !== undefined) payload.title = title.slice(0, 120).trim() || undefined;
+    if (title !== undefined) payload.title = title.slice(0, CHAT_TITLE_MAX_LENGTH).trim() || undefined;
     const body = JSON.stringify(payload);
     const endpoint = chatId ? `/api/ki/chat/history/${chatId}` : "/api/ki/chat/history";
     const method = chatId ? "PUT" : "POST";

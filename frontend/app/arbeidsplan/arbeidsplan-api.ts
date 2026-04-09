@@ -170,11 +170,12 @@ export function useDeleteArbeidsplan() {
 /**
  * Hent fremdriftsstatistikk
  */
-export function useProgressStats() {
+export function useProgressStats(enabled = true) {
   return useQuery({
     queryKey: ["arbeidsplan", "progress"],
     queryFn: fetchProgress,
     staleTime: 1000 * 30, // 30 sekunder
     refetchInterval: 1000 * 60, // Refresh hvert minutt
+    enabled,
   });
 }

@@ -233,17 +233,13 @@ router.post("/", async (req, res) => {
       },
     });
 
-    // Anonymiser revisjonssporet for slettet bruker (GDPR)
-    try {
-      await anonymizeAuditTrailForDeletedUser(userId);
-    } catch (auditError) {
-      logger.warn(
-        { err: auditError, userId },
-        "Clerk webhook: klarte ikke å anonymisere revisjonsspor etter sletting",
-      );
-    }
+    // Anonymiser revisjonssporet for slettet bruker (GDPR).
+    // Hvis dette feiler markerer vi IKKE hendelsen som behandlet,
+    // slik at Clerk prøver webhoken på nytt og anonymiseringen kjøres igjen.
+    // deleteAccountData() er idempotent (tombstone-sjekk) så gjentatt kall er trygt.
+    await anonymizeAuditTrailForDeletedUser(userId);
 
-    // Marker hendelsen som behandlet ETTER vellykket opprydding.
+    // Marker hendelsen som behandlet ETTER vellykket opprydding OG anonymisering.
     // Hvis opprydding feiler (500) skal Clerk kunne prøve på nytt — derfor markeres ikke før suksess.
     await markEventProcessed(svixId);
 

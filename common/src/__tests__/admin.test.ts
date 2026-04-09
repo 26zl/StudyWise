@@ -6,6 +6,7 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  AdminAuditCategorySchema,
   AdminBrukerSchema,
   AdminBrukereStatusFilterSchema,
   AdminBrukereQuerySchema,
@@ -19,6 +20,10 @@ import {
   AdminBrukerDetaljSchema,
   AdminBrukerDetaljAuditEntrySchema,
   AdminAuditQuerySchema,
+  AdminMaintenanceFullTextBackfillResponseSchema,
+  AdminFeedbackQuerySchema,
+  AdminFeedbackResponseSchema,
+  AdminQueueStateResponseSchema,
 } from "../admin.js";
 
 describe("common/admin.ts schemas", () => {
@@ -297,6 +302,18 @@ describe("common/admin.ts schemas", () => {
   });
 
   // ── AdminAuditQuerySchema (utvidet med outcome + targetUserId) ────────────
+  describe("AdminAuditCategorySchema", () => {
+    it("aksepterer kjente kategorier", () => {
+      expect(AdminAuditCategorySchema.parse("admin")).toBe("admin");
+      expect(AdminAuditCategorySchema.parse("security")).toBe("security");
+      expect(AdminAuditCategorySchema.parse("ki")).toBe("ki");
+    });
+
+    it("avviser ukjente kategorier", () => {
+      expect(() => AdminAuditCategorySchema.parse("billing")).toThrow();
+    });
+  });
+
   describe("AdminAuditQuerySchema", () => {
     it("aksepterer minimal query", () => {
       expect(AdminAuditQuerySchema.parse({})).toEqual({});
@@ -316,6 +333,17 @@ describe("common/admin.ts schemas", () => {
         targetUserId: "507f1f77bcf86cd799439011",
       });
       expect(result.targetUserId).toBe("507f1f77bcf86cd799439011");
+    });
+
+    it("aksepterer actorUserId og datointervall", () => {
+      const result = AdminAuditQuerySchema.parse({
+        actorUserId: "507f1f77bcf86cd799439012",
+        from: "2026-01-01",
+        to: "2026-01-31",
+      });
+      expect(result.actorUserId).toBe("507f1f77bcf86cd799439012");
+      expect(result.from).toBe("2026-01-01");
+      expect(result.to).toBe("2026-01-31");
     });
 
     it("avviser targetUserId lengre enn 64 tegn", () => {
@@ -440,6 +468,61 @@ describe("common/admin.ts schemas", () => {
           action: "user.login",
         }),
       ).toThrow();
+    });
+  });
+
+  describe("AdminMaintenanceFullTextBackfillResponseSchema", () => {
+    it("aksepterer gyldig backfill-respons", () => {
+      const result = AdminMaintenanceFullTextBackfillResponseSchema.parse({
+        suksess: true,
+        scannedFiles: 12,
+        updatedFiles: 5,
+      });
+      expect(result.updatedFiles).toBe(5);
+    });
+  });
+
+  describe("AdminFeedbackQuerySchema", () => {
+    it("aksepterer rating og limit", () => {
+      const result = AdminFeedbackQuerySchema.parse({
+        rating: "down",
+        limit: "25",
+      });
+      expect(result.limit).toBe("25");
+    });
+  });
+
+  describe("AdminFeedbackResponseSchema", () => {
+    it("aksepterer gyldig feedback-respons", () => {
+      const result = AdminFeedbackResponseSchema.parse({
+        rating: "down",
+        totals: { up: 10, down: 3 },
+        items: [
+          {
+            id: "feedback1",
+            messageId: "message1",
+            rating: "down",
+            question: "Hva er en queue?",
+            answer: "En kø er ...",
+            createdAt: new Date(),
+            user: {
+              id: "507f1f77bcf86cd799439011",
+              email: "test@example.com",
+            },
+          },
+        ],
+      });
+      expect(result.items[0]?.rating).toBe("down");
+    });
+  });
+
+  describe("AdminQueueStateResponseSchema", () => {
+    it("aksepterer gyldig kø-tilstandsrespons", () => {
+      const result = AdminQueueStateResponseSchema.parse({
+        success: true,
+        isPaused: false,
+      });
+      expect(result.success).toBe(true);
     });
   });
 });

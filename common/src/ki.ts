@@ -80,7 +80,6 @@ export const ChatFeedbackRequestSchema = z.object({
   rating: z.enum(["up", "down"]),
   question: z.string().trim().max(2000).optional(),
   answer: z.string().trim().max(5000).optional(),
-  comment: z.string().trim().max(1000).optional(),
 });
 export type ChatFeedbackRequest = z.infer<typeof ChatFeedbackRequestSchema>;
 

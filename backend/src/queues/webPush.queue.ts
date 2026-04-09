@@ -8,7 +8,7 @@
  * Semantikk:
  *   - Maks 5 forsøk (push-varsler er tidssensitive — gi opp raskt)
  *   - Eksponentiell backoff: 30s → 1m → 2m → 4m → 8m
- *   - Job-ID: `${subscriptionId}:${candidateId}` for naturlig dedup
+ *   - Job-ID: `${subscriptionId}_${candidateId}` for naturlig dedup
  *   - Failed jobs beholdes for inspeksjon (admin "Køer"-fanen)
  *
  * 404/410 fra push-tjenesten = subscription er død → slettes fra DB i jobben,
@@ -101,7 +101,7 @@ export async function enqueueWebPushDelivery(input: {
       payload: input.payload,
     },
     {
-      jobId: `${input.subscriptionId}:${input.candidateId}`,
+      jobId: `${input.subscriptionId}_${input.candidateId}`,
     },
   );
 }

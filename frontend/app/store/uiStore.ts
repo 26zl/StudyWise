@@ -140,7 +140,7 @@ export const useUIStore = create<UIState>()((set) => ({
     },
     reset: () => {
         set({
-            isVenstreMenyOpen: true,
+            isVenstreMenyOpen: false,
             selectedChatId: null,
             currentChatId: null,
             newChatToken: 0,

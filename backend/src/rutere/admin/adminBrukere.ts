@@ -285,7 +285,7 @@ router.delete("/brukere/:id", requireRecentAuth, async (req, res) => {
 // Tømmer Redis relink-state for en bruker som har satt seg fast i ping-pong-
 // guarden (typisk etter Clerk dev/prod-bytte). Lar brukeren logge inn på nytt
 // uten å vente på TTL.
-router.delete("/brukere/:id/relink-guard", async (req, res) => {
+router.delete("/brukere/:id/relink-guard", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
 

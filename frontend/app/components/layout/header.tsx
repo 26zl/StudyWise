@@ -15,7 +15,10 @@ import { useLoggUtWithRedirect } from "@/app/auth/auth-api";
 import { useLanguage } from "@/app/i18n";
 import type { Language } from "@/app/i18n";
 import { useDialogAccessibility } from "@/app/hooks/useDialogAccessibility";
-import { useMediaQuery } from "@/app/hooks/useMediaQuery";
+import {
+  MOBILE_MEDIA_QUERY,
+  useMediaQuery,
+} from "@/app/hooks/useMediaQuery";
 import { buildPostAuthRedirect } from "@/app/auth/redirects";
 
 type NavigationItem = {
@@ -187,7 +190,7 @@ export function Header() {
   const { isLoaded: authLoaded, isSignedIn } = useAuth();
   const { language } = useLanguage();
   const labels = getHeaderLabels(language);
-  const erMobil = useMediaQuery("(max-width: 767px)");
+  const erMobil = useMediaQuery(MOBILE_MEDIA_QUERY);
   const mobilDialogRef = useRef<HTMLDivElement | null>(null);
   const mobilCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const mobilMenuId = useId();
@@ -225,7 +228,7 @@ export function Header() {
             type="button"
             onClick={toggleVenstreMeny}
             className={`min-w-11 min-h-11 -ml-1 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg touch-manipulation ${
-              isVenstreMenyOpen ? "max-md:hidden" : ""
+              erMobil && isVenstreMenyOpen ? "hidden" : ""
             }`}
             aria-label={isVenstreMenyOpen ? labels.closeSidebar : labels.openSidebar}
             aria-expanded={erMobil ? isVenstreMenyOpen : undefined}

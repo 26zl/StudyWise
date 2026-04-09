@@ -24,6 +24,7 @@ import { useBrowserPushNotifications } from "@/app/hooks/useBrowserPushNotificat
 import { withCsrfProtection } from "@/app/lib/csrf";
 import { fetchApi } from "@/app/lib/apiClient";
 import type { BrowserPushPreferences } from "common/notifications";
+import { NotionSettingsResponseSchema } from "common/export";
 
 // Typer for SettingsSection props
 interface SettingsSectionProps {
@@ -258,10 +259,7 @@ export function SettingsSection({
                 const res = await fetchApi("/api/user/notion", { method: "GET" });
                 if (avbrutt) return;
                 if (res.ok) {
-                    const data = await res.json() as {
-                        hasApiKey: boolean;
-                        defaultPageId: string | null;
-                    };
+                    const data = NotionSettingsResponseSchema.parse(await res.json());
                     setHarNotionApiKey(data.hasApiKey);
                     setNotionDefaultPageId(data.defaultPageId ?? "");
                 }
@@ -293,7 +291,7 @@ export function SettingsSection({
                 const errData = await res.json().catch(() => ({})) as { melding?: string };
                 throw new Error(errData.melding || "Kunne ikke lagre");
             }
-            const data = await res.json() as { hasApiKey: boolean; defaultPageId: string | null };
+            const data = NotionSettingsResponseSchema.parse(await res.json());
             setHarNotionApiKey(data.hasApiKey);
             setNotionDefaultPageId(data.defaultPageId ?? "");
             setNotionApiKey(""); // Clear input after save
@@ -606,7 +604,7 @@ export function SettingsSection({
                                 <div className="flex flex-wrap items-center justify-between gap-3">
                                     <div>
                                         <p className="text-sm font-medium text-slate-900 dark:text-white">
-                                            {browserPush.preferences.enabled
+                                            {browserPush.subscribed
                                                 ? t("settings.browserPush.status.enabled")
                                                 : t("settings.browserPush.status.disabled")}
                                         </p>
@@ -616,7 +614,7 @@ export function SettingsSection({
                                                 : t("settings.browserPush.permissionHint")}
                                         </p>
                                     </div>
-                                    {browserPush.preferences.enabled ? (
+                                    {browserPush.subscribed ? (
                                         <button
                                             type="button"
                                             onClick={() => {

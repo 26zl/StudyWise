@@ -86,7 +86,6 @@
     "@size-limit/preset-app": "^12.0.1",
     "@types/node": "^25.5.2",
     "concurrently": "^9.2.1",
-    "dotenv": "^17.4.1",
     "kill-port": "^2.0.1",
     "knip": "^6.3.1",
     "remark-cli": "^12.0.1",
