@@ -1281,7 +1281,7 @@ router.get("/models", (_req, res) => {
 });
 
 // Hovedendepunkt for chat
-router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
+router.post("/chat", rateLimitKi, knyttCanvasTokenValgfritt, async (req, res) => {
   logger.info("Mottok chat-forespørsel");
   const chatStartedAt = Date.now();
 

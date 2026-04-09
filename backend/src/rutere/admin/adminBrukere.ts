@@ -18,6 +18,8 @@ import {
   AdminLockUserSchema,
   AdminUnlockUserResponseSchema,
   AdminSlettBrukerResponseSchema,
+  AdminSuccessResponseSchema,
+  AdminRevokeSessionsResponseSchema,
 } from "common/admin";
 import { User } from "../../database/models/User.js";
 import { ChatHistory } from "../../database/models/ChatHistory.js";
@@ -319,7 +321,7 @@ router.delete("/brukere/:id/relink-guard", requireRecentAuth, async (req, res) =
       "Admin tømte relink-guard for bruker",
     );
 
-    return res.json({ success: true });
+    return res.json(AdminSuccessResponseSchema.parse({ success: true }));
   } catch (err) {
     logger.error({ err }, "Admin clear relink-guard feilet");
     return apiError.serverError(res);
@@ -506,7 +508,7 @@ router.post("/brukere/:id/revoke-sessions", requireRecentAuth, async (req, res) 
       "Admin tilbakekalte alle Clerk-sesjoner for bruker",
     );
 
-    return res.json({ success: true, revoked });
+    return res.json(AdminRevokeSessionsResponseSchema.parse({ success: true, revoked }));
   } catch (err) {
     logger.error({ err }, "Admin revoke-sessions feilet");
     return apiError.serverError(res);
@@ -552,7 +554,7 @@ router.post("/brukere/:id/resend-verification", requireRecentAuth, async (req, r
       "Admin trigget re-verifisering av e-post via Clerk",
     );
 
-    return res.json({ success: true });
+    return res.json(AdminSuccessResponseSchema.parse({ success: true }));
   } catch (err) {
     logger.error({ err }, "Admin resend-verification feilet");
     return apiError.serverError(res);

@@ -58,7 +58,7 @@ Regler:
 - Bruk fagterminologi fra kursmateriellet`;
 
 // POST /api/quiz/generate
-router.post("/generate", knyttCanvasToken, async (req, res) => {
+router.post("/generate", rateLimitKi, knyttCanvasToken, async (req, res) => {
   try {
     const userId = requireUserId(req, res);
     if (!userId) return;

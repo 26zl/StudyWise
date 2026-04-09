@@ -41,7 +41,7 @@ async function fetchArbeidsplan(url: string): Promise<Arbeidsplan | null> {
 
   const json = await res.json();
   const validated = ArbeidsplanResponseSchema.parse(json);
-  return validated.data as Arbeidsplan | null;
+  return validated.data ?? null;
 }
 
 async function createArbeidsplan(data: CreateArbeidsplan): Promise<Arbeidsplan> {
@@ -57,7 +57,8 @@ async function createArbeidsplan(data: CreateArbeidsplan): Promise<Arbeidsplan> 
 
   const json = await res.json();
   const validated = ArbeidsplanResponseSchema.parse(json);
-  return validated.data as Arbeidsplan;
+  if (!validated.data) throw new Error("Ingen arbeidsplan returnert fra server");
+  return validated.data;
 }
 
 async function updateBlock(
@@ -77,7 +78,8 @@ async function updateBlock(
 
   const json = await res.json();
   const validated = ArbeidsplanResponseSchema.parse(json);
-  return validated.data as Arbeidsplan;
+  if (!validated.data) throw new Error("Ingen arbeidsplan returnert fra server");
+  return validated.data;
 }
 
 async function deleteArbeidsplan(planId: string): Promise<void> {

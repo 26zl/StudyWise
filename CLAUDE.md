@@ -156,7 +156,7 @@ pnpm test:auth:matrix:session      # Session/cross-tab
 pnpm test:auth:matrix:race         # Race conditions
 ```
 
-The `func-testing.yml` workflow runs stable Playwright E2E specs in CI (Chromium only; triggered after CI succeeds or manually). Diagnostic/repro specs and Firefox/WebKit are local-only. Uploads HTML report and trace artifacts.
+The `func-testing.yml` workflow runs stable Playwright E2E specs in CI (Chromium only; triggered after CI succeeds or manually). Diagnostic/repro specs and Firefox/WebKit are local-only. Uploads HTML report and trace artifacts. CI runs specs from both `tests/auth/` (auth flows) and `tests/app/` (app smoke, API security, navigation, contact form).
 
 ### Docker (kun lokal utvikling)
 
@@ -231,7 +231,7 @@ Supports sharing a single MongoDB database between dev and prod Clerk instances.
 3. If the old `clerkId` returns 404, the MongoDB user is re-linked to the new `clerkId` via `relinkUserToClerkId()` instead of being rejected
 4. Covers all conflict paths: OAuth account, email, cross-validation, and duplicate-key race conditions
 
-Secure because each backend only trusts its configured `CLERK_SECRET_KEY`. Fail-safe: network errors assume the `clerkId` exists and block as normal. Email verification: `relinkUserToClerkId()` verifies that the new Clerk user's email matches the existing MongoDB user's email (or OAuth emails) before re-linking — mismatches are blocked and audit-logged. Usernames and emails are NOT re-synced during re-linking to preserve user identity.
+Secure because each backend only trusts its configured `CLERK_SECRET_KEY`. Fail-safe: network errors assume the `clerkId` exists and block as normal. Email verification: `relinkUserToClerkId()` verifies that the new Clerk user's email matches the existing MongoDB user's email (or OAuth emails) before re-linking — mismatches are blocked and audit-logged. Usernames and emails are NOT re-synced during re-linking to preserve user identity. **`authProviders` and `oauthAccounts` are MERGED** (union of existing + new), not replaced — the new Clerk instance may only have Google while the user previously had email+Google+Microsoft.
 
 ### Auth Conflict Guard (Frontend)
 
@@ -389,7 +389,8 @@ The backend accepts file uploads via `multer` and processes them with:
 - **Frontend API responses** - Always parse API responses with Zod schemas from `common`. Never use `as` type assertions on API data — use `.parse()` or `.safeParse()`. If a response schema doesn't exist in `common`, add it there first.
 - **BullMQ job IDs** - Custom job IDs cannot contain `:` (BullMQ 5.73+). Use `_` as separator (e.g. `${subscriptionId}_${candidateId}`).
 - **OAuth account ID** - Clerk `externalAccounts` may provide ID via `providerUserId` or `externalId` depending on linking method. Always use fallback: `account.providerUserId || account.externalId`.
-- **Cross-environment re-link** - The `relinkUserToClerkId()` function verifies the new Clerk user's email against BOTH the MongoDB user's primary email AND their stored OAuth emails (`oauthAccounts[].email`). This allows users who registered with email X but linked OAuth Y to re-link from a different Clerk environment via OAuth Y.
+- **Cross-environment re-link** - The `relinkUserToClerkId()` function verifies the new Clerk user's email against BOTH the MongoDB user's primary email AND their stored OAuth emails (`oauthAccounts[].email`). This allows users who registered with email X but linked OAuth Y to re-link from a different Clerk environment via OAuth Y. **Re-link merges** `authProviders` and `oauthAccounts` (set union) — never replaces. Email and username are never touched.
+- **Email sync: Clerk → MongoDB with re-link guard** - Normal email changes in Clerk UserProfile DO sync to MongoDB via `buildClerkProfileUpdate(includeEmail: true)`. But after a cross-env re-link, the Clerk instance has a different primary email (e.g. OAuth email) that must NOT overwrite the MongoDB email. Detection: `syncExistingUserWithClerkProfile` checks if the Clerk email matches an existing `oauthAccounts[].email` but differs from MongoDB `User.email` — that's a re-link artefact, not a user-initiated change. In that case `includeEmail: false` is passed. When adding new `buildClerkProfileUpdate` call sites in sync paths, always use `includeEmail: !isPostRelinkSync`. The same guard also merges `authProviders` and `oauthAccounts` via `syncProfile` so that `buildClerkProfileUpdate` receives the merged set instead of overwriting with Clerk's incomplete providers.
 - **Admin maintenance endpoints** - Must have `requireRecentAuth`, Redis-based cooldown (prevent spam), `res.headersSent` check, and be listed in `LONG_TIMEOUT_PREFIXES` for extended timeout.
 - **Query `enabled` gating** - React Query hooks that call authenticated endpoints must gate on `megQuery.isSuccess` or equivalent auth-ready signal to avoid 401s during session load/expiry.
 
@@ -572,6 +573,8 @@ Recurring false-positive patterns (do NOT "fix" these without verification):
 - **Live URL fetcher SSRF**: already mitigated by reusing the crawler's `fetchWithSafeRedirects` + `readResponseBodyWithLimit` from `services/crawler.ts`. Don't replace with raw `fetch()`.
 - **Soft-delete missing on User-queries**: the `lint:soft-delete` CI gate is the source of truth — if it's green, queries are correctly filtered or annotated.
 - **`bypassGuard: true` in OAuth/email-conflict relink paths**: intentional. Each call site has already verified the old `clerkId` is gone via `clerkUserExistsInCurrentInstance()`, so the ping-pong guard would only cause false lockouts.
+- **Clerk "disconnected" OAuth after cross-env re-link**: Expected behavior. When a user re-links from dev to prod Clerk, the prod Clerk user's OAuth token may show "This account has been disconnected" in the Clerk UserProfile. The user clicks "Prøv på nytt" to re-authorize — this is a Clerk-side token issue, not a StudyWise bug. Don't try to fix this in code.
+- **Clerk UserProfile shows different email than Kontooversikt after re-link**: Expected. Clerk UserProfile shows Clerk's primary email (from the new Clerk instance), while Kontooversikt shows MongoDB's `User.email` (preserved from original registration). These are two different sources of truth — MongoDB is authoritative.
 - **`IMPORTANT! Eviction policy is volatile-lru. It should be "noeviction"`**: BullMQ startup warning. False positive — `volatile-lru` only evicts keys with TTL, BullMQ jobs have no TTL so they're safe. Documented in Cache section above. Don't change Redis policy to `noeviction` (would cause OOM-write failures on cache).
 - **MongoDB Stable API v1 — `.distinct()` is NOT supported**: throws `APIStrictError` (code 323). Use `aggregate([{ $match }, { $group: { _id: "$field" } }])` instead. Same applies to `mapReduce`, `geoNear`, legacy `group`, `eval`.
 - **AI SDK v6 `streamResult.usage` returns undefined tokens for Anthropic**: use the `onFinish` callback to capture the authoritative usage object instead. `streamResult.usage` is "last step only" and can be empty; `streamResult.totalUsage` is also unreliable for the Anthropic provider. Pattern is in `backend/src/rutere/ki/aiClient.ts`.

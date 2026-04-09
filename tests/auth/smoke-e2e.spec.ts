@@ -16,11 +16,11 @@ test.describe("Auth E2E smoke", () => {
     await page.goto("/auth/sign-up");
     await page.waitForLoadState("domcontentloaded");
 
-    // Egendefinert registreringsskjema — vent på at e-postfeltet vises
+    // Egendefinert registreringsskjema — vent på at e-postfeltet eller overskriften vises
     // Turnstile-gaten hoppes over i CI (NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY ikke satt)
     const emailInput = page.locator("#signup-email");
-    const signUpText = page.locator('text=/sign up|registrer|opprett/i').first();
+    const heading = page.getByRole("heading", { name: /create account|opprett konto/i });
 
-    await expect(emailInput.or(signUpText)).toBeVisible({ timeout: 30_000 });
+    await expect(emailInput.or(heading)).toBeVisible({ timeout: 30_000 });
   });
 });
