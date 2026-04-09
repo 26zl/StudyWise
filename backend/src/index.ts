@@ -442,13 +442,29 @@ connectToDatabase()
     });
     // BullMQ workers (Clerk-sletting + Pinecone-cleanup) erstatter de tidligere
     // MongoDB-baserte polling-løkkene. Migrerer ev. eksisterende pending-rader på oppstart.
-    await startQueueWorkers();
-    logger.info("BullMQ-workers startet");
-    const webPushInterval = startWebPushPolling();
+    let queueWorkersStarted = false;
+    try {
+      await startQueueWorkers();
+      queueWorkersStarted = true;
+      logger.info("BullMQ-workers startet");
+    } catch (error) {
+      // Ikke slå ned hele API-et hvis Redis/BullMQ er midlertidig utilgjengelig.
+      // API-kjerne skal fortsatt kunne starte.
+      logger.error(
+        { err: error },
+        "BullMQ-workers kunne ikke starte; fortsetter uten bakgrunnskøer",
+      );
+    }
 
-    void processWebPushNotifications().catch((error) => {
-      logger.warn({ err: error }, "Initial web-push-sjekk feilet");
-    });
+    let webPushInterval: ReturnType<typeof setInterval> | null = null;
+    if (queueWorkersStarted) {
+      webPushInterval = startWebPushPolling();
+      void processWebPushNotifications().catch((error) => {
+        logger.warn({ err: error }, "Initial web-push-sjekk feilet");
+      });
+    } else {
+      logger.warn("Web-push polling deaktivert fordi BullMQ ikke er tilgjengelig");
+    }
 
     void cleanupExpiredSharedChats({ reason: "scheduled_cleanup" }).catch((error) => {
       logger.warn({ err: error }, "Initial cleanup av utløpte delinger feilet");

@@ -155,7 +155,7 @@ const nextConfig = {
   output: "standalone",
   // Øk timeout for proxy-requests (standard er 30s)
   experimental: {
-    proxyTimeout: 180_000, // 3 minutter
+    proxyTimeout: 360_000, // 6 minutter (store PDF-analyser kan ta >3 min)
   },
   turbopack: {
     root: path.resolve(__dirname, ".."),

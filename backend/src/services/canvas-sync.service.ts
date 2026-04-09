@@ -343,6 +343,7 @@ async function _doSync(
 ): Promise<SyncResult> {
   const startTime = Date.now();
   const maxFilesPerSync = options?.maxFiles ?? MAX_FILES_PER_SYNC;
+  let extractionDisabledForRun = false;
 
   if (signal?.aborted) {
     return { synced: false, courses: { total: 0, updated: 0, unchanged: 0, failed: 0 }, durationMs: Date.now() - startTime };
@@ -777,8 +778,16 @@ async function _doSync(
           ): Promise<ProcessOutcome> => {
             try {
               if (!isSupportedFileType(fileData.filename)) return "skipped";
+              if (extractionDisabledForRun) return "limit-reached";
 
               if (await checkMemoryPressure(userId)) {
+                if (!extractionDisabledForRun) {
+                  extractionDisabledForRun = true;
+                  logger.error(
+                    { userId, courseId, filename: fileData.filename },
+                    "Deaktiverer tung ekstraksjon for resten av sync-kjøringen pga vedvarende minnetrykk",
+                  );
+                }
                 logger.warn(
                   { userId, courseId, filename: fileData.filename },
                   "Avbryter filekstraksjon pga. høyt minnetrykk",
@@ -985,7 +994,7 @@ async function _doSync(
           // ── Page-ekstraksjon for Page-type module items ──
           // Canvas Pages (wiki-sider) inneholder ofte pensum som HTML.
           // Henter page body, stripper HTML og lagrer som chunks.
-          if (isEmbeddingAvailable()) {
+          if (isEmbeddingAvailable() && !reachedFileLimit && !extractionDisabledForRun) {
             const PAGE_CONCURRENCY = 3;
             const pageLimit = pLimit(PAGE_CONCURRENCY);
             const pageItems: Array<{
@@ -1007,8 +1016,17 @@ async function _doSync(
                 pageItems.map(({ mod, item }) =>
                   pageLimit(async () => {
                     if (signal?.aborted) return;
+                    if (extractionDisabledForRun || reachedFileLimit) return;
                     if (fileCount >= maxFilesPerSync) return;
                     if (await checkMemoryPressure(userId)) {
+                      if (!extractionDisabledForRun) {
+                        extractionDisabledForRun = true;
+                        logger.error(
+                          { userId, courseId, pageTitle: item.title },
+                          "Deaktiverer tung ekstraksjon for resten av sync-kjøringen pga vedvarende minnetrykk",
+                        );
+                      }
+                      reachedFileLimit = true;
                       logger.warn({ userId, courseId, pageTitle: item.title }, "Avbryter page-ekstraksjon pga. høyt minnetrykk");
                       return;
                     }
@@ -1082,7 +1100,7 @@ async function _doSync(
 
           // ── ExternalUrl crawling og indeksering ──
           // Kaller den avanserte crawleren som parser HTML med cheerio og oppdager PDF-er
-          if (isEmbeddingAvailable()) {
+          if (isEmbeddingAvailable() && !reachedFileLimit && !extractionDisabledForRun) {
             // Finn hvilke ExternalUrl-items som har endret contentHash
             const changedExternalUrlIds = new Set<number>();
             for (const mod of enrichedModuler) {
@@ -1117,7 +1135,7 @@ async function _doSync(
           // ── Oppgavebeskrivelse-indeksering ──
           // Indekserer fulle oppgavebeskrivelser som chunks slik at vektorsøk kan finne dem.
           // Bruker negative fileId-er (-(oppgave-index+1)) for å unngå kollisjon med ekte filer.
-          if (isEmbeddingAvailable() && oppgaver.length > 0) {
+          if (isEmbeddingAvailable() && oppgaver.length > 0 && !reachedFileLimit && !extractionDisabledForRun) {
             let assignmentCount = 0;
             for (const [index, oppg] of oppgaver.entries()) {
               if (signal?.aborted) break;

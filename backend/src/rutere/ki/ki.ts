@@ -1382,6 +1382,8 @@ router.post("/chat", rateLimitKi, knyttCanvasTokenValgfritt, async (req, res) =>
 
     // ——— Intent-deteksjon: Trenger denne meldingen Canvas-data? ———
     let intent = detectIntent(messages);
+    const lastMessageNormalized = normaliserSkrivefeil(lastUserMessage);
+    const mentionsKnowledgeBase = /\b(?:basen|kunnskapsbase|knowledge base)\b/i.test(lastMessageNormalized);
     const hasDirectUrlInLastMessage = extractFirstHttpUrl(lastUserMessage) !== null;
     const hasSlashKbCommandInLastMessage = extractSlashKBBaseName(lastUserMessage) !== null;
     const shouldPrioritizeDirectUrl = hasDirectUrlInLastMessage && !hasSlashKbCommandInLastMessage;
@@ -1399,9 +1401,39 @@ router.post("/chat", rateLimitKi, knyttCanvasTokenValgfritt, async (req, res) =>
       intent = "general_chat";
     }
 
+    let hasActiveKnowledgeBaseSession = false;
+    if (req.user?.id) {
+      const activeKbRawForIntent = await getCache(kbSessionKey(req.user.id));
+      if (activeKbRawForIntent) {
+        try {
+          const parsed = JSON.parse(activeKbRawForIntent) as { id?: string; navn?: string };
+          hasActiveKnowledgeBaseSession = Boolean(parsed.id && parsed.navn);
+        } catch {
+          hasActiveKnowledgeBaseSession = false;
+        }
+      }
+    }
+
+    if (
+      intent !== "general_chat" &&
+      !req.canvasToken &&
+      (hasSlashKbCommandInLastMessage || mentionsKnowledgeBase || hasActiveKnowledgeBaseSession)
+    ) {
+      logger.info(
+        {
+          previousIntent: intent,
+          overriddenIntent: "general_chat",
+          reason: "knowledgeBaseContextWithoutCanvasToken",
+          hasSlashKbCommandInLastMessage,
+          mentionsKnowledgeBase,
+          hasActiveKnowledgeBaseSession,
+        },
+        "KB-kontekst prioriteres over Canvas-intent når Canvas-token mangler",
+      );
+      intent = "general_chat";
+    }
+
     if (intent === "general_chat" && req.user?.id) {
-      const lastMessageNormalized = normaliserSkrivefeil(lastUserMessage);
-      const hasKnowledgeBaseMention = /\b(?:basen|kunnskapsbase|knowledge base)\b/i.test(lastMessageNormalized);
       const hasSlashKbCommand = hasSlashKbCommandInLastMessage;
       const hasFollowUpSignal =
         isLikelyFollowUpQuestion(lastUserMessage) || refersToCurrentCourseContext(lastUserMessage);
@@ -1419,7 +1451,7 @@ router.post("/chat", rateLimitKi, knyttCanvasTokenValgfritt, async (req, res) =>
       if (
         !shouldPrioritizeDirectUrl &&
         !hasNewCourseHintInMessage &&
-        !hasKnowledgeBaseMention &&
+        !mentionsKnowledgeBase &&
         !hasSlashKbCommand &&
         (hasFollowUpSignal || (haikuRequested && hasContentSignals))
       ) {

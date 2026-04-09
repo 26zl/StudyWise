@@ -17,6 +17,7 @@ import {
     formatDocumentContext,
     getSupportedMimeTypes,
     validateFileMagicBytes,
+    EXTENSION_TO_MIME,
 } from "../../services/document.js";
 import { summarizeIfNeeded, countWords } from "../../services/summarization.service.js";
 import { resolveModel } from "./aiModels.js";
@@ -49,7 +50,25 @@ const VISION_MIME_TYPES = new Set([
 
 /** Normaliser MIME-type: image/jpg → image/jpeg (ikke-standard → standard) */
 function normaliserMime(mimetype: string): string {
-    return mimetype === "image/jpg" ? "image/jpeg" : mimetype;
+    if (mimetype === "image/jpg") return "image/jpeg";
+    if (mimetype === "application/x-pdf") return "application/pdf";
+    return mimetype;
+}
+
+function inferMimeFromFilename(filename?: string): string | null {
+    if (!filename) return null;
+    const ext = filename.toLowerCase().match(/\.[^.]+$/)?.[0];
+    if (!ext) return null;
+    return EXTENSION_TO_MIME[ext] ?? null;
+}
+
+function resolveUploadMime(mimetype: string, originalname?: string): string {
+    const normalized = normaliserMime(mimetype?.trim().toLowerCase());
+    if (normalized && normalized !== "application/octet-stream") {
+        return normalized;
+    }
+    const inferred = inferMimeFromFilename(originalname);
+    return inferred ?? normalized;
 }
 
 /** Sjekk om filens MIME-type kan sendes direkte til Claude Vision */
@@ -57,15 +76,29 @@ function erVisionBilde(mimetype: string): boolean {
     return VISION_MIME_TYPES.has(normaliserMime(mimetype));
 }
 
+function erStorDokument(pages: number | undefined, text: string | undefined): boolean {
+    const pageCount = pages ?? 1;
+    const words = text ? countWords(text) : 0;
+    return pageCount >= LARGE_DOC_PAGE_THRESHOLD || words >= LARGE_DOC_WORD_THRESHOLD;
+}
+
 // Definerer express router
 const router = Router();
 const SUPPORTED_MIME_TYPES = getSupportedMimeTypes();
 const INVALID_DOCUMENT_TYPE_ERROR = "INVALID_DOCUMENT_TYPE";
+const ANALYSE_SSE_TIMEOUT_MS = 240_000;
+const ANALYSE_TIMEOUT_MS = 220_000;
+const ANALYSE_MAX_TOKENS_DEFAULT = 3200;
+const ANALYSE_MAX_TOKENS_LARGE_DOC = 2200;
+const ENABLE_ANALYSE_PRE_SUMMARY = process.env.KI_ANALYSE_PRE_SUMMARY === "true";
+const LARGE_DOC_PAGE_THRESHOLD = 20;
+const LARGE_DOC_WORD_THRESHOLD = 6000;
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 15 * 1024 * 1024 }, // 15MB - matcher frontend-grensen
     fileFilter: (_req, file, cb) => {
-        if (SUPPORTED_MIME_TYPES.includes(file.mimetype)) {
+        const resolvedMime = resolveUploadMime(file.mimetype, file.originalname);
+        if (SUPPORTED_MIME_TYPES.includes(resolvedMime)) {
             cb(null, true);
         } else {
             cb(new Error(INVALID_DOCUMENT_TYPE_ERROR));
@@ -79,9 +112,10 @@ const upload = multer({
  */
 router.post("/analyze-document", upload.single('document'), async (req: Request, res: Response) => {
   // Sett SSE-headere FØRST — forhindrer proxy buffering-timeout
-  const { clearKeepalive } = setupSSE(req, res, 120_000);
-  const abortController = createLinkedAbortController(req.timeoutSignal);
+  const { clearKeepalive, deadlineSignal } = setupSSE(req, res, ANALYSE_SSE_TIMEOUT_MS);
+  const abortController = createLinkedAbortController(req.timeoutSignal, deadlineSignal);
   let analyseTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const analyseStartedAt = Date.now();
   const abortOnResponseEnd = () => abortController.abort();
   res.once("finish", abortOnResponseEnd);
   res.once("close", abortOnResponseEnd);
@@ -110,7 +144,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
         return;
     }
 
-        const filMimetype = normaliserMime(req.file.mimetype);
+        const filMimetype = resolveUploadMime(req.file.mimetype, req.file.originalname);
         const filBuffer = req.file.buffer;
         const magicError = validateFileMagicBytes(filBuffer, filMimetype);
         if (magicError) {
@@ -160,19 +194,28 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
             );
         }
 
-        // For lange dokumenter: pre-oppsummer via single-call
-        if (docResult?.text) {
+        // Fast path: pre-oppsummering er nå opt-in via env for å redusere total latens.
+        if (docResult?.text && ENABLE_ANALYSE_PRE_SUMMARY) {
+            const preSummaryStartedAt = Date.now();
             const mr = await summarizeIfNeeded(docResult.text, "uploaded_file", { fileName: req.file!.originalname });
             if (mr.summarized) {
                 docContext = `[OPPSUMMERING av ${docResult.pages || 1} sider, ${countWords(docResult.text)} ord]\n\n${mr.text}`;
             }
+            logger.info(
+                { durationMs: Date.now() - preSummaryStartedAt, summarized: mr.summarized },
+                "Pre-oppsummering fullført",
+            );
         }
 
         // Bygg meldingsarray med base prompt + dokument-tillegg
         const systemPrompt = STUDYWISE_SYSTEM_PROMPT + STUDYWISE_DOCUMENT_PROMPT;
+        const stortDokument = erStorDokument(docResult?.pages, docResult?.text);
+        const maxTokens = stortDokument ? ANALYSE_MAX_TOKENS_LARGE_DOC : ANALYSE_MAX_TOKENS_DEFAULT;
+        const responsInstruksjon = stortDokument
+            ? "Svar kort og presist med maks 700 ord. Prioriter de viktigste konseptene og det som er mest eksamensrelevant."
+            : "Important: Cover every single concept, framework, and named model in the document explicitly. When a framework has named components (e.g. VRIO has V, R, I, O), list every component individually. Never group items with 'and others' or 'etc.' Write out every item in every list. Do not end your response until all concepts in the document have been addressed.";
 
-        // Timeout guard — dokumentanalyse kan ta lengre tid enn chat, men bør ikke henge evig
-        const ANALYSE_TIMEOUT_MS = 120000;
+        // Timeout guard — dokumentanalyse kan ta betydelig lengre tid (parse + pre-oppsummering + AI-kall)
         const timeoutPromise = new Promise<never>((_, reject) => {
             analyseTimeoutHandle = setTimeout(() => reject(new Error("ANALYSE_TIMEOUT")), ANALYSE_TIMEOUT_MS);
         });
@@ -189,7 +232,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
 
             const visionMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
                 { role: "system", content: systemPrompt },
-                { role: "user", content: `<<USER_CONTENT>>\nSpørsmål: ${question}\n\n<</USER_CONTENT>>\n\nImportant: Cover every single concept, framework, and named model in the document explicitly. When a framework has named components (e.g. VRIO has V, R, I, O), list every component individually. Never group items with 'and others' or 'etc.' Write out every item in every list. Do not end your response until all concepts in the document have been addressed.\n\n[BILDE_VEDLEGG]` },
+                { role: "user", content: `<<USER_CONTENT>>\nSpørsmål: ${question}\n\n<</USER_CONTENT>>\n\n${responsInstruksjon}\n\n[BILDE_VEDLEGG]` },
             ];
 
             logger.info({
@@ -205,7 +248,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
                     model,
                     messages: visionMessages,
                     images: [imageAttachment],
-                    max_tokens: 6000,
+                    max_tokens: maxTokens,
                     temperature: 0.5,
                     signal: abortController.signal,
                     traceName: "document-analyse-vision",
@@ -225,7 +268,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
             // --- Vanlig tekst-basert dokumentanalyse ---
             const apiMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
                 { role: "system", content: systemPrompt },
-                { role: "user", content: `<<USER_CONTENT>>\nDokument-kontekst:\n${docContext}\n\nSpørsmål: ${question}\n<</USER_CONTENT>>\n\nImportant: Cover every single concept, framework, and named model in the document explicitly. When a framework has named components (e.g. VRIO has V, R, I, O), list every component individually. Never group items with 'and others' or 'etc.' Write out every item in every list. Do not end your response until all concepts in the document have been addressed.` },
+                { role: "user", content: `<<USER_CONTENT>>\nDokument-kontekst:\n${docContext}\n\nSpørsmål: ${question}\n<</USER_CONTENT>>\n\n${responsInstruksjon}` },
             ];
 
             logger.info({
@@ -240,7 +283,7 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
                 chatCompletion({
                     model,
                     messages: apiMessages,
-                    max_tokens: 6000,
+                    max_tokens: maxTokens,
                     temperature: 0.5,
                     signal: abortController.signal,
                     traceName: "document-analyse",
@@ -264,7 +307,11 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
         logger.info({
             model,
             responseLength: responseText.length,
-            tokens: usage?.total_tokens
+            tokens: usage?.total_tokens,
+            durationMs: Date.now() - analyseStartedAt,
+            maxTokens,
+            largeDocumentMode: stortDokument,
+            preSummaryEnabled: ENABLE_ANALYSE_PRE_SUMMARY,
         }, "Vellykket dokumentanalyse");
 
         const payload = KIDocumentAnalyseResponseSchema.parse({
@@ -313,6 +360,14 @@ router.post("/analyze-document", upload.single('document'), async (req: Request,
 
   } catch (error) {
     clearKeepalive();
+    const isAbortError =
+        error instanceof DOMException
+            ? error.name === "AbortError"
+            : error instanceof Error && error.name === "AbortError";
+    if (isAbortError && (res.writableEnded || res.destroyed)) {
+        logger.info("analyze-document avbrutt etter at response allerede var lukket");
+        return;
+    }
     logger.error({ err: error }, "analyze-document unhandled error");
     try {
         const isTimeout = error instanceof Error && error.message === "ANALYSE_TIMEOUT";
