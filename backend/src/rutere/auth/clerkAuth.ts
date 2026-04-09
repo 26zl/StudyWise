@@ -869,23 +869,36 @@ async function getClerkProfile(
     // Lagre OAuth-konto med providerAccountId og e-post for å forhindre at samme konto brukes på flere brukere.
     // Clerk Backend SDK har providerUserId direkte på ExternalAccount-klassen.
     // providerUserId kan være tom streng "" for uverifiserte kontoer — bruk account.id som fallback.
-    const accountId = account.providerUserId?.trim() || account.id?.trim() || null;
+    const realProviderUserId = account.providerUserId?.trim() || null;
+    const fallbackAccountId = account.id?.trim() || null;
+    const accountId = realProviderUserId || fallbackAccountId;
     if (mappedProvider && accountId) {
       const oauthEmail = account.emailAddress;
       const hasValidEmail = typeof oauthEmail === "string" && oauthEmail.includes("@");
-      if (!hasValidEmail) {
+
+      // Skip OAuth-kontoer som bruker Clerk-intern ID (ikke ekte provider-ID) OG mangler e-post.
+      // Disse er ufullstendige Clerk-artefakter (f.eks. etter kryssmiljø-relink) som ville
+      // duplisere eksisterende kontoer med en annen providerAccountId og uten kryssvalidering.
+      if (!realProviderUserId && !hasValidEmail) {
         logger.warn(
-          { provider: mappedProvider, clerkUserId },
-          "OAuth-konto fra Clerk mangler e-postadresse — kryssvalidering av e-post vil ikke fungere for denne kontoen",
+          { provider: mappedProvider, clerkUserId, fallbackAccountId },
+          "OAuth-konto fra Clerk bruker intern ID og mangler e-post — hopper over (ufullstendig konto)",
         );
+      } else {
+        if (!hasValidEmail) {
+          logger.warn(
+            { provider: mappedProvider, clerkUserId },
+            "OAuth-konto fra Clerk mangler e-postadresse — kryssvalidering av e-post vil ikke fungere for denne kontoen",
+          );
+        }
+        oauthAccounts.push({
+          provider: mappedProvider,
+          providerAccountId: String(accountId),
+          ...(hasValidEmail
+            ? { email: oauthEmail.toLowerCase().trim() }
+            : {}),
+        });
       }
-      oauthAccounts.push({
-        provider: mappedProvider,
-        providerAccountId: String(accountId),
-        ...(hasValidEmail
-          ? { email: oauthEmail.toLowerCase().trim() }
-          : {}),
-      });
     } else if (mappedProvider && !accountId) {
       logger.warn(
         {
@@ -954,10 +967,13 @@ function buildClerkProfileUpdate(
   syncedAt: Date,
   options: {
     includeEmail?: boolean;
+    /** Bevar eksisterende firstName/lastName i MongoDB (brukes ved post-relink sync
+     *  der Clerk-instansen kan ha ufullstendige navn fra OAuth sign-up). */
+    preserveNames?: boolean;
     usernameAction: UsernameSyncAction;
   },
 ) {
-  const { includeEmail = true, usernameAction } = options;
+  const { includeEmail = true, preserveNames = false, usernameAction } = options;
   const currentClerkEnv = getCurrentClerkEnv();
   const setFields: Record<string, unknown> = {
     clerkProfileSyncedAt: syncedAt,
@@ -990,16 +1006,18 @@ function buildClerkProfileUpdate(
     unsetFields.usernameNormalized = 1;
   }
 
-  if (profile.firstName) {
-    setFields.firstName = profile.firstName;
-  } else {
-    unsetFields.firstName = 1;
-  }
+  if (!preserveNames) {
+    if (profile.firstName) {
+      setFields.firstName = profile.firstName;
+    } else {
+      unsetFields.firstName = 1;
+    }
 
-  if (profile.lastName) {
-    setFields.lastName = profile.lastName;
-  } else {
-    unsetFields.lastName = 1;
+    if (profile.lastName) {
+      setFields.lastName = profile.lastName;
+    } else {
+      unsetFields.lastName = 1;
+    }
   }
 
   return {
@@ -1191,6 +1209,7 @@ async function syncExistingUserWithClerkProfile(
         existing._id,
         buildClerkProfileUpdate(syncProfile, syncedAt, {
           includeEmail: false,
+          preserveNames: isPostRelinkSync,
           usernameAction: syncUsernameAction,
         }),
         { returnDocument: "after" },
@@ -1252,6 +1271,7 @@ async function syncExistingUserWithClerkProfile(
           { _id: existing._id, clerkId: clerkUserId },
           buildClerkProfileUpdate(profileWithoutOauth, syncedAt, {
             includeEmail: false,
+            preserveNames: isPostRelinkSync,
             usernameAction: syncUsernameAction,
             }),
           { returnDocument: "after" },
@@ -1267,6 +1287,7 @@ async function syncExistingUserWithClerkProfile(
       { _id: existing._id, clerkId: clerkUserId },
       buildClerkProfileUpdate(syncProfile, syncedAt, {
         includeEmail: !isPostRelinkSync,
+        preserveNames: isPostRelinkSync,
         usernameAction: syncUsernameAction,
       }),
       { returnDocument: "after" },
@@ -1327,6 +1348,7 @@ async function syncExistingUserWithClerkProfile(
             syncedAt,
             {
               includeEmail: !isPostRelinkSync,
+              preserveNames: isPostRelinkSync,
               usernameAction: syncUsernameAction,
                 },
           );
