@@ -212,13 +212,23 @@ function ClerkProfileCacheSync() {
   const queryClient = useQueryClient();
   const { isLoaded: authLoaded, userId } = useAuth();
   const { isLoaded: clerkUserLoaded, user } = useUser();
+  const forceSyncInFlightRef = useRef(false);
 
-  // Synkroniser firstName og lastName fra Clerk til React Query-cache.
-  // Brukernavn synkes IKKE her — server er autoritativ for brukernavn
-  // fordi backend kan avvise Clerk-brukernavnet ved konflikt.
-  // E-post synkes IKKE her — lokal DB er autoritativ for e-post.
-  // Clerk-managed e-postendring er deaktivert i UserProfile UI, og backend
-  // kan avvise e-postendringer som konflikter med andre brukere.
+  const triggerBackendProfileSync = useCallback(async () => {
+    if (forceSyncInFlightRef.current) return;
+    forceSyncInFlightRef.current = true;
+    try {
+      await forceSyncMe(queryClient);
+    } catch {
+      // Ikke vis toast her — auth/query-laget håndterer eventuelle reelle feil.
+    } finally {
+      forceSyncInFlightRef.current = false;
+    }
+  }, [queryClient]);
+
+  // Synkroniser firstName og lastName optimistisk fra Clerk til React Query-cache.
+  // Brukernavn og e-post synkes ikke optimistisk her — backend er autoritativ
+  // fordi begge kan avvises ved konflikt og må bekreftes via /api/user/me.
   useEffect(() => {
     if (!authLoaded || !userId || !clerkUserLoaded) {
       return;
@@ -267,7 +277,7 @@ function ClerkProfileCacheSync() {
     ?.map((a) => `${a.provider}:${a.id}`)
     .sort()
     .join(",") ?? "";
-  const prevExternalAccountsRef = useRef(externalAccountsKey);
+  const prevExternalAccountsRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!authLoaded || !userId || !clerkUserLoaded) return;
@@ -275,11 +285,55 @@ function ClerkProfileCacheSync() {
     const prev = prevExternalAccountsRef.current;
     prevExternalAccountsRef.current = externalAccountsKey;
 
-    // Ignorer første render (initial load) — kun reager på endringer
-    if (prev === externalAccountsKey || prev === "") return;
+    // Ignorer første observerte verdi — kun reager på reelle endringer etter initial lasting.
+    if (prev === null || prev === externalAccountsKey) return;
 
-    void forceSyncMe(queryClient);
-  }, [authLoaded, clerkUserLoaded, userId, externalAccountsKey, queryClient]);
+    void triggerBackendProfileSync();
+  }, [
+    authLoaded,
+    clerkUserLoaded,
+    externalAccountsKey,
+    triggerBackendProfileSync,
+    userId,
+  ]);
+
+  // E-post er aktiv i Clerk UserProfile, så vi må tvinge backend-synk når
+  // primær e-post eller e-postlisten endrer seg.
+  const primaryEmailKey = [
+    user?.primaryEmailAddressId ?? "",
+    user?.primaryEmailAddress?.emailAddress ?? "",
+    user?.primaryEmailAddress?.verification?.status ?? "",
+  ].join(":");
+  const emailAddressesKey = user?.emailAddresses
+    ?.map((address) =>
+      [
+        address.id,
+        address.emailAddress,
+        address.verification?.status ?? "",
+      ].join(":"),
+    )
+    .sort()
+    .join(",") ?? "";
+  const clerkEmailStateKey = `${primaryEmailKey}|${emailAddressesKey}`;
+  const prevClerkEmailStateRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!authLoaded || !userId || !clerkUserLoaded) return;
+
+    const prev = prevClerkEmailStateRef.current;
+    prevClerkEmailStateRef.current = clerkEmailStateKey;
+
+    // Ignorer første observerte verdi — kun reager på reelle endringer etter initial lasting.
+    if (prev === null || prev === clerkEmailStateKey) return;
+
+    void triggerBackendProfileSync();
+  }, [
+    authLoaded,
+    clerkEmailStateKey,
+    clerkUserLoaded,
+    triggerBackendProfileSync,
+    userId,
+  ]);
 
   return null;
 }

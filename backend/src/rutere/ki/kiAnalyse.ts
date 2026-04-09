@@ -6,6 +6,7 @@
 
 import { Router, Request, Response, NextFunction } from "express";
 import multer from "multer";
+import { rateLimitKi } from "../../middleware/rate-limit.js";
 import { logger } from "../../utils/logger.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import {
@@ -110,7 +111,7 @@ const upload = multer({
  * POST /analyze-document
  * Analyser dokument (PDF, Word, TXT, etc.)
  */
-router.post("/analyze-document", upload.single('document'), async (req: Request, res: Response) => {
+router.post("/analyze-document", rateLimitKi, upload.single('document'), async (req: Request, res: Response) => {
   // Sett SSE-headere FØRST — forhindrer proxy buffering-timeout
   const { clearKeepalive, deadlineSignal } = setupSSE(req, res, ANALYSE_SSE_TIMEOUT_MS);
   const abortController = createLinkedAbortController(req.timeoutSignal, deadlineSignal);

@@ -2,6 +2,7 @@
  * Synkroniserer Clerk-brukere til MongoDB User.
  * Finner eller oppretter bruker på clerkId og oppdaterer lokal profil fra Clerk ved behov.
  */
+import { randomUUID } from "node:crypto";
 import { createClerkClient, verifyToken } from "@clerk/backend";
 import { isClerkAPIResponseError } from "@clerk/backend/errors";
 import { hashSha256 } from "../../utils/cryptoUtils.js";
@@ -203,7 +204,7 @@ function queueDeletedOAuthConflictCleanup(account: OAuthAccount): void {
             providerAccountId: account.providerAccountId,
             modifiedCount: result.modifiedCount,
           },
-          "Asynkron opprydding av stale OAuth-identiteter i tombstones fullfort",
+          "Asynkron opprydding av stale OAuth-identiteter i tombstones fullført",
         );
       }
     })
@@ -234,7 +235,7 @@ function queueDeletedUsernameCleanup(usernameNormalized: string): void {
       if ((result.modifiedCount ?? 0) > 0) {
         logger.info(
           { usernameNormalized, modifiedCount: result.modifiedCount },
-          "Asynkron opprydding av stale brukernavn i tombstones fullfort",
+          "Asynkron opprydding av stale brukernavn i tombstones fullført",
         );
       }
     })
@@ -335,24 +336,29 @@ export async function clerkUserExistsInCurrentInstance(clerkId: string): Promise
  *
  * Sikkerhet: verifiserer at den nye Clerk-brukerens e-post matcher den eksisterende
  * MongoDB-brukerens e-post (eller OAuth-e-poster) før re-linking tillates.
- * Brukernavn oppdateres IKKE her — det beholdes fra den eksisterende kontoen.
- * E-post oppdateres heller ikke — den er allerede verifisert og eid av denne brukeren.
+ * Brukernavn oppdateres IKKE direkte her — det synkroniseres i et eget steg etter relink.
+ * Primær e-post avgjøres heller ikke her — vanlig profilsynk håndterer eventuell oppdatering
+ * eller konflikt mot andre brukere etter at clerkId er flyttet.
  */
 
-/** Merger to lister med OAuth-kontoer basert på provider+providerAccountId (deduplisert). */
+/** Merger to lister med OAuth-kontoer basert på provider+providerAccountId (deduplisert).
+ *  Oppdaterer e-post på eksisterende kontoer hvis incoming har en nyere verdi. */
 function mergeOauthAccounts(
   existing: OAuthAccount[],
   incoming: OAuthAccount[],
 ): OAuthAccount[] {
   const merged = [...existing];
   for (const account of incoming) {
-    const alreadyExists = merged.some(
+    const existingIdx = merged.findIndex(
       (e) =>
         e.provider === account.provider &&
         e.providerAccountId === account.providerAccountId,
     );
-    if (!alreadyExists) {
+    if (existingIdx === -1) {
       merged.push(account);
+    } else if (account.email && account.email !== merged[existingIdx].email) {
+      // Oppdater e-post fra Clerk hvis den har endret seg (forhindrer stale data)
+      merged[existingIdx] = { ...merged[existingIdx], email: account.email };
     }
   }
   return merged;
@@ -458,7 +464,6 @@ async function relinkUserToClerkId(
     clerkId: newClerkUserId,
     clerkEnv: currentClerkEnv,
     authProviders: mergedAuthProviders,
-    clerkProfileSyncedAt: new Date(),
     mfaEnabled: profile.mfaEnabled,
   };
   if (profile.firstName) updateFields.firstName = profile.firstName;
@@ -470,7 +475,11 @@ async function relinkUserToClerkId(
   if (mergedOauthAccounts.length === 0) unsetFields.oauthAccounts = 1;
 
   const relinkedUser = await User.findOneAndUpdate(
-    { _id: existingUserId, deletedAt: { $exists: false } },
+    {
+      _id: existingUserId,
+      deletedAt: { $exists: false },
+      clerkId: { $ne: newClerkUserId },
+    },
     {
       $set: updateFields,
       ...(Object.keys(unsetFields).length > 0 ? { $unset: unsetFields } : {}),
@@ -478,25 +487,62 @@ async function relinkUserToClerkId(
     { returnDocument: "after" },
   ).select("+canvasApiToken");
 
-  if (relinkedUser) {
-    logger.info(
-      { userId: relinkedUser._id.toString(), newClerkUserId },
-      "Kryssmiljø re-link: eksisterende bruker re-linket til ny Clerk-instans",
-    );
-    // Rydd opp Redis relink-state etter vellykket relink — forhindrer stuck states
-    void deleteCacheKeys([`${RELINK_STATE_KEY_PREFIX}${existingUserId.toString()}`]);
-    await audit({
-      actorUserId: relinkedUser._id.toString(),
-      action: AUDIT_ACTIONS.ACCOUNT_RELINKED,
-      category: "auth",
-      outcome: "success",
-      metadata: {
-        subAction: "cross_env_relink",
+  if (!relinkedUser) {
+    const alreadyRelinkedUser = await User.findOne({
+      _id: existingUserId,
+      clerkId: newClerkUserId,
+      deletedAt: { $exists: false },
+    }).select("+canvasApiToken");
+
+    if (!alreadyRelinkedUser) {
+      return null;
+    }
+
+    try {
+      return await syncExistingUserWithClerkProfile(
+        alreadyRelinkedUser,
         newClerkUserId,
-      },
-    });
+        profile,
+      );
+    } catch (err) {
+      logger.warn(
+        { err, userId: alreadyRelinkedUser._id.toString(), newClerkUserId },
+        "Kryssmiljø re-link var allerede fullført, men etterfølgende profilsynk feilet",
+      );
+      return alreadyRelinkedUser;
+    }
   }
-  return relinkedUser;
+
+  logger.info(
+    { userId: relinkedUser._id.toString(), newClerkUserId },
+    "Kryssmiljø re-link: eksisterende bruker re-linket til ny Clerk-instans",
+  );
+  // Rydd opp Redis relink-state etter vellykket relink — forhindrer stuck states
+  void deleteCacheKeys([`${RELINK_STATE_KEY_PREFIX}${existingUserId.toString()}`]);
+  await audit({
+    actorUserId: relinkedUser._id.toString(),
+    action: AUDIT_ACTIONS.ACCOUNT_RELINKED,
+    category: "auth",
+    outcome: "success",
+    metadata: {
+      subAction: "cross_env_relink",
+      newClerkUserId,
+    },
+  });
+
+  try {
+    return await syncExistingUserWithClerkProfile(
+      relinkedUser,
+      newClerkUserId,
+      profile,
+    );
+  } catch (err) {
+    logger.warn(
+      { err, userId: relinkedUser._id.toString(), newClerkUserId },
+      "Kryssmiljø re-link fullførte, men etterfølgende profilsynk feilet",
+    );
+    return relinkedUser;
+  }
 }
 
 async function attemptRelinkWhenPreviousClerkMissing(options: {
@@ -576,6 +622,103 @@ function normalizeEmail(email: string | undefined): string | null {
 
   const normalized = email.toLowerCase().trim();
   return normalized.length > 0 ? normalized : null;
+}
+
+export type OAuthRelinkHint = {
+  username: string;
+  firstName?: string;
+  lastName?: string;
+};
+
+/**
+ * Returnerer eksisterende lokal profil som kan brukes til å auto-fullføre en
+ * pending Clerk OAuth sign-up i et annet miljø, uten å eksponere brukernavn
+ * basert kun på en ubekreftet e-postadresse.
+ */
+export async function resolveOAuthRelinkHint(
+  signUpAttemptId: string,
+  claimedEmail?: string,
+): Promise<OAuthRelinkHint | null> {
+  const clerk = getClerkBackendClient();
+  if (!clerk) {
+    return null;
+  }
+
+  try {
+    const signUpAttempt = await clerk.signUps.get(signUpAttemptId);
+    const signUpEmail = normalizeEmail(signUpAttempt.emailAddress ?? undefined);
+    const normalizedClaimedEmail = normalizeEmail(claimedEmail);
+
+    if (!signUpEmail) {
+      return null;
+    }
+
+    if (normalizedClaimedEmail && normalizedClaimedEmail !== signUpEmail) {
+      logger.warn(
+        { signUpAttemptId, claimedEmail: normalizedClaimedEmail, signUpEmail },
+        "OAuth re-link hint avvist: oppgitt e-post matcher ikke Clerk sign-up",
+      );
+      return null;
+    }
+
+    if (
+      signUpAttempt.status !== "missing_requirements" ||
+      signUpAttempt.createdSessionId ||
+      signUpAttempt.createdUserId
+    ) {
+      return null;
+    }
+
+    const kreverBrukernavn =
+      signUpAttempt.missingFields.includes("username") ||
+      signUpAttempt.requiredFields.includes("username");
+    if (!kreverBrukernavn) {
+      return null;
+    }
+
+    const existingUser = await User.findOne({
+      $or: [
+        { email: signUpEmail },
+        { "oauthAccounts.email": signUpEmail },
+      ],
+      deletedAt: { $exists: false },
+    }).select("username firstName lastName clerkId clerkEnv oauthAccounts email");
+
+    if (!existingUser?.username || !existingUser.clerkId) {
+      return null;
+    }
+
+    const currentClerkEnv = getCurrentClerkEnv();
+    const envAllowsRelink =
+      isProd ||
+      process.env.RELINK_DEV_GATE_DISABLED === "true" ||
+      (existingUser.clerkEnv === currentClerkEnv && currentClerkEnv !== "unknown");
+
+    if (!envAllowsRelink) {
+      return null;
+    }
+
+    const existsInCurrentClerk = await clerkUserExistsInCurrentInstance(existingUser.clerkId);
+    if (existsInCurrentClerk) {
+      return null;
+    }
+
+    return {
+      username: existingUser.username,
+      ...(existingUser.firstName ? { firstName: existingUser.firstName } : {}),
+      ...(existingUser.lastName ? { lastName: existingUser.lastName } : {}),
+    };
+  } catch (error) {
+    if (isClerkAPIResponseError(error) && error.status === 404) {
+      return null;
+    }
+
+    logger.warn(
+      { err: error, signUpAttemptId },
+      "Kunne ikke hente OAuth re-link hint fra Clerk sign-up attempt",
+    );
+    return null;
+  }
 }
 
 type UsernameSyncAction =
@@ -975,7 +1118,46 @@ async function syncExistingUserWithClerkProfile(
     return updated ?? existing;
   }
 
-  if (emailChanged) {
+  // Etter kryssmiljø re-link kan Clerk ha en annen primær-e-post enn MongoDB og
+  // færre providers/OAuth-kontoer enn det som er lagret (den nye Clerk-instansen
+  // kjenner kun sin egen provider, f.eks. bare Google, mens MongoDB har email+Google+Microsoft).
+  // Deteksjon: Clerk sin primær-e-post matcher en av brukerens eksisterende OAuth-kontoer
+  // men er forskjellig fra MongoDB sin e-post — da er det en re-link-artefakt.
+  // Beregnes FØR e-post/OAuth-konfliktsjekker slik at alle paths bruker beskyttede verdier.
+  const isPostRelinkSync =
+    emailChanged &&
+    existing.email != null &&
+    profile.email != null &&
+    existing.email !== profile.email &&
+    (existing.oauthAccounts ?? []).some(
+      (a) => a.email?.toLowerCase().trim() === profile.email!.toLowerCase().trim(),
+    );
+
+  // Hvis post-relink: merge providers/OAuth i stedet for å overskrive
+  const syncProfile = isPostRelinkSync
+    ? {
+        ...profile,
+        authProviders: [
+          ...new Set([
+            ...(existing.authProviders ?? []),
+            ...profile.authProviders,
+          ]),
+        ] as typeof profile.authProviders,
+        oauthAccounts: mergeOauthAccounts(
+          (existing.oauthAccounts ?? []) as OAuthAccount[],
+          profile.oauthAccounts,
+        ),
+      }
+    : profile;
+
+  // Etter re-link: behold eksisterende brukernavn (Clerk-instansen har et annet)
+  const syncUsernameAction: typeof usernameAction = isPostRelinkSync && usernameAction.mode === "set"
+    ? { mode: "keep" as const, reason: "preserve_existing" as const }
+    : usernameAction;
+
+  if (emailChanged && !isPostRelinkSync) {
+    // Kun ved reelle e-postendringer (ikke post-relink artefakt der Clerk har OAuth-e-post
+    // som primær mens MongoDB har den opprinnelige e-posten — det er forventet og uskadelig).
     const conflictingUser = await User.findOne({
       email: profile.email,
       _id: { $ne: existing._id },
@@ -1006,9 +1188,9 @@ async function syncExistingUserWithClerkProfile(
       // allow-deleted-users: `existing` er allerede en validert User-doc fra findOrCreateUserByClerkId-flyten
       const updatedWithoutEmail = await User.findByIdAndUpdate(
         existing._id,
-        buildClerkProfileUpdate(profile, syncedAt, {
+        buildClerkProfileUpdate(syncProfile, syncedAt, {
           includeEmail: false,
-          usernameAction,
+          usernameAction: syncUsernameAction,
         }),
         { returnDocument: "after" },
       );
@@ -1061,7 +1243,7 @@ async function syncExistingUserWithClerkProfile(
         });
 
         const profileWithoutOauth: ClerkProfile = {
-          ...profile,
+          ...syncProfile,
           oauthAccounts: existing.oauthAccounts ?? [],
         };
         // allow-deleted-users: `existing` er en validert User-doc oppe i flyten + clerkId-filter sikrer korrekt eier
@@ -1069,7 +1251,7 @@ async function syncExistingUserWithClerkProfile(
           { _id: existing._id, clerkId: clerkUserId },
           buildClerkProfileUpdate(profileWithoutOauth, syncedAt, {
             includeEmail: false,
-            usernameAction,
+            usernameAction: syncUsernameAction,
             }),
           { returnDocument: "after" },
         );
@@ -1078,44 +1260,13 @@ async function syncExistingUserWithClerkProfile(
     }
   }
 
-  // Etter kryssmiljø re-link kan Clerk ha en annen primær-e-post enn MongoDB og
-  // færre providers/OAuth-kontoer enn det som er lagret (den nye Clerk-instansen
-  // kjenner kun sin egen provider, f.eks. bare Google, mens MongoDB har email+Google+Microsoft).
-  // Deteksjon: Clerk sin primær-e-post matcher en av brukerens eksisterende OAuth-kontoer
-  // men er forskjellig fra MongoDB sin e-post — da er det en re-link-artefakt.
-  const isPostRelinkSync =
-    emailChanged &&
-    existing.email != null &&
-    profile.email != null &&
-    existing.email !== profile.email &&
-    (existing.oauthAccounts ?? []).some(
-      (a) => a.email?.toLowerCase().trim() === profile.email!.toLowerCase().trim(),
-    );
-
-  // Hvis post-relink: merge providers/OAuth i stedet for å la buildClerkProfileUpdate overskrive
-  const syncProfile = isPostRelinkSync
-    ? {
-        ...profile,
-        authProviders: [
-          ...new Set([
-            ...(existing.authProviders ?? []),
-            ...profile.authProviders,
-          ]),
-        ] as typeof profile.authProviders,
-        oauthAccounts: mergeOauthAccounts(
-          (existing.oauthAccounts ?? []) as OAuthAccount[],
-          profile.oauthAccounts,
-        ),
-      }
-    : profile;
-
   try {
     // allow-deleted-users: `existing` er en validert User-doc oppe i flyten + clerkId-filter sikrer korrekt eier
     const updated = await User.findOneAndUpdate(
       { _id: existing._id, clerkId: clerkUserId },
       buildClerkProfileUpdate(syncProfile, syncedAt, {
         includeEmail: !isPostRelinkSync,
-        usernameAction,
+        usernameAction: syncUsernameAction,
       }),
       { returnDocument: "after" },
     );
@@ -1175,7 +1326,7 @@ async function syncExistingUserWithClerkProfile(
             syncedAt,
             {
               includeEmail: !isPostRelinkSync,
-              usernameAction,
+              usernameAction: syncUsernameAction,
                 },
           );
           const retried = await User.findOneAndUpdate(
@@ -1729,7 +1880,7 @@ export async function findOrCreateUserByClerkId(
         // Anonymiser e-posten slik at ny bruker kan opprettes med samme e-post.
         // Bruk findOneAndUpdate med deletedAt-guard og timestamp i e-post for å unngå
         // race conditions og pattern-kollisjoner.
-        const anonymizedEmail = `deleted-${existingByEmail._id.toString()}-${Date.now()}@studywise.invalid`;
+        const anonymizedEmail = `deleted-${existingByEmail._id.toString()}-${randomUUID()}@studywise.invalid`;
         const anonymized = await User.findOneAndUpdate(
           { _id: existingByEmail._id, deletedAt: { $exists: true } },
           {
@@ -1831,7 +1982,7 @@ export async function findOrCreateUserByClerkId(
 
         if (linkedUser?.deletedAt) {
           // Linket bruker ble slettet mellom findOne og findOneAndUpdate — rydd opp og opprett ny
-          const anonymizedEmail = `deleted-${linkedUser._id.toString()}-${Date.now()}@studywise.invalid`;
+          const anonymizedEmail = `deleted-${linkedUser._id.toString()}-${randomUUID()}@studywise.invalid`;
           const anonymizeResult = await User.updateOne(
             { _id: linkedUser._id, deletedAt: { $exists: true } },
             { $set: { email: anonymizedEmail }, $unset: { clerkId: 1, clerkEnv: 1 } },
