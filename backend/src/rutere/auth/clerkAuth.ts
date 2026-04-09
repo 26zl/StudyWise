@@ -624,103 +624,6 @@ function normalizeEmail(email: string | undefined): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
-export type OAuthRelinkHint = {
-  username: string;
-  firstName?: string;
-  lastName?: string;
-};
-
-/**
- * Returnerer eksisterende lokal profil som kan brukes til å auto-fullføre en
- * pending Clerk OAuth sign-up i et annet miljø, uten å eksponere brukernavn
- * basert kun på en ubekreftet e-postadresse.
- */
-export async function resolveOAuthRelinkHint(
-  signUpAttemptId: string,
-  claimedEmail?: string,
-): Promise<OAuthRelinkHint | null> {
-  const clerk = getClerkBackendClient();
-  if (!clerk) {
-    return null;
-  }
-
-  try {
-    const signUpAttempt = await clerk.signUps.get(signUpAttemptId);
-    const signUpEmail = normalizeEmail(signUpAttempt.emailAddress ?? undefined);
-    const normalizedClaimedEmail = normalizeEmail(claimedEmail);
-
-    if (!signUpEmail) {
-      return null;
-    }
-
-    if (normalizedClaimedEmail && normalizedClaimedEmail !== signUpEmail) {
-      logger.warn(
-        { signUpAttemptId, claimedEmail: normalizedClaimedEmail, signUpEmail },
-        "OAuth re-link hint avvist: oppgitt e-post matcher ikke Clerk sign-up",
-      );
-      return null;
-    }
-
-    if (
-      signUpAttempt.status !== "missing_requirements" ||
-      signUpAttempt.createdSessionId ||
-      signUpAttempt.createdUserId
-    ) {
-      return null;
-    }
-
-    const kreverBrukernavn =
-      signUpAttempt.missingFields.includes("username") ||
-      signUpAttempt.requiredFields.includes("username");
-    if (!kreverBrukernavn) {
-      return null;
-    }
-
-    const existingUser = await User.findOne({
-      $or: [
-        { email: signUpEmail },
-        { "oauthAccounts.email": signUpEmail },
-      ],
-      deletedAt: { $exists: false },
-    }).select("username firstName lastName clerkId clerkEnv oauthAccounts email");
-
-    if (!existingUser?.username || !existingUser.clerkId) {
-      return null;
-    }
-
-    const currentClerkEnv = getCurrentClerkEnv();
-    const envAllowsRelink =
-      isProd ||
-      process.env.RELINK_DEV_GATE_DISABLED === "true" ||
-      (existingUser.clerkEnv === currentClerkEnv && currentClerkEnv !== "unknown");
-
-    if (!envAllowsRelink) {
-      return null;
-    }
-
-    const existsInCurrentClerk = await clerkUserExistsInCurrentInstance(existingUser.clerkId);
-    if (existsInCurrentClerk) {
-      return null;
-    }
-
-    return {
-      username: existingUser.username,
-      ...(existingUser.firstName ? { firstName: existingUser.firstName } : {}),
-      ...(existingUser.lastName ? { lastName: existingUser.lastName } : {}),
-    };
-  } catch (error) {
-    if (isClerkAPIResponseError(error) && error.status === 404) {
-      return null;
-    }
-
-    logger.warn(
-      { err: error, signUpAttemptId },
-      "Kunne ikke hente OAuth re-link hint fra Clerk sign-up attempt",
-    );
-    return null;
-  }
-}
-
 type UsernameSyncAction =
   | { mode: "set"; username: string; usernameNormalized: string }
   | { mode: "unset" }
@@ -1044,7 +947,8 @@ async function recordSyncConflict(
     oppdagetVed: new Date().toISOString(),
   };
 
-  // Atomisk: fjern eksisterende konflikt av samme type og legg til ny i én operasjon
+  // Atomisk: fjern eksisterende konflikt av samme type og legg til ny i én operasjon.
+  // Mongoose v9 gjenkjenner aggregation pipeline-syntaks (array som andre arg) automatisk.
   // allow-deleted-users: userId er allerede validert av kall-stedet (sync-flyten) før denne hjelperen kalles
   await User.updateOne(
     { _id: userId },
@@ -1205,11 +1109,11 @@ async function syncExistingUserWithClerkProfile(
       });
 
       // allow-deleted-users: `existing` er allerede en validert User-doc fra findOrCreateUserByClerkId-flyten
+      // isPostRelinkSync er alltid false her (ytre guard: `emailChanged && !isPostRelinkSync`)
       const updatedWithoutEmail = await User.findByIdAndUpdate(
         existing._id,
         buildClerkProfileUpdate(syncProfile, syncedAt, {
           includeEmail: false,
-          preserveNames: isPostRelinkSync,
           usernameAction: syncUsernameAction,
         }),
         { returnDocument: "after" },

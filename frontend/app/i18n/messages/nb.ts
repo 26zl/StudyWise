@@ -33,6 +33,7 @@ export const nbMessages = {
       canvasUser: "Canvas bruker",
       error: "Feil",
       notSignedIn: "Ikke innlogget",
+      optional: "valgfritt",
     },
     loading: {
       aiChat: "Laster KI-chat...",
@@ -219,19 +220,11 @@ export const nbMessages = {
       usernameInvalid: "Kun bokstaver, tall og understrek (4–30 tegn)",
       usernameWait: "Vent mens brukernavnet sjekkes.",
       allFieldsRequired: "Alle felt er påkrevd.",
-      chooseUsernameFirst: "Velg et brukernavn først.",
-      oauthUsernameError: "Kunne ikke lagre brukernavn. Prøv igjen.",
       oauthConflict: {
         title: "Konto allerede i bruk",
         description:
           "Denne innloggingskontoen er allerede tilknyttet en annen StudyWise-bruker. Du må slette den eksisterende kontoen først, eller logge inn med en annen metode.",
         backToSignIn: "Tilbake til innlogging",
-      },
-      oauthUsername: {
-        title: "Velg brukernavn",
-        subtitle: "Siste steg! Velg et brukernavn for kontoen din.",
-        submitButton: "Fullfør registrering",
-        submitting: "Lagrer...",
       },
       emailLabel: "E-postadresse",
       emailPlaceholder: "navn@example.com",
@@ -239,8 +232,6 @@ export const nbMessages = {
       passwordPlaceholder: "Velg et passord",
       passwordRequirements: {
         minLength: "Minst 8 tegn",
-        notCompromised: "Ikke et kjent kompromittert passord",
-        strength: "Rimelig sterkt (ikke lett å gjette)",
         hint: "Passordet blir sjekket for styrke og lekkasjer når du sender inn.",
         weak: "Passordet er for kort — minst 8 tegn kreves",
       },

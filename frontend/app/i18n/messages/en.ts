@@ -35,6 +35,7 @@ export const enMessages = {
       canvasUser: "Canvas user",
       error: "Error",
       notSignedIn: "Not signed in",
+      optional: "optional",
     },
     loading: {
       aiChat: "Loading AI chat...",
@@ -219,19 +220,11 @@ export const enMessages = {
       usernameInvalid: "Only letters, numbers, and underscores (4–30 chars)",
       usernameWait: "Please wait while username is being checked.",
       allFieldsRequired: "All fields are required.",
-      chooseUsernameFirst: "Please choose a username first.",
-      oauthUsernameError: "Could not save username. Please try again.",
       oauthConflict: {
         title: "Account already in use",
         description:
           "This login account is already linked to another StudyWise user. You must delete the existing account first, or sign in with a different method.",
         backToSignIn: "Back to sign in",
-      },
-      oauthUsername: {
-        title: "Choose a username",
-        subtitle: "Last step! Pick a username for your account.",
-        submitButton: "Complete sign-up",
-        submitting: "Saving...",
       },
       emailLabel: "Email address",
       emailPlaceholder: "name@example.com",
@@ -239,8 +232,6 @@ export const enMessages = {
       passwordPlaceholder: "Choose a password",
       passwordRequirements: {
         minLength: "At least 8 characters",
-        notCompromised: "Not a known compromised password",
-        strength: "Reasonably strong (not easy to guess)",
         hint: "Password is checked for strength and breaches when you submit.",
         weak: "Password is too short — at least 8 characters required",
       },

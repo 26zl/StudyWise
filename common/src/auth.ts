@@ -521,27 +521,6 @@ export const UsernameCheckResponseSchema = z.object({
   username: z.string(),
 });
 
-export const OAuthRelinkHintQuerySchema = z.object({
-  signUpAttemptId: z.string().trim().min(1, "Sign-up ID mangler").max(128, "Sign-up ID er ugyldig"),
-  email: EmailSchema.optional(),
-});
-
-export const OAuthRelinkHintResponseSchema = z.union([
-  z.strictObject({
-    canAutoComplete: z.literal(true),
-    username: z
-      .string()
-      .min(USERNAME_MIN_LENGTH, `Brukernavn må være minst ${USERNAME_MIN_LENGTH} tegn`)
-      .max(USERNAME_MAX_LENGTH, `Brukernavn kan maks være ${USERNAME_MAX_LENGTH} tegn`)
-      .regex(USERNAME_PATTERN, "Brukernavn kan kun inneholde bokstaver, tall og understrek"),
-    firstName: z.string().optional(),
-    lastName: z.string().optional(),
-  }),
-  z.strictObject({
-    canAutoComplete: z.literal(false),
-  }),
-]);
-
 // TypeScript typer eksportering
 export type CanvasTokenRequest = z.infer<typeof CanvasTokenRequestSchema>;
 export type CanvasTokenResponse = z.infer<typeof CanvasTokenResponseSchema>;
@@ -555,5 +534,3 @@ export type AuthTurnstileVerifyRequest = z.infer<typeof AuthTurnstileVerifyReque
 export type AuthTurnstileVerifyResponse = z.infer<typeof AuthTurnstileVerifyResponseSchema>;
 export type UsernameCheckQuery = z.infer<typeof UsernameCheckQuerySchema>;
 export type UsernameCheckResponse = z.infer<typeof UsernameCheckResponseSchema>;
-export type OAuthRelinkHintQuery = z.infer<typeof OAuthRelinkHintQuerySchema>;
-export type OAuthRelinkHintResponse = z.infer<typeof OAuthRelinkHintResponseSchema>;

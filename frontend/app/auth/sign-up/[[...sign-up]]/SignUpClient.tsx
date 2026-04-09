@@ -1,21 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAuth, useClerk, useUser } from "@clerk/nextjs";
+import { useAuth } from "@clerk/nextjs";
 import { useSignUp } from "@clerk/nextjs/legacy";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { AuthTurnstileInline } from "@/app/auth/AuthTurnstileInline";
 import { checkAuthTurnstileGate } from "@/app/auth/auth-turnstile-api";
 import { getPostAuthRedirectFromParams, withPostAuthRedirect } from "@/app/auth/redirects";
 import { useLanguage } from "@/app/i18n";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
-import { fetchApi } from "@/app/lib/apiClient";
 import {
   isValidUsernameFormat,
-  OAuthRelinkHintResponseSchema,
   USERNAME_MIN_LENGTH,
   USERNAME_MAX_LENGTH,
 } from "common/auth";
@@ -38,7 +36,7 @@ type SignUpClientProps = {
 };
 
 type UsernameStatus = "idle" | "checking" | "available" | "taken" | "invalid";
-type SignUpStep = "form" | "verify" | "oauth-username";
+type SignUpStep = "form" | "verify";
 
 function normalizeEmailForUsernameCheck(value: string | null | undefined): string | undefined {
   const trimmed = value?.trim().toLowerCase();
@@ -46,29 +44,6 @@ function normalizeEmailForUsernameCheck(value: string | null | undefined): strin
     return undefined;
   }
   return trimmed;
-}
-
-function readPendingSignUpEmail(signUp: unknown): string | undefined {
-  if (!signUp || typeof signUp !== "object") {
-    return undefined;
-  }
-
-  const candidate = signUp as Record<string, unknown>;
-  if (typeof candidate.emailAddress === "string") {
-    return normalizeEmailForUsernameCheck(candidate.emailAddress);
-  }
-
-  if (Array.isArray(candidate.emailAddresses)) {
-    for (const item of candidate.emailAddresses) {
-      if (!item || typeof item !== "object") continue;
-      const entry = item as Record<string, unknown>;
-      if (typeof entry.emailAddress === "string") {
-        return normalizeEmailForUsernameCheck(entry.emailAddress);
-      }
-    }
-  }
-
-  return undefined;
 }
 
 function buildUsernameCheckUrl(username: string, email?: string): string {
@@ -79,19 +54,9 @@ function buildUsernameCheckUrl(username: string, email?: string): string {
   return `/api/user/username/check?${params.toString()}`;
 }
 
-function buildOAuthRelinkHintUrl(signUpAttemptId: string, email?: string): string {
-  const params = new URLSearchParams({ signUpAttemptId });
-  if (email) {
-    params.set("email", email);
-  }
-  return `/api/user/oauth-relink-hint?${params.toString()}`;
-}
-
 export function SignUpClient({ initialVerified }: SignUpClientProps) {
   const { t } = useLanguage();
   const { isLoaded, isSignedIn } = useAuth();
-  const clerk = useClerk();
-  const { isLoaded: userLoaded, user: clerkUser } = useUser();
   const { signUp, setActive } = useSignUp();
   const searchParams = useSearchParams();
   const redirectUrl = getPostAuthRedirectFromParams(searchParams);
@@ -99,16 +64,12 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
   const oauthCompleteHref = withPostAuthRedirect("/auth/sign-up?oauth=complete", redirectUrl);
   const [isVerified, setIsVerified] = useState(initialVerified);
 
-  // Detekter post-OAuth retur: bruker er innlogget og kommer tilbake fra OAuth
-  const isOAuthReturn = searchParams.get("oauth") === "complete";
-  // OAuth sign-up kan være ufullstendig (mangler brukernavn) — da er isSignedIn false
-  const isOAuthMissingRequirements =
-    isOAuthReturn && signUp?.status === "missing_requirements";
+  // Detekter post-OAuth retur — sjekk searchParams OG window.location for å unngå
+  // flash av Turnstile-gate under SSR-hydrering (searchParams kan være tom under Suspense)
+  const isOAuthReturn =
+    searchParams.get("oauth") === "complete" ||
+    (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("oauth") === "complete");
   const isRedirectingToDashboard = isLoaded && isSignedIn && !isOAuthReturn;
-
-  // Sjekk om OAuth-provider ga fornavn/etternavn (vent til Clerk er lastet)
-  const oauthMissingFirstName = isOAuthReturn && isLoaded && userLoaded && !signUp?.firstName && !clerkUser?.firstName;
-  const oauthMissingLastName = isOAuthReturn && isLoaded && userLoaded && !signUp?.lastName && !clerkUser?.lastName;
 
   // Form state
   const [firstName, setFirstName] = useState("");
@@ -116,17 +77,12 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  // Vis feilmelding fra URL-parameter (f.eks. etter auth-konflikt redirect)
   const urlError = searchParams.get("error");
   const [formError, setFormError] = useState<string | null>(urlError);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOAuthSubmitting, setIsOAuthSubmitting] = useState(false);
 
-  // Passordkrav — match Clerks instilling: min 8 tegn lokalt, styrke (zxcvbn
-  // "Normal") og HaveIBeenPwned-sjekk kjøres av Clerk server-side ved submit.
-  // Vi legger ingen lokale complexity-regler (stor/liten/tall/spesial) siden
-  // Clerks "Password rules" er satt til None — det ville blokkert passord
-  // Clerk faktisk aksepterer.
+  // Passordkrav
   const passwordMinLengthOk = password.length >= 8;
   const passwordValid = passwordMinLengthOk;
   const passwordTouched = password.length > 0;
@@ -136,268 +92,23 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
   const usernameDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const usernameAbortRef = useRef<AbortController | null>(null);
 
-  // OAuth-konflikt: blokkerer registrering tidlig
-  // Start som true ved OAuth-retur med aktiv sesjon for å unngå flash av skjemaet før conflict-sjekk kjører
-  const [oauthConflict, setOauthConflict] = useState(false);
-  const [oauthConflictChecking, setOauthConflictChecking] = useState(isOAuthReturn);
-
   // Email verification state
-  const [step, setStep] = useState<SignUpStep>(
-    isOAuthReturn ? "oauth-username" : "form",
-  );
+  const [step, setStep] = useState<SignUpStep>("form");
   const [verificationCode, setVerificationCode] = useState("");
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
   const [pendingEmail, setPendingEmail] = useState("");
-  const signUpAttemptId = typeof signUp?.id === "string" ? signUp.id : undefined;
-  const pendingOAuthEmail =
-    readPendingSignUpEmail(signUp) ??
-    normalizeEmailForUsernameCheck(
-      clerkUser?.primaryEmailAddress?.emailAddress ??
-        clerkUser?.emailAddresses?.[0]?.emailAddress,
-    );
-  const usernameCheckEmail =
-    step === "form"
-      ? normalizeEmailForUsernameCheck(email)
-      : pendingOAuthEmail;
 
   const redirectEtterAuth = useCallback(() => {
     window.location.replace(redirectUrl);
   }, [redirectUrl]);
 
-  // Sett steg til oauth-username når bruker kommer tilbake fra OAuth
+  // Etter OAuth-retur: brukernavn er valgfritt, redirect direkte til dashboard.
+  // Backend håndterer relink i findOrCreateUserByClerkId via /api/user/me.
   useEffect(() => {
-    if (!isOAuthReturn) return;
-
-    // Case 1: Sign-up fullført, session aktiv — sjekk om brukernavn mangler
-    if (isSignedIn) {
-      if (clerkUser?.username) {
-        redirectEtterAuth();
-      } else {
-        setStep("oauth-username");
-      }
-      return;
-    }
-
-    // Case 2: Sign-up ufullstendig (OAuth OK men mangler brukernavn)
-    if (isOAuthMissingRequirements) {
-      setStep("oauth-username");
-    }
-  }, [isOAuthReturn, isSignedIn, isOAuthMissingRequirements, clerkUser, redirectEtterAuth]);
-
-  // Pre-check for OAuth-konto-konflikt: kall /api/user/me tidlig for å oppdage om
-  // samme OAuth-konto allerede er tilknyttet en annen bruker (f.eks. dev vs. prod).
-  // Vises som feilmelding istedenfor brukernavn-skjemaet.
-  // Ved kryssmiljø re-link: hvis backend-brukeren allerede har brukernavn, auto-fullfør
-  // Clerk-signupen eller synk brukernavnet tilbake til Clerk uten å vise prompt.
-  useEffect(() => {
-    if (step !== "oauth-username" || oauthConflict) return;
-
-    let cancelled = false;
-    let keepWaiting = false;
-    setOauthConflictChecking(true);
-
-    const prefillFraEksisterendeProfil = (existingProfile: {
-      username?: string;
-      firstName?: string;
-      lastName?: string;
-    }) => {
-      const existingUsername =
-        typeof existingProfile.username === "string"
-          ? existingProfile.username.trim()
-          : "";
-      if (existingUsername) {
-        setUsername((current) => current || existingUsername);
-      }
-      if (oauthMissingFirstName && existingProfile.firstName?.trim()) {
-        setFirstName((current) => current || existingProfile.firstName!.trim());
-      }
-      if (oauthMissingLastName && existingProfile.lastName?.trim()) {
-        setLastName((current) => current || existingProfile.lastName!.trim());
-      }
-    };
-
-    const applyEksisterendeProfil = async (existingProfile: {
-      username?: string;
-      firstName?: string;
-      lastName?: string;
-    }): Promise<boolean> => {
-      const existingUsername =
-        typeof existingProfile.username === "string"
-          ? existingProfile.username.trim()
-          : "";
-      if (!existingUsername) {
-        return false;
-      }
-
-      prefillFraEksisterendeProfil(existingProfile);
-
-      const updatePayload: Record<string, string> = { username: existingUsername };
-      if (oauthMissingFirstName && existingProfile.firstName?.trim()) {
-        updatePayload.firstName = existingProfile.firstName.trim();
-      }
-      if (oauthMissingLastName && existingProfile.lastName?.trim()) {
-        updatePayload.lastName = existingProfile.lastName.trim();
-      }
-
-      // Missing requirements: fullfør pending Clerk sign-up automatisk hvis vi allerede kjenner brukeren.
-      if (signUp && signUp.status === "missing_requirements") {
-        try {
-          const result = await signUp.update(updatePayload);
-          if (cancelled) return true;
-          if (result.status === "complete" && result.createdSessionId) {
-            await setActive({ session: result.createdSessionId });
-            redirectEtterAuth();
-            return true;
-          }
-        } catch {
-          return false;
-        }
-      }
-
-      // Aktiv session: synk brukernavn/nøkkelfelter tilbake til Clerk og gå videre.
-      if (clerkUser) {
-        if (clerkUser.username === existingUsername) {
-          redirectEtterAuth();
-          return true;
-        }
-
-        try {
-          await clerkUser.update(updatePayload);
-          if (cancelled) return true;
-          redirectEtterAuth();
-          return true;
-        } catch {
-          return false;
-        }
-      }
-
-      return false;
-    };
-
-    // Sikkerhetsnett: hvis Clerk aldri gir signUpAttemptId, vis skjemaet etter 5 sek
-    const keepWaitingTimeout = setTimeout(() => {
-      if (!cancelled && keepWaiting) {
-        keepWaiting = false;
-        setOauthConflictChecking(false);
-      }
-    }, 5_000);
-
-    const resolveOAuthUsernameStep = async () => {
-      if (isOAuthReturn && !isSignedIn && !isOAuthMissingRequirements && !signUpAttemptId) {
-        keepWaiting = true;
-        return;
-      }
-
-      if (isSignedIn && clerkUser?.username) {
-        redirectEtterAuth();
-        return;
-      }
-
-      // Missing requirements uten aktiv session: bruk signUpAttemptId som sikker
-      // beviskjede mot Clerk før vi foreslår eksisterende brukernavn.
-      if (isOAuthMissingRequirements && signUpAttemptId) {
-        try {
-          const hintRes = await fetch(
-            buildOAuthRelinkHintUrl(signUpAttemptId, pendingOAuthEmail),
-          );
-          if (!cancelled && hintRes.ok) {
-            const hint = OAuthRelinkHintResponseSchema.parse(
-              await hintRes.json(),
-            );
-            if (hint.canAutoComplete) {
-              const completed = await applyEksisterendeProfil(hint);
-              if (completed) return;
-            }
-          }
-        } catch {
-          // Nettverksfeil — fall tilbake til vanlig brukernavnsskjema
-        }
-      }
-
-      if (!isSignedIn) {
-        return;
-      }
-
-      const res = await fetchApi("/api/user/me?forceSync=true", { method: "GET" });
-      if (cancelled) return;
-      if (res.status === 409 || res.status === 403) {
-        const json = await res.json().catch(() => ({}));
-        const errorType = typeof json?.error === "string" ? json.error : undefined;
-        const errorMessage = typeof json?.melding === "string"
-          ? json.melding
-          : t("auth.conflictRedirect.emailConflict");
-        if (
-          errorType === "oauth_account_conflict" ||
-          errorType === "oauth_metadata_missing"
-        ) {
-          await clerk.signOut().catch(() => {});
-          setOauthConflict(true);
-          return;
-        }
-        if (
-          errorType === "account_conflict" ||
-          errorType === "username_conflict" ||
-          errorType === "user_deleted" ||
-          errorType === "user_locked"
-        ) {
-          await clerk.signOut().catch(() => {});
-          window.location.replace(
-            `${signInHref}?error=${encodeURIComponent(errorMessage)}`,
-          );
-          return;
-        }
-        // turnstile_required: redirect til dashboard — TurnstileReChallenge viser re-verifikasjon
-        if (errorType === "turnstile_required") {
-          redirectEtterAuth();
-          return;
-        }
-      }
-
-      if (res.ok) {
-        const json = await res.json().catch(() => null);
-        const completed = await applyEksisterendeProfil({
-          username:
-            typeof json?.user?.username === "string" ? json.user.username : undefined,
-          firstName:
-            typeof json?.user?.firstName === "string" ? json.user.firstName : undefined,
-          lastName:
-            typeof json?.user?.lastName === "string" ? json.user.lastName : undefined,
-        });
-        if (completed) return;
-      }
-    };
-
-    void resolveOAuthUsernameStep()
-      .catch(() => {
-        // Nettverksfeil — la brukeren fortsette normalt
-      })
-      .finally(() => {
-        if (!cancelled && !keepWaiting) setOauthConflictChecking(false);
-      });
-
-    return () => {
-      cancelled = true;
-      clearTimeout(keepWaitingTimeout);
-    };
-  }, [
-    step,
-    oauthConflict,
-    clerk,
-    clerkUser,
-    isOAuthMissingRequirements,
-    isOAuthReturn,
-    isSignedIn,
-    oauthMissingFirstName,
-    oauthMissingLastName,
-    pendingOAuthEmail,
-    redirectEtterAuth,
-    setActive,
-    signInHref,
-    signUp,
-    signUpAttemptId,
-    t,
-  ]);
+    if (!isOAuthReturn || !isSignedIn) return;
+    redirectEtterAuth();
+  }, [isOAuthReturn, isSignedIn, redirectEtterAuth]);
 
   // Gjenopprett session hvis sign-up allerede er fullført (f.eks. etter reload på verify-steget)
   useEffect(() => {
@@ -409,7 +120,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
     }
   }, [step, signUp, setActive, redirectEtterAuth]);
 
-  // Debounced username check med AbortController
+  // Debounced username check med AbortController (kun når brukernavn er oppgitt)
   useEffect(() => {
     if (usernameDebounceRef.current) clearTimeout(usernameDebounceRef.current);
     usernameAbortRef.current?.abort();
@@ -430,7 +141,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
       usernameAbortRef.current = controller;
       setUsernameStatus("checking");
 
-      fetch(buildUsernameCheckUrl(trimmed, usernameCheckEmail), { signal: controller.signal })
+      fetch(buildUsernameCheckUrl(trimmed, normalizeEmailForUsernameCheck(email)), { signal: controller.signal })
         .then(async (res) => {
           if (controller.signal.aborted) return;
           if (!res.ok) {
@@ -452,7 +163,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
       if (usernameDebounceRef.current) clearTimeout(usernameDebounceRef.current);
       usernameAbortRef.current?.abort();
     };
-  }, [username, usernameCheckEmail]);
+  }, [username, email]);
 
   // Email+password sign-up
   const handleSubmit = useCallback(
@@ -469,11 +180,12 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
         setFormError(t("auth.signUp.allFieldsRequired"));
         return;
       }
-      if (!isValidUsernameFormat(trimmedUsername)) {
+      // Brukernavn er valgfritt — valider kun hvis oppgitt
+      if (trimmedUsername && !isValidUsernameFormat(trimmedUsername)) {
         setFormError(t("auth.signUp.usernameInvalid"));
         return;
       }
-      if (usernameStatus === "checking") {
+      if (trimmedUsername && usernameStatus === "checking") {
         setFormError(t("auth.signUp.usernameWait"));
         return;
       }
@@ -490,7 +202,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
       setFormError(null);
 
       try {
-        // Server-side Turnstile-gate: verifiser at human-check er bestått før Clerk-kall
+        // Server-side Turnstile-gate
         const gateOk = await checkAuthTurnstileGate();
         if (!gateOk) {
           setFormError(t("auth.humanCheck.gateError"));
@@ -498,26 +210,29 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
           return;
         }
 
-        const checkRes = await fetch(
-          buildUsernameCheckUrl(
-            trimmedUsername,
-            normalizeEmailForUsernameCheck(trimmedEmail),
-          ),
-        );
-        if (checkRes.ok) {
-          const checkData = await checkRes.json();
-          if (!checkData.available) {
-            setUsernameStatus("taken");
-            setFormError(t("auth.signUp.usernameTaken"));
-            setIsSubmitting(false);
-            return;
+        // Sjekk brukernavn-tilgjengelighet kun hvis oppgitt
+        if (trimmedUsername) {
+          const checkRes = await fetch(
+            buildUsernameCheckUrl(
+              trimmedUsername,
+              normalizeEmailForUsernameCheck(trimmedEmail),
+            ),
+          );
+          if (checkRes.ok) {
+            const checkData = await checkRes.json();
+            if (!checkData.available) {
+              setUsernameStatus("taken");
+              setFormError(t("auth.signUp.usernameTaken"));
+              setIsSubmitting(false);
+              return;
+            }
           }
         }
 
         await signUp.create({
           firstName: trimmedFirstName,
           lastName: trimmedLastName,
-          username: trimmedUsername,
+          ...(trimmedUsername ? { username: trimmedUsername } : {}),
           emailAddress: trimmedEmail,
           password,
         });
@@ -550,7 +265,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
     [signUp, firstName, lastName, username, email, password, passwordValid, usernameStatus, isSubmitting, t],
   );
 
-  // OAuth sign-up (Google/Microsoft) — uten brukernavn, velges etterpå
+  // OAuth sign-up (Google/Microsoft)
   const handleOAuth = useCallback(
     async (strategy: "oauth_google" | "oauth_microsoft") => {
       if (!signUp || isOAuthSubmitting) return;
@@ -558,7 +273,6 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
       setIsOAuthSubmitting(true);
 
       try {
-        // Server-side Turnstile-gate: verifiser at human-check er bestått før OAuth-redirect
         const gateOk = await checkAuthTurnstileGate();
         if (!gateOk) {
           setFormError(t("auth.humanCheck.gateError"));
@@ -577,111 +291,6 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
       }
     },
     [signUp, isOAuthSubmitting, t, redirectUrl, oauthCompleteHref],
-  );
-
-  // Sett brukernavn etter OAuth
-  const handleSetOAuthUsername = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      const trimmedUsername = username.trim();
-
-      if (!isValidUsernameFormat(trimmedUsername)) {
-        setFormError(t("auth.signUp.usernameInvalid"));
-        return;
-      }
-      if (usernameStatus === "checking") {
-        setFormError(t("auth.signUp.usernameWait"));
-        return;
-      }
-
-      // Valider navn hvis de mangler fra OAuth-provider
-      const trimmedFirstName = firstName.trim();
-      const trimmedLastName = lastName.trim();
-      if (oauthMissingFirstName && !trimmedFirstName) {
-        setFormError(t("auth.signUp.allFieldsRequired"));
-        return;
-      }
-      if (oauthMissingLastName && !trimmedLastName) {
-        setFormError(t("auth.signUp.allFieldsRequired"));
-        return;
-      }
-
-      setIsSubmitting(true);
-      setFormError(null);
-
-      try {
-        const checkRes = await fetch(buildUsernameCheckUrl(trimmedUsername, usernameCheckEmail));
-        if (checkRes.ok) {
-          const checkData = await checkRes.json();
-          if (!checkData.available) {
-            setUsernameStatus("taken");
-            setFormError(t("auth.signUp.usernameTaken"));
-            return;
-          }
-        }
-
-        // Case 1: Sign-up er ufullstendig (mangler brukernavn) — sett via Clerk sign-up
-        if (signUp && signUp.status === "missing_requirements") {
-          const updateFields: Record<string, string> = { username: trimmedUsername };
-          if (oauthMissingFirstName && trimmedFirstName) {
-            updateFields.firstName = trimmedFirstName;
-          }
-          if (oauthMissingLastName && trimmedLastName) {
-            updateFields.lastName = trimmedLastName;
-          }
-          const result = await signUp.update(updateFields);
-
-          if (result.status === "complete" && result.createdSessionId) {
-            await setActive({ session: result.createdSessionId });
-            redirectEtterAuth();
-            return;
-          }
-
-          // Fortsatt ufullstendig etter oppdatering
-          setFormError(t("auth.signUp.oauthUsernameError"));
-          return;
-        }
-
-        // Case 2: Bruker er allerede innlogget — oppdater brukernavn via Clerk SDK
-        if (!clerkUser) {
-          setFormError(t("auth.signUp.oauthUsernameError"));
-          return;
-        }
-
-        const updatePayload: Record<string, string> = { username: trimmedUsername };
-        if (oauthMissingFirstName && trimmedFirstName) {
-          updatePayload.firstName = trimmedFirstName;
-        }
-        if (oauthMissingLastName && trimmedLastName) {
-          updatePayload.lastName = trimmedLastName;
-        }
-
-        await clerkUser.update(updatePayload);
-        redirectEtterAuth();
-      } catch (err) {
-        const msg = parseClerkError(err, t("auth.signUp.oauthUsernameError"));
-        // Clerk returnerer spesifikk feil hvis brukernavn er tatt
-        if (typeof msg === "string" && msg.toLowerCase().includes("username")) {
-          setUsernameStatus("taken");
-        }
-        setFormError(msg);
-      } finally {
-        setIsSubmitting(false);
-      }
-    },
-    [
-      signUp,
-      setActive,
-      clerkUser,
-      username,
-      firstName,
-      lastName,
-      oauthMissingFirstName,
-      oauthMissingLastName,
-      usernameStatus,
-      t,
-      redirectEtterAuth,
-    ],
   );
 
   // Verifiser e-postkode
@@ -707,7 +316,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
           setVerifyError(t("auth.signUp.verify.incomplete"));
         }
       } catch (err) {
-        // Gjenopprett hvis sign-up allerede er ferdig (e.g. re-klikk etter suksess)
+        // Gjenopprett hvis sign-up allerede er ferdig
         if (signUp.status === "complete" && signUp.createdSessionId) {
           try {
             await setActive({ session: signUp.createdSessionId });
@@ -743,7 +352,8 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
     }
   }, [signUp, t]);
 
-  if (isRedirectingToDashboard) {
+  // Redirect til dashboard hvis allerede innlogget, eller vis loading ved OAuth-retur
+  if (isRedirectingToDashboard || isOAuthReturn) {
     return (
       <div className="w-full max-w-md">
         <AuthCard>
@@ -795,139 +405,12 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
     }
   };
 
-  const usernameField = (id: string) => (
-    <div>
-      <label htmlFor={id} className={AUTH_LABEL_CLASSES}>
-        {t("auth.signUp.usernameLabel")}
-      </label>
-      <input
-        id={id}
-        type="text"
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-        placeholder={t("auth.signUp.usernamePlaceholder")}
-        className={`mt-1 ${AUTH_INPUT_CLASSES} ${
-          usernameStatus === "taken" || usernameStatus === "invalid"
-            ? "border-red-300 dark:border-red-700"
-            : usernameStatus === "available"
-              ? "border-emerald-300 dark:border-emerald-700"
-              : ""
-        }`}
-        autoComplete="username"
-        disabled={isSubmitting}
-        minLength={USERNAME_MIN_LENGTH}
-        maxLength={USERNAME_MAX_LENGTH}
-      />
-      <div className="mt-1">{usernameIndicator()}</div>
-    </div>
-  );
-
   return (
     <div className="w-full max-w-md space-y-4">
       <AuthTurnstileInline
         initialVerified={initialVerified}
         onVerified={() => setIsVerified(true)}
       />
-
-      {/* Post-OAuth: OAuth-konto-konflikt — blokker tidlig */}
-      {isVerified && step === "oauth-username" && oauthConflict && (
-        <AuthCard>
-          <div className="flex flex-col items-center gap-4 py-2 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
-              <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400" />
-            </div>
-            <AuthHeader
-              title={t("auth.signUp.oauthConflict.title")}
-              subtitle={t("auth.signUp.oauthConflict.description")}
-            />
-            <Link
-              href={signInHref}
-              className="inline-flex w-full items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
-            >
-              {t("auth.signUp.oauthConflict.backToSignIn")}
-            </Link>
-          </div>
-        </AuthCard>
-      )}
-
-      {/* Post-OAuth: sjekker for konflikter... */}
-      {isVerified && step === "oauth-username" && oauthConflictChecking && !oauthConflict && (
-        <AuthCard>
-          <LoadingView
-            fullPage={false}
-            translationKey="common.loading.generic"
-          />
-        </AuthCard>
-      )}
-
-      {/* Post-OAuth: velg brukernavn (og evt. navn hvis OAuth-provider ikke ga det) */}
-      {isVerified && step === "oauth-username" && !oauthConflict && !oauthConflictChecking && (
-        <AuthCard>
-          <AuthHeader
-            title={t("auth.signUp.oauthUsername.title")}
-            subtitle={t("auth.signUp.oauthUsername.subtitle")}
-          />
-
-          <form onSubmit={handleSetOAuthUsername} className="space-y-4" noValidate>
-            {/* Vis navnefelt kun hvis OAuth-provider ikke ga fornavn/etternavn */}
-            {(oauthMissingFirstName || oauthMissingLastName) && (
-              <div className="grid grid-cols-2 gap-3">
-                {oauthMissingFirstName && (
-                  <div>
-                    <label htmlFor="oauth-firstname" className={AUTH_LABEL_CLASSES}>
-                      {t("auth.signUp.firstNameLabel")}
-                    </label>
-                    <input
-                      id="oauth-firstname"
-                      type="text"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      placeholder={t("auth.signUp.firstNamePlaceholder")}
-                      className={`mt-1 ${AUTH_INPUT_CLASSES}`}
-                      autoComplete="given-name"
-                      autoFocus
-                      disabled={isSubmitting}
-                    />
-                  </div>
-                )}
-                {oauthMissingLastName && (
-                  <div>
-                    <label htmlFor="oauth-lastname" className={AUTH_LABEL_CLASSES}>
-                      {t("auth.signUp.lastNameLabel")}
-                    </label>
-                    <input
-                      id="oauth-lastname"
-                      type="text"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      placeholder={t("auth.signUp.lastNamePlaceholder")}
-                      className={`mt-1 ${AUTH_INPUT_CLASSES}`}
-                      autoComplete="family-name"
-                      disabled={isSubmitting}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {usernameField("oauth-username")}
-
-            <AuthError message={formError} />
-
-            <AuthPrimaryButton
-              isLoading={isSubmitting}
-              loadingText={t("auth.signUp.oauthUsername.submitting")}
-              disabled={
-                usernameStatus === "taken" ||
-                usernameStatus === "invalid" ||
-                usernameStatus === "checking"
-              }
-            >
-              {t("auth.signUp.oauthUsername.submitButton")}
-            </AuthPrimaryButton>
-          </form>
-        </AuthCard>
-      )}
 
       {/* Registreringsskjema */}
       {isVerified && step === "form" && (
@@ -980,7 +463,33 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
               </div>
             </div>
 
-            {usernameField("signup-username")}
+            <div>
+              <label htmlFor="signup-username" className={AUTH_LABEL_CLASSES}>
+                {t("auth.signUp.usernameLabel")}
+                <span className="ml-1 text-xs font-normal text-slate-400 dark:text-slate-500">
+                  ({t("common.labels.optional")})
+                </span>
+              </label>
+              <input
+                id="signup-username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder={t("auth.signUp.usernamePlaceholder")}
+                className={`mt-1 ${AUTH_INPUT_CLASSES} ${
+                  usernameStatus === "taken" || usernameStatus === "invalid"
+                    ? "border-red-300 dark:border-red-700"
+                    : usernameStatus === "available"
+                      ? "border-emerald-300 dark:border-emerald-700"
+                      : ""
+                }`}
+                autoComplete="username"
+                disabled={isSubmitting || isOAuthSubmitting}
+                minLength={USERNAME_MIN_LENGTH}
+                maxLength={USERNAME_MAX_LENGTH}
+              />
+              <div className="mt-1">{usernameIndicator()}</div>
+            </div>
 
             <div>
               <label htmlFor="signup-email" className={AUTH_LABEL_CLASSES}>
@@ -1063,7 +572,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
             href={signInHref}
           />
 
-          {/* Påkrevd for Clerks bot-registreringsbeskyttelse */}
+          {/* Clerk bot-registreringsbeskyttelse */}
           <div id="clerk-captcha" />
         </AuthCard>
       )}
