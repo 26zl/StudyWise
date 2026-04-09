@@ -455,8 +455,24 @@ function extractSlashKBBaseName(message: string): string | null {
 }
 
 function extractFirstHttpUrl(message: string): string | null {
-  const match = message.match(/https?:\/\/[^\s<>"'`]+/i);
-  return match?.[0] ?? null;
+  const markdownMatch = message.match(/\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/i);
+  if (markdownMatch?.[1]) return markdownMatch[1];
+
+  const candidates = message.match(/https?:\/\/[^\s<>"'`]+/gi) ?? [];
+  for (const candidate of candidates) {
+    const cleaned = candidate
+      .replace(/[)\]}>,.!?;:]+$/g, "")
+      .replace(/^<|>$/g, "");
+    try {
+      const parsed = new URL(cleaned);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        return parsed.toString();
+      }
+    } catch {
+      // prøv neste kandidat
+    }
+  }
+  return null;
 }
 
 function normalizeKbAliasText(value: string): string {
@@ -599,21 +615,108 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
   let outcome: "success" | "too_short" | "http_error" | "fetch_error" | "body_too_large" =
     "fetch_error";
   try {
+    let usedLegacyFetchFallback = false;
     // Bruker crawler-pakkens SSRF-trygge fetch:
     // - Manuelle redirects, hver hop går gjennom DNS/IP-validering (forhindrer DNS-rebinding via redirect).
     // - Pinned IP-lookup på selve socketen (forhindrer second-resolve TOCTOU).
     // - Bounded body reader (DoS-vern mot enorme responses).
     const response = await fetchWithSafeRedirects(safeUrl.toString(), 12_000);
-    if (!response) {
-      logger.warn({ url: safeUrl.toString() }, "Direkte URL: SSRF-trygt fetch returnerte null");
-      return null;
-    }
+    if (!response || !response.ok) {
+      if (response && !response.ok) {
+        discardResponseBody(response);
+      }
+      // Fallback i samme stil som i commit 8e2e3ef:
+      // noen URL-er fungerer i standard fetch-flyt, men ikke i safe-redirect-løpet.
+      const legacyController = new AbortController();
+      const legacyTimeout = setTimeout(() => legacyController.abort(), 12_000);
+      try {
+        const legacyResponse = await fetch(safeUrl.toString(), {
+          method: "GET",
+          redirect: "follow",
+          signal: legacyController.signal,
+          headers: {
+            "User-Agent": "StudyWise/1.0 (KI Live URL Context)",
+            Accept: "text/html,application/xhtml+xml,application/pdf,text/plain,*/*",
+          },
+        });
+        usedLegacyFetchFallback = true;
 
-    if (!response.ok) {
-      outcome = "http_error";
-      discardResponseBody(response);
-      logger.warn({ url: safeUrl.toString(), status: response.status }, "Direkte URL kunne ikke hentes");
-      return null;
+        if (!legacyResponse.ok) {
+          outcome = "http_error";
+          logger.warn(
+            { url: safeUrl.toString(), status: legacyResponse.status, usedLegacyFetchFallback },
+            "Direkte URL kunne ikke hentes",
+          );
+          return null;
+        }
+
+        finalUrl = legacyResponse.url || finalUrl;
+        const legacyContentType = (legacyResponse.headers.get("content-type") ?? "").toLowerCase();
+        logger.info(
+          {
+            requestedUrl: safeUrl.toString(),
+            finalUrl,
+            status: legacyResponse.status,
+            contentType: legacyContentType,
+            usedLegacyFetchFallback,
+          },
+          "Direkte URL-kontekst: innhold hentet",
+        );
+
+        let extracted = "";
+        let labelType = "text";
+        if (legacyContentType.includes("text/html") || legacyContentType.includes("application/xhtml+xml")) {
+          const html = await legacyResponse.text();
+          extracted = normalizeTextContent(stripHtml(html, { removeStyles: true }));
+          labelType = "html";
+        } else if (legacyContentType.includes("application/pdf")) {
+          const buffer = Buffer.from(await legacyResponse.arrayBuffer());
+          const parsed = await parseDocument(buffer, "application/pdf", safeUrl.pathname || "document.pdf");
+          extracted = normalizeTextContent(parsed.text);
+          labelType = "pdf";
+        } else if (
+          legacyContentType.includes("application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+          || legacyContentType.includes("application/msword")
+        ) {
+          const buffer = Buffer.from(await legacyResponse.arrayBuffer());
+          const filename = safeUrl.pathname.split("/").pop() || "document.docx";
+          const parsed = await parseDocument(buffer, legacyContentType, filename);
+          extracted = normalizeTextContent(parsed.text);
+          labelType = "doc";
+        } else {
+          extracted = normalizeTextContent(await legacyResponse.text());
+          labelType = "text";
+        }
+
+        if (!extracted || extracted.length < 80) {
+          outcome = "too_short";
+          logger.info(
+            { url: finalUrl, contentType: legacyContentType, extractedChars: extracted.length },
+            "Direkte URL ga for lite innhold",
+          );
+          return null;
+        }
+
+        const clipped = extracted.slice(0, LIVE_URL_MAX_CHARS);
+        const truncated = extracted.length > LIVE_URL_MAX_CHARS;
+        outcome = "success";
+        logger.info(
+          {
+            url: finalUrl,
+            contentType: labelType,
+            extractedChars: extracted.length,
+            clippedChars: clipped.length,
+            truncated,
+            usedLegacyFetchFallback,
+          },
+          "Direkte URL-kontekst: tekst ekstrahert",
+        );
+        return `<live_url source="${safeUrl.toString()}" contentType="${labelType}">
+${clipped}
+</live_url>`;
+      } finally {
+        clearTimeout(legacyTimeout);
+      }
     }
 
     const contentType = (getHeaderValue(response.headers, "content-type") ?? "").toLowerCase();
@@ -623,6 +726,7 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
         finalUrl,
         status: response.status,
         contentType,
+        usedLegacyFetchFallback,
       },
       "Direkte URL-kontekst: innhold hentet",
     );
@@ -1869,11 +1973,13 @@ Rules:
       );
     }
 
-    // Dynamisk timeout og max_tokens basert på intent
-    const maxTokens = fullDocumentModeActive ? 6000 : intent === "canvas_full" ? 4000 : intent === "canvas_light" ? 2000 : 1400;
+    // Dynamisk timeout og max_tokens basert på intent.
+    // For tunge general-chat forespørsler (f.eks. live URL med stor PDF-kontekst)
+    // øker vi timeout for å unngå falsk CHAT_TIMEOUT.
+    const baseMaxTokens = fullDocumentModeActive ? 6000 : intent === "canvas_full" ? 4000 : intent === "canvas_light" ? 2000 : 1400;
     // Full dokument-mode laster opp til ~70k tegn kontekst og kan generere flere tusen output-tokens —
     // 60 s er for stramt (Anthropic bruker typisk 60-90 s). Gi den 150 s.
-    const TIMEOUT_MS = fullDocumentModeActive
+    const baseTimeoutMs = fullDocumentModeActive
       ? 150000
       : intent === "canvas_full"
         ? 120000
@@ -1886,7 +1992,7 @@ Rules:
     // Claude Sonnet har 200k kontekst, men vi begrenser for kostnads- og latens-kontroll.
     const systemPromptTokens = countTokens(enhancedSystemPrompt) + (hasCanvasData ? countTokens(canvasKontekst) : 0);
     const MAX_CONTEXT_TOKENS = intent === "canvas_full" ? 10000 : 6000;
-    const historyBudget = Math.max(MAX_CONTEXT_TOKENS - systemPromptTokens - maxTokens, 1000);
+    const historyBudget = Math.max(MAX_CONTEXT_TOKENS - systemPromptTokens - baseMaxTokens, 1000);
     const tokenTrimmedMessages = trimToTokenLimit(messages, historyBudget);
     const trimmedMessages = tokenTrimmedMessages.slice(-8);
 
@@ -2023,8 +2129,10 @@ Referer til kilde (fil/lenke) i svaret.
       }
     }
 
-    // Direkte URL i melding (pdf/nettside) — brukes når KB ikke ga kontekst
-    if (!kbKontekst) {
+    // Direkte URL i melding (pdf/nettside) prioriteres alltid når bruker faktisk sendte URL.
+    // Hvis ingen URL i meldingen, bruker vi eksisterende fallback: kun når KB ikke ga kontekst.
+    const shouldFetchLiveUrlContext = hasDirectUrlInLastMessage || !kbKontekst;
+    if (shouldFetchLiveUrlContext) {
       liveUrlKontekst = await buildLiveUrlContextFromMessage(lastUserMessageForKB) ?? "";
       if (liveUrlKontekst) {
         const liveSource = extractLiveUrlSource(liveUrlKontekst);
@@ -2073,12 +2181,40 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
     const fullDocumentModelSelection = fullDocumentModeActive
       ? chooseModelForFullDocumentMode(autoSelectedModelBase, enhancedSystemPrompt, canvasKontekst, trimmedMessages)
       : { model: autoSelectedModelBase, reason: "base" as const };
-    const selectedModel = requestedModel ? resolvedRequestedModel : fullDocumentModelSelection.model;
+    const normalizedLastUserMessage = normaliserSkrivefeil(lastUserMessageForKB);
+    const asksForDeepSummary = /\b(oppsummer|oppsummering|summarize|summary|analyser|analyse|utdyp|forklar)\b/i.test(
+      normalizedLastUserMessage,
+    );
+    const shouldEscalateGeneralChatToSonnet =
+      intent === "general_chat" &&
+      (
+        liveUrlKontekst.length >= 2500 ||
+        kbKontekst.length >= 6000 ||
+        (hasDirectUrlInLastMessage && asksForDeepSummary)
+      );
+    const selectedModel = requestedModel
+      ? resolvedRequestedModel
+      : shouldEscalateGeneralChatToSonnet
+        ? "claude-sonnet-4-5"
+        : fullDocumentModelSelection.model;
     const selectedModelReason = requestedModel
       ? "user_selected"
+      : shouldEscalateGeneralChatToSonnet
+        ? "sonnet_general_heavy"
       : selectedModel === "claude-haiku-4-5"
         ? "haiku"
         : "sonnet";
+    const heavyGeneralChat = intent === "general_chat" && (
+      liveUrlKontekst.length >= 8000 ||
+      kbKontekst.length >= 12000 ||
+      shouldEscalateGeneralChatToSonnet
+    );
+    const maxTokens = heavyGeneralChat
+      ? Math.max(baseMaxTokens, 2200)
+      : baseMaxTokens;
+    const TIMEOUT_MS = heavyGeneralChat
+      ? Math.max(baseTimeoutMs, 60000)
+      : baseTimeoutMs;
     logger.info(
       {
         intent,
