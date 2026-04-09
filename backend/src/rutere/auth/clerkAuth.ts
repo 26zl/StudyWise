@@ -350,17 +350,24 @@ async function relinkUserToClerkId(
   const existingUser = await User.findOne({
     _id: existingUserId,
     deletedAt: { $exists: false },
-  }).select("email clerkEnv");
+  }).select("email clerkEnv oauthAccounts");
 
-  // Sikkerhet: bekreft at e-posten til den nye Clerk-brukeren matcher MongoDB-brukerens primære e-post.
-  // Kun primær e-post aksepteres — OAuth-e-poster er sekundære og kan kontrolleres av tredjepart.
+  // Sikkerhet: bekreft at e-posten til den nye Clerk-brukeren matcher MongoDB-brukerens
+  // primære e-post ELLER en av brukerens lagrede OAuth-e-poster.
+  // OAuth-e-poster aksepteres fordi brukeren kan logge inn i prod via Google/Microsoft
+  // mens primær-e-post er en annen (f.eks. Proton Mail).
   if (clerkEmail && existingUser) {
     const normalizedClerkEmail = clerkEmail.toLowerCase().trim();
     const primaryEmail = existingUser.email?.toLowerCase().trim();
-    if (!primaryEmail || primaryEmail !== normalizedClerkEmail) {
+    const oauthEmails = (existingUser.oauthAccounts ?? [])
+      .map((a: { email?: string }) => a.email?.toLowerCase().trim())
+      .filter(Boolean) as string[];
+    const allKnownEmails = new Set([primaryEmail, ...oauthEmails].filter(Boolean));
+
+    if (!allKnownEmails.has(normalizedClerkEmail)) {
       logger.warn(
         { existingUserId: existingUserId.toString(), newClerkUserId, clerkEmail },
-        "Kryssmiljø re-link avvist: Clerk-brukerens e-post matcher ikke MongoDB-brukerens e-post",
+        "Kryssmiljø re-link avvist: Clerk-brukerens e-post matcher verken primær eller OAuth-e-post",
       );
       await audit({
         actorUserId: `relink:${newClerkUserId}`,

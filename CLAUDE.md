@@ -63,7 +63,7 @@ import { UKEDAGER } from "common/arbeidsplan";                  // Work plan con
 import { AdminBrukereQuerySchema } from "common/admin";          // Admin pagination/query types
 import { KONTAKT_MAX_ATTACHMENTS } from "common/contact";       // Contact form constants
 import { BrowserPushPreferencesSchema } from "common/notifications"; // Web push types
-import { ExportTargetSchema } from "common/export";                // KI export types
+import { ExportTargetSchema } from "common/export";                // KI export types + Notion settings
 ```
 
 When adding a new schema to common, add a subpath export in `common/package.json` `"exports"` map.
@@ -386,6 +386,12 @@ The backend accepts file uploads via `multer` and processes them with:
 - **Trust proxy** - Set to `1` in Express for correct IP handling behind Cloudflare/Heroku proxies
 - **Snyk DOMXSS false positives** - Snyk's taint analysis flags `fetchApi()`, `downloadAuthedFile()` and similar fetch wrappers as DOM-XSS sinks even though no DOM write occurs. The codebase suppresses these with `// deepcode ignore DOMXSS: <reason>` comments at the call site, and breaks taint sporing with `Number.parseInt(String(x), 10)` for IDs. Don't "fix" these — verify the sink is actually a DOM write before touching them.
 - **Verify audit findings before fixing** - Static analyzers and explore agents frequently report false positives (e.g. exports that are actually used via subpath imports, Zod v4 `.check()` flagged as v3 syntax, conditional `max-md:hidden` flagged as anti-pattern). Always grep to confirm zero usage / actually-broken behavior before editing.
+- **Frontend API responses** - Always parse API responses with Zod schemas from `common`. Never use `as` type assertions on API data — use `.parse()` or `.safeParse()`. If a response schema doesn't exist in `common`, add it there first.
+- **BullMQ job IDs** - Custom job IDs cannot contain `:` (BullMQ 5.73+). Use `_` as separator (e.g. `${subscriptionId}_${candidateId}`).
+- **OAuth account ID** - Clerk `externalAccounts` may provide ID via `providerUserId` or `externalId` depending on linking method. Always use fallback: `account.providerUserId || account.externalId`.
+- **Cross-environment re-link** - The `relinkUserToClerkId()` function verifies the new Clerk user's email against BOTH the MongoDB user's primary email AND their stored OAuth emails (`oauthAccounts[].email`). This allows users who registered with email X but linked OAuth Y to re-link from a different Clerk environment via OAuth Y.
+- **Admin maintenance endpoints** - Must have `requireRecentAuth`, Redis-based cooldown (prevent spam), `res.headersSent` check, and be listed in `LONG_TIMEOUT_PREFIXES` for extended timeout.
+- **Query `enabled` gating** - React Query hooks that call authenticated endpoints must gate on `megQuery.isSuccess` or equivalent auth-ready signal to avoid 401s during session load/expiry.
 
 ### Styling Rules (Tailwind)
 
@@ -571,6 +577,12 @@ Recurring false-positive patterns (do NOT "fix" these without verification):
 - **AI SDK v6 `streamResult.usage` returns undefined tokens for Anthropic**: use the `onFinish` callback to capture the authoritative usage object instead. `streamResult.usage` is "last step only" and can be empty; `streamResult.totalUsage` is also unreliable for the Anthropic provider. Pattern is in `backend/src/rutere/ki/aiClient.ts`.
 - **LangSmith `updateRun` replaces `extra` entirely (no deep merge)**: when finishing a run, you must re-merge any fields set at start (intent, userId, courseId, mode) along with `token_usage`. Pattern is the `runExtras` Map in `backend/src/lib/langsmith.ts`. Top-level `prompt_tokens`/`completion_tokens` on the run object are stripped by the LangSmith JS SDK type — only `extra.token_usage.{input,output,total}_tokens` works.
 - **`??` vs `0` gotcha**: LangSmith API returns `prompt_tokens: 0` (a real number, not null) when tokens live elsewhere. `0 ?? fallback` returns 0, not the fallback. Use a `firstPositive(...)` helper that filters for `typeof === "number" && > 0`. See `backend/src/rutere/admin/adminLangsmith.ts:hentTokens()`.
+- **`/health/dependencies` requires admin role**: Not publicly accessible. `/health` and `/ready` remain public (liveness/readiness for load balancers).
+- **BullMQ job ID `:` restriction**: BullMQ 5.73+ rejects custom job IDs containing `:`. Use `_` as separator. Already fixed in `webPush.queue.ts`.
+- **Pinecone stale-delete ordering**: Pinecone vectors are deleted BEFORE MongoDB stale chunks to avoid orphaned vectors without MongoDB references. If Pinecone delete fails, MongoDB chunks are kept as reference.
+- **Webhook anonymization must not be swallowed**: `clerkWebhook.ts` lets `anonymizeAuditTrailForDeletedUser()` errors bubble up so Clerk retries the webhook. `deleteAccountData()` is idempotent via tombstone check.
+- **Backfill cooldown**: `POST /maintenance/backfill-fulltext` has a 10-minute Redis-based cooldown (`setCacheNX`) to prevent spam. Also requires `requireRecentAuth` and has 2-minute timeout.
+- **`dateUtils.ts` `/120` is correct**: `(min1 + min2) / 120` = average of two minute values converted to hours. Not a bug despite looking suspicious.
 
 ### Clerk UserProfile Appearance
 
