@@ -11,6 +11,16 @@ import type { MeResponse } from "common/auth";
 import { useAuth } from "@clerk/nextjs";
 import { useMeg } from "@/app/auth/auth-api";
 
+/** Safe wrapper for useAuth — returnerer uinnlogget tilstand hvis ClerkProvider ikke er tilgjengelig (f.eks. under SSR etter kontosletting). */
+function useSafeAuth(): { isLoaded: boolean; isSignedIn: boolean } {
+  try {
+    const auth = useAuth();
+    return { isLoaded: auth.isLoaded, isSignedIn: auth.isSignedIn ?? false };
+  } catch {
+    return { isLoaded: false, isSignedIn: false };
+  }
+}
+
 interface LandingHeroActionLabels {
   continueToDashboard: string;
   goToDashboard: string;
@@ -27,7 +37,7 @@ export function LandingHeroActions({
   initialUser = null,
   labels,
 }: LandingHeroActionsProps) {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn } = useSafeAuth();
   const megQuery = useMeg({
     initialData: initialUser?.user ? initialUser : undefined,
     enabled: isLoaded && isSignedIn,

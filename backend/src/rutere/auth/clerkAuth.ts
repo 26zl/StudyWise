@@ -948,7 +948,7 @@ async function recordSyncConflict(
   };
 
   // Atomisk: fjern eksisterende konflikt av samme type og legg til ny i én operasjon.
-  // Mongoose v9 gjenkjenner aggregation pipeline-syntaks (array som andre arg) automatisk.
+  // Mongoose v9 krever `updatePipeline: true` for aggregation pipeline-syntaks (array som andre arg).
   // allow-deleted-users: userId er allerede validert av kall-stedet (sync-flyten) før denne hjelperen kalles
   await User.updateOne(
     { _id: userId },
@@ -969,14 +969,14 @@ async function recordSyncConflict(
         },
       },
     ],
+    { updatePipeline: true },
   );
 
+  // Logg uten PII — clerkVerdi/lokalVerdi kan inneholde e-postadresser
   logger.warn(
     {
       userId,
       conflictType: conflict.type,
-      clerkVerdi: conflict.clerkVerdi,
-      lokalVerdi: conflict.lokalVerdi,
     },
     `Synkroniseringskonflikt registrert: ${conflict.type}`,
   );
@@ -1153,7 +1153,7 @@ async function syncExistingUserWithClerkProfile(
             clerkUserId,
             userId: existing._id,
             conflictingUserId: conflictByOauthEmail._id,
-            oauthEmails: newOauthEmails,
+            oauthEmailCount: newOauthEmails.length,
           },
           "OAuth e-post matcher en annen brukers primær-e-post under synk; beholder lokale oauthAccounts",
         );
@@ -1177,7 +1177,7 @@ async function syncExistingUserWithClerkProfile(
             includeEmail: false,
             preserveNames: isPostRelinkSync,
             usernameAction: syncUsernameAction,
-            }),
+          }),
           { returnDocument: "after" },
         );
         return updatedWithoutOauth ?? existing;
@@ -1254,7 +1254,7 @@ async function syncExistingUserWithClerkProfile(
               includeEmail: !isPostRelinkSync,
               preserveNames: isPostRelinkSync,
               usernameAction: syncUsernameAction,
-                },
+            },
           );
           const retried = await User.findOneAndUpdate(
             { _id: existing._id, clerkId: clerkUserId },
@@ -1885,6 +1885,7 @@ export async function findOrCreateUserByClerkId(
           return { __accountConflict: true as const };
         }
 
+        // allow-deleted-users: existingByEmail er validert som aktiv (deletedAt sjekket via findOne ovenfor); deletedAt-race håndteres eksplisitt nedenfor
         const linkedUser = await User.findOneAndUpdate(
           {
             _id: existingByEmail._id,
@@ -1898,7 +1899,11 @@ export async function findOrCreateUserByClerkId(
               lastName: lastName ?? existingByEmail.lastName,
               clerkProfileSyncedAt,
               authProviders: profile.authProviders,
+              mfaEnabled: profile.mfaEnabled,
               ...(oauthAccounts.length > 0 ? { oauthAccounts } : {}),
+              ...(usernameAction.mode === "set"
+                ? { username: usernameAction.username, usernameNormalized: usernameAction.usernameNormalized }
+                : {}),
             },
             ...(oauthAccounts.length === 0
               ? { $unset: { oauthAccounts: 1 } }
@@ -1985,7 +1990,6 @@ export async function findOrCreateUserByClerkId(
       await recordUserCreated(user, clerkUserId);
       return user;
     } catch (error) {
-      let duplicateError = error;
       if (!isDuplicateKeyError(error)) {
         throw error;
       }
@@ -2110,7 +2114,7 @@ export async function findOrCreateUserByClerkId(
         return concurrentUser;
       }
 
-      throw duplicateError;
+      throw error;
     }
   } catch (err) {
     logger.error(
@@ -2162,11 +2166,16 @@ export async function deleteClerkUserById(
     await clerk.users.deleteUser(clerkUserId);
     return true;
   } catch (error) {
+    // Clerk SDK v3+: sjekk status direkte (konsistent med clerkUserExistsInCurrentInstance)
+    if (isClerkAPIResponseError(error) && error.status === 404) {
+      return true;
+    }
+    // Fallback: string-matching for eldre SDK-versjoner eller uventede feiltyper
     const message =
       error instanceof Error
         ? error.message.toLowerCase()
         : String(error).toLowerCase();
-    if (message.includes("404") || message.includes("not found")) {
+    if (message.includes("404") || message.includes("not found") || message.includes("resource_not_found")) {
       return true;
     }
     logger.error({ err: error, clerkUserId }, "Kunne ikke slette Clerk-bruker");
