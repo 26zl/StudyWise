@@ -1110,6 +1110,7 @@ async function syncExistingUserWithClerkProfile(
     !lastNameChanged &&
     !oauthAccountsChanged
   ) {
+    // allow-deleted-users: `existing` er allerede validert som aktiv bruker av kall-stedet (findOrCreateUserByClerkId)
     const updated = await User.findByIdAndUpdate(
       existing._id,
       { $set: { clerkProfileSyncedAt: syncedAt } },
