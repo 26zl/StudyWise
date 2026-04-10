@@ -1,0 +1,91 @@
+Kanban — StudyWise Brukerhistorier
+====================================
+Alle 55 brukerhistorier fra GitHub Projects (#21).
+Eksportert: 2026-04-10
+
+==============================================================================
+IN PROGRESS (1)
+==============================================================================
+1.  [#76] Som student vil jeg at KI-assistenten skal være til fordel å bruke ovenfor andre populære KI-tjenester.
+    Tildelt: Abdinasir909, 26zl, Hersino
+
+==============================================================================
+IN REVIEW (1)
+==============================================================================
+2.  [#39] Som student vil jeg ha mulighet for å ta i bruk to-faktor autentisering for sikrere konto.
+    Tildelt: 26zl
+
+==============================================================================
+DONE (53)
+==============================================================================
+
+--- Canvas-integrasjon & Oversikt ---
+3.  [#5]  Som student vil jeg se alle kursene mine i én oversikt slik at jeg raskt får oversikt over semesteret.
+4.  [#6]  Som student vil jeg åpne en modulressurs (side/oppgave/lenke/fil) fra appen slik at jeg kan gå direkte til riktig innhold.
+5.  [#7]  Som student vil jeg se innholdet i en modul (module items) slik at jeg vet nøyaktig hva som inngår i modul 1/2/3.
+6.  [#18] Som student vil jeg se moduler i et kurs som en strukturert liste slik at jeg forstår rekkefølgen i pensum/undervisning.
+7.  [#23] Som student vil jeg se alle oppgaver på tvers av kurs i én liste slik at jeg slipper å lete i hvert emne.
+8.  [#20] Som student vil jeg se status på oppgaver (ikke startet/pågående/ferdig/innlevert) slik at jeg vet hvor jeg ligger.
+9.  [#74] Som student vil jeg enkelt kunne selv velge hvilke oppgaver jeg faktisk har levert inn.
+10. [#27] Som student vil jeg kunne se en ukeplan med oversikt over undervisning, slik at jeg enkelt forstår hva jeg har av forelesninger.
+11. [#59] Som student vil jeg ha en oversiktsside med tab-interface mellom arbeidsplan og KI-forslag, stats og quick actions, slik at jeg har alt jeg trenger på ett sted.
+
+--- Kunngjøringer & Varsler ---
+12. [#13] Som student vil jeg se kunngjøringer samlet per kurs slik at jeg ikke går glipp av viktig informasjon.
+13. [#19] Som student vil jeg kunne se kunngjøringer på tvers av kurs slik at jeg fanger opp endringer raskt.
+14. [#8]  Som student vil jeg få en kort oppsummering av en kunngjøring slik at jeg raskt forstår hva som er viktig.
+15. [#11] Som student vil jeg få en "TL;DR" + "Hva må jeg gjøre?" fra kunngjøringer slik at jeg omsetter info til handling.
+16. [#25] Som student vil jeg få varsling om oppgaver som nærmer seg frist slik at jeg unngår skippertak.
+17. [#46] Som student vil jeg kunne ha et sentralisert sted med alt av varslinger fra canvas samlet.
+18. [#47] Som student vil jeg få varslinger opp som pop-ups som påminner meg om viktige hendelser som for eksempel en ikke-levert oppgave.
+
+--- KI-chat & Samtaler ---
+19. [#48] Som en student ønsker jeg å kunne stille oppfølgingsspørsmål uten å gjenta kontekst, slik at samtalen føles naturlig og sammenhengende.
+20. [#44] Som student vil jeg at KI-assistenten svarer raskt på enkle spørsmål, uten å bruke unødvendig lang tid på å laste inn all Canvas-data.
+21. [#35] Som student vil jeg at Ai skal komme med smarte oppfølgingsspørsmål.
+22. [#12] Som student vil jeg få forslag til relevante spørsmål å stille om modulinnholdet slik at jeg kan teste forståelsen min.
+23. [#34] Som student vil jeg at Canvas-konteksten som sendes til AI er tydelig strukturert og konsistent formatert, slik at AI forstår emner, frister og kunngjøringer bedre og gir mer presise og relevante svar.
+24. [#53] Som student vil jeg ha som mulighet til å trykke på en "Spør KI"-knapp som sender innholdet + ferdigdefinert prompt direkte til KI-assistenten.
+
+--- KI — Dokumenter & Søk ---
+25. [#26] Som student vil jeg kunne laste opp et dokument, slik at KI kan analysere innholdet og gi meg tilpassede forslag/oversikter/oppsummeringer.
+26. [#43] Som student vil jeg kunne laste opp bilder slik at KI kan tolke og forklare innholdet.
+27. [#62] Som student vil jeg kunne laste opp andre filtyper som for eksempel .java, .py og .txt, slik at KI-assistenten kan bruke innholdet i filene når jeg stiller spørsmål.
+28. [#63] Som student vil jeg at KI-assistenten finner fram og bruker de tekstene og dokumentene som passer best til spørsmålet mitt, slik at jeg slipper å lete selv og får svar som er relevante for det jeg jobber med.
+29. [#75] Som student vil jeg at KI-assistenten skal bruke eksterne kilder som er lagt ut som forelesningsmateriell i Canvas, slik at svarene får bedre kontekst og blir mer treffsikre for emnet jeg jobber med.
+30. [#9]  Som student vil jeg få oppsummering av en modulside slik at jeg kan repetere hovedpunktene før jeg jobber.
+
+--- KI — Quiz & Flashcards ---
+31. [#60] Som student vil jeg generere quiz basert på emne eller modul, slik at jeg kan teste meg selv på relevant fagstoff.
+32. [#61] Som student vil jeg generere flashcards basert på emne eller modul, slik at jeg kan repetere og huske viktig fagstoff bedre.
+
+--- KI — Oppgavedeling & Arbeidsplan ---
+33. [#28] Som student vil jeg få en sjekkliste med deloppgaver for en stor innlevering slik at jeg kommer i gang tidlig.
+34. [#55] Som student vil jeg ha AI-assistanse til å generere intelligente deloppgaver fra Canvas-oppgaver som jeg kan godkjenne, avvise, redigere og lagre, slik at jeg får et "første utkast" som gjør det lettere å komme i gang.
+35. [#29] Som student vil jeg kunne godkjenne eller avvise KI-forslag slik at jeg beholder kontroll over planen min.
+36. [#30] Som student vil jeg kunne redigere KI-forslåtte deloppgaver slik at de passer min måte å jobbe på.
+37. [#24] Som student vil jeg få en prioriteringsscore for oppgaver slik at jeg forstår hvorfor noe bør gjøres først.
+38. [#31] Som student vil jeg kunne lagre et KI-forslag inn i ukeplanen slik at det blir en faktisk arbeidsoppgave.
+39. [#32] Som student vil jeg kunne be KI lage et "første utkast" til arbeidsplan for en oppgave slik at jeg slipper blankt ark.
+40. [#54] Som student vil jeg ha et komplett system for å administrere ukeplaner med navigation, progress tracking og statistikk, slik at jeg kan opprette, vise, redigere og slette arbeidsplaner med full oversikt.
+41. [#56] Som student vil jeg ha AI-assistanse til å generere en komplett ukeplan basert på alle mine Canvas-oppgaver, slik at jeg kan velge hvilke foreslåtte studieøkter jeg vil lagre til arbeidsplanen.
+42. [#57] Som student vil jeg ha en intuitiv modul med quick select for dager og live preview, slik at jeg enkelt kan legge oppgaver til arbeidsplanen med full kontrol over tidspunkt.
+
+--- Chat-administrasjon & Eksport ---
+43. [#70] Som student ønsker jeg å dele en chat-samtale via en lenke slik at jeg kan vise medstudenter eller faglærer hva jeg har lært eller spurt om.
+44. [#71] Som student ønsker jeg å ha en oversikt over alle chatsamtaler jeg har delt slik at jeg enkelt kan administrere, deaktivere eller slette delte lenker.
+45. [#72] Som student ønsker jeg å bokmerke viktige chatsamtaler og enkelt finne tidligere chatter slik at jeg raskt kan gå tilbake til samtaler jeg ønsker å fortsette eller referere til.
+46. [#73] Som student ønsker jeg å kunne gi en chat et egendefinert navn slik at jeg enkelt gjenkjenner og organiserer samtalene mine i listen.
+47. [#36] Som student ønsker jeg muligheten til å eksportere en chat til Markdown, slik at samtalen kan åpnes i VS Code og formateringen kan kontrolleres.
+
+--- Konto & Sikkerhet ---
+48. [#38] Som student vil jeg ha som mulighet å logge inn med enn annen leverandør for enklere innlogging.
+49. [#37] Som student vil jeg ha som mulighet å slette brukerkontoen min.
+50. [#58] Som student vil jeg ha mulighet for å bli glemt. All data slettet.
+51. [#41] Som student vil jeg ha som mulighet å kunne endre allerede registrert brukerinformasjon.
+52. [#66] Som student vil jeg enkelt kunne gjenopprette tilgang til kontoen, ved uhell som glemt passord.
+
+--- Annet ---
+53. [#40] Som student vil jeg kunne enkelt ta kontakt med ansvarlig for web applikasjon.
+54. [#52] Som student vil jeg kunne bruke applikasjonen som en velfungerende app på mobil.
+55. [#65] Som ikke norsk språkelig student vil jeg ha mulighet til å enkelt kunne endre språket fra norsk til engelsk.
