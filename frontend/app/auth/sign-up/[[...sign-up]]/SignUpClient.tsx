@@ -46,12 +46,13 @@ function normalizeEmailForUsernameCheck(value: string | null | undefined): strin
   return trimmed;
 }
 
-function buildUsernameCheckUrl(username: string, email?: string): string {
-  const params = new URLSearchParams({ username });
-  if (email) {
-    params.set("email", email);
-  }
-  return `/api/user/username/check?${params.toString()}`;
+function fetchUsernameCheck(username: string, email?: string, signal?: AbortSignal): Promise<Response> {
+  return fetch("/api/user/username/check", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, ...(email ? { email } : {}) }),
+    signal,
+  });
 }
 
 export function SignUpClient({ initialVerified }: SignUpClientProps) {
@@ -141,7 +142,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
       usernameAbortRef.current = controller;
       setUsernameStatus("checking");
 
-      fetch(buildUsernameCheckUrl(trimmed, normalizeEmailForUsernameCheck(email)), { signal: controller.signal })
+      fetchUsernameCheck(trimmed, normalizeEmailForUsernameCheck(email), controller.signal)
         .then(async (res) => {
           if (controller.signal.aborted) return;
           if (!res.ok) {
@@ -212,11 +213,9 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
 
         // Sjekk brukernavn-tilgjengelighet kun hvis oppgitt
         if (trimmedUsername) {
-          const checkRes = await fetch(
-            buildUsernameCheckUrl(
-              trimmedUsername,
-              normalizeEmailForUsernameCheck(trimmedEmail),
-            ),
+          const checkRes = await fetchUsernameCheck(
+            trimmedUsername,
+            normalizeEmailForUsernameCheck(trimmedEmail),
           );
           if (checkRes.ok) {
             const checkData = await checkRes.json();

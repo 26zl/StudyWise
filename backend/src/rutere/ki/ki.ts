@@ -663,8 +663,8 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
           "Direkte URL-kontekst: innhold hentet",
         );
 
-        let extracted = "";
-        let labelType = "text";
+        let extracted: string;
+        let labelType: string;
         if (legacyContentType.includes("text/html") || legacyContentType.includes("application/xhtml+xml")) {
           const html = await legacyResponse.text();
           extracted = normalizeTextContent(stripHtml(html, { removeStyles: true }));

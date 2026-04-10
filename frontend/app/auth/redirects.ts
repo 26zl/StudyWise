@@ -89,4 +89,14 @@ export function withPostAuthRedirect(
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
+/**
+ * Legger til en query-parameter på en relativ path som allerede kan ha ?-parametre.
+ * Unngår dobbel-? ved å bruke URL API.
+ */
+export function appendQueryParam(path: string, key: string, value: string): string {
+  const url = new URL(path, REDIRECT_BASE_ORIGIN);
+  url.searchParams.set(key, value);
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 export { DEFAULT_POST_AUTH_REDIRECT };

@@ -181,11 +181,29 @@ router.patch("/brukere/:id/rolle", requireRecentAuth, async (req, res) => {
     }
 
     const gammelRolle = bruker.role;
+    const isAdminPromotion = gammelRolle !== "admin" && parsed.data.rolle === "admin";
+
+    // Rate-limit admin-forfremmelser: maks 2 per 24 timer per admin
+    if (isAdminPromotion) {
+      const recentPromotions = await AuditLog.countDocuments({
+        actorUserId,
+        "metadata.securityAlert": "admin_promotion",
+        createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      });
+      if (recentPromotions >= 2) {
+        logger.warn(
+          { actorUserId, targetUserId: targetId, recentPromotions },
+          "Admin-forfremmelses-grense nådd (maks 2 per 24t)",
+        );
+        return apiError.badRequest(
+          res,
+          "Du har nådd grensen for admin-forfremmelser (maks 2 per 24 timer)",
+        );
+      }
+    }
+
     bruker.role = parsed.data.rolle;
     await bruker.save();
-
-    // Sikkerhetsvarsel ved oppgradering til admin-rolle
-    const isAdminPromotion = gammelRolle !== "admin" && parsed.data.rolle === "admin";
 
     await audit({
       actorUserId,
@@ -396,16 +414,21 @@ router.get("/brukere/:id/detalj", async (req, res) => {
       }),
     ]);
 
-    void audit({
-      actorUserId,
-      action: AUDIT_ACTIONS.ADMIN_ACTION,
-      category: "admin",
-      outcome: "success",
-      role: req.actorRole,
-      targetUserId: targetId,
-      metadata: { subAction: "brukere.detalj" },
-      req,
-    });
+    // Audit brukerdetalj-visning — await med try/catch for å ikke miste oppføringer
+    try {
+      await audit({
+        actorUserId,
+        action: AUDIT_ACTIONS.ADMIN_ACTION,
+        category: "admin",
+        outcome: "success",
+        role: req.actorRole,
+        targetUserId: targetId,
+        metadata: { subAction: "brukere.detalj" },
+        req,
+      });
+    } catch (auditErr) {
+      logger.warn({ err: auditErr }, "Audit for brukerdetalj-visning feilet");
+    }
 
     const detalj = AdminBrukerDetaljSchema.parse({
       id: String(bruker._id),
@@ -616,6 +639,24 @@ router.post("/brukere/:id/lock", requireRecentAuth, async (req, res) => {
       },
       req,
     });
+
+    // Revokér aktive Clerk-sesjoner slik at brukeren ikke kan fortsette
+    // å gjøre requests med eksisterende token etter at kontoen er låst.
+    if (bruker.clerkId) {
+      try {
+        await revokeAllClerkSessions(bruker.clerkId);
+        logger.info(
+          { adminUserId: actorUserId, targetUserId: targetId },
+          "Clerk-sesjoner revokert etter kontolås",
+        );
+      } catch (revokeErr) {
+        // Ikke blokker lås-operasjonen — neste token-verifisering fanger det uansett
+        logger.warn(
+          { err: revokeErr, targetUserId: targetId },
+          "Kunne ikke revokere Clerk-sesjoner ved kontolås",
+        );
+      }
+    }
 
     logger.info(
       { adminUserId: actorUserId, targetUserId: targetId },

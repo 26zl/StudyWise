@@ -1,21 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AUTH_TURNSTILE_ACTION } from "common/auth";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { showToast } from "@/app/components/ui/Toaster";
 import { verifyAuthTurnstile } from "@/app/auth/auth-turnstile-api";
 import { useLanguage } from "@/app/i18n";
 import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
-
-type TurnstileRenderer = {
-  render: (element: HTMLElement, options: Record<string, unknown>) => string;
-  reset: (widgetId: string) => void;
-};
-
-type TurnstileWindow = Window & {
-  turnstile?: TurnstileRenderer;
-};
+import { useTurnstileScript } from "@/app/hooks/useTurnstileScript";
 
 const AUTH_TURNSTILE_SITE_KEY =
   process.env.NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY ?? "";
@@ -31,11 +23,8 @@ export function AuthTurnstileInline({
 }: AuthTurnstileInlineProps) {
   const { t } = useLanguage();
   const [isVerified, setIsVerified] = useState(initialVerified);
-  const [turnstileLoaded, setTurnstileLoaded] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const turnstileRef = useRef<HTMLDivElement>(null);
-  const widgetIdRef = useRef<string | null>(null);
 
   // Når Turnstile ikke er konfigurert, hopp over verifisering
   useEffect(() => {
@@ -43,15 +32,6 @@ export function AuthTurnstileInline({
       onVerified();
     }
   }, [isVerified, onVerified]);
-
-  const resetTurnstile = useCallback(() => {
-    setErrorMessage(null);
-
-    const currentWindow = window as TurnstileWindow;
-    if (widgetIdRef.current && currentWindow.turnstile) {
-      currentWindow.turnstile.reset(widgetIdRef.current);
-    }
-  }, []);
 
   const onTurnstileSuccess = useCallback(async (token: string) => {
     if (isVerified || isVerifying) {
@@ -74,68 +54,24 @@ export function AuthTurnstileInline({
       );
       setErrorMessage(message);
       showToast.error(t("auth.humanCheck.title"), message);
-      resetTurnstile();
+      reset();
     } finally {
       setIsVerifying(false);
     }
-  }, [isVerified, isVerifying, onVerified, resetTurnstile, t]);
+  }, [isVerified, isVerifying, onVerified, t]);
 
   const onTurnstileError = useCallback(() => {
     setErrorMessage(t("auth.humanCheck.widgetError"));
   }, [t]);
 
-  useEffect(() => {
-    if (isVerified || !AUTH_TURNSTILE_SITE_KEY || typeof window === "undefined") {
-      return;
-    }
-
-    const renderWidget = () => {
-      const currentWindow = window as TurnstileWindow;
-      if (
-        turnstileRef.current &&
-        !widgetIdRef.current &&
-        currentWindow.turnstile
-      ) {
-        widgetIdRef.current = currentWindow.turnstile.render(turnstileRef.current, {
-          sitekey: AUTH_TURNSTILE_SITE_KEY,
-          action: AUTH_TURNSTILE_ACTION,
-          callback: (token: string) => {
-            void onTurnstileSuccess(token);
-          },
-          "error-callback": () => onTurnstileError(),
-          "expired-callback": () => onTurnstileError(),
-          theme: "auto",
-        });
-        setTurnstileLoaded(true);
-      }
-    };
-
-    const currentWindow = window as TurnstileWindow;
-    if (currentWindow.turnstile) {
-      renderWidget();
-      return;
-    }
-
-    const existingScript = document.querySelector<HTMLScriptElement>(
-      'script[src^="https://challenges.cloudflare.com/turnstile/v0/api.js"]',
-    );
-    if (existingScript) {
-      existingScript.addEventListener("load", renderWidget, { once: true });
-      return () => {
-        existingScript.removeEventListener("load", renderWidget);
-      };
-    }
-
-    const script = document.createElement("script");
-    script.src =
-      "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      setTimeout(renderWidget, 100);
-    };
-    document.head.appendChild(script);
-  }, [isVerified, onTurnstileError, onTurnstileSuccess]);
+  const { containerRef, isLoaded, reset } = useTurnstileScript({
+    siteKey: AUTH_TURNSTILE_SITE_KEY,
+    action: AUTH_TURNSTILE_ACTION,
+    onSuccess: (token) => { void onTurnstileSuccess(token); },
+    onError: onTurnstileError,
+    onExpired: onTurnstileError,
+    enabled: !isVerified && !!AUTH_TURNSTILE_SITE_KEY,
+  });
 
   if (isVerified || !AUTH_TURNSTILE_SITE_KEY) {
     return null;
@@ -163,10 +99,10 @@ export function AuthTurnstileInline({
       <div className="space-y-3">
         <div className="relative flex justify-center">
           <div
-            ref={turnstileRef}
-            className={turnstileLoaded ? undefined : "opacity-0"}
+            ref={containerRef}
+            className={isLoaded ? undefined : "opacity-0"}
           />
-          {!turnstileLoaded && (
+          {!isLoaded && (
             <div className="absolute inset-0 flex h-16.25 w-75 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900">
               <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
             </div>

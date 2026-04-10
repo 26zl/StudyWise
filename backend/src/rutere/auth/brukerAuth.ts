@@ -296,16 +296,14 @@ async function hentAutentisertBruker(
   return bruker;
 }
 
-// GET /username/check — Sjekk om brukernavn er tilgjengelig (public endpoint for sign-up).
+// POST /username/check — Sjekk om brukernavn er tilgjengelig (public endpoint for sign-up).
+// POST brukes for å unngå at e-post havner i URL/query-parametre, nettleserhistorikk og logger.
 // Rate limited + konstant forsinkelse for å begrense enumeration- og timing-angrep.
 const USERNAME_CHECK_MIN_DELAY_MS = 200;
-router.get("/username/check", rateLimitUsernameCheck, async (req, res) => {
+router.post("/username/check", rateLimitUsernameCheck, async (req, res) => {
   const start = Date.now();
   try {
-    const parsed = UsernameCheckQuerySchema.safeParse({
-      username: req.query.username,
-      email: req.query.email,
-    });
+    const parsed = UsernameCheckQuerySchema.safeParse(req.body);
     if (!parsed.success) {
       return sendZodError(res, parsed.error, "Brukernavnvalidering");
     }

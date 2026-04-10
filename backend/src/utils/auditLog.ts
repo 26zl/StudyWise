@@ -179,6 +179,10 @@ function isSensitiveMetadataKey(key: string): boolean {
     "filename",
     "originalname",
     "uploadname",
+    // Admin-intern fritekst (f.eks. låsebegrunnelse) — skal ikke lagres i klartekst.
+    "begrunnelse",
+    "lockedreason",
+    "lockreason",
   ]);
 
   if (exactMatches.has(normalized)) {

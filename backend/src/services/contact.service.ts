@@ -26,6 +26,14 @@ export interface KontaktPayload {
   attachments?: KontaktAttachment[];
 }
 
+export interface ReplyPayload {
+  toEmail: string;
+  toName: string;
+  subject: string;
+  body: string;
+  originalMessageId?: string;
+}
+
 export interface TransportResult {
   success: boolean;
   error?: string;
@@ -134,6 +142,87 @@ export async function sendKontaktmelding(
     logger.error(
       { err: error, requestId: payload.requestId },
       "Kontakttransport feilet",
+    );
+    return { success: false, error: "internal-error" };
+  }
+}
+
+/**
+ * Sender svar på kontaktmelding via ekstern worker/webhook
+ */
+export async function sendKontaktSvar(
+  payload: ReplyPayload,
+): Promise<TransportResult> {
+  const config = getTransportConfig();
+
+  if (!config.workerUrl || !config.workerSecret) {
+    if (isProd) {
+      logger.error("Kontakttransport ikke konfigurert i produksjon");
+      throw new Error("CONTACT_TRANSPORT_NOT_CONFIGURED");
+    }
+
+    logger.info(
+      { toEmail: payload.toEmail.split("@")[1] ?? "unknown", subject: payload.subject },
+      "DEV: Kontaktsvar mottatt (mock-transport)",
+    );
+    return { success: true };
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TRANSPORT_TIMEOUT_MS);
+    try {
+      const workerPayload = {
+        type: "reply",
+        toEmail: payload.toEmail,
+        toName: payload.toName,
+        fromEmail: config.fromEmail,
+        subject: payload.subject,
+        body: payload.body,
+      };
+
+      const response = await fetch(config.workerUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Contact-Secret": config.workerSecret,
+        },
+        body: JSON.stringify(workerPayload),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        logger.error(
+          { status: response.status, originalMessageId: payload.originalMessageId },
+          "Kontaktsvar-transport feilet",
+        );
+        return { success: false, error: "transport-failed" };
+      }
+
+      logger.info(
+        {
+          originalMessageId: payload.originalMessageId,
+          toEmailDomain: payload.toEmail.split("@")[1] ?? "unknown",
+        },
+        "Kontaktsvar sendt til worker",
+      );
+
+      return { success: true };
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      logger.error(
+        { originalMessageId: payload.originalMessageId },
+        "Kontaktsvar-transport timet ut",
+      );
+      return { success: false, error: "timeout" };
+    }
+
+    logger.error(
+      { err: error, originalMessageId: payload.originalMessageId },
+      "Kontaktsvar-transport feilet",
     );
     return { success: false, error: "internal-error" };
   }

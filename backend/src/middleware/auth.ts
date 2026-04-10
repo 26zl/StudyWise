@@ -476,16 +476,14 @@ export async function requireAuth(
         metadata: { reason: "user_locked", begrunnelse: result.lockedReason ?? null },
         req,
       });
-      const baseMelding =
+      // Generisk melding til brukeren — admin-begrunnelse er intern og skal
+      // ikke eksponeres i URL, browserhistorikk eller referrer-header.
+      const melding =
         "Kontoen din er midlertidig låst av en administrator. Kontakt support hvis du tror dette er en feil.";
-      const fullMelding = result.lockedReason
-        ? `${baseMelding} Begrunnelse: ${result.lockedReason}`
-        : baseMelding;
       res.status(403).json({
         error: "user_locked",
         kode: "user_locked",
-        melding: fullMelding,
-        begrunnelse: result.lockedReason,
+        melding,
       });
       return;
     }

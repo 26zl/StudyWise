@@ -84,15 +84,19 @@ describe("KontaktRequestSchema", () => {
     ).toBe(false);
   });
 
-  it("avviser manglende turnstileToken", () => {
+  it("godtar manglende turnstileToken (default tom streng)", () => {
     const { turnstileToken: _, ...uten } = gyldig;
-    expect(KontaktRequestSchema.safeParse(uten).success).toBe(false);
+    const result = KontaktRequestSchema.safeParse(uten);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.turnstileToken).toBe("");
+    }
   });
 
-  it("avviser tom turnstileToken", () => {
+  it("godtar tom turnstileToken", () => {
     expect(
       KontaktRequestSchema.safeParse({ ...gyldig, turnstileToken: "" }).success,
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("godtar valgfri nettsted (honeypot)", () => {

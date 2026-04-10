@@ -194,8 +194,10 @@ router.post(
       logger.error("Turnstile ikke konfigurert i produksjon");
       return apiError.serviceUnavailable(res, "Kontaktskjema");
     }
-    // Development: logg advarsel men fortsett
+    // Development: hopp over Turnstile-verifisering
     logger.warn("DEV: Turnstile ikke konfigurert, hopper over verifisering");
+  } else if (!turnstileToken) {
+    return apiError.badRequest(res, "Verifisering kreves");
   } else {
     const clientIp = req.ip || req.socket?.remoteAddress;
     const turnstileResult = await verifyTurnstileToken(turnstileToken, clientIp);

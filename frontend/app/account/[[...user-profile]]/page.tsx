@@ -69,13 +69,17 @@ function SlettKontoSeksjon() {
         );
       }
 
-      // Sett utloggingsflagg og naviger umiddelbart for å unngå flash av feilmeldinger
+      // Sett utloggingsflagg og naviger umiddelbart for å unngå at
+      // React Query refetcher og viser feilgrense ("something went wrong").
+      // cancelQueries() avbryter in-flight requests kontrollert.
       useUIStore.getState().setIsLoggingOut(true);
       broadcastLogout();
+      queryClient.cancelQueries();
       clearClientAuthState(queryClient);
       window.location.assign("/");
 
-      // Logg ut fra Clerk i bakgrunnen — kontoen er allerede slettet
+      // Logg ut fra Clerk i bakgrunnen — kontoen er allerede slettet,
+      // og navigering er startet så dette er ikke synlig for brukeren.
       void clerk.signOut().catch(() => {});
     } catch (error) {
       setKontoSlettes(false);

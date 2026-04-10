@@ -8,18 +8,36 @@ import type { CookieConsentValue, UIPreferences } from "common/auth";
 export const COOKIE_CONSENT_CHANGED_EVENT = "studywise-cookie-consent-changed";
 export type CookieConsentStatus = CookieConsentValue | null;
 const COOKIE_CONSENT_STORAGE_PREFIX = "studywise_cookie_consent";
-const GUEST_COOKIE_CONSENT_STORAGE_KEY = "studywise_guest_cookie_consent";
+const GUEST_COOKIE_CONSENT_COOKIE_NAME = "studywise_guest_consent";
+const GUEST_CONSENT_MAX_AGE_DAYS = 30;
 
 function parseCookieConsent(value: unknown): CookieConsentStatus {
   return value === "accepted" || value === "declined" ? value : null;
 }
 
-// Initialisér synkront fra localStorage ved modul-load (ikke via useEffect)
+function readGuestCookie(): CookieConsentStatus {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie
+    .split("; ")
+    .find((c) => c.startsWith(`${GUEST_COOKIE_CONSENT_COOKIE_NAME}=`));
+  return match ? parseCookieConsent(match.split("=")[1]) : null;
+}
+
+function writeGuestCookie(value: CookieConsentStatus): void {
+  if (typeof document === "undefined") return;
+  if (value === null) {
+    document.cookie = `${GUEST_COOKIE_CONSENT_COOKIE_NAME}=; max-age=0; path=/; SameSite=Lax; Secure`;
+    return;
+  }
+  const maxAge = GUEST_CONSENT_MAX_AGE_DAYS * 24 * 60 * 60;
+  document.cookie = `${GUEST_COOKIE_CONSENT_COOKIE_NAME}=${value}; max-age=${maxAge}; path=/; SameSite=Lax; Secure`;
+}
+
+// Initialisér synkront fra cookie ved modul-load (ikke via useEffect)
 // slik at consent er tilgjengelig allerede ved første React-render og banneret ikke blinker.
+// Cookie med 30 dagers levetid brukes for gjester, i tråd med personvernteksten.
 let gjesteSamtykke: CookieConsentStatus =
-  typeof window !== "undefined"
-    ? parseCookieConsent(window.localStorage.getItem(GUEST_COOKIE_CONSENT_STORAGE_KEY))
-    : null;
+  typeof window !== "undefined" ? readGuestCookie() : null;
 
 function getAuthenticatedConsentStorageKey(userId: string): string {
   return `${COOKIE_CONSENT_STORAGE_PREFIX}:${userId}`;
@@ -45,31 +63,19 @@ function readGuestConsentFromStorage(): CookieConsentStatus {
   }
 
   try {
-    // Migrer fra sessionStorage til localStorage (eldre kode brukte sessionStorage)
-    const sessionValue = window.sessionStorage.getItem(GUEST_COOKIE_CONSENT_STORAGE_KEY);
-    if (sessionValue) {
-      window.localStorage.setItem(GUEST_COOKIE_CONSENT_STORAGE_KEY, sessionValue);
-      window.sessionStorage.removeItem(GUEST_COOKIE_CONSENT_STORAGE_KEY);
+    // Migrer fra eldre lagringsmekanismer (localStorage/sessionStorage) til cookie
+    const legacyKey = "studywise_guest_cookie_consent";
+    const localValue = window.localStorage.getItem(legacyKey);
+    if (localValue) window.localStorage.removeItem(legacyKey);
+    const sessionValue = window.sessionStorage.getItem(legacyKey);
+    if (sessionValue) window.sessionStorage.removeItem(legacyKey);
+    const migrateValue = parseCookieConsent(localValue ?? sessionValue);
+    if (migrateValue) {
+      writeGuestCookie(migrateValue);
+      return migrateValue;
     }
-    const guestValue = parseCookieConsent(
-      window.localStorage.getItem(GUEST_COOKIE_CONSENT_STORAGE_KEY),
-    );
-    if (guestValue) return guestValue;
 
-    // Fallback: sjekk om det finnes et bruker-spesifikt samtykke fra en tidligere innlogget økt.
-    // Dette dekker tilfellet der bruker godtok cookies mens innlogget (før gjeste-nøkkel ble skrevet).
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const key = window.localStorage.key(i);
-      if (key?.startsWith(COOKIE_CONSENT_STORAGE_PREFIX + ":")) {
-        const value = parseCookieConsent(window.localStorage.getItem(key));
-        if (value) {
-          // Promoter til gjeste-nøkkel slik at denne fallbacken bare kjører én gang
-          window.localStorage.setItem(GUEST_COOKIE_CONSENT_STORAGE_KEY, value);
-          return value;
-        }
-      }
-    }
-    return null;
+    return readGuestCookie();
   } catch {
     return null;
   }
@@ -81,13 +87,7 @@ function writeGuestConsentToStorage(consent: CookieConsentStatus): void {
   }
 
   try {
-    if (consent === null) {
-      window.localStorage.removeItem(GUEST_COOKIE_CONSENT_STORAGE_KEY);
-      window.sessionStorage.removeItem(GUEST_COOKIE_CONSENT_STORAGE_KEY);
-      return;
-    }
-
-    window.localStorage.setItem(GUEST_COOKIE_CONSENT_STORAGE_KEY, consent);
+    writeGuestCookie(consent);
   } catch {
     // Ignorer lagringsfeil i låste miljøer.
   }
@@ -171,7 +171,7 @@ export function useCookieConsent() {
     if (typeof window === "undefined") {
       return;
     }
-    // Oppdater i tilfelle localStorage endret seg mellom SSR og hydrering
+    // Oppdater i tilfelle gjeste-cookie endret seg mellom SSR og hydrering
     const fresh = readGuestConsentFromStorage();
     if (fresh !== guestConsent) {
       gjesteSamtykke = fresh;
@@ -233,7 +233,7 @@ export function useCookieConsent() {
     me?.user?.uiPreferences?.cookieConsent,
   );
 
-  // Re-les gjeste-samtykke fra localStorage når bruker logger ut,
+  // Re-les gjeste-samtykke fra cookie når bruker logger ut,
   // fordi modulvariabelen gjesteSamtykke kan være null etter promotering.
   useEffect(() => {
     if (!isAuthenticated) {
@@ -245,10 +245,13 @@ export function useCookieConsent() {
     }
   }, [isAuthenticated]);
 
+  // For innloggede brukere: bruk backend- eller cache-verdi, IKKE gjeste-cookie.
+  // Gjeste-cookien kan tilhøre en annen person på delt maskin.
+  // Hvis ingen verdi finnes, vises banneret på nytt (consent === null).
   const consent =
     pendingConsent ??
     (isAuthenticated
-      ? (backendConsent ?? cachedAuthenticatedConsent ?? guestConsent)
+      ? (backendConsent ?? cachedAuthenticatedConsent)
       : guestConsent);
   const harConsentFraCache = cachedAuthenticatedConsent !== null;
   const isReady =
@@ -274,28 +277,9 @@ export function useCookieConsent() {
     setCachedAuthenticatedConsent(backendConsent);
   }, [backendConsent, henterMeg, isAuthenticated, userId]);
 
-  // Promoter gjestesamtykke til backend når bruker logger inn og backend ikke har samtykke
-  useEffect(() => {
-    if (!isAuthenticated || !harBackendBrukerdata || backendConsent !== null) {
-      return;
-    }
-
-    // Sjekk om det finnes et gjestesamtykke som kan promoteres
-    const gjesteVerdi = gjesteSamtykke ?? readGuestConsentFromStorage();
-    if (!gjesteVerdi) {
-      return;
-    }
-
-    // Synk gjestesamtykke til backend — men behold gjestesamtykke i localStorage
-    // slik at banneret ikke dukker opp igjen etter utlogging.
-    void oppdaterUIPreferanser({
-      language: me?.user?.uiPreferences?.language,
-      theme: me?.user?.uiPreferences?.theme,
-      cookieConsent: gjesteVerdi,
-    }).catch(() => {
-      // Ignorer feil — bruker blir spurt på nytt neste gang
-    });
-  }, [isAuthenticated, harBackendBrukerdata, backendConsent, me?.user?.uiPreferences, oppdaterUIPreferanser]);
+  // Ikke promoter gjeste-cookie til innlogget bruker — på delt maskin kan
+  // gjeste-valget tilhøre en annen person. Innloggede brukere uten lagret
+  // samtykke får banneret på nytt og tar et eget aktivt valg.
 
   const setConsent = useCallback(
     async (nextConsent: Exclude<CookieConsentStatus, null>) => {
@@ -319,10 +303,8 @@ export function useCookieConsent() {
         writeAuthenticatedConsentToStorage(userId, nextConsent);
         setCachedAuthenticatedConsent(nextConsent);
       }
-      // Lagre også som gjeste-samtykke slik at banneret ikke dukker opp igjen etter utlogging
-      gjesteSamtykke = nextConsent;
-      writeGuestConsentToStorage(nextConsent);
-      setGuestConsent(nextConsent);
+      // Ikke skriv til gjeste-cookie — det kan lekke til neste bruker på delt maskin.
+      // Banneret vises ved utlogging bare hvis gjesten ikke har et eget valg.
       emitCookieConsentChange(nextConsent);
 
       setPendingConsent(nextConsent);

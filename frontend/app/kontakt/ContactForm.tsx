@@ -5,7 +5,7 @@
  * Bruker react-hook-form, Zod-validering og Cloudflare Turnstile
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo, type ChangeEvent } from "react";
+import { useState, useRef, useCallback, useMemo, type ChangeEvent } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,20 +17,10 @@ import {
   KONTAKT_MAX_ATTACHMENT_SIZE_BYTES,
 } from "common/contact";
 import { useLanguage } from "@/app/i18n";
+import { useTurnstileScript } from "@/app/hooks/useTurnstileScript";
 import { sendKontakt } from "./contact-api";
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
-
-/** Cloudflare Turnstile widget-API (lastes via eksternt script) */
-interface TurnstileWidget {
-  render: (el: HTMLElement, opts: object) => string;
-  reset: (id: string) => void;
-}
-
-/** Henter Turnstile-widget fra window (undefined hvis scriptet ikke er lastet) */
-function getTurnstile(): TurnstileWidget | undefined {
-  return (window as unknown as { turnstile?: TurnstileWidget }).turnstile;
-}
 
 type KontaktFormData = {
   navn: string;
@@ -60,11 +50,24 @@ export function ContactForm() {
   const [isSending, setIsSending] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-  const [turnstileLoaded, setTurnstileLoaded] = useState(false);
-  const turnstileRef = useRef<HTMLDivElement>(null);
-  const widgetIdRef = useRef<string | null>(null);
   const honeypotRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const onTurnstileSuccess = useCallback((token: string) => {
+    setTurnstileToken(token);
+  }, []);
+
+  const onTurnstileError = useCallback(() => {
+    setTurnstileToken(null);
+  }, []);
+
+  const { containerRef: turnstileRef, isLoaded: turnstileLoaded, reset: resetTurnstileWidget } = useTurnstileScript({
+    siteKey: TURNSTILE_SITE_KEY,
+    onSuccess: onTurnstileSuccess,
+    onError: onTurnstileError,
+    onExpired: onTurnstileError,
+    enabled: !!TURNSTILE_SITE_KEY,
+  });
 
   // Zod-schema med oversatte feilmeldinger
   const KontaktFormSchema = useMemo(() => z.object({
@@ -102,66 +105,11 @@ export function ContactForm() {
     resolver: zodResolver(KontaktFormSchema as never),
   });
 
-  // Callback ved Turnstile-suksess
-  const onTurnstileSuccess = useCallback((token: string) => {
-    setTurnstileToken(token);
-  }, []);
-
-  // Callback ved Turnstile-feil/utløpt
-  const onTurnstileError = useCallback(() => {
-    setTurnstileToken(null);
-  }, []);
-
-  // Last inn Turnstile-script og render widget
-  useEffect(() => {
-    if (!TURNSTILE_SITE_KEY || typeof window === "undefined") return;
-
-    const renderWidget = () => {
-      const turnstile = getTurnstile();
-      if (
-        turnstileRef.current &&
-        !widgetIdRef.current &&
-        turnstile
-      ) {
-        widgetIdRef.current = turnstile.render(turnstileRef.current, {
-          sitekey: TURNSTILE_SITE_KEY,
-          callback: (token: string) => onTurnstileSuccess(token),
-          "error-callback": () => onTurnstileError(),
-          "expired-callback": () => onTurnstileError(),
-          theme: "auto",
-        });
-        setTurnstileLoaded(true);
-      }
-    };
-
-    // Sjekk om script allerede er lastet
-    if (getTurnstile()) {
-      renderWidget();
-      return;
-    }
-
-    // Last inn Turnstile-script
-    const script = document.createElement("script");
-    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      // Liten forsinkelse for å sikre at Turnstile er ferdig initialisert
-      setTimeout(renderWidget, 100);
-    };
-    document.head.appendChild(script);
-  }, [onTurnstileSuccess, onTurnstileError]);
-
-  // Tilbakestill Turnstile etter innsending
   const resetTurnstile = useCallback(() => {
     setTurnstileToken(null);
-    const turnstile = getTurnstile();
-    if (widgetIdRef.current && turnstile) {
-      turnstile.reset(widgetIdRef.current);
-    }
-  }, []);
+    resetTurnstileWidget();
+  }, [resetTurnstileWidget]);
 
-  // Sjekk om Turnstile er konfigurert
   const isTurnstileRequired = !!TURNSTILE_SITE_KEY;
 
   const onSubmit = async (data: KontaktFormData) => {

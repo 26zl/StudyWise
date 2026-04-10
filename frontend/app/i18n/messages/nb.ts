@@ -167,6 +167,8 @@ export const nbMessages = {
         "Vi klarte ikke å logge deg inn. Denne kontoen er allerede koblet til en annen StudyWise-bruker. Hvis dette er din konto: logg ut helt (slett cookies for studwize.page) og prøv igjen om noen sekunder. Hvis problemet vedvarer, kontakt support.",
       emailConflict:
         "Det finnes allerede en konto med denne e-postadressen koblet til en annen innloggingsmetode. Prøv å logge inn med den opprinnelige metoden (f.eks. Microsoft eller Google), eller kontakt support.",
+      usernameConflict:
+        "Brukernavnet knyttet til kontoen din er allerede tatt. Registrer deg på nytt og velg et annet brukernavn.",
     },
     logoutFailedTitle: "Kunne ikke logge ut",
     logoutFailedDescription: "Innloggingssesjonen kunne ikke avsluttes. Prøv igjen.",
@@ -756,6 +758,13 @@ export const nbMessages = {
       delete: "Slett",
       attachments: "Vedlegg",
       fromPage: "Fra side",
+      reply: "Svar",
+      replyTo: "Svar til {name}",
+      replyPlaceholder: "Skriv svaret ditt...",
+      replySend: "Send svar",
+      replySending: "Sender...",
+      replySent: "Svar sendt",
+      replyFailed: "Kunne ikke sende svar",
       markRead: "Marker som lest",
       markUnread: "Marker som ulest",
       markReplied: "Marker som besvart",
@@ -1124,7 +1133,8 @@ export const nbMessages = {
       time: "Tidspunkt",
       noEntries: "Ingen revisjonslogg-oppføringer.",
       exportCsv: "Eksporter CSV",
-      exportFailed: "Kunne ikke eksportere CSV",
+      exportTxt: "Eksporter TXT",
+      exportFailed: "Kunne ikke eksportere revisjonslogg",
       resetFilters: "Nullstill filtre",
       categoryAll: "Alle kategorier",
       outcomeAll: "Alle utfall",
@@ -1601,7 +1611,7 @@ export const nbMessages = {
       "Sikkerhetslogging, revisjonslogg, driftsmonitorering (Datadog APM/RUM) og misbruksdeteksjon behandles på grunnlag av vår berettigede interesse i sikker og stabil drift. Disse dataene er minimert og pseudonymisert der det er mulig.",
     legalBasisConsentLabel: "Samtykke — Art. 6(1)(a):",
     legalBasisConsentBody:
-      "Valgfrie ytelsesmålinger (f.eks. Speed Insights) aktiveres kun dersom du eksplisitt godtar dette via cookie-banneret. Du kan når som helst trekke tilbake samtykket ved å endre valget i innstillingene dine. Hvis du ikke er innlogget, gjelder valget bare for den åpne økten.",
+      "Valgfrie ytelsesmålinger (f.eks. Speed Insights) aktiveres kun dersom du eksplisitt godtar dette via cookie-banneret. Du kan når som helst trekke tilbake samtykket ved å endre valget i innstillingene dine. Hvis du ikke er innlogget, huskes valget i 30 dager via en informasjonskapsel.",
     purposeTitle: "Formål med behandlingen",
     purposeIntro: "Vi bruker dataene for å:",
     purpose1:
@@ -1627,7 +1637,7 @@ export const nbMessages = {
       "Innlogging og sesjoner håndteres av Clerk. Session-token utløper etter Clerk sin konfigurasjon og oppdateres av innloggingsleverandøren ved behov.",
     cookiesSectionTitle: "Informasjonskapsler (cookies)",
     cookiesSectionBody:
-      "Vi bruker nødvendige informasjonskapsler for innlogging (Clerk), for å huske tema og preferanser, og for at appen skal fungere korrekt. Vi bruker også nødvendig driftsmonitorering og feilsporing for å kunne koble frontend-feil til monitorering og backend-spor. Hvis du godtar det, aktiverer vi i tillegg valgfrie ytelsesmålinger (for eksempel Speed Insights). Ved første besøk vises en melding nederst på siden der du kan velge Kun nødvendige eller Godta alle. For innloggede brukere lagres valget på brukerprofilen din i databasen og caches også i nettleserens localStorage for å unngå at banneret vises på nytt mellom besøk. Dette brukes ikke til markedsføring. Hvis du ikke er innlogget, huskes valget bare for den åpne nettleserøkten.",
+      "Vi bruker nødvendige informasjonskapsler for innlogging (Clerk), for å huske tema og preferanser, og for at appen skal fungere korrekt. Vi bruker også nødvendig driftsmonitorering og feilsporing for å kunne koble frontend-feil til monitorering og backend-spor. Hvis du godtar det, aktiverer vi i tillegg valgfrie ytelsesmålinger (for eksempel Speed Insights). Ved første besøk vises en melding nederst på siden der du kan velge Kun nødvendige eller Godta alle. For innloggede brukere lagres valget på brukerprofilen din i databasen og caches også i nettleserens localStorage for å unngå at banneret vises på nytt mellom besøk. Dette brukes ikke til markedsføring. Hvis du ikke er innlogget, huskes valget i 30 dager via en informasjonskapsel.",
     cookiesSectionNecessary: "Kun nødvendige",
     cookiesSectionAcceptAll: "Godta alle",
     thirdPartyTitle: "Deling med tredjeparter",

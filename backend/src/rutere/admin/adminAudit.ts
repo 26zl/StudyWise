@@ -297,4 +297,114 @@ router.get("/audit/export.csv", async (req, res) => {
   }
 });
 
+/**
+ * GET /api/admin/audit/export.txt
+ * Eksporterer audit-logg som lesbar TXT. Samme filtre som CSV.
+ * Maks 10 000 rader per eksport.
+ */
+router.get("/audit/export.txt", async (req, res) => {
+  const actorUserId = req.user?.id;
+  if (!actorUserId) {
+    return apiError.unauthorized(res);
+  }
+
+  const rawCategory = typeof req.query.category === "string" ? req.query.category : undefined;
+  const category: AuditCategory | undefined =
+    rawCategory && VALID_CATEGORIES.has(rawCategory) ? (rawCategory as AuditCategory) : undefined;
+  const fromRaw = typeof req.query.from === "string" ? req.query.from : undefined;
+  const toRaw = typeof req.query.to === "string" ? req.query.to : undefined;
+  const outcomeRaw = req.query.outcome === "success" || req.query.outcome === "failure"
+    ? req.query.outcome
+    : undefined;
+  const actorUserIdRaw =
+    typeof req.query.actorUserId === "string" ? req.query.actorUserId.trim() : undefined;
+  const targetUserIdRaw =
+    typeof req.query.targetUserId === "string" ? req.query.targetUserId.trim() : undefined;
+
+  const parsedFromDate = parseAdminDato(fromRaw, "start");
+  const parsedToDate = parseAdminDato(toRaw, "end");
+  const fromDate = parsedFromDate ?? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+  const toDate = parsedToDate ?? new Date();
+  if ((fromRaw && !parsedFromDate) || (toRaw && !parsedToDate)) {
+    return apiError.badRequest(res, "Ugyldig from/to-dato — bruk ISO-format");
+  }
+  if (fromDate > toDate) {
+    return apiError.badRequest(res, "'Fra' kan ikke være senere enn 'Til'");
+  }
+
+  const filter: Record<string, unknown> = {
+    createdAt: { $gte: fromDate, $lte: toDate },
+  };
+  if (category) filter.category = category;
+  if (outcomeRaw) filter.outcome = outcomeRaw;
+  if (actorUserIdRaw && actorUserIdRaw.length > 0) filter.actorUserId = actorUserIdRaw;
+  if (targetUserIdRaw && targetUserIdRaw.length > 0) filter.targetUserId = targetUserIdRaw;
+
+  const MAX_EXPORT_ROWS = 10_000;
+
+  try {
+    const rows = await AuditLog.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(MAX_EXPORT_ROWS)
+      .lean();
+
+    const lines: string[] = [
+      `StudyWise Audit Log Export`,
+      `Period: ${fromDate.toISOString().slice(0, 10)} — ${toDate.toISOString().slice(0, 10)}`,
+      `Exported: ${new Date().toISOString()}`,
+      `Total entries: ${rows.length}`,
+      "=".repeat(80),
+      "",
+    ];
+
+    for (const row of rows) {
+      const r = row as Parameters<typeof shapeAuditItem>[0];
+      const meta = r.metadata;
+      const safeMeta =
+        meta && typeof meta === "object"
+          ? Object.fromEntries(
+              Object.entries(meta).filter(([k]) => ALLOWED_METADATA_KEYS.has(k)),
+            )
+          : undefined;
+
+      lines.push(
+        `[${r.createdAt.toISOString()}] ${r.category.toUpperCase()} | ${r.action} | ${r.outcome}`,
+        `  Actor: ${r.actorUserId}${r.targetUserId ? ` → Target: ${r.targetUserId}` : ""}${r.role ? ` | Role: ${r.role}` : ""}`,
+      );
+      if (safeMeta && Object.keys(safeMeta).length > 0) {
+        lines.push(`  Metadata: ${JSON.stringify(safeMeta)}`);
+      }
+      lines.push("");
+    }
+
+    await audit({
+      actorUserId,
+      action: AUDIT_ACTIONS.ADMIN_ACTION,
+      category: "admin",
+      outcome: "success",
+      role: req.actorRole,
+      metadata: {
+        subAction: "audit.export.txt",
+        category: category ?? null,
+        outcome: outcomeRaw ?? null,
+        actorUserId: actorUserIdRaw ?? null,
+        targetUserId: targetUserIdRaw ?? null,
+        from: fromDate.toISOString(),
+        to: toDate.toISOString(),
+        rowCount: rows.length,
+      },
+      req,
+    });
+
+    const filename = `audit-${fromDate.toISOString().slice(0, 10)}-${toDate.toISOString().slice(0, 10)}.txt`;
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Cache-Control", "no-store");
+    return res.send(lines.join("\n"));
+  } catch (err) {
+    logger.error({ err }, "Admin audit TXT export failed");
+    return apiError.serverError(res);
+  }
+});
+
 export default router;

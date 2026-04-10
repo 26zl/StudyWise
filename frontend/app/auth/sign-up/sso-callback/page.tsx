@@ -1,130 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useClerk } from "@clerk/nextjs";
-import { useSignIn, useSignUp } from "@clerk/nextjs/legacy";
-import { useSearchParams } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { LoadingView } from "@/app/components/ui/Loading";
-import { getPostAuthRedirectFromParams, withPostAuthRedirect } from "@/app/auth/redirects";
 import { useLanguage } from "@/app/i18n";
 import { AuthCard } from "@/app/auth/authUI";
-import { fetchApi } from "@/app/lib/apiClient";
+import { useSSOCallback } from "@/app/auth/useSSOCallback";
 
 export default function SSOCallbackPage() {
   const { t } = useLanguage();
-  const clerk = useClerk();
-  const { signUp, setActive } = useSignUp();
-  const { signIn } = useSignIn();
-  const searchParams = useSearchParams();
-  const redirectUrl = getPostAuthRedirectFromParams(searchParams);
-  const signInHref = withPostAuthRedirect("/auth/sign-in", redirectUrl);
-  const signUpHref = withPostAuthRedirect("/auth/sign-up", redirectUrl);
-  const continueSignUpHref = withPostAuthRedirect("/auth/sign-up?oauth=complete", redirectUrl);
-  const handledRef = useRef(false);
-  const [callbackError, setCallbackError] = useState(false);
-  const [oauthConflict, setOauthConflict] = useState(false);
-
-  useEffect(() => {
-    if (!clerk.loaded || !signUp || !signIn || handledRef.current) return;
-    handledRef.current = true;
-
-    // Sjekk for OAuth-konto-konflikt før redirect til dashboard
-    const redirectOrConflict = async () => {
-      try {
-        const res = await fetchApi("/api/user/me", { method: "GET" });
-        if (res.status === 409 || res.status === 403) {
-          const json = await res.json().catch(() => ({}));
-          const errorType = typeof json?.error === "string" ? json.error : undefined;
-          const errorMessage = typeof json?.melding === "string"
-            ? json.melding
-            : t("auth.conflictRedirect.emailConflict");
-          if (
-            errorType === "oauth_account_conflict" ||
-            errorType === "oauth_metadata_missing"
-          ) {
-            await clerk.signOut().catch(() => {});
-            setOauthConflict(true);
-            return;
-          }
-          if (
-            errorType === "account_conflict" ||
-            errorType === "username_conflict" ||
-            errorType === "user_deleted" ||
-            errorType === "user_locked"
-          ) {
-            await clerk.signOut().catch(() => {});
-            window.location.replace(
-              `${signInHref}?error=${encodeURIComponent(errorMessage)}`,
-            );
-            return;
-          }
-          // turnstile_required: redirect til dashboard — TurnstileReChallenge viser re-verifikasjon
-          if (errorType === "turnstile_required") {
-            window.location.replace(redirectUrl);
-            return;
-          }
-        }
-      } catch {
-        // Nettverksfeil — redirect til dashboard uansett
-      }
-      window.location.replace(redirectUrl);
-    };
-
-    const SSO_CALLBACK_TIMEOUT_MS = 15_000;
-
-    const handleCallback = async () => {
-      try {
-        // La Clerk prosessere OAuth-tokenet fra URL, med timeout for å unngå evig spinner
-        const callbackResult = await Promise.race([
-          clerk.handleRedirectCallback({
-            signUpForceRedirectUrl: continueSignUpHref,
-            signInForceRedirectUrl: redirectUrl,
-            signUpUrl: signUpHref,
-            signInUrl: signInHref,
-            continueSignUpUrl: continueSignUpHref,
-            firstFactorUrl: signInHref,
-            secondFactorUrl: signInHref,
-          }),
-          new Promise<"timeout">((resolve) =>
-            setTimeout(() => resolve("timeout"), SSO_CALLBACK_TIMEOUT_MS),
-          ),
-        ]);
-        if (callbackResult === "timeout") throw new Error("SSO callback timeout");
-      } catch {
-        // handleRedirectCallback feilet — sjekk om det er en "transferable" case
-        // (eksisterende bruker prøvde å registrere seg via OAuth)
-        const externalStatus = signUp.verifications?.externalAccount?.status;
-
-        if (externalStatus === "transferable") {
-          // Bruker finnes allerede — overfør til sign-in
-          try {
-            const result = await signIn.create({ transfer: true });
-            if (result.status === "complete" && result.createdSessionId) {
-              await setActive({ session: result.createdSessionId });
-              await redirectOrConflict();
-              return;
-            }
-          } catch {
-            // Transfer feilet — faller gjennom til feilhåndtering
-          }
-        }
-
-        // Sjekk om sign-up faktisk fullførte (session satt av handleRedirectCallback)
-        if (clerk.session) {
-          await redirectOrConflict();
-          return;
-        }
-        setCallbackError(true);
-        setTimeout(() => {
-          window.location.replace(signUpHref);
-        }, 2000);
-      }
-    };
-
-    void handleCallback();
-  }, [clerk, signUp, signIn, setActive, redirectUrl, signInHref, signUpHref, continueSignUpHref]);
+  const { callbackError, oauthConflict, signInHref, signUpHref } = useSSOCallback("sign-up");
 
   return (
     <div className="flex min-h-dvh items-center justify-center px-4">

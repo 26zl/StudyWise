@@ -1,205 +1,105 @@
-# StudyWise - Bachelor 2026
+# StudyWise
 
 [![CI](https://github.com/26zl/StudyWise/actions/workflows/ci.yml/badge.svg)](https://github.com/26zl/StudyWise/actions/workflows/ci.yml)
 [![Functional Testing](https://github.com/26zl/StudyWise/actions/workflows/func-testing.yml/badge.svg)](https://github.com/26zl/StudyWise/actions/workflows/func-testing.yml)
 [![Deploy](https://github.com/26zl/StudyWise/actions/workflows/deploy.yml/badge.svg)](https://github.com/26zl/StudyWise/actions/workflows/deploy.yml)
 [![Deploy Docs](https://github.com/26zl/StudyWise/actions/workflows/deploy.docs.yml/badge.svg)](https://github.com/26zl/StudyWise/actions/workflows/deploy.docs.yml)
 [![OWASP Dependency-Check](https://github.com/26zl/StudyWise/actions/workflows/owasp-dependency-check.yml/badge.svg)](https://github.com/26zl/StudyWise/actions/workflows/owasp-dependency-check.yml)
-[![Update dependencies](https://github.com/26zl/StudyWise/actions/workflows/update-dependencies.yml/badge.svg)](https://github.com/26zl/StudyWise/actions/workflows/update-dependencies.yml)
 
-STUDYWISE - En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas Instructure.
-**Produksjonsnettside:** <https://www.studwize.page>
+En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas LMS.
+Bacheloroppgave 2026.
 
-> **Utvikling?** Les [CONTRIBUTING.md](./CONTRIBUTING.md) (veileder for bidragsytere).
+**Produksjon:** <https://www.studwize.page>
 
-## Teknologi & Arkitektur (Monorepo)
+## Teknologi
 
-Prosjektet er bygd som et **pnpm-monorepo** for å dele skjemaer og typer (`common`) sømløst mellom klient og server.
+Monorepo med fem pakker (`common`, `backend`, `frontend`, `docs`, `tests`) administrert med pnpm workspaces.
 
-- **Frontend:** Next.js 16 (React 19), Tailwind CSS v4, React Query, Zustand, nuqs (URL-synkronisert state).
-- **Backend:** Node.js 20+, Express 5, TypeScript, undici (HTTP connection pooling), BullMQ (bakgrunns-jobber for Clerk-sletting, Pinecone-cleanup og web-push m/ retry og dead-letter).
-- **Databaser & Cache:** MongoDB (primær database), Pinecone (vektorsøk for KI-dokumenter), Redis (hurtigminne for Canvas API, sessions, BullMQ-jobber og live admin-logger).
-- **KI-Motor:** Anthropic Claude & Cohere (hybrid søk), LangSmith (tracing).
-- **Infrastruktur & Sikkerhet:** Heroku (backend, 2× dynos), Vercel (frontend), Datadog (APM/overvåking), Clerk (bruker-autentisering), Cloudflare (WAF/CDN/Turnstile).
-
----
+| Lag      | Teknologi                            |
+| -------- | ------------------------------------ |
+| Frontend | Next.js, React, Tailwind CSS         |
+| Backend  | Node.js, Express, TypeScript         |
+| Database | MongoDB, Redis, Pinecone             |
+| KI       | Anthropic Claude, Cohere, LangSmith  |
+| Auth     | Clerk, Cloudflare Turnstile          |
+| Infra    | Heroku, Vercel, Datadog, Cloudflare  |
 
 ## Kom i gang
 
-### Forutsetninger
-
-- Node.js 20+ og `pnpm` installert (`npm install -g pnpm`)
-- Canvas LMS-konto
-
-### Installasjon
+**Forutsetninger:** Node.js 20+ og pnpm (`npm install -g pnpm`)
 
 ```bash
 git clone https://github.com/26zl/StudyWise.git
 cd StudyWise
 pnpm install
-```
 
-### Konfigurer miljøvariabler
+# Konfigurer miljøvariabler
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+# Fyll ut påkrevde verdier i begge filer
 
-```bash
-cp backend/.env.example backend/.env    # Backend: MONGO_URI, REDIS_URL, API-nøkler m.m.
-cp frontend/.env.example frontend/.env  # Frontend: Clerk, Turnstile, ruting
-```
-
-Fyll ut påkrevde verdier i begge filer.
-
-### Bygg og Start
-
-```bash
+# Bygg og start
 pnpm build
 pnpm dev
 ```
 
-## Kommandoer (kjør fra rot)
+| Tjeneste    | URL                             |
+| ----------- | ------------------------------- |
+| Frontend    | <http://localhost:3000>         |
+| Backend API | <http://localhost:4000>         |
+| API-docs    | <http://localhost:4000/api-docs>|
+| Docs        | <http://localhost:5173>         |
+
+## Kommandoer
 
 ```bash
 # Utvikling
-pnpm dev              # Start frontend + backend + docs
-pnpm dev:frontend     # Start kun frontend
-pnpm dev:backend      # Start kun backend
-pnpm dev:docs         # Start kun dokumentasjon
+pnpm dev                  # Start alt
+pnpm dev:frontend         # Kun frontend
+pnpm dev:backend          # Kun backend
 
-# Kvalitetssikring
-pnpm typecheck        # Type-check alle pakker
-pnpm lint             # Lint alle pakker
-pnpm build            # Bygg alt (common → backend → frontend → docs)
+# Kvalitet
+pnpm typecheck            # Type-sjekk alle pakker
+pnpm lint                 # Lint alle pakker
+pnpm build                # Bygg alt
 
-# Enhetstester (Vitest)
-pnpm test:unit        # Kjør alle enhetstester (common + backend + frontend)
-pnpm test:unit:common    # Kun common
-pnpm test:unit:backend   # Kun backend
-pnpm test:unit:frontend  # Kun frontend
-
-# E2E / Funksjonelle tester (Playwright)
-pnpm test             # Kjør alle testkategorier (auth, KI, canvas)
-pnpm test:auth        # Auth-tester
-pnpm test:auth:e2e    # Playwright E2E (Chromium, Firefox, WebKit)
-pnpm test:auth:matrix # Full 120-scenario auth identitetsmatrix
-pnpm test:auth:db     # DB invariant-sjekk
-pnpm test:ki          # KI-tester
-pnpm test:canvas      # Canvas API-tester
-
-# Installere pakker (VIKTIG: Bruk --filter)
-pnpm --filter frontend add <pakkenavn>
-pnpm --filter backend add <pakkenavn>
-pnpm --filter common add <pakkenavn>
+# Tester
+pnpm test:unit            # Enhetstester (Vitest)
+pnpm test                 # Integrasjonstester
+pnpm test:auth:e2e        # E2E-tester (Playwright)
 
 # Vedlikehold
-pnpm run clean:all        # Fjerner alt: node_modules, dist, .next, pnpm-lock.yaml
-pnpm run clean:install    # Full reinstall (clean + install + update + build)
-pnpm kill:dev             # Stopp alle Node prosesser (Windows)
-
-# Repo-vedlikehold (versjons-drift, dødt kode, bundle-størrelse, sikkerhet)
-pnpm syncpack:list        # Sjekk om avhengighets-versjoner er i synk på tvers av workspaces
-pnpm syncpack:fix         # Auto-fiks versjons-mismatcher + formater package.json
-pnpm knip                 # Finn ubrukt kode/exports/avhengigheter
-pnpm size                 # Sjekk frontend bundle mot size-limit-budsjettet
-pnpm lint:soft-delete     # Verifiser at alle User-queries har soft-delete-filter
+pnpm clean:install        # Full reinstall
+pnpm knip                 # Finn ubrukt kode
+pnpm syncpack:list        # Sjekk versjonssynkronisering
+pnpm size                 # Sjekk bundle-størrelse
 ```
 
-> **Merk:** `pnpm syncpack:list` og `pnpm lint:soft-delete` kjøres automatisk i CI
-> (`quality`-jobben i `ci.yml`). Soft-delete-linten er en defense-in-depth-sjekk
-> som fanger nye `User.find/findOne/findById/...`-kall som glemmer
-> `deletedAt: { $exists: false }`-filteret — en av de viktigste IDOR-vektorene i
-> StudyWise. Hvis et kall-sted med vilje må se soft-deleted brukere (admin-stats,
-> GDPR-konfliktsjekk, idempotent kontosletting), legg til kommentaren
-> `// allow-deleted-users: <kort begrunnelse>` rett over kallet.
+Installer pakker med `--filter`: `pnpm --filter frontend add <pakke>`
+
+## Docker
+
+```bash
+cp docker.env.example .env    # Fyll inn verdier
+docker compose up --build     # Start MongoDB, Redis, backend, frontend
+```
 
 ## Testing
 
-### Enhetstester (Vitest)
-
-Testfiler ligger i `__tests__/`-mapper i `common`, `backend` og `frontend`. Kjør `pnpm test:unit` for gjeldende antall.
+Testfiler ligger i `__tests__/`-mapper i hver pakke. E2E-tester bruker Playwright.
 
 ```bash
 pnpm test:unit                # Alle enhetstester
-pnpm test:unit:common         # Kun common
-pnpm test:unit:backend        # Kun backend
-pnpm test:unit:frontend       # Kun frontend
-```
-
-### E2E / Funksjonelle tester (Playwright)
-
-```bash
-# Hovedkommandoer
-pnpm test                     # Alle kategorier
 pnpm test:auth                # Auth-tester
+pnpm test:auth:matrix         # Auth identitetsmatrise (120 scenarier)
 pnpm test:ki                  # KI-tester
 pnpm test:canvas              # Canvas-tester
-
-# Auth Matrix (120 scenarier)
-pnpm test:auth:matrix         # Kjør alle executable scenarier
-pnpm test:auth:matrix:basic   # Gruppe A: Signup uniqueness
-pnpm test:auth:matrix:oauth   # OAuth-scenarier
-pnpm test:auth:matrix:update  # Gruppe G: Username updates
-pnpm test:auth:matrix:delete  # Gruppe I: Deletion/reuse
-pnpm test:auth:matrix:session # Gruppe J: Session/cross-tab
-pnpm test:auth:matrix:race    # Gruppe L: Race conditions
-
-# E2E (Playwright)
-pnpm test:auth:e2e                        # Alle nettlesere
-pnpm test:auth:e2e --project=chromium     # Kun Chromium
-pnpm test:auth:e2e --project=firefox      # Kun Firefox
-pnpm test:auth:e2e --project=webkit       # Kun WebKit
 ```
 
-Detaljert testdokumentasjon finnes i [tests/README.md](./tests/README.md).
+Se [tests/README.md](./tests/README.md) for detaljer.
 
-## Utviklingsservere
-
-| Tjeneste     | URL                              |
-| ------------ | -------------------------------- |
-| Frontend     | <http://localhost:3000>          |
-| Backend API  | <http://localhost:4000>          |
-| Swagger UI   | <http://localhost:4000/api-docs> |
-| Docs         | <http://localhost:5173>          |
-
-## Docker (lokal utvikling)
-
-Hele stacken kan kjores lokalt via Docker Compose uten a installere Node, MongoDB eller Redis pa maskinen.
-
-### Docker-forutsetninger
-
-- Docker Desktop (eller Docker Engine + Compose plugin)
-- `backend/.env` (kopier fra `backend/.env.example` og fyll inn verdier)
-
-### Oppsett
-
-```bash
-# 1. Opprett rot-env fra malen
-cp docker.env.example .env
-# Fyll inn Clerk- og Turnstile-verdier i .env
-
-# 2. Bygg og start
-docker compose up --build
-```
-
-### Tjenester
-
-| Tjeneste | Container-URL             | Lokal port |
-| -------- | ------------------------- | ---------- |
-| MongoDB  | `mongodb://mongo:27017`   | 27017      |
-| Redis    | `redis://redis:6379`      | 6379       |
-| Backend  | `http://backend:4000`     | 4000       |
-| Frontend | `http://frontend:3000`    | 3000       |
-
-Backend kobler seg automatisk til MongoDB og Redis inne i Docker-nettverket (`MONGO_URI` og `REDIS_URL` overstyres i `docker-compose.yml`).
-
-### Nyttige kommandoer
-
-```bash
-docker compose up --build       # Bygg og start alt
-docker compose up -d            # Start i bakgrunnen
-docker compose logs backend -f  # Følg backend-logger
-docker compose down             # Stopp og fjern containere
-docker compose down -v          # Stopp + slett MongoDB-data
-```
+> Les [CONTRIBUTING.md](./CONTRIBUTING.md) for utviklingsveiledning.
 
 ## Lisens
 
-Dette prosjektet er utgitt under **MIT-lisensen**. Se filen [LICENSE](./LICENSE) for flere detaljer.
+MIT — se [LICENSE](./LICENSE).

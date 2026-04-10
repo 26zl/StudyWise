@@ -7,7 +7,8 @@
  *   GET    /redis/prefixes                – Tellinger per kjent key-prefix
  *   POST   /redis/flush                   – Tøm alle keys som matcher et whitelisted prefix
  *   GET    /redis/relink-states           – Liste alle stuck brukere (auth:relink-state:*)
- *   DELETE /redis/relink-state/:userId    – Tøm relink-state for én bruker
+ *
+ * Relink-state tømmes via DELETE /brukere/:id/relink-guard (adminBrukere.ts).
  *
  * Sikkerhet:
  *   - Kun WHITELIST-ede prefiks kan tømmes (FLUSH-vern: BullMQ, deleted-clerk, deleted-session ekskludert)
@@ -26,7 +27,6 @@ import {
 import redisClient, {
   invalidateCacheByPattern,
   isRedisReady,
-  deleteCacheKeys,
 } from "../../cache/redis.js";
 import { requireRecentAuth } from "../../middleware/auth.js";
 import { apiError, requireUserId, sendUnknownError, sendZodError } from "../../utils/apiError.js";
@@ -296,36 +296,7 @@ router.get("/redis/relink-states", async (_req, res) => {
   }
 });
 
-// ── DELETE /redis/relink-state/:userId ──────────────────────────────────────
-router.delete("/redis/relink-state/:userId", requireRecentAuth, async (req, res) => {
-  const actorUserId = requireUserId(req, res);
-  if (!actorUserId) return;
-
-  const targetUserId = String(req.params.userId);
-  if (!/^[a-f0-9]{24}$/.test(targetUserId)) {
-    return apiError.badRequest(res, "Ugyldig bruker-ID");
-  }
-
-  try {
-    const deletedCount = await deleteCacheKeys([
-      `${RELINK_STATE_KEY_PREFIX}${targetUserId}`,
-    ]);
-
-    void audit({
-      actorUserId,
-      action: AUDIT_ACTIONS.ADMIN_ACTION,
-      category: "admin",
-      outcome: "success",
-      role: req.actorRole,
-      targetUserId,
-      metadata: { subAction: "redis.clear_relink_state" },
-      req,
-    });
-
-    return res.json({ success: true, deletedCount });
-  } catch (err) {
-    return sendUnknownError(res, err, { kontekst: "admin.redis.clear-relink-state" });
-  }
-});
+// Relink-state tømmes via DELETE /brukere/:id/relink-guard (adminBrukere.ts)
+// som verifiserer at brukeren finnes og har konsistent audit-logging.
 
 export default router;

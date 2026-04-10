@@ -22,8 +22,8 @@ import { getConfiguredWebOrigins } from "../../utils/webOrigins.js";
 import { sanitizeUsername } from "../../database/models/User.js";
 import { isValidAuthTurnstileCookieValue } from "../../utils/authTurnstileCookie.js";
 import { isProd } from "../../utils/env.js";
-import { getCache, setCache, deleteCacheKeys } from "../../cache/redis.js";
-import { guardRelink, getCurrentClerkEnv, RELINK_STATE_KEY_PREFIX, type ClerkEnv } from "./relinkGuard.js";
+import { getCache, setCache } from "../../cache/redis.js";
+import { guardRelink, getCurrentClerkEnv, type ClerkEnv } from "./relinkGuard.js";
 
 /** Minste intervall (ms) mellom profiloppdateringer fra Clerk for samme bruker (5 min). */
 const CLERK_PROFILE_SYNC_INTERVAL_MS = 5 * 60 * 1000;
@@ -65,6 +65,20 @@ function getClerkBackendClient() {
   return cachedClerkClient;
 }
 
+/** Wrapper for Clerk API-kall med timeout for å forhindre hengende requests. */
+const CLERK_API_TIMEOUT_MS = 10_000;
+async function withClerkTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Clerk API timeout: ${label}`)), CLERK_API_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Tilbakekaller alle aktive Clerk-sesjoner for en bruker.
  * Brukes av admin-funksjon "logg ut alle sesjoner".
@@ -73,10 +87,10 @@ function getClerkBackendClient() {
 export async function revokeAllClerkSessions(clerkUserId: string): Promise<number> {
   const clerk = getClerkBackendClient();
   if (!clerk) throw new Error("Clerk-klient ikke konfigurert");
-  const sessions = await clerk.sessions.getSessionList({
-    userId: clerkUserId,
-    status: "active",
-  });
+  const sessions = await withClerkTimeout(
+    clerk.sessions.getSessionList({ userId: clerkUserId, status: "active" }),
+    "getSessionList",
+  );
   let revoked = 0;
   for (const session of sessions.data ?? []) {
     try {
@@ -308,7 +322,7 @@ export async function clerkUserExistsInCurrentInstance(clerkId: string): Promise
   if (!clerk) return true; // Fail-safe: anta den finnes
 
   try {
-    await clerk.users.getUser(clerkId);
+    await withClerkTimeout(clerk.users.getUser(clerkId), "getUser");
     return true;
   } catch (error) {
     // Clerk SDK v3+: sjekk status direkte (mer robust enn string-matching)
@@ -517,8 +531,10 @@ async function relinkUserToClerkId(
     { userId: relinkedUser._id.toString(), newClerkUserId },
     "Kryssmiljø re-link: eksisterende bruker re-linket til ny Clerk-instans",
   );
-  // Rydd opp Redis relink-state etter vellykket relink — forhindrer stuck states
-  void deleteCacheKeys([`${RELINK_STATE_KEY_PREFIX}${existingUserId.toString()}`]);
+  // Behold relink-state i Redis slik at cooldown håndheves.
+  // Tidligere ble nøkkelen slettet her, men det omgikk cooldownen fordi
+  // neste relink-forsøk ble behandlet som "første gang" (tom state).
+  // State har TTL på 5 min og ryddes automatisk av Redis.
   await audit({
     actorUserId: relinkedUser._id.toString(),
     action: AUDIT_ACTIONS.ACCOUNT_RELINKED,
@@ -610,6 +626,21 @@ async function attemptRelinkWhenPreviousClerkMissing(options: {
     },
     warnMessage,
   );
+
+  // Audit feilede relink-forsøk — sikkerhetsrelevant for å oppdage
+  // gjentatte forsøk på kontoovertakelse via kryssmiljø-relink.
+  void audit({
+    actorUserId: `relink:${clerkUserId}`,
+    action: AUDIT_ACTIONS.ACCOUNT_RELINKED,
+    category: "security",
+    outcome: "failure",
+    metadata: {
+      subAction: "cross_env_relink_failed",
+      oldClerkId: existingUser.clerkId,
+      flowId: flowId ?? null,
+    },
+  });
+
   return null;
 }
 
@@ -724,7 +755,7 @@ async function getClerkProfile(
     return null;
   }
 
-  const clerkUser = await clerk.users.getUser(clerkUserId);
+  const clerkUser = await withClerkTimeout(clerk.users.getUser(clerkUserId), "getClerkProfile");
   if (!clerkUser) {
     return null;
   }
@@ -776,7 +807,18 @@ async function getClerkProfile(
     const fallbackAccountId = account.id?.trim() || null;
     const accountId = realProviderUserId || fallbackAccountId;
     if (mappedProvider && accountId) {
-      const oauthEmail = account.emailAddress;
+      // Prøv e-post direkte fra external account først, deretter slå opp via
+      // emailAddresses.linkedTo som Clerk bruker i dev mode (der emailAddress
+      // på external account kan være tom, men e-posten finnes som linked adresse).
+      let oauthEmail = account.emailAddress;
+      if ((!oauthEmail || !oauthEmail.includes("@")) && account.id) {
+        const linkedEmail = clerkUser.emailAddresses.find((ea) =>
+          ea.linkedTo?.some((link) => link.id === account.id),
+        );
+        if (linkedEmail?.emailAddress) {
+          oauthEmail = linkedEmail.emailAddress;
+        }
+      }
       const hasValidEmail = typeof oauthEmail === "string" && oauthEmail.includes("@");
 
       // Skip OAuth-kontoer som bruker Clerk-intern ID (ikke ekte provider-ID) OG mangler e-post.
@@ -1718,8 +1760,8 @@ export async function findOrCreateUserByClerkId(
     }
 
     // Brukernavn allerede tatt – avvis registrering.
-    // Frontend viser en resolver-dialog der brukeren velger nytt brukernavn i Clerk,
-    // deretter re-henter /me som kjører findOrCreateUserByClerkId på nytt.
+    // Frontend redirecter til sign-up med feilmelding slik at brukeren kan
+    // velge et nytt brukernavn og registrere seg på nytt.
     if (usernameAction.mode === "keep" && "conflictingUserId" in usernameAction && profile.username) {
       // Race-condition-sjekk: et parallelt request kan ha opprettet brukeren allerede.
       // Hvis den konfliktskapende brukeren har samme clerkId, returner den i stedet for å blokkere.
@@ -2291,14 +2333,12 @@ function pruneTokenCache(): void {
   for (const [key, entry] of tokenCache) {
     if (entry.exp <= now) tokenCache.delete(key);
   }
-  // Håndhev maks-grense: fjern eldste entries til vi er innenfor grensen
+  // Håndhev maks-grense: fjern entries med tidligst utløp først
   if (tokenCache.size > TOKEN_CACHE_MAX) {
     const keysToDelete = tokenCache.size - TOKEN_CACHE_MAX;
-    let deleted = 0;
-    for (const key of tokenCache.keys()) {
-      if (deleted >= keysToDelete) break;
-      tokenCache.delete(key);
-      deleted++;
+    const sorted = [...tokenCache.entries()].sort((a, b) => a[1].exp - b[1].exp);
+    for (let i = 0; i < keysToDelete && i < sorted.length; i++) {
+      tokenCache.delete(sorted[i][0]);
     }
   }
 }

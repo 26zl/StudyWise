@@ -163,7 +163,7 @@ function SnakeGame({ onScore }: { onScore: (s: number) => void }) {
         const isHead = i === 0;
         ctx.fillStyle = isHead
           ? (isDark ? "#60a5fa" : "#2563eb")
-          : (isDark ? "#3b82f6" : "#3b82f6");
+          : (isDark ? "#3b82f6" : "#2563eb");
         ctx.globalAlpha = isHead ? 1 : 0.7 + 0.3 * (1 - i / s.snake.length);
         const r = 3;
         const x = p.x * CELL + 1;

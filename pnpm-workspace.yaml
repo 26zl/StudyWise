@@ -15,6 +15,7 @@ onlyBuiltDependencies:
   - bcrypt
   - dd-trace
   - esbuild
+  - msgpackr-extract
   - sharp
   - tesseract.js
   - unrs-resolver

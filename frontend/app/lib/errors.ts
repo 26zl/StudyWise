@@ -232,8 +232,8 @@ export class SessionExpiredError extends AppError {
 
 /**
  * Brukernavn-konflikt — brukernavnet er allerede tatt.
- * Brukeren må velge et nytt brukernavn for å fullføre registreringen.
- * Ikke en AppError — er en spesifikk konflikttilstand som resolver-UI håndterer.
+ * Brukeren redirectes til sign-up med feilmelding for å velge nytt brukernavn.
+ * Ikke en AppError — er en spesifikk konflikttilstand.
  */
 export class UsernameConflictError extends Error {
   readonly username: string;

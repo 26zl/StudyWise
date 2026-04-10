@@ -54,8 +54,8 @@ export const KontaktRequestSchema = z.object({
   turnstileToken: z
     .string()
     .trim()
-    .min(1, "Verifisering kreves")
-    .max(2048, "Verifiseringstoken er ugyldig"),
+    .max(2048, "Verifiseringstoken er ugyldig")
+    .default(""),
   // Honeypot-felt: skal alltid være tomt (sendes som skjult felt)
   nettsted: z.string().trim().max(200).optional(),
   // Valgfri metadata: sanert intern sti der brukeren sendte skjemaet fra

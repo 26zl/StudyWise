@@ -1,7 +1,7 @@
 /*
  * Cookie banner – vises til bruker godtar eller avviser.
  * Innloggede brukere lagrer samtykke i databasen og cacher det i localStorage for å unngå reprompt.
- * Gjester lagrer kun samtykke for aktiv nettleserøkt.
+ * Gjester lagrer samtykke i en cookie med 30 dagers levetid.
  * Les mer lenker til /personvern.
  */
 "use client";
@@ -33,22 +33,18 @@ export function CookieBanner() {
 
   if (!isReady || consent !== null) return null;
 
-  // Synkron localStorage-sjekk for å eliminere flash: selv om React-state ennå ikke er
-  // oppdatert etter hydrering, sjekker vi localStorage direkte under render.
-  if (typeof window !== "undefined") {
+  // Synkron cookie-sjekk for å eliminere flash: selv om React-state ennå ikke er
+  // oppdatert etter hydrering, sjekker vi cookien direkte under render.
+  if (typeof document !== "undefined") {
     try {
-      // Sjekk gjeste-nøkkel
-      const guest = window.localStorage.getItem("studywise_guest_cookie_consent");
-      if (guest === "accepted" || guest === "declined") return null;
-      // Sjekk bruker-spesifikke nøkler (innlogget bruker som logget ut)
-      for (let i = 0; i < window.localStorage.length; i++) {
-        const key = window.localStorage.key(i);
-        if (key?.startsWith("studywise_cookie_consent:")) {
-          const val = window.localStorage.getItem(key);
-          if (val === "accepted" || val === "declined") return null;
-        }
+      const match = document.cookie
+        .split("; ")
+        .find((c) => c.startsWith("studywise_guest_consent="));
+      if (match) {
+        const val = match.split("=")[1];
+        if (val === "accepted" || val === "declined") return null;
       }
-    } catch { /* localStorage utilgjengelig */ }
+    } catch { /* cookie-lesing utilgjengelig */ }
   }
 
   return (

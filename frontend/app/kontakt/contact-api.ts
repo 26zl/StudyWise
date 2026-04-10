@@ -24,55 +24,47 @@ export interface SendKontaktPayload extends KontaktRequest {
 }
 
 /**
- * Sender kontaktskjema til backend
- * Bruker auth: false siden kontakt-endepunktet er offentlig
- * Bruker relativ URL for å gå gjennom Next.js proxy
+ * Sender kontaktskjema til backend.
+ * Kaster ved nettverksfeil — kaller-koden håndterer dette i sin catch-gren.
+ * Returnerer { success: false } ved HTTP-feil fra serveren.
  */
 export async function sendKontakt(
   data: SendKontaktPayload,
 ): Promise<SendKontaktResult> {
-  try {
-    const formData = new FormData();
-    formData.append("navn", data.navn);
-    formData.append("epost", data.epost);
-    formData.append("emne", data.emne);
-    formData.append("melding", data.melding);
-    formData.append("turnstileToken", data.turnstileToken);
-    formData.append("nettsted", data.nettsted ?? "");
-    if (data.sideUrl) {
-      formData.append("sideUrl", data.sideUrl);
-    }
-    for (const attachment of data.attachments ?? []) {
-      formData.append("attachments", attachment);
-    }
+  const formData = new FormData();
+  formData.append("navn", data.navn);
+  formData.append("epost", data.epost);
+  formData.append("emne", data.emne);
+  formData.append("melding", data.melding);
+  formData.append("turnstileToken", data.turnstileToken);
+  formData.append("nettsted", data.nettsted ?? "");
+  if (data.sideUrl) {
+    formData.append("sideUrl", data.sideUrl);
+  }
+  for (const attachment of data.attachments ?? []) {
+    formData.append("attachments", attachment);
+  }
 
-    const response = await fetchApi(
-      "/api/kontakt",
-      {
-        method: "POST",
-        body: formData,
-      },
-      { auth: false },
-    );
+  const response = await fetchApi(
+    "/api/kontakt",
+    {
+      method: "POST",
+      body: formData,
+    },
+    { auth: false },
+  );
 
-    if (!response.ok) {
-      const errorData: ApiErrorResponse = await response.json().catch(() => ({}));
-      return {
-        success: false,
-        error: errorData.melding || errorData.feil || errorData.message || errorData.error || "Noe gikk galt. Prøv igjen senere.",
-      };
-    }
-
-    const result = KontaktResponseSchema.parse(await response.json());
-    return {
-      success: result.suksess,
-      melding: result.melding,
-    };
-  } catch {
-    // Nettverksfeil eller andre uventede feil
+  if (!response.ok) {
+    const errorData: ApiErrorResponse = await response.json().catch(() => ({}));
     return {
       success: false,
-      error: "Kunne ikke sende meldingen. Sjekk internettforbindelsen din.",
+      error: errorData.melding || errorData.feil || errorData.message || errorData.error || "Noe gikk galt. Prøv igjen senere.",
     };
   }
+
+  const result = KontaktResponseSchema.parse(await response.json());
+  return {
+    success: result.suksess,
+    melding: result.melding,
+  };
 }

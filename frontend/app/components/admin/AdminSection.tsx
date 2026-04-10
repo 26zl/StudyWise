@@ -52,6 +52,7 @@ import {
   LockOpen,
   LogOut,
   MailCheck,
+  Send,
 } from "lucide-react";
 import { useLanguage } from "@/app/i18n";
 import type { Translator } from "@/app/i18n/types";
@@ -82,6 +83,7 @@ import {
   useAdminContactMessages,
   useUpdateContactMessageStatus,
   useDeleteContactMessage,
+  useReplyContactMessage,
   useClearLangsmithCache,
   useQueueOverview,
   useQueueJobs,
@@ -825,8 +827,8 @@ function BrukerDetaljModal({ brukerId, onClose }: { brukerId: string; onClose: (
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-800">
-        <div className="mb-4 flex items-start justify-between gap-3">
+      <div className="max-h-dvh w-full max-w-3xl overflow-y-auto rounded-none border-0 bg-white p-4 shadow-2xl sm:max-h-[90vh] sm:rounded-xl sm:border sm:border-slate-200 sm:p-6 dark:bg-slate-800 sm:dark:border-slate-700">
+        <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-6 flex items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-sm sm:-mx-6 sm:-mt-6 sm:px-6 dark:border-slate-700 dark:bg-slate-800/95">
           <h3 id="bruker-detalj-tittel" className="text-lg font-semibold text-slate-900 dark:text-white">
             {t("admin.users.detailsTitle")}
           </h3>
@@ -834,9 +836,9 @@ function BrukerDetaljModal({ brukerId, onClose }: { brukerId: string; onClose: (
             type="button"
             onClick={onClose}
             aria-label={t("common.actions.close")}
-            className="rounded-lg p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
 
@@ -1046,12 +1048,12 @@ function DetaljRad({
   tone?: "warning";
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 text-sm">
-      <dt className="text-slate-500 dark:text-slate-400">{label}</dt>
+    <div className="flex flex-col gap-0.5 text-sm sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
+      <dt className="shrink-0 text-slate-500 dark:text-slate-400">{label}</dt>
       <dd
         className={`${mono ? "font-mono text-xs" : ""} ${
           tone === "warning" ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-white"
-        } truncate text-right`}
+        } break-all sm:truncate sm:text-right`}
       >
         {value}
       </dd>
@@ -1663,7 +1665,7 @@ function RevisjonsloggFane() {
     }
   }, [data?.items, selectedAuditId]);
 
-  const handleExportCsv = async () => {
+  const buildExportParams = () => {
     const sp = new URLSearchParams();
     if (categoryFilter !== "all") sp.set("category", categoryFilter);
     if (outcomeFilter !== "all") sp.set("outcome", outcomeFilter);
@@ -1671,11 +1673,29 @@ function RevisjonsloggFane() {
     if (debouncedActorUserId) sp.set("actorUserId", debouncedActorUserId);
     if (fromDate) sp.set("from", fromDate);
     if (toDate) sp.set("to", toDate);
+    return sp;
+  };
 
+  const handleExportCsv = async () => {
+    const sp = buildExportParams();
     const url = `/api/admin/audit/export.csv${sp.toString() ? `?${sp.toString()}` : ""}`;
 
     try {
       await downloadAuthedFile(url, "audit-export.csv");
+    } catch (error) {
+      showToast.error(
+        t("admin.audit.exportFailed"),
+        hentFeilmelding(error, t("admin.audit.exportFailed")),
+      );
+    }
+  };
+
+  const handleExportTxt = async () => {
+    const sp = buildExportParams();
+    const url = `/api/admin/audit/export.txt${sp.toString() ? `?${sp.toString()}` : ""}`;
+
+    try {
+      await downloadAuthedFile(url, "audit-export.txt");
     } catch (error) {
       showToast.error(
         t("admin.audit.exportFailed"),
@@ -1727,6 +1747,14 @@ function RevisjonsloggFane() {
             >
               <FileUp size={14} />
               {t("admin.audit.exportCsv")}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleExportTxt()}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              <FileText size={14} />
+              {t("admin.audit.exportTxt")}
             </button>
           </div>
         </div>
@@ -2888,10 +2916,13 @@ function InnboksFane() {
   const { language, t } = useLanguage();
   const [statusFilter, setStatusFilter] = useState<ContactMessageStatus | "all">("all");
   const [valgtId, setValgtId] = useState<string | null>(null);
+  const [showReplyForm, setShowReplyForm] = useState(false);
+  const [replyText, setReplyText] = useState("");
 
   const { data, isLoading, error } = useAdminContactMessages({ status: statusFilter });
   const updateStatus = useUpdateContactMessageStatus();
   const deleteMessage = useDeleteContactMessage();
+  const replyMessage = useReplyContactMessage();
 
   const valgt = data?.meldinger.find((m) => m.id === valgtId) ?? null;
 
@@ -2910,6 +2941,31 @@ function InnboksFane() {
       },
     );
   };
+
+  const handleReply = (id: string) => {
+    if (!replyText.trim()) return;
+    replyMessage.mutate(
+      { id, melding: replyText.trim() },
+      {
+        onSuccess: () => {
+          showToast.success(t("admin.inbox.replySent"));
+          setReplyText("");
+          setShowReplyForm(false);
+        },
+        onError: (err) =>
+          showToast.error(
+            t("admin.inbox.replyFailed"),
+            hentFeilmelding(err, t("admin.inbox.replyFailed")),
+          ),
+      },
+    );
+  };
+
+  // Reset svarskjema ved bytte av melding
+  useEffect(() => {
+    setShowReplyForm(false);
+    setReplyText("");
+  }, [valgtId]);
 
   const handleDelete = (m: AdminContactMessage) => {
     visBekreftelsesToast({
@@ -3075,7 +3131,54 @@ function InnboksFane() {
                 </p>
               )}
 
+              {/* Svarskjema */}
+              {showReplyForm && (
+                <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50/50 p-3 dark:border-blue-900/50 dark:bg-blue-900/10">
+                  <label htmlFor="reply-text" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    {t("admin.inbox.replyTo", { name: valgt.navn })}
+                  </label>
+                  <textarea
+                    id="reply-text"
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    placeholder={t("admin.inbox.replyPlaceholder")}
+                    maxLength={10_000}
+                    rows={5}
+                    className="w-full rounded-lg border border-slate-200 bg-white p-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleReply(valgt.id)}
+                      disabled={replyMessage.isPending || !replyText.trim()}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      <Send size={12} />
+                      {replyMessage.isPending ? t("admin.inbox.replySending") : t("admin.inbox.replySend")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowReplyForm(false); setReplyText(""); }}
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
+                    >
+                      {t("common.actions.cancel")}
+                    </button>
+                    <span className="ml-auto text-[10px] text-slate-400">
+                      {replyText.length}/10 000
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setShowReplyForm(!showReplyForm)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                >
+                  <Send size={12} />
+                  {t("admin.inbox.reply")}
+                </button>
                 <button
                   type="button"
                   onClick={() => handleSetStatus(valgt.id, "read")}

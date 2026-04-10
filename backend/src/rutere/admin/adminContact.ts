@@ -19,6 +19,7 @@ import { requireRecentAuth } from "../../middleware/auth.js";
 import { apiError, requireUserId, sendUnknownError, sendZodError } from "../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import { logger } from "../../utils/logger.js";
+import { sendKontaktSvar } from "../../services/contact.service.js";
 import { isValidMongoObjectId } from "../../utils/mongoId.js";
 
 const router = Router();
@@ -186,6 +187,83 @@ router.delete("/contact/messages/:id", requireRecentAuth, async (req, res) => {
     return res.json({ success: true });
   } catch (err) {
     return sendUnknownError(res, err, { kontekst: "admin.contact.delete" });
+  }
+});
+
+// ── POST /contact/messages/:id/reply ───────────────────────────────────────
+router.post("/contact/messages/:id/reply", requireRecentAuth, async (req, res) => {
+  const actorUserId = requireUserId(req, res);
+  if (!actorUserId) return;
+
+  const targetId = String(req.params.id);
+  if (!isValidMongoObjectId(targetId)) {
+    return apiError.badRequest(res, "Ugyldig melding-ID");
+  }
+
+  const body = req.body as { melding?: unknown };
+  if (typeof body.melding !== "string" || body.melding.trim().length === 0) {
+    return apiError.badRequest(res, "Svartekst er påkrevd");
+  }
+  if (body.melding.length > 10_000) {
+    return apiError.badRequest(res, "Svartekst kan ikke overstige 10 000 tegn");
+  }
+
+  try {
+    const original = await ContactMessage.findById(targetId).lean();
+    if (!original) return apiError.notFound(res, "Kontaktmelding");
+
+    const result = await sendKontaktSvar({
+      toEmail: original.epost,
+      toName: original.navn,
+      subject: `Re: ${original.emne}`,
+      body: body.melding.trim(),
+      originalMessageId: targetId,
+    });
+
+    if (!result.success) {
+      logger.error(
+        { messageId: targetId, error: result.error },
+        "Kunne ikke sende kontaktsvar",
+      );
+      void audit({
+        actorUserId,
+        action: AUDIT_ACTIONS.ADMIN_ACTION,
+        category: "admin",
+        outcome: "failure",
+        role: req.actorRole,
+        metadata: { subAction: "contact.reply", messageId: targetId },
+        req,
+      });
+      return apiError.serverError(res);
+    }
+
+    // Oppdater status til "replied"
+    await ContactMessage.findByIdAndUpdate(targetId, {
+      $set: {
+        status: "replied",
+        statusChangedBy: actorUserId,
+        statusChangedAt: new Date(),
+      },
+    });
+
+    void audit({
+      actorUserId,
+      action: AUDIT_ACTIONS.ADMIN_ACTION,
+      category: "admin",
+      outcome: "success",
+      role: req.actorRole,
+      metadata: { subAction: "contact.reply", messageId: targetId },
+      req,
+    });
+
+    logger.info(
+      { adminUserId: actorUserId, messageId: targetId },
+      "Admin sendte kontaktsvar",
+    );
+
+    return res.json({ success: true });
+  } catch (err) {
+    return sendUnknownError(res, err, { kontekst: "admin.contact.reply" });
   }
 });
 

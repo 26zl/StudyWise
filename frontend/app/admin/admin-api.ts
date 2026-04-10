@@ -540,8 +540,10 @@ export function useClearRedisRelinkState() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (userId: string) => {
+      // Bruker adminBrukere-endepunktet som verifiserer at brukeren finnes
+      // og har konsistent audit-logging.
       const res = await fetchApi(
-        `/api/admin/redis/relink-state/${encodeURIComponent(userId)}`,
+        `/api/admin/brukere/${encodeURIComponent(userId)}/relink-guard`,
         { method: "DELETE" },
       );
       if (!res.ok) {
@@ -626,6 +628,27 @@ export function useDeleteContactMessage() {
         throw new Error(data.melding || data.feil || "Kunne ikke slette melding");
       }
       return AdminSuccessResponseSchema.parse(await res.json());
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "contact-messages"] });
+    },
+  });
+}
+
+export function useReplyContactMessage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; melding: string }) => {
+      const res = await fetchApi(`/api/admin/contact/messages/${input.id}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ melding: input.melding }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.melding || data.feil || "Kunne ikke sende svar");
+      }
+      return res.json();
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "contact-messages"] });

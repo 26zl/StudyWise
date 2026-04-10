@@ -181,11 +181,7 @@ function AuthConflictGuard() {
           if (erSlettet) {
             feilmelding = t("auth.conflictRedirect.accountDeleted");
           } else if (erLaast) {
-            // Inkluder backend sin begrunnelse hvis tilgjengelig — ellers default-melding
-            const errorMessage = error instanceof Error ? error.message : "";
-            feilmelding = errorMessage.length > 0
-              ? errorMessage
-              : t("auth.conflictRedirect.accountLocked");
+            feilmelding = t("auth.conflictRedirect.accountLocked");
           } else if (erOAuthKonflikt) {
             feilmelding = t("auth.conflictRedirect.oauthConflict");
           } else if (erEpostKonflikt) {

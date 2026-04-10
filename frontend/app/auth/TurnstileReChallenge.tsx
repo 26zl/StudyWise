@@ -7,7 +7,7 @@
  * I stedet for å logge brukeren ut, viser vi Turnstile-widgeten inline
  * og re-trigger /me-queryen etter vellykket verifisering.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ShieldCheck } from "lucide-react";
 import { AUTH_TURNSTILE_ACTION } from "common/auth";
@@ -16,16 +16,7 @@ import { useLanguage } from "@/app/i18n";
 import { AUTH_ME_QUERY_KEY } from "@/app/auth/auth-api";
 import { showToast } from "@/app/components/ui/Toaster";
 import { getApiErrorCode, lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
-
-type TurnstileRenderer = {
-  render: (element: HTMLElement, options: Record<string, unknown>) => string;
-  reset: (widgetId: string) => void;
-  remove: (widgetId: string) => void;
-};
-
-type TurnstileWindow = Window & {
-  turnstile?: TurnstileRenderer;
-};
+import { useTurnstileScript } from "@/app/hooks/useTurnstileScript";
 
 const AUTH_TURNSTILE_SITE_KEY =
   process.env.NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY ?? "";
@@ -39,8 +30,6 @@ export function TurnstileReChallenge() {
   const { t } = useLanguage();
   const [showChallenge, setShowChallenge] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const turnstileRef = useRef<HTMLDivElement>(null);
-  const widgetIdRef = useRef<string | null>(null);
 
   // Lytt på /me-query feil for turnstile_required
   useEffect(() => {
@@ -63,12 +52,6 @@ export function TurnstileReChallenge() {
   const onVerified = useCallback(() => {
     setShowChallenge(false);
     setIsVerifying(false);
-    // Rydd opp widget
-    if (widgetIdRef.current) {
-      const currentWindow = window as TurnstileWindow;
-      try { currentWindow.turnstile?.remove(widgetIdRef.current); } catch { /* ignorer */ }
-      widgetIdRef.current = null;
-    }
     // Re-trigger /me-queryen slik at appen laster brukerdata på nytt
     void queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY });
   }, [queryClient]);
@@ -87,74 +70,22 @@ export function TurnstileReChallenge() {
         t,
       );
       showToast.error(t("auth.humanCheck.title"), message);
-      // Reset widget for nytt forsøk
-      const currentWindow = window as TurnstileWindow;
-      if (widgetIdRef.current && currentWindow.turnstile) {
-        currentWindow.turnstile.reset(widgetIdRef.current);
-      }
+      reset();
     } finally {
       setIsVerifying(false);
     }
   }, [isVerifying, onVerified, t]);
 
-  // Renderer Turnstile-widget når modal vises
-  useEffect(() => {
-    if (!showChallenge || !AUTH_TURNSTILE_SITE_KEY) return;
-
-    const renderWidget = () => {
-      const currentWindow = window as TurnstileWindow;
-      if (turnstileRef.current && !widgetIdRef.current && currentWindow.turnstile) {
-        widgetIdRef.current = currentWindow.turnstile.render(turnstileRef.current, {
-          sitekey: AUTH_TURNSTILE_SITE_KEY,
-          action: AUTH_TURNSTILE_ACTION,
-          callback: (token: string) => { void onTurnstileSuccess(token); },
-          "error-callback": () => {
-            showToast.error(t("auth.humanCheck.title"), t("auth.humanCheck.widgetError"));
-          },
-          "expired-callback": () => {
-            const cw = window as TurnstileWindow;
-            if (widgetIdRef.current && cw.turnstile) cw.turnstile.reset(widgetIdRef.current);
-          },
-          theme: "auto",
-        });
-      }
-    };
-
-    // Sjekk om Turnstile-scriptet allerede er lastet
-    const currentWindow = window as TurnstileWindow;
-    if (currentWindow.turnstile) {
-      // Kort forsinkelse for at DOM-en skal rendre turnstileRef
-      const timer = setTimeout(renderWidget, 50);
-      return () => clearTimeout(timer);
-    }
-
-    // Last scriptet hvis det ikke finnes
-    const existingScript = document.querySelector<HTMLScriptElement>(
-      'script[src^="https://challenges.cloudflare.com/turnstile/v0/api.js"]',
-    );
-    if (existingScript) {
-      existingScript.addEventListener("load", renderWidget, { once: true });
-      return () => existingScript.removeEventListener("load", renderWidget);
-    }
-
-    const script = document.createElement("script");
-    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-    script.async = true;
-    script.defer = true;
-    script.onload = () => setTimeout(renderWidget, 100);
-    document.head.appendChild(script);
-  }, [showChallenge, onTurnstileSuccess, t]);
-
-  // Rydd opp widget ved unmount
-  useEffect(() => {
-    return () => {
-      if (widgetIdRef.current) {
-        const currentWindow = window as TurnstileWindow;
-        try { currentWindow.turnstile?.remove(widgetIdRef.current); } catch { /* ignorer */ }
-        widgetIdRef.current = null;
-      }
-    };
-  }, []);
+  const { containerRef, reset } = useTurnstileScript({
+    siteKey: AUTH_TURNSTILE_SITE_KEY,
+    action: AUTH_TURNSTILE_ACTION,
+    onSuccess: (token) => { void onTurnstileSuccess(token); },
+    onError: () => {
+      showToast.error(t("auth.humanCheck.title"), t("auth.humanCheck.widgetError"));
+    },
+    onExpired: () => reset(),
+    enabled: showChallenge && !!AUTH_TURNSTILE_SITE_KEY,
+  });
 
   if (!showChallenge || !AUTH_TURNSTILE_SITE_KEY) return null;
 
@@ -175,7 +106,7 @@ export function TurnstileReChallenge() {
           </div>
         </div>
         <div className="flex justify-center">
-          <div ref={turnstileRef} />
+          <div ref={containerRef} />
         </div>
       </div>
     </div>

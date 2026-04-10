@@ -389,4 +389,11 @@ UserSchema.index(
     { name: "email_deleted_at" },
 );
 
+// Compound index for hyppige queries: User.findOne({ clerkId, deletedAt: { $exists: false } })
+// Brukes 12+ steder i auth-flyten. Uten denne filtrer MongoDB deletedAt i minne etter clerkId-oppslag.
+UserSchema.index(
+    { clerkId: 1, deletedAt: 1 },
+    { name: "clerkid_deletedat" },
+);
+
 export const User = mongoose.model<IUser>('User', UserSchema);
