@@ -2207,6 +2207,30 @@ function KøerFane() {
                 <KøCount label={t("admin.queues.counts.completed")} value={q.counts.completed} tone="success" />
                 <KøCount label={t("admin.queues.counts.failed")} value={q.counts.failed} tone="danger" />
               </dl>
+              {q.jobTypeCounts && q.jobTypeCounts.length > 0 && (
+                <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-700">
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                    {t("admin.queues.perJobType")}
+                  </p>
+                  <div className="space-y-1.5">
+                    {q.jobTypeCounts.map((jt) => (
+                      <div key={jt.name} className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-[11px] text-slate-600 dark:text-slate-300">{jt.name}</span>
+                        <div className="flex gap-2 text-[10px] text-slate-500 dark:text-slate-400">
+                          {jt.waiting > 0 && <span>{t("admin.queues.counts.waiting")}: {jt.waiting}</span>}
+                          {jt.active > 0 && <span>{t("admin.queues.counts.active")}: {jt.active}</span>}
+                          {jt.delayed > 0 && <span>{t("admin.queues.counts.delayed")}: {jt.delayed}</span>}
+                          {jt.completed > 0 && <span className="text-emerald-600 dark:text-emerald-400">{jt.completed}</span>}
+                          {jt.failed > 0 && <span className="text-red-600 dark:text-red-400">{t("admin.queues.counts.failed")}: {jt.failed}</span>}
+                          {jt.waiting === 0 && jt.active === 0 && jt.delayed === 0 && jt.completed === 0 && jt.failed === 0 && (
+                            <span>0</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </button>
           );
         })}

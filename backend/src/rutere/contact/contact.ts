@@ -90,7 +90,7 @@ function validateKontaktAttachments(files: Express.Multer.File[] | undefined): s
         { filnavn: file.originalname, mimetype: file.mimetype, validationError },
         "Kontaktskjema: vedlegg avvist etter innholdsvalidering",
       );
-      return "Kun JPG, PNG og WebP-bilder er tillatt som vedlegg";
+      return "Kun JPG- og PNG-bilder er tillatt som vedlegg";
     }
   }
   return null;
@@ -143,14 +143,14 @@ router.post(
       if (error instanceof Error && error.message === INVALID_ATTACHMENT_TYPE_ERROR) {
         return apiError.badRequest(
           res,
-          "Kun JPG, PNG og WebP-bilder er tillatt som vedlegg",
+          "Kun JPG- og PNG-bilder er tillatt som vedlegg",
         );
       }
 
       logger.info({ err: error }, "Kontaktskjema: ugyldig vedlegg avvist");
       return apiError.badRequest(
         res,
-        "Kun JPG, PNG og WebP-bilder er tillatt som vedlegg",
+        "Kun JPG- og PNG-bilder er tillatt som vedlegg",
       );
     });
   },

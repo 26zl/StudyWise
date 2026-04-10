@@ -25,7 +25,6 @@ describe("Kontakt-konstanter", () => {
   it("KONTAKT_ALLOWED_ATTACHMENT_TYPES inneholder bildtyper", () => {
     expect(KONTAKT_ALLOWED_ATTACHMENT_TYPES).toContain("image/jpeg");
     expect(KONTAKT_ALLOWED_ATTACHMENT_TYPES).toContain("image/png");
-    expect(KONTAKT_ALLOWED_ATTACHMENT_TYPES).toContain("image/webp");
   });
 });
 

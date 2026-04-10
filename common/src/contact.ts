@@ -8,7 +8,6 @@ import { z } from "zod";
 export const KONTAKT_ALLOWED_ATTACHMENT_TYPES = [
   "image/jpeg",
   "image/png",
-  "image/webp",
 ] as const;
 
 export const KONTAKT_MAX_ATTACHMENTS = 3;

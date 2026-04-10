@@ -23,19 +23,25 @@
  *   - Alle Queue-instanser KAN dele én tilkobling.
  *   - Hver Worker MÅ ha sin egen tilkobling fordi den holder en blocking
  *     command som ville blokkert andre klienter på samme tilkobling.
- *   Vi eksponerer derfor:
- *     getSharedQueueConnection() — singleton for Queue-instanser
- *     createWorkerConnection()   — ny instans per Worker
+ *   Vi bruker derfor én unified kø + én worker (i stedet for tre separate)
+ *   for å minimere antall Redis-tilkoblinger:
+ *     getSharedQueueConnection() — singleton for Queue-instansen
+ *     getWorkerConnection()      — singleton for den ene Worker-instansen
+ *     getUnifiedQueue()          — singleton for den unified køen
  */
 
+import { Queue } from "bullmq";
 import { Redis } from "ioredis";
 import { logger } from "../utils/logger.js";
 
 const REDIS_URL = process.env.REDIS_URL;
 const BULLMQ_DB = Number(process.env.REDIS_BULLMQ_DB ?? 0);
 
+export const UNIFIED_QUEUE_NAME = "studywise-jobs";
+
 let sharedQueueConnection: Redis | null = null;
-const workerConnections: Redis[] = [];
+let workerConnection: Redis | null = null;
+let unifiedQueue: Queue | null = null;
 
 function buildConnection(label: string): Redis {
   if (!REDIS_URL) {
@@ -47,6 +53,8 @@ function buildConnection(label: string): Redis {
     enableReadyCheck: true,
     lazyConnect: false,
     retryStrategy: (times) => Math.min(times * 200, 5000),
+    // Lukk inaktive connections etter 5 min for å frigjøre plass mot connection-grensen.
+    disconnectTimeout: 300_000,
   });
   conn.on("error", (err) => {
     logger.error({ err, label }, "BullMQ Redis-tilkobling feilet");
@@ -64,14 +72,38 @@ export function getSharedQueueConnection(): Redis {
   return sharedQueueConnection;
 }
 
-/** Ny tilkobling per Worker (kan IKKE deles pga. blocking commands). */
-export function createWorkerConnection(workerName: string): Redis {
-  const conn = buildConnection(`worker:${workerName}`);
-  workerConnections.push(conn);
-  return conn;
+/**
+ * Singleton for den ene Worker-tilkoblingen. BullMQ dupliserer denne
+ * internt for blocking commands, så totalt 2 TCP-connections for workeren.
+ */
+export function getWorkerConnection(): Redis {
+  if (workerConnection) return workerConnection;
+  workerConnection = buildConnection("worker-unified");
+  return workerConnection;
+}
+
+/**
+ * Unified kø — alle job-typer (clerk-deletion, pinecone-cleanup, web-push)
+ * går gjennom én kø og én worker i stedet for tre separate. Reduserer
+ * Redis-tilkoblinger fra 8 til 4 per instans.
+ */
+export function getUnifiedQueue(): Queue {
+  if (unifiedQueue) return unifiedQueue;
+  unifiedQueue = new Queue(UNIFIED_QUEUE_NAME, {
+    connection: getSharedQueueConnection(),
+  });
+  return unifiedQueue;
 }
 
 export async function closeAllBullMqConnections(): Promise<void> {
+  if (unifiedQueue) {
+    try {
+      await unifiedQueue.close();
+    } catch (err) {
+      logger.warn({ err }, "Feil under lukking av unified kø");
+    }
+    unifiedQueue = null;
+  }
   if (sharedQueueConnection) {
     try {
       await sharedQueueConnection.quit();
@@ -80,12 +112,12 @@ export async function closeAllBullMqConnections(): Promise<void> {
     }
     sharedQueueConnection = null;
   }
-  for (const conn of workerConnections) {
+  if (workerConnection) {
     try {
-      await conn.quit();
+      await workerConnection.quit();
     } catch (err) {
       logger.warn({ err }, "Feil under lukking av worker-tilkobling");
     }
+    workerConnection = null;
   }
-  workerConnections.length = 0;
 }

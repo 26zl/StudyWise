@@ -34,19 +34,19 @@ const DEFAULT_JOBS_LIMIT = 25;
  * Vi tar med kun de feltene vi vet er trygge per kø-type.
  */
 function sanitizeJobData(
-  queueName: string,
+  jobName: string,
   raw: unknown,
 ): Record<string, unknown> {
   if (!raw || typeof raw !== "object") return {};
   const obj = raw as Record<string, unknown>;
-  if (queueName === "clerk-deletion") {
+  if (jobName === "clerk-deletion") {
     return {
       clerkId: obj.clerkId,
       userId: obj.userId,
       lastError: obj.lastError,
     };
   }
-  if (queueName === "pinecone-cleanup") {
+  if (jobName === "pinecone-cleanup") {
     return {
       userId: obj.userId,
       lastError: obj.lastError,
@@ -101,12 +101,40 @@ async function countDeadLetterJobs(q: ReturnType<typeof getQueueByName>): Promis
   }
 }
 
+/**
+ * Teller jobs per job-type (name) innenfor den unified køen.
+ * Henter maks 500 jobs per status og grupperer etter job.name.
+ */
+async function countJobsByType(q: ReturnType<typeof getAllQueues>[number]) {
+  const statuses = ["waiting", "active", "delayed", "completed", "failed"] as const;
+  const typeCounts = new Map<string, Record<string, number>>();
+
+  for (const status of statuses) {
+    try {
+      const jobs = await q.getJobs([status], 0, 499, false);
+      for (const job of jobs) {
+        if (!typeCounts.has(job.name)) {
+          typeCounts.set(job.name, { waiting: 0, active: 0, delayed: 0, completed: 0, failed: 0 });
+        }
+        typeCounts.get(job.name)![status]++;
+      }
+    } catch {
+      // Ignorer feil for enkelt-status
+    }
+  }
+
+  return Array.from(typeCounts.entries()).map(([name, counts]) => ({
+    name,
+    ...counts,
+  }));
+}
+
 router.get("/queues/overview", async (_req, res) => {
   try {
     const queues = getAllQueues();
     const overview = await Promise.all(
       queues.map(async (q) => {
-        const [counts, isPaused, deadLetterCount] = await Promise.all([
+        const [counts, isPaused, deadLetterCount, jobTypeCounts] = await Promise.all([
           q.getJobCounts(
             "waiting",
             "active",
@@ -117,6 +145,7 @@ router.get("/queues/overview", async (_req, res) => {
           ),
           q.isPaused(),
           countDeadLetterJobs(q),
+          countJobsByType(q),
         ]);
         return {
           name: q.name,
@@ -130,6 +159,7 @@ router.get("/queues/overview", async (_req, res) => {
           },
           isPaused,
           deadLetterCount,
+          jobTypeCounts,
         };
       }),
     );
@@ -158,7 +188,7 @@ router.get("/queues/:name/jobs", async (req, res) => {
   try {
     const jobs = await queue.getJobs([status as JobType], 0, limit - 1, false);
     const dtos = await Promise.all(
-      jobs.map((j) => jobToDto(j, queue.name, status)),
+      jobs.map((j) => jobToDto(j, j.name, status)),
     );
     const counts = await queue.getJobCountByTypes(status);
     const payload = AdminQueueJobsResponseSchema.parse({

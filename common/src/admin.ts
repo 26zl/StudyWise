@@ -538,12 +538,24 @@ export const AdminQueueCountsSchema = z.object({
   paused: z.number().int().min(0),
 });
 
+/** Tellere per job-type innenfor den unified køen */
+export const AdminQueueJobTypeCountSchema = z.object({
+  name: z.string(),
+  waiting: z.number().int().min(0),
+  active: z.number().int().min(0),
+  delayed: z.number().int().min(0),
+  completed: z.number().int().min(0),
+  failed: z.number().int().min(0),
+});
+
 export const AdminQueueOverviewItemSchema = z.object({
   name: z.string(),
   counts: AdminQueueCountsSchema,
   isPaused: z.boolean(),
   /** Antall jobs som har brukt opp alle retry-forsøk (dead-letter) */
   deadLetterCount: z.number().int().min(0).optional(),
+  /** Fordeling per job-type (clerk-deletion, pinecone-cleanup, web-push) */
+  jobTypeCounts: z.array(AdminQueueJobTypeCountSchema).optional(),
 });
 
 export const AdminQueueOverviewResponseSchema = z.object({
@@ -583,6 +595,7 @@ export const AdminQueueStateResponseSchema = z.object({
 
 export type QueueJobStatus = z.infer<typeof QueueJobStatusSchema>;
 export type AdminQueueCounts = z.infer<typeof AdminQueueCountsSchema>;
+export type AdminQueueJobTypeCount = z.infer<typeof AdminQueueJobTypeCountSchema>;
 export type AdminQueueOverviewItem = z.infer<typeof AdminQueueOverviewItemSchema>;
 export type AdminQueueOverviewResponse = z.infer<typeof AdminQueueOverviewResponseSchema>;
 export type AdminQueueJob = z.infer<typeof AdminQueueJobSchema>;

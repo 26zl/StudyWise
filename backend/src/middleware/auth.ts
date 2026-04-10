@@ -33,8 +33,8 @@ import { isProd } from "../utils/env.js";
 import { audit, AUDIT_ACTIONS } from "../utils/auditLog.js";
 import { checkSecurityThresholds } from "../utils/securityAlert.js";
 
-// Maks alder for sesjon ved sensitive operasjoner (kontosletting)
-const SENSITIVE_OP_MAX_SESSION_AGE_SEC = 600; // 10 minutter
+// Maks alder for sesjon ved sensitive operasjoner (kontosletting, admin-handlinger)
+const SENSITIVE_OP_MAX_SESSION_AGE_SEC = 2700; // 45 minutter
 
 const hentBearerToken = (req: Request): string | null => {
   const authHeader = req.headers.authorization;

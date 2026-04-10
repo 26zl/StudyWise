@@ -821,11 +821,12 @@ export const nbMessages = {
     },
     queues: {
       title: "Job-køer (BullMQ)",
-      description: "Bakgrunnsjobber for retry av Clerk-sletting og Pinecone-vektor-cleanup.",
+      description: "Bakgrunnsjobber for Clerk-sletting, Pinecone-vektor-cleanup og web-push-varsler.",
       loadFailed: "Kunne ikke hente kø-data",
       empty: "Ingen køer registrert",
       noJobs: "Ingen jobs i denne kategorien",
       deadLetterWarning: "{count} job(s) har brukt opp alle forsøk — krever manuell oppfølging",
+      perJobType: "Per job-type",
       selectedStatus: "Valgt status",
       counts: {
         waiting: "Venter",
@@ -1943,8 +1944,8 @@ export const nbMessages = {
     imagesLabel: "Bilder ved behov",
     imagesSelect: "Velg opptil {count} bilder",
     imagesHint:
-      "JPG, PNG eller WebP. Maks {count} bilder, {size} MB per bilde.",
-    imageTypeError: "Kun JPG, PNG og WebP-bilder er tillatt",
+      "JPG eller PNG. Maks {count} bilder, {size} MB per bilde.",
+    imageTypeError: "Kun JPG- og PNG-bilder er tillatt",
     imageSizeError: "Hvert bilde må være mindre enn {size} MB",
     imageCountError: "Du kan laste opp maks {count} bilder",
     removeImage: "Fjern {name}",

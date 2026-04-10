@@ -1,16 +1,15 @@
 /*
- * BullMQ-kø for retry av Pinecone vektor-sletting (GDPR).
+ * Pinecone vektor-sletting (GDPR): job-type for den unified BullMQ-køen.
  *
- * Erstatter den tidligere MongoDB-pollingen i `vectorDeletionRetry.service.ts`.
  * Semantikk:
  *   - Maks 20 forsøk
  *   - Eksponentiell backoff: 1 min → 2 → 4 → … kappet ved 1 time
- *   - Job-ID = userId for naturlig dedup
+ *   - Job-ID = `pinecone_${userId}` for naturlig dedup
  *   - Failed jobs beholdes for inspeksjon (GDPR krever manuell oppfølging)
  */
 
-import { Queue, Worker, type Job } from "bullmq";
-import { getSharedQueueConnection, createWorkerConnection } from "./connection.js";
+import type { Job } from "bullmq";
+import { getUnifiedQueue } from "./connection.js";
 import { deleteStoredUserVectors } from "../services/embedding.service.js";
 import { deleteAllKBContentForUser } from "../services/kunnskapsbase-indeksering.service.js";
 import { logger } from "../utils/logger.js";
@@ -20,7 +19,7 @@ import {
   getDeletedAuditActorId,
 } from "../utils/auditLog.js";
 
-export const PINECONE_CLEANUP_QUEUE_NAME = "pinecone-cleanup";
+export const PINECONE_CLEANUP_JOB_NAME = "pinecone-cleanup";
 const MAX_ATTEMPTS = 20;
 
 export interface PineconeCleanupJobData {
@@ -29,29 +28,19 @@ export interface PineconeCleanupJobData {
   kbBaseIds?: string[];
 }
 
-let queue: Queue<PineconeCleanupJobData> | null = null;
-let worker: Worker<PineconeCleanupJobData> | null = null;
-
-export function getPineconeCleanupQueue(): Queue<PineconeCleanupJobData> {
-  if (queue) return queue;
-  queue = new Queue<PineconeCleanupJobData>(PINECONE_CLEANUP_QUEUE_NAME, {
-    connection: getSharedQueueConnection(),
-    defaultJobOptions: {
-      attempts: MAX_ATTEMPTS,
-      backoff: { type: "exponential", delay: 60_000 },
-      removeOnComplete: { age: 86_400, count: 1000 },
-      removeOnFail: false,
-    },
-  });
-  return queue;
-}
+const JOB_OPTIONS = {
+  attempts: MAX_ATTEMPTS,
+  backoff: { type: "exponential" as const, delay: 60_000 },
+  removeOnComplete: { age: 86_400, count: 1000 },
+  removeOnFail: false,
+};
 
 export async function enqueueVectorDeletionRetry(input: {
   userId: string;
   lastError?: string;
   kbBaseIds?: string[];
 }): Promise<void> {
-  const q = getPineconeCleanupQueue();
+  const q = getUnifiedQueue();
   const normalizedKbBaseIds = Array.from(
     new Set(
       (input.kbBaseIds ?? [])
@@ -59,7 +48,8 @@ export async function enqueueVectorDeletionRetry(input: {
         .filter((value) => value.length > 0),
     ),
   );
-  const existingJob = await q.getJob(input.userId);
+  const jobId = `pinecone_${input.userId}`;
+  const existingJob = await q.getJob(jobId);
   if (existingJob) {
     await existingJob.updateData({
       userId: input.userId,
@@ -72,17 +62,17 @@ export async function enqueueVectorDeletionRetry(input: {
   }
 
   await q.add(
-    "delete",
+    PINECONE_CLEANUP_JOB_NAME,
     {
       userId: input.userId,
       lastError: input.lastError,
       kbBaseIds: normalizedKbBaseIds,
     },
-    { jobId: input.userId },
+    { ...JOB_OPTIONS, jobId },
   );
 }
 
-async function processJob(job: Job<PineconeCleanupJobData>): Promise<void> {
+export async function processPineconeCleanupJob(job: Job<PineconeCleanupJobData>): Promise<void> {
   const { userId, kbBaseIds } = job.data;
   const attempt = job.attemptsMade + 1;
 
@@ -99,64 +89,33 @@ async function processJob(job: Job<PineconeCleanupJobData>): Promise<void> {
   });
 }
 
-export function startPineconeCleanupWorker(): Worker<PineconeCleanupJobData> {
-  if (worker) return worker;
-
-  worker = new Worker<PineconeCleanupJobData>(
-    PINECONE_CLEANUP_QUEUE_NAME,
-    processJob,
+export function handlePineconeCleanupFailure(job: Job<PineconeCleanupJobData> | undefined, err: Error): void {
+  if (!job) return;
+  logger.warn(
     {
-      connection: createWorkerConnection(PINECONE_CLEANUP_QUEUE_NAME),
-      concurrency: 2,
+      err,
+      userId: job.data.userId,
+      attemptsMade: job.attemptsMade,
+      maxAttempts: MAX_ATTEMPTS,
     },
+    "Pinecone vektor-sletting feilet",
   );
 
-  worker.on("failed", async (job, err) => {
-    if (!job) return;
-    logger.warn(
-      {
-        err,
-        userId: job.data.userId,
-        attemptsMade: job.attemptsMade,
-        maxAttempts: MAX_ATTEMPTS,
-      },
-      "Pinecone vektor-sletting feilet",
+  if (job.attemptsMade >= MAX_ATTEMPTS) {
+    logger.error(
+      { userId: job.data.userId },
+      "Pinecone vektor-sletting ga opp etter maks forsøk — krever manuell oppfølging (GDPR)",
     );
-
-    if (job.attemptsMade >= MAX_ATTEMPTS) {
-      logger.error(
-        { userId: job.data.userId },
-        "Pinecone vektor-sletting ga opp etter maks forsøk — krever manuell oppfølging (GDPR)",
-      );
-      await audit({
-        actorUserId: getDeletedAuditActorId(job.data.userId),
-        action: AUDIT_ACTIONS.ACCOUNT_DELETED,
-        category: "privacy",
-        outcome: "failure",
-        metadata: {
-          phase: "vector_retry_exhausted",
-          attempts: job.attemptsMade,
-          lastError: `Vektor-sletting feilet etter ${job.attemptsMade} forsøk`,
-        },
-      });
-    }
-  });
-
-  worker.on("error", (err) => {
-    logger.error({ err }, "Pinecone-cleanup worker feilet");
-  });
-
-  logger.info("Pinecone-cleanup worker startet");
-  return worker;
-}
-
-export async function closePineconeCleanupWorker(): Promise<void> {
-  if (worker) {
-    await worker.close();
-    worker = null;
-  }
-  if (queue) {
-    await queue.close();
-    queue = null;
+    void audit({
+      actorUserId: getDeletedAuditActorId(job.data.userId),
+      action: AUDIT_ACTIONS.ACCOUNT_DELETED,
+      category: "privacy",
+      outcome: "failure",
+      metadata: {
+        phase: "vector_retry_exhausted",
+        attempts: job.attemptsMade,
+        lastError: `Vektor-sletting feilet etter ${job.attemptsMade} forsøk`,
+      },
+    });
   }
 }
