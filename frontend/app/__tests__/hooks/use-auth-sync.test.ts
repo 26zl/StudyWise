@@ -15,11 +15,6 @@ vi.mock("@/app/components/layout/DatadogRum", () => ({
   DatadogRum: () => null,
 }));
 
-const resetGjesteSamtykkeMock = vi.fn();
-vi.mock("@/app/hooks/useCookieConsent", () => ({
-  resetGjesteSamtykke: () => resetGjesteSamtykkeMock(),
-}));
-
 const uiStoreResetMock = vi.fn();
 vi.mock("../../store/uiStore", () => ({
   useUIStore: {
@@ -42,11 +37,10 @@ import { AUTH_CHANNEL_NAME } from "common/auth";
 describe("clearClientAuthState", () => {
   beforeEach(() => {
     clearDatadogUserMock.mockClear();
-    resetGjesteSamtykkeMock.mockClear();
     uiStoreResetMock.mockClear();
   });
 
-  it("rydder Datadog, gjest-samtykke, UIStore og react-query-cache", () => {
+  it("rydder Datadog, UIStore og react-query-cache uten a slette gjeste-samtykke", () => {
     const queryClient = new QueryClient();
     // Legg inn noe state så vi kan se at det forsvinner
     queryClient.setQueryData(["foo"], { bar: 1 });
@@ -55,7 +49,6 @@ describe("clearClientAuthState", () => {
     clearClientAuthState(queryClient);
 
     expect(clearDatadogUserMock).toHaveBeenCalledTimes(1);
-    expect(resetGjesteSamtykkeMock).toHaveBeenCalledTimes(1);
     expect(uiStoreResetMock).toHaveBeenCalledTimes(1);
     expect(queryClient.getQueryData(["foo"])).toBeUndefined();
   });

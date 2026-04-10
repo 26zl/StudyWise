@@ -109,6 +109,7 @@ function MultiSelectDropdown({
   onToggle: (id: string) => void;
   disabled?: boolean;
 }) {
+  const { t } = useLanguage();
   const selectedNames = options.filter((o) => selected.includes(o.id)).map((o) => o.name);
 
   return (
@@ -122,7 +123,7 @@ function MultiSelectDropdown({
         {selectedNames.length > 0
           ? selectedNames.length <= 2
             ? selectedNames.join(", ")
-            : `${selectedNames.length} moduler valgt`
+            : t("quiz.modulesSelected", { count: selectedNames.length })
           : label}
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -244,7 +245,7 @@ function ModeToggle({
         )}
       >
         <Brain className="w-4 h-4" />
-        Quiz
+        {t("quiz.quizMode")}
       </button>
       <button
         type="button"
@@ -259,7 +260,7 @@ function ModeToggle({
         )}
       >
         <Layers className="w-4 h-4" />
-        Flashcards
+        {t("quiz.flashcardsMode")}
       </button>
     </div>
   );
@@ -281,6 +282,7 @@ function FlashcardActive({
   const [known, setKnown] = useState(0);
   const [unknown, setUnknown] = useState(0);
 
+  const { t } = useLanguage();
   const card = cards[current];
   const isLast = current === cards.length - 1;
   const progress = ((current + 1) / cards.length) * 100;
@@ -310,7 +312,7 @@ function FlashcardActive({
           className="flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
         >
           <ArrowLeft className="h-4 w-4" />
-          Tilbake
+          {t("quiz.back")}
         </button>
       </div>
 
@@ -318,14 +320,14 @@ function FlashcardActive({
       <div className="mb-10">
         <div className="flex items-center justify-between mb-3">
           <span className="text-base font-medium text-slate-500 dark:text-slate-400">
-            Kort {current + 1} av {cards.length}
+            {t("quiz.cardProgress", { current: current + 1, total: cards.length })}
           </span>
           <div className="flex items-center gap-4">
             <span className="text-base text-slate-500 dark:text-slate-400">
-              <span className="font-medium text-slate-900 dark:text-white">{known}</span> kan
+              <span className="font-medium text-slate-900 dark:text-white">{known}</span> {t("quiz.knownCount")}
             </span>
             <span className="text-base text-slate-500 dark:text-slate-400">
-              <span className="font-medium text-slate-900 dark:text-white">{unknown}</span> øv mer
+              <span className="font-medium text-slate-900 dark:text-white">{unknown}</span> {t("quiz.practiceMoreCount")}
             </span>
           </div>
         </div>
@@ -352,7 +354,7 @@ function FlashcardActive({
             type="button"
             onClick={() => setFlipped(!flipped)}
             aria-pressed={flipped}
-            aria-label={flipped ? "Vis spørsmålet på forsiden av kortet" : "Snu kortet for å vise svaret"}
+            aria-label={flipped ? t("quiz.flipToQuestion") : t("quiz.flipToAnswer")}
             className="relative block w-full cursor-pointer select-none rounded-2xl text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-950"
             style={{ perspective: "1000px" }}
           >
@@ -375,7 +377,7 @@ function FlashcardActive({
                 </p>
                 <p className="mt-6 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                   <RotateCw className="w-4 h-4" />
-                  Trykk for å snu
+                  {t("quiz.tapToFlip")}
                 </p>
               </div>
               {/* Back */}
@@ -384,7 +386,7 @@ function FlashcardActive({
                 style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
               >
                 <p className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Svar
+                  {t("quiz.answer")}
                 </p>
                 <p className="text-center text-lg leading-relaxed text-slate-900 dark:text-white">
                   {card.back}
@@ -406,7 +408,7 @@ function FlashcardActive({
                 className="flex items-center gap-2 rounded-xl border border-slate-300 px-6 py-3 text-base font-medium text-slate-600 transition-all hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
               >
                 <X className="w-5 h-5" />
-                Øv mer
+                {t("quiz.practiceMore")}
               </button>
               <button
                 type="button"
@@ -414,7 +416,7 @@ function FlashcardActive({
                 className="flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-base font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
               >
                 <Check className="w-5 h-5" />
-                Kan dette
+                {t("quiz.knowThis")}
               </button>
             </motion.div>
           )}
@@ -435,9 +437,10 @@ function FlashcardResults({
   total: number;
   onBack: () => void;
 }) {
+  const { t } = useLanguage();
   const pct = Math.round((known / total) * 100);
   const emoji = pct >= 80 ? "🎉" : pct >= 50 ? "👍" : "💪";
-  const msg = pct >= 80 ? "Fantastisk!" : pct >= 50 ? "Bra jobbet!" : "Fortsett å øve!";
+  const msg = pct >= 80 ? t("quiz.resultGreat") : pct >= 50 ? t("quiz.resultGood") : t("quiz.resultKeepPracticing");
 
   return (
     <motion.div
@@ -451,8 +454,7 @@ function FlashcardResults({
       <p className="text-4xl mb-2">{emoji}</p>
       <h3 className="mb-3 text-3xl font-bold text-slate-900 dark:text-white">{msg}</h3>
       <p className="mb-8 text-lg text-slate-500 dark:text-slate-400">
-        Du kunne <span className="font-semibold text-slate-900 dark:text-white">{known}</span> av{" "}
-        <span className="font-semibold text-slate-900 dark:text-white">{total}</span> kort ({pct}%)
+        {t("quiz.flashcardResult", { known, total, pct })}
       </p>
 
       <div className="relative w-40 h-40 mx-auto mb-10">
@@ -483,7 +485,7 @@ function FlashcardResults({
         className="mx-auto flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-base font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
       >
         <ArrowLeft className="w-5 h-5" />
-        Tilbake
+        {t("quiz.back")}
       </button>
     </motion.div>
   );
@@ -505,12 +507,13 @@ function QuizActive({
   const [showExplanation, setShowExplanation] = useState(false);
   const [score, setScore] = useState(0);
   const scoreRef = useRef(0);
+  const { t } = useLanguage();
 
   if (questions.length === 0) {
     return (
       <div className="max-w-3xl mx-auto">
         <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-base text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-          Quizen mangler spørsmål. Gå tilbake og generer på nytt.
+          {t("quiz.noQuestionsError")}
         </div>
         <div className="mt-6">
           <button
@@ -519,7 +522,7 @@ function QuizActive({
             className="flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" />
-            Tilbake til oppsett
+            {t("quiz.backToSetup")}
           </button>
         </div>
       </div>
@@ -531,7 +534,7 @@ function QuizActive({
     return (
       <div className="max-w-3xl mx-auto">
         <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-base text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-          Kunne ikke laste aktivt spørsmål. Gå tilbake og prøv igjen.
+          {t("quiz.loadQuestionError")}
         </div>
         <div className="mt-6">
           <button
@@ -540,7 +543,7 @@ function QuizActive({
             className="flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" />
-            Tilbake til oppsett
+            {t("quiz.backToSetup")}
           </button>
         </div>
       </div>
@@ -580,17 +583,17 @@ function QuizActive({
           className="flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
         >
           <ArrowLeft className="h-4 w-4" />
-          Tilbake til oppsett
+          {t("quiz.backToSetup")}
         </button>
       </div>
 
       <div className="mb-10">
         <div className="flex items-center justify-between mb-3">
           <span className="text-base font-medium text-slate-500 dark:text-slate-400">
-            Spørsmål {current + 1} av {questions.length}
+            {t("quiz.questionProgress", { current: current + 1, total: questions.length })}
           </span>
           <span className="text-base font-medium text-slate-500 dark:text-slate-400">
-            {score} riktige
+            {t("quiz.correctCount", { score })}
           </span>
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
@@ -678,7 +681,7 @@ function QuizActive({
               >
                 <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 dark:border-blue-900 dark:bg-blue-950/30">
                   <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Forklaring
+                    {t("quiz.explanation")}
                   </p>
                   <p className="text-base leading-relaxed text-slate-900 dark:text-white">
                     {q.explanation}
@@ -699,7 +702,7 @@ function QuizActive({
                 onClick={handleNext}
                 className="flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-base font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
               >
-                {isLast ? "Se resultat" : "Neste spørsmål"}
+                {isLast ? t("quiz.seeResult") : t("quiz.nextQuestion")}
                 <ArrowRight className="w-5 h-5" />
               </button>
             </motion.div>
@@ -726,7 +729,7 @@ function QuizResults({
   const { t } = useLanguage();
   const pct = Math.round((score / total) * 100);
   const emoji = pct >= 80 ? "🎉" : pct >= 50 ? "👍" : "💪";
-  const msg = pct >= 80 ? "Fantastisk!" : pct >= 50 ? "Bra jobbet!" : "Øv mer!";
+  const msg = pct >= 80 ? t("quiz.resultGreat") : pct >= 50 ? t("quiz.resultGood") : t("quiz.resultKeepPracticingShort");
 
   return (
     <motion.div
@@ -740,8 +743,7 @@ function QuizResults({
       <p className="text-4xl mb-2">{emoji}</p>
       <h3 className="mb-3 text-3xl font-bold text-slate-900 dark:text-white">{msg}</h3>
       <p className="mb-8 text-lg text-slate-500 dark:text-slate-400">
-        Du fikk <span className="font-semibold text-slate-900 dark:text-white">{score}</span> av{" "}
-        <span className="font-semibold text-slate-900 dark:text-white">{total}</span> riktige ({pct}%)
+        {t("quiz.quizResult", { score, total, pct })}
       </p>
 
       <div className="relative w-40 h-40 mx-auto mb-10">
@@ -1101,10 +1103,10 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-                Quiz / Flashcards
+                {t("quiz.title")}
               </h1>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Tren på Canvas-innholdet ditt med KI-genererte spørsmål og kort.
+                {t("quiz.subtitle")}
               </p>
             </div>
           </div>
@@ -1137,7 +1139,7 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                 {harCanvasToken && (
                   <div className="mb-8">
                     <label className="mb-4 block text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      1. Velg emne
+                      {t("quiz.selectCourseLabel")}
                     </label>
                     {coursesLoading ? (
                       <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/50">
@@ -1170,7 +1172,7 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                       className="mb-8 relative z-30 isolate"
                     >
                       <label className="mb-4 block text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                        2. Velg moduler
+                        {t("quiz.selectModulesLabel")}
                       </label>
                       {modulesLoading ? (
                         <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/50">
@@ -1201,7 +1203,7 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                       className="mb-10 relative z-0"
                     >
                       <label className="mb-4 block text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                        3. {studyMode === "quiz" ? "Antall spørsmål" : "Antall kort"}
+                        {studyMode === "quiz" ? t("quiz.questionCountLabel") : t("quiz.cardCountLabel")}
                       </label>
                       <QuestionCountSelector
                         count={questionCount}

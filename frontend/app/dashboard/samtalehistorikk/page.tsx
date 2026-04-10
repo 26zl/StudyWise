@@ -39,8 +39,8 @@ export default function SamtalehistorikkPage() {
     "tab",
     parseAsStringLiteral(["history", "shared"] as const).withDefault("history"),
   );
-  const { isLoaded } = useAuth();
-  const megQuery = useMeg({ enabled: isLoaded });
+  const { isLoaded, userId } = useAuth();
+  const megQuery = useMeg({ enabled: isLoaded && !!userId });
   useAuthRedirect(megQuery);
   const erFatalAuthFeil = useFatalAuthSignOut(megQuery);
 

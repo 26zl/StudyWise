@@ -14,7 +14,7 @@ import { showToast } from "@/app/components/ui/Toaster";
 
 export function CookieBanner() {
   const { t } = useLanguage();
-  const { consent, isReady, isPending, setConsent } = useCookieConsent();
+  const { consent, isAuthenticated, isReady, isPending, setConsent } = useCookieConsent();
   const titleId = useId();
 
   const handleChoice = useCallback(
@@ -35,7 +35,7 @@ export function CookieBanner() {
 
   // Synkron cookie-sjekk for å eliminere flash: selv om React-state ennå ikke er
   // oppdatert etter hydrering, sjekker vi cookien direkte under render.
-  if (typeof document !== "undefined") {
+  if (!isAuthenticated && typeof document !== "undefined") {
     try {
       const match = document.cookie
         .split("; ")

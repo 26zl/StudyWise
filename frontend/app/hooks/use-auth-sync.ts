@@ -10,7 +10,6 @@ import { usePathname } from "next/navigation";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { AUTH_CHANNEL_NAME } from "common/auth";
 import { clearDatadogUser } from "@/app/components/layout/DatadogRum";
-import { resetGjesteSamtykke } from "@/app/hooks/useCookieConsent";
 import { useUIStore } from "../store/uiStore";
 
 // Konstantverdier for BroadcastChannel (same-origin per spec )
@@ -21,7 +20,6 @@ export function clearClientAuthState(queryClient: QueryClient): void {
     clearDatadogUser();
     void queryClient.cancelQueries();
     queryClient.clear();
-    resetGjesteSamtykke();
     useUIStore.getState().reset();
 }
 

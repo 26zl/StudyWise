@@ -55,6 +55,8 @@ pnpm clean:install          # Full clean reinstall + rebuild
 
 Per-package scripts (run with `pnpm --filter <pkg> <script>`): `dev`, `build`, `lint`, `typecheck`, `test`, `test:watch`.
 
+Run a single unit test file: `pnpm --filter backend vitest src/path/to/file.test.ts` (same pattern for frontend/common).
+
 ## Architecture
 
 ### Data Flow
@@ -73,6 +75,10 @@ Frontend -> `/api/ki/chat` -> load Canvas context (if needed) -> load knowledge 
 
 Hybrid retrieval: BM25 keyword search + Pinecone semantic search, results merged and reranked via Cohere.
 
+### Middleware Stack (applied in order)
+
+Host/origin validation (prod) → Helmet security headers → body parsers → Clerk webhook (raw body, before CSRF) → request timeout → CORS → CSRF protection → rate limiting → auth check (`requireAuth`). Order matters — Clerk webhook needs raw body before JSON parsing, CSRF runs after CORS.
+
 ### Backend Organization
 
 - `backend/src/rutere/` — Express routers organized by feature (auth/, canvas/, ki/, quiz/, flashcards/, kunnskapsbase/, arbeidsplan/, admin/, contact/, debug/)
@@ -80,12 +86,23 @@ Hybrid retrieval: BM25 keyword search + Pinecone semantic search, results merged
 - `backend/src/database/models/` — Mongoose models (User, CanvasUser, ChatHistory, ContentEmbedding, Kunnskapsbase, etc.)
 - `backend/src/middleware/` — Express middleware stack
 - `backend/src/utils/apiError.ts` — Standardized error responses (`apiError.unauthorized()`, `apiError.badRequest()`, `sendZodError()`, `sendUnknownError()`, `requireUserId()`)
+- `backend/src/utils/env.ts` — Environment validation at startup via `validateEnv()`
 
 ### Frontend Organization
 
 - `frontend/app/` — Next.js App Router pages and layouts
 - `frontend/app/components/` — Reusable React components (ui/, ki/, canvas/)
 - `frontend/app/lib/` — Client utilities and error classes
+
+### Health Endpoints
+
+- `/health` — liveness (fast, no external calls)
+- `/ready` — readiness (requires MongoDB connected)
+- `/health/dependencies` — detailed dependency status (admin-only)
+
+### Cloudflare Worker
+
+`cloudflare/worker.js` — Resend email relay for contact form. Backend sends to worker via `CONTACT_WORKER_URL` with `X-Contact-Secret` header auth.
 
 ### Key Configuration Files
 
@@ -118,3 +135,5 @@ docker compose up --build   # Starts MongoDB, Redis, backend, frontend
 ```
 
 Requires `backend/.env` with: ANTHROPIC_API_KEY, COHERE_API_KEY, CLERK_SECRET_KEY, ENCRYPTION_KEY, MONGO_URI, REDIS_URL, PINECONE_API_KEY, PINECONE_INDEX_NAME.
+
+Optional env vars: `ENCRYPTION_KEY_PREV` (key rotation), `CONTACT_WORKER_URL` + `CONTACT_WORKER_SECRET` (email relay), `DD_*` (Datadog APM), `LANGCHAIN_*` (LangSmith tracing).

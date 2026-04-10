@@ -42,6 +42,8 @@ type ClerkProfile = {
   oauthAccounts: OAuthAccount[];
   /** Om brukeren har aktivert tofaktorautentisering (MFA/TOTP). */
   mfaEnabled: boolean;
+  /** True hvis Clerk returnerte OAuth-kontoer som ble hoppet over pga. ufullstendige data (intern ID uten e-post). */
+  hadSkippedIncompleteOauth?: boolean;
 };
 
 type RelinkableUser = Pick<IUser, "_id" | "clerkId" | "clerkEnv">;
@@ -783,6 +785,7 @@ async function getClerkProfile(
   // Bestem innloggingsmetoder og samle OAuth-kontoer fra Clerk external accounts
   const authProviderSet = new Set<AuthProvider>();
   const oauthAccounts: OAuthAccount[] = [];
+  let hadSkippedIncompleteOauth = false;
   const externalAccounts = clerkUser.externalAccounts ?? [];
 
   for (const account of externalAccounts) {
@@ -829,6 +832,7 @@ async function getClerkProfile(
           { provider: mappedProvider, clerkUserId, fallbackAccountId },
           "OAuth-konto fra Clerk bruker intern ID og mangler e-post — hopper over (ufullstendig konto)",
         );
+        hadSkippedIncompleteOauth = true;
       } else {
         if (!hasValidEmail) {
           logger.warn(
@@ -887,6 +891,7 @@ async function getClerkProfile(
     authProviders,
     oauthAccounts,
     mfaEnabled,
+    hadSkippedIncompleteOauth,
   };
 }
 
@@ -939,7 +944,10 @@ function buildClerkProfileUpdate(
 
   if (profile.oauthAccounts.length > 0) {
     setFields.oauthAccounts = profile.oauthAccounts;
-  } else {
+  } else if (!profile.hadSkippedIncompleteOauth) {
+    // Kun fjern oauthAccounts hvis Clerk faktisk rapporterte null OAuth-kontoer.
+    // Hvis kontoer ble hoppet over pga. ufullstendige data (f.eks. kryssmiljø-relink
+    // der Clerk returnerer intern ID uten e-post), behold eksisterende data i MongoDB.
     unsetFields.oauthAccounts = 1;
   }
 

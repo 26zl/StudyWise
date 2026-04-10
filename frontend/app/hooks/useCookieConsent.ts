@@ -10,6 +10,9 @@ export type CookieConsentStatus = CookieConsentValue | null;
 const COOKIE_CONSENT_STORAGE_PREFIX = "studywise_cookie_consent";
 const GUEST_COOKIE_CONSENT_COOKIE_NAME = "studywise_guest_consent";
 const GUEST_CONSENT_MAX_AGE_DAYS = 30;
+type CookieConsentChangeDetail =
+  | { scope: "guest"; consent: CookieConsentStatus }
+  | { scope: "authenticated"; consent: CookieConsentStatus; userId: string };
 
 function parseCookieConsent(value: unknown): CookieConsentStatus {
   return value === "accepted" || value === "declined" ? value : null;
@@ -122,14 +125,14 @@ function writeAuthenticatedConsentToStorage(
   }
 }
 
-function emitCookieConsentChange(value: CookieConsentStatus): void {
+function emitCookieConsentChange(detail: CookieConsentChangeDetail): void {
   if (typeof window === "undefined") {
     return;
   }
 
   window.dispatchEvent(
-    new CustomEvent<CookieConsentStatus>(COOKIE_CONSENT_CHANGED_EVENT, {
-      detail: value,
+    new CustomEvent<CookieConsentChangeDetail>(COOKIE_CONSENT_CHANGED_EVENT, {
+      detail,
     }),
   );
 }
@@ -137,7 +140,7 @@ function emitCookieConsentChange(value: CookieConsentStatus): void {
 export function resetGjesteSamtykke(): void {
   gjesteSamtykke = null;
   writeGuestConsentToStorage(null);
-  emitCookieConsentChange(null);
+  emitCookieConsentChange({ scope: "guest", consent: null });
 }
 
 export function useCookieConsent() {
@@ -180,7 +183,20 @@ export function useCookieConsent() {
 
     const handleConsentChange = (event: Event) => {
       if (event instanceof CustomEvent) {
-        setGuestConsent(parseCookieConsent(event.detail));
+        const detail = event.detail as CookieConsentChangeDetail | undefined;
+        if (detail?.scope === "guest") {
+          const nextConsent = parseCookieConsent(detail.consent);
+          gjesteSamtykke = nextConsent;
+          setGuestConsent(nextConsent);
+          return;
+        }
+        if (
+          detail?.scope === "authenticated" &&
+          detail.userId === userId
+        ) {
+          setCachedAuthenticatedConsent(parseCookieConsent(detail.consent));
+          return;
+        }
         return;
       }
 
@@ -238,10 +254,8 @@ export function useCookieConsent() {
   useEffect(() => {
     if (!isAuthenticated) {
       const lagret = readGuestConsentFromStorage();
-      if (lagret && lagret !== gjesteSamtykke) {
-        gjesteSamtykke = lagret;
-        setGuestConsent(lagret);
-      }
+      gjesteSamtykke = lagret;
+      setGuestConsent(lagret);
     }
   }, [isAuthenticated]);
 
@@ -287,7 +301,7 @@ export function useCookieConsent() {
         gjesteSamtykke = nextConsent;
         writeGuestConsentToStorage(nextConsent);
         setGuestConsent(nextConsent);
-        emitCookieConsentChange(nextConsent);
+        emitCookieConsentChange({ scope: "guest", consent: nextConsent });
         return;
       }
 
@@ -305,7 +319,13 @@ export function useCookieConsent() {
       }
       // Ikke skriv til gjeste-cookie — det kan lekke til neste bruker på delt maskin.
       // Banneret vises ved utlogging bare hvis gjesten ikke har et eget valg.
-      emitCookieConsentChange(nextConsent);
+      if (userId) {
+        emitCookieConsentChange({
+          scope: "authenticated",
+          consent: nextConsent,
+          userId,
+        });
+      }
 
       setPendingConsent(nextConsent);
       try {

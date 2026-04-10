@@ -106,8 +106,8 @@ export function DashboardView() {
     }, [aktivVisning]);
 
     // Hent brukerdata og Canvas-token status – vent til Clerk er klar for å unngå 401 race
-    const { isLoaded: clerkLoaded } = useAuth();
-    const megQuery = useMeg({ enabled: clerkLoaded });
+    const { isLoaded: clerkLoaded, userId: clerkUserId } = useAuth();
+    const megQuery = useMeg({ enabled: clerkLoaded && !!clerkUserId });
     const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
     const brukerQueryAktiv = megQuery.isSuccess && harCanvasToken;
     const userQuery = useCanvasUser(brukerQueryAktiv);

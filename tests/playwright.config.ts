@@ -42,7 +42,7 @@ export default defineConfig({
   webServer: [
     {
       command: process.env.CI
-        ? "pnpm --filter backend exec tsx src/index.ts"
+        ? "pnpm --filter backend exec node dist/index.js"
         : "pnpm dev:backend",
       url: "http://localhost:4000/health",
       reuseExistingServer: true,
@@ -52,7 +52,9 @@ export default defineConfig({
       cwd: path.resolve(__dirname, ".."),
     },
     {
-      command: "pnpm dev:frontend",
+      command: process.env.CI
+        ? "pnpm --filter frontend exec next start -p 3000"
+        : "pnpm dev:frontend",
       url: "http://localhost:3000",
       reuseExistingServer: true,
       timeout: 180_000,

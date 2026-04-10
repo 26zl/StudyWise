@@ -47,6 +47,24 @@ export default function VilkarPage() {
         </ul>
       </InfoSection>
 
+      <InfoSection title={t("vilkar.sharingTitle")}>
+        <ul className="space-y-2">
+          <li>• {t("vilkar.sharing1")}</li>
+          <li>• {t("vilkar.sharing2")}</li>
+          <li>• {t("vilkar.sharing3")}</li>
+          <li>• {t("vilkar.sharing4")}</li>
+        </ul>
+      </InfoSection>
+
+      <InfoSection title={t("vilkar.kbTitle")}>
+        <ul className="space-y-2">
+          <li>• {t("vilkar.kb1")}</li>
+          <li>• {t("vilkar.kb2")}</li>
+          <li>• {t("vilkar.kb3")}</li>
+          <li>• {t("vilkar.kb4")}</li>
+        </ul>
+      </InfoSection>
+
       <InfoSection title={t("vilkar.useTitle")}>
         <p className="mb-3">{t("vilkar.useIntro")}</p>
         <ul className="space-y-2">

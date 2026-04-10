@@ -31,8 +31,8 @@ type ActiveTab = "bookmarks" | "knowledgeBase";
 
 export default function BokmerkerPage() {
   const router = useRouter();
-  const { isLoaded } = useAuth();
-  const megQuery = useMeg({ enabled: isLoaded });
+  const { isLoaded, userId } = useAuth();
+  const megQuery = useMeg({ enabled: isLoaded && !!userId });
   useAuthRedirect(megQuery);
   const erFatalAuthFeil = useFatalAuthSignOut(megQuery);
 

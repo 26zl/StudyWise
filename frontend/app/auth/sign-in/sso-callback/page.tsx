@@ -12,9 +12,9 @@ export default function SignInSSOCallbackPage() {
   const { callbackError, oauthConflict, signInHref } = useSSOCallback("sign-in");
 
   return (
-    <div className="flex min-h-dvh items-center justify-center px-4">
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-4">
       {/* Påkrevd for Clerks bot-registreringsbeskyttelse */}
-      <div id="clerk-captcha" />
+      <div id="clerk-captcha" className="flex justify-center" />
       <div className="w-full max-w-md space-y-4">
         <AuthCard>
           {oauthConflict ? (

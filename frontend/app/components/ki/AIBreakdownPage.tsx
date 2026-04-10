@@ -74,8 +74,8 @@ export function AIBreakdownPage() {
   );
   const { language, t } = useLanguage();
 
-  const { isLoaded: clerkLoaded } = useAuth();
-  const megQuery = useMeg({ enabled: clerkLoaded });
+  const { isLoaded: clerkLoaded, userId: clerkUserId } = useAuth();
+  const megQuery = useMeg({ enabled: clerkLoaded && !!clerkUserId });
   const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
   const userQuery = useCanvasUser(megQuery.isSuccess && harCanvasToken);
   const assignmentsQuery = useCanvasAllAssignments({ enabled: harCanvasToken });

@@ -970,7 +970,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                     type="button"
                                     onClick={() => åpneEmne(velgDefaultVisning())}
                                     className="group block flex-1 min-w-0 rounded-lg text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
-                                    aria-label={`Åpne emnet ${emne.name}`}
+                                    aria-label={`${labels.openCourse} ${emne.name}`}
                                 >
                                     <h3 className="mb-1 font-semibold text-slate-900 transition-colors group-hover:text-blue-600 dark:text-white dark:group-hover:text-blue-400">
                                         {emne.name}
@@ -988,7 +988,7 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
                                     <EyeOff size={16} />
                                 </button>
                             </div>
-                            <div className="flex flex-wrap gap-2" aria-label={`Tilgjengelig innhold i ${emne.name}`}>
+                            <div className="flex flex-wrap gap-2" aria-label={`${labels.contentLabel} ${emne.name}`}>
                                 {metadataLaster ? (
                                     <>
                                         <div className="h-6 w-16 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />

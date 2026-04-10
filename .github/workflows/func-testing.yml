@@ -180,6 +180,9 @@ jobs:
           printf 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=%s\n' "$S_CLERK_PK" > frontend/.env
           echo "Frontend .env created with $(wc -l < frontend/.env) lines"
 
+      - name: Build backend and frontend (production)
+        run: pnpm --filter backend build && pnpm --filter frontend build
+
       - name: Run Playwright E2E tests
         # Stabile spesifikasjoner i CI-gaten (diagnostiske/repro-spesifikasjoner ekskluderes).
         # Firefox/WebKit kjøres kun lokalt — CI installerer bare Chromium for raskere kjøretid.
