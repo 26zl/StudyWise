@@ -41,13 +41,29 @@ function parseKeyHex(keyHex: string, label: string): Buffer {
     return key;
 }
 
-// Henter krypteringsnøkkelen fra miljøvariabler
+// Henter primær krypteringsnøkkel fra miljøvariabler
 const getKey = (): Buffer => {
     const keyHex = process.env.ENCRYPTION_KEY;
     if (!keyHex) {
         throw new Error("ENCRYPTION_KEY mangler i miljøvariabler.");
     }
     return parseKeyHex(keyHex, "ENCRYPTION_KEY");
+};
+
+/**
+ * Henter forrige krypteringsnøkkel for nøkkelrotasjon (valgfri).
+ * Sett ENCRYPTION_KEY_PREV til den gamle nøkkelen ved rotasjon slik at
+ * eksisterende kryptert data (Canvas-tokens, chat-historikk) fortsatt kan dekrypteres.
+ * Fjern ENCRYPTION_KEY_PREV når all data er re-kryptert med ny nøkkel.
+ */
+const getPreviousKey = (): Buffer | null => {
+    const keyHex = process.env.ENCRYPTION_KEY_PREV;
+    if (!keyHex) return null;
+    try {
+        return parseKeyHex(keyHex, "ENCRYPTION_KEY_PREV");
+    } catch {
+        return null;
+    }
 };
 
 /**
@@ -118,6 +134,15 @@ export const decrypt = (encryptedText: string): string => {
     try {
         return decryptWithKey(getKey(), ivHex, authTagHex, encryptedHex);
     } catch {
+        // Forsøk forrige nøkkel ved nøkkelrotasjon
+        const prevKey = getPreviousKey();
+        if (prevKey) {
+            try {
+                return decryptWithKey(prevKey, ivHex, authTagHex, encryptedHex);
+            } catch {
+                // Falt gjennom — ingen nøkkel fungerte
+            }
+        }
         // Generisk feilmelding uavhengig av årsak (forhindrer oracle-angrep)
         throw new Error("Dekryptering feilet.");
     }

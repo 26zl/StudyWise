@@ -124,7 +124,7 @@ export function startClerkDeletionWorker(): Worker<ClerkDeletionJobData> {
         metadata: {
           phase: "clerk_retry_exhausted",
           attempts: job.attemptsMade,
-          lastError: err.message,
+          lastError: `Sletting feilet etter ${job.attemptsMade} forsøk`,
         },
       });
     }

@@ -142,7 +142,7 @@ export function AuthTurnstileInline({
   }
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-lg dark:border-slate-700 dark:bg-slate-800/95">
+    <div className="relative z-10 rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-lg dark:border-slate-700 dark:bg-slate-800/95">
       <div className="mb-4 flex items-start gap-4">
         <div className="rounded-2xl bg-blue-50 p-3 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
           <ShieldCheck className="h-6 w-6" />

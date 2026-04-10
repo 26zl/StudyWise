@@ -6,7 +6,7 @@
  */
 "use client";
 
-import { useState, useEffect, useId, useCallback } from "react";
+import { useId, useCallback } from "react";
 import Link from "next/link";
 import { useCookieConsent, type CookieConsentStatus } from "@/app/hooks/useCookieConsent";
 import { useLanguage } from "@/app/i18n";
@@ -15,12 +15,7 @@ import { showToast } from "@/app/components/ui/Toaster";
 export function CookieBanner() {
   const { t } = useLanguage();
   const { consent, isReady, isPending, setConsent } = useCookieConsent();
-  const [mounted, setMounted] = useState(false);
   const titleId = useId();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const handleChoice = useCallback(
     async (choice: Exclude<CookieConsentStatus, null>) => {
@@ -36,7 +31,25 @@ export function CookieBanner() {
     [setConsent, t],
   );
 
-  if (!mounted || !isReady || consent !== null) return null;
+  if (!isReady || consent !== null) return null;
+
+  // Synkron localStorage-sjekk for å eliminere flash: selv om React-state ennå ikke er
+  // oppdatert etter hydrering, sjekker vi localStorage direkte under render.
+  if (typeof window !== "undefined") {
+    try {
+      // Sjekk gjeste-nøkkel
+      const guest = window.localStorage.getItem("studywise_guest_cookie_consent");
+      if (guest === "accepted" || guest === "declined") return null;
+      // Sjekk bruker-spesifikke nøkler (innlogget bruker som logget ut)
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i);
+        if (key?.startsWith("studywise_cookie_consent:")) {
+          const val = window.localStorage.getItem(key);
+          if (val === "accepted" || val === "declined") return null;
+        }
+      }
+    } catch { /* localStorage utilgjengelig */ }
+  }
 
   return (
     <div

@@ -69,6 +69,8 @@ export function setupSSE(req: Request, res: Response, socketTimeoutMs = 120_000)
     }
   }
 
+  // Rydd opp umiddelbart når klienten kobler fra (i stedet for å vente opptil 10s på neste keepalive-sjekk)
+  req.socket.once("close", clearKeepalive);
   // Rydd opp deadline-timer når response avsluttes normalt
   res.once("finish", () => clearTimeout(deadlineTimer));
   res.once("close", () => clearTimeout(deadlineTimer));

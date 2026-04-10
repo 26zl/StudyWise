@@ -97,6 +97,7 @@ function buildCspValue(nonce) {
     "https://*.us5.datadoghq.com",
     "https://*.clerk.accounts.dev",
     "https://*.clerk.com",
+    "https://clerk-telemetry.com",
   ];
   const frameSrc = [
     "'self'",

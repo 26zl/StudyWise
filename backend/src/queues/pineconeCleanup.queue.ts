@@ -136,7 +136,7 @@ export function startPineconeCleanupWorker(): Worker<PineconeCleanupJobData> {
         metadata: {
           phase: "vector_retry_exhausted",
           attempts: job.attemptsMade,
-          lastError: err.message,
+          lastError: `Vektor-sletting feilet etter ${job.attemptsMade} forsøk`,
         },
       });
     }

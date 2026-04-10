@@ -52,6 +52,14 @@ function ClerkProviderMedSprak({
           },
         },
       }}
+      appearance={{
+        elements: {
+          badge: {
+            color: "var(--clerk-badge-color, #475569)",
+            opacity: 1,
+          },
+        },
+      }}
       signInUrl="/auth/sign-in"
       signUpUrl="/auth/sign-up"
       nonce={nonce}
@@ -193,7 +201,7 @@ function AuthConflictGuard() {
           void clerk
             .signOut()
             .catch((error) => {
-              console.warn("Clerk signOut feilet under AuthConflictGuard-redirect", error);
+              console.warn("Clerk signOut feilet under AuthConflictGuard-redirect:", (error as { code?: string })?.code ?? "unknown");
             })
             .finally(() => {
               clearClientAuthState(queryClient);

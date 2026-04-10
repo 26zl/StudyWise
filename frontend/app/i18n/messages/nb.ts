@@ -1841,6 +1841,12 @@ export const nbMessages = {
         "Vi fant ikke siden du leter etter. Den kan ha blitt flyttet, slettet, eller lenken kan være feilskrevet.",
       goHome: "Tilbake til forsiden",
       goDashboard: "Gå til dashboard",
+      gameTitle: "Eller... spill Snake mens du er her?",
+      gameStart: "Start spill",
+      gameOver: "Game over!",
+      gameScore: "Poeng",
+      gameRestart: "Spill igjen",
+      gameControls: "Bruk piltaster eller sveip for å styre",
     },
     runtime: {
       eyebrow: "Noe gikk galt",

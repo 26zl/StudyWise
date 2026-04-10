@@ -352,6 +352,20 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
     }
   }, [signUp, t]);
 
+  // Vent på Clerk før vi viser noe — hindrer at Turnstile og Clerks redirect-overlay vises samtidig
+  if (!isLoaded) {
+    return (
+      <div className="w-full max-w-md">
+        <AuthCard>
+          <LoadingView
+            fullPage={false}
+            translationKey="common.loading.generic"
+          />
+        </AuthCard>
+      </div>
+    );
+  }
+
   // Redirect til dashboard hvis allerede innlogget, eller vis loading ved OAuth-retur
   if (isRedirectingToDashboard || isOAuthReturn) {
     return (

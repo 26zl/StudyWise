@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useMeg, useOppdaterUIPreferanser } from "@/app/auth/auth-api";
 import type { CookieConsentValue, UIPreferences } from "common/auth";
 
@@ -10,11 +10,16 @@ export type CookieConsentStatus = CookieConsentValue | null;
 const COOKIE_CONSENT_STORAGE_PREFIX = "studywise_cookie_consent";
 const GUEST_COOKIE_CONSENT_STORAGE_KEY = "studywise_guest_cookie_consent";
 
-let gjesteSamtykke: CookieConsentStatus = null;
-
 function parseCookieConsent(value: unknown): CookieConsentStatus {
   return value === "accepted" || value === "declined" ? value : null;
 }
+
+// Initialisér synkront fra localStorage ved modul-load (ikke via useEffect)
+// slik at consent er tilgjengelig allerede ved første React-render og banneret ikke blinker.
+let gjesteSamtykke: CookieConsentStatus =
+  typeof window !== "undefined"
+    ? parseCookieConsent(window.localStorage.getItem(GUEST_COOKIE_CONSENT_STORAGE_KEY))
+    : null;
 
 function getAuthenticatedConsentStorageKey(userId: string): string {
   return `${COOKIE_CONSENT_STORAGE_PREFIX}:${userId}`;
@@ -46,9 +51,25 @@ function readGuestConsentFromStorage(): CookieConsentStatus {
       window.localStorage.setItem(GUEST_COOKIE_CONSENT_STORAGE_KEY, sessionValue);
       window.sessionStorage.removeItem(GUEST_COOKIE_CONSENT_STORAGE_KEY);
     }
-    return parseCookieConsent(
+    const guestValue = parseCookieConsent(
       window.localStorage.getItem(GUEST_COOKIE_CONSENT_STORAGE_KEY),
     );
+    if (guestValue) return guestValue;
+
+    // Fallback: sjekk om det finnes et bruker-spesifikt samtykke fra en tidligere innlogget økt.
+    // Dette dekker tilfellet der bruker godtok cookies mens innlogget (før gjeste-nøkkel ble skrevet).
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (key?.startsWith(COOKIE_CONSENT_STORAGE_PREFIX + ":")) {
+        const value = parseCookieConsent(window.localStorage.getItem(key));
+        if (value) {
+          // Promoter til gjeste-nøkkel slik at denne fallbacken bare kjører én gang
+          window.localStorage.setItem(GUEST_COOKIE_CONSENT_STORAGE_KEY, value);
+          return value;
+        }
+      }
+    }
+    return null;
   } catch {
     return null;
   }
@@ -131,6 +152,14 @@ export function useCookieConsent() {
   });
   const { mutateAsync: oppdaterUIPreferanser, isPending } =
     useOppdaterUIPreferanser();
+  // Les gjeste-samtykke synkront ved første klient-render via useRef.
+  // useRef-initializer kjører synkront under render (ikke som useEffect etter paint),
+  // slik at consent er tilgjengelig allerede i første frame — ingen flash.
+  const guestInitRef = useRef(false);
+  if (!guestInitRef.current && typeof window !== "undefined") {
+    guestInitRef.current = true;
+    gjesteSamtykke = readGuestConsentFromStorage();
+  }
   const [guestConsent, setGuestConsent] =
     useState<CookieConsentStatus>(gjesteSamtykke);
   const [cachedAuthenticatedConsent, setCachedAuthenticatedConsent] =
@@ -142,8 +171,12 @@ export function useCookieConsent() {
     if (typeof window === "undefined") {
       return;
     }
-    gjesteSamtykke = readGuestConsentFromStorage();
-    setGuestConsent(gjesteSamtykke);
+    // Oppdater i tilfelle localStorage endret seg mellom SSR og hydrering
+    const fresh = readGuestConsentFromStorage();
+    if (fresh !== guestConsent) {
+      gjesteSamtykke = fresh;
+      setGuestConsent(fresh);
+    }
 
     const handleConsentChange = (event: Event) => {
       if (event instanceof CustomEvent) {
@@ -199,6 +232,19 @@ export function useCookieConsent() {
   const backendConsent = parseCookieConsent(
     me?.user?.uiPreferences?.cookieConsent,
   );
+
+  // Re-les gjeste-samtykke fra localStorage når bruker logger ut,
+  // fordi modulvariabelen gjesteSamtykke kan være null etter promotering.
+  useEffect(() => {
+    if (!isAuthenticated) {
+      const lagret = readGuestConsentFromStorage();
+      if (lagret && lagret !== gjesteSamtykke) {
+        gjesteSamtykke = lagret;
+        setGuestConsent(lagret);
+      }
+    }
+  }, [isAuthenticated]);
+
   const consent =
     pendingConsent ??
     (isAuthenticated
@@ -240,14 +286,12 @@ export function useCookieConsent() {
       return;
     }
 
-    // Synk gjestesamtykke til backend
+    // Synk gjestesamtykke til backend — men behold gjestesamtykke i localStorage
+    // slik at banneret ikke dukker opp igjen etter utlogging.
     void oppdaterUIPreferanser({
       language: me?.user?.uiPreferences?.language,
       theme: me?.user?.uiPreferences?.theme,
       cookieConsent: gjesteVerdi,
-    }).then(() => {
-      // Rydd opp gjestesamtykke etter vellykket synk
-      resetGjesteSamtykke();
     }).catch(() => {
       // Ignorer feil — bruker blir spurt på nytt neste gang
     });
@@ -275,6 +319,10 @@ export function useCookieConsent() {
         writeAuthenticatedConsentToStorage(userId, nextConsent);
         setCachedAuthenticatedConsent(nextConsent);
       }
+      // Lagre også som gjeste-samtykke slik at banneret ikke dukker opp igjen etter utlogging
+      gjesteSamtykke = nextConsent;
+      writeGuestConsentToStorage(nextConsent);
+      setGuestConsent(nextConsent);
       emitCookieConsentChange(nextConsent);
 
       setPendingConsent(nextConsent);

@@ -1759,6 +1759,12 @@ export const enMessages = {
         "We couldn't find the page you're looking for. It may have been moved, deleted, or the link could be misspelled.",
       goHome: "Back to home",
       goDashboard: "Go to dashboard",
+      gameTitle: "Or... play Snake while you're here?",
+      gameStart: "Start game",
+      gameOver: "Game over!",
+      gameScore: "Score",
+      gameRestart: "Play again",
+      gameControls: "Use arrow keys or swipe to steer",
     },
     runtime: {
       eyebrow: "Something went wrong",

@@ -170,6 +170,20 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
     [signIn, isOAuthSubmitting, t, redirectUrl],
   );
 
+  // Vent på Clerk før vi viser noe — hindrer at Turnstile og Clerks redirect-overlay vises samtidig
+  if (!isLoaded) {
+    return (
+      <div className="w-full max-w-md">
+        <AuthCard>
+          <LoadingView
+            fullPage={false}
+            translationKey="common.loading.generic"
+          />
+        </AuthCard>
+      </div>
+    );
+  }
+
   if (isRedirectingToDashboard) {
     return (
       <div className="w-full max-w-md">
