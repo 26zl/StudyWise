@@ -17,7 +17,7 @@ import "./datadog.js";
 // Undici global dispatcher — connection pooling for alle fetch()-kall
 import "./utils/httpAgent.js";
 
-import express from "express";
+import express, { Router } from "express";
 import cors from "cors";
 import compression from "compression";
 import helmet from "helmet";
@@ -60,6 +60,7 @@ import adminRedisRouter from "./rutere/admin/adminRedis.js";
 import adminLangsmithRouter from "./rutere/admin/adminLangsmith.js";
 import adminContactRouter from "./rutere/admin/adminContact.js";
 import adminLogsRouter from "./rutere/admin/adminLogs.js";
+import adminMaintenanceRouter from "./rutere/admin/adminMaintenance.js";
 import { beskytteMotCsrf } from "./middleware/csrf.js";
 import { noCache } from "./middleware/no-cache.js";
 import { rateLimitMe } from "./middleware/rate-limit.js";
@@ -367,14 +368,21 @@ app.use("/api/kb", noCache, knowledgeBaseRouter);
 
 // Admin: krever requireAuth (allerede kjørt) + requireRole("admin") + noCache
 // fordi svarene inneholder sensitiv drifts-, bruker- og revisjonsdata.
-app.use("/api/admin", noCache, rateLimitMe, requireRole("admin"), adminAuditRouter);
-app.use("/api/admin", noCache, rateLimitMe, requireRole("admin"), adminBrukereRouter);
-app.use("/api/admin", noCache, rateLimitMe, requireRole("admin"), adminStatsRouter);
-app.use("/api/admin", noCache, rateLimitMe, requireRole("admin"), adminQueuesRouter);
-app.use("/api/admin", noCache, rateLimitMe, requireRole("admin"), adminRedisRouter);
-app.use("/api/admin", noCache, rateLimitMe, requireRole("admin"), adminLangsmithRouter);
-app.use("/api/admin", noCache, rateLimitMe, requireRole("admin"), adminContactRouter);
-app.use("/api/admin", noCache, rateLimitMe, requireRole("admin"), adminLogsRouter);
+// Alle admin-routere monteres under én felles app.use() slik at middleware
+// (spesielt rateLimitMe) kun kjøres én gang per request.
+{
+  const adminRouter = Router();
+  adminRouter.use(adminAuditRouter);
+  adminRouter.use(adminBrukereRouter);
+  adminRouter.use(adminStatsRouter);
+  adminRouter.use(adminQueuesRouter);
+  adminRouter.use(adminRedisRouter);
+  adminRouter.use(adminLangsmithRouter);
+  adminRouter.use(adminContactRouter);
+  adminRouter.use(adminLogsRouter);
+  adminRouter.use(adminMaintenanceRouter);
+  app.use("/api/admin", noCache, rateLimitMe, requireRole("admin"), adminRouter);
+}
 
 
 // Debug-ruter (kun development, krever auth)

@@ -20,12 +20,20 @@ const VALID_CATEGORIES = new Set<string>(AUDIT_CATEGORIES);
 
 /** Trygge nøkler tillatt i revisjonsliste-metadata (ingen PII eller rå request-data). */
 const ALLOWED_METADATA_KEYS = new Set([
-  "subAction", "messageCount", "limit", "offset", "category", "reason",
+  "subAction", "messageCount", "limit", "offset", "category",
   "shareType", "chatId", "model", "tokens", "fileType", "type",
   "tekstLengde", "assignmentId", "subtaskCount", "blockCount", "assignmentCount",
   "actorUserId", "targetUserId", "from", "to", "rowCount", "status",
   "queue", "jobId", "prefix", "deletedCount", "revoked", "gammelRolle",
   "nyRolle", "securityAlert", "scannedFiles", "updatedFiles",
+  // Vedlikehold
+  "resultCount", "stateCount", "scannedChunks", "reembeddedChunks", "failedChunks",
+  "usersInvalidated", "keysDeleted", "structuresDeleted", "pineconeFailures",
+  "samtaler", "oppgaveoppdelinger", "dokumentfragmenter", "arbeidsplaner",
+  "canvasStrukturer", "canvasBrukere", "delingslenker", "kunnskapsbaser", "kbChunks",
+  "deletedChats", "deletedShares", "dager", "cutoffDate",
+  "processed", "reencrypted", "alreadyCurrent", "failed", "collectionCount",
+  "rating",
 ]);
 
 function parseAdminDato(

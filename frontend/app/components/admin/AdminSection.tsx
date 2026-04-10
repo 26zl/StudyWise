@@ -74,7 +74,6 @@ import {
   useRuns,
   useEndreRolle,
   useSlettBruker,
-  useClearRelinkGuard,
   useLockUser,
   useUnlockUser,
   useRevokeUserSessions,
@@ -97,6 +96,15 @@ import {
   useRedisRelinkStates,
   useClearRedisRelinkState,
   useAdminFeedback,
+  useCleanupOrphaned,
+  useRebuildEmbeddings,
+  useForceCanvasResync,
+  useCleanExpiredShares,
+  useCleanOldChats,
+  useMaintenanceStatus,
+  useEncryptionStatus,
+  useReencryptTokens,
+  useDatabaseHealth,
 } from "@/app/admin/admin-api";
 import type {
   AdminAuditCategory,
@@ -104,7 +112,6 @@ import type {
   AdminContactMessage,
   AdminFeedbackItem,
   AdminFeedbackRating,
-  AdminMaintenanceFullTextBackfillResponse,
   AdminQueueOverviewItem,
   AdminRedisPrefix,
   AdminRedisRelinkStateItem,
@@ -243,91 +250,434 @@ function StatSeksjon({
   );
 }
 
+function formaterBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
+
+function VedlikeholdKort({
+  ikon: Ikon,
+  tittel,
+  beskrivelse,
+  merknad,
+  handlingTekst,
+  onHandling,
+  isPending,
+  variant = "warning",
+  children,
+}: {
+  ikon: React.ElementType;
+  tittel: string;
+  beskrivelse: string;
+  merknad: string;
+  handlingTekst: string;
+  onHandling: () => void;
+  isPending: boolean;
+  variant?: "warning" | "danger";
+  children?: React.ReactNode;
+}) {
+  const ikonBg = variant === "danger"
+    ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+    : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
+  const btnBg = variant === "danger"
+    ? "bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600"
+    : "bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600";
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
+      <div className="flex flex-col gap-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${ikonBg}`}>
+            <Ikon size={16} />
+          </div>
+          <button
+            type="button"
+            onClick={onHandling}
+            disabled={isPending}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${btnBg}`}
+          >
+            <RefreshCcw size={12} className={isPending ? "animate-spin" : ""} />
+            {handlingTekst}
+          </button>
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{tittel}</h3>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{beskrivelse}</p>
+        </div>
+        {children}
+        <p className="text-[11px] text-slate-400 dark:text-slate-500">{merknad}</p>
+      </div>
+    </div>
+  );
+}
+
 function MaintenanceFane() {
   const { language, t } = useLanguage();
   const backfillMutation = useBackfillFullText();
-  const [sisteResultat, setSisteResultat] =
-    useState<AdminMaintenanceFullTextBackfillResponse | null>(null);
+  const cleanupOrphanedMutation = useCleanupOrphaned();
+  const rebuildEmbeddingsMutation = useRebuildEmbeddings();
+  const forceCanvasResyncMutation = useForceCanvasResync();
+  const cleanExpiredSharesMutation = useCleanExpiredShares();
+  const cleanOldChatsMutation = useCleanOldChats();
+  const reencryptMutation = useReencryptTokens();
 
-  const handleBackfill = () => {
-    visBekreftelsesToast({
-      t,
-      melding: t("admin.maintenance.backfill.confirm"),
-      handlingstekst: t("admin.maintenance.backfill.action"),
-      onBekreft: () => {
-        backfillMutation.mutate(undefined, {
-          onSuccess: (result) => {
-            setSisteResultat(result);
-            showToast.success(t("admin.maintenance.backfill.success"));
-          },
-          onError: (error) =>
-            showToast.error(
-              t("admin.maintenance.backfill.failed"),
-              hentFeilmelding(error, t("admin.maintenance.backfill.failed")),
-            ),
-        });
-      },
+  const { data: encryptionStatus } = useEncryptionStatus();
+  const { data: dbHealth, refetch: refetchDbHealth, isFetching: dbHealthFetching } = useDatabaseHealth();
+  const { data: maintenanceStatus } = useMaintenanceStatus();
+
+  const [chatDager, setChatDager] = useState(180);
+  const [sisteResultat, setSisteResultat] = useState<{ tittel: string; stats: StatKortData[] } | null>(null);
+
+  // Global running-status: en operasjon vises som aktiv hvis enten denne brukeren
+  // kjører den (isPending) ELLER en annen admin kjører den (via Redis-polling).
+  const isRunning = (op: string, localPending: boolean) =>
+    localPending || (maintenanceStatus?.ops[op]?.running ?? false);
+
+  function kjorMedBekreftelse(
+    melding: string,
+    handlingstekst: string,
+    muteringFn: () => void,
+  ) {
+    visBekreftelsesToast({ t, melding, handlingstekst, onBekreft: muteringFn });
+  }
+
+  const handleBackfill = () =>
+    kjorMedBekreftelse(t("admin.maintenance.backfill.confirm"), t("admin.maintenance.backfill.action"), () => {
+      backfillMutation.mutate(undefined, {
+        onSuccess: (r) => {
+          setSisteResultat({
+            tittel: t("admin.maintenance.backfill.cardTitle"),
+            stats: [
+              { label: t("admin.maintenance.backfill.scannedFiles"), verdi: r.scannedFiles, ikon: FileText },
+              { label: t("admin.maintenance.backfill.updatedFiles"), verdi: r.updatedFiles, ikon: CheckCircle2 },
+            ],
+          });
+          showToast.success(t("admin.maintenance.backfill.success"));
+        },
+        onError: (e) => showToast.error(t("admin.maintenance.backfill.failed"), hentFeilmelding(e, t("admin.maintenance.backfill.failed"))),
+      });
     });
-  };
+
+  const handleCleanupOrphaned = () =>
+    kjorMedBekreftelse(t("admin.maintenance.cleanupOrphaned.confirm"), t("admin.maintenance.cleanupOrphaned.action"), () => {
+      cleanupOrphanedMutation.mutate(undefined, {
+        onSuccess: (r) => {
+          const d = r.deleted;
+          const labels = language === "nb"
+            ? { chats: "Samtaler", tasks: "Oppgaver", docs: "Dokumenter", plans: "Arbeidsplaner", canvas: "Canvas-strukturer", canvasUsers: "Canvas-brukere", shares: "Delelinker", kb: "Kunnskapsbaser", kbChunks: "KB-chunks" }
+            : { chats: "Chats", tasks: "Tasks", docs: "Documents", plans: "Work plans", canvas: "Canvas structures", canvasUsers: "Canvas users", shares: "Share links", kb: "Knowledge bases", kbChunks: "KB chunks" };
+          const stats: StatKortData[] = [];
+          if (d.samtaler > 0) stats.push({ label: labels.chats, verdi: d.samtaler, ikon: Trash2 });
+          if (d.oppgaveoppdelinger > 0) stats.push({ label: labels.tasks, verdi: d.oppgaveoppdelinger, ikon: Trash2 });
+          if (d.dokumentfragmenter > 0) stats.push({ label: labels.docs, verdi: d.dokumentfragmenter, ikon: Database });
+          if (d.arbeidsplaner > 0) stats.push({ label: labels.plans, verdi: d.arbeidsplaner, ikon: Trash2 });
+          if (d.canvasStrukturer > 0) stats.push({ label: labels.canvas, verdi: d.canvasStrukturer, ikon: Trash2 });
+          if (d.canvasBrukere > 0) stats.push({ label: labels.canvasUsers, verdi: d.canvasBrukere, ikon: Trash2 });
+          if (d.delingslenker > 0) stats.push({ label: labels.shares, verdi: d.delingslenker, ikon: Link });
+          if (d.kunnskapsbaser > 0) stats.push({ label: labels.kb, verdi: d.kunnskapsbaser, ikon: Database });
+          if (d.kbChunks > 0) stats.push({ label: labels.kbChunks, verdi: d.kbChunks, ikon: Database });
+          const total = Object.values(d).reduce((s, v) => s + v, 0);
+          if (stats.length === 0) stats.push({ label: t("admin.maintenance.cleanupOrphaned.action"), verdi: total, ikon: CheckCircle2 });
+          setSisteResultat({
+            tittel: t("admin.maintenance.cleanupOrphaned.cardTitle"),
+            stats,
+          });
+          showToast.success(t("admin.maintenance.cleanupOrphaned.success"));
+        },
+        onError: (e) => showToast.error(t("admin.maintenance.cleanupOrphaned.failed"), hentFeilmelding(e, t("admin.maintenance.cleanupOrphaned.failed"))),
+      });
+    });
+
+  const handleRebuildEmbeddings = () =>
+    kjorMedBekreftelse(t("admin.maintenance.rebuildEmbeddings.confirm"), t("admin.maintenance.rebuildEmbeddings.action"), () => {
+      rebuildEmbeddingsMutation.mutate(undefined, {
+        onSuccess: (r) => {
+          const embStats: StatKortData[] = [
+            { label: t("admin.maintenance.rebuildEmbeddings.scannedChunks"), verdi: r.scannedChunks, ikon: Database },
+            { label: t("admin.maintenance.rebuildEmbeddings.reembeddedChunks"), verdi: r.reembeddedChunks, ikon: CheckCircle2 },
+          ];
+          if (r.failedChunks > 0) embStats.push({ label: t("admin.maintenance.rebuildEmbeddings.failedChunks"), verdi: r.failedChunks, ikon: AlertTriangle });
+          setSisteResultat({ tittel: t("admin.maintenance.rebuildEmbeddings.cardTitle"), stats: embStats });
+          showToast.success(t("admin.maintenance.rebuildEmbeddings.success"));
+        },
+        onError: (e) => showToast.error(t("admin.maintenance.rebuildEmbeddings.failed"), hentFeilmelding(e, t("admin.maintenance.rebuildEmbeddings.failed"))),
+      });
+    });
+
+  const handleForceCanvasResync = () =>
+    kjorMedBekreftelse(t("admin.maintenance.forceCanvasResync.confirm"), t("admin.maintenance.forceCanvasResync.action"), () => {
+      forceCanvasResyncMutation.mutate(undefined, {
+        onSuccess: (r) => {
+          setSisteResultat({
+            tittel: t("admin.maintenance.forceCanvasResync.cardTitle"),
+            stats: [
+              { label: t("admin.maintenance.forceCanvasResync.usersInvalidated"), verdi: r.usersInvalidated, ikon: Users },
+              { label: t("admin.maintenance.forceCanvasResync.keysDeleted"), verdi: r.keysDeleted, ikon: Database },
+            ],
+          });
+          showToast.success(t("admin.maintenance.forceCanvasResync.success"));
+        },
+        onError: (e) => showToast.error(t("admin.maintenance.forceCanvasResync.failed"), hentFeilmelding(e, t("admin.maintenance.forceCanvasResync.failed"))),
+      });
+    });
+
+  const handleCleanExpiredShares = () =>
+    kjorMedBekreftelse(t("admin.maintenance.cleanExpiredShares.confirm"), t("admin.maintenance.cleanExpiredShares.action"), () => {
+      cleanExpiredSharesMutation.mutate(undefined, {
+        onSuccess: (r) => {
+          setSisteResultat({
+            tittel: t("admin.maintenance.cleanExpiredShares.cardTitle"),
+            stats: [{ label: t("admin.maintenance.cleanExpiredShares.deletedCount"), verdi: r.deletedCount, ikon: Link }],
+          });
+          showToast.success(t("admin.maintenance.cleanExpiredShares.success"));
+        },
+        onError: (e) => showToast.error(t("admin.maintenance.cleanExpiredShares.failed"), hentFeilmelding(e, t("admin.maintenance.cleanExpiredShares.failed"))),
+      });
+    });
+
+  const handleCleanOldChats = () =>
+    kjorMedBekreftelse(t("admin.maintenance.cleanOldChats.confirm"), t("admin.maintenance.cleanOldChats.action"), () => {
+      cleanOldChatsMutation.mutate(chatDager, {
+        onSuccess: (r) => {
+          const chatStats: StatKortData[] = [
+            { label: t("admin.maintenance.cleanOldChats.deletedChats"), verdi: r.deletedChats, ikon: Trash2 },
+          ];
+          if (r.deletedShares > 0) chatStats.push({ label: t("admin.maintenance.cleanOldChats.deletedShares"), verdi: r.deletedShares, ikon: Link });
+          setSisteResultat({ tittel: t("admin.maintenance.cleanOldChats.cardTitle"), stats: chatStats });
+          showToast.success(t("admin.maintenance.cleanOldChats.success"));
+        },
+        onError: (e) => showToast.error(t("admin.maintenance.cleanOldChats.failed"), hentFeilmelding(e, t("admin.maintenance.cleanOldChats.failed"))),
+      });
+    });
+
+  const handleReencrypt = () =>
+    kjorMedBekreftelse(t("admin.maintenance.encryption.reencryptConfirm"), t("admin.maintenance.encryption.reencryptAction"), () => {
+      reencryptMutation.mutate(undefined, {
+        onSuccess: (r) => {
+          const encStats: StatKortData[] = [
+            { label: t("admin.maintenance.encryption.processed"), verdi: r.processed, ikon: Shield },
+          ];
+          if (r.reencrypted > 0) encStats.push({ label: t("admin.maintenance.encryption.reencrypted"), verdi: r.reencrypted, ikon: CheckCircle2 });
+          if (r.alreadyCurrent > 0) encStats.push({ label: t("admin.maintenance.encryption.alreadyCurrent"), verdi: r.alreadyCurrent, ikon: ShieldCheck });
+          if (r.failed > 0) encStats.push({ label: t("admin.maintenance.encryption.failed"), verdi: r.failed, ikon: AlertTriangle });
+          setSisteResultat({ tittel: t("admin.maintenance.encryption.title"), stats: encStats });
+          showToast.success(t("admin.maintenance.encryption.reencryptSuccess"));
+        },
+        onError: (e) => showToast.error(t("admin.maintenance.encryption.reencryptFailed"), hentFeilmelding(e, t("admin.maintenance.encryption.reencryptFailed"))),
+      });
+    });
 
   return (
-    <section className="space-y-4">
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2">
-            <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-              <Zap size={18} />
-            </div>
-            <div>
-              <h2 className="text-base font-semibold text-slate-900 dark:text-white">
-                {t("admin.maintenance.title")}
-              </h2>
-              <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-                {t("admin.maintenance.description")}
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleBackfill}
-            disabled={backfillMutation.isPending}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-amber-500 dark:hover:bg-amber-600"
-          >
-            <RefreshCcw size={15} className={backfillMutation.isPending ? "animate-spin" : ""} />
-            {t("admin.maintenance.backfill.action")}
-          </button>
-        </div>
-
-        <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-            {t("admin.maintenance.backfill.cardTitle")}
-          </p>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-            {t("admin.maintenance.backfill.cardDescription")}
-          </p>
-          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-            {t("admin.maintenance.backfill.note")}
-          </p>
-        </div>
+    <section className="space-y-6">
+      {/* Overskrift */}
+      <div className="space-y-1">
+        <h2 className="text-base font-semibold text-slate-900 dark:text-white">{t("admin.maintenance.title")}</h2>
+        <p className="text-sm text-slate-600 dark:text-slate-400">{t("admin.maintenance.description")}</p>
       </div>
 
+      {/* Operasjons-kort */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <VedlikeholdKort
+          ikon={Zap}
+          tittel={t("admin.maintenance.backfill.cardTitle")}
+          beskrivelse={t("admin.maintenance.backfill.cardDescription")}
+          merknad={t("admin.maintenance.backfill.note")}
+          handlingTekst={t("admin.maintenance.backfill.action")}
+          onHandling={handleBackfill}
+          isPending={isRunning("backfill-fulltext", backfillMutation.isPending)}
+        />
+        <VedlikeholdKort
+          ikon={Trash2}
+          tittel={t("admin.maintenance.cleanupOrphaned.cardTitle")}
+          beskrivelse={t("admin.maintenance.cleanupOrphaned.cardDescription")}
+          merknad={t("admin.maintenance.cleanupOrphaned.note")}
+          handlingTekst={t("admin.maintenance.cleanupOrphaned.action")}
+          onHandling={handleCleanupOrphaned}
+          isPending={isRunning("cleanup-orphaned", cleanupOrphanedMutation.isPending)}
+          variant="danger"
+        />
+        <VedlikeholdKort
+          ikon={Database}
+          tittel={t("admin.maintenance.rebuildEmbeddings.cardTitle")}
+          beskrivelse={t("admin.maintenance.rebuildEmbeddings.cardDescription")}
+          merknad={t("admin.maintenance.rebuildEmbeddings.note")}
+          handlingTekst={t("admin.maintenance.rebuildEmbeddings.action")}
+          onHandling={handleRebuildEmbeddings}
+          isPending={isRunning("rebuild-embeddings", rebuildEmbeddingsMutation.isPending)}
+        />
+        <VedlikeholdKort
+          ikon={RefreshCcw}
+          tittel={t("admin.maintenance.forceCanvasResync.cardTitle")}
+          beskrivelse={t("admin.maintenance.forceCanvasResync.cardDescription")}
+          merknad={t("admin.maintenance.forceCanvasResync.note")}
+          handlingTekst={t("admin.maintenance.forceCanvasResync.action")}
+          onHandling={handleForceCanvasResync}
+          isPending={isRunning("force-canvas-resync", forceCanvasResyncMutation.isPending)}
+        />
+        <VedlikeholdKort
+          ikon={Link}
+          tittel={t("admin.maintenance.cleanExpiredShares.cardTitle")}
+          beskrivelse={t("admin.maintenance.cleanExpiredShares.cardDescription")}
+          merknad={t("admin.maintenance.cleanExpiredShares.note")}
+          handlingTekst={t("admin.maintenance.cleanExpiredShares.action")}
+          onHandling={handleCleanExpiredShares}
+          isPending={isRunning("clean-expired-shares", cleanExpiredSharesMutation.isPending)}
+        />
+        <VedlikeholdKort
+          ikon={Clock3}
+          tittel={t("admin.maintenance.cleanOldChats.cardTitle")}
+          beskrivelse={t("admin.maintenance.cleanOldChats.cardDescription")}
+          merknad={t("admin.maintenance.cleanOldChats.note")}
+          handlingTekst={t("admin.maintenance.cleanOldChats.action")}
+          onHandling={handleCleanOldChats}
+          isPending={isRunning("clean-old-chats", cleanOldChatsMutation.isPending)}
+          variant="danger"
+        >
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+              {t("admin.maintenance.cleanOldChats.daysLabel")}:
+            </label>
+            <input
+              type="number"
+              min={30}
+              max={3650}
+              value={chatDager}
+              onChange={(e) => setChatDager(Math.max(30, Math.min(3650, Number(e.target.value) || 30)))}
+              className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+            />
+          </div>
+        </VedlikeholdKort>
+      </div>
+
+      {/* Krypteringsstatus */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                <Shield size={16} />
+              </div>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{t("admin.maintenance.encryption.title")}</h3>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300">{t("admin.maintenance.encryption.description")}</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleReencrypt}
+            disabled={isRunning("reencrypt-tokens", reencryptMutation.isPending)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
+          >
+            <RefreshCcw size={12} className={isRunning("reencrypt-tokens", reencryptMutation.isPending) ? "animate-spin" : ""} />
+            {t("admin.maintenance.encryption.reencryptAction")}
+          </button>
+        </div>
+        {encryptionStatus && (
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.maintenance.encryption.previousKeyConfigured")}</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                {encryptionStatus.previousKeyConfigured ? t("admin.maintenance.encryption.yes") : t("admin.maintenance.encryption.no")}
+              </p>
+            </div>
+            <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.maintenance.encryption.usersWithToken")}</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formaterTall(encryptionStatus.usersWithToken, language)}</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.maintenance.encryption.currentFormat")}</p>
+              <p className="mt-1 text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formaterTall(encryptionStatus.currentKeyOk, language)}</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.maintenance.encryption.legacyFormat")}</p>
+              <p className="mt-1 text-sm font-semibold text-amber-600 dark:text-amber-400">{formaterTall(encryptionStatus.legacyFormat, language)}</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.maintenance.encryption.undecryptable")}</p>
+              <p className="mt-1 text-sm font-semibold text-red-600 dark:text-red-400">{formaterTall(encryptionStatus.undecryptable, language)}</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Databasehelse */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                <Server size={16} />
+              </div>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{t("admin.maintenance.database.title")}</h3>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300">{t("admin.maintenance.database.description")}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void refetchDbHealth()}
+            disabled={dbHealthFetching}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-emerald-500 dark:hover:bg-emerald-600"
+          >
+            <RefreshCcw size={12} className={dbHealthFetching ? "animate-spin" : ""} />
+            {t("admin.maintenance.database.refresh")}
+          </button>
+        </div>
+        {dbHealth && (
+          <>
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.maintenance.database.totalCollections")}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formaterTall(dbHealth.collections.length, language)}</p>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.maintenance.database.totalDocuments")}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formaterTall(dbHealth.totalDocuments, language)}</p>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.maintenance.database.totalSize")}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formaterBytes(dbHealth.totalSizeBytes)}</p>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.maintenance.database.totalIndexSize")}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formaterBytes(dbHealth.totalIndexSizeBytes)}</p>
+              </div>
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700">
+                    <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">{t("admin.maintenance.database.collectionName")}</th>
+                    <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">{t("admin.maintenance.database.documents")}</th>
+                    <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">{t("admin.maintenance.database.size")}</th>
+                    <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">{t("admin.maintenance.database.indexes")}</th>
+                    <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">{t("admin.maintenance.database.indexSize")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dbHealth.collections.map((coll) => (
+                    <tr key={coll.name} className="border-b border-slate-100 dark:border-slate-700/50">
+                      <td className="px-3 py-2 font-mono text-slate-700 dark:text-slate-300">{coll.name}</td>
+                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">{formaterTall(coll.documentCount, language)}</td>
+                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">{formaterBytes(coll.sizeBytes)}</td>
+                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">{coll.indexCount}</td>
+                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">{formaterBytes(coll.indexSizeBytes)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Siste resultat */}
       {sisteResultat && (
         <StatSeksjon
-          title={t("admin.maintenance.lastResult")}
+          title={`${t("admin.maintenance.lastResult")} — ${sisteResultat.tittel}`}
           language={language}
-          stats={[
-            {
-              label: t("admin.maintenance.backfill.scannedFiles"),
-              verdi: sisteResultat.scannedFiles,
-              ikon: FileText,
-            },
-            {
-              label: t("admin.maintenance.backfill.updatedFiles"),
-              verdi: sisteResultat.updatedFiles,
-              ikon: CheckCircle2,
-            },
-          ]}
+          stats={sisteResultat.stats}
         />
       )}
     </section>
@@ -1121,7 +1471,7 @@ function BrukereFane() {
   });
   const endreRolle = useEndreRolle();
   const slettBruker = useSlettBruker();
-  const clearRelinkGuard = useClearRelinkGuard();
+  const clearRelinkGuard = useClearRedisRelinkState();
   const lockUser = useLockUser();
   const unlockUser = useUnlockUser();
   const revokeSessions = useRevokeUserSessions();
@@ -2197,7 +2547,7 @@ function KøerFane() {
               {(q.deadLetterCount ?? 0) > 0 && (
                 <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300">
                   <AlertTriangle size={13} />
-                  {t("admin.queues.deadLetterWarning", { count: q.deadLetterCount ?? 0 })}
+                  {t("admin.queues.deadLetterWarning", { count: `${q.deadLetterCount ?? 0}${(q.deadLetterCount ?? 0) >= 100 ? "+" : ""}` })}
                 </div>
               )}
               <dl className="mt-3 grid grid-cols-3 gap-2 text-xs">
@@ -2229,6 +2579,9 @@ function KøerFane() {
                       </div>
                     ))}
                   </div>
+                  {q.jobTypeCounts.some((jt) => jt.waiting >= 500 || jt.active >= 500 || jt.delayed >= 500 || jt.completed >= 500 || jt.failed >= 500) && (
+                    <p className="mt-1.5 text-[9px] italic text-slate-400 dark:text-slate-500">{t("admin.queues.sampledNote")}</p>
+                  )}
                 </div>
               )}
             </button>

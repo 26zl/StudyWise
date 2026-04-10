@@ -3,7 +3,6 @@
  * Monteres under /api/admin (allerede beskyttet med requireAuth + requireRole("admin")).
  *
  * Endepunkter:
- *   GET  /langsmith/stats          – Aggregerte stats (7d/30d, daglige tokens, latency, errors)
  *   GET  /langsmith/overview       – Oversikt for cards (24h/7d, latency, error rate)
  *   GET  /langsmith/daily-metrics  – Dag-for-dag tokens og latency (parameterisert antall dager)
  *   GET  /langsmith/runs           – Paginert liste over runs (filtrert på status/intent)
@@ -504,25 +503,6 @@ async function hentLangsmithStatsMedCache() {
   }
   return response;
 }
-
-router.get("/langsmith/stats", async (req, res) => {
-  try {
-    const response = await hentLangsmithStatsMedCache();
-    void audit({
-      actorUserId: req.user?.id ?? "unknown",
-      action: AUDIT_ACTIONS.ADMIN_ACTION,
-      category: "admin",
-      outcome: "success",
-      role: req.actorRole,
-      metadata: { subAction: "langsmith.stats" },
-      req,
-    });
-    return res.json(response);
-  } catch (err) {
-    logger.error({ err }, "Admin LangSmith-statistikk feilet");
-    return apiError.serverError(res);
-  }
-});
 
 router.get("/langsmith/overview", async (req, res) => {
   try {

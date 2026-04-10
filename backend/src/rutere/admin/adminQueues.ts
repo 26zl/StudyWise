@@ -20,7 +20,7 @@ import {
 import type { Job, JobType } from "bullmq";
 import { requireRecentAuth } from "../../middleware/auth.js";
 import { getAllQueues, getQueueByName } from "../../queues/index.js";
-import { apiError, sendUnknownError, sendZodError } from "../../utils/apiError.js";
+import { apiError, requireUserId, sendUnknownError, sendZodError } from "../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import { logger } from "../../utils/logger.js";
 
@@ -129,7 +129,10 @@ async function countJobsByType(q: ReturnType<typeof getAllQueues>[number]) {
   }));
 }
 
-router.get("/queues/overview", async (_req, res) => {
+router.get("/queues/overview", async (req, res) => {
+  const actorUserId = requireUserId(req, res);
+  if (!actorUserId) return;
+
   try {
     const queues = getAllQueues();
     const overview = await Promise.all(
@@ -164,6 +167,16 @@ router.get("/queues/overview", async (_req, res) => {
       }),
     );
 
+    void audit({
+      actorUserId,
+      action: AUDIT_ACTIONS.ADMIN_ACTION,
+      category: "admin",
+      outcome: "success",
+      role: req.actorRole,
+      metadata: { subAction: "queues.overview" },
+      req,
+    });
+
     const payload = AdminQueueOverviewResponseSchema.parse({ queues: overview });
     return res.json(payload);
   } catch (err) {
@@ -172,6 +185,9 @@ router.get("/queues/overview", async (_req, res) => {
 });
 
 router.get("/queues/:name/jobs", async (req, res) => {
+  const actorUserId = requireUserId(req, res);
+  if (!actorUserId) return;
+
   const queueName = String(req.params.name);
   const queue = getQueueByName(queueName);
   if (!queue) return apiError.notFound(res, "Ukjent kø");
@@ -191,6 +207,16 @@ router.get("/queues/:name/jobs", async (req, res) => {
       jobs.map((j) => jobToDto(j, j.name, status)),
     );
     const counts = await queue.getJobCountByTypes(status);
+    void audit({
+      actorUserId,
+      action: AUDIT_ACTIONS.ADMIN_ACTION,
+      category: "admin",
+      outcome: "success",
+      role: req.actorRole,
+      metadata: { subAction: "queues.jobs", queue: queueName, status, resultCount: dtos.length },
+      req,
+    });
+
     const payload = AdminQueueJobsResponseSchema.parse({
       jobs: dtos,
       total: counts ?? dtos.length,

@@ -9,7 +9,6 @@ import { Router } from "express";
 import {
   AdminFeedbackQuerySchema,
   AdminFeedbackResponseSchema,
-  AdminMaintenanceFullTextBackfillResponseSchema,
   AdminStatsResponseSchema,
 } from "common/admin";
 import { User } from "../../database/models/User.js";
@@ -26,17 +25,11 @@ import { DeletedUserTombstone } from "../../database/models/DeletedUserTombstone
 import { WebPushSubscriptionModel } from "../../database/models/WebPushSubscription.js";
 import { KnowledgeBase } from "../../database/models/Kunnskapsbase.js";
 import { KBContentChunk } from "../../database/models/KBContentChunk.js";
-import { backfillMissingFullText } from "../../services/embedding.service.js";
-import { requireRecentAuth } from "../../middleware/auth.js";
 import { apiError, requireUserId } from "../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import { logger } from "../../utils/logger.js";
-import { setCacheNX, getCache } from "../../cache/redis.js";
 
 const router = Router();
-
-const BACKFILL_COOLDOWN_KEY = "admin:backfill-fulltext:last-run";
-const BACKFILL_COOLDOWN_S = 600; // 10 minutter
 
 const ACTIVE_FILTER = { deletedAt: { $exists: false } };
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -490,52 +483,11 @@ router.get("/statistikk", async (req, res) => {
   }
 });
 
-router.post("/maintenance/backfill-fulltext", requireRecentAuth, async (req, res) => {
+// GET /feedback - hent siste KI-svar med tommel-feedback (default ned)
+router.get("/feedback", async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
 
-  // Cooldown: hindrer at backfill kjøres oftere enn hvert 10. minutt
-  const acquired = await setCacheNX(BACKFILL_COOLDOWN_KEY, Date.now().toString(), BACKFILL_COOLDOWN_S);
-  if (!acquired) {
-    const lastRun = await getCache(BACKFILL_COOLDOWN_KEY);
-    const agoMs = lastRun ? Date.now() - Number(lastRun) : 0;
-    const remainingMin = Math.ceil((BACKFILL_COOLDOWN_S * 1000 - agoMs) / 60_000);
-    return apiError.rateLimited(res, `Backfill ble nylig kjørt. Prøv igjen om ~${remainingMin} minutt(er).`);
-  }
-
-  try {
-    const result = await backfillMissingFullText();
-
-    await audit({
-      actorUserId,
-      action: AUDIT_ACTIONS.ADMIN_ACTION,
-      category: "admin",
-      outcome: "success",
-      role: req.actorRole,
-      metadata: {
-        subAction: "maintenance.backfillFullText",
-        scannedFiles: result.scannedFiles,
-        updatedFiles: result.updatedFiles,
-      },
-      req,
-    });
-
-    if (res.headersSent) return;
-    return res.json(
-      AdminMaintenanceFullTextBackfillResponseSchema.parse({
-      suksess: true,
-      ...result,
-      }),
-    );
-  } catch (err) {
-    logger.error({ err }, "Admin fullText-backfill feilet");
-    if (res.headersSent) return;
-    return apiError.serverError(res);
-  }
-});
-
-// GET /feedback - hent siste KI-svar med tommel-feedback (default ned)
-router.get("/feedback", async (req, res) => {
   try {
     const parsedQuery = AdminFeedbackQuerySchema.safeParse(req.query);
     if (!parsedQuery.success) {
@@ -556,7 +508,7 @@ router.get("/feedback", async (req, res) => {
     ]);
 
     void audit({
-      actorUserId: req.user?.id ?? "unknown",
+      actorUserId,
       action: AUDIT_ACTIONS.ADMIN_ACTION,
       category: "admin",
       outcome: "success",

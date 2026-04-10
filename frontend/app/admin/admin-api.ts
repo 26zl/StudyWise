@@ -13,6 +13,14 @@ import {
   AdminLangsmithOverviewResponseSchema,
   AdminLangsmithRunDetailSchema,
   AdminMaintenanceFullTextBackfillResponseSchema,
+  AdminMaintenanceCleanupOrphanedResponseSchema,
+  AdminMaintenanceRebuildEmbeddingsResponseSchema,
+  AdminMaintenanceForceCanvasResyncResponseSchema,
+  AdminMaintenanceCleanExpiredSharesResponseSchema,
+  AdminMaintenanceCleanOldChatsResponseSchema,
+  AdminMaintenanceEncryptionStatusResponseSchema,
+  AdminMaintenanceReencryptResponseSchema,
+  AdminMaintenanceDatabaseHealthResponseSchema,
   AdminBrukerDetaljSchema,
   AdminContactMessageListResponseSchema,
   AdminContactMessageSchema,
@@ -45,6 +53,14 @@ import type {
   AdminFeedbackRating,
   AdminFeedbackResponse,
   AdminMaintenanceFullTextBackfillResponse,
+  AdminMaintenanceCleanupOrphanedResponse,
+  AdminMaintenanceRebuildEmbeddingsResponse,
+  AdminMaintenanceForceCanvasResyncResponse,
+  AdminMaintenanceCleanExpiredSharesResponse,
+  AdminMaintenanceCleanOldChatsResponse,
+  AdminMaintenanceEncryptionStatusResponse,
+  AdminMaintenanceReencryptResponse,
+  AdminMaintenanceDatabaseHealthResponse,
   ContactMessageStatus,
   AdminLangsmithDailyMetricsResponse,
   AdminLangsmithOverviewResponse,
@@ -325,22 +341,6 @@ export function useUnlockUser() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "brukere"] });
       void queryClient.invalidateQueries({ queryKey: ["admin", "statistikk"] });
-    },
-  });
-}
-
-export function useClearRelinkGuard() {
-  return useMutation({
-    mutationFn: async (brukerId: string) => {
-      const res = await fetchApi(
-        `/api/admin/brukere/${brukerId}/relink-guard`,
-        { method: "DELETE" },
-      );
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.melding || data.feil || "Kunne ikke tømme relink-guard");
-      }
-      return res.json();
     },
   });
 }
@@ -656,6 +656,129 @@ export function useReplyContactMessage() {
   });
 }
 
+// ── Vedlikehold (admin) ────────────────────────────────────────────────────
+
+export function useCleanupOrphaned() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<AdminMaintenanceCleanupOrphanedResponse> => {
+      const res = await fetchApi("/api/admin/maintenance/cleanup-orphaned", { method: "POST" });
+      if (!res.ok) await throwAdminApiError(res, "Kunne ikke rydde foreldreløse data");
+      return AdminMaintenanceCleanupOrphanedResponseSchema.parse(await res.json());
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "statistikk"] });
+    },
+  });
+}
+
+export function useRebuildEmbeddings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<AdminMaintenanceRebuildEmbeddingsResponse> => {
+      const res = await fetchApi("/api/admin/maintenance/rebuild-embeddings", { method: "POST" });
+      if (!res.ok) await throwAdminApiError(res, "Kunne ikke gjenoppbygge embeddings");
+      return AdminMaintenanceRebuildEmbeddingsResponseSchema.parse(await res.json());
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "statistikk"] });
+    },
+  });
+}
+
+export function useForceCanvasResync() {
+  return useMutation({
+    mutationFn: async (): Promise<AdminMaintenanceForceCanvasResyncResponse> => {
+      const res = await fetchApi("/api/admin/maintenance/force-canvas-resync", { method: "POST" });
+      if (!res.ok) await throwAdminApiError(res, "Kunne ikke tvinge Canvas-resynk");
+      return AdminMaintenanceForceCanvasResyncResponseSchema.parse(await res.json());
+    },
+  });
+}
+
+export function useCleanExpiredShares() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<AdminMaintenanceCleanExpiredSharesResponse> => {
+      const res = await fetchApi("/api/admin/maintenance/clean-expired-shares", { method: "POST" });
+      if (!res.ok) await throwAdminApiError(res, "Kunne ikke rydde utgåtte delelinker");
+      return AdminMaintenanceCleanExpiredSharesResponseSchema.parse(await res.json());
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "statistikk"] });
+    },
+  });
+}
+
+export function useCleanOldChats() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (dager: number): Promise<AdminMaintenanceCleanOldChatsResponse> => {
+      const res = await fetchApi("/api/admin/maintenance/clean-old-chats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dager }),
+      });
+      if (!res.ok) await throwAdminApiError(res, "Kunne ikke rydde gamle samtaler");
+      return AdminMaintenanceCleanOldChatsResponseSchema.parse(await res.json());
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "statistikk"] });
+    },
+  });
+}
+
+export function useMaintenanceStatus() {
+  return useQuery({
+    queryKey: ["admin", "maintenance", "status"],
+    queryFn: async (): Promise<{ ops: Record<string, { running: boolean; cooldownUntil: string | null }> }> => {
+      const res = await fetchApi("/api/admin/maintenance/status");
+      if (!res.ok) throw new Error("Kunne ikke hente vedlikeholdsstatus");
+      return res.json();
+    },
+    refetchInterval: 5_000,
+    staleTime: 2_000,
+  });
+}
+
+export function useEncryptionStatus() {
+  return useQuery({
+    queryKey: ["admin", "maintenance", "encryption-status"],
+    queryFn: async (): Promise<AdminMaintenanceEncryptionStatusResponse> => {
+      const res = await fetchApi("/api/admin/maintenance/encryption-status");
+      if (!res.ok) throw new Error("Kunne ikke hente krypteringsstatus");
+      return AdminMaintenanceEncryptionStatusResponseSchema.parse(await res.json());
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useReencryptTokens() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<AdminMaintenanceReencryptResponse> => {
+      const res = await fetchApi("/api/admin/maintenance/reencrypt-tokens", { method: "POST" });
+      if (!res.ok) await throwAdminApiError(res, "Kunne ikke re-kryptere tokens");
+      return AdminMaintenanceReencryptResponseSchema.parse(await res.json());
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "maintenance", "encryption-status"] });
+    },
+  });
+}
+
+export function useDatabaseHealth() {
+  return useQuery({
+    queryKey: ["admin", "maintenance", "database-health"],
+    queryFn: async (): Promise<AdminMaintenanceDatabaseHealthResponse> => {
+      const res = await fetchApi("/api/admin/maintenance/database-health");
+      if (!res.ok) throw new Error("Kunne ikke hente databasehelse");
+      return AdminMaintenanceDatabaseHealthResponseSchema.parse(await res.json());
+    },
+    staleTime: 60_000,
+  });
+}
+
 // ── Feedback (admin) ────────────────────────────────────────────────────────
 
 export function useAdminFeedback(
@@ -687,6 +810,14 @@ export type {
   AdminFeedbackItem,
   AdminFeedbackRating,
   AdminMaintenanceFullTextBackfillResponse,
+  AdminMaintenanceCleanupOrphanedResponse,
+  AdminMaintenanceRebuildEmbeddingsResponse,
+  AdminMaintenanceForceCanvasResyncResponse,
+  AdminMaintenanceCleanExpiredSharesResponse,
+  AdminMaintenanceCleanOldChatsResponse,
+  AdminMaintenanceEncryptionStatusResponse,
+  AdminMaintenanceReencryptResponse,
+  AdminMaintenanceDatabaseHealthResponse,
   AdminLangsmithOverviewResponse,
   AdminLangsmithRunsResponse,
   AdminLangsmithRunDetail,

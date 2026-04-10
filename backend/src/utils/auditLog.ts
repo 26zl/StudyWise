@@ -180,6 +180,7 @@ function isSensitiveMetadataKey(key: string): boolean {
     "originalname",
     "uploadname",
     // Admin-intern fritekst (f.eks. låsebegrunnelse) — skal ikke lagres i klartekst.
+    "reason",
     "begrunnelse",
     "lockedreason",
     "lockreason",

@@ -15,6 +15,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { logBuffer } from "../../utils/logBuffer.js";
 import { requireUserId, sendZodError } from "../../utils/apiError.js";
+import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import { logger } from "../../utils/logger.js";
 
 const router = Router();
@@ -65,6 +66,17 @@ router.get("/logs/recent", async (req, res) => {
   });
 
   const bufferSize = await logBuffer.size();
+
+  void audit({
+    actorUserId,
+    action: AUDIT_ACTIONS.ADMIN_ACTION,
+    category: "admin",
+    outcome: "success",
+    role: req.actorRole,
+    metadata: { subAction: "logs.recent", resultCount: entries.length },
+    req,
+  });
+
   return res.json({ entries, bufferSize });
 });
 

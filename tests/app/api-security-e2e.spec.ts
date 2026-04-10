@@ -56,12 +56,18 @@ test.describe("API-sikkerhet — input-validering", () => {
   });
 
   test("username-check med ugyldig input returnerer 400", async ({ request }) => {
-    const res = await request.get(`${BACKEND}/api/user/username/check?username=`);
+    const res = await request.post(`${BACKEND}/api/user/username/check`, {
+      headers: { "Content-Type": "application/json", "x-studywise-csrf": "1" },
+      data: { username: "" },
+    });
     expect([400, 422]).toContain(res.status());
   });
 
   test("username-check med gyldig input returnerer 200", async ({ request }) => {
-    const res = await request.get(`${BACKEND}/api/user/username/check?username=testuser123`);
+    const res = await request.post(`${BACKEND}/api/user/username/check`, {
+      headers: { "Content-Type": "application/json", "x-studywise-csrf": "1" },
+      data: { username: "testuser123" },
+    });
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body).toHaveProperty("available");

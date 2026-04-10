@@ -79,6 +79,16 @@ router.get("/contact/messages", async (req, res) => {
       }),
     );
 
+    void audit({
+      actorUserId,
+      action: AUDIT_ACTIONS.ADMIN_ACTION,
+      category: "admin",
+      outcome: "success",
+      role: req.actorRole,
+      metadata: { subAction: "contact.list", resultCount: meldinger.length },
+      req,
+    });
+
     return res.json(
       AdminContactMessageListResponseSchema.parse({
         meldinger,

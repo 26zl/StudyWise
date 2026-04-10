@@ -320,6 +320,82 @@ export const AdminMaintenanceFullTextBackfillResponseSchema = z.object({
   updatedFiles: CountSchema,
 });
 
+export const AdminMaintenanceCleanupOrphanedResponseSchema = z.object({
+  suksess: z.literal(true),
+  deleted: z.object({
+    samtaler: CountSchema,
+    oppgaveoppdelinger: CountSchema,
+    dokumentfragmenter: CountSchema,
+    arbeidsplaner: CountSchema,
+    canvasStrukturer: CountSchema,
+    canvasBrukere: CountSchema,
+    delingslenker: CountSchema,
+    kunnskapsbaser: CountSchema,
+    kbChunks: CountSchema,
+  }),
+});
+
+export const AdminMaintenanceRebuildEmbeddingsResponseSchema = z.object({
+  suksess: z.literal(true),
+  scannedChunks: CountSchema,
+  reembeddedChunks: CountSchema,
+  failedChunks: CountSchema,
+});
+
+export const AdminMaintenanceForceCanvasResyncResponseSchema = z.object({
+  suksess: z.literal(true),
+  usersInvalidated: CountSchema,
+  keysDeleted: CountSchema,
+});
+
+export const AdminMaintenanceCleanExpiredSharesResponseSchema = z.object({
+  suksess: z.literal(true),
+  deletedCount: CountSchema,
+});
+
+export const AdminMaintenanceCleanOldChatsRequestSchema = z.object({
+  dager: z.number().int().min(30).max(3650),
+});
+
+export const AdminMaintenanceCleanOldChatsResponseSchema = z.object({
+  suksess: z.literal(true),
+  deletedChats: CountSchema,
+  deletedShares: CountSchema,
+  cutoffDate: z.string(),
+});
+
+export const AdminMaintenanceEncryptionStatusResponseSchema = z.object({
+  previousKeyConfigured: z.boolean(),
+  usersWithToken: CountSchema,
+  currentKeyOk: CountSchema,
+  legacyFormat: CountSchema,
+  undecryptable: CountSchema,
+});
+
+export const AdminMaintenanceReencryptResponseSchema = z.object({
+  suksess: z.literal(true),
+  processed: CountSchema,
+  reencrypted: CountSchema,
+  alreadyCurrent: CountSchema,
+  failed: CountSchema,
+});
+
+export const AdminMaintenanceDbCollectionSchema = z.object({
+  name: z.string(),
+  documentCount: CountSchema,
+  sizeBytes: CountSchema,
+  indexCount: CountSchema,
+  indexSizeBytes: CountSchema,
+});
+
+export const AdminMaintenanceDatabaseHealthResponseSchema = z.object({
+  suksess: z.literal(true),
+  collections: z.array(AdminMaintenanceDbCollectionSchema),
+  totalSizeBytes: CountSchema,
+  totalDocuments: CountSchema,
+  totalIndexSizeBytes: CountSchema,
+});
+
 // ── KI-feedback (admin) ─────────────────────────────────────────────────────
 
 export const AdminFeedbackRatingSchema = z.enum(["up", "down"]);
@@ -511,6 +587,36 @@ export type AdminLangsmithRunsResponse = z.infer<typeof AdminLangsmithRunsRespon
 export type AdminLangsmithRunDetail = z.infer<typeof AdminLangsmithRunDetailSchema>;
 export type AdminMaintenanceFullTextBackfillResponse = z.infer<
   typeof AdminMaintenanceFullTextBackfillResponseSchema
+>;
+export type AdminMaintenanceCleanupOrphanedResponse = z.infer<
+  typeof AdminMaintenanceCleanupOrphanedResponseSchema
+>;
+export type AdminMaintenanceRebuildEmbeddingsResponse = z.infer<
+  typeof AdminMaintenanceRebuildEmbeddingsResponseSchema
+>;
+export type AdminMaintenanceForceCanvasResyncResponse = z.infer<
+  typeof AdminMaintenanceForceCanvasResyncResponseSchema
+>;
+export type AdminMaintenanceCleanExpiredSharesResponse = z.infer<
+  typeof AdminMaintenanceCleanExpiredSharesResponseSchema
+>;
+export type AdminMaintenanceCleanOldChatsRequest = z.infer<
+  typeof AdminMaintenanceCleanOldChatsRequestSchema
+>;
+export type AdminMaintenanceCleanOldChatsResponse = z.infer<
+  typeof AdminMaintenanceCleanOldChatsResponseSchema
+>;
+export type AdminMaintenanceEncryptionStatusResponse = z.infer<
+  typeof AdminMaintenanceEncryptionStatusResponseSchema
+>;
+export type AdminMaintenanceReencryptResponse = z.infer<
+  typeof AdminMaintenanceReencryptResponseSchema
+>;
+export type AdminMaintenanceDatabaseHealthResponse = z.infer<
+  typeof AdminMaintenanceDatabaseHealthResponseSchema
+>;
+export type AdminMaintenanceDbCollection = z.infer<
+  typeof AdminMaintenanceDbCollectionSchema
 >;
 export type AdminFeedbackRating = z.infer<typeof AdminFeedbackRatingSchema>;
 export type AdminFeedbackQuery = z.infer<typeof AdminFeedbackQuerySchema>;

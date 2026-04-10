@@ -99,7 +99,7 @@ async function countByPrefix(prefix: string): Promise<number> {
 }
 
 // ── GET /redis/info ─────────────────────────────────────────────────────────
-router.get("/redis/info", async (_req, res) => {
+router.get("/redis/info", async (req, res) => {
   if (!isRedisReady()) {
     return res.json(
       AdminRedisInfoResponseSchema.parse({
@@ -159,6 +159,19 @@ router.get("/redis/info", async (_req, res) => {
       if (m) dbSizes[k] = Number(m[1]);
     }
 
+    const actorUserId = requireUserId(req, res);
+    if (!actorUserId) return;
+
+    void audit({
+      actorUserId,
+      action: AUDIT_ACTIONS.ADMIN_ACTION,
+      category: "admin",
+      outcome: "success",
+      role: req.actorRole,
+      metadata: { subAction: "redis.info" },
+      req,
+    });
+
     const payload = AdminRedisInfoResponseSchema.parse({
       connected: true,
       dbSizes,
@@ -183,7 +196,7 @@ router.get("/redis/info", async (_req, res) => {
 });
 
 // ── GET /redis/prefixes ─────────────────────────────────────────────────────
-router.get("/redis/prefixes", async (_req, res) => {
+router.get("/redis/prefixes", async (req, res) => {
   if (!isRedisReady()) {
     return res.json(AdminRedisPrefixesResponseSchema.parse({ prefixes: [] }));
   }
@@ -197,6 +210,19 @@ router.get("/redis/prefixes", async (_req, res) => {
         count: await countByPrefix(entry.prefix),
       })),
     );
+
+    const actorUserId = requireUserId(req, res);
+    if (!actorUserId) return;
+
+    void audit({
+      actorUserId,
+      action: AUDIT_ACTIONS.ADMIN_ACTION,
+      category: "admin",
+      outcome: "success",
+      role: req.actorRole,
+      metadata: { subAction: "redis.prefixes" },
+      req,
+    });
 
     return res.json(AdminRedisPrefixesResponseSchema.parse({ prefixes }));
   } catch (err) {
@@ -247,7 +273,7 @@ router.post("/redis/flush", requireRecentAuth, async (req, res) => {
 });
 
 // ── GET /redis/relink-states ────────────────────────────────────────────────
-router.get("/redis/relink-states", async (_req, res) => {
+router.get("/redis/relink-states", async (req, res) => {
   if (!isRedisReady()) {
     return res.json(AdminRedisRelinkStatesResponseSchema.parse({ states: [] }));
   }
@@ -289,6 +315,20 @@ router.get("/redis/relink-states", async (_req, res) => {
 
     // Sorter etter alder, eldste først
     states.sort((a, b) => (b.ageSeconds ?? 0) - (a.ageSeconds ?? 0));
+
+    // Relink-states inneholder bruker-IDer — audit-logg tilgangen
+    const actorUserId = requireUserId(req, res);
+    if (actorUserId) {
+      void audit({
+        actorUserId,
+        action: AUDIT_ACTIONS.ADMIN_ACTION,
+        category: "admin",
+        outcome: "success",
+        role: req.actorRole,
+        metadata: { subAction: "redis.relinkStates", stateCount: states.length },
+        req,
+      });
+    }
 
     return res.json(AdminRedisRelinkStatesResponseSchema.parse({ states }));
   } catch (err) {
