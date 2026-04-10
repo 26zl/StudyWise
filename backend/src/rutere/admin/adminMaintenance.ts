@@ -631,7 +631,7 @@ router.post("/maintenance/reencrypt-tokens", requireRecentAuth, async (req, res)
         try {
           const reencryptedToken = encrypt(plaintext);
           await User.updateOne(
-            { _id: user._id },
+            { _id: user._id, ...ACTIVE_FILTER },
             { $set: { canvasApiToken: reencryptedToken } },
           );
           if (isLegacy) {
