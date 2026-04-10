@@ -188,11 +188,11 @@ jobs:
       - name: Run Playwright E2E tests
         # Stabile spesifikasjoner i CI-gaten (diagnostiske/repro-spesifikasjoner ekskluderes).
         # Firefox/WebKit kjøres kun lokalt — CI installerer bare Chromium for raskere kjøretid.
+        # Clerk-avhengige tester (login-signup, session) ekskluderes — de oppretter ekte
+        # brukere via Clerk testing tokens som ikke er pålitelige i CI og forårsaker timeouts.
         run: >-
           pnpm --filter tests exec playwright test --config playwright.config.ts --project=chromium
           auth/smoke-e2e.spec.ts
-          auth/login-signup-e2e.spec.ts
-          auth/session-e2e.spec.ts
           app/smoke-e2e.spec.ts
           app/api-security-e2e.spec.ts
           app/navigation-e2e.spec.ts

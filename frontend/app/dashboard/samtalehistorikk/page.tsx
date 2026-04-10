@@ -11,10 +11,6 @@ import {
   useAuthRedirect,
   useFatalAuthSignOut,
 } from "@/app/auth/authUtils";
-import type { VisningType } from "@/app/components/dashboard/Sidebar";
-import {
-  SidebarAppShell,
-} from "@/app/components/layout/SidebarAppShell";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { useChatHistory } from "@/app/hooks/useChatHistory";
@@ -54,21 +50,10 @@ export default function SamtalehistorikkPage() {
   const [links, setLinks] = useState<SharedChatListItem[]>([]);
   const [loadingLinks, setLoadingLinks] = useState(false);
   const [deletingAllLinks, setDeletingAllLinks] = useState(false);
-  const brukernavn =
-    megQuery.data?.user?.firstName ||
-    megQuery.data?.user?.email?.split("@")?.[0];
-  const brukerRolle = megQuery.data?.user?.role;
   const sharedViews = (count: number) =>
     count === 1
       ? t("samtalehistorikk.sharedViewsSingular", { count })
       : t("samtalehistorikk.sharedViewsPlural", { count });
-
-  const byttVisning = useCallback(
-    (visning: VisningType) => {
-      router.push(visning === "chat" ? "/dashboard" : `/dashboard?view=${visning}`);
-    },
-    [router],
-  );
 
   const byttTab = useCallback(
     (nesteTab: SamtalerTab) => {
@@ -197,12 +182,6 @@ export default function SamtalehistorikkPage() {
   }
 
   return (
-    <SidebarAppShell
-      aktivVisning="chat"
-      byttVisning={byttVisning}
-      brukernavn={brukernavn}
-      brukerRolle={brukerRolle}
-    >
       <div className="min-h-full px-4 py-6 text-slate-900 dark:text-slate-100 md:px-8">
         <div className="mx-auto w-full max-w-5xl">
           <div className="mb-4 flex items-center justify-between">
@@ -449,6 +428,5 @@ export default function SamtalehistorikkPage() {
           ) : null}
         </div>
       </div>
-    </SidebarAppShell>
   );
 }

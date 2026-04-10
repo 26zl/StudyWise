@@ -137,12 +137,6 @@ function emitCookieConsentChange(detail: CookieConsentChangeDetail): void {
   );
 }
 
-export function resetGjesteSamtykke(): void {
-  gjesteSamtykke = null;
-  writeGuestConsentToStorage(null);
-  emitCookieConsentChange({ scope: "guest", consent: null });
-}
-
 export function useCookieConsent() {
   const { isLoaded, userId } = useAuth();
   const {

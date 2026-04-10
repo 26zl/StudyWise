@@ -32,9 +32,10 @@ const clientOptions: mongoose.ConnectOptions = {
         strict: true,
         deprecationErrors: true,
     },
-    // Connection pooling - optimalisert for ytelse
-    maxPoolSize: isProd ? 50 : 10,        // Maks samtidige tilkoblinger
-    minPoolSize: isProd ? 5 : 2,          // Minimum tilkoblinger (holdes åpne)
+    // Connection pooling — tilpasset Heroku Standard-1x (512 MB)
+    // Hver tilkobling bruker ~1 MB, så 50 = opptil 50 MB unødvendig.
+    maxPoolSize: isProd ? 15 : 10,        // Maks samtidige tilkoblinger
+    minPoolSize: isProd ? 2 : 2,          // Minimum tilkoblinger (holdes åpne)
     maxIdleTimeMS: 30000,                 // Lukk inaktive etter 30 sek
     serverSelectionTimeoutMS: 5000,       // Timeout for servervalg
     socketTimeoutMS: 45000,               // Socket timeout

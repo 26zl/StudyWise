@@ -1087,7 +1087,7 @@ async function syncExistingUserWithClerkProfile(
       existing._id,
       { $set: { clerkProfileSyncedAt: syncedAt } },
       { returnDocument: "after" },
-    );
+    ).select("+canvasApiToken");
     return updated ?? existing;
   }
 
@@ -1167,7 +1167,7 @@ async function syncExistingUserWithClerkProfile(
           usernameAction: syncUsernameAction,
         }),
         { returnDocument: "after" },
-      );
+      ).select("+canvasApiToken");
       return updatedWithoutEmail ?? existing;
     }
   }
@@ -1229,7 +1229,7 @@ async function syncExistingUserWithClerkProfile(
             usernameAction: syncUsernameAction,
           }),
           { returnDocument: "after" },
-        );
+        ).select("+canvasApiToken");
         return updatedWithoutOauth ?? existing;
       }
     }
@@ -1245,7 +1245,7 @@ async function syncExistingUserWithClerkProfile(
         usernameAction: syncUsernameAction,
       }),
       { returnDocument: "after" },
-    );
+    ).select("+canvasApiToken");
 
     if (updated) {
       logger.info(
@@ -1310,7 +1310,7 @@ async function syncExistingUserWithClerkProfile(
             { _id: existing._id, clerkId: clerkUserId },
             retryUpdate,
             { returnDocument: "after" },
-          );
+          ).select("+canvasApiToken");
           return retried ?? existing;
         } catch (retryError) {
           logger.warn(
@@ -1324,7 +1324,7 @@ async function syncExistingUserWithClerkProfile(
           "Duplicate-key under Clerk-profilsynk; beholder eksisterende lokal profil",
         );
       }
-      const latest = await User.findOne({ clerkId: clerkUserId, deletedAt: { $exists: false } });
+      const latest = await User.findOne({ clerkId: clerkUserId, deletedAt: { $exists: false } }).select("+canvasApiToken");
       return latest ?? existing;
     }
 
@@ -2252,7 +2252,7 @@ function getAuthorizedParties(): string[] | undefined {
  * Token hashes (SHA256) som nøkler for å unngå lagring av sensitive tokens i klartext.
  */
 const TOKEN_CACHE_TTL_MS = 30_000;
-const TOKEN_CACHE_MAX = 500;
+const TOKEN_CACHE_MAX = 200;
 const tokenCache = new Map<string, { sub: string; sid?: string; exp: number }>();
 
 /**

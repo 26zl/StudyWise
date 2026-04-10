@@ -10,11 +10,7 @@ import {
   useAuthRedirect,
   useFatalAuthSignOut,
 } from "@/app/auth/authUtils";
-import type { VisningType } from "@/app/components/dashboard/Sidebar";
 import { ConversationListItem } from "@/app/components/dashboard/ConversationListItem";
-import {
-  SidebarAppShell,
-} from "@/app/components/layout/SidebarAppShell";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { getBrukerdataFeilmelding } from "@/app/lib/errorUtils";
@@ -42,18 +38,6 @@ export default function BokmerkerPage() {
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState<ActiveTab>("bookmarks");
   const [selectedBaseId, setSelectedBaseId] = useState<string | null>(null);
-
-  const brukernavn =
-    megQuery.data?.user?.firstName ||
-    megQuery.data?.user?.email?.split("@")?.[0];
-  const brukerRolle = megQuery.data?.user?.role;
-
-  const byttVisning = useCallback(
-    (visning: VisningType) => {
-      router.push(visning === "chat" ? "/dashboard" : `/dashboard?view=${visning}`);
-    },
-    [router],
-  );
 
   const åpneSamtale = useCallback(
     (chatId: string) => {
@@ -103,12 +87,6 @@ export default function BokmerkerPage() {
   }
 
   return (
-    <SidebarAppShell
-      aktivVisning="chat"
-      byttVisning={byttVisning}
-      brukernavn={brukernavn}
-      brukerRolle={brukerRolle}
-    >
       <div className="min-h-full px-4 py-6 text-slate-900 dark:text-slate-100 md:px-8">
         <div className="mx-auto w-full max-w-5xl">
           {/* Fane-navigasjon */}
@@ -214,6 +192,5 @@ export default function BokmerkerPage() {
           )}
         </div>
       </div>
-    </SidebarAppShell>
   );
 }

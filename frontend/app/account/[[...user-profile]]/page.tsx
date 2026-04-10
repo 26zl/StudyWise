@@ -6,11 +6,10 @@
  */
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { UserProfile, useAuth, useClerk, useUser } from "@clerk/nextjs";
 import { useQueryClient } from "@tanstack/react-query";
 import { ShieldAlert, Trash2 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import {
   useMeg,
   useOppdaterProfil,
@@ -18,17 +17,11 @@ import {
   type ProfileUpdateWithUsername,
 } from "@/app/auth/auth-api";
 import { useAuthRedirect } from "@/app/auth/authUtils";
-import { useCanvasUser } from "@/app/canvas/canvas-api";
-import type { VisningType } from "@/app/components/dashboard/Sidebar";
-import { SidebarAppShell } from "@/app/components/layout/SidebarAppShell";
 import { showToast } from "@/app/components/ui/Toaster";
 import { UsernameConflictError } from "@/app/lib/errors";
 import { useLanguage } from "@/app/i18n";
 import { broadcastLogout, clearClientAuthState } from "@/app/hooks/use-auth-sync";
 import { useUIStore } from "@/app/store/uiStore";
-import { LoadingView } from "@/app/components/ui/Loading";
-
-const SIDEBAR_VISNING: VisningType = "settings";
 
 function normalizeName(value: string | null | undefined): string {
   return (value ?? "").trim();
@@ -175,7 +168,6 @@ function SlettKontoSeksjon() {
 
 export default function ProfilPage() {
   const { language, t } = useLanguage();
-  const router = useRouter();
   const { isLoaded: authLoaded, userId } = useAuth();
   const { isLoaded: clerkUserLoaded, user: clerkUser } = useUser();
   const megQuery = useMeg({ enabled: authLoaded && !!userId });
@@ -183,22 +175,6 @@ export default function ProfilPage() {
   const { mutateAsync: oppdaterProfil, isPending: isProfilOppdateringPending } = useOppdaterProfil();
   const sisteSyncForsokRef = useRef<string | null>(null);
 
-  const harCanvasToken = meData?.user?.hasCanvasToken ?? false;
-  const userQuery = useCanvasUser(megQuery.isSuccess && harCanvasToken);
-  const brukernavn =
-    userQuery.data?.name?.split(" ")[0] ||
-    meData?.user?.firstName ||
-    meData?.user?.email?.split("@")?.[0];
-  const brukerRolle = meData?.user?.role;
-
-  const byttVisning = useCallback(
-    (visning: VisningType) => {
-      router.push(visning === "chat" ? "/dashboard" : `/dashboard?view=${visning}`);
-    },
-    [router],
-  );
-
-  const isLoggingOut = useUIStore((state) => state.isLoggingOut);
   useAuthRedirect(megQuery);
 
   useEffect(() => {
@@ -268,26 +244,7 @@ export default function ProfilPage() {
     oppdaterProfil,
   ]);
 
-  if (isLoggingOut) {
-    return (
-      <SidebarAppShell
-        aktivVisning={SIDEBAR_VISNING}
-        byttVisning={byttVisning}
-        brukernavn={brukernavn}
-        brukerRolle={brukerRolle}
-      >
-        <LoadingView fullPage={false} translationKey="common.loading.generic" />
-      </SidebarAppShell>
-    );
-  }
-
   return (
-    <SidebarAppShell
-      aktivVisning={SIDEBAR_VISNING}
-      byttVisning={byttVisning}
-      brukernavn={brukernavn}
-      brukerRolle={brukerRolle}
-    >
       <div className="px-3 py-8 pb-12 sm:px-6 sm:py-16">
         <div className="mx-auto w-full max-w-4xl min-w-0">
           <p className="text-sm leading-6 text-slate-500 dark:text-slate-400">
@@ -334,6 +291,5 @@ export default function ProfilPage() {
           </div>
         </div>
       </div>
-    </SidebarAppShell>
   );
 }

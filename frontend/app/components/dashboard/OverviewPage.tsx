@@ -6,7 +6,7 @@
 
 import { useCallback, useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -25,10 +25,6 @@ import {
 import { MinArbeidsplan } from "@/app/components/arbeidsplan/MinArbeidsplan";
 import { WeeklyPlanSuggestions } from "@/app/components/arbeidsplan/WeeklyPlanSuggestions";
 import { CanvasTokenNotice } from "@/app/components/canvas/CanvasTokenNotice";
-import type { VisningType } from "@/app/components/dashboard/Sidebar";
-import {
-  SidebarAppShell,
-} from "@/app/components/layout/SidebarAppShell";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { StatCard } from "@/app/components/ui/StatCard";
@@ -42,7 +38,6 @@ import {
 import {
   useCanvasAllAssignments,
   useCanvasCourses,
-  useCanvasUser,
   type AssignmentMedEmne,
 } from "@/app/canvas/canvas-api";
 import { erInnlevert } from "@/app/canvas/canvasUtils";
@@ -62,7 +57,6 @@ import { useLanguage, type Translator } from "@/app/i18n";
 import { fetchApi } from "@/app/lib/apiClient";
 import { useProgressStats } from "@/app/arbeidsplan/arbeidsplan-api";
 
-const SIDEBAR_VISNING: VisningType = "chat";
 
 // ─── Studiestatistikk ───────────────────────────────────────────────
 
@@ -99,7 +93,6 @@ interface QuickActionCardProps {
 }
 
 export function OversiktPage() {
-  const router = useRouter();
   const { language, t } = useLanguage();
   const [activeTab, setActiveTab] = useQueryState(
     "tab",
@@ -110,20 +103,6 @@ export function OversiktPage() {
   const { isLoaded: clerkLoaded, userId: clerkUserId } = useAuth();
   const megQuery = useMeg({ enabled: clerkLoaded && !!clerkUserId });
   const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
-  const userQuery = useCanvasUser(megQuery.isSuccess && harCanvasToken);
-
-  const brukernavn =
-    userQuery.data?.name?.split(" ")[0] ||
-    megQuery.data?.user?.firstName ||
-    megQuery.data?.user?.email?.split("@")[0];
-  const brukerRolle = megQuery.data?.user?.role;
-
-  const byttVisning = useCallback(
-    (visning: VisningType) => {
-      router.push(visning === "chat" ? "/dashboard" : `/dashboard?view=${visning}`);
-    },
-    [router],
-  );
 
   useAuthRedirect(megQuery);
   const erFatalAuthFeil = useFatalAuthSignOut(megQuery);
@@ -211,12 +190,6 @@ export function OversiktPage() {
   }
 
   return (
-    <SidebarAppShell
-      aktivVisning={SIDEBAR_VISNING}
-      byttVisning={byttVisning}
-      brukernavn={brukernavn}
-      brukerRolle={brukerRolle}
-    >
       <div className="min-h-full">
         <div className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
           <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -487,7 +460,6 @@ export function OversiktPage() {
           ) : null}
         </div>
       </div>
-    </SidebarAppShell>
   );
 }
 

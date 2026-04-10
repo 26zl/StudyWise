@@ -16,13 +16,14 @@ const ddApiKey = process.env.DD_API_KEY;
 if (ddApiKey) {
     try {
         tracer.init({
-            service: process.env.DD_SERVICE ?? "studywise-backend",
-            env: process.env.DD_ENV ?? process.env.NODE_ENV ?? "development",
-            version: process.env.DD_VERSION ?? "0.0.0",
-            logInjection: true,
-            runtimeMetrics: true,
-            // profiling og appsec styres via DD_PROFILING_ENABLED / DD_APPSEC_ENABLED env-variabler
-            // (validateEnv.ts krever disse i produksjon) — ikke hardkodet her for å unngå konflikt
+          service: process.env.DD_SERVICE ?? "studywise-backend",
+          env: process.env.DD_ENV ?? process.env.NODE_ENV ?? "development",
+          version: process.env.DD_VERSION ?? "0.0.0",
+          logInjection: true,
+          // runtimeMetrics aktivert — samler V8 heap/GC-metrics, hvis deaktivering sparer ~20-30 MB på Heroku Standard-1x (512 MB).
+          runtimeMetrics: true,
+          // profiling og appsec styres via DD_PROFILING_ENABLED / DD_APPSEC_ENABLED env-variabler
+          // (validateEnv.ts krever disse i produksjon) — ikke hardkodet her for å unngå konflikt
         });
         setImmediate(() => {
             import("./utils/logger.js").then(({ logger }) => {

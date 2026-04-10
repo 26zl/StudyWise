@@ -4,8 +4,7 @@
  */
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef } from "react";
 import { useQueryState, parseAsArrayOf, parseAsString } from "nuqs";
 import {
   AlertCircle,
@@ -20,10 +19,6 @@ import { AITaskBreakdown } from "@/app/components/ki/AITaskBreakdown";
 import { CanvasTokenNotice } from "@/app/components/canvas/CanvasTokenNotice";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
-import { type VisningType } from "@/app/components/dashboard/Sidebar";
-import {
-  SidebarAppShell,
-} from "@/app/components/layout/SidebarAppShell";
 import { StatCard } from "@/app/components/ui/StatCard";
 import { useAuth } from "@clerk/nextjs";
 import { useMeg, useHiddenCourseIds } from "@/app/auth/auth-api";
@@ -34,7 +29,6 @@ import {
 } from "@/app/auth/authUtils";
 import {
   useCanvasAllAssignments,
-  useCanvasUser,
   type AssignmentMedEmne,
 } from "@/app/canvas/canvas-api";
 import { erInnlevert } from "@/app/canvas/canvasUtils";
@@ -45,8 +39,6 @@ import {
   lagBrukervennligFeilmelding,
 } from "@/app/lib/errorUtils";
 import { useLanguage } from "@/app/i18n";
-
-const SIDEBAR_VISNING: VisningType = "chat";
 
 function sorterOppgaver(oppgaver: AssignmentMedEmne[]): AssignmentMedEmne[] {
   return [...oppgaver].sort((a, b) => {
@@ -60,7 +52,6 @@ function sorterOppgaver(oppgaver: AssignmentMedEmne[]): AssignmentMedEmne[] {
 }
 
 export function AIBreakdownPage() {
-  const router = useRouter();
   const [expandedAssignmentIdsInUrl, setExpandedAssignmentIdsInUrl] = useQueryState(
     "expanded",
     parseAsArrayOf(parseAsString).withDefault([]),
@@ -77,23 +68,9 @@ export function AIBreakdownPage() {
   const { isLoaded: clerkLoaded, userId: clerkUserId } = useAuth();
   const megQuery = useMeg({ enabled: clerkLoaded && !!clerkUserId });
   const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
-  const userQuery = useCanvasUser(megQuery.isSuccess && harCanvasToken);
   const assignmentsQuery = useCanvasAllAssignments({ enabled: harCanvasToken });
   const hiddenSet = useHiddenCourseIds();
   const { ferdigeIdSet } = useManuellInnlevering();
-
-  const brukernavn =
-    userQuery.data?.name?.split(" ")[0] ||
-    megQuery.data?.user?.firstName ||
-    megQuery.data?.user?.email?.split("@")?.[0];
-  const brukerRolle = megQuery.data?.user?.role;
-
-  const byttVisning = useCallback(
-    (visning: VisningType) => {
-      router.push(visning === "chat" ? "/dashboard" : `/dashboard?view=${visning}`);
-    },
-    [router],
-  );
 
   useAuthRedirect(megQuery);
   const erFatalAuthFeil = useFatalAuthSignOut(megQuery);
@@ -164,12 +141,6 @@ export function AIBreakdownPage() {
   }
 
   return (
-    <SidebarAppShell
-      aktivVisning={SIDEBAR_VISNING}
-      byttVisning={byttVisning}
-      brukernavn={brukernavn}
-      brukerRolle={brukerRolle}
-    >
       <div className="min-h-full">
           <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
@@ -385,6 +356,5 @@ export function AIBreakdownPage() {
             )}
           </div>
       </div>
-    </SidebarAppShell>
   );
 }

@@ -13,7 +13,6 @@ import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { type VisningType } from "@/app/components/dashboard/Sidebar";
 import { SectionErrorBoundary } from "@/app/components/ui/ErrorBoundary";
 import { useAuth } from "@clerk/nextjs";
-import { useCanvasUser } from "@/app/canvas/canvas-api";
 import { useMeg } from "@/app/auth/auth-api";
 import {
   useAuthRedirect,
@@ -25,9 +24,6 @@ import { prefetchCanvasData } from "@/app/canvas/canvas-api";
 import { useUIStore } from "@/app/store/uiStore";
 import { useVarslerPopups, useVarslerStateSync } from "@/app/hooks/useVarsler";
 import { useChatHistoryPrefetch } from "@/app/hooks/useChatHistory";
-import {
-  SidebarAppShell,
-} from "@/app/components/layout/SidebarAppShell";
 import { useLanguage } from "@/app/i18n";
 import type { MessageKey } from "@/app/i18n";
 import { OnboardingModal } from "@/app/components/onboarding/OnboardingModal";
@@ -109,8 +105,6 @@ export function DashboardView() {
     const { isLoaded: clerkLoaded, userId: clerkUserId } = useAuth();
     const megQuery = useMeg({ enabled: clerkLoaded && !!clerkUserId });
     const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
-    const brukerQueryAktiv = megQuery.isSuccess && harCanvasToken;
-    const userQuery = useCanvasUser(brukerQueryAktiv);
     const setCanvasContextSelection = useUIStore((state) => state.setCanvasContextSelection);
     const isLoggingOut = useUIStore((state) => state.isLoggingOut);
 
@@ -140,11 +134,6 @@ export function DashboardView() {
         }
     }, [megQuery.isSuccess, harCanvasToken, queryClient, prefetchChatHistory]);
 
-    // Hent fornavn fra Canvas brukerdata
-    const brukernavn =
-        userQuery.data?.name?.split(" ")[0] ||
-        megQuery.data?.user?.firstName ||
-        megQuery.data?.user?.email?.split("@")?.[0];
     const brukerRolle = megQuery.data?.user?.role;
 
     // Hjelpefunksjon for å bestemme hvilken Canvas-visning som skal vises
@@ -218,14 +207,7 @@ export function DashboardView() {
         return <LoadingView text={t("common.loading.userData")} />;
     }
     return (
-        <SidebarAppShell
-            aktivVisning={aktivVisning}
-            byttVisning={settAktivVisning}
-            brukernavn={brukernavn}
-            brukerRolle={brukerRolle}
-        >
-            {(
-            <>
+        <>
             {visOnboarding && (
                 <OnboardingModal onLukk={lukkOnboarding} />
             )}
@@ -294,8 +276,6 @@ export function DashboardView() {
                 <AdminRedirectToChat settAktivVisning={settAktivVisning} />
                 )
             )}
-            </>
-            )}
-        </SidebarAppShell>
+        </>
     );
 }
