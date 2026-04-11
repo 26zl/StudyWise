@@ -11,11 +11,11 @@
 
 ## Slide 1 – Forside (StudyWise)
 
-**Taler: Laurent** — *ca. 30 sek*
+**Taler: Anwar** — *ca. 30 sek*
 
-> "Hei, og velkommen til vår presentasjon av bacheloroppgaven vår. Vi er fire studenter — Laurent, Abdinasir, Anwar og Ylli — og det vi skal vise dere i dag heter **StudyWise**. Det er en KI-basert studieassistent som er bygget for å være tett integrert med Canvas, læringsplattformen som mange norske universiteter og høyskoler bruker.
+> "Hei, og velkommen til vår presentasjon av bacheloroppgaven vår. Vi er fire studenter — Laurent, Abdinasir, Ylli og meg, Anwar — og det vi skal vise dere i dag heter **StudyWise**. Det er en KI-basert studieassistent som er bygget for å være tett integrert med Canvas, læringsplattformen som mange norske universiteter og høyskoler bruker.
 >
-> I løpet av de neste minuttene skal vi gå gjennom hvilket oppdrag vi fikk, hvilken løsning vi har bygget, hvilke funksjoner som er på plass, hvordan vi har jobbet som team, og så avslutter vi med en kort live-demo av selve produktet. Helt til slutt reflekterer vi rundt hva vi har lært underveis."
+> I løpet av de neste minuttene skal vi gå gjennom hvilket oppdrag vi fikk, hvilken løsning vi har bygget, hvilke funksjoner som er på plass, hvordan vi har jobbet som team, og så viser vi dere de viktigste delene av selve produktet. Helt til slutt reflekterer vi rundt hva vi har lært underveis. Da gir jeg ordet til Laurent, som tar oss gjennom oppdraget."
 
 ---
 
@@ -169,7 +169,7 @@
 
 | Slide              | Taler     | Estimert tid |
 | ------------------ | --------- | ------------ |
-| 1. Forside         | Laurent   | 0:30         |
+| 1. Forside         | Anwar     | 0:30         |
 | 2. Oppdrag         | Laurent   | 0:50         |
 | 3. Løsning         | Laurent   | 0:45         |
 | 4. Canvas & KI     | Abdinasir | 1:00         |
