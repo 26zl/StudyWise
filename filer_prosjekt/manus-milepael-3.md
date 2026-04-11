@@ -111,27 +111,29 @@
 
 ---
 
-## Slide 8 – Live Demo
+## Slide 8 – Live Demo (skjermbilder fra produktet)
 
 **Taler: Ylli** — *ca. 1:50 (lengste delen av presentasjonen)*
 
-> "Da skal jeg ta dere gjennom en kort live-demo av StudyWise. Jeg skal vise hele studentreisen fra start til slutt, og den ser slik ut:
+> "Da skal jeg ta dere gjennom de viktigste delene av StudyWise. I stedet for å gjøre en full live-demo har vi valgt å vise dere skjermbilder fra produktet — det gjør at vi får frem akkurat det vi vil at dere skal se, uten risiko for at nettverk eller backend skaper trøbbel underveis.
 >
-> Først **registrering** — det er første gang en student oppretter en konto, og det skal være så friksjonsfritt som mulig.
+> **Brukerregistrering:** Her ser dere hvordan en ny student oppretter konto. Vi bruker Clerk for autentisering, så registreringen er rask, sikker og støtter både e-post og innlogging via tredjepart.
 >
-> Deretter **Canvas-tilkobling** — vi kobler kontoen mot Canvas ved hjelp av en API-token, og dere ser hvordan StudyWise umiddelbart synkroniserer inn alle kurs og oppgaver i bakgrunnen.
+> **Canvas-tilkobling:** Etter registrering kobler studenten sin egen Canvas-konto ved hjelp av en API-token. Tokenen krypteres og lagres trygt i databasen, og StudyWise henter umiddelbart inn alle kurs, oppgaver og frister i bakgrunnen.
 >
-> Så går vi til **dashboardet** — her får studenten en samlet oversikt over alle kursene sine, kommende frister og kunngjøringer, alt på ett sted og uten å måtte klikke seg rundt i Canvas.
+> **Dashboardet:** Dette er det første studenten ser etter innlogging. Alle aktive kurs, kommende frister og siste kunngjøringer ligger samlet på ett sted — i stedet for å måtte klikke seg gjennom hvert emne i Canvas.
 >
-> Videre viser jeg **KI-chatten** — jeg stiller et konkret spørsmål til assistenten, og dere ser hvordan den henter kontekst fra et faktisk emne og svarer basert på det studenten faktisk har i pensum.
+> **KI-chatten — eksempel på et svar:** Her ser dere et konkret eksempel på et spørsmål studenten har stilt, og hvordan KI-en svarer med kontekst hentet direkte fra pensum. Legg merke til at svaret refererer til faktisk pensummateriale — det er ikke et generisk svar, det er forankret i studentens egne emner.
 >
-> Så går vi til **dokumentopplasting** — jeg laster opp et dokument og lar KI-en oppsummere innholdet for meg.
+> **Quiz generert fra kursinnhold:** Her er et eksempel på en quiz som er laget automatisk fra et kurs. Studenten kan svare på spørsmålene, få umiddelbar tilbakemelding og se hvilke områder hun bør repetere mer på.
 >
-> Deretter **quiz-funksjonen** — jeg genererer en quiz direkte fra kursinnholdet, og viser hvordan studenten kan teste seg selv.
+> **Flashcards:** På samme måte som quiz genereres flashcards automatisk fra pensum — dere ser her hvordan kortene ser ut på fronten og baksiden, og hvordan de fungerer i praksis for repetisjon.
 >
-> Og helt til slutt **ukeplanen** — en plan generert automatisk basert på alle de aktive oppgavene jeg har, med prioritering og estimert tid per oppgave."
+> **Ukeplan:** Til slutt en ukeplan generert ut fra alle aktive oppgaver, med prioritering og estimert tid per oppgave. Dette er ett av verktøyene som har fått best tilbakemelding fra brukerne våre.
 >
-> *(Husk: hold demoen stram. Hvis noe feiler, gå raskt videre — ikke bruk tid på å fikse ting live. Ha screenshots klare som backup i tilfelle nettverket henger.)*
+> Hele løsningen er bygget mobil-først, så alle disse skjermbildene fungerer like godt på telefon som på laptop."
+>
+> *(Tips: gå rolig gjennom hvert skjermbilde, og pek på de viktigste detaljene. Det er lett å klikke for fort gjennom slides — bruk noen sekunder per skjermbilde slik at publikum rekker å se hva de ser på.)*
 
 ---
 
