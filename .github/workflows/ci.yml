@@ -188,18 +188,21 @@ jobs:
         run: pnpm install --frozen-lockfile --safe-chain-skip-minimum-package-age
 
       - name: Generate SBOM
-        # npx (ikke pnpm dlx): cdxgen er et eksternt CLI-verktøy, ikke en prosjektavhengighet.
-        # pnpm dlx arver onlyBuiltDependencies-policy og blokkerer @appthreat/sqlite3.
-        run: >-
-          npx --yes @cyclonedx/cdxgen@latest
-          -r
-          -t nodejs
-          --no-babel
-          --spec-version 1.5
-          --project-name studywise
-          --project-version "${GITHUB_SHA}"
-          -o sbom.json
-          .
+        # cdxgen krasjer på pnpm v10 sine multi-document lockfiler (YAML `---`-separator).
+        # Workaround: fjern separatoren midlertidig, generer SBOM, og gjenopprett.
+        run: |
+          cp pnpm-lock.yaml pnpm-lock.yaml.bak
+          sed -i '/^---$/d' pnpm-lock.yaml
+          npx --yes @cyclonedx/cdxgen@latest \
+            -r \
+            -t nodejs \
+            --no-babel \
+            --spec-version 1.5 \
+            --project-name studywise \
+            --project-version "${GITHUB_SHA}" \
+            -o sbom.json \
+            .
+          mv pnpm-lock.yaml.bak pnpm-lock.yaml
 
       - name: Verify SBOM structure
         run: |
