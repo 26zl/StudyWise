@@ -188,9 +188,10 @@ jobs:
         run: pnpm install --frozen-lockfile --safe-chain-skip-minimum-package-age
 
       - name: Generate SBOM
+        # npx (ikke pnpm dlx): cdxgen er et eksternt CLI-verktøy, ikke en prosjektavhengighet.
+        # pnpm dlx arver onlyBuiltDependencies-policy og blokkerer @appthreat/sqlite3.
         run: >-
-          pnpm --safe-chain-skip-minimum-package-age
-          dlx @cyclonedx/cdxgen@12.1.3
+          npx --yes @cyclonedx/cdxgen@12.1.3
           -r
           -t nodejs
           --no-babel
@@ -199,9 +200,6 @@ jobs:
           --project-version "${GITHUB_SHA}"
           -o sbom.json
           .
-        env:
-          # Tillat build-scripts for cdxgen-avhengigheter (f.eks. @appthreat/sqlite3)
-          npm_config_ignore_scripts: "false"
 
       - name: Verify SBOM structure
         run: |
