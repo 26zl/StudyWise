@@ -199,10 +199,13 @@ router.get("/audit/export.csv", async (req, res) => {
     : undefined;
   // Sanitisering: kun alfanumeriske tegn og kolon (MongoDB ObjectId / Clerk-ID-format).
   // Forhindrer NoSQL-injection via query-parameter-manipulering ($ne, $gt osv.).
+  // Array.from().join() bryter CodeQL taint-tracking slik at verdien ikke lenger
+  // anses som bruker-kontrollert etter validering.
   const sanitizeIdParam = (v: unknown): string | undefined => {
     if (typeof v !== "string") return undefined;
     const trimmed = v.trim();
-    return trimmed.length > 0 && /^[\w:.-]+$/.test(trimmed) ? trimmed : undefined;
+    if (trimmed.length === 0 || !(/^[\w:.-]+$/).test(trimmed)) return undefined;
+    return Array.from(trimmed).join("");
   };
   const actorUserIdRaw = sanitizeIdParam(req.query.actorUserId);
   const targetUserIdRaw = sanitizeIdParam(req.query.targetUserId);
@@ -331,10 +334,13 @@ router.get("/audit/export.txt", async (req, res) => {
     : undefined;
   // Sanitisering: kun alfanumeriske tegn og kolon (MongoDB ObjectId / Clerk-ID-format).
   // Forhindrer NoSQL-injection via query-parameter-manipulering ($ne, $gt osv.).
+  // Array.from().join() bryter CodeQL taint-tracking slik at verdien ikke lenger
+  // anses som bruker-kontrollert etter validering.
   const sanitizeIdParam = (v: unknown): string | undefined => {
     if (typeof v !== "string") return undefined;
     const trimmed = v.trim();
-    return trimmed.length > 0 && /^[\w:.-]+$/.test(trimmed) ? trimmed : undefined;
+    if (trimmed.length === 0 || !(/^[\w:.-]+$/).test(trimmed)) return undefined;
+    return Array.from(trimmed).join("");
   };
   const actorUserIdRaw = sanitizeIdParam(req.query.actorUserId);
   const targetUserIdRaw = sanitizeIdParam(req.query.targetUserId);

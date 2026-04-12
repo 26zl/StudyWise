@@ -189,7 +189,7 @@ jobs:
 
       - name: Generate SBOM
         run: >-
-          pnpm --safe-chain-skip-minimum-package-age --ignore-scripts=false
+          pnpm --safe-chain-skip-minimum-package-age
           dlx @cyclonedx/cdxgen@12.1.3
           -r
           -t nodejs
@@ -199,6 +199,9 @@ jobs:
           --project-version "${GITHUB_SHA}"
           -o sbom.json
           .
+        env:
+          # Tillat build-scripts for cdxgen-avhengigheter (f.eks. @appthreat/sqlite3)
+          npm_config_ignore_scripts: "false"
 
       - name: Verify SBOM structure
         run: |
