@@ -191,7 +191,7 @@ jobs:
         # npx (ikke pnpm dlx): cdxgen er et eksternt CLI-verktøy, ikke en prosjektavhengighet.
         # pnpm dlx arver onlyBuiltDependencies-policy og blokkerer @appthreat/sqlite3.
         run: >-
-          npx --yes @cyclonedx/cdxgen@12.1.3
+          npx --yes @cyclonedx/cdxgen@latest
           -r
           -t nodejs
           --no-babel
