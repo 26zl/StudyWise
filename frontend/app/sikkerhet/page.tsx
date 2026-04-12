@@ -7,7 +7,6 @@ import Link from "next/link";
 import {
   Code2,
   ExternalLink,
-  Github,
   ShieldCheck,
 } from "lucide-react";
 import { useLanguage } from "@/app/i18n";
@@ -96,7 +95,7 @@ export default function SikkerhetPage() {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
           >
-            <Github className="h-4 w-4" />
+            <Code2 className="h-4 w-4" />
             {t("sikkerhet.openSourceGithub")}
             <ExternalLink className="h-3 w-3 opacity-50" />
           </a>

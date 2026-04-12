@@ -196,9 +196,9 @@ export const AdminAuditQuerySchema = z.object({
   category: AdminAuditCategorySchema.optional(),
   outcome: z.enum(["success", "failure"]).optional(),
   /** Filter på targetUserId — for å hente errors knyttet til en spesifikk bruker. */
-  targetUserId: z.string().trim().max(64).optional(),
+  targetUserId: z.string().trim().max(64).regex(/^[\w:.-]+$/).optional(),
   /** Filter på actorUserId — komplementært til targetUserId. */
-  actorUserId: z.string().trim().max(64).optional(),
+  actorUserId: z.string().trim().max(64).regex(/^[\w:.-]+$/).optional(),
   /** ISO-dato eller YYYY-MM-DD for start av tidsvindu. */
   from: QueryDateValueSchema.optional(),
   /** ISO-dato eller YYYY-MM-DD for slutt av tidsvindu. */

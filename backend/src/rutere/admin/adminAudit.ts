@@ -197,10 +197,15 @@ router.get("/audit/export.csv", async (req, res) => {
   const outcomeRaw = req.query.outcome === "success" || req.query.outcome === "failure"
     ? req.query.outcome
     : undefined;
-  const actorUserIdRaw =
-    typeof req.query.actorUserId === "string" ? req.query.actorUserId.trim() : undefined;
-  const targetUserIdRaw =
-    typeof req.query.targetUserId === "string" ? req.query.targetUserId.trim() : undefined;
+  // Sanitisering: kun alfanumeriske tegn og kolon (MongoDB ObjectId / Clerk-ID-format).
+  // Forhindrer NoSQL-injection via query-parameter-manipulering ($ne, $gt osv.).
+  const sanitizeIdParam = (v: unknown): string | undefined => {
+    if (typeof v !== "string") return undefined;
+    const trimmed = v.trim();
+    return trimmed.length > 0 && /^[\w:.-]+$/.test(trimmed) ? trimmed : undefined;
+  };
+  const actorUserIdRaw = sanitizeIdParam(req.query.actorUserId);
+  const targetUserIdRaw = sanitizeIdParam(req.query.targetUserId);
 
   const parsedFromDate = parseAdminDato(fromRaw, "start");
   const parsedToDate = parseAdminDato(toRaw, "end");
@@ -218,8 +223,8 @@ router.get("/audit/export.csv", async (req, res) => {
   };
   if (category) filter.category = category;
   if (outcomeRaw) filter.outcome = outcomeRaw;
-  if (actorUserIdRaw && actorUserIdRaw.length > 0) filter.actorUserId = actorUserIdRaw;
-  if (targetUserIdRaw && targetUserIdRaw.length > 0) filter.targetUserId = targetUserIdRaw;
+  if (actorUserIdRaw) filter.actorUserId = actorUserIdRaw;
+  if (targetUserIdRaw) filter.targetUserId = targetUserIdRaw;
 
   const MAX_EXPORT_ROWS = 10_000;
 
@@ -324,10 +329,15 @@ router.get("/audit/export.txt", async (req, res) => {
   const outcomeRaw = req.query.outcome === "success" || req.query.outcome === "failure"
     ? req.query.outcome
     : undefined;
-  const actorUserIdRaw =
-    typeof req.query.actorUserId === "string" ? req.query.actorUserId.trim() : undefined;
-  const targetUserIdRaw =
-    typeof req.query.targetUserId === "string" ? req.query.targetUserId.trim() : undefined;
+  // Sanitisering: kun alfanumeriske tegn og kolon (MongoDB ObjectId / Clerk-ID-format).
+  // Forhindrer NoSQL-injection via query-parameter-manipulering ($ne, $gt osv.).
+  const sanitizeIdParam = (v: unknown): string | undefined => {
+    if (typeof v !== "string") return undefined;
+    const trimmed = v.trim();
+    return trimmed.length > 0 && /^[\w:.-]+$/.test(trimmed) ? trimmed : undefined;
+  };
+  const actorUserIdRaw = sanitizeIdParam(req.query.actorUserId);
+  const targetUserIdRaw = sanitizeIdParam(req.query.targetUserId);
 
   const parsedFromDate = parseAdminDato(fromRaw, "start");
   const parsedToDate = parseAdminDato(toRaw, "end");
@@ -345,8 +355,8 @@ router.get("/audit/export.txt", async (req, res) => {
   };
   if (category) filter.category = category;
   if (outcomeRaw) filter.outcome = outcomeRaw;
-  if (actorUserIdRaw && actorUserIdRaw.length > 0) filter.actorUserId = actorUserIdRaw;
-  if (targetUserIdRaw && targetUserIdRaw.length > 0) filter.targetUserId = targetUserIdRaw;
+  if (actorUserIdRaw) filter.actorUserId = actorUserIdRaw;
+  if (targetUserIdRaw) filter.targetUserId = targetUserIdRaw;
 
   const MAX_EXPORT_ROWS = 10_000;
 

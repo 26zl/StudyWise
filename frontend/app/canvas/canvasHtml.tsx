@@ -5,13 +5,13 @@
 "use client";
 
 import type { ReactNode } from "react";
-import DOMPurify, { type Config as DOMPurifyConfig } from "isomorphic-dompurify";
+import DOMPurify from "isomorphic-dompurify";
 import parse, { Element, domToReact, type DOMNode, type HTMLReactParserOptions } from "html-react-parser";
 import { ExternalLink } from "lucide-react";
 import { downloadAuthedFile } from "../lib/apiClient";
 
 // DOMPurify konfigurasjon - streng XSS-beskyttelse
-const DOMPURIFY_CONFIG: DOMPurifyConfig = {
+const DOMPURIFY_CONFIG: Parameters<typeof DOMPurify.sanitize>[1] = {
     ALLOWED_TAGS: [
         "p", "br", "strong", "b", "em", "i", "u", "s", "strike",
         "h1", "h2", "h3", "h4", "h5", "h6",

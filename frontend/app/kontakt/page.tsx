@@ -3,7 +3,7 @@
  */
 "use client";
 
-import { Github, Mail, MessageSquare, School, MapPin } from "lucide-react";
+import { Code2, Mail, MessageSquare, School, MapPin } from "lucide-react";
 import { useLanguage } from "@/app/i18n";
 import { InfoCard, InfoPageLayout } from "@/app/components/layout/InfoPageLayout";
 import { ContactForm } from "./ContactForm";
@@ -19,7 +19,7 @@ export default function KontaktPage() {
       accent: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400",
     },
     {
-      icon: Github,
+      icon: Code2,
       title: t("kontakt.bugReportTitle"),
       description: t("kontakt.bugReportBody"),
       accent: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
