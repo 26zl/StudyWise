@@ -891,7 +891,7 @@ async function getClerkProfile(
   // enten via sign-up-flyten eller PUT /profile, ikke auto-satte SSO-verdier.
   const clerkUsername = clerkUser.username ?? undefined;
   const isAutoSetSsoUsername =
-    clerkUsername && email && clerkUsername.toLowerCase() === email.toLowerCase();
+    clerkUsername && clerkUsername.toLowerCase() === email.toLowerCase();
 
   return {
     email,

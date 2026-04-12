@@ -23,7 +23,7 @@ export function isPublicApiPath(path: string, method?: string): boolean {
     return PUBLIC_POST_ONLY_PATHS.some((publicPath) => matchesExactOrChildPath(path, publicPath));
   }
 
-  if (normalizedMethod && normalizedMethod !== "GET") {
+  if (normalizedMethod !== "GET") {
     return false;
   }
 
