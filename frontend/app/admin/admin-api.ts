@@ -94,6 +94,71 @@ async function throwAdminApiError(
   );
 }
 
+// ── Polling-hjelper for asynkrone vedlikeholdsoperasjoner ────────────────────
+
+/** Polling-intervall for admin-jobber (ms) */
+const ADMIN_JOB_POLL_INTERVAL_MS = 3_000;
+/** Maks polling-tid (5 minutter) */
+const ADMIN_JOB_POLL_TIMEOUT_MS = 300_000;
+
+/**
+ * Sender POST til maintenance-endepunkt (202 Accepted),
+ * poller /maintenance/status til jobben er ferdig,
+ * henter resultat fra /maintenance/result/:op.
+ */
+async function submitAndPollMaintenanceOp<T>(
+  op: string,
+  postPath: string,
+  resultSchema: { parse: (data: unknown) => T },
+  options?: { method?: string; body?: unknown },
+): Promise<T> {
+  const init: RequestInit = { method: options?.method ?? "POST" };
+  if (options?.body !== undefined) {
+    init.headers = { "Content-Type": "application/json" };
+    init.body = JSON.stringify(options.body);
+  }
+
+  const submitRes = await fetchApi(postPath, init);
+
+  // 4xx-feil (validering, rate limit, lås) returneres fortsatt synkront
+  if (!submitRes.ok) {
+    await throwAdminApiError(submitRes, "Vedlikeholdsoperasjon feilet");
+  }
+
+  // 202 Accepted — poll for resultat
+  const startTime = Date.now();
+  while (Date.now() - startTime < ADMIN_JOB_POLL_TIMEOUT_MS) {
+    await new Promise((resolve) => setTimeout(resolve, ADMIN_JOB_POLL_INTERVAL_MS));
+
+    const statusRes = await fetchApi("/api/admin/maintenance/status");
+    if (!statusRes.ok) continue;
+
+    const statusData = (await statusRes.json()) as {
+      ops: Record<string, { running: boolean; cooldownUntil: string | null }>;
+    };
+
+    // Jobben kjører fortsatt
+    if (statusData.ops[op]?.running) continue;
+
+    // Ferdig — hent resultat
+    const resultRes = await fetchApi(`/api/admin/maintenance/result/${op}`);
+    if (!resultRes.ok) {
+      throw new Error("Kunne ikke hente resultat for vedlikeholdsoperasjon.");
+    }
+
+    const resultData = await resultRes.json();
+
+    // Sjekk om bakgrunnsjobben feilet
+    if (resultData.suksess === false && resultData.error) {
+      throw new Error(resultData.error);
+    }
+
+    return resultSchema.parse(resultData);
+  }
+
+  throw new Error("Vedlikeholdsoperasjonen tok for lang tid. Sjekk status manuelt.");
+}
+
 // ── Hooks ───────────────────────────────────────────────────────────────────
 
 export function useAdminStats() {
@@ -110,15 +175,12 @@ export function useAdminStats() {
 
 export function useBackfillFullText() {
   return useMutation({
-    mutationFn: async (): Promise<AdminMaintenanceFullTextBackfillResponse> => {
-      const res = await fetchApi("/api/admin/maintenance/backfill-fulltext", {
-        method: "POST",
-      });
-      if (!res.ok) {
-        await throwAdminApiError(res, "Kunne ikke kjøre fulltekst-backfill");
-      }
-      return AdminMaintenanceFullTextBackfillResponseSchema.parse(await res.json());
-    },
+    mutationFn: (): Promise<AdminMaintenanceFullTextBackfillResponse> =>
+      submitAndPollMaintenanceOp(
+        "backfill-fulltext",
+        "/api/admin/maintenance/backfill-fulltext",
+        AdminMaintenanceFullTextBackfillResponseSchema,
+      ),
   });
 }
 
@@ -669,11 +731,12 @@ export function useReplyContactMessage() {
 export function useCleanupOrphaned() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (): Promise<AdminMaintenanceCleanupOrphanedResponse> => {
-      const res = await fetchApi("/api/admin/maintenance/cleanup-orphaned", { method: "POST" });
-      if (!res.ok) await throwAdminApiError(res, "Kunne ikke rydde foreldreløse data");
-      return AdminMaintenanceCleanupOrphanedResponseSchema.parse(await res.json());
-    },
+    mutationFn: (): Promise<AdminMaintenanceCleanupOrphanedResponse> =>
+      submitAndPollMaintenanceOp(
+        "cleanup-orphaned",
+        "/api/admin/maintenance/cleanup-orphaned",
+        AdminMaintenanceCleanupOrphanedResponseSchema,
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "statistikk"] });
     },
@@ -683,11 +746,12 @@ export function useCleanupOrphaned() {
 export function useRebuildEmbeddings() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (): Promise<AdminMaintenanceRebuildEmbeddingsResponse> => {
-      const res = await fetchApi("/api/admin/maintenance/rebuild-embeddings", { method: "POST" });
-      if (!res.ok) await throwAdminApiError(res, "Kunne ikke gjenoppbygge embeddings");
-      return AdminMaintenanceRebuildEmbeddingsResponseSchema.parse(await res.json());
-    },
+    mutationFn: (): Promise<AdminMaintenanceRebuildEmbeddingsResponse> =>
+      submitAndPollMaintenanceOp(
+        "rebuild-embeddings",
+        "/api/admin/maintenance/rebuild-embeddings",
+        AdminMaintenanceRebuildEmbeddingsResponseSchema,
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "statistikk"] });
     },
@@ -696,22 +760,24 @@ export function useRebuildEmbeddings() {
 
 export function useForceCanvasResync() {
   return useMutation({
-    mutationFn: async (): Promise<AdminMaintenanceForceCanvasResyncResponse> => {
-      const res = await fetchApi("/api/admin/maintenance/force-canvas-resync", { method: "POST" });
-      if (!res.ok) await throwAdminApiError(res, "Kunne ikke tvinge Canvas-resynk");
-      return AdminMaintenanceForceCanvasResyncResponseSchema.parse(await res.json());
-    },
+    mutationFn: (): Promise<AdminMaintenanceForceCanvasResyncResponse> =>
+      submitAndPollMaintenanceOp(
+        "force-canvas-resync",
+        "/api/admin/maintenance/force-canvas-resync",
+        AdminMaintenanceForceCanvasResyncResponseSchema,
+      ),
   });
 }
 
 export function useCleanExpiredShares() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (): Promise<AdminMaintenanceCleanExpiredSharesResponse> => {
-      const res = await fetchApi("/api/admin/maintenance/clean-expired-shares", { method: "POST" });
-      if (!res.ok) await throwAdminApiError(res, "Kunne ikke rydde utgåtte delelinker");
-      return AdminMaintenanceCleanExpiredSharesResponseSchema.parse(await res.json());
-    },
+    mutationFn: (): Promise<AdminMaintenanceCleanExpiredSharesResponse> =>
+      submitAndPollMaintenanceOp(
+        "clean-expired-shares",
+        "/api/admin/maintenance/clean-expired-shares",
+        AdminMaintenanceCleanExpiredSharesResponseSchema,
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "statistikk"] });
     },
@@ -721,15 +787,13 @@ export function useCleanExpiredShares() {
 export function useCleanOldChats() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (dager: number): Promise<AdminMaintenanceCleanOldChatsResponse> => {
-      const res = await fetchApi("/api/admin/maintenance/clean-old-chats", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dager }),
-      });
-      if (!res.ok) await throwAdminApiError(res, "Kunne ikke rydde gamle samtaler");
-      return AdminMaintenanceCleanOldChatsResponseSchema.parse(await res.json());
-    },
+    mutationFn: (dager: number): Promise<AdminMaintenanceCleanOldChatsResponse> =>
+      submitAndPollMaintenanceOp(
+        "clean-old-chats",
+        "/api/admin/maintenance/clean-old-chats",
+        AdminMaintenanceCleanOldChatsResponseSchema,
+        { body: { dager } },
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "statistikk"] });
     },
@@ -764,11 +828,12 @@ export function useEncryptionStatus() {
 export function useReencryptTokens() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (): Promise<AdminMaintenanceReencryptResponse> => {
-      const res = await fetchApi("/api/admin/maintenance/reencrypt-tokens", { method: "POST" });
-      if (!res.ok) await throwAdminApiError(res, "Kunne ikke re-kryptere tokens");
-      return AdminMaintenanceReencryptResponseSchema.parse(await res.json());
-    },
+    mutationFn: (): Promise<AdminMaintenanceReencryptResponse> =>
+      submitAndPollMaintenanceOp(
+        "reencrypt-tokens",
+        "/api/admin/maintenance/reencrypt-tokens",
+        AdminMaintenanceReencryptResponseSchema,
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "maintenance", "encryption-status"] });
     },

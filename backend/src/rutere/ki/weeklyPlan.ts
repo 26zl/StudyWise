@@ -1,9 +1,12 @@
 /**
- * KI ukeplan-generator.
+ * KI ukeplan-generator (asynkron jobb-mønster).
  *
- * Genererer et strukturert forslag til ukeplan basert på oppgaver, frister og tilgjengelige tidsluker.
- * Returnerer alltid validert JSON iht. `common/ki`.
+ * POST /generate — aksepterer forespørselen og returnerer jobId (202 Accepted).
+ * GET  /status/:jobId — poller for ferdig resultat.
+ *
+ * Bakgrunnsbehandling unngår Heroku sin 30s HTTP-timeout.
  */
+import { randomUUID } from "crypto";
 import { Router } from "express";
 import { z } from "zod";
 import {
@@ -11,6 +14,7 @@ import {
   WeeklyPlanSuggestionBlockSchema,
   WeeklyPlanSuggestionDraftSchema,
   WeeklyPlanSuggestionResponseSchema,
+  AsyncJobAcceptedSchema,
   type WeeklyPlanAssignment,
   type WeeklyPlanSuggestionBlock,
 } from "common/ki";
@@ -26,15 +30,21 @@ import {
 import { logger } from "../../utils/logger.js";
 import { DEFAULT_MODEL } from "./aiModels.js";
 import { chatCompletion, isClientAvailable } from "./aiClient.js";
-import { handleAIJsonRouteError } from "./handleAIError.js";
 import { extractJsonObject } from "./studyContentUtils.js";
 import {
   AI_COMPLETION_PUSH_MIN_DURATION_MS,
   sendAICompletionWebPush,
 } from "../../services/webPush.service.js";
+import { getCache, setCache } from "../../cache/redis.js";
 
 const router = Router();
 router.use(rateLimitKi);
+
+/** TTL for jobb-resultat i Redis (10 minutter) */
+const JOB_TTL_SECONDS = 600;
+
+/** Redis-nøkkelprefix for ukeplan-jobber */
+const JOB_KEY_PREFIX = "weekly-plan-job:";
 
 /** Dedikert systemprompt for ukeplangenerering — mye mindre enn full StudyWise-prompt. */
 const WEEKLY_PLAN_SYSTEM_PROMPT = `Du er en strukturert studieveileder som lager realistiske ukeplaner for studenter.
@@ -227,27 +237,16 @@ Svar KUN med et JSON-objekt på formatet:
 }`;
 }
 
-router.post("/generate", async (req, res) => {
+/**
+ * Kjører ukeplangenerering i bakgrunnen og lagrer resultatet i Redis.
+ */
+async function processWeeklyPlanJob(
+  jobId: string,
+  userId: string,
+  oppgaver: WeeklyPlanAssignment[],
+): Promise<void> {
+  const generationStartedAt = Date.now();
   try {
-    const userId = requireUserId(req, res);
-    if (!userId) return;
-
-    const parsed = WeeklyPlanGenerateRequestSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return sendZodError(res, parsed.error, "weekly-plan generate");
-    }
-
-    if (!isClientAvailable(DEFAULT_MODEL)) {
-      return apiError.serviceUnavailable(res, "KI-tjenesten");
-    }
-
-    const oppgaver = [...parsed.data.assignments].sort((a, b) => {
-      const aTime = a.dueAt?.getTime() ?? Number.MAX_SAFE_INTEGER;
-      const bTime = b.dueAt?.getTime() ?? Number.MAX_SAFE_INTEGER;
-      return aTime - bTime;
-    });
-    const generationStartedAt = Date.now();
-
     const prompt = buildPrompt(oppgaver);
     const result = await chatCompletion({
       model: DEFAULT_MODEL,
@@ -257,7 +256,6 @@ router.post("/generate", async (req, res) => {
       ],
       max_tokens: 2048,
       temperature: 0.3,
-      signal: req.timeoutSignal,
       traceName: "weekly-plan",
       traceMeta: {
         userId,
@@ -279,10 +277,15 @@ router.post("/generate", async (req, res) => {
       category: "ki",
       outcome: "success",
       metadata: { blockCount: payload.blocks.length, assignmentCount: oppgaver.length },
-      req,
     }).catch((err) => {
       logger.warn({ err, userId }, "Audit-feil for weekly-plan");
     });
+
+    await setCache(
+      `${JOB_KEY_PREFIX}${jobId}`,
+      JSON.stringify({ status: "completed", result: payload }),
+      JOB_TTL_SECONDS,
+    );
 
     const generationDurationMs = Date.now() - generationStartedAt;
     if (generationDurationMs >= AI_COMPLETION_PUSH_MIN_DURATION_MS) {
@@ -299,28 +302,78 @@ router.post("/generate", async (req, res) => {
         );
       });
     }
-
-    return res.json(payload);
   } catch (error) {
-    if (res.headersSent || res.writableEnded || req.timeoutSignal?.aborted) return;
+    logger.error({ err: error, jobId, userId }, "Weekly-plan-jobb feilet");
+    await setCache(
+      `${JOB_KEY_PREFIX}${jobId}`,
+      JSON.stringify({ status: "failed", error: "Kunne ikke generere ukeplan. Prøv igjen." }),
+      JOB_TTL_SECONDS,
+    ).catch(() => {});
+  }
+}
 
-    if (
-      handleAIJsonRouteError(res, error, {
-        kontekst: "weekly-plan",
-        timeoutMessage: "Genereringen tok for lang tid. Prøv igjen.",
-        invalidResponseMessage: "KI-responsen kunne ikke tolkes som en ukeplan",
-        invalidResponseTest: (candidate) =>
-          candidate instanceof Error &&
-          (candidate.message === "AI_RESPONSE_NOT_JSON_OBJECT" ||
-            candidate.message === "AI_RESPONSE_EMPTY_BLOCKS"),
-      })
-    ) {
-      return;
+// POST /api/ki/weekly-plan/generate — returnerer jobId umiddelbart (202 Accepted)
+router.post("/generate", async (req, res) => {
+  try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
+    const parsed = WeeklyPlanGenerateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return sendZodError(res, parsed.error, "weekly-plan generate");
     }
 
+    if (!isClientAvailable(DEFAULT_MODEL)) {
+      return apiError.serviceUnavailable(res, "KI-tjenesten");
+    }
+
+    const oppgaver = [...parsed.data.assignments].sort((a, b) => {
+      const aTime = a.dueAt?.getTime() ?? Number.MAX_SAFE_INTEGER;
+      const bTime = b.dueAt?.getTime() ?? Number.MAX_SAFE_INTEGER;
+      return aTime - bTime;
+    });
+
+    const jobId = randomUUID();
+
+    await setCache(
+      `${JOB_KEY_PREFIX}${jobId}`,
+      JSON.stringify({ status: "pending" }),
+      JOB_TTL_SECONDS,
+    );
+
+    void processWeeklyPlanJob(jobId, userId, oppgaver);
+
+    return res.status(202).json(AsyncJobAcceptedSchema.parse({ jobId }));
+  } catch (error) {
+    if (res.headersSent) return;
     return sendUnknownError(res, error, {
       kontekst: "POST weekly-plan generate",
-      melding: "Kunne ikke generere ukeplan. Prøv igjen.",
+      melding: "Kunne ikke starte ukeplangenerering. Prøv igjen.",
+    });
+  }
+});
+
+// GET /api/ki/weekly-plan/status/:jobId — sjekker jobb-status
+router.get("/status/:jobId", async (req, res) => {
+  try {
+    const { jobId } = req.params;
+
+    if (!jobId || !z.string().uuid().safeParse(jobId).success) {
+      return apiError.badRequest(res, "Ugyldig jobb-ID");
+    }
+
+    const cached = await getCache(`${JOB_KEY_PREFIX}${jobId}`);
+    if (!cached) {
+      return apiError.notFound(res, "Jobben finnes ikke eller har utløpt");
+    }
+
+    const jobState = JSON.parse(cached) as { status: string; result?: unknown; error?: string };
+    return res.json(jobState);
+  } catch (error) {
+    if (res.headersSent) return;
+    return sendUnknownError(res, error, {
+      kontekst: "GET weekly-plan status",
+      melding: "Kunne ikke sjekke jobb-status.",
     });
   }
 });

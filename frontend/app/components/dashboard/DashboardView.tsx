@@ -181,9 +181,11 @@ export function DashboardView() {
     // Auth-/brukerhåndteringsfeil: vis ren lastespinner UTEN dashboard-innhold (sidebar, meny osv.)
     // Brukeren skal aldri se dashboard-rammen ved auth-feil.
     if (isLoggingOut || skalRedirecteTilAuth(megQuery) || erFatalAuthFeil) {
-        const label = skalRedirecteTilAuth(megQuery)
-            ? t("common.loading.redirectingToSignIn")
-            : t("common.loading.generic");
+        const label = isLoggingOut
+            ? t("common.loading.redirecting")
+            : skalRedirecteTilAuth(megQuery)
+              ? t("common.loading.redirectingToSignIn")
+              : t("common.loading.generic");
         return <LoadingView text={label} />;
     }
 

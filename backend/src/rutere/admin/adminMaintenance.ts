@@ -1,6 +1,10 @@
 /**
- * Admin vedlikeholdsoperasjoner.
+ * Admin vedlikeholdsoperasjoner (asynkron jobb-mønster).
  * Monteres under /api/admin (allerede beskyttet med requireAuth + requireRole("admin")).
+ *
+ * Alle POST-endepunkter returnerer 202 Accepted umiddelbart og kjører
+ * operasjonen i bakgrunnen. Resultatet lagres i Redis og hentes via:
+ *   GET /maintenance/result/:op
  *
  * Endepunkter:
  *   POST /maintenance/backfill-fulltext      — Backfill manglende fulltekst
@@ -12,6 +16,8 @@
  *   GET  /maintenance/encryption-status      — Krypteringsnøkkel-rotasjonsstatus
  *   POST /maintenance/reencrypt-tokens       — Re-krypter Canvas-tokens med gjeldende nøkkel
  *   GET  /maintenance/database-health        — Database-helsekontroll
+ *   GET  /maintenance/status                 — Running/cooldown for alle operasjoner
+ *   GET  /maintenance/result/:op             — Hent resultat fra ferdig bakgrunnsjobb
  */
 import { Router } from "express";
 import mongoose from "mongoose";
@@ -51,6 +57,9 @@ const router = Router();
 const ACTIVE_FILTER = { deletedAt: { $exists: false } };
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** TTL for lagrede jobb-resultater i Redis (10 minutter) */
+const RESULT_TTL_SECONDS = 600;
+
 /** Alle vedlikeholdsoperasjoner som kan kjøres. */
 const MAINTENANCE_OPS = [
   "backfill-fulltext",
@@ -69,6 +78,10 @@ function cooldownKey(op: string): string {
 
 function runningKey(op: string): string {
   return `admin:maintenance:${op}:running`;
+}
+
+function resultKey(op: string): string {
+  return `admin:maintenance:${op}:result`;
 }
 
 /**
@@ -94,7 +107,6 @@ async function acquireLock(
   }
 
   // Redis må være tilgjengelig for at låsemekanismen skal fungere.
-  // Uten Redis kan vi ikke garantere at bare én admin kjører operasjonen.
   if (!isRedisReady()) {
     apiError.serverError(res);
     return false;
@@ -110,17 +122,21 @@ async function acquireLock(
   return true;
 }
 
-/** Fjern running-markør og sett cooldown etter suksess. */
-async function completeOperation(op: MaintenanceOp, cooldownSeconds: number): Promise<void> {
+/** Fjern running-markør og sett cooldown etter suksess. Lagre resultat i Redis. */
+async function completeOperation(op: MaintenanceOp, cooldownSeconds: number, result: unknown): Promise<void> {
   await Promise.all([
     deleteCacheKeys([runningKey(op)]),
     setCache(cooldownKey(op), Date.now().toString(), cooldownSeconds),
+    setCache(resultKey(op), JSON.stringify(result), RESULT_TTL_SECONDS),
   ]);
 }
 
-/** Fjern running-markør etter feil (uten å sette cooldown). */
-async function clearRunning(op: MaintenanceOp): Promise<void> {
-  await deleteCacheKeys([runningKey(op)]);
+/** Fjern running-markør etter feil (uten å sette cooldown). Lagre feilmelding. */
+async function failOperation(op: MaintenanceOp, errorMessage: string): Promise<void> {
+  await Promise.all([
+    deleteCacheKeys([runningKey(op)]),
+    setCache(resultKey(op), JSON.stringify({ suksess: false, error: errorMessage }), RESULT_TTL_SECONDS),
+  ]);
 }
 
 // ── GET /maintenance/status ────────────────────────────────────────────────
@@ -142,7 +158,6 @@ router.get("/maintenance/status", async (req, res) => {
 
       let cooldownUntil: string | null = null;
       if (cooldownVal) {
-        // Beregn basert på operasjonens definerte cooldown (bruker konservativt estimat)
         const lastRunMs = Number(cooldownVal);
         const ttl = op === "rebuild-embeddings" || op === "force-canvas-resync" || op === "reencrypt-tokens" ? 1800 : 600;
         const expiresMs = lastRunMs + ttl * 1000;
@@ -164,6 +179,30 @@ router.get("/maintenance/status", async (req, res) => {
   }
 });
 
+// ── GET /maintenance/result/:op ──────────────────────────────────────────
+// Henter lagret resultat for en vedlikeholdsoperasjon.
+
+router.get("/maintenance/result/:op", async (req, res) => {
+  const actorUserId = requireUserId(req, res);
+  if (!actorUserId) return;
+
+  const op = req.params.op;
+  if (!MAINTENANCE_OPS.includes(op as MaintenanceOp)) {
+    return apiError.badRequest(res, "Ugyldig operasjon");
+  }
+
+  try {
+    const cached = await getCache(resultKey(op));
+    if (!cached) {
+      return apiError.notFound(res, "Ingen resultat funnet (utløpt eller ikke kjørt ennå)");
+    }
+    return res.json(JSON.parse(cached));
+  } catch (err) {
+    logger.error({ err, op }, "Admin maintenance result feilet");
+    return apiError.serverError(res);
+  }
+});
+
 // ── POST /maintenance/backfill-fulltext ─────────────────────────────────────
 
 router.post("/maintenance/backfill-fulltext", requireRecentAuth, async (req, res) => {
@@ -172,37 +211,36 @@ router.post("/maintenance/backfill-fulltext", requireRecentAuth, async (req, res
 
   if (!(await acquireLock("backfill-fulltext", 600, 300, res))) return;
 
-  try {
-    const result = await backfillMissingFullText();
+  res.status(202).json({ accepted: true });
 
-    await audit({
-      actorUserId,
-      action: AUDIT_ACTIONS.ADMIN_ACTION,
-      category: "admin",
-      outcome: "success",
-      role: req.actorRole,
-      metadata: {
-        subAction: "maintenance.backfillFullText",
-        scannedFiles: result.scannedFiles,
-        updatedFiles: result.updatedFiles,
-      },
-      req,
-    });
-    await completeOperation("backfill-fulltext", 600);
+  void (async () => {
+    try {
+      const result = await backfillMissingFullText();
 
-    if (res.headersSent) return;
-    return res.json(
-      AdminMaintenanceFullTextBackfillResponseSchema.parse({
+      await audit({
+        actorUserId,
+        action: AUDIT_ACTIONS.ADMIN_ACTION,
+        category: "admin",
+        outcome: "success",
+        role: req.actorRole,
+        metadata: {
+          subAction: "maintenance.backfillFullText",
+          scannedFiles: result.scannedFiles,
+          updatedFiles: result.updatedFiles,
+        },
+        req,
+      });
+
+      const payload = AdminMaintenanceFullTextBackfillResponseSchema.parse({
         suksess: true,
         ...result,
-      }),
-    );
-  } catch (err) {
-    await clearRunning("backfill-fulltext");
-    logger.error({ err }, "Admin fullText-backfill feilet");
-    if (res.headersSent) return;
-    return apiError.serverError(res);
-  }
+      });
+      await completeOperation("backfill-fulltext", 600, payload);
+    } catch (err) {
+      logger.error({ err }, "Admin fullText-backfill feilet");
+      await failOperation("backfill-fulltext", "Fulltekst-backfill feilet. Sjekk loggene.");
+    }
+  })();
 });
 
 // ── POST /maintenance/cleanup-orphaned ─────────────────────────────────────
@@ -213,85 +251,85 @@ router.post("/maintenance/cleanup-orphaned", requireRecentAuth, async (req, res)
 
   if (!(await acquireLock("cleanup-orphaned", 600, 300, res))) return;
 
-  try {
-    const alleBrukere = await User.find(ACTIVE_FILTER, { _id: 1 }).lean();
-    const alleBrukerObjectIds = alleBrukere.map((b) => b._id);
-    const alleBrukerIds = alleBrukerObjectIds.map((id) => id.toString());
+  res.status(202).json({ accepted: true });
 
-    // Finn orphaned userIds i ContentEmbedding for Pinecone-opprydding
-    // Bruker aggregate i stedet for distinct (distinct er ikke i MongoDB Stable API v1)
-    const orphanedEmbeddingAgg = await ContentEmbedding.aggregate<{ _id: string }>([
-      { $match: { userId: { $nin: alleBrukerIds } } },
-      { $group: { _id: "$userId" } },
-    ]);
-    const orphanedEmbeddingUserIds = orphanedEmbeddingAgg.map((r) => r._id);
+  void (async () => {
+    try {
+      const alleBrukere = await User.find(ACTIVE_FILTER, { _id: 1 }).lean();
+      const alleBrukerObjectIds = alleBrukere.map((b) => b._id);
+      const alleBrukerIds = alleBrukerObjectIds.map((id) => id.toString());
 
-    // Slett Pinecone-vektorer for foreldreløse brukere
-    let pineconeFailures = 0;
-    for (const userId of orphanedEmbeddingUserIds) {
-      try {
-        await pineconeDeleteByFilter({ userId });
-      } catch (err) {
-        pineconeFailures++;
-        logger.warn({ err, userId }, "Pinecone-opprydding feilet for orphaned bruker");
+      const orphanedEmbeddingAgg = await ContentEmbedding.aggregate<{ _id: string }>([
+        { $match: { userId: { $nin: alleBrukerIds } } },
+        { $group: { _id: "$userId" } },
+      ]);
+      const orphanedEmbeddingUserIds = orphanedEmbeddingAgg.map((r) => r._id);
+
+      let pineconeFailures = 0;
+      for (const userId of orphanedEmbeddingUserIds) {
+        try {
+          await pineconeDeleteByFilter({ userId });
+        } catch (err) {
+          pineconeFailures++;
+          logger.warn({ err, userId }, "Pinecone-opprydding feilet for orphaned bruker");
+        }
       }
+
+      const [
+        samtaler,
+        oppgaveoppdelinger,
+        dokumentfragmenter,
+        arbeidsplaner,
+        canvasStrukturer,
+        canvasBrukere,
+        delingslenker,
+        kunnskapsbaser,
+        kbChunks,
+      ] = await Promise.all([
+        ChatHistory.deleteMany({ user: { $nin: alleBrukerObjectIds } }).then((r) => r.deletedCount),
+        TaskBreakdown.deleteMany({ userId: { $nin: alleBrukerObjectIds } }).then((r) => r.deletedCount),
+        ContentEmbedding.deleteMany({ userId: { $nin: alleBrukerIds } }).then((r) => r.deletedCount),
+        Arbeidsplan.deleteMany({ userId: { $nin: alleBrukerIds } }).then((r) => r.deletedCount),
+        CanvasStructureModel.deleteMany({ userId: { $nin: alleBrukerIds } }).then((r) => r.deletedCount),
+        CanvasUser.deleteMany({ localUser: { $nin: alleBrukerObjectIds } }).then((r) => r.deletedCount),
+        SharedChat.deleteMany({ ownerId: { $nin: alleBrukerObjectIds } }).then((r) => r.deletedCount),
+        KnowledgeBase.deleteMany({ userId: { $nin: alleBrukerIds } }).then((r) => r.deletedCount),
+        KBContentChunk.deleteMany({ userId: { $nin: alleBrukerIds } }).then((r) => r.deletedCount),
+      ]);
+
+      const deleted = {
+        samtaler,
+        oppgaveoppdelinger,
+        dokumentfragmenter,
+        arbeidsplaner,
+        canvasStrukturer,
+        canvasBrukere,
+        delingslenker,
+        kunnskapsbaser,
+        kbChunks,
+      };
+
+      await audit({
+        actorUserId,
+        action: AUDIT_ACTIONS.ADMIN_ACTION,
+        category: "admin",
+        outcome: "success",
+        role: req.actorRole,
+        metadata: { subAction: "maintenance.cleanupOrphaned", ...deleted, pineconeFailures },
+        req,
+      });
+
+      if (pineconeFailures > 0) {
+        logger.warn({ pineconeFailures }, "Noen Pinecone-oppryddinger feilet under cleanup-orphaned");
+      }
+
+      const payload = AdminMaintenanceCleanupOrphanedResponseSchema.parse({ suksess: true, deleted });
+      await completeOperation("cleanup-orphaned", 600, payload);
+    } catch (err) {
+      logger.error({ err }, "Admin cleanup-orphaned feilet");
+      await failOperation("cleanup-orphaned", "Opprydding av foreldreløse data feilet.");
     }
-
-    const [
-      samtaler,
-      oppgaveoppdelinger,
-      dokumentfragmenter,
-      arbeidsplaner,
-      canvasStrukturer,
-      canvasBrukere,
-      delingslenker,
-      kunnskapsbaser,
-      kbChunks,
-    ] = await Promise.all([
-      ChatHistory.deleteMany({ user: { $nin: alleBrukerObjectIds } }).then((r) => r.deletedCount),
-      TaskBreakdown.deleteMany({ userId: { $nin: alleBrukerObjectIds } }).then((r) => r.deletedCount),
-      ContentEmbedding.deleteMany({ userId: { $nin: alleBrukerIds } }).then((r) => r.deletedCount),
-      Arbeidsplan.deleteMany({ userId: { $nin: alleBrukerIds } }).then((r) => r.deletedCount),
-      CanvasStructureModel.deleteMany({ userId: { $nin: alleBrukerIds } }).then((r) => r.deletedCount),
-      CanvasUser.deleteMany({ localUser: { $nin: alleBrukerObjectIds } }).then((r) => r.deletedCount),
-      SharedChat.deleteMany({ ownerId: { $nin: alleBrukerObjectIds } }).then((r) => r.deletedCount),
-      KnowledgeBase.deleteMany({ userId: { $nin: alleBrukerIds } }).then((r) => r.deletedCount),
-      KBContentChunk.deleteMany({ userId: { $nin: alleBrukerIds } }).then((r) => r.deletedCount),
-    ]);
-
-    const deleted = {
-      samtaler,
-      oppgaveoppdelinger,
-      dokumentfragmenter,
-      arbeidsplaner,
-      canvasStrukturer,
-      canvasBrukere,
-      delingslenker,
-      kunnskapsbaser,
-      kbChunks,
-    };
-
-    await audit({
-      actorUserId,
-      action: AUDIT_ACTIONS.ADMIN_ACTION,
-      category: "admin",
-      outcome: "success",
-      role: req.actorRole,
-      metadata: { subAction: "maintenance.cleanupOrphaned", ...deleted, pineconeFailures },
-      req,
-    });
-    await completeOperation("cleanup-orphaned", 600);
-
-    if (pineconeFailures > 0) {
-      logger.warn({ pineconeFailures }, "Noen Pinecone-oppryddinger feilet under cleanup-orphaned");
-    }
-
-    return res.json(AdminMaintenanceCleanupOrphanedResponseSchema.parse({ suksess: true, deleted }));
-  } catch (err) {
-    await clearRunning("cleanup-orphaned");
-    logger.error({ err }, "Admin cleanup-orphaned feilet");
-    return apiError.serverError(res);
-  }
+  })();
 });
 
 // ── POST /maintenance/rebuild-embeddings ───────────────────────────────────
@@ -306,75 +344,73 @@ router.post("/maintenance/rebuild-embeddings", requireRecentAuth, async (req, re
 
   if (!(await acquireLock("rebuild-embeddings", 1800, 600, res))) return;
 
-  try {
-    const BATCH_SIZE = 100;
-    let scannedChunks = 0;
-    let reembeddedChunks = 0;
-    let failedChunks = 0;
+  res.status(202).json({ accepted: true });
 
-    // Finn chunks som ikke er synkronisert til Pinecone
-    const unsyncedChunks = await ContentEmbedding.find(
-      { pineconesynced: { $ne: true }, isFullDocument: { $ne: true } },
-      { _id: 1, userId: 1, courseId: 1, moduleId: 1, fileId: 1, chunkIndex: 1, text: 1 },
-    ).lean();
+  void (async () => {
+    try {
+      const BATCH_SIZE = 100;
+      let scannedChunks = 0;
+      let reembeddedChunks = 0;
+      let failedChunks = 0;
 
-    scannedChunks = unsyncedChunks.length;
+      const unsyncedChunks = await ContentEmbedding.find(
+        { pineconesynced: { $ne: true }, isFullDocument: { $ne: true } },
+        { _id: 1, userId: 1, courseId: 1, moduleId: 1, fileId: 1, chunkIndex: 1, text: 1 },
+      ).lean();
 
-    // Prosesser i batches
-    for (let i = 0; i < unsyncedChunks.length; i += BATCH_SIZE) {
-      const batch = unsyncedChunks.slice(i, i + BATCH_SIZE);
-      try {
-        await pineconeUpsert(
-          batch.map((chunk) => ({
-            id: chunk._id.toString(),
-            text: chunk.text,
-            metadata: {
-              userId: chunk.userId,
-              courseId: chunk.courseId,
-              moduleId: chunk.moduleId,
-              fileId: chunk.fileId,
-              chunkIndex: chunk.chunkIndex,
-            },
-          })),
-        );
+      scannedChunks = unsyncedChunks.length;
 
-        // Marker som synkronisert
-        await ContentEmbedding.updateMany(
-          { _id: { $in: batch.map((c) => c._id) } },
-          { $set: { pineconesynced: true } },
-        );
+      for (let i = 0; i < unsyncedChunks.length; i += BATCH_SIZE) {
+        const batch = unsyncedChunks.slice(i, i + BATCH_SIZE);
+        try {
+          await pineconeUpsert(
+            batch.map((chunk) => ({
+              id: chunk._id.toString(),
+              text: chunk.text,
+              metadata: {
+                userId: chunk.userId,
+                courseId: chunk.courseId,
+                moduleId: chunk.moduleId,
+                fileId: chunk.fileId,
+                chunkIndex: chunk.chunkIndex,
+              },
+            })),
+          );
 
-        reembeddedChunks += batch.length;
-      } catch (err) {
-        logger.warn({ err, batchStart: i, batchSize: batch.length }, "Pinecone re-embed batch feilet");
-        failedChunks += batch.length;
+          await ContentEmbedding.updateMany(
+            { _id: { $in: batch.map((c) => c._id) } },
+            { $set: { pineconesynced: true } },
+          );
+
+          reembeddedChunks += batch.length;
+        } catch (err) {
+          logger.warn({ err, batchStart: i, batchSize: batch.length }, "Pinecone re-embed batch feilet");
+          failedChunks += batch.length;
+        }
       }
-    }
 
-    await audit({
-      actorUserId,
-      action: AUDIT_ACTIONS.ADMIN_ACTION,
-      category: "admin",
-      outcome: "success",
-      role: req.actorRole,
-      metadata: { subAction: "maintenance.rebuildEmbeddings", scannedChunks, reembeddedChunks, failedChunks },
-      req,
-    });
-    await completeOperation("rebuild-embeddings", 1800);
+      await audit({
+        actorUserId,
+        action: AUDIT_ACTIONS.ADMIN_ACTION,
+        category: "admin",
+        outcome: "success",
+        role: req.actorRole,
+        metadata: { subAction: "maintenance.rebuildEmbeddings", scannedChunks, reembeddedChunks, failedChunks },
+        req,
+      });
 
-    return res.json(
-      AdminMaintenanceRebuildEmbeddingsResponseSchema.parse({
+      const payload = AdminMaintenanceRebuildEmbeddingsResponseSchema.parse({
         suksess: true,
         scannedChunks,
         reembeddedChunks,
         failedChunks,
-      }),
-    );
-  } catch (err) {
-    await clearRunning("rebuild-embeddings");
-    logger.error({ err }, "Admin rebuild-embeddings feilet");
-    return apiError.serverError(res);
-  }
+      });
+      await completeOperation("rebuild-embeddings", 1800, payload);
+    } catch (err) {
+      logger.error({ err }, "Admin rebuild-embeddings feilet");
+      await failOperation("rebuild-embeddings", "Gjenoppbygging av embeddings feilet.");
+    }
+  })();
 });
 
 // ── POST /maintenance/force-canvas-resync ──────────────────────────────────
@@ -385,61 +421,57 @@ router.post("/maintenance/force-canvas-resync", requireRecentAuth, async (req, r
 
   if (!(await acquireLock("force-canvas-resync", 1800, 300, res))) return;
 
-  try {
-    const canvasUsers = await User.find(
-      { canvasBaseUrl: { $exists: true }, ...ACTIVE_FILTER },
-      { _id: 1 },
-    ).lean();
+  res.status(202).json({ accepted: true });
 
-    let keysDeleted = 0;
-    const userIds = canvasUsers.map((u) => u._id.toString());
+  void (async () => {
+    try {
+      const canvasUsers = await User.find(
+        { canvasBaseUrl: { $exists: true }, ...ACTIVE_FILTER },
+        { _id: 1 },
+      ).lean();
 
-    for (const userId of userIds) {
-      // canvas:user:{id}:* — Canvas API-cache (emner, moduler, oppgaver, sync-meta)
-      // db:user:{id}:courses — prosessert kursdata for chat-kontekst
-      // ki:session:{id}:* — KI-sesjonscache som kan referere til gammel Canvas-data
-      const patterns = [
-        `canvas:user:${userId}:*`,
-        `db:user:${userId}:*`,
-        `ki:session:${userId}:*`,
-      ];
-      for (const pattern of patterns) {
-        keysDeleted += await invalidateCacheByPattern(pattern);
+      let keysDeleted = 0;
+      const userIds = canvasUsers.map((u) => u._id.toString());
+
+      for (const userId of userIds) {
+        const patterns = [
+          `canvas:user:${userId}:*`,
+          `db:user:${userId}:*`,
+          `ki:session:${userId}:*`,
+        ];
+        for (const pattern of patterns) {
+          keysDeleted += await invalidateCacheByPattern(pattern);
+        }
       }
-    }
 
-    // Slett MongoDB CanvasStructure slik at context-loader ikke serverer gammel data
-    // via Mongo-fallback. Neste request trigger en full sync fra Canvas.
-    const structureResult = await CanvasStructureModel.deleteMany({ userId: { $in: userIds } });
+      const structureResult = await CanvasStructureModel.deleteMany({ userId: { $in: userIds } });
 
-    await audit({
-      actorUserId,
-      action: AUDIT_ACTIONS.ADMIN_ACTION,
-      category: "admin",
-      outcome: "success",
-      role: req.actorRole,
-      metadata: {
-        subAction: "maintenance.forceCanvasResync",
-        usersInvalidated: canvasUsers.length,
-        keysDeleted,
-        structuresDeleted: structureResult.deletedCount,
-      },
-      req,
-    });
-    await completeOperation("force-canvas-resync", 1800);
+      await audit({
+        actorUserId,
+        action: AUDIT_ACTIONS.ADMIN_ACTION,
+        category: "admin",
+        outcome: "success",
+        role: req.actorRole,
+        metadata: {
+          subAction: "maintenance.forceCanvasResync",
+          usersInvalidated: canvasUsers.length,
+          keysDeleted,
+          structuresDeleted: structureResult.deletedCount,
+        },
+        req,
+      });
 
-    return res.json(
-      AdminMaintenanceForceCanvasResyncResponseSchema.parse({
+      const payload = AdminMaintenanceForceCanvasResyncResponseSchema.parse({
         suksess: true,
         usersInvalidated: canvasUsers.length,
         keysDeleted,
-      }),
-    );
-  } catch (err) {
-    await clearRunning("force-canvas-resync");
-    logger.error({ err }, "Admin force-canvas-resync feilet");
-    return apiError.serverError(res);
-  }
+      });
+      await completeOperation("force-canvas-resync", 1800, payload);
+    } catch (err) {
+      logger.error({ err }, "Admin force-canvas-resync feilet");
+      await failOperation("force-canvas-resync", "Canvas-resynk feilet.");
+    }
+  })();
 });
 
 // ── POST /maintenance/clean-expired-shares ─────────────────────────────────
@@ -450,33 +482,34 @@ router.post("/maintenance/clean-expired-shares", requireRecentAuth, async (req, 
 
   if (!(await acquireLock("clean-expired-shares", 600, 300, res))) return;
 
-  try {
-    const result = await SharedChat.deleteMany({
-      expiresAt: { $ne: null, $lt: new Date() },
-    });
+  res.status(202).json({ accepted: true });
 
-    await audit({
-      actorUserId,
-      action: AUDIT_ACTIONS.ADMIN_ACTION,
-      category: "admin",
-      outcome: "success",
-      role: req.actorRole,
-      metadata: { subAction: "maintenance.cleanExpiredShares", deletedCount: result.deletedCount },
-      req,
-    });
-    await completeOperation("clean-expired-shares", 600);
+  void (async () => {
+    try {
+      const result = await SharedChat.deleteMany({
+        expiresAt: { $ne: null, $lt: new Date() },
+      });
 
-    return res.json(
-      AdminMaintenanceCleanExpiredSharesResponseSchema.parse({
+      await audit({
+        actorUserId,
+        action: AUDIT_ACTIONS.ADMIN_ACTION,
+        category: "admin",
+        outcome: "success",
+        role: req.actorRole,
+        metadata: { subAction: "maintenance.cleanExpiredShares", deletedCount: result.deletedCount },
+        req,
+      });
+
+      const payload = AdminMaintenanceCleanExpiredSharesResponseSchema.parse({
         suksess: true,
         deletedCount: result.deletedCount,
-      }),
-    );
-  } catch (err) {
-    await clearRunning("clean-expired-shares");
-    logger.error({ err }, "Admin clean-expired-shares feilet");
-    return apiError.serverError(res);
-  }
+      });
+      await completeOperation("clean-expired-shares", 600, payload);
+    } catch (err) {
+      logger.error({ err }, "Admin clean-expired-shares feilet");
+      await failOperation("clean-expired-shares", "Opprydding av utgåtte delelinker feilet.");
+    }
+  })();
 });
 
 // ── POST /maintenance/clean-old-chats ──────────────────────────────────────
@@ -492,52 +525,50 @@ router.post("/maintenance/clean-old-chats", requireRecentAuth, async (req, res) 
 
   if (!(await acquireLock("clean-old-chats", 600, 300, res))) return;
 
-  try {
-    const cutoffDate = new Date(Date.now() - parsed.data.dager * DAY_MS);
+  const dager = parsed.data.dager;
+  res.status(202).json({ accepted: true });
 
-    // Finn samtaler som skal slettes (hopp over festede)
-    const chatsToDelete = await ChatHistory.find(
-      { createdAt: { $lt: cutoffDate }, pinned: { $ne: true } },
-      { _id: 1 },
-    ).lean();
+  void (async () => {
+    try {
+      const cutoffDate = new Date(Date.now() - dager * DAY_MS);
 
-    const chatIds = chatsToDelete.map((c) => c._id);
+      const chatsToDelete = await ChatHistory.find(
+        { createdAt: { $lt: cutoffDate }, pinned: { $ne: true } },
+        { _id: 1 },
+      ).lean();
 
-    // Slett tilhørende delelinker
-    const sharedResult = await SharedChat.deleteMany({ chatId: { $in: chatIds } });
+      const chatIds = chatsToDelete.map((c) => c._id);
 
-    // Slett samtalene
-    const chatResult = await ChatHistory.deleteMany({ _id: { $in: chatIds } });
+      const sharedResult = await SharedChat.deleteMany({ chatId: { $in: chatIds } });
+      const chatResult = await ChatHistory.deleteMany({ _id: { $in: chatIds } });
 
-    await audit({
-      actorUserId,
-      action: AUDIT_ACTIONS.ADMIN_ACTION,
-      category: "admin",
-      outcome: "success",
-      role: req.actorRole,
-      metadata: {
-        subAction: "maintenance.cleanOldChats",
-        dager: parsed.data.dager,
-        deletedChats: chatResult.deletedCount,
-        deletedShares: sharedResult.deletedCount,
-      },
-      req,
-    });
-    await completeOperation("clean-old-chats", 600);
+      await audit({
+        actorUserId,
+        action: AUDIT_ACTIONS.ADMIN_ACTION,
+        category: "admin",
+        outcome: "success",
+        role: req.actorRole,
+        metadata: {
+          subAction: "maintenance.cleanOldChats",
+          dager,
+          deletedChats: chatResult.deletedCount,
+          deletedShares: sharedResult.deletedCount,
+        },
+        req,
+      });
 
-    return res.json(
-      AdminMaintenanceCleanOldChatsResponseSchema.parse({
+      const payload = AdminMaintenanceCleanOldChatsResponseSchema.parse({
         suksess: true,
         deletedChats: chatResult.deletedCount,
         deletedShares: sharedResult.deletedCount,
         cutoffDate: cutoffDate.toISOString(),
-      }),
-    );
-  } catch (err) {
-    await clearRunning("clean-old-chats");
-    logger.error({ err }, "Admin clean-old-chats feilet");
-    return apiError.serverError(res);
-  }
+      });
+      await completeOperation("clean-old-chats", 600, payload);
+    } catch (err) {
+      logger.error({ err }, "Admin clean-old-chats feilet");
+      await failOperation("clean-old-chats", "Opprydding av gamle samtaler feilet.");
+    }
+  })();
 });
 
 // ── GET /maintenance/encryption-status ─────────────────────────────────────
@@ -563,7 +594,6 @@ router.get("/maintenance/encryption-status", async (req, res) => {
 
       try {
         decrypt(token);
-        // Sjekk om det er versjonert format (v1:...) eller legacy (iv:authTag:encrypted)
         const parts = token.split(":");
         if (parts.length === 4 && /^v\d+$/.test(parts[0])) {
           currentKeyOk++;
@@ -608,71 +638,71 @@ router.post("/maintenance/reencrypt-tokens", requireRecentAuth, async (req, res)
 
   if (!(await acquireLock("reencrypt-tokens", 1800, 600, res))) return;
 
-  try {
-    const usersWithToken = await User.find(
-      { canvasApiToken: { $exists: true, $ne: null }, ...ACTIVE_FILTER },
-    ).select("+canvasApiToken").lean();
+  res.status(202).json({ accepted: true });
 
-    let processed = 0;
-    let reencrypted = 0;
-    let alreadyCurrent = 0;
-    let failed = 0;
+  void (async () => {
+    try {
+      const usersWithToken = await User.find(
+        { canvasApiToken: { $exists: true, $ne: null }, ...ACTIVE_FILTER },
+      ).select("+canvasApiToken").lean();
 
-    for (const user of usersWithToken) {
-      processed++;
-      const token = user.canvasApiToken;
-      if (!token) continue;
+      let processed = 0;
+      let reencrypted = 0;
+      let alreadyCurrent = 0;
+      let failed = 0;
 
-      try {
-        const plaintext = decrypt(token);
-        const parts = token.split(":");
-        const isLegacy = !(parts.length === 4 && /^v\d+$/.test(parts[0]));
+      for (const user of usersWithToken) {
+        processed++;
+        const token = user.canvasApiToken;
+        if (!token) continue;
 
         try {
-          const reencryptedToken = encrypt(plaintext);
-          await User.updateOne(
-            { _id: user._id, ...ACTIVE_FILTER },
-            { $set: { canvasApiToken: reencryptedToken } },
-          );
-          if (isLegacy) {
-            reencrypted++;
-          } else {
-            alreadyCurrent++;
+          const plaintext = decrypt(token);
+          const parts = token.split(":");
+          const isLegacy = !(parts.length === 4 && /^v\d+$/.test(parts[0]));
+
+          try {
+            const reencryptedToken = encrypt(plaintext);
+            await User.updateOne(
+              { _id: user._id, ...ACTIVE_FILTER },
+              { $set: { canvasApiToken: reencryptedToken } },
+            );
+            if (isLegacy) {
+              reencrypted++;
+            } else {
+              alreadyCurrent++;
+            }
+          } catch {
+            failed++;
           }
         } catch {
           failed++;
         }
-      } catch {
-        // Kan ikke dekryptere — hopp over
-        failed++;
       }
-    }
 
-    await audit({
-      actorUserId,
-      action: AUDIT_ACTIONS.ADMIN_ACTION,
-      category: "admin",
-      outcome: "success",
-      role: req.actorRole,
-      metadata: { subAction: "maintenance.reencryptTokens", processed, reencrypted, alreadyCurrent, failed },
-      req,
-    });
-    await completeOperation("reencrypt-tokens", 1800);
+      await audit({
+        actorUserId,
+        action: AUDIT_ACTIONS.ADMIN_ACTION,
+        category: "admin",
+        outcome: "success",
+        role: req.actorRole,
+        metadata: { subAction: "maintenance.reencryptTokens", processed, reencrypted, alreadyCurrent, failed },
+        req,
+      });
 
-    return res.json(
-      AdminMaintenanceReencryptResponseSchema.parse({
+      const payload = AdminMaintenanceReencryptResponseSchema.parse({
         suksess: true,
         processed,
         reencrypted,
         alreadyCurrent,
         failed,
-      }),
-    );
-  } catch (err) {
-    await clearRunning("reencrypt-tokens");
-    logger.error({ err }, "Admin reencrypt-tokens feilet");
-    return apiError.serverError(res);
-  }
+      });
+      await completeOperation("reencrypt-tokens", 1800, payload);
+    } catch (err) {
+      logger.error({ err }, "Admin reencrypt-tokens feilet");
+      await failOperation("reencrypt-tokens", "Re-kryptering av tokens feilet.");
+    }
+  })();
 });
 
 // ── GET /maintenance/database-health ───────────────────────────────────────
@@ -708,7 +738,6 @@ router.get("/maintenance/database-health", async (req, res) => {
           collection.listIndexes().toArray().catch(() => []),
         ]);
 
-        // Bruk dbStats-kommandoen for størrelsesinformasjon per collection
         let sizeBytes = 0;
         let indexSizeBytes = 0;
         try {
@@ -716,7 +745,7 @@ router.get("/maintenance/database-health", async (req, res) => {
           sizeBytes = collStats.size ?? 0;
           indexSizeBytes = collStats.totalIndexSize ?? 0;
         } catch {
-          // collStats kan feile på Atlas Stable API — hopp over størrelse
+          // collStats kan feile på Atlas Stable API
         }
 
         const entry = {
@@ -742,7 +771,6 @@ router.get("/maintenance/database-health", async (req, res) => {
       }
     }
 
-    // Sorter etter størrelse (største først)
     collections.sort((a, b) => b.sizeBytes - a.sizeBytes);
 
     await audit({

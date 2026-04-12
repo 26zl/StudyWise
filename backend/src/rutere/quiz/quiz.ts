@@ -1,7 +1,10 @@
 /**
  * Quiz API — genererer KI-baserte quizer fra Canvas-kursinnhold.
- * POST /api/quiz/generate — tar courseId, moduleNames, questionCount
- * og returnerer quiz-spørsmål generert av Claude.
+ * POST /api/quiz/generate — aksepterer forespørselen og returnerer jobId (asynkron).
+ * GET  /api/quiz/status/:jobId — poller for ferdig resultat.
+ *
+ * Bakgrunnsbehandling unngår Heroku sin 30s HTTP-timeout ved å sende
+ * 202 Accepted umiddelbart og lagre resultatet i Redis når det er klart.
  */
 import { randomUUID } from "crypto";
 import { Router } from "express";
@@ -10,6 +13,7 @@ import {
   QuizGenerateRequestSchema,
   QuizGenerateResponseSchema,
   QuizQuestionSchema,
+  AsyncJobAcceptedSchema,
 } from "common/ki";
 import { logger } from "../../utils/logger.js";
 import {
@@ -21,7 +25,6 @@ import {
 import { rateLimitKi } from "../../middleware/rate-limit.js";
 import { DEFAULT_MODEL } from "../ki/aiModels.js";
 import { chatCompletion, isClientAvailable } from "../ki/aiClient.js";
-import { handleAIJsonRouteError } from "../ki/handleAIError.js";
 import { knyttCanvasToken } from "../../middleware/auth.js";
 import { loadCanvasContext, ensureCanvasSync } from "../../services/context-loader.service.js";
 import { isSyncing, waitForSync } from "../../services/canvas-sync.service.js";
@@ -33,9 +36,16 @@ import {
   createCourseTargetedQuery,
   extractJsonArray,
 } from "../ki/studyContentUtils.js";
+import { getCache, setCache } from "../../cache/redis.js";
 
 /** Maks ventetid på Canvas-sync før quiz fortsetter med tilgjengelig data */
 const QUIZ_SYNC_WAIT_MS = 8_000;
+
+/** TTL for jobb-resultat i Redis (10 minutter) */
+const JOB_TTL_SECONDS = 600;
+
+/** Redis-nøkkelprefix for quiz-jobber */
+const JOB_KEY_PREFIX = "quiz-job:";
 
 const router = Router();
 router.use(rateLimitKi);
@@ -57,49 +67,47 @@ Regler:
 - Dekk ulike deler av materiellet — ikke still flere spørsmål om samme konsept
 - Bruk fagterminologi fra kursmateriellet`;
 
-// POST /api/quiz/generate
-router.post("/generate", rateLimitKi, knyttCanvasToken, async (req, res) => {
+/**
+ * Kjører selve quiz-genereringen i bakgrunnen og lagrer resultatet i Redis.
+ * Kalles som fire-and-forget fra POST-endepunktet.
+ */
+async function processQuizJob(
+  jobId: string,
+  userId: string,
+  canvasToken: string,
+  canvasBaseUrl: string | undefined,
+  courseId: number,
+  courseName: string,
+  moduleNames: string[],
+  questionCount: number,
+): Promise<void> {
+  const generationStartedAt = Date.now();
   try {
-    const userId = requireUserId(req, res);
-    if (!userId) return;
-
-    const parsed = QuizGenerateRequestSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return sendZodError(res, parsed.error, "quiz generate");
-    }
-
-    if (!isClientAvailable(DEFAULT_MODEL)) {
-      return apiError.serviceUnavailable(res, "KI-tjenesten");
-    }
-
-    if (!req.canvasToken) {
-      return apiError.unauthorized(res, "Canvas-token mangler");
-    }
-
-    const { courseId, courseName, moduleNames, questionCount } = parsed.data;
-    const generationStartedAt = Date.now();
-
-    // Sørg for at Canvas-data er synkronisert før vi henter kontekst.
-    // Trigger bakgrunns-sync og vent kort slik at innhold er tilgjengelig.
-    await ensureCanvasSync(userId, req.canvasToken, req.canvasBaseUrl);
+    // Sørg for at Canvas-data er synkronisert
+    await ensureCanvasSync(userId, canvasToken, canvasBaseUrl);
     if (isSyncing(userId)) {
       logger.info({ userId, courseId }, "Venter på Canvas sync før quiz-generering");
       await waitForSync(userId, QUIZ_SYNC_WAIT_MS);
     }
 
-    // Hent Canvas-kontekst for kurset via context-loader (bruker hybrid søk + Redis/MongoDB)
+    // Hent Canvas-kontekst
     const moduleListStr = moduleNames.join(", ");
     const contextResult = await loadCanvasContext(
       userId,
-      req.canvasToken,
+      canvasToken,
       "canvas_full",
       createCourseTargetedQuery(courseId, courseName, moduleNames),
       `Quiz om ${moduleListStr} i ${courseName}`,
-      req.canvasBaseUrl,
+      canvasBaseUrl,
     );
 
     if (!contextResult.hasCanvasData) {
-      return apiError.badRequest(res, "Ingen kursinnhold funnet for valgte moduler. Prøv å åpne KI-chatten først slik at Canvas-data synkroniseres.");
+      await setCache(
+        `${JOB_KEY_PREFIX}${jobId}`,
+        JSON.stringify({ status: "failed", error: "Ingen kursinnhold funnet for valgte moduler. Prøv å åpne KI-chatten først slik at Canvas-data synkroniseres." }),
+        JOB_TTL_SECONDS,
+      );
+      return;
     }
 
     const userPrompt = `Lag ${questionCount} quiz-spørsmål om følgende moduler i emnet "${courseName}":
@@ -123,7 +131,6 @@ Generer nøyaktig ${questionCount} spørsmål som JSON-array.`;
       ],
       max_tokens: 4096,
       temperature: 0.7,
-      signal: req.timeoutSignal,
       traceName: "quiz-generate",
       traceMeta: {
         userId,
@@ -154,6 +161,14 @@ Generer nøyaktig ${questionCount} spørsmål som JSON-array.`;
       "Genererte quiz-spørsmål via KI",
     );
 
+    // Lagre ferdig resultat i Redis
+    const responsePayload = QuizGenerateResponseSchema.parse({ questions });
+    await setCache(
+      `${JOB_KEY_PREFIX}${jobId}`,
+      JSON.stringify({ status: "completed", result: responsePayload }),
+      JOB_TTL_SECONDS,
+    );
+
     const generationDurationMs = Date.now() - generationStartedAt;
     if (generationDurationMs >= AI_COMPLETION_PUSH_MIN_DURATION_MS) {
       void sendAICompletionWebPush({
@@ -169,31 +184,88 @@ Generer nøyaktig ${questionCount} spørsmål som JSON-array.`;
         );
       });
     }
-
-    return res.headersSent
-      ? undefined
-      : res.json(
-          QuizGenerateResponseSchema.parse({
-            questions,
-          }),
-        );
   } catch (error) {
-    if (res.headersSent || res.writableEnded || req.timeoutSignal?.aborted) return;
-    if (
-      handleAIJsonRouteError(res, error, {
-        kontekst: "quiz-generate",
-        timeoutMessage: "Quiz-genereringen tok for lang tid. Prøv igjen.",
-        invalidResponseMessage: "KI-responsen kunne ikke tolkes som quiz-spørsmål",
-        invalidResponseTest: (candidate) =>
-          candidate instanceof Error && candidate.message === "AI_RESPONSE_NOT_JSON_ARRAY",
-      })
-    ) {
-      return;
+    logger.error({ err: error, jobId, userId, courseId }, "Quiz-jobb feilet");
+    await setCache(
+      `${JOB_KEY_PREFIX}${jobId}`,
+      JSON.stringify({ status: "failed", error: "Kunne ikke generere quiz. Prøv igjen." }),
+      JOB_TTL_SECONDS,
+    ).catch(() => {});
+  }
+}
+
+// POST /api/quiz/generate — returnerer jobId umiddelbart (202 Accepted)
+router.post("/generate", rateLimitKi, knyttCanvasToken, async (req, res) => {
+  try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
+    const parsed = QuizGenerateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return sendZodError(res, parsed.error, "quiz generate");
     }
 
+    if (!isClientAvailable(DEFAULT_MODEL)) {
+      return apiError.serviceUnavailable(res, "KI-tjenesten");
+    }
+
+    if (!req.canvasToken) {
+      return apiError.unauthorized(res, "Canvas-token mangler");
+    }
+
+    const { courseId, courseName, moduleNames, questionCount } = parsed.data;
+    const jobId = randomUUID();
+
+    // Sett initial status i Redis
+    await setCache(
+      `${JOB_KEY_PREFIX}${jobId}`,
+      JSON.stringify({ status: "pending" }),
+      JOB_TTL_SECONDS,
+    );
+
+    // Start bakgrunnsjobben — ikke await
+    void processQuizJob(
+      jobId,
+      userId,
+      req.canvasToken,
+      req.canvasBaseUrl,
+      courseId,
+      courseName,
+      moduleNames,
+      questionCount,
+    );
+
+    return res.status(202).json(AsyncJobAcceptedSchema.parse({ jobId }));
+  } catch (error) {
+    if (res.headersSent) return;
     return sendUnknownError(res, error, {
       kontekst: "POST quiz generate",
-      melding: "Kunne ikke generere quiz. Prøv igjen.",
+      melding: "Kunne ikke starte quiz-generering. Prøv igjen.",
+    });
+  }
+});
+
+// GET /api/quiz/status/:jobId — sjekker jobb-status
+router.get("/status/:jobId", async (req, res) => {
+  try {
+    const { jobId } = req.params;
+
+    if (!jobId || !z.string().uuid().safeParse(jobId).success) {
+      return apiError.badRequest(res, "Ugyldig jobb-ID");
+    }
+
+    const cached = await getCache(`${JOB_KEY_PREFIX}${jobId}`);
+    if (!cached) {
+      return apiError.notFound(res, "Jobben finnes ikke eller har utløpt");
+    }
+
+    const jobState = JSON.parse(cached) as { status: string; result?: unknown; error?: string };
+    return res.json(jobState);
+  } catch (error) {
+    if (res.headersSent) return;
+    return sendUnknownError(res, error, {
+      kontekst: "GET quiz status",
+      melding: "Kunne ikke sjekke jobb-status.",
     });
   }
 });

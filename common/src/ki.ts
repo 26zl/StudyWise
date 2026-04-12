@@ -198,6 +198,29 @@ export const FlashcardsGenerateResponseSchema = z.object({
   flashcards: z.array(FlashcardSchema).min(1).max(50),
 });
 
+// --- Async jobb-mønster for quiz/flashcards (unngår Heroku 30s timeout) ---
+
+/** Respons fra POST /generate — returnerer jobId umiddelbart */
+export const AsyncJobAcceptedSchema = z.object({
+  jobId: z.string().uuid(),
+});
+
+/** Status for en bakgrunnsjobb */
+export const AsyncJobStatusSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("pending") }),
+  z.object({
+    status: z.literal("completed"),
+    result: z.unknown(),
+  }),
+  z.object({
+    status: z.literal("failed"),
+    error: z.string(),
+  }),
+]);
+
+export type AsyncJobAccepted = z.infer<typeof AsyncJobAcceptedSchema>;
+export type AsyncJobStatus = z.infer<typeof AsyncJobStatusSchema>;
+
 // Subtask schema for task breakdown API.
 // SubTaskSchema og TaskBreakdownResponseSchema brukes av både backend og frontend-hooker
 // for å holde generering, lagring og visning i sync.

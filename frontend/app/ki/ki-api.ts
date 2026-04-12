@@ -500,7 +500,6 @@ async function requestKI<T>(
 }
 
 // Timeout for langvarige KI-kall (ukeplangenerator kan ta 1–2 min)
-const KI_LONG_REQUEST_TIMEOUT_MS = 120_000;
 
 // API funksjoner
 // POST funksjon for chat (støtter SSE-streaming fra backend)
@@ -535,38 +534,6 @@ async function deleteKI<T>(endpoint: string, schema: ZodType<T>): Promise<T> {
   return requestKI(endpoint, schema, {
     method: "DELETE",
   });
-}
-
-// Enkel POST-hjelper for ikke-KI endepunkter (quiz/flashcards) slik at vi treffer riktig backend-rute.
-async function postGeneriskApi<T>(
-  path: string,
-  body: unknown,
-  schema: ZodType<T>,
-  signal?: AbortSignal,
-): Promise<T> {
-  const res = await fetchApi(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal,
-  });
-
-  if (res.status === 401 || res.status === 403) {
-    throw new ForbiddenError(await parseApiError(res, "Du har ikke tilgang til denne handlingen."));
-  }
-
-  if (res.status === 429) {
-    throw new Error(await parseApiError(res, "For mange forespørsler. Vent litt og prøv igjen."));
-  }
-
-  if (!res.ok) {
-    throw new Error(
-      await parseApiError(res, "Noe gikk galt med genereringen. Prøv igjen om et øyeblikk."),
-    );
-  }
-
-  const data = await res.json();
-  return schema.parse(data);
 }
 
 function asError(error: unknown): Error {
@@ -768,22 +735,15 @@ export async function saveTaskBreakdownApi(assignmentId: string, subtasks: SubTa
   );
 }
 
-/** Rå API-funksjon for ukeplangenerering — kan brukes utenfor React-komponent livssyklus. */
+/** Rå API-funksjon for ukeplangenerering (asynkron med polling). */
 export async function generateWeeklyPlanApi(request: WeeklyPlanGenerateRequest) {
   const parsedRequest = WeeklyPlanGenerateRequestSchema.parse(request);
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), KI_LONG_REQUEST_TIMEOUT_MS);
-  try {
-    return await postKI(
-      "/weekly-plan/generate",
-      parsedRequest,
-      WeeklyPlanSuggestionResponseSchema,
-      "POST",
-      { signal: controller.signal },
-    );
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  return submitAndPollJob(
+    "/api/ki/weekly-plan/generate",
+    "/api/ki/weekly-plan/status",
+    parsedRequest,
+    WeeklyPlanSuggestionResponseSchema,
+  );
 }
 
 export function useSaveTaskBreakdown() {
@@ -887,12 +847,13 @@ export async function generateOppsummeringApi(
   return postKI("/oppsummering", { tekst, type }, KIOppsummeringResponseSchema);
 }
 
-// --- Quiz/Flashcards API ---
+// --- Quiz/Flashcards API (asynkron jobb-mønster med polling) ---
 import {
   QuizGenerateRequestSchema,
   QuizGenerateResponseSchema,
   FlashcardsGenerateRequestSchema,
   FlashcardsGenerateResponseSchema,
+  AsyncJobAcceptedSchema,
   type QuizGenerateRequest,
   type QuizGenerateResponse,
   type FlashcardsGenerateRequest,
@@ -906,14 +867,85 @@ export type {
   FlashcardsGenerateResponse,
 };
 
-/** Rå API-funksjon for quiz-generering. */
+/** Polling-intervall for bakgrunnsjobber (ms) */
+const JOB_POLL_INTERVAL_MS = 2_000;
+
+/** Maks polling-tid før timeout (ms) — 3 minutter */
+const JOB_POLL_TIMEOUT_MS = 180_000;
+
+/**
+ * Generisk polling-funksjon for async jobb-mønsteret.
+ * Sender POST → mottar jobId → poller GET status til ferdig.
+ */
+async function submitAndPollJob<T>(
+  submitPath: string,
+  statusPathPrefix: string,
+  body: unknown,
+  resultSchema: z.ZodType<T>,
+  signal?: AbortSignal,
+): Promise<T> {
+  // 1) Send forespørsel — backend returnerer 202 med jobId
+  const submitRes = await fetchApi(submitPath, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  });
+
+  if (submitRes.status === 401 || submitRes.status === 403) {
+    throw new ForbiddenError(await parseApiError(submitRes, "Du har ikke tilgang til denne handlingen."));
+  }
+  if (submitRes.status === 429) {
+    throw new Error(await parseApiError(submitRes, "For mange forespørsler. Vent litt og prøv igjen."));
+  }
+  if (!submitRes.ok) {
+    throw new Error(await parseApiError(submitRes, "Noe gikk galt med genereringen. Prøv igjen om et øyeblikk."));
+  }
+
+  const { jobId } = AsyncJobAcceptedSchema.parse(await submitRes.json());
+
+  // 2) Poll for resultat
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < JOB_POLL_TIMEOUT_MS) {
+    if (signal?.aborted) {
+      throw new DOMException("Forespørselen ble avbrutt.", "AbortError");
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
+
+    if (signal?.aborted) {
+      throw new DOMException("Forespørselen ble avbrutt.", "AbortError");
+    }
+
+    const statusRes = await fetchApi(`${statusPathPrefix}/${jobId}`, { signal });
+    if (!statusRes.ok) continue;
+
+    const jobState = (await statusRes.json()) as { status: string; result?: unknown; error?: string };
+
+    if (jobState.status === "completed") {
+      return resultSchema.parse(jobState.result);
+    }
+
+    if (jobState.status === "failed") {
+      throw new Error(jobState.error ?? "Genereringen feilet. Prøv igjen.");
+    }
+
+    // status === "pending" → fortsett polling
+  }
+
+  throw new Error("Genereringen tok for lang tid. Prøv igjen.");
+}
+
+/** Rå API-funksjon for quiz-generering (asynkron med polling). */
 export async function generateQuizApi(
   request: QuizGenerateRequest,
   signal?: AbortSignal,
 ): Promise<QuizGenerateResponse> {
   const validated = QuizGenerateRequestSchema.parse(request);
-  const response = await postGeneriskApi(
+  const response = await submitAndPollJob(
     "/api/quiz/generate",
+    "/api/quiz/status",
     validated,
     QuizGenerateResponseSchema,
     signal,
@@ -925,14 +957,15 @@ export async function generateQuizApi(
   return response;
 }
 
-/** Rå API-funksjon for flashcard-generering. */
+/** Rå API-funksjon for flashcard-generering (asynkron med polling). */
 export async function generateFlashcardsApi(
   request: FlashcardsGenerateRequest,
   signal?: AbortSignal,
 ): Promise<FlashcardsGenerateResponse> {
   const validated = FlashcardsGenerateRequestSchema.parse(request);
-  const response = await postGeneriskApi(
+  const response = await submitAndPollJob(
     "/api/flashcards/generate",
+    "/api/flashcards/status",
     validated,
     FlashcardsGenerateResponseSchema,
     signal,
