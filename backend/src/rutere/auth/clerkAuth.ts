@@ -44,6 +44,8 @@ type ClerkProfile = {
   mfaEnabled: boolean;
   /** True hvis Clerk returnerte OAuth-kontoer som ble hoppet over pga. ufullstendige data (intern ID uten e-post). */
   hadSkippedIncompleteOauth?: boolean;
+  /** True hvis Clerk hadde et auto-satt brukernavn (f.eks. e-post fra Microsoft SSO) som ble filtrert bort. */
+  hadAutoSetSsoUsername?: boolean;
 };
 
 type RelinkableUser = Pick<IUser, "_id" | "clerkId" | "clerkEnv">;
@@ -883,9 +885,19 @@ async function getClerkProfile(
   // Clerk markerer MFA som aktivert når brukeren har minst én TOTP-faktor
   const mfaEnabled = clerkUser.twoFactorEnabled === true;
 
+  // Ignorer Clerk-brukernavn som er identisk med e-postadressen (case-insensitivt).
+  // Microsoft SSO setter automatisk username = e-post i Clerk, mens Google lar det
+  // stå tomt. Vi vil kun akseptere brukernavn som brukeren bevisst har valgt —
+  // enten via sign-up-flyten eller PUT /profile, ikke auto-satte SSO-verdier.
+  const clerkUsername = clerkUser.username ?? undefined;
+  const isAutoSetSsoUsername =
+    clerkUsername && email && clerkUsername.toLowerCase() === email.toLowerCase();
+
   return {
     email,
-    username: clerkUser.username ?? undefined,
+    username: isAutoSetSsoUsername ? undefined : clerkUsername,
+    /** True hvis Clerk hadde et auto-satt brukernavn (f.eks. e-post fra SSO) som ble filtrert bort. */
+    hadAutoSetSsoUsername: !!isAutoSetSsoUsername,
     firstName: clerkUser.firstName ?? undefined,
     lastName: clerkUser.lastName ?? undefined,
     authProviders,
@@ -2038,6 +2050,14 @@ export async function findOrCreateUserByClerkId(
         "authFlow: User.create() succeeded — new user created",
       );
       await recordUserCreated(user, clerkUserId);
+
+      // Rydd opp auto-satt SSO-brukernavn i Clerk (f.eks. Microsoft setter username = e-post).
+      // Gjøres asynkront etter opprettelse — feiling blokkerer ikke brukeropplevelsen.
+      if (profile.hadAutoSetSsoUsername) {
+        void updateClerkUserProfile(clerkUserId, { username: "" }).catch(() => {
+          logger.debug({ clerkUserId }, "Kunne ikke fjerne auto-satt Clerk-brukernavn");
+        });
+      }
       return user;
     } catch (error) {
       if (!isDuplicateKeyError(error)) {

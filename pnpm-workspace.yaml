@@ -13,9 +13,11 @@ onlyBuiltDependencies:
   - "@datadog/pprof"
   - "@scarf/scarf"
   - bcrypt
+  - core-js
   - dd-trace
   - esbuild
   - msgpackr-extract
+  - protobufjs
   - sharp
   - tesseract.js
   - unrs-resolver

@@ -1,0 +1,48 @@
+# .vercelignore — ekskluderer filer fra opplasting til Vercel build runner.
+# Bruker samme syntax som .gitignore. Treffes filer her med en match,
+# blir de ALDRI lastet opp til Vercel — verken til build-konteksten eller
+# til kjøretidsdisken.
+#
+# Vercel deployer kun frontend (prosjekt: studywise-frontend). Alt som ikke
+# trengs for å bygge Next.js-frontenden kan trygt holdes utenfor.
+
+# ── Bachelor- og prosjekt-artefakter ─────────────────────────────────────
+# filer_prosjekt/ er en del av bachelor-leveransen og må stå i git for
+# veileder/sensor, men har ingen plass på prod-frontend.
+filer_prosjekt/
+prompts/
+
+# ── Andre workspace-pakker frontend ikke trenger ─────────────────────────
+backend/
+cloudflare/
+docs/
+grafana/
+scripts/
+tests/
+
+# ── Lokal utvikling og tooling ───────────────────────────────────────────
+.husky/
+.claude/
+.github/
+.vscode/
+.vs/
+.idea/
+.windsurf/
+
+# ── Docker (kun lokal dev) ───────────────────────────────────────────────
+Dockerfile
+docker-compose.yml
+docker.env.example
+.dockerignore
+
+# ── Heroku-spesifikke filer ──────────────────────────────────────────────
+Procfile
+.slugignore
+
+# ── Logger og midlertidige filer ─────────────────────────────────────────
+*.log
+tmp-*
+backend-*.log
+backend-*.stderr.log
+backend-*.stdout.log
+nul

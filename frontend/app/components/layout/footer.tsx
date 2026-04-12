@@ -56,7 +56,7 @@ export function Footer() {
                         {t("footer.contact")}
                     </Link>
                 </div>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center leading-tight">
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 text-center leading-tight">
                     {t("footer.copyright")}
                 </p>
             </div>

@@ -51,14 +51,22 @@ async function main() {
   const health = await requestJson("/health");
   pushResult(results, "GET /health", health.status, 200);
 
-  const usernameCheck = await requestJson(`/api/user/username/check?username=smokeuser${Date.now()}`);
+  const usernameCheck = await requestJson("/api/user/username/check", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-studywise-csrf": "1",
+      Origin: BACKEND_URL,
+    },
+    body: JSON.stringify({ username: `smokeuser${Date.now()}` }),
+  });
   const hasAvailableFlag =
     typeof usernameCheck.body === "object" &&
     usernameCheck.body !== null &&
     "available" in usernameCheck.body;
   pushResult(
     results,
-    "GET /api/user/username/check",
+    "POST /api/user/username/check",
     usernameCheck.status,
     200,
     `availableFlag=${hasAvailableFlag}`,

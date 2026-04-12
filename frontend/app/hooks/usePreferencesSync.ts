@@ -21,6 +21,10 @@ export function usePreferencesSync() {
   const { mutate: syncToBackend } = useOppdaterUIPreferanser();
 
   const hasAppliedBackend = useRef(false);
+  // Forhindrer at effekt 3 tolker endringer som ble forårsaket av effekt 2
+  // (apply backend prefs) som bruker-initierte endringer. Settes true etter
+  // apply, og resettes i effekt 3 slik at neste faktiske bruker-endring synces.
+  const skipNextSync = useRef(false);
   const prevValues = useRef<{
     language?: string;
     theme?: string;
@@ -57,11 +61,20 @@ export function usePreferencesSync() {
     const nextLanguage = uiPrefs?.language ?? language;
     const nextTheme = uiPrefs?.theme ?? theme;
 
-    if (uiPrefs?.language && uiPrefs.language !== language) {
+    const willChangeLanguage = !!(uiPrefs?.language && uiPrefs.language !== language);
+    const willChangeTheme = !!(uiPrefs?.theme && uiPrefs.theme !== theme);
+
+    if (willChangeLanguage && uiPrefs?.language) {
       setLanguage(uiPrefs.language);
     }
-    if (uiPrefs?.theme && uiPrefs.theme !== theme) {
+    if (willChangeTheme && uiPrefs?.theme) {
       setTheme(uiPrefs.theme);
+    }
+
+    // Hvis vi endret lokalt state, hopp over neste sync-deteksjon — endringen
+    // er fra backend, ikke fra brukeren, og trenger ikke sendes tilbake.
+    if (willChangeLanguage || willChangeTheme) {
+      skipNextSync.current = true;
     }
 
     prevValues.current = {
@@ -81,6 +94,14 @@ export function usePreferencesSync() {
       language !== prev.language || (harGyldigTema && theme !== prev.theme);
 
     if (!harEndringer) return;
+
+    // Endringen er forårsaket av at backend-prefs ble applied lokalt (effekt 2).
+    // Hopp over — vi vil ikke sende de samme verdiene tilbake til backend.
+    if (skipNextSync.current) {
+      skipNextSync.current = false;
+      prevValues.current = { language, theme };
+      return;
+    }
 
     prevValues.current = { language, theme };
 

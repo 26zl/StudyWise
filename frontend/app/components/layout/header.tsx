@@ -246,7 +246,14 @@ export function Header() {
         {labels.commonNavigation.map((item) => (
           <NavigationLink key={item.href} {...item} />
         ))}
-        {authLoaded && isSignedIn ? (
+        {!authLoaded ? (
+          // Unngå FOUC: vis skeleton mens Clerk avklarer auth-state, slik at
+          // "Logg inn / Registrer deg" ikke flasher for innloggede brukere ved refresh.
+          <div
+            className="h-5 w-40 rounded bg-slate-200 dark:bg-slate-700 animate-pulse"
+            aria-hidden="true"
+          />
+        ) : isSignedIn ? (
           <>
             {labels.signedInNavigation.map((item) => (
               <NavigationLink key={item.href} {...item} />
@@ -326,7 +333,12 @@ export function Header() {
                 onClick={handleMobilNavigation}
               />
             ))}
-            {authLoaded && isSignedIn ? (
+            {!authLoaded ? (
+              <div
+                className="h-5 w-40 rounded bg-slate-200 dark:bg-slate-700 animate-pulse"
+                aria-hidden="true"
+              />
+            ) : isSignedIn ? (
               <>
                 {labels.signedInNavigation.map((item) => (
                   <NavigationLink

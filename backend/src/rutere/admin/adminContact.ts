@@ -46,10 +46,19 @@ router.get("/contact/messages", async (req, res) => {
     MAX_OFFSET,
   );
   const status = parsed.data.status ?? "all";
+  const errorIdFilter = parsed.data.errorId;
 
   try {
     const filter: Record<string, unknown> = {};
     if (status !== "all") filter.status = status;
+    // Søk både i reportedErrorId (feilen brukeren rapporterte) og requestId (selve submit-requesten).
+    // Admin kan da lime inn én ID og treffe uansett hvilken av de to som er kjent.
+    if (errorIdFilter) {
+      filter.$or = [
+        { reportedErrorId: errorIdFilter },
+        { requestId: errorIdFilter },
+      ];
+    }
 
     const [items, total, unread] = await Promise.all([
       ContactMessage.find(filter)
@@ -70,6 +79,7 @@ router.get("/contact/messages", async (req, res) => {
         melding: m.melding,
         sideUrl: m.sideUrl,
         requestId: m.requestId,
+        reportedErrorId: m.reportedErrorId,
         attachmentCount: m.attachmentCount,
         attachmentSummary: m.attachmentSummary,
         status: m.status,
@@ -152,6 +162,7 @@ router.patch("/contact/messages/:id", requireRecentAuth, async (req, res) => {
         melding: updated.melding,
         sideUrl: updated.sideUrl,
         requestId: updated.requestId,
+        reportedErrorId: updated.reportedErrorId,
         attachmentCount: updated.attachmentCount,
         attachmentSummary: updated.attachmentSummary,
         status: updated.status,

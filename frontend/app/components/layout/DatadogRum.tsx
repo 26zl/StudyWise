@@ -4,8 +4,8 @@ import { useEffect } from "react";
 import { useCookieConsent } from "@/app/hooks/useCookieConsent";
 
 type DatadogUser = {
-    id: string;
-    studywiseUserId?: string;
+  id: string;
+  studywiseUserId?: string;
 };
 
 let pendingDatadogUser: DatadogUser | null = null;
@@ -19,36 +19,36 @@ let ddReactPlugin: typeof import("@datadog/browser-rum-react").reactPlugin | nul
 let ddImportPromise: Promise<void> | null = null;
 
 async function loadDatadogModules() {
-    if (ddRum) return;
-    if (ddImportPromise) {
-        await ddImportPromise;
-        return;
-    }
-    ddImportPromise = (async () => {
-        const [rumModule, reactModule] = await Promise.all([
-            import("@datadog/browser-rum"),
-            import("@datadog/browser-rum-react"),
-        ]);
-        ddRum = rumModule.datadogRum;
-        ddReactPlugin = reactModule.reactPlugin;
-    })();
+  if (ddRum) return;
+  if (ddImportPromise) {
     await ddImportPromise;
+    return;
+  }
+  ddImportPromise = (async () => {
+    const [rumModule, reactModule] = await Promise.all([
+      import("@datadog/browser-rum"),
+      import("@datadog/browser-rum-react"),
+    ]);
+    ddRum = rumModule.datadogRum;
+    ddReactPlugin = reactModule.reactPlugin;
+  })();
+  await ddImportPromise;
 }
 
 function flushPendingDatadogUser() {
-    if (!ddRum?.getInitConfiguration()) return;
+  if (!ddRum?.getInitConfiguration()) return;
 
-    if (pendingClearUser) {
-        ddRum.clearUser();
-        pendingClearUser = false;
-        pendingDatadogUser = null;
-        return;
-    }
+  if (pendingClearUser) {
+    ddRum.clearUser();
+    pendingClearUser = false;
+    pendingDatadogUser = null;
+    return;
+  }
 
-    if (pendingDatadogUser) {
-        ddRum.setUser(pendingDatadogUser);
-        pendingDatadogUser = null;
-    }
+  if (pendingDatadogUser) {
+    ddRum.setUser(pendingDatadogUser);
+    pendingDatadogUser = null;
+  }
 }
 
 /**
@@ -57,73 +57,95 @@ function flushPendingDatadogUser() {
  * Aktiveres kun når NEXT_PUBLIC_DD_RUM_APPLICATION_ID og NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN er satt.
  */
 declare global {
-    interface Window {
-        __DD_RUM_INIT_DONE__?: boolean;
-    }
+  interface Window {
+    __DD_RUM_INIT_DONE__?: boolean;
+  }
 }
 
 export function DatadogRum() {
-    const { consent, isReady } = useCookieConsent();
+  const { consent, isReady } = useCookieConsent();
 
-    useEffect(() => {
-        // Ikke initialiser RUM før samtykke er avklart og akseptert (GDPR)
-        if (!isReady || consent !== "accepted") {
-            return;
-        }
+  useEffect(() => {
+    if (!isReady) {
+      return;
+    }
 
-        const applicationId = process.env.NEXT_PUBLIC_DD_RUM_APPLICATION_ID;
-        const clientToken = process.env.NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN;
-        const site = process.env.NEXT_PUBLIC_DD_SITE ?? "us5.datadoghq.com";
-        if (!applicationId || !clientToken) {
-            return;
-        }
+    // Hvis RUM aldri er initialisert OG brukeren ikke har samtykket — gjør ingenting.
+    // Dette er den eneste tidlige exit: vi vil verken laste modulene eller røre Datadog.
+    const alreadyInitFlag = typeof window !== "undefined" && window.__DD_RUM_INIT_DONE__ === true;
+    if (!alreadyInitFlag && consent !== "accepted") {
+      return;
+    }
 
-        // Én init per window — unngår dobbel init i Strict Mode / Turbopack
-        if (typeof window !== "undefined" && window.__DD_RUM_INIT_DONE__) {
+    const applicationId = process.env.NEXT_PUBLIC_DD_RUM_APPLICATION_ID;
+    const clientToken = process.env.NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN;
+    const site = process.env.NEXT_PUBLIC_DD_SITE ?? "us5.datadoghq.com";
+    if (!alreadyInitFlag && (!applicationId || !clientToken)) {
+      return;
+    }
+
+    // Last alltid modulene før vi tar consent-beslutninger. Etter en Turbopack HMR
+    // er modul-scope `ddRum` resatt til null mens `__DD_RUM_INIT_DONE__` på window
+    // fortsatt er true; uten en re-import ville vi mistet referansen og ikke kunnet
+    // kalle setTrackingConsent når brukeren bytter samtykke.
+    void loadDatadogModules().then(() => {
+      if (!ddRum || !ddReactPlugin) return;
+
+      const isAlreadyInit = Boolean(ddRum.getInitConfiguration());
+
+      if (isAlreadyInit) {
+        // Post-init samtykke-endring: oppdater tracking-consent runtime uten reload.
+        // Datadogs offisielle GDPR-API (v5+) — 'not-granted' stopper sending,
+        // 'granted' slår på igjen.
+        if (typeof window !== "undefined") window.__DD_RUM_INIT_DONE__ = true;
+        try {
+          ddRum.setTrackingConsent(consent === "accepted" ? "granted" : "not-granted");
+          if (consent === "accepted") {
             flushPendingDatadogUser();
-            return;
+          }
+        } catch {
+          // Datadog RUM er ikke kritisk – la appen fortsette
         }
+        return;
+      }
 
-        void loadDatadogModules().then(() => {
-            if (!ddRum || !ddReactPlugin) return;
+      // Førstegangs-init krever eksplisitt samtykke + nødvendige env-variabler.
+      if (consent !== "accepted" || !applicationId || !clientToken) {
+        return;
+      }
 
-            if (ddRum.getInitConfiguration()) {
-                if (typeof window !== "undefined") window.__DD_RUM_INIT_DONE__ = true;
-                flushPendingDatadogUser();
-                return;
-            }
-
-            if (typeof window !== "undefined") window.__DD_RUM_INIT_DONE__ = true;
-            try {
-                ddRum.init({
-                    applicationId,
-                    clientToken,
-                    site,
-                    service: "studywise-frontend",
-                    env: process.env.NODE_ENV ?? "development",
-                    version: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ?? "0.0.0",
-                    sessionSampleRate: 100,
-                    sessionReplaySampleRate: 50,
-                    defaultPrivacyLevel: "mask-user-input",
-                    trackUserInteractions: true,
-                    trackResources: true,
-                    trackLongTasks: true,
-                    // Distribuert tracing: kobler frontend RUM-traces til backend APM-traces
-                    allowedTracingUrls: [
-                        { match: /\/api\//, propagatorTypes: ["tracecontext"] },
-                    ],
-                    plugins: [ddReactPlugin({ router: false }) as import("@datadog/browser-rum").RumPlugin],
-                });
-                flushPendingDatadogUser();
-            } catch {
-                if (typeof window !== "undefined") {
-                    window.__DD_RUM_INIT_DONE__ = false;
-                }
-            }
+      if (typeof window !== "undefined") window.__DD_RUM_INIT_DONE__ = true;
+      try {
+        ddRum.init({
+          applicationId,
+          clientToken,
+          site,
+          service: "studywise-frontend",
+          env: process.env.NODE_ENV ?? "development",
+          version: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ?? "0.0.0",
+          sessionSampleRate: 100,
+          sessionReplaySampleRate: 50,
+          defaultPrivacyLevel: "mask-user-input",
+          trackUserInteractions: true,
+          trackResources: true,
+          trackLongTasks: true,
+          // Eksplisitt GDPR-consent: vi init-er kun etter accepted,
+          // men setter flagget for klarhet og for å kunne flippe runtime.
+          trackingConsent: "granted",
+          // Distribuert tracing: kobler frontend RUM-traces til backend APM-traces
+          allowedTracingUrls: [{ match: /\/api\//, propagatorTypes: ["tracecontext"] }],
+          plugins: [ddReactPlugin({ router: false }) as import("@datadog/browser-rum").RumPlugin],
         });
-    }, [consent, isReady]);
+        flushPendingDatadogUser();
+      } catch {
+        if (typeof window !== "undefined") {
+          window.__DD_RUM_INIT_DONE__ = false;
+        }
+      }
+    });
+  }, [consent, isReady]);
 
-    return null;
+  return null;
 }
 
 /**
@@ -131,22 +153,22 @@ export function DatadogRum() {
  * Kall denne etter innlogging (f.eks. i auth-provider eller dashboard).
  */
 export function setDatadogUser(user: DatadogUser) {
-    if (!ddRum?.getInitConfiguration()) {
-        pendingDatadogUser = user;
-        pendingClearUser = false;
-        return;
-    }
-    ddRum.setUser(user);
+  if (!ddRum?.getInitConfiguration()) {
+    pendingDatadogUser = user;
+    pendingClearUser = false;
+    return;
+  }
+  ddRum.setUser(user);
 }
 
 /**
  * Fjerner bruker-ID fra Datadog RUM ved utlogging.
  */
 export function clearDatadogUser() {
-    if (!ddRum?.getInitConfiguration()) {
-        pendingDatadogUser = null;
-        pendingClearUser = true;
-        return;
-    }
-    ddRum.clearUser();
+  if (!ddRum?.getInitConfiguration()) {
+    pendingDatadogUser = null;
+    pendingClearUser = true;
+    return;
+  }
+  ddRum.clearUser();
 }

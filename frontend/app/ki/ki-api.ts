@@ -28,6 +28,7 @@ import {
 } from "common/ki";
 import { parseApiError, identifiserFeiltype, type FeilType } from "../lib/errorUtils";
 import { fetchApi } from "../lib/apiClient";
+import { captureProductEvent } from "@/app/components/layout/PostHogAnalytics";
 import { ForbiddenError } from "../lib/errors";
 
 // Eksporter typer
@@ -44,12 +45,36 @@ export const SUPPORTED_FILE_TYPES = [
   ".md",
   ".csv",
   // Kodefiler
-  ".java", ".js", ".ts", ".jsx", ".tsx",
-  ".py", ".html", ".css", ".scss", ".sql",
-  ".cpp", ".c", ".h", ".cs", ".go", ".rs",
-  ".php", ".rb", ".swift", ".kt",
-  ".xml", ".json", ".yaml", ".yml",
-  ".sh", ".bash", ".ps1", ".r", ".m", ".dart",
+  ".java",
+  ".js",
+  ".ts",
+  ".jsx",
+  ".tsx",
+  ".py",
+  ".html",
+  ".css",
+  ".scss",
+  ".sql",
+  ".cpp",
+  ".c",
+  ".h",
+  ".cs",
+  ".go",
+  ".rs",
+  ".php",
+  ".rb",
+  ".swift",
+  ".kt",
+  ".xml",
+  ".json",
+  ".yaml",
+  ".yml",
+  ".sh",
+  ".bash",
+  ".ps1",
+  ".r",
+  ".m",
+  ".dart",
   // Bilder for OCR
   ".png",
   ".jpg",
@@ -70,10 +95,7 @@ export const SUPPORTED_FILE_TYPES = [
  * 2. Den nyeste bruker-meldingen
  * 3. Så mange eldre meldinger som mulig (nyeste først)
  */
-function truncateContentPreservingEnds(
-  content: string,
-  maxLength: number,
-): string {
+function truncateContentPreservingEnds(content: string, maxLength: number): string {
   if (content.length <= maxLength) return content;
   if (maxLength <= 8) return content.slice(-maxLength);
 
@@ -93,10 +115,7 @@ function trimMessages(
   if (messages.length === 0) return messages;
 
   // Beregn total lengde
-  const totalLength = messages.reduce(
-    (sum, m) => sum + (m.content?.length || 0),
-    0,
-  );
+  const totalLength = messages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
   if (totalLength <= maxLength) return messages;
 
   // Separer system-melding fra resten
@@ -107,10 +126,7 @@ function trimMessages(
     return [
       {
         ...systemMessage,
-        content: truncateContentPreservingEnds(
-          systemMessage.content,
-          maxLength,
-        ),
+        content: truncateContentPreservingEnds(systemMessage.content, maxLength),
       },
     ];
   }
@@ -122,26 +138,17 @@ function trimMessages(
     nonSystemMessages[nonSystemMessages.length - 1];
   const latestMessage = {
     ...latestUserMessage,
-    content: truncateContentPreservingEnds(
-      latestUserMessage.content,
-      maxLength,
-    ),
+    content: truncateContentPreservingEnds(latestUserMessage.content, maxLength),
   };
 
   // Start med system-melding og reserver plass til siste melding
   const result: Array<{ role: string; content: string }> = [];
   let currentLength = 0;
-  const budgetBeforeLatest = Math.max(
-    0,
-    maxLength - latestMessage.content.length,
-  );
+  const budgetBeforeLatest = Math.max(0, maxLength - latestMessage.content.length);
 
   // Legg til system-melding først (hvis den finnes)
   if (systemMessage && budgetBeforeLatest > 0) {
-    const systemContent = truncateContentPreservingEnds(
-      systemMessage.content,
-      budgetBeforeLatest,
-    );
+    const systemContent = truncateContentPreservingEnds(systemMessage.content, budgetBeforeLatest);
     result.push({ ...systemMessage, content: systemContent });
     currentLength += systemContent.length;
   }
@@ -178,22 +185,10 @@ import {
 } from "../lib/errors";
 
 // Re-eksporter for konsumenter
-export {
-  KIAuthError,
-  KIConfigError,
-  KIRateLimitError,
-  KIServiceError,
-  KITimeoutError,
-};
+export { KIAuthError, KIConfigError, KIRateLimitError, KIServiceError, KITimeoutError };
 
 /** Intern kategori for KI-feil – én kilde for både Error-typen og brukervennlige tekster. */
-type KIErrorCategory =
-  | "auth"
-  | "config"
-  | "rate_limit"
-  | "timeout"
-  | "service"
-  | "unknown";
+type KIErrorCategory = "auth" | "config" | "rate_limit" | "timeout" | "service" | "unknown";
 
 const DISPLAY_MESSAGES: Record<
   KIErrorCategory,
@@ -206,8 +201,10 @@ const DISPLAY_MESSAGES: Record<
   },
   config: {
     chat: "KI-tjenesten er ikke konfigurert riktig akkurat nå. Mangler ANTHROPIC_API_KEY på backend.",
-    dokument: "KI-tjenesten er ikke konfigurert riktig akkurat nå. Mangler ANTHROPIC_API_KEY på backend.",
-    banner: "KI-tjenesten er ikke konfigurert i dette miljøet ennå. Mangler ANTHROPIC_API_KEY på backend.",
+    dokument:
+      "KI-tjenesten er ikke konfigurert riktig akkurat nå. Mangler ANTHROPIC_API_KEY på backend.",
+    banner:
+      "KI-tjenesten er ikke konfigurert i dette miljøet ennå. Mangler ANTHROPIC_API_KEY på backend.",
   },
   rate_limit: {
     chat: "For mange forespørsler. Vent noen sekunder og prøv igjen.",
@@ -234,9 +231,7 @@ function erKredittMelding(msg: string): boolean {
   if (!msg || typeof msg !== "string") return false;
   const lower = msg.toLowerCase();
   return (
-    msg.includes("kreditt") ||
-    msg.includes("oppbrukt") ||
-    lower.includes("insufficient_quota")
+    msg.includes("kreditt") || msg.includes("oppbrukt") || lower.includes("insufficient_quota")
   );
 }
 
@@ -273,11 +268,7 @@ function feilTypeToKICategory(type: FeilType): KIErrorCategory {
 }
 
 /** Klassifiserer KI-feil: sjekker KI-spesifikke error.name og config-meldinger, deretter delegerer til delt identifiserFeiltype. */
-function classifyKIError(
-  message: string,
-  status?: number,
-  errorName?: string,
-): KIErrorCategory {
+function classifyKIError(message: string, status?: number, errorName?: string): KIErrorCategory {
   // KI-spesifikk: sjekk error.name for spesialiserte feilklasser
   if (errorName === "KIConfigError") return "config";
 
@@ -300,7 +291,7 @@ function classifyKIError(
 
 function getDisplayMessageForCategory(
   category: KIErrorCategory,
-  context: "chat" | "dokument"
+  context: "chat" | "dokument",
 ): string {
   return DISPLAY_MESSAGES[category][context];
 }
@@ -317,9 +308,7 @@ function lagKIError(melding: string, status?: number): Error {
     normalisert &&
     !erTekniskFeilmelding(normalisert)
   ) {
-    return category === "config"
-      ? new KIConfigError(normalisert)
-      : new KIServiceError(normalisert);
+    return category === "config" ? new KIConfigError(normalisert) : new KIServiceError(normalisert);
   }
   const message =
     category === "unknown"
@@ -346,19 +335,12 @@ function lagKIError(melding: string, status?: number): Error {
 export type KIErrorContext = "chat" | "dokument";
 
 /** Brukervennlig feilmelding for toast/banner – bruker samme klassifisering som lagKIError. */
-export function getKIErrorMessage(
-  error: Error,
-  context: KIErrorContext = "chat"
-): string {
+export function getKIErrorMessage(error: Error, context: KIErrorContext = "chat"): string {
   const msg = error.message;
   if (erKredittMelding(msg)) return msg;
 
   const category = classifyKIError(msg, undefined, error.name);
-  if (
-    (category === "service" || category === "config") &&
-    msg &&
-    !erTekniskFeilmelding(msg)
-  ) {
+  if ((category === "service" || category === "config") && msg && !erTekniskFeilmelding(msg)) {
     return msg;
   }
   if (category !== "unknown") return getDisplayMessageForCategory(category, context);
@@ -387,8 +369,7 @@ export function getKIBannerForError(error: Error): {
   const category = classifyKIError(msg, undefined, error.name);
   if (category === "auth" || category === "config" || category === "rate_limit") {
     const melding =
-      DISPLAY_MESSAGES[category].banner ??
-      getDisplayMessageForCategory(category, "chat");
+      DISPLAY_MESSAGES[category].banner ?? getDisplayMessageForCategory(category, "chat");
     return { melding, type: "warning" };
   }
   if (category === "service") {
@@ -396,8 +377,7 @@ export function getKIBannerForError(error: Error): {
     const melding =
       msg && !erTekniskFeilmelding(msg)
         ? msg
-        : (DISPLAY_MESSAGES.service.banner ??
-          getDisplayMessageForCategory("service", "chat"));
+        : (DISPLAY_MESSAGES.service.banner ?? getDisplayMessageForCategory("service", "chat"));
     return { melding, type: "warning" };
   }
   return {
@@ -410,27 +390,18 @@ export function getKIBannerForError(error: Error): {
 async function håndterKIFeilRespons(res: Response): Promise<void> {
   if (res.status === 401) {
     throw lagKIError(
-      await parseApiError(
-        res,
-        "Du må logge inn på nytt for å bruke KI-assistenten.",
-      ),
+      await parseApiError(res, "Du må logge inn på nytt for å bruke KI-assistenten."),
       res.status,
     );
   }
   if (res.status === 413) {
     throw new Error(
-      await parseApiError(
-        res,
-        "For mye data. Prøv med mindre innhold eller start en ny samtale.",
-      ),
+      await parseApiError(res, "For mye data. Prøv med mindre innhold eller start en ny samtale."),
     );
   }
   if (res.status === 429) {
     throw lagKIError(
-      await parseApiError(
-        res,
-        "For mange forespørsler. Vent litt og prøv igjen.",
-      ),
+      await parseApiError(res, "For mange forespørsler. Vent litt og prøv igjen."),
       res.status,
     );
   }
@@ -445,10 +416,7 @@ async function håndterKIFeilRespons(res: Response): Promise<void> {
   }
   if (res.status === 504) {
     throw lagKIError(
-      await parseApiError(
-        res,
-        "Forespørselen tok for lang tid. Prøv å forenkle spørsmålet.",
-      ),
+      await parseApiError(res, "Forespørselen tok for lang tid. Prøv å forenkle spørsmålet."),
       res.status,
     );
   }
@@ -487,10 +455,7 @@ function parseSSEPayload<T>(dataLine: string, schema: ZodType<T>): T {
 }
 
 /** Parser KI-respons: SSE (siste data:-linje) eller vanlig JSON. */
-async function parseKIResponse<T>(
-  res: Response,
-  schema: ZodType<T>,
-): Promise<T> {
+async function parseKIResponse<T>(res: Response, schema: ZodType<T>): Promise<T> {
   const contentType = res.headers.get("Content-Type") || "";
   if (contentType.includes("text/event-stream")) {
     const text = await res.text();
@@ -520,18 +485,14 @@ async function requestKI<T>(
   try {
     res = await fetchApi(`/api/ki${endpoint}`, init);
   } catch {
-    throw new KIServiceError(
-      "Kunne ikke koble til KI-tjenesten. Sjekk internettforbindelsen din.",
-    );
+    throw new KIServiceError("Kunne ikke koble til KI-tjenesten. Sjekk internettforbindelsen din.");
   }
 
   if (res.status === 401 || res.status === 403) {
     if (res.status === 401) {
       throw new KIAuthError("Du må logge inn på nytt for å bruke KI-assistenten.");
     }
-    throw new ForbiddenError(
-      await parseApiError(res, "Du har ikke tilgang til KI-assistenten."),
-    );
+    throw new ForbiddenError(await parseApiError(res, "Du har ikke tilgang til KI-assistenten."));
   }
 
   await håndterKIFeilRespons(res);
@@ -591,26 +552,16 @@ async function postGeneriskApi<T>(
   });
 
   if (res.status === 401 || res.status === 403) {
-    throw new ForbiddenError(
-      await parseApiError(res, "Du har ikke tilgang til denne handlingen."),
-    );
+    throw new ForbiddenError(await parseApiError(res, "Du har ikke tilgang til denne handlingen."));
   }
 
   if (res.status === 429) {
-    throw new Error(
-      await parseApiError(
-        res,
-        "For mange forespørsler. Vent litt og prøv igjen.",
-      ),
-    );
+    throw new Error(await parseApiError(res, "For mange forespørsler. Vent litt og prøv igjen."));
   }
 
   if (!res.ok) {
     throw new Error(
-      await parseApiError(
-        res,
-        "Noe gikk galt med genereringen. Prøv igjen om et øyeblikk.",
-      ),
+      await parseApiError(res, "Noe gikk galt med genereringen. Prøv igjen om et øyeblikk."),
     );
   }
 
@@ -626,15 +577,11 @@ function assertSuccessfulKIChat(
   data: z.infer<typeof KIChatResponseSchema>,
 ): z.infer<typeof KIChatResponseSchema> {
   if (!data.suksess) {
-    throw lagKIError(
-      data.melding || "Kunne ikke få svar fra KI-assistenten. Prøv igjen senere.",
-    );
+    throw lagKIError(data.melding || "Kunne ikke få svar fra KI-assistenten. Prøv igjen senere.");
   }
 
   if (!data.response.trim()) {
-    throw new KIServiceError(
-      "KI-assistenten returnerte et tomt svar. Prøv igjen.",
-    );
+    throw new KIServiceError("KI-assistenten returnerte et tomt svar. Prøv igjen.");
   }
 
   return data;
@@ -662,7 +609,9 @@ export async function streamKIChat(
     messages: trimmedMessages,
     model: options.model && options.model !== "auto" ? options.model : undefined,
     temperature: options.temperature,
-    ...(options.explanationLevel && { explanationLevel: options.explanationLevel as KIChatRequest["explanationLevel"] }),
+    ...(options.explanationLevel && {
+      explanationLevel: options.explanationLevel as KIChatRequest["explanationLevel"],
+    }),
   };
 
   const requestInit: RequestInit = {
@@ -672,24 +621,28 @@ export async function streamKIChat(
     signal: options.signal,
   };
 
+  // Produkt-event: registrer intent til å sende chat-melding.
+  // Teller før respons slik at funnel kan måle "message_sent → response_received".
+  // captureProductEvent er best-effort — den queuer hvis PostHog ikke er lastet enda,
+  // og dropper stille hvis brukeren ikke har samtykket til telemetri.
+  captureProductEvent("chat_message_sent", {
+    messageCount: trimmedMessages.length,
+    model: request.model ?? "auto",
+    hasExplanationLevel: Boolean(options.explanationLevel),
+  });
+
   let res: Response;
   try {
     res = await fetchApi("/api/ki/chat", requestInit);
   } catch {
-    throw new KIServiceError(
-      "Kunne ikke koble til KI-tjenesten. Sjekk internettforbindelsen din.",
-    );
+    throw new KIServiceError("Kunne ikke koble til KI-tjenesten. Sjekk internettforbindelsen din.");
   }
 
   if (res.status === 401) {
-    throw new KIAuthError(
-      "Du må logge inn på nytt for å bruke KI-assistenten.",
-    );
+    throw new KIAuthError("Du må logge inn på nytt for å bruke KI-assistenten.");
   }
   if (res.status === 403) {
-    throw new ForbiddenError(
-      await parseApiError(res, "Du har ikke tilgang til KI-assistenten."),
-    );
+    throw new ForbiddenError(await parseApiError(res, "Du har ikke tilgang til KI-assistenten."));
   }
 
   await håndterKIFeilRespons(res);
@@ -711,7 +664,9 @@ export async function streamKIChat(
   // Abort-signalet fra fetch() propagerer ikke til body-strømmen etter at
   // headere er mottatt (SSE sender headere umiddelbart). Lytt eksplisitt
   // på abort og kanseller leseren manuelt for å sikre at avbryt-knappen fungerer.
-  const onAbort = () => { reader.cancel().catch(() => {}); };
+  const onAbort = () => {
+    reader.cancel().catch(() => {});
+  };
   options.signal?.addEventListener("abort", onAbort, { once: true });
 
   try {
@@ -805,10 +760,7 @@ export async function generateTaskBreakdownApi(
 }
 
 /** Rå API-funksjon for lagring av oppgavedeling — kan brukes utenfor React-komponent livssyklus. */
-export async function saveTaskBreakdownApi(
-  assignmentId: string,
-  subtasks: SubTask[],
-) {
+export async function saveTaskBreakdownApi(assignmentId: string, subtasks: SubTask[]) {
   return postKI(
     `/task-breakdown/${encodeURIComponent(assignmentId)}`,
     { subtasks },
@@ -838,23 +790,14 @@ export function useSaveTaskBreakdown() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      assignmentId,
-      subtasks,
-    }: {
-      assignmentId: string;
-      subtasks: SubTask[];
-    }) =>
+    mutationFn: async ({ assignmentId, subtasks }: { assignmentId: string; subtasks: SubTask[] }) =>
       postKI(
         `/task-breakdown/${encodeURIComponent(assignmentId)}`,
         { subtasks },
         TaskBreakdownResponseSchema,
       ),
     onSuccess: (data, variables) => {
-      queryClient.setQueryData(
-        [...TASK_BREAKDOWN_QUERY_KEY, variables.assignmentId],
-        data,
-      );
+      queryClient.setQueryData([...TASK_BREAKDOWN_QUERY_KEY, variables.assignmentId], data);
     },
   });
 }
@@ -864,15 +807,9 @@ export function useDeleteTaskBreakdown() {
 
   return useMutation({
     mutationFn: async ({ assignmentId }: { assignmentId: string }) =>
-      deleteKI(
-        `/task-breakdown/${encodeURIComponent(assignmentId)}`,
-        TaskBreakdownResponseSchema,
-      ),
+      deleteKI(`/task-breakdown/${encodeURIComponent(assignmentId)}`, TaskBreakdownResponseSchema),
     onSuccess: (data, variables) => {
-      queryClient.setQueryData(
-        [...TASK_BREAKDOWN_QUERY_KEY, variables.assignmentId],
-        data,
-      );
+      queryClient.setQueryData([...TASK_BREAKDOWN_QUERY_KEY, variables.assignmentId], data);
     },
   });
 }
@@ -880,18 +817,12 @@ export function useDeleteTaskBreakdown() {
 // Schema for dokumentanalyse respons
 export type DocumentAnalyseResponse = KIDocumentAnalyseResponse;
 
-function assertSuccessfulDocumentAnalyse(
-  data: DocumentAnalyseResponse,
-): DocumentAnalyseResponse {
+function assertSuccessfulDocumentAnalyse(data: DocumentAnalyseResponse): DocumentAnalyseResponse {
   if (!data.suksess) {
-    throw lagKIError(
-      data.melding || "Kunne ikke analysere dokumentet. Prøv igjen.",
-    );
+    throw lagKIError(data.melding || "Kunne ikke analysere dokumentet. Prøv igjen.");
   }
   if (!data.response.trim()) {
-    throw new KIServiceError(
-      "Dokumentanalysen returnerte et tomt svar. Prøv igjen.",
-    );
+    throw new KIServiceError("Dokumentanalysen returnerte et tomt svar. Prøv igjen.");
   }
   return data;
 }
@@ -913,11 +844,7 @@ export function useKIDocumentAnalyse() {
       if (spørsmål) formData.append("question", spørsmål);
       if (model) formData.append("model", model);
       return assertSuccessfulDocumentAnalyse(
-        await postKIFormData(
-          "/analyze-document",
-          formData,
-          KIDocumentAnalyseResponseSchema,
-        ),
+        await postKIFormData("/analyze-document", formData, KIDocumentAnalyseResponseSchema),
       );
     },
   });
@@ -972,18 +899,49 @@ import {
   type FlashcardsGenerateResponse,
 } from "common/ki";
 
-export type { QuizGenerateRequest, QuizGenerateResponse, FlashcardsGenerateRequest, FlashcardsGenerateResponse };
+export type {
+  QuizGenerateRequest,
+  QuizGenerateResponse,
+  FlashcardsGenerateRequest,
+  FlashcardsGenerateResponse,
+};
 
 /** Rå API-funksjon for quiz-generering. */
-export async function generateQuizApi(request: QuizGenerateRequest, signal?: AbortSignal): Promise<QuizGenerateResponse> {
+export async function generateQuizApi(
+  request: QuizGenerateRequest,
+  signal?: AbortSignal,
+): Promise<QuizGenerateResponse> {
   const validated = QuizGenerateRequestSchema.parse(request);
-  return postGeneriskApi("/api/quiz/generate", validated, QuizGenerateResponseSchema, signal);
+  const response = await postGeneriskApi(
+    "/api/quiz/generate",
+    validated,
+    QuizGenerateResponseSchema,
+    signal,
+  );
+  captureProductEvent("quiz_generated", {
+    questionCount: validated.questionCount,
+    moduleCount: validated.moduleNames.length,
+  });
+  return response;
 }
 
 /** Rå API-funksjon for flashcard-generering. */
-export async function generateFlashcardsApi(request: FlashcardsGenerateRequest, signal?: AbortSignal): Promise<FlashcardsGenerateResponse> {
+export async function generateFlashcardsApi(
+  request: FlashcardsGenerateRequest,
+  signal?: AbortSignal,
+): Promise<FlashcardsGenerateResponse> {
   const validated = FlashcardsGenerateRequestSchema.parse(request);
-  return postGeneriskApi("/api/flashcards/generate", validated, FlashcardsGenerateResponseSchema, signal);
+  const response = await postGeneriskApi(
+    "/api/flashcards/generate",
+    validated,
+    FlashcardsGenerateResponseSchema,
+    signal,
+  );
+  captureProductEvent("flashcards_generated", {
+    cardCount: validated.cardCount,
+    moduleCount: validated.moduleNames.length,
+  });
+  return response;
 }
 
 /** Hent aggregert oversikt over hva KI har indeksert for et kurs. */

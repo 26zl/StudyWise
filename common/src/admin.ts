@@ -4,15 +4,11 @@
 
 import { z } from "zod";
 import { AccountDeletionDeletedSchema, AuthProvidersArraySchema, RoleSchema } from "./auth.js";
+import { ReportedErrorIdSchema } from "./contact.js";
 
 const PaginationQueryValueSchema = z.string().trim().max(6).regex(/^\d+$/);
 
-export const AdminBrukereStatusFilterSchema = z.enum([
-  "all",
-  "active",
-  "locked",
-  "deleted",
-]);
+export const AdminBrukereStatusFilterSchema = z.enum(["all", "active", "locked", "deleted"]);
 
 export const AdminBrukereQuerySchema = z.object({
   limit: PaginationQueryValueSchema.optional(),
@@ -447,7 +443,10 @@ export const AdminContactMessageSchema = z.object({
   emne: z.string(),
   melding: z.string(),
   sideUrl: z.string().optional(),
+  /** X-Request-ID fra POST /api/kontakt-requesten (submit-ID). */
   requestId: z.string().optional(),
+  /** X-Request-ID fra den feilede request-en som brukeren rapporterer om. */
+  reportedErrorId: z.string().optional(),
   attachmentCount: z.number().int().min(0),
   attachmentSummary: z
     .array(
@@ -476,6 +475,12 @@ export const AdminContactMessageQuerySchema = z.object({
   limit: PaginationQueryValueSchema.optional(),
   offset: PaginationQueryValueSchema.optional(),
   status: ContactMessageStatusSchema.or(z.literal("all")).optional(),
+  /**
+   * Filter meldinger på reportedErrorId (eller submit requestId hvis reportedErrorId mangler).
+   * Gjenbruker samme schema som kontaktskjemaet slik at admin-filter og innsending
+   * validerer identisk.
+   */
+  errorId: ReportedErrorIdSchema.optional(),
 });
 
 export const AdminContactMessageUpdateSchema = z.object({
@@ -615,9 +620,7 @@ export type AdminMaintenanceReencryptResponse = z.infer<
 export type AdminMaintenanceDatabaseHealthResponse = z.infer<
   typeof AdminMaintenanceDatabaseHealthResponseSchema
 >;
-export type AdminMaintenanceDbCollection = z.infer<
-  typeof AdminMaintenanceDbCollectionSchema
->;
+export type AdminMaintenanceDbCollection = z.infer<typeof AdminMaintenanceDbCollectionSchema>;
 export type AdminFeedbackRating = z.infer<typeof AdminFeedbackRatingSchema>;
 export type AdminFeedbackQuery = z.infer<typeof AdminFeedbackQuerySchema>;
 export type AdminFeedbackUser = z.infer<typeof AdminFeedbackUserSchema>;

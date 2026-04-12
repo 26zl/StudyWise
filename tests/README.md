@@ -59,6 +59,12 @@ tests/
     repro-api.ts          # API-basert auth duplicate reproduksjon
     repro-matrix.ts       # Matrix-runner (A/B/C/D + evidence JSON)
     global.setup.ts       # Clerk Playwright setup (Turnstile bypass)
+  app/
+    smoke-e2e.spec.ts         # Generell Playwright smoke for offentlige app-sider (CI-gate)
+    navigation-e2e.spec.ts    # Navigasjon mellom sider og lenker (CI-gate)
+    accessibility-e2e.spec.ts # @axe-core/playwright mot sentrale sider (CI-gate)
+    api-security-e2e.spec.ts  # Sikkerhetsheadere, CSRF, CORS på /api/* (CI-gate)
+    contact-e2e.spec.ts       # Kontaktskjema-flyt inkl. validering (CI-gate)
   ki/
     smoke.ts              # KI auth/public endpoint smoke
   canvas/
@@ -78,7 +84,9 @@ tests/
 - Playwright er konfigurert med `trace/video/screenshot` kun ved feil.
 - `headless: true` er default for mer stabil automatisk kjøring.
 - `retries` aktiveres i CI (`CI=true`) for å redusere flaky kjøringer.
-- **CI-gate**: `smoke-e2e.spec.ts`, `login-signup-e2e.spec.ts` og `session-e2e.spec.ts` kjøres i CI (kun Chromium). Diagnostiske spesifikasjoner (`repro-e2e.spec.ts`, `late-conflict-e2e.spec.ts`, `email-update-e2e.spec.ts`) er ekskludert fra CI.
+- **Fast funksjonell gate i CI**: kjører `auth/check-db.ts`, `auth/smoke.ts`, `ki/smoke.ts`, `canvas/smoke.ts` og Playwright-spesifikasjonene `auth/smoke-e2e.spec.ts`, `app/smoke-e2e.spec.ts`, `app/accessibility-e2e.spec.ts`, `app/api-security-e2e.spec.ts`, `app/navigation-e2e.spec.ts` og `app/contact-e2e.spec.ts`.
+- **Tilgjengelighet i gate**: `app/accessibility-e2e.spec.ts` kjører `@axe-core/playwright` på sentrale offentlige sider og feiler kun på `serious`/`critical` funn for å holde signalet høyt og støyen lav.
+- **Dypere auth-E2E**: `login-signup-e2e.spec.ts`, `session-e2e.spec.ts`, `repro-e2e.spec.ts`, `late-conflict-e2e.spec.ts` og `email-update-e2e.spec.ts` beholdes som lokale/manuelle eller diagnostiske tester fordi de er tregere og mer Clerk-avhengige.
 - **Firefox/WebKit**: Definert i playwright.config.ts men kjøres kun lokalt. CI installerer bare Chromium for raskere pipeline.
 
 ## Legge til nye tester

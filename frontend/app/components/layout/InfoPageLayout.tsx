@@ -10,6 +10,9 @@ import { Footer } from "@/app/components/layout/footer";
 import { cn } from "@/app/lib/utils";
 import { useLanguage } from "@/app/i18n";
 
+export const INFO_PAGE_INLINE_LINK_CLASSNAME =
+  "font-medium text-blue-700 underline underline-offset-2 decoration-current/70 transition-colors hover:text-blue-800 hover:decoration-current dark:text-blue-300 dark:hover:text-blue-200";
+
 type InfoPageLayoutProps = {
   title: string;
   description?: string;

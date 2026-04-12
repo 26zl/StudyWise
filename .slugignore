@@ -1,0 +1,56 @@
+# .slugignore — ekskluderer filer fra Heroku-slugen.
+# Treffes filer her, blir de ikke en del av slugen som lastes til dyno-disk.
+# Bruker samme glob-syntax som .gitignore.
+#
+# Heroku kjører kun backend (Procfile: node backend/dist/index.js). Frontend,
+# docs og test-koden trenger aldri å havne på dyno-en.
+#
+# MERK: scripts/ holdes inne fordi `scripts/reset-encrypted-data.mjs` brukes
+# som one-off via `heroku run`. Bachelor-spesifikke scripts ekskluderes
+# eksplisitt under.
+
+# ── Bachelor- og prosjekt-artefakter ─────────────────────────────────────
+# filer_prosjekt/ er en del av bachelor-leveransen og må stå i git for
+# veileder/sensor, men har ingen plass på prod-backend.
+filer_prosjekt/
+prompts/
+
+# ── Bachelor-spesifikke scripts (resten av scripts/ holdes inne) ─────────
+scripts/create-kanban-issues.sh
+scripts/export-kanban-issues.sh
+
+# ── Workspaces backend ikke trenger ──────────────────────────────────────
+frontend/
+docs/
+cloudflare/
+grafana/
+tests/
+
+# ── Lokal utvikling og tooling ───────────────────────────────────────────
+.claude/
+.github/
+.husky/
+.vscode/
+.vs/
+.idea/
+.windsurf/
+.prettierrc.json
+.prettierignore
+
+# ── Docker (kun lokal dev) ───────────────────────────────────────────────
+Dockerfile
+docker-compose.yml
+docker.env.example
+.dockerignore
+
+# ── Vercel-spesifikke filer ──────────────────────────────────────────────
+.vercel/
+.vercelignore
+
+# ── Logger og midlertidige filer ─────────────────────────────────────────
+*.log
+tmp-*
+backend-*.log
+backend-*.stderr.log
+backend-*.stdout.log
+nul

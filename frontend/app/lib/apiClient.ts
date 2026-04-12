@@ -5,6 +5,66 @@
 import { getClerkAuthHeaders } from "./clerkTokenForApi";
 import { withCsrfProtection } from "./csrf";
 
+/** sessionStorage-nøkkel for sist observerte X-Request-ID fra en feilet API-respons. */
+const LAST_API_ERROR_REQUEST_ID_KEY = "studywise:lastApiErrorRequestId";
+
+/**
+ * Lagrer X-Request-ID for den siste feilede API-responsen i sessionStorage.
+ * Kontakt-skjemaet leser denne for å hjelpe brukeren rapportere siste API-feil.
+ */
+function rememberLastApiErrorRequestId(requestId: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (requestId) {
+      window.sessionStorage.setItem(LAST_API_ERROR_REQUEST_ID_KEY, requestId);
+    }
+  } catch {
+    // sessionStorage kan være utilgjengelig (SSR, privat modus) — ignorer.
+  }
+}
+
+/**
+ * Leser sist observerte X-Request-ID fra en feilet API-respons.
+ * Brukes av kontakt-skjemaet for å hjelpe brukere rapportere feil.
+ */
+export function getLastApiErrorRequestId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage.getItem(LAST_API_ERROR_REQUEST_ID_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Fjerner sist lagrede feil-ID — kalles etter at brukeren har rapportert. */
+export function clearLastApiErrorRequestId(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(LAST_API_ERROR_REQUEST_ID_KEY);
+  } catch {
+    // ignorer
+  }
+}
+
+/**
+ * Lagrer en feil-ID som kontaktskjemaet skal forhåndsfylle med.
+ * Brukes av app/error.tsx slik at vi slipper å sende ID-en via URL-query —
+ * det forhindrer at PostHog/Datadog/andre pageview-loggere fanger ID-en
+ * som en del av nettleseradressen før kontakt-siden får rydde den vekk.
+ *
+ * No-op hvis id er falsy, slik at en eksisterende ID ikke blir overskrevet
+ * av en feil uten kjent ID.
+ */
+export function rememberReportableErrorId(id: string | null | undefined): void {
+  if (typeof window === "undefined") return;
+  if (!id) return;
+  try {
+    window.sessionStorage.setItem(LAST_API_ERROR_REQUEST_ID_KEY, id);
+  } catch {
+    // ignorer
+  }
+}
+
 type ApiRequestOptions = {
   auth?: boolean;
   credentials?: RequestCredentials;
@@ -127,15 +187,23 @@ export async function fetchAuthedJson(
   // Lazy import for å unngå sirkulær avhengighet (apiClient → errorUtils → errors)
   const { parseApiJson, createAuthStatusError, createApiError } = await import("./errorUtils");
   const res = await fetchApi(input, init ?? {});
+  // Backend ekko-er alltid X-Request-ID-header — fanger den tidlig så vi kan merke feilen
+  // med samme ID som lagres i Pino-logger og AuditLog.
+  const requestId = res.headers.get("x-request-id") ?? undefined;
   if (res.status === 204) {
     return { data: undefined, status: 204 };
   }
   const data = await parseApiJson(res);
   if (res.status === 401 || res.status === 403) {
-    throw createAuthStatusError(res.status, data, "Ikke autentisert");
+    if (requestId) rememberLastApiErrorRequestId(requestId);
+    throw createAuthStatusError(res.status, data, "Ikke autentisert", { apiRequestId: requestId });
   }
   if (!res.ok) {
-    throw createApiError(data, options?.defaultErrorMessage ?? "Uventet feil");
+    if (requestId) rememberLastApiErrorRequestId(requestId);
+    throw createApiError(data, options?.defaultErrorMessage ?? "Uventet feil", {
+      apiRequestId: requestId,
+      apiStatus: res.status,
+    });
   }
   return { data, status: res.status };
 }

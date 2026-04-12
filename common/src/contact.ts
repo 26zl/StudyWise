@@ -5,25 +5,51 @@
 
 import { z } from "zod";
 
-export const KONTAKT_ALLOWED_ATTACHMENT_TYPES = [
-  "image/jpeg",
-  "image/png",
-] as const;
+export const KONTAKT_ALLOWED_ATTACHMENT_TYPES = ["image/jpeg", "image/png"] as const;
 
 export const KONTAKT_MAX_ATTACHMENTS = 3;
 export const KONTAKT_MAX_ATTACHMENT_SIZE_BYTES = 5 * 1024 * 1024;
+export const REPORTED_ERROR_ID_MAX_LENGTH = 128;
 
 const KONTAKT_SIDE_PATH_REGEX = /^\/(?!\/)[^\s?#]*$/;
+export const REPORTED_ERROR_ID_PATTERN = /^[\w.:-]+$/;
+
+export function isValidReportedErrorId(value: string): boolean {
+  const trimmed = value.trim();
+  return (
+    trimmed.length > 0 &&
+    trimmed.length <= REPORTED_ERROR_ID_MAX_LENGTH &&
+    REPORTED_ERROR_ID_PATTERN.test(trimmed)
+  );
+}
+
+/**
+ * Delt schema for request-/error-ID-er som kan vises til bruker og brukes til
+ * korrelering i logger/admin.
+ *
+ * Mønsteret `[\w.:-]` matcher formatet backend request-id-middleware genererer:
+ * alfanumerisk + understrek + punktum + kolon + bindestrek (typisk
+ * `req-<nanoid>` eller `req.<id>`). Hvis ID-formatet noen gang utvides
+ * (f.eks. base64 med `=`/`+`/`/`, eller UUID med `+`), MÅ regex og maks-lengde
+ * her oppdateres samtidig — ellers vil gyldige request-IDer bli avvist eller
+ * silent-droppet av klientfiltrering.
+ */
+export const ReportedErrorIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(REPORTED_ERROR_ID_MAX_LENGTH)
+  .regex(REPORTED_ERROR_ID_PATTERN, "Ugyldig feil-ID");
 
 export const KontaktAttachmentSchema = z.object({
   filnavn: z.string().trim().min(1).max(255),
   mimeType: z.enum(KONTAKT_ALLOWED_ATTACHMENT_TYPES),
-  størrelse: z
-    .number()
-    .int()
-    .positive()
-    .max(KONTAKT_MAX_ATTACHMENT_SIZE_BYTES),
-  innholdBase64: z.string().trim().min(1).max(Math.ceil(KONTAKT_MAX_ATTACHMENT_SIZE_BYTES * 4 / 3) + 4),
+  størrelse: z.number().int().positive().max(KONTAKT_MAX_ATTACHMENT_SIZE_BYTES),
+  innholdBase64: z
+    .string()
+    .trim()
+    .min(1)
+    .max(Math.ceil((KONTAKT_MAX_ATTACHMENT_SIZE_BYTES * 4) / 3) + 4),
 });
 
 /**
@@ -50,11 +76,7 @@ export const KontaktRequestSchema = z.object({
     .trim()
     .min(10, "Meldingen må være minst 10 tegn")
     .max(5000, "Meldingen kan ikke være mer enn 5000 tegn"),
-  turnstileToken: z
-    .string()
-    .trim()
-    .max(2048, "Verifiseringstoken er ugyldig")
-    .default(""),
+  turnstileToken: z.string().trim().max(2048, "Verifiseringstoken er ugyldig").default(""),
   // Honeypot-felt: skal alltid være tomt (sendes som skjult felt)
   nettsted: z.string().trim().max(200).optional(),
   // Valgfri metadata: sanert intern sti der brukeren sendte skjemaet fra
@@ -67,6 +89,9 @@ export const KontaktRequestSchema = z.object({
       "Sidekontekst må være en sanert intern sti uten query eller hash",
     )
     .optional(),
+  // Valgfri: X-Request-ID fra den feilede request-en som brukeren rapporterer om.
+  // Lar admin korrelere innsendingen med Pino-logger, Datadog APM og AuditLog.
+  reportedErrorId: ReportedErrorIdSchema.optional(),
 });
 
 export type KontaktRequest = z.infer<typeof KontaktRequestSchema>;

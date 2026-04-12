@@ -5,9 +5,12 @@
  */
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { AlertTriangle, RefreshCcw, MessageCircle } from "lucide-react";
 import { useLanguage } from "@/app/i18n";
+import { getReportableErrorId } from "@/app/lib/errorUtils";
+import { rememberReportableErrorId } from "@/app/lib/apiClient";
 
 interface ErrorPageProps {
   error: Error & { digest?: string };
@@ -15,10 +18,22 @@ interface ErrorPageProps {
 }
 
 // Next.js logger feilen automatisk server-side via error.digest, og Datadog RUM
-// fanger ufangede klient-feil via useCookieConsent-gating. Vi unngår console.error
-// her for å ikke risikere å lekke PII fra error.message i nettleserens devtools.
+// fanger ufangede klient-feil via React-pluginen. Vi unngår console.error her
+// for å ikke risikere å lekke PII fra error.message i nettleserens devtools.
 export default function GlobalError({ error, reset }: ErrorPageProps) {
   const { t } = useLanguage();
+
+  // Vis kun ID som faktisk tilhører feilen som rendres nå.
+  // `digest` dekker render-/server-feil der ingen requestId finnes.
+  const visibleErrorId = getReportableErrorId(error);
+
+  // Lagre feil-ID i sessionStorage.
+  // Vi bruker sessionStorage (ikke URL-query) til å gi feil-ID-en videre til
+  // /kontakt — slik unngår vi at PostHog/andre pageview-loggere fanger
+  // request-ID-en som en del av den synlige nettleseradressen.
+  useEffect(() => {
+    rememberReportableErrorId(visibleErrorId);
+  }, [visibleErrorId]);
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-12 text-slate-900 dark:text-slate-100">
@@ -29,15 +44,13 @@ export default function GlobalError({ error, reset }: ErrorPageProps) {
         <p className="mt-5 text-sm font-semibold uppercase tracking-wider text-red-600 dark:text-red-400">
           {t("errorPages.runtime.eyebrow")}
         </p>
-        <h1 className="mt-2 text-3xl font-bold sm:text-4xl">
-          {t("errorPages.runtime.title")}
-        </h1>
+        <h1 className="mt-2 text-3xl font-bold sm:text-4xl">{t("errorPages.runtime.title")}</h1>
         <p className="mt-4 text-base leading-7 text-slate-600 dark:text-slate-300">
           {t("errorPages.runtime.description")}
         </p>
-        {error.digest ? (
+        {visibleErrorId ? (
           <p className="mt-3 font-mono text-xs text-slate-500 dark:text-slate-400">
-            {t("errorPages.runtime.errorId")}: {error.digest}
+            {t("errorPages.runtime.errorId")}: {visibleErrorId}
           </p>
         ) : null}
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">

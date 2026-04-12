@@ -31,6 +31,7 @@ import { type BrowserPushPreferences } from "common/notifications";
 import { CanvasErrorCodeSchema } from "common/canvasErrors";
 import { AppError, CanvasApiError, UsernameConflictError } from "../lib/errors";
 import { fetchApi } from "../lib/apiClient";
+import { forceRefreshClerkToken } from "../lib/clerkTokenForApi";
 import { broadcastLogout, clearClientAuthState } from "../hooks/use-auth-sync";
 import { mergeUIPreferences } from "../lib/preferences";
 import { showToast } from "@/app/components/ui/Toaster";
@@ -146,10 +147,24 @@ async function hentMeg(signal?: AbortSignal, options?: { forceSync?: boolean }):
   }
   try {
     const url = options?.forceSync ? "/api/user/me?forceSync=true" : "/api/user/me";
-    const res = await fetchApi(url, {
+    let res = await fetchApi(url, {
       method: "GET",
       signal: controller.signal,
     });
+
+    // Defensiv retry: hvis backend returnerer 401 kan det skyldes en transient
+    // token-refresh-feil eller en race condition ved app-boot der ClerkTokenSync
+    // ikke rakk å registrere getToken før første /me-kall. Tving Clerk til å
+    // reloade sesjonen (henter et ferskt token) og prøv én gang til. Best-effort;
+    // ingen loop og ingen endring til error-flyten hvis retry også feiler.
+    if (res.status === 401) {
+      await forceRefreshClerkToken();
+      res = await fetchApi(url, {
+        method: "GET",
+        signal: controller.signal,
+      });
+    }
+
     const json = await parseApiJson(res);
     clearTimeout(timeoutId);
     if (res.ok) {

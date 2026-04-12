@@ -11,7 +11,12 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useLanguage } from "@/app/i18n";
-import { InfoCard, InfoPageLayout, InfoSection } from "@/app/components/layout/InfoPageLayout";
+import {
+  InfoCard,
+  InfoPageLayout,
+  InfoSection,
+  INFO_PAGE_INLINE_LINK_CLASSNAME,
+} from "@/app/components/layout/InfoPageLayout";
 
 export default function SikkerhetPage() {
   const { t } = useLanguage();
@@ -72,7 +77,7 @@ export default function SikkerhetPage() {
         </ul>
         <p className="mt-4 text-sm">
           {t("sikkerhet.aiPrivacyMore")}{" "}
-          <Link href="/personvern" prefetch={false} className="text-blue-500 dark:text-blue-400 hover:underline">
+          <Link href="/personvern" prefetch={false} className={INFO_PAGE_INLINE_LINK_CLASSNAME}>
             {t("sikkerhet.aiPrivacyLink")}
           </Link>
           .

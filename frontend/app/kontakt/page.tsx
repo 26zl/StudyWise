@@ -16,8 +16,7 @@ export default function KontaktPage() {
       icon: MessageSquare,
       title: t("kontakt.feedbackTitle"),
       description: t("kontakt.feedbackBody"),
-      accent:
-        "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400",
+      accent: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400",
     },
     {
       icon: Github,
@@ -34,10 +33,7 @@ export default function KontaktPage() {
   ];
 
   return (
-    <InfoPageLayout
-      title={t("kontakt.title")}
-      description={t("kontakt.description")}
-    >
+    <InfoPageLayout title={t("kontakt.title")} description={t("kontakt.description")}>
       {/* Kontaktskjema */}
       <InfoCard className="mb-6">
         <div className="mb-4 flex items-center gap-3">
@@ -48,9 +44,7 @@ export default function KontaktPage() {
             <h2 className="font-semibold text-slate-900 dark:text-white">
               {t("kontakt.sendMessage")}
             </h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              {t("kontakt.email")}
-            </p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">{t("kontakt.email")}</p>
           </div>
         </div>
         <ContactForm />
@@ -85,9 +79,7 @@ export default function KontaktPage() {
             <h2 className="font-semibold text-slate-900 dark:text-white">
               {t("kontakt.mapTitle")}
             </h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              {t("kontakt.mapLocation")}
-            </p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">{t("kontakt.mapLocation")}</p>
           </div>
         </div>
         <div className="h-64 sm:h-80 w-full overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800/50">
@@ -98,12 +90,11 @@ export default function KontaktPage() {
             style={{ border: 0 }}
             allowFullScreen={false}
             loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
+            referrerPolicy="no-referrer"
             title={t("kontakt.mapIframeTitle")}
           ></iframe>
         </div>
       </InfoCard>
-
     </InfoPageLayout>
   );
 }

@@ -87,6 +87,8 @@ function buildCspValue(nonce) {
     "https://va.vercel-scripts.com",
     // Datadog RUM SDK worker/chunk loading
     "https://www.datadoghq-browser-agent.com",
+    // PostHog lazy-lastet array.js / assets fra us-assets.i.posthog.com (eller eu-assets)
+    "https://*.i.posthog.com",
   ];
   const connectSrc = [
     "'self'",
@@ -98,6 +100,8 @@ function buildCspValue(nonce) {
     "https://*.clerk.accounts.dev",
     "https://*.clerk.com",
     "https://clerk-telemetry.com",
+    // PostHog ingestion (us.i.posthog.com / eu.i.posthog.com) + assets (us-assets.i.posthog.com)
+    "https://*.i.posthog.com",
   ];
   const frameSrc = [
     "'self'",
@@ -141,6 +145,12 @@ export { buildCspValue, CLERK_CUSTOM_ORIGINS, getClerkFrontendApiOrigin };
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Eksplisitt false (samme som default) — ingen browser-source-maps i prod-bygg.
+  // Holder klient-bundle-en så vanskelig å reverse-engineere som rimelig praktisk:
+  // funksjonsnavn og strukturer er fortsatt synlige i devtools, men originale
+  // norske kommentarer og variabelnavn forsvinner i minifiseringen.
+  // Ikke flipp denne til true uten å vurdere konsekvensene.
+  productionBrowserSourceMaps: false,
   // Datadog RUM: mapper DD_RUM_* (Vercel runtime) til NEXT_PUBLIC_DD_RUM_* (build-time inline).
   // Uten dette når ikke server-side env-variabler nettleseren fordi Next.js kun inliner NEXT_PUBLIC_* ved bygging.
   env: {

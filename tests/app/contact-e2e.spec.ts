@@ -6,6 +6,14 @@ import { test, expect } from "@playwright/test";
  */
 
 test.describe("Kontaktskjema", () => {
+  test("feil-ID i URL vises i UI men fjernes fra adresselinjen", async ({ page }) => {
+    await page.goto("/kontakt?errorId=req.abc-123:v2");
+    await page.waitForLoadState("domcontentloaded");
+
+    await expect(page.getByText("req.abc-123:v2")).toBeVisible();
+    await expect(page).toHaveURL(/\/kontakt$/);
+  });
+
   test("kontaktskjema-ruten håndterer innsending uten Turnstile-token", async ({ request }) => {
     const res = await request.post("http://localhost:4000/api/kontakt", {
       headers: {

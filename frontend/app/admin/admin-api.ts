@@ -578,16 +578,24 @@ export function useAdminBrukerDetalj(brukerId: string | null) {
 // ── Kontakt-innboks ─────────────────────────────────────────────────────────
 
 export function useAdminContactMessages(
-  params: { limit?: number; offset?: number; status?: ContactMessageStatus | "all" } = {},
+  params: {
+    limit?: number;
+    offset?: number;
+    status?: ContactMessageStatus | "all";
+    errorId?: string;
+  } = {},
 ) {
-  const { limit = 25, offset = 0, status = "all" } = params;
+  const { limit = 25, offset = 0, status = "all", errorId } = params;
   return useQuery({
-    queryKey: ["admin", "contact-messages", { limit, offset, status }],
+    queryKey: ["admin", "contact-messages", { limit, offset, status, errorId: errorId ?? null }],
     queryFn: async (): Promise<AdminContactMessageListResponse> => {
       const sp = new URLSearchParams();
       sp.set("limit", String(limit));
       sp.set("offset", String(offset));
       sp.set("status", status);
+      if (errorId && errorId.trim().length > 0) {
+        sp.set("errorId", errorId.trim());
+      }
       const res = await fetchApi(`/api/admin/contact/messages?${sp.toString()}`);
       if (!res.ok) throw new Error("Kunne ikke hente kontaktmeldinger");
       return AdminContactMessageListResponseSchema.parse(await res.json());

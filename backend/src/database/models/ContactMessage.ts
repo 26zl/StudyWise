@@ -26,8 +26,10 @@ export interface IContactMessage extends Document {
   melding: string;
   /** Side-URL bruker var på da de sendte (kun lagret hvis sendt) */
   sideUrl?: string;
-  /** Request-ID for å korrelere mot Pino-logger og audit-logg */
+  /** Request-ID for POST /api/kontakt-innsendingen selv (korrelasjon mot Pino/audit). */
   requestId?: string;
+  /** X-Request-ID fra den feilede request-en brukeren rapporterer om (feil-ID synlig for brukeren). */
+  reportedErrorId?: string;
   /** Antall vedlegg + summary; selve filene lagres ikke */
   attachmentCount: number;
   attachmentSummary?: Array<{ filnavn: string; sizeBytes: number; mimeType: string }>;
@@ -47,6 +49,7 @@ const ContactMessageSchema = new Schema<IContactMessage>(
     melding: { type: String, required: true, maxlength: 10_000 },
     sideUrl: { type: String, trim: true, maxlength: 2_000, default: undefined },
     requestId: { type: String, trim: true, default: undefined },
+    reportedErrorId: { type: String, trim: true, maxlength: 128, default: undefined },
     attachmentCount: { type: Number, default: 0, min: 0 },
     attachmentSummary: {
       type: [
@@ -78,6 +81,12 @@ ContactMessageSchema.index(
 
 // Indeks for sortering på status + nylige meldinger først
 ContactMessageSchema.index({ status: 1, createdAt: -1 });
+
+// Sparse-indeks for direkte oppslag på submit-requestId fra /api/kontakt.
+ContactMessageSchema.index({ requestId: 1 }, { sparse: true });
+
+// Sparse-indeks for å søke opp meldinger knyttet til en spesifikk feil-ID (brukerrapport).
+ContactMessageSchema.index({ reportedErrorId: 1 }, { sparse: true });
 
 export const ContactMessage = mongoose.model<IContactMessage>(
   "ContactMessage",

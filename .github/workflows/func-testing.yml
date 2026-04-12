@@ -185,8 +185,35 @@ jobs:
           INTERNAL_API_URL: "http://localhost:4000"
         run: pnpm --filter backend build && pnpm --filter frontend build
 
+      - name: Run fast backend domain smoke tests
+        # Bred, rask gate for auth/DB/KI/Canvas-overflater før nettlesertestene.
+        # Disse testene er HTTP/DB-baserte og holder kjøretiden nede samtidig som
+        # de verifiserer flere domener enn ren UI-smoke.
+        run: |
+          set -euo pipefail
+
+          pnpm --filter backend exec node dist/index.js > backend-smoke.log 2>&1 &
+          backend_pid=$!
+
+          cleanup() {
+            if kill -0 "$backend_pid" 2>/dev/null; then
+              kill "$backend_pid"
+              wait "$backend_pid" || true
+            fi
+          }
+          trap cleanup EXIT
+
+          pnpm exec wait-on http://localhost:4000/health -t 120000
+
+          pnpm --filter tests exec tsx auth/check-db.ts
+          pnpm --filter tests exec tsx auth/smoke.ts
+          pnpm --filter tests exec tsx ki/smoke.ts
+          pnpm --filter tests exec tsx canvas/smoke.ts
+
       - name: Run Playwright E2E tests
-        # Stabile spesifikasjoner i CI-gaten (diagnostiske/repro-spesifikasjoner ekskluderes).
+        # Stabile spesifikasjoner i CI-gaten.
+        # Disse kompletterer de raske HTTP/DB-smokene over med nettleserflyter for
+        # landingsside, auth-sider, navigasjon, kontakt og tverrsnitt av API-overflater.
         # Firefox/WebKit kjøres kun lokalt — CI installerer bare Chromium for raskere kjøretid.
         # Clerk-avhengige tester (login-signup, session) ekskluderes — de oppretter ekte
         # brukere via Clerk testing tokens som ikke er pålitelige i CI og forårsaker timeouts.
@@ -194,6 +221,7 @@ jobs:
           pnpm --filter tests exec playwright test --config playwright.config.ts --project=chromium
           auth/smoke-e2e.spec.ts
           app/smoke-e2e.spec.ts
+          app/accessibility-e2e.spec.ts
           app/api-security-e2e.spec.ts
           app/navigation-e2e.spec.ts
           app/contact-e2e.spec.ts
@@ -218,6 +246,7 @@ jobs:
       - name: Show local infrastructure logs on failure
         if: failure()
         run: |
+          cat backend-smoke.log || true
           docker logs studywise-mongo || true
           docker logs studywise-redis || true
 

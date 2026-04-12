@@ -12,6 +12,10 @@ out/
 # Environment variables
 .env
 .env.*
+!.env.example
+!.env.*.example
+!**/.env.example
+!**/.env.*.example
 
 # IDE
 .vscode/
@@ -25,6 +29,12 @@ out/
 # OS
 .DS_Store
 Thumbs.db
+Desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
+.Spotlight-V100/
+.Trashes/
+._*
 
 # Logs
 *.log
@@ -43,6 +53,14 @@ tests/auth/results/
 # Misc
 *.bak
 *.tmp
+*.pid
+*.pid.lock
+*.seed
+*.orig
+*.rej
+.cache/
+.eslintcache
+.stylelintcache
 .snyk/
 *instructions/
 .claude/
@@ -76,3 +94,8 @@ next-env.d.ts
 
 # Prompts
 prompts/
+
+# MERK: filer_prosjekt/ og grafana/ er bevisst IKKE i .gitignore.
+# De er en del av bachelor-leveransen / interne ops-config og skal bli stående
+# tracket i git. De ekskluderes i stedet fra prod-deploy via .vercelignore og
+# .slugignore, slik at de aldri lastes opp til Vercel- eller Heroku-runneren.

@@ -1,0 +1,68 @@
+# Dependabot-konfigurasjon for StudyWise.
+# GitHub scanner repo-et og åpner PR-er for oppdateringer i npm + GitHub Actions.
+#
+# Sikkerhetsfilosofi:
+#   * Security-PR-er åpnes umiddelbart via GitHub Advisory Database.
+#   * Versjonsoppdateringer begrenses via "open-pull-requests-limit" for å unngå
+#     å drukne CI i parallelle PR-er.
+#   * Større oppdateringer (major) grupperes per økosystem for enklere review.
+#   * pnpm-workspaces: én `npm`-konfig i rot er tilstrekkelig fordi Dependabot
+#     oppdager workspace-pakkene via pnpm-workspace.yaml.
+
+version: 2
+updates:
+  # ── npm (pnpm-workspaces) ─────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Oslo"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "npm"
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
+    groups:
+      # Samler patch + minor per økosystem for å redusere PR-støy.
+      production-patches:
+        dependency-type: "production"
+        update-types:
+          - "patch"
+      development-patches:
+        dependency-type: "development"
+        update-types:
+          - "patch"
+      production-minor:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+      development-minor:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+    # Tillat nøkkelpakker å bli oppdatert; ingen hard ignore per nå.
+
+  # ── GitHub Actions ────────────────────────────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Oslo"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+    groups:
+      actions-all:
+        patterns:
+          - "*"

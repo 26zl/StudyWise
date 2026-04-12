@@ -17,14 +17,12 @@ import {
   KONTAKT_MAX_ATTACHMENT_SIZE_BYTES,
   KontaktRequestSchema,
   KontaktResponseSchema,
+  REPORTED_ERROR_ID_MAX_LENGTH,
 } from "common/contact";
 import { logger } from "../../utils/logger.js";
 import { apiError, sendZodError } from "../../utils/apiError.js";
 import { rateLimitContact } from "../../middleware/rate-limit.js";
-import {
-  verifyTurnstileToken,
-  isTurnstileConfigured,
-} from "../../services/turnstile.service.js";
+import { verifyTurnstileToken, isTurnstileConfigured } from "../../services/turnstile.service.js";
 import { sendKontaktmelding } from "../../services/contact.service.js";
 import { ContactMessage } from "../../database/models/ContactMessage.js";
 import { isProd } from "../../utils/env.js";
@@ -35,7 +33,8 @@ const INVALID_ATTACHMENT_TYPE_ERROR = "INVALID_ATTACHMENT_TYPE";
 
 // Maks total body-størrelse for kontaktskjema (alle filer + felter).
 // Begrenser minne-bruk *før* honeypot/Turnstile valideres.
-const KONTAKT_MAX_TOTAL_BODY_BYTES = KONTAKT_MAX_ATTACHMENTS * KONTAKT_MAX_ATTACHMENT_SIZE_BYTES + 50_000; // ~15.05 MB
+const KONTAKT_MAX_TOTAL_BODY_BYTES =
+  KONTAKT_MAX_ATTACHMENTS * KONTAKT_MAX_ATTACHMENT_SIZE_BYTES + 50_000; // ~15.05 MB
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -61,15 +60,21 @@ const upload = multer({
 
 function extractKontaktPayload(req: Request) {
   const body = req.body as Record<string, unknown>;
+  const trimmedReportedErrorId =
+    typeof body.reportedErrorId === "string" ? body.reportedErrorId.trim() : undefined;
+
   return {
     navn: typeof body.navn === "string" ? body.navn : "",
     epost: typeof body.epost === "string" ? body.epost : "",
     emne: typeof body.emne === "string" ? body.emne : "",
     melding: typeof body.melding === "string" ? body.melding : "",
-    turnstileToken:
-      typeof body.turnstileToken === "string" ? body.turnstileToken : "",
+    turnstileToken: typeof body.turnstileToken === "string" ? body.turnstileToken : "",
     nettsted: typeof body.nettsted === "string" ? body.nettsted : undefined,
     sideUrl: typeof body.sideUrl === "string" ? body.sideUrl : undefined,
+    reportedErrorId:
+      trimmedReportedErrorId && trimmedReportedErrorId.length > 0
+        ? trimmedReportedErrorId.slice(0, REPORTED_ERROR_ID_MAX_LENGTH + 1)
+        : undefined,
   };
 }
 
@@ -108,7 +113,10 @@ router.post(
   (req: Request, res: Response, next) => {
     const contentLength = Number(req.headers["content-length"]);
     if (contentLength > KONTAKT_MAX_TOTAL_BODY_BYTES) {
-      return apiError.badRequest(res, `Maks total størrelse er ${Math.floor(KONTAKT_MAX_TOTAL_BODY_BYTES / (1024 * 1024))} MB`);
+      return apiError.badRequest(
+        res,
+        `Maks total størrelse er ${Math.floor(KONTAKT_MAX_TOTAL_BODY_BYTES / (1024 * 1024))} MB`,
+      );
     }
     let bytesReceived = 0;
     req.on("data", (chunk: Buffer) => {
@@ -141,85 +149,77 @@ router.post(
       }
 
       if (error instanceof Error && error.message === INVALID_ATTACHMENT_TYPE_ERROR) {
-        return apiError.badRequest(
-          res,
-          "Kun JPG- og PNG-bilder er tillatt som vedlegg",
-        );
+        return apiError.badRequest(res, "Kun JPG- og PNG-bilder er tillatt som vedlegg");
       }
 
       logger.info({ err: error }, "Kontaktskjema: ugyldig vedlegg avvist");
-      return apiError.badRequest(
-        res,
-        "Kun JPG- og PNG-bilder er tillatt som vedlegg",
-      );
+      return apiError.badRequest(res, "Kun JPG- og PNG-bilder er tillatt som vedlegg");
     });
   },
   async (req: Request, res: Response) => {
-  // Konverter requestId til string - req.id kan være string | number | object
-  const rawId = req.id;
-  const requestId = typeof rawId === "string" ? rawId : typeof rawId === "number" ? String(rawId) : undefined;
+    // Konverter requestId til string - req.id kan være string | number | object
+    const rawId = req.id;
+    const requestId =
+      typeof rawId === "string" ? rawId : typeof rawId === "number" ? String(rawId) : undefined;
 
-  // Valider request body
-  const parseResult = KontaktRequestSchema.safeParse(extractKontaktPayload(req));
-  if (!parseResult.success) {
-    return sendZodError(res, parseResult.error, "Kontaktskjema");
-  }
+    // Valider request body
+    const parseResult = KontaktRequestSchema.safeParse(extractKontaktPayload(req));
+    if (!parseResult.success) {
+      return sendZodError(res, parseResult.error, "Kontaktskjema");
+    }
 
-  const attachmentValidationError = validateKontaktAttachments(
-    req.files as Express.Multer.File[] | undefined,
-  );
-  if (attachmentValidationError) {
-    return apiError.badRequest(res, attachmentValidationError);
-  }
-
-  const { navn, epost, emne, melding, turnstileToken, nettsted, sideUrl } =
-    parseResult.data;
-  const attachments = buildKontaktAttachments(req.files as Express.Multer.File[] | undefined);
-
-  // Honeypot-sjekk: nettsted-feltet skal være tomt
-  if (nettsted && nettsted.length > 0) {
-    // Logg som potensiell bot, men returner generisk suksess for å unngå informasjonslekkasje
-    logger.info({ requestId }, "Kontaktskjema: honeypot utløst");
-    return res.json(
-      KontaktResponseSchema.parse({
-        suksess: true,
-        melding: "Takk for din henvendelse! Vi svarer så snart vi kan.",
-      }),
+    const attachmentValidationError = validateKontaktAttachments(
+      req.files as Express.Multer.File[] | undefined,
     );
-  }
-
-  // Verifiser Turnstile-token
-  if (!isTurnstileConfigured()) {
-    if (isProd) {
-      logger.error("Turnstile ikke konfigurert i produksjon");
-      return apiError.serviceUnavailable(res, "Kontaktskjema");
+    if (attachmentValidationError) {
+      return apiError.badRequest(res, attachmentValidationError);
     }
-    // Development: hopp over Turnstile-verifisering
-    logger.warn("DEV: Turnstile ikke konfigurert, hopper over verifisering");
-  } else if (!turnstileToken) {
-    return apiError.badRequest(res, "Verifisering kreves");
-  } else {
-    const clientIp = req.ip || req.socket?.remoteAddress;
-    const turnstileResult = await verifyTurnstileToken(turnstileToken, clientIp);
 
-    if (!turnstileResult.success) {
-      logger.info(
-        { requestId, errorCodes: turnstileResult.errorCodes },
-        "Turnstile-verifisering feilet",
-      );
-      return apiError.badRequest(
-        res,
-        "Verifisering feilet. Prøv igjen.",
+    const { navn, epost, emne, melding, turnstileToken, nettsted, sideUrl, reportedErrorId } =
+      parseResult.data;
+    const attachments = buildKontaktAttachments(req.files as Express.Multer.File[] | undefined);
+
+    // Honeypot-sjekk: nettsted-feltet skal være tomt
+    if (nettsted && nettsted.length > 0) {
+      // Logg som potensiell bot, men returner generisk suksess for å unngå informasjonslekkasje
+      logger.info({ requestId }, "Kontaktskjema: honeypot utløst");
+      return res.json(
+        KontaktResponseSchema.parse({
+          suksess: true,
+          melding: "Takk for din henvendelse! Vi svarer så snart vi kan.",
+        }),
       );
     }
-  }
 
-  // Send kontaktmelding
-  try {
-    const result = await sendKontaktmelding({
-      navn,
-      epost,
-      emne,
+    // Verifiser Turnstile-token
+    if (!isTurnstileConfigured()) {
+      if (isProd) {
+        logger.error("Turnstile ikke konfigurert i produksjon");
+        return apiError.serviceUnavailable(res, "Kontaktskjema");
+      }
+      // Development: hopp over Turnstile-verifisering
+      logger.warn("DEV: Turnstile ikke konfigurert, hopper over verifisering");
+    } else if (!turnstileToken) {
+      return apiError.badRequest(res, "Verifisering kreves");
+    } else {
+      const clientIp = req.ip || req.socket?.remoteAddress;
+      const turnstileResult = await verifyTurnstileToken(turnstileToken, clientIp);
+
+      if (!turnstileResult.success) {
+        logger.info(
+          { requestId, errorCodes: turnstileResult.errorCodes },
+          "Turnstile-verifisering feilet",
+        );
+        return apiError.badRequest(res, "Verifisering feilet. Prøv igjen.");
+      }
+    }
+
+    // Send kontaktmelding
+    try {
+      const result = await sendKontaktmelding({
+        navn,
+        epost,
+        emne,
         melding,
         sideUrl,
         timestamp: new Date().toISOString(),
@@ -227,67 +227,68 @@ router.post(
         attachments,
       });
 
-    if (!result.success) {
-      logger.error(
-        { requestId, error: result.error },
-        "Kunne ikke sende kontaktmelding",
+      if (!result.success) {
+        logger.error({ requestId, error: result.error }, "Kunne ikke sende kontaktmelding");
+        return apiError.serviceUnavailable(res, "Kontaktskjema");
+      }
+
+      // Logg suksess uten PII/meldingsinnhold
+      logger.info(
+        {
+          requestId,
+          reportedErrorId,
+          epostDomene: epost.split("@")[1] ?? "unknown",
+          emneLength: emne.length,
+          meldingLength: melding.length,
+          attachmentsCount: attachments.length,
+        },
+        "Kontakthenvendelse mottatt",
       );
-      return apiError.serviceUnavailable(res, "Kontaktskjema");
-    }
 
-    // Logg suksess uten PII/meldingsinnhold
-    logger.info(
-      {
-        requestId,
-        epostDomene: epost.split("@")[1] ?? "unknown",
-        emneLength: emne.length,
-        meldingLength: melding.length,
-        attachmentsCount: attachments.length,
-      },
-      "Kontakthenvendelse mottatt",
-    );
+      // Persister i MongoDB så admin kan se innboksen i panelet.
+      // Vedlegg lagres KUN som metadata (filnavn + størrelse) — ikke selve innholdet.
+      try {
+        await ContactMessage.create({
+          navn,
+          epost,
+          emne,
+          melding,
+          sideUrl,
+          requestId,
+          reportedErrorId,
+          attachmentCount: attachments.length,
+          attachmentSummary:
+            attachments.length > 0
+              ? attachments.map((a) => ({
+                  filnavn: a.filnavn,
+                  sizeBytes: a.størrelse,
+                  mimeType: a.mimeType,
+                }))
+              : undefined,
+        });
+      } catch (persistErr) {
+        // Persistering må aldri blokkere svaret — logger og fortsetter
+        logger.warn(
+          { err: persistErr, requestId },
+          "Kunne ikke persistere kontaktmelding til MongoDB (epost-flyt fungerte)",
+        );
+      }
 
-    // Persister i MongoDB så admin kan se innboksen i panelet.
-    // Vedlegg lagres KUN som metadata (filnavn + størrelse) — ikke selve innholdet.
-    try {
-      await ContactMessage.create({
-        navn,
-        epost,
-        emne,
-        melding,
-        sideUrl,
-        requestId,
-        attachmentCount: attachments.length,
-        attachmentSummary: attachments.length > 0
-          ? attachments.map((a) => ({
-              filnavn: a.filnavn,
-              sizeBytes: a.størrelse,
-              mimeType: a.mimeType,
-            }))
-          : undefined,
-      });
-    } catch (persistErr) {
-      // Persistering må aldri blokkere svaret — logger og fortsetter
-      logger.warn(
-        { err: persistErr, requestId },
-        "Kunne ikke persistere kontaktmelding til MongoDB (epost-flyt fungerte)",
+      return res.json(
+        KontaktResponseSchema.parse({
+          suksess: true,
+          melding: "Takk for din henvendelse! Vi svarer så snart vi kan.",
+        }),
       );
-    }
+    } catch (error) {
+      if (error instanceof Error && error.message === "CONTACT_TRANSPORT_NOT_CONFIGURED") {
+        return apiError.serviceUnavailable(res, "Kontaktskjema");
+      }
 
-    return res.json(
-      KontaktResponseSchema.parse({
-        suksess: true,
-        melding: "Takk for din henvendelse! Vi svarer så snart vi kan.",
-      }),
-    );
-  } catch (error) {
-    if (error instanceof Error && error.message === "CONTACT_TRANSPORT_NOT_CONFIGURED") {
-      return apiError.serviceUnavailable(res, "Kontaktskjema");
+      logger.error({ err: error, requestId }, "Ukjent feil i kontaktskjema");
+      return apiError.serverError(res);
     }
-
-    logger.error({ err: error, requestId }, "Ukjent feil i kontaktskjema");
-    return apiError.serverError(res);
-  }
-});
+  },
+);
 
 export const contactRouter = router;

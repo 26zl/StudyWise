@@ -3,11 +3,14 @@
 import { describe, it, expect } from "vitest";
 import {
   createApiError,
+  createAuthStatusError,
   erFatalUserDataFeilmelding,
   erFatalUserDataFeil,
   erTokenFeilmelding,
   getApiErrorCode,
+  getApiRequestId,
   getFatalUserDataReason,
+  getReportableErrorId,
   identifiserFeiltype,
   extractApiErrorMessage,
   extractApiErrorPayload,
@@ -78,6 +81,80 @@ describe("strukturert fatal auth-klassifisering", () => {
 
     expect(getFatalUserDataReason(error)).toBe("oauth_account_conflict");
     expect(erFatalUserDataFeil(error)).toBe(true);
+  });
+});
+
+describe("apiRequestId-propagering (feil-ID for brukerrapport)", () => {
+  it("tagger createApiError med apiRequestId når det sendes inn", () => {
+    const error = createApiError(
+      { melding: "Uventet feil" },
+      "API feil",
+      { apiRequestId: "abc-123-def" },
+    );
+    expect(getApiRequestId(error)).toBe("abc-123-def");
+  });
+
+  it("returnerer null når ingen apiRequestId er satt", () => {
+    const error = createApiError({ melding: "Uventet feil" });
+    expect(getApiRequestId(error)).toBeNull();
+  });
+
+  it("propagerer apiRequestId via createAuthStatusError 401", () => {
+    const error = createAuthStatusError(
+      401,
+      { melding: "Sesjonen har utløpt" },
+      "Ikke autentisert",
+      { apiRequestId: "req-session-expired" },
+    );
+    expect(getApiRequestId(error)).toBe("req-session-expired");
+    expect(error.name).toBe("SessionExpiredError");
+  });
+
+  it("propagerer apiRequestId via createAuthStatusError 403", () => {
+    const error = createAuthStatusError(
+      403,
+      { melding: "Ingen tilgang" },
+      "Forbudt",
+      { apiRequestId: "req-forbidden" },
+    );
+    expect(getApiRequestId(error)).toBe("req-forbidden");
+    expect(error.name).toBe("ForbiddenError");
+  });
+
+  it("returnerer null for ikke-objekt-verdier", () => {
+    expect(getApiRequestId("en streng")).toBeNull();
+    expect(getApiRequestId(null)).toBeNull();
+    expect(getApiRequestId(undefined)).toBeNull();
+    expect(getApiRequestId(42)).toBeNull();
+  });
+
+  it("returnerer null når apiRequestId er tom streng eller whitespace", () => {
+    const error = createApiError({ melding: "feil" }, "API feil", { apiRequestId: "   " });
+    expect(getApiRequestId(error)).toBeNull();
+  });
+});
+
+describe("getReportableErrorId", () => {
+  it("foretrekker apiRequestId over Next.js digest", () => {
+    const error = createApiError(
+      { melding: "API-feil" },
+      "API-feil",
+      { apiRequestId: "req-current-error" },
+    ) as Error & { digest?: string };
+    error.digest = "next-digest";
+
+    expect(getReportableErrorId(error)).toBe("req-current-error");
+  });
+
+  it("faller tilbake til digest når feilen ikke har apiRequestId", () => {
+    const error = new Error("Render-feil") as Error & { digest?: string };
+    error.digest = "next-digest";
+
+    expect(getReportableErrorId(error)).toBe("next-digest");
+  });
+
+  it("returnerer null når verken apiRequestId eller digest finnes", () => {
+    expect(getReportableErrorId(new Error("Vanlig feil"))).toBeNull();
   });
 });
 

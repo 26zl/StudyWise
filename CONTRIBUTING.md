@@ -158,6 +158,7 @@ Common inneholder data-definisjoner og valideringsregler som deles mellom backen
 - `auth.ts` - Auth schemas og cookie-konstanter
 - `canvas.ts` - Canvas API schemas
 - `canvasErrors.ts` - Strukturerte Canvas-feilkoder
+- `canvasInstitutions.ts` - Liste over støttede Canvas-institusjoner (USN m.fl.)
 - `ki.ts` - KI API schemas og meldingslengde-grenser
 - `chat.ts` - Chat-melding schemas og samtalehistorikk
 - `document.ts` - Dokumentanalyse schemas
@@ -168,6 +169,8 @@ Common inneholder data-definisjoner og valideringsregler som deles mellom backen
 - `admin.ts` - Admin-paginering og spørringstyper
 - `contact.ts` - Kontaktskjema-schemas og -konstanter
 - `notifications.ts` - Web push-preferanser og abonnementer
+- `export.ts` - Eksport-schemas (PDF, Word, Excel, Notion)
+- `kunnskapsbase.ts` - Kunnskapsbase-schemas (lenker, filer, chunks)
 
 ### Docs-pakken
 
@@ -214,6 +217,7 @@ const users = await User.find({ active: true });
 - Canvas paginering: `PAGE_SIZE` og `MAX_PAGES` i `canvasUtils.ts`
 - Cache TTL: `CACHE_TTL` i `canvasUtils.ts`; sync i Redis: `SYNC_CACHE_TTL` (2 timer) i `canvas-sync.service.ts`
 - Vektorsøk: `backend/src/services/pinecone.service.ts`; miljøvariabler: `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`
+- AI-tracing: `backend/src/lib/langsmith.ts` wrapper KI-kall fra `aiClient.ts` og sender prompt/completion-traces til LangSmith når `LANGCHAIN_API_KEY` er satt. Tracing hoppes over stille hvis nøkkelen mangler, så lokal dev fungerer uten LangSmith-konto. Brukes for feilsøking, ytelsesmåling og kvalitetsovervåking av KI-svar.
 
 ---
 
@@ -340,6 +344,8 @@ pnpm kill:dev
 pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build
 ```
 
+**Pre-commit-hook:** Repoet har Husky + lint-staged konfigurert. Når du kjører `git commit`, kjøres Prettier automatisk på staged `.ts`, `.tsx`, `.js`, `.json`, `.md`, `.yml` og `.css`-filer. Du trenger ikke kjøre `pnpm format` manuelt før commit. Hooken installeres automatisk via `prepare`-scriptet når du kjører `pnpm install`.
+
 ### Git workflow
 
 ```bash
@@ -379,6 +385,25 @@ logger.info({ data }, "Debug info");
 3. Kjør `pnpm typecheck` for å se alle feil
 4. Kjør `pnpm build` hvis common-typer mangler
 
+### Debugging: 401 på /api/user/me i lokal dev
+
+Hvis du får 401 "Mangler autentiseringstoken" på `/api/user/me` lokalt (f.eks. at admin-fanen ikke vises selv om brukeren din har `role: "admin"` i MongoDB), og DevTools → Application → Cookies viser flere `__session*` eller `__clerk_db_jwt*`-cookies (noen med et `_XXX`-suffix og noen uten), har du blandede Clerk-instanser på samme port. Dette skjer typisk hvis du har brukt både prod og dev Clerk publishable keys på `localhost:3000` på ulike tidspunkt.
+
+**Symptomer:**
+
+- `/api/user/me` returnerer 401 med `{"kode":"auth_error","melding":"Mangler autentiseringstoken"}`
+- Request-headeren mangler `Authorization: Bearer ...` (kun Cookie er satt)
+- Sidebaren viser ikke admin-fanen selv om databasen sier bruker er admin
+
+**Fiks (rekkefølge — stopp når det fungerer):**
+
+1. Last siden på nytt. Appen rydder automatisk duplikat Clerk-cookies i dev ved mount, og `hentMeg` retry-er én gang ved 401 etter en Clerk session-reload.
+2. Åpne nettleserens konsoll og kjør `window.__studywiseResetClerk()` — dette sletter alle Clerk-cookies og reloader siden.
+3. Manuelt: DevTools → Application → Cookies → `localhost:3000` → Clear all → hard-refresh (Ctrl+Shift+R) → logg inn på nytt.
+4. Verifiser at `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (frontend) og `CLERK_SECRET_KEY` (backend) peker på samme Clerk-instans (begge `pk_test_*`+`sk_test_*` for dev, eller begge `pk_live_*`+`sk_live_*` for live). Mixing skaper samme 401-symptom.
+
+**Dette kan ikke skje i prod** — prod har én Clerk-instans per domene, vanlige brukere får aldri dual cookie-state. Mitigeringene over (auto-opprydding, retry, dev reset-helper) er dev-only og har ingen effekt i production-builds.
+
 ### Docker
 
 Hele prosjektet kan kjøres lokalt via Docker:
@@ -389,6 +414,27 @@ docker compose up --build
 ```
 
 Forutsetning: `backend/.env` må finnes med påkrevde nøkler (ANTHROPIC_API_KEY, COHERE_API_KEY, CLERK_SECRET_KEY, ENCRYPTION_KEY, MONGO_URI, REDIS_URL, PINECONE_API_KEY, PINECONE_INDEX_NAME). Se `backend/.env.example`. MongoDB og Redis startes automatisk av Docker. Ved MongoDB Atlas «bad auth»: sjekk brukernavn/passord og Database Access. I Redis Cloud anbefales eviction policy `allkeys-lru` for å unngå «nesten full»-varsler.
+
+### Valgfrie miljøvariabler
+
+Disse aktiverer tilleggsfunksjoner, men kjernen fungerer uten. Backend/frontend hopper stille over integrasjoner når nøklene ikke er satt — praktisk for lokal dev.
+
+**Backend (`backend/.env`):**
+
+- `ENCRYPTION_KEY_PREV` - Forrige krypteringsnøkkel under nøkkelrotasjon (dekrypterer legacy-data under migrasjon)
+- `CONTACT_WORKER_URL`, `CONTACT_WORKER_SECRET`, `CONTACT_TO_EMAIL`, `CONTACT_FROM_EMAIL` - Cloudflare Worker-relay som sender kontaktskjema til Resend (e-postlevering). Uten disse kjører kontakt i mock-modus lokalt
+- `DD_*` - Datadog APM-backend-monitorering (`DD_API_KEY`, `DD_SERVICE`, `DD_ENV`, osv.)
+- `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT`, `LANGCHAIN_ENDPOINT`, `LANGCHAIN_TRACING_V2` - LangSmith-tracing for KI-kall. Hopper stille over tracing når nøkkelen mangler
+- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` - Web Push-varsler (generer med `npx web-push generate-vapid-keys`)
+- `TURNSTILE_SECRET_KEY` - Cloudflare Turnstile backend-verifisering
+
+**Frontend (`frontend/.env`):**
+
+- `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST` - PostHog produktanalyse (cookieless, consent-gated)
+- `NEXT_PUBLIC_DD_RUM_APPLICATION_ID`, `NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN`, `NEXT_PUBLIC_DD_SITE` - Datadog RUM frontend-overvåking
+- `NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA` - Release-versjon for telemetri (settes automatisk av Vercel)
+
+Se `backend/.env.example` og `frontend/.env.example` for full liste med kommentarer.
 
 ### Hjelp
 

@@ -11,12 +11,13 @@
 import { lazy, Suspense, useEffect, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import { Providers } from "@/app/providers";
 import { Header } from "@/app/components/layout/header";
 import { Toaster } from "@/app/components/ui/Toaster";
 import { CookieBanner } from "@/app/components/layout/CookieBanner";
 import { DatadogRum } from "@/app/components/layout/DatadogRum";
+import { PostHogAnalytics } from "@/app/components/layout/PostHogAnalytics";
 import { ErrorBoundary } from "@/app/components/ui/ErrorBoundary";
 import { LandingBackdrop } from "@/app/components/layout/LandingBackdrop";
 import { Sidebar, type VisningType } from "@/app/components/dashboard/Sidebar";
@@ -26,6 +27,10 @@ import { useCanvasUser } from "@/app/canvas/canvas-api";
 import { useUIStore } from "@/app/store/uiStore";
 import type { Language } from "@/app/i18n/types";
 import { useLanguage } from "@/app/i18n";
+import {
+  checkForStaleClerkCookies,
+  installDevClerkResetHelper,
+} from "@/app/lib/devClerkCookieCheck";
 
 const TelemetryConsent = lazy(() =>
   import("@/app/components/layout/TelemetryConsent").then((m) => ({ default: m.TelemetryConsent })));
@@ -64,16 +69,26 @@ function PersistentSidebarShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { isLoaded: clerkLoaded, userId: clerkUserId } = useAuth();
+  const { isLoaded: clerkUserLoaded, user: clerkUser } = useUser();
   const megQuery = useMeg({ enabled: clerkLoaded && !!clerkUserId });
   const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
   const userQuery = useCanvasUser(megQuery.isSuccess && harCanvasToken);
   const isLoggingOut = useUIStore((state) => state.isLoggingOut);
+  const clerkFallbackNavn =
+    clerkUser?.firstName ||
+    clerkUser?.fullName?.split(" ")[0] ||
+    clerkUser?.primaryEmailAddress?.emailAddress?.split("@")[0];
 
   const brukernavn =
     userQuery.data?.name?.split(" ")[0] ||
     megQuery.data?.user?.firstName ||
-    megQuery.data?.user?.email?.split("@")[0];
+    megQuery.data?.user?.email?.split("@")[0] ||
+    clerkFallbackNavn;
   const brukerRolle = megQuery.data?.user?.role;
+  const avklarerBruker =
+    !clerkLoaded ||
+    (!!clerkUserId &&
+      (!clerkUserLoaded || ((megQuery.isPending || megQuery.isFetching) && !megQuery.data)));
 
   // Leser dashboard sin aktive visning fra URL-param (?view=chat).
   // På andre ruter (oversikt, ai-breakdown, account) er view-param ikke i URL,
@@ -104,6 +119,8 @@ function PersistentSidebarShell({ children }: { children: React.ReactNode }) {
         byttVisning={byttVisning}
         brukernavn={brukernavn}
         brukerRolle={brukerRolle}
+        avklarerBruker={avklarerBruker}
+        kanLoggUt={!!clerkUserId}
       />
       <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-label={t("chat.appContentLabel")}>
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]">
@@ -135,6 +152,11 @@ export function MainAppShell({
       "%cHei, konsoll-nerd! \u{1F44B}\nSer du etter noe spennende? Vi bygger StudyWise som bachelorprosjekt ved USN.\nFinn oss p\u00e5 GitHub: https://github.com/26zl/StudyWise",
       "color: #60a5fa; font-size: 13px;",
     );
+    // Dev-only Clerk cookie hygiene: varsle ved blandet cookie-state og installer
+    // en manuell reset-helper. Ikke muter cookies automatisk ved app-boot; det kan
+    // skape race conditions mot Clerk-init og første /api/user/me-kall.
+    checkForStaleClerkCookies();
+    installDevClerkResetHelper();
   }, []);
 
   const pathname = usePathname();
@@ -168,6 +190,7 @@ export function MainAppShell({
       </div>
       <Toaster />
       <DatadogRum />
+      <PostHogAnalytics />
       <Suspense fallback={null}>
         <TelemetryConsent />
       </Suspense>

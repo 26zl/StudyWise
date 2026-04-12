@@ -6,7 +6,11 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useLanguage } from "@/app/i18n";
-import { InfoPageLayout, InfoSection } from "@/app/components/layout/InfoPageLayout";
+import {
+  InfoPageLayout,
+  InfoSection,
+  INFO_PAGE_INLINE_LINK_CLASSNAME,
+} from "@/app/components/layout/InfoPageLayout";
 
 export default function FaqPage() {
   const { t } = useLanguage();
@@ -37,7 +41,7 @@ export default function FaqPage() {
           a: (
             <>
               {t("faq.dataSecureA")}{" "}
-              <Link href="/sikkerhet" prefetch={false} className="text-blue-500 dark:text-blue-400 hover:underline">
+              <Link href="/sikkerhet" prefetch={false} className={INFO_PAGE_INLINE_LINK_CLASSNAME}>
                 {t("faq.dataSecureLink")}
               </Link>
               .
@@ -49,7 +53,7 @@ export default function FaqPage() {
           a: (
             <>
               {t("faq.thirdPartyA1")}{" "}
-              <Link href="/personvern" prefetch={false} className="text-blue-500 dark:text-blue-400 hover:underline">
+              <Link href="/personvern" prefetch={false} className={INFO_PAGE_INLINE_LINK_CLASSNAME}>
                 {t("faq.thirdPartyLink")}
               </Link>{" "}
               {t("faq.thirdPartyA2")}
@@ -66,7 +70,7 @@ export default function FaqPage() {
           a: (
             <>
               {t("faq.deleteAccountA1")}{" "}
-              <Link href="/kontakt" prefetch={false} className="text-blue-500 dark:text-blue-400 hover:underline">
+              <Link href="/kontakt" prefetch={false} className={INFO_PAGE_INLINE_LINK_CLASSNAME}>
                 {t("faq.deleteAccountLink")}
               </Link>{" "}
               {t("faq.deleteAccountA2")}
@@ -118,7 +122,7 @@ export default function FaqPage() {
 
       <p className="text-center text-sm text-slate-500 dark:text-slate-400">
         {t("faq.notFound")}{" "}
-        <Link href="/kontakt" prefetch={false} className="text-blue-500 dark:text-blue-400 hover:underline">
+        <Link href="/kontakt" prefetch={false} className={INFO_PAGE_INLINE_LINK_CLASSNAME}>
           {t("faq.contactUs")}
         </Link>
         .

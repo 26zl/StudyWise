@@ -9,6 +9,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import type { MeResponse } from "common/auth";
 import { useAuth } from "@clerk/nextjs";
+import { useQueryClient } from "@tanstack/react-query";
 import { useMeg } from "@/app/auth/auth-api";
 
 /** Safe wrapper for useAuth — returnerer uinnlogget tilstand hvis ClerkProvider ikke er tilgjengelig (f.eks. under SSR etter kontosletting). */
@@ -18,6 +19,16 @@ function useSafeAuth(): { isLoaded: boolean; isSignedIn: boolean } {
     return { isLoaded: auth.isLoaded, isSignedIn: auth.isSignedIn ?? false };
   } catch {
     return { isLoaded: false, isSignedIn: false };
+  }
+}
+
+/** Returnerer true hvis QueryClientProvider er tilgjengelig i komponent-treet. */
+function useHasQueryClient(): boolean {
+  try {
+    useQueryClient();
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -33,16 +44,55 @@ interface LandingHeroActionsProps {
   labels: LandingHeroActionLabels;
 }
 
-export function LandingHeroActions({
-  initialUser = null,
+/**
+ * Indre komponent som bruker useMeg (krever QueryClientProvider).
+ * Rendres kun når QueryClientProvider er tilgjengelig.
+ */
+function LandingHeroActionsInner({
+  initialUser,
   labels,
-}: LandingHeroActionsProps) {
-  const { isLoaded, isSignedIn } = useSafeAuth();
+  isLoaded,
+  isSignedIn,
+}: LandingHeroActionsProps & { isLoaded: boolean; isSignedIn: boolean }) {
   const megQuery = useMeg({
     initialData: initialUser?.user ? initialUser : undefined,
     enabled: isLoaded && isSignedIn,
   });
   const erInnlogget = Boolean(megQuery.data?.user ?? initialUser?.user ?? (isLoaded && isSignedIn));
+  return <LandingHeroButtons labels={labels} erInnlogget={erInnlogget} />;
+}
+
+export function LandingHeroActions({
+  initialUser = null,
+  labels,
+}: LandingHeroActionsProps) {
+  const { isLoaded, isSignedIn } = useSafeAuth();
+  const hasQueryClient = useHasQueryClient();
+
+  // Uten QueryClientProvider (f.eks. etter kontosletting + Clerk invalidateCacheAction)
+  // rendrer vi med "ikke innlogget"-state basert kun på initialUser/Clerk-auth.
+  if (!hasQueryClient) {
+    const erInnlogget = Boolean(initialUser?.user ?? (isLoaded && isSignedIn));
+    return <LandingHeroButtons labels={labels} erInnlogget={erInnlogget} />;
+  }
+
+  return (
+    <LandingHeroActionsInner
+      initialUser={initialUser}
+      labels={labels}
+      isLoaded={isLoaded}
+      isSignedIn={isSignedIn}
+    />
+  );
+}
+
+function LandingHeroButtons({
+  labels,
+  erInnlogget,
+}: {
+  labels: LandingHeroActionLabels;
+  erInnlogget: boolean;
+}) {
   const ctaWidth = "min-w-[200px]";
 
   // Vis knappene med én gang — ikke vent på Clerk. Bruk standard «ikke innlogget»-visning

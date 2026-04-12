@@ -1,0 +1,18 @@
+# Build-artefakter og avhengigheter — skal aldri formateres
+node_modules
+pnpm-lock.yaml
+dist
+build
+.next
+.turbo
+coverage
+*.min.js
+*.min.css
+
+# Test-snapshots og genererte filer
+**/__snapshots__
+common/dist
+
+# Eksterne dokumenter og data
+filer_prosjekt
+sbom.json

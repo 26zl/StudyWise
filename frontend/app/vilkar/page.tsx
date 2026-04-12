@@ -5,7 +5,11 @@
 
 import Link from "next/link";
 import { useLanguage } from "@/app/i18n";
-import { InfoPageLayout, InfoSection } from "@/app/components/layout/InfoPageLayout";
+import {
+  InfoPageLayout,
+  InfoSection,
+  INFO_PAGE_INLINE_LINK_CLASSNAME,
+} from "@/app/components/layout/InfoPageLayout";
 
 export default function VilkarPage() {
   const { t } = useLanguage();
@@ -86,7 +90,7 @@ export default function VilkarPage() {
       <InfoSection title={t("vilkar.contactTitle")}>
         <p>
           {t("vilkar.contactBody")}{" "}
-          <Link href="/kontakt" prefetch={false} className="text-blue-500 dark:text-blue-400 hover:underline">
+          <Link href="/kontakt" prefetch={false} className={INFO_PAGE_INLINE_LINK_CLASSNAME}>
             {t("vilkar.contactLink")}
           </Link>
           .

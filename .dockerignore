@@ -24,6 +24,27 @@ coverage
 .github
 .vscode
 .idea
+.vs
+.windsurf
+.husky
+.claude
+.vercel
 
+# Bachelor- og prosjekt-artefakter — bevisst utenfor build-konteksten.
+# filer_prosjekt/ ligger i git for bachelor-veileder/sensor men har ingen
+# plass i kjørende containere.
+filer_prosjekt
+**/filer_prosjekt
+grafana
+**/grafana
+prompts
+**/prompts
+
+# Logger og midlertidige filer
 *.log
 pnpm-debug.log*
+tmp-*
+**/tmp-*
+backend-*.log
+**/backend-*.log
+nul

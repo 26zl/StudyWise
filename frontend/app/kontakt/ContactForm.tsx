@@ -5,20 +5,34 @@
  * Bruker react-hook-form, Zod-validering og Cloudflare Turnstile
  */
 
-import { useState, useRef, useCallback, useMemo, type ChangeEvent } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo, type ChangeEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Send, Loader2, ImagePlus, X } from "lucide-react";
+import { Send, Loader2, ImagePlus, X, AlertCircle } from "lucide-react";
 import {
   KONTAKT_ALLOWED_ATTACHMENT_TYPES,
   KONTAKT_MAX_ATTACHMENTS,
   KONTAKT_MAX_ATTACHMENT_SIZE_BYTES,
+  isValidReportedErrorId,
 } from "common/contact";
 import { useLanguage } from "@/app/i18n";
 import { useTurnstileScript } from "@/app/hooks/useTurnstileScript";
+import {
+  clearLastApiErrorRequestId,
+  getLastApiErrorRequestId,
+  rememberReportableErrorId,
+} from "@/app/lib/apiClient";
 import { sendKontakt } from "./contact-api";
+
+function sanitizeReportedErrorId(raw: string | null | undefined): string | undefined {
+  if (!raw) return undefined;
+  const trimmed = raw.trim();
+  if (!isValidReportedErrorId(trimmed)) return undefined;
+  return trimmed;
+}
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
@@ -35,11 +49,9 @@ function hentSanertSidekontekst(): string | undefined {
   const sanitizedPath = window.location.pathname
     .split("/")
     .filter(Boolean)
-    .map((segment) => (
-      /^[A-Za-z0-9_-]{12,}$/.test(segment) || /^[0-9a-f]{24}$/i.test(segment)
-        ? "[id]"
-        : segment
-    ))
+    .map((segment) =>
+      /^[A-Za-z0-9_-]{12,}$/.test(segment) || /^[0-9a-f]{24}$/i.test(segment) ? "[id]" : segment,
+    )
     .join("/");
 
   return sanitizedPath ? `/${sanitizedPath}` : "/";
@@ -47,11 +59,42 @@ function hentSanertSidekontekst(): string | undefined {
 
 export function ContactForm() {
   const { t } = useLanguage();
+  const searchParams = useSearchParams();
   const [isSending, setIsSending] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const honeypotRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Feil-ID kommer normalt fra sessionStorage, men kan også leveres transient via
+  // `?errorId=` når brukeren sendes til kontaktsiden. Query-parametret lagres
+  // umiddelbart i sessionStorage og fjernes deretter fra URL-en for å unngå at
+  // analytics/pageview-loggere plukker det opp fra adresselinjen.
+  const [reportedErrorId, setReportedErrorId] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    const rawFromUrl = searchParams.get("errorId");
+
+    if (rawFromUrl !== null) {
+      const fromUrl = sanitizeReportedErrorId(rawFromUrl);
+      if (fromUrl) {
+        rememberReportableErrorId(fromUrl);
+      }
+      setReportedErrorId(fromUrl);
+
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("errorId");
+        const nextSearch = url.searchParams.toString();
+        const nextUrl = `${url.pathname}${nextSearch ? `?${nextSearch}` : ""}${url.hash}`;
+        window.history.replaceState(window.history.state, "", nextUrl);
+      }
+      return;
+    }
+
+    const fromSession = sanitizeReportedErrorId(getLastApiErrorRequestId());
+    setReportedErrorId(fromSession);
+  }, [searchParams]);
 
   const onTurnstileSuccess = useCallback((token: string) => {
     setTurnstileToken(token);
@@ -61,7 +104,11 @@ export function ContactForm() {
     setTurnstileToken(null);
   }, []);
 
-  const { containerRef: turnstileRef, isLoaded: turnstileLoaded, reset: resetTurnstileWidget } = useTurnstileScript({
+  const {
+    containerRef: turnstileRef,
+    isLoaded: turnstileLoaded,
+    reset: resetTurnstileWidget,
+  } = useTurnstileScript({
     siteKey: TURNSTILE_SITE_KEY,
     onSuccess: onTurnstileSuccess,
     onError: onTurnstileError,
@@ -70,27 +117,28 @@ export function ContactForm() {
   });
 
   // Zod-schema med oversatte feilmeldinger
-  const KontaktFormSchema = useMemo(() => z.object({
-    navn: z
-      .string()
-      .trim()
-      .min(2, t("contactForm.nameMinError"))
-      .max(100, t("contactForm.nameMaxError")),
-    epost: z
-      .email(t("contactForm.emailError"))
-      .trim()
-      .max(320, t("contactForm.emailMaxError")),
-    emne: z
-      .string()
-      .trim()
-      .min(3, t("contactForm.subjectMinError"))
-      .max(140, t("contactForm.subjectMaxError")),
-    melding: z
-      .string()
-      .trim()
-      .min(10, t("contactForm.messageMinError"))
-      .max(5000, t("contactForm.messageMaxError")),
-  }), [t]);
+  const KontaktFormSchema = useMemo(
+    () =>
+      z.object({
+        navn: z
+          .string()
+          .trim()
+          .min(2, t("contactForm.nameMinError"))
+          .max(100, t("contactForm.nameMaxError")),
+        epost: z.email(t("contactForm.emailError")).trim().max(320, t("contactForm.emailMaxError")),
+        emne: z
+          .string()
+          .trim()
+          .min(3, t("contactForm.subjectMinError"))
+          .max(140, t("contactForm.subjectMaxError")),
+        melding: z
+          .string()
+          .trim()
+          .min(10, t("contactForm.messageMinError"))
+          .max(5000, t("contactForm.messageMaxError")),
+      }),
+    [t],
+  );
 
   const {
     register,
@@ -128,6 +176,7 @@ export function ContactForm() {
         // Honeypot: les faktisk verdi fra skjult felt (bots fyller ofte ut alle felt)
         nettsted: honeypotRef.current?.value ?? "",
         sideUrl: hentSanertSidekontekst(),
+        reportedErrorId,
         attachments,
       });
 
@@ -139,6 +188,10 @@ export function ContactForm() {
           fileInputRef.current.value = "";
         }
         resetTurnstile();
+        // Etter vellykket innsending: fjern ID-en slik at neste kontakt-besøk
+        // ikke rapporterer samme feil på nytt.
+        setReportedErrorId(undefined);
+        clearLastApiErrorRequestId();
       } else {
         toast.error(result.error ?? t("contactForm.errorDefault"));
         resetTurnstile();
@@ -174,9 +227,11 @@ export function ContactForm() {
 
     const nextFiles: File[] = [];
     for (const file of selectedFiles) {
-      if (!KONTAKT_ALLOWED_ATTACHMENT_TYPES.includes(
-        file.type as (typeof KONTAKT_ALLOWED_ATTACHMENT_TYPES)[number],
-      )) {
+      if (
+        !KONTAKT_ALLOWED_ATTACHMENT_TYPES.includes(
+          file.type as (typeof KONTAKT_ALLOWED_ATTACHMENT_TYPES)[number],
+        )
+      ) {
         toast.error(t("contactForm.imageTypeError"));
         continue;
       }
@@ -188,7 +243,9 @@ export function ContactForm() {
     }
 
     if (nextFiles.length > KONTAKT_MAX_ATTACHMENTS) {
-      toast.error(t("contactForm.imageCountError").replace("{count}", String(KONTAKT_MAX_ATTACHMENTS)));
+      toast.error(
+        t("contactForm.imageCountError").replace("{count}", String(KONTAKT_MAX_ATTACHMENTS)),
+      );
       setAttachments(nextFiles.slice(0, KONTAKT_MAX_ATTACHMENTS));
       return;
     }
@@ -220,6 +277,34 @@ export function ContactForm() {
           autoComplete="off"
         />
       </div>
+
+      {/* Feil-ID-banner: vises når brukeren har kommet hit via en lenke fra error boundary,
+          eller sist /api-kall feilet. Banner bekrefter for brukeren at feilen blir rapportert. */}
+      {reportedErrorId && (
+        <div
+          className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700/60 dark:bg-amber-900/20 dark:text-amber-200"
+          role="status"
+        >
+          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <div className="min-w-0">
+            <p className="font-medium">{t("contactForm.errorIdAttachedTitle")}</p>
+            <p className="mt-0.5 font-mono text-[11px] break-all text-amber-800/90 dark:text-amber-200/90">
+              {reportedErrorId}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setReportedErrorId(undefined);
+              clearLastApiErrorRequestId();
+            }}
+            className="ml-auto rounded p-1 text-amber-700 transition-colors hover:bg-amber-100 dark:text-amber-300 dark:hover:bg-amber-900/40"
+            aria-label={t("contactForm.errorIdRemove")}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       <div>
         <label
@@ -315,7 +400,9 @@ export function ContactForm() {
           onChange={handleAttachmentsChange}
         />
         <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-          {t("contactForm.imagesHint").replace("{count}", String(KONTAKT_MAX_ATTACHMENTS)).replace("{size}", String(maxAttachmentSizeMb))}
+          {t("contactForm.imagesHint")
+            .replace("{count}", String(KONTAKT_MAX_ATTACHMENTS))
+            .replace("{size}", String(maxAttachmentSizeMb))}
         </p>
         {attachments.length > 0 && (
           <ul className="mt-3 space-y-2">
@@ -378,9 +465,7 @@ export function ContactForm() {
 
       <p className="text-center text-xs text-slate-500 dark:text-slate-400">
         {t("contactForm.disclaimer")}{" "}
-        <span className="block sm:inline">
-          {t("contactForm.disclaimerSensitive")}
-        </span>
+        <span className="block sm:inline">{t("contactForm.disclaimerSensitive")}</span>
       </p>
     </form>
   );

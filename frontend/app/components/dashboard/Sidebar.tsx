@@ -58,6 +58,8 @@ interface SidebarProps {
     byttVisning: (visning: VisningType) => void;
     brukernavn?: string;
     brukerRolle?: string;
+    avklarerBruker?: boolean;
+    kanLoggUt?: boolean;
 }
 
 // Sidebar-komponent
@@ -66,6 +68,8 @@ export function Sidebar({
     byttVisning,
     brukernavn,
     brukerRolle,
+    avklarerBruker = false,
+    kanLoggUt = true,
 }: SidebarProps) {
     const { isVenstreMenyOpen, lukkVenstreMeny } = useUIStore();
     const [erCanvasUtvidet, settErCanvasUtvidet] = useState(true);
@@ -176,6 +180,7 @@ export function Sidebar({
     const erPåDashboard = effektivPathname === "/dashboard";
     const effektivVisning = pendingVisning ?? aktivVisning;
     const skalViseAdmin = brukerRolle === "admin";
+    const visBrukerPlaceholder = avklarerBruker && !brukernavn;
 
     // KI Assistent er kun «aktiv» når dashboardet faktisk er aktivt
     const erChatAktiv = erPåDashboard && effektivVisning === "chat";
@@ -624,26 +629,44 @@ export function Sidebar({
                 {/* Bruker-seksjon */}
                 <div className="shrink-0 px-5 py-2.5 border-t border-slate-200 dark:border-slate-800">
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-medium text-xs">
-                            {brukernavn ? brukernavn.charAt(0).toUpperCase() : "?"}
+                        <div
+                            className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-300 font-medium text-xs ${
+                                visBrukerPlaceholder
+                                    ? "bg-slate-200 dark:bg-slate-700 animate-pulse"
+                                    : "bg-slate-200 dark:bg-slate-700"
+                            }`}
+                            aria-hidden={visBrukerPlaceholder ? "true" : undefined}
+                        >
+                            {visBrukerPlaceholder ? null : brukernavn ? brukernavn.charAt(0).toUpperCase() : "?"}
                         </div>
                         <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
-                            <p className="text-sm font-medium text-slate-900 dark:text-white truncate leading-tight">
-                                {brukernavn || t("common.labels.notSignedIn")}
-                            </p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight">
-                                {t("common.labels.canvasUser")}
-                            </p>
+                            {visBrukerPlaceholder ? (
+                                <>
+                                    <div className="h-4 w-24 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" aria-hidden="true" />
+                                    <div className="h-3 w-16 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" aria-hidden="true" />
+                                </>
+                            ) : (
+                                <>
+                                    <p className="text-sm font-medium text-slate-900 dark:text-white truncate leading-tight">
+                                        {brukernavn || t("common.labels.notSignedIn")}
+                                    </p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight">
+                                        {t("common.labels.canvasUser")}
+                                    </p>
+                                </>
+                            )}
                         </div>
-                        <button
-                            type="button"
-                            onClick={handleLoggUt}
-                            className="shrink-0 p-2 -mr-2 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-                            aria-label={t("common.actions.signOut")}
-                            title={t("common.actions.signOut")}
-                        >
-                            <LogOut size={18} />
-                        </button>
+                        {kanLoggUt ? (
+                            <button
+                                type="button"
+                                onClick={handleLoggUt}
+                                className="shrink-0 p-2 -mr-2 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                                aria-label={t("common.actions.signOut")}
+                                title={t("common.actions.signOut")}
+                            >
+                                <LogOut size={18} />
+                            </button>
+                        ) : null}
                     </div>
                 </div>
             </aside>

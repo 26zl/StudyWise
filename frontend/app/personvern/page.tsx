@@ -5,7 +5,11 @@
 
 import Link from "next/link";
 import { useLanguage } from "@/app/i18n";
-import { InfoPageLayout, InfoSection } from "@/app/components/layout/InfoPageLayout";
+import {
+  InfoPageLayout,
+  InfoSection,
+  INFO_PAGE_INLINE_LINK_CLASSNAME,
+} from "@/app/components/layout/InfoPageLayout";
 
 export default function PersonvernPage() {
   const { t } = useLanguage();
@@ -84,6 +88,9 @@ export default function PersonvernPage() {
         <p>
           {t("personvern.cookiesSectionBody")}
         </p>
+        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-900/20 dark:text-amber-200">
+          {t("personvern.cookiesSectionAdblockNote")}
+        </p>
       </InfoSection>
 
       <InfoSection title={t("personvern.thirdPartyTitle")}>
@@ -103,6 +110,18 @@ export default function PersonvernPage() {
           </li>
           <li>
             <strong>{t("personvern.thirdPartyDatadogLabel")}</strong> {t("personvern.thirdPartyDatadogBody")}
+          </li>
+          <li>
+            <strong>{t("personvern.thirdPartyPosthogLabel")}</strong> {t("personvern.thirdPartyPosthogBody")}
+          </li>
+          <li>
+            <strong>{t("personvern.thirdPartyLangsmithLabel")}</strong> {t("personvern.thirdPartyLangsmithBody")}
+          </li>
+          <li>
+            <strong>{t("personvern.thirdPartyContactRelayLabel")}</strong> {t("personvern.thirdPartyContactRelayBody")}
+          </li>
+          <li>
+            <strong>{t("personvern.thirdPartyMapsLabel")}</strong> {t("personvern.thirdPartyMapsBody")}
           </li>
         </ul>
       </InfoSection>
@@ -133,7 +152,7 @@ export default function PersonvernPage() {
           <li>{t("personvern.storageAudit")}</li>
           <li>
             {t("personvern.storageServers")}{" "}
-            <Link href="/sikkerhet" prefetch={false} className="text-blue-500 dark:text-blue-400 hover:underline">
+            <Link href="/sikkerhet" prefetch={false} className={INFO_PAGE_INLINE_LINK_CLASSNAME}>
               {t("personvern.storageServersLink")}
             </Link>
             .
@@ -146,7 +165,7 @@ export default function PersonvernPage() {
       <InfoSection title={t("personvern.contactTitle")}>
         <p>
           {t("personvern.contactBody")}{" "}
-          <Link href="/kontakt" prefetch={false} className="text-blue-500 dark:text-blue-400 hover:underline">
+          <Link href="/kontakt" prefetch={false} className={INFO_PAGE_INLINE_LINK_CLASSNAME}>
             {t("personvern.contactLink")}
           </Link>
           .

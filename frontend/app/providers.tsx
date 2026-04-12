@@ -12,8 +12,9 @@ import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/reac
 import { useState, useEffect, useCallback, useRef } from "react";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useAuthSync, clearClientAuthState } from "./hooks/use-auth-sync";
-import { setClerkGetToken } from "./lib/clerkTokenForApi";
+import { setClerkGetToken, setClerkSessionReload } from "./lib/clerkTokenForApi";
 import { setDatadogUser, clearDatadogUser } from "@/app/components/layout/DatadogRum";
+import { identifyPostHogUser, resetPostHogUser } from "@/app/components/layout/PostHogAnalytics";
 import { AUTH_ME_QUERY_KEY, prefetchMe, forceSyncMe, dismissSyncConflict } from "./auth/auth-api";
 import { usePreferencesSync } from "./hooks/usePreferencesSync";
 import { MeResponseSchema, type MeResponse, type SyncConflict } from "common/auth";
@@ -73,10 +74,19 @@ function ClerkProviderMedSprak({
 // Gir backend API tilgang til Clerk session token (for brukere som logger inn med Clerk)
 function ClerkTokenSync() {
   const { getToken } = useAuth();
+  const clerk = useClerk();
   useEffect(() => {
     setClerkGetToken(() => getToken());
-    return () => setClerkGetToken(null);
-  }, [getToken]);
+    // Registrer session-reload for defensiv 401-retry i hentMeg og lignende.
+    // Best-effort: hvis clerk.session er null (ikke innlogget), gjør reload-kallet ingenting.
+    setClerkSessionReload(async () => {
+      await clerk.session?.reload();
+    });
+    return () => {
+      setClerkGetToken(null);
+      setClerkSessionReload(null);
+    };
+  }, [getToken, clerk]);
   return null;
 }
 
@@ -107,6 +117,7 @@ function DatadogUserSync() {
 
     if (!clerkUserId) {
       try { clearDatadogUser(); } catch { /* Datadog RUM ikke kritisk */ }
+      try { resetPostHogUser(); } catch { /* PostHog ikke kritisk */ }
       return;
     }
 
@@ -120,6 +131,17 @@ function DatadogUserSync() {
       setDatadogUser(datadogUser);
     } catch {
       // Datadog RUM er ikke kritisk – la appen fortsette
+    }
+
+    // PostHog identify — bruker Clerk user-ID som stabil distinctId. I cookieless-modus
+    // gjelder koblingen kun for inneværende sesjon, men lar oss fortsatt segmentere
+    // events på innloggede brukere innen sesjonen.
+    try {
+      identifyPostHogUser(clerkUserId, {
+        studywiseUserId: meData?.user?.id,
+      });
+    } catch {
+      // PostHog er ikke kritisk – la appen fortsette
     }
   }, [clerkUserId, isLoaded, queryClient]);
 

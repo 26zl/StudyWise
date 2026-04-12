@@ -4,6 +4,7 @@
  */
 
 import { fetchApi, fetchAuthedJson } from "@/app/lib/apiClient";
+import { captureProductEvent } from "@/app/components/layout/PostHogAnalytics";
 import {
   KBBaseListResponseSchema,
   KBBaseDetailSchema,
@@ -39,7 +40,11 @@ export async function opprettKBBase(navn: string): Promise<KBBaseSummary> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ navn }),
   });
-  return KBBaseSummarySchema.parse(data);
+  const base = KBBaseSummarySchema.parse(data);
+  // Funnel-event: ny kunnskapsbase opprettet. Sendes etter suksessrespons så vi
+  // måler fullføring, ikke intent — dette er en hovedindikator på produktengasjement.
+  captureProductEvent("knowledge_base_created");
+  return base;
 }
 
 /** Hent enkelt kunnskapsbase med innhold */
@@ -77,7 +82,10 @@ export async function leggTilKBLenke(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url, tittel }),
   });
-  return KBLinkSchema.parse(data);
+  const link = KBLinkSchema.parse(data);
+  // Funnel-steg etter kunnskapsbase_created: bruker legger til innhold.
+  captureProductEvent("knowledge_base_link_added");
+  return link;
 }
 
 /** Slett lenke fra base */

@@ -7,6 +7,7 @@
 "use client";
 
 import { useId, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useCookieConsent, type CookieConsentStatus } from "@/app/hooks/useCookieConsent";
 import { useLanguage } from "@/app/i18n";
@@ -16,6 +17,7 @@ export function CookieBanner() {
   const { t } = useLanguage();
   const { consent, isAuthenticated, isReady, isPending, setConsent } = useCookieConsent();
   const titleId = useId();
+  const pathname = usePathname();
 
   const handleChoice = useCallback(
     async (choice: Exclude<CookieConsentStatus, null>) => {
@@ -32,6 +34,11 @@ export function CookieBanner() {
   );
 
   if (!isReady || consent !== null) return null;
+
+  // Ikke vis banneret midt i innlogging/registrering. Nye brukere har ennå ikke
+  // et lagret cookieConsent-valg, men å vise en fullskjerm-prompt oppå Clerk-UI
+  // er forstyrrende. Banneret vises i stedet når de lander på dashboard/forsiden.
+  if (pathname.startsWith("/auth/")) return null;
 
   // Synkron cookie-sjekk for å eliminere flash: selv om React-state ennå ikke er
   // oppdatert etter hydrering, sjekker vi cookien direkte under render.

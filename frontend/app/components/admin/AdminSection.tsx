@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
+import { isValidReportedErrorId } from "common/contact";
 import {
   Users,
   BarChart3,
@@ -213,7 +214,9 @@ function StatKort({
         <Ikon size={20} className="text-slate-600 dark:text-slate-300" />
       </div>
       <div className="min-w-0">
-        <p className="text-2xl font-semibold text-slate-900 dark:text-white">{formaterStatVerdi(verdi, language, format)}</p>
+        <p className="text-2xl font-semibold text-slate-900 dark:text-white">
+          {formaterStatVerdi(verdi, language, format)}
+        </p>
         <p className="text-sm leading-5 text-slate-500 dark:text-slate-400">{label}</p>
       </div>
     </div>
@@ -279,18 +282,22 @@ function VedlikeholdKort({
   variant?: "warning" | "danger";
   children?: React.ReactNode;
 }) {
-  const ikonBg = variant === "danger"
-    ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
-    : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
-  const btnBg = variant === "danger"
-    ? "bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600"
-    : "bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600";
+  const ikonBg =
+    variant === "danger"
+      ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+      : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
+  const btnBg =
+    variant === "danger"
+      ? "bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600"
+      : "bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600";
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
       <div className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-3">
-          <div className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${ikonBg}`}>
+          <div
+            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${ikonBg}`}
+          >
             <Ikon size={16} />
           </div>
           <button
@@ -325,157 +332,324 @@ function MaintenanceFane() {
   const reencryptMutation = useReencryptTokens();
 
   const { data: encryptionStatus } = useEncryptionStatus();
-  const { data: dbHealth, refetch: refetchDbHealth, isFetching: dbHealthFetching } = useDatabaseHealth();
+  const {
+    data: dbHealth,
+    refetch: refetchDbHealth,
+    isFetching: dbHealthFetching,
+  } = useDatabaseHealth();
   const { data: maintenanceStatus } = useMaintenanceStatus();
 
   const [chatDager, setChatDager] = useState(180);
-  const [sisteResultat, setSisteResultat] = useState<{ tittel: string; stats: StatKortData[] } | null>(null);
+  const [sisteResultat, setSisteResultat] = useState<{
+    tittel: string;
+    stats: StatKortData[];
+  } | null>(null);
 
   // Global running-status: en operasjon vises som aktiv hvis enten denne brukeren
   // kjører den (isPending) ELLER en annen admin kjører den (via Redis-polling).
   const isRunning = (op: string, localPending: boolean) =>
     localPending || (maintenanceStatus?.ops[op]?.running ?? false);
 
-  function kjorMedBekreftelse(
-    melding: string,
-    handlingstekst: string,
-    muteringFn: () => void,
-  ) {
+  function kjorMedBekreftelse(melding: string, handlingstekst: string, muteringFn: () => void) {
     visBekreftelsesToast({ t, melding, handlingstekst, onBekreft: muteringFn });
   }
 
   const handleBackfill = () =>
-    kjorMedBekreftelse(t("admin.maintenance.backfill.confirm"), t("admin.maintenance.backfill.action"), () => {
-      backfillMutation.mutate(undefined, {
-        onSuccess: (r) => {
-          setSisteResultat({
-            tittel: t("admin.maintenance.backfill.cardTitle"),
-            stats: [
-              { label: t("admin.maintenance.backfill.scannedFiles"), verdi: r.scannedFiles, ikon: FileText },
-              { label: t("admin.maintenance.backfill.updatedFiles"), verdi: r.updatedFiles, ikon: CheckCircle2 },
-            ],
-          });
-          showToast.success(t("admin.maintenance.backfill.success"));
-        },
-        onError: (e) => showToast.error(t("admin.maintenance.backfill.failed"), hentFeilmelding(e, t("admin.maintenance.backfill.failed"))),
-      });
-    });
+    kjorMedBekreftelse(
+      t("admin.maintenance.backfill.confirm"),
+      t("admin.maintenance.backfill.action"),
+      () => {
+        backfillMutation.mutate(undefined, {
+          onSuccess: (r) => {
+            setSisteResultat({
+              tittel: t("admin.maintenance.backfill.cardTitle"),
+              stats: [
+                {
+                  label: t("admin.maintenance.backfill.scannedFiles"),
+                  verdi: r.scannedFiles,
+                  ikon: FileText,
+                },
+                {
+                  label: t("admin.maintenance.backfill.updatedFiles"),
+                  verdi: r.updatedFiles,
+                  ikon: CheckCircle2,
+                },
+              ],
+            });
+            showToast.success(t("admin.maintenance.backfill.success"));
+          },
+          onError: (e) =>
+            showToast.error(
+              t("admin.maintenance.backfill.failed"),
+              hentFeilmelding(e, t("admin.maintenance.backfill.failed")),
+            ),
+        });
+      },
+    );
 
   const handleCleanupOrphaned = () =>
-    kjorMedBekreftelse(t("admin.maintenance.cleanupOrphaned.confirm"), t("admin.maintenance.cleanupOrphaned.action"), () => {
-      cleanupOrphanedMutation.mutate(undefined, {
-        onSuccess: (r) => {
-          const d = r.deleted;
-          const labels = language === "nb"
-            ? { chats: "Samtaler", tasks: "Oppgaver", docs: "Dokumenter", plans: "Arbeidsplaner", canvas: "Canvas-strukturer", canvasUsers: "Canvas-brukere", shares: "Delelinker", kb: "Kunnskapsbaser", kbChunks: "KB-chunks" }
-            : { chats: "Chats", tasks: "Tasks", docs: "Documents", plans: "Work plans", canvas: "Canvas structures", canvasUsers: "Canvas users", shares: "Share links", kb: "Knowledge bases", kbChunks: "KB chunks" };
-          const stats: StatKortData[] = [];
-          if (d.samtaler > 0) stats.push({ label: labels.chats, verdi: d.samtaler, ikon: Trash2 });
-          if (d.oppgaveoppdelinger > 0) stats.push({ label: labels.tasks, verdi: d.oppgaveoppdelinger, ikon: Trash2 });
-          if (d.dokumentfragmenter > 0) stats.push({ label: labels.docs, verdi: d.dokumentfragmenter, ikon: Database });
-          if (d.arbeidsplaner > 0) stats.push({ label: labels.plans, verdi: d.arbeidsplaner, ikon: Trash2 });
-          if (d.canvasStrukturer > 0) stats.push({ label: labels.canvas, verdi: d.canvasStrukturer, ikon: Trash2 });
-          if (d.canvasBrukere > 0) stats.push({ label: labels.canvasUsers, verdi: d.canvasBrukere, ikon: Trash2 });
-          if (d.delingslenker > 0) stats.push({ label: labels.shares, verdi: d.delingslenker, ikon: Link });
-          if (d.kunnskapsbaser > 0) stats.push({ label: labels.kb, verdi: d.kunnskapsbaser, ikon: Database });
-          if (d.kbChunks > 0) stats.push({ label: labels.kbChunks, verdi: d.kbChunks, ikon: Database });
-          const total = Object.values(d).reduce((s, v) => s + v, 0);
-          if (stats.length === 0) stats.push({ label: t("admin.maintenance.cleanupOrphaned.action"), verdi: total, ikon: CheckCircle2 });
-          setSisteResultat({
-            tittel: t("admin.maintenance.cleanupOrphaned.cardTitle"),
-            stats,
-          });
-          showToast.success(t("admin.maintenance.cleanupOrphaned.success"));
-        },
-        onError: (e) => showToast.error(t("admin.maintenance.cleanupOrphaned.failed"), hentFeilmelding(e, t("admin.maintenance.cleanupOrphaned.failed"))),
-      });
-    });
+    kjorMedBekreftelse(
+      t("admin.maintenance.cleanupOrphaned.confirm"),
+      t("admin.maintenance.cleanupOrphaned.action"),
+      () => {
+        cleanupOrphanedMutation.mutate(undefined, {
+          onSuccess: (r) => {
+            const d = r.deleted;
+            const labels =
+              language === "nb"
+                ? {
+                    chats: "Samtaler",
+                    tasks: "Oppgaver",
+                    docs: "Dokumenter",
+                    plans: "Arbeidsplaner",
+                    canvas: "Canvas-strukturer",
+                    canvasUsers: "Canvas-brukere",
+                    shares: "Delelinker",
+                    kb: "Kunnskapsbaser",
+                    kbChunks: "KB-chunks",
+                  }
+                : {
+                    chats: "Chats",
+                    tasks: "Tasks",
+                    docs: "Documents",
+                    plans: "Work plans",
+                    canvas: "Canvas structures",
+                    canvasUsers: "Canvas users",
+                    shares: "Share links",
+                    kb: "Knowledge bases",
+                    kbChunks: "KB chunks",
+                  };
+            const stats: StatKortData[] = [];
+            if (d.samtaler > 0)
+              stats.push({ label: labels.chats, verdi: d.samtaler, ikon: Trash2 });
+            if (d.oppgaveoppdelinger > 0)
+              stats.push({ label: labels.tasks, verdi: d.oppgaveoppdelinger, ikon: Trash2 });
+            if (d.dokumentfragmenter > 0)
+              stats.push({ label: labels.docs, verdi: d.dokumentfragmenter, ikon: Database });
+            if (d.arbeidsplaner > 0)
+              stats.push({ label: labels.plans, verdi: d.arbeidsplaner, ikon: Trash2 });
+            if (d.canvasStrukturer > 0)
+              stats.push({ label: labels.canvas, verdi: d.canvasStrukturer, ikon: Trash2 });
+            if (d.canvasBrukere > 0)
+              stats.push({ label: labels.canvasUsers, verdi: d.canvasBrukere, ikon: Trash2 });
+            if (d.delingslenker > 0)
+              stats.push({ label: labels.shares, verdi: d.delingslenker, ikon: Link });
+            if (d.kunnskapsbaser > 0)
+              stats.push({ label: labels.kb, verdi: d.kunnskapsbaser, ikon: Database });
+            if (d.kbChunks > 0)
+              stats.push({ label: labels.kbChunks, verdi: d.kbChunks, ikon: Database });
+            const total = Object.values(d).reduce((s, v) => s + v, 0);
+            if (stats.length === 0)
+              stats.push({
+                label: t("admin.maintenance.cleanupOrphaned.action"),
+                verdi: total,
+                ikon: CheckCircle2,
+              });
+            setSisteResultat({
+              tittel: t("admin.maintenance.cleanupOrphaned.cardTitle"),
+              stats,
+            });
+            showToast.success(t("admin.maintenance.cleanupOrphaned.success"));
+          },
+          onError: (e) =>
+            showToast.error(
+              t("admin.maintenance.cleanupOrphaned.failed"),
+              hentFeilmelding(e, t("admin.maintenance.cleanupOrphaned.failed")),
+            ),
+        });
+      },
+    );
 
   const handleRebuildEmbeddings = () =>
-    kjorMedBekreftelse(t("admin.maintenance.rebuildEmbeddings.confirm"), t("admin.maintenance.rebuildEmbeddings.action"), () => {
-      rebuildEmbeddingsMutation.mutate(undefined, {
-        onSuccess: (r) => {
-          const embStats: StatKortData[] = [
-            { label: t("admin.maintenance.rebuildEmbeddings.scannedChunks"), verdi: r.scannedChunks, ikon: Database },
-            { label: t("admin.maintenance.rebuildEmbeddings.reembeddedChunks"), verdi: r.reembeddedChunks, ikon: CheckCircle2 },
-          ];
-          if (r.failedChunks > 0) embStats.push({ label: t("admin.maintenance.rebuildEmbeddings.failedChunks"), verdi: r.failedChunks, ikon: AlertTriangle });
-          setSisteResultat({ tittel: t("admin.maintenance.rebuildEmbeddings.cardTitle"), stats: embStats });
-          showToast.success(t("admin.maintenance.rebuildEmbeddings.success"));
-        },
-        onError: (e) => showToast.error(t("admin.maintenance.rebuildEmbeddings.failed"), hentFeilmelding(e, t("admin.maintenance.rebuildEmbeddings.failed"))),
-      });
-    });
+    kjorMedBekreftelse(
+      t("admin.maintenance.rebuildEmbeddings.confirm"),
+      t("admin.maintenance.rebuildEmbeddings.action"),
+      () => {
+        rebuildEmbeddingsMutation.mutate(undefined, {
+          onSuccess: (r) => {
+            const embStats: StatKortData[] = [
+              {
+                label: t("admin.maintenance.rebuildEmbeddings.scannedChunks"),
+                verdi: r.scannedChunks,
+                ikon: Database,
+              },
+              {
+                label: t("admin.maintenance.rebuildEmbeddings.reembeddedChunks"),
+                verdi: r.reembeddedChunks,
+                ikon: CheckCircle2,
+              },
+            ];
+            if (r.failedChunks > 0)
+              embStats.push({
+                label: t("admin.maintenance.rebuildEmbeddings.failedChunks"),
+                verdi: r.failedChunks,
+                ikon: AlertTriangle,
+              });
+            setSisteResultat({
+              tittel: t("admin.maintenance.rebuildEmbeddings.cardTitle"),
+              stats: embStats,
+            });
+            showToast.success(t("admin.maintenance.rebuildEmbeddings.success"));
+          },
+          onError: (e) =>
+            showToast.error(
+              t("admin.maintenance.rebuildEmbeddings.failed"),
+              hentFeilmelding(e, t("admin.maintenance.rebuildEmbeddings.failed")),
+            ),
+        });
+      },
+    );
 
   const handleForceCanvasResync = () =>
-    kjorMedBekreftelse(t("admin.maintenance.forceCanvasResync.confirm"), t("admin.maintenance.forceCanvasResync.action"), () => {
-      forceCanvasResyncMutation.mutate(undefined, {
-        onSuccess: (r) => {
-          setSisteResultat({
-            tittel: t("admin.maintenance.forceCanvasResync.cardTitle"),
-            stats: [
-              { label: t("admin.maintenance.forceCanvasResync.usersInvalidated"), verdi: r.usersInvalidated, ikon: Users },
-              { label: t("admin.maintenance.forceCanvasResync.keysDeleted"), verdi: r.keysDeleted, ikon: Database },
-            ],
-          });
-          showToast.success(t("admin.maintenance.forceCanvasResync.success"));
-        },
-        onError: (e) => showToast.error(t("admin.maintenance.forceCanvasResync.failed"), hentFeilmelding(e, t("admin.maintenance.forceCanvasResync.failed"))),
-      });
-    });
+    kjorMedBekreftelse(
+      t("admin.maintenance.forceCanvasResync.confirm"),
+      t("admin.maintenance.forceCanvasResync.action"),
+      () => {
+        forceCanvasResyncMutation.mutate(undefined, {
+          onSuccess: (r) => {
+            setSisteResultat({
+              tittel: t("admin.maintenance.forceCanvasResync.cardTitle"),
+              stats: [
+                {
+                  label: t("admin.maintenance.forceCanvasResync.usersInvalidated"),
+                  verdi: r.usersInvalidated,
+                  ikon: Users,
+                },
+                {
+                  label: t("admin.maintenance.forceCanvasResync.keysDeleted"),
+                  verdi: r.keysDeleted,
+                  ikon: Database,
+                },
+              ],
+            });
+            showToast.success(t("admin.maintenance.forceCanvasResync.success"));
+          },
+          onError: (e) =>
+            showToast.error(
+              t("admin.maintenance.forceCanvasResync.failed"),
+              hentFeilmelding(e, t("admin.maintenance.forceCanvasResync.failed")),
+            ),
+        });
+      },
+    );
 
   const handleCleanExpiredShares = () =>
-    kjorMedBekreftelse(t("admin.maintenance.cleanExpiredShares.confirm"), t("admin.maintenance.cleanExpiredShares.action"), () => {
-      cleanExpiredSharesMutation.mutate(undefined, {
-        onSuccess: (r) => {
-          setSisteResultat({
-            tittel: t("admin.maintenance.cleanExpiredShares.cardTitle"),
-            stats: [{ label: t("admin.maintenance.cleanExpiredShares.deletedCount"), verdi: r.deletedCount, ikon: Link }],
-          });
-          showToast.success(t("admin.maintenance.cleanExpiredShares.success"));
-        },
-        onError: (e) => showToast.error(t("admin.maintenance.cleanExpiredShares.failed"), hentFeilmelding(e, t("admin.maintenance.cleanExpiredShares.failed"))),
-      });
-    });
+    kjorMedBekreftelse(
+      t("admin.maintenance.cleanExpiredShares.confirm"),
+      t("admin.maintenance.cleanExpiredShares.action"),
+      () => {
+        cleanExpiredSharesMutation.mutate(undefined, {
+          onSuccess: (r) => {
+            setSisteResultat({
+              tittel: t("admin.maintenance.cleanExpiredShares.cardTitle"),
+              stats: [
+                {
+                  label: t("admin.maintenance.cleanExpiredShares.deletedCount"),
+                  verdi: r.deletedCount,
+                  ikon: Link,
+                },
+              ],
+            });
+            showToast.success(t("admin.maintenance.cleanExpiredShares.success"));
+          },
+          onError: (e) =>
+            showToast.error(
+              t("admin.maintenance.cleanExpiredShares.failed"),
+              hentFeilmelding(e, t("admin.maintenance.cleanExpiredShares.failed")),
+            ),
+        });
+      },
+    );
 
   const handleCleanOldChats = () =>
-    kjorMedBekreftelse(t("admin.maintenance.cleanOldChats.confirm"), t("admin.maintenance.cleanOldChats.action"), () => {
-      cleanOldChatsMutation.mutate(chatDager, {
-        onSuccess: (r) => {
-          const chatStats: StatKortData[] = [
-            { label: t("admin.maintenance.cleanOldChats.deletedChats"), verdi: r.deletedChats, ikon: Trash2 },
-          ];
-          if (r.deletedShares > 0) chatStats.push({ label: t("admin.maintenance.cleanOldChats.deletedShares"), verdi: r.deletedShares, ikon: Link });
-          setSisteResultat({ tittel: t("admin.maintenance.cleanOldChats.cardTitle"), stats: chatStats });
-          showToast.success(t("admin.maintenance.cleanOldChats.success"));
-        },
-        onError: (e) => showToast.error(t("admin.maintenance.cleanOldChats.failed"), hentFeilmelding(e, t("admin.maintenance.cleanOldChats.failed"))),
-      });
-    });
+    kjorMedBekreftelse(
+      t("admin.maintenance.cleanOldChats.confirm"),
+      t("admin.maintenance.cleanOldChats.action"),
+      () => {
+        cleanOldChatsMutation.mutate(chatDager, {
+          onSuccess: (r) => {
+            const chatStats: StatKortData[] = [
+              {
+                label: t("admin.maintenance.cleanOldChats.deletedChats"),
+                verdi: r.deletedChats,
+                ikon: Trash2,
+              },
+            ];
+            if (r.deletedShares > 0)
+              chatStats.push({
+                label: t("admin.maintenance.cleanOldChats.deletedShares"),
+                verdi: r.deletedShares,
+                ikon: Link,
+              });
+            setSisteResultat({
+              tittel: t("admin.maintenance.cleanOldChats.cardTitle"),
+              stats: chatStats,
+            });
+            showToast.success(t("admin.maintenance.cleanOldChats.success"));
+          },
+          onError: (e) =>
+            showToast.error(
+              t("admin.maintenance.cleanOldChats.failed"),
+              hentFeilmelding(e, t("admin.maintenance.cleanOldChats.failed")),
+            ),
+        });
+      },
+    );
 
   const handleReencrypt = () =>
-    kjorMedBekreftelse(t("admin.maintenance.encryption.reencryptConfirm"), t("admin.maintenance.encryption.reencryptAction"), () => {
-      reencryptMutation.mutate(undefined, {
-        onSuccess: (r) => {
-          const encStats: StatKortData[] = [
-            { label: t("admin.maintenance.encryption.processed"), verdi: r.processed, ikon: Shield },
-          ];
-          if (r.reencrypted > 0) encStats.push({ label: t("admin.maintenance.encryption.reencrypted"), verdi: r.reencrypted, ikon: CheckCircle2 });
-          if (r.alreadyCurrent > 0) encStats.push({ label: t("admin.maintenance.encryption.alreadyCurrent"), verdi: r.alreadyCurrent, ikon: ShieldCheck });
-          if (r.failed > 0) encStats.push({ label: t("admin.maintenance.encryption.failed"), verdi: r.failed, ikon: AlertTriangle });
-          setSisteResultat({ tittel: t("admin.maintenance.encryption.title"), stats: encStats });
-          showToast.success(t("admin.maintenance.encryption.reencryptSuccess"));
-        },
-        onError: (e) => showToast.error(t("admin.maintenance.encryption.reencryptFailed"), hentFeilmelding(e, t("admin.maintenance.encryption.reencryptFailed"))),
-      });
-    });
+    kjorMedBekreftelse(
+      t("admin.maintenance.encryption.reencryptConfirm"),
+      t("admin.maintenance.encryption.reencryptAction"),
+      () => {
+        reencryptMutation.mutate(undefined, {
+          onSuccess: (r) => {
+            const encStats: StatKortData[] = [
+              {
+                label: t("admin.maintenance.encryption.processed"),
+                verdi: r.processed,
+                ikon: Shield,
+              },
+            ];
+            if (r.reencrypted > 0)
+              encStats.push({
+                label: t("admin.maintenance.encryption.reencrypted"),
+                verdi: r.reencrypted,
+                ikon: CheckCircle2,
+              });
+            if (r.alreadyCurrent > 0)
+              encStats.push({
+                label: t("admin.maintenance.encryption.alreadyCurrent"),
+                verdi: r.alreadyCurrent,
+                ikon: ShieldCheck,
+              });
+            if (r.failed > 0)
+              encStats.push({
+                label: t("admin.maintenance.encryption.failed"),
+                verdi: r.failed,
+                ikon: AlertTriangle,
+              });
+            setSisteResultat({ tittel: t("admin.maintenance.encryption.title"), stats: encStats });
+            showToast.success(t("admin.maintenance.encryption.reencryptSuccess"));
+          },
+          onError: (e) =>
+            showToast.error(
+              t("admin.maintenance.encryption.reencryptFailed"),
+              hentFeilmelding(e, t("admin.maintenance.encryption.reencryptFailed")),
+            ),
+        });
+      },
+    );
 
   return (
     <section className="space-y-6">
       {/* Overskrift */}
       <div className="space-y-1">
-        <h2 className="text-base font-semibold text-slate-900 dark:text-white">{t("admin.maintenance.title")}</h2>
-        <p className="text-sm text-slate-600 dark:text-slate-400">{t("admin.maintenance.description")}</p>
+        <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+          {t("admin.maintenance.title")}
+        </h2>
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          {t("admin.maintenance.description")}
+        </p>
       </div>
 
       {/* Operasjons-kort */}
@@ -545,7 +719,9 @@ function MaintenanceFane() {
               min={30}
               max={3650}
               value={chatDager}
-              onChange={(e) => setChatDager(Math.max(30, Math.min(3650, Number(e.target.value) || 30)))}
+              onChange={(e) =>
+                setChatDager(Math.max(30, Math.min(3650, Number(e.target.value) || 30)))
+              }
               className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
             />
           </div>
@@ -560,9 +736,13 @@ function MaintenanceFane() {
               <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                 <Shield size={16} />
               </div>
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{t("admin.maintenance.encryption.title")}</h3>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                {t("admin.maintenance.encryption.title")}
+              </h3>
             </div>
-            <p className="text-xs text-slate-600 dark:text-slate-300">{t("admin.maintenance.encryption.description")}</p>
+            <p className="text-xs text-slate-600 dark:text-slate-300">
+              {t("admin.maintenance.encryption.description")}
+            </p>
           </div>
           <button
             type="button"
@@ -570,33 +750,58 @@ function MaintenanceFane() {
             disabled={isRunning("reencrypt-tokens", reencryptMutation.isPending)}
             className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
           >
-            <RefreshCcw size={12} className={isRunning("reencrypt-tokens", reencryptMutation.isPending) ? "animate-spin" : ""} />
+            <RefreshCcw
+              size={12}
+              className={
+                isRunning("reencrypt-tokens", reencryptMutation.isPending) ? "animate-spin" : ""
+              }
+            />
             {t("admin.maintenance.encryption.reencryptAction")}
           </button>
         </div>
         {encryptionStatus && (
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
             <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
-              <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.maintenance.encryption.previousKeyConfigured")}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {t("admin.maintenance.encryption.previousKeyConfigured")}
+              </p>
               <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
-                {encryptionStatus.previousKeyConfigured ? t("admin.maintenance.encryption.yes") : t("admin.maintenance.encryption.no")}
+                {encryptionStatus.previousKeyConfigured
+                  ? t("admin.maintenance.encryption.yes")
+                  : t("admin.maintenance.encryption.no")}
               </p>
             </div>
             <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
-              <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.maintenance.encryption.usersWithToken")}</p>
-              <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formaterTall(encryptionStatus.usersWithToken, language)}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {t("admin.maintenance.encryption.usersWithToken")}
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                {formaterTall(encryptionStatus.usersWithToken, language)}
+              </p>
             </div>
             <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
-              <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.maintenance.encryption.currentFormat")}</p>
-              <p className="mt-1 text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formaterTall(encryptionStatus.currentKeyOk, language)}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {t("admin.maintenance.encryption.currentFormat")}
+              </p>
+              <p className="mt-1 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                {formaterTall(encryptionStatus.currentKeyOk, language)}
+              </p>
             </div>
             <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
-              <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.maintenance.encryption.legacyFormat")}</p>
-              <p className="mt-1 text-sm font-semibold text-amber-600 dark:text-amber-400">{formaterTall(encryptionStatus.legacyFormat, language)}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {t("admin.maintenance.encryption.legacyFormat")}
+              </p>
+              <p className="mt-1 text-sm font-semibold text-amber-600 dark:text-amber-400">
+                {formaterTall(encryptionStatus.legacyFormat, language)}
+              </p>
             </div>
             <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
-              <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.maintenance.encryption.undecryptable")}</p>
-              <p className="mt-1 text-sm font-semibold text-red-600 dark:text-red-400">{formaterTall(encryptionStatus.undecryptable, language)}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {t("admin.maintenance.encryption.undecryptable")}
+              </p>
+              <p className="mt-1 text-sm font-semibold text-red-600 dark:text-red-400">
+                {formaterTall(encryptionStatus.undecryptable, language)}
+              </p>
             </div>
           </div>
         )}
@@ -610,9 +815,13 @@ function MaintenanceFane() {
               <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
                 <Server size={16} />
               </div>
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{t("admin.maintenance.database.title")}</h3>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                {t("admin.maintenance.database.title")}
+              </h3>
             </div>
-            <p className="text-xs text-slate-600 dark:text-slate-300">{t("admin.maintenance.database.description")}</p>
+            <p className="text-xs text-slate-600 dark:text-slate-300">
+              {t("admin.maintenance.database.description")}
+            </p>
           </div>
           <button
             type="button"
@@ -628,41 +837,80 @@ function MaintenanceFane() {
           <>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
-                <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.maintenance.database.totalCollections")}</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formaterTall(dbHealth.collections.length, language)}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {t("admin.maintenance.database.totalCollections")}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                  {formaterTall(dbHealth.collections.length, language)}
+                </p>
               </div>
               <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
-                <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.maintenance.database.totalDocuments")}</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formaterTall(dbHealth.totalDocuments, language)}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {t("admin.maintenance.database.totalDocuments")}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                  {formaterTall(dbHealth.totalDocuments, language)}
+                </p>
               </div>
               <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
-                <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.maintenance.database.totalSize")}</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formaterBytes(dbHealth.totalSizeBytes)}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {t("admin.maintenance.database.totalSize")}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                  {formaterBytes(dbHealth.totalSizeBytes)}
+                </p>
               </div>
               <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
-                <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.maintenance.database.totalIndexSize")}</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formaterBytes(dbHealth.totalIndexSizeBytes)}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {t("admin.maintenance.database.totalIndexSize")}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                  {formaterBytes(dbHealth.totalIndexSizeBytes)}
+                </p>
               </div>
             </div>
             <div className="mt-4 overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-700">
-                    <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">{t("admin.maintenance.database.collectionName")}</th>
-                    <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">{t("admin.maintenance.database.documents")}</th>
-                    <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">{t("admin.maintenance.database.size")}</th>
-                    <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">{t("admin.maintenance.database.indexes")}</th>
-                    <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">{t("admin.maintenance.database.indexSize")}</th>
+                    <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">
+                      {t("admin.maintenance.database.collectionName")}
+                    </th>
+                    <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">
+                      {t("admin.maintenance.database.documents")}
+                    </th>
+                    <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">
+                      {t("admin.maintenance.database.size")}
+                    </th>
+                    <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">
+                      {t("admin.maintenance.database.indexes")}
+                    </th>
+                    <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">
+                      {t("admin.maintenance.database.indexSize")}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {dbHealth.collections.map((coll) => (
-                    <tr key={coll.name} className="border-b border-slate-100 dark:border-slate-700/50">
-                      <td className="px-3 py-2 font-mono text-slate-700 dark:text-slate-300">{coll.name}</td>
-                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">{formaterTall(coll.documentCount, language)}</td>
-                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">{formaterBytes(coll.sizeBytes)}</td>
-                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">{coll.indexCount}</td>
-                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">{formaterBytes(coll.indexSizeBytes)}</td>
+                    <tr
+                      key={coll.name}
+                      className="border-b border-slate-100 dark:border-slate-700/50"
+                    >
+                      <td className="px-3 py-2 font-mono text-slate-700 dark:text-slate-300">
+                        {coll.name}
+                      </td>
+                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">
+                        {formaterTall(coll.documentCount, language)}
+                      </td>
+                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">
+                        {formaterBytes(coll.sizeBytes)}
+                      </td>
+                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">
+                        {coll.indexCount}
+                      </td>
+                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">
+                        {formaterBytes(coll.indexSizeBytes)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -701,104 +949,271 @@ function StatistikkFane() {
     { label: t("admin.stats.googleUsers"), verdi: data.brukere.google, ikon: Users },
     { label: t("admin.stats.microsoftUsers"), verdi: data.brukere.microsoft, ikon: Building2 },
     { label: t("admin.stats.emailUsers"), verdi: data.brukere.email, ikon: Mail },
-    { label: t("admin.stats.unknownProviderUsers"), verdi: data.brukere.ukjentProvider, ikon: AlertTriangle },
+    {
+      label: t("admin.stats.unknownProviderUsers"),
+      verdi: data.brukere.ukjentProvider,
+      ikon: AlertTriangle,
+    },
   ];
 
   const samtaleStats: StatKortData[] = [
     { label: t("admin.stats.totalChats"), verdi: data.samtaler.totalt, ikon: ScrollText },
     { label: t("admin.stats.bookmarkedChats"), verdi: data.samtaler.bokmerket, ikon: Pin },
-    { label: t("admin.stats.avgChatsPerUser"), verdi: data.samtaler.snittPerBruker, ikon: BarChart3 },
+    {
+      label: t("admin.stats.avgChatsPerUser"),
+      verdi: data.samtaler.snittPerBruker,
+      ikon: BarChart3,
+    },
     { label: t("admin.stats.activeShareLinks"), verdi: data.deling.aktiveLenker, ikon: Share2 },
     { label: t("admin.stats.inactiveShareLinks"), verdi: data.deling.inaktiveLenker, ikon: Share2 },
     { label: t("admin.stats.expiredShareLinks"), verdi: data.deling.utlopteLenker, ikon: Clock3 },
-    { label: t("admin.stats.shareLinksWithViews"), verdi: data.deling.lenkerMedVisninger, ikon: Eye },
+    {
+      label: t("admin.stats.shareLinksWithViews"),
+      verdi: data.deling.lenkerMedVisninger,
+      ikon: Eye,
+    },
     { label: t("admin.stats.shareViewsTotal"), verdi: data.deling.visningerTotalt, ikon: Eye },
   ];
 
   const planStats: StatKortData[] = [
-    { label: t("admin.stats.totalTasks"), verdi: data.oppgaver.oppgaveoppdelinger, ikon: BarChart3 },
-    { label: t("admin.stats.totalSubtasks"), verdi: data.oppgaver.deloppgaverTotalt, ikon: BarChart3 },
-    { label: t("admin.stats.completedSubtasks"), verdi: data.oppgaver.fullforteDeloppgaver, ikon: CheckCircle2 },
-    { label: t("admin.stats.approvedSubtasks"), verdi: data.oppgaver.godkjenteDeloppgaver, ikon: CheckCircle2 },
-    { label: t("admin.stats.avgSubtasksPerBreakdown"), verdi: data.oppgaver.snittDeloppgaverPerOppdeling, ikon: BarChart3 },
+    {
+      label: t("admin.stats.totalTasks"),
+      verdi: data.oppgaver.oppgaveoppdelinger,
+      ikon: BarChart3,
+    },
+    {
+      label: t("admin.stats.totalSubtasks"),
+      verdi: data.oppgaver.deloppgaverTotalt,
+      ikon: BarChart3,
+    },
+    {
+      label: t("admin.stats.completedSubtasks"),
+      verdi: data.oppgaver.fullforteDeloppgaver,
+      ikon: CheckCircle2,
+    },
+    {
+      label: t("admin.stats.approvedSubtasks"),
+      verdi: data.oppgaver.godkjenteDeloppgaver,
+      ikon: CheckCircle2,
+    },
+    {
+      label: t("admin.stats.avgSubtasksPerBreakdown"),
+      verdi: data.oppgaver.snittDeloppgaverPerOppdeling,
+      ikon: BarChart3,
+    },
     { label: t("admin.stats.workPlans"), verdi: data.arbeidsplan.planer, ikon: CalendarDays },
-    { label: t("admin.stats.workPlanBlocks"), verdi: data.arbeidsplan.blokkerTotalt, ikon: CalendarDays },
-    { label: t("admin.stats.completedWorkPlanBlocks"), verdi: data.arbeidsplan.fullforteBlokker, ikon: CheckCircle2 },
-    { label: t("admin.stats.usersWithWorkPlan"), verdi: data.arbeidsplan.brukereMedPlan, ikon: Users },
-    { label: t("admin.stats.workPlanCompletionRate"), verdi: data.arbeidsplan.fullforingsgrad, ikon: BarChart3, format: "percent" },
+    {
+      label: t("admin.stats.workPlanBlocks"),
+      verdi: data.arbeidsplan.blokkerTotalt,
+      ikon: CalendarDays,
+    },
+    {
+      label: t("admin.stats.completedWorkPlanBlocks"),
+      verdi: data.arbeidsplan.fullforteBlokker,
+      ikon: CheckCircle2,
+    },
+    {
+      label: t("admin.stats.usersWithWorkPlan"),
+      verdi: data.arbeidsplan.brukereMedPlan,
+      ikon: Users,
+    },
+    {
+      label: t("admin.stats.workPlanCompletionRate"),
+      verdi: data.arbeidsplan.fullforingsgrad,
+      ikon: BarChart3,
+      format: "percent",
+    },
   ];
 
   const innholdsStats: StatKortData[] = [
-    { label: t("admin.stats.totalEmbeddings"), verdi: data.innhold.dokumentfragmenter, ikon: Database },
+    {
+      label: t("admin.stats.totalEmbeddings"),
+      verdi: data.innhold.dokumentfragmenter,
+      ikon: Database,
+    },
     { label: t("admin.stats.documentFiles"), verdi: data.innhold.dokumentfiler, ikon: FileText },
     { label: t("admin.stats.documentCourses"), verdi: data.innhold.dokumentemner, ikon: BookOpen },
-    { label: t("admin.stats.usersWithContent"), verdi: data.innhold.brukereMedInnhold, ikon: Users },
+    {
+      label: t("admin.stats.usersWithContent"),
+      verdi: data.innhold.brukereMedInnhold,
+      ikon: Users,
+    },
     { label: t("admin.stats.totalTokens"), verdi: data.innhold.tokensTotalt, ikon: Database },
-    { label: t("admin.stats.avgChunksPerFile"), verdi: data.innhold.snittChunksPerFil, ikon: BarChart3 },
-    { label: t("admin.stats.cachedCourseStructures"), verdi: data.innhold.kursstrukturer, ikon: BookOpen },
-    { label: t("admin.stats.cachedCanvasAssignments"), verdi: data.innhold.canvasOppgaver, ikon: ScrollText },
-    { label: t("admin.stats.cachedCanvasAnnouncements"), verdi: data.innhold.canvasKunngjoringer, ikon: ScrollText },
-    { label: t("admin.stats.cachedCanvasModules"), verdi: data.innhold.canvasModuler, ikon: BookOpen },
-    { label: t("admin.stats.cachedCanvasModuleItems"), verdi: data.innhold.canvasModulElementer, ikon: FileText },
+    {
+      label: t("admin.stats.avgChunksPerFile"),
+      verdi: data.innhold.snittChunksPerFil,
+      ikon: BarChart3,
+    },
+    {
+      label: t("admin.stats.cachedCourseStructures"),
+      verdi: data.innhold.kursstrukturer,
+      ikon: BookOpen,
+    },
+    {
+      label: t("admin.stats.cachedCanvasAssignments"),
+      verdi: data.innhold.canvasOppgaver,
+      ikon: ScrollText,
+    },
+    {
+      label: t("admin.stats.cachedCanvasAnnouncements"),
+      verdi: data.innhold.canvasKunngjoringer,
+      ikon: ScrollText,
+    },
+    {
+      label: t("admin.stats.cachedCanvasModules"),
+      verdi: data.innhold.canvasModuler,
+      ikon: BookOpen,
+    },
+    {
+      label: t("admin.stats.cachedCanvasModuleItems"),
+      verdi: data.innhold.canvasModulElementer,
+      ikon: FileText,
+    },
   ];
 
   const syncStats: StatKortData[] = [
-    { label: t("admin.stats.usersWithSyncData"), verdi: data.sync.brukereMedSyncData, ikon: RefreshCcw },
-    { label: t("admin.stats.usersWithFreshSync24h"), verdi: data.sync.brukereMedFerskSync24t, ikon: RefreshCcw },
-    { label: t("admin.stats.usersWithStaleSync7d"), verdi: data.sync.brukereMedGammelSync7d, ikon: Clock3 },
-    { label: t("admin.stats.canvasUsersWithoutSync"), verdi: data.sync.canvasBrukereUtenSyncData, ikon: AlertTriangle },
+    {
+      label: t("admin.stats.usersWithSyncData"),
+      verdi: data.sync.brukereMedSyncData,
+      ikon: RefreshCcw,
+    },
+    {
+      label: t("admin.stats.usersWithFreshSync24h"),
+      verdi: data.sync.brukereMedFerskSync24t,
+      ikon: RefreshCcw,
+    },
+    {
+      label: t("admin.stats.usersWithStaleSync7d"),
+      verdi: data.sync.brukereMedGammelSync7d,
+      ikon: Clock3,
+    },
+    {
+      label: t("admin.stats.canvasUsersWithoutSync"),
+      verdi: data.sync.canvasBrukereUtenSyncData,
+      ikon: AlertTriangle,
+    },
   ];
 
   const varslerStats: StatKortData[] = [
     { label: t("admin.stats.pushSubscriptions"), verdi: data.varsler.pushAbonnementer, ikon: Bell },
     { label: t("admin.stats.usersWithPush"), verdi: data.varsler.brukereMedPush, ikon: Users },
-    { label: t("admin.stats.avgDevicesPerUser"), verdi: data.varsler.snittEnheterPerBruker, ikon: BarChart3 },
-    { label: t("admin.stats.usersWithNotion"), verdi: data.integrasjoner.brukereMedNotion, ikon: FileUp },
+    {
+      label: t("admin.stats.avgDevicesPerUser"),
+      verdi: data.varsler.snittEnheterPerBruker,
+      ikon: BarChart3,
+    },
+    {
+      label: t("admin.stats.usersWithNotion"),
+      verdi: data.integrasjoner.brukereMedNotion,
+      ikon: FileUp,
+    },
   ];
 
   const revisjonsStats: StatKortData[] = [
-    { label: t("admin.stats.auditEventsTotal"), verdi: data.revisjon.hendelserTotalt, ikon: Activity },
-    { label: t("admin.stats.auditFailuresTotal"), verdi: data.revisjon.feilTotalt, ikon: AlertTriangle },
+    {
+      label: t("admin.stats.auditEventsTotal"),
+      verdi: data.revisjon.hendelserTotalt,
+      ikon: Activity,
+    },
+    {
+      label: t("admin.stats.auditFailuresTotal"),
+      verdi: data.revisjon.feilTotalt,
+      ikon: AlertTriangle,
+    },
     { label: t("admin.stats.auditEvents24h"), verdi: data.revisjon.hendelser24t, ikon: Activity },
     { label: t("admin.stats.auditFailures24h"), verdi: data.revisjon.feil24t, ikon: AlertTriangle },
     { label: t("admin.stats.adminEvents24h"), verdi: data.revisjon.admin24t, ikon: Shield },
     { label: t("admin.stats.authEvents24h"), verdi: data.revisjon.auth24t, ikon: Shield },
-    { label: t("admin.stats.integrationEvents24h"), verdi: data.revisjon.integration24t, ikon: Link },
+    {
+      label: t("admin.stats.integrationEvents24h"),
+      verdi: data.revisjon.integration24t,
+      ikon: Link,
+    },
     { label: t("admin.stats.aiEvents24h"), verdi: data.revisjon.ki24t, ikon: BarChart3 },
     { label: t("admin.stats.privacyEvents24h"), verdi: data.revisjon.privacy24t, ikon: Shield },
     { label: t("admin.stats.profileEvents24h"), verdi: data.revisjon.profile24t, ikon: Users },
-    { label: t("admin.stats.securityEvents24h"), verdi: data.revisjon.security24t, ikon: ShieldCheck },
+    {
+      label: t("admin.stats.securityEvents24h"),
+      verdi: data.revisjon.security24t,
+      ikon: ShieldCheck,
+    },
   ];
 
   const kunnskapsbaseStats: StatKortData[] = [
     { label: t("admin.stats.kbBases"), verdi: data.kunnskapsbase.baser, ikon: Library },
-    { label: t("admin.stats.kbUsersWithBase"), verdi: data.kunnskapsbase.brukereMedBase, ikon: Users },
-    { label: t("admin.stats.kbAvgBasesPerUser"), verdi: data.kunnskapsbase.snittBaserPerBruker, ikon: BarChart3 },
+    {
+      label: t("admin.stats.kbUsersWithBase"),
+      verdi: data.kunnskapsbase.brukereMedBase,
+      ikon: Users,
+    },
+    {
+      label: t("admin.stats.kbAvgBasesPerUser"),
+      verdi: data.kunnskapsbase.snittBaserPerBruker,
+      ikon: BarChart3,
+    },
     { label: t("admin.stats.kbLinks"), verdi: data.kunnskapsbase.lenker, ikon: Link2 },
     { label: t("admin.stats.kbFiles"), verdi: data.kunnskapsbase.filer, ikon: FileText },
     { label: t("admin.stats.kbChunks"), verdi: data.kunnskapsbase.chunks, ikon: Database },
     { label: t("admin.stats.kbCrawled"), verdi: data.kunnskapsbase.crawledeLenker, ikon: Link2 },
-    { label: t("admin.stats.kbCrawlFailed"), verdi: data.kunnskapsbase.feiledeLenker, ikon: AlertTriangle },
+    {
+      label: t("admin.stats.kbCrawlFailed"),
+      verdi: data.kunnskapsbase.feiledeLenker,
+      ikon: AlertTriangle,
+    },
   ];
 
   const kvalitetsStats: StatKortData[] = [
-    { label: t("admin.stats.orphanedChats"), verdi: data.kvalitet.orphanedSamtaler, ikon: AlertTriangle },
-    { label: t("admin.stats.orphanedTaskBreakdowns"), verdi: data.kvalitet.orphanedOppgaveoppdelinger, ikon: AlertTriangle },
-    { label: t("admin.stats.orphanedDocumentChunks"), verdi: data.kvalitet.orphanedDokumentfragmenter, ikon: Database },
-    { label: t("admin.stats.orphanedWorkPlans"), verdi: data.kvalitet.orphanedArbeidsplaner, ikon: CalendarDays },
-    { label: t("admin.stats.orphanedCanvasStructures"), verdi: data.kvalitet.orphanedCanvasStrukturer, ikon: BookOpen },
-    { label: t("admin.stats.orphanedCanvasUsers"), verdi: data.kvalitet.orphanedCanvasBrukere, ikon: UserX },
-    { label: t("admin.stats.ownerlessShareLinks"), verdi: data.kvalitet.delingerUtenEier, ikon: Share2 },
-    { label: t("admin.stats.orphanedKnowledgeBases"), verdi: data.kvalitet.orphanedKunnskapsbaser, ikon: Library },
-    { label: t("admin.stats.orphanedKBChunks"), verdi: data.kvalitet.orphanedKBChunks, ikon: Database },
+    {
+      label: t("admin.stats.orphanedChats"),
+      verdi: data.kvalitet.orphanedSamtaler,
+      ikon: AlertTriangle,
+    },
+    {
+      label: t("admin.stats.orphanedTaskBreakdowns"),
+      verdi: data.kvalitet.orphanedOppgaveoppdelinger,
+      ikon: AlertTriangle,
+    },
+    {
+      label: t("admin.stats.orphanedDocumentChunks"),
+      verdi: data.kvalitet.orphanedDokumentfragmenter,
+      ikon: Database,
+    },
+    {
+      label: t("admin.stats.orphanedWorkPlans"),
+      verdi: data.kvalitet.orphanedArbeidsplaner,
+      ikon: CalendarDays,
+    },
+    {
+      label: t("admin.stats.orphanedCanvasStructures"),
+      verdi: data.kvalitet.orphanedCanvasStrukturer,
+      ikon: BookOpen,
+    },
+    {
+      label: t("admin.stats.orphanedCanvasUsers"),
+      verdi: data.kvalitet.orphanedCanvasBrukere,
+      ikon: UserX,
+    },
+    {
+      label: t("admin.stats.ownerlessShareLinks"),
+      verdi: data.kvalitet.delingerUtenEier,
+      ikon: Share2,
+    },
+    {
+      label: t("admin.stats.orphanedKnowledgeBases"),
+      verdi: data.kvalitet.orphanedKunnskapsbaser,
+      ikon: Library,
+    },
+    {
+      label: t("admin.stats.orphanedKBChunks"),
+      verdi: data.kvalitet.orphanedKBChunks,
+      ikon: Database,
+    },
   ];
 
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          {t("admin.stats.note")}
-        </p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">{t("admin.stats.note")}</p>
         <div className="flex flex-wrap items-center gap-3">
           <a
             href="https://fb26zl.grafana.net/d/fbrdskw/studywize-observability?orgId=1&from=now-24h&to=now&timezone=browser"
@@ -820,15 +1235,47 @@ function StatistikkFane() {
           </a>
         </div>
       </div>
-      <StatSeksjon title={t("admin.stats.sections.users")} stats={brukerStats} language={language} />
-      <StatSeksjon title={t("admin.stats.sections.conversations")} stats={samtaleStats} language={language} />
-      <StatSeksjon title={t("admin.stats.sections.planning")} stats={planStats} language={language} />
-      <StatSeksjon title={t("admin.stats.sections.content")} stats={innholdsStats} language={language} />
-      <StatSeksjon title={t("admin.stats.sections.knowledgeBase")} stats={kunnskapsbaseStats} language={language} />
-      <StatSeksjon title={t("admin.stats.sections.notifications")} stats={varslerStats} language={language} />
+      <StatSeksjon
+        title={t("admin.stats.sections.users")}
+        stats={brukerStats}
+        language={language}
+      />
+      <StatSeksjon
+        title={t("admin.stats.sections.conversations")}
+        stats={samtaleStats}
+        language={language}
+      />
+      <StatSeksjon
+        title={t("admin.stats.sections.planning")}
+        stats={planStats}
+        language={language}
+      />
+      <StatSeksjon
+        title={t("admin.stats.sections.content")}
+        stats={innholdsStats}
+        language={language}
+      />
+      <StatSeksjon
+        title={t("admin.stats.sections.knowledgeBase")}
+        stats={kunnskapsbaseStats}
+        language={language}
+      />
+      <StatSeksjon
+        title={t("admin.stats.sections.notifications")}
+        stats={varslerStats}
+        language={language}
+      />
       <StatSeksjon title={t("admin.stats.sections.sync")} stats={syncStats} language={language} />
-      <StatSeksjon title={t("admin.stats.sections.audit")} stats={revisjonsStats} language={language} />
-      <StatSeksjon title={t("admin.stats.sections.quality")} stats={kvalitetsStats} language={language} />
+      <StatSeksjon
+        title={t("admin.stats.sections.audit")}
+        stats={revisjonsStats}
+        language={language}
+      />
+      <StatSeksjon
+        title={t("admin.stats.sections.quality")}
+        stats={kvalitetsStats}
+        language={language}
+      />
     </div>
   );
 }
@@ -858,8 +1305,16 @@ function ObservabilityFane() {
   const overviewError = !!overviewQuery.error;
   const overviewData = overviewQuery.data;
   const observabilityStats: StatKortData[] = [
-    { label: t("admin.stats.aiObservability.totalRuns24h"), verdi: overviewData?.totalRuns24h ?? 0, ikon: Activity },
-    { label: t("admin.stats.aiObservability.totalRuns7d"), verdi: overviewData?.totalRuns7d ?? 0, ikon: Activity },
+    {
+      label: t("admin.stats.aiObservability.totalRuns24h"),
+      verdi: overviewData?.totalRuns24h ?? 0,
+      ikon: Activity,
+    },
+    {
+      label: t("admin.stats.aiObservability.totalRuns7d"),
+      verdi: overviewData?.totalRuns7d ?? 0,
+      ikon: Activity,
+    },
   ];
 
   const runsQuery = useRuns(runPage, statusFilter, intentFilter);
@@ -912,7 +1367,11 @@ function ObservabilityFane() {
       </div>
 
       <div className="space-y-4">
-        <StatSeksjon title={t("admin.stats.aiObservability.cardsTitle")} stats={observabilityStats} language={language} />
+        <StatSeksjon
+          title={t("admin.stats.aiObservability.cardsTitle")}
+          stats={observabilityStats}
+          language={language}
+        />
 
         <p className="text-sm text-slate-600 dark:text-slate-300">
           {t("admin.stats.aiObservability.overviewLineRuns", {
@@ -944,7 +1403,9 @@ function ObservabilityFane() {
                   {t("admin.stats.aiObservability.latencyLatestLabel")}
                 </p>
                 <p className="text-lg font-semibold text-slate-900 dark:text-white">
-                  {sisteDognLatency != null ? `${formaterTall(sisteDognLatency, language)} ms` : "–"}
+                  {sisteDognLatency != null
+                    ? `${formaterTall(sisteDognLatency, language)} ms`
+                    : "–"}
                 </p>
               </div>
               <div className="rounded-lg bg-slate-50 dark:bg-slate-900 p-3">
@@ -974,7 +1435,9 @@ function ObservabilityFane() {
               className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-base sm:text-sm text-slate-700 dark:text-slate-200"
             >
               <option value="all">{t("admin.stats.aiObservability.filters.statusAll")}</option>
-              <option value="success">{t("admin.stats.aiObservability.filters.statusSuccess")}</option>
+              <option value="success">
+                {t("admin.stats.aiObservability.filters.statusSuccess")}
+              </option>
               <option value="error">{t("admin.stats.aiObservability.filters.statusError")}</option>
             </select>
             <input
@@ -999,12 +1462,24 @@ function ObservabilityFane() {
                 <table className="w-full min-w-160 text-xs">
                   <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
                     <tr>
-                      <th className="px-3 py-2 text-left">{t("admin.stats.aiObservability.table.timestamp")}</th>
-                      <th className="px-3 py-2 text-left">{t("admin.stats.aiObservability.table.model")}</th>
-                      <th className="px-3 py-2 text-left">{t("admin.stats.aiObservability.table.intent")}</th>
-                      <th className="px-3 py-2 text-right">{t("admin.stats.aiObservability.table.tokens")}</th>
-                      <th className="px-3 py-2 text-right">{t("admin.stats.aiObservability.table.latency")}</th>
-                      <th className="px-3 py-2 text-left">{t("admin.stats.aiObservability.table.status")}</th>
+                      <th className="px-3 py-2 text-left">
+                        {t("admin.stats.aiObservability.table.timestamp")}
+                      </th>
+                      <th className="px-3 py-2 text-left">
+                        {t("admin.stats.aiObservability.table.model")}
+                      </th>
+                      <th className="px-3 py-2 text-left">
+                        {t("admin.stats.aiObservability.table.intent")}
+                      </th>
+                      <th className="px-3 py-2 text-right">
+                        {t("admin.stats.aiObservability.table.tokens")}
+                      </th>
+                      <th className="px-3 py-2 text-right">
+                        {t("admin.stats.aiObservability.table.latency")}
+                      </th>
+                      <th className="px-3 py-2 text-left">
+                        {t("admin.stats.aiObservability.table.status")}
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -1018,8 +1493,12 @@ function ObservabilityFane() {
                           <td className="px-3 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap">
                             {formaterDatoOgTid(run.timestamp, language)}
                           </td>
-                          <td className="px-3 py-2 text-slate-700 dark:text-slate-200">{run.model}</td>
-                          <td className="px-3 py-2 text-slate-700 dark:text-slate-200">{run.intent}</td>
+                          <td className="px-3 py-2 text-slate-700 dark:text-slate-200">
+                            {run.model}
+                          </td>
+                          <td className="px-3 py-2 text-slate-700 dark:text-slate-200">
+                            {run.intent}
+                          </td>
                           <td className="px-3 py-2 text-right text-slate-700 dark:text-slate-200">
                             {formaterTall(run.totalTokens, language)}
                           </td>
@@ -1041,7 +1520,10 @@ function ObservabilityFane() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={6} className="px-3 py-6 text-center text-slate-500 dark:text-slate-400">
+                        <td
+                          colSpan={6}
+                          className="px-3 py-6 text-center text-slate-500 dark:text-slate-400"
+                        >
                           {t("admin.stats.aiObservability.table.noRuns")}
                         </td>
                       </tr>
@@ -1052,7 +1534,9 @@ function ObservabilityFane() {
               {runsData && runsData.total > 0 && (
                 <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                   <span>
-                    {t("admin.stats.aiObservability.table.totalRuns", { total: formaterTall(runsData.total, language) })}
+                    {t("admin.stats.aiObservability.table.totalRuns", {
+                      total: formaterTall(runsData.total, language),
+                    })}
                   </span>
                   <div className="flex items-center gap-2">
                     <button
@@ -1094,30 +1578,40 @@ function ObservabilityFane() {
             </p>
           )}
           {selectedRunId && runDetailLoading && <LoadingSpinner />}
-          {selectedRunId && runDetailError && <FeilMelding melding={t("admin.stats.aiObservability.runDetailLoadFailed")} />}
+          {selectedRunId && runDetailError && (
+            <FeilMelding melding={t("admin.stats.aiObservability.runDetailLoadFailed")} />
+          )}
           {selectedRunId && runDetail && (
             <div className="space-y-3">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                 <div className="rounded-lg bg-slate-50 dark:bg-slate-900 p-2">
-                  <p className="text-slate-500 dark:text-slate-400">{t("admin.stats.aiObservability.detail.input")}</p>
+                  <p className="text-slate-500 dark:text-slate-400">
+                    {t("admin.stats.aiObservability.detail.input")}
+                  </p>
                   <p className="font-semibold text-slate-800 dark:text-slate-100">
                     {formaterTall(runDetail.inputTokens, language)}
                   </p>
                 </div>
                 <div className="rounded-lg bg-slate-50 dark:bg-slate-900 p-2">
-                  <p className="text-slate-500 dark:text-slate-400">{t("admin.stats.aiObservability.detail.output")}</p>
+                  <p className="text-slate-500 dark:text-slate-400">
+                    {t("admin.stats.aiObservability.detail.output")}
+                  </p>
                   <p className="font-semibold text-slate-800 dark:text-slate-100">
                     {formaterTall(runDetail.outputTokens, language)}
                   </p>
                 </div>
                 <div className="rounded-lg bg-slate-50 dark:bg-slate-900 p-2">
-                  <p className="text-slate-500 dark:text-slate-400">{t("admin.stats.aiObservability.detail.total")}</p>
+                  <p className="text-slate-500 dark:text-slate-400">
+                    {t("admin.stats.aiObservability.detail.total")}
+                  </p>
                   <p className="font-semibold text-slate-800 dark:text-slate-100">
                     {formaterTall(runDetail.totalTokens, language)}
                   </p>
                 </div>
                 <div className="rounded-lg bg-slate-50 dark:bg-slate-900 p-2">
-                  <p className="text-slate-500 dark:text-slate-400">{t("admin.stats.aiObservability.detail.latency")}</p>
+                  <p className="text-slate-500 dark:text-slate-400">
+                    {t("admin.stats.aiObservability.detail.latency")}
+                  </p>
                   <p className="font-semibold text-slate-800 dark:text-slate-100">
                     {formaterTall(runDetail.latencyMs, language)} ms
                   </p>
@@ -1179,7 +1673,10 @@ function BrukerDetaljModal({ brukerId, onClose }: { brukerId: string; onClose: (
     >
       <div className="max-h-dvh w-full max-w-3xl overflow-y-auto rounded-none border-0 bg-white p-4 shadow-2xl sm:max-h-[90vh] sm:rounded-xl sm:border sm:border-slate-200 sm:p-6 dark:bg-slate-800 sm:dark:border-slate-700">
         <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-6 flex items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-sm sm:-mx-6 sm:-mt-6 sm:px-6 dark:border-slate-700 dark:bg-slate-800/95">
-          <h3 id="bruker-detalj-tittel" className="text-lg font-semibold text-slate-900 dark:text-white">
+          <h3
+            id="bruker-detalj-tittel"
+            className="text-lg font-semibold text-slate-900 dark:text-white"
+          >
             {t("admin.users.detailsTitle")}
           </h3>
           <button
@@ -1203,9 +1700,7 @@ function BrukerDetaljModal({ brukerId, onClose }: { brukerId: string; onClose: (
               <DetaljRad
                 label={t("admin.users.name")}
                 value={
-                  [data.fornavn, data.etternavn].filter(Boolean).join(" ") ||
-                  data.brukernavn ||
-                  "—"
+                  [data.fornavn, data.etternavn].filter(Boolean).join(" ") || data.brukernavn || "—"
                 }
               />
               <DetaljRad label={t("admin.users.role")} value={data.rolle} />
@@ -1232,9 +1727,7 @@ function BrukerDetaljModal({ brukerId, onClose }: { brukerId: string; onClose: (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-sm text-amber-700 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300">
                   <strong>{t("admin.users.statusLocked")}</strong>
                   {data.lockedAt && ` · ${formaterDatoOgTid(data.lockedAt, language)}`}
-                  {data.lockedReason && (
-                    <div className="mt-1 text-xs">{data.lockedReason}</div>
-                  )}
+                  {data.lockedReason && <div className="mt-1 text-xs">{data.lockedReason}</div>}
                 </div>
               )}
               {!data.deleted && !data.locked && (
@@ -1301,15 +1794,51 @@ function BrukerDetaljModal({ brukerId, onClose }: { brukerId: string; onClose: (
                 {t("admin.users.detailsActivityNote")}
               </p>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                <KountKort label={t("admin.users.activityCounts.chatHistory")} value={data.counts.chatHistory} language={language} />
-                <KountKort label={t("admin.users.activityCounts.sharedChats")} value={data.counts.sharedChats} language={language} />
-                <KountKort label={t("admin.users.activityCounts.taskBreakdowns")} value={data.counts.taskBreakdowns} language={language} />
-                <KountKort label={t("admin.users.activityCounts.workPlans")} value={data.counts.arbeidsplaner} language={language} />
-                <KountKort label={t("admin.users.activityCounts.contentEmbeddings")} value={data.counts.contentEmbeddings} language={language} />
-                <KountKort label={t("admin.users.activityCounts.canvasStructures")} value={data.counts.canvasStructures} language={language} />
-                <KountKort label={t("admin.users.activityCounts.knowledgeBases")} value={data.counts.knowledgeBases} language={language} />
-                <KountKort label={t("admin.users.activityCounts.knowledgeBaseChunks")} value={data.counts.knowledgeBaseChunks} language={language} />
-                <KountKort label={t("admin.users.activityCounts.webPushSubscriptions")} value={data.counts.webPushSubscriptions} language={language} />
+                <KountKort
+                  label={t("admin.users.activityCounts.chatHistory")}
+                  value={data.counts.chatHistory}
+                  language={language}
+                />
+                <KountKort
+                  label={t("admin.users.activityCounts.sharedChats")}
+                  value={data.counts.sharedChats}
+                  language={language}
+                />
+                <KountKort
+                  label={t("admin.users.activityCounts.taskBreakdowns")}
+                  value={data.counts.taskBreakdowns}
+                  language={language}
+                />
+                <KountKort
+                  label={t("admin.users.activityCounts.workPlans")}
+                  value={data.counts.arbeidsplaner}
+                  language={language}
+                />
+                <KountKort
+                  label={t("admin.users.activityCounts.contentEmbeddings")}
+                  value={data.counts.contentEmbeddings}
+                  language={language}
+                />
+                <KountKort
+                  label={t("admin.users.activityCounts.canvasStructures")}
+                  value={data.counts.canvasStructures}
+                  language={language}
+                />
+                <KountKort
+                  label={t("admin.users.activityCounts.knowledgeBases")}
+                  value={data.counts.knowledgeBases}
+                  language={language}
+                />
+                <KountKort
+                  label={t("admin.users.activityCounts.knowledgeBaseChunks")}
+                  value={data.counts.knowledgeBaseChunks}
+                  language={language}
+                />
+                <KountKort
+                  label={t("admin.users.activityCounts.webPushSubscriptions")}
+                  value={data.counts.webPushSubscriptions}
+                  language={language}
+                />
               </div>
             </DetaljSeksjon>
 
@@ -1402,7 +1931,9 @@ function DetaljRad({
       <dt className="shrink-0 text-slate-500 dark:text-slate-400">{label}</dt>
       <dd
         className={`${mono ? "font-mono text-xs" : ""} ${
-          tone === "warning" ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-white"
+          tone === "warning"
+            ? "text-amber-600 dark:text-amber-400"
+            : "text-slate-900 dark:text-white"
         } break-all sm:truncate sm:text-right`}
       >
         {value}
@@ -1492,7 +2023,8 @@ function BrukereFane() {
       { brukerId: bruker.id, rolle: nyRolle },
       {
         onSuccess: () => showToast.success(t("admin.users.roleChanged")),
-        onError: (err) => showToast.error(err instanceof Error ? err.message : t("admin.errors.roleChangeFailed")),
+        onError: (err) =>
+          showToast.error(err instanceof Error ? err.message : t("admin.errors.roleChangeFailed")),
       },
     );
   };
@@ -1573,9 +2105,7 @@ function BrukereFane() {
         unlockUser.mutate(bruker.id, {
           onSuccess: () => showToast.success(t("admin.users.unlockSuccess")),
           onError: (err) =>
-            showToast.error(
-              err instanceof Error ? err.message : t("admin.users.unlockFailed"),
-            ),
+            showToast.error(err instanceof Error ? err.message : t("admin.users.unlockFailed")),
         });
       },
     });
@@ -1601,14 +2131,12 @@ function BrukereFane() {
         if (result.providerAccountDeleted && result.vectorCleanupSucceeded) {
           showToast.success(t("admin.users.userDeleted"));
         } else {
-          showToast.warning(
-            t("admin.users.userDeleted"),
-            t("admin.users.userDeletedPartial"),
-          );
+          showToast.warning(t("admin.users.userDeleted"), t("admin.users.userDeletedPartial"));
         }
         setBekreftSlett(null);
       },
-      onError: (err) => showToast.error(err instanceof Error ? err.message : t("admin.errors.deleteFailed")),
+      onError: (err) =>
+        showToast.error(err instanceof Error ? err.message : t("admin.errors.deleteFailed")),
     });
   };
 
@@ -1630,7 +2158,10 @@ function BrukereFane() {
           }}
         >
           <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-800">
-            <h3 id="lock-dialog-title" className="text-base font-semibold text-slate-900 dark:text-white">
+            <h3
+              id="lock-dialog-title"
+              className="text-base font-semibold text-slate-900 dark:text-white"
+            >
               {t("admin.users.lockConfirmTitle")}
             </h3>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
@@ -1678,9 +2209,7 @@ function BrukereFane() {
       )}
 
       {/* Brukerdetalj-modal */}
-      {detaljId && (
-        <BrukerDetaljModal brukerId={detaljId} onClose={() => setDetaljId(null)} />
-      )}
+      {detaljId && <BrukerDetaljModal brukerId={detaljId} onClose={() => setDetaljId(null)} />}
 
       {/* Søk + status-filter */}
       <div className="flex flex-col gap-2 sm:flex-row">
@@ -1733,7 +2262,10 @@ function BrukereFane() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                 {data.brukere.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                    <td
+                      colSpan={7}
+                      className="px-4 py-8 text-center text-slate-500 dark:text-slate-400"
+                    >
                       {t("admin.users.noUsers")}
                     </td>
                   </tr>
@@ -1741,7 +2273,10 @@ function BrukereFane() {
                   data.brukere.map((bruker) => {
                     const erDeg = bruker.id === minId;
                     return (
-                      <tr key={bruker.id} className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <tr
+                        key={bruker.id}
+                        className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                      >
                         <td className="px-4 py-3 text-slate-900 dark:text-white">
                           {bruker.email}
                           {erDeg && (
@@ -1760,7 +2295,9 @@ function BrukereFane() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
-                          {[bruker.fornavn, bruker.etternavn].filter(Boolean).join(" ") || bruker.brukernavn || "–"}
+                          {[bruker.fornavn, bruker.etternavn].filter(Boolean).join(" ") ||
+                            bruker.brukernavn ||
+                            "–"}
                         </td>
                         <td className="px-4 py-3">
                           <span
@@ -1878,7 +2415,11 @@ function BrukereFane() {
                                       <button
                                         type="button"
                                         onClick={() => handleOpenLockDialog(bruker)}
-                                        disabled={lockUser.isPending || bruker.id === minId || bruker.rolle === "admin"}
+                                        disabled={
+                                          lockUser.isPending ||
+                                          bruker.id === minId ||
+                                          bruker.rolle === "admin"
+                                        }
                                         title={
                                           bruker.id === minId
                                             ? t("admin.users.cannotLockSelf")
@@ -1971,9 +2512,12 @@ function RevisjonsloggFane() {
     "security",
   ];
 
-  useEffect(() => () => {
-    if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
@@ -2189,9 +2733,12 @@ function RevisjonsloggFane() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-            {(!data || data.items.length === 0) ? (
+            {!data || data.items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                <td
+                  colSpan={6}
+                  className="px-4 py-8 text-center text-slate-500 dark:text-slate-400"
+                >
                   {t("admin.audit.noEntries")}
                 </td>
               </tr>
@@ -2282,10 +2829,7 @@ function RevisjonsloggFane() {
             <DetaljRad label={t("admin.audit.action")} value={valgtItem.action} mono />
             <DetaljRad label={t("admin.audit.actor")} value={valgtItem.actorUserId} mono />
             <DetaljRad label={t("admin.audit.target")} value={valgtItem.targetUserId ?? "—"} mono />
-            <DetaljRad
-              label={t("admin.audit.role")}
-              value={valgtItem.role ?? "—"}
-            />
+            <DetaljRad label={t("admin.audit.role")} value={valgtItem.role ?? "—"} />
           </div>
 
           <div className="mt-4 rounded-xl bg-slate-50 p-4 dark:bg-slate-900">
@@ -2347,7 +2891,6 @@ function FeedbackFane() {
             </button>
           ))}
         </div>
-
       </div>
 
       {data && data.items.length === 0 && (
@@ -2387,7 +2930,9 @@ function FeedbackFane() {
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                     {t("admin.feedback.answer")}
                   </p>
-                  <p className={`text-sm text-slate-600 dark:text-slate-400 ${expanded ? "" : "line-clamp-4"}`}>
+                  <p
+                    className={`text-sm text-slate-600 dark:text-slate-400 ${expanded ? "" : "line-clamp-4"}`}
+                  >
                     {item.answer}
                   </p>
                   {item.answer.length > 280 && (
@@ -2401,7 +2946,6 @@ function FeedbackFane() {
                   )}
                 </div>
               )}
-
             </li>
           );
         })}
@@ -2490,20 +3034,17 @@ function KøerFane() {
 
     mutation.mutate(queueName, {
       onSuccess: () => showToast.success(successMessage),
-      onError: (error) =>
-        showToast.error(errorMessage, hentFeilmelding(error, errorMessage)),
+      onError: (error) => showToast.error(errorMessage, hentFeilmelding(error, errorMessage)),
     });
   };
 
   if (overviewQuery.isLoading) return <LoadingSpinner />;
-  if (overviewQuery.error)
-    return <FeilMelding melding={t("admin.queues.loadFailed")} />;
+  if (overviewQuery.error) return <FeilMelding melding={t("admin.queues.loadFailed")} />;
 
   const queues = overviewQuery.data?.queues ?? [];
   const valgtKøData = queues.find((queue) => queue.name === valgtKø) ?? null;
   const valgtJobb = jobsQuery.data?.jobs.find((job) => job.id === selectedJobId) ?? null;
-  if (queues.length === 0)
-    return <FeilMelding melding={t("admin.queues.empty")} />;
+  if (queues.length === 0) return <FeilMelding melding={t("admin.queues.empty")} />;
 
   return (
     <section className="space-y-4">
@@ -2547,15 +3088,25 @@ function KøerFane() {
               {(q.deadLetterCount ?? 0) > 0 && (
                 <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300">
                   <AlertTriangle size={13} />
-                  {t("admin.queues.deadLetterWarning", { count: `${q.deadLetterCount ?? 0}${(q.deadLetterCount ?? 0) >= 100 ? "+" : ""}` })}
+                  {t("admin.queues.deadLetterWarning", {
+                    count: `${q.deadLetterCount ?? 0}${(q.deadLetterCount ?? 0) >= 100 ? "+" : ""}`,
+                  })}
                 </div>
               )}
               <dl className="mt-3 grid grid-cols-3 gap-2 text-xs">
                 <KøCount label={t("admin.queues.counts.waiting")} value={q.counts.waiting} />
                 <KøCount label={t("admin.queues.counts.active")} value={q.counts.active} />
                 <KøCount label={t("admin.queues.counts.delayed")} value={q.counts.delayed} />
-                <KøCount label={t("admin.queues.counts.completed")} value={q.counts.completed} tone="success" />
-                <KøCount label={t("admin.queues.counts.failed")} value={q.counts.failed} tone="danger" />
+                <KøCount
+                  label={t("admin.queues.counts.completed")}
+                  value={q.counts.completed}
+                  tone="success"
+                />
+                <KøCount
+                  label={t("admin.queues.counts.failed")}
+                  value={q.counts.failed}
+                  tone="danger"
+                />
               </dl>
               {q.jobTypeCounts && q.jobTypeCounts.length > 0 && (
                 <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-700">
@@ -2565,22 +3116,55 @@ function KøerFane() {
                   <div className="space-y-1.5">
                     {q.jobTypeCounts.map((jt) => (
                       <div key={jt.name} className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-[11px] text-slate-600 dark:text-slate-300">{jt.name}</span>
+                        <span className="font-mono text-[11px] text-slate-600 dark:text-slate-300">
+                          {jt.name}
+                        </span>
                         <div className="flex gap-2 text-[10px] text-slate-500 dark:text-slate-400">
-                          {jt.waiting > 0 && <span>{t("admin.queues.counts.waiting")}: {jt.waiting}</span>}
-                          {jt.active > 0 && <span>{t("admin.queues.counts.active")}: {jt.active}</span>}
-                          {jt.delayed > 0 && <span>{t("admin.queues.counts.delayed")}: {jt.delayed}</span>}
-                          {jt.completed > 0 && <span className="text-emerald-600 dark:text-emerald-400">{jt.completed}</span>}
-                          {jt.failed > 0 && <span className="text-red-600 dark:text-red-400">{t("admin.queues.counts.failed")}: {jt.failed}</span>}
-                          {jt.waiting === 0 && jt.active === 0 && jt.delayed === 0 && jt.completed === 0 && jt.failed === 0 && (
-                            <span>0</span>
+                          {jt.waiting > 0 && (
+                            <span>
+                              {t("admin.queues.counts.waiting")}: {jt.waiting}
+                            </span>
                           )}
+                          {jt.active > 0 && (
+                            <span>
+                              {t("admin.queues.counts.active")}: {jt.active}
+                            </span>
+                          )}
+                          {jt.delayed > 0 && (
+                            <span>
+                              {t("admin.queues.counts.delayed")}: {jt.delayed}
+                            </span>
+                          )}
+                          {jt.completed > 0 && (
+                            <span className="text-emerald-600 dark:text-emerald-400">
+                              {jt.completed}
+                            </span>
+                          )}
+                          {jt.failed > 0 && (
+                            <span className="text-red-600 dark:text-red-400">
+                              {t("admin.queues.counts.failed")}: {jt.failed}
+                            </span>
+                          )}
+                          {jt.waiting === 0 &&
+                            jt.active === 0 &&
+                            jt.delayed === 0 &&
+                            jt.completed === 0 &&
+                            jt.failed === 0 && <span>0</span>}
                         </div>
                       </div>
                     ))}
                   </div>
-                  {q.jobTypeCounts.some((jt) => jt.waiting >= 500 || jt.active >= 500 || jt.delayed >= 500 || jt.completed >= 500 || jt.failed >= 500) && (
-                    <p className="mt-1.5 text-[9px] italic text-slate-400 dark:text-slate-500">{t("admin.queues.sampledNote")}</p>
+                  {q.jobTypeCounts.some(
+                    (jt) =>
+                      jt.waiting >= 500 ||
+                      jt.active >= 500 ||
+                      jt.delayed >= 500 ||
+                      jt.completed >= 500 ||
+                      jt.failed >= 500,
+                  ) && (
+                    <p className="mt-1.5 text-[9px] italic text-slate-400 dark:text-slate-500">
+                      {t("admin.queues.sampledNote")}
+                    </p>
                   )}
                 </div>
               )}
@@ -2637,15 +3221,19 @@ function KøerFane() {
                 {t("admin.queues.selectedStatus")}: <strong>{statusFilter}</strong>
               </span>
               <span>
-                {t("admin.queues.counts.waiting")}: <strong>{formaterTall(valgtKøData.counts.waiting, language)}</strong>
+                {t("admin.queues.counts.waiting")}:{" "}
+                <strong>{formaterTall(valgtKøData.counts.waiting, language)}</strong>
               </span>
               <span>
-                {t("admin.queues.counts.failed")}: <strong>{formaterTall(valgtKøData.counts.failed, language)}</strong>
+                {t("admin.queues.counts.failed")}:{" "}
+                <strong>{formaterTall(valgtKøData.counts.failed, language)}</strong>
               </span>
             </div>
           </div>
           {jobsQuery.isLoading ? (
-            <div className="p-4"><LoadingSpinner /></div>
+            <div className="p-4">
+              <LoadingSpinner />
+            </div>
           ) : jobsQuery.data && jobsQuery.data.jobs.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -2655,7 +3243,9 @@ function KøerFane() {
                     <th className="px-4 py-2 text-left">{t("admin.queues.columns.name")}</th>
                     <th className="px-4 py-2 text-left">{t("admin.queues.columns.status")}</th>
                     <th className="px-4 py-2 text-left">{t("admin.queues.columns.attempts")}</th>
-                    <th className="px-4 py-2 text-left">{t("admin.queues.columns.failedReason")}</th>
+                    <th className="px-4 py-2 text-left">
+                      {t("admin.queues.columns.failedReason")}
+                    </th>
                     <th className="px-4 py-2 text-left">{t("admin.queues.columns.timestamp")}</th>
                     <th className="px-4 py-2 text-right">{t("admin.queues.columns.actions")}</th>
                   </tr>
@@ -2681,7 +3271,10 @@ function KøerFane() {
                       <td className="px-4 py-2">
                         {job.attemptsMade}/{job.maxAttempts}
                       </td>
-                      <td className="px-4 py-2 max-w-md truncate text-xs text-red-600 dark:text-red-400" title={job.failedReason}>
+                      <td
+                        className="px-4 py-2 max-w-md truncate text-xs text-red-600 dark:text-red-400"
+                        title={job.failedReason}
+                      >
                         {job.failedReason ?? "—"}
                       </td>
                       <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
@@ -2824,7 +3417,15 @@ function KøerFane() {
   );
 }
 
-function KøCount({ label, value, tone }: { label: string; value: number; tone?: "success" | "danger" }) {
+function KøCount({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone?: "success" | "danger";
+}) {
   const valueClass =
     tone === "success"
       ? "text-emerald-600 dark:text-emerald-400"
@@ -2940,7 +3541,10 @@ function RedisFane() {
                 : info.usedMemoryHuman
             }
           />
-          <RedisInfoItem label={t("admin.redis.info.peakMemory")} value={info.usedMemoryPeakHuman} />
+          <RedisInfoItem
+            label={t("admin.redis.info.peakMemory")}
+            value={info.usedMemoryPeakHuman}
+          />
           <RedisInfoItem
             label={t("admin.redis.info.maxMemory")}
             value={info.maxMemoryBytes > 0 ? info.maxMemoryHuman : "—"}
@@ -2953,10 +3557,12 @@ function RedisFane() {
         </dl>
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
           <span>
-            {t("admin.redis.info.hits")}: <strong>{formaterTall(info.keyspaceHits, language)}</strong>
+            {t("admin.redis.info.hits")}:{" "}
+            <strong>{formaterTall(info.keyspaceHits, language)}</strong>
           </span>
           <span>
-            {t("admin.redis.info.misses")}: <strong>{formaterTall(info.keyspaceMisses, language)}</strong>
+            {t("admin.redis.info.misses")}:{" "}
+            <strong>{formaterTall(info.keyspaceMisses, language)}</strong>
           </span>
           <span>
             {t("admin.redis.info.dbSizes")}:{" "}
@@ -2979,7 +3585,9 @@ function RedisFane() {
           </p>
         </div>
         {prefixesQuery.isLoading ? (
-          <div className="p-4"><LoadingSpinner /></div>
+          <div className="p-4">
+            <LoadingSpinner />
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -3036,7 +3644,9 @@ function RedisFane() {
           </p>
         </div>
         {relinkQuery.isLoading ? (
-          <div className="p-4"><LoadingSpinner /></div>
+          <div className="p-4">
+            <LoadingSpinner />
+          </div>
         ) : !relinkQuery.data || relinkQuery.data.states.length === 0 ? (
           <p className="p-4 text-sm text-slate-500 dark:text-slate-400">
             {t("admin.redis.relinkStates.empty")}
@@ -3060,9 +3670,7 @@ function RedisFane() {
                     <td className="px-4 py-2 font-mono text-xs">{s.userId}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{s.count ?? "—"}</td>
                     <td className="px-4 py-2 text-xs">{s.env ?? "—"}</td>
-                    <td className="px-4 py-2 text-right tabular-nums">
-                      {s.ageSeconds ?? "—"}
-                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums">{s.ageSeconds ?? "—"}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{s.ttlSeconds}</td>
                     <td className="px-4 py-2 text-right">
                       <button
@@ -3210,9 +3818,7 @@ function LoggerFane() {
         <h2 className="text-base font-semibold text-slate-900 dark:text-white">
           {t("admin.logs.title")}
         </h2>
-        <p className="text-sm text-slate-600 dark:text-slate-400">
-          {t("admin.logs.description")}
-        </p>
+        <p className="text-sm text-slate-600 dark:text-slate-400">{t("admin.logs.description")}</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -3292,11 +3898,19 @@ function LoggerFane() {
 function InnboksFane() {
   const { language, t } = useLanguage();
   const [statusFilter, setStatusFilter] = useState<ContactMessageStatus | "all">("all");
+  const [errorIdFilter, setErrorIdFilter] = useState<string>("");
+  const [errorIdFilterDraft, setErrorIdFilterDraft] = useState<string>("");
+  const [errorIdFilterValidationError, setErrorIdFilterValidationError] = useState<string | null>(
+    null,
+  );
   const [valgtId, setValgtId] = useState<string | null>(null);
   const [showReplyForm, setShowReplyForm] = useState(false);
   const [replyText, setReplyText] = useState("");
 
-  const { data, isLoading, error } = useAdminContactMessages({ status: statusFilter });
+  const { data, isLoading, error } = useAdminContactMessages({
+    status: statusFilter,
+    errorId: errorIdFilter || undefined,
+  });
   const updateStatus = useUpdateContactMessageStatus();
   const deleteMessage = useDeleteContactMessage();
   const replyMessage = useReplyContactMessage();
@@ -3369,7 +3983,7 @@ function InnboksFane() {
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-slate-900 dark:text-white">
             {t("admin.inbox.title")}
@@ -3378,17 +3992,108 @@ function InnboksFane() {
             {t("admin.inbox.unreadCount", { count: String(unread) })}
           </p>
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as ContactMessageStatus | "all")}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-        >
-          <option value="all">{t("admin.inbox.statusAll")}</option>
-          <option value="unread">{t("admin.inbox.statusUnread")}</option>
-          <option value="read">{t("admin.inbox.statusRead")}</option>
-          <option value="replied">{t("admin.inbox.statusReplied")}</option>
-        </select>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Søk etter feil-ID (reportedErrorId eller submit requestId).
+              Brukeren har fått en ID fra error boundary eller ved å rapportere feil.
+              Admin limer inn ID-en her for å finne matching kontaktmelding. */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const trimmed = errorIdFilterDraft.trim();
+              if (trimmed.length === 0) {
+                setErrorIdFilter("");
+                setErrorIdFilterValidationError(null);
+                return;
+              }
+              if (!isValidReportedErrorId(trimmed)) {
+                // Hindre 400 fra backend ved å fange ugyldig input klient-side.
+                // Uten denne sjekken faller useQuery i error-state og hele lista
+                // forsvinner bak en generisk feilmelding.
+                setErrorIdFilterValidationError(t("admin.inbox.errorIdFilterInvalid"));
+                return;
+              }
+              setErrorIdFilterValidationError(null);
+              setErrorIdFilter(trimmed);
+            }}
+            className="flex flex-col items-stretch gap-1"
+          >
+            <div className="flex items-center gap-1">
+              <input
+                type="text"
+                value={errorIdFilterDraft}
+                onChange={(e) => {
+                  setErrorIdFilterDraft(e.target.value);
+                  if (errorIdFilterValidationError) {
+                    setErrorIdFilterValidationError(null);
+                  }
+                }}
+                placeholder={t("admin.inbox.errorIdFilterPlaceholder")}
+                aria-invalid={errorIdFilterValidationError ? "true" : undefined}
+                aria-describedby={
+                  errorIdFilterValidationError ? "admin-inbox-error-id-filter-error" : undefined
+                }
+                className={`w-48 rounded-lg border bg-white px-3 py-2 font-mono text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500 ${
+                  errorIdFilterValidationError
+                    ? "border-red-400 focus:ring-red-500 dark:border-red-700"
+                    : "border-slate-200 focus:ring-blue-500 dark:border-slate-700"
+                }`}
+                aria-label={t("admin.inbox.errorIdFilterAriaLabel")}
+              />
+              <button
+                type="submit"
+                className="rounded-lg bg-blue-600 px-2.5 py-2 text-xs font-medium text-white hover:bg-blue-700"
+              >
+                {t("admin.inbox.errorIdFilterApply")}
+              </button>
+              {(errorIdFilter || errorIdFilterValidationError) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorIdFilter("");
+                    setErrorIdFilterDraft("");
+                    setErrorIdFilterValidationError(null);
+                  }}
+                  className="rounded-lg border border-slate-200 px-2.5 py-2 text-xs text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
+                >
+                  {t("admin.inbox.errorIdFilterClear")}
+                </button>
+              )}
+            </div>
+            {errorIdFilterValidationError && (
+              <p
+                id="admin-inbox-error-id-filter-error"
+                className="text-[11px] text-red-600 dark:text-red-400"
+                role="alert"
+              >
+                {errorIdFilterValidationError}
+              </p>
+            )}
+          </form>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as ContactMessageStatus | "all")}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+          >
+            <option value="all">{t("admin.inbox.statusAll")}</option>
+            <option value="unread">{t("admin.inbox.statusUnread")}</option>
+            <option value="read">{t("admin.inbox.statusRead")}</option>
+            <option value="replied">{t("admin.inbox.statusReplied")}</option>
+          </select>
+        </div>
       </div>
+
+      {/* Banner som gjør det tydelig at et feil-ID-filter er aktivt */}
+      {errorIdFilter && (
+        <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900 dark:border-blue-900/60 dark:bg-blue-900/20 dark:text-blue-200">
+          <span>{t("admin.inbox.errorIdFilterActive")}</span>
+          <code className="rounded bg-white/70 px-1.5 py-0.5 font-mono text-[11px] dark:bg-slate-800/60">
+            {errorIdFilter}
+          </code>
+          <span className="ml-auto">
+            {t("admin.inbox.errorIdFilterMatches", { count: String(meldinger.length) })}
+          </span>
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-[minmax(280px,1fr)_2fr]">
         {/* Listing */}
@@ -3414,9 +4119,7 @@ function InnboksFane() {
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        {erUlest && (
-                          <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" />
-                        )}
+                        {erUlest && <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" />}
                         <span
                           className={`truncate text-sm ${
                             erUlest
@@ -3470,7 +4173,6 @@ function InnboksFane() {
                   </p>
                   <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                     {formaterDatoOgTid(valgt.createdAt, language)}
-                    {valgt.requestId && ` · req: ${valgt.requestId.slice(0, 8)}`}
                   </p>
                 </div>
                 <button
@@ -3484,6 +4186,68 @@ function InnboksFane() {
                 </button>
               </div>
 
+              {/* Feil-ID-panel: viser reportedErrorId (feilen brukeren rapporterte) og
+                  submit-requestId (ID-en for POST /api/kontakt). Admin kan kopiere ID
+                  eller filtrere listen på den samme ID-en for å se alle relaterte meldinger. */}
+              {(valgt.reportedErrorId || valgt.requestId) && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    {t("admin.inbox.errorCorrelation")}
+                  </p>
+                  {valgt.reportedErrorId && (
+                    <div className="mt-2 flex items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {t("admin.inbox.reportedErrorIdLabel")}
+                        </p>
+                        <code className="mt-0.5 block break-all font-mono text-xs text-slate-800 dark:text-slate-200">
+                          {valgt.reportedErrorId}
+                        </code>
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(valgt.reportedErrorId!);
+                              showToast.success(t("admin.inbox.errorIdCopied"));
+                            } catch {
+                              showToast.error(t("admin.inbox.errorIdCopyFailed"));
+                            }
+                          }}
+                          className="rounded border border-slate-200 px-2 py-1 text-[10px] text-slate-600 hover:bg-white dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                        >
+                          {t("admin.inbox.copy")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setErrorIdFilter(valgt.reportedErrorId!);
+                            setErrorIdFilterDraft(valgt.reportedErrorId!);
+                          }}
+                          className="rounded border border-slate-200 px-2 py-1 text-[10px] text-blue-700 hover:bg-white dark:border-slate-700 dark:text-blue-300 dark:hover:bg-slate-800"
+                        >
+                          {t("admin.inbox.filterByThisId")}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {valgt.requestId && (
+                    <div className="mt-2">
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {t("admin.inbox.submitRequestIdLabel")}
+                      </p>
+                      <code className="mt-0.5 block break-all font-mono text-xs text-slate-700 dark:text-slate-300">
+                        {valgt.requestId}
+                      </code>
+                    </div>
+                  )}
+                  <p className="mt-2 text-[10px] italic text-slate-500 dark:text-slate-400">
+                    {t("admin.inbox.errorIdHint")}
+                  </p>
+                </div>
+              )}
+
               <div className="whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
                 {valgt.melding}
               </div>
@@ -3492,26 +4256,30 @@ function InnboksFane() {
                 <div className="text-xs text-slate-600 dark:text-slate-400">
                   <strong>{t("admin.inbox.attachments")}:</strong>
                   <ul className="mt-1 ml-4 list-disc">
-                    {valgt.attachmentSummary.map((a: { filnavn: string; sizeBytes: number; mimeType: string }, i: number) => (
-                      <li key={i}>
-                        {a.filnavn} ({Math.round(a.sizeBytes / 1024)} kB)
-                      </li>
-                    ))}
+                    {valgt.attachmentSummary.map(
+                      (a: { filnavn: string; sizeBytes: number; mimeType: string }, i: number) => (
+                        <li key={i}>
+                          {a.filnavn} ({Math.round(a.sizeBytes / 1024)} kB)
+                        </li>
+                      ),
+                    )}
                   </ul>
                 </div>
               )}
 
               {valgt.sideUrl && (
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {t("admin.inbox.fromPage")}:{" "}
-                  <span className="font-mono">{valgt.sideUrl}</span>
+                  {t("admin.inbox.fromPage")}: <span className="font-mono">{valgt.sideUrl}</span>
                 </p>
               )}
 
               {/* Svarskjema */}
               {showReplyForm && (
                 <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50/50 p-3 dark:border-blue-900/50 dark:bg-blue-900/10">
-                  <label htmlFor="reply-text" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  <label
+                    htmlFor="reply-text"
+                    className="text-xs font-medium text-slate-700 dark:text-slate-300"
+                  >
                     {t("admin.inbox.replyTo", { name: valgt.navn })}
                   </label>
                   <textarea
@@ -3531,11 +4299,16 @@ function InnboksFane() {
                       className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                     >
                       <Send size={12} />
-                      {replyMessage.isPending ? t("admin.inbox.replySending") : t("admin.inbox.replySend")}
+                      {replyMessage.isPending
+                        ? t("admin.inbox.replySending")
+                        : t("admin.inbox.replySend")}
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setShowReplyForm(false); setReplyText(""); }}
+                      onClick={() => {
+                        setShowReplyForm(false);
+                        setReplyText("");
+                      }}
                       className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
                     >
                       {t("common.actions.cancel")}
@@ -3632,13 +4405,15 @@ export function AdminSection() {
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
           <Shield size={20} className="text-amber-600 dark:text-amber-400" />
         </div>
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-white">
-          {t("admin.title")}
-        </h1>
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-white">{t("admin.title")}</h1>
       </div>
 
       {/* Faner */}
-      <div role="tablist" aria-label={t("admin.title")} className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 dark:bg-slate-800 p-1">
+      <div
+        role="tablist"
+        aria-label={t("admin.title")}
+        className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 dark:bg-slate-800 p-1"
+      >
         {FANER.map(({ id, ikon: Ikon, labelKey }) => (
           <button
             key={id}
@@ -3663,7 +4438,11 @@ export function AdminSection() {
       </div>
 
       {/* Innhold */}
-      <div role="tabpanel" id={`admin-tabpanel-${aktivFane}`} aria-labelledby={`admin-tab-${aktivFane}`}>
+      <div
+        role="tabpanel"
+        id={`admin-tabpanel-${aktivFane}`}
+        aria-labelledby={`admin-tab-${aktivFane}`}
+      >
         {aktivFane === "stats" && <StatistikkFane />}
         {aktivFane === "observability" && <ObservabilityFane />}
         {aktivFane === "queues" && <KøerFane />}

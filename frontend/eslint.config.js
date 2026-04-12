@@ -3,6 +3,7 @@ import typescript from "@typescript-eslint/eslint-plugin";
 import typescriptParser from "@typescript-eslint/parser";
 import globals from "globals";
 import security from "eslint-plugin-security";
+import prettier from "eslint-config-prettier";
 
 const eslintConfig = [
   {
@@ -55,6 +56,9 @@ const eslintConfig = [
       },
     },
   },
+  // Prettier må alltid være sist — slår av stilregler som kolliderer med Prettier-formatering.
+  // Bevarer fortsatt alle kvalitetsregler (no-unused-vars, no-explicit-any, osv.).
+  prettier,
 ];
 
 export default eslintConfig;

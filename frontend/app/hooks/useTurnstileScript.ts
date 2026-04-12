@@ -73,9 +73,23 @@ export function useTurnstileScript({
   useEffect(() => {
     if (!enabled || !siteKey || typeof window === "undefined") return;
 
+    // Strict Mode-guard: effekten mountes → unmountes → mountes igjen umiddelbart.
+    // Når script.onload fra en tidligere mount fyres etter unmount, vil
+    // containerRef peke på en detached DOM-node, og Turnstile kaster 600010.
+    // `cancelled` sørger for at utsatte callbacks fra en unmountet effekt blir no-ops.
+    let cancelled = false;
+
     const renderWidget = () => {
+      if (cancelled) return;
       const turnstile = getTurnstile();
-      if (containerRef.current && !widgetIdRef.current && turnstile) {
+      // Ekstra guard: containerRef må også være attached til DOM-en fortsatt.
+      // I Strict Mode kan ref-en peke på en node som er tatt ut av dokumentet.
+      if (
+        containerRef.current &&
+        !widgetIdRef.current &&
+        turnstile &&
+        document.contains(containerRef.current)
+      ) {
         const options: Record<string, unknown> = {
           sitekey: siteKey,
           callback: (token: string) => onSuccess(token),
@@ -94,7 +108,10 @@ export function useTurnstileScript({
     if (getTurnstile()) {
       // Kort forsinkelse for at DOM-en skal ha mountet containerRef
       const timer = setTimeout(renderWidget, 50);
-      return () => clearTimeout(timer);
+      return () => {
+        cancelled = true;
+        clearTimeout(timer);
+      };
     }
 
     // Sjekk om scriptet allerede er i DOM (men ennå ikke ferdig lastet)
@@ -103,7 +120,10 @@ export function useTurnstileScript({
     );
     if (existingScript) {
       existingScript.addEventListener("load", renderWidget, { once: true });
-      return () => existingScript.removeEventListener("load", renderWidget);
+      return () => {
+        cancelled = true;
+        existingScript.removeEventListener("load", renderWidget);
+      };
     }
 
     // Last inn scriptet
@@ -111,10 +131,20 @@ export function useTurnstileScript({
     script.src = TURNSTILE_SCRIPT_URL;
     script.async = true;
     script.defer = true;
-    script.onload = () => setTimeout(renderWidget, 100);
+    // Bruk addEventListener i stedet for script.onload så vi ikke overskriver
+    // handlers fra andre samtidige mounts (Strict Mode) — og så vi kan fjerne
+    // handleren eksplisitt i cleanup.
+    const handleScriptLoad = () => {
+      if (cancelled) return;
+      setTimeout(renderWidget, 100);
+    };
+    script.addEventListener("load", handleScriptLoad, { once: true });
     document.head.appendChild(script);
 
-    return undefined;
+    return () => {
+      cancelled = true;
+      script.removeEventListener("load", handleScriptLoad);
+    };
   }, [enabled, siteKey, action, onSuccess, onError, onExpired]);
 
   // Rydd opp widget ved unmount

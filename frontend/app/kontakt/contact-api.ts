@@ -41,6 +41,9 @@ export async function sendKontakt(
   if (data.sideUrl) {
     formData.append("sideUrl", data.sideUrl);
   }
+  if (data.reportedErrorId) {
+    formData.append("reportedErrorId", data.reportedErrorId);
+  }
   for (const attachment of data.attachments ?? []) {
     formData.append("attachments", attachment);
   }

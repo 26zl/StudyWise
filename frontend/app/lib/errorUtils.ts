@@ -38,6 +38,10 @@ interface ApiTaggedError extends Error {
   apiErrorCode?: string;
   apiErrorPayload?: ApiErrorPayload | null;
   fatalUserDataReason?: FatalUserDataReason;
+  /** X-Request-ID fra backend for den feilede requesten — brukes til å korrelere brukerrapporter mot Pino/APM. */
+  apiRequestId?: string;
+  /** HTTP-status fra backend-responsen (hvis feilen kom fra et API-kall). */
+  apiStatus?: number;
 }
 
 /** Auth-/konto-feil som krever tydelig handling (ikke vanlig retry). */
@@ -76,6 +80,8 @@ function merkApiFeil(
   options?: {
     apiErrorCode?: string;
     fatalUserDataReason?: FatalUserDataReason;
+    apiRequestId?: string;
+    apiStatus?: number;
   },
 ): Error {
   const taggedError = error as ApiTaggedError;
@@ -87,8 +93,49 @@ function merkApiFeil(
   taggedError.fatalUserDataReason =
     options?.fatalUserDataReason ??
     (erFatalUserDataReason(taggedError.apiErrorCode) ? taggedError.apiErrorCode : undefined);
+  if (options?.apiRequestId) {
+    taggedError.apiRequestId = options.apiRequestId;
+  }
+  if (typeof options?.apiStatus === "number") {
+    taggedError.apiStatus = options.apiStatus;
+  }
 
   return error;
+}
+
+/**
+ * Henter X-Request-ID som ble fanget fra en feilet API-respons, hvis noen.
+ * Returnerer null hvis feilen ikke kommer fra et taggedb API-kall.
+ */
+export function getApiRequestId(error: unknown): string | null {
+  if (typeof error === "object" && error !== null) {
+    const apiRequestId = (error as ApiTaggedError).apiRequestId;
+    if (typeof apiRequestId === "string" && apiRequestId.trim().length > 0) {
+      return apiRequestId;
+    }
+  }
+  return null;
+}
+
+/**
+ * Velger en feil-ID som faktisk beskriver feilen som vises nå.
+ * Foretrekker tagged apiRequestId fra selve Error-objektet, og faller ellers
+ * tilbake til Next.js `digest` for server-/render-feil.
+ */
+export function getReportableErrorId(error: unknown): string | null {
+  const apiRequestId = getApiRequestId(error);
+  if (apiRequestId) {
+    return apiRequestId;
+  }
+
+  if (typeof error === "object" && error !== null) {
+    const digest = (error as Error & { digest?: unknown }).digest;
+    if (typeof digest === "string" && digest.trim().length > 0) {
+      return digest.trim();
+    }
+  }
+
+  return null;
 }
 
 export function getApiErrorCode(error: unknown): string | null {
@@ -543,6 +590,8 @@ export function createApiError(
   options?: {
     apiErrorCode?: string;
     fatalUserDataReason?: FatalUserDataReason;
+    apiRequestId?: string;
+    apiStatus?: number;
   },
 ): Error {
   return merkApiFeil(new Error(extractApiErrorMessage(payload, fallback)), payload, options);
@@ -555,19 +604,21 @@ export function createAuthStatusError(
   options?: {
     apiErrorCode?: string;
     fatalUserDataReason?: FatalUserDataReason;
+    apiRequestId?: string;
   },
 ): Error {
   const melding = extractApiErrorMessage(payload, fallback);
+  const merkedOptions = { ...options, apiStatus: status };
 
   if (status === 401) {
-    return merkApiFeil(new SessionExpiredError(melding), payload, options);
+    return merkApiFeil(new SessionExpiredError(melding), payload, merkedOptions);
   }
 
   if (status === 403) {
-    return merkApiFeil(new ForbiddenError(melding), payload, options);
+    return merkApiFeil(new ForbiddenError(melding), payload, merkedOptions);
   }
 
-  return merkApiFeil(new Error(melding), payload, options);
+  return merkApiFeil(new Error(melding), payload, merkedOptions);
 }
 
 /**

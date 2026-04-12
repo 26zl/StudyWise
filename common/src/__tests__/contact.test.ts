@@ -9,6 +9,7 @@ import {
   KONTAKT_ALLOWED_ATTACHMENT_TYPES,
   KONTAKT_MAX_ATTACHMENTS,
   KONTAKT_MAX_ATTACHMENT_SIZE_BYTES,
+  isValidReportedErrorId,
 } from "../contact.js";
 
 // ─── Konstanter ─────────────────────────────────────────────────────────────
@@ -49,9 +50,7 @@ describe("KontaktRequestSchema", () => {
   });
 
   it("avviser for kort navn (under 2 tegn)", () => {
-    expect(
-      KontaktRequestSchema.safeParse({ ...gyldig, navn: "O" }).success,
-    ).toBe(false);
+    expect(KontaktRequestSchema.safeParse({ ...gyldig, navn: "O" }).success).toBe(false);
   });
 
   it("avviser manglende epost", () => {
@@ -60,27 +59,21 @@ describe("KontaktRequestSchema", () => {
   });
 
   it("avviser ugyldig epost", () => {
-    expect(
-      KontaktRequestSchema.safeParse({ ...gyldig, epost: "ikke-epost" }).success,
-    ).toBe(false);
+    expect(KontaktRequestSchema.safeParse({ ...gyldig, epost: "ikke-epost" }).success).toBe(false);
   });
 
   it("avviser for kort emne (under 3 tegn)", () => {
-    expect(
-      KontaktRequestSchema.safeParse({ ...gyldig, emne: "Hi" }).success,
-    ).toBe(false);
+    expect(KontaktRequestSchema.safeParse({ ...gyldig, emne: "Hi" }).success).toBe(false);
   });
 
   it("avviser for kort melding (under 10 tegn)", () => {
-    expect(
-      KontaktRequestSchema.safeParse({ ...gyldig, melding: "Kort" }).success,
-    ).toBe(false);
+    expect(KontaktRequestSchema.safeParse({ ...gyldig, melding: "Kort" }).success).toBe(false);
   });
 
   it("avviser melding over 5000 tegn", () => {
-    expect(
-      KontaktRequestSchema.safeParse({ ...gyldig, melding: "a".repeat(5001) }).success,
-    ).toBe(false);
+    expect(KontaktRequestSchema.safeParse({ ...gyldig, melding: "a".repeat(5001) }).success).toBe(
+      false,
+    );
   });
 
   it("godtar manglende turnstileToken (default tom streng)", () => {
@@ -93,9 +86,7 @@ describe("KontaktRequestSchema", () => {
   });
 
   it("godtar tom turnstileToken", () => {
-    expect(
-      KontaktRequestSchema.safeParse({ ...gyldig, turnstileToken: "" }).success,
-    ).toBe(true);
+    expect(KontaktRequestSchema.safeParse({ ...gyldig, turnstileToken: "" }).success).toBe(true);
   });
 
   it("godtar valgfri nettsted (honeypot)", () => {
@@ -153,6 +144,67 @@ describe("KontaktRequestSchema", () => {
         sideUrl: "//ond.example",
       }).success,
     ).toBe(false);
+  });
+
+  // ─── reportedErrorId (feil-ID for brukerrapport) ──────────────────────────
+  describe("reportedErrorId", () => {
+    it("delt helper godtar gyldig errorId", () => {
+      expect(isValidReportedErrorId("req.abc-123:v2")).toBe(true);
+    });
+
+    it("delt helper avviser ugyldig errorId", () => {
+      expect(isValidReportedErrorId("req 123")).toBe(false);
+    });
+
+    it("er valgfri og skjemaet godtar innsending uten", () => {
+      const resultat = KontaktRequestSchema.safeParse(gyldig);
+      expect(resultat.success).toBe(true);
+    });
+
+    it("godtar gyldig UUID v4", () => {
+      expect(
+        KontaktRequestSchema.safeParse({
+          ...gyldig,
+          reportedErrorId: "550e8400-e29b-41d4-a716-446655440000",
+        }).success,
+      ).toBe(true);
+    });
+
+    it("godtar kort alfanumerisk ID med tillatte tegn", () => {
+      expect(
+        KontaktRequestSchema.safeParse({
+          ...gyldig,
+          reportedErrorId: "req.abc-123:v2",
+        }).success,
+      ).toBe(true);
+    });
+
+    it("avviser ID med mellomrom", () => {
+      expect(
+        KontaktRequestSchema.safeParse({
+          ...gyldig,
+          reportedErrorId: "req 123",
+        }).success,
+      ).toBe(false);
+    });
+
+    it("avviser ID med newline (loggforgiftningsforsvar)", () => {
+      expect(
+        KontaktRequestSchema.safeParse({
+          ...gyldig,
+          reportedErrorId: "req\n123",
+        }).success,
+      ).toBe(false);
+    });
+
+    it("avviser ID over maks lengde (128 tegn)", () => {
+      expect(
+        KontaktRequestSchema.safeParse({
+          ...gyldig,
+          reportedErrorId: "a".repeat(129),
+        }).success,
+      ).toBe(false);
+    });
   });
 });
 

@@ -88,8 +88,7 @@ export const enMessages = {
     },
   },
   chatHistory: {
-    clearConfirmDescription:
-      "All saved conversations will be removed. This cannot be undone.",
+    clearConfirmDescription: "All saved conversations will be removed. This cannot be undone.",
     clearConfirmTitle: "Delete the entire conversation history?",
     clearError: "Could not delete the history",
     clearSuccess: "Conversation history deleted",
@@ -99,7 +98,7 @@ export const enMessages = {
     topicUpdateError: "Could not update topic",
     pinUpdateError: "Could not update bookmark",
     titleUpdateError: "Could not update chat name",
-    selectChat: "Select \"{title}\"",
+    selectChat: 'Select "{title}"',
   },
   canvasContent: {
     imageLoadError: "Could not load image",
@@ -114,8 +113,7 @@ export const enMessages = {
         title: "Password updated",
       },
       code: {
-        descriptionEmail:
-          "Enter the code we sent to the email address connected to your account.",
+        descriptionEmail: "Enter the code we sent to the email address connected to your account.",
         label: "Verification code",
         placeholder: "123456",
       },
@@ -124,8 +122,7 @@ export const enMessages = {
       emailOnly: "Email only",
       eyebrow: "Account recovery",
       identifier: {
-        description:
-          "Use the email address that is connected to your StudyWise account.",
+        description: "Use the email address that is connected to your StudyWise account.",
         emailLabel: "Email address",
         emailPlaceholder: "name@example.com",
       },
@@ -158,12 +155,10 @@ export const enMessages = {
       title: "Forgot password?",
     },
     conflictRedirect: {
-      accountDeleted:
-        "Your account has been deleted. Create a new account to continue.",
+      accountDeleted: "Your account has been deleted. Create a new account to continue.",
       accountLocked:
         "Your account is temporarily locked by an administrator. Contact support if you believe this is a mistake.",
-      accountConflict:
-        "Your account has a sign-in conflict. You have been signed out.",
+      accountConflict: "Your account has a sign-in conflict. You have been signed out.",
       oauthConflict:
         "We couldn't sign you in. This account is already linked to another StudyWise user. If this is your account: sign out completely (clear cookies for studwize.page) and try again in a few seconds. If the issue persists, contact support.",
       emailConflict:
@@ -238,7 +233,8 @@ export const enMessages = {
         weak: "Password is too short — at least 8 characters required",
       },
       passwordErrors: {
-        pwned: "This password was found in a data breach. For account safety, please choose a different password.",
+        pwned:
+          "This password was found in a data breach. For account safety, please choose a different password.",
         notStrongEnough: "Password is too weak. Try a longer password or add more uncommon words.",
         tooShort: "Password is too short. Must be at least 8 characters.",
       },
@@ -256,11 +252,12 @@ export const enMessages = {
         submitting: "Verifying...",
         resend: "Resend code",
         incomplete: "Verification incomplete. Please try again.",
-        sessionFailed: "Verification succeeded, but the session could not be created. Please try signing in.",
-        alreadyVerified: "Your email is already verified. Your account has been created — please sign in instead.",
+        sessionFailed:
+          "Verification succeeded, but the session could not be created. Please try signing in.",
+        alreadyVerified:
+          "Your email is already verified. Your account has been created — please sign in instead.",
         codeSentTitle: "Code sent",
-        codeSentDescription:
-          "A new verification code has been sent to your email.",
+        codeSentDescription: "A new verification code has been sent to your email.",
         codeSendFailedTitle: "Failed to send",
       },
     },
@@ -278,13 +275,12 @@ export const enMessages = {
       description:
         "This check is integrated alongside sign in and sign up to reduce automated abuse.",
       verifying: "Verifying...",
-      widgetError:
-        "We could not load the security verification. Reload the page and try again.",
-      gateError:
-        "Security verification expired. Reload the page and complete the check.",
+      widgetError: "We could not load the security verification. Reload the page and try again.",
+      gateError: "Security verification expired. Reload the page and complete the check.",
       rechallenge: {
         title: "Security verification",
-        description: "Your session needs a new security check. Complete the verification to continue.",
+        description:
+          "Your session needs a new security check. Complete the verification to continue.",
       },
     },
   },
@@ -298,15 +294,13 @@ export const enMessages = {
       network: "Could not connect to Canvas. Check your internet connection.",
       notFound: "The resource was not found in Canvas.",
       permissionDenied: "You do not have access to this resource in Canvas.",
-      rateLimit:
-        "Too many requests to Canvas. Wait a few seconds and try again.",
+      rateLimit: "Too many requests to Canvas. Wait a few seconds and try again.",
       tokenInvalid:
         "Your Canvas API token is invalid, expired, or deleted in Canvas. Go to Settings to add a new token.",
       tokenMissing:
         "You must connect a Canvas API token to use this feature. Go to Settings to add a token.",
       timeout: "Fetching Canvas data took too long. Try again.",
-      validation:
-        "Check that your Canvas institution and URL are correct, then try again.",
+      validation: "Check that your Canvas institution and URL are correct, then try again.",
     },
     generic: {
       auth: "You need to sign in again.",
@@ -320,15 +314,13 @@ export const enMessages = {
       retry: "Try again.",
       server: "Server error. Try again shortly.",
       timeout: "The request took too long. Try again.",
-      validation:
-        "Invalid data. Check that all fields are filled out correctly.",
+      validation: "Invalid data. Check that all fields are filled out correctly.",
     },
     section: {
       load: "Could not load {section}. Try reloading the page.",
     },
     userData: {
-      generic:
-        "Could not load user data. Check your internet connection and try again.",
+      generic: "Could not load user data. Check your internet connection and try again.",
       sessionExpired: "Your session has expired. Sign in again.",
     },
     ki: {
@@ -350,10 +342,8 @@ export const enMessages = {
       "See your full Canvas feed with assignments, announcements, and events gathered in one place.",
     markAllAsRead: "Mark all as read",
     loadMore: "Load more ({count} left)",
-    missingCanvasToken:
-      "You must save a Canvas API token to fetch notifications.",
-    partialLoadFallback:
-      "Some notifications could not be loaded. The rest are shown below.",
+    missingCanvasToken: "You must save a Canvas API token to fetch notifications.",
+    partialLoadFallback: "Some notifications could not be loaded. The rest are shown below.",
     remaining: "{time} left",
     submitted: "Submitted",
     manuallySubmitted: "Manually submitted",
@@ -407,8 +397,7 @@ export const enMessages = {
     missingCanvasPlanner:
       "You must connect a Canvas API token to fetch assignments and generate an AI study plan. Go to Settings to add a token.",
     noAssignments: {
-      description:
-        "Connect Canvas to see your assignments and get AI study plan suggestions",
+      description: "Connect Canvas to see your assignments and get AI study plan suggestions",
       title: "No assignments found",
     },
     openChat: "AI Chat",
@@ -492,12 +481,10 @@ export const enMessages = {
       enable: "Enable notifications",
       disable: "Disable notifications",
       enableSuccessTitle: "Notifications enabled",
-      enableSuccessDescription:
-        "Browser notifications are now enabled for this device.",
+      enableSuccessDescription: "Browser notifications are now enabled for this device.",
       enableErrorTitle: "Could not enable notifications",
       disableSuccessTitle: "Notifications disabled",
-      disableSuccessDescription:
-        "Browser notifications are now disabled for this device.",
+      disableSuccessDescription: "Browser notifications are now disabled for this device.",
       disableErrorTitle: "Could not disable notifications",
       channels: {
         announcements: "Announcements",
@@ -519,8 +506,7 @@ export const enMessages = {
         "Connect Canvas to receive notifications based on announcements, deadlines, and events.",
     },
     canvasContext: {
-      description:
-        "Choose which Canvas data the AI should have access to while you chat.",
+      description: "Choose which Canvas data the AI should have access to while you chat.",
       selector: {
         emptySelection:
           "No data selected. The AI cannot answer Canvas questions until you select at least one dataset.",
@@ -547,11 +533,9 @@ export const enMessages = {
       title: "AI Canvas context",
     },
     canvasToken: {
-      alreadyConnectedDescription:
-        "If this is your account, you can restore the connection here.",
+      alreadyConnectedDescription: "If this is your account, you can restore the connection here.",
       alreadyConnectedTitle: "This Canvas account is already connected",
-      chooseInstitutionDescription:
-        "Choose a Canvas institution before saving the token.",
+      chooseInstitutionDescription: "Choose a Canvas institution before saving the token.",
       chooseInstitutionTitle: "Choose institution",
       connected: "The Canvas token is connected to your account.",
       currentInstitution: "Your institution: {institution}",
@@ -584,7 +568,8 @@ export const enMessages = {
       saveErrorTitle: "Could not save token",
       saveSuccessDescription: "Canvas data will be available shortly.",
       saveSuccessTitle: "Canvas token saved",
-      saveUnchangedDescription: "The token you submitted is identical to the one we already have. No change.",
+      saveUnchangedDescription:
+        "The token you submitted is identical to the one we already have. No change.",
       saveUnchangedTitle: "Token unchanged",
       saving: "Saving...",
       show: "Show",
@@ -592,14 +577,16 @@ export const enMessages = {
     },
     notionIntegration: {
       title: "Notion Integration",
-      description: "Connect to Notion to export study notes directly to Notion pages. You need an API key from the Notion integrations portal.",
+      description:
+        "Connect to Notion to export study notes directly to Notion pages. You need an API key from the Notion integrations portal.",
       connected: "Notion is configured and ready to use.",
       notConnected: "Notion is not configured.",
       apiKeyLabel: "Notion API Key",
       apiKeyPlaceholder: "secret_xxxxxxxx...",
       defaultPageLabel: "Default Page ID (optional)",
       defaultPagePlaceholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-      defaultPageHelp: "You can paste a full Notion link or a page ID. We auto-extract the page ID. Leave empty to choose at export time. Remember to share the page with your integration in Notion.",
+      defaultPageHelp:
+        "You can paste a full Notion link or a page ID. We auto-extract the page ID. Leave empty to choose at export time. Remember to share the page with your integration in Notion.",
       hide: "Hide",
       show: "Show",
       save: "Save",
@@ -611,10 +598,11 @@ export const enMessages = {
       howTo: {
         title: "How to get a Notion API key:",
         step1: "Go to notion.so/my-integrations",
-        step2: "Click \"Create new integration\"",
-        step3: "Give the integration a name (e.g., \"StudyWise\")",
-        step4: "Copy the \"Internal Integration Secret\" and paste it here",
-        step5: "Share the pages you want to export to with the integration in Notion (open the page → \"...\" → Connections → add your integration)",
+        step2: 'Click "Create new integration"',
+        step3: 'Give the integration a name (e.g., "StudyWise")',
+        step4: 'Copy the "Internal Integration Secret" and paste it here',
+        step5:
+          'Share the pages you want to export to with the integration in Notion (open the page → "..." → Connections → add your integration)',
       },
       saveSuccess: {
         title: "Notion settings saved",
@@ -635,8 +623,7 @@ export const enMessages = {
       clearAll: "Delete all conversations",
       countOne: "{count} conversation",
       countOther: "{count} conversations",
-      description:
-        "Conversations are stored encrypted. You can delete all of them here.",
+      description: "Conversations are stored encrypted. You can delete all of them here.",
       loading: "Loading...",
       savedChats: "Saved conversations",
       title: "Conversation history",
@@ -653,8 +640,7 @@ export const enMessages = {
         "Your StudyWise data has been deleted, but external cleanup could not be completed automatically. We will sign you out now.",
       deletePartialTitle: "StudyWise account deleted",
       deletePermanent: "Delete account permanently",
-      deleteSuccessDescription:
-        "Your StudyWise account and connected data have been deleted.",
+      deleteSuccessDescription: "Your StudyWise account and connected data have been deleted.",
       deleteSuccessTitle: "Account deleted",
       deleting: "Deleting account...",
       description:
@@ -670,7 +656,7 @@ export const enMessages = {
       accepted: "Accepted",
       declined: "Essential only",
       description:
-        "Essential cookies are always active. Optional performance analytics (Vercel Speed Insights) require your consent.",
+        "Essential cookies are always active. Optional measurements (Datadog RUM, Vercel Speed Insights, and product analytics via PostHog in cookieless mode) require your consent.",
       status: {
         accepted: "You have accepted optional performance analytics.",
         declined: "You are using essential cookies only.",
@@ -730,8 +716,7 @@ export const enMessages = {
     },
     maintenance: {
       title: "Maintenance",
-      description:
-        "Safe admin tools for data maintenance and repair of previously stored content.",
+      description: "Safe admin tools for data maintenance and repair of previously stored content.",
       lastResult: "Last run",
       backfill: {
         action: "Run full-text backfill",
@@ -741,18 +726,19 @@ export const enMessages = {
         cardTitle: "Backfill missing full text",
         cardDescription:
           "Scans stored document files and fills the `fullText` field where older rows are missing it.",
-        note:
-          "Useful after migrations or when older embeddings are missing full text for troubleshooting and search.",
+        note: "Useful after migrations or when older embeddings are missing full text for troubleshooting and search.",
         scannedFiles: "Scanned files",
         updatedFiles: "Updated files",
       },
       cleanupOrphaned: {
         action: "Clean orphaned data",
-        confirm: "Delete all orphaned records (chats, tasks, documents, etc.) belonging to deleted users?",
+        confirm:
+          "Delete all orphaned records (chats, tasks, documents, etc.) belonging to deleted users?",
         success: "Orphaned data cleaned",
         failed: "Orphaned data cleanup failed",
         cardTitle: "Clean orphaned data",
-        cardDescription: "Deletes chats, tasks, documents, work plans, and Canvas data belonging to deleted users.",
+        cardDescription:
+          "Deletes chats, tasks, documents, work plans, and Canvas data belonging to deleted users.",
         note: "Includes cleanup of associated Pinecone vectors. Cooldown: 10 min.",
       },
       rebuildEmbeddings: {
@@ -773,7 +759,8 @@ export const enMessages = {
         success: "Canvas cache invalidated",
         failed: "Canvas re-sync failed",
         cardTitle: "Force Canvas re-sync",
-        cardDescription: "Deletes all Canvas cache in Redis. Next time a user opens a course, data is fetched fresh from Canvas.",
+        cardDescription:
+          "Deletes all Canvas cache in Redis. Next time a user opens a course, data is fetched fresh from Canvas.",
         note: "Only Redis cache is deleted, not MongoDB structures. Cooldown: 30 min.",
         usersInvalidated: "Users invalidated",
         keysDeleted: "Cache keys deleted",
@@ -794,7 +781,8 @@ export const enMessages = {
         success: "Old chats cleaned",
         failed: "Chat cleanup failed",
         cardTitle: "Clean old chat history",
-        cardDescription: "Deletes chats older than the selected number of days. Pinned chats are skipped.",
+        cardDescription:
+          "Deletes chats older than the selected number of days. Pinned chats are skipped.",
         note: "Associated share links are also deleted. Minimum 30 days. Cooldown: 10 min.",
         daysLabel: "Days",
         deletedChats: "Chats deleted",
@@ -811,7 +799,8 @@ export const enMessages = {
         yes: "Yes",
         no: "No",
         reencryptAction: "Re-encrypt all tokens",
-        reencryptConfirm: "Re-encrypt all Canvas tokens with the current key? Legacy formats will be upgraded.",
+        reencryptConfirm:
+          "Re-encrypt all Canvas tokens with the current key? Legacy formats will be upgraded.",
         reencryptSuccess: "Tokens re-encrypted",
         reencryptFailed: "Re-encryption failed",
         processed: "Processed",
@@ -861,6 +850,23 @@ export const enMessages = {
       statusUnread: "Unread",
       statusRead: "Read",
       statusReplied: "Replied",
+      errorIdFilterPlaceholder: "Search error ID…",
+      errorIdFilterAriaLabel: "Filter messages by error ID",
+      errorIdFilterApply: "Search",
+      errorIdFilterClear: "Clear",
+      errorIdFilterInvalid:
+        "Invalid error ID — only letters, digits and . : _ - are allowed (max 128 characters).",
+      errorIdFilterActive: "Filtering by error ID",
+      errorIdFilterMatches: "{count} matches",
+      errorCorrelation: "Error correlation",
+      reportedErrorIdLabel: "Error ID the user reported (matches Pino logs, APM, AuditLog)",
+      submitRequestIdLabel: "Request ID of this submit (for audit of the contact call itself)",
+      errorIdHint:
+        "Use reportedErrorId to look up backend logs, stack, and audit rows that led to the failure.",
+      errorIdCopied: "Error ID copied",
+      errorIdCopyFailed: "Could not copy error ID",
+      copy: "Copy",
+      filterByThisId: "Filter list",
     },
     redis: {
       title: "Redis administration",
@@ -883,7 +889,8 @@ export const enMessages = {
       },
       prefixes: {
         sectionTitle: "Cache prefixes",
-        description: "Number of keys per known prefix. Click 'Flush' to invalidate everything under a prefix (with confirmation).",
+        description:
+          "Number of keys per known prefix. Click 'Flush' to invalidate everything under a prefix (with confirmation).",
         prefix: "Prefix",
         label: "Description",
         count: "Keys",
@@ -910,7 +917,8 @@ export const enMessages = {
     },
     queues: {
       title: "Job queues (BullMQ)",
-      description: "Background jobs for Clerk deletion, Pinecone vector cleanup and web push notifications.",
+      description:
+        "Background jobs for Clerk deletion, Pinecone vector cleanup and web push notifications.",
       loadFailed: "Could not load queue data",
       empty: "No queues registered",
       noJobs: "No jobs in this category",
@@ -1004,8 +1012,7 @@ export const enMessages = {
         tracingTableTitle: "Tracing runs",
         detailsTitle: "Run details",
         detailsHint: "Select a run in the table to view details.",
-        overviewLineRuns:
-          "Last 24h: {runs24h} runs · Last 7 days: {runs7d} runs",
+        overviewLineRuns: "Last 24h: {runs24h} runs · Last 7 days: {runs7d} runs",
         filters: {
           statusAll: "All statuses",
           statusSuccess: "Success only",
@@ -1178,8 +1185,7 @@ export const enMessages = {
       revokeSessionsSuccess: "Sessions revoked",
       revokeSessionsFailed: "Could not revoke sessions",
       resendVerification: "Resend verification email",
-      resendVerificationConfirm:
-        "Resend the Clerk verification email to this user?",
+      resendVerificationConfirm: "Resend the Clerk verification email to this user?",
       resendVerificationSuccess: "Verification email sent",
       resendVerificationFailed: "Could not send verification email",
       lockUser: "Lock account",
@@ -1196,8 +1202,7 @@ export const enMessages = {
       unlockConfirm: "Unlock this account?",
       unlockSuccess: "User unlocked",
       unlockFailed: "Could not unlock the user",
-      cannotLockAdmin:
-        "Admin users cannot be locked. Change the role first if needed.",
+      cannotLockAdmin: "Admin users cannot be locked. Change the role first if needed.",
       cannotLockSelf: "You cannot lock your own account.",
       deleteConfirm:
         "Are you sure you want to delete this user? All data will be permanently removed.",
@@ -1211,7 +1216,8 @@ export const enMessages = {
     },
     audit: {
       title: "Audit log",
-      description: "Filter, export, and inspect security and admin events without exposing raw request data.",
+      description:
+        "Filter, export, and inspect security and admin events without exposing raw request data.",
       action: "Action",
       category: "Category",
       outcome: "Outcome",
@@ -1247,10 +1253,10 @@ export const enMessages = {
   },
   quiz: {
     title: "Quiz / Flashcards",
-    subtitle:
-      "Practice your Canvas content with AI-generated questions and cards.",
+    subtitle: "Practice your Canvas content with AI-generated questions and cards.",
     noCoursesFound: "No Canvas courses found. Connect to Canvas first.",
-    allCoursesHidden: "All courses are hidden. Show courses on the Courses page to use Quiz/Flashcards.",
+    allCoursesHidden:
+      "All courses are hidden. Show courses on the Courses page to use Quiz/Flashcards.",
     noModulesFound: "No modules found for this course.",
     loadingCourses: "Loading courses...",
     loadingModules: "Loading modules...",
@@ -1265,7 +1271,8 @@ export const enMessages = {
     couldNotGenerateFlashcards: "Could not generate flashcards.",
     noQuestionsGenerated: "No questions were generated",
     noFlashcardsGenerated: "No flashcards were generated",
-    selectionOutOfDate: "The selected course or modules are no longer available. Please select them again.",
+    selectionOutOfDate:
+      "The selected course or modules are no longer available. Please select them again.",
     requestTimeout: "The request timed out",
     couldNotGenerate: "Could not generate {contentType}",
     decreaseCount: "Decrease count",
@@ -1312,8 +1319,7 @@ export const enMessages = {
     planSaveError: "Could not save study plan. Try again.",
     selectAtLeastOneDay: "Select at least one day",
     addToWorkplanError: "Could not add to study plan",
-    addToWorkplanErrorDescription:
-      "Try again or contact support if the error persists",
+    addToWorkplanErrorDescription: "Try again or contact support if the error persists",
     completedAt: "Completed {date}",
     collapseAll: "Collapse all",
     expandAll: "Expand all",
@@ -1324,14 +1330,12 @@ export const enMessages = {
       "Let the AI assistant analyze your Canvas assignments and create an optimal weekly study plan. You can then choose which study blocks to add to your plan.",
     generateButton: "Generate weekly plan with AI",
     noAssignments: "No assignments found. Add assignments in Canvas first.",
-    noAssignmentsWithDue:
-      "No assignments with deadlines found. Add assignments in Canvas first.",
+    noAssignmentsWithDue: "No assignments with deadlines found. Add assignments in Canvas first.",
     generating:
       "AI assistant is generating a weekly plan... Analyzing assignments, deadlines and complexity.",
     retryButton: "Try again",
     generatedTitle: "AI-generated weekly plan",
-    generatedToast:
-      "AI assistant generated a weekly plan with {count} study sessions!",
+    generatedToast: "AI assistant generated a weekly plan with {count} study sessions!",
     regenerateButton: "Regenerate",
     selectPrompt: "Select study blocks to add",
     selectedCount: "{count} selected",
@@ -1354,8 +1358,7 @@ export const enMessages = {
     },
     collapseAll: "Collapse all",
     empty: {
-      description:
-        "We could not find any unsubmitted Canvas assignments to break down right now.",
+      description: "We could not find any unsubmitted Canvas assignments to break down right now.",
       title: "No active assignments found",
     },
     errors: {
@@ -1428,8 +1431,7 @@ export const enMessages = {
     oneAttachmentOnly: "Only one attachment at a time",
     oneAttachmentOnlyDescription: "I will only use the first attachment.",
     documentAnalysisFailed: "Document analysis failed",
-    documentAnalysisEmpty:
-      "The document analysis returned an empty response. Try again.",
+    documentAnalysisEmpty: "The document analysis returned an empty response. Try again.",
     aiResponseFailed: "AI response failed",
     aiResponseEmpty: "The AI assistant returned an empty response. Try again.",
     saveBeforeShare: "Save the conversation first to share it.",
@@ -1443,12 +1445,10 @@ export const enMessages = {
     couldNotCopy: "Could not copy",
     conversationDownloaded: "Conversation downloaded as Markdown",
     analyzingDocument: "Analyzing document...",
-    aiConnectionError:
-      "Could not connect to the AI assistant. Try again later.",
+    aiConnectionError: "Could not connect to the AI assistant. Try again later.",
     loadingGeneric: "Loading...",
     loadingChatHistory: "Loading conversation history...",
-    documentAnalysisMetadata:
-      "Document: {pages} pages, {characters} characters{truncated}",
+    documentAnalysisMetadata: "Document: {pages} pages, {characters} characters{truncated}",
     documentAnalysisMetadataTruncated: " (truncated)",
     explanationLevel: {
       simple: "Simple",
@@ -1494,17 +1494,19 @@ export const enMessages = {
     emptyStateTitle: "Hi! How can I help you?",
     emptyStateSubtitle: "I can help you with studying, Canvas content and much more",
     appContentLabel: "App content",
-    fileTooLarge: "The file \"{name}\" is too large. Maximum file size is 15 MB.",
+    fileTooLarge: 'The file "{name}" is too large. Maximum file size is 15 MB.',
     analyzeDocumentFallback: "Analyze document: {name}",
     summarizeDocumentFallback: "Give me a summary of this document.",
     canvasDataAnnouncements: "Announcements",
     canvasDataCourses: "Courses",
     canvasDataAssignments: "Assignments",
     canvasDataEvents: "Events",
-    noCanvasDataSelected: "You have not selected any Canvas data. Go to Settings → AI Canvas context and select at least one dataset so I can help you with Canvas-related questions.",
-    missingCanvasData: "I don't have access to {missing} because it is not enabled.\n\nGo to Settings → AI Canvas context and enable \"{activate}\", and try again.",
+    noCanvasDataSelected:
+      "You have not selected any Canvas data. Go to Settings → AI Canvas context and select at least one dataset so I can help you with Canvas-related questions.",
+    missingCanvasData:
+      'I don\'t have access to {missing} because it is not enabled.\n\nGo to Settings → AI Canvas context and enable "{activate}", and try again.',
     missingCanvasDataJoinOr: " or ",
-    missingCanvasDataJoinAnd: "\" and \"",
+    missingCanvasDataJoinAnd: '" and "',
     typingIndicator: "AI assistant is typing...",
   },
   profil: {
@@ -1545,11 +1547,14 @@ export const enMessages = {
     subtitle: "Create a public read-only link to this conversation.",
     closeLabel: "Close share dialog",
     defaultChatTitle: "Conversation",
-    messageInfo: "This link will show the entire conversation with {messageCount} messages, including your own messages and AI responses.",
+    messageInfo:
+      "This link will show the entire conversation with {messageCount} messages, including your own messages and AI responses.",
     warningTitle: "Only share if you are comfortable with the content.",
-    warningBody: "Anyone with the link can read the entire conversation. This may include course names, assignment names, file names, personal notes, and other text you have written in the conversation.",
+    warningBody:
+      "Anyone with the link can read the entire conversation. This may include course names, assignment names, file names, personal notes, and other text you have written in the conversation.",
     expiryInfo: "The link expires automatically after 30 days.",
-    privacyNotice: "StudyWise does not automatically remove content from the conversation when sharing. Review the conversation with privacy in mind before creating the link.",
+    privacyNotice:
+      "StudyWise does not automatically remove content from the conversation when sharing. Review the conversation with privacy in mind before creating the link.",
     linkLabel: "Share link",
     copyButton: "Copy",
     openButton: "Open",
@@ -1565,8 +1570,7 @@ export const enMessages = {
     subtitle: "Choose export format.",
     closeLabel: "Close export dialog",
     defaultChatTitle: "Conversation",
-    messageInfo:
-      "Exporting {messageCount} messages from this conversation.",
+    messageInfo: "Exporting {messageCount} messages from this conversation.",
     formatLabel: "Export format",
     formats: {
       markdown: "Markdown",
@@ -1611,9 +1615,11 @@ export const enMessages = {
     noneButton: "None",
     conflictSingular: "1 time conflict detected",
     conflictPlural: "{count} time conflicts detected",
-    conflictDescription: "Some time slots overlap with existing tasks. Consider choosing a different time.",
+    conflictDescription:
+      "Some time slots overlap with existing tasks. Consider choosing a different time.",
     previewTitle: "Automatic distribution",
-    previewDescription: "Your {subtasks} subtasks will be evenly distributed across {days} selected days.",
+    previewDescription:
+      "Your {subtasks} subtasks will be evenly distributed across {days} selected days.",
     cancelButton: "Cancel",
     addingButton: "Adding...",
     addButton: "Add to {week}",
@@ -1642,7 +1648,8 @@ export const enMessages = {
   omOss: {
     title: "About StudyWise",
     whatTitle: "What is StudyWise?",
-    whatBody: "StudyWise is an AI-powered study assistant developed as a bachelor project at the University of Southeast Norway (USN). The application integrates with Canvas LMS to give students a centralized platform for keeping track of their studies.",
+    whatBody:
+      "StudyWise is an AI-powered study assistant developed as a bachelor project at the University of Southeast Norway (USN). The application integrates with Canvas LMS to give students a centralized platform for keeping track of their studies.",
     featuresTitle: "Features",
     featureCanvasLabel: "Canvas integration:",
     featureCanvasBody: "View announcements, courses, deadlines, and calendar from Canvas",
@@ -1651,7 +1658,8 @@ export const enMessages = {
     featureCalendarLabel: "Calendar:",
     featureCalendarBody: "Overview of all deadlines and events in one place",
     featureDocumentsLabel: "Document analysis:",
-    featureDocumentsBody: "Upload PDF, Word, images, and other files for AI analysis and summarization",
+    featureDocumentsBody:
+      "Upload PDF, Word, images, and other files for AI analysis and summarization",
     featureTaskBreakdownLabel: "Task breakdown:",
     featureTaskBreakdownBody: "AI breaks down large assignments into manageable subtasks",
     featureWorkplanLabel: "Study plan:",
@@ -1659,13 +1667,12 @@ export const enMessages = {
     featureChatHistoryLabel: "Conversation history:",
     featureChatHistoryBody: "Save and continue conversations with the AI",
     featureExportLabel: "Export:",
-    featureExportBody:
-      "Export AI content to PDF, Word, Excel, or Notion",
+    featureExportBody: "Export AI content to PDF, Word, Excel, or Notion",
     featureShareLabel: "Shared conversations:",
-    featureShareBody:
-      "Share conversations with others via a secure link with expiry",
+    featureShareBody: "Share conversations with others via a secure link with expiry",
     teamTitle: "The team",
-    teamBody: "StudyWise was developed by students at USN as part of their bachelor's thesis in IT and information systems. The project focuses on exploring how AI can improve the study experience for students.",
+    teamBody:
+      "StudyWise was developed by students at USN as part of their bachelor's thesis in IT and information systems. The project focuses on exploring how AI can improve the study experience for students.",
     techTitle: "Technology",
     techBody: "The application is built with modern technologies:",
   },
@@ -1683,122 +1690,180 @@ export const enMessages = {
     updatedAt: "April 2026",
     dataCollectionTitle: "What data do we collect?",
     accountInfoLabel: "Account information and login:",
-    accountInfoBody: "Login is handled by Clerk (email, password, and optional two-factor). You can connect Google or Microsoft if enabled. We do not store passwords ourselves; Clerk handles security and 2FA.",
+    accountInfoBody:
+      "Login is handled by Clerk (email, password, and optional two-factor). You can connect Google or Microsoft if enabled. We do not store passwords ourselves; Clerk handles security and 2FA.",
     cookiesLabel: "Cookies and monitoring:",
-    cookiesBody: "We use necessary cookies for login and preferences. The backend uses operational monitoring (Datadog APM) for error tracking and stability — this runs server-side and does not require consent. If you accept, we also enable optional browser-side performance measurements (Datadog RUM and Speed Insights). The choice for optional measurements is stored on your user profile when logged in, and cached locally in the browser to prevent the banner from reappearing.",
+    cookiesBody:
+      "We use necessary cookies for login and preferences. The backend uses operational monitoring (Datadog APM) for error tracking and stability — this runs server-side and does not require consent. If you accept, we also enable optional browser-side measurements: Datadog RUM and Speed Insights for technical performance, and PostHog for aggregated product analytics (in cookieless mode, without any cookies). The choice for optional measurements is stored on your user profile when logged in, and cached locally in the browser to prevent the banner from reappearing.",
     canvasTokenLabel: "Canvas API token:",
     canvasTokenBody: "Stored encrypted (AES-256-GCM) to fetch your Canvas data on your behalf.",
     chatHistoryLabel: "Conversation history:",
-    chatHistoryBody: "AI conversations are stored encrypted on your account. We store a short title based on the first question (e.g., first 50 characters) to display the conversation in the list.",
+    chatHistoryBody:
+      "AI conversations are stored encrypted on your account. We store a short title based on the first question (e.g., first 50 characters) to display the conversation in the list.",
     preferencesLabel: "Preferences and notifications:",
-    preferencesBody: "Your choices for Canvas context and notifications (e.g., read/announcements) are stored linked to your account.",
+    preferencesBody:
+      "Your choices for Canvas context and notifications (e.g., read/announcements) are stored linked to your account.",
     canvasCacheLabel: "Canvas cache:",
-    canvasCacheBody: "We temporarily cache data from Canvas (courses, assignments, calendar) for better performance. Cache is only stored for a short time (minutes to hours).",
+    canvasCacheBody:
+      "We temporarily cache data from Canvas (courses, assignments, calendar) for better performance. Cache is only stored for a short time (minutes to hours).",
     feedbackLabel: "Feedback on AI responses:",
-    feedbackBody: "If you give a thumbs up/down on an AI response, we store the rating together with your question and the AI's answer in plaintext (not encrypted) so we can improve the quality of future responses. This is only visible to administrators and is automatically deleted when your account is deleted.",
+    feedbackBody:
+      "If you give a thumbs up/down on an AI response, we store the rating together with your question and the AI's answer in plaintext (not encrypted) so we can improve the quality of future responses. This is only visible to administrators and is automatically deleted when your account is deleted.",
     legalBasisTitle: "Legal Basis (GDPR Art. 6)",
     legalBasisIntro: "We process personal data on the following legal grounds:",
     legalBasisContractLabel: "Contract — Art. 6(1)(b):",
-    legalBasisContractBody: "Account information (email, login via Clerk), Canvas API token, conversation history, preferences, and study plans are processed because it is necessary to deliver the service you registered for.",
+    legalBasisContractBody:
+      "Account information (email, login via Clerk), Canvas API token, conversation history, preferences, and study plans are processed because it is necessary to deliver the service you registered for.",
     legalBasisInterestLabel: "Legitimate interest — Art. 6(1)(f):",
-    legalBasisInterestBody: "Security logging, audit logs, backend operational monitoring (Datadog APM), and abuse detection are processed based on our legitimate interest in secure and stable operations. This data is minimized and pseudonymized where possible.",
+    legalBasisInterestBody:
+      "Security logging, audit logs, backend operational monitoring (Datadog APM), and abuse detection are processed based on our legitimate interest in secure and stable operations. This data is minimized and pseudonymized where possible.",
     legalBasisConsentLabel: "Consent — Art. 6(1)(a):",
-    legalBasisConsentBody: "Optional browser-side performance measurements (Datadog RUM and Speed Insights) are only enabled if you explicitly accept via the cookie banner. You can withdraw consent at any time by changing your choice in settings. If you are not logged in, the choice is remembered for 30 days via a cookie.",
+    legalBasisConsentBody:
+      "Optional browser-side measurements (Datadog RUM, Speed Insights, and product analytics via PostHog) are only enabled if you explicitly accept via the cookie banner. You can withdraw consent at any time by changing your choice in settings. If you are not logged in, the choice is remembered for 30 days via a cookie.",
     purposeTitle: "Purpose of processing",
     purposeIntro: "We use the data to:",
-    purpose1: "Give you access to Canvas information (courses, assignments, announcements, calendar) in the app.",
-    purpose2: "Allow the AI assistant to answer questions about your courses and assignments (with anonymized/reduced context where possible).",
+    purpose1:
+      "Give you access to Canvas information (courses, assignments, announcements, calendar) in the app.",
+    purpose2:
+      "Allow the AI assistant to answer questions about your courses and assignments (with anonymized/reduced context where possible).",
     purpose3: "Store conversation history so you can continue previous conversations.",
     purpose4: "Remember your preferences and notification settings across devices.",
     retentionTitle: "Data retention",
     retentionAccountLabel: "Account and profile:",
-    retentionAccountBody: "Until you delete your account. Upon account deletion, account information, Canvas token, conversation history, preferences, and study plans are deleted or anonymized. Limited security and audit logs may be retained in pseudonymized or minimized form for up to 24 months.",
+    retentionAccountBody:
+      "Until you delete your account. Upon account deletion, account information, Canvas token, conversation history, preferences, and study plans are deleted or anonymized. Limited security and audit logs may be retained in pseudonymized or minimized form for up to 24 months.",
     retentionChatLabel: "Conversation history:",
-    retentionChatBody: "Stored until you delete a conversation or the entire history, or until you delete your account.",
+    retentionChatBody:
+      "Stored until you delete a conversation or the entire history, or until you delete your account.",
     retentionCacheLabel: "Canvas cache:",
-    retentionCacheBody: "Short-lived (typically 5–30 minutes). The cache is automatically deleted or overwritten and does not contain persistent personally identifiable data beyond what is needed to display your pages.",
+    retentionCacheBody:
+      "Short-lived (typically 5–30 minutes). The cache is automatically deleted or overwritten and does not contain persistent personally identifiable data beyond what is needed to display your pages.",
     retentionSessionLabel: "Sessions:",
-    retentionSessionBody: "Login and sessions are handled by Clerk. Session tokens expire according to Clerk's configuration and are refreshed by the login provider as needed.",
+    retentionSessionBody:
+      "Login and sessions are handled by Clerk. Session tokens expire according to Clerk's configuration and are refreshed by the login provider as needed.",
     cookiesSectionTitle: "Cookies",
-    cookiesSectionBody: "We use necessary cookies for login (Clerk), to remember theme and preferences, and for the app to function correctly. The backend uses operational monitoring (Datadog APM) for error tracking and stability — this runs server-side and involves no cookies. If you accept, we additionally enable optional browser-side performance measurements (Datadog RUM and Speed Insights) which use cookies for session tracking. On first visit, a message appears where you can choose Necessary only or Accept all. For logged-in users, the choice is stored on your user profile in the database and also cached in the browser's localStorage to prevent the banner from reappearing between visits. This is not used for marketing. If you are not logged in, the choice is remembered for 30 days via a cookie.",
+    cookiesSectionBody:
+      "We use necessary cookies for login (Clerk), to remember theme and preferences, and for the app to function correctly. The backend uses operational monitoring (Datadog APM) for error tracking and stability — this runs server-side and involves no cookies. If you accept, we additionally enable optional browser-side measurements: Datadog RUM and Speed Insights use cookies for session tracking, while PostHog (product analytics) runs in cookieless mode without cookies or localStorage. On first visit, a message appears where you can choose Necessary only or Accept all. For logged-in users, the choice is stored on your user profile in the database and also cached in the browser's localStorage to prevent the banner from reappearing between visits. This is not used for marketing. If you are not logged in, the choice is remembered for 30 days via a cookie.",
+    cookiesSectionAdblockNote:
+      "Using an ad blocker? It may block anonymous performance measurements we use to improve StudyWise. We never collect personal data or show ads — these measurements only help us understand which features work and what we should improve. Consider allowing StudyWise in your blocker so we can build a better experience for you.",
     cookiesSectionNecessary: "Necessary only",
     cookiesSectionAcceptAll: "Accept all",
     thirdPartyTitle: "Sharing with third parties",
     thirdPartyIntro: "We share minimally with third parties:",
     thirdPartyAILabel: "AI services (Anthropic):",
-    thirdPartyAIBody: "Content you write and context (e.g., assignment text) is sent to AI to generate responses. We avoid sending personally identifiable information (name, email) to AI; Canvas content is anonymized where possible.",
+    thirdPartyAIBody:
+      "Content you write and context (e.g., assignment text) is sent to AI to generate responses. We avoid sending personally identifiable information (name, email) to AI; Canvas content is anonymized where possible.",
     thirdPartyCanvasLabel: "Canvas LMS:",
-    thirdPartyCanvasBody: "We only use your API token to fetch data on your behalf from your institution's Canvas. The token is stored encrypted with us and is not sent to other third parties.",
+    thirdPartyCanvasBody:
+      "We only use your API token to fetch data on your behalf from your institution's Canvas. The token is stored encrypted with us and is not sent to other third parties.",
     thirdPartyPineconeLabel: "Vector search (Pinecone):",
-    thirdPartyPineconeBody: "When you use AI features with Canvas content or your own knowledge bases (links and files you have added), text chunks (without names, emails, or other personally identifying data) are sent to Pinecone for indexing and semantic search. Pinecone only stores vector representations and anonymized text linked to your user ID, and everything is deleted when you remove the base or your account.",
+    thirdPartyPineconeBody:
+      "When you use AI features with Canvas content or your own knowledge bases (links and files you have added), text chunks (without names, emails, or other personally identifying data) are sent to Pinecone for indexing and semantic search. Pinecone only stores vector representations and anonymized text linked to your user ID, and everything is deleted when you remove the base or your account.",
     thirdPartyCohereLabel: "Reranking (Cohere):",
-    thirdPartyCohereBody: "To improve relevance in AI responses, Cohere is used to rank search results. Only anonymized text excerpts are sent — no personal data.",
+    thirdPartyCohereBody:
+      "To improve relevance in AI responses, Cohere is used to rank search results. Only anonymized text excerpts are sent — no personal data.",
     thirdPartyDatadogLabel: "Monitoring (Datadog):",
-    thirdPartyDatadogBody: "Technical operational and error tracking data may be processed by Datadog to link frontend errors, backend traces, and performance anomalies. This includes technical metadata, not the content of Canvas tokens or chat messages.",
+    thirdPartyDatadogBody:
+      "Technical operational and error tracking data may be processed by Datadog to link frontend errors, backend traces, and performance anomalies. This includes technical metadata, not the content of Canvas tokens or chat messages.",
+    thirdPartyPosthogLabel: "Product analytics (PostHog):",
+    thirdPartyPosthogBody:
+      "To understand how features are actually used (page views, clicks, which AI features are adopted), we send aggregated usage data to PostHog (hosted in the US) when you have consented to optional measurements. We only send pseudonymous identifiers and usage patterns — no chat content, Canvas data, email addresses, or names. PostHog is configured in cookieless mode without cookies or localStorage, and session replay is disabled.",
+    thirdPartyLangsmithLabel: "AI tracing (LangSmith):",
+    thirdPartyLangsmithBody:
+      "When LangSmith tracing is enabled on the server, AI requests (prompts and responses from the assistant) may be recorded with LangSmith for debugging, performance measurement, and quality monitoring of the AI functionality. Tracing is linked to a pseudonymous request ID, not directly to email or name. This is a technical operations concern that can be disabled by removing the access key.",
+    thirdPartyContactRelayLabel: "Email delivery for contact form (Cloudflare Worker + Resend):",
+    thirdPartyContactRelayBody:
+      "When you submit an inquiry via the contact form, the content (name, email, subject, and message) is forwarded via a Cloudflare Worker to Resend, which delivers the email to our team. A copy is also stored in our own database for up to 365 days so administrators can view the inbox in the admin panel, and is automatically deleted afterward or manually once the case has been handled.",
+    thirdPartyMapsLabel: "Embedded map (Google Maps):",
+    thirdPartyMapsBody:
+      'The contact page includes an embedded Google Maps map showing USN Campus Bø. When you visit the page, your browser loads the map directly from Google, and Google can therefore see your IP address and user agent. We do not send referrer information from our side to Google (referrerPolicy="no-referrer"), but the map load itself contacts Google. If you prefer to avoid this, do not visit the contact page, or use browser features that block third-party content.',
     rightsTitle: "Your rights (GDPR)",
     rightsIntro: "You have the right to access, rectification, erasure, and data portability:",
     rightsAccessLabel: "Access:",
-    rightsAccessBody: "You can request an overview of what data we have stored about you. Contact us via the contact form.",
+    rightsAccessBody:
+      "You can request an overview of what data we have stored about you. Contact us via the contact form.",
     rightsCorrectionLabel: "Rectification:",
-    rightsCorrectionBody: "You can update email, password, and two-factor under Settings → Account and security (edit profile). Canvas token and preferences can be changed or removed under settings.",
+    rightsCorrectionBody:
+      "You can update email, password, and two-factor under Settings → Account and security (edit profile). Canvas token and preferences can be changed or removed under settings.",
     rightsDeletionLabel: "Erasure:",
-    rightsDeletionBody: "You can delete individual conversations or the entire chat history in the app, and delete Canvas token under settings. Full account deletion can be done under settings or by contacting us. Account information and associated data will be deleted or anonymized, while limited security and audit logs may be retained in pseudonymized form for a limited period.",
+    rightsDeletionBody:
+      "You can delete individual conversations or the entire chat history in the app, and delete Canvas token under settings. Full account deletion can be done under settings or by contacting us. Account information and associated data will be deleted or anonymized, while limited security and audit logs may be retained in pseudonymized form for a limited period.",
     rightsPortabilityLabel: "Data portability:",
-    rightsPortabilityBody: "You can request export of your data (e.g., conversation history). Contact us via the contact form.",
-    rightsComplaint: "You can also file a complaint with the Data Protection Authority if you believe the processing violates privacy legislation.",
+    rightsPortabilityBody:
+      "You can request export of your data (e.g., conversation history). Contact us via the contact form.",
+    rightsComplaint:
+      "You can also file a complaint with the Data Protection Authority if you believe the processing violates privacy legislation.",
     storageTitle: "Storage and security",
-    storageCrypto: "Sensitive data (Canvas token, conversation history) is encrypted with AES-256-GCM before storage.",
-    storageClerk: "Login and passwords are handled by Clerk; we do not store passwords ourselves. Clerk supports two-factor (2FA) and connection to Google and Microsoft.",
-    storageAudit: "Security and audit logs are minimized and pseudonymized upon account deletion where practically possible, but some technical metadata may be retained for a limited time for security, abuse detection, and compliance.",
+    storageCrypto:
+      "Sensitive data (Canvas token, conversation history) is encrypted with AES-256-GCM before storage.",
+    storageClerk:
+      "Login and passwords are handled by Clerk; we do not store passwords ourselves. Clerk supports two-factor (2FA) and connection to Google and Microsoft.",
+    storageAudit:
+      "Security and audit logs are minimized and pseudonymized upon account deletion where practically possible, but some technical metadata may be retained for a limited time for security, abuse detection, and compliance.",
     storageServers: "Data is stored on secure servers with access control. See also our",
     storageServersLink: "security page",
     storageHTTPS: "All communication between browser and servers occurs over HTTPS.",
     storageCache: "Canvas cache has a short lifespan and is automatically deleted/rotated.",
     contactTitle: "Contact",
-    contactBody: "Do you have questions about privacy or want to exercise your rights? Contact us via",
+    contactBody:
+      "Do you have questions about privacy or want to exercise your rights? Contact us via",
     contactLink: "the contact form",
   },
   sikkerhet: {
     title: "Security",
     description: "The security of your data is our highest priority.",
     encryptionTitle: "Encryption",
-    encryptionBody: "All sensitive data is encrypted with AES-256-GCM for storage. Login and passwords are handled by Clerk; we do not store passwords ourselves. Clerk supports 2FA and secure storage.",
+    encryptionBody:
+      "All sensitive data is encrypted with AES-256-GCM for storage. Login and passwords are handled by Clerk; we do not store passwords ourselves. Clerk supports 2FA and secure storage.",
     tokenTitle: "Secure token handling",
-    tokenBody: "Canvas API tokens are stored encrypted and used only server-side. They are never exposed to the browser or third parties.",
+    tokenBody:
+      "Canvas API tokens are stored encrypted and used only server-side. They are never exposed to the browser or third parties.",
     httpsTitle: "HTTPS and security headers",
-    httpsBody: "All communication occurs over TLS. We use Helmet for security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy in production).",
+    httpsBody:
+      "All communication occurs over TLS. We use Helmet for security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy in production).",
     csrfTitle: "CSRF protection",
-    csrfBody: "State-changing requests (POST, PUT, PATCH, DELETE) require a valid CSRF header and that the request comes from our own website, to prevent third-party sites from performing actions on your behalf.",
+    csrfBody:
+      "State-changing requests (POST, PUT, PATCH, DELETE) require a valid CSRF header and that the request comes from our own website, to prevent third-party sites from performing actions on your behalf.",
     rateLimitTitle: "Rate limiting",
-    rateLimitBody: "We limit the number of requests per IP and per service (login, AI, Canvas, API token). This reduces the risk of abuse and brute-force attacks.",
+    rateLimitBody:
+      "We limit the number of requests per IP and per service (login, AI, Canvas, API token). This reduces the risk of abuse and brute-force attacks.",
     sessionsTitle: "Secure sessions (Clerk)",
-    sessionsBody: "Login and sessions are handled by Clerk with secure cookies (httpOnly, secure, sameSite). Clerk supports two-factor (2FA) and login with Google and Microsoft. Access tokens have a short lifespan and are only sent over HTTPS.",
+    sessionsBody:
+      "Login and sessions are handled by Clerk with secure cookies (httpOnly, secure, sameSite). Clerk supports two-factor (2FA) and login with Google and Microsoft. Access tokens have a short lifespan and are only sent over HTTPS.",
     minimalAccessTitle: "Minimal data access",
-    minimalAccessBody: "We only fetch data from Canvas that is necessary for the functionality you use. See our privacy policy for how we process data.",
+    minimalAccessBody:
+      "We only fetch data from Canvas that is necessary for the functionality you use. See our privacy policy for how we process data.",
     infrastructureTitle: "Secure infrastructure",
-    infrastructureBody: "The application runs on secure platforms (Vercel, Heroku) with firewall and access control. Cloudflare is used as CDN with bot protection (Turnstile) and DNS security.",
+    infrastructureBody:
+      "The application runs on secure platforms (Vercel, Heroku) with firewall and access control. Cloudflare is used as CDN with bot protection (Turnstile) and DNS security.",
     autoLogoutTitle: "Automatic logout",
-    autoLogoutBody: "Sessions expire automatically. Upon inactivity or expired session, you must log in again. Clerk handles session and optional two-factor.",
+    autoLogoutBody:
+      "Sessions expire automatically. Upon inactivity or expired session, you must log in again. Clerk handles session and optional two-factor.",
     canvasApiTitle: "Canvas API security",
     canvasApiIntro: "When you connect to Canvas, we use your personal API token:",
     canvasApi1: "We only use the token to read your Canvas data — we perform no write operations",
     canvasApi2: "You can revoke the token in Canvas at any time",
     canvasApi3: "The token is stored encrypted and never sent to third parties",
     loggingTitle: "Logging and privacy",
-    loggingBody: "On the server, we log errors and security events for operations and debugging. We do not log email, name, password, Canvas token, or user content (e.g., chat messages and search text) in production. We may store limited technical metadata such as pseudonymized user ID, IP address, user-agent, and request-id for security, abuse detection, and incident handling. Audit logs have limited retention and are anonymized upon account deletion where possible.",
+    loggingBody:
+      "On the server, we log errors and security events for operations and debugging. We do not log email, name, password, Canvas token, or user content (e.g., chat messages and search text) in production. We may store limited technical metadata such as pseudonymized user ID, IP address, user-agent, and request-id for security, abuse detection, and incident handling. Audit logs have limited retention and are anonymized upon account deletion where possible.",
     aiPrivacyTitle: "AI and privacy",
     aiPrivacyIntro: "When you use the AI assistant:",
-    aiPrivacy1: "Personally identifiable information is avoided or removed before sending to the AI service",
+    aiPrivacy1:
+      "Personally identifiable information is avoided or removed before sending to the AI service",
     aiPrivacy2: "Canvas content is anonymized where possible",
-    aiPrivacy3: "Conversations are stored encrypted on your account; a short title from the first question is stored for display in the list",
+    aiPrivacy3:
+      "Conversations are stored encrypted on your account; a short title from the first question is stored for display in the list",
     aiPrivacy4: "You can delete the conversation history or individual conversations at any time",
     aiPrivacyMore: "More about processing of personal data can be found in our",
     aiPrivacyLink: "privacy policy",
     openSourceTitle: "Open source and transparency",
-    openSourceBody: "StudyWise is an open source project. We believe in transparency as a foundation for trust — all source code is publicly available so anyone can verify how we process data, what security mechanisms we use, and that we deliver on our promises.",
+    openSourceBody:
+      "StudyWise is an open source project. We believe in transparency as a foundation for trust — all source code is publicly available so anyone can verify how we process data, what security mechanisms we use, and that we deliver on our promises.",
     openSourceGithub: "View source code on GitHub",
     openSourceVirusTotal: "VirusTotal report",
-    openSourceCI: "We run automatic CI/CD with security scanning (TruffleHog, OWASP, SAST), dependency audits, and SBOM generation with every deployment.",
+    openSourceCI:
+      "We run automatic CI/CD with security scanning (TruffleHog, OWASP, SAST), dependency audits, and SBOM generation with every deployment.",
     reportTitle: "Report security issues",
     reportBody: "Have you discovered a security vulnerability? Contact us immediately via",
     reportLink: "the contact form",
@@ -1808,9 +1873,11 @@ export const enMessages = {
     title: "Terms of Service",
     updatedAt: "April 2026",
     acceptTitle: "1. Acceptance of terms",
-    acceptBody: "By creating an account and using StudyWise, you accept these terms of service. If you do not accept the terms, you must not use the service.",
+    acceptBody:
+      "By creating an account and using StudyWise, you accept these terms of service. If you do not accept the terms, you must not use the service.",
     serviceTitle: "2. Description of the service",
-    serviceBody: "StudyWise is a study assistant that integrates with Canvas LMS and offers AI-based help. The service is developed as a bachelor project at USN and is offered free of charge to students.",
+    serviceBody:
+      "StudyWise is a study assistant that integrates with Canvas LMS and offers AI-based help. The service is developed as a bachelor project at USN and is offered free of charge to students.",
     accountTitle: "3. User account",
     account1: "You are responsible for keeping your password secret",
     account2: "You must not share your account with others",
@@ -1827,8 +1894,10 @@ export const enMessages = {
     ai3: "The AI must not be used for cheating or academic dishonesty",
     ai4: "We reserve the right to remove or restrict content that violates the terms, and to suspend accounts in case of misuse",
     sharingTitle: "6. Sharing conversations",
-    sharing1: "You can create public links to conversations. Anyone with the link can read the full content",
-    sharing2: "You are responsible for reviewing the conversation before sharing and ensuring it does not contain sensitive information",
+    sharing1:
+      "You can create public links to conversations. Anyone with the link can read the full content",
+    sharing2:
+      "You are responsible for reviewing the conversation before sharing and ensuring it does not contain sensitive information",
     sharing3: "Shared links expire automatically after 30 days",
     sharing4: "You can delete a shared link at any time to revoke access",
     kbTitle: "7. Knowledge base",
@@ -1843,9 +1912,11 @@ export const enMessages = {
     use3: "Overload the service with unnecessary requests",
     use4: "Share content that infringes on others' rights",
     disclaimerTitle: "9. Disclaimer",
-    disclaimerBody: "The service is provided \"as is\" without warranties. We are not responsible for loss or damage resulting from use of the service. This includes, but is not limited to, data loss, errors in AI responses, or downtime.",
+    disclaimerBody:
+      'The service is provided "as is" without warranties. We are not responsible for loss or damage resulting from use of the service. This includes, but is not limited to, data loss, errors in AI responses, or downtime.',
     changesTitle: "10. Changes to terms",
-    changesBody: "We may update these terms. When significant changes are made, the date at the top of this page is updated. Continued use after changes implies acceptance of the new terms.",
+    changesBody:
+      "We may update these terms. When significant changes are made, the date at the top of this page is updated. Continued use after changes implies acceptance of the new terms.",
     contactTitle: "11. Contact",
     contactBody: "Questions about the terms can be directed to us via",
     contactLink: "the contact form",
@@ -1858,31 +1929,38 @@ export const enMessages = {
     categoryAccount: "Account",
     categoryFeatures: "Features",
     canvasTokenQ: "How do I get a Canvas API token?",
-    canvasTokenA: "Log in to Canvas, go to Settings → Approved Integrations, and click \"New Access Token\". Copy the token and paste it in StudyWise under Settings.",
+    canvasTokenA:
+      'Log in to Canvas, go to Settings → Approved Integrations, and click "New Access Token". Copy the token and paste it in StudyWise under Settings.',
     canvasTokenSettings: "Settings → Approved Integrations",
     canvasTokenButton: "New Access Token",
     canvasInstitutionsQ: "Which Canvas institutions are supported?",
-    canvasInstitutionsA: "StudyWise supports Canvas installations at Norwegian universities and colleges. Select your institution when connecting to Canvas.",
+    canvasInstitutionsA:
+      "StudyWise supports Canvas installations at Norwegian universities and colleges. Select your institution when connecting to Canvas.",
     dataSecureQ: "Is my data safe?",
     dataSecureA: "Yes, all sensitive data is encrypted with AES-256-GCM. Read more on our",
     dataSecureLink: "security page",
     thirdPartyQ: "Does StudyWise send data to third parties?",
-    thirdPartyA1: "Conversations are sent to Anthropic (Claude) for AI responses. Canvas data is fetched from your institution, and anonymized text excerpts may be sent to Pinecone (vector search) and Cohere (ranking) to provide better answers. Read our",
+    thirdPartyA1:
+      "Conversations are sent to Anthropic (Claude) for AI responses. Canvas data is fetched from your institution, and anonymized text excerpts may be sent to Pinecone (vector search) and Cohere (ranking) to provide better answers. Read our",
     thirdPartyLink: "privacy policy",
     thirdPartyA2: "for details.",
     deleteAccountQ: "How do I delete my account?",
     deleteAccountA1: "Go to Settings or",
     deleteAccountLink: "contact us",
-    deleteAccountA2: "to request account deletion. Account information and associated data will be deleted or anonymized, while limited security and audit logs may be retained in pseudonymized form for a limited period.",
+    deleteAccountA2:
+      "to request account deletion. Account information and associated data will be deleted or anonymized, while limited security and audit logs may be retained in pseudonymized form for a limited period.",
     withoutCanvasQ: "Can I use StudyWise without a Canvas token?",
-    withoutCanvasA: "Yes, you can use the AI chat and document analysis without connecting to Canvas. A Canvas token is only needed to fetch course data, assignments, and calendar.",
+    withoutCanvasA:
+      "Yes, you can use the AI chat and document analysis without connecting to Canvas. A Canvas token is only needed to fetch course data, assignments, and calendar.",
     fileTypesQ: "Which file types are supported for document analysis?",
-    fileTypesA: "StudyWise supports PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), images (PNG, JPG, WEBP), and common code files.",
+    fileTypesA:
+      "StudyWise supports PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), images (PNG, JPG, WEBP), and common code files.",
     knowledgeBaseQ: "What is a knowledge base?",
     knowledgeBaseA:
       "A knowledge base is a collection of links and files you add yourself. The content is indexed so the AI can use it as context when you chat. Type /basename (e.g. /schoolbase) as a separate message to activate a base in the conversation.",
     sharedChatsQ: "How long are shared conversations stored?",
-    sharedChatsA: "Shared conversation links are valid for 30 days. After that, the shared link is automatically deleted.",
+    sharedChatsA:
+      "Shared conversation links are valid for 30 days. After that, the shared link is automatically deleted.",
     notFound: "Didn't find the answer?",
     contactUs: "Contact us",
   },
@@ -1917,11 +1995,14 @@ export const enMessages = {
     sendMessage: "Send us a message",
     email: "Email: kontakt@studwize.page",
     feedbackTitle: "Feedback",
-    feedbackBody: "We appreciate all feedback that can help us improve StudyWise. Feel free to share your thoughts and suggestions.",
+    feedbackBody:
+      "We appreciate all feedback that can help us improve StudyWise. Feel free to share your thoughts and suggestions.",
     bugReportTitle: "Bug reporting",
-    bugReportBody: "Found a bug? Report it so we can fix it. Please include screenshots and steps to reproduce the error.",
+    bugReportBody:
+      "Found a bug? Report it so we can fix it. Please include screenshots and steps to reproduce the error.",
     universityTitle: "University of Southeast Norway",
-    universityBody: "StudyWise is a bachelor project at USN, Department of IT and Information Systems.",
+    universityBody:
+      "StudyWise is a bachelor project at USN, Department of IT and Information Systems.",
     mapTitle: "Find us here",
     mapLocation: "University of Southeast Norway, Campus Bø",
     mapIframeTitle: "Map USN Campus Bø",
@@ -1958,6 +2039,8 @@ export const enMessages = {
     networkError: "Could not send the message. Please try again later.",
     disclaimer: "Your inquiry is only used to respond to you.",
     disclaimerSensitive: "Avoid sending sensitive personal information.",
+    errorIdAttachedTitle: "Error ID attached to this report",
+    errorIdRemove: "Remove error ID",
   },
   infoPageLayout: {
     backToHome: "← Back to home",
@@ -1975,7 +2058,8 @@ export const enMessages = {
   minArbeidsplan: {
     retryButton: "Try again",
     emptyTitle: "No study plan yet",
-    emptyDescription: "Generate a weekly plan with AI and approve study blocks to see them here. You will be able to track your progress through the week.",
+    emptyDescription:
+      "Generate a weekly plan with AI and approve study blocks to see them here. You will be able to track your progress through the week.",
     personalPlanLabel: "Your personal study plan",
     deleteTitle: "Delete study plan",
     deleteConfirm: "Confirm deletion",
@@ -1994,7 +2078,8 @@ export const enMessages = {
     weekPriorities: "Which assignments and deadlines should I prioritize this week?",
     registeredCourses: "Which courses am I currently enrolled in?",
     summarizeAnnouncements: "Summarize new announcements and important updates from my courses",
-    latestModule: "Explain the most important content from the latest module or lecture in one of my courses",
+    latestModule:
+      "Explain the most important content from the latest module or lecture in one of my courses",
   },
   smartSuggestions: {
     followupLabel: "Follow-up suggestions:",
@@ -2070,7 +2155,7 @@ export const enMessages = {
     fileDeleteError: "Could not delete file",
     fileTooLarge: "File is too large (max 10 MB)",
     noFiles: "No files uploaded yet.",
-    aiTip: "Type \"use base {navn}\" in chat to activate this base as context for the AI.",
+    aiTip: 'Type "use base {navn}" in chat to activate this base as context for the AI.',
   },
   samtalehistorikk: {
     historyTab: "History",
@@ -2107,7 +2192,7 @@ export const enMessages = {
     steps: {
       chat: "AI Chat",
       chatDescription:
-        "Ask academic questions, get explanations, or help with assignments. You can choose how thorough the answer should be: \"Simple\" for quick overviews, \"Standard\" for balanced answers, \"Detailed\" for deeper walkthroughs, and \"Expert\" for academic depth with worked examples. Pick the level from the chat settings before you send your message. Tip: The \"Library\" and \"Conversations\" headers in the sidebar are clickable — click the label to open dedicated pages where you'll find the knowledge base, bookmarks, chat history, and management of shared chats. Use the arrow next to the header to expand or collapse the inline preview in the sidebar.",
+        'Ask academic questions, get explanations, or help with assignments. You can choose how thorough the answer should be: "Simple" for quick overviews, "Standard" for balanced answers, "Detailed" for deeper walkthroughs, and "Expert" for academic depth with worked examples. Pick the level from the chat settings before you send your message. Tip: The "Library" and "Conversations" headers in the sidebar are clickable — click the label to open dedicated pages where you\'ll find the knowledge base, bookmarks, chat history, and management of shared chats. Use the arrow next to the header to expand or collapse the inline preview in the sidebar.',
       canvas: "Canvas Integration",
       canvasDescription:
         "Connect Canvas LMS once and StudyWise automatically pulls in your courses, assignments, announcements, and reading materials. The AI chat can use your Canvas content as context — so answers are grounded in your own lecture notes and curriculum. Add your token under Settings → Canvas.",
@@ -2119,20 +2204,19 @@ export const enMessages = {
         "Pick a course and one or more modules from Canvas, and the AI will generate a multiple-choice quiz or flashcards based on your reading material. Perfect for self-testing before exams. You control the question count and difficulty.",
       knowledgeBase: "Knowledge Base",
       knowledgeBaseDescription:
-        "Build your own collections of links, PDFs, Word documents, and notes. StudyWise indexes the content and lets the AI chat use it as context when you ask questions — so answers are grounded in your own sources. Great for curriculum, project work, or your bachelor thesis. Create a base under \"Knowledge Base\" in the menu and upload files or paste URLs.",
+        'Build your own collections of links, PDFs, Word documents, and notes. StudyWise indexes the content and lets the AI chat use it as context when you ask questions — so answers are grounded in your own sources. Great for curriculum, project work, or your bachelor thesis. Create a base under "Knowledge Base" in the menu and upload files or paste URLs.',
       notifications: "Notifications",
       notificationsDescription:
         "Get notified as Canvas deadlines approach so nothing slips through the cracks. Enable browser push notifications, adjust how far in advance you want to be warned, and hide notifications for courses you're not actively following.",
       settings: "Settings & Account",
       settingsDescription:
-        "Under \"Settings\" you control your Canvas token, language (English/Norwegian), light/dark theme, notification preferences, and which courses to hide. Under \"Account\" you'll find your profile, password change, two-factor auth, and the option to export or delete all your data (GDPR). Everything is available from the menu in the top right.",
+        'Under "Settings" you control your Canvas token, language (English/Norwegian), light/dark theme, notification preferences, and which courses to hide. Under "Account" you\'ll find your profile, password change, two-factor auth, and the option to export or delete all your data (GDPR). Everything is available from the menu in the top right.',
     },
     getStarted: "Get started",
     next: "Next",
     previous: "Previous",
     skip: "Skip",
     stepOf: "Step {current} of {total}",
-    tipCanvasToken:
-      "Tip: Connect to Canvas in Settings to get the most out of StudyWise!",
+    tipCanvasToken: "Tip: Connect to Canvas in Settings to get the most out of StudyWise!",
   },
 } as const satisfies PartialMessages;
