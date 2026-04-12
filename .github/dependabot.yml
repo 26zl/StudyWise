@@ -12,6 +12,11 @@
 version: 2
 updates:
   # ── npm (pnpm-workspaces) ─────────────────────────────────────────────────
+  # Deaktivert: npm-oppdateringer håndteres av update-dependencies.yml som
+  # kjører `pnpm -r update` + typecheck/lint/build i én samle-PR.
+  # Dependabot her ville laget redundante PR-er med motstridende lockfile.
+  # Security-advisories (npm) fanges fortsatt automatisk av GitHub uavhengig
+  # av denne konfigurasjonen.
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
@@ -19,33 +24,7 @@ updates:
       day: "monday"
       time: "06:00"
       timezone: "Europe/Oslo"
-    open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "npm"
-    commit-message:
-      prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
-      include: "scope"
-    groups:
-      # Samler patch + minor per økosystem for å redusere PR-støy.
-      production-patches:
-        dependency-type: "production"
-        update-types:
-          - "patch"
-      development-patches:
-        dependency-type: "development"
-        update-types:
-          - "patch"
-      production-minor:
-        dependency-type: "production"
-        update-types:
-          - "minor"
-      development-minor:
-        dependency-type: "development"
-        update-types:
-          - "minor"
-    # Tillat nøkkelpakker å bli oppdatert; ingen hard ignore per nå.
+    open-pull-requests-limit: 0 # Deaktivert — kun security alerts åpner PR-er
 
   # ── GitHub Actions ────────────────────────────────────────────────────────
   - package-ecosystem: "github-actions"

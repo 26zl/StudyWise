@@ -189,7 +189,8 @@ jobs:
 
       - name: Generate SBOM
         run: >-
-          pnpm dlx @cyclonedx/cdxgen@12.1.3
+          pnpm --safe-chain-skip-minimum-package-age
+          dlx @cyclonedx/cdxgen@12.1.3
           -r
           -t nodejs
           --no-babel
