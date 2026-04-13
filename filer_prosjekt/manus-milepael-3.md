@@ -23,13 +23,13 @@
 
 **Taler: Laurent** — *ca. 50 sek*
 
-> "Dette prosjektet er basert på **vår egen idé** — vi har ikke hatt noen ekstern oppdragsgiver. Målet vi satte oss var å utvikle en KI-basert studieassistent som henter data direkte fra Canvas og hjelper studenten i hverdagen.
+> "Dette prosjektet er basert på **vår egen idé**, og vi har ikke hatt noen ekstern oppdragsgiver. Målet vårt har vært å utvikle en KI-basert studieassistent som henter data direkte fra Canvas og kan hjelpe studenten i hverdagen.
 >
-> Bakgrunnen er en problemstilling vi har sett for oss å kunne løse — det at man bruker en hel haug med separate verktøy parallelt. Canvas for kursinnhold og innleveringer, ChatGPT eller andre KI-verktøy for hjelp med oppgaver, en kalender-app for frister, et notatprogram for pensum, og kanskje også egne dokumenter spredt rundt på laptopen. Det blir kanskje litt vanskelig å holde styr på alle verktøyene og dataen som er lagret i de ulike, og det er tungt å holde oversikt.
+> Bakgrunnen for prosjektet er at studenter ofte må bruke mange ulike verktøy samtidig. Man bruker Canvas til kursinnhold og innleveringer, ChatGPT eller andre KI-verktøy når man trenger hjelp, kalender for å holde styr på frister, og gjerne egne notater og dokumenter i andre programmer. Når informasjonen er spredt på denne måten, blir det fort vanskelig å holde oversikt.
 >
-> Samtidig så har Canvas per nå ikke noen kunstig intelligent støtte — det er en bra plattform for å levere innhold, men den hjelper deg ikke videre når du står fast. Og selv om KI-verktøy som ChatGPT er gode i seg selv, så vet de jo ingenting om akkurat dine emner, dine pensumdokumenter eller dine frister.
+> Samtidig har ikke Canvas noen innebygd KI-støtte i dag. Plattformen fungerer bra til å dele ut innhold og håndtere innleveringer, men den hjelper deg ikke når du står fast faglig. KI-verktøy som ChatGPT er nyttige, men de kjenner ikke til akkurat dine emner, dine dokumenter eller dine frister.
 >
-> Det er ingen eksisterende løsning som faktisk kombinerer KI med studentens egne Canvas-data — og det er det gapet vi har prøvd å tette."
+> Det er dette gapet vi har ønsket å tette — ved å lage en løsning som kombinerer kunstig intelligens med studentens egne Canvas-data."
 
 ---
 
@@ -37,13 +37,13 @@
 
 **Taler: Laurent** — *ca. 45 sek*
 
-> "Løsningen vår på dette er **StudyWise** — en nettbasert plattform som samler alt fra Canvas på ett sted, og som gir studenten en KI-assistent som faktisk forstår pensumet i de emnene du tar.
+> "Løsningen vår er **StudyWise** — en nettbasert plattform som samler innhold fra Canvas på ett sted, og som gir studenten en KI-assistent som faktisk forstår pensumet i fagene man tar.
 >
-> I praksis betyr det at studenten logger inn med sin egen StudyWise-konto og kobler den opp mot Canvas, og umiddelbart får tilgang til alle kurs, oppgaver og dokumenter på samme sted. Videre har vi da en KI-assistent som lagrer alt dette og kan lese og håndtere all dataen fra Canvas.
+> I praksis logger studenten inn med sin egen StudyWise-konto og kobler den til Canvas. Da får man med en gang tilgang til kurs, oppgaver og dokumenter samlet på samme sted. I tillegg har vi utviklet en KI-assistent som kan bruke denne informasjonen til å hjelpe studenten videre, basert på egne fag, egne dokumenter og egne frister.
 >
-> Løsningen er også tilgjengelig på mobil og nettbrett.
+> Løsningen fungerer også på mobil og nettbrett.
 >
-> Nå skal Abdinasir gå nærmere inn på hvilke funksjoner vi faktisk har bygget."
+> Nå skal Abdinasir gå litt nærmere inn på hvilke funksjoner vi faktisk har bygget."
 
 ---
 
@@ -137,11 +137,11 @@
 
 **Taler: Laurent** — *ca. 50 sek*
 
-> "Når vi nå ser tilbake mot den opprinnelige planen vår, så har vi faktisk **levert mer enn vi planla**. **Quiz, flashcards, kunnskapsbasen, smarte fristvarsler, dokumentopplasting og deling av chat** var ikke en del av det opprinnelige scopet i det hele tatt — det er funksjoner vi la til underveis fordi vi så at de ga reell verdi for studenten, og fordi vi hadde tid og kapasitet til å gjøre det skikkelig.
+> "Når vi ser tilbake på den opprinnelige planen vår, har vi faktisk levert mer enn vi først hadde tenkt. **Quiz, flashcards, kunnskapsbase, smarte fristvarsler, dokumentopplasting og deling av chat** var egentlig ikke en del av det opprinnelige scopet. Det la vi til underveis fordi vi så at det ga faktisk verdi for studenten, og fordi vi hadde tid og kapasitet til å gjøre det skikkelig.
 >
-> **Kanban-modellen fungerte veldig godt** for et lite team som vårt. Vi kunne iterere raskt, og samtidig ha kontroll på hva som var gjort, hva som var i arbeid og hva som lå i kø. Vi har ikke helt gått etter Scrum-by-the-book, men vi har brukt mye av godene det kommer med.
+> **Kanban** fungerte veldig godt for et lite team som vårt. Vi kunne jobbe raskt og iterativt, samtidig som vi hele tiden hadde oversikt over hva som var gjort, hva som var i arbeid, og hva som gjensto. Vi har ikke fulgt Scrum helt slavisk, men vi har brukt mye av tankegangen og fordelene derfra.
 >
-> Den største utfordringen vi har hatt er **integrasjonen mot Canvas og studentdata uten tilgang til FEIDE eller FS**. Det er krevende, fordi det betyr at vi må bruke Canvas sin egen API direkte og håndtere autentisering selv, men vi har vist at det lar seg løse på en god og sikker måte."
+> Den største utfordringen har vært **integrasjonen mot Canvas og studentdata uten tilgang til FEIDE eller FS**. Det har vært krevende fordi vi måtte bruke Canvas sitt eget API direkte og håndtere autentisering selv. Likevel har vi vist at det går an å løse dette på en god og sikker måte."
 
 ---
 
