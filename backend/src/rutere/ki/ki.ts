@@ -1300,6 +1300,31 @@ function extractCourseIdFromContext(kontekst: string): string | null {
   return null;
 }
 
+function sanitizeStudentName(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const plain = stripHtml(value)
+    .replace(/[^\p{L}\p{M}\s'\-]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!plain) return null;
+  return plain.slice(0, 40);
+}
+
+function extractPreferredStudentFirstName(
+  profile: { firstName?: string | null; username?: string | null; email?: string | null } | null | undefined,
+): string | null {
+  const emailLocalPart = typeof profile?.email === "string" ? profile.email.split("@")[0] : null;
+  const candidates = [profile?.firstName, profile?.username, emailLocalPart];
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") continue;
+    const sanitized = sanitizeStudentName(candidate.replace(/[._-]+/g, " "));
+    if (!sanitized) continue;
+    const firstToken = sanitized.split(" ")[0]?.trim();
+    if (firstToken) return firstToken;
+  }
+  return null;
+}
+
 /**
  * Bygger tilleggsinstruksjoner for forklaringsnivå.
  * Injiseres i systemprompt basert på brukerens valg.
@@ -1468,8 +1493,55 @@ router.post("/chat", rateLimitKi, knyttCanvasTokenValgfritt, async (req, res) =>
   res.once("close", abortOnResponseEnd);
 
   try {
+    const bruker = await User.findOne({ _id: req.user.id, deletedAt: { $exists: false } })
+      .select("firstName username email canvasContextPreferences hiddenCourseIds")
+      .lean();
+
     // Start med base system prompt
     let enhancedSystemPrompt = STUDYWISE_SYSTEM_PROMPT;
+    const hasAssistantMessages = messages.some((m) => m.role === "assistant");
+    const firstUserMessage = messages.find((m) => m.role === "user")?.content ?? "";
+    const normalizedFirstUserMessage = normaliserSkrivefeil(firstUserMessage).trim();
+    const isFirstUserGreetingOnly =
+      /^(?:hei|heisann|hallo|hallais|hello|hi|god\s*dag|god\s*morgen|god\s*kveld|hey|yo)[\s!,.?]*$/iu
+        .test(normalizedFirstUserMessage);
+
+    const studentFirstName = extractPreferredStudentFirstName(bruker);
+
+    if (studentFirstName) {
+      enhancedSystemPrompt += `
+
+## Student Profile
+
+- The student's first name is "${studentFirstName}" (from account profile).
+- You may use this first name naturally when relevant.
+- Never use full names.
+`;
+
+      if (!hasAssistantMessages) {
+        enhancedSystemPrompt += `
+
+## First Reply Greeting
+
+This is the first assistant reply in this conversation.
+Start the response with a short, natural greeting that includes the student's first name, for example: "Hei ${studentFirstName}!".
+Then continue directly with the academic answer.
+`;
+
+        if (isFirstUserGreetingOnly) {
+          enhancedSystemPrompt += `
+
+## Greeting Strictness
+
+The student's first message is only a greeting.
+The very first sentence MUST include the student's first name.
+- If responding in Norwegian Bokmål, start with: "Hei ${studentFirstName}!"
+- If responding in English, start with: "Hi ${studentFirstName}!"
+Do not omit the name in this first sentence.
+`;
+        }
+      }
+    }
 
     // ——— Forklaringsnivå-tilpasning ———
     if (explanationLevel && explanationLevel !== "standard") {
@@ -1616,7 +1688,6 @@ router.post("/chat", rateLimitKi, knyttCanvasTokenValgfritt, async (req, res) =>
       const baseUrl = req.canvasBaseUrl;
 
       // Hent brukerens Canvas-kontekstpreferanser og skjulte emner
-      const bruker = await User.findOne({ _id: req.user.id, deletedAt: { $exists: false } }).select("canvasContextPreferences hiddenCourseIds").lean();
       const contextPrefs = bruker?.canvasContextPreferences ?? createDefaultCanvasContextPreferences();
       const hiddenCourseIds = new Set<number>(bruker?.hiddenCourseIds?.courseIds ?? []);
 

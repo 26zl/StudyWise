@@ -24,6 +24,7 @@ import { useKIStore } from "@/app/store/kiStore";
 import { fetchApi, downloadAuthedFile } from "@/app/lib/apiClient";
 import { formaterTall } from "@/app/lib/dato";
 import { parseApiError } from "@/app/lib/errorUtils";
+import { useMeg } from "@/app/auth/auth-api";
 
 const ALLOWED_CHAT_MODEL_IDS = new Set([
     "claude-sonnet-4-5",
@@ -156,6 +157,27 @@ function lagTilkoblingsBanner(error: Error | null | undefined): { melding: strin
     return getKIBannerForError(error);
 }
 
+function hentKontoFornavn(input: {
+    firstName?: string | null;
+    username?: string | null;
+    email?: string | null;
+} | null | undefined): string | null {
+    const epostLocalPart = typeof input?.email === "string" ? input.email.split("@")[0] : null;
+    const kandidater = [input?.firstName, input?.username, epostLocalPart];
+    for (const kandidat of kandidater) {
+        if (typeof kandidat !== "string") continue;
+        const renset = kandidat
+            .replace(/[._-]+/g, " ")
+            .replace(/[^\p{L}\p{M}\s'\-]/gu, "")
+            .replace(/\s+/g, " ")
+            .trim();
+        if (!renset) continue;
+        const fornavn = renset.split(" ")[0]?.trim();
+        if (fornavn) return fornavn.slice(0, 40);
+    }
+    return null;
+}
+
 export function ChatSection() {
     const { language, t } = useLanguage();
     const forslag = [
@@ -241,6 +263,11 @@ export function ChatSection() {
     ];
     const selectedModelLabel =
         modelOptions.find((model) => model.id === selectedChatModel)?.name ?? t("chat.modelAuto");
+    const megQuery = useMeg();
+    const kontoFornavn = hentKontoFornavn(megQuery.data?.user);
+    const tomtilstandTittel = kontoFornavn
+        ? t("chat.emptyStateTitleWithName", { name: kontoFornavn })
+        : t("chat.emptyStateTitle");
 
     const settAktivSamtale = useCallback((chatId: string | null) => {
         setAktivChatId(chatId);
@@ -1560,7 +1587,7 @@ export function ChatSection() {
                             <div className="text-center py-12">
                                 <Bot className="w-16 h-16 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
                                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-                                    {t("chat.emptyStateTitle")}
+                                    {tomtilstandTittel}
                                 </h3>
                                 <p className="text-sm text-slate-500 dark:text-slate-400">
                                     {t("chat.emptyStateSubtitle")}

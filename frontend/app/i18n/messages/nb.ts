@@ -1490,6 +1490,7 @@ export const nbMessages = {
     sendMessage: "Send melding",
     removeAttachment: "Fjern {name}",
     emptyStateTitle: "Hei! Hvordan kan jeg hjelpe deg?",
+    emptyStateTitleWithName: "Hei, {name}! Hvordan kan jeg hjelpe deg?",
     emptyStateSubtitle: "Jeg kan hjelpe deg med studier, Canvas-innhold og mye mer",
     appContentLabel: "Appinnhold",
     fileTooLarge: "Filen «{name}» er for stor. Maksimal filstørrelse er 15 MB.",

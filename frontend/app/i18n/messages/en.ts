@@ -1492,6 +1492,7 @@ export const enMessages = {
     sendMessage: "Send message",
     removeAttachment: "Remove {name}",
     emptyStateTitle: "Hi! How can I help you?",
+    emptyStateTitleWithName: "Hi, {name}! How can I help you?",
     emptyStateSubtitle: "I can help you with studying, Canvas content and much more",
     appContentLabel: "App content",
     fileTooLarge: 'The file "{name}" is too large. Maximum file size is 15 MB.',
