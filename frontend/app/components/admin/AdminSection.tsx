@@ -2334,6 +2334,14 @@ function BrukereFane() {
                               <>
                                 <button
                                   type="button"
+                                  onClick={() => setDetaljId(bruker.id)}
+                                  title={t("admin.users.viewDetails")}
+                                  className="rounded-lg p-1.5 text-slate-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                >
+                                  <Info size={16} />
+                                </button>
+                                <button
+                                  type="button"
                                   onClick={() => handleEndreRolle(bruker)}
                                   disabled={endreRolle.isPending}
                                   title={t("admin.users.changeRole")}
@@ -2366,14 +2374,6 @@ function BrukereFane() {
                                   </div>
                                 ) : (
                                   <>
-                                    <button
-                                      type="button"
-                                      onClick={() => setDetaljId(bruker.id)}
-                                      title={t("admin.users.viewDetails")}
-                                      className="rounded-lg p-1.5 text-slate-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                                    >
-                                      <Info size={16} />
-                                    </button>
                                     <button
                                       type="button"
                                       onClick={() => handleClearRelinkGuard(bruker.id)}
