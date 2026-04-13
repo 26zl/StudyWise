@@ -150,15 +150,22 @@ export function Sidebar({
     }, [pathname, pendingPathname]);
 
     useEffect(() => {
-        if (pathname !== "/dashboard") {
-            setPendingVisning(null);
+        if (pendingVisning == null) {
             return;
         }
 
-        if (pendingVisning != null && pendingVisning === aktivVisning) {
+        // Behold optimistisk dashboard-visning mens ruteovergangen til /dashboard pågår.
+        if (pathname !== "/dashboard") {
+            if (pendingPathname !== "/dashboard") {
+                setPendingVisning(null);
+            }
+            return;
+        }
+
+        if (pendingVisning === aktivVisning) {
             setPendingVisning(null);
         }
-    }, [pathname, pendingVisning, aktivVisning]);
+    }, [pathname, pendingPathname, pendingVisning, aktivVisning]);
 
     const lukkVenstreMenyHvisMobil = useCallback(() => {
         if (erMobil) {
