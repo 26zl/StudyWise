@@ -15,7 +15,7 @@
 
 > "Hei, og velkommen til vår presentasjon av bacheloroppgaven vår. Vi er fire studenter — Laurent, Abdinasir, Ylli og meg, Anwar — og det vi skal vise dere i dag heter **StudyWise**. Det er en KI-basert studieassistent som er bygget for å være tett integrert med Canvas, læringsplattformen som mange norske universiteter og høyskoler bruker.
 >
-> I løpet av de neste minuttene skal vi gå gjennom hvilket oppdrag vi fikk, hvilken løsning vi har bygget, hvilke funksjoner som er på plass, hvordan vi har jobbet som team, og så viser vi dere de viktigste delene av selve produktet. Helt til slutt reflekterer vi rundt hva vi har lært underveis. Da gir jeg ordet til Laurent, som tar oss gjennom oppdraget."
+> I løpet av de neste minuttene skal vi gå gjennom hva vi har jobbet med, hvilken løsning vi har bygget, hvilke funksjoner som er på plass, hvordan vi har jobbet som team, og så viser vi dere de viktigste delene av selve produktet. Helt til slutt reflekterer vi rundt hva vi har lært underveis. Da gir jeg ordet til Laurent, som tar oss gjennom oppdraget."
 
 ---
 
@@ -23,13 +23,13 @@
 
 **Taler: Laurent** — *ca. 50 sek*
 
-> "Oppdragsgiveren vår er **Universitetet i Sørøst-Norge**, og oppdraget i sin helhet gikk ut på å utvikle en KI-basert studieassistent som henter data direkte fra Canvas og hjelper studenten i hverdagen.
+> "Dette prosjektet er basert på **vår egen idé** — vi har ikke hatt noen ekstern oppdragsgiver. Målet vi satte oss var å utvikle en KI-basert studieassistent som henter data direkte fra Canvas og hjelper studenten i hverdagen.
 >
-> Bakgrunnen for oppdraget er en problemstilling vi alle kjenner igjen som studenter selv: man bruker en hel haug med separate verktøy parallelt. Canvas for kursinnhold og innleveringer, ChatGPT eller andre KI-verktøy for hjelp med oppgaver, en kalender-app for frister, et notatprogram for pensum, og kanskje også egne dokumenter spredt rundt på laptopen. Det blir fragmentert, og det er tungt å holde oversikt.
+> Bakgrunnen er en problemstilling vi har sett for oss å kunne løse — det at man bruker en hel haug med separate verktøy parallelt. Canvas for kursinnhold og innleveringer, ChatGPT eller andre KI-verktøy for hjelp med oppgaver, en kalender-app for frister, et notatprogram for pensum, og kanskje også egne dokumenter spredt rundt på laptopen. Det blir kanskje litt vanskelig å holde styr på alle verktøyene og dataen som er lagret i de ulike, og det er tungt å holde oversikt.
 >
-> Samtidig ser vi at Canvas i seg selv mangler intelligent støtte — det er en bra plattform for å levere innhold, men den hjelper deg ikke med å planlegge studiehverdagen, og den forklarer ikke pensum for deg når du står fast. Og selv om KI-verktøy som ChatGPT er gode i seg selv, så vet de jo ingenting om akkurat dine emner, dine pensumdokumenter eller dine frister.
+> Samtidig så har Canvas per nå ikke noen kunstig intelligent støtte — det er en bra plattform for å levere innhold, men den hjelper deg ikke videre når du står fast. Og selv om KI-verktøy som ChatGPT er gode i seg selv, så vet de jo ingenting om akkurat dine emner, dine pensumdokumenter eller dine frister.
 >
-> Det er ingen eksisterende løsning som faktisk kombinerer KI med studentens egne Canvas-data — og det er det gapet vi har angrepet."
+> Det er ingen eksisterende løsning som faktisk kombinerer KI med studentens egne Canvas-data — og det er det gapet vi har prøvd å tette."
 
 ---
 
@@ -37,11 +37,11 @@
 
 **Taler: Laurent** — *ca. 45 sek*
 
-> "Løsningen vår er **StudyWise** — en nettbasert plattform som samler alt fra Canvas på ett sted, og som gir studenten en KI-assistent som faktisk forstår pensumet i de emnene du tar.
+> "Løsningen vår på dette er **StudyWise** — en nettbasert plattform som samler alt fra Canvas på ett sted, og som gir studenten en KI-assistent som faktisk forstår pensumet i de emnene du tar.
 >
-> I praksis betyr det at studenten logger inn med sin egen Canvas-konto, og umiddelbart får tilgang til alle kurs, oppgaver og dokumenter på samme sted. Oppe i det har vi lagt en KI-assistent og en smart søkefunksjon som finner relevante deler av pensum på tvers av alle emner — uansett om man husker eksakt hva det heter eller ikke.
+> I praksis betyr det at studenten logger inn med sin egen StudyWise-konto og kobler den opp mot Canvas, og umiddelbart får tilgang til alle kurs, oppgaver og dokumenter på samme sted. Videre har vi da en KI-assistent som lagrer alt dette og kan lese og håndtere all dataen fra Canvas.
 >
-> Hele løsningen er bygget **mobil-først**, slik at den fungerer like godt på telefonen i kollektivtrafikken som på laptopen hjemme. Og innloggingen skjer med eksisterende konto — det er ingen ny brukeradministrasjon å forholde seg til.
+> Løsningen er også tilgjengelig på mobil og nettbrett.
 >
 > Nå skal Abdinasir gå nærmere inn på hvilke funksjoner vi faktisk har bygget."
 
@@ -55,9 +55,7 @@
 >
 > StudyWise henter automatisk inn alle **kurs, oppgaver, frister, moduler og kunngjøringer** fra Canvas. Studenten slipper å klikke seg gjennom hvert enkelt emne for å finne ut hva som skjer — alt ligger samlet på ett dashboard. Vi har en innebygd **kalender** med alle innleveringsdatoer og hendelser, slik at man får en visuell oversikt over hele semesteret.
 >
-> En av tingene vi er mest stolte av er **smarte fristvarsler**. I stedet for å sende et standardvarsel 24 timer før, så vurderer systemet hvor kompleks oppgaven er — og varsler tidlig nok til at studenten faktisk rekker å gjøre et godt stykke arbeid.
->
-> Den andre delen er **KI-assistenten**. Studentene kan chatte med en KI som har full kontekst fra deres egne emner og pensum. Det betyr at hvis du spør om noe knyttet til et bestemt emne, så vet KI-en hvilke moduler, dokumenter og forelesningsnotater den skal hente fra. Studentene kan også **laste opp egne dokumenter** og få analyse, oppsummering eller forklaring i klartekst. Og det smarte søket finner relevante deler av pensum på tvers av kurs ved hjelp av en kombinasjon av semantisk søk og nøkkelordsøk."
+> Den andre delen er **KI-assistenten**. Studentene kan chatte med en KI som har full kontekst fra deres egne emner og pensum. Det betyr at hvis du spør om noe knyttet til et bestemt emne, så vet KI-en hvilke moduler, dokumenter og forelesningsnotater den skal hente fra. Og det smarte søket finner relevante deler av pensum på tvers av kurs ved hjelp av intelligent søk."
 
 ---
 
@@ -72,8 +70,6 @@
 > For det andre **genererer den ukeplaner** basert på alle aktive oppgavene dine — den ser hva du har av frister, hvor mye tid hver oppgave krever, og legger en plan du faktisk kan følge.
 >
 > For det tredje genererer den **quizer og flashcards automatisk fra kursinnholdet** — perfekt når du skal repetere før eksamen og ikke gidder å lage hundrevis av flashcards selv.
->
-> Og til slutt har vi **eksport av KI-svar og deling av chat med medstudenter**, slik at man kan jobbe sammen rundt det samme materialet. Det gjør StudyWise til et verktøy som ikke bare hjelper deg som enkeltstudent, men som også støtter samarbeid i kollokvier.
 >
 > Da gir jeg ordet videre til Anwar."
 
@@ -101,7 +97,7 @@
 >
 > **Fase 2 — Canvas-data:** Her hentet vi inn og viste oppgaver, frister, kunngjøringer og kalender på en oversiktlig måte. Det er denne fasen som gjør at studenten får verdi fra dag én, selv før KI-en er involvert.
 >
-> **Fase 3 — KI-kjernen:** Selve KI-assistenten med tilgang til pensum og dokumenter. Vi bruker Claude-modellen fra Anthropic, og henter relevant kontekst via semantisk søk i en vektordatabase som heter Pinecone.
+> **Fase 3 — KI-kjernen:** Selve KI-assistenten med tilgang til pensum og dokumenter. Vi bruker en KI-modell og henter relevant kontekst via en vektordatabase.
 >
 > **Fase 4 — Studieverktøy:** Her bygget vi quizer, flashcards, ukeplaner og oppgavenedbrytning oppå KI-en.
 >
@@ -117,7 +113,7 @@
 
 > "Da skal jeg ta dere gjennom de viktigste delene av StudyWise. I stedet for å gjøre en full live-demo har vi valgt å vise dere skjermbilder fra produktet — det gjør at vi får frem akkurat det vi vil at dere skal se, uten risiko for at nettverk eller backend skaper trøbbel underveis.
 >
-> **Brukerregistrering:** Her ser dere hvordan en ny student oppretter konto. Vi bruker Clerk for autentisering, så registreringen er rask, sikker og støtter både e-post og innlogging via tredjepart.
+> **Brukerregistrering:** Her ser dere hvordan en ny student oppretter konto. Vi bruker en sikker autentiseringsløsning, så registreringen er rask og støtter både e-post og innlogging via tredjepart.
 >
 > **Canvas-tilkobling:** Etter registrering kobler studenten sin egen Canvas-konto ved hjelp av en API-token. Tokenen krypteres og lagres trygt i databasen, og StudyWise henter umiddelbart inn alle kurs, oppgaver og frister i bakgrunnen.
 >
@@ -141,9 +137,9 @@
 
 **Taler: Laurent** — *ca. 50 sek*
 
-> "Når vi nå ser tilbake mot den opprinnelige planen vår, så er konklusjonen veldig klar: vi har faktisk **levert mer enn vi planla**. **Quiz, flashcards og kunnskapsbasen** var ikke en del av det opprinnelige scopet i det hele tatt — det er funksjoner vi la til underveis fordi vi så at de ga reell verdi for studenten, og fordi vi hadde tid og kapasitet til å gjøre det skikkelig.
+> "Når vi nå ser tilbake mot den opprinnelige planen vår, så har vi faktisk **levert mer enn vi planla**. **Quiz, flashcards, kunnskapsbasen, smarte fristvarsler, dokumentopplasting og deling av chat** var ikke en del av det opprinnelige scopet i det hele tatt — det er funksjoner vi la til underveis fordi vi så at de ga reell verdi for studenten, og fordi vi hadde tid og kapasitet til å gjøre det skikkelig.
 >
-> **Kanban-modellen fungerte veldig godt** for et lite team som vårt. Vi kunne iterere raskt uten tunge sprintseremonier, og samtidig ha kontroll på hva som var gjort, hva som var i arbeid og hva som lå i kø. Det er ikke alltid Scrum-by-the-book som passer best — for et lite team er det viktigste at man har et system man faktisk bruker.
+> **Kanban-modellen fungerte veldig godt** for et lite team som vårt. Vi kunne iterere raskt, og samtidig ha kontroll på hva som var gjort, hva som var i arbeid og hva som lå i kø. Vi har ikke helt gått etter Scrum-by-the-book, men vi har brukt mye av godene det kommer med.
 >
 > Den største utfordringen vi har hatt er **integrasjonen mot Canvas og studentdata uten tilgang til FEIDE eller FS**. Det er krevende, fordi det betyr at vi må bruke Canvas sin egen API direkte og håndtere autentisering selv, men vi har vist at det lar seg løse på en god og sikker måte."
 
@@ -191,3 +187,97 @@
 - **Demoen er den viktigste delen** — alt før bygger opp til den, alt etter forklarer hvordan dere kom dit.
 - **Hvis demoen feiler:** ha screenshots klare som backup, og fortsett uten å bli stresset.
 - **Pust mellom setningene.** Det er det beste virkemiddelet mot å snakke for fort.
+
+---
+
+## Mulige spørsmål og forslag til svar
+
+### Hva er tech-stacken deres?
+
+> "Frontend er bygget med Next.js og React, med Tailwind for styling. Backend kjører Express med TypeScript. Vi bruker MongoDB som database og Redis for caching. For KI bruker vi en stor språkmodell via API, og for søk bruker vi en vektordatabase. Alt kjører som en monorepo med pnpm workspaces."
+
+*(Hvis de spør mer spesifikt om versjoner: Next.js 16, React 19, Express 5, Mongoose 9, og alt er ES modules med strikt TypeScript.)*
+
+---
+
+### Hvordan håndterer dere kryptering av Canvas-tokenet?
+
+> "Vi bruker AES-256-GCM, som er en NIST-godkjent krypteringsstandard. Tokenet krypteres med en 32-byte nøkkel, og vi genererer en ny tilfeldig IV for hver kryptering — så selv om samme token krypteres to ganger, blir resultatet forskjellig. Vi lagrer aldri tokenet i klartekst, og det eksponeres aldri for klienten. Vi har også støtte for nøkkelrotasjon, slik at vi kan bytte krypteringsnøkkel uten at brukerne merker det."
+
+---
+
+### Hvorfor brukte dere ikke FEIDE eller LTI?
+
+> "Vi hadde ikke tilgang til FEIDE-integrasjon eller FS som studentprosjekt — det krever avtaler på institusjonsnivå. Derfor bruker vi Canvas sin offisielle REST-API direkte, og studenten kobler seg til via en personlig API-token. Arkitekturen er likevel tilrettelagt for en eventuell LTI 1.3-integrasjon i fremtiden."
+
+---
+
+### Hvordan fungerer KI-chatten teknisk?
+
+> "Når studenten sender en melding, laster vi først inn relevant kontekst fra Canvas — emner, oppgaver, moduler og pensumdokumenter. Deretter sender vi spørsmålet sammen med konteksten til KI-modellen, som svarer i en strøm tilbake til brukeren via Server-Sent Events. Hele svaret lagres i databasen etterpå slik at chathistorikken er tilgjengelig."
+
+---
+
+### Hvordan vet KI-en hva som er relevant pensum?
+
+> "Vi bruker en kombinasjon av to søkemetoder. Først gjør vi et semantisk søk som finner innhold basert på mening, ikke bare eksakte ord. Samtidig kjører vi et nøkkelordsøk. Resultatene fra begge slås sammen og rangeres på nytt, slik at de mest relevante delene av pensum havner øverst. Det er dette vi kaller hybrid søk."
+
+---
+
+### Hva med personvern og GDPR?
+
+> "Systemet behandler kun brukerens egne data — vi henter ingenting fra andre studenter. Canvas-tokenet er kryptert og lagres aldri i klartekst. Vi har full kontosletting der alle data fjernes: chathistorikk, dokumenter, vektorer i søkedatabasen, cache — alt. Vi oppretter en tombstone som auto-slettes etter 90 dager for å hindre at kontoen gjenopprettes ved uhell. Slettingen kjører i en databasetransaksjon, og hvis noe feiler har vi en retry-kø som prøver igjen."
+
+---
+
+### Hvordan sikrer dere APIet?
+
+> "Vi har flere lag med sikkerhet. Først validerer vi opprinnelsen til forespørselen, så kjører vi sikkerhetsheadere via Helmet. Vi har CSRF-beskyttelse som krever en spesiell header fra frontenden, og rate limiting på alle endepunkter — for eksempel maks 50 KI-forespørsler per 5 minutter. Alt autentiseres via Bearer-tokens. I tillegg kjører vi hemmelighetsscanning og sårbarhetsskanning i CI-pipelinen."
+
+---
+
+### Hva slags testing har dere?
+
+> "Vi bruker Vitest som testrammeverk og har over 350 testfiler. Vi tester kryptering, autentisering, CSRF, rate limiting, dokumentparsing og mer. I tillegg har vi CI som kjører ved hver commit — det inkluderer enhetstester, typesjekking, linting, markdown-linting, avhengighetsskanning og hemmelighetsscanning. Ingenting kan merges uten at alt er grønt."
+
+---
+
+### Hvordan fungerer kunnskapsbasen?
+
+> "Studenten kan opprette personlige kunnskapsbaser og legge til lenker eller laste opp filer — PDF, Word, tekstfiler og Markdown. Innholdet deles opp i mindre biter, og hver bit gjøres om til en vektor som lagres i søkedatabasen. Når studenten spør KI-en noe, søker vi i både Canvas-pensum og kunnskapsbasen for å finne det mest relevante innholdet."
+
+---
+
+### Hvorfor valgte dere denne arkitekturen?
+
+> "Vi ville ha et klart skille mellom frontend og backend slik at de kan utvikles og skaleres uavhengig. Monorepo med delte typer i en felles pakke gir oss typesikkerhet på tvers. Redis gir oss rask caching av Canvas-data med 2 timers levetid, og MongoDB gir fleksibiliteten vi trenger for ustrukturerte data som chathistorikk og dokumentchunks."
+
+---
+
+### Har dere tenkt på skalering?
+
+> "Ja. Backend er stateless — all tilstand ligger i MongoDB, Redis og vektordatabasen. Det betyr at vi kan kjøre flere instanser bak en lastbalanserer. Rate limiting er Redis-basert slik at det fungerer på tvers av instanser, og vi har distribuerte låser for å hindre at samme Canvas-synkronisering kjører parallelt."
+
+---
+
+### Hva ville dere gjort annerledes?
+
+> "I etterkant ser vi at vi burde ha satt opp integrasjonstester enda tidligere. Vi har god dekning på enhetstester, men ende-til-ende-testing kom litt sent. Vi ville også vurdert å bruke LTI fra starten om vi hadde hatt tilgang — det ville forenklet Canvas-integrasjonen betraktelig."
+
+---
+
+### Hvordan håndterer dere at KI-en kan gi feil svar?
+
+> "KI-en fungerer som beslutningsstøtte — den gir forslag som studenten selv må vurdere. Vi forankrer svarene i faktisk pensum fra Canvas, noe som reduserer hallusinering. Men vi er tydelige på at dette er et hjelpeverktøy, ikke en fasit. Studenten ser hvilke kilder svaret er basert på, og kan alltid gå tilbake til originalkilden."
+
+---
+
+### Hvor mange brukere har dere?
+
+> *(Svar basert på faktiske tall dere har — men vær forberedt på å svare på dette.)*
+
+---
+
+### Hva er forskjellen mellom StudyWise og ChatGPT?
+
+> "ChatGPT er et generelt KI-verktøy som ikke vet noe om dine emner, frister eller pensum. StudyWise er bygget spesifikt for studenter og henter data direkte fra Canvas. KI-en vår svarer med kontekst fra ditt faktiske pensum, og i tillegg har du studieverktøy som ukeplaner, quizer og flashcards — ting ChatGPT ikke tilbyr i kontekst av studiene dine."
