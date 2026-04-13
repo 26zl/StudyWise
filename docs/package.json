@@ -15,6 +15,6 @@
         "vue": "^3.5.32"
     },
     "optionalDependencies": {
-        "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.13"
+        "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.15"
     }
 }

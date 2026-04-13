@@ -96,7 +96,7 @@
     }
   ],
   "devDependencies": {
-    "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.13",
+    "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.15",
     "@size-limit/preset-app": "^12.0.1",
     "@types/node": "^25.6.0",
     "concurrently": "^9.2.1",
