@@ -168,7 +168,7 @@ function hentKontoFornavn(input: {
         if (typeof kandidat !== "string") continue;
         const renset = kandidat
             .replace(/[._-]+/g, " ")
-            .replace(/[^\p{L}\p{M}\s'\-]/gu, "")
+            .replace(/[^\p{L}\p{M}\s'-]/gu, "")
             .replace(/\s+/g, " ")
             .trim();
         if (!renset) continue;

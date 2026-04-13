@@ -1303,7 +1303,7 @@ function extractCourseIdFromContext(kontekst: string): string | null {
 function sanitizeStudentName(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
   const plain = stripHtml(value)
-    .replace(/[^\p{L}\p{M}\s'\-]/gu, "")
+    .replace(/[^\p{L}\p{M}\s'-]/gu, "")
     .replace(/\s+/g, " ")
     .trim();
   if (!plain) return null;
