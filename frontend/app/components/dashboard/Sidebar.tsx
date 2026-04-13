@@ -150,15 +150,22 @@ export function Sidebar({
     }, [pathname, pendingPathname]);
 
     useEffect(() => {
-        if (pathname !== "/dashboard") {
-            setPendingVisning(null);
+        if (pendingVisning == null) {
             return;
         }
 
-        if (pendingVisning != null && pendingVisning === aktivVisning) {
+        // Behold optimistisk dashboard-visning mens ruteovergangen til /dashboard pågår.
+        if (pathname !== "/dashboard") {
+            if (pendingPathname !== "/dashboard") {
+                setPendingVisning(null);
+            }
+            return;
+        }
+
+        if (pendingVisning === aktivVisning) {
             setPendingVisning(null);
         }
-    }, [pathname, pendingVisning, aktivVisning]);
+    }, [pathname, pendingPathname, pendingVisning, aktivVisning]);
 
     const lukkVenstreMenyHvisMobil = useCallback(() => {
         if (erMobil) {
@@ -438,39 +445,41 @@ export function Sidebar({
 
                     {/* Chat-historikk */}
                     <div className="mb-10">
-                        <NavElement view="chat" icon={MessageSquare} label={t("dashboard.sidebar.aiAssistant")} isActiveOverride={erChatAktiv} />
+                        <div className="space-y-1.5">
+                            <NavElement view="chat" icon={MessageSquare} label={t("dashboard.sidebar.aiAssistant")} isActiveOverride={erChatAktiv} />
 
-                        {/* Oppgavedeling med KI */}
-                        <Link
-                            href="/ai-breakdown"
-                            prefetch={false}
-                            aria-current={effektivPathname === "/ai-breakdown" ? "page" : undefined}
-                            onClick={() => {
-                                setPendingVisning(null);
-                                setPendingPathname("/ai-breakdown");
-                                lukkVenstreMenyHvisMobil();
-                            }}
-                            className={`
-                                w-full flex items-center gap-3 px-5 py-3.5 rounded-xl text-left text-sm
-                                transition-colors duration-150
-                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
-                                ${effektivPathname === "/ai-breakdown"
-                                    ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
-                                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
-                                }
-                            `}
-                        >
-                            <Sparkles size={18} className="shrink-0" />
-                            <span className="truncate">{t("dashboard.sidebar.taskBreakdown")}</span>
-                        </Link>
+                            {/* Oppgavedeling med KI */}
+                            <Link
+                                href="/ai-breakdown"
+                                prefetch={false}
+                                aria-current={effektivPathname === "/ai-breakdown" ? "page" : undefined}
+                                onClick={() => {
+                                    setPendingVisning(null);
+                                    setPendingPathname("/ai-breakdown");
+                                    lukkVenstreMenyHvisMobil();
+                                }}
+                                className={`
+                                    w-full flex items-center gap-3 px-5 py-3.5 rounded-xl text-left text-sm
+                                    transition-colors duration-150
+                                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
+                                    ${effektivPathname === "/ai-breakdown"
+                                        ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
+                                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
+                                    }
+                                `}
+                            >
+                                <Sparkles size={18} className="shrink-0" />
+                                <span className="truncate">{t("dashboard.sidebar.taskBreakdown")}</span>
+                            </Link>
 
-                        {/* Quiz med KI */}
-                        <NavElement
-                            view="quiz"
-                            icon={Brain}
-                            label={t("dashboard.sidebar.quiz")}
-                            isActiveOverride={erPåDashboard && (effektivVisning === "quiz" || effektivVisning === "flashcards")}
-                        />
+                            {/* Quiz med KI */}
+                            <NavElement
+                                view="quiz"
+                                icon={Brain}
+                                label={t("dashboard.sidebar.quiz")}
+                                isActiveOverride={erPåDashboard && (effektivVisning === "quiz" || effektivVisning === "flashcards")}
+                            />
+                        </div>
 
                         <div className={`flex items-center justify-between px-5 ${erBookmarksUtvidet ? "pt-5 pb-2" : "pt-3 pb-1"}`}>
                             <Link
