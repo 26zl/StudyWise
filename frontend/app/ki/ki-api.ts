@@ -952,7 +952,8 @@ export async function generateQuizApi(
   );
   captureProductEvent("quiz_generated", {
     questionCount: validated.questionCount,
-    moduleCount: validated.moduleNames.length,
+    moduleCount: validated.moduleNames?.length ?? 0,
+    fileCount: validated.fileNames?.length ?? 0,
   });
   return response;
 }
@@ -972,7 +973,8 @@ export async function generateFlashcardsApi(
   );
   captureProductEvent("flashcards_generated", {
     cardCount: validated.cardCount,
-    moduleCount: validated.moduleNames.length,
+    moduleCount: validated.moduleNames?.length ?? 0,
+    fileCount: validated.fileNames?.length ?? 0,
   });
   return response;
 }

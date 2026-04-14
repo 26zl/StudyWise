@@ -139,9 +139,8 @@
 
 > "Når vi ser tilbake på den opprinnelige planen vår, har vi faktisk levert mer enn vi først hadde tenkt. **Quiz, flashcards, kunnskapsbase, smarte fristvarsler, dokumentopplasting og deling av chat** var egentlig ikke en del av det opprinnelige scopet. Det la vi til underveis fordi vi så at det ga faktisk verdi for studenten, og fordi vi hadde tid og kapasitet til å gjøre det skikkelig.
 >
-> **Kanban** fungerte veldig godt for et lite team som vårt. Vi kunne jobbe raskt og iterativt, samtidig som vi hele tiden hadde oversikt over hva som var gjort, hva som var i arbeid, og hva som gjensto. Vi har ikke fulgt Scrum helt slavisk, men vi har brukt mye av tankegangen og fordelene derfra.
->
-> Den største utfordringen har vært **integrasjonen mot Canvas og studentdata uten tilgang til FEIDE eller FS**. Det har vært krevende fordi vi måtte bruke Canvas sitt eget API direkte og håndtere autentisering selv. Likevel har vi vist at det går an å løse dette på en god og sikker måte."
+> **Kanban** fungerte veldig godt for et lite team som vårt. Vi kunne jobbe raskt og iterativt, samtidig som vi hele tiden hadde oversikt over hva som var gjort, hva som var i arbeid, og hva som gjensto.
+> Den største utfordringen har vært **integrasjonen mot Canvas og studentdata uten tilgang til FEIDE eller FS**. Det har vært krevende fordi vi selv måtte håndtere autentisering, identitetsknytning og sikker tilgang til brukerdata. Selve Canvas-dataene hentes fortsatt gjennom Canvas sine egne API-er, men uten støtte fra FEIDE og FS ble integrasjonen mer kompleks. Likevel har vi vist at dette kan løses på en god og sikker måte."
 
 ---
 

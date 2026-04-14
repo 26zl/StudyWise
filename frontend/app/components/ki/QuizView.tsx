@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { useLanguage } from "@/app/i18n";
-import { useCanvasCourses, useCanvasModules } from "@/app/canvas/canvas-api";
+import { useCanvasCourses, useCanvasModules, useCanvasFiles } from "@/app/canvas/canvas-api";
 import { useHiddenCourseIds } from "@/app/auth/auth-api";
 import { CanvasTokenNotice } from "@/app/components/canvas/CanvasTokenNotice";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
@@ -102,12 +102,14 @@ function MultiSelectDropdown({
   options,
   onToggle,
   disabled,
+  countLabel,
 }: {
   label: string;
   selected: string[];
   options: { id: string; name: string }[];
   onToggle: (id: string) => void;
   disabled?: boolean;
+  countLabel?: string;
 }) {
   const { t } = useLanguage();
   const selectedNames = options.filter((o) => selected.includes(o.id)).map((o) => o.name);
@@ -123,7 +125,7 @@ function MultiSelectDropdown({
         {selectedNames.length > 0
           ? selectedNames.length <= 2
             ? selectedNames.join(", ")
-            : t("quiz.modulesSelected", { count: selectedNames.length })
+            : (countLabel ?? t("quiz.modulesSelected", { count: selectedNames.length }))
           : label}
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -810,6 +812,8 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
   const [phase, setPhase] = useState<QuizPhase>("setup");
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  const [contentTab, setContentTab] = useState<"modules" | "files">("modules");
   const [questionCount, setQuestionCount] = useState(10);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
@@ -842,12 +846,14 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
         phase?: QuizPhase;
         selectedCourseId?: string | null;
         selectedModules?: string[];
+        selectedFiles?: string[];
         questionCount?: number;
         quizQuestions?: QuizQuestion[];
         flashcards?: Flashcard[];
       };
       if (parsed.selectedCourseId !== undefined) setSelectedCourseId(parsed.selectedCourseId);
       if (parsed.selectedModules) setSelectedModules(parsed.selectedModules);
+      if (parsed.selectedFiles) setSelectedFiles(parsed.selectedFiles);
       if (typeof parsed.questionCount === "number") {
         const nesteAntall = Math.max(1, Math.min(50, Math.trunc(parsed.questionCount)));
         setQuestionCount(nesteAntall);
@@ -873,6 +879,7 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
       phase,
       selectedCourseId,
       selectedModules,
+      selectedFiles,
       questionCount,
       quizQuestions,
       flashcards,
@@ -882,7 +889,7 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
     } catch {
       // Ignorer lagringsfeil
     }
-  }, [phase, selectedCourseId, selectedModules, questionCount, quizQuestions, flashcards]);
+  }, [phase, selectedCourseId, selectedModules, selectedFiles, questionCount, quizQuestions, flashcards]);
 
   // Sørger for at pågående jobber gjenopptas etter navigasjon.
   useEffect(() => {
@@ -913,6 +920,10 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
     selectedNumericId,
     harCanvasToken,
   );
+  const { data: filesData, isLoading: filesLoading } = useCanvasFiles(
+    selectedNumericId,
+    harCanvasToken,
+  );
 
   // Transformer Canvas-kurs til dropdown-options (ekskluder skjulte emner)
   const allCourses = coursesData?.courses ?? [];
@@ -934,6 +945,14 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
     name: m.name,
   }));
 
+  // Transformer Canvas-filer til dropdown-options (kun støttede filtyper)
+  const fileOptions: ModuleOption[] = (filesData ?? [])
+    .filter((f) => /\.(pdf|docx?|pptx?|txt|html?)$/i.test(f.display_name))
+    .map((f) => ({
+      id: String(f.id),
+      name: f.display_name,
+    }));
+
   useEffect(() => {
     if (!selectedCourseId || coursesLoading) return;
     if (selectedCourse) return;
@@ -941,6 +960,7 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
     // Rydd bort lagret emnevalg som ikke lenger finnes for denne brukeren.
     setSelectedCourseId(null);
     setSelectedModules([]);
+    setSelectedFiles([]);
     setError(null);
   }, [coursesLoading, selectedCourse, selectedCourseId]);
 
@@ -954,16 +974,45 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
     });
   }, [moduleOptions, modulesLoading, selectedCourseId]);
 
+  useEffect(() => {
+    if (!selectedCourseId || filesLoading) return;
+
+    const gyldigeFiler = new Set(fileOptions.map((f) => f.id));
+    setSelectedFiles((prev) => {
+      const neste = prev.filter((id) => gyldigeFiler.has(id));
+      return neste.length === prev.length ? prev : neste;
+    });
+  }, [fileOptions, filesLoading, selectedCourseId]);
+
+  // Bytt automatisk til filer-fanen hvis emnet ikke har moduler men har filer
+  useEffect(() => {
+    if (!selectedCourseId || modulesLoading || filesLoading) return;
+    if (moduleOptions.length === 0 && fileOptions.length > 0) {
+      setContentTab("files");
+    } else if (moduleOptions.length > 0) {
+      setContentTab("modules");
+    }
+  }, [selectedCourseId, moduleOptions.length, fileOptions.length, modulesLoading, filesLoading]);
+
   const toggleModule = useCallback((id: string) => {
     setSelectedModules((prev) =>
       prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]
     );
   }, []);
 
+  const toggleFile = useCallback((id: string) => {
+    setSelectedFiles((prev) =>
+      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
+    );
+  }, []);
+
   const selectedModuleNames = moduleOptions
     .filter((m) => selectedModules.includes(m.id))
     .map((m) => m.name);
-  const canGenerate = Boolean(selectedCourse && selectedModuleNames.length > 0);
+  const selectedFileNames = fileOptions
+    .filter((f) => selectedFiles.includes(f.id))
+    .map((f) => f.name);
+  const canGenerate = Boolean(selectedCourse && (selectedModuleNames.length > 0 || selectedFileNames.length > 0));
 
   // Start generering via store
   const handleGenerate = () => {
@@ -976,7 +1025,7 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
       return;
     }
 
-    if (selectedModuleNames.length === 0) {
+    if (selectedModuleNames.length === 0 && selectedFileNames.length === 0) {
       const melding = t("quiz.selectionOutOfDate");
       setError(melding);
       showToast.error(melding);
@@ -994,7 +1043,8 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
       const parsed = QuizGenerateRequestSchema.safeParse({
         courseId: selectedCourse.numericId,
         courseName: selectedCourse.name,
-        moduleNames: selectedModuleNames,
+        ...(selectedModuleNames.length > 0 ? { moduleNames: selectedModuleNames } : {}),
+        ...(selectedFileNames.length > 0 ? { fileNames: selectedFileNames } : {}),
         questionCount: safeQuestionCount,
       });
       if (!parsed.success) {
@@ -1007,7 +1057,8 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
       const parsed = FlashcardsGenerateRequestSchema.safeParse({
         courseId: selectedCourse.numericId,
         courseName: selectedCourse.name,
-        moduleNames: selectedModuleNames,
+        ...(selectedModuleNames.length > 0 ? { moduleNames: selectedModuleNames } : {}),
+        ...(selectedFileNames.length > 0 ? { fileNames: selectedFileNames } : {}),
         cardCount: safeQuestionCount,
       });
       if (!parsed.success) {
@@ -1076,6 +1127,7 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
     setPhase("setup");
     setSelectedCourseId(null);
     setSelectedModules([]);
+    setSelectedFiles([]);
     setQuestionCount(10);
     setError(null);
   };
@@ -1085,6 +1137,7 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
     setPhase("setup");
     setSelectedCourseId(null);
     setSelectedModules([]);
+    setSelectedFiles([]);
     setQuestionCount(10);
     setError(null);
   };
@@ -1155,13 +1208,14 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                         onSelect={(id) => {
                           setSelectedCourseId(id);
                           setSelectedModules([]);
+                          setSelectedFiles([]);
                         }}
                       />
                     )}
                   </div>
                 )}
 
-                {/* Step 2: Modules */}
+                {/* Step 2: Content (Modules / Files) */}
                 <AnimatePresence>
                   {selectedCourseId && (
                     <motion.div
@@ -1174,19 +1228,68 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                       <label className="mb-4 block text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                         {t("quiz.selectModulesLabel")}
                       </label>
-                      {modulesLoading ? (
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/50">
-                          <LoadingView text={t("quiz.loadingModules")} fullPage={false} />
+
+                      {/* Faner for moduler / filer */}
+                      {(moduleOptions.length > 0 || fileOptions.length > 0) && !(modulesLoading || filesLoading) && (
+                        <div className="mb-3 flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
+                          <button
+                            type="button"
+                            onClick={() => setContentTab("modules")}
+                            className={cn(
+                              "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                              contentTab === "modules"
+                                ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white"
+                                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                            )}
+                          >
+                            {t("quiz.modulesTab")} {moduleOptions.length > 0 && `(${moduleOptions.length})`}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setContentTab("files")}
+                            className={cn(
+                              "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                              contentTab === "files"
+                                ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white"
+                                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                            )}
+                          >
+                            {t("quiz.filesTab")} {fileOptions.length > 0 && `(${fileOptions.length})`}
+                          </button>
                         </div>
-                      ) : moduleOptions.length === 0 ? (
-                        <FeilMelding melding={t("quiz.noModulesFound")} />
+                      )}
+
+                      {contentTab === "modules" ? (
+                        modulesLoading ? (
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/50">
+                            <LoadingView text={t("quiz.loadingModules")} fullPage={false} />
+                          </div>
+                        ) : moduleOptions.length === 0 ? (
+                          <FeilMelding melding={t("quiz.noModulesFound")} />
+                        ) : (
+                          <MultiSelectDropdown
+                            label={t("quiz.selectModules")}
+                            selected={selectedModules}
+                            options={moduleOptions}
+                            onToggle={toggleModule}
+                          />
+                        )
                       ) : (
-                        <MultiSelectDropdown
-                          label={t("quiz.selectModules")}
-                          selected={selectedModules}
-                          options={moduleOptions}
-                          onToggle={toggleModule}
-                        />
+                        filesLoading ? (
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/50">
+                            <LoadingView text={t("quiz.loadingFiles")} fullPage={false} />
+                          </div>
+                        ) : fileOptions.length === 0 ? (
+                          <FeilMelding melding={t("quiz.noFilesFound")} />
+                        ) : (
+                          <MultiSelectDropdown
+                            label={t("quiz.selectFiles")}
+                            selected={selectedFiles}
+                            options={fileOptions}
+                            onToggle={toggleFile}
+                            countLabel={t("quiz.filesSelected", { count: selectedFiles.length })}
+                          />
+                        )
                       )}
                     </motion.div>
                   )}
@@ -1194,7 +1297,7 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
 
                 {/* Step 3: Question count */}
                 <AnimatePresence>
-                  {selectedModules.length > 0 && (
+                  {(selectedModules.length > 0 || selectedFiles.length > 0) && (
                     <motion.div
                       initial={{ opacity: 0, y: -8 }}
                       animate={{ opacity: 1, y: 0 }}

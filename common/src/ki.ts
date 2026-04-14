@@ -165,9 +165,13 @@ export const KIDocumentAnalyseResponseSchema = z.object({
 export const QuizGenerateRequestSchema = z.object({
   courseId: z.number().int().positive(),
   courseName: z.string().trim().min(1).max(200),
-  moduleNames: z.array(z.string().trim().min(1).max(200)).min(1).max(50),
+  moduleNames: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
+  fileNames: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
   questionCount: z.number().int().min(1).max(50).default(10),
-});
+}).refine(
+  (d) => (d.moduleNames && d.moduleNames.length > 0) || (d.fileNames && d.fileNames.length > 0),
+  { message: "Minst én modul eller fil må velges" },
+);
 
 export const QuizQuestionSchema = z.object({
   id: z.string().uuid(),
@@ -184,9 +188,13 @@ export const QuizGenerateResponseSchema = z.object({
 export const FlashcardsGenerateRequestSchema = z.object({
   courseId: z.number().int().positive(),
   courseName: z.string().trim().min(1).max(200),
-  moduleNames: z.array(z.string().trim().min(1).max(200)).min(1).max(50),
+  moduleNames: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
+  fileNames: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
   cardCount: z.number().int().min(1).max(50).default(10),
-});
+}).refine(
+  (d) => (d.moduleNames && d.moduleNames.length > 0) || (d.fileNames && d.fileNames.length > 0),
+  { message: "Minst én modul eller fil må velges" },
+);
 
 export const FlashcardSchema = z.object({
   id: z.string().uuid(),

@@ -76,6 +76,7 @@ async function processFlashcardJob(
   courseId: number,
   courseName: string,
   moduleNames: string[],
+  fileNames: string[],
   cardCount: number,
 ): Promise<void> {
   const generationStartedAt = Date.now();
@@ -86,27 +87,28 @@ async function processFlashcardJob(
       await waitForSync(userId, FLASHCARD_SYNC_WAIT_MS);
     }
 
-    const moduleListStr = moduleNames.join(", ");
+    const allNames = [...moduleNames, ...fileNames];
+    const contentListStr = allNames.join(", ");
     const contextResult = await loadCanvasContext(
       userId,
       canvasToken,
       "canvas_full",
-      createCourseTargetedQuery(courseId, courseName, moduleNames),
-      `Flashcards om ${moduleListStr} i ${courseName}`,
+      createCourseTargetedQuery(courseId, courseName, moduleNames, fileNames),
+      `Flashcards om ${contentListStr} i ${courseName}`,
       canvasBaseUrl,
     );
 
     if (!contextResult.hasCanvasData) {
       await setCache(
         `${JOB_KEY_PREFIX}${jobId}`,
-        JSON.stringify({ status: "failed", error: "Ingen kursinnhold funnet for valgte moduler. Prøv å åpne KI-chatten først slik at Canvas-data synkroniseres." }),
+        JSON.stringify({ status: "failed", error: "Ingen kursinnhold funnet for valgte moduler/filer. Prøv å åpne KI-chatten først slik at Canvas-data synkroniseres." }),
         JOB_TTL_SECONDS,
       );
       return;
     }
 
-    const userPrompt = `Lag ${cardCount} flashcards om følgende moduler i emnet "${courseName}":
-${moduleNames.map((m) => `- ${m}`).join("\n")}
+    const userPrompt = `Lag ${cardCount} flashcards om følgende innhold i emnet "${courseName}":
+${allNames.map((m) => `- ${m}`).join("\n")}
 
 KURSMATERIELL:
 ${contextResult.kontekst}
@@ -207,7 +209,7 @@ router.post("/generate", rateLimitKi, knyttCanvasToken, async (req, res) => {
       return apiError.unauthorized(res, "Canvas-token mangler");
     }
 
-    const { courseId, courseName, moduleNames, cardCount } = parsed.data;
+    const { courseId, courseName, moduleNames, fileNames, cardCount } = parsed.data;
     const jobId = randomUUID();
 
     await setCache(
@@ -223,7 +225,8 @@ router.post("/generate", rateLimitKi, knyttCanvasToken, async (req, res) => {
       req.canvasBaseUrl,
       courseId,
       courseName,
-      moduleNames,
+      moduleNames ?? [],
+      fileNames ?? [],
       cardCount,
     );
 

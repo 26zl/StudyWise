@@ -44,7 +44,9 @@ export function createCourseTargetedQuery(
   courseId: number,
   courseName: string,
   moduleNames: string[],
+  fileNames: string[] = [],
 ): TargetedQuery {
+  const allNames = [...moduleNames, ...fileNames];
   return {
     courseIdHint: courseId,
     courseHint: courseName,
@@ -52,7 +54,7 @@ export function createCourseTargetedQuery(
     // uten å filtrere bort resultater fra andre moduler enn den første.
     // Søkequeryen inneholder allerede alle modulnavn, som gir BM25/semantisk matching.
     moduleHint: moduleNames.length === 1 ? moduleNames[0] : null,
-    fileHint: null,
-    chunkHint: moduleNames.join(", "),
+    fileHint: fileNames.length === 1 ? fileNames[0] : null,
+    chunkHint: allNames.join(", "),
   };
 }
