@@ -183,38 +183,33 @@ jobs:
           INTERNAL_API_URL: "http://localhost:4000"
         run: pnpm --filter backend build && pnpm --filter frontend build
 
-      - name: Run fast backend domain smoke tests
-        # Bred, rask gate for auth/DB/KI/Canvas-overflater før nettlesertestene.
-        # Disse testene er HTTP/DB-baserte og holder kjøretiden nede samtidig som
-        # de verifiserer flere domener enn ren UI-smoke.
+      - name: Start backend
+        # Start backend som en persistent bakgrunnsprosess for både smoke tests og Playwright.
         run: |
-          set -euo pipefail
-
           pnpm --filter backend exec node dist/index.js > backend-smoke.log 2>&1 &
-          backend_pid=$!
-
-          cleanup() {
-            if kill -0 "$backend_pid" 2>/dev/null; then
-              kill "$backend_pid"
-              wait "$backend_pid" || true
-            fi
-          }
-          trap cleanup EXIT
-
+          echo "BACKEND_PID=$!" >> "$GITHUB_ENV"
           pnpm exec wait-on http://localhost:4000/health -t 120000
 
+      - name: Run fast backend domain smoke tests
+        # Bred, rask gate for auth/DB/KI/Canvas-overflater før nettlesertestene.
+        run: |
+          set -euo pipefail
           pnpm --filter tests exec tsx auth/check-db.ts
           pnpm --filter tests exec tsx auth/smoke.ts
           pnpm --filter tests exec tsx ki/smoke.ts
           pnpm --filter tests exec tsx canvas/smoke.ts
 
+      - name: Start frontend
+        # Start Next.js produksjonsserver som bakgrunnsprosess for Playwright.
+        run: |
+          PORT=3000 pnpm --filter frontend exec next start -p 3000 > frontend.log 2>&1 &
+          echo "FRONTEND_PID=$!" >> "$GITHUB_ENV"
+          pnpm exec wait-on http://localhost:3000 -t 120000
+
       - name: Run Playwright E2E tests
         # Stabile spesifikasjoner i CI-gaten.
-        # Disse kompletterer de raske HTTP/DB-smokene over med nettleserflyter for
-        # landingsside, auth-sider, navigasjon, kontakt og tverrsnitt av API-overflater.
-        # Firefox/WebKit kjøres kun lokalt — CI installerer bare Chromium for raskere kjøretid.
-        # Clerk-avhengige tester (login-signup, session) ekskluderes — de oppretter ekte
-        # brukere via Clerk testing tokens som ikke er pålitelige i CI og forårsaker timeouts.
+        # Backend og frontend kjører allerede som bakgrunnsprosesser (startet over).
+        # Playwright gjenbruker de via reuseExistingServer: true i playwright.config.ts.
         run: >-
           pnpm --filter tests exec playwright test --config playwright.config.ts --project=chromium
           auth/smoke-e2e.spec.ts
@@ -244,8 +239,13 @@ jobs:
       - name: Show local infrastructure logs on failure
         if: failure()
         run: |
+          echo "=== Backend log ==="
           cat backend-smoke.log || true
+          echo "=== Frontend log ==="
+          cat frontend.log || true
+          echo "=== MongoDB log ==="
           docker logs studywise-mongo || true
+          echo "=== Redis log ==="
           docker logs studywise-redis || true
 
       - name: Upload Playwright report

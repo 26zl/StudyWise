@@ -350,6 +350,11 @@ export function ChatSection() {
         meldingerRef.current = meldinger;
     }, [meldinger]);
 
+    const aktivChatIdRef = useRef(aktivChatId);
+    useEffect(() => {
+        aktivChatIdRef.current = aktivChatId;
+    }, [aktivChatId]);
+
     /** Stopper aktiv svaranimasjon uten å vente på onDone-callback. */
     const stoppAktivAnimasjon = useCallback(() => {
         if (animationIntervalRef.current) {
@@ -368,14 +373,15 @@ export function ChatSection() {
     }, [tekstInput]);
 
     /** Lagrer nåværende meldingsliste til backend (PUT ved aktivChatId, ellers POST med valgfri title). */
-    const lagreSamtale = async (oppdatert: Melding[], title?: string) => {
+    const lagreSamtale = useCallback(async (oppdatert: Melding[], title?: string) => {
         const payload = oppdatert.map((m) => ({
             rolle: m.rolle,
             innhold: m.innhold,
             kilder: m.kilder,
         }));
-        if (aktivChatId) {
-            await saveChat(payload, aktivChatId);
+        const chatId = aktivChatIdRef.current;
+        if (chatId) {
+            await saveChat(payload, chatId);
             return;
         }
         // Hvis en chat-opprettelse allerede pågår, vent på den og bruk resultatet
@@ -396,7 +402,7 @@ export function ChatSection() {
         });
         oppretterChatPromiseRef.current = createPromise;
         await createPromise;
-    };
+    }, [saveChat, settAktivSamtale, t]);
 
     const harSammeMeldinger = (
         current: Array<{ rolle: "user" | "assistant"; innhold: string; kilder?: import("common/ki").KIChatSource[] }>,
