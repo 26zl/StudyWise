@@ -5,10 +5,10 @@
  * Brukes av både sign-in og sign-up SSO-callback-sider.
  *
  * Håndterer: OAuth-token-prosessering, Clerk-redirect-callback,
- * transfer-flows, konflikthåndtering og feil-redirects.
+ * transfer-flows, konflikthåndtering, MFA (TOTP) og feil-redirects.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useClerk } from "@clerk/nextjs";
 import { useSignIn, useSignUp } from "@clerk/nextjs/legacy";
 import { useSearchParams } from "next/navigation";
@@ -26,6 +26,13 @@ interface SSOCallbackResult {
   redirectUrl: string;
   signInHref: string;
   signUpHref: string;
+  /** MFA (TOTP) kreves etter SSO-innlogging */
+  needsMfa: boolean;
+  mfaCode: string;
+  setMfaCode: (code: string) => void;
+  mfaError: string | null;
+  mfaSubmitting: boolean;
+  handleMfa: (e: React.FormEvent) => Promise<void>;
 }
 
 export function useSSOCallback(mode: SSOCallbackMode): SSOCallbackResult {
@@ -42,61 +49,118 @@ export function useSSOCallback(mode: SSOCallbackMode): SSOCallbackResult {
   const [callbackError, setCallbackError] = useState(false);
   const [oauthConflict, setOauthConflict] = useState(false);
 
+  // MFA state
+  const [needsMfa, setNeedsMfa] = useState(false);
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaError, setMfaError] = useState<string | null>(null);
+  const [mfaSubmitting, setMfaSubmitting] = useState(false);
+
+  const redirectOrConflict = useCallback(async () => {
+    try {
+      const res = await fetchApi("/api/user/me", { method: "GET" });
+      if (res.status === 409 || res.status === 403) {
+        const json = await res.json().catch(() => ({}));
+        const errorType = typeof json?.error === "string" ? json.error : undefined;
+        if (
+          errorType === "oauth_account_conflict" ||
+          errorType === "oauth_metadata_missing"
+        ) {
+          await clerk.signOut().catch(() => {});
+          setOauthConflict(true);
+          return;
+        }
+        // username_conflict: redirect til sign-up slik at brukeren kan velge nytt brukernavn
+        if (errorType === "username_conflict") {
+          await clerk.signOut().catch(() => {});
+          window.location.replace(
+            appendQueryParam(signUpHref, "error", t("auth.conflictRedirect.usernameConflict")),
+          );
+          return;
+        }
+        // Andre konflikter: redirect til sign-in med i18n-melding
+        const errorMessageMap: Record<string, string> = {
+          account_conflict: t("auth.conflictRedirect.accountConflict"),
+          user_deleted: t("auth.conflictRedirect.accountDeleted"),
+          user_locked: t("auth.conflictRedirect.accountLocked"),
+        };
+        if (errorType && errorType in errorMessageMap) {
+          await clerk.signOut().catch(() => {});
+          window.location.replace(
+            appendQueryParam(signInHref, "error", errorMessageMap[errorType]),
+          );
+          return;
+        }
+        if (errorType === "turnstile_required") {
+          window.location.replace(redirectUrl);
+          return;
+        }
+      }
+    } catch {
+      // Nettverksfeil — redirect til dashboard uansett, konflikten fanges der
+    }
+    window.location.replace(redirectUrl);
+  }, [clerk, signUpHref, signInHref, redirectUrl, t]);
+
+  // MFA: verifiser TOTP-kode etter SSO-innlogging
+  const handleMfa = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!signIn || mfaSubmitting) return;
+
+      const code = mfaCode.trim();
+      if (!code) {
+        setMfaError(t("auth.signIn.mfa.codeRequired"));
+        return;
+      }
+
+      setMfaSubmitting(true);
+      setMfaError(null);
+
+      try {
+        const result = await signIn.attemptSecondFactor({
+          strategy: "totp",
+          code,
+        });
+
+        if (result.status === "complete" && result.createdSessionId) {
+          await setActiveSignIn({ session: result.createdSessionId });
+          await redirectOrConflict();
+        } else {
+          setMfaError(t("auth.signIn.mfa.verificationFailed"));
+        }
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : t("auth.signIn.mfa.verificationFailed");
+        setMfaError(message);
+      } finally {
+        setMfaSubmitting(false);
+      }
+    },
+    [signIn, setActiveSignIn, mfaCode, mfaSubmitting, t, redirectOrConflict],
+  );
+
   useEffect(() => {
-    if (!clerk.loaded || !signIn || !signUp || handledRef.current) return;
+    if (!clerk.loaded || !signIn || !signUp) return;
+
+    // Sjekk om MFA allerede er nødvendig (f.eks. etter refresh på callback-siden,
+    // eller Clerk har allerede prosessert SSO). Må sjekkes uavhengig av handledRef
+    // fordi secondFactorUrl peker tilbake hit, og da kjører useEffect på nytt.
+    if (signIn.status === "needs_second_factor") {
+      setNeedsMfa(true);
+      return;
+    }
+
+    if (handledRef.current) return;
     handledRef.current = true;
 
     const setActive = mode === "sign-in" ? setActiveSignIn : setActiveSignUp;
     if (!setActive) return;
 
-    const redirectOrConflict = async () => {
-      try {
-        const res = await fetchApi("/api/user/me", { method: "GET" });
-        if (res.status === 409 || res.status === 403) {
-          const json = await res.json().catch(() => ({}));
-          const errorType = typeof json?.error === "string" ? json.error : undefined;
-          if (
-            errorType === "oauth_account_conflict" ||
-            errorType === "oauth_metadata_missing"
-          ) {
-            await clerk.signOut().catch(() => {});
-            setOauthConflict(true);
-            return;
-          }
-          // username_conflict: redirect til sign-up slik at brukeren kan velge nytt brukernavn
-          if (errorType === "username_conflict") {
-            await clerk.signOut().catch(() => {});
-            window.location.replace(
-              appendQueryParam(signUpHref, "error", t("auth.conflictRedirect.usernameConflict")),
-            );
-            return;
-          }
-          // Andre konflikter: redirect til sign-in med i18n-melding
-          const errorMessageMap: Record<string, string> = {
-            account_conflict: t("auth.conflictRedirect.accountConflict"),
-            user_deleted: t("auth.conflictRedirect.accountDeleted"),
-            user_locked: t("auth.conflictRedirect.accountLocked"),
-          };
-          if (errorType && errorType in errorMessageMap) {
-            await clerk.signOut().catch(() => {});
-            window.location.replace(
-              appendQueryParam(signInHref, "error", errorMessageMap[errorType]),
-            );
-            return;
-          }
-          if (errorType === "turnstile_required") {
-            window.location.replace(redirectUrl);
-            return;
-          }
-        }
-      } catch {
-        // Nettverksfeil — redirect til dashboard uansett, konflikten fanges der
-      }
-      window.location.replace(redirectUrl);
-    };
-
     const handleCallback = async () => {
+
       try {
+        // Sett secondFactorUrl til current page URL slik at Clerk ikke navigerer bort ved MFA
+        const currentUrl = window.location.href;
         const callbackOpts = mode === "sign-in"
           ? {
               signInForceRedirectUrl: redirectUrl,
@@ -105,7 +169,7 @@ export function useSSOCallback(mode: SSOCallbackMode): SSOCallbackResult {
               signUpUrl: signUpHref,
               continueSignUpUrl: continueSignUpHref,
               firstFactorUrl: signInHref,
-              secondFactorUrl: signInHref,
+              secondFactorUrl: currentUrl,
             }
           : {
               signUpForceRedirectUrl: continueSignUpHref,
@@ -114,7 +178,7 @@ export function useSSOCallback(mode: SSOCallbackMode): SSOCallbackResult {
               signInUrl: signInHref,
               continueSignUpUrl: continueSignUpHref,
               firstFactorUrl: signInHref,
-              secondFactorUrl: signInHref,
+              secondFactorUrl: currentUrl,
             };
 
         const callbackResult = await Promise.race([
@@ -124,9 +188,21 @@ export function useSSOCallback(mode: SSOCallbackMode): SSOCallbackResult {
           ),
         ]);
         if (callbackResult === "timeout") throw new Error("SSO callback timeout");
+
+        // handleRedirectCallback fullført — sjekk om MFA ble nødvendig
+        if (signIn.status === "needs_second_factor") {
+          setNeedsMfa(true);
+          return;
+        }
       } catch {
-        // handleRedirectCallback feilet — sjekk transfer-cases
+        // handleRedirectCallback feilet — sjekk transfer-cases og MFA
         if (mode === "sign-in") {
+          // Sjekk om MFA er nødvendig
+          if (signIn.status === "needs_second_factor") {
+            setNeedsMfa(true);
+            return;
+          }
+
           // Sign-in: sjekk begge retninger
           const signUpExternalStatus = signUp.verifications?.externalAccount?.status;
           const signInExternalStatus = signIn.firstFactorVerification?.status;
@@ -134,6 +210,10 @@ export function useSSOCallback(mode: SSOCallbackMode): SSOCallbackResult {
           if (signUpExternalStatus === "transferable") {
             try {
               const result = await signIn.create({ transfer: true });
+              if (result.status === "needs_second_factor") {
+                setNeedsMfa(true);
+                return;
+              }
               if (result.status === "complete" && result.createdSessionId) {
                 await setActive({ session: result.createdSessionId });
                 await redirectOrConflict();
@@ -156,6 +236,10 @@ export function useSSOCallback(mode: SSOCallbackMode): SSOCallbackResult {
           if (externalStatus === "transferable") {
             try {
               const result = await signIn.create({ transfer: true });
+              if (result.status === "needs_second_factor") {
+                setNeedsMfa(true);
+                return;
+              }
               if (result.status === "complete" && result.createdSessionId) {
                 await setActive({ session: result.createdSessionId });
                 await redirectOrConflict();
@@ -170,6 +254,13 @@ export function useSSOCallback(mode: SSOCallbackMode): SSOCallbackResult {
           await redirectOrConflict();
           return;
         }
+
+        // Siste sjekk: MFA kan ha blitt nødvendig under transfer
+        if (signIn.status === "needs_second_factor") {
+          setNeedsMfa(true);
+          return;
+        }
+
         setCallbackError(true);
         const fallbackHref = mode === "sign-in" ? signInHref : signUpHref;
         setTimeout(() => {
@@ -179,7 +270,19 @@ export function useSSOCallback(mode: SSOCallbackMode): SSOCallbackResult {
     };
 
     void handleCallback();
-  }, [clerk, signIn, signUp, setActiveSignIn, setActiveSignUp, redirectUrl, signInHref, signUpHref, continueSignUpHref, mode, t]);
+  }, [clerk, signIn, signUp, setActiveSignIn, setActiveSignUp, redirectUrl, signInHref, signUpHref, continueSignUpHref, mode, t, redirectOrConflict]);
 
-  return { callbackError, oauthConflict, redirectUrl, signInHref, signUpHref };
+  return {
+    callbackError,
+    oauthConflict,
+    redirectUrl,
+    signInHref,
+    signUpHref,
+    needsMfa,
+    mfaCode,
+    setMfaCode,
+    mfaError,
+    mfaSubmitting,
+    handleMfa,
+  };
 }

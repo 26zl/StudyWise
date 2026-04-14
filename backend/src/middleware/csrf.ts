@@ -4,8 +4,8 @@
  * - Header x-studywise-csrf: 1 (satt av frontend; hindrer tredjepartsider uten tilgang til JS)
  * - Origin eller Referer som matcher WEB_ORIGINS (hindrer forespørsler fra andre domener).
  * GET/OPTIONS påvirkes ikke (f.eks. /health for Heroku).
- * Server-til-server-kall (f.eks. Vercel SSR → Heroku) sender headeren men har ofte ikke Origin;
- * vi avviser kun når origin/referer finnes og er ugyldig.
+ * I prod: requests uten Origin/Referer tillates kun hvis x-forwarded-host er satt (SSR-proxy).
+ * I dev: same-origin requests tillates for lokal testing (f.eks. Swagger UI).
  */
 import type { NextFunction, Request, Response } from "express";
 import {
@@ -101,6 +101,16 @@ export function beskytteMotCsrf(
 
   if (!origin && refererOrigin && !allowedOrigins.has(refererOrigin)) {
     return rejectCsrf(req, res, "Ugyldig referer for foresporselen.");
+  }
+
+  // I prod krever vi at browser-requests har Origin eller Referer.
+  // SSR-kall (Next.js server → backend) identifiseres via x-forwarded-host header
+  // som Next.js' rewrite-proxy setter automatisk.
+  if (isProd && !origin && !refererOrigin) {
+    const forwardedHost = req.get("x-forwarded-host");
+    if (!forwardedHost) {
+      return rejectCsrf(req, res, "Mangler origin eller referer.");
+    }
   }
 
   return next();

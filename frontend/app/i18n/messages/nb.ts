@@ -182,7 +182,7 @@ export const nbMessages = {
       incomplete: "Innlogging ufullstendig. Prøv igjen.",
       sessionFailed: "Innlogging fullført, men økten kunne ikke opprettes. Prøv igjen.",
       mfa: {
-        title: "Tofaktorautentisering",
+        title: "To-faktorautentisering",
         subtitle: "Skriv inn koden fra autentiseringsappen din.",
         codeLabel: "Verifiseringskode",
         codePlaceholder: "123456",
