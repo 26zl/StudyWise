@@ -177,6 +177,9 @@ class DistributedLogBuffer {
       // Uten: hent siste N med xRevRange.
       let raw: RedisStreamMessage[];
       if (options?.sinceId) {
+        if (!/^\d+-\d+$/.test(options.sinceId)) {
+          return [];
+        }
         raw = await redisAdapter.xRange(STREAM_KEY, `(${options.sinceId}`, "+", { COUNT: limit });
       } else {
         const rev = await redisAdapter.xRevRange(STREAM_KEY, "+", "-", { COUNT: limit });

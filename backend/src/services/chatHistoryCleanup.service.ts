@@ -28,7 +28,7 @@ export async function sweepCorruptedChatHistory(): Promise<{
     const cursor = ChatHistory.find({})
       .select({ _id: 1, user: 1, encryptedMessages: 1 })
       .sort({ updatedAt: -1 })
-      .limit(SCAN_BATCH_SIZE)
+      .batchSize(SCAN_BATCH_SIZE)
       .lean()
       .cursor();
 

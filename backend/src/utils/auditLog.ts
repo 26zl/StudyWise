@@ -22,6 +22,7 @@ export const AUDIT_ACTIONS = {
   USER_CREATED: "user_created",
   ACCESS_DENIED: "access_denied",
   SHARE_CREATED: "share_created",
+  SHARE_UPDATED: "share_updated",
   SHARE_VIEWED: "share_viewed",
   SHARE_EXPIRED: "share_expired",
   INVALID_SHARE_ACCESS: "invalid_share_access",

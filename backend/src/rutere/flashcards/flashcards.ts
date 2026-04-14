@@ -14,6 +14,7 @@ import {
   FlashcardsGenerateRequestSchema,
   FlashcardsGenerateResponseSchema,
   AsyncJobAcceptedSchema,
+  AsyncJobStatusSchema,
 } from "common/ki";
 import { logger } from "../../utils/logger.js";
 import {
@@ -254,8 +255,11 @@ router.get("/status/:jobId", async (req, res) => {
       return apiError.notFound(res, "Jobben finnes ikke eller har utløpt");
     }
 
-    const jobState = JSON.parse(cached) as { status: string; result?: unknown; error?: string };
-    return res.json(jobState);
+    const parsed = AsyncJobStatusSchema.safeParse(JSON.parse(cached));
+    if (!parsed.success) {
+      return apiError.serverError(res);
+    }
+    return res.json(parsed.data);
   } catch (error) {
     if (res.headersSent) return;
     return sendUnknownError(res, error, {

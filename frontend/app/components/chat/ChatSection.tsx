@@ -627,7 +627,7 @@ export function ChatSection() {
     }, [aktivChatId, oppdaterPendingChatId, saveChat, settAktivSamtale]);
 
     /** Nullstiller state for ny samtale; lagrer gjeldende meldinger først og tømmer sessionStorage. */
-    const nySamtale = async () => {
+    const nySamtale = useCallback(async () => {
         const gjeldendeMeldinger = meldingerRef.current;
         if (gjeldendeMeldinger.length > 0) {
             void lagreSamtale(gjeldendeMeldinger).catch(() => {
@@ -649,14 +649,14 @@ export function ChatSection() {
         } catch {
             /* ignore */
         }
-    };
+    }, [lagreSamtale, stoppAktivAnimasjon, t, settMeldinger, settAktivSamtale, settVedlegg, settSkriver, settAnalysererDokument]);
 
     /** Reagerer på "Ny samtale"-knapp i sidebar: nullstiller og starter ny samtale. */
     useEffect(() => {
         if (sisteNySamtaleToken.current === newChatToken) return;
         sisteNySamtaleToken.current = newChatToken;
         void nySamtale();
-    }, [newChatToken]);
+    }, [newChatToken, nySamtale]);
 
     /** Validerer filstørrelse (max 15 MB), viser toast ved for mange, setter ett vedlegg. */
     const håndterFiler = useCallback((filer: File[]) => {
@@ -1596,9 +1596,9 @@ export function ChatSection() {
 
                             {/* Forslag */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl mx-auto">
-                                {forslag.map((forslagTekst, index) => (
+                                {forslag.map((forslagTekst) => (
                                     <button
-                                        key={index}
+                                        key={forslagTekst}
                                         type="button"
                                         onClick={() => handterForslag(forslagTekst)}
                                         className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 text-left hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm transition-all group"
@@ -1698,6 +1698,7 @@ export function ChatSection() {
                                                 }}
                                                 className={actionBtnClass}
                                                 title={t("chat.copyButton")}
+                                                aria-label={t("chat.copyButton")}
                                             >
                                                 <Copy className="w-4 h-4" />
                                             </button>
@@ -1741,6 +1742,7 @@ export function ChatSection() {
                                                         }}
                                                         className={`${actionBtnClass} ${aktivKlasse}`}
                                                         title={rating === "up" ? t("chat.feedbackGood") : t("chat.feedbackBad")}
+                                                        aria-label={rating === "up" ? t("chat.feedbackGood") : t("chat.feedbackBad")}
                                                         aria-pressed={aktiv}
                                                     >
                                                         <Icon className={`w-4 h-4 ${aktiv ? "fill-current" : ""}`} />
@@ -1862,6 +1864,7 @@ export function ChatSection() {
                             onChange={(e) => settTekstInput(e.target.value)}
                             onKeyDown={handterTastetrykk}
                             placeholder={vedlegg.length > 0 ? t("chat.placeholderAttachment") : t("chat.placeholderDefault")}
+                            aria-label={t("chat.inputAriaLabel")}
                             disabled={skriver || analyserarDokument}
                             rows={1}
                             className="chat-input-textarea flex-1 min-w-0 resize-none bg-transparent py-2 text-base sm:text-[15px] text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:outline-none focus:ring-0 border-none shadow-none disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
@@ -1874,6 +1877,8 @@ export function ChatSection() {
                                 className="h-8 max-w-30 sm:max-w-45 truncate rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-2 sm:px-3 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                                 title={t("chat.modelSelectorTooltip")}
                                 aria-label={t("chat.modelSelectorLabel")}
+                                aria-expanded={isModelMenuOpen}
+                                aria-haspopup="listbox"
                             >
                                 {selectedModelLabel}
                             </button>

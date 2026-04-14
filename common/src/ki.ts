@@ -56,7 +56,7 @@ export const KIChatSourceSchema = z.object({
   sourceUrl: z.string().url().optional(),
   sourceKind: z.enum(["canvas_file", "kb_link", "kb_file", "live_url"]).optional(),
   /** Hvor stor del av relevansen denne kilden bidro med (0-1). Brukes til sortering. */
-  score: z.number().optional(),
+  score: z.number().min(0).max(1).optional(),
   /** Antall chunks fra denne filen som ble brukt i konteksten. */
   chunkCount: z.number().int().nonnegative().optional(),
 });

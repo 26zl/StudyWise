@@ -50,6 +50,12 @@ const DEFAULT_PREFERENCES: BrowserPushPreferences = {
 let cachedClientConfig: WebPushClientConfigResponse | null = null;
 let clientConfigInFlight: Promise<WebPushClientConfigResponse> | null = null;
 
+/** Nullstill cached config ved utlogging for å hindre at neste bruker arver feil VAPID-nøkkel */
+export function clearBrowserPushClientConfigCache(): void {
+  cachedClientConfig = null;
+  clientConfigInFlight = null;
+}
+
 async function loadBrowserPushClientConfig(): Promise<WebPushClientConfigResponse> {
   if (cachedClientConfig) {
     return cachedClientConfig;

@@ -169,7 +169,7 @@ export default function SharePage() {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{data.chatTitle}</h1>
         {data.messages.map((melding, index) => (
           <div
-            key={index}
+            key={`${index}-${melding.rolle}`}
             className={`flex items-start gap-3 ${melding.rolle === "user" ? "justify-end" : "justify-start"}`}
           >
             {melding.rolle === "assistant" && (

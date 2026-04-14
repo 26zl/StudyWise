@@ -593,80 +593,105 @@ export async function upsertStoredFullText(options: {
   );
 }
 
+/** Maks antall filgrupper som behandles per kjøring for å begrense minnebruk */
+const BACKFILL_BATCH_SIZE = 100;
+/** Maks antall parallelle backfill-operasjoner */
+const BACKFILL_CONCURRENCY = 5;
+
 export async function backfillMissingFullText(): Promise<FullTextBackfillResult> {
-  const fileGroups = await ContentEmbedding.aggregate<{
-    userId: string;
-    courseId: string;
-    fileId: number;
-    fileName: string;
-    hasFullDoc: number;
-  }>([
-    {
-      $group: {
-        _id: { userId: "$userId", courseId: "$courseId", fileId: "$fileId" },
-        fileName: { $first: "$fileName" },
-        hasFullDoc: {
-          $sum: {
-            $cond: [
-              {
-                $and: [
-                  { $eq: ["$chunkIndex", -1] },
-                  { $eq: ["$isFullDocument", true] },
-                  { $gt: [{ $strLenCP: { $ifNull: ["$fullText", ""] } }, 0] },
-                ],
-              },
-              1,
-              0,
-            ],
+  let skip = 0;
+  let totalScanned = 0;
+  let updatedFiles = 0;
+
+  // Paginer gjennom filgrupper i batcher for å unngå å laste alt i minnet
+  while (true) {
+    const fileGroups = await ContentEmbedding.aggregate<{
+      userId: string;
+      courseId: string;
+      fileId: number;
+      fileName: string;
+      hasFullDoc: number;
+    }>([
+      {
+        $group: {
+          _id: { userId: "$userId", courseId: "$courseId", fileId: "$fileId" },
+          fileName: { $first: "$fileName" },
+          hasFullDoc: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$chunkIndex", -1] },
+                    { $eq: ["$isFullDocument", true] },
+                    { $gt: [{ $strLenCP: { $ifNull: ["$fullText", ""] } }, 0] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
           },
         },
       },
-    },
-    {
-      $project: {
-        _id: 0,
-        userId: "$_id.userId",
-        courseId: "$_id.courseId",
-        fileId: "$_id.fileId",
-        fileName: 1,
-        hasFullDoc: 1,
+      {
+        $project: {
+          _id: 0,
+          userId: "$_id.userId",
+          courseId: "$_id.courseId",
+          fileId: "$_id.fileId",
+          fileName: 1,
+          hasFullDoc: 1,
+        },
       },
-    },
-  ]);
+      { $skip: skip },
+      { $limit: BACKFILL_BATCH_SIZE },
+    ]);
 
-  let updatedFiles = 0;
-  for (const group of fileGroups) {
-    if (group.hasFullDoc > 0) continue;
+    if (fileGroups.length === 0) break;
+    totalScanned += fileGroups.length;
 
-    const chunks = await ContentEmbedding.find(
-      { userId: group.userId, courseId: group.courseId, fileId: group.fileId, chunkIndex: { $gte: 0 } },
-      { _id: 0, text: 1, chunkIndex: 1, courseName: 1, moduleId: 1, moduleTitle: 1, fileHash: 1, fileName: 1 },
-    ).sort({ chunkIndex: 1 }).lean();
+    const missingGroups = fileGroups.filter((g) => g.hasFullDoc === 0);
 
-    if (chunks.length === 0) continue;
-    const fullText = chunks.map((chunk) => chunk.text).join("\n\n");
-    if (!fullText.trim()) continue;
+    // Begrens parallellitet for å unngå minnetopper
+    const limit = (await import("p-limit")).default;
+    const limiter = limit(BACKFILL_CONCURRENCY);
+    const tasks = missingGroups.map((group) =>
+      limiter(async () => {
+        const chunks = await ContentEmbedding.find(
+          { userId: group.userId, courseId: group.courseId, fileId: group.fileId, chunkIndex: { $gte: 0 } },
+          { _id: 0, text: 1, chunkIndex: 1, courseName: 1, moduleId: 1, moduleTitle: 1, fileHash: 1, fileName: 1 },
+        ).sort({ chunkIndex: 1 }).lean();
 
-    await upsertStoredFullText({
-      userId: group.userId,
-      courseId: group.courseId,
-      courseName: chunks[0].courseName,
-      moduleId: chunks[0].moduleId,
-      moduleTitle: chunks[0].moduleTitle,
-      fileName: chunks[0].fileName,
-      fileId: group.fileId,
-      fileHash: chunks[0].fileHash,
-      fullText,
-    });
+        if (chunks.length === 0) return;
+        const fullText = chunks.map((chunk) => chunk.text).join("\n\n");
+        if (!fullText.trim()) return;
 
-    updatedFiles++;
-    logger.info(
-      { fileId: group.fileId, fileName: group.fileName, charCount: fullText.length },
-      "Backfill fullText fullført for fil",
+        await upsertStoredFullText({
+          userId: group.userId,
+          courseId: group.courseId,
+          courseName: chunks[0].courseName,
+          moduleId: chunks[0].moduleId,
+          moduleTitle: chunks[0].moduleTitle,
+          fileName: chunks[0].fileName,
+          fileId: group.fileId,
+          fileHash: chunks[0].fileHash,
+          fullText,
+        });
+
+        updatedFiles++;
+        logger.info(
+          { fileId: group.fileId, fileName: group.fileName, charCount: fullText.length },
+          "Backfill fullText fullført for fil",
+        );
+      }),
     );
+    await Promise.all(tasks);
+
+    if (fileGroups.length < BACKFILL_BATCH_SIZE) break;
+    skip += BACKFILL_BATCH_SIZE;
   }
 
-  return { scannedFiles: fileGroups.length, updatedFiles };
+  return { scannedFiles: totalScanned, updatedFiles };
 }
 
 export interface VectorSearchResult {

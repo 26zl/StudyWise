@@ -482,6 +482,9 @@ export function Providers({
             retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 4000), // Exponential backoff: 1s, 2s, 4s
             refetchOnWindowFocus: false, // Unngå unødvendige refetches
           },
+          mutations: {
+            retry: 0,                    // Mutations (auth, delete, POST) bør ikke retries automatisk
+          },
         },
       })
   );

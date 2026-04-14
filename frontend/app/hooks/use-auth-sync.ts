@@ -11,6 +11,7 @@ import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { AUTH_CHANNEL_NAME } from "common/auth";
 import { clearDatadogUser } from "@/app/components/layout/DatadogRum";
 import { useUIStore } from "../store/uiStore";
+import { clearBrowserPushClientConfigCache } from "./useBrowserPushNotifications";
 
 // Konstantverdier for BroadcastChannel (same-origin per spec )
 const LOGOUT_MESSAGE = "logout";
@@ -18,6 +19,7 @@ const AUTH_PATH_PREFIXES = ["/dashboard", "/oversikt", "/ai-breakdown", "/accoun
 
 export function clearClientAuthState(queryClient: QueryClient): void {
     clearDatadogUser();
+    clearBrowserPushClientConfigCache();
     void queryClient.cancelQueries();
     queryClient.clear();
     useUIStore.getState().reset();

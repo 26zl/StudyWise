@@ -1470,6 +1470,7 @@ export const enMessages = {
     modelAuto: "Auto (Haiku + Sonnet 4)",
     inputHint: "Enter to send · Shift+Enter for new line",
     placeholderDefault: "Write a message...",
+    inputAriaLabel: "Chat message",
     placeholderAttachment: "Ask a question about the attachment...",
     newConversationFallback: "New conversation",
     conversationFallback: "Conversation",

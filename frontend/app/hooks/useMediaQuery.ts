@@ -4,8 +4,10 @@
  * React-hook for `matchMedia`.
  *
  * Returnerer true/false for en CSS media query og oppdaterer ved endring.
+ * Bruker `useSyncExternalStore` for å unngå hydration mismatch mellom
+ * server (alltid false) og klient.
  */
-import { useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 export const MOBILE_MEDIA_QUERY = "(max-width: 767px)";
 
@@ -13,28 +15,26 @@ export const MOBILE_MEDIA_QUERY = "(max-width: 767px)";
  * Lytter på `window.matchMedia(query)` og returnerer om den matcher.
  */
 export function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false);
+  const subscribe = useCallback(
+    (callback: () => void) => {
+      if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+        return () => {};
+      }
+      const mediaQuery = window.matchMedia(query);
+      mediaQuery.addEventListener("change", callback);
+      return () => mediaQuery.removeEventListener("change", callback);
+    },
+    [query],
+  );
 
-  useEffect(() => {
+  const getSnapshot = useCallback(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-      return;
+      return false;
     }
-
-    const mediaQuery = window.matchMedia(query);
-    const updateMatch = () => {
-      setMatches(mediaQuery.matches);
-    };
-
-    updateMatch();
-
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", updateMatch);
-      return () => mediaQuery.removeEventListener("change", updateMatch);
-    }
-
-    mediaQuery.addEventListener("change", updateMatch);
-    return () => mediaQuery.removeEventListener("change", updateMatch);
+    return window.matchMedia(query).matches;
   }, [query]);
 
-  return matches;
+  const getServerSnapshot = useCallback(() => false, []);
+
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }

@@ -1468,6 +1468,7 @@ export const nbMessages = {
     modelAuto: "Auto (Haiku + Sonnet 4)",
     inputHint: "Enter for å sende · Shift+Enter for ny linje",
     placeholderDefault: "Skriv en melding...",
+    inputAriaLabel: "Chatmelding",
     placeholderAttachment: "Skriv et spørsmål om vedlegget...",
     newConversationFallback: "Ny samtale",
     conversationFallback: "Samtale",

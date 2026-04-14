@@ -19,14 +19,27 @@ services:
       - "27017:27017"
     volumes:
       - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   redis:
     image: redis:7-alpine
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
+    command: ["redis-server", "--requirepass", "studywise-dev"]
     ports:
       - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "studywise-dev", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   backend:
     build:
@@ -43,11 +56,13 @@ services:
       - NODE_ENV=development
       - PORT=4000
       - MONGO_URI=mongodb://studywise:studywise-dev@mongo:27017/studywise?authSource=admin
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://default:studywise-dev@redis:6379
       - WEB_ORIGINS=http://localhost:3000
     depends_on:
-      - mongo
-      - redis
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   frontend:
     build:
@@ -95,3 +110,4 @@ secrets:
 
 volumes:
   mongo-data:
+  redis-data:

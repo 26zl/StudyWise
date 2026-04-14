@@ -416,8 +416,8 @@ export function WeeklyPlanSuggestions({
                 {t("weeklyPlan.tipsTitle")}
               </h4>
               <ul className="space-y-1 text-sm text-blue-700 dark:text-blue-300">
-                {plan.tips.map((tip, index) => (
-                  <li key={index} className="flex items-start gap-2">
+                {plan.tips.map((tip) => (
+                  <li key={tip} className="flex items-start gap-2">
                     <Check className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>{tip}</span>
                   </li>

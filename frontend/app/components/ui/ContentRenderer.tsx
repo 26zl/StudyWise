@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { Check, Copy, Download } from "lucide-react";
 import hljs from "highlight.js";
 import DOMPurify from "isomorphic-dompurify";
@@ -22,6 +22,13 @@ interface CodeBlockProps {
 function CodeBlock({ className, children }: CodeBlockProps) {
   const { t } = useLanguage();
   const [kopiert, setKopiert] = useState(false);
+  const kopiertTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (kopiertTimerRef.current) clearTimeout(kopiertTimerRef.current);
+    };
+  }, []);
 
   // Detekter språk fra markdown className ("language-java" → "java", "language-shell-session" → "shell-session")
   const match = className?.match(/language-([\w-]+)/);
@@ -56,7 +63,8 @@ function CodeBlock({ className, children }: CodeBlockProps) {
     try {
       await navigator.clipboard.writeText(kodeTekst);
       setKopiert(true);
-      setTimeout(() => setKopiert(false), 2000);
+      if (kopiertTimerRef.current) clearTimeout(kopiertTimerRef.current);
+      kopiertTimerRef.current = setTimeout(() => setKopiert(false), 2000);
     } catch {
       // Clipboard API utilgjengelig (f.eks. http, iframe, manglende permissions)
     }

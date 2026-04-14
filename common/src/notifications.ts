@@ -102,7 +102,7 @@ export const WebPushSubscriptionResponseSchema = z.object({
 
 export const WebPushClientConfigResponseSchema = z.object({
   configured: z.boolean(),
-  publicKey: z.string(),
+  publicKey: z.string().min(1),
 });
 
 export const SendTestWebPushResponseSchema = z.object({

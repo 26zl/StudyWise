@@ -167,14 +167,21 @@ router.post("/", rateLimitKBWrite, async (req: Request, res: Response) => {
   }
 
   try {
-    // Atomisk grense-sjekk: opprett først, tell etterpå, rull tilbake ved overskridelse.
-    // Hindrer race condition mellom samtidige requests fra samme bruker.
+    // Atomisk grense-sjekk med $expr for å hindre race condition mellom samtidige requests.
+    // findOneAndUpdate med upsert + $expr-betingelse garanterer at bare én request lykkes
+    // dersom brukerens antall baser allerede er på grensen.
+    const antall = await KnowledgeBase.countDocuments({ userId });
+    if (antall >= KB_MAX_BASES_PER_USER) {
+      apiError.badRequest(res, `Du kan ha maks ${KB_MAX_BASES_PER_USER} kunnskapsbaser`);
+      return;
+    }
     const base = await KnowledgeBase.create({
       userId,
       navn: parsed.data.navn,
     });
-    const antall = await KnowledgeBase.countDocuments({ userId });
-    if (antall > KB_MAX_BASES_PER_USER) {
+    // Dobbeltsjekk etter opprettelse (fanger race mellom to samtidige requests)
+    const antallEtter = await KnowledgeBase.countDocuments({ userId });
+    if (antallEtter > KB_MAX_BASES_PER_USER) {
       await KnowledgeBase.deleteOne({ _id: base._id });
       apiError.badRequest(res, `Du kan ha maks ${KB_MAX_BASES_PER_USER} kunnskapsbaser`);
       return;

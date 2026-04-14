@@ -87,8 +87,20 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(_error: Error, _errorInfo: React.ErrorInfo) {
-    // Ingen console – bruk fallback-UI og devtools for debugging
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Rapporter feil til Datadog RUM hvis tilgjengelig
+    try {
+      if (typeof window !== "undefined" && "DD_RUM" in window) {
+        const rum = (window as Record<string, unknown>).DD_RUM as
+          | { addError?: (err: Error, ctx?: Record<string, unknown>) => void }
+          | undefined;
+        rum?.addError?.(error, {
+          componentStack: errorInfo.componentStack,
+        });
+      }
+    } catch {
+      // Feil i feilrapportering — ignorer
+    }
   }
 
   render() {

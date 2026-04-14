@@ -20,6 +20,9 @@ import { rateLimitMe } from "../../middleware/rate-limit.js";
 const router = Router();
 router.use(rateLimitMe);
 
+/** Maksimalt antall blokker per arbeidsplan for å hindre ubegrenset vekst */
+const MAX_BLOCKS_PER_PLAN = 200;
+
 function serializeStudyBlock(block: IStudyBlock) {
   return {
     day: block.day,
@@ -75,6 +78,9 @@ router.post("/", async (req: Request, res: Response) => {
     if (existing) {
       // Slå sammen nye blokker med eksisterende i stedet for å erstatte
       const mergedBlocks = [...existing.blocks, ...data.blocks as IStudyBlock[]];
+      if (mergedBlocks.length > MAX_BLOCKS_PER_PLAN) {
+        return apiError.badRequest(res, `Arbeidsplanen kan ha maks ${MAX_BLOCKS_PER_PLAN} blokker`);
+      }
       existing.week = data.week;
       existing.blocks = mergedBlocks;
       existing.totalHours = Math.round(
@@ -96,7 +102,7 @@ router.post("/", async (req: Request, res: Response) => {
       }),
     );
   } catch (error) {
-    sendUnknownError(res, error, { kontekst: "arbeidsplan opprettelse" });
+    return sendUnknownError(res, error, { kontekst: "arbeidsplan opprettelse" });
   }
 });
 
@@ -124,7 +130,7 @@ router.get("/current", async (req: Request, res: Response) => {
       }),
     );
   } catch (error) {
-    sendUnknownError(res, error, { kontekst: "arbeidsplan henting" });
+    return sendUnknownError(res, error, { kontekst: "arbeidsplan henting" });
   }
 });
 
@@ -185,7 +191,7 @@ router.get("/stats/progress", async (req: Request, res: Response) => {
       }),
     );
   } catch (error) {
-    sendUnknownError(res, error, { kontekst: "arbeidsplan fremdrift" });
+    return sendUnknownError(res, error, { kontekst: "arbeidsplan fremdrift" });
   }
 });
 
@@ -217,7 +223,7 @@ router.patch("/:id/block", async (req: Request, res: Response) => {
       return apiError.notFound(res, "Arbeidsplan");
     }
 
-    if (blockIndex >= plan.blocks.length) {
+    if (blockIndex < 0 || !Number.isInteger(blockIndex) || blockIndex >= plan.blocks.length) {
       return apiError.badRequest(res, "Ugyldig blokk-index");
     }
 
@@ -234,7 +240,7 @@ router.patch("/:id/block", async (req: Request, res: Response) => {
       }),
     );
   } catch (error) {
-    sendUnknownError(res, error, { kontekst: "studieblokk oppdatering" });
+    return sendUnknownError(res, error, { kontekst: "studieblokk oppdatering" });
   }
 });
 
@@ -267,7 +273,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
       }),
     );
   } catch (error) {
-    sendUnknownError(res, error, { kontekst: "arbeidsplan sletting" });
+    return sendUnknownError(res, error, { kontekst: "arbeidsplan sletting" });
   }
 });
 

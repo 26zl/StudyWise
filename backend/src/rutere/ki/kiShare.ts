@@ -474,7 +474,7 @@ kiShareRouter.patch("/chat/shared/:shareId", async (req, res) => {
 
     void audit({
       actorUserId: userId,
-      action: AUDIT_ACTIONS.SHARE_CREATED,
+      action: AUDIT_ACTIONS.SHARE_UPDATED,
       category: "ki",
       outcome: "success",
       metadata: {

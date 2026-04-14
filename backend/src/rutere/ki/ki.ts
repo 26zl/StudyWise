@@ -627,18 +627,43 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
       }
       // Fallback i samme stil som i commit 8e2e3ef:
       // noen URL-er fungerer i standard fetch-flyt, men ikke i safe-redirect-løpet.
+      // Bruker redirect: "manual" + manuell hop-validering for å hindre SSRF via DNS-rebinding.
       const legacyController = new AbortController();
       const legacyTimeout = setTimeout(() => legacyController.abort(), 12_000);
       try {
-        const legacyResponse = await fetch(safeUrl.toString(), {
-          method: "GET",
-          redirect: "follow",
-          signal: legacyController.signal,
-          headers: {
-            "User-Agent": "StudyWise/1.0 (KI Live URL Context)",
-            Accept: "text/html,application/xhtml+xml,application/pdf,text/plain,*/*",
-          },
-        });
+        let legacyUrl = safeUrl.toString();
+        let legacyResponse: globalThis.Response | null = null;
+        const MAX_LEGACY_REDIRECTS = 5;
+        for (let hop = 0; hop < MAX_LEGACY_REDIRECTS; hop++) {
+          legacyResponse = await fetch(legacyUrl, {
+            method: "GET",
+            redirect: "manual",
+            signal: legacyController.signal,
+            headers: {
+              "User-Agent": "StudyWise/1.0 (KI Live URL Context)",
+              Accept: "text/html,application/xhtml+xml,application/pdf,text/plain,*/*",
+            },
+          });
+          const status = legacyResponse.status;
+          if (status >= 300 && status < 400) {
+            const location = legacyResponse.headers.get("location");
+            if (!location) break;
+            const nextUrl = new URL(location, legacyUrl).toString();
+            const safeNext = await ensurePublicHttpUrl(nextUrl);
+            if (!safeNext) {
+              logger.warn({ hop, nextUrl }, "Legacy fallback: redirect til privat/lokal IP blokkert");
+              legacyResponse = null;
+              break;
+            }
+            legacyUrl = safeNext.toString();
+            continue;
+          }
+          break;
+        }
+        if (!legacyResponse) {
+          outcome = "fetch_error";
+          return null;
+        }
         usedLegacyFetchFallback = true;
 
         if (!legacyResponse.ok) {
@@ -670,7 +695,18 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
           extracted = normalizeTextContent(stripHtml(html, { removeStyles: true }));
           labelType = "html";
         } else if (legacyContentType.includes("application/pdf")) {
+          const contentLength = Number(legacyResponse.headers.get("content-length") || "0");
+          if (contentLength > MAX_PDF_SIZE_BYTES) {
+            outcome = "body_too_large";
+            logger.warn({ url: finalUrl, contentLength }, "Legacy fallback: PDF for stor");
+            return null;
+          }
           const buffer = Buffer.from(await legacyResponse.arrayBuffer());
+          if (buffer.byteLength > MAX_PDF_SIZE_BYTES) {
+            outcome = "body_too_large";
+            logger.warn({ url: finalUrl, byteLength: buffer.byteLength }, "Legacy fallback: PDF-body for stor");
+            return null;
+          }
           const parsed = await parseDocument(buffer, "application/pdf", safeUrl.pathname || "document.pdf");
           extracted = normalizeTextContent(parsed.text);
           labelType = "pdf";
@@ -1410,7 +1446,7 @@ router.get("/models", (_req, res) => {
 });
 
 // Hovedendepunkt for chat
-router.post("/chat", rateLimitKi, knyttCanvasTokenValgfritt, async (req, res) => {
+router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
   logger.info("Mottok chat-forespørsel");
   const chatStartedAt = Date.now();
 

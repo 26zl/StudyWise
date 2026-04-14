@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -283,6 +283,13 @@ function FlashcardActive({
   const [flipped, setFlipped] = useState(false);
   const [known, setKnown] = useState(0);
   const [unknown, setUnknown] = useState(0);
+  const nextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (nextTimerRef.current) clearTimeout(nextTimerRef.current);
+    };
+  }, []);
 
   const { t } = useLanguage();
   const card = cards[current];
@@ -292,7 +299,7 @@ function FlashcardActive({
   const handleMark = (didKnow: boolean) => {
     const newKnown = didKnow ? known + 1 : known;
     const newUnknown = didKnow ? unknown : unknown + 1;
-    
+
     if (didKnow) setKnown((k) => k + 1);
     else setUnknown((u) => u + 1);
 
@@ -300,7 +307,8 @@ function FlashcardActive({
       onFinish(newKnown, newUnknown);
     } else {
       setFlipped(false);
-      setTimeout(() => setCurrent((c) => c + 1), 150);
+      if (nextTimerRef.current) clearTimeout(nextTimerRef.current);
+      nextTimerRef.current = setTimeout(() => setCurrent((c) => c + 1), 150);
     }
   };
 
@@ -511,6 +519,11 @@ function QuizActive({
   const scoreRef = useRef(0);
   const { t } = useLanguage();
 
+  // Nullstill scoreRef ved nye spørsmål for å hindre at gammel score videreføres
+  useEffect(() => {
+    scoreRef.current = 0;
+  }, [questions]);
+
   if (questions.length === 0) {
     return (
       <div className="max-w-3xl mx-auto">
@@ -640,7 +653,7 @@ function QuizActive({
               }
               return (
                 <button
-                  key={idx}
+                  key={`${current}-${idx}`}
                   type="button"
                   onClick={() => handleSelect(idx)}
                   disabled={selected !== null}
@@ -940,18 +953,24 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
   const selectedCourse = courseOptions.find((c) => c.id === selectedCourseId);
 
   // Transformer Canvas-moduler til dropdown-options
-  const moduleOptions: ModuleOption[] = (modulesData?.modules ?? []).map((m) => ({
-    id: String(m.id),
-    name: m.name,
-  }));
+  const moduleOptions: ModuleOption[] = useMemo(
+    () => (modulesData?.modules ?? []).map((m) => ({
+      id: String(m.id),
+      name: m.name,
+    })),
+    [modulesData],
+  );
 
   // Transformer Canvas-filer til dropdown-options (kun støttede filtyper)
-  const fileOptions: ModuleOption[] = (filesData ?? [])
-    .filter((f) => /\.(pdf|docx?|pptx?|txt|html?)$/i.test(f.display_name))
-    .map((f) => ({
-      id: String(f.id),
-      name: f.display_name,
-    }));
+  const fileOptions: ModuleOption[] = useMemo(
+    () => (filesData ?? [])
+      .filter((f) => /\.(pdf|docx?|pptx?|txt|html?)$/i.test(f.display_name))
+      .map((f) => ({
+        id: String(f.id),
+        name: f.display_name,
+      })),
+    [filesData],
+  );
 
   useEffect(() => {
     if (!selectedCourseId || coursesLoading) return;

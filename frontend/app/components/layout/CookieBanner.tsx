@@ -6,7 +6,7 @@
  */
 "use client";
 
-import { useId, useCallback } from "react";
+import { useId, useCallback, useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useCookieConsent, type CookieConsentStatus } from "@/app/hooks/useCookieConsent";
@@ -18,6 +18,23 @@ export function CookieBanner() {
   const { consent, isAuthenticated, isReady, isPending, setConsent } = useCookieConsent();
   const titleId = useId();
   const pathname = usePathname();
+
+  // Sjekk gjeste-cookie i useEffect for å unngå hydration mismatch
+  const [harGjesteCookie, setHarGjesteCookie] = useState(false);
+  useEffect(() => {
+    if (isAuthenticated) return;
+    try {
+      const match = document.cookie
+        .split("; ")
+        .find((c) => c.startsWith("studywise_guest_consent="));
+      if (match) {
+        const val = match.split("=")[1];
+        if (val === "accepted" || val === "declined") {
+          setHarGjesteCookie(true);
+        }
+      }
+    } catch { /* cookie-lesing utilgjengelig */ }
+  }, [isAuthenticated]);
 
   const handleChoice = useCallback(
     async (choice: Exclude<CookieConsentStatus, null>) => {
@@ -40,19 +57,8 @@ export function CookieBanner() {
   // er forstyrrende. Banneret vises i stedet når de lander på dashboard/forsiden.
   if (pathname.startsWith("/auth/")) return null;
 
-  // Synkron cookie-sjekk for å eliminere flash: selv om React-state ennå ikke er
-  // oppdatert etter hydrering, sjekker vi cookien direkte under render.
-  if (!isAuthenticated && typeof document !== "undefined") {
-    try {
-      const match = document.cookie
-        .split("; ")
-        .find((c) => c.startsWith("studywise_guest_consent="));
-      if (match) {
-        const val = match.split("=")[1];
-        if (val === "accepted" || val === "declined") return null;
-      }
-    } catch { /* cookie-lesing utilgjengelig */ }
-  }
+  // Gjeste-cookie oppdaget etter hydrering — ikke vis banneret
+  if (harGjesteCookie) return null;
 
   return (
     <div
@@ -60,7 +66,8 @@ export function CookieBanner() {
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div
-        role="region"
+        role="dialog"
+        aria-modal="true"
         aria-labelledby={titleId}
         className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 dark:shadow-[0_8px_40px_rgba(0,0,0,0.4)] border border-slate-200 dark:border-slate-700"
       >
