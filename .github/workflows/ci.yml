@@ -143,7 +143,3 @@ jobs:
         uses: trufflesecurity/trufflehog@47e7b7cd74f578e1e3145d48f669f22fd1330ca6 # v3.94.3
         with:
           extra_args: --only-verified
-
-  # 5. SBOM-generering — deaktivert inntil cdxgen støtter pnpm v10 multi-document lockfiler.
-  # Se: https://github.com/CycloneDX/cdxgen/issues — YAML MULTIPLE_DOCS-feil.
-  # Kan reaktiveres når cdxgen fikser parsePnpmLock for pnpm v10.

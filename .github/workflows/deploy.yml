@@ -57,11 +57,6 @@ jobs:
       - name: Build common
         run: pnpm --filter common build
 
-      - name: Set git author for Vercel
-        run: |
-          git config user.email "${{ secrets.VERCEL_GIT_EMAIL }}"
-          git config user.name "StudyWise CI"
-
       - name: Install Vercel CLI
         run: npm install -g vercel@50.37.0
 
