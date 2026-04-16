@@ -25,16 +25,20 @@ All commands run from the repo root via pnpm:
 pnpm dev                    # Starts all services (builds common first, then backend, frontend, docs)
 pnpm dev:backend            # Backend only (tsx watch, port 4000)
 pnpm dev:frontend           # Frontend only (Next.js turbopack, port 3000)
+pnpm dev:docs               # Docs only (VitePress, port 5173)
 pnpm kill:dev               # Kill dev servers
 
-# Build
+# Build / Production
 pnpm build                  # Build all (common -> backend -> frontend -> docs)
 pnpm build:common           # Must run first if common types changed
+pnpm start                  # Run backend + frontend in parallel (production mode)
 
 # Quality checks
 pnpm typecheck              # Typecheck all packages (builds common first)
 pnpm lint                   # ESLint across all packages
 pnpm lint:md                # Markdown linting via remark
+pnpm format                 # Prettier write across repo
+pnpm format:check           # Prettier check (no write)
 
 # Tests
 pnpm test:unit              # Vitest unit tests (common + backend + frontend)
@@ -43,6 +47,7 @@ pnpm test:unit:frontend     # Frontend unit tests only
 pnpm test                   # Integration test runner (tsx run.ts)
 pnpm test:auth              # Auth integration tests
 pnpm test:auth:e2e          # Playwright E2E auth tests
+pnpm test:auth:matrix       # Auth identity matrix (120 scenarios); :basic/:oauth/:update/:delete/:session/:race for subsets
 pnpm test:ki                # AI/KI integration tests
 pnpm test:canvas            # Canvas integration tests
 
@@ -128,9 +133,12 @@ Host/origin validation (prod) → Helmet security headers → body parsers → C
 pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build
 ```
 
+Husky + lint-staged auto-run Prettier on staged files (`.ts/.tsx/.js/.json/.md/.yml/.css`) at commit time. The hook installs via the `prepare` script on `pnpm install`.
+
 ## Docker
 
 ```bash
+cp docker.env.example .env  # Fill required values
 docker compose up --build   # Starts MongoDB, Redis, backend, frontend
 ```
 
