@@ -99,9 +99,9 @@ jobs:
           NEXT_PUBLIC_API_URL: "http://localhost:4000"
           INTERNAL_API_URL: "http://localhost:4000"
 
-  # 3. Avhengighetsscanning (rask)
+  # 3. Avhengighetsscanning (rask) — skanner pnpm-lock.yaml mot OSV-databasen
   dependency-scan:
-    name: Dependency Scan (pnpm audit)
+    name: Dependency Scan (OSV-Scanner)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [actionlint]
@@ -115,23 +115,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@08c4be7e2e672a47d11bd04269e27e5f3e8529cb # v6.0.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+      - name: Run OSV-Scanner
+        uses: google/osv-scanner-action/osv-scanner-action@c51854704019a247608d928f370c98740469d4b5 # v2.3.5
         with:
-          node-version: 24
-          cache: "pnpm"
-
-      - name: Install safe-chain (pinned release)
-        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/download/1.4.7/install-safe-chain.sh | sh -s -- --ci
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --safe-chain-skip-minimum-package-age
-
-      - name: Audit dependencies
-        run: pnpm audit --audit-level=high
+          scan-args: |-
+            --lockfile=pnpm-lock.yaml
 
   # 4. Scan etter leaks
   secret-scan:

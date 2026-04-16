@@ -129,7 +129,7 @@ Sikkerheten er automatisert i CI-pipelinen:
 - **TruffleHog** skanner git-historikk for lekkede hemmeligheter
 - **OWASP Dependency-Check** kjøres ukentlig for sårbarheter i avhengigheter
 - **eslint-plugin-security** (SAST) kjøres via `pnpm lint` i både frontend og backend
-- **pnpm audit** (`audit-level=high`) sjekker avhengigheter ved hver CI-kjøring
+- **OSV-Scanner** skanner `pnpm-lock.yaml` mot OSV-databasen ved hver CI-kjøring
 - **CycloneDX SBOM** genereres og lastes opp som artefakt ved hver build
 
 ## Deploy

@@ -174,8 +174,12 @@ jobs:
       - name: Create frontend .env from secrets
         env:
           S_CLERK_PK: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          S_CLERK_SK: ${{ secrets.CLERK_SECRET_KEY }}
         run: |
-          printf 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=%s\n' "$S_CLERK_PK" > frontend/.env
+          {
+            printf 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=%s\n' "$S_CLERK_PK"
+            printf 'CLERK_SECRET_KEY=%s\n' "$S_CLERK_SK"
+          } > frontend/.env
           echo "Frontend .env created with $(wc -l < frontend/.env) lines"
 
       - name: Build backend and frontend (production)
