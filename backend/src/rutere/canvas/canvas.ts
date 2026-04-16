@@ -1392,6 +1392,38 @@ router.get("/emner/:courseId/files", async (req, res) => {
     logger.info({ courseId: courseIdNum, count: files.length }, "Hentet filer for kurs");
     res.json({ files, meta });
   } catch (error) {
+    const canvasError = error as CanvasHttpError & { code?: CanvasErrorCode; name?: string };
+    const canFallbackToEmptyFiles =
+      canvasError?.name === "CanvasApiError"
+      && (canvasError.code === "permission_denied"
+        || canvasError.code === "resource_disabled"
+        || canvasError.code === "resource_not_found");
+
+    if (canFallbackToEmptyFiles) {
+      res.setHeader("x-canvas-access-status", "limited");
+      res.setHeader("x-canvas-access-reason", String(canvasError.code ?? "unknown"));
+      logger.info(
+        {
+          courseId: req.params.courseId,
+          code: canvasError.code,
+          httpStatus: canvasError.status,
+        },
+        "Ingen filtilgang for kurset — returnerer tom fil-liste som fallback",
+      );
+      return res.json({
+        files: [],
+        meta: {
+          fallback: "empty_files",
+          reason: canvasError.code,
+          access: {
+            limited: true,
+            originalStatus: canvasError.status ?? null,
+            originalCode: canvasError.code ?? null,
+          },
+        },
+      });
+    }
+
     return handleCanvasError(res, error, `Feil ved henting av filer for kurs ${req.params.courseId}`);
   }
 });

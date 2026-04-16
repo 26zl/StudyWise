@@ -109,10 +109,30 @@ function resolveTrustProxyHops(): number {
   return parsed;
 }
 
+function shouldExitOnUnhandledRejection(): boolean {
+  const raw = process.env.EXIT_ON_UNHANDLED_REJECTION?.trim().toLowerCase();
+  if (!raw) {
+    // I produksjon holder vi fail-fast som default; lokalt prioriteres robust dev-loop.
+    return isProd;
+  }
+
+  return raw === "1" || raw === "true" || raw === "yes";
+}
+
 // Global error handlers - fanger uventede feil
 process.on("unhandledRejection", (reason, promise) => {
-  logger.fatal({ reason, promise }, "Unhandled Promise Rejection - avslutter");
-  process.exit(1);
+  const exitOnUnhandledRejection = shouldExitOnUnhandledRejection();
+  logger.fatal(
+    { reason, promise, exitOnUnhandledRejection },
+    "Unhandled Promise Rejection",
+  );
+
+  if (exitOnUnhandledRejection) {
+    logger.fatal("Avslutter prosess pga unhandled rejection");
+    process.exit(1);
+  }
+
+  logger.error("Fortsetter prosess etter unhandled rejection (dev-mode)");
 });
 // Fanger opp uventede feil som ikke blir fanget andre steder
 process.on("uncaughtException", (error) => {

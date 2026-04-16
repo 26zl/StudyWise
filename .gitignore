@@ -53,6 +53,7 @@ tests/auth/results/
 # Misc
 *.bak
 *.tmp
+_tmp_*
 *.pid
 *.pid.lock
 *.seed

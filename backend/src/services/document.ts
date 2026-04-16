@@ -1,7 +1,8 @@
 /**
  * Document parsing service
  * Konverterer dokumenter (PDF, Word, TXT, bilder) til ren tekst for KI-analyse
- * Bruker unpdf for PDF, mammoth for Word, sharp for bildeforbehandling, og tesseract.js for OCR
+ * Bruker pdf-parse for PDF-tekst, unpdf for PDF-rendring i OCR-fallback,
+ * mammoth for Word, sharp for bildeforbehandling, og tesseract.js for OCR
  */
 
 // --- Polyfill: ArrayBuffer.prototype.transfer / transferToFixedLength ---
@@ -26,7 +27,8 @@ if (!ArrayBuffer.prototype.transferToFixedLength) {
 }
 // --- End polyfill ---
 
-import { extractText, renderPageAsImage } from "unpdf";
+import { renderPageAsImage } from "unpdf";
+import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import Tesseract from "tesseract.js";
 import sharp from "sharp";
@@ -642,21 +644,32 @@ async function ocrPdfPages(pdfSource: Buffer, numPages: number, opts?: { maxPage
  */
 async function parsePdfDocument(buffer: Buffer, options?: ParseDocumentOptions): Promise<DocumentParseResult> {
     try {
-        // Lag en uavhengig kopi av PDF-dataene.
-        // extractText() (pdf.js) kan detache den underliggende ArrayBuffer-en via
-        // transferToFixedLength, så vi lager en eksplisitt bytekopi for det løpet.
-        // OCR-fallbacken bruker original Buffer og lager en ny kopi per side.
-        const pdfDataForExtract = Uint8Array.from(buffer);
-        
-        logger.info({ bufferLength: buffer.length, pdfDataLength: pdfDataForExtract.length }, "Starting PDF extraction");
-        
-        // Ekstraher tekst direkte - unpdf håndterer dette internt
-        const result = await extractText(pdfDataForExtract, { mergePages: true });
-        
-        logger.info({ resultKeys: Object.keys(result), totalPages: result.totalPages }, "PDF extraction completed");
-        
-        const text = result.text;
-        const numPages = result.totalPages || 1;
+        logger.info({ bufferLength: buffer.length }, "Starting PDF extraction");
+
+        // pdf-parse er mer robust for ren tekstekstraksjon og unngår kjente
+        // unhandled-rejection-problemer vi har observert i unpdf/pdf.js-løpet.
+        const parser = new PDFParse({ data: buffer });
+        let text = "";
+        let numPages = 1;
+        try {
+            const parsed = await parser.getText();
+            text = typeof parsed.text === "string" ? parsed.text : "";
+            numPages = Number.isFinite(parsed.total) && parsed.total > 0
+                ? parsed.total
+                : 1;
+        } finally {
+            await parser.destroy().catch((destroyError) => {
+                logger.debug({ err: destroyError }, "PDF parser destroy feilet (ignoreres)");
+            });
+        }
+
+        logger.info(
+            {
+                totalPages: numPages,
+                extractedTextLength: text.length,
+            },
+            "PDF extraction completed",
+        );
 
         // Sjekk om teksten inneholder ekte lesbart innhold.
         // Mange skannede PDF-er har usynlige tekstlag med whitespace, kontrollkarakterer

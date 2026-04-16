@@ -567,8 +567,26 @@ const LIVE_URL_MAX_DEPTH = Math.min(3, KB_CRAWL_MAX_DEPTH);
 const LIVE_URL_MAX_PAGES = Math.min(8, KB_CRAWL_MAX_PAGES);
 const LIVE_URL_MAX_DOCUMENTS = Math.min(6, KB_CRAWL_MAX_DOCUMENTS);
 const LIVE_URL_MAX_CHARS = 22_000;
+const LIVE_URL_MAX_HTML_SECTION_CHARS = 3_500;
+const LIVE_URL_MAX_PDF_SECTION_CHARS = 2_500;
 const LIVE_URL_MIN_TEXT_CHARS = 80;
 const LIVE_URL_SAME_PATH_ONLY = false;
+const LIVE_URL_ENABLE_PDF_CONTEXT = !["0", "false", "no"].includes(
+  (process.env.LIVE_URL_ENABLE_PDF_CONTEXT ?? "").trim().toLowerCase(),
+);
+
+function clipLiveUrlSection(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars)}\n[...klippet for å inkludere flere kilder...]`;
+}
+
+function buildPdfDisabledLiveUrlContext(url: string): string {
+  return `<live_url source="${url}" contentType="pdf-unavailable">
+PDF-innhold fra direkte URL er midlertidig deaktivert for stabil drift.
+Lenke: ${url}
+Du kan fortsatt oppsummere HTML-innhold fra nettsider, men ikke hente PDF-tekst fra denne URL-en akkurat nå.
+</live_url>`;
+}
 
 function normalizeLiveCrawlUrl(urlStr: string): string {
   try {
@@ -612,7 +630,7 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
   }
 
   let finalUrl = safeUrl.toString();
-  let outcome: "success" | "too_short" | "http_error" | "fetch_error" | "body_too_large" =
+  let outcome: "success" | "too_short" | "http_error" | "fetch_error" | "body_too_large" | "pdf_disabled" =
     "fetch_error";
   try {
     let usedLegacyFetchFallback = false;
@@ -695,6 +713,11 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
           extracted = normalizeTextContent(stripHtml(html, { removeStyles: true }));
           labelType = "html";
         } else if (legacyContentType.includes("application/pdf")) {
+          if (!LIVE_URL_ENABLE_PDF_CONTEXT) {
+            logger.info({ url: finalUrl }, "Direkte URL-kontekst: PDF parsing er deaktivert (LIVE_URL_ENABLE_PDF_CONTEXT)");
+            outcome = "pdf_disabled";
+            return buildPdfDisabledLiveUrlContext(safeUrl.toString());
+          }
           const contentLength = Number(legacyResponse.headers.get("content-length") || "0");
           if (contentLength > MAX_PDF_SIZE_BYTES) {
             outcome = "body_too_large";
@@ -787,7 +810,7 @@ ${clipped}
       queue.push({ url: finalUrl, depth: 0 });
 
       if (seedText.length >= LIVE_URL_MIN_TEXT_CHARS) {
-        sections.push(`[HTML depth=0 url=${finalUrl}]\n${seedText}`);
+        sections.push(`[HTML depth=0 url=${finalUrl}]\n${clipLiveUrlSection(seedText, LIVE_URL_MAX_HTML_SECTION_CHARS)}`);
         crawledPages++;
       }
 
@@ -803,16 +826,21 @@ ${clipped}
         visited.add(normalized);
         queue.push({ url: link.url, depth: 1, parentUrl: finalUrl });
       }
-      for (const doc of seedDocs) {
-        if (crawledDocuments >= LIVE_URL_MAX_DOCUMENTS) break;
-        const normalized = normalizeLiveCrawlUrl(doc.url);
-        if (visited.has(normalized)) continue;
-        if (!isWithinLiveCrawlScope(finalUrl, doc.url, LIVE_URL_SAME_PATH_ONLY)) continue;
-        visited.add(normalized);
-        const pdfResult = await downloadAndProcessPdf(doc.url);
-        if (!pdfResult || pdfResult.content.trim().length < LIVE_URL_MIN_TEXT_CHARS) continue;
-        sections.push(`[PDF depth=1 url=${doc.url} parent=${finalUrl}]\n${normalizeTextContent(pdfResult.content)}`);
-        crawledDocuments++;
+      if (LIVE_URL_ENABLE_PDF_CONTEXT) {
+        for (const doc of seedDocs) {
+          if (crawledDocuments >= LIVE_URL_MAX_DOCUMENTS) break;
+          const normalized = normalizeLiveCrawlUrl(doc.url);
+          if (visited.has(normalized)) continue;
+          if (!isWithinLiveCrawlScope(finalUrl, doc.url, LIVE_URL_SAME_PATH_ONLY)) continue;
+          visited.add(normalized);
+          const pdfResult = await downloadAndProcessPdf(doc.url);
+          if (!pdfResult || pdfResult.content.trim().length < LIVE_URL_MIN_TEXT_CHARS) continue;
+          const pdfText = normalizeTextContent(pdfResult.content);
+          sections.push(
+            `[PDF depth=1 url=${doc.url} parent=${finalUrl}]\n${clipLiveUrlSection(pdfText, LIVE_URL_MAX_PDF_SECTION_CHARS)}`,
+          );
+          crawledDocuments++;
+        }
       }
 
       let cursor = 1;
@@ -830,12 +858,15 @@ ${clipped}
         if (fetched.kind === "failed" || fetched.kind === "skip") continue;
 
         if (fetched.kind === "pdf") {
+          if (!LIVE_URL_ENABLE_PDF_CONTEXT) {
+            continue;
+          }
           if (crawledDocuments >= LIVE_URL_MAX_DOCUMENTS) continue;
           const parsed = await parseDocument(fetched.buffer, "application/pdf", current.url);
           const pdfText = normalizeTextContent(parsed.text);
           if (pdfText.length < LIVE_URL_MIN_TEXT_CHARS) continue;
           sections.push(
-            `[PDF depth=${current.depth} url=${current.url}${current.parentUrl ? ` parent=${current.parentUrl}` : ""}]\n${pdfText}`,
+            `[PDF depth=${current.depth} url=${current.url}${current.parentUrl ? ` parent=${current.parentUrl}` : ""}]\n${clipLiveUrlSection(pdfText, LIVE_URL_MAX_PDF_SECTION_CHARS)}`,
           );
           crawledDocuments++;
           continue;
@@ -845,7 +876,7 @@ ${clipped}
         const childText = normalizeTextContent(extractTextFromHtml(fetched.html, childSelectors));
         if (childText.length >= LIVE_URL_MIN_TEXT_CHARS) {
           sections.push(
-            `[HTML depth=${current.depth} url=${current.url}${current.parentUrl ? ` parent=${current.parentUrl}` : ""}]\n${childText}`,
+            `[HTML depth=${current.depth} url=${current.url}${current.parentUrl ? ` parent=${current.parentUrl}` : ""}]\n${clipLiveUrlSection(childText, LIVE_URL_MAX_HTML_SECTION_CHARS)}`,
           );
           crawledPages++;
         }
@@ -865,18 +896,21 @@ ${clipped}
           queue.push({ url: link.url, depth: current.depth + 1, parentUrl: current.url });
         }
 
-        for (const doc of childDocs) {
-          if (crawledDocuments >= LIVE_URL_MAX_DOCUMENTS) break;
-          const normalized = normalizeLiveCrawlUrl(doc.url);
-          if (visited.has(normalized)) continue;
-          if (!isWithinLiveCrawlScope(finalUrl, doc.url, LIVE_URL_SAME_PATH_ONLY)) continue;
-          visited.add(normalized);
-          const pdfResult = await downloadAndProcessPdf(doc.url);
-          if (!pdfResult || pdfResult.content.trim().length < LIVE_URL_MIN_TEXT_CHARS) continue;
-          sections.push(
-            `[PDF depth=${current.depth + 1} url=${doc.url} parent=${current.url}]\n${normalizeTextContent(pdfResult.content)}`,
-          );
-          crawledDocuments++;
+        if (LIVE_URL_ENABLE_PDF_CONTEXT) {
+          for (const doc of childDocs) {
+            if (crawledDocuments >= LIVE_URL_MAX_DOCUMENTS) break;
+            const normalized = normalizeLiveCrawlUrl(doc.url);
+            if (visited.has(normalized)) continue;
+            if (!isWithinLiveCrawlScope(finalUrl, doc.url, LIVE_URL_SAME_PATH_ONLY)) continue;
+            visited.add(normalized);
+            const pdfResult = await downloadAndProcessPdf(doc.url);
+            if (!pdfResult || pdfResult.content.trim().length < LIVE_URL_MIN_TEXT_CHARS) continue;
+            const pdfText = normalizeTextContent(pdfResult.content);
+            sections.push(
+              `[PDF depth=${current.depth + 1} url=${doc.url} parent=${current.url}]\n${clipLiveUrlSection(pdfText, LIVE_URL_MAX_PDF_SECTION_CHARS)}`,
+            );
+            crawledDocuments++;
+          }
         }
       }
 
@@ -897,6 +931,11 @@ ${clipped}
         "Direkte URL-kontekst: deep crawl fullført",
       );
     } else if (contentType.includes("application/pdf")) {
+      if (!LIVE_URL_ENABLE_PDF_CONTEXT) {
+        logger.info({ url: finalUrl }, "Direkte URL-kontekst: PDF parsing er deaktivert (LIVE_URL_ENABLE_PDF_CONTEXT)");
+        outcome = "pdf_disabled";
+        return buildPdfDisabledLiveUrlContext(safeUrl.toString());
+      }
       const buffer = await readResponseBodyWithLimit(response, MAX_PDF_SIZE_BYTES);
       const parsed = await parseDocument(buffer, "application/pdf", safeUrl.pathname || "document.pdf");
       extracted = normalizeTextContent(parsed.text);

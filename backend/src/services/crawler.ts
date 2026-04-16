@@ -48,8 +48,12 @@ const MAX_OFFICE_DOC_SIZE_BYTES = 25 * 1024 * 1024;
 /** Maks samtidige URL-hentinger */
 const CRAWLER_CONCURRENCY = 2;
 
-/** Maks PDF-er per ekstern side */
-const MAX_PDFS_PER_PAGE = 5;
+/**
+ * Maks PDF-er per ekstern side.
+ * Holdes høy nok til å fange vanlige kurssider med flere vedlegg/presentasjoner,
+ * men fortsatt begrenset for å unngå unødvendig tung crawling.
+ */
+const MAX_PDFS_PER_PAGE = 25;
 
 /** Maks størrelse på PDF-fil (10 MB) */
 const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024;
@@ -764,28 +768,78 @@ function findPdfLinks(html: string, baseUrl: string): Array<{ url: string; title
   const pdfLinks: Array<{ url: string; title: string }> = [];
   const seenUrls = new Set<string>();
 
-  $('a[href$=".pdf"], a[href*=".pdf?"]').each((_, el) => {
-    const href = $(el).attr("href");
-    if (!href) return;
+  const looksLikePdfUrl = (url: string): boolean => {
+    const lower = url.toLowerCase();
+    return lower.endsWith(".pdf")
+      || lower.includes(".pdf?")
+      || lower.includes("format=pdf")
+      || lower.includes("type=pdf")
+      || lower.includes("mime=application/pdf")
+      || lower.includes("contenttype=application/pdf");
+  };
 
-    try {
-      // Løs relativ URL mot base URL
-      const absoluteUrl = new URL(href, baseUrl).toString();
+  const looksLikePdfLabel = (label: string): boolean => {
+    const lower = label.toLowerCase();
+    return /\b(pdf|last\s*ned\s*pdf|download\s*pdf)\b/.test(lower)
+      || lower.includes("presentasjon (pdf)")
+      || lower.includes("presentation (pdf)");
+  };
 
-      // Unngå duplikater
-      if (seenUrls.has(absoluteUrl)) return;
-      seenUrls.add(absoluteUrl);
+  const extractCandidateUrls = ($el: ReturnType<typeof $>): string[] => {
+    const candidates = new Set<string>();
+    const directAttrs = ["href", "data-href", "data-url"];
 
-      // Hent tittel fra lenketekst eller filnavn
-      let title = $(el).text().trim();
-      if (!title) {
-        const urlPath = new URL(absoluteUrl).pathname;
-        title = decodeURIComponent(urlPath.split("/").pop() ?? "dokument.pdf");
+    for (const attr of directAttrs) {
+      const value = $el.attr(attr)?.trim();
+      if (value) candidates.add(value);
+    }
+
+    // Enkel onclick-støtte: window.open('...'), location.href='...', osv.
+    const onclick = $el.attr("onclick");
+    if (onclick) {
+      const quotedUrlMatches = onclick.matchAll(/["']([^"']+)["']/g);
+      for (const match of quotedUrlMatches) {
+        const candidate = match[1]?.trim();
+        if (!candidate) continue;
+        if (candidate.startsWith("/") || candidate.startsWith("http://") || candidate.startsWith("https://")) {
+          candidates.add(candidate);
+        }
       }
+    }
 
-      pdfLinks.push({ url: absoluteUrl, title });
-    } catch {
-      // Ugyldig URL — ignorer
+    return [...candidates];
+  };
+
+  $("a, button, [role='button']").each((_, el) => {
+    const $el = $(el);
+    const label = [
+      $el.text().trim(),
+      $el.attr("title")?.trim() ?? "",
+      $el.attr("aria-label")?.trim() ?? "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    const candidateUrls = extractCandidateUrls($el);
+    for (const candidateUrl of candidateUrls) {
+      try {
+        const absoluteUrl = new URL(candidateUrl, baseUrl).toString();
+        const isPdfCandidate = looksLikePdfUrl(absoluteUrl) || looksLikePdfLabel(label);
+        if (!isPdfCandidate) continue;
+
+        if (seenUrls.has(absoluteUrl)) continue;
+        seenUrls.add(absoluteUrl);
+
+        let title = label;
+        if (!title) {
+          const urlPath = new URL(absoluteUrl).pathname;
+          title = decodeURIComponent(urlPath.split("/").pop() ?? "dokument.pdf");
+        }
+
+        pdfLinks.push({ url: absoluteUrl, title });
+      } catch {
+        // Ugyldig URL — ignorer
+      }
     }
   });
 
