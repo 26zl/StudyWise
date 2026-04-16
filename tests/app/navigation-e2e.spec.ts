@@ -72,7 +72,7 @@ test.describe("Navigasjon — cookie-banner", () => {
     await page.goto("/");
     await page.waitForLoadState("domcontentloaded");
 
-    const cookieBanner = page.getByRole("region", { name: /cookie/i });
+    const cookieBanner = page.getByRole("dialog", { name: /cookie|informasjonskapsler/i });
     await expect(cookieBanner).toBeVisible({ timeout: 15_000 });
   });
 
@@ -81,7 +81,7 @@ test.describe("Navigasjon — cookie-banner", () => {
     await page.goto("/");
     await page.waitForLoadState("domcontentloaded");
 
-    const akseptKnapp = page.getByRole("button", { name: /accept|aksepter|essential/i }).first();
+    const akseptKnapp = page.getByRole("button", { name: /accept all|godta alle/i }).first();
     await expect(akseptKnapp).toBeVisible({ timeout: 15_000 });
     await akseptKnapp.click();
 
