@@ -5,9 +5,10 @@
  * Route-wrapper: app/dashboard/bokmerker/page.tsx re-eksporterer denne som default.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
+import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { Pin, Search, Database } from "lucide-react";
 import { useMeg } from "@/app/auth/auth-api";
 import {
@@ -41,8 +42,31 @@ export function BokmerkerPage() {
   const { setSelectedChatId, setCurrentChatId } = useUIStore();
   const { language, t } = useLanguage();
   const [query, setQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<ActiveTab>("bookmarks");
+  // Tab-state i URL via nuqs — parseAsStringLiteral validerer at kun tillatte
+  // verdier aksepteres (ugyldig tab?=xyz faller tilbake til default "bookmarks").
+  // clearOnDefault: false holder `?tab=bookmarks` synlig så valgt fane er dyplinkbar.
+  const [activeTab, setActiveTab] = useQueryState(
+    "tab",
+    parseAsStringLiteral(["bookmarks", "knowledgeBase"] as const)
+      .withDefault("bookmarks")
+      .withOptions({ clearOnDefault: false, history: "replace" }),
+  );
   const [selectedBaseId, setSelectedBaseId] = useState<string | null>(null);
+
+  const byttTab = useCallback(
+    (nesteTab: ActiveTab) => {
+      void setActiveTab(nesteTab, { history: "replace", scroll: false });
+      setSelectedBaseId(null);
+    },
+    [setActiveTab],
+  );
+
+  // Skriv aktiv tab til URL ved første besøk slik at brukeren ser hvilken fane
+  // som er valgt (matcher oppførselen på samtaler-siden).
+  useEffect(() => {
+    void setActiveTab(activeTab, { history: "replace", scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const åpneSamtale = useCallback(
     (chatId: string) => {
@@ -98,7 +122,7 @@ export function BokmerkerPage() {
           <div className="mb-6 flex items-center gap-1 border-b border-slate-200 dark:border-slate-700">
             <button
               type="button"
-              onClick={() => { setActiveTab("bookmarks"); setSelectedBaseId(null); }}
+              onClick={() => byttTab("bookmarks")}
               className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
                 activeTab === "bookmarks"
                   ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
@@ -110,7 +134,7 @@ export function BokmerkerPage() {
             </button>
             <button
               type="button"
-              onClick={() => { setActiveTab("knowledgeBase"); setSelectedBaseId(null); }}
+              onClick={() => byttTab("knowledgeBase")}
               className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
                 activeTab === "knowledgeBase"
                   ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"

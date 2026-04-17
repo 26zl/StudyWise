@@ -1,1 +1,1 @@
-web: node --max-old-space-size=384 --expose-gc backend/dist/index.js
+web: node --max-old-space-size=384 --optimize-for-size --expose-gc backend/dist/index.js

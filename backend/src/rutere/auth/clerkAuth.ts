@@ -1525,18 +1525,15 @@ export async function findOrCreateUserByClerkId(
 
     // Sesjonsbasert Turnstile-gate: krev Turnstile-cookie for nye sesjoner (ikke tidligere verifiserte).
     // Sjekker ved HVER fersk sesjon, uavhengig av profilsync-intervall.
+    // resolveSessionTurnstileVerification håndterer racen der parallelle requests
+    // kappes om samme nonce — tapende request venter kort på at vinneren markerer sesjonen.
     const sid = options?.sessionId;
-    if (isProd && !(await isSessionTurnstileVerified(sid))) {
-      if (await isValidAuthTurnstileCookieValue(options?.authTurnstileCookie)) {
-        // Gyldig cookie → marker sesjonen som verifisert (synkront for cross-dyno konsistens)
-        if (sid) await markSessionTurnstileVerified(sid);
-      } else {
-        logger.warn(
-          { clerkUserId, userId: existing._id, flowId: fid, sid },
-          "authFlow: sesjon mangler Turnstile-verifisering — blokkerer",
-        );
-        return { __turnstileRequired: true };
-      }
+    if (isProd && !(await resolveSessionTurnstileVerification(sid, options?.authTurnstileCookie))) {
+      logger.warn(
+        { clerkUserId, userId: existing._id, flowId: fid, sid },
+        "authFlow: sesjon mangler Turnstile-verifisering — blokkerer",
+      );
+      return { __turnstileRequired: true };
     }
 
     if (options?.forceSync || shouldSyncExistingUserProfile(existing)) {
@@ -2021,18 +2018,15 @@ export async function findOrCreateUserByClerkId(
 
     // Server-side Turnstile-gate: krev gyldig Turnstile-cookie for nye brukerregistreringer i produksjon.
     // Forhindrer bot-registrering selv om Turnstile-widget-sjekken på klienten blir omgått.
-    // Sjekk sesjonsbasert verifisering først — parallelle kall kan ha allerede verifisert sesjonen.
+    // resolveSessionTurnstileVerification håndterer både rask path (sesjon allerede verifisert)
+    // og race-vinduet der parallelle requests kappes om samme nonce.
     const newUserSid = options?.sessionId;
-    if (isProd && !(await isSessionTurnstileVerified(newUserSid))) {
-      if (!(await isValidAuthTurnstileCookieValue(options?.authTurnstileCookie))) {
-        logger.warn(
-          { clerkUserId, email, flowId: fid },
-          "authFlow: mangler gyldig Turnstile-cookie ved brukeropprettelse — blokkerer",
-        );
-        return { __turnstileRequired: true };
-      }
-      // Turnstile-sjekk bestått — marker sesjonen som verifisert (synkront for cross-dyno konsistens)
-      if (newUserSid) await markSessionTurnstileVerified(newUserSid);
+    if (isProd && !(await resolveSessionTurnstileVerification(newUserSid, options?.authTurnstileCookie))) {
+      logger.warn(
+        { clerkUserId, email, flowId: fid },
+        "authFlow: mangler gyldig Turnstile-cookie ved brukeropprettelse — blokkerer",
+      );
+      return { __turnstileRequired: true };
     }
 
     try {
@@ -2332,6 +2326,44 @@ export async function isSessionTurnstileVerified(sid: string | undefined): Promi
     }
   } catch {
     // Redis nede — lokal cache har allerede svart negativt
+  }
+  return false;
+}
+
+/**
+ * Resolver Turnstile-verifisering for en fersk Clerk-sesjon med race-toleranse.
+ *
+ * Flyt:
+ *  1. Rask path: sesjonen er allerede markert verifisert → returner true.
+ *  2. Forsøk å konsumere nonce atomisk (SET NX) → marker sesjonen og returner true.
+ *  3. Nonce allerede forbrukt av parallell request: poll sesjonsstatus kort
+ *     (opp til ~200 ms) mens vinneren fullfører sin markSessionTurnstileVerified.
+ *     Dette dekker race-vinduet mellom nonce-konsum og sesjonsmarkering.
+ *
+ * Uten steg 3 vil parallelle kall (f.eks. frontend som fyrer /me + /canvas samtidig
+ * rett etter sso-callback) treffe 403 "turnstile_required" selv om brukeren har
+ * en gyldig cookie — bare én request vinner kappløpet om noncen.
+ */
+const TURNSTILE_RACE_POLL_INTERVAL_MS = 25;
+const TURNSTILE_RACE_POLL_MAX_ATTEMPTS = 8; // ~200 ms total
+export async function resolveSessionTurnstileVerification(
+  sid: string | undefined,
+  authTurnstileCookie: string | undefined,
+): Promise<boolean> {
+  if (await isSessionTurnstileVerified(sid)) return true;
+
+  if (await isValidAuthTurnstileCookieValue(authTurnstileCookie)) {
+    if (sid) await markSessionTurnstileVerified(sid);
+    return true;
+  }
+
+  // Nonce var allerede konsumert — en parallell request vant kappløpet.
+  // Poll sesjonsstatus kort slik at vi ikke 403-er tapende request i vinduet
+  // mellom nonce-konsum og markSessionTurnstileVerified.
+  if (!sid) return false;
+  for (let i = 0; i < TURNSTILE_RACE_POLL_MAX_ATTEMPTS; i++) {
+    await new Promise((resolve) => setTimeout(resolve, TURNSTILE_RACE_POLL_INTERVAL_MS));
+    if (await isSessionTurnstileVerified(sid)) return true;
   }
   return false;
 }

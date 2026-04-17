@@ -1386,18 +1386,16 @@ function sanitizeStudentName(value: string | null | undefined): string | null {
 }
 
 function extractPreferredStudentFirstName(
-  profile: { firstName?: string | null; username?: string | null; email?: string | null } | null | undefined,
+  profile: { firstName?: string | null } | null | undefined,
 ): string | null {
-  const emailLocalPart = typeof profile?.email === "string" ? profile.email.split("@")[0] : null;
-  const candidates = [profile?.firstName, profile?.username, emailLocalPart];
-  for (const candidate of candidates) {
-    if (typeof candidate !== "string") continue;
-    const sanitized = sanitizeStudentName(candidate.replace(/[._-]+/g, " "));
-    if (!sanitized) continue;
-    const firstToken = sanitized.split(" ")[0]?.trim();
-    if (firstToken) return firstToken;
-  }
-  return null;
+  // Bruk kun faktisk firstName fra profilen. Tidligere falt vi tilbake til
+  // username/email-localpart, men det ga unaturlige hilsner (f.eks. "Hei laz!"
+  // fra brukernavnet "laz2025", eller "Hei student!" fra "student123@usn.no").
+  // Uten firstName viser vi heller en generisk hilsen uten personlig navn.
+  const sanitized = sanitizeStudentName(profile?.firstName);
+  if (!sanitized) return null;
+  const firstToken = sanitized.split(" ")[0]?.trim();
+  return firstToken || null;
 }
 
 /**
@@ -1569,7 +1567,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
 
   try {
     const bruker = await User.findOne({ _id: req.user.id, deletedAt: { $exists: false } })
-      .select("firstName username email canvasContextPreferences hiddenCourseIds")
+      .select("firstName canvasContextPreferences hiddenCourseIds")
       .lean();
 
     // Start med base system prompt
@@ -1615,6 +1613,31 @@ The very first sentence MUST include the student's first name.
 Do not omit the name in this first sentence.
 `;
         }
+      }
+    } else if (!hasAssistantMessages) {
+      // Ingen firstName i profilen — bruk en generisk hilsen uten navn for
+      // å unngå at KI-en prøver å gjette en "personlig" tiltaleform.
+      enhancedSystemPrompt += `
+
+## First Reply Greeting
+
+This is the first assistant reply in this conversation, and the student has not
+set a first name in their profile. Start with a short, neutral greeting WITHOUT
+using any name — for example "Hei!" or "Hi there!" — then continue directly
+with the academic answer.
+`;
+
+      if (isFirstUserGreetingOnly) {
+        enhancedSystemPrompt += `
+
+## Greeting Strictness
+
+The student's first message is only a greeting.
+Start the response with a warm, name-free greeting.
+- If responding in Norwegian Bokmål: "Hei!"
+- If responding in English: "Hi there!"
+Never guess or invent a name from email, username, or other profile fields.
+`;
       }
     }
 

@@ -2120,7 +2120,7 @@ export const enMessages = {
     genericHint1: "Explain more simply",
   },
   bokmerker: {
-    title: "My bookmarks",
+    title: "Bookmarks",
     loading: "Loading bookmarks...",
     searchLabel: "Search bookmarked conversations",
     searchPlaceholder: "Search conversations...",

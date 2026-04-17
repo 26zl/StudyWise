@@ -148,7 +148,7 @@ Husky + lint-staged auto-run Prettier on staged files (`.ts/.tsx/.js/.json/.md/.
 
 ## Deployment
 
-- **Backend** deploys to Heroku. `heroku-postbuild` builds `common` then `backend`; `Procfile` runs `node --max-old-space-size=384 --expose-gc backend/dist/index.js` (tuned for Heroku dyno memory).
+- **Backend** deploys to Heroku. `heroku-postbuild` builds `common` then `backend`; `Procfile` runs `node --max-old-space-size=384 --optimize-for-size --expose-gc backend/dist/index.js` (tuned for Heroku dyno memory).
 - **Frontend** deploys to Vercel.
 - **Docs** deploy to GitHub Pages via `.github/workflows/deploy.docs.yml`.
 

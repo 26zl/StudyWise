@@ -808,8 +808,15 @@ export function useMaintenanceStatus() {
       if (!res.ok) throw new Error("Kunne ikke hente vedlikeholdsstatus");
       return res.json();
     },
-    refetchInterval: 5_000,
-    staleTime: 2_000,
+    // Poll raskt (5s) kun mens en operasjon faktisk kjører; ellers sjeldent (30s)
+    // slik at admin-fanen ikke belaster dynoen når det ikke foregår noe.
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return 30_000;
+      const noeKjører = Object.values(data.ops).some((op) => op?.running);
+      return noeKjører ? 5_000 : 30_000;
+    },
+    staleTime: 5_000,
   });
 }
 

@@ -36,9 +36,13 @@ type SamtalerTab = "history" | "shared";
 
 export function SamtalerPage() {
   const router = useRouter();
+  // clearOnDefault: false holder `?tab=history` synlig i URL-en også for default-tab-en,
+  // slik at valgt fane alltid er dyplinkbar og synlig for brukeren (matcher "shared").
   const [aktivTab, setAktivTab] = useQueryState(
     "tab",
-    parseAsStringLiteral(["history", "shared"] as const).withDefault("history"),
+    parseAsStringLiteral(["history", "shared"] as const)
+      .withDefault("history")
+      .withOptions({ clearOnDefault: false, history: "replace" }),
   );
   const { isLoaded, userId } = useAuth();
   const megQuery = useMeg({ enabled: isLoaded && !!userId });
@@ -62,13 +66,17 @@ export function SamtalerPage() {
 
   const byttTab = useCallback(
     (nesteTab: SamtalerTab) => {
-      void setAktivTab(nesteTab === "history" ? null : nesteTab, {
-        history: "replace",
-        scroll: false,
-      });
+      void setAktivTab(nesteTab, { history: "replace", scroll: false });
     },
     [setAktivTab],
   );
+
+  // Ved første besøk uten tab-param — skriv aktiv tab til URL-en så den vises.
+  // setAktivTab med samme verdi er idempotent; gjøres kun én gang per mount.
+  useEffect(() => {
+    void setAktivTab(aktivTab, { history: "replace", scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const åpneSamtale = useCallback(
     (chatId: string) => {

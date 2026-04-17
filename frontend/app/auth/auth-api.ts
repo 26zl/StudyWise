@@ -488,6 +488,11 @@ export function useLoggUtWithRedirect() {
     }
     logoutInFlightRef.current = true;
 
+    // Sett utloggingsflagg FØR API-kallet slik at pågående debouncete
+    // preferanseskrivinger (f.eks. useDebouncedPreferanseOppdater) bailer ut
+    // før timeren fyrer — unngår 401 på PUT /api/user/preferences rett etter logout.
+    useUIStore.getState().setIsLoggingOut(true);
+
     try {
       await loggUt.mutateAsync();
     } catch (error) {
@@ -498,10 +503,6 @@ export function useLoggUtWithRedirect() {
         );
       }
     }
-
-    // Sett utloggingsflagg FØR signOut slik at komponenter viser lastespinner
-    // i stedet for feilmeldinger mens Clerk-sesjonen invalideres.
-    useUIStore.getState().setIsLoggingOut(true);
 
     // Clerk signOut kan feile ved kryssmiljø-relink (dev↔prod) eller nettverksfeil.
     // I så fall rydder vi lokal state og redirecter uansett — Clerk-sesjonen
@@ -555,10 +556,33 @@ type UserPreferencesUpdate = {
   hiddenCourseIds?: HiddenCourseIds;
 };
 
+// Modul-nivå dedup: siste sendte payload og tidspunkt. Dropper identiske
+// PUT-er på rad (f.eks. spurious re-syncs på rute-endring) uten å forstyrre
+// reelle toggle-sekvenser, der etterfølgende verdier alltid skiller seg.
+// Returnerer et speilsvar slik at onSuccess-flyten fortsetter normalt —
+// cachen er allerede i takt med payloaden siden forrige skriving gikk gjennom.
+let sisteSendtePreferanser: { signature: string; sentAt: number } | null = null;
+const PREFERANSER_DEDUP_WINDOW_MS = 10_000;
+
 // Hjelpefunksjon for å oppdatere brukerpreferanser. Returnerer oppdatert preferanse-objekt.
 async function oppdaterBrukerPreferanser(
   preferences: UserPreferencesUpdate,
 ): Promise<PreferencesResponse> {
+  // Sesjon på vei ut — dropp skriving stille. Forhindrer 401 når debouncete
+  // preferanseskrivinger fyrer rett etter logout.
+  if (useUIStore.getState().isLoggingOut) {
+    throw new Error("logging_out");
+  }
+  const body = JSON.stringify(preferences);
+  const now = Date.now();
+  if (
+    sisteSendtePreferanser &&
+    sisteSendtePreferanser.signature === body &&
+    now - sisteSendtePreferanser.sentAt < PREFERANSER_DEDUP_WINDOW_MS
+  ) {
+    return { melding: "Ingen endring", ...preferences };
+  }
+  sisteSendtePreferanser = { signature: body, sentAt: now };
   return requestAuthedJson(
     "/api/user/preferences",
     PreferencesResponseSchema,
@@ -567,7 +591,7 @@ async function oppdaterBrukerPreferanser(
       method: "PUT",
       keepalive: true,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(preferences),
+      body,
     },
   );
 }
@@ -667,7 +691,9 @@ export function useDebouncedPreferanseOppdater() {
     const p = pendingRef.current;
     pendingRef.current = null;
     if (p) {
-      mutateAsync(p).catch(() => {
+      mutateAsync(p).catch((err: unknown) => {
+        // Stille drop når sesjonen logges ut — ingen cache-invalidering eller toast.
+        if (err instanceof Error && err.message === "logging_out") return;
         queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY });
         showToast.error(t("auth.couldNotUpdateAiContext"), t("auth.couldNotUpdateAiContextRetry"));
       });

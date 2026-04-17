@@ -2117,7 +2117,7 @@ export const nbMessages = {
     genericHint1: "Forklar enklere",
   },
   bokmerker: {
-    title: "Mine bokmerker",
+    title: "Bokmerker",
     loading: "Laster bokmerker...",
     searchLabel: "Søk i bokmerkede samtaler",
     searchPlaceholder: "Søk i samtaler...",
