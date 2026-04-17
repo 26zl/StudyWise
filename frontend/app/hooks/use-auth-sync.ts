@@ -17,12 +17,25 @@ import { clearBrowserPushClientConfigCache } from "./useBrowserPushNotifications
 const LOGOUT_MESSAGE = "logout";
 const AUTH_PATH_PREFIXES = ["/dashboard", "/oversikt", "/ai-breakdown", "/account"] as const;
 
+// Persisterte zustand-nøkler som må ryddes ved logout for å hindre at data
+// fra en tidligere bruker rehyrdreres inn i en ny brukers sesjon på samme browser.
+const PERSISTED_STORE_KEYS = ["ki-store-quiz-cache"] as const;
+
 export function clearClientAuthState(queryClient: QueryClient): void {
     clearDatadogUser();
     clearBrowserPushClientConfigCache();
     void queryClient.cancelQueries();
     queryClient.clear();
     useUIStore.getState().reset();
+    if (typeof window !== "undefined") {
+        for (const key of PERSISTED_STORE_KEYS) {
+            try {
+                window.sessionStorage.removeItem(key);
+            } catch {
+                // sessionStorage kan være blokkert (f.eks. privat modus) — ignorer
+            }
+        }
+    }
 }
 
 function kreverAuthRedirect(pathname: string | null): boolean {

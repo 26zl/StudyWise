@@ -104,6 +104,34 @@ const upload = multer({
   },
 });
 
+// ─── Magic-byte-validering ────────────────────────────────
+// MIME-type fra multer er klient-rapportert — valider faktisk innhold via magic bytes.
+// Dekker PDF (%PDF), OOXML/docx/pptx (PK = zip), legacy DOC (D0 CF 11 E0).
+// Rene tekstformater (txt/md/csv) valideres ved UTF-8/dekodbarhet i parseDocument.
+function validerMagicBytes(buffer: Buffer, mimeType: string): boolean {
+  if (buffer.length < 4) return false;
+  const b0 = buffer[0], b1 = buffer[1], b2 = buffer[2], b3 = buffer[3];
+  switch (mimeType) {
+    case "application/pdf":
+      // "%PDF"
+      return b0 === 0x25 && b1 === 0x50 && b2 === 0x44 && b3 === 0x46;
+    case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+      // ZIP-container ("PK\x03\x04")
+      return b0 === 0x50 && b1 === 0x4b && (b2 === 0x03 || b2 === 0x05 || b2 === 0x07);
+    case "application/msword":
+      // CFB/OLE2: D0 CF 11 E0
+      return b0 === 0xd0 && b1 === 0xcf && b2 === 0x11 && b3 === 0xe0;
+    case "text/plain":
+    case "text/markdown":
+    case "text/csv":
+      // Tekst valideres av parseDocument; aksepter her
+      return true;
+    default:
+      return false;
+  }
+}
+
 // ─── Hjelpefunksjoner ────────────────────────────────────
 
 /** Hent enkelt strengverdi fra Express-param (Express 5: kan være string | string[]) */
@@ -491,6 +519,17 @@ router.post("/:id/files", rateLimitKBWrite, (req: Request, res: Response) => {
 
     if (!req.file) {
       apiError.badRequest(res, "Ingen fil mottatt");
+      return;
+    }
+
+    // Magic-byte-validering: MIME-type fra multer er klient-levert og kan spoofes.
+    // Verifiser faktisk filinnhold før vi indekserer.
+    if (!validerMagicBytes(req.file.buffer, req.file.mimetype)) {
+      logger.warn(
+        { userId, claimedMime: req.file.mimetype, size: req.file.size },
+        "KB upload: magic-byte-sjekk feilet — filinnhold matcher ikke MIME-type",
+      );
+      apiError.badRequest(res, "Filinnholdet matcher ikke den oppgitte filtypen");
       return;
     }
 

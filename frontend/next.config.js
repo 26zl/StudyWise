@@ -151,6 +151,8 @@ const nextConfig = {
   // norske kommentarer og variabelnavn forsvinner i minifiseringen.
   // Ikke flipp denne til true uten å vurdere konsekvensene.
   productionBrowserSourceMaps: false,
+  // Fjern "X-Powered-By: Next.js" — reduserer recon-overflate for angripere.
+  poweredByHeader: false,
   // Datadog RUM: mapper DD_RUM_* (Vercel runtime) til NEXT_PUBLIC_DD_RUM_* (build-time inline).
   // Uten dette når ikke server-side env-variabler nettleseren fordi Next.js kun inliner NEXT_PUBLIC_* ved bygging.
   env: {

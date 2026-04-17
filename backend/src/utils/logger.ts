@@ -131,6 +131,19 @@ export const logger = pino({
             "err.email",
             "err.userId",
             "err.username",
+            // Nested token-redaction: fanger tokens i vilkårlig nestet error/context-objekter.
+            // Pinos wildcard går kun ett nivå (*) og to (*.*); vi dekker flere nivåer
+            // eksplisitt, inkludert Canvas-token som er vanligst i nested error-context.
+            "*.token",
+            "*.canvasToken",
+            "*.canvasApiToken",
+            "*.authorization",
+            "*.cookie",
+            "*.secret",
+            "*.*.token",
+            "*.*.canvasToken",
+            "*.*.canvasApiToken",
+            "*.*.authorization",
             // URL-/filnavn-redaction: signerte lenker, query-tokens og PII-aktige
             // filnavn skal aldri ende opp i logger eller Datadog. Vi maskerer hele
             // verdien — bruker logger.info({ urlSafe: stripQuery(url) }, ...) når

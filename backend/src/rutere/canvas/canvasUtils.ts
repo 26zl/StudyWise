@@ -341,7 +341,15 @@ async function hentCanvasDataImpl<T>(
     const allItems: unknown[] = [];
     let currentUrl: string | null = url.toString();
     let pagesFetched = 0;
+    // Dedupe besøkte URLer: stopper lydløse loops hvis Canvas returnerer Link-header
+    // som peker til samme side (malformed eller bug på Canvas-siden).
+    const seenUrls = new Set<string>();
     while (currentUrl && pagesFetched < maxPages) {
+        if (seenUrls.has(currentUrl)) {
+            logger.warn({ endpoint, currentUrl, pagesFetched }, "Canvas paginering: samme URL sett to ganger — bryter loop");
+            break;
+        }
+        seenUrls.add(currentUrl);
         let retryCount = 0;
         let response: globalThis.Response | null = null;
         // Retry-loop for rate limiting

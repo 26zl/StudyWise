@@ -83,7 +83,7 @@ export function WeeklyPlanSuggestions({
       setError(bgJob.error ?? t("arbeidsplan.planSaveError"));
       clearWeeklyPlan();
     }
-  }, [bgJob, clearWeeklyPlan]);
+  }, [bgJob, clearWeeklyPlan, t]);
 
   const generatePlan = () => {
     setError(null);

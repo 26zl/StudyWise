@@ -24,6 +24,7 @@ import { isValidAuthTurnstileCookieValue } from "../../utils/authTurnstileCookie
 import { isProd } from "../../utils/env.js";
 import { getCache, setCache } from "../../cache/redis.js";
 import { guardRelink, getCurrentClerkEnv, type ClerkEnv } from "./relinkGuard.js";
+import { isMongoDuplicateKeyError } from "../../utils/canvasUserSync.js";
 
 /** Minste intervall (ms) mellom profiloppdateringer fra Clerk for samme bruker (5 min). */
 const CLERK_PROFILE_SYNC_INTERVAL_MS = 5 * 60 * 1000;
@@ -143,14 +144,9 @@ export async function isClerkHealthy(): Promise<boolean> {
   }
 }
 
-/** Sjekker om feilen er MongoDB duplicate key (E11000). */
+/** Sjekker om feilen er MongoDB duplicate key (E11000). Thin wrapper rundt delt util. */
 function isDuplicateKeyError(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: number }).code === 11000
-  );
+  return isMongoDuplicateKeyError(error);
 }
 
 /** Sjekker om duplicate key error er for OAuth accounts index. */

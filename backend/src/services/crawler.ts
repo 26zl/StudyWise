@@ -356,12 +356,19 @@ function expandIpv6(address: string): string {
   // Fjern bracket-notasjon
   let addr = address.replace(/^\[|\]$/g, "").toLowerCase();
 
+  // Valider IPv6-tegn før ekspansjon. Uventet input (f.eks. ":::") skal ikke
+  // produsere en "gyldig-lignende" streng som kan snike seg forbi blokk-sjekker.
+  if (!/^[0-9a-f:]+$/.test(addr)) return "";
+  // Maks én "::" tillatt i IPv6
+  if ((addr.match(/::/g)?.length ?? 0) > 1) return "";
+
   // Ekspander :: til fullstendig form
   const sides = addr.split("::");
   if (sides.length === 2) {
     const left = sides[0] ? sides[0].split(":") : [];
     const right = sides[1] ? sides[1].split(":") : [];
     const missing = 8 - left.length - right.length;
+    if (missing < 0) return "";
     const middle = Array(Math.max(0, missing)).fill("0000");
     addr = [...left, ...middle, ...right].join(":");
   }
@@ -375,6 +382,9 @@ function expandIpv6(address: string): string {
 
 function isBlockedIpv6Address(address: string): boolean {
   const expanded = expandIpv6(address);
+
+  // expandIpv6 returnerer tom streng ved ugyldig input — fail-closed.
+  if (!expanded) return true;
 
   // Loopback ::1
   if (expanded === "0000:0000:0000:0000:0000:0000:0000:0001") return true;
@@ -435,6 +445,8 @@ function isBlockedIpAddress(address: string): boolean {
   return true;
 }
 
+const DNS_LOOKUP_TIMEOUT_MS = 5_000;
+
 async function resolveSafeHostnameAddresses(hostname: string): Promise<ResolvedAddress[] | null> {
   const normalizedHostname = normalizeHostname(hostname);
   const ipVersion = net.isIP(normalizedHostname);
@@ -445,7 +457,13 @@ async function resolveSafeHostnameAddresses(hostname: string): Promise<ResolvedA
   }
 
   try {
-    const addresses = await lookup(normalizedHostname, { all: true, verbatim: true });
+    // Kapp DNS-oppslag ved 5s for å unngå at treg/henget resolver blokkerer sync-flow.
+    const addresses = await Promise.race([
+      lookup(normalizedHostname, { all: true, verbatim: true }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("DNS lookup timeout")), DNS_LOOKUP_TIMEOUT_MS),
+      ),
+    ]);
     if (addresses.length === 0) return null;
     const mapped = addresses.map((entry) => ({
       address: entry.address,

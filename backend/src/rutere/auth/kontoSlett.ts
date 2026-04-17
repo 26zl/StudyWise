@@ -262,17 +262,32 @@ export async function deleteAccountData(
       // Clerk-brukeren er allerede slettet (f.eks. via Clerk webhook) — hopp over
       providerAccountDeleted = true;
     } else {
-      providerAccountDeleted = await deleteClerkUserById(user.clerkId);
+      try {
+        providerAccountDeleted = await deleteClerkUserById(user.clerkId);
+      } catch (clerkErr) {
+        providerAccountDeleted = false;
+        logger.error(
+          { err: clerkErr, userId, clerkId: user.clerkId },
+          "deleteClerkUserById kastet under kontosletting",
+        );
+      }
       if (!providerAccountDeleted) {
         logger.warn(
           { userId, clerkId: user.clerkId },
           "Klarte ikke å slette Clerk-konto under kontosletting",
         );
-        await enqueueClerkDeletionRetry({
-          clerkId: user.clerkId,
-          userId,
-          lastError: "Klarte ikke å slette Clerk-konto under kontosletting",
-        });
+        try {
+          await enqueueClerkDeletionRetry({
+            clerkId: user.clerkId,
+            userId,
+            lastError: "Klarte ikke å slette Clerk-konto under kontosletting",
+          });
+        } catch (enqueueErr) {
+          logger.error(
+            { err: enqueueErr, userId, clerkId: user.clerkId },
+            "Klarte ikke å legge Clerk-sletting i retry-kø",
+          );
+        }
       }
     }
   } else {

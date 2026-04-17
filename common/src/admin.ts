@@ -19,7 +19,7 @@ export const AdminBrukereQuerySchema = z.object({
 
 export const AdminBrukerSchema = z.object({
   id: z.string(),
-  email: z.string().email(),
+  email: z.string().trim().pipe(z.email()),
   rolle: RoleSchema,
   brukernavn: z.string().optional(),
   fornavn: z.string().optional(),
@@ -213,7 +213,12 @@ export const AdminAuditItemSchema = z.object({
   actorUserId: z.string(),
   targetUserId: z.string().optional(),
   role: RoleSchema.optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  // Cap metadata-størrelse: backend kontrollerer denne, men forsvar i dybden
+  // mot utilsiktet serialiseringsblåsning (Datadog/Sentry-injeksjon).
+  metadata: z
+    .record(z.string(), z.unknown())
+    .refine((m) => JSON.stringify(m).length < 16_000, "Audit-metadata er for stor")
+    .optional(),
   createdAt: z.coerce.date(),
 });
 
@@ -404,7 +409,7 @@ export const AdminFeedbackQuerySchema = z.object({
 export const AdminFeedbackUserSchema = z
   .object({
     id: z.string(),
-    email: z.string().email().optional(),
+    email: z.string().trim().pipe(z.email()).optional(),
     username: z.string().optional(),
   })
   .nullable();
@@ -439,7 +444,7 @@ export const ContactMessageStatusSchema = z.enum(["unread", "read", "replied"]);
 export const AdminContactMessageSchema = z.object({
   id: z.string(),
   navn: z.string(),
-  epost: z.string().email(),
+  epost: z.string().trim().pipe(z.email()),
   emne: z.string(),
   melding: z.string(),
   sideUrl: z.string().optional(),
@@ -508,7 +513,7 @@ export const AdminBrukerDetaljAuditEntrySchema = z.object({
 export const AdminBrukerDetaljSchema = z.object({
   // ── Identitet ─────────────────────────────────────────────────────────────
   id: z.string(),
-  email: z.string().email(),
+  email: z.string().trim().pipe(z.email()),
   brukernavn: z.string().optional(),
   fornavn: z.string().optional(),
   etternavn: z.string().optional(),

@@ -3,6 +3,7 @@ import typescript from "@typescript-eslint/eslint-plugin";
 import typescriptParser from "@typescript-eslint/parser";
 import globals from "globals";
 import security from "eslint-plugin-security";
+import reactHooks from "eslint-plugin-react-hooks";
 import prettier from "eslint-config-prettier";
 
 const eslintConfig = [
@@ -29,6 +30,7 @@ const eslintConfig = [
     },
     plugins: {
       "@typescript-eslint": typescript,
+      "react-hooks": reactHooks,
     },
     rules: {
       ...typescript.configs.recommended.rules,
@@ -44,6 +46,9 @@ const eslintConfig = [
         },
       ],
       "@typescript-eslint/no-explicit-any": "warn",
+      // React hooks: fanger stale closures (manglende deps) og brudd på rules-of-hooks.
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
     },
   },
   {

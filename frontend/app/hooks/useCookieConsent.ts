@@ -207,7 +207,10 @@ export function useCookieConsent() {
         handleConsentChange as EventListener,
       );
     };
-  }, []);
+    // userId må være i deps slik at authenticated-scope-matching (linje 189)
+    // bruker nyeste verdi. guestConsent er kun brukt for å sammenligne mot
+    // fresh-lesing ved hydrering; setGuestConsent er idempotent ved likhet.
+  }, [userId, guestConsent]);
 
   useEffect(() => {
     if (!isLoaded || !userId) {

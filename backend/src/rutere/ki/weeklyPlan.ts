@@ -157,6 +157,11 @@ function parseGeneratedWeeklyPlan(
   responseText: string,
   oppgaver: WeeklyPlanAssignment[],
 ): z.infer<typeof WeeklyPlanSuggestionResponseSchema> {
+  // Defensiv størrelses-guard mot uvanlig stort LLM-svar.
+  const MAX_RESPONSE_BYTES = 1_000_000; // 1 MB
+  if (responseText.length > MAX_RESPONSE_BYTES) {
+    throw new Error(`Ukeplan-svaret er for stort (${responseText.length} bytes)`);
+  }
   const parsedDraft = WeeklyPlanSuggestionDraftSchema.parse(
     JSON.parse(extractJsonObject(responseText)),
   );
@@ -308,7 +313,9 @@ async function processWeeklyPlanJob(
       `${JOB_KEY_PREFIX}${jobId}`,
       JSON.stringify({ status: "failed", error: "Kunne ikke generere ukeplan. Prøv igjen." }),
       JOB_TTL_SECONDS,
-    ).catch(() => {});
+    ).catch((err) => {
+      logger.warn({ err, jobId, userId }, "Kunne ikke skrive failed-status til cache (weekly-plan)");
+    });
   }
 }
 
@@ -358,7 +365,7 @@ router.get("/status/:jobId", async (req, res) => {
   try {
     const { jobId } = req.params;
 
-    if (!jobId || !z.string().uuid().safeParse(jobId).success) {
+    if (!jobId || !z.uuid().safeParse(jobId).success) {
       return apiError.badRequest(res, "Ugyldig jobb-ID");
     }
 

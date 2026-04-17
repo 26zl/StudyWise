@@ -35,19 +35,11 @@ function CodeBlock({ className, children }: CodeBlockProps) {
   const sprak = match?.[1];
   // Blokkmodus: har språk ELLER inneholder newlines (fenced code uten språk)
   const erBlokk = !!sprak || (typeof children === "string" && children.includes("\n"));
-
-  // Inline code — render som vanlig <code>
-  if (!erBlokk) {
-    return (
-      <code className="text-blue-600 dark:text-blue-400 bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-sm">
-        {children}
-      </code>
-    );
-  }
-
   const kodeTekst = String(children).replace(/\n$/, "");
 
-  // Highlight til HTML én gang per innhold — sanitert med DOMPurify for å hindre XSS
+  // Highlight til HTML én gang per innhold — sanitert med DOMPurify for å hindre XSS.
+  // MÅ kalles før eventuell tidlig retur (rules-of-hooks); vi bruker kun resultatet
+  // i blokkmodus, men hooken må kalles likt hver render.
   const highlightedHtml = useMemo(() => {
     try {
       const result = sprak
@@ -58,6 +50,15 @@ function CodeBlock({ className, children }: CodeBlockProps) {
       return escapeHtml(kodeTekst);
     }
   }, [kodeTekst, sprak]);
+
+  // Inline code — render som vanlig <code>
+  if (!erBlokk) {
+    return (
+      <code className="text-blue-600 dark:text-blue-400 bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-sm">
+        {children}
+      </code>
+    );
+  }
 
   async function kopierKode() {
     try {
@@ -82,7 +83,7 @@ function CodeBlock({ className, children }: CodeBlockProps) {
             <span className="w-3 h-3 rounded-full bg-yellow-400 dark:bg-yellow-500" />
             <span className="w-3 h-3 rounded-full bg-green-400 dark:bg-green-500" />
           </div>
-          <span className="text-xs font-medium text-slate-600 dark:text-slate-300 ml-1 uppercase tracking-wide">
+          <span aria-hidden="true" className="text-xs font-medium text-slate-600 dark:text-slate-300 ml-1 uppercase tracking-wide">
             {sprakLabel}
           </span>
         </div>
@@ -119,7 +120,7 @@ function CodeBlock({ className, children }: CodeBlockProps) {
 
       {/* Linje-teller footer */}
       <div className="flex justify-end px-4 py-1.5 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700">
-        <span className="text-[10px] text-slate-400 dark:text-slate-500">
+        <span className="text-[11px] text-slate-500 dark:text-slate-400">
           {t("codeBlock.linesLabel", { count: kodeTekst.split("\n").length })}
         </span>
       </div>

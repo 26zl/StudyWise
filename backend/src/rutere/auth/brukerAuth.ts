@@ -30,6 +30,7 @@ import {
   AuthBrukerSchema,
   MeResponseSchema,
   LogoutResponseSchema,
+  SyncConflictRemovedResponseSchema,
   ProfileUpdateResponseSchema,
   ProfileUpdateWithUsernameSchema,
   UsernameCheckQuerySchema,
@@ -826,7 +827,7 @@ router.post("/sync-conflicts/dismiss", rateLimitMe, async (req, res) => {
       { userId, conflictType: type },
       "Synkroniseringskonflikt avvist av bruker",
     );
-    return res.json({ melding: "Konflikt fjernet" });
+    return res.json(SyncConflictRemovedResponseSchema.parse({ melding: "Konflikt fjernet" }));
   } catch (error) {
     return sendUnknownError(res, error, {
       kontekst: "fjerning av synkroniseringskonflikt",

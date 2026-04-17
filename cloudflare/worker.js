@@ -1,3 +1,21 @@
+/**
+ * Timing-safe sammenligning av to strenger i Workers-runtime.
+ * Bruker Web Crypto for å unngå kort-circuit som lekker lengdeinformasjon og
+ * tegn-for-tegn-tidsmålinger som kan avsløre secretet.
+ */
+function timingSafeEqual(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const encoder = new TextEncoder();
+  const bufA = encoder.encode(a);
+  const bufB = encoder.encode(b);
+  if (bufA.byteLength !== bufB.byteLength) return false;
+  let diff = 0;
+  for (let i = 0; i < bufA.byteLength; i++) {
+    diff |= bufA[i] ^ bufB[i];
+  }
+  return diff === 0;
+}
+
 export default {
   async fetch(request, env) {
     // 1. Sjekk at det er et POST-kall fra backend-en vår
@@ -5,9 +23,10 @@ export default {
       return new Response("Method not allowed", { status: 405 });
     }
 
-    // 2. Sjekk passordet (sikkerhet mot spamming)
+    // 2. Sjekk passordet (sikkerhet mot spamming) — timing-safe compare
     const secret = request.headers.get("X-Contact-Secret");
-    if (secret !== env.CONTACT_WORKER_SECRET) {
+    const expected = env.CONTACT_WORKER_SECRET;
+    if (!secret || !expected || !timingSafeEqual(secret, expected)) {
       return new Response("Unauthorized", { status: 401 });
     }
 
@@ -57,9 +76,16 @@ export default {
 
       if (!res.ok) {
         const errorText = await res.text();
-        return new Response(`Email provider failed: ${errorText}`, {
-          status: res.status,
-        });
+        // Logg detaljer til worker-konsoll (Cloudflare dashboard) for feilsøking,
+        // men returner generisk melding slik at Resend-feilformat ikke lekker videre.
+        console.error("Resend API feilet", { status: res.status, errorText });
+        return new Response(
+          JSON.stringify({ error: "email_provider_failed" }),
+          {
+            status: 502,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
       }
 
       // 6. Returner suksess tilbake til StudyWise-backend
@@ -68,7 +94,15 @@ export default {
         headers: { "Content-Type": "application/json" },
       });
     } catch (e) {
-      return new Response(e.message, { status: 500 });
+      // Ikke returner rå exception-message (kan inneholde stack/URL/miljødetaljer).
+      console.error("Contact-worker unntak", { err: e });
+      return new Response(
+        JSON.stringify({ error: "internal_error" }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
     }
   },
 };

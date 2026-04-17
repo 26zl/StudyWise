@@ -84,6 +84,12 @@ export async function pineconeUpsert(
   }>,
 ): Promise<void> {
   if (!isPineconeConfigured() || records.length === 0) return;
+  // Defense-in-depth: hver record MÅ ha ikke-tom userId for bruker-isolasjon i delt namespace.
+  for (const r of records) {
+    if (!r.metadata?.userId || typeof r.metadata.userId !== "string") {
+      throw new Error("pineconeUpsert: metadata.userId er påkrevet for bruker-isolasjon");
+    }
+  }
   await pineconeCircuit.execute(async () => {
     const host = await getIndexHost();
     const url = `https://${host}/records/namespaces/${DEFAULT_NAMESPACE}/upsert`;
@@ -133,6 +139,11 @@ export async function pineconeQuery(
   if (!isPineconeConfigured()) return [];
   const trimmed = queryText?.trim();
   if (!trimmed) return [];
+  // Defense-in-depth: nekt query uten userId-filter. Hele index deler namespace,
+  // så isolasjon hviler på filteret — aldri kjør uten det.
+  if (!filter?.userId || typeof filter.userId !== "string") {
+    throw new Error("pineconeQuery: userId er påkrevet for bruker-isolasjon");
+  }
   return pineconeCircuit.execute(async () => {
     const startTime = Date.now();
     const host = await getIndexHost();
@@ -203,12 +214,12 @@ export async function pineconeDeleteByFilter(
 ): Promise<void> {
   if (!isPineconeConfigured()) return;
   const filterObj: Record<string, unknown> = {};
-  if (filter.userId != null) filterObj.userId = { $eq: filter.userId };
-  if (filter.courseId != null) filterObj.courseId = { $eq: filter.courseId };
+  if (filter.userId != null && filter.userId !== "") filterObj.userId = { $eq: filter.userId };
+  if (filter.courseId != null && filter.courseId !== "") filterObj.courseId = { $eq: filter.courseId };
   if (filter.fileId != null) filterObj.fileId = { $eq: filter.fileId };
   if (Object.keys(filterObj).length === 0) {
-    logger.warn("pineconeDeleteByFilter kalt uten filter — hopper over");
-    return;
+    // Uten filter ville dette slettet *hele* index — kast feil istedenfor å kjøre.
+    throw new Error("pineconeDeleteByFilter: tomt filter — ville slettet alt, avbryter");
   }
   await pineconeCircuit.execute(async () => {
     const host = await getIndexHost();

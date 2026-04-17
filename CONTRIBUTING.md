@@ -344,7 +344,7 @@ pnpm kill:dev
 pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build
 ```
 
-**Pre-commit-hook:** Repoet har Husky + lint-staged konfigurert. Når du kjører `git commit`, kjøres Prettier automatisk på staged `.ts`, `.tsx`, `.js`, `.json`, `.md`, `.yml` og `.css`-filer. Du trenger ikke kjøre `pnpm format` manuelt før commit. Hooken installeres automatisk via `prepare`-scriptet når du kjører `pnpm install`.
+**Pre-commit-hook:** Repoet har Husky + lint-staged **konfigurert**, men hooken er **midlertidig deaktivert** (se `.husky/pre-commit`). Kjør derfor `pnpm format` manuelt før commit inntil hooken reaktiveres. Sjekker i kommandoen over (`pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build`) håndheves av CI på hver PR.
 
 ### Git workflow
 

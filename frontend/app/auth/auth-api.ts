@@ -29,7 +29,7 @@ import {
 } from "common/auth";
 import { type BrowserPushPreferences } from "common/notifications";
 import { CanvasErrorCodeSchema } from "common/canvasErrors";
-import { AppError, CanvasApiError, UsernameConflictError } from "../lib/errors";
+import { AppError, CanvasApiError, CanvasTokenConflictError, UsernameConflictError } from "../lib/errors";
 import { fetchApi } from "../lib/apiClient";
 import { forceRefreshClerkToken } from "../lib/clerkTokenForApi";
 import { broadcastLogout, clearClientAuthState } from "../hooks/use-auth-sync";
@@ -50,15 +50,9 @@ import {
 /** Query key for /me – bruk samme nøkkel ved invalidateQueries og getQueryData. */
 export const AUTH_ME_QUERY_KEY = ["auth", "me"] as const;
 
-// Egendefinert error for Canvas token-konflikt, som backend kan indikere ved lagring av token. Frontend kan fange denne spesifikt for å vise en tilpasset melding.
-export class CanvasTokenConflictError extends Error {
-  readonly canvasKonflikt = true;
-  readonly name = "CanvasTokenConflictError";
-
-  constructor(message: string) {
-    super(message);
-  }
-}
+// Re-eksport for bakoverkompatibilitet: selve klassen bor nå i lib/errors.ts
+// sammen med de andre feilklassene for enhetlig plassering.
+export { CanvasTokenConflictError };
 
 // Slår sammen oppdaterte preferanser med cached /me-data (f.eks. etter PUT /preferences).
 function mergeCachedUserPreferences(
@@ -644,8 +638,10 @@ export function useOppdaterHiddenCourses() {
 /** Set av skjulte emne-IDer fra /me-data. Brukes for å filtrere Canvas-data overalt. */
 export function useHiddenCourseIds(): Set<number> {
   const megQuery = useMeg();
-  const hiddenIds = megQuery.data?.user?.hiddenCourseIds?.courseIds ?? [];
-  return useMemo(() => new Set(hiddenIds), [hiddenIds]);
+  // Les ut referansen stabilt — flytt fallback-`?? []` inn i useMemo for
+  // å unngå ny array hver render (react-hooks/exhaustive-deps).
+  const hiddenCourseIds = megQuery.data?.user?.hiddenCourseIds?.courseIds;
+  return useMemo(() => new Set(hiddenCourseIds ?? []), [hiddenCourseIds]);
 }
 
 /** Debounce-intervall før preferanseoppdatering sendes til backend (ms). */

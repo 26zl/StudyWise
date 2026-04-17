@@ -4,7 +4,7 @@
  */
 
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { showToast, toast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
 import { useUIStore } from "@/app/store/uiStore";
@@ -108,7 +108,9 @@ export function useChatHistory(enabled = true) {
     enabled,
   });
 
-  const chats = data ?? [];
+  // Stabiliser array-referansen — `data ?? []` gir ny tom array hver render
+  // og trigger unødige re-renders i callbacks som har chats som dep.
+  const chats = useMemo(() => data ?? [], [data]);
 
   /**
    * Lagrer en samtale (POST ny / PUT oppdatering).

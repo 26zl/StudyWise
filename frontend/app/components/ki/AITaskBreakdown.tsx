@@ -124,7 +124,7 @@ export function AITaskBreakdown({
       showToast.error(bgJob.error ?? t("taskBreakdown.generatedError"));
       clearTaskBreakdown(assignmentId);
     }
-  }, [bgJob, assignmentId, clearTaskBreakdown]);
+  }, [bgJob, assignmentId, clearTaskBreakdown, t]);
 
   const persistSubtasks = async (
     nextSubtasks: SubTask[],

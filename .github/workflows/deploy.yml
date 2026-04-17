@@ -38,6 +38,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
 
       - name: Install pnpm
         uses: pnpm/action-setup@08c4be7e2e672a47d11bd04269e27e5f3e8529cb # v6.0.0
@@ -61,8 +62,11 @@ jobs:
         run: npm install -g vercel@50.37.0
 
       - name: Pull Vercel configuration
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        # Secret sendes via env i stedet for ${{ ... }} i run: for å unngå
+        # shell-interpolation hvis tokenet inneholder metakarakter.
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
         env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
@@ -111,19 +115,21 @@ jobs:
             export "NEXT_PUBLIC_DD_SITE=${DD_SITE}"
           fi
 
-          vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+          vercel build --prod --token="$VERCEL_TOKEN"
         env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Deploy frontend to Vercel
         id: deploy
         run: |
-          out="$(vercel deploy --prebuilt --prod --force --token=${{ secrets.VERCEL_TOKEN }} 2>&1)"
+          out="$(vercel deploy --prebuilt --prod --force --token="$VERCEL_TOKEN" 2>&1)"
           echo "$out"
           url="$(printf '%s\n' "$out" | grep -Eo 'https://[a-zA-Z0-9.-]+\.vercel\.app' | head -n 1)"
           echo "url=$url" >> "$GITHUB_OUTPUT"
         env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 

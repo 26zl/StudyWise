@@ -13,7 +13,7 @@ export const CanvasUserSchema = z.object({
   avatar_url: z.string().optional(),
   first_name: z.string().optional(),
   last_name: z.string().optional(),
-  primary_email: z.string().email().nullable().optional(),
+  primary_email: z.email().nullable().optional(),
   locale: z.string().nullable().optional(),
   effective_locale: z.string().optional(),
   permissions: z

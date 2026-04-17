@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Send, Square, Bot, Upload, Copy, Share2, RefreshCw, Plus, User, GraduationCap, FileText, ThumbsUp, ThumbsDown } from "lucide-react";
 import { LoadingSpinner, LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
@@ -655,7 +655,7 @@ export function ChatSection() {
         } catch {
             /* ignore */
         }
-    }, [lagreSamtale, stoppAktivAnimasjon, t, settMeldinger, settAktivSamtale, settVedlegg, settSkriver, settAnalysererDokument]);
+    }, [lagreSamtale, stoppAktivAnimasjon, t, setRunningChatId, settMeldinger, settAktivSamtale, settVedlegg, settSkriver, settAnalysererDokument]);
 
     /** Reagerer på "Ny samtale"-knapp i sidebar: nullstiller og starter ny samtale. */
     useEffect(() => {
@@ -1404,7 +1404,10 @@ export function ChatSection() {
     const panelMelding = kildePanelMeldingId
         ? meldinger.find((melding) => melding.id === kildePanelMeldingId && melding.rolle === "assistant")
         : null;
-    const panelKilder = panelMelding ? hentVisbareKilder(panelMelding) : [];
+    const panelKilder = useMemo<import("common/ki").KIChatSource[]>(
+        () => (panelMelding ? hentVisbareKilder(panelMelding) : []),
+        [panelMelding],
+    );
     const visKildePanel = !!panelMelding;
 
     const handleKildeKlikk = useCallback((kilde: import("common/ki").KIChatSource) => {

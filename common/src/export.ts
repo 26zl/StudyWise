@@ -26,8 +26,8 @@ export type InlineStyle = z.infer<typeof InlineStyleSchema>;
 const ExportHrefSchema = z
   .string()
   .trim()
-  .url("Ugyldig lenke")
   .max(2000, "Lenke er for lang")
+  .pipe(z.url("Ugyldig lenke"))
   .refine((value) => /^https?:\/\//i.test(value), "Lenke må bruke http eller https");
 
 /** Tekstsegment med valgfri inline-formatering */
@@ -136,10 +136,20 @@ export type ExportBlock = z.infer<typeof ExportBlockSchema>;
 
 const EXPORT_TITLE_MAX_LENGTH = 200;
 
+// Maks 16 KB for å unngå at en klient kan blåse opp eksport-payload via metadata.
+const EXPORT_METADATA_MAX_BYTES = 16_000;
+
+const BoundedMetadataSchema = z
+  .record(z.string(), z.unknown())
+  .refine(
+    (m) => JSON.stringify(m ?? {}).length <= EXPORT_METADATA_MAX_BYTES,
+    `Metadata kan ikke overstige ${EXPORT_METADATA_MAX_BYTES} bytes`,
+  );
+
 /** Komplett eksportdokument */
 export const ExportDocumentSchema = z.object({
   title: z.string().max(EXPORT_TITLE_MAX_LENGTH),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  metadata: BoundedMetadataSchema.optional(),
   blocks: z.array(ExportBlockSchema),
 });
 export type ExportDocument = z.infer<typeof ExportDocumentSchema>;
@@ -165,7 +175,7 @@ export const ExportRequestSchema = z.object({
   target: ExportTargetSchema,
   title: z.string().trim().min(1, "Tittel er påkrevd").max(EXPORT_TITLE_MAX_LENGTH),
   content: z.string().trim().min(1, "Innhold er påkrevd").max(EXPORT_CONTENT_MAX_LENGTH),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  metadata: BoundedMetadataSchema.optional(),
   options: ExportProviderOptionsSchema.optional(),
 });
 export type ExportRequest = z.infer<typeof ExportRequestSchema>;
@@ -235,14 +245,17 @@ export const NotionSettingsResponseSchema = z.object({
 export type NotionSettingsResponse = z.infer<typeof NotionSettingsResponseSchema>;
 
 export const NotionSettingsRequestSchema = z.object({
+  // .trim() må kjøre først så lagret verdi ikke inneholder whitespace, ellers har
+  // refine-sjekken trim-et en midlertidig verdi uten at det fikk effekt på output.
   apiKey: z.string()
+    .trim()
     .min(1, "API-nøkkel er påkrevd")
     .max(200, "API-nøkkel er for lang")
-    .refine((key) => /^(ntn_|secret_)/.test(key.trim()), {
+    .refine((key) => /^(ntn_|secret_)/.test(key), {
       message: "Ugyldig Notion API-nøkkel. Nøkkelen skal starte med 'ntn_' eller 'secret_'.",
     })
     .optional(),
-  defaultPageId: z.string().max(100, "Side-ID er for lang").optional(),
+  defaultPageId: z.string().trim().max(100, "Side-ID er for lang").optional(),
   clearApiKey: z.boolean().optional(),
 });
 export type NotionSettingsRequest = z.infer<typeof NotionSettingsRequestSchema>;

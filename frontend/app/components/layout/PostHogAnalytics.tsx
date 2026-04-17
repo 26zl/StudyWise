@@ -245,23 +245,76 @@ export function captureProductEvent(name: string, properties?: Record<string, un
 }
 
 /**
- * Identifiser nåværende bruker med en stabil ID (vanligvis Clerk user-ID).
+ * Pseudonymiserer en rå user-ID ved bruk av SHA-256 før vi sender til PostHog.
+ * Deterministisk: samme input gir samme hash, men hash kan ikke reverseres
+ * av PostHog eller eventuelle data-lekkasjer. Salt er et konstant prosjekt-
+ * identifiserende prefiks for domain-separasjon (hindrer krysskorrelering
+ * mot andre tjenester som måtte hashe samme Clerk-ID).
+ */
+const POSTHOG_PSEUDONYM_SALT = "studywise:posthog:v1:";
+
+async function pseudonymizeForPostHog(rawId: string): Promise<string> {
+  if (typeof crypto === "undefined" || !crypto.subtle) {
+    // Fallback i miljøer uten SubtleCrypto (svært sjelden i moderne browsere).
+    // Bedre å returnere en tom string enn å sende rå ID.
+    return "";
+  }
+  const data = new TextEncoder().encode(`${POSTHOG_PSEUDONYM_SALT}${rawId}`);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  const bytes = Array.from(new Uint8Array(digest));
+  return `anon_${bytes.slice(0, 16).map((b) => b.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/**
+ * Identifiser nåværende bruker med en stabil pseudonym ID.
+ * Aldri send rå Clerk/Mongo-ID til PostHog — hash alltid først.
  * I cookieless-modus gjelder identifikasjonen kun for den aktive sesjonen.
  */
 export function identifyPostHogUser(
-  distinctId: string,
+  rawDistinctId: string,
   properties?: Record<string, unknown>,
 ): void {
-  try {
-    if (isInitialized() && posthogClient) {
-      posthogClient.identify(distinctId, properties);
-      return;
+  // Fire-and-forget: hashen er rask (ms), men vi kan ikke blokkere kalleren.
+  // Om hashing feiler eller ID er tom, identifiser ikke brukeren heller enn
+  // å sende rå ID.
+  pseudonymizeForPostHog(rawDistinctId)
+    .then((pseudonymId) => {
+      if (!pseudonymId) return;
+      // Fjern/hash også eventuelle PII-looking properties. studywiseUserId
+      // er en MongoId (opaque) men kobler til backend-databasen, så hash den
+      // før transmit for konsistent pseudonymitet.
+      const sanitizedProperties = properties ? sanitizeProperties(properties) : undefined;
+      try {
+        if (isInitialized() && posthogClient) {
+          posthogClient.identify(pseudonymId, sanitizedProperties);
+          return;
+        }
+        pendingIdentify = { distinctId: pseudonymId, properties: sanitizedProperties };
+        pendingReset = false;
+      } catch {
+        // ignore
+      }
+    })
+    .catch(() => {
+      // ignore — telemetri skal aldri krasje appen
+    });
+}
+
+/** Hash eventuelle ID-felter i properties for å unngå re-introduksjon av PII. */
+function sanitizeProperties(
+  properties: Record<string, unknown>,
+): Record<string, unknown> {
+  const ID_FIELDS = new Set(["studywiseUserId", "userId", "clerkId", "clerkUserId", "email"]);
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(properties)) {
+    if (ID_FIELDS.has(key)) {
+      // Erstatt med en grov indikator ("present") i stedet for faktisk verdi.
+      out[`${key}Present`] = value != null && value !== "";
+    } else {
+      out[key] = value;
     }
-    pendingIdentify = { distinctId, properties };
-    pendingReset = false;
-  } catch {
-    // ignore
   }
+  return out;
 }
 
 /**

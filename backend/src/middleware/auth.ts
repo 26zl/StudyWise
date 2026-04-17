@@ -23,10 +23,10 @@ import {
   isUserLocked,
   isUsernameConflict,
   getSessionIdFromTokenCache,
-  deleteClerkUserById,
   markSessionTurnstileVerified,
   isSessionTurnstileVerified,
 } from "../rutere/auth/clerkAuth.js";
+import { enqueueClerkDeletionRetry } from "../queues/clerkDeletion.queue.js";
 import { AUTH_TURNSTILE_COOKIE_NAME } from "common/auth";
 import { clearAuthTurnstileCookie, isValidAuthTurnstileCookieValue } from "../utils/authTurnstileCookie.js";
 import { isProd } from "../utils/env.js";
@@ -360,21 +360,17 @@ export async function requireAuth(
         req,
       });
 
-      // Slett den nye Clerk-brukeren asynkront for å bryte innloggingsloopen.
+      // Enqueue sletting i retry-køen (dedup via jobId=clerk_<id>) for å bryte
+      // innloggingsloopen uten race window mellom 409-respons og faktisk sletting.
       // Brukeren har ingen lokal data (registreringen ble avvist), så det er trygt.
-      void deleteClerkUserById(result.clerkUserId).then((deleted) => {
-        if (deleted) {
-          logger.info(
-            { clerkUserId: result.clerkUserId },
-            "OAuth-konflikt: ny Clerk-bruker slettet for å forhindre innloggingsloop",
-          );
-        }
-      }).catch((err) => {
+      try {
+        await enqueueClerkDeletionRetry({ clerkId: result.clerkUserId });
+      } catch (err) {
         logger.error(
           { err, clerkUserId: result.clerkUserId },
-          "Kunne ikke slette Clerk-bruker etter OAuth-konflikt",
+          "Kunne ikke enqueue Clerk-sletting etter OAuth-konflikt",
         );
-      });
+      }
 
       const providerName =
         result.provider === "google" ? "Google" : "Microsoft";

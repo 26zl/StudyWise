@@ -37,7 +37,8 @@ const LOCAL_DEDUPE_TTL_MS = WEBHOOK_DEDUPE_TTL_S * 1000;
 const localDedupeCache = new Map<string, number>();
 
 function localDedupeCleanup(): void {
-  if (localDedupeCache.size <= LOCAL_DEDUPE_MAX_SIZE) return;
+  // Rydd alltid utløpte entries — ellers kan cache stagnere i nærheten av
+  // LOCAL_DEDUPE_MAX_SIZE og aldri fjerne gamle oppføringer.
   const now = Date.now();
   for (const [key, ts] of localDedupeCache) {
     if (now - ts > LOCAL_DEDUPE_TTL_MS) localDedupeCache.delete(key);

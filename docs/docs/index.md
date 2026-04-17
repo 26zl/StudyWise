@@ -47,7 +47,7 @@ Bruker → Frontend → Backend → KI-tjenester (Claude, Pinecone, Cohere) → 
 | Område | Teknologi |
 | --- | --------- |
 | **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS v4, TanStack Query, Zustand, nuqs, react-hook-form, Zod, Lucide React, Sonner, next-themes |
-| **Backend** | Express 5, Node.js 20+, TypeScript, Mongoose/MongoDB, undici (HTTP connection pooling) |
+| **Backend** | Express 5, Node.js 22+, TypeScript, Mongoose/MongoDB, undici (HTTP connection pooling) |
 | **Auth** | Clerk (innlogging, SSO med Google/Microsoft, brukersynk) |
 | **KI** | Anthropic Claude API, Cohere rerank (rerank-v3.5) for hybrid søk |
 | **Cache** | Redis Cloud (Canvas API-cache, sync-struktur, KI-sesjonskontekst, rate limiting) |
@@ -114,7 +114,7 @@ Prosjektet har et flerlagsoppsett for testing og kvalitetssikring som kjøres b�
 
 ### Enhetstester
 
-25 testfiler med ~714 tester (Vitest) fordelt på `common`, `backend` og `frontend`. Testene dekker skjemavalidering, feilhåndtering, kryptering, datoformatering, i18n, varsler, circuit breakers og mer.
+Over 40 testfiler med 1000+ tester (Vitest) fordelt på `common`, `backend` og `frontend`. Testene dekker skjemavalidering, feilhåndtering, kryptering, datoformatering, i18n, varsler, circuit breakers, SSRF-guards, sanitization og mer.
 
 ### E2E og funksjonelle tester
 

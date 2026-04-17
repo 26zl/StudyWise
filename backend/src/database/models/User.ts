@@ -11,6 +11,9 @@ import {
     type AuthProvider,
     type OAuthAccount,
     type SyncConflict,
+    type CanvasContextPreferences,
+    type VarslerState,
+    type ManuellInnleveringState,
     APP_ROLES,
     AUTH_PROVIDERS,
     OAUTH_PROVIDERS,
@@ -27,23 +30,6 @@ import {
     type BrowserPushSentState,
 } from "common/notifications";
 import { SHA256_HEX_REGEX } from "../../utils/cryptoUtils.js";
-
-// Type for Canvas-kontekst preferanser
-export interface ICanvasContextPreferences {
-    announcements: boolean;
-    courses: boolean;
-    assignments: boolean;
-    events: boolean;
-}
-
-export interface IVarslerState {
-    lestIds: string[];
-    toastVistIds: string[];
-}
-
-export interface IManuellInnleveringState {
-    ferdigeIds: number[];
-}
 
 export interface SanitizedUsername {
     username: string;
@@ -107,9 +93,9 @@ export interface IUser extends Document {
     // Skjulte Canvas-emne-IDer
     hiddenCourseIds?: { courseIds: number[] };
     // Brukerpreferanser for AI Canvas-kontekst
-    canvasContextPreferences?: ICanvasContextPreferences;
-    varslerState?: IVarslerState;
-    manuellInnleveringState?: IManuellInnleveringState;
+    canvasContextPreferences?: CanvasContextPreferences;
+    varslerState?: VarslerState;
+    manuellInnleveringState?: ManuellInnleveringState;
     browserPushPreferences?: BrowserPushPreferences;
     browserPushSentState?: BrowserPushSentState;
     uiPreferences?: {

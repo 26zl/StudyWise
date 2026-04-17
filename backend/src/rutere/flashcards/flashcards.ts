@@ -143,6 +143,12 @@ Generer nøyaktig ${cardCount} flashcards som JSON-array.`;
       "Claude-svar mottatt for flashcard-generering",
     );
 
+    // Defensiv størrelses-guard mot uvanlig stort LLM-svar (OOM/blocking).
+    const MAX_RESPONSE_BYTES = 1_000_000; // 1 MB
+    if (result.text.length > MAX_RESPONSE_BYTES) {
+      throw new Error(`Flashcard-svaret er for stort (${result.text.length} bytes)`);
+    }
+
     const rawFlashcards = z
       .array(FlashcardSchema.omit({ id: true }))
       .min(1)
@@ -187,7 +193,9 @@ Generer nøyaktig ${cardCount} flashcards som JSON-array.`;
       `${JOB_KEY_PREFIX}${jobId}`,
       JSON.stringify({ status: "failed", error: "Kunne ikke generere flashcards. Prøv igjen." }),
       JOB_TTL_SECONDS,
-    ).catch(() => {});
+    ).catch((err) => {
+      logger.warn({ err, jobId, userId }, "Kunne ikke skrive failed-status til cache (flashcards)");
+    });
   }
 }
 
@@ -246,7 +254,7 @@ router.get("/status/:jobId", async (req, res) => {
   try {
     const { jobId } = req.params;
 
-    if (!jobId || !z.string().uuid().safeParse(jobId).success) {
+    if (!jobId || !z.uuid().safeParse(jobId).success) {
       return apiError.badRequest(res, "Ugyldig jobb-ID");
     }
 

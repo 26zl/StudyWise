@@ -16,6 +16,7 @@ import { sendError } from "../utils/apiError.js";
 import { isProd } from "../utils/env.js";
 import { getConfiguredWebOriginSet, normalizeWebOrigin } from "../utils/webOrigins.js";
 import { audit, AUDIT_ACTIONS } from "../utils/auditLog.js";
+import { logger } from "../utils/logger.js";
 
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -30,7 +31,7 @@ function getOriginFromReferer(referer: string | undefined): string | null {
 
 // Send 403 Forbidden med en melding om CSRF-feil, og logg til audit.
 function rejectCsrf(req: Request, res: Response, melding: string): void {
-  void audit({
+  audit({
     actorUserId: (req as Request & { user?: { id?: string } }).user?.id ?? "anonymous",
     action: AUDIT_ACTIONS.CSRF_VIOLATION,
     category: "security",
@@ -42,6 +43,8 @@ function rejectCsrf(req: Request, res: Response, melding: string): void {
       origin: req.get("origin"),
       referer: req.get("referer"),
     },
+  }).catch((auditErr) => {
+    logger.error({ err: auditErr, path: req.path }, "Audit-logging feilet for CSRF_VIOLATION");
   });
   sendError(res, "validation_error", {
     status: 403,

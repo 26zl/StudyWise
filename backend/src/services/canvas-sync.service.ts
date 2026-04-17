@@ -433,9 +433,16 @@ async function _doSync(
   }));
   await setCache(userKey(userId, "emner"), JSON.stringify(emneListe), SYNC_CACHE_TTL);
 
-  // Hent eksisterende hashes for diff-sjekk
+  // Hent eksisterende hashes for diff-sjekk. Logg korrupt cache — stille reset
+  // ville gjort at neste sync re-prosesserer alt uten synlig årsak.
   const previousMeta: SyncMeta = existingMeta
-    ? (() => { try { return JSON.parse(existingMeta); } catch { return { lastSyncAt: "", courseHashes: {} }; } })()
+    ? (() => {
+        try { return JSON.parse(existingMeta); }
+        catch (err) {
+          logger.warn({ err, userId, metaLen: existingMeta.length }, "Canvas sync-metadata korrupt — fallback til tomt");
+          return { lastSyncAt: "", courseHashes: {} };
+        }
+      })()
     : { lastSyncAt: "", courseHashes: {} };
 
   const newHashes: Record<string, string> = {};

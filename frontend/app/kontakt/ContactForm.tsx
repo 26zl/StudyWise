@@ -10,7 +10,7 @@ import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { toast } from "sonner";
+import { showToast } from "@/app/components/ui/Toaster";
 import { Send, Loader2, ImagePlus, X, AlertCircle } from "lucide-react";
 import {
   KONTAKT_ALLOWED_ATTACHMENT_TYPES,
@@ -163,7 +163,7 @@ export function ContactForm() {
   const onSubmit = async (data: KontaktFormData) => {
     // Krev Turnstile-token kun hvis Turnstile er konfigurert
     if (isTurnstileRequired && !turnstileToken) {
-      toast.error(t("contactForm.turnstileError"));
+      showToast.error(t("contactForm.turnstileError"));
       return;
     }
 
@@ -181,7 +181,7 @@ export function ContactForm() {
       });
 
       if (result.success) {
-        toast.success(result.melding ?? t("contactForm.successDefault"));
+        showToast.success(result.melding ?? t("contactForm.successDefault"));
         reset();
         setAttachments([]);
         if (fileInputRef.current) {
@@ -193,11 +193,11 @@ export function ContactForm() {
         setReportedErrorId(undefined);
         clearLastApiErrorRequestId();
       } else {
-        toast.error(result.error ?? t("contactForm.errorDefault"));
+        showToast.error(result.error ?? t("contactForm.errorDefault"));
         resetTurnstile();
       }
     } catch {
-      toast.error(t("contactForm.networkError"));
+      showToast.error(t("contactForm.networkError"));
       resetTurnstile();
     } finally {
       setIsSending(false);
@@ -232,18 +232,18 @@ export function ContactForm() {
           file.type as (typeof KONTAKT_ALLOWED_ATTACHMENT_TYPES)[number],
         )
       ) {
-        toast.error(t("contactForm.imageTypeError"));
+        showToast.error(t("contactForm.imageTypeError"));
         continue;
       }
       if (file.size > KONTAKT_MAX_ATTACHMENT_SIZE_BYTES) {
-        toast.error(t("contactForm.imageSizeError").replace("{size}", String(maxAttachmentSizeMb)));
+        showToast.error(t("contactForm.imageSizeError").replace("{size}", String(maxAttachmentSizeMb)));
         continue;
       }
       nextFiles.push(file);
     }
 
     if (nextFiles.length > KONTAKT_MAX_ATTACHMENTS) {
-      toast.error(
+      showToast.error(
         t("contactForm.imageCountError").replace("{count}", String(KONTAKT_MAX_ATTACHMENTS)),
       );
       setAttachments(nextFiles.slice(0, KONTAKT_MAX_ATTACHMENTS));

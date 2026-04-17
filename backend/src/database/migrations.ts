@@ -64,37 +64,41 @@ const migrations: Migration[] = [
       type BulkOp = { updateOne: { filter: object; update: object } };
       let batch: BulkOp[] = [];
 
-      for await (const doc of cursor) {
-        const text = (doc.text as string) ?? "";
-        const contentHash = crypto
-          .createHash("sha256")
-          .update(text, "utf8")
-          .digest("hex");
-        // Grovt token-estimat uten å laste tiktoken under migrering
-        const tokenCount = Math.ceil(text.length / 4);
+      try {
+        for await (const doc of cursor) {
+          const text = (doc.text as string) ?? "";
+          const contentHash = crypto
+            .createHash("sha256")
+            .update(text, "utf8")
+            .digest("hex");
+          // Grovt token-estimat uten å laste tiktoken under migrering
+          const tokenCount = Math.ceil(text.length / 4);
 
-        batch.push({
-          updateOne: {
-            filter: { _id: doc._id },
-            update: {
-              $set: { contentHash, tokenCount, moduleId: doc.moduleId ?? 0 },
+          batch.push({
+            updateOne: {
+              filter: { _id: doc._id },
+              update: {
+                $set: { contentHash, tokenCount, moduleId: doc.moduleId ?? 0 },
+              },
             },
-          },
-        });
+          });
 
-        if (batch.length >= BATCH_SIZE) {
+          if (batch.length >= BATCH_SIZE) {
+            await col.bulkWrite(batch, { ordered: false });
+            updated += batch.length;
+            batch = [];
+          }
+        }
+
+        if (batch.length > 0) {
           await col.bulkWrite(batch, { ordered: false });
           updated += batch.length;
-          batch = [];
         }
-      }
 
-      if (batch.length > 0) {
-        await col.bulkWrite(batch, { ordered: false });
-        updated += batch.length;
+        logger.info({ updated }, "ContentEmbedding-migrering fullført");
+      } finally {
+        await cursor.close().catch(() => {});
       }
-
-      logger.info({ updated }, "ContentEmbedding-migrering fullført");
     },
   },
   {
@@ -262,16 +266,31 @@ const migrations: Migration[] = [
       let updated = 0;
       let clearedDuplicates = 0;
 
-      for await (const doc of cursor) {
-        const sanitized = sanitizeUsername(
-          typeof doc.username === "string" ? doc.username : undefined,
-        );
+      try {
+        for await (const doc of cursor) {
+          const sanitized = sanitizeUsername(
+            typeof doc.username === "string" ? doc.username : undefined,
+          );
 
-        if (!sanitized) {
-          if (
-            doc.username !== undefined ||
-            doc.usernameNormalized !== undefined
-          ) {
+          if (!sanitized) {
+            if (
+              doc.username !== undefined ||
+              doc.usernameNormalized !== undefined
+            ) {
+              batch.push({
+                updateOne: {
+                  filter: { _id: doc._id },
+                  update: {
+                    $unset: {
+                      username: 1,
+                      usernameNormalized: 1,
+                    },
+                  },
+                },
+              });
+              updated++;
+            }
+          } else if (seen.has(sanitized.usernameNormalized)) {
             batch.push({
               updateOne: {
                 filter: { _id: doc._id },
@@ -284,56 +303,45 @@ const migrations: Migration[] = [
               },
             });
             updated++;
-          }
-        } else if (seen.has(sanitized.usernameNormalized)) {
-          batch.push({
-            updateOne: {
-              filter: { _id: doc._id },
-              update: {
-                $unset: {
-                  username: 1,
-                  usernameNormalized: 1,
-                },
-              },
-            },
-          });
-          updated++;
-          clearedDuplicates++;
-        } else {
-          seen.add(sanitized.usernameNormalized);
-          if (
-            doc.username !== sanitized.username ||
-            doc.usernameNormalized !== sanitized.usernameNormalized
-          ) {
-            batch.push({
-              updateOne: {
-                filter: { _id: doc._id },
-                update: {
-                  $set: {
-                    username: sanitized.username,
-                    usernameNormalized: sanitized.usernameNormalized,
+            clearedDuplicates++;
+          } else {
+            seen.add(sanitized.usernameNormalized);
+            if (
+              doc.username !== sanitized.username ||
+              doc.usernameNormalized !== sanitized.usernameNormalized
+            ) {
+              batch.push({
+                updateOne: {
+                  filter: { _id: doc._id },
+                  update: {
+                    $set: {
+                      username: sanitized.username,
+                      usernameNormalized: sanitized.usernameNormalized,
+                    },
                   },
                 },
-              },
-            });
-            updated++;
+              });
+              updated++;
+            }
+          }
+
+          if (batch.length >= BATCH_SIZE) {
+            await col.bulkWrite(batch, { ordered: false });
+            batch = [];
           }
         }
 
-        if (batch.length >= BATCH_SIZE) {
+        if (batch.length > 0) {
           await col.bulkWrite(batch, { ordered: false });
-          batch = [];
         }
-      }
 
-      if (batch.length > 0) {
-        await col.bulkWrite(batch, { ordered: false });
+        logger.info(
+          { updated, clearedDuplicates },
+          "Migrasjon: brukernavn normalisert og duplikater ryddet",
+        );
+      } finally {
+        await cursor.close().catch(() => {});
       }
-
-      logger.info(
-        { updated, clearedDuplicates },
-        "Migrasjon: brukernavn normalisert og duplikater ryddet",
-      );
     },
   },
   {
@@ -669,34 +677,38 @@ const migrations: Migration[] = [
       type BulkOp = { updateOne: { filter: object; update: object } };
       let batch: BulkOp[] = [];
 
-      for await (const doc of cursor) {
-        const oldProvider = doc.authProvider as string;
-        batch.push({
-          updateOne: {
-            filter: { _id: doc._id },
-            update: {
-              $set: { authProviders: [oldProvider] },
-              $unset: { authProvider: 1 },
+      try {
+        for await (const doc of cursor) {
+          const oldProvider = doc.authProvider as string;
+          batch.push({
+            updateOne: {
+              filter: { _id: doc._id },
+              update: {
+                $set: { authProviders: [oldProvider] },
+                $unset: { authProvider: 1 },
+              },
             },
-          },
-        });
+          });
 
-        if (batch.length >= BATCH_SIZE) {
+          if (batch.length >= BATCH_SIZE) {
+            await col.bulkWrite(batch);
+            updated += batch.length;
+            batch = [];
+          }
+        }
+
+        if (batch.length > 0) {
           await col.bulkWrite(batch);
           updated += batch.length;
-          batch = [];
         }
-      }
 
-      if (batch.length > 0) {
-        await col.bulkWrite(batch);
-        updated += batch.length;
+        logger.info(
+          { updated },
+          "Migrasjon fullført: authProvider → authProviders",
+        );
+      } finally {
+        await cursor.close().catch(() => {});
       }
-
-      logger.info(
-        { updated },
-        "Migrasjon fullført: authProvider → authProviders",
-      );
     },
   },
   {

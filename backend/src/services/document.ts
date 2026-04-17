@@ -649,8 +649,8 @@ async function parsePdfDocument(buffer: Buffer, options?: ParseDocumentOptions):
         // pdf-parse er mer robust for ren tekstekstraksjon og unngår kjente
         // unhandled-rejection-problemer vi har observert i unpdf/pdf.js-løpet.
         const parser = new PDFParse({ data: buffer });
-        let text = "";
-        let numPages = 1;
+        let text: string;
+        let numPages: number;
         try {
             const parsed = await parser.getText();
             text = typeof parsed.text === "string" ? parsed.text : "";

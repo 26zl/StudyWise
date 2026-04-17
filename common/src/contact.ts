@@ -64,8 +64,8 @@ export const KontaktRequestSchema = z.object({
   epost: z
     .string()
     .trim()
-    .email("Ugyldig e-postadresse")
-    .max(320, "E-post kan ikke være mer enn 320 tegn"),
+    .max(320, "E-post kan ikke være mer enn 320 tegn")
+    .pipe(z.email("Ugyldig e-postadresse")),
   emne: z
     .string()
     .trim()

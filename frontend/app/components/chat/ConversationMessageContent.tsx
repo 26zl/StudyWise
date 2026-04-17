@@ -53,7 +53,11 @@ const sanitizeSchema = {
     span: [
       ...(defaultSchema.attributes?.span ?? []),
       ["className", /^(katex|mord|mbin|mrel|mopen|mclose|mpunct|minner|mop|mfrac|msqrt|vlist|strut|frac-line|overline|underline|accent|base|sup|sub|delimsizing|nulldelimiter|sizing|reset-size|fontsize|text|math)/],
-      "style",
+      // KaTeX trenger inline style for matematisk posisjonering/størrelse. Vi
+      // begrenser til et konservativt sett av CSS-egenskaper for å forhindre
+      // CSS-injeksjon (f.eks. position:fixed + z-index som kaprer UI).
+      // Regexen er tilsiktet enkel (ingen nested repetisjon) for å unngå ReDoS.
+      ["style", /^(?:color|background-color|font-size|font-weight|font-style|text-decoration|margin|margin-top|margin-right|margin-bottom|margin-left|padding|padding-top|padding-right|padding-bottom|padding-left|width|height|top|right|bottom|left|vertical-align|line-height|display|border-top|border-bottom|border-right|border-left|border-top-width|border-color)\s*:\s*[a-z0-9#.%\s,()-]+;?\s*$/i],
       "aria-hidden",
     ],
     math: ["xmlns", "display"],
@@ -95,9 +99,9 @@ export function ConversationMessageContent({
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white/80 px-3 py-1.5 text-xs text-slate-600 dark:border-slate-600 dark:bg-slate-600/50 dark:text-slate-300"
             >
               {erBildefil(navn) ? (
-                <Image className="h-3.5 w-3.5 text-slate-400" />
+                <Image aria-hidden="true" className="h-3.5 w-3.5 text-slate-400" />
               ) : (
-                <FileText className="h-3.5 w-3.5 text-slate-400" />
+                <FileText aria-hidden="true" className="h-3.5 w-3.5 text-slate-400" />
               )}
               {navn}
             </span>

@@ -10,7 +10,7 @@ export function Footer() {
     const { t } = useLanguage();
 
     return (
-        <footer className="shrink-0 border-t border-slate-200 dark:border-transparent bg-white dark:bg-slate-900">
+        <footer className="shrink-0 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
             <div className="px-4 py-2.5">
                 <div className="flex flex-wrap justify-center gap-x-4 gap-y-0 mb-0.5">
                     <Link
@@ -56,7 +56,7 @@ export function Footer() {
                         {t("footer.contact")}
                     </Link>
                 </div>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 text-center leading-tight">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 text-center leading-tight">
                     {t("footer.copyright")}
                 </p>
             </div>

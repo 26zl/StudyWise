@@ -256,10 +256,12 @@ function EmneVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
         }).catch(() => {});
     }, [valgtEmneId]);
 
-    // Skjulte emner
+    // Skjulte emner — stabiliser hiddenIds-referansen via useMemo slik at
+    // downstream-callbacks ikke får ny identitet hver render.
     const megQuery = useMeg();
     const oppdaterHiddenCourses = useOppdaterHiddenCourses();
-    const hiddenIds = megQuery.data?.user?.hiddenCourseIds?.courseIds ?? [];
+    const hiddenCourseIds = megQuery.data?.user?.hiddenCourseIds?.courseIds;
+    const hiddenIds = useMemo(() => hiddenCourseIds ?? [], [hiddenCourseIds]);
     const hiddenSet = useMemo(() => new Set(hiddenIds), [hiddenIds]);
     const canvasBaseUrl = megQuery.data?.user?.canvasBaseUrl ?? undefined;
 

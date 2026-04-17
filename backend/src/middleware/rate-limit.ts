@@ -8,6 +8,7 @@ import redisClient, { isRedisReady } from "../cache/redis.js";
 import { logger } from "../utils/logger.js";
 import { apiError, sendError } from "../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../utils/auditLog.js";
+import { isProd } from "../utils/env.js";
 
 
 // Ratelimit konfigurasjonstype
@@ -16,6 +17,9 @@ type RateLimitOptions = {
     duration: number;
     keyPrefix?: string;
     keyGenerator?: (req: Request) => string;
+    // Fail-closed i prod når Redis er utilgjengelig. Default true for sensitive limiters.
+    // Når false, faller vi tilbake til in-memory per dyno (kan omgås ved flere dynos).
+    failClosedInProd?: boolean;
 };
 // Hent klientens IP-adresse — avvis requests uten identifiserbar klient
 const getClientIp = (req: Request): string => {
@@ -57,6 +61,7 @@ export const createRateLimiter = ({
     duration,
     keyPrefix = "rlflx",
     keyGenerator = getClientIp,
+    failClosedInProd = false,
 }: RateLimitOptions): RateLimiterMiddleware => {
     const memoryLimiter = new RateLimiterMemory({
         points,
@@ -77,6 +82,12 @@ export const createRateLimiter = ({
         const key = keyGenerator(req);
         const useRedis = isRedisReady();
         if (!useRedis) {
+            // Fail-closed i prod for sensitive limiters: flere dynos + in-memory fallback
+            // betyr at en angriper kan omgå grensen ved å treffe forskjellige dynos.
+            if (isProd && failClosedInProd) {
+                logger.error({ keyPrefix, path: req.path }, "Rate limiter: Redis utilgjengelig i prod — fail-closed");
+                return apiError.serviceUnavailable(res, "Begrenseren");
+            }
             logger.warn({ keyPrefix }, "Rate limiter: Redis utilgjengelig, faller tilbake til in-memory (per-instans)");
         }
         const limiter = useRedis ? redisLimiter : memoryLimiter;
@@ -88,7 +99,7 @@ export const createRateLimiter = ({
             if (isRateLimiterResult(err)) {
                 setRateLimitHeaders(res, err, points);
                 res.setHeader("Retry-After", String(Math.ceil(err.msBeforeNext / 1000)));
-                void audit({
+                audit({
                     actorUserId: (req as Request & { user?: { id?: string } }).user?.id ?? key,
                     action: AUDIT_ACTIONS.RATE_LIMIT_EXCEEDED,
                     category: "security",
@@ -101,6 +112,8 @@ export const createRateLimiter = ({
                         limit: points,
                         duration,
                     },
+                }).catch((auditErr) => {
+                    logger.error({ err: auditErr, keyPrefix, path: req.path }, "Audit-logging feilet for RATE_LIMIT_EXCEEDED");
                 });
                 return apiError.rateLimited(res, "Du har nådd grensen for forespørsler. Prøv igjen senere.");
             }
@@ -125,7 +138,6 @@ export const createRateLimiter = ({
     return Object.assign(middleware, { reward }) as RateLimiterMiddleware;
 };
 
-import { isProd } from "../utils/env.js";
 // Miljø-avhengige begrensninger (balansert beskyttelse)
 
 // Sjenerøse grenser i utvikling for god utvikleropplevelse
@@ -154,7 +166,7 @@ export const rateLimitCanvasTung = isProd
 
 // Rate limiter for token-lagring (balansert)
 export const rateLimitToken = isProd
-    ? createRateLimiter({ points: 10, duration: 60, keyPrefix: "rlflx:token" })
+    ? createRateLimiter({ points: 10, duration: 60, keyPrefix: "rlflx:token", failClosedInProd: true })
     : createRateLimiter(devTokenLimit);
 
 // Rate limiter for brukerinfo-endepunkt (tillater hyppige SSR-/klientkall til /me)
@@ -164,7 +176,7 @@ export const rateLimitMe = isProd
 
 // Brukernavn-sjekk: streng for å begrense enumeration-angrep (10 per minutt per IP)
 export const rateLimitUsernameCheck = isProd
-  ? createRateLimiter({ points: 10, duration: 60, keyPrefix: "rlflx:username-check" })
+  ? createRateLimiter({ points: 10, duration: 60, keyPrefix: "rlflx:username-check", failClosedInProd: true })
   : createRateLimiter(devMeLimit);
 
 // Kontosletting: maks 1 forsøk per 24 timer per bruker.
@@ -175,6 +187,7 @@ export const rateLimitAccountDeletion = createRateLimiter({
   duration: 86_400,
   keyPrefix: "rlflx:account-delete",
   keyGenerator: (req) => req.user?.id ?? getClientIp(req),
+  failClosedInProd: true,
 });
 
 // Kontaktskjema: streng i prod (5 per 10 min), generøs i dev (50 per minutt)
@@ -185,6 +198,7 @@ export const rateLimitContact = isProd
       duration: 600, // 10 minutter
       keyPrefix: "rlflx:contact",
       keyGenerator: getClientIp,
+      failClosedInProd: true,
     })
   : createRateLimiter({
       points: 50,
@@ -199,6 +213,7 @@ export const rateLimitClerkWebhook = createRateLimiter({
   duration: 60,
   keyPrefix: "rlflx:clerk-webhook",
   keyGenerator: getClientIp,
+  failClosedInProd: true,
 });
 
 // Kunnskapsbase: moderat grense (30 per minutt i prod, generøs i dev)
@@ -213,6 +228,7 @@ export const rateLimitKBWrite = isProd
       duration: 60,
       keyPrefix: "rlflx:kb:write",
       keyGenerator: (req) => req.user?.id ?? getClientIp(req),
+      failClosedInProd: true,
     })
   : createRateLimiter({
       points: 60,
@@ -228,5 +244,6 @@ export const rateLimitAuthTurnstile = isProd
       duration: 600, // 10 minutter
       keyPrefix: "rlflx:auth-turnstile",
       keyGenerator: getClientIp,
+      failClosedInProd: true,
     })
   : createRateLimiter(devAuthTurnstileLimit);

@@ -7,7 +7,7 @@
  * I stedet for å logge brukeren ut, viser vi Turnstile-widgeten inline
  * og re-trigger /me-queryen etter vellykket verifisering.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ShieldCheck } from "lucide-react";
 import { AUTH_TURNSTILE_ACTION } from "common/auth";
@@ -56,6 +56,9 @@ export function TurnstileReChallenge() {
     void queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY });
   }, [queryClient]);
 
+  // reset deklareres lenger ned (TDZ) — bruk ref for å holde deps ærlige.
+  const resetRef = useRef<(() => void) | null>(null);
+
   const onTurnstileSuccess = useCallback(async (token: string) => {
     if (isVerifying) return;
     setIsVerifying(true);
@@ -70,7 +73,7 @@ export function TurnstileReChallenge() {
         t,
       );
       showToast.error(t("auth.humanCheck.title"), message);
-      reset();
+      resetRef.current?.();
     } finally {
       setIsVerifying(false);
     }
@@ -83,9 +86,13 @@ export function TurnstileReChallenge() {
     onError: () => {
       showToast.error(t("auth.humanCheck.title"), t("auth.humanCheck.widgetError"));
     },
-    onExpired: () => reset(),
+    onExpired: () => resetRef.current?.(),
     enabled: showChallenge && !!AUTH_TURNSTILE_SITE_KEY,
   });
+
+  useEffect(() => {
+    resetRef.current = reset;
+  }, [reset]);
 
   if (!showChallenge || !AUTH_TURNSTILE_SITE_KEY) return null;
 

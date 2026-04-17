@@ -244,3 +244,18 @@ export class UsernameConflictError extends Error {
     this.username = username;
   }
 }
+
+/**
+ * Canvas-token-konflikt — en annen bruker har allerede koblet denne Canvas-kontoen.
+ * Backend returnerer canvasKonflikt=true i token-response. Frontend fanger dette
+ * spesifikt for å vise konfliktsflow (velg om man vil frigjøre token fra annen konto).
+ * Ikke en AppError — egen konflikt-tilstand uten retry/reauth-semantikk.
+ */
+export class CanvasTokenConflictError extends Error {
+  readonly canvasKonflikt = true;
+  readonly name = "CanvasTokenConflictError";
+
+  constructor(message: string) {
+    super(message);
+  }
+}

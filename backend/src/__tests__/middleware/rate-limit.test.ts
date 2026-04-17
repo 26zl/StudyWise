@@ -17,7 +17,7 @@ vi.mock("../../utils/logger.js", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-const auditSpy = vi.fn();
+const auditSpy = vi.fn().mockResolvedValue(undefined);
 vi.mock("../../utils/auditLog.js", () => ({
   audit: (...args: unknown[]) => auditSpy(...args),
   AUDIT_ACTIONS: { RATE_LIMIT_EXCEEDED: "rate_limit_exceeded" },

@@ -11,6 +11,7 @@ import { enUS, nbNO } from "@clerk/localizations";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { MotionConfig } from "framer-motion";
 import { useAuthSync, clearClientAuthState } from "./hooks/use-auth-sync";
 import { setClerkGetToken, setClerkSessionReload } from "./lib/clerkTokenForApi";
 import { setDatadogUser, clearDatadogUser } from "@/app/components/layout/DatadogRum";
@@ -419,7 +420,7 @@ function SyncConflictBanner() {
     } finally {
       setDismissing(null);
     }
-  }, [queryClient]);
+  }, [queryClient, t]);
 
   if (conflicts.length === 0) return null;
 
@@ -496,16 +497,20 @@ export function Providers({
       <ClerkProviderMedSprak clerkPublishableKey={clerkPublishableKey} nonce={nonce}>
         <QueryClientProvider client={queryClient}>
           <NuqsAdapter>
-            <ClerkTokenSync />
-            <AuthSyncListener />
-            <AuthConflictGuard />
-            <TurnstileReChallenge />
-            <PrefetchMeOnMount />
-            <DatadogUserSync />
-            <ClerkProfileCacheSync />
-            <SyncConflictBanner />
-            <PreferencesSync />
-            {children}
+            {/* reducedMotion="user" — framer-motion respekterer prefers-reduced-motion
+                automatisk på tvers av alle motion-komponenter (WCAG 2.3.3). */}
+            <MotionConfig reducedMotion="user">
+              <ClerkTokenSync />
+              <AuthSyncListener />
+              <AuthConflictGuard />
+              <TurnstileReChallenge />
+              <PrefetchMeOnMount />
+              <DatadogUserSync />
+              <ClerkProfileCacheSync />
+              <SyncConflictBanner />
+              <PreferencesSync />
+              {children}
+            </MotionConfig>
           </NuqsAdapter>
         </QueryClientProvider>
       </ClerkProviderMedSprak>

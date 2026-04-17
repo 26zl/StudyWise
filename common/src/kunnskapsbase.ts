@@ -96,7 +96,7 @@ export type KBCrawlOptions = z.infer<typeof KBCrawlOptionsSchema>;
 
 /** Legg til lenke i base */
 export const KBAddLinkSchema = z.object({
-  url: z.string().url("Ugyldig URL").max(KB_MAX_URL_LENGTH),
+  url: z.url("Ugyldig URL").max(KB_MAX_URL_LENGTH),
   tittel: z.string().trim().max(KB_MAX_LINK_TITLE_LENGTH).optional(),
   /** Crawl-konfigurasjon (valgfritt) */
   crawlOptions: KBCrawlOptionsSchema.optional(),

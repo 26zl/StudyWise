@@ -53,7 +53,7 @@ export const KIChatSourceSchema = z.object({
   courseName: z.string(),
   fileId: z.number().int().optional(),
   fileName: z.string(),
-  sourceUrl: z.string().url().optional(),
+  sourceUrl: z.url().optional(),
   sourceKind: z.enum(["canvas_file", "kb_link", "kb_file", "live_url"]).optional(),
   /** Hvor stor del av relevansen denne kilden bidro med (0-1). Brukes til sortering. */
   score: z.number().min(0).max(1).optional(),
@@ -174,7 +174,7 @@ export const QuizGenerateRequestSchema = z.object({
 );
 
 export const QuizQuestionSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   question: z.string().min(1),
   options: z.array(z.string().min(1)).length(4),
   correctIndex: z.number().int().min(0).max(3),
@@ -197,7 +197,7 @@ export const FlashcardsGenerateRequestSchema = z.object({
 );
 
 export const FlashcardSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   front: z.string().min(1),
   back: z.string().min(1),
 });
@@ -210,7 +210,7 @@ export const FlashcardsGenerateResponseSchema = z.object({
 
 /** Respons fra POST /generate — returnerer jobId umiddelbart */
 export const AsyncJobAcceptedSchema = z.object({
-  jobId: z.string().uuid(),
+  jobId: z.uuid(),
 });
 
 /** Status for en bakgrunnsjobb */

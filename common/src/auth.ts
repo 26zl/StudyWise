@@ -11,13 +11,14 @@ export function normalizeCanvasBaseUrl(url: string): string {
   return url.trim().replace(/\/$/, "").toLowerCase();
 }
 
-/** E-post canonicalisert: trim + lowercase, så backend ikke trenger egen normalisering. */
+/** E-post canonicalisert: trim + lowercase, så backend ikke trenger egen normalisering.
+ * Bruker Zod v4 top-level z.email() (.email() på ZodString er deprecated). */
 export const EmailSchema = z
   .string()
   .trim()
   .max(320, "E-post kan ikke være mer enn 320 tegn")
   .transform((s) => s.toLowerCase())
-  .pipe(z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Ugyldig e-post"));
+  .pipe(z.email("Ugyldig e-post"));
 
 /** Gyldig Canvas base URL for StudyWise sin Canvas-integrasjon. */
 const CANVAS_BASE_URL_REGEX = /^https:\/\/([^/?#]+)\/?$/i;
@@ -107,7 +108,7 @@ export const OAuthAccountSchema = z.object({
   provider: OAuthProviderSchema,
   providerAccountId: z.string().min(1, "OAuth provider account ID er påkrevd"),
   /** E-postadressen knyttet til OAuth-kontoen (brukes for kryssvalidering mot primær-e-post). */
-  email: z.string().email().optional(),
+  email: z.string().trim().pipe(z.email()).optional(),
 });
 export type OAuthAccount = z.infer<typeof OAuthAccountSchema>;
 
@@ -399,6 +400,11 @@ export const LogoutResponseSchema = z.object({
   melding: z.string(),
 });
 
+/** Respons for DELETE /conflict — fjerning av synkroniseringskonflikt. */
+export const SyncConflictRemovedResponseSchema = z.object({
+  melding: z.string(),
+});
+
 // Response schema for oppdatering av preferanser
 export const PreferencesResponseSchema = z.object({
   melding: z.string(),
@@ -528,6 +534,7 @@ export type PreferencesUpdate = z.infer<typeof PreferencesUpdateSchema>;
 export type AuthBruker = z.infer<typeof AuthBrukerSchema>;
 export type MeResponse = z.infer<typeof MeResponseSchema>;
 export type LogoutResponse = z.infer<typeof LogoutResponseSchema>;
+export type SyncConflictRemovedResponse = z.infer<typeof SyncConflictRemovedResponseSchema>;
 export type PreferencesResponse = z.infer<typeof PreferencesResponseSchema>;
 export type AccountDeletionResponse = z.infer<typeof AccountDeletionResponseSchema>;
 export type AuthTurnstileVerifyRequest = z.infer<typeof AuthTurnstileVerifyRequestSchema>;

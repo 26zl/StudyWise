@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AUTH_TURNSTILE_ACTION } from "common/auth";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { showToast } from "@/app/components/ui/Toaster";
@@ -33,6 +33,10 @@ export function AuthTurnstileInline({
     }
   }, [isVerified, onVerified]);
 
+  // reset fra useTurnstileScript er stable (tom deps i hook-en), men deklareres
+  // lenger ned — bruker ref for å unngå TDZ samtidig som vi holder deps ærlige.
+  const resetRef = useRef<(() => void) | null>(null);
+
   const onTurnstileSuccess = useCallback(async (token: string) => {
     if (isVerified || isVerifying) {
       return;
@@ -54,7 +58,7 @@ export function AuthTurnstileInline({
       );
       setErrorMessage(message);
       showToast.error(t("auth.humanCheck.title"), message);
-      reset();
+      resetRef.current?.();
     } finally {
       setIsVerifying(false);
     }
@@ -72,6 +76,10 @@ export function AuthTurnstileInline({
     onExpired: onTurnstileError,
     enabled: !isVerified && !!AUTH_TURNSTILE_SITE_KEY,
   });
+
+  useEffect(() => {
+    resetRef.current = reset;
+  }, [reset]);
 
   if (isVerified || !AUTH_TURNSTILE_SITE_KEY) {
     return null;

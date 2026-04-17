@@ -4,7 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-StudyWise is an AI-powered study assistant for higher education with Canvas LMS integration. Built as a Bachelor's thesis project (2026). The codebase uses Norwegian for variable names, comments, and error messages.
+StudyWise is an AI-powered study assistant for higher education with Canvas LMS integration. Built as a Bachelor's thesis project (2026). Production: <https://www.studwize.page>. The codebase uses Norwegian for variable names, comments, and error messages.
+
+### Norwegian glossary (common directory/concept names)
+
+- `rutere` → routers (Express route modules)
+- `kunnskapsbase` → knowledge base (user-uploaded docs/links, RAG-indexed)
+- `arbeidsplan` → study plan / weekly schedule
+- `ki` → AI (kunstig intelligens) — Claude chat, summaries, quiz/flashcard generation
+- `emne` / `emner` → course / courses (Canvas)
+- `tester` → tests
 
 ## Monorepo Structure
 
@@ -88,10 +97,12 @@ Host/origin validation (prod) → Helmet security headers → body parsers → C
 
 - `backend/src/rutere/` — Express routers organized by feature (auth/, canvas/, ki/, quiz/, flashcards/, kunnskapsbase/, arbeidsplan/, admin/, contact/, debug/)
 - `backend/src/services/` — Business logic (context-loader, canvas-sync, embedding, hybrid-retrieval, semantic-search, crawler, etc.)
+- `backend/src/queues/` — BullMQ queues with shared Redis connection (Clerk deletion, Pinecone cleanup, web push)
 - `backend/src/database/models/` — Mongoose models (User, CanvasUser, ChatHistory, ContentEmbedding, Kunnskapsbase, etc.)
 - `backend/src/middleware/` — Express middleware stack
 - `backend/src/utils/apiError.ts` — Standardized error responses (`apiError.unauthorized()`, `apiError.badRequest()`, `sendZodError()`, `sendUnknownError()`, `requireUserId()`)
 - `backend/src/utils/env.ts` — Environment validation at startup via `validateEnv()`
+- `backend/src/swagger.ts` — OpenAPI spec; Swagger UI mounted at `/api-docs` in development only
 
 ### Frontend Organization
 
@@ -134,6 +145,16 @@ pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build
 ```
 
 Husky + lint-staged auto-run Prettier on staged files (`.ts/.tsx/.js/.json/.md/.yml/.css`) at commit time. The hook installs via the `prepare` script on `pnpm install`.
+
+## Deployment
+
+- **Backend** deploys to Heroku. `heroku-postbuild` builds `common` then `backend`; `Procfile` runs `node --max-old-space-size=384 --expose-gc backend/dist/index.js` (tuned for Heroku dyno memory).
+- **Frontend** deploys to Vercel.
+- **Docs** deploy to GitHub Pages via `.github/workflows/deploy.docs.yml`.
+
+## Debugging notes
+
+- **Dev-only 401 on `/api/user/me` with mixed Clerk cookies**: caused by switching between `pk_test_*` and `pk_live_*` on `localhost:3000`. Quick fix in browser console: `window.__studywiseResetClerk()` (clears Clerk cookies and reloads). Auto-cleanup and a single retry are built into the frontend and are dev-only — production is unaffected.
 
 ## Docker
 

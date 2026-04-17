@@ -3917,11 +3917,15 @@ function InnboksFane() {
 
   const valgt = data?.meldinger.find((m) => m.id === valgtId) ?? null;
 
-  // Auto-marker som lest når en uleste melding blir åpnet
+  // Auto-marker som lest når en uleste melding blir åpnet.
+  // valgt.id er eneste trigger — `valgt` og `updateStatus` er intensjonelt
+  // ekskludert fra deps for å unngå å re-kjøre effekten når mutate-funksjonen
+  // endrer identitet per render, eller når andre felter på `valgt` endres.
   useEffect(() => {
     if (valgt && valgt.status === "unread") {
       updateStatus.mutate({ id: valgt.id, status: "read" });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [valgt?.id]);
 
   const handleSetStatus = (id: string, status: ContactMessageStatus) => {

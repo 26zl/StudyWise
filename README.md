@@ -26,7 +26,7 @@ Monorepo med fem pakker (`common`, `backend`, `frontend`, `docs`, `tests`) admin
 
 ## Kom i gang
 
-**Forutsetninger:** Node.js 20+ og pnpm (`npm install -g pnpm`)
+**Forutsetninger:** Node.js 22 LTS eller nyere, og pnpm (`npm install -g pnpm`). CI kjører på Node 24.
 
 ```bash
 git clone https://github.com/26zl/StudyWise.git
@@ -89,9 +89,9 @@ docker compose up --build     # Start MongoDB, Redis, backend, frontend
 
 ## Git hooks
 
-Pre-commit-hook (Husky + lint-staged) kjøres automatisk ved `git commit` og kjører Prettier kun på staged filer (`.ts`, `.tsx`, `.js`, `.json`, `.md`, `.yml`, `.css`). Hooken installeres automatisk via `prepare`-scriptet når du kjører `pnpm install`.
+Pre-commit-hook (Husky + lint-staged) er **midlertidig deaktivert** — se kommentar i `.husky/pre-commit`. Hooken planlegges reaktivert etter at teamet har kjørt `pnpm format` samlet på `main` slik at framtidige commits får små, fokuserte differ i stedet for store reformateringer.
 
-Ved behov kan hooken hoppes over midlertidig med `git commit --no-verify` — men gjør det kun i unntakstilfeller.
+Inntil da: kjør `pnpm format` og `pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build` manuelt før commit. CI håndhever det samme i pull requests.
 
 ## Testing
 

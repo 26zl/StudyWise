@@ -71,7 +71,7 @@ const ALLOWED_PUSH_ENDPOINT_PATTERNS = [
   /^https:\/\/push\.services\.mozilla\.com\//,
 ];
 
-const WebPushEndpointSchema = z.string().url("Ugyldig endpoint")
+const WebPushEndpointSchema = z.url("Ugyldig endpoint")
   .max(2000, "Endpoint for lang")
   .refine((v) => v.startsWith("https://"), "Endpoint må bruke HTTPS")
   .refine(
