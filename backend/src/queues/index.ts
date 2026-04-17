@@ -193,6 +193,17 @@ export async function stopQueueWorkers(): Promise<void> {
   await closeAllBullMqConnections();
 }
 
+/**
+ * Indikerer om unified worker er startet og klar. Brukes av helsestatus-
+ * endepunktet for å skille "Redis oppe men BullMQ aldri startet" fra
+ * "alt fungerer". worker er null hvis enten startQueueWorkers aldri kjørte
+ * (f.eks. fordi Redis var nede ved oppstart) eller hvis stopQueueWorkers
+ * ryddet opp.
+ */
+export function isWorkerRunning(): boolean {
+  return worker !== null;
+}
+
 /** Brukes av admin-panelet for å vise kø-status. */
 export function getAllQueues() {
   return [getUnifiedQueue()];

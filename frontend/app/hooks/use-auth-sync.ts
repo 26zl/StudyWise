@@ -17,15 +17,35 @@ import { clearBrowserPushClientConfigCache } from "./useBrowserPushNotifications
 const LOGOUT_MESSAGE = "logout";
 const AUTH_PATH_PREFIXES = ["/dashboard", "/oversikt", "/ai-breakdown", "/account"] as const;
 
-// Persisterte zustand-nøkler som må ryddes ved logout for å hindre at data
-// fra en tidligere bruker rehyrdreres inn i en ny brukers sesjon på samme browser.
+// Persisterte sessionStorage-nøkler som må ryddes ved logout for å hindre at
+// data fra en tidligere bruker rehydreres inn i en ny brukers sesjon på samme
+// tab/device.
+//
+// Hver nøkkel som persisterer brukerinnhold må legges til her — ellers kan en
+// påfølgende bruker arve forrige brukers data.
 const PERSISTED_STORE_KEYS = [
+    // Zustand-cache for quiz-historikk.
     "ki-store-quiz-cache",
     // Request-ID fra siste API-feil (brukes av kontaktskjemaet til å
-    // forhåndsfylle "siste feil-ID"). Må ryddes ved logout slik at en ny
-    // bruker på samme device ikke ender opp med å rapportere forrige
-    // brukers feil som sin egen.
+    // forhåndsfylle "siste feil-ID"). Uten cleanup kunne en ny bruker
+    // rapportere forrige brukers feil som sin egen.
     "studywise:lastApiErrorRequestId",
+    // Quiz-/flashcard-UI-state i QuizView (spørsmål, svar, valg).
+    // Uten cleanup ville en ny bruker se forrige brukers quiz-innhold.
+    "quiz-view-ui-state",
+    // Siste aktive chat-ID (brukes av ChatSection for å gjenoppta samtalen).
+    // Peker til en ressurs som tilhører forrige bruker — må ryddes.
+    "studywise_last_chat_id",
+] as const;
+
+// Prefix-baserte sessionStorage-nøkler som skal ryddes ved logout. Nøklene har
+// dynamisk suffix (f.eks. "<prefix>:<oppdatertAt>") så vi kan ikke liste dem
+// eksplisitt — vi må iterere sessionStorage og slette alle som matcher.
+const PERSISTED_STORE_KEY_PREFIXES = [
+    // Dismiss-status for systemmeldingsbanner. Uten cleanup ville en bruker som
+    // lukket banneret først kunne skjule en aktiv driftsmelding for neste
+    // bruker på samme tab.
+    "studywise:announcement-dismissed:",
 ] as const;
 
 export function clearClientAuthState(queryClient: QueryClient): void {
@@ -41,6 +61,22 @@ export function clearClientAuthState(queryClient: QueryClient): void {
             } catch {
                 // sessionStorage kan være blokkert (f.eks. privat modus) — ignorer
             }
+        }
+        try {
+            // Samle alle keys først så vi ikke muterer under iterasjon.
+            const keysToRemove: string[] = [];
+            for (let i = 0; i < window.sessionStorage.length; i++) {
+                const key = window.sessionStorage.key(i);
+                if (!key) continue;
+                if (PERSISTED_STORE_KEY_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+                    keysToRemove.push(key);
+                }
+            }
+            for (const key of keysToRemove) {
+                window.sessionStorage.removeItem(key);
+            }
+        } catch {
+            // sessionStorage kan være blokkert — ignorer
         }
     }
 }

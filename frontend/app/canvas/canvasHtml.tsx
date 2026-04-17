@@ -198,7 +198,11 @@ function resolveCanvasRelativeHref(href: string, canvasBaseUrl?: string): string
 }
 
 // Lager parser-opsjoner. Kan utvides med custom bilde-rendering fra konsument
-export const createCanvasHtmlParser = (renderImage?: (el: Element) => ReactNode, canvasBaseUrl?: string): HTMLReactParserOptions => {
+export const createCanvasHtmlParser = (
+    renderImage?: (el: Element) => ReactNode,
+    canvasBaseUrl?: string,
+    onDownloadError?: (err: unknown) => void,
+): HTMLReactParserOptions => {
     const replace: HTMLReactParserOptions["replace"] = (domNode) => {
         if (domNode instanceof Element) {
             if (domNode.tagName === "a") {
@@ -216,8 +220,11 @@ export const createCanvasHtmlParser = (renderImage?: (el: Element) => ReactNode,
                         rel="noopener noreferrer"
                         onClick={erFilNedlasting ? (e) => {
                             e.preventDefault();
-                            void downloadAuthedFile(resolvedHref).catch(() => {
-                                // Stille fallback — feilen logges av nettleseren
+                            void downloadAuthedFile(resolvedHref).catch((err) => {
+                                // Ikke la feilen være stille — gi beskjed til bruker
+                                // (ved utløpt auth, nettverksfeil eller 404 gir
+                                // en "død klikk" ellers ingen forklaring).
+                                onDownloadError?.(err);
                             });
                         } : undefined}
                         className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"

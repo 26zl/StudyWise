@@ -81,6 +81,7 @@ import {
   removeWebPushSubscription,
   upsertWebPushSubscription,
   WebPushSubscriptionConflictError,
+  WebPushDeliveryUnavailableError,
 } from "../../services/webPush.service.js";
 import { clerkUserExistsInCurrentInstance } from "./clerkAuth.js";
 import { getCurrentClerkEnv } from "./relinkGuard.js";
@@ -1159,6 +1160,12 @@ router.post("/push-subscriptions/test", rateLimitMe, async (req, res) => {
       }),
     );
   } catch (error) {
+    // Leveringstjenesten (BullMQ/Redis) er nede — returner 503 så brukeren ser
+    // "tjenesten er midlertidig utilgjengelig" i stedet for at endepunktet
+    // later som alt gikk bra ved å bare logge og returnere delivered: false.
+    if (error instanceof WebPushDeliveryUnavailableError) {
+      return apiError.serviceUnavailable(res, "Nettleservarsler");
+    }
     return sendUnknownError(res, error, {
       kontekst: "test av web-push",
       melding: "Kunne ikke sende testvarsel. Prøv igjen.",

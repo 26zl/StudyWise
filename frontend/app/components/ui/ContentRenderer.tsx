@@ -2,7 +2,12 @@
 
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { Check, Copy, Download } from "lucide-react";
-import hljs from "highlight.js";
+// highlight.js/lib/common inkluderer ~35 vanlige programmeringsspråk (JS/TS,
+// Python, Java, C#, C/C++, Go, Rust, SQL, HTML/CSS, Bash, JSON, YAML, osv.)
+// i stedet for full-bundle (~600 kB) som laster alle 190+ språk. hljs.highlight()
+// og hljs.highlightAuto() er API-kompatible; sistnevnte gjetter kun mellom de
+// registrerte språkene i common — dekning er mer enn nok for student-kode.
+import hljs from "highlight.js/lib/common";
 import DOMPurify from "isomorphic-dompurify";
 import { useLanguage } from "@/app/i18n";
 import type { Components } from "react-markdown";

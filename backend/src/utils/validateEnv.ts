@@ -347,12 +347,21 @@ export const validateEnv = (): void => {
     manglende.push("CONTACT_FROM_EMAIL (påkrevd for kontaktskjema)");
   }
 
-  // Advarsel for valgfrie sikkerhetsrelaterte variabler
+  // CLERK_WEBHOOK_SECRET: required i prod (webhook-ruten returnerer 500 uten den,
+  // og user.deleted-opprydding fungerer ikke). Warning i dev/test for å lette
+  // lokal utvikling uten full Clerk-oppsett.
   if (!process.env.CLERK_WEBHOOK_SECRET?.trim()) {
-    logger.warn(
-      "CLERK_WEBHOOK_SECRET er ikke satt — Clerk webhook for user.deleted vil ikke fungere. " +
-      "Sett variabelen og registrer webhook-URL i Clerk Dashboard.",
-    );
+    if (process.env.NODE_ENV === "production") {
+      manglende.push(
+        "CLERK_WEBHOOK_SECRET (påkrevd i produksjon — user.deleted-opprydding " +
+        "vil feile med 500 uten den)",
+      );
+    } else {
+      logger.warn(
+        "CLERK_WEBHOOK_SECRET er ikke satt — Clerk webhook for user.deleted vil ikke fungere. " +
+        "Sett variabelen og registrer webhook-URL i Clerk Dashboard.",
+      );
+    }
   }
 
   // Avslutt hvis påkrevde variabler mangler

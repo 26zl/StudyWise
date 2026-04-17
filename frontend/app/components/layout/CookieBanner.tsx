@@ -6,10 +6,11 @@
  */
 "use client";
 
-import { useId, useCallback, useState, useEffect } from "react";
+import { useId, useCallback, useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useCookieConsent, type CookieConsentStatus } from "@/app/hooks/useCookieConsent";
+import { useDialogAccessibility } from "@/app/hooks/useDialogAccessibility";
 import { useLanguage } from "@/app/i18n";
 import { showToast } from "@/app/components/ui/Toaster";
 
@@ -18,6 +19,8 @@ export function CookieBanner() {
   const { consent, isAuthenticated, isReady, isPending, setConsent } = useCookieConsent();
   const titleId = useId();
   const pathname = usePathname();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const declineButtonRef = useRef<HTMLButtonElement>(null);
 
   // Sjekk gjeste-cookie i useEffect for å unngå hydration mismatch
   const [harGjesteCookie, setHarGjesteCookie] = useState(false);
@@ -50,15 +53,19 @@ export function CookieBanner() {
     [setConsent, t],
   );
 
-  if (!isReady || consent !== null) return null;
+  const isOpen = isReady && consent === null && !pathname.startsWith("/auth/") && !harGjesteCookie;
 
-  // Ikke vis banneret midt i innlogging/registrering. Nye brukere har ennå ikke
-  // et lagret cookieConsent-valg, men å vise en fullskjerm-prompt oppå Clerk-UI
-  // er forstyrrende. Banneret vises i stedet når de lander på dashboard/forsiden.
-  if (pathname.startsWith("/auth/")) return null;
+  // Focus trap + scroll-lock. Escape er bevisst en no-op fordi brukeren må
+  // gjøre et eksplisitt valg (accept/decline) — samtykke kan ikke ryddes bort
+  // med tastatur-snarvei.
+  useDialogAccessibility({
+    open: isOpen,
+    containerRef: dialogRef,
+    initialFocusRef: declineButtonRef,
+    onClose: () => { /* no-op: bruker må velge */ },
+  });
 
-  // Gjeste-cookie oppdaget etter hydrering — ikke vis banneret
-  if (harGjesteCookie) return null;
+  if (!isOpen) return null;
 
   return (
     <div
@@ -66,9 +73,11 @@ export function CookieBanner() {
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        tabIndex={-1}
         className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 dark:shadow-[0_8px_40px_rgba(0,0,0,0.4)] border border-slate-200 dark:border-slate-700"
       >
         <div className="space-y-3">
@@ -88,6 +97,7 @@ export function CookieBanner() {
         </div>
         <div className="mt-5 flex gap-3">
           <button
+            ref={declineButtonRef}
             type="button"
             onClick={() => void handleChoice("declined")}
             disabled={isPending}

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties, type ImgHTMLAttributes, type JSX } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ImgHTMLAttributes, type JSX } from "react";
 import { createCanvasHtmlParser, parseCanvasHtml } from "@/app/canvas/canvasHtml";
 import { fetchApi } from "@/app/lib/apiClient";
 import { useLanguage } from "@/app/i18n";
+import { showToast } from "@/app/components/ui/Toaster";
 
 function normalizeStyle(style?: string | CSSProperties): CSSProperties | undefined {
     if (!style) return undefined;
@@ -139,9 +140,13 @@ interface CanvasHtmlContentProps {
 }
 
 export function CanvasHtmlContent({ html, className, canvasBaseUrl }: CanvasHtmlContentProps): JSX.Element {
+    const { t } = useLanguage();
+    const onDownloadError = useCallback(() => {
+        showToast.error(t("errors.generic.download"));
+    }, [t]);
     const parser = useMemo(
-        () => createCanvasHtmlParser(renderImage, canvasBaseUrl),
-        [canvasBaseUrl],
+        () => createCanvasHtmlParser(renderImage, canvasBaseUrl, onDownloadError),
+        [canvasBaseUrl, onDownloadError],
     );
 
     return (

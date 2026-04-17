@@ -68,6 +68,10 @@
     "./kunnskapsbase": {
       "types": "./dist/kunnskapsbase.d.ts",
       "import": "./dist/kunnskapsbase.js"
+    },
+    "./system": {
+      "types": "./dist/system.d.ts",
+      "import": "./dist/system.js"
     }
   },
   "scripts": {

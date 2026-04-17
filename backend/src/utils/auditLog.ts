@@ -52,6 +52,8 @@ export const AUDIT_ACTIONS = {
   KB_LINK_DELETED: "kb_link_deleted",
   KB_FILE_UPLOADED: "kb_file_uploaded",
   KB_FILE_DELETED: "kb_file_deleted",
+  ADMIN_ANNOUNCEMENT_PUBLISHED: "admin_announcement_published",
+  ADMIN_ANNOUNCEMENT_CLEARED: "admin_announcement_cleared",
 } as const;
 
 export function getDeletedAuditActorId(userId: string): string {

@@ -83,6 +83,19 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOAuthSubmitting, setIsOAuthSubmitting] = useState(false);
 
+  // Scrub ?error= fra URL etter at feilen er overført til state.
+  // Forhindrer at kontostatus/feilmelding lekker til browser-historikk,
+  // screenshots og eventuell klientside-telemetri (Datadog, PostHog).
+  useEffect(() => {
+    if (!urlError || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("error")) return;
+    params.delete("error");
+    const nyQuery = params.toString();
+    const nyUrl = `${window.location.pathname}${nyQuery ? `?${nyQuery}` : ""}${window.location.hash}`;
+    window.history.replaceState(null, "", nyUrl);
+  }, [urlError]);
+
   // Passordkrav
   const passwordMinLengthOk = password.length >= 8;
   const passwordValid = passwordMinLengthOk;
@@ -433,30 +446,6 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
             subtitle={t("auth.signUp.subtitle")}
           />
 
-          <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
-            {t("auth.signUp.termsPrefix")}{" "}
-            <Link
-              href="/vilkar"
-              prefetch={false}
-              target="_blank"
-              rel="noopener"
-              className="font-medium text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-            >
-              {t("auth.signUp.termsLink")}
-            </Link>{" "}
-            {t("auth.signUp.termsMiddle")}{" "}
-            <Link
-              href="/personvern"
-              prefetch={false}
-              target="_blank"
-              rel="noopener"
-              className="font-medium text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-            >
-              {t("auth.signUp.privacyLink")}
-            </Link>
-            {t("auth.signUp.termsSuffix")}
-          </p>
-
           <AuthOAuthButtons
             onGoogle={() => void handleOAuth("oauth_google")}
             onMicrosoft={() => void handleOAuth("oauth_microsoft")}
@@ -601,6 +590,30 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
             >
               {t("auth.signUp.submitButton")}
             </AuthPrimaryButton>
+
+            <p className="text-center text-xs text-slate-500 dark:text-slate-400">
+              {t("auth.signUp.termsPrefix")}{" "}
+              <Link
+                href="/vilkar"
+                prefetch={false}
+                target="_blank"
+                rel="noopener"
+                className="font-medium text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              >
+                {t("auth.signUp.termsLink")}
+              </Link>{" "}
+              {t("auth.signUp.termsMiddle")}{" "}
+              <Link
+                href="/personvern"
+                prefetch={false}
+                target="_blank"
+                rel="noopener"
+                className="font-medium text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              >
+                {t("auth.signUp.privacyLink")}
+              </Link>
+              {t("auth.signUp.termsSuffix")}
+            </p>
           </form>
 
           <AuthFooterLink

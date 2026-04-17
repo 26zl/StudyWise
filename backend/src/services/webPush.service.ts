@@ -39,6 +39,19 @@ export const AI_COMPLETION_PUSH_MIN_DURATION_MS = 15 * 1000;
 const NOTIFICATIONS_DASHBOARD_URL = "/dashboard?view=varslinger";
 let webPushBatchRunning = false;
 
+/**
+ * Kastes når vi hadde gyldige subscriptions men ingen kunne enqueues —
+ * tipisk at BullMQ/Redis er utilgjengelig. Brukes av endepunktene for å
+ * skille "ingen abonnement" (returner false) fra "leveringstjeneste nede"
+ * (returner 503) slik at brukeren får riktig melding.
+ */
+export class WebPushDeliveryUnavailableError extends Error {
+  constructor(message = "Nettleservarsler kan ikke leveres akkurat nå") {
+    super(message);
+    this.name = "WebPushDeliveryUnavailableError";
+  }
+}
+
 export class WebPushSubscriptionConflictError extends Error {
   constructor() {
     super("Web-push-abonnementet er allerede registrert for en annen bruker.");
@@ -95,6 +108,7 @@ async function sendPayloadToSubscriptions(
   if (subscriptions.length === 0) return false;
 
   let enqueued = 0;
+  let lastEnqueueError: unknown = null;
   for (const subscription of subscriptions) {
     try {
       await enqueueWebPushDelivery({
@@ -115,11 +129,23 @@ async function sendPayloadToSubscriptions(
       });
       enqueued++;
     } catch (error) {
+      lastEnqueueError = error;
       logger.warn(
         { err: error, subscriptionId: subscription._id.toString() },
         "Kunne ikke enqueue web-push-jobb",
       );
     }
+  }
+
+  // Hadde subscriptions, men ALLE enqueue-forsøk feilet — tolkes som at
+  // leveringstjenesten (BullMQ/Redis) er utilgjengelig. Kast slik at kallende
+  // endepunkt kan returnere 503 i stedet for å late som alt gikk bra.
+  if (enqueued === 0 && subscriptions.length > 0) {
+    logger.error(
+      { err: lastEnqueueError, attempted: subscriptions.length },
+      "Alle web-push enqueue-forsøk feilet — BullMQ/Redis kan være nede",
+    );
+    throw new WebPushDeliveryUnavailableError();
   }
 
   return enqueued > 0;
@@ -418,14 +444,27 @@ async function processUserPushNotifications(user: {
 
   const deliveredIds: string[] = [];
   for (const candidate of freshCandidates) {
-    const delivered = await sendPayloadToSubscriptions(subscriptions, candidate);
-    if (delivered) {
-      deliveredIds.push(candidate.id);
-    } else {
-      logger.info(
-        { userId: user._id.toString(), candidateId: candidate.id },
-        "Web-push-varsel ble ikke levert til noen abonnementer",
-      );
+    try {
+      const delivered = await sendPayloadToSubscriptions(subscriptions, candidate);
+      if (delivered) {
+        deliveredIds.push(candidate.id);
+      } else {
+        logger.info(
+          { userId: user._id.toString(), candidateId: candidate.id },
+          "Web-push-varsel ble ikke levert til noen abonnementer",
+        );
+      }
+    } catch (error) {
+      // Leveringstjenesten er nede (BullMQ/Redis) — ingen grunn til å prøve
+      // flere kandidater i denne batchen. Neste polling-tick prøver på nytt.
+      if (error instanceof WebPushDeliveryUnavailableError) {
+        logger.warn(
+          { userId: user._id.toString() },
+          "Web-push-batch avbrutt: leveringstjeneste utilgjengelig",
+        );
+        break;
+      }
+      throw error;
     }
   }
 

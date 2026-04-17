@@ -560,7 +560,10 @@ type UserPreferencesUpdate = {
 // PUT-er på rad (f.eks. spurious re-syncs på rute-endring) uten å forstyrre
 // reelle toggle-sekvenser, der etterfølgende verdier alltid skiller seg.
 // Returnerer et speilsvar slik at onSuccess-flyten fortsetter normalt —
-// cachen er allerede i takt med payloaden siden forrige skriving gikk gjennom.
+// cachen er da allerede i takt med payloaden siden forrige skriving gikk gjennom.
+// VIKTIG: Cachen oppdateres KUN etter at PUT har lyktes. Hvis vi cachet før,
+// ville en feilet forespørsel gi falsk "lagret"-state i UI på neste identiske
+// forsøk innen dedup-vinduet.
 let sisteSendtePreferanser: { signature: string; sentAt: number } | null = null;
 const PREFERANSER_DEDUP_WINDOW_MS = 10_000;
 
@@ -582,8 +585,7 @@ async function oppdaterBrukerPreferanser(
   ) {
     return { melding: "Ingen endring", ...preferences };
   }
-  sisteSendtePreferanser = { signature: body, sentAt: now };
-  return requestAuthedJson(
+  const result = await requestAuthedJson(
     "/api/user/preferences",
     PreferencesResponseSchema,
     "Kunne ikke oppdatere preferanser",
@@ -594,6 +596,10 @@ async function oppdaterBrukerPreferanser(
       body,
     },
   );
+  // Oppdater dedup-cache først etter at PUT har lyktes, slik at en feilet
+  // skriving ikke forhindrer et nytt forsøk og ikke gir falsk suksess i UI.
+  sisteSendtePreferanser = { signature: body, sentAt: Date.now() };
+  return result;
 }
 
 // Generisk hook for oppdatering av brukerpreferanser. Tar en funksjon som mapper input til UserPreferencesUpdate, og håndterer cache-oppdatering av /me data ved suksess.

@@ -56,8 +56,16 @@ const sanitizeSchema = {
       // KaTeX trenger inline style for matematisk posisjonering/størrelse. Vi
       // begrenser til et konservativt sett av CSS-egenskaper for å forhindre
       // CSS-injeksjon (f.eks. position:fixed + z-index som kaprer UI).
-      // Regexen er tilsiktet enkel (ingen nested repetisjon) for å unngå ReDoS.
-      ["style", /^(?:color|background-color|font-size|font-weight|font-style|text-decoration|margin|margin-top|margin-right|margin-bottom|margin-left|padding|padding-top|padding-right|padding-bottom|padding-left|width|height|top|right|bottom|left|vertical-align|line-height|display|border-top|border-bottom|border-right|border-left|border-top-width|border-color)\s*:\s*[a-z0-9#.%\s,()-]+;?\s*$/i],
+      // KaTeX genererer typisk flere deklarasjoner per style (f.eks.
+      // "height:0.84em;vertical-align:-0.14em;") — regexen tillater derfor
+      // gjentatte property:value-par separert med ';'. Hvert par valideres
+      // mot whitelisten, så én ikke-tillatt property gjør hele style ugyldig
+      // og sanitizeren dropper den. Regexen er deterministisk: hver iterasjon
+      // MÅ avsluttes med ';' eller strengslutt, property-navn er anchored
+      // alternation, og value-delen er et enkelt character class uten
+      // nested repetisjon. Derfor ingen ReDoS-risiko.
+      // eslint-disable-next-line security/detect-unsafe-regex -- deterministisk; se kommentar over
+      ["style", /^(?:(?:color|background-color|font-size|font-weight|font-style|text-decoration|margin|margin-top|margin-right|margin-bottom|margin-left|padding|padding-top|padding-right|padding-bottom|padding-left|width|height|min-width|min-height|max-width|max-height|top|right|bottom|left|vertical-align|line-height|display|white-space|border-top|border-bottom|border-right|border-left|border-top-width|border-color)\s*:\s*[a-z0-9#.%\s,()-]+\s*(?:;\s*|$))+$/i],
       "aria-hidden",
     ],
     math: ["xmlns", "display"],

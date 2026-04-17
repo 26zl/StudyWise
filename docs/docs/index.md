@@ -56,7 +56,7 @@ Bruker → Frontend → Backend → KI-tjenester (Claude, Pinecone, Cohere) → 
 | **Filer/dokumenter** | Multer, unpdf (PDF), mammoth (Word), tesseract.js + sharp (OCR) |
 | **API** | Swagger UI + swagger-jsdoc, Helmet, CORS, compression, rate-limiter-flexible |
 | **Logging/Observability** | Pino + pino-http, Datadog APM (backend) og RUM (frontend) |
-| **Tooling** | syncpack (versjons-drift), knip (død kode), size-limit (bundle-budsjett) |
+| **Tooling** | syncpack (versjons-drift), knip (død kode) |
 | **CI/CD** | GitHub Actions, Heroku (backend), Vercel (frontend), Cloudflare (CDN/WAF), GitHub Pages (docs) |
 | **Dokumentasjon** | VitePress; bygges og publiseres til GitHub Pages ved endringer i `docs/` |
 

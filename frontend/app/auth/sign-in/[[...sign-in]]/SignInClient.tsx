@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useSignIn } from "@clerk/nextjs/legacy";
 import { useSearchParams } from "next/navigation";
@@ -48,6 +48,19 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
   const [formError, setFormError] = useState<string | null>(urlError);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOAuthSubmitting, setIsOAuthSubmitting] = useState(false);
+
+  // Scrub ?error= fra URL etter at feilen er overført til state.
+  // Forhindrer at kontostatus/feilmelding lekker til browser-historikk,
+  // screenshots og eventuell klientside-telemetri (Datadog, PostHog).
+  useEffect(() => {
+    if (!urlError || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("error")) return;
+    params.delete("error");
+    const nyQuery = params.toString();
+    const nyUrl = `${window.location.pathname}${nyQuery ? `?${nyQuery}` : ""}${window.location.hash}`;
+    window.history.replaceState(null, "", nyUrl);
+  }, [urlError]);
 
   // MFA (TOTP) — aktiveres når Clerk returnerer needs_second_factor
   const [mfaStep, setMfaStep] = useState(false);

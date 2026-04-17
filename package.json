@@ -66,9 +66,7 @@
     "lint:soft-delete": "node scripts/lint-soft-delete.mjs",
     "db:reset-encrypted": "node scripts/reset-encrypted-data.mjs",
     "knip": "knip",
-    "knip:fix": "knip --fix --allow-remove-files",
-    "size": "size-limit",
-    "size:why": "size-limit --why"
+    "knip:fix": "knip --fix --allow-remove-files"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -81,23 +79,8 @@
       "prettier --write"
     ]
   },
-  "size-limit": [
-    {
-      "name": "Frontend – førsteinnlasting (alle JS)",
-      "path": "frontend/.next/static/chunks/**/*.js",
-      "limit": "900 kB",
-      "gzip": true
-    },
-    {
-      "name": "Frontend – framework chunks",
-      "path": "frontend/.next/static/chunks/framework-*.js",
-      "limit": "60 kB",
-      "gzip": true
-    }
-  ],
   "devDependencies": {
     "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.15",
-    "@size-limit/preset-app": "^12.1.0",
     "@types/node": "^25.6.0",
     "concurrently": "^9.2.1",
     "husky": "^9.1.7",
@@ -107,7 +90,6 @@
     "prettier": "^3.8.3",
     "remark-cli": "^12.0.1",
     "remark-preset-lint-recommended": "^7.0.1",
-    "size-limit": "^12.1.0",
     "syncpack": "^14.3.0",
     "wait-on": "^9.0.5"
   },

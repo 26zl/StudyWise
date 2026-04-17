@@ -54,6 +54,8 @@ import {
   LogOut,
   MailCheck,
   Send,
+  Megaphone,
+  Loader2,
 } from "lucide-react";
 import { useLanguage } from "@/app/i18n";
 import type { Translator } from "@/app/i18n/types";
@@ -106,6 +108,10 @@ import {
   useEncryptionStatus,
   useReencryptTokens,
   useDatabaseHealth,
+  useDependenciesHealth,
+  useAdminAnnouncement,
+  usePublishAnnouncement,
+  useClearAnnouncement,
 } from "@/app/admin/admin-api";
 import type {
   AdminAuditCategory,
@@ -932,6 +938,358 @@ function MaintenanceFane() {
   );
 }
 
+// ── Service Status Panel ─────────────────────────────────────────────────────
+
+type ServiceKey = "mongo" | "redis" | "bullmq" | "anthropic" | "cohere" | "clerk" | "pinecone";
+
+function statusClasses(status: "up" | "down" | "unknown"): string {
+  if (status === "up") return "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]";
+  if (status === "down") return "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]";
+  return "bg-slate-400";
+}
+
+function ServiceStatusPanel() {
+  const { t } = useLanguage();
+  const { data, isLoading, error } = useDependenciesHealth();
+
+  const services: ServiceKey[] = [
+    "mongo",
+    "redis",
+    "bullmq",
+    "anthropic",
+    "cohere",
+    "clerk",
+    "pinecone",
+  ];
+
+  // Oppsummering: hvis en kritisk tjeneste er nede = "down", hvis en valgfri er nede = "degraded", ellers "allOk".
+  const overallStatus = (() => {
+    if (!data) return "unknown" as const;
+    const deps = data.dependencies;
+    const criticalDown = services.some(
+      (s) => deps[s].critical && deps[s].status === "down",
+    );
+    if (criticalDown) return "down" as const;
+    const anyDown = services.some((s) => deps[s].status === "down");
+    if (anyDown) return "degraded" as const;
+    const anyUnknown = services.some((s) => deps[s].status === "unknown");
+    if (anyUnknown) return "unknown" as const;
+    return "allOk" as const;
+  })();
+
+  const overallLabel =
+    overallStatus === "allOk"
+      ? t("admin.serviceStatus.allOk")
+      : overallStatus === "down"
+        ? t("admin.serviceStatus.down")
+        : overallStatus === "degraded"
+          ? t("admin.serviceStatus.degraded")
+          : t("admin.serviceStatus.loading");
+
+  const overallBadgeClass =
+    overallStatus === "allOk"
+      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+      : overallStatus === "down"
+        ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+        : overallStatus === "degraded"
+          ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+          : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400";
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900/50">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
+            <Activity className="h-4 w-4" />
+            {t("admin.serviceStatus.title")}
+          </h2>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            {t("admin.serviceStatus.description")}
+          </p>
+        </div>
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${overallBadgeClass}`}
+        >
+          {isLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+          {overallLabel}
+        </span>
+      </div>
+
+      {error && (
+        <p className="mb-3 text-sm text-red-600 dark:text-red-400">
+          {t("admin.serviceStatus.loadError")}
+        </p>
+      )}
+
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {services.map((service) => {
+          const dep = data?.dependencies[service];
+          const status = dep?.status ?? "unknown";
+          const critical = dep?.critical ?? false;
+          return (
+            <div
+              key={service}
+              className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50/50 px-3 py-2 dark:border-slate-800 dark:bg-slate-800/30"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className={`h-2.5 w-2.5 rounded-full ${statusClasses(status)}`} />
+                <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                  {t(`admin.serviceStatus.services.${service}` as never)}
+                </span>
+              </div>
+              <span className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                {critical
+                  ? t("admin.serviceStatus.criticalLabel")
+                  : t("admin.serviceStatus.optionalLabel")}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// ── Global Announcement Panel ────────────────────────────────────────────────
+
+function AnnouncementPanel() {
+  const { t } = useLanguage();
+  const { data: current } = useAdminAnnouncement();
+  const publish = usePublishAnnouncement();
+  const clear = useClearAnnouncement();
+
+  const [severity, setSeverity] = useState<"info" | "warning" | "critical">("info");
+  const [melding, setMelding] = useState("");
+  const [dismissible, setDismissible] = useState(true);
+  // Prefill-strategi:
+  // - Første gang `current` er aktiv, fyll form og lagre `oppdatertAt` vi synket mot.
+  // - Hvis form's verdier matcher siste synkede verdi (bruker har ikke redigert),
+  //   og `current.oppdatertAt` endres (annen admin publiserte), auto-oppdater.
+  // - Hvis form avviker (bruker redigerer), vis notice så de kan velge selv.
+  type Snapshot = {
+    oppdatertAt: string;
+    severity: "info" | "warning" | "critical";
+    melding: string;
+    dismissible: boolean;
+  };
+  const syncedSnapshotRef = useRef<Snapshot | null>(null);
+
+  useEffect(() => {
+    if (!current?.active) return;
+    const snap = syncedSnapshotRef.current;
+    const apply = (next: Snapshot) => {
+      setSeverity(next.severity);
+      setMelding(next.melding);
+      setDismissible(next.dismissible);
+      syncedSnapshotRef.current = next;
+    };
+    const nextSnap: Snapshot = {
+      oppdatertAt: current.oppdatertAt,
+      severity: current.severity,
+      melding: current.melding,
+      dismissible: current.dismissible,
+    };
+    if (!snap) {
+      // Første prefill
+      apply(nextSnap);
+      return;
+    }
+    if (snap.oppdatertAt === current.oppdatertAt) return;
+    // Bakenden har en nyere versjon. Hvis bruker ikke har redigert siden sist
+    // sync, apply automatisk. Ellers vises notice via `harEksternEndring` under.
+    const uendret =
+      severity === snap.severity &&
+      melding === snap.melding &&
+      dismissible === snap.dismissible;
+    if (uendret) {
+      apply(nextSnap);
+    }
+  }, [current, severity, melding, dismissible]);
+
+  const harEksternEndring =
+    current?.active === true &&
+    syncedSnapshotRef.current !== null &&
+    syncedSnapshotRef.current.oppdatertAt !== current.oppdatertAt;
+
+  const trimmed = melding.trim();
+  const canSubmit = trimmed.length > 0 && trimmed.length <= 500 && !publish.isPending;
+
+  const handlePublish = () => {
+    publish.mutate(
+      { severity, melding: trimmed, dismissible },
+      {
+        onSuccess: () => showToast.success(t("admin.announcement.published")),
+        onError: () => showToast.error(t("admin.announcement.publishError")),
+      },
+    );
+  };
+
+  const handleClear = () => {
+    clear.mutate(undefined, {
+      onSuccess: () => {
+        showToast.success(t("admin.announcement.cleared"));
+        setMelding("");
+        syncedSnapshotRef.current = null;
+      },
+      onError: () => showToast.error(t("admin.announcement.clearError")),
+    });
+  };
+
+  const handleReload = () => {
+    if (!current?.active) return;
+    setSeverity(current.severity);
+    setMelding(current.melding);
+    setDismissible(current.dismissible);
+    syncedSnapshotRef.current = {
+      oppdatertAt: current.oppdatertAt,
+      severity: current.severity,
+      melding: current.melding,
+      dismissible: current.dismissible,
+    };
+  };
+
+  const severityOption = (
+    value: "info" | "warning" | "critical",
+    label: string,
+    activeClass: string,
+  ) => (
+    <button
+      key={value}
+      type="button"
+      onClick={() => setSeverity(value)}
+      className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+        severity === value
+          ? activeClass
+          : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+      }`}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900/50">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
+            <Megaphone className="h-4 w-4" />
+            {t("admin.announcement.title")}
+          </h2>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            {t("admin.announcement.description")}
+          </p>
+        </div>
+        {current?.active ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+            <span className="h-2 w-2 rounded-full bg-amber-500" />
+            {t("admin.announcement.currentTitle")}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+            {t("admin.announcement.noneActive")}
+          </span>
+        )}
+      </div>
+
+      {harEksternEndring && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          <span>{t("admin.announcement.externalChange")}</span>
+          <button
+            type="button"
+            onClick={handleReload}
+            className="rounded-md bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700"
+          >
+            {t("admin.announcement.reload")}
+          </button>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">
+            {t("admin.announcement.severityLabel")}
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {severityOption(
+              "info",
+              t("admin.announcement.severityInfo"),
+              "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+            )}
+            {severityOption(
+              "warning",
+              t("admin.announcement.severityWarning"),
+              "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+            )}
+            {severityOption(
+              "critical",
+              t("admin.announcement.severityCritical"),
+              "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+            )}
+          </div>
+        </div>
+
+        <div>
+          <label
+            htmlFor="admin-announcement-melding"
+            className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300"
+          >
+            {t("admin.announcement.meldingLabel")}
+          </label>
+          <textarea
+            id="admin-announcement-melding"
+            value={melding}
+            onChange={(e) => setMelding(e.target.value.slice(0, 500))}
+            rows={3}
+            maxLength={500}
+            placeholder={t("admin.announcement.meldingPlaceholder")}
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+          />
+          <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+            {t("admin.announcement.meldingHint")} ({trimmed.length}/500)
+          </p>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+          <input
+            type="checkbox"
+            checked={dismissible}
+            onChange={(e) => setDismissible(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600"
+          />
+          {t("admin.announcement.dismissibleLabel")}
+        </label>
+
+        <div className="flex flex-wrap gap-2 pt-1">
+          <button
+            type="button"
+            onClick={handlePublish}
+            disabled={!canSubmit}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
+          >
+            {publish.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {publish.isPending
+              ? t("admin.announcement.publishing")
+              : current?.active
+                ? t("admin.announcement.update")
+                : t("admin.announcement.publish")}
+          </button>
+          {current?.active && (
+            <button
+              type="button"
+              onClick={handleClear}
+              disabled={clear.isPending}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+            >
+              {clear.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {clear.isPending ? t("admin.announcement.clearing") : t("admin.announcement.clear")}
+            </button>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function StatistikkFane() {
   const { language, t } = useLanguage();
   const { data, isLoading, error } = useAdminStats();
@@ -1212,6 +1570,8 @@ function StatistikkFane() {
 
   return (
     <div className="space-y-8">
+      <ServiceStatusPanel />
+      <AnnouncementPanel />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-500 dark:text-slate-400">{t("admin.stats.note")}</p>
         <div className="flex flex-wrap items-center gap-3">

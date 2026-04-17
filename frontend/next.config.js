@@ -225,10 +225,22 @@ const nextConfig = {
         source: "/api/:path*",
         destination: `${apiUrl}/api/:path*`,
       },
-      // 2. Health check endpoint (spesifikt unntak siden den ligger på roten i backend)
+      // 2. Health-endepunkter (spesifikke unntak siden de ligger på roten i backend).
+      //    /health           = liveness (offentlig)
+      //    /health/dependencies = status for eksterne tjenester (admin-only, brukes
+      //    av status-panelet i admin)
+      //    /ready            = readiness (brukes av orchestrator)
       {
         source: "/health",
         destination: `${apiUrl}/health`,
+      },
+      {
+        source: "/health/dependencies",
+        destination: `${apiUrl}/health/dependencies`,
+      },
+      {
+        source: "/ready",
+        destination: `${apiUrl}/ready`,
       },
     ];
   },

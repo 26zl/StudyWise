@@ -75,7 +75,6 @@ pnpm test:auth:e2e        # E2E-tester (Playwright)
 pnpm clean:install        # Full reinstall
 pnpm knip                 # Finn ubrukt kode
 pnpm syncpack:list        # Sjekk versjonssynkronisering
-pnpm size                 # Sjekk bundle-størrelse
 ```
 
 Installer pakker med `--filter`: `pnpm --filter frontend add <pakke>`

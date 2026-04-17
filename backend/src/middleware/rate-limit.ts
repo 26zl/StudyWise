@@ -86,7 +86,10 @@ export const createRateLimiter = ({
             // betyr at en angriper kan omgå grensen ved å treffe forskjellige dynos.
             if (isProd && failClosedInProd) {
                 logger.error({ keyPrefix, path: req.path }, "Rate limiter: Redis utilgjengelig i prod — fail-closed");
-                return apiError.serviceUnavailable(res, "Begrenseren");
+                // Ikke si "Begrenseren" — brukeren tror det er en rate-limit-grense
+                // som ble truffet. Denne 503-en er en driftsfeil (Redis nede), ikke
+                // en brukerfeil, så meldingen skal være tydelig på det.
+                return apiError.serviceUnavailable(res, "Tjenesten");
             }
             logger.warn({ keyPrefix }, "Rate limiter: Redis utilgjengelig, faller tilbake til in-memory (per-instans)");
         }

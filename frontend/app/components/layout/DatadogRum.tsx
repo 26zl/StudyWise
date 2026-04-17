@@ -125,7 +125,12 @@ export function DatadogRum() {
           version: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ?? "0.0.0",
           sessionSampleRate: 100,
           sessionReplaySampleRate: 50,
-          defaultPrivacyLevel: "mask-user-input",
+          // "mask" maskerer all tekst og bilder i replay som standard; vi
+          // tar bare opp layout/interaksjoner, ikke innhold. Nødvendig fordi
+          // chat-meldinger, Canvas-innhold, kunnskapsbase-filer og quiz-spørsmål
+          // alle er synlig tekst — "mask-user-input" ville kun dekket
+          // skjemafelter og latt øvrig innhold gå gjennom til Datadog.
+          defaultPrivacyLevel: "mask",
           trackUserInteractions: true,
           trackResources: true,
           trackLongTasks: true,

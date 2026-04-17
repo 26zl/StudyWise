@@ -62,7 +62,6 @@ pnpm test:canvas            # Canvas integration tests
 
 # Maintenance
 pnpm knip                   # Dead code detection
-pnpm size                   # Bundle size checks (frontend)
 pnpm syncpack:list          # Check dependency version consistency
 pnpm clean:install          # Full clean reinstall + rebuild
 ```

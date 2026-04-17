@@ -11,6 +11,7 @@ import { isClientAvailable } from "../rutere/ki/aiClient.js";
 import { isClerkHealthy } from "../rutere/auth/clerkAuth.js";
 import { isCohereConfigured } from "../services/cohere-rerank.service.js";
 import { ensurePineconeIndex } from "../services/pinecone.service.js";
+import { isWorkerRunning } from "../queues/index.js";
 import { logger } from "./logger.js";
 
 /** Intervall i ms for periodisk oppdatering av Clerk/Pinecone-helse (5 min). */
@@ -57,12 +58,21 @@ export function getLivenessHealth() {
 /**
  * Readiness-sjekk: appen er klar til å ta trafikk hvis MongoDB er tilkoblet.
  * Brukes av load balancer/orchestrator for å styre trafikk.
+ *
+ * Mongo er eneste kritiske avhengighet (uten den fungerer ingenting). Redis
+ * inkluderes som informasjon og trigger `degraded: true` når den er nede, men
+ * avviser ikke trafikk — rate limiting har in-memory fallback, og cache-miss
+ * treffer bare Mongo direkte. Operatører kan overvåke `degraded` for å se at
+ * appen kjører i redusert modus (ingen BullMQ-workers, ingen distribuert rate
+ * limiting, ingen cache).
  */
 export function getReadinessHealth() {
   const mongoOk = mongoose.connection.readyState === 1;
+  const redisOk = isRedisReady();
 
   return {
     ok: mongoOk,
+    degraded: mongoOk && !redisOk,
     type: "readiness" as const,
     timestamp: new Date().toISOString(),
     checks: {
@@ -70,22 +80,33 @@ export function getReadinessHealth() {
         ok: mongoOk,
         state: mongoose.connection.readyState,
       },
+      redis: {
+        ok: redisOk,
+        // Ikke-kritisk: hvis nede, faller rate limiting tilbake til per-instans
+        // og BullMQ-køer er utilgjengelige. Appen aksepterer fortsatt trafikk.
+        critical: false,
+      },
     },
   };
 }
 
 /**
- * Avhengighetshelse: Redis, Anthropic, Cohere + cachet Clerk/Pinecone.
- * Ok kun når alle er tilgjengelige/konfigurert; brukes for overvåking og feilsøking.
+ * Avhengighetshelse: Mongo, Redis, BullMQ, Anthropic, Cohere + cachet Clerk/Pinecone.
+ * Ok kun når alle kritiske er tilgjengelige; brukes for overvåking, feilsøking
+ * og admin-panelets status-visning.
  */
 export function getDependenciesHealth() {
+  const mongoOk = mongoose.connection.readyState === 1;
   const redisOk = isRedisReady();
+  const bullmqOk = isWorkerRunning();
   const anthropicOk = isClientAvailable("");
   const cohereOk = isCohereConfigured();
 
   return {
     ok:
+      mongoOk &&
       redisOk &&
+      bullmqOk &&
       anthropicOk &&
       cohereOk &&
       cachedExternalDependencyHealth.clerk === true &&
@@ -94,25 +115,40 @@ export function getDependenciesHealth() {
     timestamp: new Date().toISOString(),
     checkedAt: cachedExternalDependencyHealth.checkedAt,
     dependencies: {
+      mongo: {
+        ok: mongoOk,
+        status: statusFromBoolean(mongoOk),
+        critical: true,
+      },
       redis: {
         ok: redisOk,
         status: statusFromBoolean(redisOk),
+        critical: false,
+      },
+      bullmq: {
+        ok: bullmqOk,
+        status: statusFromBoolean(bullmqOk),
+        critical: false,
       },
       anthropic: {
         ok: anthropicOk,
         status: statusFromBoolean(anthropicOk),
+        critical: true,
       },
       cohere: {
         ok: cohereOk,
         status: statusFromBoolean(cohereOk),
+        critical: false,
       },
       clerk: {
         ok: cachedExternalDependencyHealth.clerk,
         status: statusFromBoolean(cachedExternalDependencyHealth.clerk),
+        critical: true,
       },
       pinecone: {
         ok: cachedExternalDependencyHealth.pinecone,
         status: statusFromBoolean(cachedExternalDependencyHealth.pinecone),
+        critical: false,
       },
     },
   };

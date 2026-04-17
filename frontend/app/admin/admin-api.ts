@@ -39,6 +39,10 @@ import {
   AdminSuccessResponseSchema,
   AdminRedisFlushResultSchema,
 } from "common/admin";
+import {
+  AdminAnnouncementStateSchema,
+  DependenciesHealthSchema,
+} from "common/system";
 import type {
   AdminAuditCategory,
   AdminAuditItem,
@@ -879,6 +883,74 @@ export function useAdminFeedback(
       return AdminFeedbackResponseSchema.parse(await res.json());
     },
     staleTime: 10_000,
+  });
+}
+
+// ─── System status + announcement ────────────────────────────────────────────
+
+export function useDependenciesHealth() {
+  return useQuery({
+    queryKey: ["admin", "dependencies-health"],
+    queryFn: async () => {
+      const res = await fetchApi("/health/dependencies");
+      if (!res.ok) throw new Error("Kunne ikke hente avhengighetshelse");
+      return DependenciesHealthSchema.parse(await res.json());
+    },
+    // Auto-refresh hvert 30. sekund så admin ser live status.
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+  });
+}
+
+export function useAdminAnnouncement() {
+  return useQuery({
+    queryKey: ["admin", "announcement"],
+    queryFn: async () => {
+      // AdminAnnouncementStateSchema tillater tom `melding` når active=false.
+      // SystemAnnouncementSchema (brukt av public banner) krever min(1) og ville
+      // feilet parse på "ingen melding publisert"-responsen fra backend.
+      const res = await fetchApi("/api/admin/announcement");
+      if (!res.ok) throw new Error("Kunne ikke hente systemmelding");
+      return AdminAnnouncementStateSchema.parse(await res.json());
+    },
+    staleTime: 10_000,
+  });
+}
+
+export function usePublishAnnouncement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      severity: "info" | "warning" | "critical";
+      melding: string;
+      dismissible: boolean;
+    }) => {
+      const res = await fetchApi("/api/admin/announcement", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return AdminAnnouncementStateSchema.parse(await res.json());
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "announcement"] });
+      void queryClient.invalidateQueries({ queryKey: ["announcement"] });
+    },
+  });
+}
+
+export function useClearAnnouncement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetchApi("/api/admin/announcement", { method: "DELETE" });
+      if (!res.ok && res.status !== 404) throw new Error(await res.text());
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "announcement"] });
+      void queryClient.invalidateQueries({ queryKey: ["announcement"] });
+    },
   });
 }
 

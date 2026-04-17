@@ -18,6 +18,7 @@ import { Toaster } from "@/app/components/ui/Toaster";
 import { CookieBanner } from "@/app/components/layout/CookieBanner";
 import { DatadogRum } from "@/app/components/layout/DatadogRum";
 import { PostHogAnalytics } from "@/app/components/layout/PostHogAnalytics";
+import { SystemAnnouncementBanner } from "@/app/components/layout/SystemAnnouncementBanner";
 import { ErrorBoundary } from "@/app/components/ui/ErrorBoundary";
 import { LandingBackdrop } from "@/app/components/layout/LandingBackdrop";
 import { Sidebar, type VisningType } from "@/app/components/dashboard/Sidebar";
@@ -173,6 +174,7 @@ export function MainAppShell({
       <LandingBackdrop />
       <div className={`relative z-10 flex flex-col ${usesSidebarShell ? "h-dvh overflow-hidden" : "min-h-dvh"}`}>
         <SkipToContentLink />
+        <SystemAnnouncementBanner />
         <Header />
         <main
           id="main-content"
