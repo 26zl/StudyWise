@@ -4,7 +4,8 @@
  */
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { formatDistanceToNow, format } from "date-fns";
 import {
     Bell,
@@ -56,10 +57,37 @@ function fristBadgeFarge(status: FristStatus) {
 }
 // VarslingerSection - hovedkomponent for varslinger-siden, med faner og kortvisning. Deler data og lest/ulest-status med popup via useVarsler og uiStore.
 export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionProps) {
-    const [aktivTab, settAktivTab] = useState<VarslingTab>("alle");
+    // Tab-state i URL via nuqs — dyplinkbar og matcher mønsteret på andre dashboard-sider.
+    // clearOnDefault: false holder `?tab=alle` synlig også for default-fanen.
+    // history: "replace" hindrer at hvert fanebytte forurenser back-stacken.
+    const [aktivTab, settAktivTab] = useQueryState(
+        "tab",
+        parseAsStringLiteral([
+            "alle",
+            "frister",
+            "oppgaver",
+            "kunngjøringer",
+            "hendelser",
+        ] as const)
+            .withDefault("alle")
+            .withOptions({ clearOnDefault: false, history: "replace" }),
+    );
     const [offset, setOffset] = useState(0);
     const canvasTokenInvalid = useUIStore((state) => state.canvasTokenInvalid);
     const { language, t } = useLanguage();
+
+    const byttTab = useCallback(
+        (nesteTab: VarslingTab) => {
+            void settAktivTab(nesteTab, { history: "replace", scroll: false });
+        },
+        [settAktivTab],
+    );
+
+    // Skriv aktiv tab til URL ved første besøk slik at valgt fane vises i URL-en.
+    useEffect(() => {
+        void settAktivTab(aktivTab, { history: "replace", scroll: false });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const {
         frister,
@@ -191,7 +219,7 @@ export function VarslingerSection({ harCanvasToken = false }: VarslingerSectionP
                               aria-selected={aktivTab === tab.id}
                               aria-controls={`varslinger-tabpanel-${tab.id}`}
                               id={`varslinger-tab-${tab.id}`}
-                              onClick={() => settAktivTab(tab.id)}
+                              onClick={() => byttTab(tab.id)}
                               className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                                   aktivTab === tab.id
                                       ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"

@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 
 import { useQueryState, parseAsStringLiteral } from "nuqs";
@@ -92,14 +92,32 @@ interface QuickActionCardProps {
   color: "blue" | "green" | "purple" | "amber";
 }
 
+type OversiktTab = "mine-oppgaver" | "ki-forslag";
+
 export function OversiktPage() {
   const { language, t } = useLanguage();
+  // clearOnDefault: false holder `?tab=mine-oppgaver` synlig også for default-fanen,
+  // slik at valgt fane alltid er dyplinkbar. history: "replace" hindrer at hvert
+  // fanebytte forurenser nettleserens back-stack.
   const [activeTab, setActiveTab] = useQueryState(
     "tab",
-    parseAsStringLiteral(["mine-oppgaver", "ki-forslag"] as const).withDefault(
-      "mine-oppgaver",
-    ),
+    parseAsStringLiteral(["mine-oppgaver", "ki-forslag"] as const)
+      .withDefault("mine-oppgaver")
+      .withOptions({ clearOnDefault: false, history: "replace" }),
   );
+
+  const byttTab = useCallback(
+    (nesteTab: OversiktTab) => {
+      void setActiveTab(nesteTab, { history: "replace", scroll: false });
+    },
+    [setActiveTab],
+  );
+
+  // Skriv aktiv tab til URL ved første besøk slik at valgt fane vises i URL-en.
+  useEffect(() => {
+    void setActiveTab(activeTab, { history: "replace", scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const { isLoaded: clerkLoaded, userId: clerkUserId } = useAuth();
   const megQuery = useMeg({ enabled: clerkLoaded && !!clerkUserId });
   const harCanvasToken = megQuery.data?.user?.hasCanvasToken ?? false;
@@ -141,7 +159,7 @@ export function OversiktPage() {
   ).size, [allAssignments]);
 
   const handlePlanCreated = () => {
-    setActiveTab("mine-oppgaver");
+    byttTab("mine-oppgaver");
   };
 
   const brukerdataFeilmelding = getBrukerdataFeilmelding(megQuery.error, t);
@@ -158,9 +176,9 @@ export function OversiktPage() {
       if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
 
       event.preventDefault();
-      setActiveTab(activeTab === "mine-oppgaver" ? "ki-forslag" : "mine-oppgaver");
+      byttTab(activeTab === "mine-oppgaver" ? "ki-forslag" : "mine-oppgaver");
     },
-    [activeTab, setActiveTab],
+    [activeTab, byttTab],
   );
 
   if (megQuery.isPending) {
@@ -264,7 +282,7 @@ export function OversiktPage() {
                 aria-selected={activeTab === "mine-oppgaver"}
                 aria-controls="overview-panel-my-workplan"
                 aria-label={t("overview.tabs.myWorkPlan")}
-                onClick={() => setActiveTab("mine-oppgaver")}
+                onClick={() => byttTab("mine-oppgaver")}
                 onKeyDown={handleOverviewTabKeyDown}
                 className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
                   activeTab === "mine-oppgaver"
@@ -284,7 +302,7 @@ export function OversiktPage() {
                 aria-selected={activeTab === "ki-forslag"}
                 aria-controls="overview-panel-ai-weekplan"
                 aria-label={t("overview.tabs.aiWeekPlan")}
-                onClick={() => setActiveTab("ki-forslag")}
+                onClick={() => byttTab("ki-forslag")}
                 onKeyDown={handleOverviewTabKeyDown}
                 className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
                   activeTab === "ki-forslag"

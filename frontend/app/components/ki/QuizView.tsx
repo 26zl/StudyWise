@@ -817,11 +817,12 @@ const uiStateStorageKey = "quiz-view-ui-state";
 
 export function QuizView({ harCanvasToken = false }: QuizViewProps) {
   const { t } = useLanguage();
-  const [dashboardView, setDashboardView] = useQueryState(
+  // QuizView mountes kun når DashboardView ser view=quiz eller view=flashcards,
+  // så `.withDefault("quiz")` er trygt og gir oss en ikke-nullable StudyMode.
+  const [studyMode, setDashboardView] = useQueryState(
     "view",
-    parseAsStringLiteral(["quiz", "flashcards"] as const),
+    parseAsStringLiteral(["quiz", "flashcards"] as const).withDefault("quiz"),
   );
-  const studyMode: StudyMode = dashboardView === "flashcards" ? "flashcards" : "quiz";
   const [phase, setPhase] = useState<QuizPhase>("setup");
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
