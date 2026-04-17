@@ -83,6 +83,8 @@ export interface IKBFile {
   contentHash: string;
   /** Om innholdet er indeksert til Pinecone */
   indexed: boolean;
+  /** Feilmelding hvis parsing/indeksering feilet (ZIP-bombe, magic-byte-mismatch, tom fil, etc.) */
+  parseError?: string;
   createdAt: Date;
 }
 
@@ -93,6 +95,7 @@ const KBFileSchema = new Schema<IKBFile>(
     storrelse: { type: Number, required: true },
     contentHash: { type: String, required: true },
     indexed: { type: Boolean, default: false },
+    parseError: { type: String },
     createdAt: { type: Date, default: Date.now },
   },
   { _id: true },

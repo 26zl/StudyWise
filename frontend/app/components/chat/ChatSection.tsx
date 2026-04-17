@@ -44,6 +44,20 @@ interface Melding {
     kilder?: import("common/ki").KIChatSource[];
 }
 
+/**
+ * Verifiserer at en URL trygt kan åpnes med window.open — bare http(s) tillates.
+ * Forhindrer XSS via javascript:/data:/file:-URLer dersom backend skulle returnere
+ * en kompromittert sourceUrl (Zod z.url() alene godtar alle URL-protokoller).
+ */
+function isSafeExternalUrl(url: string): boolean {
+    try {
+        const parsed = new URL(url);
+        return parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch {
+        return false;
+    }
+}
+
 function hentVisbareKilder(melding: Melding): import("common/ki").KIChatSource[] {
     const kilder = melding.kilder ?? [];
     const dedupe = new Set<string>();
@@ -51,8 +65,12 @@ function hentVisbareKilder(melding: Melding): import("common/ki").KIChatSource[]
     for (const kilde of kilder) {
         const hasCanvasFile = Number.isFinite(kilde.fileId);
         const hasUrl = typeof kilde.sourceUrl === "string" && kilde.sourceUrl.length > 0;
-        if (!hasCanvasFile && !hasUrl) continue;
-        const key = `${kilde.sourceKind ?? "canvas_file"}:${kilde.courseId}:${kilde.fileId ?? "na"}:${kilde.fileName}:${kilde.sourceUrl ?? ""}`;
+        const hasKbFile =
+            kilde.sourceKind === "kb_file" &&
+            typeof kilde.baseId === "string" &&
+            typeof kilde.sourceId === "string";
+        if (!hasCanvasFile && !hasUrl && !hasKbFile) continue;
+        const key = `${kilde.sourceKind ?? "canvas_file"}:${kilde.courseId}:${kilde.fileId ?? "na"}:${kilde.fileName}:${kilde.sourceUrl ?? ""}:${kilde.sourceId ?? ""}`;
         if (dedupe.has(key)) continue;
         dedupe.add(key);
         filtered.push(kilde);
@@ -1420,8 +1438,13 @@ export function ChatSection() {
             });
             return;
         }
-        if (kilde.sourceUrl) {
+        if (kilde.sourceUrl && isSafeExternalUrl(kilde.sourceUrl)) {
             window.open(kilde.sourceUrl, "_blank", "noopener,noreferrer");
+            return;
+        }
+        // kb_file: originalfilen lagres ikke — vis info om at det er indeksert innhold
+        if (kilde.sourceKind === "kb_file") {
+            showToast.info(t("chat.sourceKbFileInfo"));
             return;
         }
         showToast.error(t("chat.sourceDownloadFailed"));

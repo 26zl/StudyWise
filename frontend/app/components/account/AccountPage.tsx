@@ -75,7 +75,12 @@ function SlettKontoSeksjon() {
 
       // Logg ut fra Clerk i bakgrunnen — kontoen er allerede slettet,
       // og navigering er startet så dette er ikke synlig for brukeren.
-      void clerk.signOut().catch(() => {});
+      // Feil her er ikke-kritisk (Clerk-cookien peker til en slettet bruker
+      // og vil ryddes ved neste auth-sjekk), men logges for feilsøking.
+      void clerk.signOut().catch((err) => {
+        const code = (err as { code?: string } | null)?.code ?? "unknown";
+        console.warn("Clerk signOut etter kontosletting feilet:", code);
+      });
     } catch (error) {
       setKontoSlettes(false);
       const msg = error instanceof Error ? error.message : "";

@@ -318,7 +318,12 @@ export const EXTENSION_TO_MIME: Record<string, string> = {
 
 /**
  * Saniterer og renser tekst fra dokumenter.
- * Maskerer PII: epost, telefon, norske fødselsnummer, studentnummer, adresser og personnavn.
+ * Maskerer strukturert PII (epost, telefon, norske fødselsnummer, studentnummer,
+ * norske adresser og postnummer) samt kontekst-drevne personnavn (signatur-blokker
+ * og navn-felter). Navn-dekningen er best-effort — uten NER-modell kan navn uten
+ * kontekst-ledetråd (f.eks. midt i løpende tekst) slippe gjennom. System-prompten
+ * i Document Mode instruerer modellen om å ikke gjengi personnavn som en
+ * forsvarslinje-2.
  */
 function sanitizeText(text: string): { cleanText: string; redacted: boolean } {
     let cleanText = text;
@@ -348,10 +353,12 @@ function sanitizeText(text: string): { cleanText: string; redacted: boolean } {
         return "[REDACTED_SSN]";
     });
 
-    // Masker studentnummer (typisk 6-8 siffer, ofte prefixet med bokstaver)
-    // Fanger: s123456, 12345678, stud-123456, osv.
-    // eslint-disable-next-line security/detect-unsafe-regex
-    const studentnummerRegex = /\b(?:s|stud[-.]?)?(\d{6,8})\b/gi;
+    // Masker studentnummer — krever kontekst-prefiks for å unngå falske treff på
+    // vilkårlige 6-8-sifrede tall i kode, datasett og fagstoff (f.eks. år,
+    // portnumre, ID-er, timestamps).
+    // Fanger: "s123456", "stud-123456", "stud.1234567", "student 12345678",
+    // "studentnr: 1234567", "studentnummer 12345678".
+    const studentnummerRegex = /\b(?:s|stud(?:ent)?(?:nr|nummer)?[.:\s-]{0,3})\d{6,8}\b/gi;
     cleanText = cleanText.replace(studentnummerRegex, () => {
         redacted = true;
         return "[REDACTED_STUDENT_ID]";
@@ -372,6 +379,34 @@ function sanitizeText(text: string): { cleanText: string; redacted: boolean } {
     cleanText = cleanText.replace(postnummerRegex, () => {
         redacted = true;
         return "[REDACTED_POSTAL]";
+    });
+
+    // Masker personnavn i signatur-blokker (Mvh, Med vennlig hilsen, Skrevet av, Regards)
+    // og eksplisitte navn-felter (Navn:, Student:, Forfatter:, Kandidat:).
+    // Matcher 1-4 kapitaliserte navne-tokens etter en kontekst-ledetråd.
+    // Kontekst-kravet holder false-positive-raten lav sammenlignet med NER-fri
+    // deteksjon i løpende tekst.
+    const NAVN_TOKEN = "[A-ZÆØÅ][A-Za-zÆØÅæøå'\\-]{1,30}";
+    const NAVN_SEKVENS = `${NAVN_TOKEN}(?:\\s+${NAVN_TOKEN}){0,3}`;
+
+    // Signatur-linjer
+    const signaturRegex = new RegExp(
+        `\\b(med\\s+vennlig\\s+hilsen|mvh|vennlig\\s+hilsen|hilsen|signert|skrevet\\s+av|levert\\s+av|innlevert\\s+av|best\\s+regards|kind\\s+regards|regards|sincerely|signed)[\\s:,.-]+(${NAVN_SEKVENS})`,
+        "gi",
+    );
+    cleanText = cleanText.replace(signaturRegex, (_m, lead: string) => {
+        redacted = true;
+        return `${lead} [REDACTED_NAME]`;
+    });
+
+    // Navn-felter: "Navn: X Y", "Student: X Y", "Forfatter: X Y"
+    const navnFeltRegex = new RegExp(
+        `\\b(navn|fullt\\s+navn|name|full\\s+name|student|studentnavn|kandidat|forfatter|author|skrevet\\s+av|av)\\s*[:=]\\s*(${NAVN_SEKVENS})`,
+        "gi",
+    );
+    cleanText = cleanText.replace(navnFeltRegex, (_m, lead: string) => {
+        redacted = true;
+        return `${lead}: [REDACTED_NAME]`;
     });
 
     // Fjern kontrollkarakterer (ASCII 0-31 og 127), behold tab/newline/CR

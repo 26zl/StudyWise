@@ -451,7 +451,17 @@ function tryDecodeSSEPayload(dataLine: string): string | null {
 function parseSSEPayload<T>(dataLine: string, schema: ZodType<T>): T {
   const decoded = tryDecodeSSEPayload(dataLine);
   const json = decoded ?? dataLine;
-  return schema.parse(JSON.parse(json));
+  let raw: unknown;
+  try {
+    raw = JSON.parse(json);
+  } catch {
+    throw new Error("Ugyldig respons fra KI-tjenesten (ikke gyldig JSON).");
+  }
+  const result = schema.safeParse(raw);
+  if (!result.success) {
+    throw new Error("Uventet respons-format fra KI-tjenesten.");
+  }
+  return result.data;
 }
 
 /** Parser KI-respons: SSE (siste data:-linje) eller vanlig JSON. */
@@ -902,7 +912,12 @@ async function submitAndPollJob<T>(
     throw new Error(await parseApiError(submitRes, "Noe gikk galt med genereringen. Prøv igjen om et øyeblikk."));
   }
 
-  const { jobId } = AsyncJobAcceptedSchema.parse(await submitRes.json());
+  const submitJson = await submitRes.json().catch(() => null);
+  const submitParsed = AsyncJobAcceptedSchema.safeParse(submitJson);
+  if (!submitParsed.success) {
+    throw new Error("Uventet respons fra server ved jobb-opprettelse.");
+  }
+  const { jobId } = submitParsed.data;
 
   // 2) Poll for resultat
   const startTime = Date.now();

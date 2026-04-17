@@ -83,8 +83,11 @@ function vent(ms: number) {
 async function loadChatHistory(): Promise<SavedChat[]> {
   try {
     const raw = await fetchJson<unknown>(`/api/ki/chat/history?limit=${MAX_CHATS}&page=1`);
-    const parsed = ChatHistoryResponseSchema.parse(raw);
-    return parsed.chats
+    const result = ChatHistoryResponseSchema.safeParse(raw);
+    if (!result.success) {
+      throw new Error("Uventet format på chat-historikk fra server.");
+    }
+    return result.data.chats
       .slice(0, MAX_CHATS)
       .map((c) => ({ ...c, timestamp: new Date(c.timestamp) }));
   } catch (error) {

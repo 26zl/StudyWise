@@ -287,3 +287,86 @@ describe("validateFileMagicBytes", () => {
     });
   });
 });
+
+// ── sanitizeText: PII-maskering via parseDocument ───────────────────────────
+// sanitizeText er intern, men kjøres som del av parseDocument for tekst-innhold.
+// Vi tester gjennom parseDocument med en text/plain-buffer.
+describe("sanitizeText via parseDocument (PII-maskering)", () => {
+  // parseDocument importeres lazy for å unngå sirkulære import-sekvenser i testen
+  async function parse(text: string) {
+    const { parseDocument } = await import("../../services/document.js");
+    const buf = Buffer.from(text, "utf-8");
+    return parseDocument(buf, "text/plain", "test.txt");
+  }
+
+  describe("personnavn-maskering", () => {
+    it("maskerer navn etter 'Mvh'", async () => {
+      const r = await parse("Takk for hjelpen.\n\nMvh Ola Nordmann");
+      expect(r.success).toBe(true);
+      expect(r.text).toContain("[REDACTED_NAME]");
+      expect(r.text).not.toContain("Ola Nordmann");
+      expect(r.redacted).toBe(true);
+    });
+
+    it("maskerer navn etter 'Med vennlig hilsen'", async () => {
+      const r = await parse("Bla bla.\n\nMed vennlig hilsen, Kari Nordmann");
+      expect(r.text).toContain("[REDACTED_NAME]");
+      expect(r.text).not.toContain("Kari Nordmann");
+    });
+
+    it("maskerer navn i 'Navn:'-felt", async () => {
+      const r = await parse("Navn: Ola Nordmann\nKurs: INF101");
+      expect(r.text).toContain("[REDACTED_NAME]");
+      expect(r.text).not.toContain("Ola Nordmann");
+    });
+
+    it("maskerer navn i 'Student:'-felt", async () => {
+      const r = await parse("Student: Kari Nordmann");
+      expect(r.text).toContain("[REDACTED_NAME]");
+    });
+
+    it("maskerer navn etter 'Skrevet av'", async () => {
+      const r = await parse("Skrevet av Ola Nordmann, 2026");
+      expect(r.text).toContain("[REDACTED_NAME]");
+      expect(r.text).not.toContain("Ola Nordmann");
+    });
+
+    it("maskerer doble fornavn/etternavn-kombinasjoner", async () => {
+      const r = await parse("Mvh Ola Per Nordmann");
+      expect(r.text).toContain("[REDACTED_NAME]");
+      expect(r.text).not.toContain("Ola Per Nordmann");
+    });
+
+    it("maskerer engelsk 'Regards' + navn", async () => {
+      const r = await parse("Thanks.\n\nRegards, John Smith");
+      expect(r.text).toContain("[REDACTED_NAME]");
+      expect(r.text).not.toContain("John Smith");
+    });
+
+    it("rører ikke faglig innhold uten navn-kontekst", async () => {
+      const r = await parse("VRIO-modellen består av Value, Rarity, Imitability og Organization.");
+      expect(r.text).toContain("VRIO");
+      expect(r.text).toContain("Value");
+      expect(r.text).not.toContain("[REDACTED_NAME]");
+    });
+  });
+
+  describe("studentnummer-maskering krever kontekst", () => {
+    it("maskerer 's123456'", async () => {
+      const r = await parse("Studentnr s123456 leverte inn.");
+      expect(r.text).toContain("[REDACTED_STUDENT_ID]");
+      expect(r.text).not.toContain("s123456");
+    });
+
+    it("maskerer 'studentnr: 1234567'", async () => {
+      const r = await parse("studentnr: 1234567");
+      expect(r.text).toContain("[REDACTED_STUDENT_ID]");
+    });
+
+    it("maskerer IKKE vilkårlige 7-sifrede tall uten kontekst", async () => {
+      const r = await parse("Port 8080 og timeout 1234567 ms.");
+      expect(r.text).not.toContain("[REDACTED_STUDENT_ID]");
+      expect(r.text).toContain("1234567");
+    });
+  });
+});

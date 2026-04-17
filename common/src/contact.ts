@@ -9,6 +9,16 @@ export const KONTAKT_ALLOWED_ATTACHMENT_TYPES = ["image/jpeg", "image/png"] as c
 
 export const KONTAKT_MAX_ATTACHMENTS = 3;
 export const KONTAKT_MAX_ATTACHMENT_SIZE_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Maks total body-størrelse for POST /api/kontakt (summen av alle attachments
+ * + tekst-felter + multipart-overhead). Backend bruker denne for å avvise store
+ * payloads tidlig, før multer leser bodyen inn i minne. Frontend kan bruke den
+ * til å pre-validere før send.
+ */
+export const KONTAKT_MAX_TOTAL_BODY_BYTES =
+  KONTAKT_MAX_ATTACHMENTS * KONTAKT_MAX_ATTACHMENT_SIZE_BYTES + 50_000;
+
 export const REPORTED_ERROR_ID_MAX_LENGTH = 128;
 
 const KONTAKT_SIDE_PATH_REGEX = /^\/(?!\/)[^\s?#]*$/;
@@ -53,7 +63,14 @@ export const KontaktAttachmentSchema = z.object({
 });
 
 /**
- * Kontaktforespørsel-schema for POST /api/kontakt
+ * Kontaktforespørsel-schema for POST /api/kontakt.
+ *
+ * Endepunktet aksepterer `multipart/form-data` med tekstfelter definert her
+ * PLUSS valgfri `attachments[]` (JPG/PNG, maks `KONTAKT_MAX_ATTACHMENTS` stk à
+ * `KONTAKT_MAX_ATTACHMENT_SIZE_BYTES`). Filene valideres av backend via multer
+ * og magic bytes — dette schema dekker bare tekstfeltene. Bruk
+ * `KONTAKT_ALLOWED_ATTACHMENT_TYPES` og `KONTAKT_MAX_TOTAL_BODY_BYTES` for
+ * konsistent fil-validering mellom frontend og backend.
  */
 export const KontaktRequestSchema = z.object({
   navn: z

@@ -127,6 +127,10 @@ export const KBFileSchema = z.object({
   mimeType: z.string(),
   storrelse: z.number(),
   opprettetDato: z.string(),
+  /** Om filen er ferdig indeksert til Pinecone/MongoDB (asynkron bakgrunnsjobb). */
+  indexed: z.boolean().optional(),
+  /** Feilmelding hvis parsing/indeksering feilet (magic-byte-mismatch, tom fil, ZIP-bombe, etc.). */
+  parseError: z.string().optional(),
 });
 
 /** Base i respons (oversikt) */

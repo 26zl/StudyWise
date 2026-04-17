@@ -15,6 +15,7 @@ import {
   KONTAKT_ALLOWED_ATTACHMENT_TYPES,
   KONTAKT_MAX_ATTACHMENTS,
   KONTAKT_MAX_ATTACHMENT_SIZE_BYTES,
+  KONTAKT_MAX_TOTAL_BODY_BYTES,
   KontaktRequestSchema,
   KontaktResponseSchema,
   REPORTED_ERROR_ID_MAX_LENGTH,
@@ -30,11 +31,6 @@ import { validateFileMagicBytes } from "../../services/document.js";
 
 const router = Router();
 const INVALID_ATTACHMENT_TYPE_ERROR = "INVALID_ATTACHMENT_TYPE";
-
-// Maks total body-størrelse for kontaktskjema (alle filer + felter).
-// Begrenser minne-bruk *før* honeypot/Turnstile valideres.
-const KONTAKT_MAX_TOTAL_BODY_BYTES =
-  KONTAKT_MAX_ATTACHMENTS * KONTAKT_MAX_ATTACHMENT_SIZE_BYTES + 50_000; // ~15.05 MB
 
 const upload = multer({
   storage: multer.memoryStorage(),

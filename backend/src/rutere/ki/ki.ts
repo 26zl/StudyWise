@@ -79,7 +79,11 @@ import {
 
 type ChatSource = import("common/ki").KIChatSource;
 
-function mapKBResultsToChatSources(results: import("../../services/kunnskapsbase-indeksering.service.js").KBSearchResult[], baseName: string): ChatSource[] {
+function mapKBResultsToChatSources(
+  results: import("../../services/kunnskapsbase-indeksering.service.js").KBSearchResult[],
+  baseName: string,
+  baseId: string,
+): ChatSource[] {
   const seen = new Set<string>();
   const sources: ChatSource[] = [];
   for (const result of results) {
@@ -94,6 +98,8 @@ function mapKBResultsToChatSources(results: import("../../services/kunnskapsbase
       fileName: result.sourceName,
       sourceUrl,
       sourceKind,
+      sourceId: result.sourceId,
+      baseId,
       score: result.score,
     });
   }
@@ -110,10 +116,16 @@ function mergeChatSources(
     for (const source of group) {
       const hasDownloadableCanvasFile = Number.isFinite(source.fileId);
       const hasNavigableUrl = typeof source.sourceUrl === "string" && source.sourceUrl.length > 0;
-      if (!hasDownloadableCanvasFile && !hasNavigableUrl) {
+      // kb_file er indeksert innhold uten originalfil — aksepteres hvis baseId+sourceId
+      // finnes, så UI kan navigere til KB-siden i stedet for å prøve å laste ned.
+      const hasKbFileReference =
+        source.sourceKind === "kb_file" &&
+        typeof source.baseId === "string" &&
+        typeof source.sourceId === "string";
+      if (!hasDownloadableCanvasFile && !hasNavigableUrl && !hasKbFileReference) {
         continue;
       }
-      const key = `${source.sourceKind ?? "canvas_file"}:${source.courseId}:${source.fileId ?? "na"}:${source.fileName}:${source.sourceUrl ?? ""}`;
+      const key = `${source.sourceKind ?? "canvas_file"}:${source.courseId}:${source.fileId ?? "na"}:${source.fileName}:${source.sourceUrl ?? ""}:${source.sourceId ?? ""}`;
       if (seen.has(key)) continue;
       seen.add(key);
       merged.push(source);
@@ -2230,7 +2242,7 @@ Rules:
           const kbResults = await searchKBContent(req.user!.id, parsed.id, lastUserMessageForKB, 8);
           if (kbResults.length > 0) {
             kbKontekst = buildKBContext(kbResults, parsed.navn);
-            kbKilder = mapKBResultsToChatSources(kbResults, parsed.navn);
+            kbKilder = mapKBResultsToChatSources(kbResults, parsed.navn, parsed.id);
             enhancedSystemPrompt += `
 
 ## Kunnskapsbase (aktiv via /)
@@ -2275,7 +2287,7 @@ Referer til kilde (fil/lenke) i svaret.
           const kbResults = await searchKBContent(req.user!.id, matchId, lastUserMessageForKB, 8);
           if (kbResults.length > 0) {
             kbKontekst = buildKBContext(kbResults, match.navn);
-            kbKilder = mapKBResultsToChatSources(kbResults, match.navn);
+            kbKilder = mapKBResultsToChatSources(kbResults, match.navn, matchId);
             await setCache(
               kbSessionKey(req.user!.id),
               JSON.stringify({ id: matchId, navn: match.navn }),

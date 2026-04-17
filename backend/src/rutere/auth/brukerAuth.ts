@@ -391,7 +391,10 @@ router.post("/token", rateLimitToken, async (req, res) => {
     // Strengere rate limit for force-relink (3 per time per bruker)
     if (forceRelink) {
       await new Promise<void>((resolve, reject) => {
-        rateLimitForceRelink(req, res, (err?: unknown) => {
+        // Hvis middleware avviser og sender respons direkte uten å kalle next,
+        // resolver vi på "finish"-eventet slik at Promise ikke henger.
+        res.once("finish", () => resolve());
+        void rateLimitForceRelink(req, res, (err?: unknown) => {
           if (err) reject(err);
           else resolve();
         });

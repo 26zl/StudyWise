@@ -734,6 +734,27 @@ const migrations: Migration[] = [
       }
     },
   },
+  {
+    id: "2026-04-17-drop-legacy-chathistory-share-indexes",
+    description:
+      "Dropper legacy share-indekser på chathistories (shareTokenHash_1, isShared_1_shareExpiresAt_1) — delingsmetadata lever nå i SharedChat",
+    up: async () => {
+      const col = mongoose.connection.collection("chathistories");
+      let indexes: { name?: string }[];
+      try {
+        indexes = await col.indexes();
+      } catch {
+        return;
+      }
+      const legacyNames = ["shareTokenHash_1", "isShared_1_shareExpiresAt_1"];
+      for (const name of legacyNames) {
+        if (indexes.some((idx) => idx.name === name)) {
+          await col.dropIndex(name);
+          logger.info({ index: name }, "Migrasjon: legacy chat-share-indeks droppet");
+        }
+      }
+    },
+  },
 ];
 
 /**

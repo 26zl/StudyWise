@@ -1,7 +1,11 @@
 /**
  * MongoDB modell: `ChatHistory`.
  *
- * Lagrer kryptert KI-chat-historikk per bruker, samt metadata for deling (share link/snapshot).
+ * Lagrer kryptert KI-chat-historikk per bruker. Delingsmetadata bor i en egen
+ * `SharedChat`-kolleksjon (se models/SharedChat.ts). Delingslenker leser live fra
+ * `encryptedMessages` her, så senere redigeringer reflekteres i den delte lenken.
+ * Gamle snapshot-baserte share-felter ble ryddet av migrasjonen
+ * `2026-03-13-revoke-legacy-chat-share-links`.
  */
 import { Schema, model, Types } from "mongoose";
 
@@ -12,36 +16,9 @@ export interface ChatHistoryDocument {
   topic?: string;
   pinned?: boolean;
   encryptedMessages: string;
-  shareTokenHash?: string;
-  sharedAt?: Date;
-  shareExpiresAt?: Date;
-  /** Snapshot for delt samtale (kun type full_chat). */
-  sharedSnapshot?: {
-    version: number;
-    type: "full_chat";
-    title?: string;
-    encryptedMessages?: string;
-    messageCount?: number;
-    sourceHash?: string;
-    generatedAt: Date;
-  };
-  isShared: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
-
-const SharedChatSnapshotSchema = new Schema(
-  {
-    version: { type: Number, required: true },
-    type: { type: String, enum: ["full_chat"], required: true },
-    title: { type: String, default: undefined },
-    encryptedMessages: { type: String, default: undefined },
-    messageCount: { type: Number, default: undefined },
-    sourceHash: { type: String, default: undefined },
-    generatedAt: { type: Date, required: true },
-  },
-  { _id: false },
-);
 
 const ChatHistorySchema = new Schema<ChatHistoryDocument>(
   {
@@ -50,11 +27,6 @@ const ChatHistorySchema = new Schema<ChatHistoryDocument>(
     topic: { type: String, default: undefined, index: true },
     pinned: { type: Boolean, default: false, index: true },
     encryptedMessages: { type: String, required: true },
-    shareTokenHash: { type: String, default: undefined },
-    sharedAt: { type: Date, default: undefined },
-    shareExpiresAt: { type: Date, default: undefined },
-    sharedSnapshot: { type: SharedChatSnapshotSchema, default: undefined },
-    isShared: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -62,7 +34,5 @@ const ChatHistorySchema = new Schema<ChatHistoryDocument>(
 ChatHistorySchema.index({ user: 1, createdAt: -1 });
 ChatHistorySchema.index({ user: 1, topic: 1, createdAt: -1 });
 ChatHistorySchema.index({ user: 1, pinned: 1, createdAt: -1 });
-ChatHistorySchema.index({ shareTokenHash: 1 }, { unique: true, sparse: true });
-ChatHistorySchema.index({ isShared: 1, shareExpiresAt: 1 });
 
 export const ChatHistory = model<ChatHistoryDocument>("ChatHistory", ChatHistorySchema);

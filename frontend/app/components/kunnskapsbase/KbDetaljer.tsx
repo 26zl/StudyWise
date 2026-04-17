@@ -11,6 +11,8 @@ import {
   Upload,
   ExternalLink,
   Loader2,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { useLanguage } from "@/app/i18n";
 import { showToast } from "@/app/components/ui/Toaster";
@@ -37,6 +39,90 @@ function formaterStorrelse(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function FilStatusBadge({
+  indexed,
+  parseError,
+  labels,
+}: {
+  indexed?: boolean;
+  parseError?: string;
+  labels: { indexing: string; ready: string; failed: string; errorLabel: string };
+}) {
+  if (parseError) {
+    return (
+      <span
+        title={`${labels.errorLabel}: ${parseError}`}
+        className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300"
+      >
+        <AlertCircle className="h-3 w-3" />
+        {labels.failed}
+      </span>
+    );
+  }
+  if (indexed === false) {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        {labels.indexing}
+      </span>
+    );
+  }
+  if (indexed === true) {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+        <CheckCircle2 className="h-3 w-3" />
+        {labels.ready}
+      </span>
+    );
+  }
+  return null;
+}
+
+function LenkeStatusBadge({
+  status,
+  errorText,
+  labels,
+}: {
+  status?: "pending" | "crawling" | "completed" | "failed";
+  errorText?: string;
+  labels: {
+    pending: string;
+    crawling: string;
+    completed: string;
+    failed: string;
+    errorLabel: string;
+  };
+}) {
+  if (status === "failed") {
+    return (
+      <span
+        title={errorText ? `${labels.errorLabel}: ${errorText}` : labels.failed}
+        className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300"
+      >
+        <AlertCircle className="h-3 w-3" />
+        {labels.failed}
+      </span>
+    );
+  }
+  if (status === "crawling" || status === "pending") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        {status === "crawling" ? labels.crawling : labels.pending}
+      </span>
+    );
+  }
+  if (status === "completed") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+        <CheckCircle2 className="h-3 w-3" />
+        {labels.completed}
+      </span>
+    );
+  }
+  return null;
 }
 
 export function KbDetaljer({ baseId, onBack }: KbDetaljerProps) {
@@ -251,6 +337,17 @@ export function KbDetaljer({ baseId, onBack }: KbDetaljerProps) {
                     >
                       {lenke.tittel}
                     </a>
+                    <LenkeStatusBadge
+                      status={lenke.crawlStatus}
+                      errorText={lenke.crawlError}
+                      labels={{
+                        pending: t("kb.statusPending"),
+                        crawling: t("kb.statusCrawling"),
+                        completed: t("kb.statusReady"),
+                        failed: t("kb.statusFailed"),
+                        errorLabel: t("kb.crawlErrorLabel"),
+                      }}
+                    />
                   </div>
                   <p className="mt-0.5 truncate pl-5.5 text-xs text-slate-400">
                     {lenke.url} · {formaterDatoShort(lenke.opprettetDato, language)}
@@ -330,6 +427,16 @@ export function KbDetaljer({ baseId, onBack }: KbDetaljerProps) {
                     <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
                       {fil.filnavn}
                     </p>
+                    <FilStatusBadge
+                      indexed={fil.indexed}
+                      parseError={fil.parseError}
+                      labels={{
+                        indexing: t("kb.statusIndexing"),
+                        ready: t("kb.statusReady"),
+                        failed: t("kb.statusFailed"),
+                        errorLabel: t("kb.parseErrorLabel"),
+                      }}
+                    />
                   </div>
                   <p className="mt-0.5 pl-5.5 text-xs text-slate-400">
                     {formaterStorrelse(fil.storrelse)} · {formaterDatoShort(fil.opprettetDato, language)}

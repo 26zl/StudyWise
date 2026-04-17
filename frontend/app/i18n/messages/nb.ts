@@ -1480,6 +1480,7 @@ export const nbMessages = {
     sources: "Kilder",
     sourcesPillLabel: "kilder",
     sourceDownloadFailed: "Kunne ikke laste ned kilden",
+    sourceKbFileInfo: "Dette er indeksert innhold fra din kunnskapsbase. Originalfilen lagres ikke.",
     noSourcesForAnswer: "Ingen kilder registrert for dette svaret.",
     feedbackGood: "Bra svar",
     feedbackBad: "Dårlig svar",
@@ -2163,6 +2164,13 @@ export const nbMessages = {
     fileTooLarge: "Filen er for stor (maks 10 MB)",
     noFiles: "Ingen filer lastet opp ennå.",
     aiTip: "Skriv «bruk basen {navn}» i chatten for å aktivere denne basen som kontekst for KI-en.",
+    statusIndexing: "Indekserer...",
+    statusReady: "Klar",
+    statusFailed: "Feilet",
+    statusCrawling: "Henter innhold...",
+    statusPending: "Venter...",
+    parseErrorLabel: "Kunne ikke lese filen",
+    crawlErrorLabel: "Kunne ikke hente innhold",
   },
   samtalehistorikk: {
     historyTab: "Historikk",
@@ -2195,11 +2203,11 @@ export const nbMessages = {
   onboarding: {
     welcome: "Velkommen til StudyWise!",
     welcomeDescription:
-      "StudyWise samler KI-chat, Canvas-data og dine egne notater på ett sted. Ta en rask omvisning under, så du vet nøyaktig hvor du finner alt — og hvordan du får mest ut av verktøyene.",
+      "StudyWise samler KI-chat, Canvas-data og dine egne notater på ett sted. Ta en rask omvisning under, så du vet nøyaktig hvor du finner alt — og hvordan du får mest ut av verktøyene. Til slutt får du også en kort sikkerhetsanbefaling du ikke vil hoppe over.",
     steps: {
       chat: "KI-chat",
       chatDescription:
-        "Still faglige spørsmål, få forklaringer eller hjelp til oppgaver. Du kan velge hvor grundig svaret skal være: «Enkel» for raske oversikter, «Standard» for balanserte svar, «Detaljert» for dypere gjennomgang, og «Ekspert» for akademisk dybde med eksempler. Velg nivå fra innstillingene i chatten før du sender meldingen. Tips: Overskriftene «Bibliotek» og «Samtaler» i sidepanelet er klikkbare — klikk på navnet for å åpne dedikerte sider der du finner kunnskapsbasen, bokmerker, samtalehistorikk og administrasjon av delte samtaler. Bruk pilen ved siden av overskriften for å utvide eller skjule forhåndsvisningen i sidepanelet.",
+        "Still faglige spørsmål, få forklaringer eller hjelp til oppgaver. Du kan velge hvor grundig svaret skal være: «Enkel» for raske oversikter, «Standard» for balanserte svar, «Detaljert» for dypere gjennomgang, og «Ekspert» for akademisk dybde med eksempler. Velg nivå fra innstillingene i chatten før du sender meldingen. Kilder fra både Canvas og din egen kunnskapsbase vises som klikkbare referanser under svarene — for Canvas-filer kan du laste ned originalen, for kunnskapsbase-filer vises det at de ble brukt som kontekst. Tips: Overskriftene «Bibliotek» og «Samtaler» i sidepanelet er klikkbare — klikk på navnet for å åpne dedikerte sider der du finner kunnskapsbasen, bokmerker, samtalehistorikk og administrasjon av delte samtaler.",
       canvas: "Canvas-integrasjon",
       canvasDescription:
         "Koble til Canvas LMS én gang, så henter StudyWise automatisk emner, oppgaver, kunngjøringer og pensumfiler. KI-chatten kan bruke Canvas-innholdet som kontekst — du får svar basert på dine egne forelesningsnotater og pensum. Legg til token under Innstillinger → Canvas.",
@@ -2211,13 +2219,16 @@ export const nbMessages = {
         "Velg et emne og én eller flere moduler fra Canvas, så genererer KI-en quiz med flervalgssvar eller flashcards basert på pensumet ditt. Perfekt som selvtest før eksamen. Du kan bestemme antall spørsmål og vanskelighetsgrad.",
       knowledgeBase: "Kunnskapsbase",
       knowledgeBaseDescription:
-        "Lag dine egne samlinger av lenker, PDF-er, Word-dokumenter og notater. StudyWise indekserer innholdet og lar KI-chatten bruke det som kontekst når du stiller spørsmål — så får du svar basert på dine egne kilder. Bruk det til pensum, prosjektarbeid eller bacheloroppgave. Opprett en base under «Kunnskapsbase» i menyen og last opp filer eller lim inn URL-er.",
+        "Lag dine egne samlinger av lenker, PDF-er, Word-dokumenter og notater. StudyWise indekserer innholdet og lar KI-chatten bruke det som kontekst når du stiller spørsmål — så får du svar basert på dine egne kilder. Hver fil og lenke viser sin egen status («Indekserer…», «Klar» eller «Feilet») så du ser med en gang om noe må lastes opp på nytt. Dokumentinnhold saniteres automatisk for strukturert PII (epost, telefon, fødselsnummer, studentnummer, adresser, signaturer) før det sendes til KI-en. Opprett en base under «Kunnskapsbase» i menyen og last opp filer eller lim inn URL-er.",
       notifications: "Varsler",
       notificationsDescription:
         "Få varsler når Canvas-frister nærmer seg, slik at ingenting faller mellom to stoler. Du kan skru på push-varsler i nettleseren, justere hvor lang tid i forveien du vil varsles, og skjule varsler for spesifikke emner du ikke følger aktivt.",
       settings: "Innstillinger og konto",
       settingsDescription:
-        "Under «Innstillinger» styrer du Canvas-token, språk (norsk/engelsk), lyst/mørkt tema, varslingspreferanser og hvilke emner som skal skjules. Under «Konto» finner du profil, passordbytte, tofaktor, og mulighet for å laste ned eller slette alle dine data (GDPR). Alt er tilgjengelig via menyen øverst til høyre.",
+        "Under «Innstillinger» styrer du Canvas-token, språk (norsk/engelsk), lyst/mørkt tema, varslingspreferanser og hvilke emner som skal skjules. Under «Konto» finner du profil, passordbytte, tofaktor (2FA) og mulighet for å laste ned eller slette alle dine data (GDPR). Sletting av konto krever at du nylig har logget inn som ekstra sikkerhet. Alt er tilgjengelig via menyen øverst til høyre.",
+      security: "Sikre kontoen din",
+      securityDescription:
+        "Et siste, viktig tips: aktiver tofaktor-autentisering (2FA) med en authenticator-app (Google Authenticator, 1Password, Authy eller tilsvarende). Det tar ett minutt og er den enkleste måten å beskytte kontoen din mot phishing og passordlekkasjer — selv om passordet ditt skulle bli kompromittert, vil en angriper trenge koden fra telefonen din for å logge inn. Du finner oppsettet under Konto → Sikkerhet. StudyWise bruker Clerk for autentisering, og du kan også legge til backup-koder i tilfelle du mister telefonen.",
     },
     getStarted: "Kom i gang",
     next: "Neste",

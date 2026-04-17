@@ -19,7 +19,14 @@ const AUTH_PATH_PREFIXES = ["/dashboard", "/oversikt", "/ai-breakdown", "/accoun
 
 // Persisterte zustand-nøkler som må ryddes ved logout for å hindre at data
 // fra en tidligere bruker rehyrdreres inn i en ny brukers sesjon på samme browser.
-const PERSISTED_STORE_KEYS = ["ki-store-quiz-cache"] as const;
+const PERSISTED_STORE_KEYS = [
+    "ki-store-quiz-cache",
+    // Request-ID fra siste API-feil (brukes av kontaktskjemaet til å
+    // forhåndsfylle "siste feil-ID"). Må ryddes ved logout slik at en ny
+    // bruker på samme device ikke ender opp med å rapportere forrige
+    // brukers feil som sin egen.
+    "studywise:lastApiErrorRequestId",
+] as const;
 
 export function clearClientAuthState(queryClient: QueryClient): void {
     clearDatadogUser();

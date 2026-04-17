@@ -51,10 +51,19 @@ const UsageSchema = z.object({
 export const KIChatSourceSchema = z.object({
   courseId: z.string(),
   courseName: z.string(),
+  /** Canvas-filens numeriske ID (for canvas_file). */
   fileId: z.number().int().optional(),
   fileName: z.string(),
+  /** Navigerbar URL (for kb_link og live_url). */
   sourceUrl: z.url().optional(),
   sourceKind: z.enum(["canvas_file", "kb_link", "kb_file", "live_url"]).optional(),
+  /**
+   * KB-identifikator for kb_file/kb_link — MongoDB ObjectId-string. Lar frontend
+   * navigere til riktig base/fil på KB-siden siden originalfilen ikke lagres.
+   */
+  sourceId: z.string().optional(),
+  /** Tilhørende kunnskapsbase-ID (for kb_file/kb_link). */
+  baseId: z.string().optional(),
   /** Hvor stor del av relevansen denne kilden bidro med (0-1). Brukes til sortering. */
   score: z.number().min(0).max(1).optional(),
   /** Antall chunks fra denne filen som ble brukt i konteksten. */

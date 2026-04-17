@@ -44,7 +44,7 @@ import {
   deleteKBSourceContent,
   deleteKBBaseContent,
 } from "../../services/kunnskapsbase-indeksering.service.js";
-import { parseDocument } from "../../services/document.js";
+import { parseDocument, validateFileMagicBytes } from "../../services/document.js";
 import {
   extractTextFromHtml,
   fetchExternalContent,
@@ -103,34 +103,6 @@ const upload = multer({
     }
   },
 });
-
-// ─── Magic-byte-validering ────────────────────────────────
-// MIME-type fra multer er klient-rapportert — valider faktisk innhold via magic bytes.
-// Dekker PDF (%PDF), OOXML/docx/pptx (PK = zip), legacy DOC (D0 CF 11 E0).
-// Rene tekstformater (txt/md/csv) valideres ved UTF-8/dekodbarhet i parseDocument.
-function validerMagicBytes(buffer: Buffer, mimeType: string): boolean {
-  if (buffer.length < 4) return false;
-  const b0 = buffer[0], b1 = buffer[1], b2 = buffer[2], b3 = buffer[3];
-  switch (mimeType) {
-    case "application/pdf":
-      // "%PDF"
-      return b0 === 0x25 && b1 === 0x50 && b2 === 0x44 && b3 === 0x46;
-    case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-    case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
-      // ZIP-container ("PK\x03\x04")
-      return b0 === 0x50 && b1 === 0x4b && (b2 === 0x03 || b2 === 0x05 || b2 === 0x07);
-    case "application/msword":
-      // CFB/OLE2: D0 CF 11 E0
-      return b0 === 0xd0 && b1 === 0xcf && b2 === 0x11 && b3 === 0xe0;
-    case "text/plain":
-    case "text/markdown":
-    case "text/csv":
-      // Tekst valideres av parseDocument; aksepter her
-      return true;
-    default:
-      return false;
-  }
-}
 
 // ─── Hjelpefunksjoner ────────────────────────────────────
 
@@ -259,12 +231,19 @@ router.get("/:id", rateLimitKB, async (req: Request, res: Response) => {
         url: l.url,
         tittel: l.tittel,
         opprettetDato: l.createdAt.toISOString(),
+        crawlStatus: l.crawlStatus,
+        crawledPages: l.crawledPages,
+        crawledDocuments: l.crawledDocuments,
+        crawlError: l.crawlError,
+        lastCrawledAt: l.lastCrawledAt ? l.lastCrawledAt.toISOString() : undefined,
       })),
       filer: base.filer.map((f) => ({
         id: String(f._id),
         filnavn: f.filnavn,
         mimeType: f.mimeType,
         storrelse: f.storrelse,
+        indexed: f.indexed,
+        parseError: f.parseError,
         opprettetDato: f.createdAt.toISOString(),
       })),
       opprettetDato: base.createdAt.toISOString(),
@@ -523,10 +502,12 @@ router.post("/:id/files", rateLimitKBWrite, (req: Request, res: Response) => {
     }
 
     // Magic-byte-validering: MIME-type fra multer er klient-levert og kan spoofes.
-    // Verifiser faktisk filinnhold før vi indekserer.
-    if (!validerMagicBytes(req.file.buffer, req.file.mimetype)) {
+    // Bruker den delte validatoren fra document.ts for konsistent dekning (inkluderer
+    // intern ZIP-struktur for OOXML-formater og tekst/binær-sanity-sjekk).
+    const magicError = validateFileMagicBytes(req.file.buffer, req.file.mimetype);
+    if (magicError) {
       logger.warn(
-        { userId, claimedMime: req.file.mimetype, size: req.file.size },
+        { userId, claimedMime: req.file.mimetype, size: req.file.size, magicError },
         "KB upload: magic-byte-sjekk feilet — filinnhold matcher ikke MIME-type",
       );
       apiError.badRequest(res, "Filinnholdet matcher ikke den oppgitte filtypen");
@@ -995,7 +976,24 @@ async function crawlAndIndexLink(
 
 /**
  * Parser og indekserer en fil asynkront.
+ * Ved feil markeres filen med `parseError` i DB, slik at UI kan vise status og
+ * filen ikke står igjen som en ubrukelig entry uten signal.
  */
+async function markFileParseFailed(
+  baseId: string,
+  filId: string,
+  parseError: string,
+): Promise<void> {
+  try {
+    await KnowledgeBase.updateOne(
+      { _id: baseId, "filer._id": filId },
+      { $set: { "filer.$.indexed": false, "filer.$.parseError": parseError } },
+    );
+  } catch (dbErr) {
+    logger.error({ err: dbErr, baseId, filId }, "Kunne ikke markere fil med parseError");
+  }
+}
+
 async function parseAndIndexFile(
   userId: string,
   baseId: string,
@@ -1007,13 +1005,18 @@ async function parseAndIndexFile(
   try {
     const parsed = await parseDocument(buffer, mimeType, filnavn);
 
+    if (!parsed.success) {
+      logger.warn(
+        { filnavn, baseId, filId, parseError: parsed.error },
+        "Parsing av KB-fil feilet",
+      );
+      await markFileParseFailed(baseId, filId, parsed.error ?? "Ukjent feil ved parsing");
+      return;
+    }
+
     if (!parsed.text || parsed.text.trim().length === 0) {
       logger.warn({ filnavn, baseId }, "Tomt innhold fra fil — hopper over indeksering");
-      // Marker som indeksert slik at UI ikke står fast i "pending"
-      await KnowledgeBase.updateOne(
-        { _id: baseId, "filer._id": filId },
-        { $set: { "filer.$.indexed": true } },
-      );
+      await markFileParseFailed(baseId, filId, "Filen inneholder ingen lesbar tekst");
       return;
     }
 
@@ -1026,10 +1029,9 @@ async function parseAndIndexFile(
       content: parsed.text,
     });
 
-    // Oppdater indexed-status på filen
     await KnowledgeBase.updateOne(
       { _id: baseId, "filer._id": filId },
-      { $set: { "filer.$.indexed": true } },
+      { $set: { "filer.$.indexed": true }, $unset: { "filer.$.parseError": 1 } },
     );
 
     logger.info({ baseId, filId, filnavn }, "Fil indeksert i kunnskapsbase");
@@ -1037,6 +1039,11 @@ async function parseAndIndexFile(
     logger.error(
       { err, filnavn, baseId, filId },
       "Feil ved parsing/indeksering av fil",
+    );
+    await markFileParseFailed(
+      baseId,
+      filId,
+      err instanceof Error ? err.message : "Ukjent feil ved indeksering",
     );
   }
 }

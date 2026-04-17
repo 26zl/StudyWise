@@ -179,6 +179,7 @@ function MarkdownTable({ children, ...props }: React.ComponentProps<"table">) {
           onClick={exportToCSV}
           className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors cursor-pointer"
           title={t("table.exportCSV")}
+          aria-label={t("table.exportCSV")}
         >
           <Download className="w-3.5 h-3.5" />
           <span>{t("table.exportCSV")}</span>

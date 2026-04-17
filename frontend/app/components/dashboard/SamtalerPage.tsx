@@ -94,10 +94,19 @@ export function SamtalerPage() {
       if (!res.ok) {
         throw new Error(await parseApiError(res, t("samtalehistorikk.loadSharedError")));
       }
-      const parsed = SharedChatListResponseSchema.parse(await res.json());
-      setLinks(parsed.links);
+      const raw = await res.json();
+      const parsed = SharedChatListResponseSchema.safeParse(raw);
+      if (!parsed.success) {
+        throw new Error(t("samtalehistorikk.loadSharedError"));
+      }
+      setLinks(parsed.data.links);
     } catch (error) {
-      showToast.error(error instanceof Error ? error.message : t("samtalehistorikk.loadSharedError"));
+      // Vis bare brukervennlig melding — unngå å eksponere Zod-/intern feildetalj.
+      const melding =
+        error instanceof Error && error.message
+          ? error.message
+          : t("samtalehistorikk.loadSharedError");
+      showToast.error(melding);
       setLinks([]);
     } finally {
       setLoadingLinks(false);

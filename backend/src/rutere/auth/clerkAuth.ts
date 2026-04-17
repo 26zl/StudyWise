@@ -2494,7 +2494,11 @@ async function isSessionDeleted(sessionId: string | undefined): Promise<boolean>
  * Henter opprettelsestidspunkt for Clerk-sesjonen via Backend API.
  * Bruker `sessions.getSession(sid)` som returnerer autoritativt `createdAt`-tidspunkt
  * for når brukeren faktisk logget inn (ikke token-fornyelse).
- * Returnerer Unix-tidsstempel i sekunder, eller null hvis sesjon ikke kan hentes.
+ * Returnerer Unix-tidsstempel i sekunder, eller null hvis sesjon ikke kan hentes autoritativt.
+ *
+ * Brukes av step-up-auth for sensitive operasjoner (kontosletting) — MÅ derfor være
+ * fail-closed. JWT `iat` fornyes ved token-refresh og kan ikke brukes som proxy for
+ * "nylig autentisert", selv ikke som fallback.
  */
 export async function getClerkSessionCreatedAt(
   bearerToken: string,
@@ -2503,7 +2507,6 @@ export async function getClerkSessionCreatedAt(
   if (!secretKey) return null;
 
   try {
-    // Hent sid fra JWT-payload
     const authorizedParties = getAuthorizedParties();
     const payload = await verifyToken(bearerToken, {
       secretKey,
@@ -2512,24 +2515,17 @@ export async function getClerkSessionCreatedAt(
         : {}),
     });
     const sid = typeof payload.sid === "string" ? payload.sid : null;
-    if (!sid) {
-      // Fallback til iat hvis sid mangler (bør ikke skje med Clerk)
-      return typeof payload.iat === "number" ? payload.iat : null;
-    }
+    if (!sid) return null;
 
-    // Hent sesjonens opprettelsestidspunkt fra Clerk Backend API
     const clerk = getClerkBackendClient();
-    if (!clerk) {
-      return typeof payload.iat === "number" ? payload.iat : null;
-    }
+    if (!clerk) return null;
 
     const session = await clerk.sessions.getSession(sid);
     if (session?.createdAt) {
-      // createdAt er millisekunder — konverter til sekunder
       return Math.floor(session.createdAt / 1000);
     }
 
-    return typeof payload.iat === "number" ? payload.iat : null;
+    return null;
   } catch {
     return null;
   }

@@ -71,7 +71,7 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "lint": "tsc --noEmit --pretty false",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

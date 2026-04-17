@@ -14,6 +14,7 @@ import {
   Library,
   Bell,
   Settings,
+  ShieldCheck,
   ChevronRight,
   ChevronLeft,
   X,
@@ -79,6 +80,13 @@ const STEG: OnboardingSteg[] = [
     tittelKey: "onboarding.steps.settings",
     beskrivKey: "onboarding.steps.settingsDescription",
     fargeklasse: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+  },
+  {
+    ikon: <ShieldCheck className="h-8 w-8" />,
+    ikonLiten: <ShieldCheck className="h-5 w-5" />,
+    tittelKey: "onboarding.steps.security",
+    beskrivKey: "onboarding.steps.securityDescription",
+    fargeklasse: "bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-400",
   },
 ];
 
