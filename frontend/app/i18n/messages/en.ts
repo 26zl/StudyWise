@@ -2206,32 +2206,32 @@ export const enMessages = {
   onboarding: {
     welcome: "Welcome to StudyWise!",
     welcomeDescription:
-      "StudyWise brings AI chat, Canvas data, and your own notes together in one place. Take a quick tour below — you'll learn where to find everything and how to get the most out of the tools. At the end there's a short security tip you shouldn't skip.",
+      "StudyWise brings AI chat, Canvas data, and your own notes together in one place. Here's a quick tour so you know where to find everything — the last step also has a short security recommendation.",
     steps: {
       chat: "AI Chat",
       chatDescription:
-        'Ask academic questions, get explanations, or help with assignments. You can choose how thorough the answer should be: "Simple" for quick overviews, "Standard" for balanced answers, "Detailed" for deeper walkthroughs, and "Expert" for academic depth with worked examples. Pick the level from the chat settings before you send your message. Sources from both Canvas and your own knowledge base appear as clickable references below the answer — Canvas files let you download the original, while knowledge base files indicate that they were used as context. Tip: The "Library" and "Conversations" headers in the sidebar are clickable — click the label to open dedicated pages where you\'ll find the knowledge base, bookmarks, chat history, and management of shared chats.',
+        "Ask academic questions, get explanations, or help with assignments. You can adjust how thorough the answer should be, and the AI can use your Canvas or knowledge base as context.",
       canvas: "Canvas Integration",
       canvasDescription:
-        "Connect Canvas LMS once and StudyWise automatically pulls in your courses, assignments, announcements, and reading materials. The AI chat can use your Canvas content as context — so answers are grounded in your own lecture notes and curriculum. Add your token under Settings → Canvas.",
+        "Connect Canvas LMS once and your courses, assignments, and reading materials are pulled in automatically. The AI chat can use this as context so answers are grounded in your own course. Add your token under Settings → Canvas.",
       calendar: "Calendar",
       calendarDescription:
-        "All deadlines, submissions, and events from Canvas in one visual calendar. Filter by course, switch between week and month view, and get reminders as due dates approach. Manually-submitted assignments can be marked as done so they disappear from the list.",
+        "All Canvas deadlines and events in one visual calendar. Filter by course, switch between week and month view, and get reminders as due dates approach.",
       quiz: "Quiz & Flashcards",
       quizDescription:
-        "Pick a course and one or more modules from Canvas, and the AI will generate a multiple-choice quiz or flashcards based on your reading material. Perfect for self-testing before exams. You control the question count and difficulty.",
+        "Pick a course and a module from Canvas, and the AI will generate a quiz or flashcards based on your reading material. You control the question count and difficulty — useful for self-testing before exams.",
       knowledgeBase: "Knowledge Base",
       knowledgeBaseDescription:
-        'Build your own collections of links, PDFs, Word documents, and notes. StudyWise indexes the content and lets the AI chat use it as context when you ask questions — so answers are grounded in your own sources. Each file and link shows its own status ("Indexing…", "Ready", or "Failed") so you can see immediately if something needs re-uploading. Document content is automatically sanitized for structured PII (emails, phone numbers, national IDs, student IDs, addresses, signatures) before being sent to the AI. Create a base under "Knowledge Base" in the menu and upload files or paste URLs.',
+        "Build your own collections of links and documents that the AI chat can use as sources. Create a base under \"Knowledge Base\" and upload files or paste URLs — each file shows a status indicator so you know when it's ready.",
       notifications: "Notifications",
       notificationsDescription:
-        "Get notified as Canvas deadlines approach so nothing slips through the cracks. Enable browser push notifications, adjust how far in advance you want to be warned, and hide notifications for courses you're not actively following.",
+        "Get notified as Canvas deadlines approach so nothing slips through the cracks. Enable browser push notifications and adjust how far in advance you want to be warned.",
       settings: "Settings & Account",
       settingsDescription:
-        'Under "Settings" you control your Canvas token, language (English/Norwegian), light/dark theme, notification preferences, and which courses to hide. Under "Account" you\'ll find your profile, password change, two-factor auth (2FA), and the option to export or delete all your data (GDPR). Deleting your account requires a recent login as an extra safeguard. Everything is available from the menu in the top right.',
+        "Under Settings you control Canvas token, language, theme, and notifications. Profile, two-factor auth (2FA), and data controls (GDPR) live under Account — both are available from the menu in the top right.",
       security: "Secure your account",
       securityDescription:
-        "One last, important tip: enable two-factor authentication (2FA) with an authenticator app (Google Authenticator, 1Password, Authy, or similar). It takes a minute and is the single best way to protect your account against phishing and password leaks — even if your password is compromised, an attacker would still need the code from your phone to sign in. You'll find the setup under Account → Security. StudyWise uses Clerk for authentication, and you can also save backup codes in case you lose your phone.",
+        "Recommended: enable two-factor authentication (2FA) with an authenticator app like Google Authenticator, 1Password, or Authy. It's the easiest way to protect your account against phishing and password leaks, and takes just a minute to set up under Account → Security.",
     },
     getStarted: "Get started",
     next: "Next",
