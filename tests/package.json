@@ -7,9 +7,9 @@
     "test:e2e": "playwright test --config playwright.config.ts"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.11.1",
-    "@clerk/backend": "^3.2.12",
-    "@clerk/testing": "^2.0.16",
+    "@axe-core/playwright": "^4.11.2",
+    "@clerk/backend": "^3.2.13",
+    "@clerk/testing": "^2.0.17",
     "@playwright/test": "^1.59.1",
     "dotenv": "^17.4.2",
     "mongoose": "^9.4.1",
