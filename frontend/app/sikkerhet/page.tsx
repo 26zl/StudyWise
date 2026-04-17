@@ -29,6 +29,9 @@ export default function SikkerhetPage() {
         {([
           { key: "encryption", color: "green" },
           { key: "token", color: "green" },
+          { key: "twoFactor", color: "green" },
+          { key: "stepUp", color: "green" },
+          { key: "fileValidation", color: "green" },
           { key: "https", color: "green" },
           { key: "csrf", color: "green" },
           { key: "rateLimit", color: "green" },

@@ -242,6 +242,11 @@ export const nbMessages = {
       orContinueWith: "eller fortsett med",
       alreadyHaveAccount: "Har du allerede en konto?",
       signInLink: "Logg inn",
+      termsPrefix: "Ved å opprette en konto godtar du våre",
+      termsLink: "brukervilkår",
+      termsMiddle: "og",
+      privacyLink: "personvernerklæring",
+      termsSuffix: ".",
       verify: {
         title: "Bekreft e-postadressen",
         description: "Vi har sendt en bekreftelseskode til {email}.",
@@ -1761,7 +1766,7 @@ export const nbMessages = {
     thirdPartyIntro: "Vi deler minimalt med tredjeparter:",
     thirdPartyAILabel: "AI-tjenester (Anthropic):",
     thirdPartyAIBody:
-      "Innhold du skriver og kontekst (f.eks. oppgavetekst) sendes til AI for å generere svar. Vi unngår å sende personidentifiserbar informasjon (navn, e-post) til AI; Canvas-innhold anonymiseres der det er mulig.",
+      "Innhold du skriver og kontekst (f.eks. oppgavetekst) sendes til AI for å generere svar. Dokumenter du laster opp saniteres automatisk for strukturert PII (epost, telefon, fødselsnummer, studentnummer, norske adresser og signatur-navn) før de brukes som AI-kontekst. Canvas-innhold anonymiseres der det er mulig. AI-modellen er i tillegg instruert om å ikke gjengi personnavn fra dokumenter i svar.",
     thirdPartyCanvasLabel: "Canvas LMS:",
     thirdPartyCanvasBody:
       "Vi bruker kun ditt API-token for å hente data på dine vegne mot din institusjons Canvas. Tokenet lagres kryptert hos oss og sendes ikke til andre tredjeparter.",
@@ -1796,7 +1801,7 @@ export const nbMessages = {
       "Du kan oppdatere e-post, passord og to-faktor under Innstillinger → Konto og sikkerhet (rediger profil). Canvas-token og preferanser kan du endre eller fjerne under innstillinger.",
     rightsDeletionLabel: "Sletting:",
     rightsDeletionBody:
-      "Du kan slette enkelt samtaler eller hele chat-historikken i appen, og slette Canvas-token under innstillinger. Full kontosletting kan gjøres under innstillinger eller ved å kontakte oss. Da slettes eller anonymiseres kontoopplysninger og tilknyttede data, mens begrensede sikkerhets- og revisjonslogger kan beholdes i pseudonymisert form i en begrenset periode.",
+      "Du kan slette enkelt samtaler eller hele chat-historikken i appen, og slette Canvas-token under innstillinger. Full kontosletting kan gjøres under innstillinger eller ved å kontakte oss — av sikkerhetshensyn krever kontosletting at du har logget inn nylig (step-up authentication), slik at ingen med uautorisert tilgang til en åpen sesjon kan slette kontoen din uten å bekrefte identitet på nytt. Ved sletting slettes eller anonymiseres kontoopplysninger og tilknyttede data, mens begrensede sikkerhets- og revisjonslogger kan beholdes i pseudonymisert form i en begrenset periode.",
     rightsPortabilityLabel: "Dataportabilitet:",
     rightsPortabilityBody:
       "Du kan be om eksport av dine data (f.eks. samtalehistorikk). Kontakt oss via kontaktskjemaet.",
@@ -1826,6 +1831,15 @@ export const nbMessages = {
     tokenTitle: "Sikker tokenhandtering",
     tokenBody:
       "Canvas API-tokens lagres kryptert og brukes kun server-side. De eksponeres aldri til nettleseren eller tredjeparter.",
+    twoFactorTitle: "Tofaktor-autentisering (2FA)",
+    twoFactorBody:
+      "Vi anbefaler sterkt at du aktiverer 2FA med en authenticator-app (Google Authenticator, 1Password, Authy eller tilsvarende). Det beskytter kontoen din mot phishing og passordlekkasjer — selv om passordet skulle komme på avveie, trenger en angriper koden fra telefonen din for å logge inn. Du finner oppsettet under Konto → Sikkerhet.",
+    stepUpTitle: "Ekstra beskyttelse ved sensitive handlinger",
+    stepUpBody:
+      "Sletting av konto krever at du har logget inn nylig (step-up authentication). Det forhindrer at noen med uautorisert tilgang til en åpen sesjon kan slette kontoen din uten å bekrefte identitet på nytt.",
+    fileValidationTitle: "Validering av opplastede filer",
+    fileValidationBody:
+      "Alle filer du laster opp til kunnskapsbase eller kontaktskjema valideres mot magic bytes (signaturen i filinnholdet), ikke bare det klienten oppgir som filtype. Det beskytter mot polyglot-filer og MIME-spoofing. Office-formater (DOCX/PPTX/XLSX) får i tillegg zip-bombe-sjekk.",
     httpsTitle: "HTTPS og sikkerhetsheadere",
     httpsBody:
       "All kommunikasjon skjer over TLS. Vi bruker Helmet for sikkerhetsheadere (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy i produksjon).",
@@ -1859,7 +1873,7 @@ export const nbMessages = {
     aiPrivacyTitle: "AI og personvern",
     aiPrivacyIntro: "Når du bruker AI-assistenten:",
     aiPrivacy1:
-      "Personlig identifiserbar informasjon unngås eller fjernes før sending til AI-tjenesten",
+      "Dokumentinnhold saniteres for strukturert PII (epost, telefon, fødselsnummer, studentnummer, norske adresser og signatur-navn) før det sendes til AI-tjenesten. Saniteringen er best-effort og dekker ikke ustrukturerte personnavn i løpende tekst — AI-modellen er i tillegg instruert om å ikke gjengi personnavn fra dokumenter",
     aiPrivacy2: "Canvas-innhold anonymiseres der det er mulig",
     aiPrivacy3:
       "Samtaler lagres kryptert på din konto; en kort tittel fra første spørsmål lagres for visning i listen",
@@ -1957,7 +1971,16 @@ export const nbMessages = {
     deleteAccountA1: "Gå til Innstillinger eller",
     deleteAccountLink: "kontakt oss",
     deleteAccountA2:
-      "for å be om kontosletting. Kontoopplysninger og tilknyttede data slettes eller anonymiseres, mens begrensede sikkerhets- og revisjonslogger kan beholdes i pseudonymisert form i en begrenset periode.",
+      "for å be om kontosletting. Av sikkerhetshensyn må du ha logget inn nylig for å slette kontoen (step-up authentication) — logg inn på nytt om det er en stund siden sist. Ved sletting slettes eller anonymiseres kontoopplysninger og tilknyttede data, mens begrensede sikkerhets- og revisjonslogger kan beholdes i pseudonymisert form i en begrenset periode.",
+    twoFactorQ: "Hvordan aktiverer jeg tofaktor-autentisering (2FA)?",
+    twoFactorA:
+      "Gå til Konto → Sikkerhet og følg oppsettet. Vi anbefaler en authenticator-app (Google Authenticator, 1Password, Authy eller tilsvarende). Husk å lagre backup-kodene på et trygt sted i tilfelle du mister telefonen.",
+    quizQ: "Hvordan genererer jeg quiz eller flashcards?",
+    quizA:
+      "Velg et emne og én eller flere moduler fra Canvas i KI-chatten, så lager KI-en quiz eller flashcards basert på pensumet. Du velger antall spørsmål og vanskelighetsgrad.",
+    studyPlanQ: "Hva er arbeidsplan?",
+    studyPlanA:
+      "Arbeidsplanen samler kommende frister og oppgaver fra Canvas i en strukturert ukeoversikt, slik at du enkelt kan planlegge lesing og innleveringer. Den oppdateres automatisk når Canvas synkroniseres.",
     withoutCanvasQ: "Kan jeg bruke StudyWise uten Canvas-token?",
     withoutCanvasA:
       "Ja, du kan bruke KI-chatten og dokumentanalyse uten å koble til Canvas. Canvas-token er kun nødvendig for å hente kursdata, oppgaver og kalender.",

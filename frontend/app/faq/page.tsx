@@ -49,6 +49,10 @@ export default function FaqPage() {
           ),
         },
         {
+          q: t("faq.twoFactorQ"),
+          a: t("faq.twoFactorA"),
+        },
+        {
           q: t("faq.thirdPartyQ"),
           a: (
             <>
@@ -93,6 +97,14 @@ export default function FaqPage() {
         {
           q: t("faq.knowledgeBaseQ"),
           a: t("faq.knowledgeBaseA"),
+        },
+        {
+          q: t("faq.quizQ"),
+          a: t("faq.quizA"),
+        },
+        {
+          q: t("faq.studyPlanQ"),
+          a: t("faq.studyPlanA"),
         },
         {
           q: t("faq.sharedChatsQ"),

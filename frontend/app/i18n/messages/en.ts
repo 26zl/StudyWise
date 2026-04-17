@@ -243,6 +243,11 @@ export const enMessages = {
       orContinueWith: "or continue with",
       alreadyHaveAccount: "Already have an account?",
       signInLink: "Sign in",
+      termsPrefix: "By creating an account, you agree to our",
+      termsLink: "Terms of Service",
+      termsMiddle: "and",
+      privacyLink: "Privacy Policy",
+      termsSuffix: ".",
       verify: {
         title: "Verify your email",
         description: "We sent a verification code to {email}.",
@@ -1763,7 +1768,7 @@ export const enMessages = {
     thirdPartyIntro: "We share minimally with third parties:",
     thirdPartyAILabel: "AI services (Anthropic):",
     thirdPartyAIBody:
-      "Content you write and context (e.g., assignment text) is sent to AI to generate responses. We avoid sending personally identifiable information (name, email) to AI; Canvas content is anonymized where possible.",
+      "Content you write and context (e.g., assignment text) is sent to AI to generate responses. Documents you upload are automatically sanitized for structured PII (email, phone, national ID, student ID, Norwegian addresses, and signature names) before being used as AI context. Canvas content is anonymized where possible. The AI model is additionally instructed not to repeat personal names from documents in its responses.",
     thirdPartyCanvasLabel: "Canvas LMS:",
     thirdPartyCanvasBody:
       "We only use your API token to fetch data on your behalf from your institution's Canvas. The token is stored encrypted with us and is not sent to other third parties.",
@@ -1798,7 +1803,7 @@ export const enMessages = {
       "You can update email, password, and two-factor under Settings → Account and security (edit profile). Canvas token and preferences can be changed or removed under settings.",
     rightsDeletionLabel: "Erasure:",
     rightsDeletionBody:
-      "You can delete individual conversations or the entire chat history in the app, and delete Canvas token under settings. Full account deletion can be done under settings or by contacting us. Account information and associated data will be deleted or anonymized, while limited security and audit logs may be retained in pseudonymized form for a limited period.",
+      "You can delete individual conversations or the entire chat history in the app, and delete Canvas token under settings. Full account deletion can be done under settings or by contacting us — for security, account deletion requires a recent login (step-up authentication), so no one with unauthorized access to an open session can delete your account without re-confirming identity. On deletion, account information and associated data will be deleted or anonymized, while limited security and audit logs may be retained in pseudonymized form for a limited period.",
     rightsPortabilityLabel: "Data portability:",
     rightsPortabilityBody:
       "You can request export of your data (e.g., conversation history). Contact us via the contact form.",
@@ -1829,6 +1834,15 @@ export const enMessages = {
     tokenTitle: "Secure token handling",
     tokenBody:
       "Canvas API tokens are stored encrypted and used only server-side. They are never exposed to the browser or third parties.",
+    twoFactorTitle: "Two-factor authentication (2FA)",
+    twoFactorBody:
+      "We strongly recommend enabling 2FA with an authenticator app (Google Authenticator, 1Password, Authy, or similar). It protects your account against phishing and password leaks — even if your password is compromised, an attacker would still need the code from your phone to sign in. You'll find the setup under Account → Security.",
+    stepUpTitle: "Extra protection for sensitive actions",
+    stepUpBody:
+      "Account deletion requires a recent login (step-up authentication). This prevents anyone with unauthorized access to an open session from deleting your account without re-confirming identity.",
+    fileValidationTitle: "Validation of uploaded files",
+    fileValidationBody:
+      "Every file you upload to the knowledge base or contact form is validated against its magic bytes (the signature inside the file content), not just the file type claimed by the client. This protects against polyglot files and MIME spoofing. Office formats (DOCX/PPTX/XLSX) additionally get a zip-bomb check.",
     httpsTitle: "HTTPS and security headers",
     httpsBody:
       "All communication occurs over TLS. We use Helmet for security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy in production).",
@@ -1861,7 +1875,7 @@ export const enMessages = {
     aiPrivacyTitle: "AI and privacy",
     aiPrivacyIntro: "When you use the AI assistant:",
     aiPrivacy1:
-      "Personally identifiable information is avoided or removed before sending to the AI service",
+      "Document content is sanitized for structured PII (email, phone, national ID, student ID, Norwegian addresses, and signature names) before being sent to the AI service. Sanitization is best-effort and does not cover unstructured personal names in running text — the AI model is additionally instructed not to repeat personal names from documents",
     aiPrivacy2: "Canvas content is anonymized where possible",
     aiPrivacy3:
       "Conversations are stored encrypted on your account; a short title from the first question is stored for display in the list",
@@ -1959,7 +1973,16 @@ export const enMessages = {
     deleteAccountA1: "Go to Settings or",
     deleteAccountLink: "contact us",
     deleteAccountA2:
-      "to request account deletion. Account information and associated data will be deleted or anonymized, while limited security and audit logs may be retained in pseudonymized form for a limited period.",
+      "to request account deletion. For security, you must have logged in recently to delete your account (step-up authentication) — sign in again if it's been a while. On deletion, account information and associated data will be deleted or anonymized, while limited security and audit logs may be retained in pseudonymized form for a limited period.",
+    twoFactorQ: "How do I enable two-factor authentication (2FA)?",
+    twoFactorA:
+      "Go to Account → Security and follow the setup. We recommend an authenticator app (Google Authenticator, 1Password, Authy, or similar). Remember to save your backup codes somewhere safe in case you lose your phone.",
+    quizQ: "How do I generate a quiz or flashcards?",
+    quizA:
+      "Pick a course and one or more modules from Canvas in the AI chat, and the AI will generate a quiz or flashcards based on your reading material. You choose the question count and difficulty.",
+    studyPlanQ: "What is the study plan?",
+    studyPlanA:
+      "The study plan gathers upcoming Canvas deadlines and assignments into a structured weekly overview, so you can plan your reading and submissions. It updates automatically when Canvas syncs.",
     withoutCanvasQ: "Can I use StudyWise without a Canvas token?",
     withoutCanvasA:
       "Yes, you can use the AI chat and document analysis without connecting to Canvas. A Canvas token is only needed to fetch course data, assignments, and calendar.",
