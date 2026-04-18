@@ -15,6 +15,20 @@ StudyWise is an AI-powered study assistant for higher education with Canvas LMS 
 - `emne` / `emner` → course / courses (Canvas)
 - `tester` → tests
 
+## Prerequisites
+
+- **Node.js 22 LTS or newer** (CI runs on Node 24). `pnpm` is the required package manager — do not use npm/yarn.
+- Copy env examples before first run: `cp backend/.env.example backend/.env` and `cp frontend/.env.example frontend/.env`, then fill required values in both.
+
+## Local Dev URLs
+
+| Service     | URL                              |
+| ----------- | -------------------------------- |
+| Frontend    | <http://localhost:3000>          |
+| Backend API | <http://localhost:4000>          |
+| API docs    | <http://localhost:4000/api-docs> |
+| VitePress   | <http://localhost:5173>          |
+
 ## Monorepo Structure
 
 pnpm workspaces with five packages:
@@ -57,13 +71,18 @@ pnpm test                   # Integration test runner (tsx run.ts)
 pnpm test:auth              # Auth integration tests
 pnpm test:auth:e2e          # Playwright E2E auth tests
 pnpm test:auth:matrix       # Auth identity matrix (120 scenarios); :basic/:oauth/:update/:delete/:session/:race for subsets
+pnpm test:auth:smoke        # Fast auth smoke subset
 pnpm test:ki                # AI/KI integration tests
+pnpm test:ki:smoke          # Fast KI smoke subset
 pnpm test:canvas            # Canvas integration tests
+pnpm test:canvas:smoke      # Fast Canvas smoke subset
 
 # Maintenance
 pnpm knip                   # Dead code detection
 pnpm syncpack:list          # Check dependency version consistency
 pnpm clean:install          # Full clean reinstall + rebuild
+pnpm lint:soft-delete       # Lint soft-delete patterns (scripts/lint-soft-delete.mjs)
+pnpm db:reset-encrypted     # Reset encrypted fields in DB (rarely used; key rotation helper)
 ```
 
 Per-package scripts (run with `pnpm --filter <pkg> <script>`): `dev`, `build`, `lint`, `typecheck`, `test`, `test:watch`.
