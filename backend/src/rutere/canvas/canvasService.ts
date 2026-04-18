@@ -310,6 +310,11 @@ export async function fetchCourseAnnouncements(canvasToken: string | null | unde
 
 /**
  * Henter alle kunngjøringer for brukeren på tvers av kurs.
+ *
+ * Canvas' /api/v1/announcements returnerer kun siste 14 dager som default,
+ * og begrenser `end_date` til maks 14 dager etter `start_date`. For å dekke
+ * 30 dager bakover splitter vi i 3 vinduer à 10 dager og kaller parallelt;
+ * resultatene dedupliseres på id og sorteres synkende på posted_at.
  */
 export async function fetchAllAnnouncements(canvasToken?: string | null, baseUrl?: string) {
   const token = requireToken(canvasToken);
@@ -319,16 +324,58 @@ export async function fetchAllAnnouncements(canvasToken?: string | null, baseUrl
     return { data: [], meta: { pagesFetched: 0, itemsCount: 0 } };
   }
   const contextCodes = courses.map((course: CanvasCourse) => `course_${course.id}`);
-  const response = await hentCanvasData<unknown[]>("/api/v1/announcements", {
-    token,
-    baseUrl,
-    queryParams: { context_codes: contextCodes, active_only: true, per_page: PAGE_SIZE.ANNOUNCEMENTS },
-    cacheTtl: CACHE_TTL.ANNOUNCEMENTS,
-    maxPages: 10,
+
+  const WINDOW_DAYS = 10;
+  const WINDOWS = 3; // 3 × 10 = 30 dager
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+
+  const windowPromises = Array.from({ length: WINDOWS }, (_, i) => {
+    const endOffset = i * WINDOW_DAYS;
+    const startOffset = endOffset + WINDOW_DAYS;
+    const startDate = new Date(now - startOffset * MS_PER_DAY).toISOString();
+    const endDate = new Date(now - endOffset * MS_PER_DAY).toISOString();
+    return hentCanvasData<unknown[]>("/api/v1/announcements", {
+      token,
+      baseUrl,
+      queryParams: {
+        context_codes: contextCodes,
+        active_only: true,
+        per_page: PAGE_SIZE.ANNOUNCEMENTS,
+        start_date: startDate,
+        end_date: endDate,
+      },
+      cacheTtl: CACHE_TTL.ANNOUNCEMENTS,
+      maxPages: 5,
+    });
   });
+
+  const windowResults = await Promise.all(windowPromises);
+
+  // Dedup på id — vinduer kan overlappe på timing-grenser.
+  const byId = new Map<string | number, unknown>();
+  for (const res of windowResults) {
+    for (const item of res.data) {
+      const id = (item as { id?: string | number }).id;
+      if (id !== undefined) byId.set(id, item);
+    }
+  }
+  const merged = Array.from(byId.values());
+  const parsed = parseCanvasAnnouncements(merged, { scope: "all" });
+  // Sorter synkende på posted_at slik at frontend-paginering viser nyeste først.
+  parsed.sort((a, b) => {
+    const aTime = a.posted_at ? new Date(a.posted_at).getTime() : 0;
+    const bTime = b.posted_at ? new Date(b.posted_at).getTime() : 0;
+    return bTime - aTime;
+  });
+  const pagesFetched = windowResults.reduce(
+    (sum, r) => sum + (r.meta?.pagesFetched ?? 0),
+    0,
+  );
+
   return {
-    data: parseCanvasAnnouncements(response.data, { scope: "all" }),
-    meta: response.meta,
+    data: parsed,
+    meta: { pagesFetched, itemsCount: parsed.length },
   };
 }
 

@@ -183,6 +183,30 @@ export function isClientAvailable(_model: string): boolean {
 }
 
 /**
+ * Pinger Anthropic /v1/models for å verifisere at API-et svarer.
+ * Brukes av /status og /health/dependencies for å rapportere faktisk provider-helse.
+ * Returnerer false hvis nøkkel mangler, nettverket svikter, eller API-et svarer
+ * med 5xx / autentiseringsfeil.
+ */
+export async function isAnthropicHealthy(): Promise<boolean> {
+    if (!ANTHROPIC_API_KEY) return false;
+    try {
+        const response = await fetch("https://api.anthropic.com/v1/models?limit=1", {
+            method: "GET",
+            headers: {
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+            },
+            signal: AbortSignal.timeout(5_000),
+        });
+        return response.ok;
+    } catch (error) {
+        logger.debug({ err: error }, "Anthropic helsesjekk feilet");
+        return false;
+    }
+}
+
+/**
  * Returnerer en beskrivende feilmelding hvis klienten mangler.
  */
 export function getMissingClientError(_model: string): string {

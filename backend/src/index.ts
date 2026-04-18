@@ -83,8 +83,6 @@ import {
   refreshExternalDependencyHealth,
   startExternalDependencyHealthPolling,
 } from "./utils/health.js";
-import { isClientAvailable } from "./rutere/ki/aiClient.js";
-import { isCohereConfigured } from "./services/cohere-rerank.service.js";
 import {
   startChatHistoryCleanupPolling,
   sweepCorruptedChatHistory,
@@ -237,11 +235,15 @@ app.use(
   }),
 );
 
-// Gzip komprimering — skip SSE responses (text/event-stream) to prevent buffering
+// Gzip komprimering — skip SSE responses (text/event-stream) to prevent buffering.
+// Content-Type kan inneholde charset-suffix ("text/event-stream; charset=utf-8"),
+// så vi matcher på prefiks i stedet for streng likhet. Ellers ble brotli-buffer
+// holdt tilbake på keepalives og klienten timeouter (Heroku H15).
 app.use(
   compression({
     filter: (req, res) => {
-      if (res.getHeader("Content-Type") === "text/event-stream") {
+      const contentType = res.getHeader("Content-Type");
+      if (typeof contentType === "string" && contentType.startsWith("text/event-stream")) {
         return false;
       }
       return compression.filter(req, res);
@@ -470,12 +472,12 @@ connectToDatabase()
     } else {
       logger.warn("Pinecone ikke tilgjengelig ved oppstart");
     }
-    if (isClientAvailable("")) {
+    if (dependencyHealth.anthropic) {
       logger.info("Anthropic (Claude) tilgjengelig");
     } else {
       logger.warn("Anthropic ikke tilgjengelig ved oppstart");
     }
-    if (isCohereConfigured()) {
+    if (dependencyHealth.cohere) {
       logger.info("Cohere tilgjengelig");
     } else {
       logger.warn("Cohere ikke tilgjengelig ved oppstart");
@@ -485,30 +487,55 @@ connectToDatabase()
     void sweepCorruptedChatHistory().catch((err) => {
       logger.warn({ err }, "Initial ChatHistory-cleanup feilet");
     });
-    // BullMQ workers (Clerk-sletting + Pinecone-cleanup) erstatter de tidligere
+    // BullMQ workers (Clerk-sletting + Pinecone-cleanup + web-push) erstatter de tidligere
     // MongoDB-baserte polling-løkkene. Migrerer ev. eksisterende pending-rader på oppstart.
-    let queueWorkersStarted = false;
-    try {
-      await startQueueWorkers();
-      queueWorkersStarted = true;
-      logger.info("BullMQ-workers startet");
-    } catch (error) {
-      // Ikke slå ned hele API-et hvis Redis/BullMQ er midlertidig utilgjengelig.
-      // API-kjerne skal fortsatt kunne starte.
-      logger.error(
-        { err: error },
-        "BullMQ-workers kunne ikke starte; fortsetter uten bakgrunnskøer",
-      );
-    }
+    //
+    // Gjenopprettingsløkke: hvis Redis/BullMQ er nede ved oppstart, prøver vi på nytt
+    // med backoff slik at køer + web-push polling kommer i gang når Redis er tilbake
+    // — uten å kreve restart av hele API-et.
+    const queueState: {
+      started: boolean;
+      webPushInterval: ReturnType<typeof setInterval> | null;
+      retryTimeout: ReturnType<typeof setTimeout> | null;
+    } = {
+      started: false,
+      webPushInterval: null,
+      retryTimeout: null,
+    };
 
-    let webPushInterval: ReturnType<typeof setInterval> | null = null;
-    if (queueWorkersStarted) {
-      webPushInterval = startWebPushPolling();
-      void processWebPushNotifications().catch((error) => {
-        logger.warn({ err: error }, "Initial web-push-sjekk feilet");
-      });
-    } else {
-      logger.warn("Web-push polling deaktivert fordi BullMQ ikke er tilgjengelig");
+    const startQueuesWithRetry = async (attempt: number): Promise<void> => {
+      try {
+        await startQueueWorkers();
+        queueState.started = true;
+        logger.info(
+          { attempt },
+          attempt === 1
+            ? "BullMQ-workers startet"
+            : "BullMQ-workers startet etter retry",
+        );
+        queueState.webPushInterval = startWebPushPolling();
+        void processWebPushNotifications().catch((error) => {
+          logger.warn({ err: error }, "Initial web-push-sjekk feilet");
+        });
+      } catch (error) {
+        // 30s for første 5 forsøk, deretter 5 min. Fortsetter i det uendelige
+        // (unref'et timer) slik at køene kommer opp når Redis er tilbake.
+        const delayMs = attempt < 5 ? 30_000 : 5 * 60_000;
+        logger.error(
+          { err: error, attempt, nextRetryMs: delayMs },
+          "BullMQ-workers kunne ikke starte; prøver igjen automatisk",
+        );
+        queueState.retryTimeout = setTimeout(() => {
+          queueState.retryTimeout = null;
+          void startQueuesWithRetry(attempt + 1);
+        }, delayMs);
+        queueState.retryTimeout.unref?.();
+      }
+    };
+
+    await startQueuesWithRetry(1);
+    if (!queueState.started) {
+      logger.warn("Web-push polling utsatt til BullMQ er tilgjengelig");
     }
 
     void cleanupExpiredSharedChats({ reason: "scheduled_cleanup" }).catch((error) => {
@@ -538,7 +565,8 @@ connectToDatabase()
           clearInterval(dependencyHealthInterval);
           clearInterval(shareCleanupInterval);
           clearInterval(chatHistoryCleanupInterval);
-          if (webPushInterval) clearInterval(webPushInterval);
+          if (queueState.retryTimeout) clearTimeout(queueState.retryTimeout);
+          if (queueState.webPushInterval) clearInterval(queueState.webPushInterval);
           // Steng BullMQ workers + Redis-tilkobling
           await stopQueueWorkers();
           logger.info("BullMQ-workers stoppet");

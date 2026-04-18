@@ -7,9 +7,9 @@
 
 import mongoose from "mongoose";
 import { isRedisReady } from "../cache/redis.js";
-import { isClientAvailable } from "../rutere/ki/aiClient.js";
+import { isAnthropicHealthy } from "../rutere/ki/aiClient.js";
 import { isClerkHealthy } from "../rutere/auth/clerkAuth.js";
-import { isCohereConfigured } from "../services/cohere-rerank.service.js";
+import { isCohereHealthy } from "../services/cohere-rerank.service.js";
 import { ensurePineconeIndex } from "../services/pinecone.service.js";
 import { isWorkerRunning } from "../queues/index.js";
 import { logger } from "./logger.js";
@@ -20,17 +20,21 @@ const DEPENDENCY_HEALTH_REFRESH_MS = 5 * 60 * 1000;
 /** Enkelt avhengighetsstatus: sann, usann eller ennå ikke sjekket. */
 type CachedDependencyState = boolean | null;
 
-/** Cachet helsestatus for eksterne tjenester som sjekkes asynkront (Clerk, Pinecone). */
+/** Cachet helsestatus for eksterne tjenester som sjekkes asynkront. */
 interface CachedExternalDependencyHealth {
   clerk: CachedDependencyState;
   pinecone: CachedDependencyState;
+  anthropic: CachedDependencyState;
+  cohere: CachedDependencyState;
   checkedAt: string | null;
 }
 
-/** Modul-global cache for Clerk/Pinecone-helse; oppdateres av refreshExternalDependencyHealth. */
+/** Modul-global cache for ekstern provider-helse; oppdateres av refreshExternalDependencyHealth. */
 let cachedExternalDependencyHealth: CachedExternalDependencyHealth = {
   clerk: null,
   pinecone: null,
+  anthropic: null,
+  cohere: null,
   checkedAt: null,
 };
 
@@ -99,16 +103,14 @@ export function getDependenciesHealth() {
   const mongoOk = mongoose.connection.readyState === 1;
   const redisOk = isRedisReady();
   const bullmqOk = isWorkerRunning();
-  const anthropicOk = isClientAvailable("");
-  const cohereOk = isCohereConfigured();
 
   return {
     ok:
       mongoOk &&
       redisOk &&
       bullmqOk &&
-      anthropicOk &&
-      cohereOk &&
+      cachedExternalDependencyHealth.anthropic === true &&
+      cachedExternalDependencyHealth.cohere === true &&
       cachedExternalDependencyHealth.clerk === true &&
       cachedExternalDependencyHealth.pinecone === true,
     type: "dependencies" as const,
@@ -131,13 +133,13 @@ export function getDependenciesHealth() {
         critical: false,
       },
       anthropic: {
-        ok: anthropicOk,
-        status: statusFromBoolean(anthropicOk),
+        ok: cachedExternalDependencyHealth.anthropic,
+        status: statusFromBoolean(cachedExternalDependencyHealth.anthropic),
         critical: true,
       },
       cohere: {
-        ok: cohereOk,
-        status: statusFromBoolean(cohereOk),
+        ok: cachedExternalDependencyHealth.cohere,
+        status: statusFromBoolean(cachedExternalDependencyHealth.cohere),
         critical: false,
       },
       clerk: {
@@ -155,18 +157,23 @@ export function getDependenciesHealth() {
 }
 
 /**
- * Oppdaterer cachet Clerk- og Pinecone-helse asynkront.
- * Kalles periodisk av startExternalDependencyHealthPolling og ved behov.
+ * Oppdaterer cachet helse for alle asynkront-sjekkede providere (Clerk, Pinecone,
+ * Anthropic, Cohere). Kalles periodisk av startExternalDependencyHealthPolling
+ * og én gang ved oppstart fra index.ts.
  */
 export async function refreshExternalDependencyHealth(): Promise<CachedExternalDependencyHealth> {
-  const [clerkOk, pineconeOk] = await Promise.all([
+  const [clerkOk, pineconeOk, anthropicOk, cohereOk] = await Promise.all([
     isClerkHealthy(),
     ensurePineconeIndex(),
+    isAnthropicHealthy(),
+    isCohereHealthy(),
   ]);
 
   cachedExternalDependencyHealth = {
     clerk: clerkOk,
     pinecone: pineconeOk,
+    anthropic: anthropicOk,
+    cohere: cohereOk,
     checkedAt: new Date().toISOString(),
   };
 

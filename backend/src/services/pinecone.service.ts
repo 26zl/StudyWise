@@ -160,7 +160,6 @@ export async function pineconeQuery(
         topK,
         hasCourseFilter: Boolean(filter.courseIds && filter.courseIds.length > 0),
         courseFilterCount: filter.courseIds?.length ?? 0,
-        queryPreview: trimmed.slice(0, 120),
       },
       "Pinecone search startet",
     );

@@ -427,7 +427,7 @@ function selectModel(
   if (intent === "canvas_light" || (messageCount <= 4 && contextLength < 6000)) {
     return "claude-haiku-4-5";
   }
-  return "claude-sonnet-4-5";
+  return "claude-sonnet-4-6";
 }
 
 function chooseModelForFullDocumentMode(
@@ -438,7 +438,7 @@ function chooseModelForFullDocumentMode(
 ): { model: string; reason: "base" | "largest_context" } {
   const historyTokens = historyMessages.reduce((sum, msg) => sum + countTokens(msg.content) + 4, 0);
   const requestedWindowTokens = countTokens(systemPrompt) + countTokens(canvasContext) + historyTokens + 2000;
-  const largestAvailableContextModel = "claude-sonnet-4-5";
+  const largestAvailableContextModel = "claude-sonnet-4-6";
   const largestAvailableContextWindow = 200000;
 
   if (requestedWindowTokens > largestAvailableContextWindow) {
@@ -1793,6 +1793,9 @@ Never guess or invent a name from email, username, or other profile fields.
     let contextKilder: import("common/ki").KIChatSource[] | undefined;
     let kbKilder: import("common/ki").KIChatSource[] | undefined;
     let liveUrlKilder: import("common/ki").KIChatSource[] | undefined;
+    // Settes når context-loader måtte trigge prioritert sync — brukes av
+    // modell-valg (Haiku for rask respons) og av system-prompt (sync-hint).
+    let syncJustWaited = false;
 
     if (intent !== "general_chat" && req.canvasToken && req.user?.id) {
       const baseUrl = req.canvasBaseUrl;
@@ -2096,6 +2099,30 @@ Never guess or invent a name from email, username, or other profile fields.
       hasCanvasData = contextResult.hasCanvasData;
       fullDocumentModeActive = !!contextResult.fullDocumentMode;
       contextKilder = contextResult.kilder && contextResult.kilder.length > 0 ? contextResult.kilder : undefined;
+      syncJustWaited = !!contextResult.syncWaited;
+
+      // Hvis Canvas-sync akkurat måtte trigges for dette emnet, kan filinnhold
+      // være ufullstendig. Vi instruerer modellen om å være tydelig på årsaken
+      // i stedet for å si "jeg har ikke tilgang" — og lenger ned bytter vi
+      // også til Haiku for rask respons.
+      if (contextResult.syncWaited) {
+        enhancedSystemPrompt += `
+
+## Canvas-sync pågår
+
+StudyWise har nettopp startet synkronisering av dette emnet fra Canvas. Modul- og oppgavemetadata er tilgjengelig, men filinnhold er kanskje ikke ferdig indeksert ennå.
+
+Hvis brukeren spør om konkret innhold i filer (presentasjoner, PDF, dokumenter):
+- Forklar at synkroniseringen nettopp startet og at filinnholdet blir tilgjengelig innen ~30 sekunder.
+- Be brukeren stille spørsmålet på nytt etter litt tid.
+- Hvis du har metadata (filnavn, modulnavn), bruk det til å bekrefte at filen finnes, men vær ærlig om at selve innholdet ikke er lastet ennå.
+- Ikke si bare "jeg har ikke tilgang" — si hvorfor (sync pågår) og hva brukeren kan gjøre (vente litt og spørre igjen).
+`;
+        logger.info(
+          { userId: req.user.id, courseId: target?.courseIdHint ?? null },
+          "syncWaited=true — la til sync-hint i system prompt",
+        );
+      }
 
       // Append instruksjon for sparse innhold (PowerPoint-kulepunkter)
       if (contextResult.hasSparseChunks) {
@@ -2373,15 +2400,22 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
         kbKontekst.length >= 6000 ||
         (hasDirectUrlInLastMessage && asksForDeepSummary)
       );
+    // Hvis Canvas-sync nettopp ble trigget (cold data) bytter vi til Haiku
+    // for å unngå lang ventetid på første spørsmål om et uindeksert emne.
+    // Neste spørsmål vil treffe warm cache og få full Sonnet-kvalitet.
     const selectedModel = requestedModel
       ? resolvedRequestedModel
       : shouldEscalateGeneralChatToSonnet
-        ? "claude-sonnet-4-5"
-        : fullDocumentModelSelection.model;
+        ? "claude-sonnet-4-6"
+        : syncJustWaited && !fullDocumentModeActive
+          ? "claude-haiku-4-5"
+          : fullDocumentModelSelection.model;
     const selectedModelReason = requestedModel
       ? "user_selected"
       : shouldEscalateGeneralChatToSonnet
         ? "sonnet_general_heavy"
+      : syncJustWaited && !fullDocumentModeActive
+        ? "haiku_sync_waited"
       : selectedModel === "claude-haiku-4-5"
         ? "haiku"
         : "sonnet";

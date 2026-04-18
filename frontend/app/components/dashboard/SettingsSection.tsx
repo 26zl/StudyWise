@@ -254,12 +254,8 @@ export function SettingsSection({
     const [isDeletingNotion, setIsDeletingNotion] = useState(false);
     const [visNotionSlettBekreftelse, setVisNotionSlettBekreftelse] = useState(false);
 
-    // Hent Notion-status når Canvas-token er tilgjengelig
+    // Hent Notion-status uavhengig av Canvas-token
     useEffect(() => {
-        if (!harCanvasToken) {
-            setIsLoadingNotion(false);
-            return;
-        }
         let avbrutt = false;
         const fetchNotionStatus = async () => {
             setIsLoadingNotion(true);
@@ -279,7 +275,7 @@ export function SettingsSection({
         };
         void fetchNotionStatus();
         return () => { avbrutt = true; };
-    }, [harCanvasToken]);
+    }, []);
 
     // Lagre Notion-innstillinger
     const handleSaveNotion = async () => {
@@ -1143,8 +1139,8 @@ export function SettingsSection({
                         </div>
                     </section>
 
-                    {/* Notion-integrasjon - kun vis hvis bruker har Canvas-tilkobling */}
-                    {harCanvasToken && (<section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                    {/* Notion-integrasjon */}
+                    <section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
                                 <FileUp size={20} className="text-slate-600 dark:text-slate-300" />
@@ -1279,7 +1275,7 @@ export function SettingsSection({
                                 </div>
                             </>
                         )}
-                    </section>)}
+                    </section>
 
                     {/* AI Canvas-kontekst - kun vis hvis bruker har Canvas token */}
                     {harCanvasToken && (

@@ -819,9 +819,14 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
   const { t } = useLanguage();
   // QuizView mountes kun når DashboardView ser view=quiz eller view=flashcards,
   // så `.withDefault("quiz")` er trygt og gir oss en ikke-nullable StudyMode.
+  // clearOnDefault: false sikrer at ?view=quiz beholdes i URL-en — ellers
+  // fjerner nuqs param når man bytter fra flashcards til quiz, og DashboardView
+  // faller tilbake til sin egen default ("chat") og kaster brukeren til chat.
   const [studyMode, setDashboardView] = useQueryState(
     "view",
-    parseAsStringLiteral(["quiz", "flashcards"] as const).withDefault("quiz"),
+    parseAsStringLiteral(["quiz", "flashcards"] as const)
+      .withDefault("quiz")
+      .withOptions({ clearOnDefault: false }),
   );
   const [phase, setPhase] = useState<QuizPhase>("setup");
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
@@ -1249,8 +1254,10 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                         {t("quiz.selectModulesLabel")}
                       </label>
 
-                      {/* Faner for moduler / filer */}
-                      {(moduleOptions.length > 0 || fileOptions.length > 0) && !(modulesLoading || filesLoading) && (
+                      {/* Faner for moduler / filer — vises så snart emne er valgt slik at
+                          brukeren ser at filer lastes parallelt (Canvas /files kan være
+                          tregere enn /modules). Tellerene oppdateres når hver query er klar. */}
+                      {(moduleOptions.length > 0 || fileOptions.length > 0 || modulesLoading || filesLoading) && (
                         <div className="mb-3 flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
                           <button
                             type="button"
@@ -1262,7 +1269,8 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                                 : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
                             )}
                           >
-                            {t("quiz.modulesTab")} {moduleOptions.length > 0 && `(${moduleOptions.length})`}
+                            {t("quiz.modulesTab")}{" "}
+                            {modulesLoading ? "(…)" : moduleOptions.length > 0 ? `(${moduleOptions.length})` : ""}
                           </button>
                           <button
                             type="button"
@@ -1274,7 +1282,8 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                                 : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
                             )}
                           >
-                            {t("quiz.filesTab")} {fileOptions.length > 0 && `(${fileOptions.length})`}
+                            {t("quiz.filesTab")}{" "}
+                            {filesLoading ? "(…)" : fileOptions.length > 0 ? `(${fileOptions.length})` : ""}
                           </button>
                         </div>
                       )}

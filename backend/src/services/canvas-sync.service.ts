@@ -83,16 +83,19 @@ const MAX_FILES_PER_SYNC = 200;
 
 /**
  * Minneterskel i MB — pauser filekstraksjon over dette nivået.
- * Default 300 MB er tilpasset 512 MB Heroku-dynoer. Lokalt på Mac/Windows
- * kan terskelen overstyres med `SYNC_MEMORY_THRESHOLD_MB` (f.eks. 1500) slik at
- * sync ikke blokkeres av normal Node-baseline RSS (~480 MB).
+ * Heroku-dynoer har 512 MB, og observert baseline RSS i prod er ~425 MB
+ * (sharp/tesseract/unpdf gir ~200 MB native overhead utenfor V8 heap).
+ * Terskel 420 MB gir fremdeles ~90 MB headroom før OOM, men lar sync faktisk
+ * ekstrahere filer når dynoen har litt ledig minne — mens 300 MB triggeret
+ * alltid og blokkerte filekstraksjon i praksis.
+ * Kan overstyres med `SYNC_MEMORY_THRESHOLD_MB`.
  */
 const MEMORY_PRESSURE_THRESHOLD_MB = (() => {
   const raw = process.env.SYNC_MEMORY_THRESHOLD_MB;
   const parsed = raw ? Number.parseInt(raw, 10) : NaN;
   if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  // Lokalt: høy terskel slik at minnesjekken ikke blokkerer sync. Prod: 300 MB (Heroku 512 MB).
-  return isProd ? 300 : 8192;
+  // Lokalt: høy terskel slik at minnesjekken ikke blokkerer sync. Prod: 420 MB (Heroku 512 MB).
+  return isProd ? 420 : 8192;
 })();
 
 /** TTL for distribuert sync-lås i Redis (sekunder) — forhindrer at flere dynoer synker samtidig */
@@ -790,7 +793,9 @@ async function _doSync(
               if (await checkMemoryPressure(userId)) {
                 if (!extractionDisabledForRun) {
                   extractionDisabledForRun = true;
-                  logger.error(
+                  // warn, ikke error — dette er tilsiktet selvbeskyttelse (dynoen
+                  // har kun 512 MB), ikke en uventet feil.
+                  logger.warn(
                     { userId, courseId, filename: fileData.filename },
                     "Deaktiverer tung ekstraksjon for resten av sync-kjøringen pga vedvarende minnetrykk",
                   );
@@ -987,8 +992,16 @@ async function _doSync(
               }
             } catch (err) {
               enumerationComplete = false;
-              logger.warn(
-                { err, userId, courseId },
+              // Forventet oppførsel: mange Canvas-institusjoner låser /files for
+              // studenter, og token-scope styres på institusjonsnivå. Logg som info
+              // når det er en kjent tillatelsesfeil, ellers warn (ukjent grunn).
+              const errCode = (err as { code?: string })?.code;
+              const forventet = errCode === "permission_denied"
+                || errCode === "resource_disabled"
+                || errCode === "resource_not_found";
+              const level = forventet ? "info" : "warn";
+              logger[level](
+                { err, userId, courseId, errCode },
                 "Kunne ikke hente orphan-filer fra /files — hopper over cleanup for å unngå tap",
               );
             }
@@ -1028,7 +1041,8 @@ async function _doSync(
                     if (await checkMemoryPressure(userId)) {
                       if (!extractionDisabledForRun) {
                         extractionDisabledForRun = true;
-                        logger.error(
+                        // warn, ikke error — tilsiktet selvbeskyttelse, ikke en feil.
+                        logger.warn(
                           { userId, courseId, pageTitle: item.title },
                           "Deaktiverer tung ekstraksjon for resten av sync-kjøringen pga vedvarende minnetrykk",
                         );

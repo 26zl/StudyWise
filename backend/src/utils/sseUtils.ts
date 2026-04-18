@@ -5,7 +5,10 @@
 
 import type { Request, Response } from "express";
 
-const KEEPALIVE_INTERVAL_MS = 10_000;
+// Heroku H15 slår inn etter 55s uten aktivitet på socket. Vi sender keepalive
+// hvert 15. sekund og én gang umiddelbart etter flushHeaders, så routeren ser
+// trafikk også under lange kontekst-lastinger (Canvas sync + Anthropic latency).
+const KEEPALIVE_INTERVAL_MS = 15_000;
 
 interface SSESetupResult {
   /** Rydd opp keepalive-intervallet manuelt (gjøres også automatisk ved stream-slutt). */
@@ -39,6 +42,14 @@ export function setupSSE(req: Request, res: Response, socketTimeoutMs = 120_000)
   }
 
   res.flushHeaders();
+
+  // Umiddelbar keepalive-pakke: sikrer at routeren ser aktivitet før første
+  // Anthropic-chunk, selv om Canvas-kontekst/sync tar lang tid.
+  try {
+    res.write(": keepalive\n\n");
+  } catch {
+    // Socket allerede lukket — ignorer
+  }
 
   let interval: ReturnType<typeof setInterval> | undefined = setInterval(() => {
     if (res.writableEnded || res.destroyed) {

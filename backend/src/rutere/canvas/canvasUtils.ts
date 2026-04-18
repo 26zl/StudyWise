@@ -302,10 +302,18 @@ async function hentCanvasDataImpl<T>(
             }
         });
     }
-    // Generer unik cache key per token (unngå lekkasje mellom brukere)
+    // Generer unik cache key per token (unngå lekkasje mellom brukere).
+    // Når mange params (f.eks. context_codes[]=course_XXX × 14 kurs) gir en
+    // nøkkel > 512 tegn, hash query-delen i stedet — isValidCacheKey avviser
+    // ellers nøkkelen og vi mister cache-HIT på kalender/calendar_events.
     const tokenAvtrykk = crypto.createHash("sha256").update(cleanToken).digest("hex").slice(0, 32);
     const tenantPrefix = getCanvasTenantCachePrefix(baseUrl);
-    const cacheNokkel = `canvas:${tenantPrefix}:${tokenAvtrykk}:${endpoint}?${cacheNokkelParams.join("&")}`;
+    const rawParams = cacheNokkelParams.join("&");
+    const maxQueryLen = 300; // gir god margin mot 512-grensen uansett endpoint-lengde
+    const paramsSegment = rawParams.length > maxQueryLen
+        ? `h:${crypto.createHash("sha256").update(rawParams).digest("hex").slice(0, 32)}`
+        : rawParams;
+    const cacheNokkel = `canvas:${tenantPrefix}:${tokenAvtrykk}:${endpoint}?${paramsSegment}`;
     // Sjekk cache (KUN hvis ikke sensitiv)
     if (!erSensitiv) {
         try {

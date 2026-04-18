@@ -67,6 +67,29 @@ export function isCohereConfigured(): boolean {
 }
 
 /**
+ * Pinger Cohere /v1/models for å verifisere at API-et svarer.
+ * Brukes av /status og /health/dependencies for å rapportere faktisk provider-helse.
+ * Returnerer false hvis nøkkel mangler, nettverket svikter, eller API-et returnerer
+ * en feilstatus.
+ */
+export async function isCohereHealthy(): Promise<boolean> {
+  if (!COHERE_API_KEY) return false;
+  try {
+    const response = await fetch("https://api.cohere.com/v1/models?page_size=1", {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${COHERE_API_KEY}`,
+      },
+      signal: AbortSignal.timeout(5_000),
+    });
+    return response.ok;
+  } catch (error) {
+    logger.debug({ err: error }, "Cohere helsesjekk feilet");
+    return false;
+  }
+}
+
+/**
  * Reranker dokumenter via Cohere Rerank API.
  *
  * Fallback: Returnerer input sortert etter originalScore hvis Cohere feiler/mangler.

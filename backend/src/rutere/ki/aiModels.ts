@@ -11,8 +11,8 @@ export interface ModelInfo {
 
 // Støttede modeller med beskrivelser
 export const SUPPORTED_MODELS: Record<string, ModelInfo> = {
-    "claude-sonnet-4-5": {
-        name: "Claude Sonnet 4.5",
+    "claude-sonnet-4-6": {
+        name: "Claude Sonnet 4.6",
         description: "Avansert resonneringsmodell fra Anthropic",
     },
     "claude-haiku-4-5": {
@@ -22,7 +22,7 @@ export const SUPPORTED_MODELS: Record<string, ModelInfo> = {
 };
 
 // Standard modell
-export const DEFAULT_MODEL = "claude-sonnet-4-5";
+export const DEFAULT_MODEL = "claude-sonnet-4-6";
 
 /** Velg modell: forespurt hvis støttet, ellers default. */
 export function resolveModel(requested?: string | null): string {

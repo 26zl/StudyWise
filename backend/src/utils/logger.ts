@@ -28,6 +28,8 @@ const SENSITIVE_KEYS = new Set([
   "sourceUrl",
   "filnavn",
   "filename",
+  // Brukertekst fra chat/RAG-søk — må aldri ende i admin-buffer eller Datadog.
+  "queryPreview",
 ]);
 
 function shallowSanitize(obj: Record<string, unknown>): Record<string, unknown> {
@@ -161,6 +163,9 @@ export const logger = pino({
             "name",
             "fullName",
             "phone",
+            // Brukertekst fra chat/RAG-søk — backstop for alle logger.info/debug-kall.
+            "queryPreview",
+            "*.queryPreview",
         ],
         remove: true,
     },

@@ -84,6 +84,10 @@ export const ContextResultSchema = z.object({
   fullDocumentMode: z.boolean().optional(),
   /** true når konteksten kun er metadata (modulstruktur/oppgaveliste) uten faktisk faginnhold */
   metadataOnly: z.boolean().optional(),
+  /** true når kurset ikke var indeksert og vi måtte trigge prioritert sync før kontekstlasting.
+   *  Signaliserer at filinnhold kan være ufullstendig — brukes av chat-handler til å velge
+   *  raskere modell og til å generere tydeligere svar når filer mangler. */
+  syncWaited: z.boolean().optional(),
   /** Kilder som ble brukt i konteksten — propageres til chat-svar som klikkbar liste. */
   kilder: z.array(ContextSourceSchema).optional(),
 });
@@ -1817,7 +1821,6 @@ async function byggKontekstFraHybridSearch(
         {
           mode: "chunk",
           reason: "no trigger word matched",
-          queryPreview: message.substring(0, 120),
         },
         "Full dokument-mode ikke trigget",
       );
@@ -2231,6 +2234,37 @@ export async function loadCanvasContext(
   contextPrefs?: CanvasContextPreferences,
   hiddenCourseIds?: Set<number>,
 ): Promise<ContextResult> {
+  // Mutable state som settes inne i indre IIFE og leses av wrapperen under.
+  // IIFE-wrappen lar oss annotere alle eksisterende return-punkter uten å
+  // måtte røre hver enkelt av dem.
+  const state = { syncWaited: false };
+  const result = await loadCanvasContextCore(
+    state,
+    userId,
+    canvasToken,
+    intent,
+    target,
+    message,
+    baseUrl,
+    signal,
+    contextPrefs,
+    hiddenCourseIds,
+  );
+  return state.syncWaited ? { ...result, syncWaited: true } : result;
+}
+
+async function loadCanvasContextCore(
+  state: { syncWaited: boolean },
+  userId: string,
+  canvasToken: string,
+  intent: IntentType,
+  target?: TargetedQuery,
+  message?: string,
+  baseUrl?: string,
+  signal?: AbortSignal,
+  contextPrefs?: CanvasContextPreferences,
+  hiddenCourseIds?: Set<number>,
+): Promise<ContextResult> {
 
   // general_chat trenger ingen kontekst
   if (intent === "general_chat") {
@@ -2281,10 +2315,13 @@ export async function loadCanvasContext(
   // Dette løser racet der chat svarer "ingen tilgang til lærestoff" fordi sync av det
   // aktuelle kurset enda ikke er ferdig. Vi triggrer sync med priority og venter
   // inntil kurset har minst én chunk i MongoDB, eller timeout.
+  // state.syncWaited propageres til chat-handler så den kan velge raskere modell
+  // og generere bedre feilmeldinger når filer fortsatt mangler.
   if (target?.courseIdHint != null && !signal?.aborted) {
     const courseIdStr = String(target.courseIdHint);
     const alreadyIndexed = await hasIndexedCourseData(userId, courseIdStr);
     if (!alreadyIndexed) {
+      state.syncWaited = true;
       logger.info(
         { userId, courseId: courseIdStr },
         "loadCanvasContext: kurs ikke indeksert — trigger prioritert sync og venter",

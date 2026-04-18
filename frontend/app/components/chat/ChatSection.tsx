@@ -27,7 +27,7 @@ import { parseApiError } from "@/app/lib/errorUtils";
 import { useMeg } from "@/app/auth/auth-api";
 
 const ALLOWED_CHAT_MODEL_IDS = new Set([
-    "claude-sonnet-4-5",
+    "claude-sonnet-4-6",
     "claude-haiku-4-5",
 ]);
 
