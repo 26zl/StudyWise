@@ -2119,7 +2119,7 @@ Hvis brukeren spør om konkret innhold i filer (presentasjoner, PDF, dokumenter)
 - Ikke si bare "jeg har ikke tilgang" — si hvorfor (sync pågår) og hva brukeren kan gjøre (vente litt og spørre igjen).
 `;
         logger.info(
-          { userId: req.user.id, courseId: target?.courseIdHint ?? null },
+          { userId: req.user.id, courseId: target.courseIdHint ?? null },
           "syncWaited=true — la til sync-hint i system prompt",
         );
       }
