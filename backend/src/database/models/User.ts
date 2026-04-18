@@ -106,6 +106,20 @@ export interface IUser extends Document {
     };
     /** Aktive Clerk↔lokal synkroniseringskonflikter som vises til bruker. */
     syncConflicts?: SyncConflict[];
+    /**
+     * Tidspunkt brukeren godtok gjeldende vilkår og personvernerklæring.
+     * Settes ved kontoopprettelse og oppdateres hver gang brukeren re-aksepterer
+     * etter en versjonsbump. Kombinert med `termsVersionAccepted` gir dette
+     * juridisk bevis på nøyaktig hva brukeren samtykket til og når.
+     */
+    termsAcceptedAt?: Date;
+    /**
+     * Versjonsstreng (se `TERMS_VERSION` i common/system.ts) for den
+     * vilkår/personvern-versjonen brukeren sist godtok. Hvis denne ikke
+     * matcher gjeldende versjon, tvinges bruker gjennom re-aksept før de kan
+     * bruke tjenesten videre.
+     */
+    termsVersionAccepted?: string;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -320,6 +334,8 @@ const UserSchema: Schema = new Schema(
             }],
             default: [],
         },
+        termsAcceptedAt: { type: Date, default: undefined },
+        termsVersionAccepted: { type: String, default: undefined },
     },
     {
         timestamps: true,

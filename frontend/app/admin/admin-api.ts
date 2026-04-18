@@ -924,6 +924,8 @@ export function usePublishAnnouncement() {
       severity: "info" | "warning" | "critical";
       melding: string;
       dismissible: boolean;
+      showInBanner: boolean;
+      showOnStatusPage: boolean;
     }) => {
       const res = await fetchApi("/api/admin/announcement", {
         method: "POST",
@@ -936,6 +938,7 @@ export function usePublishAnnouncement() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "announcement"] });
       void queryClient.invalidateQueries({ queryKey: ["announcement"] });
+      void queryClient.invalidateQueries({ queryKey: ["public-status"] });
     },
   });
 }
@@ -950,6 +953,7 @@ export function useClearAnnouncement() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "announcement"] });
       void queryClient.invalidateQueries({ queryKey: ["announcement"] });
+      void queryClient.invalidateQueries({ queryKey: ["public-status"] });
     },
   });
 }

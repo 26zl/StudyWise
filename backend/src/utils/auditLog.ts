@@ -54,6 +54,20 @@ export const AUDIT_ACTIONS = {
   KB_FILE_DELETED: "kb_file_deleted",
   ADMIN_ANNOUNCEMENT_PUBLISHED: "admin_announcement_published",
   ADMIN_ANNOUNCEMENT_CLEARED: "admin_announcement_cleared",
+  /**
+   * Brukeren har godtatt gjeldende versjon av vilkår/personvern.
+   * Logges ved registrering og ved re-aksept etter versjonsbump.
+   * Metadata skal inneholde: { version, previousVersion? }.
+   * Request-konteksten logger også IP og user-agent for juridisk bevis.
+   */
+  TERMS_ACCEPTED: "terms_accepted",
+  /**
+   * Brukeren har utdatert vilkårsversjon og forsøkte å bruke et beskyttet
+   * endepunkt. Brukes som bevis på at vi har konsekvent håndhevet aksept
+   * (juridisk forsvarbarhet hvis en bruker senere hevder å ikke ha sett
+   * de nye vilkårene). Metadata: { acceptedVersion, currentVersion, method, path }.
+   */
+  TERMS_ENFORCEMENT_BLOCKED: "terms_enforcement_blocked",
 } as const;
 
 export function getDeletedAuditActorId(userId: string): string {

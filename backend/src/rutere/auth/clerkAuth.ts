@@ -10,6 +10,7 @@ import { User } from "../../database/models/User.js";
 import { DeletedUserTombstone } from "../../database/models/DeletedUserTombstone.js";
 import { logger } from "../../utils/logger.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
+import type { Request } from "express";
 import {
   DEFAULT_ROLE,
   type AuthProvider,
@@ -17,6 +18,7 @@ import {
   type OAuthProvider,
   type SyncConflictType,
 } from "common/auth";
+import { TERMS_VERSION } from "common/system";
 import type { IUser } from "../../database/models/User.js";
 import { getConfiguredWebOrigins } from "../../utils/webOrigins.js";
 import { sanitizeUsername } from "../../database/models/User.js";
@@ -731,6 +733,7 @@ function resolveStoredUsername(
 async function recordUserCreated(
   user: IUser,
   clerkUserId: string,
+  req?: Request,
 ): Promise<void> {
   logger.info(
     { userId: user._id, clerkId: clerkUserId },
@@ -743,7 +746,28 @@ async function recordUserCreated(
     outcome: "success",
     role: user.role ?? DEFAULT_ROLE,
     metadata: { clerkId: clerkUserId },
+    req,
   });
+  // Bruker har opprettet konto — det forutsetter at de har sett og klikket
+  // gjennom aksept-teksten på sign-up-siden. Logg dette eksplisitt med
+  // versjonen som gjaldt på opprettelsestidspunktet. Kombinert med
+  // git-historikken til /vilkar og /personvern gir dette juridisk bevis
+  // for nøyaktig hva hver bruker samtykket til og når.
+  if (user.termsVersionAccepted && user.termsAcceptedAt) {
+    await audit({
+      actorUserId: user._id.toString(),
+      action: AUDIT_ACTIONS.TERMS_ACCEPTED,
+      category: "privacy",
+      outcome: "success",
+      role: user.role ?? DEFAULT_ROLE,
+      metadata: {
+        version: user.termsVersionAccepted,
+        acceptedAt: user.termsAcceptedAt.toISOString(),
+        context: "sign_up",
+      },
+      req,
+    });
+  }
 }
 
 /** Henter e-post og navn fra Clerk Backend API for en bruker. Returnerer null ved feil eller manglende primær e-post. */
@@ -1462,7 +1486,14 @@ export function isUsernameConflict(result: AuthFlowResult): result is UsernameCo
  */
 export async function findOrCreateUserByClerkId(
   clerkUserId: string,
-  options?: { flowId?: string; forceSync?: boolean; authTurnstileCookie?: string; sessionId?: string },
+  options?: {
+    flowId?: string;
+    forceSync?: boolean;
+    authTurnstileCookie?: string;
+    sessionId?: string;
+    /** HTTP-request for IP/user-agent-logging ved ny brukeropprettelse (juridisk bevis). */
+    req?: Request;
+  },
 ): Promise<AuthFlowResult> {
   const fid = options?.flowId;
   const currentClerkEnv = getCurrentClerkEnv();
@@ -1997,6 +2028,12 @@ export async function findOrCreateUserByClerkId(
       }
     }
 
+    // Gjeldende vilkår/personvern-versjon ved opprettelsestidspunktet — lagres
+    // på brukeren som bevis for hva de samtykket til. Sign-up-siden viser
+    // aksept-tekst og lenker til /vilkar + /personvern, så klikk på "Opprett
+    // konto" = eksplisitt samtykke (by-action consent).
+    const termsAcceptedAt = new Date();
+
     const buildCreateUserPayload = (includeUsername: boolean) => ({
       email,
       clerkId: clerkUserId,
@@ -2008,6 +2045,8 @@ export async function findOrCreateUserByClerkId(
       authProviders: profile.authProviders,
       mfaEnabled: profile.mfaEnabled,
       oauthAccounts: oauthAccounts.length > 0 ? oauthAccounts : undefined,
+      termsAcceptedAt,
+      termsVersionAccepted: TERMS_VERSION,
       ...(includeUsername && usernameAction.mode === "set"
         ? {
             username: usernameAction.username,
@@ -2039,7 +2078,7 @@ export async function findOrCreateUserByClerkId(
         { clerkUserId, userId: user._id, email, flowId: fid },
         "authFlow: User.create() succeeded — new user created",
       );
-      await recordUserCreated(user, clerkUserId);
+      await recordUserCreated(user, clerkUserId, options?.req);
 
       // Rydd opp auto-satt SSO-brukernavn i Clerk (f.eks. Microsoft setter username = e-post).
       // Gjøres asynkront etter opprettelse — feiling blokkerer ikke brukeropplevelsen.

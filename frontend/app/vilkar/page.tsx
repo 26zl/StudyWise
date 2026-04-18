@@ -10,12 +10,17 @@ import {
   InfoSection,
   INFO_PAGE_INLINE_LINK_CLASSNAME,
 } from "@/app/components/layout/InfoPageLayout";
+import { TERMS_VERSION } from "common/system";
 
 export default function VilkarPage() {
   const { t } = useLanguage();
 
   return (
-    <InfoPageLayout title={t("vilkar.title")} updatedAt={t("vilkar.updatedAt")}>
+    <InfoPageLayout
+      title={t("vilkar.title")}
+      updatedAt={t("vilkar.updatedAt")}
+      version={TERMS_VERSION}
+    >
       <InfoSection title={t("vilkar.acceptTitle")}>
         <p>{t("vilkar.acceptBody")}</p>
       </InfoSection>

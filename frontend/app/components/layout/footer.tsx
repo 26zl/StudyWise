@@ -55,6 +55,13 @@ export function Footer() {
                     >
                         {t("footer.contact")}
                     </Link>
+                    <Link
+                        href="/status"
+                        prefetch={false}
+                        className="text-xs text-slate-700 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-200 transition-colors inline-flex items-center justify-center touch-manipulation"
+                    >
+                        {t("footer.status")}
+                    </Link>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 text-center leading-tight">
                     {t("footer.copyright")}

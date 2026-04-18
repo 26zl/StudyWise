@@ -10,12 +10,21 @@ import {
   InfoSection,
   INFO_PAGE_INLINE_LINK_CLASSNAME,
 } from "@/app/components/layout/InfoPageLayout";
+import { TERMS_VERSION } from "common/system";
 
 export default function PersonvernPage() {
   const { t } = useLanguage();
 
   return (
-    <InfoPageLayout title={t("personvern.title")} updatedAt={t("personvern.updatedAt")}>
+    <InfoPageLayout
+      title={t("personvern.title")}
+      updatedAt={t("personvern.updatedAt")}
+      version={TERMS_VERSION}
+    >
+      <InfoSection title={t("personvern.controllerTitle")}>
+        <p>{t("personvern.controllerBody")}</p>
+      </InfoSection>
+
       <InfoSection title={t("personvern.dataCollectionTitle")}>
         <ul className="space-y-3">
           <li>
@@ -73,6 +82,9 @@ export default function PersonvernPage() {
             <strong>{t("personvern.retentionAccountLabel")}</strong> {t("personvern.retentionAccountBody")}
           </li>
           <li>
+            <strong>{t("personvern.retentionAuditLabel")}</strong> {t("personvern.retentionAuditBody")}
+          </li>
+          <li>
             <strong>{t("personvern.retentionChatLabel")}</strong> {t("personvern.retentionChatBody")}
           </li>
           <li>
@@ -96,6 +108,15 @@ export default function PersonvernPage() {
       <InfoSection title={t("personvern.thirdPartyTitle")}>
         <p className="mb-4">{t("personvern.thirdPartyIntro")}</p>
         <ul className="space-y-3">
+          <li>
+            <strong>{t("personvern.thirdPartyHostingLabel")}</strong> {t("personvern.thirdPartyHostingBody")}
+          </li>
+          <li>
+            <strong>{t("personvern.thirdPartyDatabaseLabel")}</strong> {t("personvern.thirdPartyDatabaseBody")}
+          </li>
+          <li>
+            <strong>{t("personvern.thirdPartyClerkLabel")}</strong> {t("personvern.thirdPartyClerkBody")}
+          </li>
           <li>
             <strong>{t("personvern.thirdPartyAILabel")}</strong> {t("personvern.thirdPartyAIBody")}
           </li>
@@ -160,6 +181,36 @@ export default function PersonvernPage() {
           <li>{t("personvern.storageHTTPS")}</li>
           <li>{t("personvern.storageCache")}</li>
         </ul>
+      </InfoSection>
+
+      <InfoSection title={t("personvern.transferTitle")}>
+        <p className="mb-3">{t("personvern.transferIntro")}</p>
+        <ul className="space-y-3">
+          <li>
+            <strong>{t("personvern.transferUSLabel")}</strong> {t("personvern.transferUSBody")}
+          </li>
+          <li>
+            <strong>{t("personvern.transferSafeguardsLabel")}</strong>{" "}
+            {t("personvern.transferSafeguardsBody")}
+          </li>
+        </ul>
+      </InfoSection>
+
+      <InfoSection title={t("personvern.automatedTitle")}>
+        <p className="mb-3">{t("personvern.automatedBody")}</p>
+        <ul className="space-y-2">
+          <li>• {t("personvern.automated1")}</li>
+          <li>• {t("personvern.automated2")}</li>
+          <li>• {t("personvern.automated3")}</li>
+        </ul>
+      </InfoSection>
+
+      <InfoSection title={t("personvern.ageTitle")}>
+        <p>{t("personvern.ageBody")}</p>
+      </InfoSection>
+
+      <InfoSection title={t("personvern.breachTitle")}>
+        <p>{t("personvern.breachBody")}</p>
       </InfoSection>
 
       <InfoSection title={t("personvern.contactTitle")}>

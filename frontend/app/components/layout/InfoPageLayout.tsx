@@ -17,6 +17,8 @@ type InfoPageLayoutProps = {
   title: string;
   description?: string;
   updatedAt?: string;
+  /** Versjonsstreng for vilkår/personvern (vises sammen med updatedAt). */
+  version?: string;
   backHref?: string;
   backLabel?: string;
   className?: string;
@@ -40,6 +42,7 @@ export function InfoPageLayout({
   title,
   description,
   updatedAt,
+  version,
   backHref = "/",
   backLabel,
   className,
@@ -49,6 +52,7 @@ export function InfoPageLayout({
   const { t } = useLanguage();
   const resolvedBackLabel = backLabel ?? t("infoPageLayout.backToHome");
   const updatedAtLabel = t("infoPageLayout.lastUpdated");
+  const versionLabel = t("infoPageLayout.version");
 
   return (
     <div className={cn("min-h-full flex flex-col", className)}>
@@ -69,6 +73,12 @@ export function InfoPageLayout({
           {updatedAt ? (
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
               {updatedAtLabel}: {updatedAt}
+              {version ? (
+                <>
+                  {" "}
+                  · {versionLabel} {version}
+                </>
+              ) : null}
             </p>
           ) : null}
         </header>

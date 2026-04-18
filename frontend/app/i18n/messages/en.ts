@@ -1,6 +1,20 @@
 import type { PartialMessages } from "../types";
 
 export const enMessages = {
+  termsReaccept: {
+    title: "Updated terms and privacy policy",
+    description:
+      "We've made changes to the terms and/or privacy policy since you last accepted them. Please review the new versions and accept to continue using StudyWise.",
+    reviewPrompt: "Review the updated version:",
+    termsLink: "Terms of Service",
+    privacyLink: "Privacy Policy",
+    versionLabel: "Current version: {version}",
+    acceptButton: "I have read and accept",
+    accepting: "Registering...",
+    logoutButton: "Sign out instead",
+    success: "Thank you! Your acceptance has been registered.",
+    error: "Could not register your acceptance. Try again, or sign out if the problem persists.",
+  },
   common: {
     actions: {
       askAi: "Ask AI",
@@ -661,7 +675,8 @@ export const enMessages = {
       accepted: "Accepted",
       declined: "Essential only",
       description:
-        "Essential cookies are always active. Optional measurements (Datadog RUM, Vercel Speed Insights, and product analytics via PostHog in cookieless mode) require your consent.",
+        "Essential cookies are always active. Optional performance measurements require your consent and can be withdrawn at any time — \"Essential only\" turns them off immediately.",
+      readMore: "Read more about what we measure in the privacy policy.",
       status: {
         accepted: "You have accepted optional performance analytics.",
         declined: "You are using essential cookies only.",
@@ -669,6 +684,23 @@ export const enMessages = {
       },
       title: "Cookies",
       toggle: "Change choice",
+    },
+    consent: {
+      title: "Terms and privacy",
+      description:
+        "Here you see which version you've accepted. If you no longer want to be bound by the terms, you can log out or delete your account under \"Delete account\".",
+      acceptedOn: "Accepted {date}",
+      versionLabel: "Version {version}",
+      currentBadge: "Current",
+      outdatedBadge: "Outdated",
+      missingBadge: "Not recorded",
+      currentStatus: "You have accepted the current version.",
+      outdatedStatus:
+        "You have an older version recorded. You'll be asked to accept the new one when you continue.",
+      missingStatus:
+        "We don't have a record of which version you accepted (legacy account). You'll be asked to accept the current version on your next sign-in.",
+      readTerms: "Terms of Service",
+      readPrivacy: "Privacy Policy",
     },
     language: {
       help: "Choose the language for static interface text.",
@@ -742,7 +774,13 @@ export const enMessages = {
       meldingLabel: "Message",
       meldingPlaceholder: "E.g. \"The AI service is unavailable, we're investigating.\"",
       meldingHint: "Max 500 characters. Shown on all signed-in pages.",
+      publicWarning:
+        "If \"Show on status page\" is checked, the message is displayed publicly on /status — visible to everyone, including non-signed-in users. Do not include personal data, usernames, emails, or other details that could identify individuals.",
       dismissibleLabel: "Allow users to dismiss the banner",
+      targetsLabel: "Where should the message appear?",
+      showInBannerLabel: "Banner for signed-in users",
+      showOnStatusPageLabel: "Public status page (/status)",
+      targetsRequired: "Select at least one display target.",
       publish: "Publish",
       update: "Update",
       clear: "Deactivate",
@@ -1715,7 +1753,7 @@ export const enMessages = {
     title: "About StudyWise",
     whatTitle: "What is StudyWise?",
     whatBody:
-      "StudyWise is an AI-powered study assistant developed as a bachelor project at the University of Southeast Norway (USN). The application integrates with Canvas LMS to give students a centralized platform for keeping track of their studies.",
+      "StudyWise is an AI-powered study assistant developed as a bachelor project at the University of South-Eastern Norway (USN). The application integrates with Canvas LMS to give students a centralized platform for keeping track of their studies.",
     featuresTitle: "Features",
     featureCanvasLabel: "Canvas integration:",
     featureCanvasBody: "View announcements, courses, deadlines, and calendar from Canvas",
@@ -1736,6 +1774,15 @@ export const enMessages = {
     featureExportBody: "Export AI content to PDF, Word, Excel, or Notion",
     featureShareLabel: "Shared conversations:",
     featureShareBody: "Share conversations with others via a secure link with expiry",
+    featureKnowledgeBaseLabel: "Knowledge base:",
+    featureKnowledgeBaseBody:
+      "Upload your own documents and links that are indexed semantically. Activate a base in chat with /basename to give the AI specific context (e.g. course notes or a lecture)",
+    featureQuizFlashcardsLabel: "Quiz and flashcards:",
+    featureQuizFlashcardsBody:
+      "Automatically generate quizzes and flashcards from Canvas courses and modules — choose the number of questions and difficulty",
+    featurePushLabel: "Browser notifications:",
+    featurePushBody:
+      "Get notifications about new Canvas deadlines and assignments directly in your browser (optional, per device)",
     teamTitle: "The team",
     teamBody:
       "StudyWise was developed by students at USN as part of their bachelor's thesis in IT and information systems. The project focuses on exploring how AI can improve the study experience for students.",
@@ -1749,20 +1796,25 @@ export const enMessages = {
     terms: "Terms",
     faq: "FAQ",
     contact: "Contact",
+    status: "Status",
     copyright: "© 2026 StudyWise - USN bachelor project. All rights reserved.",
   },
   personvern: {
     title: "Privacy Policy",
-    updatedAt: "April 2026",
+    updatedAt: "18 April 2026",
+    controllerTitle: "Who is behind StudyWise?",
+    controllerBody:
+      "StudyWise is developed as a bachelor's thesis project at the University of South-Eastern Norway (USN). The students behind the project are the data controllers for personal information in the service — meaning we decide how your data is used and are responsible for following privacy rules. If you have questions, feedback, or want to exercise your rights, just reach out via the contact form. We'll be happy to respond.",
     dataCollectionTitle: "What data do we collect?",
     accountInfoLabel: "Account information and login:",
     accountInfoBody:
-      "Login is handled by Clerk (email, password, and optional two-factor). You can connect Google or Microsoft if enabled. We do not store passwords ourselves; Clerk handles security and 2FA.",
+      "Sign-in is handled by a specialized, certified authentication service (Clerk) that also provides optional two-factor authentication and allows sign-in with Google or Microsoft. We never store passwords ourselves.",
     cookiesLabel: "Cookies and monitoring:",
     cookiesBody:
       "We use necessary cookies for login and preferences. The backend uses operational monitoring (Datadog APM) for error tracking and stability — this runs server-side and does not require consent. If you accept, we also enable optional browser-side measurements: Datadog RUM and Speed Insights for technical performance, Datadog Session Replay (replayable reconstruction of UI interactions where all text is masked and images are blurred in the recording) on roughly 50% of sessions, and PostHog for aggregated product analytics (in cookieless mode, without any cookies). The choice for optional measurements is stored on your user profile when logged in, and cached locally in the browser to prevent the banner from reappearing.",
     canvasTokenLabel: "Canvas API token:",
-    canvasTokenBody: "Stored encrypted (AES-256-GCM) to fetch your Canvas data on your behalf.",
+    canvasTokenBody:
+      "Stored with strong encryption (bank-level) so we can fetch Canvas data on your behalf. The key is never visible in plain text anywhere in our system.",
     chatHistoryLabel: "Conversation history:",
     chatHistoryBody:
       "AI conversations are stored encrypted on your account. We store a short title based on the first question (e.g., first 50 characters) to display the conversation in the list.",
@@ -1779,13 +1831,13 @@ export const enMessages = {
     legalBasisIntro: "We process personal data on the following legal grounds:",
     legalBasisContractLabel: "Contract — Art. 6(1)(b):",
     legalBasisContractBody:
-      "Account information (email, login via Clerk), Canvas API token, conversation history, preferences, and study plans are processed because it is necessary to deliver the service you registered for.",
+      "Account information (email, login via Clerk), Canvas API token, conversation history, preferences, and study plans are processed because it is necessary to deliver the service you registered for. This is a contract, not consent, and can't be \"withdrawn\" the same way — but you can terminate the agreement at any time by logging out or deleting your account under Settings → Delete account.",
     legalBasisInterestLabel: "Legitimate interest — Art. 6(1)(f):",
     legalBasisInterestBody:
-      "Security logging, audit logs, backend operational monitoring (Datadog APM), and abuse detection are processed based on our legitimate interest in secure and stable operations. This data is minimized and pseudonymized where possible.",
+      "Security logging, audit logs (including IP address, user-agent, and request ID tied to security-relevant events such as sign-in, terms acceptance, account deletion, and admin actions), backend operational monitoring (Datadog APM), and abuse detection are processed based on our legitimate interest in secure and stable operations. This data is minimized and pseudonymized where possible. You have the right to object to this processing on grounds relating to your particular situation (GDPR Art. 21) — contact us via the contact form and we'll make a concrete assessment. On account deletion, audit records that relate to you are anonymized/pseudonymized.",
     legalBasisConsentLabel: "Consent — Art. 6(1)(a):",
     legalBasisConsentBody:
-      "Optional browser-side measurements (Datadog RUM, Speed Insights, and product analytics via PostHog) are only enabled if you explicitly accept via the cookie banner. You can withdraw consent at any time by changing your choice in settings. If you are not logged in, the choice is remembered for 30 days via a cookie.",
+      "Optional browser-side measurements (Datadog RUM, Speed Insights, and product analytics via PostHog) are only enabled if you explicitly accept via the cookie banner. You can withdraw consent at any time by switching to \"Essential only\" in the cookie banner or under Settings → Cookies — as easily as you gave it (GDPR Art. 7(3)). Withdrawal does not affect the lawfulness of processing that occurred before withdrawal. If you are not logged in, the choice is remembered for 30 days via a cookie.",
     purposeTitle: "Purpose of processing",
     purposeIntro: "We use the data to:",
     purpose1:
@@ -1797,7 +1849,10 @@ export const enMessages = {
     retentionTitle: "Data retention",
     retentionAccountLabel: "Account and profile:",
     retentionAccountBody:
-      "Until you delete your account. Upon account deletion, account information, Canvas token, conversation history, preferences, and study plans are deleted or anonymized. Limited security and audit logs may be retained in pseudonymized or minimized form for up to 24 months.",
+      "Until you delete your account. Upon account deletion, account information, Canvas token, conversation history, preferences, and study plans are deleted or anonymized.",
+    retentionAuditLabel: "Security and audit logs:",
+    retentionAuditBody:
+      "We retain audit logs (including IP address, user-agent, and request ID tied to security-relevant events) for up to 24 months. This is necessary to investigate misuse, follow up on security incidents, and meet audit-trail requirements. Upon account deletion, entries relating to you are pseudonymized or anonymized, but some technical metadata is retained for a limited time.",
     retentionChatLabel: "Conversation history:",
     retentionChatBody:
       "Stored until you delete a conversation or the entire history, or until you delete your account.",
@@ -1815,28 +1870,38 @@ export const enMessages = {
     cookiesSectionNecessary: "Necessary only",
     cookiesSectionAcceptAll: "Accept all",
     thirdPartyTitle: "Sharing with third parties",
-    thirdPartyIntro: "We share minimally with third parties:",
+    thirdPartyIntro:
+      "We share minimally with third parties. Where necessary, we rely on the data processing agreements (DPAs) that the providers themselves publish — standard contracts that oblige them to process data in line with GDPR. If you want access to a specific agreement, contact us and we'll point you to the provider's own published document:",
+    thirdPartyHostingLabel: "Hosting and operations (Heroku and Vercel):",
+    thirdPartyHostingBody:
+      "The backend runs on Heroku (a Salesforce-owned cloud platform) and the frontend runs on Vercel. Both provide secure servers with firewalls, auto-scaling, and access control. These providers process all traffic entering and leaving the service — including chat messages, Canvas data, and sign-in flows — on our behalf. Heroku and Vercel are certified under recognised security standards (SOC 2) and publish their own data processing agreements (DPA).",
+    thirdPartyDatabaseLabel: "Database and cache (MongoDB Atlas and Redis):",
+    thirdPartyDatabaseBody:
+      "All user data (account, chat history, preferences, knowledge base content) is stored in MongoDB Atlas — a managed database service. Canvas data and rate-limit counters are temporarily cached in Redis to make the service faster. Both providers offer at-rest encryption, access logging, and a GDPR-compliant DPA.",
+    thirdPartyClerkLabel: "Authentication service (Clerk):",
+    thirdPartyClerkBody:
+      "Clerk handles sign-up, sign-in, passwords, two-factor authentication and Google/Microsoft sign-in. It stores your email, password (in hashed form — we never see the raw password), and optional 2FA secrets. Clerk is SOC 2 Type II certified and publishes its own DPA.",
     thirdPartyAILabel: "AI services (Anthropic):",
     thirdPartyAIBody:
       "Content you write and context (e.g., assignment text) is sent to AI to generate responses. Documents you upload are automatically sanitized for structured PII (email, phone, national ID, student ID, Norwegian addresses, and signature names) before being used as AI context. Canvas content is anonymized where possible. The AI model is additionally instructed not to repeat personal names from documents in its responses.",
     thirdPartyCanvasLabel: "Canvas LMS:",
     thirdPartyCanvasBody:
       "We only use your API token to fetch data on your behalf from your institution's Canvas. The token is stored encrypted with us and is not sent to other third parties.",
-    thirdPartyPineconeLabel: "Vector search (Pinecone):",
+    thirdPartyPineconeLabel: "Knowledge base search service (Pinecone):",
     thirdPartyPineconeBody:
-      "When you use AI features with Canvas content or your own knowledge bases (links and files you have added), text chunks (without names, emails, or other personally identifying data) are sent to Pinecone for indexing and semantic search. Pinecone only stores vector representations and anonymized text linked to your user ID, and everything is deleted when you remove the base or your account.",
-    thirdPartyCohereLabel: "Reranking (Cohere):",
+      "When you use AI features with Canvas content or your own notes, we send text snippets (without names, emails, or other personal data) to a search service that helps the AI find the most relevant parts of what you've uploaded. The content is linked to an anonymous user ID and deleted when you remove the base or your account.",
+    thirdPartyCohereLabel: "Search result improvement (Cohere):",
     thirdPartyCohereBody:
-      "To improve relevance in AI responses, Cohere is used to rank search results. Only anonymized text excerpts are sent — no personal data.",
+      "We use a service that helps the AI sort search results so the most relevant ones come first. Only anonymized text excerpts are sent — no personal data.",
     thirdPartyDatadogLabel: "Monitoring and session replay (Datadog):",
     thirdPartyDatadogBody:
       "When you've accepted optional performance measurements, we send technical operational and error tracking data to Datadog to link frontend errors, backend traces, and performance anomalies. We also enable Datadog Session Replay on a portion of sessions (about 50%) — this records a replayable reconstruction of DOM interactions (clicks, scrolls, navigation) so we can debug UI issues. We use Datadog's strictest \"mask\" setting by default: all text is replaced with \"xxx\" and images are blurred in the recording, so the content of chat messages, Canvas pages, knowledge base files, and quiz questions is not readable in the replay. Canvas tokens are never sent. You can withdraw consent at any time in the cookie banner; monitoring and replay stop immediately.",
     thirdPartyPosthogLabel: "Product analytics (PostHog):",
     thirdPartyPosthogBody:
       "To understand how features are actually used (page views, clicks, which AI features are adopted), we send aggregated usage data to PostHog (hosted in the US) when you have consented to optional measurements. We only send pseudonymous identifiers and usage patterns — no chat content, Canvas data, email addresses, or names. PostHog is configured in cookieless mode without cookies or localStorage, and session replay is disabled.",
-    thirdPartyLangsmithLabel: "AI tracing (LangSmith):",
+    thirdPartyLangsmithLabel: "AI debugging (LangSmith):",
     thirdPartyLangsmithBody:
-      "When LangSmith tracing is enabled on the server, AI requests (prompts and responses from the assistant) may be recorded with LangSmith for debugging, performance measurement, and quality monitoring of the AI functionality. Tracing is linked to a pseudonymous request ID, not directly to email or name. This is a technical operations concern that can be disabled by removing the access key.",
+      "To debug and improve AI features, we may record questions and responses with an operations analysis service (LangSmith). This is tied to an anonymous request ID, not to your email or name. The service is only used when needed to improve the quality of AI functionality.",
     thirdPartyContactRelayLabel: "Email delivery for contact form (Cloudflare Worker + Resend):",
     thirdPartyContactRelayBody:
       "When you submit an inquiry via the contact form, the content (name, email, subject, and message) is forwarded via a Cloudflare Worker to Resend, which delivers the email to our team. A copy is also stored in our own database for up to 365 days so administrators can view the inbox in the admin panel, and is automatically deleted afterward or manually once the case has been handled.",
@@ -1870,6 +1935,30 @@ export const enMessages = {
     storageServersLink: "security page",
     storageHTTPS: "All communication between browser and servers occurs over HTTPS.",
     storageCache: "Canvas cache has a short lifespan and is automatically deleted/rotated.",
+    transferTitle: "Data transfers outside the EEA",
+    transferIntro:
+      "Several of the services we use are American and have servers in the US. When personal data is sent out of the EEA, we follow the rules in GDPR Chapter V.",
+    transferUSLabel: "Which services send data to the US?",
+    transferUSBody:
+      "Backend hosting (Heroku), the authentication service (Clerk), the AI service (Claude), the knowledge base search services (Pinecone and Cohere), our operations and analytics tooling (Datadog, PostHog, LangSmith), and email delivery (Resend via Cloudflare Worker) all process data on servers in the United States. That means Canvas data, chat content, and documents may pass through US servers before returning to you. The database (MongoDB Atlas) and cache (Redis) are configured to store primary data in EU regions, but replication or operations may incur transient transfers.",
+    transferSafeguardsLabel: "How is this lawful?",
+    transferSafeguardsBody:
+      "Transfers are based on the European Commission's Standard Contractual Clauses (SCCs) and on the EU-US Data Privacy Framework where the provider is certified. Both are EU-approved ways to transfer data to countries outside the EEA. We also minimize what is sent — for example, we automatically remove personal data from uploaded documents before they are used by the AI.",
+    automatedTitle: "AI and automated decisions",
+    automatedBody:
+      "StudyWise uses AI (Claude) to generate responses, summaries, quizzes, and study plans based on what you provide. This does not count as \"automated decision-making\" in the legal sense — the AI provides learning support, not decisions that affect grades, benefits, or rights.",
+    automated1:
+      "All AI outputs are suggestions you can accept or reject. Neither grades, access, nor other rights are decided by the machine.",
+    automated2:
+      "AI can make mistakes. You are responsible for verifying information before submitting academic work.",
+    automated3:
+      "You can stop using AI features at any time, delete conversations, or request human follow-up from support via the contact form.",
+    ageTitle: "Age limit",
+    ageBody:
+      "StudyWise is made for students in higher education. You must be at least 13 years old to create an account in Norway. The service is primarily for adult students, but guardians are encouraged to evaluate suitability for younger users.",
+    breachTitle: "What happens if data leaks?",
+    breachBody:
+      "Should a data breach occur that affects your personal data, we will notify the Norwegian Data Protection Authority (Datatilsynet) without undue delay and no later than within 72 hours — this is a legal requirement (GDPR Art. 33). If the breach is serious enough to pose a high risk to you, we will notify you directly. The notification will explain which data is affected, what it might mean for you, and what we are doing to fix it.",
     contactTitle: "Contact",
     contactBody:
       "Do you have questions about privacy or want to exercise your rights? Contact us via",
@@ -1880,7 +1969,7 @@ export const enMessages = {
     description: "The security of your data is our highest priority.",
     encryptionTitle: "Encryption",
     encryptionBody:
-      "All sensitive data is encrypted with AES-256-GCM for storage. Login and passwords are handled by Clerk; we do not store passwords ourselves. Clerk supports 2FA and secure storage.",
+      "All sensitive data is encrypted with industry-standard encryption (the same strength banks use) before storage. Login and passwords are handled by a specialized authentication service; we never store passwords ourselves.",
     tokenTitle: "Secure token handling",
     tokenBody:
       "Canvas API tokens are stored encrypted and used only server-side. They are never exposed to the browser or third parties.",
@@ -1890,30 +1979,30 @@ export const enMessages = {
     stepUpTitle: "Extra protection for sensitive actions",
     stepUpBody:
       "Account deletion requires a recent login (step-up authentication). This prevents anyone with unauthorized access to an open session from deleting your account without re-confirming identity.",
-    fileValidationTitle: "Validation of uploaded files",
+    fileValidationTitle: "Uploaded file checks",
     fileValidationBody:
-      "Every file you upload to the knowledge base or contact form is validated against its magic bytes (the signature inside the file content), not just the file type claimed by the client. This protects against polyglot files and MIME spoofing. Office formats (DOCX/PPTX/XLSX) additionally get a zip-bomb check.",
-    httpsTitle: "HTTPS and security headers",
+      "Every file you upload is inspected to verify that its contents actually match the declared file type (not just the extension). This blocks hidden attacks where a file pretends to be something it's not. Office documents are also checked for abnormally large compressed archives (known DoS attack patterns).",
+    httpsTitle: "Encrypted connection",
     httpsBody:
-      "All communication occurs over TLS. We use Helmet for security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy in production).",
-    csrfTitle: "CSRF protection",
+      "All communication between your browser and our servers is encrypted (HTTPS). We also send security instructions to your browser that protect against the page being loaded into fake frames or content being interpreted as the wrong file type.",
+    csrfTitle: "Protection against forged requests",
     csrfBody:
-      "State-changing requests (POST, PUT, PATCH, DELETE) require a valid CSRF header and that the request comes from our own website, to prevent third-party sites from performing actions on your behalf.",
+      "When you change something on your account (e.g., update settings or send a message), we verify the request actually comes from your StudyWise session. This prevents other websites from tricking your browser into doing something you didn't ask for.",
     rateLimitTitle: "Rate limiting",
     rateLimitBody:
-      "We limit the number of requests per IP and per service (login, AI, Canvas, API token). This reduces the risk of abuse and brute-force attacks.",
-    sessionsTitle: "Secure sessions (Clerk)",
+      "We limit how many requests a single device or account can send within a given time window. This reduces the risk of abuse and brute-force attacks against logins and APIs.",
+    sessionsTitle: "Secure sign-in and sessions",
     sessionsBody:
-      "Login and sessions are handled by Clerk with secure cookies (httpOnly, secure, sameSite). Clerk supports two-factor (2FA) and login with Google and Microsoft. Access tokens have a short lifespan and are only sent over HTTPS.",
+      "Sign-in is handled by a specialized, certified authentication service. Your session is stored in a secure, locked cookie that other websites cannot read. You can enable two-factor authentication (2FA) and sign in with Google or Microsoft.",
     minimalAccessTitle: "Minimal data access",
     minimalAccessBody:
-      "We only fetch data from Canvas that is necessary for the functionality you use. See our privacy policy for how we process data.",
+      "We only fetch Canvas data that is necessary for the features you actually use. See our privacy policy for how we process data.",
     infrastructureTitle: "Secure infrastructure",
     infrastructureBody:
-      "The application runs on secure platforms (Vercel, Heroku) with firewall and access control. Cloudflare is used as CDN with bot protection (Turnstile) and DNS security.",
+      "The application runs on reputable cloud platforms with firewalls and access control, and is protected behind a global network that filters malicious traffic and bot attacks before they reach us.",
     autoLogoutTitle: "Automatic logout",
     autoLogoutBody:
-      "Sessions expire automatically. Upon inactivity or expired session, you must log in again. Clerk handles session and optional two-factor.",
+      "Sessions expire automatically after a period of inactivity, and you must sign in again. You can also manually sign out of all devices if you suspect your account has been used without your permission.",
     canvasApiTitle: "Canvas API security",
     canvasApiIntro: "When you connect to Canvas, we use your personal API token:",
     canvasApi1: "We only use the token to read your Canvas data — we perform no write operations",
@@ -1921,7 +2010,7 @@ export const enMessages = {
     canvasApi3: "The token is stored encrypted and never sent to third parties",
     loggingTitle: "Logging and privacy",
     loggingBody:
-      "On the server, we log errors and security events for operations and debugging. We do not log email, name, password, Canvas token, or user content (e.g., chat messages and search text) in production. We may store limited technical metadata such as pseudonymized user ID, IP address, user-agent, and request-id for security, abuse detection, and incident handling. Audit logs have limited retention and are anonymized upon account deletion where possible.",
+      "On the server we log technical errors and security events so we can operate the service and troubleshoot problems. We never log your email, name, password, Canvas token, or the content of what you write (chat messages, searches, documents). What we do store is anonymized technical information — a random request ID, your IP address, your browser — which is needed to detect abuse. Logs are automatically deleted after a limited period, and anonymized further if you delete your account.",
     aiPrivacyTitle: "AI and privacy",
     aiPrivacyIntro: "When you use the AI assistant:",
     aiPrivacy1:
@@ -1932,6 +2021,26 @@ export const enMessages = {
     aiPrivacy4: "You can delete the conversation history or individual conversations at any time",
     aiPrivacyMore: "More about processing of personal data can be found in our",
     aiPrivacyLink: "privacy policy",
+    sdlcTitle: "Secure development process",
+    sdlcIntro:
+      "Security is integrated throughout the development lifecycle — from planning and coding to testing and deployment — rather than bolted on at the end.",
+    sdlcOwaspLabel: "The most common web security threats:",
+    sdlcOwaspBody:
+      "We follow the recognized industry standard (OWASP Top 10) for which attack types we need to defend against. That means protection against things like: attempts to run malicious code through input fields, unauthorized access to other users' data, hidden scripts that try to steal information from your browser, and abuse of open endpoints.",
+    sdlcCiLabel: "Automatic security checks before release:",
+    sdlcCiBody:
+      "Every time we change the code, an automatic checklist runs: quality checks, tests, build verification, scanning for known vulnerabilities in the libraries we use, and searching for any passwords or secrets that might have been accidentally exposed. Changes with critical vulnerabilities are blocked before they reach production.",
+    sdlcSupplyChainLabel: "Third-party library checks:",
+    sdlcSupplyChainBody:
+      "All external libraries we use are locked to specific, known versions. We run automatic checks against known vulnerability databases, and have extra protection against fake packages that try to impersonate legitimate ones.",
+    sdlcEnvSeparationLabel: "Separate environments:",
+    sdlcEnvSeparationBody:
+      "The test environment and production are completely separated. They use different databases, different keys, and no test data enters production (or vice versa). This prevents mistakes during development from affecting real users.",
+    sdlcReviewLabel: "Code review and least privilege:",
+    sdlcReviewBody:
+      "All production changes are reviewed by another team member before they're released. Administrators only have access to what they need for their tasks, and sensitive data (like your Canvas keys) is encrypted so that even we cannot read it directly.",
+    sdlcStandardsNote:
+      "We follow the principles of ISO/IEC 27001 (information security) and ISO/IEC 27701 (privacy) throughout the development process. Note: StudyWise is a bachelor's project and is NOT formally certified — but the measures above are implemented because it's the right, responsible thing to do, not because an auditor requires it.",
     openSourceTitle: "Open source and transparency",
     openSourceBody:
       "StudyWise is an open source project. We believe in transparency as a foundation for trust — all source code is publicly available so anyone can verify how we process data, what security mechanisms we use, and that we deliver on our promises.",
@@ -1943,13 +2052,16 @@ export const enMessages = {
     reportBody: "Have you discovered a security vulnerability? Contact us immediately via",
     reportLink: "the contact form",
     reportSuffix: ". We take all reports seriously and will respond promptly.",
+    reportSecurityTxtIntro: "For security researchers we publish canonical contact info in a machine-readable format:",
+    reportSecurityTxtLink: "/.well-known/security.txt",
+    reportSecurityTxtSuffix: "(RFC 9116).",
   },
   vilkar: {
     title: "Terms of Service",
-    updatedAt: "April 2026",
+    updatedAt: "18 April 2026",
     acceptTitle: "1. Acceptance of terms",
     acceptBody:
-      "By creating an account and using StudyWise, you accept these terms of service. If you do not accept the terms, you must not use the service.",
+      "By creating an account and using StudyWise, you accept these terms of service. If you do not accept the terms, you must not use the service. You can terminate this agreement at any time by logging out or deleting your account under Settings → Delete account.",
     serviceTitle: "2. Description of the service",
     serviceBody:
       "StudyWise is a study assistant that integrates with Canvas LMS and offers AI-based help. The service is developed as a bachelor project at USN and is offered free of charge to students.",
@@ -1977,7 +2089,7 @@ export const enMessages = {
     sharing4: "You can delete a shared link at any time to revoke access",
     kbTitle: "7. Knowledge base",
     kb1: "You can add your own links and files that are indexed for use with the AI assistant",
-    kb2: "Content is split into text chunks and sent to an external vector database (Pinecone) for semantic search. Only anonymized text excerpts are stored — no personal data",
+    kb2: "Content is split into text chunks. Vectors and anonymized text excerpts are indexed in an external search service (Pinecone) for semantic search; the raw text is also stored in our own database so the AI can show you its sources. Structured PII (email, phone, national ID, student ID, Norwegian addresses, and signature names) is automatically sanitized before indexing",
     kb3: "For links, the website is crawled to extract text content. You are responsible for ensuring you have the right to use the content",
     kb4: "Knowledge base content is deleted from all systems when you remove the base or delete your account",
     useTitle: "8. Acceptable use",
@@ -1991,7 +2103,7 @@ export const enMessages = {
       'The service is provided "as is" without warranties. We are not responsible for loss or damage resulting from use of the service. This includes, but is not limited to, data loss, errors in AI responses, or downtime.',
     changesTitle: "10. Changes to terms",
     changesBody:
-      "We may update these terms. When significant changes are made, the date at the top of this page is updated. Continued use after changes implies acceptance of the new terms.",
+      "We may update these terms. For material changes we bump the version shown at the top of this page and ask you to read and accept again the next time you use the service — via a dialog that blocks further use until you confirm. You can always log out or delete your account if you do not want to accept the new terms. Your acceptance is logged with version, timestamp and technical context as evidence.",
     contactTitle: "11. Contact",
     contactBody: "Questions about the terms can be directed to us via",
     contactLink: "the contact form",
@@ -2012,7 +2124,7 @@ export const enMessages = {
     canvasInstitutionsA:
       "StudyWise supports Canvas installations at Norwegian universities and colleges. Select your institution when connecting to Canvas.",
     dataSecureQ: "Is my data safe?",
-    dataSecureA: "Yes, all sensitive data is encrypted with AES-256-GCM. Read more on our",
+    dataSecureA: "Yes. Sensitive data (such as Canvas tokens and chat history) is encrypted with industry-standard encryption before storage, and all communication between your browser and our servers is encrypted (HTTPS). Read more on our",
     dataSecureLink: "security page",
     thirdPartyQ: "Does StudyWise send data to third parties?",
     thirdPartyA1:
@@ -2035,7 +2147,7 @@ export const enMessages = {
       "The study plan gathers upcoming Canvas deadlines and assignments into a structured weekly overview, so you can plan your reading and submissions. It updates automatically when Canvas syncs.",
     withoutCanvasQ: "Can I use StudyWise without a Canvas token?",
     withoutCanvasA:
-      "Yes, you can use the AI chat and document analysis without connecting to Canvas. A Canvas token is only needed to fetch course data, assignments, and calendar.",
+      "Partially. You can use the AI chat and knowledge base (your own documents and links) without Canvas. But features that pull data directly from your school — courses, assignments, calendar, quizzes and flashcards from course material, study plan, and task breakdowns — require connecting Canvas. You still get value from StudyWise without Canvas, but the most school-specific features are locked.",
     fileTypesQ: "Which file types are supported for document analysis?",
     fileTypesA:
       "StudyWise supports PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), images (PNG, JPG, WEBP), and common code files.",
@@ -2045,6 +2157,25 @@ export const enMessages = {
     sharedChatsQ: "How long are shared conversations stored?",
     sharedChatsA:
       "Shared conversation links are valid for 30 days. After that, the shared link is automatically deleted.",
+    taskBreakdownQ: "What is task breakdown?",
+    taskBreakdownA:
+      "When you have a large Canvas assignment, the AI can break it down into smaller subtasks with estimated time. Useful when a long submission feels overwhelming — you get a concrete action list to work from. Find it under AI breakdown, or ask the AI to break down an assignment directly in chat.",
+    exportQ: "Can I export chat responses or notes?",
+    exportA:
+      "Yes. You can export AI responses and summaries to PDF, Word (.docx), Excel (.xlsx), or directly to Notion (requires a Notion connection in Settings). Use the \"Export\" button in the chat or AI summary.",
+    notionQ: "How do I connect to Notion?",
+    notionA:
+      "Go to Settings, scroll to the Notion integration, create an internal integration at notion.so/my-integrations, copy the API key and paste it in. You can also provide a default page ID where exports should land. The key is stored encrypted and used only for your account.",
+    pushQ: "How do I get browser notifications?",
+    pushA:
+      "Go to Settings → Notifications and turn on browser notifications. The browser will ask for permission the first time. You'll then be notified about new Canvas deadlines and assignments even when StudyWise isn't open. Notifications are per device — enable on each device you want to use.",
+    termsUpdateQ: "What happens if the terms are updated?",
+    termsUpdateA:
+      "When we update the terms of service or privacy policy, you'll see a dialog the next time you use StudyWise asking you to read and accept the new versions. You can't continue using the service without confirming — but you can always log out or delete your account if you don't want to accept. Your acceptance is logged with version, timestamp, and technical context as evidence.",
+    statusQ: "How do I check if StudyWise is up?",
+    statusA: "We have a dedicated status page showing whether core services (sign-in, AI chat, knowledge base and notifications) are working correctly. Check",
+    statusLink: "the status page",
+    statusASuffix: "if you're experiencing issues — or check it first before reporting a bug.",
     notFound: "Didn't find the answer?",
     contactUs: "Contact us",
   },
@@ -2084,11 +2215,11 @@ export const enMessages = {
     bugReportTitle: "Bug reporting",
     bugReportBody:
       "Found a bug? Report it so we can fix it. Please include screenshots and steps to reproduce the error.",
-    universityTitle: "University of Southeast Norway",
+    universityTitle: "University of South-Eastern Norway",
     universityBody:
       "StudyWise is a bachelor project at USN, Department of IT and Information Systems.",
     mapTitle: "Find us here",
-    mapLocation: "University of Southeast Norway, Campus Bø",
+    mapLocation: "University of South-Eastern Norway, Campus Bø",
     mapIframeTitle: "Map USN Campus Bø",
   },
   contactForm: {
@@ -2129,6 +2260,7 @@ export const enMessages = {
   infoPageLayout: {
     backToHome: "← Back to home",
     lastUpdated: "Last updated",
+    version: "version",
   },
   codeBlock: {
     copyTitle: "Copy code",
@@ -2239,7 +2371,7 @@ export const enMessages = {
     fileDeleteError: "Could not delete file",
     fileTooLarge: "File is too large (max 10 MB)",
     noFiles: "No files uploaded yet.",
-    aiTip: 'Type "use base {navn}" in chat to activate this base as context for the AI.',
+    aiTip: "Type /{navn} (e.g. /{navn} explain chapter 3) as a separate message to activate this base as context for the AI.",
     statusIndexing: "Indexing...",
     statusReady: "Ready",
     statusFailed: "Failed",
@@ -2275,6 +2407,35 @@ export const enMessages = {
     deleteShareSuccess: "Share link deleted",
     sharedViewsSingular: "{count} view",
     sharedViewsPlural: "{count} views",
+  },
+  status: {
+    title: "System status",
+    description:
+      "Live status for the StudyWise platform. The page refreshes automatically every minute.",
+    loading: "Fetching status...",
+    loadError: "Could not load status.",
+    retry: "Try again",
+    overall: {
+      operational: "All systems operational",
+      degraded: "Degraded performance",
+      down: "Major outage",
+    },
+    lastCheckedAt: "Last checked: {time}",
+    announcementUpdated: "Published: {time}",
+    componentsTitle: "Services",
+    components: {
+      authentication: "Sign-in and account",
+      aiChat: "AI chat",
+      knowledgeBase: "Knowledge base and search",
+      notifications: "Notifications and background jobs",
+    },
+    componentStatus: {
+      operational: "Operational",
+      degraded: "Degraded",
+      down: "Down",
+    },
+    refreshNote:
+      "This page is cached for 30 seconds on the server. If you just experienced an issue and the page shows \"Operational\", wait a minute and reload.",
   },
   onboarding: {
     welcome: "Welcome to StudyWise!",

@@ -12,6 +12,8 @@ export default function OmOssPage() {
   const features = [
     { label: t("omOss.featureCanvasLabel"), body: t("omOss.featureCanvasBody") },
     { label: t("omOss.featureAILabel"), body: t("omOss.featureAIBody") },
+    { label: t("omOss.featureKnowledgeBaseLabel"), body: t("omOss.featureKnowledgeBaseBody") },
+    { label: t("omOss.featureQuizFlashcardsLabel"), body: t("omOss.featureQuizFlashcardsBody") },
     { label: t("omOss.featureCalendarLabel"), body: t("omOss.featureCalendarBody") },
     { label: t("omOss.featureDocumentsLabel"), body: t("omOss.featureDocumentsBody") },
     { label: t("omOss.featureTaskBreakdownLabel"), body: t("omOss.featureTaskBreakdownBody") },
@@ -19,6 +21,7 @@ export default function OmOssPage() {
     { label: t("omOss.featureChatHistoryLabel"), body: t("omOss.featureChatHistoryBody") },
     { label: t("omOss.featureExportLabel"), body: t("omOss.featureExportBody") },
     { label: t("omOss.featureShareLabel"), body: t("omOss.featureShareBody") },
+    { label: t("omOss.featurePushLabel"), body: t("omOss.featurePushBody") },
   ];
 
   return (
@@ -47,7 +50,27 @@ export default function OmOssPage() {
       <InfoSection title={t("omOss.techTitle")}>
         <p className="mb-4">{t("omOss.techBody")}</p>
         <div className="flex flex-wrap gap-2">
-          {["Next.js", "React", "TypeScript", "Tailwind CSS", "Express", "MongoDB", "Redis", "Clerk", "Claude (Anthropic)", "Pinecone", "Cohere", "Datadog", "Cloudflare"].map((tech) => (
+          {[
+            "Next.js",
+            "React",
+            "TypeScript",
+            "Tailwind CSS",
+            "Express",
+            "MongoDB",
+            "Redis",
+            "BullMQ",
+            "Clerk",
+            "Claude (Anthropic)",
+            "Pinecone",
+            "Cohere",
+            "Datadog",
+            "PostHog",
+            "LangSmith",
+            "Resend",
+            "Cloudflare",
+            "Heroku",
+            "Vercel",
+          ].map((tech) => (
             <span
               key={tech}
               className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-300"

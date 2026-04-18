@@ -64,6 +64,22 @@ export default function FaqPage() {
             </>
           ),
         },
+        {
+          q: t("faq.termsUpdateQ"),
+          a: t("faq.termsUpdateA"),
+        },
+        {
+          q: t("faq.statusQ"),
+          a: (
+            <>
+              {t("faq.statusA")}{" "}
+              <Link href="/status" prefetch={false} className={INFO_PAGE_INLINE_LINK_CLASSNAME}>
+                {t("faq.statusLink")}
+              </Link>{" "}
+              {t("faq.statusASuffix")}
+            </>
+          ),
+        },
       ],
     },
     {
@@ -105,6 +121,22 @@ export default function FaqPage() {
         {
           q: t("faq.studyPlanQ"),
           a: t("faq.studyPlanA"),
+        },
+        {
+          q: t("faq.taskBreakdownQ"),
+          a: t("faq.taskBreakdownA"),
+        },
+        {
+          q: t("faq.exportQ"),
+          a: t("faq.exportA"),
+        },
+        {
+          q: t("faq.notionQ"),
+          a: t("faq.notionA"),
+        },
+        {
+          q: t("faq.pushQ"),
+          a: t("faq.pushA"),
         },
         {
           q: t("faq.sharedChatsQ"),

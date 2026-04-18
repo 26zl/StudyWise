@@ -446,6 +446,30 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
             subtitle={t("auth.signUp.subtitle")}
           />
 
+          <p className="mb-4 text-center text-xs text-slate-500 dark:text-slate-400">
+            {t("auth.signUp.termsPrefix")}{" "}
+            <Link
+              href="/vilkar"
+              prefetch={false}
+              target="_blank"
+              rel="noopener"
+              className="font-medium text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            >
+              {t("auth.signUp.termsLink")}
+            </Link>{" "}
+            {t("auth.signUp.termsMiddle")}{" "}
+            <Link
+              href="/personvern"
+              prefetch={false}
+              target="_blank"
+              rel="noopener"
+              className="font-medium text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            >
+              {t("auth.signUp.privacyLink")}
+            </Link>
+            {t("auth.signUp.termsSuffix")}
+          </p>
+
           <AuthOAuthButtons
             onGoogle={() => void handleOAuth("oauth_google")}
             onMicrosoft={() => void handleOAuth("oauth_microsoft")}
@@ -591,29 +615,6 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
               {t("auth.signUp.submitButton")}
             </AuthPrimaryButton>
 
-            <p className="text-center text-xs text-slate-500 dark:text-slate-400">
-              {t("auth.signUp.termsPrefix")}{" "}
-              <Link
-                href="/vilkar"
-                prefetch={false}
-                target="_blank"
-                rel="noopener"
-                className="font-medium text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-              >
-                {t("auth.signUp.termsLink")}
-              </Link>{" "}
-              {t("auth.signUp.termsMiddle")}{" "}
-              <Link
-                href="/personvern"
-                prefetch={false}
-                target="_blank"
-                rel="noopener"
-                className="font-medium text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-              >
-                {t("auth.signUp.privacyLink")}
-              </Link>
-              {t("auth.signUp.termsSuffix")}
-            </p>
           </form>
 
           <AuthFooterLink

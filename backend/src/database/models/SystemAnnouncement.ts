@@ -20,6 +20,10 @@ export interface SystemAnnouncementDocument {
   melding: string;
   /** Om brukeren kan lukke banneret. */
   dismissible: boolean;
+  /** Om meldingen skal vises som banner til innloggede brukere. */
+  showInBanner: boolean;
+  /** Om meldingen skal vises på den offentlige /status-siden. */
+  showOnStatusPage: boolean;
   /** Hvem publiserte — audit-formål. */
   publishedBy?: string;
   createdAt: Date;
@@ -44,6 +48,8 @@ const SystemAnnouncementSchema = new Schema<SystemAnnouncementDocument>(
     },
     melding: { type: String, required: true, default: "", maxlength: 500 },
     dismissible: { type: Boolean, required: true, default: true },
+    showInBanner: { type: Boolean, required: true, default: true },
+    showOnStatusPage: { type: Boolean, required: true, default: true },
     publishedBy: { type: String, default: undefined },
   },
   { timestamps: true },

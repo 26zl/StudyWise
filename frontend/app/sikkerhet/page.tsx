@@ -86,6 +86,20 @@ export default function SikkerhetPage() {
         </p>
       </InfoSection>
 
+      <InfoSection title={t("sikkerhet.sdlcTitle")}>
+        <p className="mb-4">{t("sikkerhet.sdlcIntro")}</p>
+        <ul className="space-y-2 text-sm">
+          <li>• <strong>{t("sikkerhet.sdlcOwaspLabel")}</strong> {t("sikkerhet.sdlcOwaspBody")}</li>
+          <li>• <strong>{t("sikkerhet.sdlcCiLabel")}</strong> {t("sikkerhet.sdlcCiBody")}</li>
+          <li>• <strong>{t("sikkerhet.sdlcSupplyChainLabel")}</strong> {t("sikkerhet.sdlcSupplyChainBody")}</li>
+          <li>• <strong>{t("sikkerhet.sdlcEnvSeparationLabel")}</strong> {t("sikkerhet.sdlcEnvSeparationBody")}</li>
+          <li>• <strong>{t("sikkerhet.sdlcReviewLabel")}</strong> {t("sikkerhet.sdlcReviewBody")}</li>
+        </ul>
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+          {t("sikkerhet.sdlcStandardsNote")}
+        </p>
+      </InfoSection>
+
       <InfoSection title={t("sikkerhet.openSourceTitle")}>
         <div className="mb-4 flex items-start gap-3">
           <Code2 className="mt-0.5 h-5 w-5 shrink-0 text-slate-600 dark:text-slate-400" />
@@ -128,6 +142,18 @@ export default function SikkerhetPage() {
             {t("sikkerhet.reportLink")}
           </Link>
           {t("sikkerhet.reportSuffix")}
+        </p>
+        <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">
+          {t("sikkerhet.reportSecurityTxtIntro")}{" "}
+          <a
+            href="/.well-known/security.txt"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:no-underline"
+          >
+            {t("sikkerhet.reportSecurityTxtLink")}
+          </a>{" "}
+          {t("sikkerhet.reportSecurityTxtSuffix")}
         </p>
       </section>
     </InfoPageLayout>

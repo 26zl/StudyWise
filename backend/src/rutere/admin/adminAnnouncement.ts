@@ -15,6 +15,7 @@ import { apiError, requireUserId, sendZodError, sendUnknownError } from "../../u
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import { logger } from "../../utils/logger.js";
 import { invalidateAnnouncementCache } from "../announcement.js";
+import { invalidatePublicStatusCache } from "../publicStatus.js";
 
 export const adminAnnouncementRouter = Router();
 
@@ -23,6 +24,8 @@ function serialize(doc: {
   severity: "info" | "warning" | "critical";
   melding: string;
   dismissible: boolean;
+  showInBanner: boolean;
+  showOnStatusPage: boolean;
   updatedAt: Date;
 }) {
   return {
@@ -31,6 +34,8 @@ function serialize(doc: {
     melding: doc.melding,
     oppdatertAt: doc.updatedAt.toISOString(),
     dismissible: doc.dismissible,
+    showInBanner: doc.showInBanner,
+    showOnStatusPage: doc.showOnStatusPage,
   };
 }
 
@@ -44,6 +49,8 @@ adminAnnouncementRouter.get("/announcement", async (_req, res) => {
         melding: "",
         oppdatertAt: new Date(0).toISOString(),
         dismissible: true,
+        showInBanner: true,
+        showOnStatusPage: true,
       });
     }
     return res.json(serialize(existing));
@@ -70,6 +77,8 @@ adminAnnouncementRouter.post("/announcement", async (req, res) => {
           severity: parsed.data.severity,
           melding: parsed.data.melding,
           dismissible: parsed.data.dismissible,
+          showInBanner: parsed.data.showInBanner,
+          showOnStatusPage: parsed.data.showOnStatusPage,
           publishedBy: userId,
         },
         $setOnInsert: { singletonKey: "global" },
@@ -77,9 +86,16 @@ adminAnnouncementRouter.post("/announcement", async (req, res) => {
       { new: true, upsert: true },
     );
 
-    // Invalider public cache slik at alle brukere (på alle dyner) ser ny
-    // tilstand umiddelbart uten å vente på 30s TTL-utløp.
-    await invalidateAnnouncementCache();
+    // Invalider begge public cacher (banner + status-side) slik at alle
+    // brukere på alle dyner ser ny tilstand umiddelbart uten å vente på TTL.
+    // Hvis Redis er nede, vil andre dyner vise foreldet melding i opptil 30s
+    // til neste cache-miss. Responsen inkluderer `cacheInvalidated` så admin
+    // kan velge å re-publisere i så fall.
+    const [bannerInv, statusInv] = await Promise.all([
+      invalidateAnnouncementCache(),
+      invalidatePublicStatusCache(),
+    ]);
+    const cacheInvalidated = bannerInv && statusInv;
 
     void audit({
       actorUserId: userId,
@@ -87,15 +103,19 @@ adminAnnouncementRouter.post("/announcement", async (req, res) => {
       category: "admin",
       outcome: "success",
       req,
-      metadata: { severity: parsed.data.severity, meldingLength: parsed.data.melding.length },
+      metadata: {
+        severity: parsed.data.severity,
+        meldingLength: parsed.data.melding.length,
+        cacheInvalidated,
+      },
     });
 
     logger.info(
-      { userId, severity: parsed.data.severity },
+      { userId, severity: parsed.data.severity, cacheInvalidated },
       "Admin publiserte systemmelding",
     );
 
-    return res.json(serialize(updated));
+    return res.json({ ...serialize(updated), cacheInvalidated });
   } catch (err) {
     return sendUnknownError(res, err, { kontekst: "publiser systemmelding" });
   }
@@ -108,15 +128,31 @@ adminAnnouncementRouter.delete("/announcement", async (req, res) => {
   try {
     const existing = await SystemAnnouncement.findOne({ singletonKey: "global" });
     if (!existing) {
+      // Logg forsøk også ved 404 — admin trykket deaktiver på en melding som
+      // ikke finnes. Tett revisjonsspor selv i noop-tilfeller. Behandles som
+      // "success" med noop-flagg for ikke å blande seg med ekte failures ved
+      // filtrering av audit-logger på outcome=failure.
+      void audit({
+        actorUserId: userId,
+        action: AUDIT_ACTIONS.ADMIN_ANNOUNCEMENT_CLEARED,
+        category: "admin",
+        outcome: "success",
+        req,
+        metadata: { noop: true, reason: "not_found" },
+      });
       return apiError.notFound(res, "Systemmelding");
     }
 
     existing.active = false;
     await existing.save();
 
-    // Invalider public cache (på tvers av alle dyner) så brukere umiddelbart
-    // slutter å se banneret.
-    await invalidateAnnouncementCache();
+    // Invalider begge public cacher så brukere umiddelbart slutter å se både
+    // banneret og meldingen på status-siden.
+    const [bannerInv, statusInv] = await Promise.all([
+      invalidateAnnouncementCache(),
+      invalidatePublicStatusCache(),
+    ]);
+    const cacheInvalidated = bannerInv && statusInv;
 
     void audit({
       actorUserId: userId,
@@ -124,11 +160,12 @@ adminAnnouncementRouter.delete("/announcement", async (req, res) => {
       category: "admin",
       outcome: "success",
       req,
+      metadata: { cacheInvalidated },
     });
 
-    logger.info({ userId }, "Admin deaktiverte systemmelding");
+    logger.info({ userId, cacheInvalidated }, "Admin deaktiverte systemmelding");
 
-    return res.json(serialize(existing));
+    return res.json({ ...serialize(existing), cacheInvalidated });
   } catch (err) {
     return sendUnknownError(res, err, { kontekst: "deaktiver systemmelding" });
   }

@@ -5,6 +5,7 @@
 "use client";
 
 import Link from "next/link";
+import { Footer } from "@/app/components/layout/footer";
 import { useLanguage } from "@/app/i18n";
 
 export default function AuthLayout({
@@ -27,6 +28,7 @@ export default function AuthLayout({
         </Link>
         {children}
       </div>
+      <Footer />
     </div>
   );
 }

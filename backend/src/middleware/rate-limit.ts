@@ -210,6 +210,17 @@ export const rateLimitContact = isProd
       keyGenerator: getClientIp,
     });
 
+// Public /api/status: IP-basert siden endepunktet ikke krever auth. Tar høyde
+// for eksterne monitorerings-tjenester som kan polle hyppig. Backend-cache
+// (30s TTL i Redis) absorberer det meste; rate-limit er bare mot åpenbart
+// misbruk. Fail-open i prod siden status-siden er "nice-to-have".
+export const rateLimitStatus = createRateLimiter({
+  points: 60,
+  duration: 60,
+  keyPrefix: "rlflx:status",
+  keyGenerator: getClientIp,
+});
+
 // Clerk Webhook: begrenset for å forhindre brute-force mot signatur
 export const rateLimitClerkWebhook = createRateLimiter({
   points: 20,

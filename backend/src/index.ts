@@ -51,6 +51,7 @@ import {
 } from "./rutere/ki/kiShare.js";
 import { requestIdMiddleware } from "./middleware/request-id.js";
 import { requireAuth, knyttCanvasToken } from "./middleware/auth.js";
+import { requireAcceptedTerms } from "./middleware/requireAcceptedTerms.js";
 import { requireRole } from "./middleware/require-role.js";
 import adminAuditRouter from "./rutere/admin/adminAudit.js";
 import adminBrukereRouter from "./rutere/admin/adminBrukere.js";
@@ -63,6 +64,7 @@ import adminLogsRouter from "./rutere/admin/adminLogs.js";
 import adminMaintenanceRouter from "./rutere/admin/adminMaintenance.js";
 import { adminAnnouncementRouter } from "./rutere/admin/adminAnnouncement.js";
 import { announcementRouter } from "./rutere/announcement.js";
+import { publicStatusRouter } from "./rutere/publicStatus.js";
 import { beskytteMotCsrf } from "./middleware/csrf.js";
 import { noCache } from "./middleware/no-cache.js";
 import { rateLimitMe } from "./middleware/rate-limit.js";
@@ -334,6 +336,11 @@ app.use("/api/auth-turnstile", noCache, authTurnstileRouter);
 
 app.use("/api", noCache, sharedChatRouter);
 
+// Public status-endepunkt: brukes av /status-siden i footer, tilgjengelig uten
+// innlogging slik at brukere kan sjekke om tjenesten er nede før de prøver å
+// logge inn. Cachet i Redis (30s TTL), rate-limited per IP.
+app.use("/api", noCache, publicStatusRouter);
+
 // Debug test-auth-flow: montert før global auth (endepunktet sjekker selv isDiagnosticsEnabled)
 if (!isProd) {
   app.use("/api/debug", noCache, testAuthFlowRouter);
@@ -345,6 +352,12 @@ app.use((req, res, next) => {
   if (!isProd && req.path.startsWith("/api-docs")) return next();
   return requireAuth(req, res, next);
 });
+
+// Håndhev aksept av gjeldende vilkår/personvern. Kjøres etter requireAuth slik
+// at vi har tilgang til req.authenticatedUser. Allowlister /me, /accept-terms,
+// /logout, DELETE /account og /announcement; alt annet returnerer 403
+// `terms_outdated` for brukere med utdatert versjon. Forsøk audit-logges.
+app.use(requireAcceptedTerms);
 
 // /health = liveness. Skal være lett, rask og ikke slå eksternt opp.
 app.get("/health", (_req, res) => {

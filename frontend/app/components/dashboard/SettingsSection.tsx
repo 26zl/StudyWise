@@ -7,8 +7,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Moon, Sun, Key, User, Info, Bot, CheckCircle, Shield, ExternalLink, Languages, Cookie, Bell, FileUp } from "lucide-react";
-import { AUTH_ME_QUERY_KEY, CanvasTokenConflictError, useLagreCanvasToken, useSlettCanvasToken } from "@/app/auth/auth-api";
+import { Moon, Sun, Key, User, Info, Bot, CheckCircle, Shield, ExternalLink, Languages, Cookie, Bell, FileUp, FileText } from "lucide-react";
+import { AUTH_ME_QUERY_KEY, CanvasTokenConflictError, useLagreCanvasToken, useMeg, useSlettCanvasToken } from "@/app/auth/auth-api";
+import { TERMS_VERSION } from "common/system";
 import { resetCanvasTokenStatus, useCanvasUser } from "@/app/canvas/canvas-api";
 import { useTheme } from "next-themes";
 import { format } from "date-fns";
@@ -165,6 +166,14 @@ export function SettingsSection({
         isPending: isOppdateringCookieConsent,
         setConsent: setCookieConsent,
     } = useCookieConsent();
+    const megQuery = useMeg();
+    const acceptedTermsVersion = megQuery.data?.user?.termsVersionAccepted;
+    const acceptedTermsAt = megQuery.data?.user?.termsAcceptedAt;
+    const consentState: "current" | "outdated" | "missing" = !acceptedTermsVersion
+        ? "missing"
+        : acceptedTermsVersion === TERMS_VERSION
+            ? "current"
+            : "outdated";
     const handleCookieChoice = async (choice: "accepted" | "declined") => {
         try {
             await setCookieConsent(choice);
@@ -822,8 +831,20 @@ export function SettingsSection({
                                 {t("settings.cookies.title")}
                             </h3>
                         </div>
-                        <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+                        <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">
                             {t("settings.cookies.description")}
+                        </p>
+                        <p className="mb-4">
+                            <Link
+                                href="/personvern"
+                                prefetch={false}
+                                target="_blank"
+                                rel="noopener"
+                                className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                            >
+                                {t("settings.cookies.readMore")}
+                                <ExternalLink size={14} />
+                            </Link>
                         </p>
                         <div className="flex items-center justify-between mb-3">
                             <p className="text-sm text-slate-700 dark:text-slate-300">
@@ -868,6 +889,92 @@ export function SettingsSection({
                             >
                                 {t("settings.cookies.accepted")}
                             </button>
+                        </div>
+                    </section>
+
+                    {/* Vilkår og personvern (samtykke-status) */}
+                    <section className="p-6 md:p-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
+                                <FileText size={20} className="text-slate-600 dark:text-slate-300" />
+                            </div>
+                            <h3 className="font-semibold text-slate-900 dark:text-white">
+                                {t("settings.consent.title")}
+                            </h3>
+                        </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+                            {t("settings.consent.description")}
+                        </p>
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                            <div className="min-w-0 space-y-1">
+                                <p className={`flex items-start gap-1.5 text-sm ${
+                                    consentState === "current"
+                                        ? "font-semibold text-green-700 dark:text-green-400"
+                                        : consentState === "outdated"
+                                            ? "font-medium text-amber-700 dark:text-amber-400"
+                                            : "text-slate-700 dark:text-slate-300"
+                                }`}>
+                                    {consentState === "current" && (
+                                        <CheckCircle size={16} className="mt-0.5 shrink-0" />
+                                    )}
+                                    <span>
+                                        {consentState === "current"
+                                            ? t("settings.consent.currentStatus")
+                                            : consentState === "outdated"
+                                                ? t("settings.consent.outdatedStatus")
+                                                : t("settings.consent.missingStatus")}
+                                    </span>
+                                </p>
+                                {acceptedTermsVersion && (
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        {t("settings.consent.versionLabel", { version: acceptedTermsVersion })}
+                                        {acceptedTermsAt
+                                            ? " · " + t("settings.consent.acceptedOn", {
+                                                date: format(
+                                                    new Date(acceptedTermsAt),
+                                                    language === "en" ? "MMMM d, yyyy" : "d. MMMM yyyy",
+                                                    { locale: datoLocale },
+                                                ),
+                                            })
+                                            : ""}
+                                    </p>
+                                )}
+                            </div>
+                            <span className={`shrink-0 text-xs font-medium px-2.5 py-0.5 rounded-full ${
+                                consentState === "current"
+                                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                    : consentState === "outdated"
+                                        ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                                        : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                            }`}>
+                                {consentState === "current"
+                                    ? t("settings.consent.currentBadge")
+                                    : consentState === "outdated"
+                                        ? t("settings.consent.outdatedBadge")
+                                        : t("settings.consent.missingBadge")}
+                            </span>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                            <Link
+                                href="/vilkar"
+                                target="_blank"
+                                rel="noopener"
+                                prefetch={false}
+                                className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                            >
+                                {t("settings.consent.readTerms")}
+                                <ExternalLink size={14} />
+                            </Link>
+                            <Link
+                                href="/personvern"
+                                target="_blank"
+                                rel="noopener"
+                                prefetch={false}
+                                className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                            >
+                                {t("settings.consent.readPrivacy")}
+                                <ExternalLink size={14} />
+                            </Link>
                         </div>
                     </section>
 

@@ -28,6 +28,7 @@ import { DeletedUserTombstone } from "../../database/models/DeletedUserTombstone
 import { KnowledgeBase } from "../../database/models/Kunnskapsbase.js";
 import { KBContentChunk } from "../../database/models/KBContentChunk.js";
 import { deleteAllKBContentForUser } from "../../services/kunnskapsbase-indeksering.service.js";
+import { SystemAnnouncement } from "../../database/models/SystemAnnouncement.js";
 
 export interface AccountDeletionResult {
   deleted: {
@@ -116,6 +117,14 @@ export async function deleteAccountData(
         ChatFeedback.deleteMany({ user: id }, { session }),
         KnowledgeBase.deleteMany({ userId }, { session }),
         KBContentChunk.deleteMany({ userId }, { session }),
+        // Anonymiser publishedBy på systemmeldinger denne brukeren har publisert
+        // (kun relevant hvis en admin sletter kontoen sin). $unset fjerner referansen
+        // uten å påvirke meldingens innhold eller aktive status.
+        SystemAnnouncement.updateMany(
+          { publishedBy: userId },
+          { $unset: { publishedBy: 1 } },
+          { session },
+        ),
       ]);
 
       result.chatHistory = chatRes.deletedCount ?? 0;

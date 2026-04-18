@@ -31,7 +31,7 @@ StudyWise er et pågående bachelorprosjekt (2026). Funksjonalitet, design og te
 
 ## Arkitektur
 
-StudyWise er bygd som et **pnpm-monorepo** med fire pakker: `frontend`, `backend`, `common` (delte Zod-skjemaer og TypeScript-typer) og `docs`. Frontend og backend deler datakontrakter gjennom `common`, som sikrer konsistens i validering og typer på tvers av hele stacken.
+StudyWise er bygd som et **pnpm-monorepo** med fem pakker: `frontend`, `backend`, `common` (delte Zod-skjemaer og TypeScript-typer), `docs` og `tests` (integrasjons-/E2E-testkjøring). Frontend og backend deler datakontrakter gjennom `common`, som sikrer konsistens i validering og typer på tvers av hele stacken.
 
 All kommunikasjon mellom bruker og backend går via frontend — frontend kaller aldri eksterne tjenester direkte. Next.js proxyer alle `/api/*`-forespørsler videre til Express-backendens. Backend er den autoritative sikkerhetsgrensen: autentisering, autorisering, validering og datahenting skjer alltid server-side.
 
@@ -55,7 +55,8 @@ Bruker → Frontend → Backend → KI-tjenester (Claude, Pinecone, Cohere) → 
 | **Vektorsøk** | Pinecone (serverless, integrated embedding); chunk-tekst i MongoDB som sannhetskilde |
 | **Filer/dokumenter** | Multer, unpdf (PDF), mammoth (Word), tesseract.js + sharp (OCR) |
 | **API** | Swagger UI + swagger-jsdoc, Helmet, CORS, compression, rate-limiter-flexible |
-| **Logging/Observability** | Pino + pino-http, Datadog APM (backend) og RUM (frontend) |
+| **Logging/Observability** | Pino + pino-http, Datadog APM (backend) og RUM (frontend), PostHog (produktanalyse, cookieless), LangSmith (KI-feilsøking) |
+| **E-postlevering** | Resend (via Cloudflare Worker-relay for kontaktskjema) |
 | **Tooling** | syncpack (versjons-drift), knip (død kode) |
 | **CI/CD** | GitHub Actions, Heroku (backend), Vercel (frontend), Cloudflare (CDN/WAF), GitHub Pages (docs) |
 | **Dokumentasjon** | VitePress; bygges og publiseres til GitHub Pages ved endringer i `docs/` |
@@ -72,6 +73,7 @@ KI-assistenten lar studenter stille spørsmål om pensum, få forklaringer, og j
 
 - **Chat med Canvas-kontekst** — spør om egne emner, oppgaver og kursinnhold
 - **Dokumentanalyse** — last opp PDF, Word, PowerPoint, Excel, bilder og kodefiler for analyse og oppsummering
+- **Kunnskapsbase** — egne samlinger av lenker og filer som KI-en kan bruke som kontekst
 - **Quiz og flashcards** — KI-genererte øvingsverktøy basert på pensum
 - **Oppgavenedbrytning** — store oppgaver brytes ned i håndterbare deloppgaver
 - **Ukentlig studieplan** — KI-genererte studieplaner tilpasset frister og arbeidsmengde
@@ -93,7 +95,11 @@ Et samlet dashboard viser alt som skjer i dag og de kommende dagene: frister, ku
 
 ### Brukeradministrasjon
 
-Innlogging via Clerk med støtte for e-post/passord, Google og Microsoft SSO. Brukere kan administrere profil, preferanser og Canvas-tilkobling. Full kontosletting med GDPR-tombstone sikrer at data slettes eller anonymiseres. Sensitive handlinger loggføres i et strukturert audit-system.
+Innlogging via Clerk med støtte for e-post/passord, Google og Microsoft SSO. Brukere kan administrere profil, preferanser og Canvas-tilkobling. Full kontosletting sikrer at data slettes eller anonymiseres. Ved oppdaterte vilkår bes brukere om å bekrefte på nytt, og aksepten logges som juridisk bevis. Sensitive handlinger revisjonslogges.
+
+### Admin og drift
+
+Admin har et eget panel for vedlikehold, brukerhåndtering og publisering av globale systemmeldinger (banner til brukere og/eller melding på driftsstatussiden). Offentlig [statusside](https://www.studwize.page/status) viser overordnet driftsstatus for kjernetjenestene slik at brukere kan sjekke at alt fungerer før de logger inn.
 
 ## Sikkerhet og personvern
 
@@ -136,12 +142,16 @@ Sikkerheten er automatisert i CI-pipelinen:
 
 | Tjeneste | Plattform | Trigger |
 | -------- | --------- | ------- |
-| Backend | Heroku (Professional dyno) | Auto-deploy fra `main` |
+| Backend | Heroku (Node.js, tuned memory) | Auto-deploy fra `main` |
 | Frontend | Vercel | Deploy-workflow etter CI er grønn |
 | Dokumentasjon | GitHub Pages | Ved endringer i `docs/` |
 | CDN/WAF | Cloudflare | Alltid aktiv |
 
 Produksjon er tilgjengelig på [studwize.page](https://www.studwize.page).
+
+## Dokumentasjon og policyer
+
+Prosjektet har offentlige policyer og intern dokumentasjon i repo-roten: [`SECURITY.md`](https://github.com/26zl/StudyWise/blob/main/SECURITY.md) (sårbarhetsrapportering), [`PIA.md`](https://github.com/26zl/StudyWise/blob/main/PIA.md) (personvernvurdering), [`INCIDENT_RESPONSE.md`](https://github.com/26zl/StudyWise/blob/main/INCIDENT_RESPONSE.md) (hendelseshåndtering) og [`CODE_OF_CONDUCT.md`](https://github.com/26zl/StudyWise/blob/main/CODE_OF_CONDUCT.md) (adferdskodeks).
 
 ## Teamet
 

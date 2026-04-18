@@ -89,6 +89,11 @@ vi.mock("../../../database/models/DeletedUserTombstone.js", () => ({
     updateMany: vi.fn().mockResolvedValue({ modifiedCount: 0 }),
   },
 }));
+vi.mock("../../../database/models/SystemAnnouncement.js", () => ({
+  SystemAnnouncement: {
+    updateMany: vi.fn().mockResolvedValue({ modifiedCount: 0, acknowledged: true }),
+  },
+}));
 
 // Embedding service
 vi.mock("../../../services/embedding.service.js", () => ({

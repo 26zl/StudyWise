@@ -43,6 +43,11 @@ import {
   normalizeVarslerState,
   normalizeHiddenCourseIds,
 } from "common/auth";
+import {
+  TERMS_VERSION,
+  AcceptTermsRequestSchema,
+  AcceptTermsResponseSchema,
+} from "common/system";
 import { sanitizeUsername } from "../../database/models/User.js";
 import {
   createDefaultBrowserPushPreferences,
@@ -273,6 +278,8 @@ function serializeAuthBruker(bruker: IUser) {
       bruker.syncConflicts && bruker.syncConflicts.length > 0
         ? bruker.syncConflicts
         : undefined,
+    termsVersionAccepted: bruker.termsVersionAccepted ?? undefined,
+    termsAcceptedAt: bruker.termsAcceptedAt?.toISOString() ?? undefined,
   });
 }
 
@@ -805,6 +812,83 @@ router.get("/me", rateLimitMe, async (req, res) => {
     return sendUnknownError(res, error, {
       kontekst: "henting av brukerprofil",
       melding: "Kunne ikke laste brukerdata. Prøv igjen.",
+    });
+  }
+});
+
+// POST /accept-terms — re-aksept av vilkår og personvern etter versjonsbump.
+// Klienten sender gjeldende versjon (fra common/system), som verifiseres mot
+// server-siden før vi skriver til brukeren. Audit-logges med versjon, timestamp
+// og request-kontekst (IP/user-agent) for juridisk bevis.
+router.post("/accept-terms", rateLimitMe, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return apiError.unauthorized(res);
+    }
+
+    const parsed = AcceptTermsRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return sendZodError(res, parsed.error, "Aksept av vilkår");
+    }
+
+    // Forhindre at klienten "fryser inne" en gammel versjon: vi aksepterer kun
+    // eksakt gjeldende TERMS_VERSION. Hvis klienten sender noe annet, er enten
+    // klienten utdatert (reload) eller noen tuller med requestet.
+    if (parsed.data.version !== TERMS_VERSION) {
+      return apiError.badRequest(
+        res,
+        "Versjonen klienten sendte er utdatert. Oppdater siden og prøv igjen.",
+      );
+    }
+
+    const bruker = await hentAutentisertBruker(userId, res);
+    if (!bruker) return;
+
+    const previousVersion = bruker.termsVersionAccepted ?? null;
+    const acceptedAt = new Date();
+
+    await User.updateOne(
+      { _id: userId, deletedAt: { $exists: false } },
+      {
+        $set: {
+          termsVersionAccepted: TERMS_VERSION,
+          termsAcceptedAt: acceptedAt,
+        },
+      },
+    );
+
+    await audit({
+      actorUserId: userId,
+      action: AUDIT_ACTIONS.TERMS_ACCEPTED,
+      category: "privacy",
+      outcome: "success",
+      role: bruker.role ?? "user",
+      metadata: {
+        version: TERMS_VERSION,
+        previousVersion,
+        acceptedAt: acceptedAt.toISOString(),
+        context: "re_acceptance",
+      },
+      req,
+    });
+
+    logger.info(
+      { userId, version: TERMS_VERSION, previousVersion },
+      "Bruker godtok ny versjon av vilkår/personvern",
+    );
+
+    return res.json(
+      AcceptTermsResponseSchema.parse({
+        success: true,
+        termsVersionAccepted: TERMS_VERSION,
+        termsAcceptedAt: acceptedAt.toISOString(),
+      }),
+    );
+  } catch (error) {
+    return sendUnknownError(res, error, {
+      kontekst: "aksept av vilkår",
+      melding: "Kunne ikke registrere aksepten. Prøv igjen.",
     });
   }
 });

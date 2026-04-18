@@ -1,4 +1,18 @@
 export const nbMessages = {
+  termsReaccept: {
+    title: "Oppdaterte vilkår og personvern",
+    description:
+      "Vi har gjort endringer i vilkårene og/eller personvernerklæringen siden sist du godtok dem. Les gjennom de nye versjonene og godta for å fortsette å bruke StudyWise.",
+    reviewPrompt: "Les den oppdaterte versjonen:",
+    termsLink: "Brukervilkår",
+    privacyLink: "Personvernerklæring",
+    versionLabel: "Gjeldende versjon: {version}",
+    acceptButton: "Jeg har lest og godtar",
+    accepting: "Registrerer...",
+    logoutButton: "Logg ut i stedet",
+    success: "Takk! Aksepten er registrert.",
+    error: "Kunne ikke registrere aksepten. Prøv igjen, eller logg ut om problemet vedvarer.",
+  },
   common: {
     actions: {
       askAi: "Spør KI",
@@ -659,7 +673,8 @@ export const nbMessages = {
       accepted: "Godtatt",
       declined: "Kun nødvendige",
       description:
-        "Nødvendige cookies er alltid aktive. Valgfrie målinger (Datadog RUM, Vercel Speed Insights og produktanalyse via PostHog i cookieless-modus) krever ditt samtykke.",
+        "Nødvendige cookies er alltid aktive. Valgfrie ytelsesmålinger krever ditt samtykke og kan trekkes tilbake når som helst — «Kun nødvendige» slår dem av umiddelbart.",
+      readMore: "Les mer om hva vi måler i personvernerklæringen.",
       status: {
         accepted: "Du har godtatt valgfrie ytelsesmålinger.",
         declined: "Du bruker kun nødvendige cookies.",
@@ -667,6 +682,23 @@ export const nbMessages = {
       },
       title: "Informasjonskapsler",
       toggle: "Endre valg",
+    },
+    consent: {
+      title: "Vilkår og personvern",
+      description:
+        "Her ser du hvilken versjon du har godtatt. Hvis du ikke lenger vil være bundet av vilkårene, kan du logge ut eller slette kontoen din under «Slett konto».",
+      acceptedOn: "Godtatt {date}",
+      versionLabel: "Versjon {version}",
+      currentBadge: "Aktuell",
+      outdatedBadge: "Utdatert",
+      missingBadge: "Ikke registrert",
+      currentStatus: "Du har godtatt gjeldende versjon.",
+      outdatedStatus:
+        "Du har en eldre versjon registrert. Du blir bedt om å godta den nye når du fortsetter.",
+      missingStatus:
+        "Vi har ikke registrert hvilken versjon du godtok (gammel konto). Du blir bedt om å godta gjeldende versjon ved neste innlogging.",
+      readTerms: "Brukervilkår",
+      readPrivacy: "Personvernerklæring",
     },
     language: {
       help: "Velg språk for statiske tekster i grensesnittet.",
@@ -740,7 +772,13 @@ export const nbMessages = {
       meldingLabel: "Melding",
       meldingPlaceholder: "F.eks. «KI-tjenesten er utilgjengelig, vi jobber med saken.»",
       meldingHint: "Maks 500 tegn. Vises på alle innloggede sider.",
+      publicWarning:
+        "Meldingen vises offentlig på /status-siden hvis «Vis på statussiden» er huket av — den er dermed synlig for alle, også ikke-innloggede. Ikke skriv inn personopplysninger, brukernavn, e-post eller andre detaljer som kan identifisere enkeltpersoner.",
       dismissibleLabel: "La brukere lukke banneret",
+      targetsLabel: "Hvor skal meldingen vises?",
+      showInBannerLabel: "Banner til innloggede brukere",
+      showOnStatusPageLabel: "Offentlig status-side (/status)",
+      targetsRequired: "Velg minst ett visningsmål.",
       publish: "Publiser",
       update: "Oppdater",
       clear: "Deaktiver",
@@ -1713,7 +1751,7 @@ export const nbMessages = {
     title: "Om StudyWise",
     whatTitle: "Hva er StudyWise?",
     whatBody:
-      "StudyWise er en AI-drevet studieassistent utviklet som et bachelorprosjekt ved Universitetet i Sør-Øst-Norge (USN). Applikasjonen integrerer med Canvas LMS for å gi studenter en sentralisert plattform for å holde oversikt over studiene sine.",
+      "StudyWise er en AI-drevet studieassistent utviklet som et bachelorprosjekt ved Universitetet i Sørøst-Norge (USN). Applikasjonen integrerer med Canvas LMS for å gi studenter en sentralisert plattform for å holde oversikt over studiene sine.",
     featuresTitle: "Funksjoner",
     featureCanvasLabel: "Canvas-integrasjon:",
     featureCanvasBody: "Se kunngjøringer, emner, frister og kalender fra Canvas",
@@ -1734,6 +1772,15 @@ export const nbMessages = {
     featureExportBody: "Eksporter KI-innhold til PDF, Word, Excel eller Notion",
     featureShareLabel: "Deling av samtaler:",
     featureShareBody: "Del samtaler med andre via en sikker lenke med utløpstid",
+    featureKnowledgeBaseLabel: "Kunnskapsbase:",
+    featureKnowledgeBaseBody:
+      "Last opp egne dokumenter og lenker som indekseres semantisk. Aktiver en base i samtalen med /basenavn for å gi KI-en spesifikk kontekst (f.eks. pensumnotater eller en forelesning)",
+    featureQuizFlashcardsLabel: "Quiz og flashcards:",
+    featureQuizFlashcardsBody:
+      "Generer automatisk quiz og flashcards fra Canvas-emner og -moduler — velg antall spørsmål og vanskelighetsgrad",
+    featurePushLabel: "Nettleservarsler:",
+    featurePushBody:
+      "Få varsler om nye Canvas-frister og oppgaver direkte i nettleseren (valgfritt, per enhet)",
     teamTitle: "Teamet",
     teamBody:
       "StudyWise er utviklet av studenter ved USN som en del av deres bacheloroppgave i IT og informasjonssystemer. Prosjektet fokuserer på å utforske hvordan AI kan forbedre studieopplevelsen for studenter.",
@@ -1747,20 +1794,25 @@ export const nbMessages = {
     terms: "Vilkår",
     faq: "FAQ",
     contact: "Kontakt",
+    status: "Status",
     copyright: "© 2026 StudyWise - USN Bachelorprosjekt. Alle rettigheter reservert.",
   },
   personvern: {
     title: "Personvernerklæring",
-    updatedAt: "April 2026",
+    updatedAt: "18. april 2026",
+    controllerTitle: "Hvem står bak StudyWise?",
+    controllerBody:
+      "StudyWise er utviklet som bacheloroppgave ved Universitetet i Sørøst-Norge (USN). Studentene bak prosjektet er behandlingsansvarlige for personopplysningene i tjenesten — det betyr at vi bestemmer hvordan dataene dine brukes og har ansvar for å følge personvernreglene. Har du spørsmål, innspill eller vil utøve rettighetene dine, er det bare å ta kontakt via kontaktskjemaet. Vi svarer gjerne.",
     dataCollectionTitle: "Hvilke data samler vi inn?",
     accountInfoLabel: "Kontoinformasjon og innlogging:",
     accountInfoBody:
-      "Innlogging håndteres av Clerk (e-post, passord og valgfri to-faktor). Du kan koble til Google, eller Microsoft hvis det er aktivert. Vi lagrer ikke passord selv; Clerk håndterer sikkerhet og 2FA.",
+      "Innlogging håndteres av en spesialisert, sertifisert innloggingstjeneste (Clerk) som også kan gi deg valgfri tofaktor-autentisering, og gjør det mulig å logge inn med Google eller Microsoft. Vi lagrer aldri passord selv.",
     cookiesLabel: "Informasjonskapsler (cookies) og monitorering:",
     cookiesBody:
       "Vi bruker nødvendige cookies for innlogging og preferanser. Backend-tjenesten bruker driftsmonitorering (Datadog APM) for feilsporing og stabilitet — dette kjører server-side og krever ikke samtykke. Hvis du godtar det, aktiverer vi også valgfrie ytelsesmålinger i nettleseren: Datadog RUM og Speed Insights for teknisk ytelse, Datadog Session Replay (avspillbar rekonstruksjon av UI-interaksjoner der all tekst maskeres og bilder blurres i opptaket) for ca. 50 % av sesjoner, og PostHog for aggregert produktanalyse (i cookieless-modus uten informasjonskapsler). Valget for valgfrie målinger lagres på brukerprofilen din når du er innlogget, og caches også lokalt i nettleseren for å unngå at banneret vises på nytt.",
     canvasTokenLabel: "Canvas API-token:",
-    canvasTokenBody: "Lagres kryptert (AES-256-GCM) for å hente dine Canvas-data på dine vegne.",
+    canvasTokenBody:
+      "Lagres med sterk kryptering (samme nivå som i banksektoren) slik at vi kan hente Canvas-data på dine vegne. Nøkkelen vises aldri i klartekst noe sted i systemet vårt.",
     chatHistoryLabel: "Samtalehistorikk:",
     chatHistoryBody:
       "AI-samtaler lagres kryptert på din konto. Vi lagrer en kort tittel basert på første spørsmål (f.eks. første 50 tegn) for å vise samtalen i listen.",
@@ -1777,13 +1829,13 @@ export const nbMessages = {
     legalBasisIntro: "Vi behandler personopplysninger på følgende rettslige grunnlag:",
     legalBasisContractLabel: "Avtale — Art. 6(1)(b):",
     legalBasisContractBody:
-      "Kontoinformasjon (e-post, innlogging via Clerk), Canvas API-token, samtalehistorikk, preferanser og arbeidsplaner behandles fordi det er nødvendig for å levere tjenesten du har registrert deg for.",
+      "Kontoinformasjon (e-post, innlogging via Clerk), Canvas API-token, samtalehistorikk, preferanser og arbeidsplaner behandles fordi det er nødvendig for å levere tjenesten du har registrert deg for. Dette er en avtale, ikke et samtykke, og kan ikke «trekkes tilbake» på samme måte — men du kan når som helst avslutte avtalen ved å logge ut eller slette kontoen din under Innstillinger → Slett konto.",
     legalBasisInterestLabel: "Berettiget interesse — Art. 6(1)(f):",
     legalBasisInterestBody:
-      "Sikkerhetslogging, revisjonslogg, backend-driftsmonitorering (Datadog APM) og misbruksdeteksjon behandles på grunnlag av vår berettigede interesse i sikker og stabil drift. Disse dataene er minimert og pseudonymisert der det er mulig.",
+      "Sikkerhetslogging, revisjonslogg (inkludert IP-adresse, nettleser/user-agent og forespørsels-ID knyttet til sikkerhetsrelevante hendelser som innlogging, aksept av vilkår, sletting og admin-handlinger), backend-driftsmonitorering (Datadog APM) og misbruksdeteksjon behandles på grunnlag av vår berettigede interesse i sikker og stabil drift. Disse dataene er minimert og pseudonymisert der det er mulig. Du har rett til å komme med innsigelse mot denne behandlingen av grunner som er særegne for din situasjon (GDPR Art. 21) — kontakt oss via kontaktskjemaet, så gjør vi en konkret vurdering. Ved kontosletting anonymiseres/pseudonymiseres revisjonsspor som knytter seg til deg.",
     legalBasisConsentLabel: "Samtykke — Art. 6(1)(a):",
     legalBasisConsentBody:
-      "Valgfrie ytelsesmålinger i nettleseren (Datadog RUM, Speed Insights og produktanalyse via PostHog) aktiveres kun dersom du eksplisitt godtar dette via cookie-banneret. Du kan når som helst trekke tilbake samtykket ved å endre valget i innstillingene dine. Hvis du ikke er innlogget, huskes valget i 30 dager via en informasjonskapsel.",
+      "Valgfrie ytelsesmålinger i nettleseren (Datadog RUM, Speed Insights og produktanalyse via PostHog) aktiveres kun dersom du eksplisitt godtar dette via cookie-banneret. Du kan når som helst trekke tilbake samtykket ved å bytte til «Kun nødvendige» i cookie-banneret eller under Innstillinger → Informasjonskapsler — like enkelt som du ga det (GDPR Art. 7(3)). Tilbaketrekkingen påvirker ikke lovligheten av behandling som skjedde før tilbaketrekkingen. Hvis du ikke er innlogget, huskes valget i 30 dager via en informasjonskapsel.",
     purposeTitle: "Formål med behandlingen",
     purposeIntro: "Vi bruker dataene for å:",
     purpose1:
@@ -1795,7 +1847,10 @@ export const nbMessages = {
     retentionTitle: "Lagringstid",
     retentionAccountLabel: "Konto og profil:",
     retentionAccountBody:
-      "Inntil du sletter kontoen. Ved kontosletting slettes eller anonymiseres kontoopplysninger, Canvas-token, samtalehistorikk, preferanser og arbeidsplaner. Begrensede sikkerhets- og revisjonslogger kan beholdes i pseudonymisert eller minimert form i opptil 24 måneder.",
+      "Inntil du sletter kontoen. Ved kontosletting slettes eller anonymiseres kontoopplysninger, Canvas-token, samtalehistorikk, preferanser og arbeidsplaner.",
+    retentionAuditLabel: "Sikkerhets- og revisjonslogger:",
+    retentionAuditBody:
+      "Vi oppbevarer revisjonslogger (inkludert IP-adresse, user-agent og forespørsels-ID knyttet til sikkerhetsrelevante hendelser) i opptil 24 måneder. Dette er nødvendig for å kunne etterforske misbruk, følge opp sikkerhetshendelser og oppfylle krav til revisjonsspor. Ved kontosletting pseudonymiseres eller anonymiseres oppføringene som knytter seg til deg, men enkelte tekniske metadata beholdes i begrenset tid.",
     retentionChatLabel: "Samtalehistorikk:",
     retentionChatBody:
       "Lagres til du sletter en samtale eller hele historikken, eller til du sletter kontoen.",
@@ -1813,28 +1868,38 @@ export const nbMessages = {
     cookiesSectionNecessary: "Kun nødvendige",
     cookiesSectionAcceptAll: "Godta alle",
     thirdPartyTitle: "Deling med tredjeparter",
-    thirdPartyIntro: "Vi deler minimalt med tredjeparter:",
+    thirdPartyIntro:
+      "Vi deler minimalt med tredjeparter. Der det er nødvendig, støtter vi oss på databehandleravtalene (DPA) som leverandørene selv publiserer — standardavtaler som forplikter dem til å behandle data i tråd med GDPR. Hvis du ønsker innsyn i en spesifikk avtale, ta kontakt så peker vi deg til leverandørens eget publiserte dokument:",
+    thirdPartyHostingLabel: "Drift og hosting (Heroku og Vercel):",
+    thirdPartyHostingBody:
+      "Backend-tjenesten driftes på Heroku (en skyplattform eid av Salesforce), og frontend driftes på Vercel. Begge kjører på sikre servere med brannmur, automatisk skalering og tilgangskontroll. Disse leverandørene behandler alt av trafikk som går inn og ut av tjenesten — inkludert chat-meldinger, Canvas-data og innlogging — på våre vegne. Både Heroku og Vercel er sertifisert etter anerkjente sikkerhetsstandarder (SOC 2) og har egne databehandleravtaler (DPA).",
+    thirdPartyDatabaseLabel: "Database og cache (MongoDB Atlas og Redis):",
+    thirdPartyDatabaseBody:
+      "All brukerdata (konto, chat-historikk, preferanser, kunnskapsbase-innhold) lagres i MongoDB Atlas — en driftet databasetjeneste. Canvas-data og rate-limit-tellere caches midlertidig i Redis for å gjøre tjenesten raskere. Begge leverandører tilbyr at-rest kryptering, tilgangslogging og DPA som oppfyller GDPR.",
+    thirdPartyClerkLabel: "Innloggingstjeneste (Clerk):",
+    thirdPartyClerkBody:
+      "Clerk håndterer registrering, innlogging, passord, to-faktor-autentisering og Google/Microsoft-innlogging. De lagrer e-post, passord (i hashet form — vi ser aldri selve passordet), og valgfritt 2FA-hemmeligheter. Clerk er SOC 2 Type II-sertifisert og publiserer en egen DPA.",
     thirdPartyAILabel: "AI-tjenester (Anthropic):",
     thirdPartyAIBody:
       "Innhold du skriver og kontekst (f.eks. oppgavetekst) sendes til AI for å generere svar. Dokumenter du laster opp saniteres automatisk for strukturert PII (epost, telefon, fødselsnummer, studentnummer, norske adresser og signatur-navn) før de brukes som AI-kontekst. Canvas-innhold anonymiseres der det er mulig. AI-modellen er i tillegg instruert om å ikke gjengi personnavn fra dokumenter i svar.",
     thirdPartyCanvasLabel: "Canvas LMS:",
     thirdPartyCanvasBody:
       "Vi bruker kun ditt API-token for å hente data på dine vegne mot din institusjons Canvas. Tokenet lagres kryptert hos oss og sendes ikke til andre tredjeparter.",
-    thirdPartyPineconeLabel: "Vektorsøk (Pinecone):",
+    thirdPartyPineconeLabel: "Søketjeneste for kunnskapsbase (Pinecone):",
     thirdPartyPineconeBody:
-      "Når du bruker AI-funksjoner med Canvas-innhold eller egne kunnskapsbaser (lenker og filer du har lagt til), sendes tekstbiter (uten navn, e-post eller andre personidentifiserende data) til Pinecone for indeksering og semantisk søk. Pinecone lagrer kun vektorrepresentasjoner og anonymisert tekst knyttet til din bruker-ID, og alt slettes når du fjerner basen eller kontoen din.",
-    thirdPartyCohereLabel: "Reranking (Cohere):",
+      "Når du bruker KI-funksjoner med Canvas-innhold eller egne notater, sender vi tekstbiter (uten navn, e-post eller andre personopplysninger) til en søketjeneste som hjelper KI-en å finne de mest relevante delene av det du har lastet opp. Innholdet er knyttet til en anonym bruker-ID og slettes når du fjerner basen eller kontoen din.",
+    thirdPartyCohereLabel: "Forbedring av søkeresultater (Cohere):",
     thirdPartyCohereBody:
-      "For å forbedre relevansen i AI-svar brukes Cohere til å rangere søkeresultater. Kun anonymiserte tekstutdrag sendes — ingen personopplysninger.",
+      "Vi bruker en tjeneste som hjelper KI-en å sortere søkeresultater så de mest relevante kommer først. Kun anonymiserte tekstutdrag sendes — ingen personopplysninger.",
     thirdPartyDatadogLabel: "Monitorering og session replay (Datadog):",
     thirdPartyDatadogBody:
       "Når du har godtatt valgfrie ytelsesmålinger, sender vi tekniske drifts- og feilsporingsdata til Datadog for å knytte frontend-feil, backend-spor og ytelsesavvik sammen. I tillegg aktiverer vi Datadog Session Replay for en andel av sesjonene (ca. 50 %) — dette tar opp en avspillbar rekonstruksjon av DOM-interaksjoner (klikk, scroll, navigasjon) slik at vi kan feilsøke UI-problemer. Vi bruker Datadogs strengeste «mask»-innstilling som standard: all tekst erstattes med «xxx» og bilder blurres i opptaket, slik at innholdet i chat-meldinger, Canvas-sider, kunnskapsbase-filer og quiz-spørsmål ikke er lesbart i replayen. Canvas-token sendes aldri. Du kan når som helst trekke samtykket i cookie-banneret; da stoppes både monitorering og replay.",
     thirdPartyPosthogLabel: "Produktanalyse (PostHog):",
     thirdPartyPosthogBody:
       "For å forstå hvordan funksjoner faktisk brukes (sidevisninger, klikk, hvilke KI-funksjoner som tas i bruk), sender vi aggregerte bruksdata til PostHog (hostet i USA) når du har samtykket til valgfrie ytelsesmålinger. Vi sender kun pseudonyme identifikatorer og bruksmønstre — ikke chat-innhold, Canvas-data, e-postadresser eller navn. PostHog er konfigurert i cookieless-modus uten informasjonskapsler eller localStorage, og session replay er deaktivert.",
-    thirdPartyLangsmithLabel: "KI-tracing (LangSmith):",
+    thirdPartyLangsmithLabel: "KI-feilsøking (LangSmith):",
     thirdPartyLangsmithBody:
-      "Når LangSmith-tracing er aktivert på serveren, kan KI-forespørsler (spørsmål og svar fra assistenten) registreres hos LangSmith for feilsøking, ytelsesmåling og kvalitetsovervåking av KI-funksjonaliteten. Tracing kobles til en pseudonym request-ID, ikke direkte til e-postadresse eller navn. Dette er en teknisk driftsbehandling som kan deaktiveres ved å fjerne tilgangsnøkkelen.",
+      "For å feilsøke og forbedre KI-funksjonene kan vi registrere spørsmål og svar hos en driftsanalysetjeneste (LangSmith). Dette kobles til en anonym forespørsels-ID, ikke til din e-post eller navn. Tjenesten brukes kun ved behov for å forbedre kvaliteten på KI-funksjonaliteten.",
     thirdPartyContactRelayLabel: "E-postlevering for kontaktskjema (Cloudflare Worker + Resend):",
     thirdPartyContactRelayBody:
       "Når du sender en henvendelse via kontaktskjemaet, videresendes innholdet (navn, e-postadresse, emne og melding) via en Cloudflare Worker til Resend, som leverer e-posten til teamet vårt. En kopi lagres også i vår egen database i opptil 365 dager slik at administratorer kan se innboksen i admin-panelet, og slettes automatisk etter det eller manuelt når saken er ferdig behandlet.",
@@ -1868,6 +1933,30 @@ export const nbMessages = {
     storageServersLink: "sikkerhetsside",
     storageHTTPS: "All kommunikasjon mellom nettleser og servere skjer over HTTPS.",
     storageCache: "Canvas-cache har kort levetid og slettes/roteres automatisk.",
+    transferTitle: "Overføring av data utenfor EØS",
+    transferIntro:
+      "Flere av tjenestene vi bruker er amerikanske og har servere i USA. Når personopplysninger sendes ut av EØS, følger vi reglene i GDPR kapittel V.",
+    transferUSLabel: "Hvilke tjenester sender data til USA?",
+    transferUSBody:
+      "Backend-hostingen (Heroku), innloggingstjenesten (Clerk), KI-tjenesten (Claude), søketjenesten for kunnskapsbase (Pinecone og Cohere), drifts- og analyseverktøyene (Datadog, PostHog, LangSmith) og e-postleveringen vår (Resend via Cloudflare Worker) behandler data på servere i USA. Det betyr at Canvas-data, chat-innhold og dokumenter kan passere gjennom amerikanske servere før det returnerer til deg. Databasen (MongoDB Atlas) og cache (Redis) er konfigurert til å lagre hoveddata i EU-regioner, men replikering eller drift kan medføre midlertidige overføringer.",
+    transferSafeguardsLabel: "Hvordan er dette lovlig?",
+    transferSafeguardsBody:
+      "Overføringene skjer på grunnlag av EU-kommisjonens standardavtaler for dataoverføring (SCC) og EU-US Data Privacy Framework der leverandøren er sertifisert. Begge er EU-godkjente måter å overføre data til land utenfor EØS. Vi minimerer også hva som sendes — for eksempel fjerner vi automatisk personopplysninger fra opplastede dokumenter før de brukes av KI-en.",
+    automatedTitle: "KI og automatiserte avgjørelser",
+    automatedBody:
+      "StudyWise bruker KI (Claude) til å generere svar, oppsummeringer, quizer og arbeidsplaner basert på det du legger inn. Dette regnes ikke som «automatiserte avgjørelser» i lovens forstand — KI-en gir læringsstøtte, ikke beslutninger som påvirker karakterer, goder eller rettigheter.",
+    automated1:
+      "Alle KI-svar er forslag du selv kan godta eller avvise. Verken karakterer, tilgang eller andre rettigheter avgjøres av maskinen.",
+    automated2:
+      "KI kan ta feil. Du er ansvarlig for å sjekke informasjonen før du leverer akademisk arbeid.",
+    automated3:
+      "Du kan når som helst stoppe å bruke KI-funksjoner, slette samtaler, eller be om menneskelig oppfølging fra support via kontaktskjemaet.",
+    ageTitle: "Aldersgrense",
+    ageBody:
+      "StudyWise er laget for studenter i høyere utdanning. Du må være minst 13 år for å opprette konto i Norge. Tjenesten er primært for voksne studenter, men foresatte oppfordres til å vurdere om den er egnet for yngre brukere.",
+    breachTitle: "Hva skjer hvis data lekker?",
+    breachBody:
+      "Skulle det oppstå et datalekkasje som berører personopplysningene dine, varsler vi Datatilsynet uten unødig forsinkelse og senest innen 72 timer — dette er et lovkrav (GDPR Art. 33). Hvis lekkasjen er alvorlig nok til å utgjøre høy risiko for deg, varsler vi deg direkte. Varselet vil forklare hvilke data som er berørt, hva det kan bety for deg, og hva vi gjør for å fikse det.",
     contactTitle: "Kontakt",
     contactBody: "Har du spørsmål om personvern eller vil utøve rettighetene dine? Kontakt oss via",
     contactLink: "kontaktskjemaet",
@@ -1877,7 +1966,7 @@ export const nbMessages = {
     description: "Sikkerheten til dine data er vår høyeste prioritet.",
     encryptionTitle: "Kryptering",
     encryptionBody:
-      "Alle sensitive data krypteres med AES-256-GCM for lagring. Innlogging og passord håndteres av Clerk; vi lagrer ikke passord selv. Clerk støtter 2FA og sikker lagring.",
+      "Alle sensitive data krypteres med bransjestandard kryptering (samme styrke som banker bruker) før de lagres. Innlogging og passord håndteres av en spesialisert innloggingstjeneste; vi lagrer aldri passordene selv.",
     tokenTitle: "Sikker tokenhandtering",
     tokenBody:
       "Canvas API-tokens lagres kryptert og brukes kun server-side. De eksponeres aldri til nettleseren eller tredjeparter.",
@@ -1887,30 +1976,30 @@ export const nbMessages = {
     stepUpTitle: "Ekstra beskyttelse ved sensitive handlinger",
     stepUpBody:
       "Sletting av konto krever at du har logget inn nylig (step-up authentication). Det forhindrer at noen med uautorisert tilgang til en åpen sesjon kan slette kontoen din uten å bekrefte identitet på nytt.",
-    fileValidationTitle: "Validering av opplastede filer",
+    fileValidationTitle: "Kontroll av opplastede filer",
     fileValidationBody:
-      "Alle filer du laster opp til kunnskapsbase eller kontaktskjema valideres mot magic bytes (signaturen i filinnholdet), ikke bare det klienten oppgir som filtype. Det beskytter mot polyglot-filer og MIME-spoofing. Office-formater (DOCX/PPTX/XLSX) får i tillegg zip-bombe-sjekk.",
-    httpsTitle: "HTTPS og sikkerhetsheadere",
+      "Alle filer du laster opp blir analysert for å sjekke at filinnholdet faktisk matcher filtypen (ikke bare endelsen). Det stopper skjulte angrep der en fil utgir seg for å være noe annet enn den er. Office-dokumenter blir også sjekket for unormalt store komprimerte pakker (kjente DoS-angrep).",
+    httpsTitle: "Kryptert forbindelse",
     httpsBody:
-      "All kommunikasjon skjer over TLS. Vi bruker Helmet for sikkerhetsheadere (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy i produksjon).",
-    csrfTitle: "CSRF-beskyttelse",
+      "All kommunikasjon mellom nettleseren din og våre servere er kryptert (HTTPS). I tillegg sender vi sikkerhetsinstruksjoner til nettleseren som beskytter mot at siden lastes inn i falske rammer eller at innhold tolkes som feil filtype.",
+    csrfTitle: "Beskyttelse mot falske forespørsler",
     csrfBody:
-      "State-endrende forespørsler (POST, PUT, PATCH, DELETE) krever en gyldig CSRF-header og at forespørselen kommer fra vår egen nettside, for å forhindre tredjepartsider i å utføre handlinger på dine vegne.",
+      "Når du endrer noe på kontoen din (f.eks. oppdaterer innstillinger eller sender en melding), sjekker vi at forespørselen faktisk kommer fra StudyWise-siden din. Det hindrer andre nettsider i å lure nettleseren din til å gjøre noe du ikke har bedt om.",
     rateLimitTitle: "Rate limiting",
     rateLimitBody:
       "Vi begrenser antall forespørsler per IP og per tjeneste (innlogging, KI, Canvas, API-token). Det reduserer risiko for misbruk og brute-force-angrep.",
-    sessionsTitle: "Sikre sesjoner (Clerk)",
+    sessionsTitle: "Sikker innlogging og sesjoner",
     sessionsBody:
-      "Innlogging og sesjoner håndteres av Clerk med sikre cookies (httpOnly, secure, sameSite). Clerk støtter to-faktor (2FA) og innlogging med Google og Microsoft. Tilgangstoken har kort levetid og sendes kun over HTTPS.",
+      "Innlogging håndteres av en spesialisert og sertifisert innloggingstjeneste. Sesjonen din lagres i en sikker, låst informasjonskapsel som andre nettsider ikke kan lese. Du kan aktivere tofaktor-autentisering (2FA) og logge inn med Google eller Microsoft.",
     minimalAccessTitle: "Minimalt datainnsyn",
     minimalAccessBody:
       "Vi henter kun data fra Canvas som er nødvendig for funksjonaliteten du bruker. Se vår personvernerklæring for hvordan vi behandler data.",
     infrastructureTitle: "Sikker infrastruktur",
     infrastructureBody:
-      "Applikasjonen kjører på sikre plattformer (Vercel, Heroku) med brannmur og tilgangskontroll. Cloudflare brukes som CDN med bot-beskyttelse (Turnstile) og DNS-sikkerhet.",
+      "Applikasjonen kjører på anerkjente skyplattformer med brannmur og tilgangskontroll, og er beskyttet bak et verdensomspennende nettverk som filtrerer ondsinnet trafikk og bot-angrep før de når oss.",
     autoLogoutTitle: "Automatisk utlogging",
     autoLogoutBody:
-      "Sesjoner utløper automatisk. Ved inaktivitet eller utløpt sesjon må du logge inn på nytt. Clerk håndterer sesjon og valgfri to-faktor.",
+      "Sesjoner utløper automatisk etter en periode med inaktivitet, og du må logge inn på nytt. Du kan også logge deg ut manuelt fra alle enheter hvis du mistenker at kontoen er blitt brukt uten din tillatelse.",
     canvasApiTitle: "Canvas API-sikkerhet",
     canvasApiIntro: "Når du kobler til Canvas, bruker vi ditt personlige API-token:",
     canvasApi1:
@@ -1919,7 +2008,7 @@ export const nbMessages = {
     canvasApi3: "Tokenet lagres kryptert og sendes aldri til tredjeparter",
     loggingTitle: "Logging og personvern",
     loggingBody:
-      "På serveren logger vi feil og sikkerhetshendelser for drift og feilsøking. Vi logger ikke e-post, navn, passord, Canvas-token eller brukerinnhold (f.eks. chat-meldinger og søketekst) i produksjon. Vi kan lagre begrenset teknisk metadata som pseudonymisert bruker-ID, IP-adresse, user-agent og request-id for sikkerhet, misbruksdeteksjon og hendelseshåndtering. Revisjonslogger har begrenset lagringstid og anonymiseres ved kontosletting der det er mulig.",
+      "På serveren logger vi tekniske feil og sikkerhetshendelser for å kunne drifte tjenesten og feilsøke problemer. Vi logger aldri e-post, navn, passord, Canvas-token eller innholdet i det du skriver (chat-meldinger, søk, dokumenter). Det vi lagrer er anonymisert teknisk informasjon — en tilfeldig forespørsels-ID, IP-adressen, nettleseren din — som trengs for å oppdage misbruk. Loggene slettes automatisk etter en begrenset periode, og anonymiseres ytterligere hvis du sletter kontoen din.",
     aiPrivacyTitle: "AI og personvern",
     aiPrivacyIntro: "Når du bruker AI-assistenten:",
     aiPrivacy1:
@@ -1930,6 +2019,26 @@ export const nbMessages = {
     aiPrivacy4: "Du kan slette samtalehistorikken eller enkelt samtaler når som helst",
     aiPrivacyMore: "Mer om behandling av personopplysninger finner du i vår",
     aiPrivacyLink: "personvernerklæring",
+    sdlcTitle: "Sikker utviklingsprosess",
+    sdlcIntro:
+      "Sikkerhet er integrert i hele utviklingssyklusen — fra planlegging og kodeskriving til testing og utrulling — ikke noe vi bolter på til slutt.",
+    sdlcOwaspLabel: "De vanligste sikkerhetsfeilene på nett:",
+    sdlcOwaspBody:
+      "Vi følger anerkjente bransjestandarder (OWASP Top 10) for hvilke angrepstyper vi må forsvare oss mot. Det betyr beskyttelse mot blant annet: forsøk på å kjøre skadelig kode gjennom skjemaer, urettmessig tilgang til andres data, skjult kode som prøver å stjele informasjon fra nettleseren din, og misbruk av åpne endepunkter.",
+    sdlcCiLabel: "Automatisk sikkerhetssjekk før utrulling:",
+    sdlcCiBody:
+      "Hver gang vi endrer koden, kjører en automatisk sjekkliste: kvalitetskontroll, tester, bygg, skanning etter kjente sårbarheter i bibliotekene vi bruker, og leting etter passord eller hemmeligheter som ved en feil kan være eksponert. Endringer med kritiske sårbarheter blir stoppet før de når produksjon.",
+    sdlcSupplyChainLabel: "Sjekk av tredjepartsbibliotek:",
+    sdlcSupplyChainBody:
+      "Alle eksterne bibliotek vi bruker er låst til spesifikke, kjente versjoner. Vi kjører automatiske sjekker mot kjente sårbarhetsdatabaser, og har ekstra beskyttelse mot falske pakker som etterligner ekte navn.",
+    sdlcEnvSeparationLabel: "Adskilte miljøer:",
+    sdlcEnvSeparationBody:
+      "Test-miljøet og produksjon er fullstendig adskilte. De har ulike databaser, ulike nøkler, og ingen testdata kommer inn i produksjon (eller motsatt). Det hindrer uhell under utvikling i å påvirke ekte brukere.",
+    sdlcReviewLabel: "Kodegjennomgang og minst mulig tilgang:",
+    sdlcReviewBody:
+      "Alle endringer til produksjon gjennomgås av et annet team-medlem før de slippes ut. Administratorer har kun tilgang til det de trenger for sine oppgaver, og sensitive data (som Canvas-nøklene dine) er kryptert slik at selv vi ikke kan lese dem direkte.",
+    sdlcStandardsNote:
+      "Vi følger prinsippene fra ISO/IEC 27001 (informasjonssikkerhet) og ISO/IEC 27701 (personvern) gjennom hele utviklingsprosessen. Merk: StudyWise er et bachelorprosjekt og er IKKE formelt sertifisert — men tiltakene over er implementert fordi det er rett og godt håndverk, ikke fordi en revisor krever det.",
     openSourceTitle: "Åpen kildekode og transparens",
     openSourceBody:
       "StudyWise er et åpen kildekode-prosjekt. Vi tror på transparens som grunnlag for tillit — all kildekode er offentlig tilgjengelig slik at hvem som helst kan verifisere hvordan vi behandler data, hvilke sikkerhetsmekanismer vi bruker, og at vi holder det vi lover.",
@@ -1941,13 +2050,16 @@ export const nbMessages = {
     reportBody: "Har du oppdaget en sikkerhetssvakhet? Kontakt oss umiddelbart via",
     reportLink: "kontaktskjemaet",
     reportSuffix: ". Vi tar alle rapporter på alvor og vil respondere raskt.",
+    reportSecurityTxtIntro: "For sikkerhetsforskere publiserer vi kanonisk kontakt i maskin-lesbart format:",
+    reportSecurityTxtLink: "/.well-known/security.txt",
+    reportSecurityTxtSuffix: "(RFC 9116).",
   },
   vilkar: {
     title: "Brukervilkår",
-    updatedAt: "April 2026",
+    updatedAt: "18. april 2026",
     acceptTitle: "1. Aksept av vilkår",
     acceptBody:
-      "Ved å opprette en konto og bruke StudyWise aksepterer du disse brukervilkårene. Hvis du ikke aksepterer vilkårene, må du ikke bruke tjenesten.",
+      "Ved å opprette en konto og bruke StudyWise aksepterer du disse brukervilkårene. Hvis du ikke aksepterer vilkårene, må du ikke bruke tjenesten. Du kan avslutte denne avtalen når som helst ved å logge ut eller slette kontoen din under Innstillinger → Slett konto.",
     serviceTitle: "2. Beskrivelse av tjenesten",
     serviceBody:
       "StudyWise er en studieassistent som integrerer med Canvas LMS og tilbyr AI-basert hjelp. Tjenesten er utviklet som et bachelorprosjekt ved USN og tilbys gratis til studenter.",
@@ -1975,7 +2087,7 @@ export const nbMessages = {
     sharing4: "Du kan slette en delt lenke når som helst for å fjerne tilgangen",
     kbTitle: "7. Kunnskapsbase",
     kb1: "Du kan legge til egne lenker og filer som indekseres for bruk med AI-assistenten",
-    kb2: "Innholdet deles opp i tekstbiter og sendes til en ekstern vektordatabase (Pinecone) for semantisk søk. Kun anonymiserte tekstutdrag lagres — ikke personopplysninger",
+    kb2: "Innholdet deles opp i tekstbiter. Vektorer og anonymiserte tekstutdrag indekseres i en ekstern søketjeneste (Pinecone) for semantisk søk; selve råteksten lagres også i vår egen database slik at KI-en kan vise deg kildene. Strukturert PII (e-post, telefon, fødselsnummer, studentnummer, norske adresser og signatur-navn) saniteres automatisk før indeksering",
     kb3: "For lenker crawles nettsiden for å hente tekstinnhold. Du er ansvarlig for at du har rett til å bruke innholdet",
     kb4: "Kunnskapsbase-innhold slettes fra alle systemer når du fjerner basen eller sletter kontoen din",
     useTitle: "8. Akseptabel bruk",
@@ -1989,7 +2101,7 @@ export const nbMessages = {
       'Tjenesten tilbys "som den er" uten garantier. Vi er ikke ansvarlige for tap eller skade som følge av bruk av tjenesten. Dette inkluderer, men er ikke begrenset til, tap av data, feil i AI-svar, eller nedetid.',
     changesTitle: "10. Endringer i vilkårene",
     changesBody:
-      "Vi kan oppdatere disse vilkårene. Ved vesentlige endringer oppdateres datoen øverst på denne siden. Fortsatt bruk etter endringer innebærer aksept av de nye vilkårene.",
+      "Vi kan oppdatere disse vilkårene. Ved vesentlige endringer øker vi versjonen øverst på siden og ber deg eksplisitt om å lese og godta på nytt neste gang du bruker tjenesten — dette gjøres via en dialog som blokkerer videre bruk inntil du har bekreftet. Du kan alltid logge ut eller slette kontoen din hvis du ikke ønsker å godta de nye vilkårene. Aksepten logges med versjon, tidspunkt og teknisk kontekst som bevis.",
     contactTitle: "11. Kontakt",
     contactBody: "Spørsmål om vilkårene kan rettes til oss via",
     contactLink: "kontaktskjemaet",
@@ -2010,7 +2122,7 @@ export const nbMessages = {
     canvasInstitutionsA:
       "StudyWise støtter Canvas-installasjoner ved norske universiteter og høgskoler. Velg institusjonen din når du kobler til Canvas.",
     dataSecureQ: "Er dataene mine trygge?",
-    dataSecureA: "Ja, alle sensitive data krypteres med AES-256-GCM. Les mer på vår",
+    dataSecureA: "Ja. Sensitive data (som Canvas-token og chat-historikk) krypteres med bransjestandard kryptering før de lagres, og all kommunikasjon mellom nettleser og servere er kryptert (HTTPS). Les mer på vår",
     dataSecureLink: "sikkerhetsside",
     thirdPartyQ: "Sender StudyWise data til tredjepart?",
     thirdPartyA1:
@@ -2033,7 +2145,7 @@ export const nbMessages = {
       "Arbeidsplanen samler kommende frister og oppgaver fra Canvas i en strukturert ukeoversikt, slik at du enkelt kan planlegge lesing og innleveringer. Den oppdateres automatisk når Canvas synkroniseres.",
     withoutCanvasQ: "Kan jeg bruke StudyWise uten Canvas-token?",
     withoutCanvasA:
-      "Ja, du kan bruke KI-chatten og dokumentanalyse uten å koble til Canvas. Canvas-token er kun nødvendig for å hente kursdata, oppgaver og kalender.",
+      "Delvis. Du kan bruke KI-chatten og kunnskapsbasen (egne dokumenter og lenker) uten Canvas. Men funksjoner som henter data direkte fra skolen din — kurs, oppgaver, kalender, quiz og flashcards fra pensum, arbeidsplan og oppgavenedbrytning — krever at du kobler til Canvas. Du får altså fortsatt nytte av StudyWise uten Canvas, men de mest skolespesifikke funksjonene er låst.",
     fileTypesQ: "Hvilke filtyper støttes for dokumentanalyse?",
     fileTypesA:
       "StudyWise støtter PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), bilder (PNG, JPG, WEBP) og vanlige kodefiler.",
@@ -2043,6 +2155,25 @@ export const nbMessages = {
     sharedChatsQ: "Hvor lenge lagres delte samtaler?",
     sharedChatsA:
       "Delte samtalelenker er gyldige i 30 dager. Etter det slettes den delte lenken automatisk.",
+    taskBreakdownQ: "Hva er oppgavenedbrytning?",
+    taskBreakdownA:
+      "Når du har en stor Canvas-oppgave, kan KI-en bryte den ned i mindre deloppgaver med anslått tidsbruk. Nyttig når en lang innlevering føles uoverkommelig — du får en konkret tiltaksliste å jobbe ut fra. Du finner det under KI-breakdown eller ved å be KI-en dele opp en oppgave direkte i chatten.",
+    exportQ: "Kan jeg eksportere chat-svar eller notater?",
+    exportA:
+      "Ja. Du kan eksportere KI-svar og oppsummeringer til PDF, Word (.docx), Excel (.xlsx) eller direkte til Notion (krever Notion-tilkobling i Innstillinger). Bruk «Eksporter»-knappen i chatten eller KI-oppsummeringen.",
+    notionQ: "Hvordan kobler jeg til Notion?",
+    notionA:
+      "Gå til Innstillinger, scroll til Notion-integrasjonen, opprett en intern integrasjon på notion.so/my-integrations, kopier API-nøkkelen og lim den inn. Du kan også oppgi en standard side-ID der eksportene skal havne. Nøkkelen lagres kryptert og brukes kun for din konto.",
+    pushQ: "Hvordan får jeg nettleservarsler?",
+    pushA:
+      "Gå til Innstillinger → Varsler og slå på nettleservarsler. Nettleseren vil spørre om tillatelse første gang. Du kan da få beskjed om nye Canvas-frister og oppgaver selv når StudyWise ikke er åpent. Varslene er per enhet — aktiver på hver enhet du vil bruke.",
+    termsUpdateQ: "Hva skjer hvis vilkårene oppdateres?",
+    termsUpdateA:
+      "Når vi oppdaterer brukervilkårene eller personvernerklæringen, får du opp en dialog neste gang du bruker StudyWise som ber deg lese gjennom og godta de nye versjonene. Du kan ikke fortsette å bruke tjenesten uten å bekrefte — men du kan alltid logge ut eller slette kontoen din hvis du ikke ønsker å godta. Aksepten logges med versjon, tidspunkt og teknisk kontekst som bevis.",
+    statusQ: "Hvordan sjekker jeg om StudyWise er oppe?",
+    statusA: "Vi har en egen statusside som viser om kjernetjenestene (innlogging, AI-chat, kunnskapsbase og varslinger) fungerer som de skal. Sjekk",
+    statusLink: "statussiden",
+    statusASuffix: "hvis du opplever problemer — eller les der først før du rapporterer en feil.",
     notFound: "Fant du ikke svaret?",
     contactUs: "Kontakt oss",
   },
@@ -2082,7 +2213,7 @@ export const nbMessages = {
     bugReportTitle: "Feilrapportering",
     bugReportBody:
       "Har du funnet en feil? Rapporter den slik at vi kan fikse den. Inkluder gjerne skjermbilder og steg for å reprodusere feilen.",
-    universityTitle: "Universitetet i Sør-Øst-Norge",
+    universityTitle: "Universitetet i Sørøst-Norge",
     universityBody:
       "StudyWise er et bachelorprosjekt ved USN, Institutt for IT og informasjonssystemer.",
     mapTitle: "Her finner du oss",
@@ -2127,6 +2258,7 @@ export const nbMessages = {
   infoPageLayout: {
     backToHome: "← Tilbake til forsiden",
     lastUpdated: "Sist oppdatert",
+    version: "versjon",
   },
   codeBlock: {
     copyTitle: "Kopier kode",
@@ -2236,7 +2368,7 @@ export const nbMessages = {
     fileDeleteError: "Kunne ikke slette fil",
     fileTooLarge: "Filen er for stor (maks 10 MB)",
     noFiles: "Ingen filer lastet opp ennå.",
-    aiTip: "Skriv «bruk basen {navn}» i chatten for å aktivere denne basen som kontekst for KI-en.",
+    aiTip: "Skriv /{navn} (f.eks. /{navn} forklar kapittel 3) som en egen melding for å aktivere denne basen som kontekst for KI-en.",
     statusIndexing: "Indekserer...",
     statusReady: "Klar",
     statusFailed: "Feilet",
@@ -2272,6 +2404,35 @@ export const nbMessages = {
     deleteShareSuccess: "Delingslenke slettet",
     sharedViewsSingular: "{count} visning",
     sharedViewsPlural: "{count} visninger",
+  },
+  status: {
+    title: "Driftsstatus",
+    description:
+      "Live status for StudyWise-plattformen. Siden oppdateres automatisk hvert minutt.",
+    loading: "Henter status...",
+    loadError: "Kunne ikke hente driftsstatus.",
+    retry: "Prøv igjen",
+    overall: {
+      operational: "Alle systemer i drift",
+      degraded: "Redusert funksjonalitet",
+      down: "Kritisk driftsavbrudd",
+    },
+    lastCheckedAt: "Sist sjekket: {time}",
+    announcementUpdated: "Publisert: {time}",
+    componentsTitle: "Tjenester",
+    components: {
+      authentication: "Innlogging og konto",
+      aiChat: "KI-chat",
+      knowledgeBase: "Kunnskapsbase og søk",
+      notifications: "Varsler og bakgrunnsjobber",
+    },
+    componentStatus: {
+      operational: "I drift",
+      degraded: "Redusert",
+      down: "Nede",
+    },
+    refreshNote:
+      "Siden er cachet i 30 sekunder på server. Hvis du nettopp opplevde en feil og siden viser «I drift», vent ett minutt og last inn på nytt.",
   },
   onboarding: {
     welcome: "Velkommen til StudyWise!",

@@ -39,12 +39,18 @@ type CachedResponse =
  * Invaliderer Redis-cache. Kalles av admin-ruten etter publish/delete slik at
  * alle dyner (og alle brukere) ser ny tilstand umiddelbart. Best-effort:
  * feiler stille hvis Redis er nede — cache utløper uansett etter TTL.
+ *
+ * Returnerer true hvis invalideringen lyktes, false hvis Redis var nede.
+ * Admin-ruten inkluderer dette i responsen så driftsvakt ser at andre dyner
+ * kan vise foreldet melding i opptil 30s til neste cache-miss.
  */
-export async function invalidateAnnouncementCache(): Promise<void> {
+export async function invalidateAnnouncementCache(): Promise<boolean> {
   try {
     await deleteCacheKeys([CACHE_KEY]);
+    return true;
   } catch (err) {
     logger.warn({ err }, "Kunne ikke invalidere announcement-cache");
+    return false;
   }
 }
 
@@ -61,9 +67,13 @@ announcementRouter.get("/announcement", rateLimitMe, async (_req, res) => {
     }
 
     // 2. Cache miss eller Redis nede — les fra Mongo
+    // `showInBanner: true` filtrerer ut meldinger admin har valgt å KUN vise på
+    // /status-siden (ikke som banner). Slik kan admin f.eks. varsle om kjent
+    // utage offentlig uten å forstyrre innloggede brukere med banner.
     const existing = await SystemAnnouncement.findOne({
       singletonKey: "global",
       active: true,
+      showInBanner: true,
     })
       .select("severity melding dismissible updatedAt")
       .lean();

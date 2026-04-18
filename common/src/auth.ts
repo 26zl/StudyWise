@@ -325,6 +325,10 @@ export const AuthBrukerSchema = z.object({
   mfaEnabled: z.boolean().optional(),
   /** Aktive Clerk↔lokal synkroniseringskonflikter som bruker må se. */
   syncConflicts: z.array(SyncConflictSchema).optional(),
+  /** Versjonsstreng for siste aksept av vilkår/personvern (se TERMS_VERSION i common/system.ts). */
+  termsVersionAccepted: z.string().optional(),
+  /** Tidspunkt for siste aksept (ISO). */
+  termsAcceptedAt: z.iso.datetime().optional(),
 });
 
 /** Navnefelt: tillater enten gyldig navn (≥ MIN_NAME_LENGTH etter trim) eller tom streng (unset). */

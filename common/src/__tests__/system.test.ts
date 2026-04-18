@@ -49,6 +49,8 @@ describe("AdminAnnouncementStateSchema", () => {
       melding: "",
       oppdatertAt: new Date(0).toISOString(),
       dismissible: true,
+      showInBanner: true,
+      showOnStatusPage: true,
     });
     expect(result.success).toBe(true);
   });
@@ -60,6 +62,8 @@ describe("AdminAnnouncementStateSchema", () => {
       melding: "Databasen er nede",
       oppdatertAt: "2026-04-17T12:00:00.000Z",
       dismissible: false,
+      showInBanner: true,
+      showOnStatusPage: true,
     });
     expect(result.success).toBe(true);
   });
@@ -71,6 +75,8 @@ describe("AdminAnnouncementStateSchema", () => {
       melding: "a".repeat(501),
       oppdatertAt: "2026-04-17T12:00:00.000Z",
       dismissible: true,
+      showInBanner: true,
+      showOnStatusPage: true,
     });
     expect(result.success).toBe(false);
   });
@@ -104,6 +110,48 @@ describe("PublishAnnouncementRequestSchema", () => {
       dismissible: true,
     });
     expect(result.success).toBe(false);
+  });
+
+  it("defaulter begge visningsmål til true", () => {
+    const result = PublishAnnouncementRequestSchema.safeParse({
+      severity: "info",
+      melding: "Vedlikehold pågår",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.showInBanner).toBe(true);
+      expect(result.data.showOnStatusPage).toBe(true);
+    }
+  });
+
+  it("avviser hvis ingen visningsmål er valgt", () => {
+    const result = PublishAnnouncementRequestSchema.safeParse({
+      severity: "info",
+      melding: "Vedlikehold pågår",
+      showInBanner: false,
+      showOnStatusPage: false,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("aksepterer kun banner (ikke status-side)", () => {
+    const result = PublishAnnouncementRequestSchema.safeParse({
+      severity: "warning",
+      melding: "Vedlikehold snart",
+      showInBanner: true,
+      showOnStatusPage: false,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("aksepterer kun status-side (ikke banner)", () => {
+    const result = PublishAnnouncementRequestSchema.safeParse({
+      severity: "info",
+      melding: "Planlagt vedlikehold 10. mai",
+      showInBanner: false,
+      showOnStatusPage: true,
+    });
+    expect(result.success).toBe(true);
   });
 });
 

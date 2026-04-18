@@ -1061,6 +1061,8 @@ function AnnouncementPanel() {
   const [severity, setSeverity] = useState<"info" | "warning" | "critical">("info");
   const [melding, setMelding] = useState("");
   const [dismissible, setDismissible] = useState(true);
+  const [showInBanner, setShowInBanner] = useState(true);
+  const [showOnStatusPage, setShowOnStatusPage] = useState(true);
   // Prefill-strategi:
   // - Første gang `current` er aktiv, fyll form og lagre `oppdatertAt` vi synket mot.
   // - Hvis form's verdier matcher siste synkede verdi (bruker har ikke redigert),
@@ -1071,6 +1073,8 @@ function AnnouncementPanel() {
     severity: "info" | "warning" | "critical";
     melding: string;
     dismissible: boolean;
+    showInBanner: boolean;
+    showOnStatusPage: boolean;
   };
   const syncedSnapshotRef = useRef<Snapshot | null>(null);
 
@@ -1081,6 +1085,8 @@ function AnnouncementPanel() {
       setSeverity(next.severity);
       setMelding(next.melding);
       setDismissible(next.dismissible);
+      setShowInBanner(next.showInBanner);
+      setShowOnStatusPage(next.showOnStatusPage);
       syncedSnapshotRef.current = next;
     };
     const nextSnap: Snapshot = {
@@ -1088,6 +1094,8 @@ function AnnouncementPanel() {
       severity: current.severity,
       melding: current.melding,
       dismissible: current.dismissible,
+      showInBanner: current.showInBanner,
+      showOnStatusPage: current.showOnStatusPage,
     };
     if (!snap) {
       // Første prefill
@@ -1100,11 +1108,13 @@ function AnnouncementPanel() {
     const uendret =
       severity === snap.severity &&
       melding === snap.melding &&
-      dismissible === snap.dismissible;
+      dismissible === snap.dismissible &&
+      showInBanner === snap.showInBanner &&
+      showOnStatusPage === snap.showOnStatusPage;
     if (uendret) {
       apply(nextSnap);
     }
-  }, [current, severity, melding, dismissible]);
+  }, [current, severity, melding, dismissible, showInBanner, showOnStatusPage]);
 
   const harEksternEndring =
     current?.active === true &&
@@ -1112,11 +1122,17 @@ function AnnouncementPanel() {
     syncedSnapshotRef.current.oppdatertAt !== current.oppdatertAt;
 
   const trimmed = melding.trim();
-  const canSubmit = trimmed.length > 0 && trimmed.length <= 500 && !publish.isPending;
+  // Minst ett visningsmål må være valgt — ellers er meldingen meningsløs.
+  const harVisningsmaal = showInBanner || showOnStatusPage;
+  const canSubmit =
+    trimmed.length > 0 &&
+    trimmed.length <= 500 &&
+    harVisningsmaal &&
+    !publish.isPending;
 
   const handlePublish = () => {
     publish.mutate(
-      { severity, melding: trimmed, dismissible },
+      { severity, melding: trimmed, dismissible, showInBanner, showOnStatusPage },
       {
         onSuccess: () => showToast.success(t("admin.announcement.published")),
         onError: () => showToast.error(t("admin.announcement.publishError")),
@@ -1140,11 +1156,15 @@ function AnnouncementPanel() {
     setSeverity(current.severity);
     setMelding(current.melding);
     setDismissible(current.dismissible);
+    setShowInBanner(current.showInBanner);
+    setShowOnStatusPage(current.showOnStatusPage);
     syncedSnapshotRef.current = {
       oppdatertAt: current.oppdatertAt,
       severity: current.severity,
       melding: current.melding,
       dismissible: current.dismissible,
+      showInBanner: current.showInBanner,
+      showOnStatusPage: current.showOnStatusPage,
     };
   };
 
@@ -1247,6 +1267,9 @@ function AnnouncementPanel() {
           <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
             {t("admin.announcement.meldingHint")} ({trimmed.length}/500)
           </p>
+          <p className="mt-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800 dark:border-amber-700/60 dark:bg-amber-900/20 dark:text-amber-200">
+            {t("admin.announcement.publicWarning")}
+          </p>
         </div>
 
         <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
@@ -1258,6 +1281,35 @@ function AnnouncementPanel() {
           />
           {t("admin.announcement.dismissibleLabel")}
         </label>
+
+        <fieldset className="space-y-1.5">
+          <legend className="mb-1 text-xs font-medium text-slate-700 dark:text-slate-300">
+            {t("admin.announcement.targetsLabel")}
+          </legend>
+          <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={showInBanner}
+              onChange={(e) => setShowInBanner(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600"
+            />
+            {t("admin.announcement.showInBannerLabel")}
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={showOnStatusPage}
+              onChange={(e) => setShowOnStatusPage(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600"
+            />
+            {t("admin.announcement.showOnStatusPageLabel")}
+          </label>
+          {!harVisningsmaal && (
+            <p className="text-xs text-red-600 dark:text-red-400">
+              {t("admin.announcement.targetsRequired")}
+            </p>
+          )}
+        </fieldset>
 
         <div className="flex flex-wrap gap-2 pt-1">
           <button

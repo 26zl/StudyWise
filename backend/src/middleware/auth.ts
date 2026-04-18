@@ -105,7 +105,13 @@ export async function resolveAuthentication(req: Request): Promise<AuthResolutio
   const sessionId = getSessionIdFromTokenCache(token) ?? undefined;
   // Spor om Turnstile-cookie ble brukt slik at den kan slettes etter autentisering (engangsbruk)
   const hadTurnstileCookie = !!authTurnstileCookie;
-  const userResult = await findOrCreateUserByClerkId(clerkUserId, { flowId, forceSync, authTurnstileCookie, sessionId });
+  const userResult = await findOrCreateUserByClerkId(clerkUserId, {
+    flowId,
+    forceSync,
+    authTurnstileCookie,
+    sessionId,
+    req,
+  });
   const tDb = Date.now();
 
   if (isAccountConflict(userResult)) {
