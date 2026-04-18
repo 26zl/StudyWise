@@ -48,7 +48,17 @@ jobs:
           cache: "pnpm"
 
       - name: Install safe-chain (pinned release)
-        run: curl -fsSL https://github.com/AikidoSec/safe-chain/releases/download/1.4.7/install-safe-chain.sh | sh -s -- --ci
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
+            https://github.com/AikidoSec/safe-chain/releases/download/1.4.7/install-safe-chain.sh \
+            -o /tmp/install-safe-chain.sh
+          sh /tmp/install-safe-chain.sh --ci
+
+      - name: Verify safe-chain is installed
+        shell: bash
+        run: safe-chain -v
 
       - name: Start local test infrastructure
         run: |
