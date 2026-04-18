@@ -1663,9 +1663,10 @@ export async function findOrCreateUserByClerkId(
       // Hent oppdatert bruker fra Mongo (performExistingUserProfileSync kan ha
       // gitt null hvis en parallell sync pågikk; da reflekterer ny findOne
       // uansett siste lagrede state når den syncen også er ferdig i DB).
-      const refreshed = await User.findOne({ clerkId: clerkUserId }).select(
-        "+canvasApiToken",
-      );
+      const refreshed = await User.findOne({
+        clerkId: clerkUserId,
+        deletedAt: { $exists: false },
+      }).select("+canvasApiToken");
       return refreshed ?? existing;
     }
 
