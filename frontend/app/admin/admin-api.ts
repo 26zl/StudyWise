@@ -35,6 +35,7 @@ import {
   AdminRedisRelinkStatesResponseSchema,
   AdminSlettBrukerResponseSchema,
   AdminStatsResponseSchema,
+  AdminResetMfaResponseSchema,
   AdminRevokeSessionsResponseSchema,
   AdminSuccessResponseSchema,
   AdminRedisFlushResultSchema,
@@ -365,6 +366,27 @@ export function useResendVerification() {
         throw new Error(data.melding || data.feil || "Kunne ikke sende verifiseringsepost");
       }
       return AdminSuccessResponseSchema.parse(await res.json());
+    },
+  });
+}
+
+export function useResetUserMfa() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (brukerId: string) => {
+      const res = await fetchApi(`/api/admin/brukere/${brukerId}/reset-mfa`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.melding || data.feil || "Kunne ikke tilbakestille MFA");
+      }
+      return AdminResetMfaResponseSchema.parse(await res.json());
+    },
+    onSuccess: () => {
+      // mfaEnabled=false skal vises umiddelbart i både liste og detaljmodal
+      void queryClient.invalidateQueries({ queryKey: ["admin", "brukere"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "brukerDetalj"] });
     },
   });
 }
@@ -946,9 +968,17 @@ export function usePublishAnnouncement() {
 export function useClearAnnouncement() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<{ cacheInvalidated: boolean }> => {
       const res = await fetchApi("/api/admin/announcement", { method: "DELETE" });
       if (!res.ok && res.status !== 404) throw new Error(await res.text());
+      if (res.status === 404) return { cacheInvalidated: true };
+      const json = await res.json().catch(() => ({}));
+      const parsed = AdminAnnouncementStateSchema.safeParse(json);
+      return {
+        cacheInvalidated: parsed.success
+          ? (parsed.data.cacheInvalidated ?? true)
+          : true,
+      };
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "announcement"] });

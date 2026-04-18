@@ -4,6 +4,53 @@ import type { ReactNode } from "react";
 import { Loader2, AlertCircle, ShieldCheck } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
+/*  Shared timeout helper                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Dedikert feilklasse for timeouts fra withAuthTimeout. Kallesteder kan
+ * matche på `err instanceof AuthTimeoutError` og vise en i18n-sanert melding,
+ * i stedet for å lekke interne labels (f.eks. "mfa_attempt_timeout") via
+ * generiske error.message-fallbacks.
+ */
+export class AuthTimeoutError extends Error {
+  readonly label: string;
+  constructor(label: string) {
+    super(`${label}_timeout`);
+    this.name = "AuthTimeoutError";
+    this.label = label;
+  }
+}
+
+/**
+ * Wrap en promise med en timeout slik at hengende Clerk-kall (attemptSecondFactor,
+ * setActive, handleRedirectCallback osv.) ikke låser UI-et i spinner for alltid.
+ * Rejecter med en `AuthTimeoutError` etter `ms` millisekunder.
+ */
+export function withAuthTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new AuthTimeoutError(label)),
+      ms,
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /*  Shared Clerk error parser                                         */
 /* ------------------------------------------------------------------ */
 

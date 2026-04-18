@@ -31,8 +31,15 @@ import { isMongoDuplicateKeyError } from "../../utils/canvasUserSync.js";
 /** Minste intervall (ms) mellom profiloppdateringer fra Clerk for samme bruker (5 min). */
 const CLERK_PROFILE_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
-/** Holder styr på brukere som allerede har en synk i gang, for å unngå duplikat-kø. */
-const existingUserProfileSyncs = new Set<string>();
+/**
+ * Holder styr på pågående profilsync pr. bruker, slik at parallelle kallere
+ * deler på samme sync og får samme ferske resultat i stedet for å enten
+ * konkurrere om dokumentet eller bli dumpet på stale Mongo-state.
+ */
+const existingUserProfileSyncs = new Map<
+  string,
+  Promise<IUser | null>
+>();
 
 /** Profilfelter hentet fra Clerk som synkroniseres til lokal User. */
 type ClerkProfile = {
@@ -89,17 +96,24 @@ async function withClerkTimeout<T>(promise: Promise<T>, label: string): Promise<
 /**
  * Tilbakekaller alle aktive Clerk-sesjoner for en bruker.
  * Brukes av admin-funksjon "logg ut alle sesjoner".
- * Returnerer antall sesjoner som ble revoked.
+ *
+ * Returnerer `{ total, revoked }` slik at kaller kan skille fullt vellykket
+ * (`total === revoked`) fra delvis feilet (noen sesjoner kastet under revoke
+ * men ble svelget). Tidligere returnerte vi kun `revoked` — det skjulte
+ * partial-failures fra sikkerhetskritiske kallere som reset-mfa.
  */
-export async function revokeAllClerkSessions(clerkUserId: string): Promise<number> {
+export async function revokeAllClerkSessions(
+  clerkUserId: string,
+): Promise<{ total: number; revoked: number }> {
   const clerk = getClerkBackendClient();
   if (!clerk) throw new Error("Clerk-klient ikke konfigurert");
   const sessions = await withClerkTimeout(
     clerk.sessions.getSessionList({ userId: clerkUserId, status: "active" }),
     "getSessionList",
   );
+  const active = sessions.data ?? [];
   let revoked = 0;
-  for (const session of sessions.data ?? []) {
+  for (const session of active) {
     try {
       await clerk.sessions.revokeSession(session.id);
       revoked += 1;
@@ -107,7 +121,34 @@ export async function revokeAllClerkSessions(clerkUserId: string): Promise<numbe
       logger.warn({ err, sessionId: session.id, clerkUserId }, "Kunne ikke revoke Clerk-sesjon");
     }
   }
-  return revoked;
+  return { total: active.length, revoked };
+}
+
+/**
+ * Deaktiverer alle MFA-faktorer (TOTP, backup codes, phone) for en bruker
+ * i Clerk. Brukes av admin når en bruker har mistet tilgang til sin
+ * autentiseringsapp og må settes opp på nytt.
+ *
+ * Returnerer true ved suksess (eller hvis brukeren ikke hadde MFA fra før —
+ * Clerk er idempotent her). Kaster hvis Clerk-klient ikke er konfigurert
+ * eller API-et svarer uventet, slik at admin-UI-et kan vise feil.
+ */
+export async function disableClerkUserMfa(clerkUserId: string): Promise<boolean> {
+  const clerk = getClerkBackendClient();
+  if (!clerk) throw new Error("Clerk-klient ikke konfigurert");
+  try {
+    await withClerkTimeout(
+      clerk.users.disableUserMFA(clerkUserId),
+      "disableUserMFA",
+    );
+    return true;
+  } catch (error) {
+    logger.error(
+      { err: error, clerkUserId },
+      "Kunne ikke deaktivere MFA i Clerk",
+    );
+    throw error;
+  }
 }
 
 /**
@@ -835,10 +876,18 @@ async function getClerkProfile(
       // Prøv e-post direkte fra external account først, deretter slå opp via
       // emailAddresses.linkedTo som Clerk bruker i dev mode (der emailAddress
       // på external account kan være tom, men e-posten finnes som linked adresse).
+      //
+      // Viktig: `EmailAddress.linkedTo[].id` peker til Identification-objektets
+      // ID (idn_*), IKKE til ExternalAccount.id (eac_*). Clerk eksponerer
+      // mappingen via `ExternalAccount.identificationId`. Å sammenligne mot
+      // account.id var feil og gjorde at vi skippet legitimt linkede OAuth-
+      // kontoer (symptom: Microsoft linket i Clerk ble aldri lagret i Mongo,
+      // "OAuth-konto bruker intern ID og mangler e-post" i loggen).
       let oauthEmail = account.emailAddress;
-      if ((!oauthEmail || !oauthEmail.includes("@")) && account.id) {
+      const identificationId = account.identificationId?.trim() || null;
+      if ((!oauthEmail || !oauthEmail.includes("@")) && identificationId) {
         const linkedEmail = clerkUser.emailAddresses.find((ea) =>
-          ea.linkedTo?.some((link) => link.id === account.id),
+          ea.linkedTo?.some((link) => link.id === identificationId),
         );
         if (linkedEmail?.emailAddress) {
           oauthEmail = linkedEmail.emailAddress;
@@ -1365,31 +1414,52 @@ async function syncExistingUserWithClerkProfile(
 }
 
 /**
+ * Utfører selve profil-syncen fra Clerk til MongoDB. Parallelle kall for samme
+ * bruker deler på én pågående sync-promise — nye kallere awaiter den istedenfor
+ * å returnere `null`. Det lukker race-vinduet der `forceSync=true` ellers kunne
+ * få stale Mongo-data fordi en bakgrunnssync fortsatt skrev til dokumentet.
+ * Returnerer synket bruker, eller null hvis dataene ikke kunne hentes.
+ */
+function performExistingUserProfileSync(
+  existing: IUser,
+  clerkUserId: string,
+): Promise<IUser | null> {
+  const syncKey = existing._id.toString();
+  const inFlight = existingUserProfileSyncs.get(syncKey);
+  if (inFlight) {
+    return inFlight;
+  }
+  const promise: Promise<IUser | null> = (async () => {
+    try {
+      const freshUser = await User.findById(existing._id);
+      if (!freshUser || freshUser.deletedAt) return null;
+      const profile = await getClerkProfile(clerkUserId);
+      if (!profile) return null;
+      return await syncExistingUserWithClerkProfile(
+        freshUser,
+        clerkUserId,
+        profile,
+      );
+    } finally {
+      existingUserProfileSyncs.delete(syncKey);
+    }
+  })();
+  existingUserProfileSyncs.set(syncKey, promise);
+  return promise;
+}
+
+/**
  * Køer asynkron profiloppdatering for eksisterende bruker. Hvis synk allerede pågår for denne brukeren, hoppes den over.
  */
 function queueExistingUserProfileSync(
   existing: IUser,
   clerkUserId: string,
 ): void {
-  const syncKey = existing._id.toString();
-  if (existingUserProfileSyncs.has(syncKey)) {
-    return;
-  }
-
-  existingUserProfileSyncs.add(syncKey);
-
   void (async () => {
     const PROFILE_SYNC_TIMEOUT_MS = 15_000;
     try {
       const result = await Promise.race([
-        (async () => {
-          // Hent fersk bruker fra DB i stedet for å bruke stale objekt fra auth-flyten
-          const freshUser = await User.findById(existing._id);
-          if (!freshUser || freshUser.deletedAt) return;
-          const profile = await getClerkProfile(clerkUserId);
-          if (!profile) return;
-          await syncExistingUserWithClerkProfile(freshUser, clerkUserId, profile);
-        })(),
+        performExistingUserProfileSync(existing, clerkUserId),
         new Promise<"timeout">((resolve) =>
           setTimeout(() => resolve("timeout"), PROFILE_SYNC_TIMEOUT_MS),
         ),
@@ -1405,8 +1475,6 @@ function queueExistingUserProfileSync(
         { err, clerkUserId, userId: existing._id },
         "Kunne ikke synkronisere eksisterende Clerk-profil",
       );
-    } finally {
-      existingUserProfileSyncs.delete(syncKey);
     }
   })();
 }
@@ -1567,7 +1635,41 @@ export async function findOrCreateUserByClerkId(
       return { __turnstileRequired: true };
     }
 
-    if (options?.forceSync || shouldSyncExistingUserProfile(existing)) {
+    if (options?.forceSync) {
+      // forceSync skal være synkron: /me (og andre kallesteder som sender
+      // forceSync=true) forventer at lokal state faktisk er oppdatert fra
+      // Clerk når responsen kommer tilbake. Uten await ville vi returnert
+      // stale Mongo-data og frontend ville cachet det som "ferskt".
+      const FORCE_SYNC_TIMEOUT_MS = 10_000;
+      try {
+        const syncResult = await Promise.race([
+          performExistingUserProfileSync(existing, clerkUserId),
+          new Promise<"timeout">((resolve) =>
+            setTimeout(() => resolve("timeout"), FORCE_SYNC_TIMEOUT_MS),
+          ),
+        ]);
+        if (syncResult === "timeout") {
+          logger.warn(
+            { clerkUserId, userId: existing._id, timeoutMs: FORCE_SYNC_TIMEOUT_MS },
+            "authFlow: forceSync timet ut — returnerer beste tilgjengelige bruker",
+          );
+        }
+      } catch (err) {
+        logger.warn(
+          { err, clerkUserId, userId: existing._id, flowId: fid },
+          "authFlow: forceSync feilet — returnerer beste tilgjengelige bruker",
+        );
+      }
+      // Hent oppdatert bruker fra Mongo (performExistingUserProfileSync kan ha
+      // gitt null hvis en parallell sync pågikk; da reflekterer ny findOne
+      // uansett siste lagrede state når den syncen også er ferdig i DB).
+      const refreshed = await User.findOne({ clerkId: clerkUserId }).select(
+        "+canvasApiToken",
+      );
+      return refreshed ?? existing;
+    }
+
+    if (shouldSyncExistingUserProfile(existing)) {
       queueExistingUserProfileSync(existing, clerkUserId);
     }
     return existing;

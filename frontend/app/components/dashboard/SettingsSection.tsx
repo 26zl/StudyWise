@@ -22,7 +22,6 @@ import { CanvasBaseUrlSchema } from "common/auth";
 import { useCookieConsent } from "@/app/hooks/useCookieConsent";
 import { useLanguage } from "@/app/i18n";
 import { useBrowserPushNotifications } from "@/app/hooks/useBrowserPushNotifications";
-import { withCsrfProtection } from "@/app/lib/csrf";
 import { fetchApi } from "@/app/lib/apiClient";
 import type { BrowserPushPreferences } from "common/notifications";
 import { NotionSettingsResponseSchema } from "common/export";
@@ -288,14 +287,14 @@ export function SettingsSection({
         setIsSavingNotion(true);
         try {
             const normalizedNotionPageId = normalizeNotionPageIdInput(notionDefaultPageId);
-            const res = await fetchApi("/api/user/notion", withCsrfProtection({
+            const res = await fetchApi("/api/user/notion", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     apiKey: notionApiKey.trim() || undefined,
                     defaultPageId: normalizedNotionPageId || undefined,
                 }),
-            }));
+            });
             if (!res.ok) {
                 const errData = await res.json().catch(() => ({})) as { melding?: string };
                 throw new Error(errData.melding || "Kunne ikke lagre");
@@ -327,9 +326,9 @@ export function SettingsSection({
     const handleDeleteNotion = async () => {
         setIsDeletingNotion(true);
         try {
-            const res = await fetchApi("/api/user/notion", withCsrfProtection({
+            const res = await fetchApi("/api/user/notion", {
                 method: "DELETE",
-            }));
+            });
             if (!res.ok) {
                 const errData = await res.json().catch(() => ({})) as { melding?: string };
                 throw new Error(errData.melding || "Kunne ikke slette");

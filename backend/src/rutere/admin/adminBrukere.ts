@@ -19,6 +19,7 @@ import {
   AdminUnlockUserResponseSchema,
   AdminSlettBrukerResponseSchema,
   AdminSuccessResponseSchema,
+  AdminResetMfaResponseSchema,
   AdminRevokeSessionsResponseSchema,
 } from "common/admin";
 import { User } from "../../database/models/User.js";
@@ -45,6 +46,7 @@ import { deleteAccountData } from "../auth/kontoSlett.js";
 import {
   revokeAllClerkSessions,
   resendClerkEmailVerification,
+  disableClerkUserMfa,
 } from "../auth/clerkAuth.js";
 import { escapeRegex } from "../../utils/regexUtils.js";
 import { requireRecentAuth } from "../../middleware/auth.js";
@@ -108,7 +110,7 @@ router.get("/brukere", async (req, res) => {
     // brukere via filter-objektet over (lint-scriptet ser ikke gjennom dynamisk filter-bygging)
     const [brukere, total] = await Promise.all([
       User.find(filter)
-        .select("email role username firstName lastName canvasBaseUrl authProviders createdAt lockedAt lockedReason deletedAt")
+        .select("email role username firstName lastName canvasBaseUrl authProviders mfaEnabled createdAt lockedAt lockedReason deletedAt")
         .sort({ createdAt: -1 })
         .skip(offset)
         .limit(limit)
@@ -137,6 +139,7 @@ router.get("/brukere", async (req, res) => {
         harCanvasToken: Boolean(b.canvasBaseUrl),
         authProviders: b.authProviders ?? [],
         opprettet: b.createdAt,
+        mfaEnabled: b.mfaEnabled ?? false,
         locked: !!b.lockedAt,
         lockedAt: b.lockedAt ?? undefined,
         lockedReason: b.lockedReason ?? undefined,
@@ -513,7 +516,7 @@ router.post("/brukere/:id/revoke-sessions", requireRecentAuth, async (req, res) 
       return apiError.badRequest(res, "Brukeren har ingen Clerk-konto");
     }
 
-    const revoked = await revokeAllClerkSessions(bruker.clerkId);
+    const { total, revoked } = await revokeAllClerkSessions(bruker.clerkId);
 
     await audit({
       actorUserId,
@@ -522,12 +525,12 @@ router.post("/brukere/:id/revoke-sessions", requireRecentAuth, async (req, res) 
       outcome: "success",
       role: req.actorRole,
       targetUserId: targetId,
-      metadata: { subAction: "brukere.revoke-sessions", revoked },
+      metadata: { subAction: "brukere.revoke-sessions", revoked, total },
       req,
     });
 
     logger.info(
-      { adminUserId: actorUserId, targetUserId: targetId, revoked },
+      { adminUserId: actorUserId, targetUserId: targetId, revoked, total },
       "Admin tilbakekalte alle Clerk-sesjoner for bruker",
     );
 
@@ -580,6 +583,94 @@ router.post("/brukere/:id/resend-verification", requireRecentAuth, async (req, r
     return res.json(AdminSuccessResponseSchema.parse({ success: true }));
   } catch (err) {
     logger.error({ err }, "Admin resend-verification feilet");
+    return apiError.serverError(res);
+  }
+});
+
+// ── POST /brukere/:id/reset-mfa ─────────────────────────────────────────────
+// Deaktiverer alle MFA-faktorer i Clerk for en bruker som har mistet tilgang
+// til sin autentiseringsapp (mistet telefon, feilet app-migrering osv.).
+// Etter dette kan brukeren logge inn uten MFA og sette opp 2FA på nytt.
+// Krever requireRecentAuth — dette er en sikkerhetsfølsom handling og skal
+// ha et tydelig step-up-spor i audit-loggen.
+router.post("/brukere/:id/reset-mfa", requireRecentAuth, async (req, res) => {
+  const actorUserId = requireUserId(req, res);
+  if (!actorUserId) return;
+
+  const targetId = String(req.params.id);
+  if (!isValidMongoObjectId(targetId)) {
+    return apiError.badRequest(res, "Ugyldig bruker-ID");
+  }
+
+  try {
+    const bruker = await User.findOne({
+      _id: targetId,
+      deletedAt: { $exists: false },
+    }).select("clerkId mfaEnabled");
+    if (!bruker) return apiError.notFound(res, "Bruker");
+    if (!bruker.clerkId) {
+      return apiError.badRequest(res, "Brukeren har ingen Clerk-konto");
+    }
+
+    await disableClerkUserMfa(bruker.clerkId);
+
+    // Speil endringen til lokal state umiddelbart — neste /me-sync henter
+    // uansett fra Clerk (twoFactorEnabled=false), men forhindrer kort vindu
+    // der admin-UI og andre MFA-baserte sjekker ser stale mfaEnabled=true.
+    await User.updateOne(
+      { _id: targetId, deletedAt: { $exists: false } },
+      { $set: { mfaEnabled: false } },
+    );
+
+    // Revokér aktive Clerk-sesjoner: hvis kontoen er kompromittert og en
+    // angriper hadde fått tilgang via gjenværende sesjoner, skal MFA-reset
+    // ikke la dem fortsette uten å passere innlogging på nytt. Vi feiler
+    // ikke hele operasjonen hvis revoke bommer (MFA er allerede deaktivert
+    // i Clerk) — i stedet flagges `sessionsRevoked=false` i responsen slik
+    // at admin-UI kan vise advarsel og eventuelt trigge "logg ut sesjoner"
+    // som en egen manuell handling. Strict-sjekk: både kast fra helperen
+    // OG partial failure (noen sesjoner feilet under revoke men ble svelget
+    // intern i helperen) skal flagges som false — vi kan ellers love admin
+    // at alle sesjoner er ute selv når bare noen faktisk er det.
+    let sessionsRevoked = true;
+    try {
+      const { total, revoked } = await revokeAllClerkSessions(bruker.clerkId);
+      if (revoked < total) {
+        sessionsRevoked = false;
+        logger.warn(
+          { targetUserId: targetId, total, revoked },
+          "Partial sesjonsrevoke ved MFA-reset — enkelte sesjoner feilet",
+        );
+      }
+    } catch (revokeErr) {
+      sessionsRevoked = false;
+      logger.warn(
+        { err: revokeErr, targetUserId: targetId },
+        "Kunne ikke revokere Clerk-sesjoner ved MFA-reset",
+      );
+    }
+
+    await audit({
+      actorUserId,
+      action: AUDIT_ACTIONS.ADMIN_ACTION,
+      category: "security",
+      outcome: "success",
+      role: req.actorRole,
+      targetUserId: targetId,
+      metadata: { subAction: "brukere.reset-mfa", sessionsRevoked },
+      req,
+    });
+
+    logger.info(
+      { adminUserId: actorUserId, targetUserId: targetId, sessionsRevoked },
+      "Admin deaktiverte MFA for bruker",
+    );
+
+    return res.json(
+      AdminResetMfaResponseSchema.parse({ success: true, sessionsRevoked }),
+    );
+  } catch (err) {
+    logger.error({ err }, "Admin reset-mfa feilet");
     return apiError.serverError(res);
   }
 });

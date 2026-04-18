@@ -207,6 +207,8 @@ export const enMessages = {
         verifying: "Verifying...",
         verificationFailed: "Invalid code. Please try again.",
         backToSignIn: "Back to sign in",
+        lostAccess: "Lost access to your authenticator app?",
+        lostAccessLink: "Contact us",
       },
       noAccount: "Don't have an account?",
       signUpLink: "Sign up",
@@ -265,6 +267,7 @@ export const enMessages = {
       verify: {
         title: "Verify your email",
         description: "We sent a verification code to {email}.",
+        deliveryHint: "It may take a minute or two to arrive. Check your spam folder as well.",
         codeLabel: "Verification code",
         codePlaceholder: "123456",
         submitButton: "Verify",
@@ -790,6 +793,9 @@ export const enMessages = {
       clearError: "Could not deactivate message",
       published: "System message published",
       cleared: "System message deactivated",
+      cacheInvalidationFailedTitle: "Cache invalidation failed",
+      cacheInvalidationFailedDescription:
+        "The message was saved, but other servers may show stale banner or status for up to ~30 seconds.",
       updatedAt: "Updated {time}",
       externalChange:
         "Another admin has updated the message since you started editing. Reload to see the current version.",
@@ -1281,6 +1287,14 @@ export const enMessages = {
       resendVerificationConfirm: "Resend the Clerk verification email to this user?",
       resendVerificationSuccess: "Verification email sent",
       resendVerificationFailed: "Could not send verification email",
+      resetMfa: "Reset 2FA",
+      resetMfaConfirm:
+        "This removes all 2FA (authenticator app and backup codes) for the user. They can then sign in without MFA and set it up again. Active sessions will also be signed out.",
+      resetMfaSuccess: "2FA reset",
+      resetMfaFailed: "Could not reset 2FA",
+      resetMfaSessionsNotRevokedTitle: "2FA removed, but sessions could not be signed out",
+      resetMfaSessionsNotRevokedDescription:
+        "Click \"Sign out all sessions\" on the user to complete the action. Until then, existing sessions may still be active.",
       lockUser: "Lock account",
       unlockUser: "Unlock account",
       lockedBadge: "Locked",
@@ -2138,7 +2152,7 @@ export const enMessages = {
       "to request account deletion. For security, you must have logged in recently to delete your account (step-up authentication) — sign in again if it's been a while. On deletion, account information and associated data will be deleted or anonymized, while limited security and audit logs may be retained in pseudonymized form for a limited period.",
     twoFactorQ: "How do I enable two-factor authentication (2FA)?",
     twoFactorA:
-      "Go to Account → Security and follow the setup. We recommend an authenticator app (Google Authenticator, 1Password, Authy, or similar). Remember to save your backup codes somewhere safe in case you lose your phone.",
+      "Go to Account → Security and follow the setup. We recommend an authenticator app (Google Authenticator, 1Password, Authy, or similar). If you lose access to the app, contact us via the contact form and we'll help you reset 2FA.",
     quizQ: "How do I generate a quiz or flashcards?",
     quizA:
       "Pick a course and one or more modules from Canvas in the AI chat, and the AI will generate a quiz or flashcards based on your reading material. You choose the question count and difficulty.",
@@ -2209,6 +2223,7 @@ export const enMessages = {
     description: "Do you have questions, feedback, or need help? Send us a message.",
     sendMessage: "Send us a message",
     email: "Email: kontakt@studwize.page",
+    responseTime: "We usually reply within a short time.",
     feedbackTitle: "Feedback",
     feedbackBody:
       "We appreciate all feedback that can help us improve StudyWise. Feel free to share your thoughts and suggestions.",

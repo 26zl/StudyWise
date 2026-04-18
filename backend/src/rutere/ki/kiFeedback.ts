@@ -39,7 +39,7 @@ kiFeedbackRouter.post("/feedback", async (req, res) => {
           answer: parsed.data.answer,
         },
       },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: "after" },
     );
 
     void audit({

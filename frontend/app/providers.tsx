@@ -362,6 +362,30 @@ function ClerkProfileCacheSync() {
     userId,
   ]);
 
+  // Spor MFA-status (TOTP/2FA) og tving backend-sync når brukeren aktiverer
+  // eller deaktiverer tofaktorautentisering via Clerk UserProfile. Uten dette
+  // vil admin-visninger og sikkerhetsbaserte features se stale mfaEnabled i
+  // opptil 5 minutter (CLERK_PROFILE_SYNC_INTERVAL_MS).
+  const twoFactorEnabled = user?.twoFactorEnabled ?? false;
+  const prevTwoFactorRef = useRef<boolean | null>(null);
+
+  useEffect(() => {
+    if (!authLoaded || !userId || !clerkUserLoaded) return;
+
+    const prev = prevTwoFactorRef.current;
+    prevTwoFactorRef.current = twoFactorEnabled;
+
+    if (prev === null || prev === twoFactorEnabled) return;
+
+    void triggerBackendProfileSync();
+  }, [
+    authLoaded,
+    clerkUserLoaded,
+    triggerBackendProfileSync,
+    twoFactorEnabled,
+    userId,
+  ]);
+
   return null;
 }
 

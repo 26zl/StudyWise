@@ -161,8 +161,6 @@ export function useCookieConsent() {
     useState<CookieConsentStatus>(gjesteSamtykke);
   const [cachedAuthenticatedConsent, setCachedAuthenticatedConsent] =
     useState<CookieConsentStatus>(null);
-  const [pendingConsent, setPendingConsent] =
-    useState<CookieConsentStatus>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -259,11 +257,11 @@ export function useCookieConsent() {
   // For innloggede brukere: bruk backend- eller cache-verdi, IKKE gjeste-cookie.
   // Gjeste-cookien kan tilhøre en annen person på delt maskin.
   // Hvis ingen verdi finnes, vises banneret på nytt (consent === null).
-  const consent =
-    pendingConsent ??
-    (isAuthenticated
-      ? (backendConsent ?? cachedAuthenticatedConsent)
-      : guestConsent);
+  // Ingen optimistisk state: banneret forsvinner først når backend har kvittert
+  // (cachedAuthenticatedConsent settes etter vellykket PUT /preferences).
+  const consent = isAuthenticated
+    ? (backendConsent ?? cachedAuthenticatedConsent)
+    : guestConsent;
   const harConsentFraCache = cachedAuthenticatedConsent !== null;
   const isReady =
     isLoaded &&
@@ -309,26 +307,22 @@ export function useCookieConsent() {
         cookieConsent: nextConsent,
       };
 
-      // Lagre i localStorage umiddelbart slik at banneret forsvinner selv ved API-feil
+      // Alle klient-sideeffekter (localStorage, React Query-cache, event-emit
+      // til telemetri-komponenter) venter på backend-kvittering. Uten dette
+      // kunne en feilet PUT /preferences etterlate oss i en tilstand der
+      // klienten trodde samtykke var gitt mens serveren aldri fikk det lagret
+      // — og valgfri telemetri (Datadog/PostHog) ville slått seg på fra lokal
+      // state. isPending fra mutasjonen brukes til å disable banner-knappene
+      // under kallet (se CookieBanner), så brukeren får visuell feedback.
+      await oppdaterUIPreferanser(nextPrefs);
       if (userId) {
         writeAuthenticatedConsentToStorage(userId, nextConsent);
         setCachedAuthenticatedConsent(nextConsent);
-      }
-      // Ikke skriv til gjeste-cookie — det kan lekke til neste bruker på delt maskin.
-      // Banneret vises ved utlogging bare hvis gjesten ikke har et eget valg.
-      if (userId) {
         emitCookieConsentChange({
           scope: "authenticated",
           consent: nextConsent,
           userId,
         });
-      }
-
-      setPendingConsent(nextConsent);
-      try {
-        await oppdaterUIPreferanser(nextPrefs);
-      } finally {
-        setPendingConsent(null);
       }
     },
     [isAuthenticated, me?.user?.uiPreferences, oppdaterUIPreferanser, userId],

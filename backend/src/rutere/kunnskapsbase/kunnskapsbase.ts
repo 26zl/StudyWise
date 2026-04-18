@@ -370,7 +370,7 @@ router.post("/:id/links", rateLimitKBWrite, async (req: Request, res: Response) 
           },
         },
       },
-      { new: true },
+      { returnDocument: "after" },
     );
 
     if (!oppdatertBase) {
@@ -556,7 +556,7 @@ router.post("/:id/files", rateLimitKBWrite, (req: Request, res: Response) => {
             },
           },
         },
-        { new: true },
+        { returnDocument: "after" },
       );
 
       if (!oppdatertBase) {

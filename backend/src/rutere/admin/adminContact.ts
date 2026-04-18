@@ -138,7 +138,7 @@ router.patch("/contact/messages/:id", requireRecentAuth, async (req, res) => {
           statusChangedAt: new Date(),
         },
       },
-      { new: true },
+      { returnDocument: "after" },
     ).lean();
 
     if (!updated) return apiError.notFound(res, "Kontaktmelding");

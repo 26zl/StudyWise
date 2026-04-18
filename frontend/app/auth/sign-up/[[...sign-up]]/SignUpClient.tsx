@@ -16,9 +16,13 @@ import {
   isValidUsernameFormat,
   USERNAME_MIN_LENGTH,
   USERNAME_MAX_LENGTH,
+  AUTH_CSRF_HEADER_NAME,
+  AUTH_CSRF_HEADER_VALUE,
 } from "common/auth";
 import {
   parseClerkError,
+  withAuthTimeout,
+  AuthTimeoutError,
   AuthCard,
   AuthHeader,
   AuthOAuthButtons,
@@ -38,6 +42,8 @@ type SignUpClientProps = {
 type UsernameStatus = "idle" | "checking" | "available" | "taken" | "invalid";
 type SignUpStep = "form" | "verify";
 
+const VERIFY_TIMEOUT_MS = 15_000;
+
 function normalizeEmailForUsernameCheck(value: string | null | undefined): string | undefined {
   const trimmed = value?.trim().toLowerCase();
   if (!trimmed || !trimmed.includes("@") || trimmed.includes(" ")) {
@@ -49,7 +55,12 @@ function normalizeEmailForUsernameCheck(value: string | null | undefined): strin
 function fetchUsernameCheck(username: string, email?: string, signal?: AbortSignal): Promise<Response> {
   return fetch("/api/user/username/check", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      // CSRF-header kreves av backend for alle POST-kall. Uten denne svarte
+      // endepunktet 403 og klienten falt tilbake til "idle" uten feedback.
+      [AUTH_CSRF_HEADER_NAME]: AUTH_CSRF_HEADER_VALUE,
+    },
     body: JSON.stringify({ username, ...(email ? { email } : {}) }),
     signal,
   });
@@ -123,6 +134,15 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
     if (!isOAuthReturn || !isSignedIn) return;
     redirectEtterAuth();
   }, [isOAuthReturn, isSignedIn, redirectEtterAuth]);
+
+  // Safety net: hvis Clerk har markert sesjonen som aktiv men inline redirecten
+  // etter handleVerify aldri fullførte (f.eks. hengende setActive-promise), tving
+  // en redirect her slik at LoadingView ikke blir stående evig.
+  useEffect(() => {
+    if (isRedirectingToDashboard) {
+      redirectEtterAuth();
+    }
+  }, [isRedirectingToDashboard, redirectEtterAuth]);
 
   // Gjenopprett session hvis sign-up allerede er fullført (f.eks. etter reload på verify-steget)
   useEffect(() => {
@@ -315,12 +335,23 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
       setVerifyError(null);
 
       try {
-        const result = await signUp.attemptEmailAddressVerification({
-          code: verificationCode,
-        });
+        const result = await withAuthTimeout(
+          signUp.attemptEmailAddressVerification({ code: verificationCode }),
+          VERIFY_TIMEOUT_MS,
+          "verify_attempt",
+        );
 
         if (result.status === "complete" && result.createdSessionId) {
-          await setActive({ session: result.createdSessionId });
+          try {
+            await withAuthTimeout(
+              setActive({ session: result.createdSessionId }),
+              VERIFY_TIMEOUT_MS,
+              "verify_setactive",
+            );
+          } catch {
+            // setActive kan henge selv om sesjonen er opprettet server-side;
+            // safety-net-useEffecten plukker uansett opp isSignedIn-overgangen.
+          }
           redirectEtterAuth();
         } else if (result.status === "complete") {
           setVerifyError(t("auth.signUp.verify.sessionFailed"));
@@ -331,7 +362,11 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
         // Gjenopprett hvis sign-up allerede er ferdig
         if (signUp.status === "complete" && signUp.createdSessionId) {
           try {
-            await setActive({ session: signUp.createdSessionId });
+            await withAuthTimeout(
+              setActive({ session: signUp.createdSessionId }),
+              VERIFY_TIMEOUT_MS,
+              "verify_recover_setactive",
+            );
             redirectEtterAuth();
             return;
           } catch {
@@ -339,7 +374,11 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
           }
         }
 
-        setVerifyError(parseClerkError(err, t("auth.genericError")));
+        if (err instanceof AuthTimeoutError) {
+          setVerifyError(t("errors.generic.timeout"));
+        } else {
+          setVerifyError(parseClerkError(err, t("auth.genericError")));
+        }
       } finally {
         setIsVerifyingCode(false);
       }
@@ -635,6 +674,10 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
             title={t("auth.signUp.verify.title")}
             subtitle={t("auth.signUp.verify.description", { email: pendingEmail })}
           />
+
+          <p className="-mt-3 mb-5 text-center text-xs text-slate-500 dark:text-slate-400">
+            {t("auth.signUp.verify.deliveryHint")}
+          </p>
 
           <form onSubmit={handleVerify} className="space-y-4" noValidate>
             <div>

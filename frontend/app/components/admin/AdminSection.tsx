@@ -56,6 +56,7 @@ import {
   Send,
   Megaphone,
   Loader2,
+  ShieldOff,
 } from "lucide-react";
 import { useLanguage } from "@/app/i18n";
 import type { Translator } from "@/app/i18n/types";
@@ -81,6 +82,7 @@ import {
   useUnlockUser,
   useRevokeUserSessions,
   useResendVerification,
+  useResetUserMfa,
   useAdminBrukerDetalj,
   useAdminContactMessages,
   useUpdateContactMessageStatus,
@@ -1134,7 +1136,19 @@ function AnnouncementPanel() {
     publish.mutate(
       { severity, melding: trimmed, dismissible, showInBanner, showOnStatusPage },
       {
-        onSuccess: () => showToast.success(t("admin.announcement.published")),
+        onSuccess: (result) => {
+          showToast.success(t("admin.announcement.published"));
+          // Backend rapporterer cacheInvalidated=false når Redis-invalidering
+          // feilet. Andre dyner kan da vise foreldet banner/status inntil
+          // cache-TTL (typisk 30s) løper ut — advar admin så de vet hvorfor
+          // publiseringen ikke er synlig umiddelbart andre steder.
+          if (result.cacheInvalidated === false) {
+            showToast.warning(
+              t("admin.announcement.cacheInvalidationFailedTitle"),
+              t("admin.announcement.cacheInvalidationFailedDescription"),
+            );
+          }
+        },
         onError: () => showToast.error(t("admin.announcement.publishError")),
       },
     );
@@ -1142,10 +1156,16 @@ function AnnouncementPanel() {
 
   const handleClear = () => {
     clear.mutate(undefined, {
-      onSuccess: () => {
+      onSuccess: (result) => {
         showToast.success(t("admin.announcement.cleared"));
         setMelding("");
         syncedSnapshotRef.current = null;
+        if (result.cacheInvalidated === false) {
+          showToast.warning(
+            t("admin.announcement.cacheInvalidationFailedTitle"),
+            t("admin.announcement.cacheInvalidationFailedDescription"),
+          );
+        }
       },
       onError: () => showToast.error(t("admin.announcement.clearError")),
     });
@@ -2069,7 +2089,17 @@ function ObservabilityFane() {
 
 // ── Brukerdetalj-modal (privacy-respekterende oversikt) ─────────────────────
 
-function BrukerDetaljModal({ brukerId, onClose }: { brukerId: string; onClose: () => void }) {
+function BrukerDetaljModal({
+  brukerId,
+  onClose,
+  onResetMfa,
+  isResettingMfa,
+}: {
+  brukerId: string;
+  onClose: () => void;
+  onResetMfa: (brukerId: string) => void;
+  isResettingMfa: boolean;
+}) {
   const { language, t } = useLanguage();
   const { data, isLoading, error } = useAdminBrukerDetalj(brukerId);
 
@@ -2162,6 +2192,19 @@ function BrukerDetaljModal({ brukerId, onClose }: { brukerId: string; onClose: (
                 }
               />
               <DetaljRad label={t("admin.users.detailsMfa")} value={data.mfaEnabled ? "✓" : "—"} />
+              {data.mfaEnabled && (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => onResetMfa(brukerId)}
+                    disabled={isResettingMfa}
+                    className="inline-flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 transition-colors hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-orange-500/40 disabled:cursor-not-allowed disabled:opacity-50 dark:border-orange-900/40 dark:bg-orange-900/20 dark:text-orange-300 dark:hover:bg-orange-900/30"
+                  >
+                    <ShieldOff size={14} />
+                    {t("admin.users.resetMfa")}
+                  </button>
+                </div>
+              )}
               <DetaljRad
                 label={t("admin.users.detailsAuthProviders")}
                 value={data.authProviders?.join(", ") ?? "—"}
@@ -2419,6 +2462,7 @@ function BrukereFane() {
   const unlockUser = useUnlockUser();
   const revokeSessions = useRevokeUserSessions();
   const resendVerification = useResendVerification();
+  const resetMfa = useResetUserMfa();
 
   const [bekreftSlett, setBekreftSlett] = useState<string | null>(null);
   const [lockDialog, setLockDialog] = useState<{ id: string; email: string } | null>(null);
@@ -2502,6 +2546,34 @@ function BrukereFane() {
           onError: (err) =>
             showToast.error(
               err instanceof Error ? err.message : t("admin.users.resendVerificationFailed"),
+            ),
+        });
+      },
+    });
+  };
+
+  const handleResetMfa = (bruker: AdminBruker) => {
+    visBekreftelsesToast({
+      t,
+      melding: t("admin.users.resetMfaConfirm"),
+      handlingstekst: t("admin.users.resetMfa"),
+      onBekreft: () => {
+        resetMfa.mutate(bruker.id, {
+          onSuccess: (result) => {
+            showToast.success(t("admin.users.resetMfaSuccess"));
+            // MFA er deaktivert i Clerk, men sesjonsrevoke feilet — advar
+            // admin slik at de kan trykke "logg ut alle sesjoner" manuelt
+            // som separat handling (bekreftelsesteksten lovet utlogging).
+            if (!result.sessionsRevoked) {
+              showToast.warning(
+                t("admin.users.resetMfaSessionsNotRevokedTitle"),
+                t("admin.users.resetMfaSessionsNotRevokedDescription"),
+              );
+            }
+          },
+          onError: (err) =>
+            showToast.error(
+              err instanceof Error ? err.message : t("admin.users.resetMfaFailed"),
             ),
         });
       },
@@ -2621,7 +2693,17 @@ function BrukereFane() {
       )}
 
       {/* Brukerdetalj-modal */}
-      {detaljId && <BrukerDetaljModal brukerId={detaljId} onClose={() => setDetaljId(null)} />}
+      {detaljId && (
+        <BrukerDetaljModal
+          brukerId={detaljId}
+          onClose={() => setDetaljId(null)}
+          onResetMfa={(id) => {
+            const bruker = data?.brukere.find((b) => b.id === id);
+            if (bruker) handleResetMfa(bruker);
+          }}
+          isResettingMfa={resetMfa.isPending}
+        />
+      )}
 
       {/* Søk + status-filter */}
       <div className="flex flex-col gap-2 sm:flex-row">
@@ -2813,6 +2895,17 @@ function BrukereFane() {
                                     >
                                       <MailCheck size={16} />
                                     </button>
+                                    {bruker.mfaEnabled && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleResetMfa(bruker)}
+                                        disabled={resetMfa.isPending}
+                                        title={t("admin.users.resetMfa")}
+                                        className="rounded-lg p-1.5 text-slate-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-600 dark:hover:text-orange-400 transition-colors disabled:opacity-50"
+                                      >
+                                        <ShieldOff size={16} />
+                                      </button>
+                                    )}
                                     {bruker.locked ? (
                                       <button
                                         type="button"

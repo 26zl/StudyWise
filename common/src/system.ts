@@ -111,6 +111,13 @@ export const AdminAnnouncementStateSchema = z.object({
   dismissible: z.boolean(),
   showInBanner: z.boolean(),
   showOnStatusPage: z.boolean(),
+  /**
+   * True hvis Redis-cacher (banner + public-status) ble invalidert etter
+   * publish/clear. False → admin bør få advarsel, fordi andre dyner kan vise
+   * foreldet banner/status i opptil cache-TTL (typisk 30s). Kun satt i POST/
+   * DELETE-responser; GET utelater feltet.
+   */
+  cacheInvalidated: z.boolean().optional(),
 });
 export type AdminAnnouncementState = z.infer<typeof AdminAnnouncementStateSchema>;
 

@@ -968,6 +968,39 @@ router.put("/profile", rateLimitMe, async (req, res) => {
       }
     }
 
+    // Synkroniser til Clerk FØR MongoDB. Hvis Clerk feiler avbryter vi uten å
+    // røre Mongo, slik at AccountPage sin auto-sync ikke kan rulle tilbake
+    // brukerens edit til gamle Clerk-verdier når det oppstår mismatch mellom
+    // nye Mongo-verdier og gamle Clerk-verdier.
+    if (bruker.clerkId) {
+      const clerkUpdates: {
+        firstName?: string;
+        lastName?: string;
+        username?: string;
+      } = {};
+      if (parsed.firstName !== undefined)
+        clerkUpdates.firstName = parsed.firstName ?? "";
+      if (parsed.lastName !== undefined)
+        clerkUpdates.lastName = parsed.lastName ?? "";
+      if (parsed.username !== undefined)
+        clerkUpdates.username = parsed.username ?? "";
+
+      if (Object.keys(clerkUpdates).length > 0) {
+        const { updateClerkUserProfile } = await import("./clerkAuth.js");
+        const clerkSuccess = await updateClerkUserProfile(
+          bruker.clerkId,
+          clerkUpdates,
+        );
+        if (!clerkSuccess) {
+          logger.warn(
+            { userId },
+            "PUT /profile: Clerk-sync feilet — avbryter uten å oppdatere MongoDB",
+          );
+          return apiError.serviceUnavailable(res, "Profilsync til Clerk");
+        }
+      }
+    }
+
     const mongoUpdate: Record<string, unknown> = {};
     if (Object.keys(updateFields).length > 0) mongoUpdate.$set = updateFields;
     if (Object.keys(unsetFields).length > 0) mongoUpdate.$unset = unsetFields;
@@ -981,6 +1014,8 @@ router.put("/profile", rateLimitMe, async (req, res) => {
       ).select("+canvasApiToken");
     } catch (error) {
       if (isMongoDuplicateKeyError(error) && usernameConflictPayload) {
+        // Clerk har allerede akseptert brukernavnet; neste /me-sync reconciler
+        // Clerk → Mongo via resolveUsernameSyncAction (preserve_existing).
         return res.status(409).json({
           error: "username_conflict",
           melding:
@@ -993,33 +1028,6 @@ router.put("/profile", rateLimitMe, async (req, res) => {
     }
     if (!oppdatertBruker) {
       return apiError.notFound(res, "Bruker");
-    }
-
-    // Synkroniser til Clerk hvis brukeren har clerkId.
-    // Klientstyrt "skip sync" er fjernet for å unngå varig drift mellom Clerk og MongoDB.
-    if (oppdatertBruker.clerkId) {
-      const { updateClerkUserProfile } = await import("./clerkAuth.js");
-      const clerkUpdates: {
-        firstName?: string;
-        lastName?: string;
-        username?: string;
-      } = {};
-      if (parsed.firstName !== undefined)
-        clerkUpdates.firstName = parsed.firstName ?? "";
-      if (parsed.lastName !== undefined)
-        clerkUpdates.lastName = parsed.lastName ?? "";
-      if (parsed.username !== undefined)
-        clerkUpdates.username = parsed.username ?? "";
-      const clerkSuccess = await updateClerkUserProfile(
-        oppdatertBruker.clerkId,
-        clerkUpdates,
-      );
-      if (!clerkSuccess) {
-        logger.warn(
-          { userId },
-          "Profiloppdatering synket til MongoDB men ikke til Clerk",
-        );
-      }
     }
 
     logger.info({ userId }, "Brukerprofil oppdatert");
@@ -1124,6 +1132,25 @@ router.put("/preferences", rateLimitMe, async (req, res) => {
       role: req.actorRole,
       req,
     });
+
+    // Samtykke-endringer skal ha et eksplisitt audit-spor (GDPR: bevis for
+    // gjeldende analytics-consent). Eget event, med before/after-verdi, slik
+    // at sporet ikke drukner i generelle preferanseoppdateringer.
+    const nyttSamtykke = uiPreferences?.cookieConsent;
+    if (nyttSamtykke !== undefined) {
+      const forrigeSamtykke = bruker.uiPreferences?.cookieConsent ?? null;
+      if (forrigeSamtykke !== nyttSamtykke) {
+        await audit({
+          actorUserId: userId,
+          action: AUDIT_ACTIONS.COOKIE_CONSENT_UPDATED,
+          category: "profile",
+          outcome: "success",
+          role: req.actorRole,
+          metadata: { before: forrigeSamtykke, after: nyttSamtykke },
+          req,
+        });
+      }
+    }
 
     return res.json(
       PreferencesResponseSchema.parse({

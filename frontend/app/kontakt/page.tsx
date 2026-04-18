@@ -45,6 +45,9 @@ export default function KontaktPage() {
               {t("kontakt.sendMessage")}
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400">{t("kontakt.email")}</p>
+            <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-400">
+              {t("kontakt.responseTime")}
+            </p>
           </div>
         </div>
         <ContactForm />

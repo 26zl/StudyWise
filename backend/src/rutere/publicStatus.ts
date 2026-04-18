@@ -55,15 +55,25 @@ export async function invalidatePublicStatusCache(): Promise<boolean> {
 type ServiceHealth = { status: DependencyStatus; critical: boolean };
 
 /**
- * Beregn status for en komponent basert på underliggende tjenester. Hvis en
- * kritisk tjeneste er nede → "down". Hvis bare ikke-kritiske er nede →
- * "degraded". Ellers "operational".
+ * Beregn status for en komponent basert på underliggende tjenester:
+ *   - Kritisk tjeneste `down`   → "down"
+ *   - Ikke-kritisk tjeneste `down` → "degraded"
+ *   - Kritisk tjeneste `unknown`  → "degraded" (ikke "operational" — vi vet
+ *     ikke om den faktisk er oppe enda, typisk rett etter oppstart før
+ *     første refreshExternalDependencyHealth har kjørt)
+ *   - Ikke-kritisk tjeneste `unknown` → behandles som up (degraderer ikke
+ *     bucket, siden mangel på sjekk ikke i seg selv indikerer feil)
+ *   - Alle `up` → "operational"
  */
 function componentStatus(services: ServiceHealth[]): OverallStatus {
   const criticalDown = services.some((s) => s.critical && s.status === "down");
   if (criticalDown) return "down";
   const anyDown = services.some((s) => s.status === "down");
   if (anyDown) return "degraded";
+  const criticalUnknown = services.some(
+    (s) => s.critical && s.status === "unknown",
+  );
+  if (criticalUnknown) return "degraded";
   return "operational";
 }
 

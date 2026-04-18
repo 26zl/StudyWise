@@ -13,6 +13,8 @@ import { useLanguage } from "@/app/i18n";
 import { LoadingView } from "@/app/components/ui/Loading";
 import {
   parseClerkError,
+  withAuthTimeout,
+  AuthTimeoutError,
   AuthCard,
   AuthHeader,
   AuthOAuthButtons,
@@ -28,6 +30,8 @@ import {
 type SignInClientProps = {
   initialVerified: boolean;
 };
+
+const MFA_TIMEOUT_MS = 15_000;
 
 export function SignInClient({ initialVerified }: SignInClientProps) {
   const { t } = useLanguage();
@@ -71,6 +75,15 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
   const redirectEtterAuth = useCallback(() => {
     window.location.replace(redirectUrl);
   }, [redirectUrl]);
+
+  // Safety net: hvis Clerk har markert sesjonen som aktiv, men den inline redirecten
+  // etter handleSubmit/handleMfa aldri fullførte (f.eks. hengende setActive-promise),
+  // tvinger vi en redirect her slik at LoadingView ikke blir stående evig.
+  useEffect(() => {
+    if (isRedirectingToDashboard) {
+      redirectEtterAuth();
+    }
+  }, [isRedirectingToDashboard, redirectEtterAuth]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -135,19 +148,48 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
       setMfaError(null);
 
       try {
-        const result = await signIn.attemptSecondFactor({
-          strategy: "totp",
-          code,
-        });
+        const result = await withAuthTimeout(
+          signIn.attemptSecondFactor({ strategy: "totp", code }),
+          MFA_TIMEOUT_MS,
+          "mfa_attempt",
+        );
 
         if (result.status === "complete" && result.createdSessionId) {
-          await setActive({ session: result.createdSessionId });
+          try {
+            await withAuthTimeout(
+              setActive({ session: result.createdSessionId }),
+              MFA_TIMEOUT_MS,
+              "mfa_setactive",
+            );
+          } catch {
+            // setActive kan henge selv om sesjonen er opprettet server-side;
+            // fallback-useEffecten over plukker uansett opp isSignedIn-overgangen.
+          }
           redirectEtterAuth();
         } else {
           setMfaError(t("auth.signIn.mfa.verificationFailed"));
         }
       } catch (err) {
-        setMfaError(parseClerkError(err, t("auth.signIn.mfa.verificationFailed")));
+        // Recovery: hvis signIn allerede har en komplett sesjon (f.eks. attempten
+        // lyktes server-side men klient-promisen hang), fullfør redirect likevel.
+        if (signIn.status === "complete" && signIn.createdSessionId) {
+          try {
+            await withAuthTimeout(
+              setActive({ session: signIn.createdSessionId }),
+              MFA_TIMEOUT_MS,
+              "mfa_recover_setactive",
+            );
+          } catch {
+            // Falle gjennom — useEffect-safety-net håndterer det
+          }
+          redirectEtterAuth();
+          return;
+        }
+        if (err instanceof AuthTimeoutError) {
+          setMfaError(t("errors.generic.timeout"));
+        } else {
+          setMfaError(parseClerkError(err, t("auth.signIn.mfa.verificationFailed")));
+        }
       } finally {
         setMfaSubmitting(false);
       }
@@ -271,6 +313,17 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
             <ArrowLeft className="h-4 w-4" />
             {t("auth.signIn.mfa.backToSignIn")}
           </button>
+
+          <p className="mt-4 border-t border-slate-200 pt-4 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+            {t("auth.signIn.mfa.lostAccess")}{" "}
+            <Link
+              href="/kontakt"
+              prefetch={false}
+              className="font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            >
+              {t("auth.signIn.mfa.lostAccessLink")}
+            </Link>
+          </p>
         </AuthCard>
       )}
 

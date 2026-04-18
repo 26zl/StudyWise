@@ -97,6 +97,7 @@ describe("common/admin.ts schemas", () => {
       rolle: "user" as const,
       harCanvasToken: false,
       opprettet: new Date("2024-01-01"),
+      mfaEnabled: false,
       locked: false,
     };
 

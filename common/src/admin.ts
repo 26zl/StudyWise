@@ -27,6 +27,8 @@ export const AdminBrukerSchema = z.object({
   harCanvasToken: z.boolean(),
   authProviders: AuthProvidersArraySchema.optional(),
   opprettet: z.coerce.date(),
+  /** MFA-status — styrer om admin-rad-UI viser "Tilbakestill 2FA"-hurtigknappen. */
+  mfaEnabled: z.boolean(),
   /** Lock status — admin kan sperre kontoer uten å slette dem (engelsk feltnavn for konsistens med Mongoose-modellen). */
   locked: z.boolean(),
   lockedAt: z.coerce.date().optional(),
@@ -788,6 +790,18 @@ export const AdminSuccessResponseSchema = z.object({
   success: z.literal(true),
 });
 export type AdminSuccessResponse = z.infer<typeof AdminSuccessResponseSchema>;
+
+/**
+ * Respons fra reset-mfa. `sessionsRevoked=false` betyr at MFA er deaktivert i
+ * Clerk, men at sesjonsrevoke feilet — brukerens aktive Clerk-sesjoner kan
+ * fortsatt leve videre inntil admin manuelt kjører "logg ut alle sesjoner"
+ * eller sesjonene utløper naturlig. Frontend viser advarsel ved partial-fail.
+ */
+export const AdminResetMfaResponseSchema = z.object({
+  success: z.literal(true),
+  sessionsRevoked: z.boolean(),
+});
+export type AdminResetMfaResponse = z.infer<typeof AdminResetMfaResponseSchema>;
 
 export const AdminRedisFlushResultSchema = z.object({
   prefix: z.string(),

@@ -83,7 +83,7 @@ adminAnnouncementRouter.post("/announcement", async (req, res) => {
         },
         $setOnInsert: { singletonKey: "global" },
       },
-      { new: true, upsert: true },
+      { returnDocument: "after", upsert: true },
     );
 
     // Invalider begge public cacher (banner + status-side) slik at alle

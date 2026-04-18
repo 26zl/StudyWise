@@ -28,11 +28,22 @@ import { KBContentChunk } from "../../database/models/KBContentChunk.js";
 import { apiError, requireUserId } from "../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import { logger } from "../../utils/logger.js";
+import { getCache, setCache } from "../../cache/redis.js";
 
 const router = Router();
 
 const ACTIVE_FILTER = { deletedAt: { $exists: false } };
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Kort cache på aggregert statistikk. Endepunktet kjører ~35 parallelle
+ * Mongo-aggregeringer (400–800ms) — uten cache slår flere admins som åpner
+ * dashbordet samtidig unødig hardt på DB. TTL er bevisst lav så tallene
+ * føles live; når admin trenger fersk data er reload-syklusen raskere enn
+ * cachens levetid uansett.
+ */
+const STATS_CACHE_KEY = "admin:statistikk:v1";
+const STATS_CACHE_TTL_SECONDS = 15;
 
 function avrundEnDesimal(verdi: number): number {
   return Math.round(verdi * 10) / 10;
@@ -43,6 +54,28 @@ router.get("/statistikk", async (req, res) => {
   if (!actorUserId) return;
 
   try {
+    // Rask path: returner cachet JSON hvis vi har ferskt svar innen TTL.
+    // Audit-loggen skrives likevel ved cache-treff så admin-aktivitet ikke
+    // under-rapporteres (tallene er cachet, ikke tilgangsloggen).
+    const cached = await getCache(STATS_CACHE_KEY);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        await audit({
+          actorUserId,
+          action: AUDIT_ACTIONS.ADMIN_ACTION,
+          category: "admin",
+          outcome: "success",
+          role: req.actorRole,
+          metadata: { subAction: "statistikk.hent", cached: true },
+          req,
+        });
+        return res.json(parsed);
+      } catch {
+        // Korrupt cache-verdi — fall gjennom og bygg på nytt
+      }
+    }
+
     const [aktiveBrukere, antallSlettede] = await Promise.all([
       User.find(ACTIVE_FILTER, { _id: 1, role: 1, canvasBaseUrl: 1, authProviders: 1 }).lean(),
       DeletedUserTombstone.countDocuments(),
@@ -374,8 +407,7 @@ router.get("/statistikk", async (req, res) => {
       req,
     });
 
-    return res.json(
-      AdminStatsResponseSchema.parse({
+    const response = AdminStatsResponseSchema.parse({
         brukere: {
           totalt: totalBrukere,
           admin: antallAdmin,
@@ -475,8 +507,17 @@ router.get("/statistikk", async (req, res) => {
           orphanedKunnskapsbaser,
           orphanedKBChunks,
         },
-      }),
-    );
+      });
+
+    // Skriv til cache før respons — best-effort. Hvis Redis er nede eller
+    // serialisering feiler, svarer vi brukeren uten cache og logger lavt.
+    try {
+      await setCache(STATS_CACHE_KEY, JSON.stringify(response), STATS_CACHE_TTL_SECONDS);
+    } catch (cacheErr) {
+      logger.debug({ err: cacheErr }, "Admin statistikk: kunne ikke skrive til cache");
+    }
+
+    return res.json(response);
   } catch (err) {
     logger.error({ err }, "Admin statistikk feilet");
     return apiError.serverError(res);

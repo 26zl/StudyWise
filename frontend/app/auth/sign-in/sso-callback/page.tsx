@@ -83,6 +83,17 @@ export default function SignInSSOCallbackPage() {
               <ArrowLeft className="h-4 w-4" />
               {t("auth.signIn.mfa.backToSignIn")}
             </Link>
+
+            <p className="mt-4 border-t border-slate-200 pt-4 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+              {t("auth.signIn.mfa.lostAccess")}{" "}
+              <Link
+                href="/kontakt"
+                prefetch={false}
+                className="font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              >
+                {t("auth.signIn.mfa.lostAccessLink")}
+              </Link>
+            </p>
           </AuthCard>
         ) : (
           <AuthCard>

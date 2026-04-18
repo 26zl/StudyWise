@@ -35,6 +35,13 @@ export const AUDIT_ACTIONS = {
   ACCOUNT_DELETED: "account_deleted",
   PROFILE_UPDATED: "profile_updated",
   PREFERENCES_UPDATED: "preferences_updated",
+  /**
+   * Brukeren har endret cookie-/analytics-samtykke. Egen action (i tillegg til
+   * PREFERENCES_UPDATED) for å gjøre GDPR-sporet eksplisitt. Metadata:
+   * { before: "accepted" | "declined" | null, after: "accepted" | "declined" }.
+   * IP og user-agent logges via request-konteksten for juridisk bevis.
+   */
+  COOKIE_CONSENT_UPDATED: "cookie_consent_updated",
   ACCOUNT_RELINKED: "account_relinked",
   SECURITY_ALERT: "security_alert",
   CSRF_VIOLATION: "csrf_violation",

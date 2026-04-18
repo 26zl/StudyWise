@@ -205,6 +205,8 @@ export const nbMessages = {
         verifying: "Verifiserer...",
         verificationFailed: "Ugyldig kode. Prøv igjen.",
         backToSignIn: "Tilbake til innlogging",
+        lostAccess: "Har du mistet tilgang til autentiseringsappen?",
+        lostAccessLink: "Kontakt oss",
       },
       noAccount: "Har du ikke en konto?",
       signUpLink: "Registrer deg",
@@ -264,6 +266,7 @@ export const nbMessages = {
       verify: {
         title: "Bekreft e-postadressen",
         description: "Vi har sendt en bekreftelseskode til {email}.",
+        deliveryHint: "Det kan ta et minutt eller to før den ankommer. Sjekk også søppelpost/spam.",
         codeLabel: "Bekreftelseskode",
         codePlaceholder: "123456",
         submitButton: "Bekreft",
@@ -788,6 +791,9 @@ export const nbMessages = {
       clearError: "Kunne ikke deaktivere melding",
       published: "Systemmelding publisert",
       cleared: "Systemmelding deaktivert",
+      cacheInvalidationFailedTitle: "Cache-invalidering feilet",
+      cacheInvalidationFailedDescription:
+        "Meldingen er lagret, men andre servere kan vise foreldet banner eller status i inntil ~30 sekunder.",
       updatedAt: "Oppdatert {time}",
       externalChange:
         "En annen admin har oppdatert meldingen siden du begynte å redigere. Last inn for å se gjeldende versjon.",
@@ -1282,6 +1288,14 @@ export const nbMessages = {
       resendVerificationConfirm: "Send Clerk-verifiseringsepost på nytt til denne brukeren?",
       resendVerificationSuccess: "Verifiseringsepost sendt",
       resendVerificationFailed: "Kunne ikke sende verifiseringsepost",
+      resetMfa: "Tilbakestill 2FA",
+      resetMfaConfirm:
+        "Dette fjerner all 2FA (autentiseringsapp og backup-koder) for brukeren. De kan deretter logge inn uten MFA og sette opp på nytt. Aktive sesjoner logges også ut.",
+      resetMfaSuccess: "2FA tilbakestilt",
+      resetMfaFailed: "Kunne ikke tilbakestille 2FA",
+      resetMfaSessionsNotRevokedTitle: "2FA er fjernet, men sesjoner kunne ikke logges ut",
+      resetMfaSessionsNotRevokedDescription:
+        "Trykk «Logg ut alle sesjoner» på brukeren for å fullføre. Frem til da kan gamle sesjoner fortsatt være aktive.",
       lockUser: "Lås konto",
       unlockUser: "Lås opp konto",
       lockedBadge: "Låst",
@@ -2136,7 +2150,7 @@ export const nbMessages = {
       "for å be om kontosletting. Av sikkerhetshensyn må du ha logget inn nylig for å slette kontoen (step-up authentication) — logg inn på nytt om det er en stund siden sist. Ved sletting slettes eller anonymiseres kontoopplysninger og tilknyttede data, mens begrensede sikkerhets- og revisjonslogger kan beholdes i pseudonymisert form i en begrenset periode.",
     twoFactorQ: "Hvordan aktiverer jeg tofaktor-autentisering (2FA)?",
     twoFactorA:
-      "Gå til Konto → Sikkerhet og følg oppsettet. Vi anbefaler en authenticator-app (Google Authenticator, 1Password, Authy eller tilsvarende). Husk å lagre backup-kodene på et trygt sted i tilfelle du mister telefonen.",
+      "Gå til Konto → Sikkerhet og følg oppsettet. Vi anbefaler en authenticator-app (Google Authenticator, 1Password, Authy eller tilsvarende). Mister du tilgang til appen, kontakt oss via kontaktskjemaet så hjelper vi deg å tilbakestille 2FA.",
     quizQ: "Hvordan genererer jeg quiz eller flashcards?",
     quizA:
       "Velg et emne og én eller flere moduler fra Canvas i KI-chatten, så lager KI-en quiz eller flashcards basert på pensumet. Du velger antall spørsmål og vanskelighetsgrad.",
@@ -2207,6 +2221,7 @@ export const nbMessages = {
     description: "Har du spørsmål, tilbakemeldinger eller trenger hjelp? Send oss en melding.",
     sendMessage: "Send oss en melding",
     email: "E-post: kontakt@studwize.page",
+    responseTime: "Vi svarer vanligvis innen kort tid.",
     feedbackTitle: "Tilbakemeldinger",
     feedbackBody:
       "Vi setter pris på alle tilbakemeldinger som kan hjelpe oss å forbedre StudyWise. Del gjerne dine tanker og forslag.",

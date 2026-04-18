@@ -13,10 +13,12 @@ import { useClerk } from "@clerk/nextjs";
 import { useSignIn, useSignUp } from "@clerk/nextjs/legacy";
 import { useSearchParams } from "next/navigation";
 import { appendQueryParam, getPostAuthRedirectFromParams, withPostAuthRedirect } from "@/app/auth/redirects";
+import { parseClerkError, withAuthTimeout, AuthTimeoutError } from "@/app/auth/authUI";
 import { useLanguage } from "@/app/i18n";
 import { fetchApi } from "@/app/lib/apiClient";
 
 const SSO_CALLBACK_TIMEOUT_MS = 15_000;
+const MFA_TIMEOUT_MS = 15_000;
 
 type SSOCallbackMode = "sign-in" | "sign-up";
 
@@ -117,21 +119,49 @@ export function useSSOCallback(mode: SSOCallbackMode): SSOCallbackResult {
       setMfaError(null);
 
       try {
-        const result = await signIn.attemptSecondFactor({
-          strategy: "totp",
-          code,
-        });
+        const result = await withAuthTimeout(
+          signIn.attemptSecondFactor({ strategy: "totp", code }),
+          MFA_TIMEOUT_MS,
+          "sso_mfa_attempt",
+        );
 
         if (result.status === "complete" && result.createdSessionId) {
-          await setActiveSignIn({ session: result.createdSessionId });
+          try {
+            await withAuthTimeout(
+              setActiveSignIn({ session: result.createdSessionId }),
+              MFA_TIMEOUT_MS,
+              "sso_mfa_setactive",
+            );
+          } catch {
+            // setActive kan henge; fortsett til redirect likevel — session er satt
+          }
           await redirectOrConflict();
         } else {
           setMfaError(t("auth.signIn.mfa.verificationFailed"));
         }
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : t("auth.signIn.mfa.verificationFailed");
-        setMfaError(message);
+        // Recovery: hvis signIn faktisk er komplett, fullfør flyten istedenfor å vise feil
+        if (signIn.status === "complete" && signIn.createdSessionId) {
+          try {
+            await withAuthTimeout(
+              setActiveSignIn({ session: signIn.createdSessionId }),
+              MFA_TIMEOUT_MS,
+              "sso_mfa_recover_setactive",
+            );
+          } catch {
+            // falle gjennom
+          }
+          await redirectOrConflict();
+          return;
+        }
+        // Bruk sanert Clerk-parser i stedet for rå err.message (info-lekkasje).
+        // AuthTimeoutError har en intern label ("sso_mfa_attempt_timeout") som
+        // vi ikke vil vise til bruker — oversett til generisk timeout-melding.
+        if (err instanceof AuthTimeoutError) {
+          setMfaError(t("errors.generic.timeout"));
+        } else {
+          setMfaError(parseClerkError(err, t("auth.signIn.mfa.verificationFailed")));
+        }
       } finally {
         setMfaSubmitting(false);
       }
