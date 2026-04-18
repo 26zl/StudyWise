@@ -2277,6 +2277,27 @@ Rules:
 Bruk innholdet i <kunnskapsbase>-taggene som primærkilde når det er relevant.
 Referer til kilde (fil/lenke) i svaret.
 `;
+            logger.info(
+              {
+                userId: req.user!.id,
+                baseId: parsed.id,
+                baseName: parsed.navn,
+                resultCount: kbResults.length,
+                activation: "session",
+                kbContextLength: kbKontekst.length,
+              },
+              "KB-kontekst lagt til i prompt (sesjonsaktiv base)",
+            );
+          } else {
+            logger.warn(
+              {
+                userId: req.user!.id,
+                baseId: parsed.id,
+                baseName: parsed.navn,
+                activation: "session",
+              },
+              "KB aktiv via sesjon, men søk ga ingen treff — KB-kontekst utelatt",
+            );
           }
         }
       } catch {
@@ -2329,8 +2350,27 @@ Bruk innholdet i <kunnskapsbase>-taggene som primærkilde når det er relevant.
 Referer til kilde (fil/lenke) i svaret.
 `;
             logger.info(
-              { userId: req.user!.id, matchedBaseName: match.navn, aliases },
-              "Automatisk KB-basenavn matchet fra brukerens spørsmål",
+              {
+                userId: req.user!.id,
+                baseId: matchId,
+                baseName: match.navn,
+                resultCount: kbResults.length,
+                activation: "auto_match",
+                aliases,
+                kbContextLength: kbKontekst.length,
+              },
+              "KB-kontekst lagt til i prompt (auto-matchet fra spørsmål)",
+            );
+          } else {
+            logger.warn(
+              {
+                userId: req.user!.id,
+                baseId: matchId,
+                baseName: match.navn,
+                activation: "auto_match",
+                aliases,
+              },
+              "KB auto-matchet fra spørsmål, men søk ga ingen treff — KB-kontekst utelatt",
             );
           }
         }

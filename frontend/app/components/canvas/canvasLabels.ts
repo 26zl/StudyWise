@@ -91,6 +91,8 @@ export function getCanvasLabels(language: Language) {
             showAllAssignments: (count: number) => `Show all ${count} assignments`,
             previousPage: "Previous page",
             nextPage: "Next page",
+            loadMore: "Load more",
+            shownOfTotal: ({ shown, total }: { shown: number; total: number }) => `${shown} of ${total} shown`,
         };
     }
 
@@ -178,6 +180,8 @@ export function getCanvasLabels(language: Language) {
         showAllAssignments: (count: number) => `Vis alle ${count} oppgaver`,
         previousPage: "Forrige side",
         nextPage: "Neste side",
+        loadMore: "Hent flere",
+        shownOfTotal: ({ shown, total }: { shown: number; total: number }) => `${shown} av ${total} vist`,
     };
 }
 

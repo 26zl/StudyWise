@@ -1574,7 +1574,7 @@ export const enMessages = {
     },
     modelSelectorLabel: "Select Claude model",
     modelSelectorTooltip: "Choose model for chat responses.",
-    modelAuto: "Auto (Haiku + Sonnet 4)",
+    modelAuto: "Auto (Haiku 4.5 + Sonnet 4.6)",
     inputHint: "Enter to send · Shift+Enter for new line",
     placeholderDefault: "Write a message...",
     inputAriaLabel: "Chat message",

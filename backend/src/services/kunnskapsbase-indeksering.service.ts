@@ -330,6 +330,36 @@ export async function searchKBContent(
 
   const courseId = kbCourseId(baseId);
 
+  // Logger-hjelper: gir enhetlig observabilitet for alle retur-veier
+  // (Pinecone-treff, Pinecone-tom, MongoDB-match, MongoDB-nyeste, tom base).
+  const logOutcome = async (
+    source: "pinecone" | "mongodb_regex" | "mongodb_recent" | "pinecone_parse_failed" | "pinecone_empty",
+    resultCount: number,
+    pineconeFailed = false,
+  ) => {
+    if (resultCount > 0) {
+      logger.info(
+        { userId, baseId, source, resultCount, queryLen: query.length },
+        "KB-søk: fant treff",
+      );
+      return;
+    }
+    // Ved 0 treff teller vi totalChunks i basen så vi kan skille
+    // "tom base" fra "ingen match mot spørsmål".
+    const totalChunks = await KBContentChunk.countDocuments({ userId, baseId });
+    const reason = totalChunks === 0
+      ? "empty_base"
+      : pineconeFailed
+        ? "pinecone_unavailable"
+        : "no_match";
+    logger.warn(
+      { userId, baseId, source, resultCount: 0, totalChunks, reason, queryLen: query.length },
+      "KB-søk: ingen treff",
+    );
+  };
+
+  let pineconeFailed = false;
+
   // Prøv Pinecone semantisk søk
   if (isPineconeConfigured()) {
     try {
@@ -349,6 +379,7 @@ export async function searchKBContent(
             { baseId, hitCount: pineconeResults.length },
             "Ingen gyldige KB Pinecone-ID-er etter parsing",
           );
+          await logOutcome("pinecone_parse_failed", 0);
           return [];
         }
 
@@ -361,7 +392,7 @@ export async function searchKBContent(
           })),
         }).lean();
 
-        return chunks.map((chunk) => ({
+        const mapped = chunks.map((chunk) => ({
           text: chunk.text,
           sourceId: chunk.sourceId,
           sourceName: chunk.sourceName,
@@ -371,8 +402,13 @@ export async function searchKBContent(
             r.id === `kb:${userId}:${baseId}:${chunk.sourceId}:${chunk.chunkIndex}`,
           )?.score,
         }));
+        await logOutcome("pinecone", mapped.length);
+        return mapped;
       }
+      // Pinecone kom tilbake med tomt resultat — fall videre til MongoDB-fallback
+      // for å skille "ikke funnet semantisk" fra "kan gjenfinnes via keyword".
     } catch (err) {
+      pineconeFailed = true;
       logger.warn(
         { err, baseId },
         "Pinecone-søk feilet for KB — fallback til MongoDB",
@@ -383,18 +419,20 @@ export async function searchKBContent(
   // Reserveløsning: nøkkelordsøk i MongoDB
   const queryWords = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
   if (queryWords.length === 0) {
-    // Returner de nyeste chunks
+    // Returner de nyeste chunks (f.eks. ved kort "oppsummer"-spørsmål)
     const chunks = await KBContentChunk.find({ userId, baseId })
       .sort({ createdAt: -1 })
       .limit(topK)
       .lean();
-    return chunks.map((c) => ({
+    const mapped = chunks.map((c) => ({
       text: c.text,
       sourceId: c.sourceId,
       sourceName: c.sourceName,
       sourceType: c.sourceType,
       sourceUrl: c.sourceUrl,
     }));
+    await logOutcome("mongodb_recent", mapped.length, pineconeFailed);
+    return mapped;
   }
 
   // Enkel nøkkelord-matching via regex
@@ -408,13 +446,15 @@ export async function searchKBContent(
     .limit(topK)
     .lean();
 
-  return chunks.map((c) => ({
+  const mapped = chunks.map((c) => ({
     text: c.text,
     sourceId: c.sourceId,
     sourceName: c.sourceName,
     sourceType: c.sourceType,
     sourceUrl: c.sourceUrl,
   }));
+  await logOutcome("mongodb_regex", mapped.length, pineconeFailed);
+  return mapped;
 }
 
 /**

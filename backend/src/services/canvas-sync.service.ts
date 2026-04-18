@@ -1334,9 +1334,25 @@ async function _doSync(
 
   const durationMs = Date.now() - startTime;
   logger.info(
-    { userId, total: courses.length, updated, unchanged, failed, durationMs },
+    {
+      userId,
+      total: courses.length,
+      updated,
+      unchanged,
+      failed,
+      durationMs,
+      // Signal om tung ekstraksjon (PDF/page) ble deaktivert under kjøringen
+      // pga. minnetrykk. Når dette er true er filinnhold-indeksering ufullstendig.
+      heavyExtractionDisabled: extractionDisabledForRun,
+    },
     "Canvas sync fullført",
   );
+  if (extractionDisabledForRun) {
+    logger.warn(
+      { userId, total: courses.length, durationMs },
+      "Canvas sync: tung filekstraksjon ble deaktivert under kjøringen — filinnhold kan være ufullstendig",
+    );
+  }
 
   return {
     synced: true,

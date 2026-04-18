@@ -144,10 +144,19 @@ export async function bm25Search(
   },
 ): Promise<BM25SearchResponse> {
   const trimmedQuery = query?.trim();
-  if (!trimmedQuery) return { results: [] };
+  if (!trimmedQuery) {
+    logger.info({ userId, reason: "empty_query" }, "BM25-søk hoppet over: tomt spørsmål");
+    return { results: [] };
+  }
 
   const termer = extractSearchTerms(trimmedQuery);
-  if (termer.length === 0) return { results: [] };
+  if (termer.length === 0) {
+    logger.info(
+      { userId, queryLen: trimmedQuery.length, reason: "no_search_terms" },
+      "BM25-søk hoppet over: ingen søkeord etter stopord-filtrering",
+    );
+    return { results: [] };
+  }
 
   const limit = options?.limit ?? 15;
 
@@ -210,7 +219,18 @@ export async function bm25Search(
         .lean();
     }
 
-    if (docs.length === 0) return { results: [] };
+    if (docs.length === 0) {
+      logger.info(
+        {
+          userId,
+          termer: termer.length,
+          courseIds: options?.courseIds ?? null,
+          reason: "no_candidates",
+        },
+        "BM25-søk: ingen kandidat-chunks (kurs ikke indeksert eller filter for snevert)",
+      );
+      return { results: [] };
+    }
 
     const candidates: DocCandidate[] = docs.map((d) => ({
       _id: d._id.toString(),

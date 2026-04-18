@@ -9,8 +9,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
     ArrowLeft,
-    ChevronLeft,
     ChevronRight,
+    ChevronDown,
     Eye,
     EyeOff,
     ExternalLink,
@@ -129,14 +129,14 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     }, [data?.announcements, hiddenSet]);
 
     const totalElementer = announcements.length;
+    // Vi bruker "Hent flere"-pattern: viser akkumulert antall fra 0 til antallVist.
+    // offset-state beholdes som grensen — vokser i PAGE_SIZE-steg.
+    const antallVist = Math.min(offset + PAGE_SIZE, totalElementer);
     const synligeElementer = useMemo(
-        () => announcements.slice(offset, offset + PAGE_SIZE),
-        [announcements, offset],
+        () => announcements.slice(0, antallVist),
+        [announcements, antallVist],
     );
-    const harForrigeSide = offset > 0;
-    const harNesteSide = offset + PAGE_SIZE < totalElementer;
-    const fraElement = totalElementer === 0 ? 0 : offset + 1;
-    const tilElement = Math.min(offset + PAGE_SIZE, totalElementer);
+    const harFlereÅHente = antallVist < totalElementer;
 
     useEffect(() => {
         setOffset(0);
@@ -204,28 +204,18 @@ function KunngjoringVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
             {totalElementer > PAGE_SIZE && (
                 <div className="flex items-center justify-between pt-4 text-sm text-slate-500 dark:text-slate-400">
                     <span>
-                        {fraElement}–{tilElement} / {totalElementer}
+                        {labels.shownOfTotal({ shown: antallVist, total: totalElementer })}
                     </span>
-                    <div className="flex gap-2">
+                    {harFlereÅHente && (
                         <button
                             type="button"
-                            onClick={() => setOffset((c) => Math.max(0, c - PAGE_SIZE))}
-                            disabled={!harForrigeSide}
-                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            onClick={() => setOffset((c) => c + PAGE_SIZE)}
+                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         >
-                            <ChevronLeft size={16} />
-                            {labels.previousPage}
+                            {labels.loadMore}
+                            <ChevronDown size={16} />
                         </button>
-                        <button
-                            type="button"
-                            onClick={() => setOffset((c) => Math.min(c + PAGE_SIZE, Math.max(0, totalElementer - PAGE_SIZE)))}
-                            disabled={!harNesteSide}
-                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                        >
-                            {labels.nextPage}
-                            <ChevronRight size={16} />
-                        </button>
-                    </div>
+                    )}
                 </div>
             )}
         </div>
@@ -1184,26 +1174,21 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
     }, [allAssignments, filter, ferdigeIdSet, language, sortering]);
 
     const totalElementer = filtrerteOppgaver.length;
+    // "Hent flere"-pattern: viser 0 til antallVist. Offset vokser i PAGE_SIZE-steg.
+    const antallVist = Math.min(offset + PAGE_SIZE, totalElementer);
     const synligeOppgaver = useMemo(
-        () => filtrerteOppgaver.slice(offset, offset + PAGE_SIZE),
-        [filtrerteOppgaver, offset],
+        () => filtrerteOppgaver.slice(0, antallVist),
+        [filtrerteOppgaver, antallVist],
     );
-    const harForrigeSide = offset > 0;
-    const harNesteSide = offset + PAGE_SIZE < totalElementer;
-    const fraElement = totalElementer === 0 ? 0 : offset + 1;
-    const tilElement = Math.min(offset + PAGE_SIZE, totalElementer);
+    const harFlereÅHente = antallVist < totalElementer;
 
     useEffect(() => {
         setOffset(0);
     }, [filter, sortering]);
 
     useEffect(() => {
-        if (totalElementer === 0) {
-            if (offset !== 0) setOffset(0);
-            return;
-        }
-        if (offset >= totalElementer) {
-            setOffset(Math.floor((totalElementer - 1) / PAGE_SIZE) * PAGE_SIZE);
+        if (totalElementer === 0 && offset !== 0) {
+            setOffset(0);
         }
     }, [offset, totalElementer]);
 
@@ -1384,28 +1369,18 @@ function OppgaverVisning({ harCanvasToken }: { harCanvasToken: boolean }) {
             {totalElementer > PAGE_SIZE && (
                 <div className="flex items-center justify-between pt-4 text-sm text-slate-500 dark:text-slate-400">
                     <span>
-                        {fraElement}–{tilElement} / {totalElementer}
+                        {labels.shownOfTotal({ shown: antallVist, total: totalElementer })}
                     </span>
-                    <div className="flex gap-2">
+                    {harFlereÅHente && (
                         <button
                             type="button"
-                            onClick={() => setOffset((c) => Math.max(0, c - PAGE_SIZE))}
-                            disabled={!harForrigeSide}
-                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            onClick={() => setOffset((c) => c + PAGE_SIZE)}
+                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         >
-                            <ChevronLeft size={16} />
-                            {labels.previousPage}
+                            {labels.loadMore}
+                            <ChevronDown size={16} />
                         </button>
-                        <button
-                            type="button"
-                            onClick={() => setOffset((c) => Math.min(c + PAGE_SIZE, Math.max(0, totalElementer - PAGE_SIZE)))}
-                            disabled={!harNesteSide}
-                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                        >
-                            {labels.nextPage}
-                            <ChevronRight size={16} />
-                        </button>
-                    </div>
+                    )}
                 </div>
             )}
         </div>

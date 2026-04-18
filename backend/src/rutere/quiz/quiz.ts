@@ -105,6 +105,19 @@ async function processQuizJob(
     );
 
     if (!contextResult.hasCanvasData) {
+      logger.warn(
+        {
+          userId,
+          courseId,
+          courseName,
+          moduleCount: moduleNames.length,
+          fileCount: fileNames.length,
+          contextSource: contextResult.source,
+          syncWaited: !!contextResult.syncWaited,
+          reason: contextResult.syncWaited ? "sync_just_triggered_no_chunks_yet" : "no_chunks_for_selection",
+        },
+        "Quiz-generering avbrutt: ingen Canvas-data for valgte moduler/filer",
+      );
       await setCache(
         `${JOB_KEY_PREFIX}${jobId}`,
         JSON.stringify({ status: "failed", error: "Ingen kursinnhold funnet for valgte moduler/filer. Prøv å åpne KI-chatten først slik at Canvas-data synkroniseres." }),

@@ -2038,25 +2038,39 @@ export function ChatSection() {
                 </aside>
             )}
             {visKildePanel && (
-                <div className="lg:hidden fixed inset-0 z-40">
+                <div
+                    className="lg:hidden fixed inset-0 z-50"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label={t("chat.sources")}
+                >
+                    {/* Scrim — chat synlig under */}
                     <button
                         type="button"
                         className="absolute inset-0 bg-black/40"
                         onClick={() => setKildePanelMeldingId(null)}
                         aria-label={t("common.actions.close")}
+                        tabIndex={-1}
                     />
-                    <div className="absolute bottom-0 left-0 right-0 max-h-[70vh] rounded-t-2xl border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col">
-                        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
-                            <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {/* Top-sheet: slipper ned fra toppen, maks ~70vh, resten er scrim */}
+                    <div
+                        className="absolute top-0 left-0 right-0 max-h-[70vh] rounded-b-2xl border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg flex flex-col"
+                        style={{ paddingTop: "env(safe-area-inset-top)" }}
+                    >
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 shrink-0">
+                            <p className="text-base font-semibold text-slate-900 dark:text-white">
                                 {t("chat.sources")} ({panelKilder.length})
                             </p>
                             <button
                                 type="button"
                                 onClick={() => setKildePanelMeldingId(null)}
-                                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white transition-colors"
                                 aria-label={t("common.actions.close")}
                             >
-                                ×
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <line x1="18" y1="6" x2="6" y2="18" />
+                                    <line x1="6" y1="6" x2="18" y2="18" />
+                                </svg>
                             </button>
                         </div>
                         <div className="overflow-y-auto p-3 space-y-2">

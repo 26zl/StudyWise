@@ -338,8 +338,13 @@ export async function hybridSearch(
 
   // Begge feilet / tomt
   if (!hasVector && !hasBm25) {
+    // Skill mellom "Pinecone nede" og "ingen data matchet spørsmålet" —
+    // begge gir tom hybrid, men årsaken er vesentlig for drift.
+    const reason = anyDegraded
+      ? "pinecone_degraded_and_no_bm25_match"
+      : "no_chunks_matched_query";
     logger.info(
-      { userId, degraded: anyDegraded, isMultiConcept },
+      { userId, degraded: anyDegraded, isMultiConcept, reason, queryLen: trimmedQuery.length },
       "Hybrid søk: ingen resultater fra verken vektor- eller BM25-søk",
     );
     return {
@@ -347,6 +352,19 @@ export async function hybridSearch(
       degraded: anyDegraded,
       sources: { vector: false, bm25: false, reranked: false },
     };
+  }
+
+  // Logg når én kilde degraderte men den andre reddet søket
+  if (!hasVector && hasBm25) {
+    logger.info(
+      { userId, bm25Count: allBm25Results.length, degraded: anyDegraded },
+      "Hybrid søk: vektorsøk ga 0 treff — BM25 redder søket",
+    );
+  } else if (hasVector && !hasBm25) {
+    logger.info(
+      { userId, vectorCount: allVectorResults.length },
+      "Hybrid søk: BM25 ga 0 treff — kun vektorsøk bidrar",
+    );
   }
 
   // ── Trinn 2: RRF-fusjon ──

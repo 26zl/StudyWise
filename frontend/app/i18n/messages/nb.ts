@@ -1572,7 +1572,7 @@ export const nbMessages = {
     },
     modelSelectorLabel: "Velg Claude-modell",
     modelSelectorTooltip: "Velg modell for chat-svar.",
-    modelAuto: "Auto (Haiku + Sonnet 4)",
+    modelAuto: "Auto (Haiku 4.5 + Sonnet 4.6)",
     inputHint: "Enter for å sende · Shift+Enter for ny linje",
     placeholderDefault: "Skriv en melding...",
     inputAriaLabel: "Chatmelding",

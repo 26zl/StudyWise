@@ -10,6 +10,7 @@
 import mongoose, { type ClientSession } from "mongoose";
 import crypto from "crypto";
 import { logger } from "../utils/logger.js";
+import { CircuitBreakerError } from "../utils/circuitBreaker.js";
 import { ContentEmbedding } from "../database/models/ContentEmbedding.js";
 import { countTokens } from "../utils/tokenCounter.js";
 import type { ContentChunk } from "./chunk.service.js";
@@ -351,6 +352,8 @@ export async function upsertStoredFileContent(options: {
 
   // Retry med enkel backoff for Pinecone upsert (MongoDB er allerede lagret).
   // Stale Pinecone-vektorer er allerede slettet (eller feilet) ovenfor.
+  // Når circuit breaker er åpen hopper vi retries — de er garantert å feile
+  // i hele cooldown-perioden (30 s), og sparer ~3 s per fil ved mange filer.
   const MAX_UPSERT_RETRIES = 2;
   let upsertSuccess = false;
   if (pineconeRecords.length > 0 && isPineconeConfigured()) {
@@ -360,6 +363,14 @@ export async function upsertStoredFileContent(options: {
         upsertSuccess = true;
         break;
       } catch (error) {
+        const isCircuitOpen = error instanceof CircuitBreakerError;
+        if (isCircuitOpen) {
+          logger.warn(
+            { userId, courseId, fileId, chunkCount: pineconeRecords.length },
+            "Pinecone circuit breaker åpen — hopper over upsert og retries (chunks lagret i MongoDB uten vektorer)",
+          );
+          break;
+        }
         if (attempt < MAX_UPSERT_RETRIES) {
           const delayMs = 1000 * (attempt + 1);
           logger.warn(
@@ -433,6 +444,13 @@ export async function getStoredChunksForFile(
     .sort({ chunkIndex: 1 })
     .lean();
 
+  if (docs.length === 0) {
+    logger.info(
+      { userId, courseId, fileId },
+      "getStoredChunksForFile: ingen chunks i MongoDB (ekstraksjon ufullstendig eller filen aldri indeksert)",
+    );
+  }
+
   return docs.map((doc) => ({
     id: `${doc.courseId}:${doc.fileId}:${doc.chunkIndex}`,
     text: doc.text,
@@ -491,6 +509,18 @@ export async function getStoredChunksForCourses(
   }
 
   const docs = await builder;
+
+  if (docs.length === 0) {
+    logger.info(
+      {
+        userId,
+        courseIds: options?.courseIds ?? null,
+        moduleHint: options?.moduleHint ?? null,
+        fileHint: options?.fileHint ?? null,
+      },
+      "getStoredChunksForCourses: ingen chunks matchet filteret (kurs ikke indeksert eller hint for spesifikt)",
+    );
+  }
 
   return docs.map((doc) => ({
     id: `${doc.courseId}:${doc.fileId}:${doc.chunkIndex}`,
