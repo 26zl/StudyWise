@@ -109,7 +109,7 @@ pnpm test:canvas              # Canvas-tester
 
 Se [tests/README.md](./tests/README.md) for detaljer.
 
-> Les [CONTRIBUTING.md](./CONTRIBUTING.md) for utviklingsveiledning.
+> Les [CONTRIBUTING.md](./.github/CONTRIBUTING.md) for utviklingsveiledning.
 
 ## Avhengigheter
 

@@ -85,5 +85,5 @@ konstruktiv forskning og ikke eskalere til juridiske tiltak.
 For en oversikt over hvordan tjenesten er sikret, se:
 
 - Brukerrettet: [/sikkerhet](https://www.studwize.page/sikkerhet)
-- Intern risikovurdering: [PIA.md](PIA.md)
-- Hva vi gjør ved brudd: [INCIDENT_RESPONSE.md](INCIDENT_RESPONSE.md)
+- Intern risikovurdering: [PIA.md](../PIA.md)
+- Hva vi gjør ved brudd: [INCIDENT_RESPONSE.md](../INCIDENT_RESPONSE.md)

@@ -151,7 +151,7 @@ Produksjon er tilgjengelig på [studwize.page](https://www.studwize.page).
 
 ## Dokumentasjon og policyer
 
-Prosjektet har offentlige policyer og intern dokumentasjon i repo-roten: [`SECURITY.md`](https://github.com/26zl/StudyWise/blob/main/SECURITY.md) (sårbarhetsrapportering), [`PIA.md`](https://github.com/26zl/StudyWise/blob/main/PIA.md) (personvernvurdering), [`INCIDENT_RESPONSE.md`](https://github.com/26zl/StudyWise/blob/main/INCIDENT_RESPONSE.md) (hendelseshåndtering) og [`CODE_OF_CONDUCT.md`](https://github.com/26zl/StudyWise/blob/main/CODE_OF_CONDUCT.md) (adferdskodeks).
+Prosjektet har offentlige policyer og intern dokumentasjon: [`SECURITY.md`](https://github.com/26zl/StudyWise/blob/main/.github/SECURITY.md) (sårbarhetsrapportering), [`PIA.md`](https://github.com/26zl/StudyWise/blob/main/PIA.md) (personvernvurdering), [`INCIDENT_RESPONSE.md`](https://github.com/26zl/StudyWise/blob/main/INCIDENT_RESPONSE.md) (hendelseshåndtering) og [`CODE_OF_CONDUCT.md`](https://github.com/26zl/StudyWise/blob/main/.github/CODE_OF_CONDUCT.md) (adferdskodeks).
 
 ## Teamet
 
