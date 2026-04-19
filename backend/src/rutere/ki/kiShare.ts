@@ -22,8 +22,10 @@ import {
   ChatMessageSchema,
   ChatShareCreateSchema,
   ChatShareResponseSchema,
+  SharedChatDeleteAllResponseSchema,
   SharedChatListResponseSchema,
   SharedChatPublicResponseSchema,
+  SharedChatUpdateResponseSchema,
   SharedChatUpdateSchema,
 } from "common/chat";
 import { createRateLimiter } from "../../middleware/rate-limit.js";
@@ -416,10 +418,12 @@ kiShareRouter.delete("/chat/shared", async (req, res) => {
       req,
     });
 
-    return res.json({
-      ok: true,
-      deletedCount,
-    });
+    return res.json(
+      SharedChatDeleteAllResponseSchema.parse({
+        ok: true,
+        deletedCount,
+      }),
+    );
   } catch (error) {
     return sendUnknownError(res, error, {
       kontekst: "DELETE chat shared all",
@@ -484,9 +488,11 @@ kiShareRouter.patch("/chat/shared/:shareId", async (req, res) => {
       req,
     });
 
-    return res.json({
-      ok: true,
-    });
+    return res.json(
+      SharedChatUpdateResponseSchema.parse({
+        ok: true,
+      }),
+    );
   } catch (error) {
     return sendUnknownError(res, error, {
       kontekst: "PATCH chat shared",

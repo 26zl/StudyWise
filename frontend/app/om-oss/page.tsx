@@ -25,19 +25,22 @@ export default function OmOssPage() {
   ];
 
   return (
-    <InfoPageLayout title={t("omOss.title")}>
+    <InfoPageLayout eyebrow={t("footer.about")} title={t("omOss.title")}>
       <InfoSection title={t("omOss.whatTitle")}>
         <p>{t("omOss.whatBody")}</p>
       </InfoSection>
 
       <InfoSection title={t("omOss.featuresTitle")}>
-        <ul className="space-y-3">
+        <ul className="grid gap-3 sm:grid-cols-2">
           {features.map(({ label, body }) => (
-            <li key={label} className="flex gap-2">
-              <span className="text-blue-500 dark:text-blue-400">•</span>
-              <span>
-                <strong>{label}</strong> {body}
-              </span>
+            <li
+              key={label}
+              className="rounded-xl border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50"
+            >
+              <p className="text-sm leading-6 text-slate-700 dark:text-slate-200">
+                <strong className="font-semibold text-slate-900 dark:text-white">{label}</strong>{" "}
+                {body}
+              </p>
             </li>
           ))}
         </ul>
@@ -73,7 +76,7 @@ export default function OmOssPage() {
           ].map((tech) => (
             <span
               key={tech}
-              className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
             >
               {tech}
             </span>

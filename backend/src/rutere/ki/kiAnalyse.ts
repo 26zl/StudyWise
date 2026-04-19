@@ -14,12 +14,18 @@ import {
     KIDocumentAnalyseRequestSchema,
 } from "common/ki";
 import {
-    parseDocument,
     formatDocumentContext,
     getSupportedMimeTypes,
     validateFileMagicBytes,
     EXTENSION_TO_MIME,
 } from "../../services/document.js";
+import {
+    PARSE_TIMEOUT_ERROR,
+    PARSE_WORKER_CRASHED_ERROR,
+    getParseWorkerRuntimeError,
+    getParseWorkerUserMessage,
+    parseDocumentInWorker,
+} from "../../services/documentParserWorker.js";
 import { summarizeIfNeeded, countWords } from "../../services/summarization.service.js";
 import { resolveModel } from "./aiModels.js";
 import { chatCompletion, chatCompletionWithVision, isVisionAvailable, isClientAvailable, getMissingClientError } from "./aiClient.js";
@@ -156,21 +162,52 @@ router.post("/analyze-document", rateLimitKi, upload.single('document'), async (
 
         // For Vision-bilder: send bildet direkte til Claude + OCR som fallback
         // For dokumenter: parse som før (tekst-ekstraksjon)
-        let docResult: Awaited<ReturnType<typeof parseDocument>> | null = null;
+        let docResult: Awaited<ReturnType<typeof parseDocumentInWorker>> | null = null;
         let docContext = "";
 
         if (brukerVision) {
             // Kjør dokument-parse for bilder (docResult brukes evt. til oppsummering)
             try {
-                docResult = await parseDocument(filBuffer, filMimetype, req.file.originalname);
-            } catch {
-                logger.warn("Parse feilet for bilde, fortsetter med ren Vision");
+                // Vision-flyten bruker filBuffer senere, så vi sender en kopi til worker.
+                docResult = await parseDocumentInWorker(Buffer.from(filBuffer), filMimetype, req.file.originalname);
+            } catch (parseError) {
+                const parseWorkerError = getParseWorkerRuntimeError(parseError);
+                if (parseWorkerError) {
+                    logger.warn(
+                        { err: parseError, parseWorkerError },
+                        "Dokumentparser i worker feilet for vision-opplasting, fortsetter med ren Vision",
+                    );
+                } else {
+                    logger.warn({ err: parseError }, "Parse feilet for bilde, fortsetter med ren Vision");
+                }
             }
         } else {
             // Ikke et bilde eller Vision utilgjengelig: parse dokumentet som vanlig
             try {
-                docResult = await parseDocument(filBuffer, filMimetype, req.file.originalname);
+                docResult = await parseDocumentInWorker(filBuffer, filMimetype, req.file.originalname);
             } catch (parseError) {
+                const parseWorkerError = getParseWorkerRuntimeError(parseError);
+                if (parseWorkerError === PARSE_TIMEOUT_ERROR) {
+                    const parseWorkerFeil = getParseWorkerUserMessage(parseError, "document-analyse")
+                        ?? "Dokumentet tok for lang tid å lese. Prøv en mindre fil eller et annet format.";
+                    logger.warn({ err: parseError, parseWorkerError }, "Dokumentparser i worker time-out");
+                    sendSSEFeil(res, parseWorkerFeil, clearKeepalive);
+                    return;
+                }
+                if (parseWorkerError === PARSE_WORKER_CRASHED_ERROR) {
+                    const parseWorkerFeil = getParseWorkerUserMessage(parseError, "document-analyse")
+                        ?? "Dokumentparseren stoppet uventet. Prøv igjen om litt.";
+                    logger.warn({ err: parseError, parseWorkerError }, "Dokumentparser i worker krasjet");
+                    sendSSEFeil(res, parseWorkerFeil, clearKeepalive);
+                    return;
+                }
+
+                const parseWorkerFeil = getParseWorkerUserMessage(parseError, "document-analyse");
+                if (parseWorkerFeil != null) {
+                    logger.warn({ err: parseError }, "Dokumentparser i worker feilet");
+                    sendSSEFeil(res, parseWorkerFeil, clearKeepalive);
+                    return;
+                }
                 logger.error({ err: parseError }, "File parsing failed");
                 sendSSEFeil(res, "Kunne ikke lese filen. Prøv et annet format.", clearKeepalive);
                 return;

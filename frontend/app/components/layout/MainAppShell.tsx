@@ -146,14 +146,6 @@ export function MainAppShell({
   nonce?: string;
 }) {
   useEffect(() => {
-    console.log(
-      "%c StudyWise ",
-      "background: #2563eb; color: #fff; font-size: 18px; font-weight: bold; padding: 6px 16px; border-radius: 6px;",
-    );
-    console.log(
-      "%cHei, konsoll-nerd! \u{1F44B}\nSer du etter noe spennende? Vi bygger StudyWise som bachelorprosjekt ved USN.\nFinn oss p\u00e5 GitHub: https://github.com/26zl/StudyWise",
-      "color: #60a5fa; font-size: 13px;",
-    );
     // Dev-only Clerk cookie hygiene: varsle ved blandet cookie-state og installer
     // en manuell reset-helper. Ikke muter cookies automatisk ved app-boot; det kan
     // skape race conditions mot Clerk-init og første /api/user/me-kall.

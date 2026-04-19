@@ -17,6 +17,7 @@ export default function VilkarPage() {
 
   return (
     <InfoPageLayout
+      eyebrow={t("settings.consent.title")}
       title={t("vilkar.title")}
       updatedAt={t("vilkar.updatedAt")}
       version={TERMS_VERSION}

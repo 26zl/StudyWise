@@ -35,7 +35,8 @@ import sharp from "sharp";
 import pLimit from "p-limit";
 import { logger } from "../utils/logger.js";
 import { isProd } from "../utils/env.js";
-import { DocumentParseResult, DocumentParseResultSchema } from "common/document";
+import { DocumentParseResultSchema } from "common/document";
+import type { DocumentParseResult } from "common/document";
 import { extractTextFromFile, getCodeLanguage } from "./fileExtractor.js";
 
 // Konfigurasjon

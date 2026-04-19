@@ -46,6 +46,13 @@ import {
 } from "../../services/kunnskapsbase-indeksering.service.js";
 import { parseDocument, validateFileMagicBytes } from "../../services/document.js";
 import {
+  PARSE_TIMEOUT_ERROR,
+  PARSE_WORKER_CRASHED_ERROR,
+  getParseWorkerRuntimeError,
+  getParseWorkerUserMessage,
+  parseDocumentInWorker,
+} from "../../services/documentParserWorker.js";
+import {
   extractTextFromHtml,
   fetchExternalContent,
   findContentLinks,
@@ -1003,7 +1010,43 @@ async function parseAndIndexFile(
   mimeType: string,
 ): Promise<void> {
   try {
-    const parsed = await parseDocument(buffer, mimeType, filnavn);
+    let parsed: Awaited<ReturnType<typeof parseDocumentInWorker>>;
+    try {
+      parsed = await parseDocumentInWorker(buffer, mimeType, filnavn);
+    } catch (parseErr) {
+      const parseWorkerError = getParseWorkerRuntimeError(parseErr);
+      if (parseWorkerError === PARSE_TIMEOUT_ERROR) {
+        const workerParseError = getParseWorkerUserMessage(parseErr, "knowledge-base")
+          ?? "Kunne ikke lese filen innen tidsgrensen (60 sekunder). Prøv en mindre fil eller et annet format.";
+        logger.warn(
+          { filnavn, baseId, filId, parseError: workerParseError, parseWorkerError },
+          "KB-fil parsing i worker time-out",
+        );
+        await markFileParseFailed(baseId, filId, workerParseError);
+        return;
+      }
+      if (parseWorkerError === PARSE_WORKER_CRASHED_ERROR) {
+        const workerParseError = getParseWorkerUserMessage(parseErr, "knowledge-base")
+          ?? "Dokumentparseren stoppet uventet under behandling. Prøv igjen.";
+        logger.warn(
+          { filnavn, baseId, filId, parseError: workerParseError, parseWorkerError },
+          "KB-fil parsing i worker krasjet",
+        );
+        await markFileParseFailed(baseId, filId, workerParseError);
+        return;
+      }
+
+      const workerParseError = getParseWorkerUserMessage(parseErr, "knowledge-base");
+      if (workerParseError) {
+        logger.warn(
+          { filnavn, baseId, filId, parseError: workerParseError },
+          "KB-fil parsing i worker feilet",
+        );
+        await markFileParseFailed(baseId, filId, workerParseError);
+        return;
+      }
+      throw parseErr;
+    }
 
     if (!parsed.success) {
       logger.warn(

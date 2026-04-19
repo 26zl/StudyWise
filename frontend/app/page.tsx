@@ -4,25 +4,117 @@
  * i et kort øyeblikk ved refresh før Clerk er hydrert i klienten.
  */
 import { Footer } from "@/app/components/layout/footer";
-import { BookOpen, Bot, LayoutDashboard } from "lucide-react";
+import Link from "next/link";
+import {
+  ArrowRight,
+  BellRing,
+  BookOpen,
+  Bot,
+  CalendarDays,
+  LayoutDashboard,
+  Sparkles,
+} from "lucide-react";
 import { LandingHeroActions } from "@/app/components/layout/LandingHeroActions";
 import { getUserServerSafe } from "@/app/auth/auth-server";
 import { translate } from "@/app/i18n";
 import { resolveRequestLanguage } from "@/app/i18n/server";
 
+function splitHeading(text: string): { lead: string; accent: string } {
+  const trimmed = text.trim();
+  const splitIndex = trimmed.lastIndexOf(" ");
+
+  if (splitIndex === -1) {
+    return { lead: trimmed, accent: "" };
+  }
+
+  return {
+    lead: trimmed.slice(0, splitIndex),
+    accent: trimmed.slice(splitIndex + 1),
+  };
+}
+
 export default async function HomePage() {
   const language = await resolveRequestLanguage();
   const initialUser = await getUserServerSafe();
+  const erInnlogget = Boolean(initialUser?.user);
+
+  const heroHeading = splitHeading(translate(language, "landing.hero.title"));
+  const featureHeading = splitHeading(translate(language, "landing.features.heading"));
+
+  const headingClass =
+    "font-bold tracking-tight text-slate-900 dark:text-white";
+
+  const statItems = [
+    {
+      value: translate(language, "landing.stats.coursesSupported.value"),
+      label: translate(language, "landing.stats.coursesSupported.label"),
+    },
+    {
+      value: translate(language, "landing.stats.aiAvailability.value"),
+      label: translate(language, "landing.stats.aiAvailability.label"),
+    },
+    {
+      value: translate(language, "landing.stats.price.value"),
+      label: translate(language, "landing.stats.price.label"),
+    },
+  ];
+
+  const featureCards = [
+    {
+      icon: BookOpen,
+      iconBg: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300",
+      title: translate(language, "landing.features.canvasIntegration.title"),
+      description: translate(language, "landing.features.canvasIntegration.description"),
+    },
+    {
+      icon: LayoutDashboard,
+      iconBg: "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300",
+      title: translate(language, "landing.features.overview.title"),
+      description: translate(language, "landing.features.overview.description"),
+    },
+    {
+      icon: Bot,
+      iconBg: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300",
+      title: translate(language, "landing.features.aiPartner.title"),
+      description: translate(language, "landing.features.aiPartner.description"),
+    },
+    {
+      icon: CalendarDays,
+      iconBg: "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300",
+      title: translate(language, "landing.features.smartCalendar.title"),
+      description: translate(language, "landing.features.smartCalendar.description"),
+    },
+    {
+      icon: BellRing,
+      iconBg: "bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-300",
+      title: translate(language, "landing.features.announcements.title"),
+      description: translate(language, "landing.features.announcements.description"),
+    },
+    {
+      icon: Sparkles,
+      iconBg: "bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-300",
+      title: translate(language, "landing.features.personalStudyPlan.title"),
+      description: translate(language, "landing.features.personalStudyPlan.description"),
+    },
+  ];
 
   return (
-    <div className="relative min-h-full flex flex-col text-slate-900 transition-colors dark:text-slate-100 overflow-hidden">
+    <div className="relative min-h-full flex flex-col text-slate-900 transition-colors dark:text-slate-100 overflow-x-hidden">
       <main className="relative flex-1 flex flex-col">
-        <section className="relative px-4 sm:px-6 lg:px-8 pt-24 pb-12 md:pt-32 md:pb-16 lg:pt-40 lg:pb-20">
-          <div className="max-w-4xl mx-auto text-center space-y-8">
-            <h1 className="text-4xl md:text-6xl font-bold tracking-tight bg-linear-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent pb-4">
-              {translate(language, "landing.hero.title")}
+        <section className="relative px-4 sm:px-6 lg:px-8 pt-20 pb-8 md:pt-28 md:pb-12">
+          <div className="max-w-4xl mx-auto text-center space-y-6">
+            <h1 className={`${headingClass} text-4xl sm:text-5xl md:text-6xl text-balance`}>
+              {heroHeading.lead}
+              {heroHeading.accent ? (
+                <>
+                  {" "}
+                  <span className="bg-linear-to-r from-blue-500 to-indigo-500 bg-clip-text text-transparent">
+                    {heroHeading.accent}
+                  </span>
+                </>
+              ) : null}
             </h1>
-            <p className="text-lg md:text-xl text-slate-700 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed">
+            <p className="text-sm sm:text-base md:text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed text-balance">
               {translate(language, "landing.hero.description")}
             </p>
             <LandingHeroActions
@@ -33,45 +125,84 @@ export default async function HomePage() {
                 signInOrRegister: translate(language, "landing.actions.signInOrRegister"),
               }}
             />
+
+            <div className="mx-auto max-w-xl grid grid-cols-3 gap-4 sm:gap-8 pt-6">
+              {statItems.map((item) => (
+                <div key={item.label} className="text-center">
+                  <p
+                    className={`font-bold text-slate-900 dark:text-white whitespace-nowrap ${
+                      item.value.length > 8 ? "text-xl sm:text-2xl" : "text-xl sm:text-3xl"
+                    }`}
+                  >
+                    {item.value}
+                  </p>
+                  <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">{item.label}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
-        <section className="px-4 sm:px-6 lg:px-8 py-8" aria-labelledby="funksjoner-heading">
-          <h2 id="funksjoner-heading" className="sr-only">
-            {translate(language, "landing.features.heading")}
-          </h2>
-          <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="p-6 sm:p-8 rounded-2xl bg-white dark:bg-transparent border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-none hover:shadow-md transition-shadow">
-              <div className="w-14 h-14 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center mb-6">
-                <BookOpen size={28} />
-              </div>
-              <h3 className="text-xl font-semibold mb-3">
-                {translate(language, "landing.features.canvasIntegration.title")}
+
+        <section className="px-4 sm:px-6 lg:px-8 py-8 md:py-10" aria-labelledby="funksjoner-heading">
+          <div className="max-w-5xl mx-auto text-center">
+            <h2 id="funksjoner-heading" className={`${headingClass} text-3xl sm:text-4xl text-balance`}>
+              {featureHeading.lead}
+              {featureHeading.accent ? (
+                <>
+                  {" "}
+                  <span className="bg-linear-to-r from-blue-500 to-indigo-500 bg-clip-text text-transparent">
+                    {featureHeading.accent}
+                  </span>
+                </>
+              ) : null}
+            </h2>
+            <p className="mt-3 text-sm sm:text-base text-slate-600 dark:text-slate-300 max-w-2xl mx-auto text-balance">
+              {translate(language, "landing.features.subheading")}
+            </p>
+          </div>
+
+          <div className="max-w-5xl mx-auto mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
+            {featureCards.map((feature) => {
+              const Icon = feature.icon;
+              return (
+                <article
+                  key={feature.title}
+                  className="group rounded-2xl border border-slate-200/80 dark:border-slate-700/70 bg-white/85 dark:bg-slate-900/45 backdrop-blur-sm p-5 shadow-[0_1px_2px_rgb(15_23_42/0.06)] hover:shadow-[0_10px_28px_rgb(15_23_42/0.08)] dark:shadow-none transition-all"
+                >
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${feature.iconBg}`}>
+                    <Icon size={18} />
+                  </div>
+                  <h3 className="mt-4 text-base font-semibold text-slate-900 dark:text-white text-left">
+                    {feature.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300 text-left">
+                    {feature.description}
+                  </p>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="max-w-5xl mx-auto mt-10">
+            <div className="rounded-3xl bg-linear-to-r from-blue-500 via-blue-500 to-indigo-500 px-6 py-10 sm:px-10 sm:py-12 text-center text-white shadow-[0_20px_60px_rgb(59_130_246/0.28)]">
+              <h3 className={`${headingClass} text-white text-3xl sm:text-4xl text-balance`}>
+                {translate(language, "landing.cta.title")}
               </h3>
-              <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
-                {translate(language, "landing.features.canvasIntegration.description")}
+              <p className="mt-3 text-sm sm:text-base text-blue-50/95 max-w-2xl mx-auto text-balance">
+                {translate(language, "landing.cta.description")}
               </p>
-            </div>
-            <div className="p-6 sm:p-8 rounded-2xl bg-white dark:bg-transparent border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-none hover:shadow-md transition-shadow">
-              <div className="w-14 h-14 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl flex items-center justify-center mb-6">
-                <LayoutDashboard size={28} />
+              <div className="mt-6">
+                <Link
+                  href={erInnlogget ? "/dashboard" : "/auth/sign-up"}
+                  prefetch={false}
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100 transition-colors"
+                >
+                  {erInnlogget
+                    ? translate(language, "common.actions.goToDashboard")
+                    : translate(language, "landing.cta.action")}
+                  <ArrowRight size={16} />
+                </Link>
               </div>
-              <h3 className="text-xl font-semibold mb-3">
-                {translate(language, "landing.features.overview.title")}
-              </h3>
-              <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
-                {translate(language, "landing.features.overview.description")}
-              </p>
-            </div>
-            <div className="p-6 sm:p-8 rounded-2xl bg-white dark:bg-transparent border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-none hover:shadow-md transition-shadow">
-              <div className="w-14 h-14 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center mb-6">
-                <Bot size={28} />
-              </div>
-              <h3 className="text-xl font-semibold mb-3">
-                {translate(language, "landing.features.aiPartner.title")}
-              </h3>
-              <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
-                {translate(language, "landing.features.aiPartner.description")}
-              </p>
             </div>
           </div>
         </section>

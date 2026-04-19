@@ -107,6 +107,11 @@ export const SharedChatListResponseSchema = z.object({
   links: z.array(SharedChatListItemSchema),
 });
 
+export const SharedChatDeleteAllResponseSchema = z.object({
+  ok: z.literal(true),
+  deletedCount: z.number().int().nonnegative(),
+});
+
 export const SharedChatUpdateSchema = z.object({
   isActive: z.boolean().optional(),
   accessType: ChatShareAccessTypeSchema.optional(),
@@ -118,6 +123,10 @@ export const SharedChatUpdateSchema = z.object({
     value.expiresAt !== undefined,
   { message: "Minst ett felt må oppdateres" },
 );
+
+export const SharedChatUpdateResponseSchema = z.object({
+  ok: z.literal(true),
+});
 
 export const SharedChatPublicResponseSchema = z.object({
   shareId: z.string(),
@@ -165,7 +174,9 @@ export type ChatHistoryResponse = z.infer<typeof ChatHistoryResponseSchema>;
 export type ChatShareResponse = z.infer<typeof ChatShareResponseSchema>;
 export type SharedChatListItem = z.infer<typeof SharedChatListItemSchema>;
 export type SharedChatListResponse = z.infer<typeof SharedChatListResponseSchema>;
+export type SharedChatDeleteAllResponse = z.infer<typeof SharedChatDeleteAllResponseSchema>;
 export type SharedChatUpdatePayload = z.infer<typeof SharedChatUpdateSchema>;
+export type SharedChatUpdateResponse = z.infer<typeof SharedChatUpdateResponseSchema>;
 export type SharedChatPublicResponse = z.infer<typeof SharedChatPublicResponseSchema>;
 export type ChatTopicUpdatePayload = z.infer<typeof ChatTopicUpdateSchema>;
 export type ChatPinUpdatePayload = z.infer<typeof ChatPinUpdateSchema>;

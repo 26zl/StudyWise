@@ -17,7 +17,7 @@
     "@anthropic-ai/sdk": "^0.88.0",
     "@clerk/backend": "^3.2.13",
     "@mozilla/readability": "^0.6.0",
-    "@napi-rs/canvas": "^0.1.98",
+    "@napi-rs/canvas": "^0.1.99",
     "@pinecone-database/pinecone": "^7.2.0",
     "adm-zip": "^0.5.17",
     "ai": "^6.0.168",

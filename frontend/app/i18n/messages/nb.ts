@@ -390,28 +390,65 @@ export const nbMessages = {
       continueToDashboard: "Fortsett til dashboard",
       signInOrRegister: "Logg inn / Registrer deg",
     },
+    cta: {
+      action: "Kom i gang",
+      description:
+        "Bli med tusenvis av studenter som allerede har gjort StudyWise til sin daglige studiepartner.",
+      title: "Klar til å studere smartere?",
+    },
     features: {
       aiPartner: {
         description:
           "Står du fast? Få hjelp, forklaringer, quiz, flashcards og oppgavenedbrytning. Last opp dokumenter for analyse, få en KI-generert studieplan, og eksporter til PDF, Word, Excel eller Notion.",
         title: "KI-Studiepartner",
       },
+      announcements: {
+        description:
+          "Få samlet alle kunngjøringer fra alle emner i én feed. Filtrer etter viktighet og søk gjennom historikken.",
+        title: "Aldri gå glipp av en kunngjøring",
+      },
       canvasIntegration: {
         description:
           "Koble til Canvas én gang og få tilgang til alle dine emner, moduler, filer, kunngjøringer og kalender direkte i dashboardet.",
         title: "Sømløs Canvas-integrasjon",
       },
-      heading: "Funksjoner",
+      heading: "Alt du trenger for å lykkes",
       overview: {
         description:
           "Se alt som skjer i dag og de neste dagene. Frister, KI-generert ukeplan og studiestatistikk samlet på ett sted.",
         title: "Total Oversikt",
       },
+      personalStudyPlan: {
+        description:
+          "KI-en lager en ukeplan tilpasset dine frister, vaner og energinivå. Justeres automatisk når noe endrer seg.",
+        title: "Personlig studieplan",
+      },
+      smartCalendar: {
+        description:
+          "Alle innleveringer, eksamener og forelesninger samlet. Få varsler før viktige frister, fargekodet per emne.",
+        title: "Smart Kalender",
+      },
+      subheading:
+        "Fra oversikt og planlegging til KI-hjelp på sene kveldstimer - StudyWise er skreddersydd for studielivet.",
     },
     hero: {
       description:
         "StudyWise samler alt du trenger på ett sted. Få full oversikt over Canvas, dine kommende oppgaver, og få hjelp av KI til å studere smartere – ikke hardere.",
       title: "Din intelligente studieassistent",
+    },
+    stats: {
+      aiAvailability: {
+        label: "KI-assistent",
+        value: "24/7",
+      },
+      coursesSupported: {
+        label: "Emner støttet",
+        value: "12+",
+      },
+      price: {
+        label: "Betal kun for det du bruker",
+        value: "Pay as you go",
+      },
     },
   },
   overview: {
@@ -2122,7 +2159,14 @@ export const nbMessages = {
   },
   faq: {
     title: "Ofte stilte spørsmål",
-    description: "Finn svar på de vanligste spørsmålene om StudyWise.",
+    titlePrefix: "Ofte stilte",
+    titleAccent: "spørsmål",
+    helpCenter: "Hjelpesenter",
+    description: "Finn svar på de vanligste spørsmålene om StudyWise — Canvas, sikkerhet, konto og funksjoner.",
+    searchPlaceholder: "Søk etter spørsmål...",
+    filterAll: "Alle",
+    noMatches: "Ingen spørsmål matcher søket ditt. Prøv et annet søkeord eller velg en annen kategori.",
+    contactDescription: "Vi er her for å hjelpe. Send oss en melding så svarer vi som regel innen 24 timer.",
     categoryCanvas: "Canvas",
     categorySecurityPrivacy: "Sikkerhet og personvern",
     categoryAccount: "Konto",

@@ -70,7 +70,7 @@ kiFeedbackRouter.delete("/feedback/:messageId", async (req, res) => {
       messageId,
     });
 
-    res.json({ suksess: true });
+    res.json(ChatFeedbackResponseSchema.parse({ suksess: true }));
   } catch (error) {
     sendUnknownError(res, error, { kontekst: "feedback-delete" });
   }

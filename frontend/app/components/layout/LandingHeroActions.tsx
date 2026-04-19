@@ -93,18 +93,18 @@ function LandingHeroButtons({
   labels: LandingHeroActionLabels;
   erInnlogget: boolean;
 }) {
-  const ctaWidth = "min-w-[200px]";
+  const ctaWidth = "min-w-[170px]";
 
   // Vis knappene med én gang — ikke vent på Clerk. Bruk standard «ikke innlogget»-visning
   // frem til auth er avklart. Unngår tom/grå boks på treg lasting (prod/mobil).
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
       {/* Primær CTA: innlogget → dashboard, ikke innlogget → auth (logg inn først) */}
       <Link
         href={erInnlogget ? "/dashboard" : "/auth/sign-in"}
         prefetch={false}
-        className={`group inline-flex items-center justify-center gap-2 px-8 py-4 ${ctaWidth} bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-full font-medium transition-all hover:shadow-lg hover:shadow-blue-500/25`}
+        className={`group inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm ${ctaWidth} bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-full font-medium transition-all hover:shadow-md hover:shadow-blue-500/25`}
       >
         {erInnlogget
           ? labels.continueToDashboard
@@ -119,7 +119,7 @@ function LandingHeroButtons({
         <Link
           href="/auth/sign-in"
           prefetch={false}
-          className={`inline-flex items-center justify-center px-8 py-4 ${ctaWidth} bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full font-medium transition-colors`}
+          className={`inline-flex items-center justify-center px-5 py-2.5 text-sm ${ctaWidth} bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full font-medium transition-colors`}
         >
           {labels.signInOrRegister}
         </Link>

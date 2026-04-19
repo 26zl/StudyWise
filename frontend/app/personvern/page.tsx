@@ -17,6 +17,7 @@ export default function PersonvernPage() {
 
   return (
     <InfoPageLayout
+      eyebrow={t("settings.consent.title")}
       title={t("personvern.title")}
       updatedAt={t("personvern.updatedAt")}
       version={TERMS_VERSION}

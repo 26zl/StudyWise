@@ -6,6 +6,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { Footer } from "@/app/components/layout/footer";
 import { cn } from "@/app/lib/utils";
 import { useLanguage } from "@/app/i18n";
@@ -14,6 +15,7 @@ export const INFO_PAGE_INLINE_LINK_CLASSNAME =
   "font-medium text-blue-700 underline underline-offset-2 decoration-current/70 transition-colors hover:text-blue-800 hover:decoration-current dark:text-blue-300 dark:hover:text-blue-200";
 
 type InfoPageLayoutProps = {
+  eyebrow?: string;
   title: string;
   description?: string;
   updatedAt?: string;
@@ -39,6 +41,7 @@ type InfoCardProps = {
 };
 
 export function InfoPageLayout({
+  eyebrow,
   title,
   description,
   updatedAt,
@@ -51,27 +54,38 @@ export function InfoPageLayout({
 }: InfoPageLayoutProps) {
   const { t } = useLanguage();
   const resolvedBackLabel = backLabel ?? t("infoPageLayout.backToHome");
+  const cleanBackLabel = resolvedBackLabel.replace(/^[\s\u2190<-]+/, "").trim();
   const updatedAtLabel = t("infoPageLayout.lastUpdated");
   const versionLabel = t("infoPageLayout.version");
 
   return (
     <div className={cn("min-h-full flex flex-col", className)}>
-      <div className="mx-auto flex-1 w-full max-w-3xl px-4 py-12 sm:px-6 lg:max-w-5xl lg:px-8 xl:max-w-6xl">
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-14 pt-8 sm:px-6 sm:pb-16 sm:pt-12 lg:px-8">
         <Link
           href={backHref}
           prefetch={false}
-          className="mb-8 inline-flex items-center text-sm text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
         >
-          {resolvedBackLabel}
+          <ArrowLeft className="h-4 w-4" />
+          <span>{cleanBackLabel}</span>
         </Link>
 
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{title}</h1>
+        <header className="mb-8 mt-6 space-y-3 sm:mb-10">
+          {eyebrow ? (
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-700 dark:text-sky-300">
+              {eyebrow}
+            </p>
+          ) : null}
+          <h1 className="text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl dark:text-white">
+            {title}
+          </h1>
           {description ? (
-            <p className="mt-2 text-slate-600 dark:text-slate-400">{description}</p>
+            <p className="max-w-3xl text-base leading-7 text-slate-600 sm:text-lg dark:text-slate-300">
+              {description}
+            </p>
           ) : null}
           {updatedAt ? (
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
               {updatedAtLabel}: {updatedAt}
               {version ? (
                 <>
@@ -83,8 +97,8 @@ export function InfoPageLayout({
           ) : null}
         </header>
 
-        <div className={cn("space-y-6", contentClassName)}>{children}</div>
-      </div>
+        <div className={cn("space-y-4 sm:space-y-5", contentClassName)}>{children}</div>
+      </main>
       <Footer />
     </div>
   );
@@ -99,14 +113,23 @@ export function InfoSection({
   return (
     <section
       className={cn(
-        "rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900",
+        "rounded-2xl border border-slate-200/90 bg-white/90 p-6 shadow-[0_14px_35px_-30px_rgba(15,23,42,0.45)] backdrop-blur-sm sm:p-8 dark:border-slate-700 dark:bg-slate-900/60 dark:shadow-none",
         className,
       )}
     >
       {title ? (
-        <h2 className="mb-4 text-xl font-semibold text-slate-900 dark:text-white">{title}</h2>
+        <h2 className="mb-4 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl dark:text-white">
+          {title}
+        </h2>
       ) : null}
-      <div className={cn("text-slate-600 dark:text-slate-400", contentClassName)}>{children}</div>
+      <div
+        className={cn(
+          "text-[15px] leading-7 text-slate-600 dark:text-slate-300",
+          contentClassName,
+        )}
+      >
+        {children}
+      </div>
     </section>
   );
 }
@@ -115,7 +138,7 @@ export function InfoCard({ className, children }: InfoCardProps) {
   return (
     <div
       className={cn(
-        "rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900",
+        "rounded-2xl border border-slate-200/90 bg-white/90 p-5 shadow-[0_14px_35px_-30px_rgba(15,23,42,0.45)] backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/60 dark:shadow-none",
         className,
       )}
     >

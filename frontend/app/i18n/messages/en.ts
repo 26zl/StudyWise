@@ -391,28 +391,65 @@ export const enMessages = {
       continueToDashboard: "Continue to Dashboard",
       signInOrRegister: "Sign in / Sign up",
     },
+    cta: {
+      action: "Get started",
+      description:
+        "Join thousands of students who already use StudyWise as their daily study companion.",
+      title: "Ready to study smarter?",
+    },
     features: {
       aiPartner: {
         description:
           "Stuck on something? Get help, explanations, quizzes, flashcards, and task breakdowns. Upload documents for analysis, get an AI-generated study plan, and export to PDF, Word, Excel, or Notion.",
         title: "AI Study Partner",
       },
+      announcements: {
+        description:
+          "Get every announcement from every course in one feed. Filter by importance and search through history.",
+        title: "Never miss an announcement",
+      },
       canvasIntegration: {
         description:
           "Connect Canvas once and get access to all your courses, modules, files, announcements, and calendar directly in the dashboard.",
         title: "Seamless Canvas Integration",
       },
-      heading: "Features",
+      heading: "Everything you need to succeed",
       overview: {
         description:
           "See everything happening today and in the coming days. Deadlines, AI-generated weekly plans, and study statistics in one place.",
         title: "Complete Overview",
       },
+      personalStudyPlan: {
+        description:
+          "AI builds a weekly plan tailored to your deadlines, habits, and energy level. It updates automatically when plans change.",
+        title: "Personal study plan",
+      },
+      smartCalendar: {
+        description:
+          "All assignments, exams, and classes in one place. Get alerts before key deadlines, color-coded by course.",
+        title: "Smart Calendar",
+      },
+      subheading:
+        "From planning and overview to late-night AI support - StudyWise is built for student life.",
     },
     hero: {
       description:
         "StudyWise gathers everything you need in one place. Get a full overview of Canvas, your upcoming assignments, and AI help to study smarter, not harder.",
       title: "Your Intelligent Study Assistant",
+    },
+    stats: {
+      aiAvailability: {
+        label: "AI assistant",
+        value: "24/7",
+      },
+      coursesSupported: {
+        label: "Courses supported",
+        value: "12+",
+      },
+      price: {
+        label: "Pay only for what you use",
+        value: "Pay as you go",
+      },
     },
   },
   overview: {
@@ -2124,7 +2161,14 @@ export const enMessages = {
   },
   faq: {
     title: "Frequently Asked Questions",
-    description: "Find answers to the most common questions about StudyWise.",
+    titlePrefix: "Frequently asked",
+    titleAccent: "questions",
+    helpCenter: "Help center",
+    description: "Find answers to the most common questions about StudyWise — Canvas, security, account, and features.",
+    searchPlaceholder: "Search questions...",
+    filterAll: "All",
+    noMatches: "No questions match your search. Try another keyword or choose a different category.",
+    contactDescription: "We're here to help. Send us a message and we usually reply within 24 hours.",
     categoryCanvas: "Canvas",
     categorySecurityPrivacy: "Security and Privacy",
     categoryAccount: "Account",
