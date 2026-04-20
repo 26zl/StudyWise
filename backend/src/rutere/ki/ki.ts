@@ -342,8 +342,8 @@ function sanitizeCourseHintValue(courseHint: string): string {
 function extractModuleHint(message: string): string | null {
   const lower = normaliserSkrivefeil(message);
 
-  // Støtt kapittel-shorthand i naturlig språk: "kap 1", "kap. 16.18", "kapittel 3-4".
-  // Normaliser til "kapittel X" slik at nedstrøms modulmatching blir konsistent.
+  // Fast-path: kap/kapittel-shorthand → normaliser til kanonisk "kapittel X"
+  // slik at nedstrøms modulmatching blir konsistent ("kap 16.18" → "kapittel 16-18").
   const chapterPrefixMatch = lower.match(/\bkap(?:ittel)?\.?\s*([^\s,;:!?]+)/i);
   const rawChapterToken = chapterPrefixMatch?.[1];
   if (rawChapterToken) {
@@ -362,15 +362,26 @@ function extractModuleHint(message: string): string | null {
     }
   }
 
+  // Utvidet støtte for andre prefikser (tema, sesjon, modul, uke, forelesning, ...)
+  // inkludert range, oppramsing og bøyninger. Fast-pathen over håndterer kap/kapittel.
+  //   "tema 4", "sesjon 2", "økt 5"
+  //   "modul 16-18", "leksjon 16.18"
+  //   "forelesning 1 og 2", "uke 1, 2 og 3"
+  // Merk: bruker negativ lookbehind istedenfor \b fordi JS's \b ikke fungerer
+  // for æøå (ASCII-basert \w) — "økt" ville aldri matche med \b.
   const numberedMatch = lower.match(
-    /\b(?:modul|leksjon|lesson|module|forelesning|uke|week|kapittel)\s+\d{1,2}[a-z]?\b/i,
+    // eslint-disable-next-line security/detect-unsafe-regex -- bounded: \d{1,3}-kvantifikatorer og fast alternasjon; input er brukermelding <2000 tegn
+    /(?<![a-zæøå0-9])(?:modul|modulen|leksjon|lesson|module|forelesning|forelesningen|forelesninga|uke|uka|week|kapittel|kapitlet|kap|chapter|chapters|ch|tema|temaet|enhet|sesjon|session|time|timen|økt|økta|del|delen|seksjon|section|side|page|oppgave|oppgaven|foredrag|note|notat|slide|lysark)\.?\s+(\d{1,3}(?:\s*(?:[.\-,]|\s+og\s+|\s+and\s+)\s*\d{1,3})*[a-z]?)\b/i,
   );
   if (numberedMatch) {
-    return numberedMatch[0].toLowerCase();
+    return numberedMatch[0]
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   const quotedMatch = lower.match(
-    /\b(?:modul|leksjon|lesson|module|forelesning|kapittel)\s+["'«»]([^"'«»]{3,80})["'«»]/i,
+    /\b(?:modul|leksjon|lesson|module|forelesning|kapittel|kap|chapter|tema|seksjon)\s+["'«»]([^"'«»]{3,80})["'«»]/i,
   );
   if (quotedMatch?.[1]) {
     return quotedMatch[1].trim().toLowerCase();
@@ -1216,11 +1227,20 @@ function extractChunkHint(message: string): string | null {
     .replace(/https?:\/\/[^\s<>"'`]+/gi, " ")
     .replace(/\bwww\.[^\s<>"'`]+\b/gi, " ");
 
-  // Del opp i ord (kun alfanumeriske + æøå)
+  // Del opp i ord (alfanumeriske + æøå + dot/dash i sammensatte numre).
+  // Dot/dash beholdes slik at "16.18" og "16-18" forblir ett token istedenfor to.
   const words = withoutUrls
-    .replace(/[^\wæøå\s-]/g, " ")
+    .replace(/[^\wæøå\s.-]/g, " ")
     .split(/\s+/)
-    .filter((w) => w.length >= 3) // Ignorer veldig korte ord
+    .map((w) => w.replace(/^[.-]+|[.-]+$/g, "")) // Fjern ledende/halefølgende . og -
+    .filter((w) => {
+      if (w.length === 0) return false;
+      // Behold alle rent numeriske tokens (kapittelnummer, årstall, osv.),
+      // inkludert sammensatte som "16-18" og "16.18".
+      // eslint-disable-next-line security/detect-unsafe-regex -- bounded: ankret regex (^...$), input er enkelt token <50 tegn
+      if (/^\d+(?:[.-]\d+)*$/.test(w)) return true;
+      return w.length >= 3;
+    })
     .filter((w) => !CHUNK_STOPWORDS.has(w))
     .filter((w) => !URL_ARTIFACT_TOKENS.has(w))
     .filter((w) => !blockedHostTokens.has(w));
@@ -1228,8 +1248,8 @@ function extractChunkHint(message: string): string | null {
   // Fjern duplikater og behold rekkefølge
   const unique = [...new Set(words)];
 
-  // Returner 3–6 viktigste ord
-  const keywords = unique.slice(0, 6);
+  // Returner 3–8 viktigste ord (hever taket litt for å få plass til numeriske refs)
+  const keywords = unique.slice(0, 8);
 
   if (keywords.length === 0) return null;
 

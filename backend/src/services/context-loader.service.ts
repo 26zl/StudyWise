@@ -152,6 +152,189 @@ const FULL_DOCUMENT_TRIGGER_WORDS = [
   "more about lecture",
 ];
 
+/** Prefiksord som indikerer at et påfølgende tall refererer til en kapittel/modul/seksjon. */
+const NUMERIC_REFERENCE_PREFIXES =
+  "kap|kapittel|kapitlet|chapter|chapters|ch|modul|modulen|module|leksjon|lesson|forelesning|forelesningen|forelesninga|lecture|uke|uka|week|seksjon|section|del|delen|part|side|page|oppgave|oppgaven|exercise|task|tema|temaet|enhet|sesjon|session|time|timen|økt|økta|pensum|foredrag|note|notat|slide|lysark";
+
+/**
+ * Ekstraherer numeriske referanser fra brukerens melding som kan matche
+ * filnavn eller moduler (kapittelnummer, range, seksjonsnummer).
+ *
+ * Regler:
+ *   - Seksjon (dot-notation, "5.2") → KUN compound, ingen utspredning til enkelttall
+ *     (hindrer at "5.2" matcher filer med "5" eller "2" isolert som false positive).
+ *   - Range (dash-notation, "16-18") → compound + alle tall i rangen (16, 17, 18)
+ *     (bruker som spør om et intervall vil ha treff på alle filer i intervallet).
+ *   - Oppramsing ("1 og 2", "3, 4 og 5") → enkelttall per element.
+ *   - Enkelttall → bare det ene tallet.
+ *
+ * Eksempler:
+ *   "oppsummere kap 1 fra metode"        → ["1"]
+ *   "oppsummere kap 16.18"               → ["16.18"]                 (seksjon, ingen 16/18)
+ *   "kapittel 16-18"                     → ["16-18", "16", "17", "18"] (range → fanout)
+ *   "forelesning 3 og 4"                 → ["3", "4"]
+ *   "hva står i seksjon 5.2"             → ["5.2"]
+ *   "kapittel 2024"                      → ["2024"]                  (4-sifrede årstall/ref)
+ *   "Forelesning 01"                     → ["01", "1"]               (zero-stripped variant)
+ *   "100 liter vann"                     → []                        (ingen ref-kontekst)
+ */
+function extractNumericHintsFromMessage(message: string): string[] {
+  const lower = message.toLowerCase();
+  const hints = new Set<string>();
+
+  // Merk: bruker negativ lookbehind istedenfor \b fordi JS's \b er ASCII-basert
+  // og ikke fungerer for æøå — "økt 4" ville aldri matche med \b.
+  const referencePatterns = [
+    // Prefiks + enkelt tall eller compound "16-18" / "5.2" / "2024"
+    new RegExp(
+      `(?<![a-zæøå0-9])(?:${NUMERIC_REFERENCE_PREFIXES})\\.?\\s+(\\d{1,4}(?:\\s*[.-]\\s*\\d{1,4})*)`,
+      "gi",
+    ),
+    // Prefiks + oppramsing "kap 1 og 2", "uke 3, 4 og 5"
+    new RegExp(
+      `(?<![a-zæøå0-9])(?:${NUMERIC_REFERENCE_PREFIXES})\\.?\\s+(\\d{1,4}(?:\\s*(?:og|and|,)\\s*\\d{1,4})+)`,
+      "gi",
+    ),
+    // Sammensatte bare tall: "16.18", "5.1-5.3" (uten prefiks — typisk seksjon/kapittelref)
+    // Krever minst ett skilletegn (dot/dash) så vi ikke trigger på enkeltstående tall som "100 liter"
+    // eslint-disable-next-line security/detect-unsafe-regex -- bounded: \d{1,4}-kvantifikatorer, input er brukermelding <2000 tegn
+    /(?:^|[\s(])(\d{1,4}(?:[.-]\d{1,4})+)\b/g,
+  ];
+
+  for (const pattern of referencePatterns) {
+    for (const match of lower.matchAll(pattern)) {
+      const raw = match[1]?.replace(/\s+/g, "") ?? "";
+      if (!raw) continue;
+
+      const compound = raw.replace(/,/g, "-");
+      // eslint-disable-next-line security/detect-unsafe-regex -- bounded: ankret regex (^...$), input er compound <20 tegn
+      const isDotSection = /^\d+(?:\.\d+)+$/.test(compound); // "5.2", "5.2.3"
+      const rangeMatch = compound.match(/^(\d{1,4})-(\d{1,4})$/); // "16-18"
+
+      if (isDotSection) {
+        // Seksjon/subseksjon: kun compound — ingen utspredning (unngå false positives)
+        hints.add(compound);
+      } else if (rangeMatch) {
+        // Range: compound + alle tall i rangen
+        hints.add(compound);
+        const start = parseInt(rangeMatch[1], 10);
+        const end = parseInt(rangeMatch[2], 10);
+        if (end > start && end - start <= 30) {
+          for (let n = start; n <= end; n++) hints.add(String(n));
+        }
+      } else {
+        // Enkelttall eller oppramsing: legg til alle enkelttall fra referansen
+        for (const digit of raw.matchAll(/\d+/g)) {
+          hints.add(digit[0]);
+        }
+      }
+    }
+  }
+
+  // Post-prosessering: utvid hints med ekvivalente varianter
+  for (const h of [...hints]) {
+    // Zero-stripped variant for enkelttall: "01" → også "1" (bruker kan skrive enten form)
+    if (/^0\d+$/.test(h)) {
+      const stripped = h.replace(/^0+/, "");
+      if (stripped.length > 0) hints.add(stripped);
+    }
+    // Dot/dash-notasjonsekvivalens for compound: bruker skriver ofte "16.18" mens filen
+    // heter "16-18" og omvendt. Legg til begge notasjoner for filnavn-match.
+    if (h.includes(".")) {
+      hints.add(h.replace(/\./g, "-"));
+    }
+    if (h.includes("-")) {
+      hints.add(h.replace(/-/g, "."));
+    }
+  }
+
+  return [...hints];
+}
+
+/**
+ * Normaliserer numeriske sekvenser i et filnavn ved å fjerne ledende nuller
+ * KUN på isolerte tall-sekvenser (start-of-string eller forutgående ikke-siffer).
+ * Dette hindrer at indre nuller i tall som "2024" eller "102" blir feilaktig fjernet.
+ *
+ * "Lecture 03 - Intro.pdf"  → "lecture 3 - intro.pdf"
+ * "Kapittel 001 og 002.pptx" → "kapittel 1 og 2.pptx"
+ * "ISO-8601-2024.pdf"        → "iso-8601-2024.pdf" (indre nuller beholdt)
+ * "Kapittel 102.pdf"         → "kapittel 102.pdf" (ingen ledende nuller å fjerne)
+ * "003_Lecture.pdf"          → "3_lecture.pdf" (ledende null på starten)
+ */
+function normaliserNumeriskFilnavn(fileName: string): string {
+  return fileName.toLowerCase().replace(/(^|[^\d])0+(\d+)/g, "$1$2");
+}
+
+/**
+ * Sjekker om filnavnet inneholder ett av de numeriske hintene som en
+ * selvstendig numerisk "bit" (ikke som en del av et lengre tall).
+ *
+ * "Kapittel 1 og 2.pptx" + hint "1" → true
+ * "Kapittel 16-18.pptx" + hint "16-18" → true
+ * "Kapittel 16-18.pptx" + hint "1" → false (matcher IKKE inne i "16")
+ * "Lecture 03 - Intro.pdf" + hint "3" → true (ledende null fjernet ved normalisering)
+ */
+function fileNameMatchesNumericHints(fileName: string, hints: string[]): boolean {
+  if (hints.length === 0) return false;
+  const lower = fileName.toLowerCase();
+  const normalisert = normaliserNumeriskFilnavn(fileName);
+  return hints.some((hint) => {
+    // Bygg regex og test mot både originalt filnavn og zero-padding-normalisert variant
+    if (/[.-]/.test(hint)) {
+      const escaped = hint.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      // eslint-disable-next-line security/detect-non-literal-regexp -- hint er fra egen ekstraksjon, escaped
+      const regex = new RegExp(`(?:^|[^\\d])${escaped}(?![\\d])`);
+      return regex.test(lower) || regex.test(normalisert);
+    }
+    // eslint-disable-next-line security/detect-non-literal-regexp -- hint er rent numerisk fra egen ekstraksjon
+    const regex = new RegExp(`(?:^|[^\\d])${hint}(?![\\d])`);
+    return regex.test(lower) || regex.test(normalisert);
+  });
+}
+
+/**
+ * Velger primærfil for full_document-mode. Hvis brukeren eksplisitt refererte
+ * til et kapittel/seksjon/modul-nummer, foretrekk fil hvis navn inneholder
+ * det nummeret — selv om Cohere rangerte en annen fil høyest. Dette redder
+ * tilfeller der rerank-scoren er lav (<0.4) og tilfeldig velger feil fil.
+ */
+function velgPrimaerFilForFullDocument(
+  message: string,
+  filteredResults: HybridSearchResult[],
+): {
+  primary: HybridSearchResult;
+  overridden: boolean;
+  numericHints: string[];
+  originalPrimaryFile?: string;
+} {
+  const rerankedTop = filteredResults[0];
+  const numericHints = extractNumericHintsFromMessage(message);
+  if (numericHints.length === 0) {
+    return { primary: rerankedTop, overridden: false, numericHints };
+  }
+
+  // Hvis top-resultatet allerede matcher filnavnet → ingen override
+  if (fileNameMatchesNumericHints(rerankedTop.source.fileName, numericHints)) {
+    return { primary: rerankedTop, overridden: false, numericHints };
+  }
+
+  // Finn første reranked resultat (bevarer Cohere-rekkefølgen) som matcher filnavnet
+  const filenameMatch = filteredResults.find((r) =>
+    fileNameMatchesNumericHints(r.source.fileName, numericHints),
+  );
+  if (filenameMatch) {
+    return {
+      primary: filenameMatch,
+      overridden: true,
+      numericHints,
+      originalPrimaryFile: rerankedTop.source.fileName,
+    };
+  }
+
+  return { primary: rerankedTop, overridden: false, numericHints };
+}
+
 function shouldUseFullDocumentMode(
   message: string,
   target: TargetedQuery | undefined,
@@ -1736,7 +1919,20 @@ async function byggKontekstFraHybridSearch(
       moduleHintMissedOriginal,
     );
     if (fullDocumentDecision.enabled) {
-      const primary = filteredResults[0];
+      const primarySelection = velgPrimaerFilForFullDocument(message, filteredResults);
+      const primary = primarySelection.primary;
+      if (primarySelection.overridden) {
+        logger.info(
+          {
+            numericHints: primarySelection.numericHints,
+            originalPrimaryFile: primarySelection.originalPrimaryFile,
+            selectedPrimaryFile: primary.source.fileName,
+            selectedFileId: primary.source.fileId,
+            reason: "filename_matches_numeric_hint",
+          },
+          "Full dokument-mode: primærfil overstyrt basert på filnavn-match",
+        );
+      }
       const fullDocument = await getStoredFullDocumentForFile(
         userId,
         primary.source.courseId,
