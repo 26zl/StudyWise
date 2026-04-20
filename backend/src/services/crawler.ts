@@ -35,7 +35,10 @@ import {
   isEmbeddingAvailable,
   deleteStoredFileContent,
 } from "./embedding.service.js";
-import { parseDocument } from "./document.js";
+import {
+  parseDocumentInWorker,
+  getParseWorkerRuntimeError,
+} from "./documentParserWorker.js";
 
 // ─── Konstanter ────────────────────────────────────────────
 
@@ -933,13 +936,25 @@ async function parsePdfBuffer(
   buffer: Buffer,
   sourceUrl: string,
 ): Promise<{ content: string; hash: string } | null> {
-  const result = await parseDocument(buffer, "application/pdf", "external.pdf", { syncMode: true });
-  if (!result.success || !result.text.trim()) {
-    logger.info({ url: sourceUrl }, "PDF inneholder ingen lesbar tekst");
-    return null;
+  try {
+    const result = await parseDocumentInWorker(buffer, "application/pdf", "external.pdf", { syncMode: true });
+    if (!result.success || !result.text.trim()) {
+      logger.info({ url: sourceUrl }, "PDF inneholder ingen lesbar tekst");
+      return null;
+    }
+    const hash = sha256(result.text);
+    return { content: result.text, hash };
+  } catch (parseErr) {
+    const parseWorkerError = getParseWorkerRuntimeError(parseErr);
+    if (parseWorkerError) {
+      logger.warn(
+        { url: sourceUrl, parseWorkerError },
+        "Ekstern PDF-parsing i worker feilet — hopper over",
+      );
+      return null;
+    }
+    throw parseErr;
   }
-  const hash = sha256(result.text);
-  return { content: result.text, hash };
 }
 
 // ─── Hovedfunksjoner ───────────────────────────────────────

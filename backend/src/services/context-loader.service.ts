@@ -341,12 +341,12 @@ function velgPrimaerFilForFullDocument(
   // Utvidet søk i bredere pool når top-kandidatene ikke matcher kapittelnummer.
   // Samme-kurs-filter: vi plukker bare filer fra samme kurs som top-resultatet
   // slik at vi ikke bytter kurs uten brukerens viten.
-  const topCourseId = rerankedTop?.source.courseId;
+  const topCourseId = rerankedTop.source.courseId;
   const seenFileIds = new Set<number>(filteredResults.map((r) => r.source.fileId));
   const broadMatch = broaderPool.find(
     (r) =>
       !seenFileIds.has(r.source.fileId) &&
-      (topCourseId === undefined || r.source.courseId === topCourseId) &&
+      r.source.courseId === topCourseId &&
       fileNameMatchesNumericHints(r.source.fileName, numericHints),
   );
   if (broadMatch) {

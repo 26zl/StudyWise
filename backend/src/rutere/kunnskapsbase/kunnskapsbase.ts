@@ -44,7 +44,7 @@ import {
   deleteKBSourceContent,
   deleteKBBaseContent,
 } from "../../services/kunnskapsbase-indeksering.service.js";
-import { parseDocument, validateFileMagicBytes } from "../../services/document.js";
+import { validateFileMagicBytes } from "../../services/document.js";
 import {
   PARSE_TIMEOUT_ERROR,
   PARSE_WORKER_CRASHED_ERROR,
@@ -849,8 +849,23 @@ async function crawlAndIndexLink(
               }
             } else if (fetched.kind === "pdf") {
               contentType = "application/pdf";
-              const parsed = await parseDocument(fetched.buffer, "application/pdf", pageUrl);
-              text = parsed.text;
+              try {
+                const parsed = await parseDocumentInWorker(fetched.buffer, "application/pdf", pageUrl);
+                text = parsed.text;
+              } catch (parseErr) {
+                const parseWorkerError = getParseWorkerRuntimeError(parseErr);
+                if (parseWorkerError) {
+                  logger.warn(
+                    { baseId, lenkeId, pageUrl, parseWorkerError },
+                    "KB-crawl: PDF-parsing i worker feilet — hopper over side",
+                  );
+                } else {
+                  logger.warn(
+                    { err: parseErr, baseId, lenkeId, pageUrl },
+                    "KB-crawl: PDF-parsing feilet — hopper over side",
+                  );
+                }
+              }
             }
 
             // Indekser innhold (hopp over tomme sider, men fortsett crawl)
