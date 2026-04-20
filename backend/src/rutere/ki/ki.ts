@@ -342,6 +342,26 @@ function sanitizeCourseHintValue(courseHint: string): string {
 function extractModuleHint(message: string): string | null {
   const lower = normaliserSkrivefeil(message);
 
+  // Støtt kapittel-shorthand i naturlig språk: "kap 1", "kap. 16.18", "kapittel 3-4".
+  // Normaliser til "kapittel X" slik at nedstrøms modulmatching blir konsistent.
+  const chapterPrefixMatch = lower.match(/\bkap(?:ittel)?\.?\s*([^\s,;:!?]+)/i);
+  const rawChapterToken = chapterPrefixMatch?.[1];
+  if (rawChapterToken) {
+    const normalizedToken = rawChapterToken
+      .toLowerCase()
+      .replace(/[^0-9a-z.\-–]/g, "");
+
+    // eslint-disable-next-line security/detect-unsafe-regex -- avgrenset validering av kapittel-token (maks 2x 1-2 sifre + valgfri bokstav)
+    const chapterTokenMatch = normalizedToken.match(/^(\d{1,2})(?:[.\-–](\d{1,2}))?([a-z])?$/i);
+    if (chapterTokenMatch) {
+      const from = chapterTokenMatch[1];
+      const to = chapterTokenMatch[2];
+      const suffix = chapterTokenMatch[3] ? chapterTokenMatch[3].toLowerCase() : "";
+      const chapterRange = to ? `${from}-${to}` : from;
+      return `kapittel ${chapterRange}${suffix}`;
+    }
+  }
+
   const numberedMatch = lower.match(
     /\b(?:modul|leksjon|lesson|module|forelesning|uke|week|kapittel)\s+\d{1,2}[a-z]?\b/i,
   );
@@ -1150,6 +1170,7 @@ const CHUNK_STOPWORDS = new Set([
   "pensum", "leksjonen", "leksjon", "forelesningen", "forelesning",
   "modulen", "modul", "kapitlet", "kapittel", "dokumentet", "dokument",
   "hent", "hente", "registrert", "registrere", "registrering",
+  "kap",
   "mine", "min", "mitt", "vis", "vise",
   // Engelske stoppord (ofte brukt i norske setninger)
   "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",

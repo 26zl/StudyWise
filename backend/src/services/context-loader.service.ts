@@ -1518,6 +1518,16 @@ function normaliserModulNavn(text: string): string {
 function modulTitleMatcherHint(moduleTitle: string, hint: string): boolean {
   const normTitle = normaliserModulNavn(moduleTitle);
   const normHint = normaliserModulNavn(hint);
+
+  // Når hint inneholder tall (f.eks. "kapittel 16-18"), krev talloverlapp.
+  // Dette hindrer at et generelt ord som "kapittel" matcher feil modul.
+  const hintNumbers = normHint.match(/\b\d{1,3}\b/g) ?? [];
+  if (hintNumbers.length > 0) {
+    const titleNumbers = new Set(normTitle.match(/\b\d{1,3}\b/g) ?? []);
+    const hasNumberOverlap = hintNumbers.some((num) => titleNumbers.has(num));
+    if (!hasNumberOverlap) return false;
+  }
+
   // Direkte substring-match
   if (normTitle.includes(normHint) || normHint.includes(normTitle)) return true;
   // Ordbasert overlapp: minst halvparten av hint-ordene finnes i tittelen
