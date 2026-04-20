@@ -58,6 +58,20 @@ function isSafeExternalUrl(url: string): boolean {
     }
 }
 
+/**
+ * Pretty-printer filnavn som kan være URL-encodet (Canvas legger inn %C3%B8 for ø,
+ * + for mellomrom osv.). Dekoder trygt og faller tilbake til rå-navn hvis
+ * decoding feiler på ødelagte prosent-sekvenser.
+ */
+function visFilnavn(fileName: string | null | undefined): string {
+    if (!fileName) return "";
+    try {
+        return decodeURIComponent(fileName.replace(/\+/g, " "));
+    } catch {
+        return fileName;
+    }
+}
+
 function hentVisbareKilder(melding: Melding): import("common/ki").KIChatSource[] {
     const kilder = melding.kilder ?? [];
     const dedupe = new Set<string>();
@@ -1432,7 +1446,7 @@ export function ChatSection() {
         if (Number.isFinite(kilde.fileId)) {
             void downloadAuthedFile(
                 `/api/canvas/filer/${kilde.fileId}/download`,
-                kilde.fileName,
+                visFilnavn(kilde.fileName),
             ).catch(() => {
                 showToast.error(t("chat.sourceDownloadFailed"));
             });
@@ -1462,14 +1476,14 @@ export function ChatSection() {
                     type="button"
                     key={`${kilde.sourceKind ?? "canvas_file"}:${kilde.courseId}:${kilde.fileId ?? "na"}:${kilde.fileName}:${kilde.sourceUrl ?? ""}${keySuffix}`}
                     onClick={() => handleKildeKlikk(kilde)}
-                    title={`${kilde.courseName} – ${kilde.fileName}`}
+                    title={`${kilde.courseName} – ${visFilnavn(kilde.fileName)}`}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-left transition-colors hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/70"
                 >
                     <div className="flex items-start gap-2">
                         <FileText className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-300" />
                         <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-slate-900 dark:text-white">
-                                {kilde.fileName}
+                            <p className="text-sm font-medium text-slate-900 dark:text-white wrap-break-word">
+                                {visFilnavn(kilde.fileName)}
                             </p>
                             <p className="truncate text-xs text-slate-500 dark:text-slate-400">
                                 {kilde.courseName}

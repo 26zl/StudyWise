@@ -391,12 +391,6 @@ export const enMessages = {
       continueToDashboard: "Continue to Dashboard",
       signInOrRegister: "Sign in / Sign up",
     },
-    cta: {
-      action: "Get started",
-      description:
-        "Join thousands of students who already use StudyWise as their daily study companion.",
-      title: "Ready to study smarter?",
-    },
     features: {
       aiPartner: {
         description:
@@ -436,20 +430,6 @@ export const enMessages = {
       description:
         "StudyWise gathers everything you need in one place. Get a full overview of Canvas, your upcoming assignments, and AI help to study smarter, not harder.",
       title: "Your Intelligent Study Assistant",
-    },
-    stats: {
-      aiAvailability: {
-        label: "AI assistant",
-        value: "24/7",
-      },
-      coursesSupported: {
-        label: "Courses supported",
-        value: "12+",
-      },
-      price: {
-        label: "Pay only for what you use",
-        value: "Pay as you go",
-      },
     },
   },
   overview: {

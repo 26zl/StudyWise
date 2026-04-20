@@ -317,11 +317,11 @@ export function AITaskBreakdown({
         <div className="space-y-4">
           {/* PROGRESS CARD */}
           {stats.approved > 0 && (
-            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-linear-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 p-6">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-linear-to-br from-blue-50 to-slate-50 dark:from-blue-950/20 dark:to-slate-900/20 p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <TrendingUp className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                       {t("taskBreakdown.progress.title")}
                     </h3>
@@ -342,7 +342,7 @@ export function AITaskBreakdown({
               <div className="space-y-2 mb-4">
                 <div className="relative h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                   <div
-                    className="absolute inset-y-0 left-0 bg-linear-to-r from-purple-500 to-blue-500 transition-all duration-500 rounded-full"
+                    className="absolute inset-y-0 left-0 bg-linear-to-r from-blue-500 to-blue-400 transition-all duration-500 rounded-full"
                     style={{ width: `${stats.percentageCompleted}%` }}
                   />
                 </div>
@@ -467,7 +467,7 @@ export function AITaskBreakdown({
                 <button
                   type="button"
                   onClick={() => setShowWorkplanModal(true)}
-                  className="flex items-center gap-2 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors"
                 >
                   <CalendarIcon className="w-4 h-4" />
                   <span className="hidden sm:inline">{t("taskBreakdown.editor.addToWorkplan", { count: stats.approved })}</span>

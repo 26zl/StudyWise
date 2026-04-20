@@ -439,7 +439,7 @@ function KunngjoringKort({ kunngjoring, language }: { kunngjoring: KunngjoringEl
     return (
         <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
             <div className="flex items-start gap-3">
-                <Megaphone className="w-5 h-5 mt-0.5 shrink-0 text-purple-500 dark:text-purple-400" />
+                <Megaphone className="w-5 h-5 mt-0.5 shrink-0 text-blue-500 dark:text-blue-400" />
                 <div className="flex-1 min-w-0">
                     <h2 className="font-medium text-base text-slate-900 dark:text-white">
                         {kunngjoring.tittel}

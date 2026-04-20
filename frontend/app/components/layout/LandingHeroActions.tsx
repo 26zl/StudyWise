@@ -99,7 +99,7 @@ function LandingHeroButtons({
   // frem til auth er avklart. Unngår tom/grå boks på treg lasting (prod/mobil).
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-8 sm:pt-10">
       {/* Primær CTA: innlogget → dashboard, ikke innlogget → auth (logg inn først) */}
       <Link
         href={erInnlogget ? "/dashboard" : "/auth/sign-in"}

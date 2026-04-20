@@ -16,7 +16,7 @@ export default function KontaktPage() {
       icon: MessageSquare,
       title: t("kontakt.feedbackTitle"),
       description: t("kontakt.feedbackBody"),
-      accent: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400",
+      accent: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400",
     },
     {
       icon: Code2,

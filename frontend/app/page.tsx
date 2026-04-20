@@ -4,9 +4,7 @@
  * i et kort øyeblikk ved refresh før Clerk er hydrert i klienten.
  */
 import { Footer } from "@/app/components/layout/footer";
-import Link from "next/link";
 import {
-  ArrowRight,
   BellRing,
   BookOpen,
   Bot,
@@ -36,28 +34,12 @@ function splitHeading(text: string): { lead: string; accent: string } {
 export default async function HomePage() {
   const language = await resolveRequestLanguage();
   const initialUser = await getUserServerSafe();
-  const erInnlogget = Boolean(initialUser?.user);
 
   const heroHeading = splitHeading(translate(language, "landing.hero.title"));
   const featureHeading = splitHeading(translate(language, "landing.features.heading"));
 
   const headingClass =
     "font-bold tracking-tight text-slate-900 dark:text-white";
-
-  const statItems = [
-    {
-      value: translate(language, "landing.stats.coursesSupported.value"),
-      label: translate(language, "landing.stats.coursesSupported.label"),
-    },
-    {
-      value: translate(language, "landing.stats.aiAvailability.value"),
-      label: translate(language, "landing.stats.aiAvailability.label"),
-    },
-    {
-      value: translate(language, "landing.stats.price.value"),
-      label: translate(language, "landing.stats.price.label"),
-    },
-  ];
 
   const featureCards = [
     {
@@ -125,21 +107,6 @@ export default async function HomePage() {
                 signInOrRegister: translate(language, "landing.actions.signInOrRegister"),
               }}
             />
-
-            <div className="mx-auto max-w-xl grid grid-cols-3 gap-4 sm:gap-8 pt-6">
-              {statItems.map((item) => (
-                <div key={item.label} className="text-center">
-                  <p
-                    className={`font-bold text-slate-900 dark:text-white whitespace-nowrap ${
-                      item.value.length > 8 ? "text-xl sm:text-2xl" : "text-xl sm:text-3xl"
-                    }`}
-                  >
-                    {item.value}
-                  </p>
-                  <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">{item.label}</p>
-                </div>
-              ))}
-            </div>
           </div>
         </section>
 
@@ -181,29 +148,6 @@ export default async function HomePage() {
                 </article>
               );
             })}
-          </div>
-
-          <div className="max-w-5xl mx-auto mt-10">
-            <div className="rounded-3xl bg-linear-to-r from-blue-500 via-blue-500 to-indigo-500 px-6 py-10 sm:px-10 sm:py-12 text-center text-white shadow-[0_20px_60px_rgb(59_130_246/0.28)]">
-              <h3 className={`${headingClass} text-white text-3xl sm:text-4xl text-balance`}>
-                {translate(language, "landing.cta.title")}
-              </h3>
-              <p className="mt-3 text-sm sm:text-base text-blue-50/95 max-w-2xl mx-auto text-balance">
-                {translate(language, "landing.cta.description")}
-              </p>
-              <div className="mt-6">
-                <Link
-                  href={erInnlogget ? "/dashboard" : "/auth/sign-up"}
-                  prefetch={false}
-                  className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100 transition-colors"
-                >
-                  {erInnlogget
-                    ? translate(language, "common.actions.goToDashboard")
-                    : translate(language, "landing.cta.action")}
-                  <ArrowRight size={16} />
-                </Link>
-              </div>
-            </div>
           </div>
         </section>
       </main>

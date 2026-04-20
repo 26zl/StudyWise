@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useUIStore } from "@/app/store/uiStore";
 import { useKIStore } from "@/app/store/kiStore";
 import {
@@ -88,6 +88,11 @@ export function Sidebar({
     const erMobil = useMediaQuery(MOBILE_MEDIA_QUERY);
     const dialogRef = useRef<HTMLElement | null>(null);
     const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+    // Bevar sidebar-scroll-posisjon mellom view-bytter. Uten dette resetter
+    // scrollTop til 0 når view-param endres (typisk fordi re-render får
+    // nav-elementet til å miste intern scroll-state midlertidig).
+    const navScrollRef = useRef<HTMLElement | null>(null);
+    const lagretNavScrollRef = useRef<number>(0);
     const headingId = useId();
     const renameDialogRef = useRef<HTMLDivElement | null>(null);
     const renameCloseButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -183,6 +188,29 @@ export function Sidebar({
         byttVisning(visning);
         lukkVenstreMenyHvisMobil();
     };
+
+    // Spor sidebar-scroll kontinuerlig via scroll-event. Lagret posisjon
+    // brukes til å re-restaurere scrollTop hvis noe (Next.js soft navigation,
+    // aria-current focus, o.l.) resetter det. useLayoutEffect kjører før paint
+    // så brukeren aldri ser scrollTop=0.
+    useEffect(() => {
+        const el = navScrollRef.current;
+        if (!el) return;
+        const handleScroll = () => {
+            lagretNavScrollRef.current = el.scrollTop;
+        };
+        el.addEventListener("scroll", handleScroll, { passive: true });
+        return () => el.removeEventListener("scroll", handleScroll);
+    }, []);
+
+    useLayoutEffect(() => {
+        const el = navScrollRef.current;
+        if (!el) return;
+        const ønsket = lagretNavScrollRef.current;
+        if (ønsket > 0 && el.scrollTop !== ønsket) {
+            el.scrollTop = ønsket;
+        }
+    });
     const effektivPathname = pendingPathname ?? pathname;
     const erPåDashboard = effektivPathname === "/dashboard";
     const effektivVisning = pendingVisning ?? aktivVisning;
@@ -402,7 +430,7 @@ export function Sidebar({
                     </div>
                 )}
 
-                <nav aria-label={t("dashboard.sidebar.navigationTitle")} className="relative flex-1 overflow-y-auto px-5 py-5 space-y-2">
+                <nav ref={navScrollRef} aria-label={t("dashboard.sidebar.navigationTitle")} className="relative flex-1 overflow-y-auto px-5 py-5 space-y-2">
                     {/* Hovednavigasjon */}
                     <div className="mb-1">
                         <Link

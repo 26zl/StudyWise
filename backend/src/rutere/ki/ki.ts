@@ -2191,11 +2191,18 @@ Do NOT use general knowledge. Do NOT invent section headings or examples that ar
 You have been given the complete content of the source file below.
 Your answer must be based EXCLUSIVELY on this content.
 
+### Source-match check — HIGHEST PRIORITY
+Before writing your answer, verify that the loaded document actually contains what the student asked for:
+- If the student asked about a specific chapter/module/topic (e.g. "kap 1", "kapittel 3", "forelesning 4"), check the actual filename and content of the document. If the file clearly covers a different chapter or topic than what was requested, DO NOT summarize it as if it were the requested chapter.
+- Instead, tell the student explicitly: "Jeg fant ikke kapittel X i materialet, men jeg har funnet [filnavn] som dekker [faktisk innhold]. Vil du ha en oppsummering av det i stedet?"
+- NEVER write a plausible-sounding summary of a chapter the document does not contain. Fabricating source citations is a critical failure.
+
 Rules:
 - Cover ALL main topics present in the document, in document order
 - Never invent, assume, or add information that is not in the document
 - If something is not in the document, say 'dette er ikkje dekka i dette dokumentet' — do not fill in with general knowledge
 - Never write sections like 'Praktisk datainnsamling (frå obligoppgåva)' or similar unless that exact heading exists in the document
+- If citing a source, always use the real filename provided in the context — never invent a plausible-sounding chapter title
 - At the end, write one sentence listing other chapters or topics in this file the student can ask about next
 `;
         logger.info(

@@ -59,10 +59,24 @@ Hvert objekt i arrayet skal ha:
 - "correctIndex": indeks (0-3) til riktig svar
 - "explanation": kort forklaring på hvorfor svaret er riktig (1-3 setninger)
 
-Regler:
+### Hva er et godt quiz-spørsmål?
+Spørsmålene skal teste FAGLIG FORSTÅELSE av pensumet — definisjoner, konsepter, årsakssammenhenger, prosesser, metoder, begreper. Tenk "hva må en student kunne for å bestå eksamen i dette?".
+
+### ABSOLUTT FORBUDT — metaspørsmål om kursstrukturen
+Du skal ALDRI lage spørsmål om:
+- Hvilken modul/leksjon et tema tilhører (f.eks. "Hvilken modul inneholder leksjon X?")
+- Hvilken aktivitet/oppgavetype som følger etter en leksjon (f.eks. "Hva følger etter leksjon 2?")
+- Rekkefølgen på moduler/leksjoner
+- Antall moduler, leksjoner eller oppgaver
+- Navn på filer, dokumenter eller Canvas-ressurser
+- Administrative detaljer (frister, innleveringsformat, gruppearbeid)
+
+Disse spørsmålene tester ikke kunnskap — de tester at studenten har lest innholdslista. Hvis kursmateriellet mest er metadata, prøv å dra ut det lille faglige innholdet som finnes (oppgavebeskrivelser, korte forklaringer) og bygg spørsmål derfra i stedet.
+
+### Andre regler
 - Spørsmålene skal variere i vanskelighetsgrad (lett, middels, vanskelig)
 - Alternativene skal være plausible — unngå åpenbart feil distraktorer
-- Bruk samme språk som kursmateriellet (norsk hvis materiellet er norsk, engelsk hvis engelsk)
+- Bruk norsk Bokmål som standard (uansett kildens språk), engelsk kun hvis studenten har skrevet på engelsk
 - Basér spørsmålene UTELUKKENDE på det medfølgende kursmateriellet — ikke bruk ekstern kunnskap
 - Shuffle riktig svar-posisjon — IKKE sett correctIndex til 0 for alle spørsmål
 - Dekk ulike deler av materiellet — ikke still flere spørsmål om samme konsept

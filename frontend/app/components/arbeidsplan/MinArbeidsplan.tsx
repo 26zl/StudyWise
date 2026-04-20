@@ -126,8 +126,8 @@ export function MinArbeidsplan() {
     return (
       <div className="rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 p-12">
         <div className="text-center space-y-4">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-purple-100 dark:bg-purple-900/30">
-            <Sparkles className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30">
+            <Sparkles className="w-8 h-8 text-blue-600 dark:text-blue-400" />
           </div>
           <div>
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
@@ -181,7 +181,7 @@ export function MinArbeidsplan() {
   return (
     <div className={`space-y-4 transition-opacity ${pendingDelete ? "opacity-50 pointer-events-none" : ""}`}>
       {/* Header med progress */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-linear-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 p-6">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-linear-to-br from-blue-50 to-slate-50 dark:from-blue-950/20 dark:to-slate-900/20 p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-1">
@@ -230,7 +230,7 @@ export function MinArbeidsplan() {
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <TrendingUp className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 <span className="font-medium text-slate-700 dark:text-slate-300">
                   {t("minArbeidsplan.progressLabel")}
                 </span>
@@ -242,7 +242,7 @@ export function MinArbeidsplan() {
             
             <div className="relative h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
               <div
-                className="absolute inset-y-0 left-0 bg-linear-to-r from-purple-500 to-blue-500 transition-all duration-500 rounded-full"
+                className="absolute inset-y-0 left-0 bg-linear-to-r from-blue-500 to-blue-400 transition-all duration-500 rounded-full"
                 style={{ width: `${stats.percentage}%` }}
               />
             </div>

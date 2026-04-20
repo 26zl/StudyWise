@@ -298,15 +298,21 @@ function fileNameMatchesNumericHints(fileName: string, hints: string[]): boolean
  * til et kapittel/seksjon/modul-nummer, foretrekk fil hvis navn inneholder
  * det nummeret — selv om Cohere rangerte en annen fil høyest. Dette redder
  * tilfeller der rerank-scoren er lav (<0.4) og tilfeldig velger feil fil.
+ *
+ * Hvis ingen fil i `filteredResults` matcher, utvider vi søket til
+ * `broaderPool` (typisk pre-rerank hybrid-resultater). Kap 1-filen kan
+ * ligge der selv om den falt ut av top-6 etter Cohere-rerank.
  */
 function velgPrimaerFilForFullDocument(
   message: string,
   filteredResults: HybridSearchResult[],
+  broaderPool: HybridSearchResult[] = [],
 ): {
   primary: HybridSearchResult;
   overridden: boolean;
   numericHints: string[];
   originalPrimaryFile?: string;
+  broadenedPool?: boolean;
 } {
   const rerankedTop = filteredResults[0];
   const numericHints = extractNumericHintsFromMessage(message);
@@ -329,6 +335,27 @@ function velgPrimaerFilForFullDocument(
       overridden: true,
       numericHints,
       originalPrimaryFile: rerankedTop.source.fileName,
+    };
+  }
+
+  // Utvidet søk i bredere pool når top-kandidatene ikke matcher kapittelnummer.
+  // Samme-kurs-filter: vi plukker bare filer fra samme kurs som top-resultatet
+  // slik at vi ikke bytter kurs uten brukerens viten.
+  const topCourseId = rerankedTop?.source.courseId;
+  const seenFileIds = new Set<number>(filteredResults.map((r) => r.source.fileId));
+  const broadMatch = broaderPool.find(
+    (r) =>
+      !seenFileIds.has(r.source.fileId) &&
+      (topCourseId === undefined || r.source.courseId === topCourseId) &&
+      fileNameMatchesNumericHints(r.source.fileName, numericHints),
+  );
+  if (broadMatch) {
+    return {
+      primary: broadMatch,
+      overridden: true,
+      numericHints,
+      originalPrimaryFile: rerankedTop.source.fileName,
+      broadenedPool: true,
     };
   }
 
@@ -1919,7 +1946,11 @@ async function byggKontekstFraHybridSearch(
       moduleHintMissedOriginal,
     );
     if (fullDocumentDecision.enabled) {
-      const primarySelection = velgPrimaerFilForFullDocument(message, filteredResults);
+      const primarySelection = velgPrimaerFilForFullDocument(
+        message,
+        filteredResults,
+        results,
+      );
       const primary = primarySelection.primary;
       if (primarySelection.overridden) {
         logger.info(
@@ -1928,6 +1959,7 @@ async function byggKontekstFraHybridSearch(
             originalPrimaryFile: primarySelection.originalPrimaryFile,
             selectedPrimaryFile: primary.source.fileName,
             selectedFileId: primary.source.fileId,
+            broadenedPool: primarySelection.broadenedPool ?? false,
             reason: "filename_matches_numeric_hint",
           },
           "Full dokument-mode: primærfil overstyrt basert på filnavn-match",

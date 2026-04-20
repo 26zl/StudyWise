@@ -390,12 +390,6 @@ export const nbMessages = {
       continueToDashboard: "Fortsett til dashboard",
       signInOrRegister: "Logg inn / Registrer deg",
     },
-    cta: {
-      action: "Kom i gang",
-      description:
-        "Bli med tusenvis av studenter som allerede har gjort StudyWise til sin daglige studiepartner.",
-      title: "Klar til å studere smartere?",
-    },
     features: {
       aiPartner: {
         description:
@@ -435,20 +429,6 @@ export const nbMessages = {
       description:
         "StudyWise samler alt du trenger på ett sted. Få full oversikt over Canvas, dine kommende oppgaver, og få hjelp av KI til å studere smartere – ikke hardere.",
       title: "Din intelligente studieassistent",
-    },
-    stats: {
-      aiAvailability: {
-        label: "KI-assistent",
-        value: "24/7",
-      },
-      coursesSupported: {
-        label: "Emner støttet",
-        value: "12+",
-      },
-      price: {
-        label: "Betal kun for det du bruker",
-        value: "Pay as you go",
-      },
     },
   },
   overview: {

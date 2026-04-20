@@ -17,6 +17,15 @@ import { logger } from "./logger.js";
 /** Intervall i ms for periodisk oppdatering av Clerk/Pinecone-helse (5 min). */
 const DEPENDENCY_HEALTH_REFRESH_MS = 5 * 60 * 1000;
 
+/**
+ * Cohere-helsesjekken teller mot trial-kvoten (1000 kall/mnd), og en 5-min-kadens
+ * ville alene brukt opp hele kvoten 8× over. Vi sjekker derfor sjeldnere og
+ * gjenbruker forrige resultat mellom faktiske prober.
+ */
+const COHERE_HEALTH_REFRESH_MS = 60 * 60 * 1000;
+
+let lastCohereCheckMs: number | null = null;
+
 /** Enkelt avhengighetsstatus: sann, usann eller ennå ikke sjekket. */
 type CachedDependencyState = boolean | null;
 
@@ -162,12 +171,23 @@ export function getDependenciesHealth() {
  * og én gang ved oppstart fra index.ts.
  */
 export async function refreshExternalDependencyHealth(): Promise<CachedExternalDependencyHealth> {
+  const now = Date.now();
+  const shouldProbeCohere =
+    lastCohereCheckMs === null ||
+    now - lastCohereCheckMs >= COHERE_HEALTH_REFRESH_MS;
+
   const [clerkOk, pineconeOk, anthropicOk, cohereOk] = await Promise.all([
     isClerkHealthy(),
     ensurePineconeIndex(),
     isAnthropicHealthy(),
-    isCohereHealthy(),
+    shouldProbeCohere
+      ? isCohereHealthy()
+      : Promise.resolve(cachedExternalDependencyHealth.cohere),
   ]);
+
+  if (shouldProbeCohere) {
+    lastCohereCheckMs = now;
+  }
 
   cachedExternalDependencyHealth = {
     clerk: clerkOk,

@@ -597,6 +597,23 @@ async function _doSync(
             kunngjøringer,
           };
 
+          // Diagnostikk: tell module-item-typer per kurs. Hjelper oss å se om
+          // et kurs hovedsakelig består av typer vi ikke indekserer (ExternalTool,
+          // SubHeader osv.) når KI-svar/quiz blir dårlige for det kurset.
+          const itemTypeCounts: Record<string, number> = {};
+          for (const mod of moduler) {
+            for (const item of mod.items ?? []) {
+              const type = item.type ?? "Unknown";
+              itemTypeCounts[type] = (itemTypeCounts[type] ?? 0) + 1;
+            }
+          }
+          if (Object.keys(itemTypeCounts).length > 0) {
+            logger.info(
+              { userId, courseId, courseName: course.name, itemTypeCounts },
+              "Module-item-type fordeling for kurs",
+            );
+          }
+
           // Data som lagres i MongoDB inkluderer berikede moduler med contentHash
           const storageData = {
             ...courseData,
@@ -1139,17 +1156,46 @@ async function _doSync(
 
             // Kun crawl hvis det er endrede ExternalUrl-items
             if (changedExternalUrlIds.size > 0) {
-              crawlCourseExternalUrls({
-                userId,
-                courseId,
-                courseName: course.name,
-                moduler: enrichedModuler,
-              }, { changedItemIds: changedExternalUrlIds }).catch((err) => {
+              // Await crawlen i stedet for fire-and-forget. Tidligere gikk
+              // dette i bakgrunnen, slik at sync rapporterte "ferdig" mens
+              // Pinecone fortsatt var tom for eksterne URL-er — og quiz/KI
+              // fikk tynn kontekst. Med hard timeout på 90 sek blokkerer vi
+              // ikke synken for alltid hvis crawleren henger.
+              const CRAWL_TIMEOUT_MS = 90_000;
+              const crawlPromise = crawlCourseExternalUrls(
+                {
+                  userId,
+                  courseId,
+                  courseName: course.name,
+                  moduler: enrichedModuler,
+                },
+                { changedItemIds: changedExternalUrlIds },
+              );
+              const timeoutPromise = new Promise<"timeout">((resolve) =>
+                setTimeout(() => resolve("timeout"), CRAWL_TIMEOUT_MS),
+              );
+              try {
+                const result = await Promise.race([crawlPromise, timeoutPromise]);
+                if (result === "timeout") {
+                  logger.warn(
+                    { userId, courseId, changedCount: changedExternalUrlIds.size, timeoutMs: CRAWL_TIMEOUT_MS },
+                    "ExternalUrl-crawling timet ut — fortsetter sync, crawl fullføres i bakgrunnen",
+                  );
+                  // La crawlen fortsette i bakgrunnen, men catch feil slik at
+                  // unhandled rejection ikke krasjer prosessen.
+                  crawlPromise.catch((err) => {
+                    logger.warn(
+                      { err, userId, courseId },
+                      "ExternalUrl-crawling feilet etter timeout",
+                    );
+                  });
+                }
+              } catch (err) {
                 logger.warn(
                   { err, userId, courseId },
                   "ExternalUrl-crawling feilet",
                 );
-              });
+              }
             }
           }
 

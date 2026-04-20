@@ -146,10 +146,10 @@ export function WeeklyPlanSuggestions({
 
   if (!plan && !isPending && !error) {
     return (
-      <div className="rounded-xl border-2 border-dashed border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-950/20 p-8">
+      <div className="rounded-xl border-2 border-dashed border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/20 p-8">
         <div className="text-center space-y-4">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-purple-100 dark:bg-purple-900/30">
-            <Sparkles className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30">
+            <Sparkles className="w-8 h-8 text-blue-600 dark:text-blue-400" />
           </div>
           <div>
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
@@ -162,7 +162,7 @@ export function WeeklyPlanSuggestions({
               type="button"
               onClick={generatePlan}
               disabled={assignments.length === 0}
-              className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed inline-flex items-center gap-2"
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed inline-flex items-center gap-2"
             >
               <Sparkles className="w-5 h-5" />
               {t("weeklyPlan.generateButton")}
@@ -225,11 +225,11 @@ export function WeeklyPlanSuggestions({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-linear-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 p-6">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-linear-to-br from-blue-50 to-slate-50 dark:from-blue-950/20 dark:to-slate-900/20 p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                 {t("weeklyPlan.generatedTitle")}
               </h2>
@@ -258,7 +258,7 @@ export function WeeklyPlanSuggestions({
             <button
               type="button"
               onClick={generatePlan}
-              className="px-4 py-2 text-sm font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition-colors"
+              className="px-4 py-2 text-sm font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
             >
               {t("weeklyPlan.regenerateButton")}
             </button>
@@ -272,9 +272,9 @@ export function WeeklyPlanSuggestions({
               onClick={allSelected ? deselectAll : selectAll}
               className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
                 allSelected
-                  ? "bg-purple-600 border-purple-600"
+                  ? "bg-blue-600 border-blue-600"
                   : someSelected
-                    ? "bg-purple-300 border-purple-600"
+                    ? "bg-blue-300 border-blue-600"
                     : "border-slate-300 dark:border-slate-600"
               }`}
             >
@@ -282,7 +282,7 @@ export function WeeklyPlanSuggestions({
                 <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
               )}
               {someSelected && !allSelected && (
-                <div className="w-2 h-2 bg-purple-600 rounded-sm" />
+                <div className="w-2 h-2 bg-blue-600 rounded-sm" />
               )}
             </button>
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -296,7 +296,7 @@ export function WeeklyPlanSuggestions({
             type="button"
             onClick={handleSavePlan}
             disabled={selectedBlocks.size === 0 || createMutation.isPending}
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors disabled:cursor-not-allowed inline-flex items-center gap-2"
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors disabled:cursor-not-allowed inline-flex items-center gap-2"
           >
             {createMutation.isPending ? (
               <>
@@ -363,8 +363,8 @@ export function WeeklyPlanSuggestions({
                           onClick={() => toggleBlockSelection(block.index)}
                           className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
                             selectedBlocks.has(block.index)
-                              ? "bg-purple-600 border-purple-600"
-                              : "border-slate-300 dark:border-slate-600 hover:border-purple-600"
+                              ? "bg-blue-600 border-blue-600"
+                              : "border-slate-300 dark:border-slate-600 hover:border-blue-600"
                           }`}
                         >
                           {selectedBlocks.has(block.index) && (

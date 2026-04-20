@@ -205,8 +205,8 @@ export function AddToWorkplanModal({
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-              <Calendar className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+              <Calendar className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
               <h2 id={titleId} className="text-xl font-bold text-slate-900 dark:text-white">
@@ -243,7 +243,7 @@ export function AddToWorkplanModal({
                 aria-pressed={selectedWeek === "current"}
                 className={`p-4 rounded-lg border-2 transition-all ${
                   selectedWeek === "current"
-                    ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
+                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
                     : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
                 }`}
               >
@@ -252,7 +252,7 @@ export function AddToWorkplanModal({
                     {t("addToWorkplanModal.currentWeek")}
                   </span>
                   {selectedWeek === "current" && (
-                    <CheckCircle2 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    <CheckCircle2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                   )}
                 </div>
                 <span className="text-xs text-slate-500 dark:text-slate-400">
@@ -266,7 +266,7 @@ export function AddToWorkplanModal({
                 aria-pressed={selectedWeek === "next"}
                 className={`p-4 rounded-lg border-2 transition-all ${
                   selectedWeek === "next"
-                    ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
+                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
                     : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
                 }`}
               >
@@ -275,7 +275,7 @@ export function AddToWorkplanModal({
                     {t("addToWorkplanModal.nextWeek")}
                   </span>
                   {selectedWeek === "next" && (
-                    <CheckCircle2 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    <CheckCircle2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                   )}
                 </div>
                 <span className="text-xs text-slate-500 dark:text-slate-400">
@@ -293,7 +293,7 @@ export function AddToWorkplanModal({
             <select
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               {TIME_SLOTS.map((slot) => (
                 <option key={slot} value={slot}>
@@ -357,7 +357,7 @@ export function AddToWorkplanModal({
                       isSelected
                         ? hasConflict
                           ? "border-amber-500 bg-amber-50 dark:bg-amber-900/20"
-                          : "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
+                          : "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
                         : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
                     }`}
                   >
@@ -370,7 +370,7 @@ export function AddToWorkplanModal({
                           <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
                         )}
                         {isSelected && count > 0 && (
-                          <span className="text-xs font-bold text-purple-600 dark:text-purple-400">
+                          <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
                             {count}
                           </span>
                         )}
@@ -452,7 +452,7 @@ export function AddToWorkplanModal({
             type="button"
             onClick={handleAdd}
             disabled={isPending || selectedDays.length === 0}
-            className="flex items-center gap-2 px-6 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
           >
             {isPending ? (
               <>

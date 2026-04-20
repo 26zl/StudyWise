@@ -10,7 +10,7 @@ interface StatCardProps {
     icon: ComponentType<{ size?: number; className?: string }>;
     label: string;
     value: number | string;
-    color: "blue" | "green" | "yellow" | "purple";
+    color: "blue" | "green" | "yellow" | "purple" | "slate";
 }
 
 const colorClasses = {
@@ -18,6 +18,7 @@ const colorClasses = {
     green: "bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400",
     yellow: "bg-yellow-100 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400",
     purple: "bg-purple-100 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400",
+    slate: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300",
 };
 
 export function StatCard({ icon: Icon, label, value, color }: StatCardProps) {
