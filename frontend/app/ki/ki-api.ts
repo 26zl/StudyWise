@@ -575,6 +575,8 @@ export async function streamKIChat(
     temperature?: number;
     signal?: AbortSignal;
     explanationLevel?: string;
+    /** ChatHistory._id — brukes av backend til å skope session-state per chat */
+    chatId?: string;
   } = {},
 ): Promise<z.infer<typeof KIChatResponseSchema>> {
   const trimmedMessages = trimMessages(messages).filter(
@@ -589,6 +591,7 @@ export async function streamKIChat(
     ...(options.explanationLevel && {
       explanationLevel: options.explanationLevel as KIChatRequest["explanationLevel"],
     }),
+    ...(options.chatId && { chatId: options.chatId }),
   };
 
   const requestInit: RequestInit = {

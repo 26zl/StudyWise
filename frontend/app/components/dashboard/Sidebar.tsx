@@ -285,10 +285,10 @@ export function Sidebar({
                 <button
                     type="button"
                     onClick={() => setOpenActionsChatId(erMenyÅpen ? null : chat.id)}
-                    className="absolute right-2 top-1.5 inline-flex min-h-9 min-w-9 items-center justify-center rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                     aria-label={chatHandlingTekster.actions}
                 >
-                    <MoreHorizontal size={16} />
+                    <MoreHorizontal size={14} />
                 </button>
                 {erMenyÅpen && (
                     <>

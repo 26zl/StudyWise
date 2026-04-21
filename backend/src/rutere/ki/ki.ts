@@ -272,7 +272,26 @@ const SKRIVEFEIL_MAP: Record<string, string> = {
   "forklra": "forklar",
   "forklrae": "forklar",
   "forkaler": "forklar",
-
+  // Vanlige skrivefeil for "forelesning" — bruker hopper ofte over en "e" eller "n",
+  // eller skriver nynorsk-form "forelesing". Normaliseres til bokmål for konsistent
+  // ordinal-, modul- og chunkHint-matching nedstrøms.
+  "forlesning": "forelesning",
+  "forlesninger": "forelesninger",
+  "forlesningen": "forelesningen",
+  "forelsning": "forelesning",
+  "forelesing": "forelesning",
+  "forelesinga": "forelesningen",
+  "forelesingar": "forelesninger",
+  "førelesning": "forelesning",
+  "førelesing": "forelesning",
+  "førelesinga": "forelesningen",
+  "førelesingar": "forelesninger",
+  "forlesing": "forelesning",
+  // Vanlige skrivefeil for "kapittel"
+  "kapitel": "kapittel",
+  "kapitell": "kapittel",
+  "kaptel": "kapittel",
+  "kaptiel": "kapittel",
 };
 
 // Pre-kompilerte regex-patterns for skrivefeil (unngår re-kompilering per kall)
@@ -339,8 +358,56 @@ function sanitizeCourseHintValue(courseHint: string): string {
   return sanitized;
 }
 
+// Norske ordinaler → sifferform. Brukes av extractModuleHint til å oversette
+// "første forelesning" → "forelesning 1" før modulmatching kjører.
+const NORWEGIAN_ORDINAL_TO_DIGIT: Record<string, string> = {
+  første: "1", forste: "1", "1ste": "1", "1.": "1",
+  andre: "2", annen: "2", "2dre": "2", "2.": "2",
+  tredje: "3", "3dje": "3", "3.": "3",
+  fjerde: "4", "4de": "4", "4.": "4",
+  femte: "5", "5te": "5", "5.": "5",
+  sjette: "6", "6te": "6", "6.": "6",
+  sjuende: "7", syvende: "7", "7de": "7", "7.": "7",
+  åttende: "8", attende: "8", "8de": "8", "8.": "8",
+  niende: "9", "9de": "9", "9.": "9",
+  tiende: "10", "10de": "10", "10.": "10",
+  ellevte: "11", "11te": "11", "11.": "11",
+  tolvte: "12", "12te": "12", "12.": "12",
+};
+
+const MODULE_KEYWORDS_RE = "forelesning|forelesningen|forelesninga|forelesningar|lecture|modul|modulen|leksjon|lesson|kapittel|kapitlet|kap|chapter|uke|uka|week|tema|temaet|sesjon|session|time|timen|økt|økta|del|delen|seksjon|section";
+
+/**
+ * Konverterer "første forelesning", "1. forelesning", "forelesning nr 1" og
+ * lignende til kanonisk "<keyword> <digit>". Gjør norske ordinaler ekvivalente
+ * med numeriske referanser i nedstrøms modul- og filnavn-matching.
+ */
+function normaliserOrdinaler(text: string): string {
+  let result = text;
+
+  // "første forelesning" / "1. forelesning" → "forelesning 1"
+  const ordinalBefore = new RegExp(
+    `(?<![a-zæøå0-9])(første|forste|andre|annen|tredje|fjerde|femte|sjette|sjuende|syvende|åttende|attende|niende|tiende|ellevte|tolvte|\\d{1,2}\\.?)\\s+(${MODULE_KEYWORDS_RE})\\b`,
+    "gi",
+  );
+  result = result.replace(ordinalBefore, (_, ord, kw) => {
+    const key = ord.toLowerCase();
+    const digit = NORWEGIAN_ORDINAL_TO_DIGIT[key]
+      ?? (/^\d{1,2}\.?$/.test(key) ? key.replace(/\.$/, "") : null);
+    return digit ? `${kw} ${digit}` : `${ord} ${kw}`;
+  });
+
+  // "forelesning nr 1" → "forelesning 1"
+  result = result.replace(
+    new RegExp(`(${MODULE_KEYWORDS_RE})\\s+(?:nr\\.?|nummer|no\\.?)\\s+(\\d{1,3})\\b`, "gi"),
+    "$1 $2",
+  );
+
+  return result;
+}
+
 function extractModuleHint(message: string): string | null {
-  const lower = normaliserSkrivefeil(message);
+  const lower = normaliserOrdinaler(normaliserSkrivefeil(message));
 
   // Fast-path: kap/kapittel-shorthand → normaliser til kanonisk "kapittel X"
   // slik at nedstrøms modulmatching blir konsistent ("kap 16.18" → "kapittel 16-18").
@@ -480,8 +547,19 @@ function chooseModelForFullDocumentMode(
 
 const KB_SESSION_TTL = 3600;
 
-function kbSessionKey(userId: string): string {
-  return `ki:session:${userId}:active-kb`;
+/**
+ * Bygger Redis-nøkkel for chat-scoped state. Alt som hører til en samtale
+ * (låst kurshint, aktiv kunnskapsbase, session-cache) SKAL skopes per chat
+ * for å hindre lekkasje mellom samtaler. Bruk alltid denne helperen i stedet
+ * for å bygge per-bruker-nøkler manuelt — historisk har ad hoc-nøkler ført
+ * til at courseHint fra én chat lekket inn i en annen.
+ */
+function chatScopedKey(userId: string, chatLockId: string, ...parts: string[]): string {
+  return `ki:user:${userId}:chat:${chatLockId}:${parts.join(":")}`;
+}
+
+function kbSessionKey(userId: string, chatLockId: string): string {
+  return chatScopedKey(userId, chatLockId, "active-kb");
 }
 
 function extractSlashKBBaseName(message: string): string | null {
@@ -1114,9 +1192,21 @@ function hasExplicitCourseOverride(message: string): boolean {
     return true;
   }
 
-  // "i windows emnet", "til metode emnet", "i dat2000-kurset", "om inf2010-faget"
+  // "i windows emnet", "til metode emnet", "fra metode emnet", "i dat2000-kurset", "om inf2010-faget"
   // Tolkes som eksplisitt kurskontekst, ikke bare tematisk ord.
-  if (/\b(?:i|til|om|for)\s+[a-zæøå0-9-]{2,}\s+(?:emnet|kurset|faget)\b/i.test(lower)) {
+  if (/\b(?:i|til|om|for|fra|av|på)\s+[a-zæøå0-9-]{2,}\s+(?:emnet|kurset|faget)\b/i.test(lower)) {
+    return true;
+  }
+
+  // Bart "[X] emnet/kurset/faget" uten preposisjon, som "metode emnet spør jeg om".
+  // Ekskluder pronomen som "dette/samme/det" — de fanges av refersToCurrentCourseContext.
+  if (/\b(?!(?:dette|samme|det|denne|disse|ditt|din))[a-zæøå0-9-]{3,}\s+(?:emnet|kurset|faget)\b/i.test(lower)) {
+    return true;
+  }
+
+  // Reversert rekkefølge: "i emnet X", "fra emnet organisering", "om kurset dat1000".
+  // Her kommer kursnavnet ETTER emnet/kurset/faget, ikke før.
+  if (/\b(?:emnet|kurset|faget)\s+(?!(?:mitt|ditt|sitt|vårt|deres|nå|her))[a-zæøå0-9-]{3,}\b/i.test(lower)) {
     return true;
   }
 
@@ -1178,11 +1268,12 @@ const CHUNK_STOPWORDS = new Set([
   "emnet", "emne", "faget", "fag", "kurset", "kurs", "temaet", "tema",
   "emner", "emnene", "fagene", "kursene", "oversikt", "liste", "list",
   "innholdet", "innhold", "stoffet", "stoff", "materialet", "materiale",
-  "pensum", "leksjonen", "leksjon", "forelesningen", "forelesning",
-  "modulen", "modul", "kapitlet", "kapittel", "dokumentet", "dokument",
+  "pensum", "dokumentet", "dokument",
   "hent", "hente", "registrert", "registrere", "registrering",
-  "kap",
   "mine", "min", "mitt", "vis", "vise",
+  // Merk: "forelesning", "kapittel", "modul", "leksjon" er bevisst IKKE stoppord —
+  // de er innholdsbærende nøkkelord som BM25 trenger for å diskriminere mellom filer
+  // som "Forelesning1.pdf" og "Obligatorisk arbeidskrav.assignment".
   // Engelske stoppord (ofte brukt i norske setninger)
   "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
   "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
@@ -1207,7 +1298,7 @@ const URL_ARTIFACT_TOKENS = new Set([
  * → "kvantitativ kvalitativ metode"
  */
 function extractChunkHint(message: string): string | null {
-  const lower = normaliserSkrivefeil(message);
+  const lower = normaliserOrdinaler(normaliserSkrivefeil(message));
   const blockedHostTokens = new Set<string>();
 
   for (const match of message.matchAll(/https?:\/\/[^\s<>"'`]+/gi)) {
@@ -1628,6 +1719,27 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     const hasAssistantMessages = messages.some((m) => m.role === "assistant");
     const firstUserMessage = messages.find((m) => m.role === "user")?.content ?? "";
     const normalizedFirstUserMessage = normaliserSkrivefeil(firstUserMessage).trim();
+
+    // Stabil chat-identifikator. Brukes som suffix i sesjonslås-nøkkelen slik
+    // at courseHint-låsen er per chat, ikke per bruker. Uten dette lekker state
+    // mellom samtaler (f.eks. Metode-chatten arver kurs-låsen fra 6105N-chatten).
+    //
+    // Kilde-prioritering:
+    //   1. chatId fra request (ChatHistory._id) — garantert unik per samtale
+    //   2. Hash av første brukermelding — fallback når chatId mangler, men
+    //      sårbart for kollisjoner når flere chatter starter med samme spørsmål
+    //      (f.eks. "Hvilke emner er jeg registrert på?"). Beholdes kun for
+    //      bakoverkompatibilitet hvis frontend ikke har oppdatert enda.
+    const chatLockId = (() => {
+      const explicitId = (req.body as { chatId?: unknown }).chatId;
+      if (typeof explicitId === "string" && explicitId.trim().length > 0) {
+        // Saniterer for Redis-nøkkel-bruk: kun alfanumerisk + bindestrek.
+        return explicitId.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) || "default";
+      }
+      return firstUserMessage
+        ? createHash("sha256").update(firstUserMessage).digest("hex").slice(0, 16)
+        : "default";
+    })();
     const isFirstUserGreetingOnly =
       /^(?:hei|heisann|hallo|hallais|hello|hi|god\s*dag|god\s*morgen|god\s*kveld|hey|yo)[\s!,.?]*$/iu
         .test(normalizedFirstUserMessage);
@@ -1730,7 +1842,7 @@ Never guess or invent a name from email, username, or other profile fields.
 
     let hasActiveKnowledgeBaseSession = false;
     if (req.user?.id) {
-      const activeKbRawForIntent = await getCache(kbSessionKey(req.user.id));
+      const activeKbRawForIntent = await getCache(kbSessionKey(req.user.id, chatLockId));
       if (activeKbRawForIntent) {
         try {
           const parsed = JSON.parse(activeKbRawForIntent) as { id?: string; navn?: string };
@@ -1782,7 +1894,7 @@ Never guess or invent a name from email, username, or other profile fields.
         !hasSlashKbCommand &&
         (hasFollowUpSignal || (haikuRequested && hasContentSignals))
       ) {
-        const lockedCourseHintRaw = await getCache(`ki:user:${req.user.id}:locked-course-hint`);
+        const lockedCourseHintRaw = await getCache(chatScopedKey(req.user.id, chatLockId, "locked-course-hint"));
         const lockedCourseHint = lockedCourseHintRaw
           ? sanitizeCourseHintValue(lockedCourseHintRaw)
           : null;
@@ -1897,7 +2009,59 @@ Never guess or invent a name from email, username, or other profile fields.
       // NB: resolveTargetAgainstKnownCourses kalles ETTER sesjonslås-logikken
       // slik at låst courseHint ikke blir overstyrt av feilaktig kursoppløsning.
       const lastUserMsg = messages.filter((m: { role: string }) => m.role === "user").at(-1)?.content ?? "";
-      let target = extractQueryTarget(lastUserMsg);
+
+      // Referensielle fraser peker tilbake til forrige tur. Walk bakover gjennom
+      // brukermeldinger til vi finner én med faktiske hints (moduleHint eller
+      // numericHints) — brukeren kan ha stilt samme referensielle spørsmål
+      // flere ganger på rad, og da må vi finne det opprinnelige konkrete
+      // spørsmålet lenger bak i historikken.
+      //
+      // Mønsteret dekker:
+      //   - Kvantifiserende referanser: "begge", "disse", "de to", "den første"
+      //   - Objekt-referanser: "svaret ditt", "forrige svar", "det du sa/skrev"
+      //   - Utdypings-verb uten nytt subjekt: "utdyp mer", "fortsett", "gi mer
+      //     detaljer", "forklar mer" — disse er nesten alltid follow-up til
+      //     noe allerede sagt.
+      const REFERENTIAL_PATTERN =
+        /\b(begge|disse|dem|de to|den første|den andre|den ene|those|these|both|svaret ditt|forrige svar|det du sa|det du skrev|utdype svaret|utdyp svaret|fortsett|forklar mer|gi mer detaljer|mer om dette|mer om det|kan du utdype)\b/i;
+      const currentIsReferential = REFERENTIAL_PATTERN.test(lastUserMsg);
+      let effectiveMsgForTargeting = lastUserMsg;
+      let inheritedFromPrior: string | null = null;
+      if (currentIsReferential) {
+        const priorUserMessages = messages
+          .filter((m: { role: string }) => m.role === "user")
+          .slice(0, -1) // alt unntatt nåværende
+          .map((m: { content: string }) => m.content)
+          .reverse(); // nyeste først
+        for (const prev of priorUserMessages) {
+          // Hopp over prior meldinger som også er referensielle (samme oppfølging)
+          if (REFERENTIAL_PATTERN.test(prev)) continue;
+          // Prøv å ekstrahere hints — hvis prev gir moduleHint eller fileHint,
+          // er det en "konkret" melding å arve fra. (numericHints sjekkes ikke
+          // her fordi de ekstraheres inne i context-loader; bruker moduleHint
+          // som proxy — hvis bruker skrev "kapittel 1 og 2", vil moduleHint
+          // fanges opp.)
+          const prevTarget = extractQueryTarget(prev);
+          if (prevTarget.moduleHint || prevTarget.fileHint) {
+            inheritedFromPrior = prev;
+            break;
+          }
+        }
+        if (inheritedFromPrior) {
+          effectiveMsgForTargeting = `${inheritedFromPrior} ${lastUserMsg}`;
+          logger.info(
+            {
+              currentPreview: lastUserMsg.slice(0, 80),
+              inheritedPreview: inheritedFromPrior.slice(0, 80),
+            },
+            "Referensiell oppfølging: arvet hint fra tidligere konkret melding",
+          );
+        }
+      }
+      // Variabel eksponert for evt. fremtidig bruk; ikke referert her.
+      void inheritedFromPrior;
+
+      let target = extractQueryTarget(effectiveMsgForTargeting);
       const isLikelyFollowUp = isLikelyFollowUpQuestion(lastUserMsg);
 
       // ─── Session-locked courseHint ───
@@ -1906,7 +2070,10 @@ Never guess or invent a name from email, username, or other profile fields.
       // Alle courseHint-verdier saniteres før lagring/sammenligning for konsistent matching.
       // NB: nøkkelen ligger BEVISST utenfor `ki:session:*`-pattern slik at canvas-sync sin
       // session-cache-invalidering ikke sletter sesjonslåsen mellom oppfølgingsspørsmål.
-      const courseHintLockKey = `ki:user:${req.user.id}:locked-course-hint`;
+      // Per-chat lås (se chatScopedKey-kommentar). Tidligere var denne per-bruker,
+      // som gjorde at courseHint lekket mellom samtaler — brukeren byttet fra 6105N-chat
+      // til Metode-chat og fikk fortsatt 6105N-kontekst fordi låsen var delt.
+      const courseHintLockKey = chatScopedKey(req.user.id, chatLockId, "locked-course-hint");
       const SESSION_COURSEHINT_TTL = 3600; // 1 time — matcher typisk chat-sesjon
 
       const lockedCourseHintRaw = await getCache(courseHintLockKey);
@@ -2041,12 +2208,21 @@ Never guess or invent a name from email, username, or other profile fields.
       const courseHintCacheSegment = scopedCourseHint
         ? buildCourseHintCacheSegment(scopedCourseHint)
         : null;
+      // Chat-scoped session-cache (se chatScopedKey-kommentar). Tidligere var
+      // last-course og course:<hint>:<query>-cachen per-bruker, noe som gjorde
+      // at en oppfølging i én chat kunne treffe cache fra en annen chat.
       const lastCourseSessionKey =
         courseHintCacheSegment
-          ? `ki:session:${req.user.id}:last-course:${courseHintCacheSegment}`
-          : `ki:session:${req.user.id}:last-course`;
+          ? chatScopedKey(req.user.id, chatLockId, "last-course", courseHintCacheSegment)
+          : chatScopedKey(req.user.id, chatLockId, "last-course");
       const sessionCacheKey = target.courseHint
-        ? `ki:session:${req.user.id}:course:${buildCourseHintCacheSegment(target.courseHint)}:${queryHash}`
+        ? chatScopedKey(
+            req.user.id,
+            chatLockId,
+            "course",
+            buildCourseHintCacheSegment(target.courseHint),
+            queryHash,
+          )
         : followUpWithoutCourseHint
           ? lastCourseSessionKey
           : null;
@@ -2093,7 +2269,12 @@ Never guess or invent a name from email, username, or other profile fields.
             req.canvasToken,
             intent,
             target,
-            lastUserMsg,
+            // effectiveMsgForTargeting = lastUserMsg når ikke referensiell.
+            // Når referensiell, inkluderer den forrige brukermelding slik at
+            // numericHints/moduleHint-ekstraksjon inne i context-loader
+            // (f.eks. velgPrimaerFilForFullDocument) får tilgang til prior
+            // kontekst uten at vi må endre funksjonssignaturen.
+            effectiveMsgForTargeting,
             baseUrl,
             abortController.signal,
             contextPrefs,
@@ -2191,6 +2372,32 @@ Do NOT use general knowledge. Do NOT invent section headings or examples that ar
 You have been given the complete content of the source file below.
 Your answer must be based EXCLUSIVELY on this content.
 
+### Course-resolution is already done — DO NOT ask for course clarification
+The retrieval pipeline has ALREADY resolved which course the student meant, based
+on the session's course-lock and the content of the loaded file. The file shown
+below IS the correct source for this conversation.
+
+ABSOLUTE RULE: If there is document content present below, you MUST summarize
+it directly. You MUST NOT ask "hvilken kurs mener du?" / "which course do you
+mean?" / anything similar. The filename in the context tells you which course
+the file is from — use it.
+
+Treat "leksjon N", "kapittel N", and "forelesning N" as equivalent references
+to file N in the current course. Never refuse a summary because the terminology
+is different from the filename (e.g. "leksjon 4" applied to "Forelesning4.pdf"
+is a valid, resolved match — summarize the file).
+
+Ignore any previous assistant turn that asked for course clarification — that
+was a model error that should not be repeated. Always prefer summarizing the
+loaded document over asking again.
+
+If the same summary (or a summary of the same file) was produced earlier in
+the conversation, DO NOT tell the student to "scroll up" or refuse to repeat
+it. Produce a fresh summary of the loaded file every time the student asks,
+even if similar content was covered before — the student may have forgotten,
+want a different angle, or simply want it repeated. Silently provide the
+summary; do not comment on having done it before.
+
 ### Source-match check — HIGHEST PRIORITY
 Before writing your answer, verify that the loaded document actually contains what the student asked for:
 - If the student asked about a specific chapter/module/topic (e.g. "kap 1", "kapittel 3", "forelesning 4"), check the actual filename and content of the document. If the file clearly covers a different chapter or topic than what was requested, DO NOT summarize it as if it were the requested chapter.
@@ -2245,10 +2452,18 @@ Rules:
 
     // Token-basert trimming av samtalehistorikk.
     // Reserverer plass til system-prompt + AI-respons, bruker resten til historikk.
-    // Claude Sonnet har 200k kontekst, men vi begrenser for kostnads- og latens-kontroll.
+    // Claude Sonnet har 200k kontekst. Vi sikrer et minimum historikk-budsjett
+    // slik at referensielle oppfølginger ("begge", "den første", "disse") har
+    // samtaletråden tilgjengelig — det gamle floor-et på 1000 tokens var for
+    // lavt når canvasKontekst er stor (en tidligere modellrespons på 1400+
+    // tokens ble kastet i sin helhet).
     const systemPromptTokens = countTokens(enhancedSystemPrompt) + (hasCanvasData ? countTokens(canvasKontekst) : 0);
-    const MAX_CONTEXT_TOKENS = intent === "canvas_full" ? 10000 : 6000;
-    const historyBudget = Math.max(MAX_CONTEXT_TOKENS - systemPromptTokens - baseMaxTokens, 1000);
+    const MAX_CONTEXT_TOKENS = intent === "canvas_full" ? 60000 : 20000;
+    const MIN_HISTORY_TOKENS = 4000;
+    const historyBudget = Math.max(
+      MAX_CONTEXT_TOKENS - systemPromptTokens - baseMaxTokens,
+      MIN_HISTORY_TOKENS,
+    );
     const tokenTrimmedMessages = trimToTokenLimit(messages, historyBudget);
     const trimmedMessages = tokenTrimmedMessages.slice(-8);
 
@@ -2294,7 +2509,7 @@ Rules:
       }
 
       await setCache(
-        kbSessionKey(req.user!.id),
+        kbSessionKey(req.user!.id, chatLockId),
         JSON.stringify({ id: String(base._id), navn: base.navn }),
         KB_SESSION_TTL,
       );
@@ -2309,7 +2524,7 @@ Rules:
       return;
     }
 
-    const activeKbRaw = await getCache(kbSessionKey(req.user!.id));
+    const activeKbRaw = await getCache(kbSessionKey(req.user!.id, chatLockId));
     if (activeKbRaw) {
       try {
         const parsed = JSON.parse(activeKbRaw) as { id?: string; navn?: string };
@@ -2385,7 +2600,7 @@ Referer til kilde (fil/lenke) i svaret.
             kbKontekst = buildKBContext(kbResults, match.navn);
             kbKilder = mapKBResultsToChatSources(kbResults, match.navn, matchId);
             await setCache(
-              kbSessionKey(req.user!.id),
+              kbSessionKey(req.user!.id, chatLockId),
               JSON.stringify({ id: matchId, navn: match.navn }),
               KB_SESSION_TTL,
             );

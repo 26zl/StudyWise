@@ -723,6 +723,23 @@ async function parsePdfDocument(buffer: Buffer, options?: ParseDocumentOptions):
 
         // Valider at vi faktisk fikk ekte tekst - hvis ikke, rasteriser sider og kjør OCR
         if (!hasRealText) {
+            // disableOcr: crawler/eksterne kilder — hopp over OCR for å unngå native-modul-krasj
+            if (options?.disableOcr) {
+                logger.info(
+                    { bufferSize: buffer.length },
+                    "PDF uten ekstraherbar tekst, OCR deaktivert (ekstern kilde)",
+                );
+                return {
+                    success: false,
+                    text: "",
+                    pages: numPages,
+                    fileType: "pdf",
+                    redacted: false,
+                    truncated: false,
+                    error: "PDF-filen inneholder ingen lesbar tekst (OCR deaktivert for eksterne kilder).",
+                };
+            }
+
             // I sync-modus: hopp over OCR for store filer for å spare minne
             if (options?.syncMode && buffer.length > MAX_OCR_FILE_SIZE_SYNC) {
                 logger.info(
@@ -1147,6 +1164,12 @@ function safeBasename(filename: string | undefined): string {
 export interface ParseDocumentOptions {
   /** Sync-modus: strengere minnegrenser (færre OCR-sider, hopper over OCR for store filer) */
   syncMode?: boolean;
+  /**
+   * Deaktiverer OCR-fallback helt. Settes av crawleren som håndterer eksterne PDF-er —
+   * native OCR-moduler (@napi-rs/canvas, sharp, tesseract.js) har krasjet workere under
+   * repetert oppstart, og eksterne PDF-er er supplementary innhold som ikke er verdt risikoen.
+   */
+  disableOcr?: boolean;
 }
 
 export async function parseDocument(

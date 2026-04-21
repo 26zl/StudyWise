@@ -937,7 +937,14 @@ async function parsePdfBuffer(
   sourceUrl: string,
 ): Promise<{ content: string; hash: string } | null> {
   try {
-    const result = await parseDocumentInWorker(buffer, "application/pdf", "external.pdf", { syncMode: true });
+    // disableOcr: unngår @napi-rs/canvas + tesseract i worker. Disse native-modulene
+    // har krasjet workere ved rask repetert oppstart (crawleren spawner en ny worker
+    // per PDF). Scannede PDF-er fra eksterne kilder er sjelden kritisk faginnhold —
+    // heller hopp over enn å risikere worker-crash som dreper hele parsejobben.
+    const result = await parseDocumentInWorker(buffer, "application/pdf", "external.pdf", {
+      syncMode: true,
+      disableOcr: true,
+    });
     if (!result.success || !result.text.trim()) {
       logger.info({ url: sourceUrl }, "PDF inneholder ingen lesbar tekst");
       return null;

@@ -38,6 +38,13 @@ export const KIChatRequestSchema = z.object({
   model: z.string().trim().min(1).max(100).optional(),
   temperature: z.number().min(0).max(1).optional(),
   explanationLevel: ExplanationLevelSchema.optional(),
+  /**
+   * Stabil ID for samtalen (ChatHistory._id). Brukes til å skope session-state
+   * (courseHint-lås, aktiv kunnskapsbase, kontekst-cache) per chat slik at
+   * state ikke lekker mellom samtaler. Valgfri for bakoverkompatibilitet —
+   * backend faller tilbake til en hash-basert identifikator når den mangler.
+   */
+  chatId: z.string().trim().min(1).max(100).optional(),
 });
 
 // Felles token-bruk schema (delt mellom chat og dokumentanalyse)

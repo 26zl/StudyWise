@@ -284,8 +284,29 @@ export async function chatCompletionWithVision(options: {
  *   konverterer dette til cache_control-blokken på system-parameteren i Anthropic-kallet,
  *   slik at gjentatte kall med samme system-prompt bruker cached input tokens.
  */
-/** Sikkerhetsnett-timeout for AI SDK streamText — avbryter hvis Promise.all henger. */
-const STREAM_SAFETY_TIMEOUT_MS = 110_000; // 110 sekunder (litt under request-timeout på 120s)
+/** Sikkerhetsnett-timeout for AI SDK streamText — avbryter hvis Promise.all henger.
+ *  Må være større enn lengste outer timeout (full-doc-mode: 150s i ki.ts), ellers
+ *  kutter vi gyldige kall til Claude Sonnet på tung kontekst (75k+ tegn gir typisk
+ *  100-120s respons-tid). Observert miss: 100s og 67s fra faktiske kjøringer.
+ */
+const STREAM_SAFETY_TIMEOUT_MS = 180_000;
+
+/**
+ * Fjerner <thinking>…</thinking>-blokker og løse åpnings-/lukkingstags fra
+ * modellrespons. Observert at Claude Sonnet 4.6 av og til lekker interne
+ * resonnements-blokker som synlig tekst når prompten er kompleks — disse
+ * skal aldri nå fram til brukeren. Regexen fanger:
+ *   1. Komplette <thinking>…</thinking>-par (med vilkårlig innhold)
+ *   2. Løse <thinking>- eller </thinking>-tags uten matching partner
+ * Bevarer resten av teksten uendret. Trim tar bort whitespace som blir igjen.
+ */
+function stripThinkingBlocks(text: string): string {
+    return text
+        .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
+        .replace(/<\/?thinking>/gi, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+}
 
 /** Promise.race med timeout — rydder opp timer uansett utfall. */
 async function raceMedTimeout<T>(promise: Promise<T>, ms: number, melding: string): Promise<T> {
@@ -444,8 +465,25 @@ async function callAnthropic(options: {
                 "Anthropic Claude-svar mottatt",
             );
 
+            // Strip <thinking>...</thinking>-blokker og løse tags. Claude Sonnet 4.6
+            // emitterer av og til slike blokker som synlig tekst når prompten er
+            // kompleks (f.eks. flere overlappende systemregler). Dette er modell-
+            // artefakter og skal aldri nå fram til brukeren.
+            const sanitizedText = stripThinkingBlocks(text);
+            if (sanitizedText.length !== text.length) {
+                logger.info(
+                    {
+                        model,
+                        originalLength: text.length,
+                        strippedLength: sanitizedText.length,
+                        removedChars: text.length - sanitizedText.length,
+                    },
+                    "Thinking-blokker strippet fra modellrespons",
+                );
+            }
+
             return {
-                text,
+                text: sanitizedText,
                 usage: {
                     prompt_tokens: inputTokens,
                     completion_tokens: outputTokens,

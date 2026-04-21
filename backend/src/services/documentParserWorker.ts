@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { DocumentParseResult } from "common/document";
 import type { ParseDocumentOptions } from "./document.js";
+import { logger } from "../utils/logger.js";
 
 interface ParseWorkerSuccessMessage {
   ok: true;
@@ -54,8 +55,20 @@ export function getParseWorkerUserMessage(
 function createDocumentParserWorker(): Worker {
   const workerJsUrl = new URL("../workers/documentParser.worker.js", import.meta.url);
   const workerTsUrl = new URL("../workers/documentParser.worker.ts", import.meta.url);
+  const devLauncherUrl = new URL(
+    "../workers/documentParser.worker.dev-launcher.mjs",
+    import.meta.url,
+  );
+
+  // Prod: bruk kompilert .js direkte — plain Node kan laste den uten loader.
+  // Dev: bruk .mjs-launcheren som registrerer tsx via tsx/esm/api før den
+  // dynamisk importerer .worker.ts. Dette løser ERR_MODULE_NOT_FOUND på
+  // `.js`-imports inne i workeren — tsx 4 registrerer ESM-loaderen via
+  // register()-API internt, og workers arver ikke den registreringen
+  // automatisk via execArgv.
   // eslint-disable-next-line security/detect-non-literal-fs-filename
-  const workerUrl = existsSync(fileURLToPath(workerJsUrl)) ? workerJsUrl : workerTsUrl;
+  const workerUrl = existsSync(fileURLToPath(workerJsUrl)) ? workerJsUrl : devLauncherUrl;
+  void workerTsUrl; // beholdt for dokumentasjonsverdi; launcheren importerer .ts-filen
 
   // Forward only loader-related flags to worker threads.
   // `tsx -e` adds eval flags in process.execArgv that should not be inherited.
@@ -131,13 +144,29 @@ export async function parseDocumentInWorker(
         rejectOnce(new Error(message.error || "PARSE_WORKER_ERROR"));
       });
 
-      worker.once("error", () => {
+      worker.once("error", (workerErr) => {
+        // Logg årsaken så vi kan diagnostisere krasjer som ellers bare dukker
+        // opp som "PARSE_WORKER_CRASHED" uten kontekst. Rejection-melding beholdes
+        // uendret slik at crawler/ki fortsatt kan behandle det som fail-silent.
+        logger.warn(
+          {
+            err: workerErr,
+            mimeType,
+            originalName,
+            bufferLength: buffer.length,
+          },
+          "Dokumentparser-worker krasjet (error-event)",
+        );
         rejectOnce(new Error(PARSE_WORKER_CRASHED_ERROR));
       });
 
       worker.once("exit", (code) => {
         if (settled) return;
         if (code !== 0) {
+          logger.warn(
+            { exitCode: code, mimeType, originalName, bufferLength: buffer.length },
+            "Dokumentparser-worker avsluttet unormalt",
+          );
           rejectOnce(new Error(PARSE_WORKER_CRASHED_ERROR));
         }
       });

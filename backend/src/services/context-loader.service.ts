@@ -178,9 +178,39 @@ const NUMERIC_REFERENCE_PREFIXES =
  *   "Forelesning 01"                     → ["01", "1"]               (zero-stripped variant)
  *   "100 liter vann"                     → []                        (ingen ref-kontekst)
  */
+// Norske ordinaler → sifferform. Brukes i extractNumericHintsFromMessage slik at
+// "første forelesning" gir numerisk hint "1" — uten dette ville primærfil-valget
+// ikke kunne overstyre basert på filnavn for ordinal-formulerte spørsmål.
+const NORSKE_ORDINALER_TIL_SIFFER: Record<string, string> = {
+  "første": "1", "forste": "1",
+  "andre": "2", "annen": "2",
+  "tredje": "3",
+  "fjerde": "4",
+  "femte": "5",
+  "sjette": "6",
+  "sjuende": "7", "syvende": "7",
+  "åttende": "8", "attende": "8",
+  "niende": "9",
+  "tiende": "10",
+  "ellevte": "11",
+  "tolvte": "12",
+};
+
+// Inkluderer typo-varianter ("forlesning" mangler e) og nynorsk-former ("førelesing")
+// direkte her siden denne funksjonen kjører på rå brukermelding uten å gå via
+// normaliserSkrivefeil (som bor i ki.ts). Gir robust match også ved skrivefeil.
+const ORDINAL_MODUL_REGEX = /(?<![a-zæøå])(første|forste|andre|annen|tredje|fjerde|femte|sjette|sjuende|syvende|åttende|attende|niende|tiende|ellevte|tolvte)\s+(?:forelesning|forelesningen|forelesninga|forlesning|forlesninger|forelsning|forelesing|forelesinga|forelesingar|førelesning|førelesing|førelesinga|førelesingar|forlesing|lecture|modul|modulen|leksjon|lesson|kapittel|kapitlet|kapitel|kapitell|kap|chapter|uke|uka|week|tema|sesjon|session)/gi;
+
 function extractNumericHintsFromMessage(message: string): string[] {
   const lower = message.toLowerCase();
   const hints = new Set<string>();
+
+  // Ordinal + modul-nøkkelord: "første forelesning" → hint "1", "andre kapittel" → hint "2".
+  // Dette gjør at filnavn-basert primærfil-valg virker for ordinal-formulerte spørsmål.
+  for (const match of lower.matchAll(ORDINAL_MODUL_REGEX)) {
+    const digit = NORSKE_ORDINALER_TIL_SIFFER[match[1]];
+    if (digit) hints.add(digit);
+  }
 
   // Merk: bruker negativ lookbehind istedenfor \b fordi JS's \b er ASCII-basert
   // og ikke fungerer for æøå — "økt 4" ville aldri matche med \b.
@@ -252,6 +282,104 @@ function extractNumericHintsFromMessage(message: string): string[] {
 }
 
 /**
+ * Ekstraherer dato fra filnavn som følger vanlige mønstre:
+ *  - DDMMYYYY (kompakt, ingen skilletegn) — "Forelesning13012026.pdf" → 13. jan 2026
+ *  - YYYYMMDD (ISO kompakt) — "Forelesning20260113.pdf" → 13. jan 2026
+ *  - YYYY-MM-DD / YYYY.MM.DD / YYYY_MM_DD — "2026-01-13"
+ *  - DD.MM.YYYY / DD-MM-YYYY — "13.01.2026"
+ *
+ * Returnerer null hvis ingen gyldig dato kan ekstraheres.
+ * Prøver DDMMYYYY før YYYYMMDD siden norsk kontekst oftest bruker dag-først.
+ */
+function extractLectureDateFromFileName(fileName: string): Date | null {
+  const isValidDate = (yyyy: number, mm: number, dd: number): boolean =>
+    yyyy >= 2000 && yyyy <= 2099 && mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31;
+  // UTC-konstruksjon for å unngå tidssone-skift som kan gi feil dato
+  // ved sammenligning eller logging (f.eks. Jan 13 local → Jan 12 UTC).
+  const makeUtcDate = (yyyy: number, mm: number, dd: number): Date =>
+    new Date(Date.UTC(yyyy, mm - 1, dd));
+
+  // 8-sifret kompakt: prøv både DDMMYYYY og YYYYMMDD
+  for (const match of fileName.matchAll(/(\d{8})/g)) {
+    const digits = match[1];
+    // DDMMYYYY først (norsk standard)
+    const dd1 = parseInt(digits.slice(0, 2), 10);
+    const mm1 = parseInt(digits.slice(2, 4), 10);
+    const yyyy1 = parseInt(digits.slice(4, 8), 10);
+    if (isValidDate(yyyy1, mm1, dd1)) return makeUtcDate(yyyy1, mm1, dd1);
+    // YYYYMMDD fallback
+    const yyyy2 = parseInt(digits.slice(0, 4), 10);
+    const mm2 = parseInt(digits.slice(4, 6), 10);
+    const dd2 = parseInt(digits.slice(6, 8), 10);
+    if (isValidDate(yyyy2, mm2, dd2)) return makeUtcDate(yyyy2, mm2, dd2);
+  }
+
+  // YYYY-MM-DD / YYYY.MM.DD / YYYY_MM_DD
+  const iso = fileName.match(/(\d{4})[-._](\d{1,2})[-._](\d{1,2})/);
+  if (iso) {
+    const yyyy = parseInt(iso[1], 10);
+    const mm = parseInt(iso[2], 10);
+    const dd = parseInt(iso[3], 10);
+    if (isValidDate(yyyy, mm, dd)) return makeUtcDate(yyyy, mm, dd);
+  }
+
+  // DD.MM.YYYY / DD-MM-YYYY / DD_MM_YYYY
+  const euro = fileName.match(/(\d{1,2})[-._](\d{1,2})[-._](\d{4})/);
+  if (euro) {
+    const dd = parseInt(euro[1], 10);
+    const mm = parseInt(euro[2], 10);
+    const yyyy = parseInt(euro[3], 10);
+    if (isValidDate(yyyy, mm, dd)) return makeUtcDate(yyyy, mm, dd);
+  }
+
+  return null;
+}
+
+/**
+ * Finner den N-te forelesningen fra en fil-liste ved å sortere kronologisk
+ * på ekstraherte datoer fra filnavn.
+ *
+ * Brukes som siste-fallback når kurset navngir forelesninger etter dato
+ * (f.eks. "Forelesning13012026.pdf") i stedet for nummer — og brukerens
+ * numeriske hint ikke treffer noen fil ved direkte filnavn-match.
+ *
+ * Filtrerer bort plan/oversikt-filer som ikke representerer en faktisk
+ * forelesning (f.eks. "Førelesingsplan" eller "Forelesningsoversikt").
+ */
+function finnNteForelesningFraKatalog<T extends { fileName: string }>(
+  files: T[],
+  n: number,
+): T | null {
+  if (n < 1) return null;
+  const lectureLike = files.filter((f) => {
+    const lower = f.fileName.toLowerCase().normalize("NFKC");
+    // Normaliser ø→o for matching av "Førelesing..." varianter
+    const nfc = lower.replace(/ø/g, "o");
+    if (!/forelesn|foreles|lecture/.test(nfc)) return false;
+    // Ekskluder planer/oversikter — disse er ikke selve forelesningen
+    if (/plan|agenda|schedule|oversikt|pensum|syllabus/.test(nfc)) return false;
+    return true;
+  });
+  const withDates = lectureLike
+    .map((f) => ({ file: f, date: extractLectureDateFromFileName(f.fileName) }))
+    .filter((x): x is { file: T; date: Date } => x.date !== null);
+  if (withDates.length < n) return null;
+  withDates.sort((a, b) => a.date.getTime() - b.date.getTime());
+  return withDates[n - 1].file;
+}
+
+/**
+ * Renser URL-escape-sekvenser (%XX) og "+" (URL-space) fra filnavn før
+ * numerisk matching. Uten dette lekker tall i escape-sekvenser ("%2C" → "2")
+ * inn og gir falske positiver på hint som "2".
+ */
+function cleanUrlEncodedFileName(fileName: string): string {
+  return fileName
+    .replace(/%[0-9a-f]{2}/gi, " ")
+    .replace(/\+/g, " ");
+}
+
+/**
  * Normaliserer numeriske sekvenser i et filnavn ved å fjerne ledende nuller
  * KUN på isolerte tall-sekvenser (start-of-string eller forutgående ikke-siffer).
  * Dette hindrer at indre nuller i tall som "2024" eller "102" blir feilaktig fjernet.
@@ -263,7 +391,7 @@ function extractNumericHintsFromMessage(message: string): string[] {
  * "003_Lecture.pdf"          → "3_lecture.pdf" (ledende null på starten)
  */
 function normaliserNumeriskFilnavn(fileName: string): string {
-  return fileName.toLowerCase().replace(/(^|[^\d])0+(\d+)/g, "$1$2");
+  return cleanUrlEncodedFileName(fileName.toLowerCase()).replace(/(^|[^\d])0+(\d+)/g, "$1$2");
 }
 
 /**
@@ -277,19 +405,35 @@ function normaliserNumeriskFilnavn(fileName: string): string {
  */
 function fileNameMatchesNumericHints(fileName: string, hints: string[]): boolean {
   if (hints.length === 0) return false;
-  const lower = fileName.toLowerCase();
+  const lower = cleanUrlEncodedFileName(fileName.toLowerCase());
   const normalisert = normaliserNumeriskFilnavn(fileName);
+  // Ekstraher alle sammenhengende sifferrekker i filnavnet. Brukes til å matche
+  // "prefix + 2-sifret år"-mønsteret (f.eks. "Forelesning226.pdf" = forelesning 2,
+  // år 26) som ellers ville blitt rangert vekk av strict standalone-digit-regex.
+  const digitRuns = [...lower.matchAll(/(?<!\d)(\d+)(?!\d)/g)].map((m) => m[1]);
+
   return hints.some((hint) => {
-    // Bygg regex og test mot både originalt filnavn og zero-padding-normalisert variant
     if (/[.-]/.test(hint)) {
       const escaped = hint.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       // eslint-disable-next-line security/detect-non-literal-regexp -- hint er fra egen ekstraksjon, escaped
       const regex = new RegExp(`(?:^|[^\\d])${escaped}(?![\\d])`);
-      return regex.test(lower) || regex.test(normalisert);
+      if (regex.test(lower) || regex.test(normalisert)) return true;
+    } else {
+      // eslint-disable-next-line security/detect-non-literal-regexp -- hint er rent numerisk fra egen ekstraksjon
+      const regex = new RegExp(`(?:^|[^\\d])${hint}(?![\\d])`);
+      if (regex.test(lower) || regex.test(normalisert)) return true;
     }
-    // eslint-disable-next-line security/detect-non-literal-regexp -- hint er rent numerisk fra egen ekstraksjon
-    const regex = new RegExp(`(?:^|[^\\d])${hint}(?![\\d])`);
-    return regex.test(lower) || regex.test(normalisert);
+    // Year-suffix match: hint er prefikset av en sifferrekke der siste 2 sifre
+    // er et 2-sifret år (2X). Fanger "Forelesning<N>26.pdf" → hint "<N>".
+    if (/^\d+$/.test(hint)) {
+      return digitRuns.some((run) => {
+        if (run.length !== hint.length + 2) return false;
+        if (!run.startsWith(hint)) return false;
+        const suffix = run.slice(hint.length);
+        return /^2\d$/.test(suffix);
+      });
+    }
+    return false;
   });
 }
 
@@ -1721,7 +1865,25 @@ interface FilterResult {
 
 /** Normaliserer streng for modul-matching: lowercase, fjern ekstra mellomrom/bindestreker */
 function normaliserModulNavn(text: string): string {
-  return text.toLowerCase().replace(/[-_]/g, " ").replace(/\s+/g, " ").trim();
+  return text
+    .toLowerCase()
+    // Fjern URL-escape-sekvenser (%XX) og "+" fra eventuelle URL-encodede filnavn
+    // slik at tall inne i escape-sekvenser ikke lekker inn i tall-matching.
+    .replace(/%[0-9a-f]{2}/g, " ")
+    .replace(/\+/g, " ")
+    // Norsk tegn-normalisering for kryss-dialekt matching (bokmål ↔ nynorsk).
+    // F.eks. "førelesingsnotat" (nynorsk) ↔ "forelesning" (bokmål) — etter ø→o
+    // kan stem-matching nedenfor fange "forele"-prefikset i begge former.
+    .replace(/ø/g, "o")
+    .replace(/å/g, "a")
+    .replace(/æ/g, "ae")
+    .replace(/[-_]/g, " ")
+    // Splitt bokstav↔siffer slik at "Kapittel1.pdf" blir "kapittel 1.pdf"
+    // og tall-matchingen nedenfor finner "1" som eget ord.
+    .replace(/([a-z])(\d)/g, "$1 $2")
+    .replace(/(\d)([a-z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** Sjekker om moduleTitle matcher moduleHint med fleksibel substring-matching */
@@ -1733,17 +1895,36 @@ function modulTitleMatcherHint(moduleTitle: string, hint: string): boolean {
   // Dette hindrer at et generelt ord som "kapittel" matcher feil modul.
   const hintNumbers = normHint.match(/\b\d{1,3}\b/g) ?? [];
   if (hintNumbers.length > 0) {
-    const titleNumbers = new Set(normTitle.match(/\b\d{1,3}\b/g) ?? []);
-    const hasNumberOverlap = hintNumbers.some((num) => titleNumbers.has(num));
-    if (!hasNumberOverlap) return false;
+    const titleNumberStrings = normTitle.match(/\b\d{1,4}\b/g) ?? [];
+    const titleNumbers = new Set(titleNumberStrings);
+    const hasExactOverlap = hintNumbers.some((num) => titleNumbers.has(num));
+    // Aksepter prefix-match når filnavn har sammensatt tall som starter med
+    // hint-tallet og slutter med nøyaktig 2 sifre (typisk årssuffiks, f.eks.
+    // "Forelesning126.pdf" = forelesning 1 + semester-suffiks 26).
+    const hasYearSuffixMatch = hintNumbers.some((num) =>
+      titleNumberStrings.some((tnum) =>
+        tnum.length === num.length + 2 && tnum.startsWith(num),
+      ),
+    );
+    if (!hasExactOverlap && !hasYearSuffixMatch) return false;
   }
 
   // Direkte substring-match
   if (normTitle.includes(normHint) || normHint.includes(normTitle)) return true;
-  // Ordbasert overlapp: minst halvparten av hint-ordene finnes i tittelen
+  // Ordbasert overlapp: minst halvparten av hint-ordene finnes i tittelen.
+  // Stem-matching via 6-tegn prefiks fanger bøyningsvarianter som
+  // "forelesning" ↔ "forelesingsnotat" (etter ø→o-normalisering).
   const hintWords = normHint.split(" ").filter((w) => w.length > 2);
   if (hintWords.length === 0) return false;
-  const matchCount = hintWords.filter((w) => normTitle.includes(w)).length;
+  const titleTokens = normTitle.split(/\s+/);
+  const matchCount = hintWords.filter((w) => {
+    if (normTitle.includes(w)) return true;
+    if (w.length >= 6) {
+      const stem = w.slice(0, 6);
+      return titleTokens.some((t) => t.startsWith(stem));
+    }
+    return false;
+  }).length;
   return matchCount >= Math.ceil(hintWords.length / 2);
 }
 
@@ -1758,8 +1939,13 @@ function filtrerHybridResultater(
   // Modul-filter kun når vi allerede er avgrenset til spesifikke kurs —
   // ellers lar vi retrieval-scoren bestemme relevans
   if (coursesPinned && target?.moduleHint) {
+    // Matcher hint mot BÅDE moduleTitle OG fileName. Mange Canvas-kurs har
+    // generiske modulnavn ("Files") mens kapittel-nummer ligger i filnavnet
+    // ("Kapittel1.pdf", "Forelesning 2.pdf"). Uten filnavn-matching treffer
+    // hint som "kapittel 1" ingenting.
     const moduleMatches = filtered.filter((result) =>
-      modulTitleMatcherHint(result.source.moduleTitle, target.moduleHint!),
+      modulTitleMatcherHint(result.source.moduleTitle, target.moduleHint!)
+      || modulTitleMatcherHint(result.source.fileName, target.moduleHint!),
     );
     if (moduleMatches.length === 0) {
       // moduleHint matchet ingenting — merk som "missed" slik at caller
@@ -1770,6 +1956,7 @@ function filtrerHybridResultater(
           courseHint: target.courseHint,
           chunksBeforeFilter: results.length,
           moduleTitles: results.map((r) => r.source.moduleTitle),
+          fileNames: results.map((r) => r.source.fileName),
           action: "moduleHintMissed",
         },
         "Hybrid søk: alle resultater filtrert bort av moduleHint — signaliserer miss til caller",
@@ -1833,7 +2020,23 @@ async function byggKontekstFraHybridSearch(
         "the lectures", "all lectures", "all the lectures",
         "all modules", "all the topics covered",
       ];
-      const matchesCourseWide = COURSE_WIDE_TRIGGERS.some((t) => lowerMsg.includes(t));
+      // Referensielle fraser peker til tidligere samtale og SKAL IKKE trigge
+      // kursomfattende oversikt. Uten denne sjekken laster "begge leksjonene"
+      // alle 27 kursfiler i stedet for å la modellen bruke samtaletråden til
+      // å plukke ut de to nevnte i forrige tur. Lista må holdes i sync med
+      // REFERENTIAL_PATTERN i ki.ts (samme semantikk, litt annen form — her
+      // brukes includes() i stedet for regex).
+      const REFERENTIAL_PHRASES = [
+        "begge", "den første", "den andre", "de to", "disse", "dem",
+        "den ene", "den over", "over nevnte", "ovennevnte", "nevnte ovenfor",
+        "both of them", "both lessons", "the two", "those", "these",
+        "svaret ditt", "forrige svar", "det du sa", "det du skrev",
+        "utdype svaret", "utdyp svaret", "fortsett", "forklar mer",
+        "gi mer detaljer", "mer om dette", "mer om det", "kan du utdype",
+      ];
+      const isReferential = REFERENTIAL_PHRASES.some((p) => lowerMsg.includes(p));
+      const matchesCourseWide =
+        !isReferential && COURSE_WIDE_TRIGGERS.some((t) => lowerMsg.includes(t));
       if (matchesCourseWide) {
         const courseIdStr = String(target.courseIdHint);
         const allDocs = await getAllFullDocumentsForCourse(userId, courseIdStr);
@@ -1951,7 +2154,7 @@ async function byggKontekstFraHybridSearch(
         filteredResults,
         results,
       );
-      const primary = primarySelection.primary;
+      let primary = primarySelection.primary;
       if (primarySelection.overridden) {
         logger.info(
           {
@@ -1965,6 +2168,123 @@ async function byggKontekstFraHybridSearch(
           "Full dokument-mode: primærfil overstyrt basert på filnavn-match",
         );
       }
+
+      // Siste fallback: når retrieval (både filtered og broader pool) ikke fant
+      // en fil med filnavn som matcher den numeriske hintet, skan hele
+      // kurs-filkatalogen direkte. Fanger tilfeller der Kap 1-filen ikke er i
+      // top-N BM25/vektor-resultater fordi innholdet ikke nevner "forelesning"
+      // sterkt nok — vi ender med feil fil (assignment/emneplan) som primær.
+      // Triggers også når moduleHint er null (f.eks. ved skrivefeil i brukerens
+      // melding) så lenge ordinal-ekstraksjon fant et tall, siden intensjonen om
+      // N-te forelesning er eksplisitt signalisert.
+      //
+      // Hopper over hvis primary ALLEREDE matcher numeric hint i filnavnet —
+      // uten denne sjekken ville en tilfeldig katalog-fil kunne overstyre en
+      // korrekt top-rerank (overridden=false fordi rerank var allerede riktig).
+      const primaryAlreadyMatches = fileNameMatchesNumericHints(
+        primary.source.fileName,
+        primarySelection.numericHints,
+      );
+      if (
+        !primarySelection.overridden
+        && !primaryAlreadyMatches
+        && primarySelection.numericHints.length > 0
+      ) {
+        const courseId = primary.source.courseId;
+        const allCourseFiles = await getAllFullDocumentsForCourse(userId, courseId);
+
+        // Steg 1: Filnavn-basert numerisk match (f.eks. "Kapittel 1" matcher hint "1").
+        // Velger mellom flere treff ved å foretrekke fil hvis navn inneholder samme
+        // modul-nøkkelord som brukeren brukte (f.eks. "forelesning").
+        const numericMatches = allCourseFiles.filter((f) =>
+          fileNameMatchesNumericHints(f.fileName, primarySelection.numericHints),
+        );
+
+        // Deprioriter øvelse-/fasit-/oppgave-filer når brukeren ikke eksplisitt
+        // ber om det. Uten denne sjekken kan "oppsummere leksjon 3" plukke
+        // "Leksjon 3_Øvelse.pdf" i stedet for "3_Generics.pdf" (hovedmaterialet).
+        // Canvas-filnavn er ofte URL-encoded (Leksjon+3_%C3%98velse.pdf) — må
+        // decodes før tegnsubstitusjon, ellers matcher ikke "ø"→"o".
+        const EXERCISE_FILE_PATTERN = /\b(oving|ovelse|ovning|oppgave|oppgaver|fasit|losning|losningsforslag|solution|exercise)\b/i;
+        const normalizeForMatch = (s: string) => {
+          let decoded = s;
+          try {
+            decoded = decodeURIComponent(s.replace(/\+/g, " "));
+          } catch {
+            // Ugyldig URI-sekvens — behold original
+          }
+          // Underscore er et word-tegn i regex — erstatt med mellomrom så
+          // `\bovelse\b` treffer i navn som "Leksjon_3_Øvelse.pdf".
+          return decoded.toLowerCase().replace(/ø/g, "o").replace(/_/g, " ");
+        };
+        const userWantsExerciseFile = target?.moduleHint
+          ? EXERCISE_FILE_PATTERN.test(normalizeForMatch(target.moduleHint))
+          : false;
+        const isExerciseFile = (name: string) =>
+          EXERCISE_FILE_PATTERN.test(normalizeForMatch(name));
+        const preferredMatches = userWantsExerciseFile
+          ? numericMatches
+          : numericMatches.filter((f) => !isExerciseFile(f.fileName));
+        // Hvis filtreringen fjernet alle treff (kurset har bare øvelse-filer),
+        // fall tilbake til originallista for ikke å miste match helt.
+        const candidates = preferredMatches.length > 0 ? preferredMatches : numericMatches;
+
+        let catalogMatch = candidates[0];
+        let catalogMatchReason: "numeric_filename" | "date_sorted_nth" | null =
+          catalogMatch ? "numeric_filename" : null;
+
+        if (candidates.length > 1 && target?.moduleHint) {
+          const moduleHintLower = normalizeForMatch(target.moduleHint);
+          const keywordStem = moduleHintLower.match(/\b(forele|kapit|modul|leksjon|lesson|uke|week|tema|seksj)/)?.[1];
+          if (keywordStem) {
+            const typed = candidates.find((f) =>
+              normalizeForMatch(f.fileName).includes(keywordStem),
+            );
+            if (typed) catalogMatch = typed;
+          }
+        }
+
+        // Steg 2: Dato-basert N-te forelesning for kurs med dato-navngitte filer
+        // (f.eks. "Forelesning13012026.pdf"). Aktiveres kun når filnavn-matching
+        // feilet OG brukerens moduleHint refererer til en forelesning.
+        if (!catalogMatch && target?.moduleHint) {
+          const moduleHintLower = normalizeForMatch(target.moduleHint);
+          const isLectureQuery = /forele|lecture/.test(moduleHintLower);
+          if (isLectureQuery) {
+            const ordinalIndex = parseInt(primarySelection.numericHints[0], 10);
+            if (!Number.isNaN(ordinalIndex) && ordinalIndex >= 1 && ordinalIndex <= 30) {
+              const nth = finnNteForelesningFraKatalog(allCourseFiles, ordinalIndex);
+              if (nth) {
+                catalogMatch = nth;
+                catalogMatchReason = "date_sorted_nth";
+              }
+            }
+          }
+        }
+
+        if (catalogMatch && catalogMatch.fileId !== primary.source.fileId) {
+          logger.info(
+            {
+              numericHints: primarySelection.numericHints,
+              originalPrimaryFile: primary.source.fileName,
+              catalogMatchFile: catalogMatch.fileName,
+              catalogMatchFileId: catalogMatch.fileId,
+              reason: catalogMatchReason,
+            },
+            "Full dokument-mode: primærfil overstyrt fra kurs-katalog-skanning",
+          );
+          primary = {
+            ...primary,
+            source: {
+              ...primary.source,
+              fileId: catalogMatch.fileId,
+              fileName: catalogMatch.fileName,
+              moduleTitle: catalogMatch.moduleTitle,
+            },
+          };
+        }
+      }
+
       const fullDocument = await getStoredFullDocumentForFile(
         userId,
         primary.source.courseId,
@@ -1981,12 +2301,14 @@ async function byggKontekstFraHybridSearch(
         // berik konteksten med andre filer fra samme modul
         const MIN_FULL_DOC_CHARS = 6000;
         let supplementBlock = "";
+        const supplementSources: ContextSource[] = [];
+        const seenFileIds = new Set<number>([primary.source.fileId]);
+        const supplementBudget = estimatedChars - truncatedFullText.length;
+
         if (truncatedFullText.length < MIN_FULL_DOC_CHARS && target?.moduleHint) {
-          const supplementBudget = estimatedChars - truncatedFullText.length;
           const otherFilesInModule = filteredResults.filter(
             (r) => r.source.fileId !== primary.source.fileId,
           );
-          const seenFileIds = new Set<number>([primary.source.fileId]);
           for (const other of otherFilesInModule) {
             if (seenFileIds.has(other.source.fileId)) continue;
             if (supplementBlock.length >= supplementBudget) break;
@@ -2000,6 +2322,17 @@ async function byggKontekstFraHybridSearch(
               const remaining = supplementBudget - supplementBlock.length;
               const otherText = otherFullDoc.fullText.slice(0, remaining);
               supplementBlock += `\n--- FIL-INNHOLD (SUPPLERENDE): ${otherFullDoc.fileName} ---\n${otherText}\n--- SLUTT SUPPLERENDE ---\n`;
+              // Eksponer supplement-filer som kilder i UI. Uten dette
+              // viser "Kilder"-panelet kun primary, selv om svaret bruker
+              // innhold fra flere filer (f.eks. Leksjon 1 + Leksjon 2).
+              supplementSources.push({
+                courseId: String(other.source.courseId),
+                courseName: other.source.courseName ?? "",
+                fileId: other.source.fileId,
+                fileName: otherFullDoc.fileName,
+                score: other.score,
+                chunkCount: 1,
+              });
             }
           }
           if (supplementBlock) {
@@ -2012,6 +2345,65 @@ async function byggKontekstFraHybridSearch(
               },
               "Full dokument-mode beriket med andre filer fra samme modul",
             );
+          }
+        }
+
+        // Multi-hint katalog-enrichment: når brukeren ber om flere kapitler/leksjoner
+        // samtidig (f.eks. "kap 1 og 2"), primary dekker kun ett hint. Skan katalogen
+        // direkte for hints som ikke matcher primary OG ikke allerede er lastet via
+        // hybrid-søket. Uten dette får AI kun ett av flere etterspurte dokumenter
+        // fordi retrieval ikke garantert plukker opp alle relevante filer.
+        const numericHints = primarySelection.numericHints;
+        if (numericHints.length > 1 && supplementBlock.length < supplementBudget) {
+          const primaryMatchesHints = numericHints.filter((h) =>
+            fileNameMatchesNumericHints(primary.source.fileName, [h]),
+          );
+          const unmatchedHints = numericHints.filter(
+            (h) => !primaryMatchesHints.includes(h),
+          );
+          if (unmatchedHints.length > 0) {
+            const courseId = String(primary.source.courseId);
+            const allCourseFiles = await getAllFullDocumentsForCourse(userId, courseId);
+            for (const hint of unmatchedHints) {
+              if (supplementBlock.length >= supplementBudget) break;
+              const matches = allCourseFiles.filter((f) =>
+                fileNameMatchesNumericHints(f.fileName, [hint]),
+              );
+              // Foretrekk filer som matcher moduleHint-nøkkelordet (forele/kapit/leksjon/…)
+              // når flere filer matcher samme numeriske hint.
+              let chosen = matches[0];
+              if (matches.length > 1 && target?.moduleHint) {
+                const moduleHintLower = target.moduleHint.toLowerCase().replace(/ø/g, "o");
+                const keywordStem = moduleHintLower.match(/\b(forele|kapit|modul|leksjon|lesson|uke|week|tema|seksj)/)?.[1];
+                if (keywordStem) {
+                  const typed = matches.find((f) =>
+                    f.fileName.toLowerCase().replace(/ø/g, "o").includes(keywordStem),
+                  );
+                  if (typed) chosen = typed;
+                }
+              }
+              if (!chosen || seenFileIds.has(chosen.fileId)) continue;
+              seenFileIds.add(chosen.fileId);
+              const remaining = supplementBudget - supplementBlock.length;
+              const addedText = chosen.fullText.slice(0, remaining);
+              supplementBlock += `\n--- FIL-INNHOLD (SUPPLERENDE): ${chosen.fileName} ---\n${addedText}\n--- SLUTT SUPPLERENDE ---\n`;
+              supplementSources.push({
+                courseId,
+                courseName: primary.source.courseName ?? "",
+                fileId: chosen.fileId,
+                fileName: chosen.fileName,
+                score: primary.score,
+                chunkCount: 1,
+              });
+              logger.info(
+                {
+                  hint,
+                  addedFile: chosen.fileName,
+                  addedChars: addedText.length,
+                },
+                "Full dokument-mode: la til fil fra katalog for uoppnådd numerisk hint",
+              );
+            }
           }
         }
 
@@ -2050,6 +2442,7 @@ async function byggKontekstFraHybridSearch(
               score: primary.score,
               chunkCount: 1,
             },
+            ...supplementSources,
           ],
         };
       }

@@ -1139,7 +1139,19 @@ async function _doSync(
           // ── ExternalUrl crawling og indeksering ──
           // Kaller den avanserte crawleren som parser HTML med cheerio og oppdager PDF-er
           if (isEmbeddingAvailable() && !reachedFileLimit && !extractionDisabledForRun) {
-            // Finn hvilke ExternalUrl-items som har endret contentHash
+            // Finn hvilke ExternalUrl-items som trenger crawling.
+            // Fire tilfeller:
+            //   1. Nytt item (ingen tidligere contentHash)
+            //   2. Endret metadata (contentHash-endring — title/url/updated_at)
+            //   3. Tidligere crawl-forsøk har aldri lyktes (crawledHash mangler).
+            //   4. Forrige crawl satte crawledHash men fant verken PDFer eller
+            //      undersider, OG det er mer enn 24 t siden — fanger opp items
+            //      der tekst-crawl lyktes men PDF-prosessering feilet (f.eks.
+            //      pga. worker-krasj før fix på documentParserWorker). Uten
+            //      dette forblir items permanent "skipped" selv om sidens
+            //      PDF-lenker burde vært indeksert. 24-timers gulvet hindrer
+            //      hammering av legitimt tomme sider hver sync.
+            const STALE_EMPTY_RETRY_MS = 24 * 60 * 60 * 1000;
             const changedExternalUrlIds = new Set<number>();
             for (const mod of enrichedModuler) {
               for (const item of mod.items ?? []) {
@@ -1147,7 +1159,16 @@ async function _doSync(
                   const itemKey = `${mod.id}:${item.id}`;
                   const prev = previousItemHashes.get(itemKey);
                   const enrichedItem = item as ICanvasModuleItem;
-                  if (!prev?.contentHash || prev.contentHash !== enrichedItem.contentHash) {
+                  const metadataChanged =
+                    !prev?.contentHash || prev.contentHash !== enrichedItem.contentHash;
+                  const crawlNeverSucceeded = !prev?.crawledHash;
+                  const crawledEmpty =
+                    !!prev?.crawledHash
+                    && (prev.crawledPdfs?.length ?? 0) === 0
+                    && (prev.crawledSubpages?.length ?? 0) === 0
+                    && (!prev.crawledAt
+                      || Date.now() - new Date(prev.crawledAt).getTime() > STALE_EMPTY_RETRY_MS);
+                  if (metadataChanged || crawlNeverSucceeded || crawledEmpty) {
                     changedExternalUrlIds.add(item.id);
                   }
                 }

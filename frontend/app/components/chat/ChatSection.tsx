@@ -1151,6 +1151,11 @@ export function ChatSection() {
             explanationLevel,
             model: selectedChatModel,
             signal: abortController.signal,
+            // Send chat-ID slik at backend kan skope session-state (courseHint-lås,
+            // aktiv kunnskapsbase, kontekst-cache) per chat i stedet for per bruker.
+            // Uten dette kan to chatter som åpnet med samme spørsmål ("Hvilke emner
+            // er jeg registrert på?") dele lås og krysskontaminere hverandre.
+            ...(aktivChatIdRef.current && { chatId: aktivChatIdRef.current }),
         })
             .then((data) => {
                 chatAbortRef.current = null;
