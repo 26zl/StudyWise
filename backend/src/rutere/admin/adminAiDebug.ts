@@ -251,6 +251,9 @@ router.get("/debug/extraction", async (req, res) => {
     const ownerIds = Array.from(new Set(ownerIdsRaw)).filter((id) =>
       Types.ObjectId.isValid(id),
     );
+    // allow-deleted-users: admin extraction-audit viser eiere av orphan-filer
+    // som mangler chunks. Hvis bruker er soft-deleted er det nettopp da
+    // admin trenger å identifisere dem for opprydding av foreldreløse data.
     const owners = ownerIds.length
       ? await User.find({ _id: { $in: ownerIds } }, { email: 1 }).lean()
       : [];
@@ -338,6 +341,9 @@ router.get("/debug/kb-health", async (req, res) => {
     const ownerIds = Array.from(new Set(bases.map((b) => b.userId))).filter((id) =>
       Types.ObjectId.isValid(id),
     );
+    // allow-deleted-users: admin KB-helse viser eiere av kunnskapsbaser som
+    // kan være orphan etter brukersletting. Å skjule soft-deleted eiere ville
+    // gjort foreldreløse baser uidentifiserbare for opprydding.
     const owners = ownerIds.length
       ? await User.find({ _id: { $in: ownerIds } }, { email: 1 }).lean()
       : [];
