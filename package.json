@@ -91,7 +91,8 @@
     "remark-cli": "^12.0.1",
     "remark-preset-lint-recommended": "^7.0.1",
     "syncpack": "^14.3.0",
-    "wait-on": "^9.0.5"
+    "wait-on": "^9.0.5",
+    "wrangler": "^4.84.1"
   },
   "pnpm": {
     "overrides": {
