@@ -2573,7 +2573,6 @@ export const enMessages = {
     title: "Knowledge Base",
     loading: "Loading knowledge bases...",
     loadError: "Could not load knowledge bases",
-    basesTitle: "My knowledge bases",
     createBase: "New base",
     baseName: "Base name",
     baseNamePlaceholder: "E.g. Algorithms, Math 2...",

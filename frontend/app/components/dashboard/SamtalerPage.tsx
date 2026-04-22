@@ -236,14 +236,14 @@ export function SamtalerPage() {
             ) : null}
           </div>
 
-          <div className="mb-5 flex items-center gap-6 border-b border-slate-200 dark:border-slate-800">
+          <div className="mb-6 flex items-center gap-6 border-b border-slate-200 dark:border-slate-800">
             <button
               type="button"
               onClick={() => byttTab("history")}
-              className={`inline-flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium ${
+              className={`inline-flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors ${
                 aktivTab === "history"
                   ? "border-slate-900 text-slate-900 dark:border-white dark:text-white"
-                  : "border-transparent text-slate-500"
+                  : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
               }`}
             >
               <MessageSquare className="h-4 w-4" />
@@ -252,10 +252,10 @@ export function SamtalerPage() {
             <button
               type="button"
               onClick={() => byttTab("shared")}
-              className={`inline-flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium ${
+              className={`inline-flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors ${
                 aktivTab === "shared"
                   ? "border-slate-900 text-slate-900 dark:border-white dark:text-white"
-                  : "border-transparent text-slate-500"
+                  : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
               }`}
             >
               <Users className="h-4 w-4" />

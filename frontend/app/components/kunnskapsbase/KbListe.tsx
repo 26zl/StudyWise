@@ -3,7 +3,6 @@
 import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Plus,
   Database,
   Link,
   FileText,
@@ -29,12 +28,13 @@ import { formaterDatoShort } from "@/app/lib/dato";
 
 interface KbListeProps {
   onSelectBase: (baseId: string) => void;
+  visOpprettForm: boolean;
+  setVisOpprettForm: (vis: boolean) => void;
 }
 
-export function KbListe({ onSelectBase }: KbListeProps) {
+export function KbListe({ onSelectBase, visOpprettForm, setVisOpprettForm }: KbListeProps) {
   const { t, language } = useLanguage();
   const queryClient = useQueryClient();
-  const [visOpprettForm, setVisOpprettForm] = useState(false);
   const [nyttNavn, setNyttNavn] = useState("");
   const [redigerBaseId, setRedigerBaseId] = useState<string | null>(null);
   const [redigerNavn, setRedigerNavn] = useState("");
@@ -108,21 +108,6 @@ export function KbListe({ onSelectBase }: KbListeProps) {
 
   return (
     <div className="space-y-4">
-      {/* Header med opprett-knapp */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-          {t("kb.basesTitle")}
-        </h2>
-        <button
-          type="button"
-          onClick={() => setVisOpprettForm(!visOpprettForm)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
-        >
-          <Plus className="h-4 w-4" />
-          {t("kb.createBase")}
-        </button>
-      </div>
-
       {/* Opprett-skjema */}
       {visOpprettForm && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800">

@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
-import { Pin, Search, Database } from "lucide-react";
+import { Pin, Search, Database, Plus } from "lucide-react";
 import { useMeg } from "@/app/auth/auth-api";
 import {
   skalRedirecteTilAuth,
@@ -52,11 +52,13 @@ export function BokmerkerPage() {
       .withOptions({ clearOnDefault: false, history: "replace" }),
   );
   const [selectedBaseId, setSelectedBaseId] = useState<string | null>(null);
+  const [visOpprettForm, setVisOpprettForm] = useState(false);
 
   const byttTab = useCallback(
     (nesteTab: ActiveTab) => {
       void setActiveTab(nesteTab, { history: "replace", scroll: false });
       setSelectedBaseId(null);
+      setVisOpprettForm(false);
     },
     [setActiveTab],
   );
@@ -118,20 +120,32 @@ export function BokmerkerPage() {
   return (
       <div className="min-h-full px-4 py-6 text-slate-900 dark:text-slate-100 md:px-8">
         <div className="mx-auto w-full max-w-5xl">
-          <div className="mb-4">
-            <h1 className="text-2xl font-semibold">{t("dashboard.sidebar.bookmarks")}</h1>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              {t("bokmerker.pageDescription")}
-            </p>
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-semibold">{t("dashboard.sidebar.bookmarks")}</h1>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                {t("bokmerker.pageDescription")}
+              </p>
+            </div>
+            {activeTab === "knowledgeBase" && !selectedBaseId ? (
+              <button
+                type="button"
+                onClick={() => setVisOpprettForm(!visOpprettForm)}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+              >
+                <Plus className="h-4 w-4" />
+                {t("kb.createBase")}
+              </button>
+            ) : null}
           </div>
           {/* Fane-navigasjon */}
-          <div className="mb-6 flex items-center gap-1 border-b border-slate-200 dark:border-slate-700">
+          <div className="mb-6 flex items-center gap-6 border-b border-slate-200 dark:border-slate-800">
             <button
               type="button"
               onClick={() => byttTab("bookmarks")}
-              className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+              className={`inline-flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors ${
                 activeTab === "bookmarks"
-                  ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
+                  ? "border-slate-900 text-slate-900 dark:border-white dark:text-white"
                   : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
               }`}
             >
@@ -141,9 +155,9 @@ export function BokmerkerPage() {
             <button
               type="button"
               onClick={() => byttTab("knowledgeBase")}
-              className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+              className={`inline-flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors ${
                 activeTab === "knowledgeBase"
-                  ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
+                  ? "border-slate-900 text-slate-900 dark:border-white dark:text-white"
                   : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
               }`}
             >
@@ -222,6 +236,8 @@ export function BokmerkerPage() {
             ) : (
               <KbListe
                 onSelectBase={(id) => setSelectedBaseId(id)}
+                visOpprettForm={visOpprettForm}
+                setVisOpprettForm={setVisOpprettForm}
               />
             )
           )}

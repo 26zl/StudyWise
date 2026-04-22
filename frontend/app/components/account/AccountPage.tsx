@@ -253,12 +253,12 @@ export function AccountPage() {
   ]);
 
   return (
-      <div className="px-3 py-8 pb-12 sm:px-6 sm:py-16">
-        <div className="mx-auto w-full max-w-4xl min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
+      <div className="min-h-full px-4 py-6 text-slate-900 dark:text-slate-100 md:px-8">
+        <div className="mx-auto w-full min-w-0 max-w-5xl">
+          <h1 className="text-2xl font-semibold">
             {t("settings.accountSecurity.title")}
           </h1>
-          <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             {t("settings.accountSecurity.connectionHint")}
           </p>
           <div className="mt-3 w-full max-w-full overflow-x-hidden [touch-action:pan-y]">

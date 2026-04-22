@@ -1416,7 +1416,7 @@ router.post("/activity/heartbeat", rateLimitActivity, async (req: Request, res: 
     const extended = await ActivityLog.findOneAndUpdate(
       { user: userObjectId, type, end: { $gte: idleCutoff } },
       { $set: { end: now } },
-      { sort: { end: -1 }, new: true },
+      { sort: { end: -1 }, returnDocument: "after" },
     );
 
     if (!extended) {

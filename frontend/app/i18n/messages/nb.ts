@@ -2570,7 +2570,6 @@ export const nbMessages = {
     title: "Kunnskapsbase",
     loading: "Laster kunnskapsbaser...",
     loadError: "Kunne ikke laste kunnskapsbaser",
-    basesTitle: "Mine kunnskapsbaser",
     createBase: "Ny base",
     baseName: "Navn på basen",
     baseNamePlaceholder: "F.eks. Algoritmer, Matematikk 2...",
