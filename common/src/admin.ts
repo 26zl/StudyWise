@@ -557,6 +557,14 @@ export const AdminBrukerDetaljSchema = z.object({
     webPushSubscriptions: z.number().int().min(0),
   }),
 
+  // ── Aktiv tid (målt via heartbeats + chat-intervaller, siste 30 dager) ────
+  // Enhetlig merge-algoritme med /study-stats/today, men over 30-dagers vindu.
+  // Antall dager der brukeren har minst ett intervall registrert.
+  activity: z.object({
+    activeHoursLast30d: z.number().min(0),
+    activeDaysLast30d: z.number().int().min(0),
+  }),
+
   // ── Sync-konflikter (typer + tidspunkt, ikke detaljer) ────────────────────
   syncConflictCount: z.number().int().min(0),
   syncConflictTypes: z.array(z.string()).optional(),

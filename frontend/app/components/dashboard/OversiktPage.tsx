@@ -657,6 +657,7 @@ function StudyActivityCard({
     stats.chatSessions > 0 ||
     stats.tasksCompleted > 0 ||
     stats.studyBlocksCompleted > 0 ||
+    stats.studyHoursCompleted > 0 ||
     stats.topicsStudied > 0
   );
 
@@ -702,8 +703,8 @@ function StudyActivityCard({
             />
             <ActivityItem
               icon={Clock}
-              label={t("overview.studyActivity.hoursStudied")}
-              value={stats?.studyHoursCompleted ?? 0}
+              label={t("overview.studyActivity.activeTime")}
+              value={`${stats?.studyHoursCompleted ?? 0} ${t("overview.studyActivity.hoursUnit")}`}
               color="bg-indigo-100 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400"
             />
             <ActivityItem

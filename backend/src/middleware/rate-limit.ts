@@ -177,6 +177,22 @@ export const rateLimitMe = isProd
     ? createRateLimiter({ points: 50, duration: 60, keyPrefix: "rlflx:me" })
     : createRateLimiter(devMeLimit);
 
+// Aktivitets-heartbeat: 60s-intervall per fane; tillater flere faner åpent samtidig.
+// 120/min gir rikelig slingringsmonn uten å invitere misbruk.
+// Per-bruker nøkkel (ikke IP) slik at delt NAT/WiFi ikke rammer flere studenter kollektivt.
+export const rateLimitActivity = isProd
+    ? createRateLimiter({
+        points: 120,
+        duration: 60,
+        keyPrefix: "rlflx:activity",
+        keyGenerator: (req) => req.user?.id ?? getClientIp(req),
+      })
+    : createRateLimiter({
+        ...devMeLimit,
+        keyPrefix: "rlflx:activity:dev",
+        keyGenerator: (req) => req.user?.id ?? getClientIp(req),
+      });
+
 // Brukernavn-sjekk: streng for å begrense enumeration-angrep (10 per minutt per IP)
 export const rateLimitUsernameCheck = isProd
   ? createRateLimiter({ points: 10, duration: 60, keyPrefix: "rlflx:username-check", failClosedInProd: true })

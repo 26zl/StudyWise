@@ -72,6 +72,10 @@
     "./system": {
       "types": "./dist/system.d.ts",
       "import": "./dist/system.js"
+    },
+    "./activity": {
+      "types": "./dist/activity.d.ts",
+      "import": "./dist/activity.js"
     }
   },
   "scripts": {

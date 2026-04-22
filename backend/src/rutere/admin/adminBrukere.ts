@@ -32,6 +32,7 @@ import { CanvasStructureModel } from "../../database/models/CanvasStructure.js";
 import { KnowledgeBase } from "../../database/models/Kunnskapsbase.js";
 import { KBContentChunk } from "../../database/models/KBContentChunk.js";
 import { WebPushSubscriptionModel } from "../../database/models/WebPushSubscription.js";
+import { ActivityLog } from "../../database/models/ActivityLog.js";
 import { AuditLog } from "../../database/models/AuditLog.js";
 import { apiError, requireUserId, sendZodError } from "../../utils/apiError.js";
 import {
@@ -393,6 +394,8 @@ router.get("/brukere/:id/detalj", async (req, res) => {
       webPushSubscriptionCount,
       recentAuditEntries,
       auditFailureCount30d,
+      chatIntervalsLast30d,
+      activityIntervalsLast30d,
     ] = await Promise.all([
       ChatHistory.countDocuments({ user: userObjectId }),
       SharedChat.countDocuments({ ownerId: userObjectId }),
@@ -415,7 +418,32 @@ router.get("/brukere/:id/detalj", async (req, res) => {
         outcome: "failure",
         createdAt: { $gte: thirtyDaysAgo },
       }),
+      // Chat-aktivitet siste 30 dager — beregnAktivTimer leser kun updatedAt.
+      ChatHistory.find(
+        { user: userObjectId, updatedAt: { $gte: thirtyDaysAgo } },
+        { updatedAt: 1 },
+      ).lean(),
+      // Heartbeat-intervaller siste 30 dager
+      ActivityLog.find(
+        { user: userObjectId, end: { $gte: thirtyDaysAgo } },
+        { start: 1, end: 1 },
+      ).lean(),
     ]);
+
+    // Delt merge-algoritme med /study-stats/today — se aktivTid.service.ts for
+    // hvorfor vi bruker 2-min-markør per chat-oppdatering i stedet for createdAt..updatedAt-spenn.
+    const { beregnAktivTimer, beregnAktiveDager } = await import("../../services/aktivTid.service.js");
+    const vindusStart = thirtyDaysAgo.getTime();
+    const activeHoursLast30d = beregnAktivTimer(
+      chatIntervalsLast30d as Array<{ updatedAt?: Date }>,
+      activityIntervalsLast30d as Array<{ start: Date; end: Date }>,
+      vindusStart,
+    );
+    const activeDaysLast30d = beregnAktiveDager(
+      chatIntervalsLast30d as Array<{ updatedAt?: Date }>,
+      activityIntervalsLast30d as Array<{ start: Date; end: Date }>,
+      vindusStart,
+    );
 
     // Audit brukerdetalj-visning — await med try/catch for å ikke miste oppføringer
     try {
@@ -467,6 +495,10 @@ router.get("/brukere/:id/detalj", async (req, res) => {
         knowledgeBases: knowledgeBaseCount,
         knowledgeBaseChunks: knowledgeBaseChunkCount,
         webPushSubscriptions: webPushSubscriptionCount,
+      },
+      activity: {
+        activeHoursLast30d,
+        activeDaysLast30d,
       },
       syncConflictCount: Array.isArray(bruker.syncConflicts) ? bruker.syncConflicts.length : 0,
       syncConflictTypes: Array.isArray(bruker.syncConflicts)

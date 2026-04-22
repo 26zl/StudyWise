@@ -21,6 +21,7 @@ import { ContactMessage } from "./models/ContactMessage.js";
 import { StudyContext } from "./models/StudyContext.js";
 import { KnowledgeBase } from "./models/Kunnskapsbase.js";
 import { KBContentChunk } from "./models/KBContentChunk.js";
+import { ActivityLog } from "./models/ActivityLog.js";
 
 import { isProd } from "../utils/env.js";
 import { runMigrations } from "./migrations.js";
@@ -71,6 +72,7 @@ async function ensureDatabaseIndexes() {
         StudyContext.createIndexes(),
         KnowledgeBase.createIndexes(),
         KBContentChunk.createIndexes(),
+        ActivityLog.createIndexes(),
     ]);
 
     // Verifiser at alle påkrevde unike indekser faktisk finnes på User-samlingen.

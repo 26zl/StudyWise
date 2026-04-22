@@ -22,6 +22,7 @@ import { invalidateCacheByPattern, isRedisReady } from "../../cache/redis.js";
 import { deleteClerkUserById, invalidateTokenCacheByClerkId } from "./clerkAuth.js";
 import { WebPushSubscriptionModel } from "../../database/models/WebPushSubscription.js";
 import { StudyContext } from "../../database/models/StudyContext.js";
+import { ActivityLog } from "../../database/models/ActivityLog.js";
 import { enqueueClerkDeletionRetry } from "../../queues/clerkDeletion.queue.js";
 import { enqueueVectorDeletionRetry } from "../../queues/pineconeCleanup.queue.js";
 import { DeletedUserTombstone } from "../../database/models/DeletedUserTombstone.js";
@@ -117,6 +118,7 @@ export async function deleteAccountData(
         ChatFeedback.deleteMany({ user: id }, { session }),
         KnowledgeBase.deleteMany({ userId }, { session }),
         KBContentChunk.deleteMany({ userId }, { session }),
+        ActivityLog.deleteMany({ user: id }, { session }),
         // Anonymiser publishedBy på systemmeldinger denne brukeren har publisert
         // (kun relevant hvis en admin sletter kontoen sin). $unset fjerner referansen
         // uten å påvirke meldingens innhold eller aktive status.

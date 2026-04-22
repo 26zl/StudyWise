@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, startTransition } from "react";
 import { Send, Square, Bot, Upload, Copy, Share2, RefreshCw, Plus, User, GraduationCap, FileText, ThumbsUp, ThumbsDown } from "lucide-react";
 import { LoadingSpinner, LoadingView } from "@/app/components/ui/Loading";
 import { RotatingStatusMessage } from "@/app/components/ui/RotatingStatusMessage";
@@ -19,7 +19,7 @@ import { appendKilderToMarkdown, isSafeExternalUrl } from "@/app/lib/kildeFormat
 import { SmartSuggestions } from "@/app/components/chat/SmartSuggestions";
 import { ChatShareResponseSchema } from "common/chat";
 import { streamKIChat, useKIDocumentAnalyse, useKIModels, SUPPORTED_FILE_TYPES, getKIErrorMessage, getKIBannerForError, type KIErrorContext } from "@/app/ki/ki-api";
-import { useChatHistory } from "@/app/hooks/useChatHistory";
+import { useChatHistory, type SavedChat } from "@/app/hooks/useChatHistory";
 import { FeilMelding, type FeilMeldingType } from "@/app/components/ui/FeilMelding";
 import { useUIStore } from "@/app/store/uiStore";
 import { useKIStore } from "@/app/store/kiStore";
@@ -138,6 +138,27 @@ function createPendingRequestId() {
     return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+const INITIAL_RENDERED_HISTORY_MESSAGES = 12;
+const HISTORY_RENDER_BATCH_SIZE = 16;
+const PROGRESSIVE_HISTORY_RENDER_THRESHOLD = 18;
+
+function getInitialRenderedMessageCount(totalMessages: number): number {
+    if (totalMessages <= PROGRESSIVE_HISTORY_RENDER_THRESHOLD) {
+        return totalMessages;
+    }
+    return Math.min(INITIAL_RENDERED_HISTORY_MESSAGES, totalMessages);
+}
+
+function mapSavedChatMessages(chatId: string, messages: SavedChat["messages"]): Melding[] {
+    return messages.map((melding, index) => ({
+        id: `${chatId}:saved:${index}:${melding.rolle}`,
+        rolle: melding.rolle,
+        innhold: melding.innhold,
+        tidsstempel: new Date(),
+        kilder: melding.kilder,
+    }));
+}
+
 
 /** Bygger payload (rolle + innhold) for saveChat fra pending state. */
 function buildPendingPayload(pending: PendingConversationState) {
@@ -208,6 +229,7 @@ export function ChatSection() {
     ];
     const [mounted, setMounted] = useState(false);
     const [meldinger, settMeldinger] = useState<Melding[]>([]);
+    const [renderedMessageCount, setRenderedMessageCount] = useState(0);
     // Lokal cache for tommel-feedback per melding-id (kun for å vise active state).
     const [feedbackMap, settFeedbackMap] = useState<Record<string, "up" | "down">>({});
     const [tekstInput, settTekstInput] = useState("");
@@ -258,6 +280,8 @@ export function ChatSection() {
         selectedChatId,
         setSelectedChatId,
         setCurrentChatId,
+        bytterSamtale,
+        setBytterSamtale,
         newChatToken,
         pendingKIMelding,
         clearPendingKIMelding,
@@ -390,15 +414,54 @@ export function ChatSection() {
         container.scrollTo({ top: container.scrollHeight, behavior });
     }, []);
 
+    const visibleMeldinger = useMemo(() => {
+        if (renderedMessageCount <= 0) return meldinger;
+        if (renderedMessageCount >= meldinger.length) return meldinger;
+        return meldinger.slice(-renderedMessageCount);
+    }, [meldinger, renderedMessageCount]);
+    const førsteSynligeMeldingIndex = Math.max(0, meldinger.length - visibleMeldinger.length);
+
     // Scroll til bunn når innhold vokser, men bare hvis brukeren ikke har scrollet seg bort.
     useEffect(() => {
         if (!brukerErVedBunnRef.current) return;
         scrollTilBunn(skriver || analyserarDokument || animerendeMeldingId ? "auto" : "smooth");
-    }, [meldinger, skriver, analyserarDokument, animerendeMeldingId, scrollTilBunn]);
+    }, [visibleMeldinger, skriver, analyserarDokument, animerendeMeldingId, scrollTilBunn]);
 
     useEffect(() => {
         meldingerRef.current = meldinger;
     }, [meldinger]);
+
+    useEffect(() => {
+        if (meldinger.length === 0) {
+            if (renderedMessageCount !== 0) {
+                setRenderedMessageCount(0);
+            }
+            return;
+        }
+        if (renderedMessageCount === 0) {
+            setRenderedMessageCount(meldinger.length);
+        }
+    }, [meldinger.length, renderedMessageCount]);
+
+    useEffect(() => {
+        if (skriver || analyserarDokument) {
+            setRenderedMessageCount(meldingerRef.current.length);
+        }
+    }, [skriver, analyserarDokument]);
+
+    useEffect(() => {
+        if (bytterSamtale) return;
+        if (renderedMessageCount >= meldinger.length) return;
+        if (typeof window === "undefined") return;
+
+        const timeoutId = window.setTimeout(() => {
+            startTransition(() => {
+                setRenderedMessageCount((current) => Math.min(meldinger.length, current + HISTORY_RENDER_BATCH_SIZE));
+            });
+        }, 32);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [bytterSamtale, meldinger.length, renderedMessageCount]);
 
     const aktivChatIdRef = useRef(aktivChatId);
     useEffect(() => {
@@ -546,6 +609,7 @@ export function ChatSection() {
         ];
         settMeldinger(restoredMessages);
         meldingerRef.current = restoredMessages;
+        setRenderedMessageCount(restoredMessages.length);
         settAktivSamtale(pending.chatId);
         const ui = getPendingUiState(pending);
         settSkriver(ui.skriver);
@@ -696,6 +760,7 @@ export function ChatSection() {
         docAnalysisChatIdRef.current = null;
         setRunningChatId(null);
         settMeldinger([]);
+        setRenderedMessageCount(0);
         settAktivSamtale(null);
         settVedlegg([]);
         settSkriver(false);
@@ -1373,15 +1438,16 @@ export function ChatSection() {
                     hydrateMelding(pendingForChat.userMessage),
                     ...(pendingForChat.assistantMessage ? [hydrateMelding(pendingForChat.assistantMessage)] : []),
                   ]
-                : chat.messages.map((m, i) => ({
-                    id: `${Date.now()}-${i}`,
-                    rolle: m.rolle,
-                    innhold: m.innhold,
-                    tidsstempel: new Date(),
-                    kilder: m.kilder,
-                }));
+                : mapSavedChatMessages(chat.id, chat.messages);
+            brukerErVedBunnRef.current = true;
             settMeldinger(
                 messagesToShow,
+            );
+            meldingerRef.current = messagesToShow;
+            setRenderedMessageCount(
+                pendingForChat
+                    ? messagesToShow.length
+                    : getInitialRenderedMessageCount(messagesToShow.length),
             );
             settAktivSamtale(chat.id);
             const pendingUi = getPendingUiState(pendingForChat);
@@ -1395,6 +1461,25 @@ export function ChatSection() {
             setSelectedChatId(null);
         }
     }, [selectedChatId, loadChatById, setSelectedChatId, loading, settAktivSamtale, stoppAktivAnimasjon]);
+
+    /** Nullstiller bytterSamtale-flagget etter at ny samtale er committet; lar LoadingView
+     * stå synlig gjennom det tunge meldingsrender-steget (markdown/LaTeX). RAF sikrer at
+     * nåværende paint (fortsatt LoadingView) fullføres før vi trigger det tunge rerender.
+     * Safety-timeout på 5s hindrer at flagget sitter fast hvis chat-historikk-lastingen
+     * aldri fullføres (f.eks. nettverksfeil). */
+    useEffect(() => {
+        if (!bytterSamtale) return;
+        if (!selectedChatId) {
+            const rafId = requestAnimationFrame(() => {
+                setBytterSamtale(false);
+            });
+            return () => cancelAnimationFrame(rafId);
+        }
+        const timeoutId = setTimeout(() => {
+            setBytterSamtale(false);
+        }, 5000);
+        return () => clearTimeout(timeoutId);
+    }, [bytterSamtale, selectedChatId, setBytterSamtale]);
 
     /** Synkroniserer meldinger med cache når aktivChatId endres og det ikke er pågående forespørsel for den chatten. */
     useEffect(() => {
@@ -1445,13 +1530,10 @@ export function ChatSection() {
         // for å hindre at en stale snapshot tømmer meldinger mens en send er underveis.
         if (skriver || pendingChatRef.current || pendingConversationState?.chatId === aktivChatId) return;
 
-        settMeldinger(chat.messages.map((m, i) => ({
-            id: `${Date.now()}-${i}`,
-            rolle: m.rolle,
-            innhold: m.innhold,
-            tidsstempel: new Date(),
-            kilder: m.kilder,
-        })));
+        const syncedMessages = mapSavedChatMessages(chat.id, chat.messages);
+        settMeldinger(syncedMessages);
+        meldingerRef.current = syncedMessages;
+        setRenderedMessageCount(syncedMessages.length);
     }, [aktivChatId, chats, loadChatById, loading, animerendeMeldingId, setSelectedChatId, settAktivSamtale, stoppAktivAnimasjon, skriver]);
 
     const sisteAssistentsvar =
@@ -1658,14 +1740,14 @@ export function ChatSection() {
                     )}
 
                     {/* Loading state - vis kun etter mount for å unngå hydration mismatch */}
-                    {mounted && loading && (
+                    {mounted && (loading || bytterSamtale) && (
                         <div className="py-12">
-                            <LoadingView text={t("chat.loadingChatHistory")} fullPage={false} />
+                            <LoadingView text={t(bytterSamtale ? "common.loading.dashboard" : "chat.loadingChatHistory")} fullPage={false} />
                         </div>
                     )}
 
                     {/* Tomme meldinger - vis forslag (kun etter mount og når ikke loading; ikke under pågående svar) */}
-                    {mounted && !loading && meldinger.length === 0 && !skriver && !analyserarDokument && (
+                    {mounted && !loading && !bytterSamtale && meldinger.length === 0 && !skriver && !analyserarDokument && (
                         <div className="space-y-4">
                             <div className="text-center py-12">
                                 <Bot className="w-16 h-16 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
@@ -1695,11 +1777,14 @@ export function ChatSection() {
                         </div>
                     )}
 
-                    {/* Meldingshistorikk */}
-                    {meldinger.map((melding, meldingIdx) => (
+                    {/* Meldingshistorikk - skjul under samtalebytte slik at gammel historikk
+                        ikke vises sammen med LoadingView, og det tunge rerenderet skjer først
+                        når LoadingView nullstilles. */}
+                    {!bytterSamtale && visibleMeldinger.map((melding, meldingIdx) => (
                         (() => {
                             const visbareKilder = melding.rolle === "assistant" ? hentVisbareKilder(melding) : [];
                             const harKilder = visbareKilder.length > 0;
+                            const globalMeldingIdx = førsteSynligeMeldingIndex + meldingIdx;
                             return (
                         <div
                             key={melding.id}
@@ -1803,7 +1888,7 @@ export function ChatSection() {
                                                         key={rating}
                                                         type="button"
                                                         onClick={async () => {
-                                                            const forrige = meldinger[meldingIdx - 1];
+                                                            const forrige = meldinger[globalMeldingIdx - 1];
                                                             const sporsmal = forrige?.rolle === "user" ? forrige.innhold : undefined;
                                                             settFeedbackMap((prev) => ({ ...prev, [melding.id]: rating }));
                                                             try {

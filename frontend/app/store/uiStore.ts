@@ -38,6 +38,10 @@ interface UIState {
     setSelectedChatId: (id: string | null) => void;
     currentChatId: string | null;
     setCurrentChatId: (id: string | null) => void;
+    // Signaliserer at bruker har trykket på en annen samtale i sidebaren — viser lastevisning
+    // mens meldinger for den nye samtalen rendrer (særlig merkbart i prod med tung markdown).
+    bytterSamtale: boolean;
+    setBytterSamtale: (value: boolean) => void;
     // Signal for å starte ny chat
     newChatToken: number;
     requestNewChat: () => void;
@@ -88,11 +92,14 @@ export const useUIStore = create<UIState>()((set) => ({
     setSelectedChatId: (id) => set({ selectedChatId: id }),
     currentChatId: null,
     setCurrentChatId: (id) => set({ currentChatId: id }),
+    bytterSamtale: false,
+    setBytterSamtale: (value) => set({ bytterSamtale: value }),
     newChatToken: 0,
     requestNewChat: () => set((state) => ({
         newChatToken: state.newChatToken + 1,
         selectedChatId: null,
         currentChatId: null,
+        bytterSamtale: false,
     })),
     pendingKIMelding: null,
     setPendingKIMelding: (melding) => set({ pendingKIMelding: melding }),
@@ -143,6 +150,7 @@ export const useUIStore = create<UIState>()((set) => ({
             isVenstreMenyOpen: false,
             selectedChatId: null,
             currentChatId: null,
+            bytterSamtale: false,
             newChatToken: 0,
             pendingKIMelding: null,
             canvasContextSelection: createDefaultCanvasContextPreferences(),

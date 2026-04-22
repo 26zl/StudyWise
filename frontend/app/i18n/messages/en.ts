@@ -500,7 +500,8 @@ export const enMessages = {
       chatSessions: "AI conversations",
       tasksCompleted: "Tasks completed",
       studyBlocks: "Study sessions",
-      hoursStudied: "Hours studied",
+      activeTime: "Active time",
+      hoursUnit: "h",
       topicsExplored: "Topics explored",
       planProgress: "of weekly plan completed",
       noActivity: "No study activity recorded today yet.",
@@ -1448,6 +1449,13 @@ export const enMessages = {
       detailsActivity: "Activity counts",
       detailsActivityNote:
         "Aggregated counts only — no chat content, documents, tokens or Canvas data is exposed.",
+      detailsActiveTime: "Active time",
+      detailsActiveTimeNote:
+        "Measured from heartbeats and chat intervals over the last 30 days. Timestamps only — no content stored.",
+      activityStats: {
+        hoursLast30d: "Hours last 30 days",
+        daysLast30d: "Active days",
+      },
       detailsIntegrations: "Integrations and preferences",
       detailsLanguage: "Language",
       detailsTheme: "Theme",

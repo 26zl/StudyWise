@@ -27,6 +27,8 @@ import { Footer } from "@/app/components/layout/footer";
 import { useMeg } from "@/app/auth/auth-api";
 import { useCanvasUser } from "@/app/canvas/canvas-api";
 import { useUIStore } from "@/app/store/uiStore";
+import { useActivityTracker } from "@/app/hooks/useActivityTracker";
+import type { ActivityType } from "common/activity";
 import type { Language } from "@/app/i18n/types";
 import { useLanguage } from "@/app/i18n";
 import {
@@ -61,6 +63,42 @@ const GYLDIGE_VISNINGER = [
   "flashcards",
   "admin",
 ] as const satisfies readonly VisningType[];
+
+/**
+ * Utleder ActivityType for studietid-sporing fra rute + aktiv visning.
+ * Returnerer null på ruter/visninger vi bevisst ikke teller som studietid
+ * (landingsside, auth, kontoinnstillinger, admin, varslinger).
+ */
+function deriveActivityType(pathname: string, aktivVisning: VisningType): ActivityType | null {
+  if (pathname === "/account" || pathname.startsWith("/account/")) return null;
+  if (pathname === "/oversikt") return "oversikt";
+  if (pathname === "/ai-breakdown") return "arbeidsplan";
+  if (pathname.startsWith("/dashboard/bokmerker")) return "bokmerker";
+  if (pathname.startsWith("/dashboard/samtalehistorikk")) return "chat";
+  if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
+    switch (aktivVisning) {
+      case "chat":
+        return "chat";
+      case "calendar":
+        return "kalender";
+      case "canvas-announcements":
+      case "canvas-courses":
+      case "canvas-assignments":
+        return "canvas";
+      case "quiz":
+        return "quiz";
+      case "flashcards":
+        return "flashcards";
+      case "settings":
+      case "admin":
+      case "varslinger":
+        return null;
+      default:
+        return "annet";
+    }
+  }
+  return null;
+}
 
 /**
  * Persistent sidebar-shell som forblir mountet under navigering mellom
@@ -108,6 +146,13 @@ function PersistentSidebarShell({ children }: { children: React.ReactNode }) {
     },
     [router],
   );
+
+  // Studietid-sporing: send heartbeat hvert 60s mens bruker er aktiv. Type utledes
+  // fra rute + aktiv visning slik at /study-stats/today kan vise per-seksjon breakdown
+  // senere. Kun når bruker er bekreftet autentisert for å unngå 401-støy.
+  const activityType = deriveActivityType(pathname, aktivVisning);
+  const trackerEnabled = !!clerkUserId && !isLoggingOut && megQuery.isSuccess;
+  useActivityTracker(activityType, trackerEnabled);
 
   // Ved utlogging: vis full-screen lastespinner uten sidebar
   if (isLoggingOut) {

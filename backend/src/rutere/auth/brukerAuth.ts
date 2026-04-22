@@ -61,10 +61,16 @@ import {
 import {
   rateLimitToken,
   rateLimitMe,
+  rateLimitActivity,
   rateLimitAccountDeletion,
   rateLimitUsernameCheck,
   createRateLimiter,
 } from "../../middleware/rate-limit.js";
+import {
+  ActivityHeartbeatRequestSchema,
+  ActivityHeartbeatResponseSchema,
+  ACTIVITY_IDLE_THRESHOLD_MS,
+} from "common/activity";
 import { noCache } from "../../middleware/no-cache.js";
 import { requireRecentAuth } from "../../middleware/auth.js";
 import {
@@ -1381,6 +1387,66 @@ router.delete("/account", requireRecentAuth, rateLimitAccountDeletion, async (re
   }
 });
 
+// ─── Aktivitets-heartbeat ───────────────────────────────────────────
+/**
+ * POST /api/user/activity/heartbeat
+ * Mottar 60-sekunders heartbeats fra frontend mens brukeren er aktiv i appen.
+ * Forlenger siste åpne intervall hvis gapet er < ACTIVITY_IDLE_THRESHOLD_MS og
+ * typen er den samme; ellers startes et nytt intervall. Gir én skriving per
+ * heartbeat (update eller insert).
+ */
+router.post("/activity/heartbeat", rateLimitActivity, async (req: Request, res: Response) => {
+  try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
+    const parsed = ActivityHeartbeatRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return sendZodError(res, parsed.error);
+    }
+    const { type } = parsed.data;
+
+    const { ActivityLog } = await import("../../database/models/ActivityLog.js");
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+    const now = new Date();
+    const idleCutoff = new Date(now.getTime() - ACTIVITY_IDLE_THRESHOLD_MS);
+
+    // Atomisk forleng åpen økt av samme type (race-safe mot flere faner/retries).
+    // findOneAndUpdate returnerer null hvis ingen slik økt finnes.
+    const extended = await ActivityLog.findOneAndUpdate(
+      { user: userObjectId, type, end: { $gte: idleCutoff } },
+      { $set: { end: now } },
+      { sort: { end: -1 }, new: true },
+    );
+
+    if (!extended) {
+      // Bruker er ikke i en åpen økt av denne typen. Lukk eventuelle åpne økter av
+      // annen type først (sett end = now) slik at det ikke blir et gap mellom gammel
+      // og ny type i studietid-beregningen. Deretter start en ny økt for current type.
+      //
+      // Multi-tab-merknad: hvis brukeren har to faner åpne i forskjellige seksjoner
+      // (f.eks. fane A = chat, fane B = oversikt), vil fane Bs heartbeat lukke fane As
+      // åpne økt og omvendt. Fane A åpner en ny økt ved neste tick. Total aktiv tid
+      // forblir korrekt (merge-algoritmen dedupliserer overlappende intervaller),
+      // men per-type-oppdeling blir unøyaktig hvis den eksponeres senere.
+      await ActivityLog.updateMany(
+        { user: userObjectId, type: { $ne: type }, end: { $gte: idleCutoff } },
+        { $set: { end: now } },
+      );
+      await ActivityLog.create({
+        user: userObjectId,
+        type,
+        start: now,
+        end: now,
+      });
+    }
+
+    return res.json(ActivityHeartbeatResponseSchema.parse({ ok: true }));
+  } catch (error) {
+    sendUnknownError(res, error, { kontekst: "activity-heartbeat" });
+  }
+});
+
 // ─── Studiestatistikk ───────────────────────────────────────────────
 
 /**
@@ -1399,27 +1465,25 @@ router.get("/study-stats/today", rateLimitMe, async (req: Request, res: Response
     const { Arbeidsplan } = await import("../../database/models/arbeidsplan.js");
     const { TaskBreakdown } = await import("../../database/models/TaskBreakdown.js");
     const { StudyContext } = await import("../../database/models/StudyContext.js");
-    const { getIsoWeekInfo, parseTimerStreng } = await import("common/dateUtils");
+    const { ActivityLog } = await import("../../database/models/ActivityLog.js");
+    const { getIsoWeekInfo } = await import("common/dateUtils");
 
     // Kjør alle queries parallelt for best ytelse
-    const [chatCount, chatActivityTimestamps, taskResult, studyContextResult, arbeidsplan] = await Promise.all([
+    const [chatCount, chatActivityTimestamps, taskResult, studyContextResult, arbeidsplan, activityIntervals] = await Promise.all([
       // Antall KI-samtaler opprettet eller oppdatert i dag
       ChatHistory.countDocuments({
         user: new mongoose.Types.ObjectId(userId),
         updatedAt: { $gte: todayStart },
       }),
 
-      // Tidsstempler for chat-aktivitet i dag — brukes til å estimere faktisk tid brukt
-      // (createdAt + updatedAt fanger både opprettelse og siste oppdatering)
+      // Tidsstempler for chat-aktivitet i dag — beregnAktivTimer leser kun
+      // updatedAt (og lager en 2-min markør), så vi henter bare det feltet.
       ChatHistory.find(
         {
           user: new mongoose.Types.ObjectId(userId),
-          $or: [
-            { updatedAt: { $gte: todayStart } },
-            { createdAt: { $gte: todayStart } },
-          ],
+          updatedAt: { $gte: todayStart },
         },
-        { createdAt: 1, updatedAt: 1 },
+        { updatedAt: 1 },
       ).lean(),
 
       // Antall subtasks fullført i dag (basert på per-subtask completedAt)
@@ -1448,54 +1512,42 @@ router.get("/study-stats/today", rateLimitMe, async (req: Request, res: Response
         const { weekNumber, weekYear } = getIsoWeekInfo(now);
         return Arbeidsplan.findOne({ userId, year: weekYear, weekNumber });
       })(),
+
+      // Aktivitetsintervaller fra heartbeats i dag (dashboard/kalender/canvas/osv.)
+      ActivityLog.find(
+        {
+          user: new mongoose.Types.ObjectId(userId),
+          end: { $gte: todayStart },
+        },
+        { start: 1, end: 1 },
+      ).lean(),
     ]);
 
-    // Beregn fullførte studieblokker og timer i dag
+    // Tell fullførte studieblokker (vises som egen metrikk #3). Blokk-varighet tas
+    // bevisst IKKE med i "Aktiv tid"-beregningen — "Aktiv tid" skal reflektere faktisk
+    // målt tilstedeværelse i appen (chat + heartbeats), ikke selvrapportert blokk-
+    // varighet. Ellers kunne en bruker få timer med "aktiv tid" bare ved å markere
+    // planlagte blokker som fullført uten å ha vært i appen.
     let studyBlocksCompleted = 0;
-    let studyHoursCompleted = 0;
     if (arbeidsplan) {
       const todayBlocks = arbeidsplan.blocks.filter(
         (b) => b.completed && b.completedAt && b.completedAt >= todayStart,
       );
       studyBlocksCompleted = todayBlocks.length;
-      studyHoursCompleted =
-        todayBlocks.reduce((sum, b) => sum + parseTimerStreng(b.duration), 0);
     }
 
-    // Estimer aktiv tid brukt på KI-chat i dag basert på createdAt/updatedAt-spor.
-    // Behandler hvert chat-dokument som en aktivitetsperiode mellom createdAt og updatedAt
-    // (klippet til dagens start), og slår sammen overlappende perioder for å unngå dobbelttelling.
-    // Et minimum på 2 minutter per chat sikrer at korte samtaler også teller.
-    interface AktivitetsPeriode { start: number; slutt: number; }
-    const perioder: AktivitetsPeriode[] = [];
-    for (const c of chatActivityTimestamps as Array<{ createdAt?: Date; updatedAt?: Date }>) {
-      const created = c.createdAt ? new Date(c.createdAt).getTime() : null;
-      const updated = c.updatedAt ? new Date(c.updatedAt).getTime() : null;
-      if (!updated) continue;
-      const sluttTs = updated;
-      const startTs = Math.max(
-        created ?? sluttTs - 2 * 60_000,
-        todayStart.getTime(),
-      );
-      if (sluttTs <= startTs) {
-        perioder.push({ start: sluttTs - 2 * 60_000, slutt: sluttTs });
-      } else {
-        perioder.push({ start: startTs, slutt: sluttTs });
-      }
-    }
-    // Slå sammen overlappende perioder
-    perioder.sort((a, b) => a.start - b.start);
-    const slatt: AktivitetsPeriode[] = [];
-    for (const p of perioder) {
-      const sist = slatt[slatt.length - 1];
-      if (sist && p.start <= sist.slutt) {
-        sist.slutt = Math.max(sist.slutt, p.slutt);
-      } else {
-        slatt.push({ ...p });
-      }
-    }
-    const chatTimer = slatt.reduce((sum, p) => sum + (p.slutt - p.start) / 3_600_000, 0);
-    studyHoursCompleted = Math.round((studyHoursCompleted + chatTimer) * 10) / 10;
+    // Estimer aktiv tid i dag basert på to kilder:
+    //   1) ChatHistory.updatedAt — hver oppdatering blir en 2-minutters markør.
+    //      Vi bruker IKKE [createdAt, updatedAt]-spennet fordi det gir timelange
+    //      falske intervaller for gamle samtaler som oppdateres i dag.
+    //   2) ActivityLog-intervaller fra heartbeats.
+    // Overlappende intervaller slås sammen i `beregnAktivTimer`.
+    const { beregnAktivTimer } = await import("../../services/aktivTid.service.js");
+    const studyHoursCompleted = beregnAktivTimer(
+      chatActivityTimestamps as Array<{ updatedAt?: Date }>,
+      activityIntervals as Array<{ start: Date; end: Date }>,
+      todayStart.getTime(),
+    );
 
     return res.json({
       chatSessions: chatCount,

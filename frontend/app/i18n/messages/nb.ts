@@ -499,7 +499,8 @@ export const nbMessages = {
       chatSessions: "KI-samtaler",
       tasksCompleted: "Oppgaver fullført",
       studyBlocks: "Studieøkter",
-      hoursStudied: "Timer studert",
+      activeTime: "Aktiv tid",
+      hoursUnit: "t",
       topicsExplored: "Tema utforsket",
       planProgress: "av ukeplanen fullført",
       noActivity: "Ingen studieaktivitet registrert i dag ennå.",
@@ -1449,6 +1450,13 @@ export const nbMessages = {
       detailsActivity: "Aktivitetstellinger",
       detailsActivityNote:
         "Kun aggregerte tall — ingen chat-innhold, dokumenter, tokens eller Canvas-data eksponeres.",
+      detailsActiveTime: "Aktiv tid",
+      detailsActiveTimeNote:
+        "Målt via heartbeats og chat-intervaller siste 30 dager. Kun tidsstempler — ingen innhold lagres.",
+      activityStats: {
+        hoursLast30d: "Timer siste 30 dager",
+        daysLast30d: "Aktive dager",
+      },
       detailsIntegrations: "Integrasjoner og preferanser",
       detailsLanguage: "Språk",
       detailsTheme: "Tema",

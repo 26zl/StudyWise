@@ -2295,6 +2295,29 @@ function BrukerDetaljModal({
               )}
             </DetaljSeksjon>
 
+            {/* Aktiv tid siste 30 dager (fra heartbeats + chat-intervaller) */}
+            <DetaljSeksjon title={t("admin.users.detailsActiveTime")}>
+              <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                {t("admin.users.detailsActiveTimeNote")}
+              </p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-center dark:border-slate-700 dark:bg-slate-900">
+                  <div className="text-lg font-semibold text-slate-900 dark:text-white">
+                    {formaterTall(data.activity.activeHoursLast30d, language)}{" "}
+                    {t("overview.studyActivity.hoursUnit")}
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                    {t("admin.users.activityStats.hoursLast30d")}
+                  </div>
+                </div>
+                <KountKort
+                  label={t("admin.users.activityStats.daysLast30d")}
+                  value={data.activity.activeDaysLast30d}
+                  language={language}
+                />
+              </div>
+            </DetaljSeksjon>
+
             {/* Aktivitetstellinger (privacy-trygt) */}
             <DetaljSeksjon title={t("admin.users.detailsActivity")}>
               <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">

@@ -74,7 +74,7 @@ export function Sidebar({
     const { isVenstreMenyOpen, lukkVenstreMeny } = useUIStore();
     const [erCanvasUtvidet, settErCanvasUtvidet] = useState(true);
     const handleLoggUt = useLoggUtWithRedirect();
-    const { setSelectedChatId, currentChatId, setCurrentChatId, requestNewChat } = useUIStore();
+    const { setSelectedChatId, currentChatId, setCurrentChatId, setBytterSamtale, requestNewChat } = useUIStore();
     const { runningChatId } = useKIStore();
     const { chats, setChatPinned, setChatTitle, deleteChat } = useChatHistory();
     const pathname = usePathname();
@@ -251,6 +251,9 @@ export function Sidebar({
                 <button
                     type="button"
                     onClick={() => {
+                        if (currentChatId !== chat.id) {
+                            setBytterSamtale(true);
+                        }
                         setSelectedChatId(chat.id);
                         setCurrentChatId(chat.id);
                         handleNavigasjon("chat");

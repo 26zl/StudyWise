@@ -379,6 +379,10 @@ describe("common/admin.ts schemas", () => {
         knowledgeBaseChunks: 0,
         webPushSubscriptions: 1,
       },
+      activity: {
+        activeHoursLast30d: 0,
+        activeDaysLast30d: 0,
+      },
       syncConflictCount: 0,
       recentAuditEntries: [],
       auditFailureCount30d: 0,
