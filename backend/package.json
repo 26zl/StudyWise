@@ -3,7 +3,7 @@
   "description": "StudyWise Backend - Bachelor i IT 2026",
   "type": "module",
   "scripts": {
-    "dev": "NODE_OPTIONS=--use-system-ca tsx watch src/index.ts",
+    "dev": "cross-env NODE_OPTIONS=--use-system-ca tsx watch src/index.ts",
     "prebuild": "tsx scripts/validate-env.ts",
     "build": "tsc",
     "start": "node --use-system-ca dist/index.js",
@@ -69,6 +69,7 @@
     "@types/web-push": "^3.6.4",
     "@typescript-eslint/eslint-plugin": "^8.59.0",
     "@typescript-eslint/parser": "^8.59.0",
+    "cross-env": "^10.1.0",
     "eslint": "^10.2.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-security": "^4.0.0",
